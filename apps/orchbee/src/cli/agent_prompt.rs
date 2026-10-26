@@ -688,17 +688,15 @@ mod active {
                 json!({"matchedConditions":matched.conditions.iter().map(|condition| condition.as_str()).collect::<Vec<_>>(), "timeoutMs":matched.timeout_ms, "observations":matched.observations, "elapsedMs":matched.elapsed_ms, "activityObserved":true}),
             ),
         };
-        let document = json!({"schema":"orchbee.agent.prompt", "version":if cfg!(windows) { 7 } else { 2 }, "source":receipt["source"], "result":{"sessionId":session_id, "submission":receipt, "observation":observation, "wait":wait}});
         #[cfg(windows)]
-        let document = {
-            let mut document = document;
-            document["result"]["matchedChange"] = json!(matched_change);
-            if let Some(client_view) = client_view {
-                document["version"] = json!(8);
-                document["result"]["client"] = client_view;
-            }
-            document
-        };
+        let matched_change = json!(matched_change);
+        #[cfg(not(windows))]
+        let matched_change = json!({"kind":"unsupported"});
+        #[cfg(windows)]
+        let client_view = client_view.unwrap_or(Value::Null);
+        #[cfg(not(windows))]
+        let client_view = json!({"kind":"unsupported"});
+        let document = json!({"schema":"orchbee.agent.prompt", "version":1, "source":receipt["source"], "result":{"sessionId":session_id, "submission":receipt, "observation":observation, "wait":wait,"matchedChange":matched_change,"client":client_view}});
         let encoded = match format {
             OutputFormat::Json => output::encode_document(&document),
             OutputFormat::Text => output::encode_text(&locale.cli_prompt_submitted(

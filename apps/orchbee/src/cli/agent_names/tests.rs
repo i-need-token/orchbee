@@ -59,7 +59,7 @@ fn launch_protocol_and_pending_names_match_published_schemas() {
         let answer = render(&result, OutputFormat::Json, locale);
         let document: Value = serde_json::from_slice(&answer.stdout).unwrap();
         assert!(schema.is_valid(&document), "{document}");
-        assert_eq!(document["version"], 2);
+        assert_eq!(document["version"], 1);
         let answer = render(&result, OutputFormat::Text, locale);
         assert!(
             String::from_utf8(answer.stdout)
@@ -118,7 +118,7 @@ fn semantic_refusals_preserve_the_correlated_owner_and_validate_the_failure_sche
             );
             if operation == "name.assign" && kind == "rejected" {
                 assert_eq!(
-                    document["failure"]["details"]["conflictSessionId"],
+                    document["failure"]["details"]["conflictTarget"]["sessionId"],
                     "incumbent"
                 );
             }

@@ -202,10 +202,10 @@ fn sidebar_configuration_check_projects_profiles_and_defaults_invalid_profiles()
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     let content = "[ui.sidebar.agents]\nrows=[['state_icon','state_text','terminal_title','terminal_title_stripped'],[{token='$issue',fg='#abc',bold=true,rules=[{starts_with='ORCH-',dim=false}]}]]\nrow_gap=1\n[ui.sidebar.agents.rows_by_agent]\nclaude=[['tab','pane']]\n";
     std::fs::write(&config, content).unwrap();
-    let mut doc = document(fixture.run(&["config", "check", "--format=json"]));
+    let doc = document(fixture.run(&["config", "check", "--format=json"]));
     let schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
     validate(&doc, schema);
-    assert_eq!(doc["version"], 14);
+    assert_eq!(doc["version"], 1);
     let profile = orchbee_local_site_runtime::WindowsAgentSidebarSettings::from_profile(
         doc["result"]["checks"][5]["details"]["agentSidebarProfile"]
             .as_str()
@@ -217,33 +217,6 @@ fn sidebar_configuration_check_projects_profiles_and_defaults_invalid_profiles()
         profile.rows_for_agent("claude", None).unwrap()[0][0].name(),
         "tab"
     );
-    for key in [
-        "notificationAgentDelivery",
-        "notificationDelaySeconds",
-        "notificationSoundEnabled",
-        "notificationAgentSounds",
-        "diagnostics",
-        "diagnosticsOmitted",
-        "themeName",
-    ] {
-        doc["result"]["checks"][5]["details"]
-            .as_object_mut()
-            .unwrap()
-            .remove(key);
-    }
-    doc["result"]["checks"][5]["details"]
-        .as_object_mut()
-        .unwrap()
-        .remove("spacesSidebarProfile");
-    doc["version"] = 9.into();
-    let validator =
-        jsonschema::validator_for(&serde_json::from_str::<Value>(schema).unwrap()).unwrap();
-    assert!(!validator.is_valid(&doc));
-    doc["result"]["checks"][5]["details"]
-        .as_object_mut()
-        .unwrap()
-        .remove("agentSidebarProfile");
-    assert!(validator.is_valid(&doc));
     assert_eq!(std::fs::read_to_string(&config).unwrap(), content);
     for (token, reason) in [
         ("terminal_title_typo", "invalid-token"),
@@ -295,7 +268,7 @@ fn config_check_document(fixture: &Fixture) -> Value {
         &document,
         include_str!("../src/cli/schemas/orchbee.config.check.json"),
     );
-    assert_eq!(document["version"], 14);
+    assert_eq!(document["version"], 1);
     document
 }
 
@@ -434,7 +407,7 @@ fn file_level_or_missing_explicit_configuration_stops_every_creation_before_ipc(
         assert_eq!(checked.status.code(), Some(1));
         let checked = document(checked);
         validate(&checked, check_schema);
-        assert_eq!(checked["version"], 14);
+        assert_eq!(checked["version"], 1);
         assert_eq!(checked["result"]["ok"], false);
         assert_eq!(checked["result"]["checks"][5]["status"], "fail");
         assert_eq!(
@@ -625,12 +598,6 @@ fn field_errors_warn_default_or_disable_only_the_affected_setting() {
             0
         );
         assert!(!checked.to_string().contains("DO-NOT-ECHO"));
-        let mut old = checked.clone();
-        old["version"] = 12.into();
-        let schema: Value =
-            serde_json::from_str(include_str!("../src/cli/schemas/orchbee.config.check.json"))
-                .unwrap();
-        assert!(!jsonschema::validator_for(&schema).unwrap().is_valid(&old));
         assert_creation_reaches_missing_site(&fixture);
         assert_eq!(std::fs::read_to_string(&config).unwrap(), text);
     }
@@ -669,75 +636,6 @@ fn config_check_reports_the_actual_file_without_creating_it() {
     let schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
     let doc = document(fixture.run(&["config", "check", "--format=json"]));
     validate(&doc, schema);
-    let validator =
-        jsonschema::validator_for(&serde_json::from_str::<Value>(schema).unwrap()).unwrap();
-    let mut old = doc.clone();
-    old["version"] = json!(1);
-    assert!(!validator.is_valid(&old), "v1 cannot contain a sixth check");
-    old["result"]["checks"].as_array_mut().unwrap().pop();
-    assert!(
-        validator.is_valid(&old),
-        "legacy five-check v1 remains valid"
-    );
-    old["version"] = json!(2);
-    assert!(
-        !validator.is_valid(&old),
-        "v2 must not silently omit user configuration"
-    );
-    assert_eq!(doc["version"], 14);
-    assert_eq!(doc["result"]["checks"][5]["details"]["defaultShell"], "");
-    assert_eq!(doc["result"]["checks"][5]["details"]["shellMode"], "auto");
-    assert_eq!(doc["result"]["checks"][5]["details"]["manifestCheck"], true);
-    assert_eq!(
-        doc["result"]["checks"][5]["details"]["manifestCheckSource"],
-        "default"
-    );
-    assert_eq!(doc["result"]["checks"][5]["details"]["exists"], false);
-    assert!(!config.exists());
-    std::fs::create_dir_all(config.parent().unwrap()).unwrap();
-    std::fs::write(
-        &config,
-        "[terminal]\nnew_cwd='home'\ndefault_shell='pwsh.exe'\nshell_mode='login'\n[worktrees]\ndirectory='../trees'\n[update]\nmanifest_check=false",
-    )
-    .unwrap();
-    let doc = document(fixture.run(&["config", "check", "--format=json"]));
-    validate(&doc, schema);
-    let check = &doc["result"]["checks"][5];
-    assert_eq!(check["status"], "pass");
-    assert_eq!(check["details"]["newCwd"], "home");
-    assert_eq!(check["details"]["defaultShell"], "pwsh.exe");
-    assert_eq!(check["details"]["shellMode"], "login");
-    let mut old = doc.clone();
-    old["version"] = json!(4);
-    assert!(
-        !validator.is_valid(&old),
-        "old config checks cannot carry shell policy"
-    );
-    for key in [
-        "defaultShell",
-        "shellMode",
-        "keyPrefix",
-        "keyOverrides",
-        "windowTitle",
-        "windowTitleDiagnostic",
-        "notificationDelivery",
-        "notificationAgentDelivery",
-        "notificationDelaySeconds",
-        "notificationSoundEnabled",
-        "notificationAgentSounds",
-        "notificationPosition",
-        "agentSidebarProfile",
-        "spacesSidebarProfile",
-        "diagnostics",
-        "diagnosticsOmitted",
-        "themeName",
-    ] {
-        old["result"]["checks"][5]["details"]
-            .as_object_mut()
-            .unwrap()
-            .remove(key);
-    }
-    assert!(validator.is_valid(&old));
     assert_eq!(check["details"]["manifestCheck"], false);
     assert_eq!(check["details"]["manifestCheckSource"], "file");
     assert_eq!(
@@ -754,7 +652,7 @@ fn config_check_reports_the_actual_file_without_creating_it() {
 }
 
 #[test]
-fn config_check_validates_keys_and_keeps_previous_envelopes_closed() {
+fn config_check_validates_current_key_policy() {
     let fixture = Fixture::new();
     let config = fixture.0.join("appdata/Orchbee/config.toml");
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
@@ -763,41 +661,11 @@ fn config_check_validates_keys_and_keeps_previous_envelopes_closed() {
         "[keys]\nprefix='ctrl+a'\nhelp=['prefix+?', 'f1']\nswitch_tab='alt+1..9'\nnew_tab=[]",
     )
     .unwrap();
-    let schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
-    let validator =
-        jsonschema::validator_for(&serde_json::from_str::<Value>(schema).unwrap()).unwrap();
     let doc = config_check_document(&fixture);
     assert_eq!(doc["result"]["checks"][5]["status"], "warning");
     assert_eq!(doc["result"]["checks"][5]["details"]["keyPrefix"], "Ctrl+A");
     assert_eq!(doc["result"]["checks"][5]["details"]["keyOverrides"], 3);
     assert_warning_diagnostic(&doc, "keys.new_tab", "invalid-binding", "disabled");
-    let mut old = doc;
-    old["version"] = json!(5);
-    assert!(!validator.is_valid(&old));
-    for key in [
-        "keyPrefix",
-        "keyOverrides",
-        "windowTitle",
-        "windowTitleDiagnostic",
-        "notificationDelivery",
-        "notificationAgentDelivery",
-        "notificationDelaySeconds",
-        "notificationSoundEnabled",
-        "notificationAgentSounds",
-        "notificationPosition",
-        "agentSidebarProfile",
-        "spacesSidebarProfile",
-        "diagnostics",
-        "diagnosticsOmitted",
-        "themeName",
-    ] {
-        old["result"]["checks"][5]["details"]
-            .as_object_mut()
-            .unwrap()
-            .remove(key);
-    }
-    old["result"]["checks"][5]["status"] = json!("pass");
-    assert!(validator.is_valid(&old));
     std::fs::write(&config, "[keys]\nhelp='ctrl+c'").unwrap();
     let doc = config_check_document(&fixture);
     assert_warning_diagnostic(&doc, "keys.help", "unsafe-binding", "disabled");
@@ -1117,13 +985,10 @@ fn reset_keys_real_windows_cli_refuses_bad_input_before_writing() {
 }
 
 #[test]
-fn config_check_window_title_diagnostics_and_closed_previous_versions() {
+fn config_check_window_title_diagnostics() {
     let fixture = Fixture::new();
     let config = fixture.0.join("appdata/Orchbee/config.toml");
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
-    let schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
-    let validator =
-        jsonschema::validator_for(&serde_json::from_str::<Value>(schema).unwrap()).unwrap();
     let default = orchbee_local_site_runtime::DEFAULT_WINDOW_TITLE;
     for (title, effective, diagnostic) in [
         ("", "", None),
@@ -1140,30 +1005,6 @@ fn config_check_window_title_diagnostics_and_closed_previous_versions() {
             assert_warning_diagnostic(&doc, "ui.window_title", diagnostic, "defaulted");
         } else {
             assert_eq!(check["status"], "pass");
-            let mut old = doc.clone();
-            old["version"] = json!(6);
-            assert!(!validator.is_valid(&old));
-            for key in [
-                "windowTitle",
-                "windowTitleDiagnostic",
-                "notificationDelivery",
-                "notificationAgentDelivery",
-                "notificationDelaySeconds",
-                "notificationSoundEnabled",
-                "notificationAgentSounds",
-                "notificationPosition",
-                "agentSidebarProfile",
-                "spacesSidebarProfile",
-                "diagnostics",
-                "diagnosticsOmitted",
-                "themeName",
-            ] {
-                old["result"]["checks"][5]["details"]
-                    .as_object_mut()
-                    .unwrap()
-                    .remove(key);
-            }
-            assert!(validator.is_valid(&old));
         }
     }
     std::fs::write(&config, "[ui]\nwindow_title=false").unwrap();
@@ -1213,30 +1054,6 @@ fn config_check_notification_policy_validates_actual_file_and_closed_versions() 
         doc["result"]["checks"][5]["details"]["notificationAgentSounds"],
         json!({"codex":"off", "pi":"on"})
     );
-    let validator =
-        jsonschema::validator_for(&serde_json::from_str::<Value>(schema).unwrap()).unwrap();
-    let mut old = doc;
-    old["version"] = json!(7);
-    assert!(!validator.is_valid(&old));
-    for name in [
-        "notificationDelivery",
-        "notificationAgentDelivery",
-        "notificationDelaySeconds",
-        "notificationSoundEnabled",
-        "notificationAgentSounds",
-        "notificationPosition",
-        "agentSidebarProfile",
-        "spacesSidebarProfile",
-        "diagnostics",
-        "diagnosticsOmitted",
-        "themeName",
-    ] {
-        old["result"]["checks"][5]["details"]
-            .as_object_mut()
-            .unwrap()
-            .remove(name);
-    }
-    assert!(validator.is_valid(&old));
     for (text, field, reason, detail, expected) in [
         (
             "[ui.toast]\ndelivery='bad'",
@@ -1268,10 +1085,10 @@ fn workspace_sidebar_configuration_has_separate_profiles_and_defaults_invalid_pr
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     let text = "[ui.sidebar.spaces]\nrows=[['state_icon','workspace'],[{token='branch',fg='#abc',rules=[{starts_with='worktree/',bold=true}]},'git_status','$branch']]\nrow_gap=2\n[ui.sidebar.agents]\nrows=[['agent']]";
     std::fs::write(&config, text).unwrap();
-    let mut doc = document(fixture.run(&["config", "check", "--format=json"]));
+    let doc = document(fixture.run(&["config", "check", "--format=json"]));
     let schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
     validate(&doc, schema);
-    assert_eq!(doc["version"], 14);
+    assert_eq!(doc["version"], 1);
     let details = &doc["result"]["checks"][5]["details"];
     let profile = orchbee_local_site_runtime::WindowsSpaceSidebarSettings::from_profile(
         details["spacesSidebarProfile"].as_str().unwrap(),
@@ -1280,29 +1097,6 @@ fn workspace_sidebar_configuration_has_separate_profiles_and_defaults_invalid_pr
     assert_eq!(profile.row_gap(), 2);
     assert!(profile.needs_git());
     assert_eq!(profile.rows()[1][2].name(), "$branch");
-    for key in [
-        "notificationAgentDelivery",
-        "notificationDelaySeconds",
-        "notificationSoundEnabled",
-        "notificationAgentSounds",
-        "diagnostics",
-        "diagnosticsOmitted",
-        "themeName",
-    ] {
-        doc["result"]["checks"][5]["details"]
-            .as_object_mut()
-            .unwrap()
-            .remove(key);
-    }
-    doc["version"] = 10.into();
-    let validator =
-        jsonschema::validator_for(&serde_json::from_str::<Value>(schema).unwrap()).unwrap();
-    assert!(!validator.is_valid(&doc));
-    doc["result"]["checks"][5]["details"]
-        .as_object_mut()
-        .unwrap()
-        .remove("spacesSidebarProfile");
-    assert!(validator.is_valid(&doc));
     assert_eq!(std::fs::read_to_string(&config).unwrap(), text);
     for (invalid, field, reason, disposition) in [
         (

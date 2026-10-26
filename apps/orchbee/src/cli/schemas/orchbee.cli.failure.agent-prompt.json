@@ -10,7 +10,7 @@
 			"const": "orchbee.cli.failure.agent-prompt"
 		},
 		"version": {
-			"enum": [1, 2]
+			"const": 1
 		},
 		"source": {
 			"oneOf": [
@@ -54,6 +54,7 @@
 			"pattern": "^[0-9A-Za-z._:-]{1,128}$"
 		},
 		"sendReceipt": {
+			"title": "orchbee terminal send result envelope",
 			"type": "object",
 			"required": ["schema", "version", "source", "result"],
 			"additionalProperties": false,
@@ -65,7 +66,7 @@
 					"const": 1
 				},
 				"source": {
-					"$ref": "#/$defs/sendSource"
+					"$ref": "#/$defs/sendReceipt/$defs/sendSource"
 				},
 				"result": {
 					"type": "object",
@@ -89,16 +90,16 @@
 							"const": "terminal.send"
 						},
 						"requestId": {
-							"$ref": "#/$defs/id"
+							"$ref": "#/$defs/sendReceipt/$defs/id"
 						},
 						"siteId": {
-							"$ref": "#/$defs/id"
+							"$ref": "#/$defs/sendReceipt/$defs/id"
 						},
 						"workerId": {
-							"$ref": "#/$defs/id"
+							"$ref": "#/$defs/sendReceipt/$defs/id"
 						},
 						"terminalId": {
-							"$ref": "#/$defs/id"
+							"$ref": "#/$defs/sendReceipt/$defs/id"
 						},
 						"payloadKind": {
 							"enum": ["text", "key", "bytes", "paste", "sequence"]
@@ -142,10 +143,10 @@
 									"pattern": "^[1-9][0-9]*$"
 								},
 								"hostEpoch": {
-									"$ref": "#/$defs/id"
+									"$ref": "#/$defs/sendReceipt/$defs/id"
 								},
 								"hostTerminalId": {
-									"$ref": "#/$defs/id"
+									"$ref": "#/$defs/sendReceipt/$defs/id"
 								}
 							}
 						},
@@ -170,20 +171,18 @@
 							"maximum": 67108864
 						}
 					},
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"inputStatus": {
-										"enum": ["not-submitted", "rejected", "partial-accepted"]
-									}
-								},
-								"required": ["inputStatus"]
-							},
-							"then": {
-								"required": ["reason"]
+					"if": {
+						"properties": {
+							"inputStatus": {
+								"enum": ["not-submitted", "rejected", "partial-accepted"]
 							}
 						},
+						"required": ["inputStatus"]
+					},
+					"then": {
+						"required": ["reason"]
+					},
+					"allOf": [
 						{
 							"if": {
 								"properties": {
@@ -279,6 +278,32 @@
 							}
 						}
 					]
+				}
+			},
+			"$defs": {
+				"id": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$"
+				},
+				"sendSource": {
+					"type": "object",
+					"required": ["kind", "siteId", "requestId", "snapshotRevision"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "terminal.send"
+						},
+						"siteId": {
+							"$ref": "#/$defs/sendReceipt/$defs/id"
+						},
+						"requestId": {
+							"$ref": "#/$defs/sendReceipt/$defs/id"
+						},
+						"snapshotRevision": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]*)$"
+						}
+					}
 				}
 			}
 		},
@@ -461,33 +486,35 @@
 			}
 		}
 	},
-	"allOf": [
-		{
-			"if": {
+	"if": {
+		"properties": {
+			"failure": {
 				"properties": {
-					"version": {
-						"const": 2
+					"details": {
+						"required": ["target"]
 					}
-				}
+				},
+				"required": ["details"]
+			}
+		},
+		"required": ["failure"]
+	},
+	"then": {
+		"required": ["source"],
+		"properties": {
+			"failure": {
+				"$ref": "#/$defs/terminalFailure"
 			},
-			"then": {
-				"required": ["source"],
-				"properties": {
-					"failure": {
-						"$ref": "#/$defs/terminalFailure"
-					},
-					"source": {
-						"$ref": "#/$defs/sendSource"
-					}
-				}
-			},
-			"else": {
-				"properties": {
-					"failure": {
-						"$ref": "#/$defs/canonicalFailure"
-					}
-				}
+			"source": {
+				"$ref": "#/$defs/sendSource"
 			}
 		}
-	]
+	},
+	"else": {
+		"properties": {
+			"failure": {
+				"$ref": "#/$defs/canonicalFailure"
+			}
+		}
+	}
 }

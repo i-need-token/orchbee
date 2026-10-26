@@ -907,7 +907,7 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
     let terminals = documents[11]["result"]["terminals"].as_array().unwrap();
     assert_eq!(terminals.len(), 2);
     let get = &documents[12];
-    assert_eq!(get["version"], 4);
+    assert_eq!(get["version"], 1);
     assert_eq!(
         get["source"],
         serde_json::json!({
@@ -1334,7 +1334,6 @@ fn emitted_documents_validate_and_rejected_variants_fail() -> TestResult {
     for variant in [
         serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"denied"},"source":{"kind":"embedded"}}),
         serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"check-failed","details":{"stage":"runtime-base"}},"source":{"kind":"local-runtime"}}),
-        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"check-failed","details":{"stage":"platform","reason":"unsupported-platform"}},"source":{"kind":"local-runtime"}}),
         serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"service-unavailable","details":{"stage":"discovery"}},"source":{"kind":"embedded"}}),
         serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"service-unavailable","details":{"stage":"platform","reason":"unsupported-platform"}},"source":{"kind":"local-runtime"}}),
         serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"connection-capacity","details":{"stage":"admission"}},"source":{"kind":"embedded"}}),
@@ -3545,7 +3544,7 @@ fn terminal_read_observes_a_bound_terminal() -> TestResult {
     );
     let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
     assert_eq!(document["schema"], "orchbee.terminal.output");
-    assert_eq!(document["version"], 3);
+    assert_eq!(document["version"], 1);
     assert_eq!(document["source"]["kind"], "workbench-snapshot");
     assert_eq!(document["source"]["revision"], "7");
     assert_eq!(document["result"]["terminal"]["terminalId"], TERMINAL_ID);
@@ -6163,7 +6162,7 @@ fn api_schema_catalog_is_closed_and_self_consistent() -> TestResult {
     assert_eq!(listed["source"]["kind"], "embedded");
     assert!(api_schema.is_valid(&listed), "listing self-validates");
     let schemas = listed["result"]["schemas"].as_object().unwrap();
-    assert_eq!(schemas.len(), 126, "closed dictionary has 126 members");
+    assert_eq!(schemas.len(), 124, "closed dictionary has 124 members");
     assert!(
         schemas.contains_key("orchbee.project.rename"),
         "the rename receipt schema is registered"
@@ -6195,7 +6194,6 @@ fn api_schema_catalog_is_closed_and_self_consistent() -> TestResult {
         "orchbee.cli.failure.agent-names",
         "orchbee.agent.doctor",
         "orchbee.site.diagnose",
-        "orchbee.site.diagnose.windows",
         "orchbee.site.stop",
         "orchbee.launch-profile.list",
         "orchbee.launch-profile.get",
@@ -6218,45 +6216,6 @@ fn api_schema_catalog_is_closed_and_self_consistent() -> TestResult {
             "embedded document $id matches its registry key"
         );
     }
-    // Older envelope shapes are refused — the bump is a real version, not a
-    // silent in-place edit.
-    for stale_version in [
-        serde_json::json!(1),
-        serde_json::json!(2),
-        serde_json::json!(3),
-        serde_json::json!(4),
-        serde_json::json!(5),
-        serde_json::json!(6),
-        serde_json::json!(7),
-        serde_json::json!(8),
-        serde_json::json!(9),
-        serde_json::json!(10),
-        serde_json::json!(11),
-        serde_json::json!(12),
-        serde_json::json!(13),
-        serde_json::json!(14),
-        serde_json::json!(15),
-        serde_json::json!(16),
-        serde_json::json!(17),
-        serde_json::json!(18),
-        serde_json::json!(19),
-        serde_json::json!(20),
-        serde_json::json!(21),
-        serde_json::json!(22),
-        serde_json::json!(23),
-        serde_json::json!(24),
-        serde_json::json!(25),
-        serde_json::json!(26),
-        serde_json::json!(142),
-    ] {
-        let mut stale = listed.clone();
-        stale["version"] = stale_version.clone();
-        assert!(
-            !api_schema.is_valid(&stale),
-            "stale catalog {stale_version} fails under the current schema"
-        );
-    }
-
     // Offline named retrieval is locale-neutral: the same build answers the
     // identical document under en-US and zh-CN.
     let argv = [
@@ -6275,7 +6234,7 @@ fn api_schema_catalog_is_closed_and_self_consistent() -> TestResult {
         "embedded schema retrieval is locale-neutral"
     );
     let named: serde_json::Value = serde_json::from_slice(&english.stdout)?;
-    assert_eq!(named["version"], 153);
+    assert_eq!(named["version"], 1);
     assert_eq!(
         named["result"]["schema"]["schemaId"],
         "orchbee.project.rename"
@@ -6334,7 +6293,7 @@ fn worktree_list_schemas_pin_document_and_failure_shapes() -> TestResult {
     });
     let document = serde_json::json!({
         "schema": "orchbee.worktree.list",
-        "version": 2,
+        "version": 1,
         "source": source,
         "result": {
 

@@ -2,7 +2,7 @@ use super::super::{Budget, fs, probes};
 use std::{ffi::OsStr, path::Path};
 
 #[test]
-fn all_windows_provider_rows_fit_v6_without_widening_legacy_versions() {
+fn all_windows_provider_rows_fit_the_current_bounded_schema() {
     use serde_json::{Value, json};
     let run = super::super::DoctorRun {
         providers: probes::PROVIDERS
@@ -31,14 +31,6 @@ fn all_windows_provider_rows_fit_v6_without_widening_legacy_versions() {
         serde_json::from_str(include_str!("../../cli/schemas/orchbee.agent.doctor.json")).unwrap();
     let validator = jsonschema::validator_for(&definition).unwrap();
     validator.validate(&document).unwrap();
-    document["version"] = 3.into();
-    assert!(!validator.is_valid(&document));
-    document["result"]["providers"]
-        .as_array_mut()
-        .unwrap()
-        .truncate(14);
-    validator.validate(&document).unwrap();
-    document["version"] = 4.into();
     let row = document["result"]["providers"][0].clone();
     document["result"]["providers"] = json!(vec![row; 21]);
     assert!(!validator.is_valid(&document));

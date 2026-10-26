@@ -105,7 +105,6 @@ pub(in crate::cli) fn read(
 
 pub(in crate::cli) fn failure(kind: FailureKind, reason: &'static str) -> Failure {
     Failure::new(kind)
-        .version(4)
         .failure_schema(crate::cli::schema::AGENT_FAILURE_ID)
         .details(crate::cli::stage_reason_details("agent-terminal", reason))
 }

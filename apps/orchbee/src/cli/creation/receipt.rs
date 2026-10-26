@@ -62,29 +62,17 @@ impl Receipt {
     pub(super) fn document(&self) -> Value {
         let mut document = self.canonical.document();
         document["schema"] = json!("orchbee.creation.result");
-        document["version"] = json!(if self.requested_overlay {
-            5
-        } else if self.requested_zoom {
-            4
-        } else {
-            3
-        });
+        document["version"] = json!(1);
         document["directory"] = self.directory.document();
         document["postCreate"] = json!({
             "clientId":self.client_id,
-            "requested":{"ratio":self.requested_ratio,"focus":self.requested_focus},
+            "requested":{"ratio":self.requested_ratio,"focus":self.requested_focus,"zoom":self.requested_zoom,"overlay":self.requested_overlay},
             "ratio":self.ratio.as_ref().map(Answer::document),
             "focus":self.focus.as_ref().map(Answer::document),
             "stage":self.stage,
             "failure":self.failure.map(FailureKind::as_str),
             "outcome":if !self.complete() { "incomplete" } else if self.requested_ratio.is_none() && !self.requested_focus { "not-requested" } else { "completed" },
         });
-        if self.requested_zoom {
-            document["postCreate"]["requested"]["zoom"] = json!(true);
-        }
-        if self.requested_overlay {
-            document["postCreate"]["requested"]["overlay"] = json!(true);
-        }
         document
     }
     pub(super) fn emit(&self, format: OutputFormat, locale: Locale) -> Output {

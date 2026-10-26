@@ -122,7 +122,7 @@ fn process_info_machine_contract_preserves_precision_nulls_and_escapes_text() {
     ))
     .unwrap();
     let validator = jsonschema::draft202012::new(&schema).unwrap();
-    let document = json!({"schema":"orchbee.panel.process-info","version":2,"source":source,"result":projection.result()});
+    let document = json!({"schema":"orchbee.panel.process-info","version":1,"source":source,"result":projection.result()});
     validator.validate(&document).unwrap();
     assert_eq!(
         document["result"]["processes"][0]["creationTime"],

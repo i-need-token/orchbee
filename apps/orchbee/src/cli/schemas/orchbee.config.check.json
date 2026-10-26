@@ -10,7 +10,7 @@
 			"const": "orchbee.config.check"
 		},
 		"version": {
-			"enum": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+			"const": 1
 		},
 		"source": {
 			"type": "object",
@@ -32,7 +32,7 @@
 				},
 				"checks": {
 					"type": "array",
-					"minItems": 5,
+					"minItems": 6,
 					"maxItems": 6,
 					"prefixItems": [
 						{
@@ -51,45 +51,12 @@
 							"$ref": "#/$defs/socketsCheck"
 						},
 						{
-							"anyOf": [
+							"oneOf": [
 								{
 									"$ref": "#/$defs/userConfigCheck"
 								},
 								{
-									"$ref": "#/$defs/userConfigCheckV3"
-								},
-								{
-									"$ref": "#/$defs/userConfigCheckV4"
-								},
-								{
-									"$ref": "#/$defs/userConfigCheckV5"
-								},
-								{
-									"$ref": "#/$defs/userConfigCheckV6"
-								},
-								{
-									"$ref": "#/$defs/userConfigCheckV7"
-								},
-								{
-									"$ref": "#/$defs/userConfigCheckV8"
-								},
-								{
-									"$ref": "#/$defs/userConfigCheckV9"
-								},
-								{
-									"$ref": "#/$defs/userConfigCheckV10"
-								},
-								{
-									"$ref": "#/$defs/userConfigCheckV11"
-								},
-								{
-									"$ref": "#/$defs/userConfigCheckV12"
-								},
-								{
-									"$ref": "#/$defs/userConfigCheckV13"
-								},
-								{
-									"$ref": "#/$defs/userConfigCheckV14"
+									"$ref": "#/$defs/unsupported"
 								}
 							]
 						}
@@ -97,32 +64,30 @@
 					"items": false
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"checks": {
-								"contains": {
-									"type": "object",
-									"required": ["status"],
-									"properties": {
-										"status": {
-											"const": "fail"
-										}
-									}
+			"if": {
+				"properties": {
+					"checks": {
+						"contains": {
+							"type": "object",
+							"required": ["status"],
+							"properties": {
+								"status": {
+									"const": "fail"
 								}
-							}
-						},
-						"required": ["checks"]
-					},
-					"then": {
-						"properties": {
-							"ok": {
-								"const": false
 							}
 						}
 					}
 				},
+				"required": ["checks"]
+			},
+			"then": {
+				"properties": {
+					"ok": {
+						"const": false
+					}
+				}
+			},
+			"allOf": [
 				{
 					"if": {
 						"properties": {
@@ -153,432 +118,6 @@
 			]
 		}
 	},
-	"allOf": [
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 1
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"properties": {
-							"checks": {
-								"minItems": 5,
-								"maxItems": 5
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 2
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"properties": {
-							"checks": {
-								"minItems": 6,
-								"maxItems": 6,
-								"prefixItems": [
-									true,
-									true,
-									true,
-									true,
-									true,
-									{
-										"$ref": "#/$defs/userConfigCheck"
-									}
-								]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 3
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"properties": {
-							"checks": {
-								"minItems": 6,
-								"maxItems": 6,
-								"prefixItems": [
-									true,
-									true,
-									true,
-									true,
-									true,
-									{
-										"$ref": "#/$defs/userConfigCheckV3"
-									}
-								]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 4
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"properties": {
-							"checks": {
-								"minItems": 6,
-								"maxItems": 6,
-								"prefixItems": [
-									true,
-									true,
-									true,
-									true,
-									true,
-									{
-										"$ref": "#/$defs/userConfigCheckV4"
-									}
-								]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 5
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"properties": {
-							"checks": {
-								"minItems": 6,
-								"maxItems": 6,
-								"prefixItems": [
-									true,
-									true,
-									true,
-									true,
-									true,
-									{
-										"$ref": "#/$defs/userConfigCheckV5"
-									}
-								]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 6
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"properties": {
-							"checks": {
-								"minItems": 6,
-								"maxItems": 6,
-								"prefixItems": [
-									true,
-									true,
-									true,
-									true,
-									true,
-									{
-										"$ref": "#/$defs/userConfigCheckV6"
-									}
-								]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 7
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"properties": {
-							"checks": {
-								"minItems": 6,
-								"maxItems": 6,
-								"prefixItems": [
-									true,
-									true,
-									true,
-									true,
-									true,
-									{
-										"$ref": "#/$defs/userConfigCheckV7"
-									}
-								]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 8
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"properties": {
-							"checks": {
-								"minItems": 6,
-								"maxItems": 6,
-								"prefixItems": [
-									true,
-									true,
-									true,
-									true,
-									true,
-									{
-										"$ref": "#/$defs/userConfigCheckV8"
-									}
-								]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 9
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"properties": {
-							"checks": {
-								"minItems": 6,
-								"maxItems": 6,
-								"prefixItems": [
-									true,
-									true,
-									true,
-									true,
-									true,
-									{
-										"$ref": "#/$defs/userConfigCheckV9"
-									}
-								]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 10
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"properties": {
-							"checks": {
-								"minItems": 6,
-								"maxItems": 6,
-								"prefixItems": [
-									true,
-									true,
-									true,
-									true,
-									true,
-									{
-										"$ref": "#/$defs/userConfigCheckV10"
-									}
-								]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 11
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"properties": {
-							"checks": {
-								"minItems": 6,
-								"maxItems": 6,
-								"prefixItems": [
-									true,
-									true,
-									true,
-									true,
-									true,
-									{
-										"$ref": "#/$defs/userConfigCheckV11"
-									}
-								]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 12
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"properties": {
-							"checks": {
-								"minItems": 6,
-								"maxItems": 6,
-								"prefixItems": [
-									true,
-									true,
-									true,
-									true,
-									true,
-									{
-										"$ref": "#/$defs/userConfigCheckV12"
-									}
-								]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 13
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"properties": {
-							"checks": {
-								"minItems": 6,
-								"maxItems": 6,
-								"prefixItems": [
-									true,
-									true,
-									true,
-									true,
-									true,
-									{
-										"$ref": "#/$defs/userConfigCheckV13"
-									}
-								]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 14
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"properties": {
-							"checks": {
-								"minItems": 6,
-								"maxItems": 6,
-								"prefixItems": [
-									true,
-									true,
-									true,
-									true,
-									true,
-									{
-										"$ref": "#/$defs/userConfigCheckV14"
-									}
-								]
-							}
-						}
-					}
-				}
-			}
-		}
-	],
 	"$defs": {
 		"userConfigCheck": {
 			"type": "object",
@@ -589,65 +128,215 @@
 					"const": "user-config"
 				},
 				"status": {
-					"enum": ["pass", "fail"]
+					"enum": ["pass", "warning", "fail"]
 				},
 				"details": {
 					"type": "object"
 				}
 			},
-			"allOf": [
-				{
-					"if": {
+			"if": {
+				"properties": {
+					"status": {
+						"enum": ["pass", "warning"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"details": {
+						"type": "object",
+						"required": [
+							"path",
+							"exists",
+							"newCwd",
+							"worktreeDirectory",
+							"resumeAgentsOnRestore",
+							"resumeAgentsOnRestoreSource",
+							"manifestCheck",
+							"manifestCheckSource",
+							"defaultShell",
+							"shellMode",
+							"keyPrefix",
+							"keyOverrides",
+							"windowTitle",
+							"windowTitleDiagnostic",
+							"notificationDelivery",
+							"notificationPosition",
+							"agentSidebarProfile",
+							"spacesSidebarProfile",
+							"notificationAgentDelivery",
+							"notificationDelaySeconds",
+							"notificationSoundEnabled",
+							"notificationAgentSounds",
+							"diagnostics",
+							"diagnosticsOmitted",
+							"themeName"
+						],
+						"additionalProperties": false,
 						"properties": {
-							"status": {
-								"const": "pass"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"details": {
+							"path": {
+								"type": ["string", "null"],
+								"minLength": 1,
+								"maxLength": 4096
+							},
+							"exists": {
+								"type": "boolean"
+							},
+							"resumeAgentsOnRestore": {
+								"type": "boolean"
+							},
+							"resumeAgentsOnRestoreSource": {
+								"enum": ["default", "file", "environment"]
+							},
+							"newCwd": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 4096
+							},
+							"worktreeDirectory": {
+								"type": ["string", "null"],
+								"minLength": 1,
+								"maxLength": 4096
+							},
+							"manifestCheck": {
+								"type": "boolean"
+							},
+							"manifestCheckSource": {
+								"enum": ["default", "file"]
+							},
+							"defaultShell": {
+								"type": "string",
+								"maxLength": 4096
+							},
+							"shellMode": {
+								"enum": ["auto", "login", "non_login"]
+							},
+							"keyPrefix": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 128
+							},
+							"keyOverrides": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 37
+							},
+							"windowTitle": {
+								"type": "string",
+								"maxLength": 4096
+							},
+							"windowTitleDiagnostic": {
+								"const": null
+							},
+							"notificationDelivery": {
+								"enum": ["off", "orchbee", "terminal", "system"]
+							},
+							"notificationPosition": {
+								"enum": ["top-left", "top-right", "bottom-left", "bottom-right"]
+							},
+							"agentSidebarProfile": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 32768
+							},
+							"spacesSidebarProfile": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 32768
+							},
+							"notificationAgentDelivery": {
+								"enum": ["off", "orchbee", "terminal", "system"]
+							},
+							"notificationDelaySeconds": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 3600
+							},
+							"notificationSoundEnabled": {
+								"type": "boolean"
+							},
+							"notificationAgentSounds": {
 								"type": "object",
-								"required": ["path", "exists", "newCwd", "worktreeDirectory"],
-								"additionalProperties": false,
-								"properties": {
-									"path": {
-										"type": ["string", "null"],
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"exists": {
-										"type": "boolean"
-									},
-									"newCwd": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"worktreeDirectory": {
-										"type": ["string", "null"],
-										"minLength": 1,
-										"maxLength": 4096
+								"maxProperties": 64,
+								"propertyNames": {
+									"pattern": "^[a-z0-9](?:[a-z0-9.-]{0,62}[a-z0-9])?$"
+								},
+								"additionalProperties": {
+									"enum": ["default", "on", "off"]
+								}
+							},
+							"diagnostics": {
+								"type": "array",
+								"maxItems": 128,
+								"uniqueItems": true,
+								"items": {
+									"type": "object",
+									"required": ["field", "reason", "disposition"],
+									"additionalProperties": false,
+									"properties": {
+										"field": {
+											"type": "string",
+											"minLength": 1,
+											"maxLength": 256,
+											"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+										},
+										"reason": {
+											"type": "string",
+											"minLength": 1,
+											"maxLength": 64,
+											"pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+										},
+										"disposition": {
+											"enum": ["defaulted", "disabled", "ignored"]
+										}
 									}
 								}
+							},
+							"diagnosticsOmitted": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 65536
+							},
+							"themeName": {
+								"enum": ["terminal-native", "one-light", "one-dark"]
 							}
 						}
-					},
-					"else": {
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"details": {
+						"type": "object",
+						"required": ["field", "reason"],
+						"additionalProperties": false,
 						"properties": {
-							"details": {
-								"type": "object",
-								"required": ["field", "reason"],
-								"additionalProperties": false,
+							"field": {
+								"enum": [
+									"file",
+									"ORCHBEE_CONFIG_FILE",
+									"APPDATA",
+									"ORCHBEE_RESUME_AGENTS_ON_RESTORE"
+								]
+							},
+							"reason": {
+								"enum": [
+									"invalid-path",
+									"invalid-boolean",
+									"missing",
+									"io-error",
+									"not-file",
+									"too-large",
+									"invalid-utf8",
+									"invalid-toml"
+								]
+							}
+						},
+						"oneOf": [
+							{
 								"properties": {
 									"field": {
-										"enum": [
-											"file",
-											"ORCHBEE_CONFIG_FILE",
-											"APPDATA",
-											"terminal.new_cwd",
-											"worktrees.directory"
-										]
+										"const": "file"
 									},
 									"reason": {
 										"enum": [
@@ -657,121 +346,88 @@
 											"not-file",
 											"too-large",
 											"invalid-utf8",
-											"invalid-toml",
-											"unknown-key",
-											"wrong-type",
-											"source-query-failed",
-											"source-query-interrupted"
+											"invalid-toml"
 										]
+									}
+								}
+							},
+							{
+								"properties": {
+									"field": {
+										"enum": ["ORCHBEE_CONFIG_FILE", "APPDATA"]
+									},
+									"reason": {
+										"const": "invalid-path"
+									}
+								}
+							},
+							{
+								"properties": {
+									"field": {
+										"const": "ORCHBEE_RESUME_AGENTS_ON_RESTORE"
+									},
+									"reason": {
+										"const": "invalid-boolean"
+									}
+								}
+							}
+						]
+					}
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"const": "pass"
+							}
+						},
+						"required": ["status"]
+					},
+					"then": {
+						"properties": {
+							"details": {
+								"properties": {
+									"diagnostics": {
+										"maxItems": 0
+									},
+									"diagnosticsOmitted": {
+										"const": 0
 									}
 								}
 							}
 						}
 					}
-				}
-			]
-		},
-		"userConfigCheckV3": {
-			"type": "object",
-			"required": ["name", "status", "details"],
-			"additionalProperties": false,
-			"properties": {
-				"name": {
-					"const": "user-config"
 				},
-				"status": {
-					"enum": ["pass", "fail"]
-				},
-				"details": {
-					"type": "object"
-				}
-			},
-			"allOf": [
 				{
 					"if": {
 						"properties": {
 							"status": {
-								"const": "pass"
+								"const": "warning"
 							}
-						}
+						},
+						"required": ["status"]
 					},
 					"then": {
 						"properties": {
 							"details": {
-								"type": "object",
-								"required": [
-									"path",
-									"exists",
-									"newCwd",
-									"worktreeDirectory",
-									"resumeAgentsOnRestore",
-									"resumeAgentsOnRestoreSource"
-								],
-								"additionalProperties": false,
-								"properties": {
-									"path": {
-										"type": ["string", "null"],
-										"minLength": 1,
-										"maxLength": 4096
+								"anyOf": [
+									{
+										"properties": {
+											"diagnostics": {
+												"minItems": 1
+											}
+										}
 									},
-									"exists": {
-										"type": "boolean"
-									},
-									"resumeAgentsOnRestore": {
-										"type": "boolean"
-									},
-									"resumeAgentsOnRestoreSource": {
-										"enum": ["default", "file", "environment"]
-									},
-									"newCwd": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"worktreeDirectory": {
-										"type": ["string", "null"],
-										"minLength": 1,
-										"maxLength": 4096
+									{
+										"properties": {
+											"diagnosticsOmitted": {
+												"minimum": 1
+											}
+										}
 									}
-								}
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": ["field", "reason"],
-								"additionalProperties": false,
-								"properties": {
-									"field": {
-										"enum": [
-											"file",
-											"ORCHBEE_CONFIG_FILE",
-											"APPDATA",
-											"terminal.new_cwd",
-											"worktrees.directory",
-											"session.resume_agents_on_restore",
-											"ORCHBEE_RESUME_AGENTS_ON_RESTORE"
-										]
-									},
-									"reason": {
-										"enum": [
-											"invalid-path",
-											"invalid-boolean",
-											"missing",
-											"io-error",
-											"not-file",
-											"too-large",
-											"invalid-utf8",
-											"invalid-toml",
-											"unknown-key",
-											"wrong-type",
-											"source-query-failed",
-											"source-query-interrupted"
-										]
-									}
-								}
+								]
 							}
 						}
 					}
@@ -815,46 +471,44 @@
 					"type": "object"
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"status": {
-								"const": "pass"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": ["exists"],
-								"additionalProperties": false,
-								"properties": {
-									"path": {
-										"type": "string",
-										"minLength": 1
-									},
-									"pathBytesHex": {
-										"type": "string",
-										"pattern": "^([0-9a-f]{2})+$"
-									},
-									"exists": {
-										"const": true
-									}
-								},
-								"oneOf": [
-									{
-										"required": ["path"]
-									},
-									{
-										"required": ["pathBytesHex"]
-									}
-								]
-							}
-						}
+			"if": {
+				"properties": {
+					"status": {
+						"const": "pass"
 					}
-				},
+				}
+			},
+			"then": {
+				"properties": {
+					"details": {
+						"type": "object",
+						"required": ["exists"],
+						"additionalProperties": false,
+						"properties": {
+							"path": {
+								"type": "string",
+								"minLength": 1
+							},
+							"pathBytesHex": {
+								"type": "string",
+								"pattern": "^([0-9a-f]{2})+$"
+							},
+							"exists": {
+								"const": true
+							}
+						},
+						"oneOf": [
+							{
+								"required": ["path"]
+							},
+							{
+								"required": ["pathBytesHex"]
+							}
+						]
+					}
+				}
+			},
+			"allOf": [
 				{
 					"if": {
 						"properties": {
@@ -869,28 +523,40 @@
 								"type": "object",
 								"additionalProperties": false,
 								"required": ["reason"],
-								"allOf": [
-									{
-										"$ref": "#/$defs/path"
+								"properties": {
+									"path": {
+										"type": "string",
+										"minLength": 1
 									},
-									{
-										"if": {
-											"properties": {
-												"reason": {
-													"const": "absent"
-												}
-											},
-											"required": ["reason"]
-										},
-										"then": {
-											"required": ["exists"],
-											"properties": {
-												"exists": {
-													"const": false
-												}
-											}
+									"pathBytesHex": {
+										"type": "string",
+										"pattern": "^([0-9a-f]{2})+$"
+									},
+									"reason": {
+										"enum": ["absent", "invalid-path", "io-error", "unsafe"]
+									},
+									"exists": {
+										"type": "boolean"
+									}
+								},
+								"$ref": "#/$defs/path",
+								"if": {
+									"properties": {
+										"reason": {
+											"const": "absent"
 										}
 									},
+									"required": ["reason"]
+								},
+								"then": {
+									"required": ["exists"],
+									"properties": {
+										"exists": {
+											"const": false
+										}
+									}
+								},
+								"allOf": [
 									{
 										"if": {
 											"properties": {
@@ -924,23 +590,7 @@
 											}
 										}
 									}
-								],
-								"properties": {
-									"path": {
-										"type": "string",
-										"minLength": 1
-									},
-									"pathBytesHex": {
-										"type": "string",
-										"pattern": "^([0-9a-f]{2})+$"
-									},
-									"reason": {
-										"enum": ["absent", "invalid-path", "io-error", "unsafe"]
-									},
-									"exists": {
-										"type": "boolean"
-									}
-								}
+								]
 							}
 						}
 					}
@@ -962,46 +612,44 @@
 					"type": "object"
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"status": {
-								"const": "pass"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": ["exists"],
-								"additionalProperties": false,
-								"properties": {
-									"path": {
-										"type": "string",
-										"minLength": 1
-									},
-									"pathBytesHex": {
-										"type": "string",
-										"pattern": "^([0-9a-f]{2})+$"
-									},
-									"exists": {
-										"const": true
-									}
-								},
-								"oneOf": [
-									{
-										"required": ["path"]
-									},
-									{
-										"required": ["pathBytesHex"]
-									}
-								]
-							}
-						}
+			"if": {
+				"properties": {
+					"status": {
+						"const": "pass"
 					}
-				},
+				}
+			},
+			"then": {
+				"properties": {
+					"details": {
+						"type": "object",
+						"required": ["exists"],
+						"additionalProperties": false,
+						"properties": {
+							"path": {
+								"type": "string",
+								"minLength": 1
+							},
+							"pathBytesHex": {
+								"type": "string",
+								"pattern": "^([0-9a-f]{2})+$"
+							},
+							"exists": {
+								"const": true
+							}
+						},
+						"oneOf": [
+							{
+								"required": ["path"]
+							},
+							{
+								"required": ["pathBytesHex"]
+							}
+						]
+					}
+				}
+			},
+			"allOf": [
 				{
 					"if": {
 						"properties": {
@@ -1016,25 +664,37 @@
 								"type": "object",
 								"additionalProperties": false,
 								"required": ["reason"],
-								"allOf": [
-									{
-										"$ref": "#/$defs/path"
+								"properties": {
+									"path": {
+										"type": "string",
+										"minLength": 1
 									},
-									{
-										"if": {
-											"properties": {
-												"reason": {
-													"const": "io-error"
-												}
-											},
-											"required": ["reason"]
-										},
-										"then": {
-											"not": {
-												"required": ["exists"]
-											}
+									"pathBytesHex": {
+										"type": "string",
+										"pattern": "^([0-9a-f]{2})+$"
+									},
+									"reason": {
+										"enum": ["io-error", "unsafe"]
+									},
+									"exists": {
+										"type": "boolean"
+									}
+								},
+								"$ref": "#/$defs/path",
+								"if": {
+									"properties": {
+										"reason": {
+											"const": "io-error"
 										}
 									},
+									"required": ["reason"]
+								},
+								"then": {
+									"not": {
+										"required": ["exists"]
+									}
+								},
+								"allOf": [
 									{
 										"if": {
 											"properties": {
@@ -1053,23 +713,7 @@
 											}
 										}
 									}
-								],
-								"properties": {
-									"path": {
-										"type": "string",
-										"minLength": 1
-									},
-									"pathBytesHex": {
-										"type": "string",
-										"pattern": "^([0-9a-f]{2})+$"
-									},
-									"reason": {
-										"enum": ["io-error", "unsafe"]
-									},
-									"exists": {
-										"type": "boolean"
-									}
-								}
+								]
 							}
 						}
 					}
@@ -1095,11 +739,6 @@
 										"type": "object",
 										"required": ["exists", "reason"],
 										"additionalProperties": false,
-										"allOf": [
-											{
-												"$ref": "#/$defs/path"
-											}
-										],
 										"properties": {
 											"path": {
 												"type": "string",
@@ -1115,7 +754,8 @@
 											"exists": {
 												"const": false
 											}
-										}
+										},
+										"$ref": "#/$defs/path"
 									}
 								]
 							}
@@ -1139,30 +779,28 @@
 					"type": "object"
 				}
 			},
-			"allOf": [
-				{
-					"if": {
+			"if": {
+				"properties": {
+					"status": {
+						"const": "pass"
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"details": {
+						"type": "object",
+						"required": ["verified"],
+						"additionalProperties": false,
 						"properties": {
-							"status": {
-								"const": "pass"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": ["verified"],
-								"additionalProperties": false,
-								"properties": {
-									"verified": {
-										"const": true
-									}
-								}
+							"verified": {
+								"const": true
 							}
 						}
 					}
-				},
+				}
+			},
+			"allOf": [
 				{
 					"if": {
 						"properties": {
@@ -1308,11 +946,7 @@
 							"minimum": 1
 						}
 					},
-					"allOf": [
-						{
-							"$ref": "#/$defs/path"
-						}
-					]
+					"$ref": "#/$defs/path"
 				}
 			]
 		},
@@ -1349,11 +983,7 @@
 							"minimum": 1
 						}
 					},
-					"allOf": [
-						{
-							"$ref": "#/$defs/path"
-						}
-					]
+					"$ref": "#/$defs/path"
 				},
 				{
 					"type": "object",
@@ -1386,11 +1016,7 @@
 							"minimum": 1
 						}
 					},
-					"allOf": [
-						{
-							"$ref": "#/$defs/path"
-						}
-					]
+					"$ref": "#/$defs/path"
 				}
 			]
 		},
@@ -1443,16 +1069,100 @@
 					}
 				}
 			},
+			"if": {
+				"properties": {
+					"details": {
+						"anyOf": [
+							{
+								"properties": {
+									"client": {
+										"$ref": "#/$defs/socketFail"
+									}
+								},
+								"required": ["client"]
+							},
+							{
+								"properties": {
+									"worker": {
+										"$ref": "#/$defs/socketFail"
+									}
+								},
+								"required": ["worker"]
+							},
+							{
+								"properties": {
+									"clientPending": {
+										"$ref": "#/$defs/socketFail"
+									}
+								},
+								"required": ["clientPending"]
+							},
+							{
+								"properties": {
+									"host": {
+										"$ref": "#/$defs/socketFail"
+									}
+								},
+								"required": ["host"]
+							}
+						]
+					}
+				},
+				"required": ["details"]
+			},
+			"then": {
+				"properties": {
+					"status": {
+						"const": "fail"
+					}
+				}
+			},
 			"allOf": [
 				{
 					"if": {
 						"properties": {
 							"details": {
+								"not": {
+									"anyOf": [
+										{
+											"properties": {
+												"client": {
+													"$ref": "#/$defs/socketFail"
+												}
+											},
+											"required": ["client"]
+										},
+										{
+											"properties": {
+												"worker": {
+													"$ref": "#/$defs/socketFail"
+												}
+											},
+											"required": ["worker"]
+										},
+										{
+											"properties": {
+												"clientPending": {
+													"$ref": "#/$defs/socketFail"
+												}
+											},
+											"required": ["clientPending"]
+										},
+										{
+											"properties": {
+												"host": {
+													"$ref": "#/$defs/socketFail"
+												}
+											},
+											"required": ["host"]
+										}
+									]
+								},
 								"anyOf": [
 									{
 										"properties": {
 											"client": {
-												"$ref": "#/$defs/socketFail"
+												"$ref": "#/$defs/socketPass"
 											}
 										},
 										"required": ["client"]
@@ -1460,102 +1170,10 @@
 									{
 										"properties": {
 											"worker": {
-												"$ref": "#/$defs/socketFail"
+												"$ref": "#/$defs/socketPass"
 											}
 										},
 										"required": ["worker"]
-									},
-									{
-										"properties": {
-											"clientPending": {
-												"$ref": "#/$defs/socketFail"
-											}
-										},
-										"required": ["clientPending"]
-									},
-									{
-										"properties": {
-											"host": {
-												"$ref": "#/$defs/socketFail"
-											}
-										},
-										"required": ["host"]
-									}
-								]
-							}
-						},
-						"required": ["details"]
-					},
-					"then": {
-						"properties": {
-							"status": {
-								"const": "fail"
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"details": {
-								"allOf": [
-									{
-										"not": {
-											"anyOf": [
-												{
-													"properties": {
-														"client": {
-															"$ref": "#/$defs/socketFail"
-														}
-													},
-													"required": ["client"]
-												},
-												{
-													"properties": {
-														"worker": {
-															"$ref": "#/$defs/socketFail"
-														}
-													},
-													"required": ["worker"]
-												},
-												{
-													"properties": {
-														"clientPending": {
-															"$ref": "#/$defs/socketFail"
-														}
-													},
-													"required": ["clientPending"]
-												},
-												{
-													"properties": {
-														"host": {
-															"$ref": "#/$defs/socketFail"
-														}
-													},
-													"required": ["host"]
-												}
-											]
-										}
-									},
-									{
-										"anyOf": [
-											{
-												"properties": {
-													"client": {
-														"$ref": "#/$defs/socketPass"
-													}
-												},
-												"required": ["client"]
-											},
-											{
-												"properties": {
-													"worker": {
-														"$ref": "#/$defs/socketPass"
-													}
-												},
-												"required": ["worker"]
-											}
-										]
 									}
 								]
 							}
@@ -1644,2113 +1262,15 @@
 				}
 			]
 		},
-		"userConfigCheckV4": {
+		"unsupported": {
 			"type": "object",
-			"required": ["name", "status", "details"],
-			"additionalProperties": false,
 			"properties": {
-				"name": {
-					"const": "user-config"
-				},
-				"status": {
-					"enum": ["pass", "fail"]
-				},
-				"details": {
-					"type": "object"
+				"kind": {
+					"const": "unsupported"
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"status": {
-								"const": "pass"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": [
-									"path",
-									"exists",
-									"newCwd",
-									"worktreeDirectory",
-									"resumeAgentsOnRestore",
-									"resumeAgentsOnRestoreSource",
-									"manifestCheck",
-									"manifestCheckSource"
-								],
-								"additionalProperties": false,
-								"properties": {
-									"path": {
-										"type": ["string", "null"],
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"exists": {
-										"type": "boolean"
-									},
-									"resumeAgentsOnRestore": {
-										"type": "boolean"
-									},
-									"resumeAgentsOnRestoreSource": {
-										"enum": ["default", "file", "environment"]
-									},
-									"newCwd": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"worktreeDirectory": {
-										"type": ["string", "null"],
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"manifestCheck": {
-										"type": "boolean"
-									},
-									"manifestCheckSource": {
-										"enum": ["default", "file"]
-									}
-								}
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": ["field", "reason"],
-								"additionalProperties": false,
-								"properties": {
-									"field": {
-										"enum": [
-											"file",
-											"ORCHBEE_CONFIG_FILE",
-											"APPDATA",
-											"terminal.new_cwd",
-											"worktrees.directory",
-											"session.resume_agents_on_restore",
-											"ORCHBEE_RESUME_AGENTS_ON_RESTORE",
-											"update.manifest_check"
-										]
-									},
-									"reason": {
-										"enum": [
-											"invalid-path",
-											"invalid-boolean",
-											"missing",
-											"io-error",
-											"not-file",
-											"too-large",
-											"invalid-utf8",
-											"invalid-toml",
-											"unknown-key",
-											"wrong-type",
-											"source-query-failed",
-											"source-query-interrupted"
-										]
-									}
-								}
-							}
-						}
-					}
-				}
-			]
-		},
-		"userConfigCheckV5": {
-			"type": "object",
-			"required": ["name", "status", "details"],
-			"additionalProperties": false,
-			"properties": {
-				"name": {
-					"const": "user-config"
-				},
-				"status": {
-					"enum": ["pass", "fail"]
-				},
-				"details": {
-					"type": "object"
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"status": {
-								"const": "pass"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": [
-									"path",
-									"exists",
-									"newCwd",
-									"worktreeDirectory",
-									"resumeAgentsOnRestore",
-									"resumeAgentsOnRestoreSource",
-									"manifestCheck",
-									"manifestCheckSource",
-									"defaultShell",
-									"shellMode"
-								],
-								"additionalProperties": false,
-								"properties": {
-									"path": {
-										"type": ["string", "null"],
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"exists": {
-										"type": "boolean"
-									},
-									"resumeAgentsOnRestore": {
-										"type": "boolean"
-									},
-									"resumeAgentsOnRestoreSource": {
-										"enum": ["default", "file", "environment"]
-									},
-									"newCwd": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"worktreeDirectory": {
-										"type": ["string", "null"],
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"manifestCheck": {
-										"type": "boolean"
-									},
-									"manifestCheckSource": {
-										"enum": ["default", "file"]
-									},
-									"defaultShell": {
-										"type": "string",
-										"maxLength": 4096
-									},
-									"shellMode": {
-										"enum": ["auto", "login", "non_login"]
-									}
-								}
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": ["field", "reason"],
-								"additionalProperties": false,
-								"properties": {
-									"field": {
-										"enum": [
-											"file",
-											"ORCHBEE_CONFIG_FILE",
-											"APPDATA",
-											"terminal.new_cwd",
-											"worktrees.directory",
-											"session.resume_agents_on_restore",
-											"ORCHBEE_RESUME_AGENTS_ON_RESTORE",
-											"update.manifest_check",
-											"terminal.default_shell",
-											"terminal.shell_mode"
-										]
-									},
-									"reason": {
-										"enum": [
-											"invalid-path",
-											"invalid-boolean",
-											"missing",
-											"io-error",
-											"not-file",
-											"too-large",
-											"invalid-utf8",
-											"invalid-toml",
-											"unknown-key",
-											"wrong-type",
-											"source-query-failed",
-											"source-query-interrupted",
-											"invalid-executable",
-											"invalid-mode"
-										]
-									}
-								}
-							}
-						}
-					}
-				}
-			]
-		},
-		"userConfigCheckV6": {
-			"type": "object",
-			"required": ["name", "status", "details"],
-			"additionalProperties": false,
-			"properties": {
-				"name": {
-					"const": "user-config"
-				},
-				"status": {
-					"enum": ["pass", "fail"]
-				},
-				"details": {
-					"type": "object"
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"status": {
-								"const": "pass"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": [
-									"path",
-									"exists",
-									"newCwd",
-									"worktreeDirectory",
-									"resumeAgentsOnRestore",
-									"resumeAgentsOnRestoreSource",
-									"manifestCheck",
-									"manifestCheckSource",
-									"defaultShell",
-									"shellMode",
-									"keyPrefix",
-									"keyOverrides"
-								],
-								"additionalProperties": false,
-								"properties": {
-									"path": {
-										"type": ["string", "null"],
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"exists": {
-										"type": "boolean"
-									},
-									"resumeAgentsOnRestore": {
-										"type": "boolean"
-									},
-									"resumeAgentsOnRestoreSource": {
-										"enum": ["default", "file", "environment"]
-									},
-									"newCwd": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"worktreeDirectory": {
-										"type": ["string", "null"],
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"manifestCheck": {
-										"type": "boolean"
-									},
-									"manifestCheckSource": {
-										"enum": ["default", "file"]
-									},
-									"defaultShell": {
-										"type": "string",
-										"maxLength": 4096
-									},
-									"shellMode": {
-										"enum": ["auto", "login", "non_login"]
-									},
-									"keyPrefix": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 128
-									},
-									"keyOverrides": {
-										"type": "integer",
-										"minimum": 0,
-										"maximum": 25
-									}
-								}
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": ["field", "reason"],
-								"additionalProperties": false,
-								"properties": {
-									"field": {
-										"enum": [
-											"file",
-											"ORCHBEE_CONFIG_FILE",
-											"APPDATA",
-											"terminal.new_cwd",
-											"worktrees.directory",
-											"session.resume_agents_on_restore",
-											"ORCHBEE_RESUME_AGENTS_ON_RESTORE",
-											"update.manifest_check",
-											"terminal.default_shell",
-											"terminal.shell_mode",
-											"keys"
-										]
-									},
-									"reason": {
-										"enum": [
-											"invalid-path",
-											"invalid-boolean",
-											"missing",
-											"io-error",
-											"not-file",
-											"too-large",
-											"invalid-utf8",
-											"invalid-toml",
-											"unknown-key",
-											"wrong-type",
-											"source-query-failed",
-											"source-query-interrupted",
-											"invalid-executable",
-											"invalid-mode",
-											"invalid-binding",
-											"reserved-binding",
-											"unsafe-binding",
-											"duplicate-binding",
-											"too-many-bindings"
-										]
-									}
-								}
-							}
-						}
-					}
-				}
-			]
-		},
-		"userConfigCheckV7": {
-			"type": "object",
-			"required": ["name", "status", "details"],
-			"additionalProperties": false,
-			"properties": {
-				"name": {
-					"const": "user-config"
-				},
-				"status": {
-					"enum": ["pass", "fail"]
-				},
-				"details": {
-					"type": "object"
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"status": {
-								"const": "pass"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": [
-									"path",
-									"exists",
-									"newCwd",
-									"worktreeDirectory",
-									"resumeAgentsOnRestore",
-									"resumeAgentsOnRestoreSource",
-									"manifestCheck",
-									"manifestCheckSource",
-									"defaultShell",
-									"shellMode",
-									"keyPrefix",
-									"keyOverrides",
-									"windowTitle",
-									"windowTitleDiagnostic"
-								],
-								"additionalProperties": false,
-								"properties": {
-									"path": {
-										"type": ["string", "null"],
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"exists": {
-										"type": "boolean"
-									},
-									"resumeAgentsOnRestore": {
-										"type": "boolean"
-									},
-									"resumeAgentsOnRestoreSource": {
-										"enum": ["default", "file", "environment"]
-									},
-									"newCwd": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"worktreeDirectory": {
-										"type": ["string", "null"],
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"manifestCheck": {
-										"type": "boolean"
-									},
-									"manifestCheckSource": {
-										"enum": ["default", "file"]
-									},
-									"defaultShell": {
-										"type": "string",
-										"maxLength": 4096
-									},
-									"shellMode": {
-										"enum": ["auto", "login", "non_login"]
-									},
-									"keyPrefix": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 128
-									},
-									"keyOverrides": {
-										"type": "integer",
-										"minimum": 0,
-										"maximum": 25
-									},
-									"windowTitle": {
-										"type": "string",
-										"maxLength": 4096
-									},
-									"windowTitleDiagnostic": {
-										"enum": [null, "unclosed-brace", "unmatched-brace", "unknown-token"]
-									}
-								}
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": ["field", "reason"],
-								"additionalProperties": false,
-								"properties": {
-									"field": {
-										"enum": [
-											"file",
-											"ORCHBEE_CONFIG_FILE",
-											"APPDATA",
-											"terminal.new_cwd",
-											"worktrees.directory",
-											"session.resume_agents_on_restore",
-											"ORCHBEE_RESUME_AGENTS_ON_RESTORE",
-											"update.manifest_check",
-											"terminal.default_shell",
-											"terminal.shell_mode",
-											"keys",
-											"ui.window_title"
-										]
-									},
-									"reason": {
-										"enum": [
-											"invalid-path",
-											"invalid-boolean",
-											"missing",
-											"io-error",
-											"not-file",
-											"too-large",
-											"invalid-utf8",
-											"invalid-toml",
-											"unknown-key",
-											"wrong-type",
-											"source-query-failed",
-											"source-query-interrupted",
-											"invalid-executable",
-											"invalid-mode",
-											"invalid-binding",
-											"reserved-binding",
-											"unsafe-binding",
-											"duplicate-binding",
-											"too-many-bindings",
-											"value-too-long"
-										]
-									}
-								}
-							}
-						}
-					}
-				}
-			]
-		},
-		"userConfigCheckV8": {
-			"type": "object",
-			"required": ["name", "status", "details"],
-			"additionalProperties": false,
-			"properties": {
-				"name": {
-					"const": "user-config"
-				},
-				"status": {
-					"enum": ["pass", "fail"]
-				},
-				"details": {
-					"type": "object"
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"status": {
-								"const": "pass"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": [
-									"path",
-									"exists",
-									"newCwd",
-									"worktreeDirectory",
-									"resumeAgentsOnRestore",
-									"resumeAgentsOnRestoreSource",
-									"manifestCheck",
-									"manifestCheckSource",
-									"defaultShell",
-									"shellMode",
-									"keyPrefix",
-									"keyOverrides",
-									"windowTitle",
-									"windowTitleDiagnostic",
-									"notificationDelivery",
-									"notificationPosition"
-								],
-								"additionalProperties": false,
-								"properties": {
-									"path": {
-										"type": ["string", "null"],
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"exists": {
-										"type": "boolean"
-									},
-									"resumeAgentsOnRestore": {
-										"type": "boolean"
-									},
-									"resumeAgentsOnRestoreSource": {
-										"enum": ["default", "file", "environment"]
-									},
-									"newCwd": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"worktreeDirectory": {
-										"type": ["string", "null"],
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"manifestCheck": {
-										"type": "boolean"
-									},
-									"manifestCheckSource": {
-										"enum": ["default", "file"]
-									},
-									"defaultShell": {
-										"type": "string",
-										"maxLength": 4096
-									},
-									"shellMode": {
-										"enum": ["auto", "login", "non_login"]
-									},
-									"keyPrefix": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 128
-									},
-									"keyOverrides": {
-										"type": "integer",
-										"minimum": 0,
-										"maximum": 25
-									},
-									"windowTitle": {
-										"type": "string",
-										"maxLength": 4096
-									},
-									"windowTitleDiagnostic": {
-										"enum": [null, "unclosed-brace", "unmatched-brace", "unknown-token"]
-									},
-									"notificationDelivery": {
-										"enum": ["off", "orchbee", "terminal", "system"]
-									},
-									"notificationPosition": {
-										"enum": ["top-left", "top-right", "bottom-left", "bottom-right"]
-									}
-								}
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": ["field", "reason"],
-								"additionalProperties": false,
-								"properties": {
-									"field": {
-										"enum": [
-											"file",
-											"ORCHBEE_CONFIG_FILE",
-											"APPDATA",
-											"terminal.new_cwd",
-											"worktrees.directory",
-											"session.resume_agents_on_restore",
-											"ORCHBEE_RESUME_AGENTS_ON_RESTORE",
-											"update.manifest_check",
-											"terminal.default_shell",
-											"terminal.shell_mode",
-											"keys",
-											"ui.window_title",
-											"ui.toast"
-										]
-									},
-									"reason": {
-										"enum": [
-											"invalid-path",
-											"invalid-boolean",
-											"missing",
-											"io-error",
-											"not-file",
-											"too-large",
-											"invalid-utf8",
-											"invalid-toml",
-											"unknown-key",
-											"wrong-type",
-											"source-query-failed",
-											"source-query-interrupted",
-											"invalid-executable",
-											"invalid-mode",
-											"invalid-binding",
-											"reserved-binding",
-											"unsafe-binding",
-											"duplicate-binding",
-											"too-many-bindings",
-											"value-too-long"
-										]
-									}
-								}
-							}
-						}
-					}
-				}
-			]
-		},
-		"userConfigCheckV9": {
-			"type": "object",
-			"required": ["name", "status", "details"],
-			"additionalProperties": false,
-			"properties": {
-				"name": {
-					"const": "user-config"
-				},
-				"status": {
-					"enum": ["pass", "fail"]
-				},
-				"details": {
-					"type": "object"
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"status": {
-								"const": "pass"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": [
-									"path",
-									"exists",
-									"newCwd",
-									"worktreeDirectory",
-									"resumeAgentsOnRestore",
-									"resumeAgentsOnRestoreSource",
-									"manifestCheck",
-									"manifestCheckSource",
-									"defaultShell",
-									"shellMode",
-									"keyPrefix",
-									"keyOverrides",
-									"windowTitle",
-									"windowTitleDiagnostic",
-									"notificationDelivery",
-									"notificationPosition"
-								],
-								"additionalProperties": false,
-								"properties": {
-									"path": {
-										"type": ["string", "null"],
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"exists": {
-										"type": "boolean"
-									},
-									"resumeAgentsOnRestore": {
-										"type": "boolean"
-									},
-									"resumeAgentsOnRestoreSource": {
-										"enum": ["default", "file", "environment"]
-									},
-									"newCwd": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"worktreeDirectory": {
-										"type": ["string", "null"],
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"manifestCheck": {
-										"type": "boolean"
-									},
-									"manifestCheckSource": {
-										"enum": ["default", "file"]
-									},
-									"defaultShell": {
-										"type": "string",
-										"maxLength": 4096
-									},
-									"shellMode": {
-										"enum": ["auto", "login", "non_login"]
-									},
-									"keyPrefix": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 128
-									},
-									"keyOverrides": {
-										"type": "integer",
-										"minimum": 0,
-										"maximum": 25
-									},
-									"windowTitle": {
-										"type": "string",
-										"maxLength": 4096
-									},
-									"windowTitleDiagnostic": {
-										"enum": [null, "unclosed-brace", "unmatched-brace", "unknown-token"]
-									},
-									"notificationDelivery": {
-										"enum": ["off", "orchbee", "terminal", "system"]
-									},
-									"notificationPosition": {
-										"enum": ["top-left", "top-right", "bottom-left", "bottom-right"]
-									}
-								}
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": ["field", "reason"],
-								"additionalProperties": false,
-								"properties": {
-									"field": {
-										"enum": [
-											"file",
-											"ORCHBEE_CONFIG_FILE",
-											"APPDATA",
-											"terminal.new_cwd",
-											"worktrees.directory",
-											"session.resume_agents_on_restore",
-											"ORCHBEE_RESUME_AGENTS_ON_RESTORE",
-											"update.manifest_check",
-											"terminal.default_shell",
-											"terminal.shell_mode",
-											"keys",
-											"ui.window_title",
-											"ui.toast",
-											"update.channel"
-										]
-									},
-									"reason": {
-										"enum": [
-											"invalid-path",
-											"invalid-boolean",
-											"missing",
-											"io-error",
-											"not-file",
-											"too-large",
-											"invalid-utf8",
-											"invalid-toml",
-											"unknown-key",
-											"wrong-type",
-											"source-query-failed",
-											"source-query-interrupted",
-											"invalid-executable",
-											"invalid-mode",
-											"invalid-binding",
-											"reserved-binding",
-											"unsafe-binding",
-											"duplicate-binding",
-											"too-many-bindings",
-											"value-too-long",
-											"invalid-channel"
-										]
-									}
-								}
-							}
-						}
-					}
-				}
-			]
-		},
-		"userConfigCheckV10": {
-			"type": "object",
-			"required": ["name", "status", "details"],
-			"additionalProperties": false,
-			"properties": {
-				"name": {
-					"const": "user-config"
-				},
-				"status": {
-					"enum": ["pass", "fail"]
-				},
-				"details": {
-					"type": "object"
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"status": {
-								"const": "pass"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": [
-									"path",
-									"exists",
-									"newCwd",
-									"worktreeDirectory",
-									"resumeAgentsOnRestore",
-									"resumeAgentsOnRestoreSource",
-									"manifestCheck",
-									"manifestCheckSource",
-									"defaultShell",
-									"shellMode",
-									"keyPrefix",
-									"keyOverrides",
-									"windowTitle",
-									"windowTitleDiagnostic",
-									"notificationDelivery",
-									"notificationPosition",
-									"agentSidebarProfile"
-								],
-								"additionalProperties": false,
-								"properties": {
-									"path": {
-										"type": ["string", "null"],
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"exists": {
-										"type": "boolean"
-									},
-									"resumeAgentsOnRestore": {
-										"type": "boolean"
-									},
-									"resumeAgentsOnRestoreSource": {
-										"enum": ["default", "file", "environment"]
-									},
-									"newCwd": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"worktreeDirectory": {
-										"type": ["string", "null"],
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"manifestCheck": {
-										"type": "boolean"
-									},
-									"manifestCheckSource": {
-										"enum": ["default", "file"]
-									},
-									"defaultShell": {
-										"type": "string",
-										"maxLength": 4096
-									},
-									"shellMode": {
-										"enum": ["auto", "login", "non_login"]
-									},
-									"keyPrefix": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 128
-									},
-									"keyOverrides": {
-										"type": "integer",
-										"minimum": 0,
-										"maximum": 25
-									},
-									"windowTitle": {
-										"type": "string",
-										"maxLength": 4096
-									},
-									"windowTitleDiagnostic": {
-										"enum": [null, "unclosed-brace", "unmatched-brace", "unknown-token"]
-									},
-									"notificationDelivery": {
-										"enum": ["off", "orchbee", "terminal", "system"]
-									},
-									"notificationPosition": {
-										"enum": ["top-left", "top-right", "bottom-left", "bottom-right"]
-									},
-									"agentSidebarProfile": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 32768
-									}
-								}
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": ["field", "reason"],
-								"additionalProperties": false,
-								"properties": {
-									"field": {
-										"enum": [
-											"file",
-											"ORCHBEE_CONFIG_FILE",
-											"APPDATA",
-											"terminal.new_cwd",
-											"worktrees.directory",
-											"session.resume_agents_on_restore",
-											"ORCHBEE_RESUME_AGENTS_ON_RESTORE",
-											"update.manifest_check",
-											"terminal.default_shell",
-											"terminal.shell_mode",
-											"keys",
-											"ui.window_title",
-											"ui.toast",
-											"update.channel",
-											"ui.sidebar.agents"
-										]
-									},
-									"reason": {
-										"enum": [
-											"invalid-path",
-											"invalid-boolean",
-											"missing",
-											"io-error",
-											"not-file",
-											"too-large",
-											"invalid-utf8",
-											"invalid-toml",
-											"unknown-key",
-											"wrong-type",
-											"source-query-failed",
-											"source-query-interrupted",
-											"invalid-executable",
-											"invalid-mode",
-											"invalid-binding",
-											"reserved-binding",
-											"unsafe-binding",
-											"duplicate-binding",
-											"too-many-bindings",
-											"value-too-long",
-											"invalid-channel",
-											"invalid-layout",
-											"invalid-color",
-											"invalid-token",
-											"unsupported-token",
-											"invalid-rules",
-											"invalid-agent"
-										]
-									}
-								}
-							}
-						}
-					}
-				}
-			]
-		},
-		"userConfigCheckV11": {
-			"type": "object",
-			"required": ["name", "status", "details"],
-			"additionalProperties": false,
-			"properties": {
-				"name": {
-					"const": "user-config"
-				},
-				"status": {
-					"enum": ["pass", "fail"]
-				},
-				"details": {
-					"type": "object"
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"status": {
-								"const": "pass"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": [
-									"path",
-									"exists",
-									"newCwd",
-									"worktreeDirectory",
-									"resumeAgentsOnRestore",
-									"resumeAgentsOnRestoreSource",
-									"manifestCheck",
-									"manifestCheckSource",
-									"defaultShell",
-									"shellMode",
-									"keyPrefix",
-									"keyOverrides",
-									"windowTitle",
-									"windowTitleDiagnostic",
-									"notificationDelivery",
-									"notificationPosition",
-									"agentSidebarProfile",
-									"spacesSidebarProfile"
-								],
-								"additionalProperties": false,
-								"properties": {
-									"path": {
-										"type": ["string", "null"],
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"exists": {
-										"type": "boolean"
-									},
-									"resumeAgentsOnRestore": {
-										"type": "boolean"
-									},
-									"resumeAgentsOnRestoreSource": {
-										"enum": ["default", "file", "environment"]
-									},
-									"newCwd": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"worktreeDirectory": {
-										"type": ["string", "null"],
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"manifestCheck": {
-										"type": "boolean"
-									},
-									"manifestCheckSource": {
-										"enum": ["default", "file"]
-									},
-									"defaultShell": {
-										"type": "string",
-										"maxLength": 4096
-									},
-									"shellMode": {
-										"enum": ["auto", "login", "non_login"]
-									},
-									"keyPrefix": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 128
-									},
-									"keyOverrides": {
-										"type": "integer",
-										"minimum": 0,
-										"maximum": 25
-									},
-									"windowTitle": {
-										"type": "string",
-										"maxLength": 4096
-									},
-									"windowTitleDiagnostic": {
-										"enum": [null, "unclosed-brace", "unmatched-brace", "unknown-token"]
-									},
-									"notificationDelivery": {
-										"enum": ["off", "orchbee", "terminal", "system"]
-									},
-									"notificationPosition": {
-										"enum": ["top-left", "top-right", "bottom-left", "bottom-right"]
-									},
-									"agentSidebarProfile": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 32768
-									},
-									"spacesSidebarProfile": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 32768
-									}
-								}
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": ["field", "reason"],
-								"additionalProperties": false,
-								"properties": {
-									"field": {
-										"enum": [
-											"file",
-											"ORCHBEE_CONFIG_FILE",
-											"APPDATA",
-											"terminal.new_cwd",
-											"worktrees.directory",
-											"session.resume_agents_on_restore",
-											"ORCHBEE_RESUME_AGENTS_ON_RESTORE",
-											"update.manifest_check",
-											"terminal.default_shell",
-											"terminal.shell_mode",
-											"keys",
-											"ui.window_title",
-											"ui.toast",
-											"update.channel",
-											"ui.sidebar.agents",
-											"ui.sidebar.spaces"
-										]
-									},
-									"reason": {
-										"enum": [
-											"invalid-path",
-											"invalid-boolean",
-											"missing",
-											"io-error",
-											"not-file",
-											"too-large",
-											"invalid-utf8",
-											"invalid-toml",
-											"unknown-key",
-											"wrong-type",
-											"source-query-failed",
-											"source-query-interrupted",
-											"invalid-executable",
-											"invalid-mode",
-											"invalid-binding",
-											"reserved-binding",
-											"unsafe-binding",
-											"duplicate-binding",
-											"too-many-bindings",
-											"value-too-long",
-											"invalid-channel",
-											"invalid-layout",
-											"invalid-color",
-											"invalid-token",
-											"unsupported-token",
-											"invalid-rules",
-											"invalid-agent"
-										]
-									}
-								}
-							}
-						}
-					}
-				}
-			]
-		},
-		"userConfigCheckV12": {
-			"type": "object",
-			"required": ["name", "status", "details"],
-			"additionalProperties": false,
-			"properties": {
-				"name": {
-					"const": "user-config"
-				},
-				"status": {
-					"enum": ["pass", "fail"]
-				},
-				"details": {
-					"type": "object"
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"status": {
-								"const": "pass"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": [
-									"path",
-									"exists",
-									"newCwd",
-									"worktreeDirectory",
-									"resumeAgentsOnRestore",
-									"resumeAgentsOnRestoreSource",
-									"manifestCheck",
-									"manifestCheckSource",
-									"defaultShell",
-									"shellMode",
-									"keyPrefix",
-									"keyOverrides",
-									"windowTitle",
-									"windowTitleDiagnostic",
-									"notificationDelivery",
-									"notificationPosition",
-									"agentSidebarProfile",
-									"spacesSidebarProfile",
-									"notificationAgentDelivery",
-									"notificationDelaySeconds",
-									"notificationSoundEnabled",
-									"notificationAgentSounds"
-								],
-								"additionalProperties": false,
-								"properties": {
-									"path": {
-										"type": ["string", "null"],
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"exists": {
-										"type": "boolean"
-									},
-									"resumeAgentsOnRestore": {
-										"type": "boolean"
-									},
-									"resumeAgentsOnRestoreSource": {
-										"enum": ["default", "file", "environment"]
-									},
-									"newCwd": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"worktreeDirectory": {
-										"type": ["string", "null"],
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"manifestCheck": {
-										"type": "boolean"
-									},
-									"manifestCheckSource": {
-										"enum": ["default", "file"]
-									},
-									"defaultShell": {
-										"type": "string",
-										"maxLength": 4096
-									},
-									"shellMode": {
-										"enum": ["auto", "login", "non_login"]
-									},
-									"keyPrefix": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 128
-									},
-									"keyOverrides": {
-										"type": "integer",
-										"minimum": 0,
-										"maximum": 25
-									},
-									"windowTitle": {
-										"type": "string",
-										"maxLength": 4096
-									},
-									"windowTitleDiagnostic": {
-										"enum": [null, "unclosed-brace", "unmatched-brace", "unknown-token"]
-									},
-									"notificationDelivery": {
-										"enum": ["off", "orchbee", "terminal", "system"]
-									},
-									"notificationPosition": {
-										"enum": ["top-left", "top-right", "bottom-left", "bottom-right"]
-									},
-									"agentSidebarProfile": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 32768
-									},
-									"spacesSidebarProfile": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 32768
-									},
-									"notificationAgentDelivery": {
-										"enum": ["off", "orchbee", "terminal", "system"]
-									},
-									"notificationDelaySeconds": {
-										"type": "integer",
-										"minimum": 0,
-										"maximum": 3600
-									},
-									"notificationSoundEnabled": {
-										"type": "boolean"
-									},
-									"notificationAgentSounds": {
-										"type": "object",
-										"maxProperties": 64,
-										"propertyNames": {
-											"pattern": "^[a-z0-9](?:[a-z0-9.-]{0,62}[a-z0-9])?$"
-										},
-										"additionalProperties": {
-											"enum": ["default", "on", "off"]
-										}
-									}
-								}
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": ["field", "reason"],
-								"additionalProperties": false,
-								"properties": {
-									"field": {
-										"enum": [
-											"file",
-											"ORCHBEE_CONFIG_FILE",
-											"APPDATA",
-											"terminal.new_cwd",
-											"worktrees.directory",
-											"session.resume_agents_on_restore",
-											"ORCHBEE_RESUME_AGENTS_ON_RESTORE",
-											"update.manifest_check",
-											"terminal.default_shell",
-											"terminal.shell_mode",
-											"keys",
-											"ui.window_title",
-											"ui.toast",
-											"update.channel",
-											"ui.sidebar.agents",
-											"ui.sidebar.spaces",
-											"ui.sound"
-										]
-									},
-									"reason": {
-										"enum": [
-											"invalid-path",
-											"invalid-boolean",
-											"missing",
-											"io-error",
-											"not-file",
-											"too-large",
-											"invalid-utf8",
-											"invalid-toml",
-											"unknown-key",
-											"wrong-type",
-											"source-query-failed",
-											"source-query-interrupted",
-											"invalid-executable",
-											"invalid-mode",
-											"invalid-binding",
-											"reserved-binding",
-											"unsafe-binding",
-											"duplicate-binding",
-											"too-many-bindings",
-											"value-too-long",
-											"invalid-channel",
-											"invalid-layout",
-											"invalid-color",
-											"invalid-token",
-											"unsupported-token",
-											"invalid-rules",
-											"invalid-agent",
-											"invalid-delay",
-											"too-many-agents"
-										]
-									}
-								}
-							}
-						}
-					}
-				}
-			]
-		},
-		"userConfigCheckV13": {
-			"type": "object",
-			"required": ["name", "status", "details"],
-			"additionalProperties": false,
-			"properties": {
-				"name": {
-					"const": "user-config"
-				},
-				"status": {
-					"enum": ["pass", "warning", "fail"]
-				},
-				"details": {
-					"type": "object"
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"status": {
-								"enum": ["pass", "warning"]
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": [
-									"path",
-									"exists",
-									"newCwd",
-									"worktreeDirectory",
-									"resumeAgentsOnRestore",
-									"resumeAgentsOnRestoreSource",
-									"manifestCheck",
-									"manifestCheckSource",
-									"defaultShell",
-									"shellMode",
-									"keyPrefix",
-									"keyOverrides",
-									"windowTitle",
-									"windowTitleDiagnostic",
-									"notificationDelivery",
-									"notificationPosition",
-									"agentSidebarProfile",
-									"spacesSidebarProfile",
-									"notificationAgentDelivery",
-									"notificationDelaySeconds",
-									"notificationSoundEnabled",
-									"notificationAgentSounds",
-									"diagnostics",
-									"diagnosticsOmitted"
-								],
-								"additionalProperties": false,
-								"properties": {
-									"path": {
-										"type": ["string", "null"],
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"exists": {
-										"type": "boolean"
-									},
-									"resumeAgentsOnRestore": {
-										"type": "boolean"
-									},
-									"resumeAgentsOnRestoreSource": {
-										"enum": ["default", "file", "environment"]
-									},
-									"newCwd": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"worktreeDirectory": {
-										"type": ["string", "null"],
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"manifestCheck": {
-										"type": "boolean"
-									},
-									"manifestCheckSource": {
-										"enum": ["default", "file"]
-									},
-									"defaultShell": {
-										"type": "string",
-										"maxLength": 4096
-									},
-									"shellMode": {
-										"enum": ["auto", "login", "non_login"]
-									},
-									"keyPrefix": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 128
-									},
-									"keyOverrides": {
-										"type": "integer",
-										"minimum": 0,
-										"maximum": 33
-									},
-									"windowTitle": {
-										"type": "string",
-										"maxLength": 4096
-									},
-									"windowTitleDiagnostic": {
-										"const": null
-									},
-									"notificationDelivery": {
-										"enum": ["off", "orchbee", "terminal", "system"]
-									},
-									"notificationPosition": {
-										"enum": ["top-left", "top-right", "bottom-left", "bottom-right"]
-									},
-									"agentSidebarProfile": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 32768
-									},
-									"spacesSidebarProfile": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 32768
-									},
-									"notificationAgentDelivery": {
-										"enum": ["off", "orchbee", "terminal", "system"]
-									},
-									"notificationDelaySeconds": {
-										"type": "integer",
-										"minimum": 0,
-										"maximum": 3600
-									},
-									"notificationSoundEnabled": {
-										"type": "boolean"
-									},
-									"notificationAgentSounds": {
-										"type": "object",
-										"maxProperties": 64,
-										"propertyNames": {
-											"pattern": "^[a-z0-9](?:[a-z0-9.-]{0,62}[a-z0-9])?$"
-										},
-										"additionalProperties": {
-											"enum": ["default", "on", "off"]
-										}
-									},
-									"diagnostics": {
-										"type": "array",
-										"maxItems": 128,
-										"uniqueItems": true,
-										"$comment": "Bindings additionally enforce strict (field, reason) order.",
-										"items": {
-											"type": "object",
-											"required": ["field", "reason", "disposition"],
-											"additionalProperties": false,
-											"properties": {
-												"field": {
-													"type": "string",
-													"minLength": 1,
-													"maxLength": 256,
-													"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$",
-													"$comment": "Bindings additionally enforce the 256 UTF-8 byte limit and Unicode scalar strings."
-												},
-												"reason": {
-													"type": "string",
-													"minLength": 1,
-													"maxLength": 64,
-													"pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
-												},
-												"disposition": {
-													"enum": ["defaulted", "disabled", "ignored"]
-												}
-											}
-										}
-									},
-									"diagnosticsOmitted": {
-										"type": "integer",
-										"minimum": 0,
-										"maximum": 65536
-									}
-								}
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": ["field", "reason"],
-								"additionalProperties": false,
-								"properties": {
-									"field": {
-										"enum": [
-											"file",
-											"ORCHBEE_CONFIG_FILE",
-											"APPDATA",
-											"ORCHBEE_RESUME_AGENTS_ON_RESTORE"
-										]
-									},
-									"reason": {
-										"enum": [
-											"invalid-path",
-											"invalid-boolean",
-											"missing",
-											"io-error",
-											"not-file",
-											"too-large",
-											"invalid-utf8",
-											"invalid-toml"
-										]
-									}
-								},
-								"oneOf": [
-									{
-										"properties": {
-											"field": {
-												"const": "file"
-											},
-											"reason": {
-												"enum": [
-													"invalid-path",
-													"missing",
-													"io-error",
-													"not-file",
-													"too-large",
-													"invalid-utf8",
-													"invalid-toml"
-												]
-											}
-										}
-									},
-									{
-										"properties": {
-											"field": {
-												"enum": ["ORCHBEE_CONFIG_FILE", "APPDATA"]
-											},
-											"reason": {
-												"const": "invalid-path"
-											}
-										}
-									},
-									{
-										"properties": {
-											"field": {
-												"const": "ORCHBEE_RESUME_AGENTS_ON_RESTORE"
-											},
-											"reason": {
-												"const": "invalid-boolean"
-											}
-										}
-									}
-								]
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"status": {
-								"const": "pass"
-							}
-						},
-						"required": ["status"]
-					},
-					"then": {
-						"properties": {
-							"details": {
-								"properties": {
-									"diagnostics": {
-										"maxItems": 0
-									},
-									"diagnosticsOmitted": {
-										"const": 0
-									}
-								}
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"status": {
-								"const": "warning"
-							}
-						},
-						"required": ["status"]
-					},
-					"then": {
-						"properties": {
-							"details": {
-								"anyOf": [
-									{
-										"properties": {
-											"diagnostics": {
-												"minItems": 1
-											}
-										}
-									},
-									{
-										"properties": {
-											"diagnosticsOmitted": {
-												"minimum": 1
-											}
-										}
-									}
-								]
-							}
-						}
-					}
-				}
-			]
-		},
-		"userConfigCheckV14": {
-			"type": "object",
-			"required": ["name", "status", "details"],
-			"additionalProperties": false,
-			"properties": {
-				"name": {
-					"const": "user-config"
-				},
-				"status": {
-					"enum": ["pass", "warning", "fail"]
-				},
-				"details": {
-					"type": "object"
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"status": {
-								"enum": ["pass", "warning"]
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": [
-									"path",
-									"exists",
-									"newCwd",
-									"worktreeDirectory",
-									"resumeAgentsOnRestore",
-									"resumeAgentsOnRestoreSource",
-									"manifestCheck",
-									"manifestCheckSource",
-									"defaultShell",
-									"shellMode",
-									"keyPrefix",
-									"keyOverrides",
-									"windowTitle",
-									"windowTitleDiagnostic",
-									"notificationDelivery",
-									"notificationPosition",
-									"agentSidebarProfile",
-									"spacesSidebarProfile",
-									"notificationAgentDelivery",
-									"notificationDelaySeconds",
-									"notificationSoundEnabled",
-									"notificationAgentSounds",
-									"diagnostics",
-									"diagnosticsOmitted",
-									"themeName"
-								],
-								"additionalProperties": false,
-								"properties": {
-									"path": {
-										"type": ["string", "null"],
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"exists": {
-										"type": "boolean"
-									},
-									"resumeAgentsOnRestore": {
-										"type": "boolean"
-									},
-									"resumeAgentsOnRestoreSource": {
-										"enum": ["default", "file", "environment"]
-									},
-									"newCwd": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"worktreeDirectory": {
-										"type": ["string", "null"],
-										"minLength": 1,
-										"maxLength": 4096
-									},
-									"manifestCheck": {
-										"type": "boolean"
-									},
-									"manifestCheckSource": {
-										"enum": ["default", "file"]
-									},
-									"defaultShell": {
-										"type": "string",
-										"maxLength": 4096
-									},
-									"shellMode": {
-										"enum": ["auto", "login", "non_login"]
-									},
-									"keyPrefix": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 128
-									},
-									"keyOverrides": {
-										"type": "integer",
-										"minimum": 0,
-										"maximum": 37
-									},
-									"windowTitle": {
-										"type": "string",
-										"maxLength": 4096
-									},
-									"windowTitleDiagnostic": {
-										"const": null
-									},
-									"notificationDelivery": {
-										"enum": ["off", "orchbee", "terminal", "system"]
-									},
-									"notificationPosition": {
-										"enum": ["top-left", "top-right", "bottom-left", "bottom-right"]
-									},
-									"agentSidebarProfile": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 32768
-									},
-									"spacesSidebarProfile": {
-										"type": "string",
-										"minLength": 1,
-										"maxLength": 32768
-									},
-									"notificationAgentDelivery": {
-										"enum": ["off", "orchbee", "terminal", "system"]
-									},
-									"notificationDelaySeconds": {
-										"type": "integer",
-										"minimum": 0,
-										"maximum": 3600
-									},
-									"notificationSoundEnabled": {
-										"type": "boolean"
-									},
-									"notificationAgentSounds": {
-										"type": "object",
-										"maxProperties": 64,
-										"propertyNames": {
-											"pattern": "^[a-z0-9](?:[a-z0-9.-]{0,62}[a-z0-9])?$"
-										},
-										"additionalProperties": {
-											"enum": ["default", "on", "off"]
-										}
-									},
-									"diagnostics": {
-										"type": "array",
-										"maxItems": 128,
-										"uniqueItems": true,
-										"$comment": "Bindings additionally enforce strict (field, reason) order.",
-										"items": {
-											"type": "object",
-											"required": ["field", "reason", "disposition"],
-											"additionalProperties": false,
-											"properties": {
-												"field": {
-													"type": "string",
-													"minLength": 1,
-													"maxLength": 256,
-													"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$",
-													"$comment": "Bindings additionally enforce the 256 UTF-8 byte limit and Unicode scalar strings."
-												},
-												"reason": {
-													"type": "string",
-													"minLength": 1,
-													"maxLength": 64,
-													"pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
-												},
-												"disposition": {
-													"enum": ["defaulted", "disabled", "ignored"]
-												}
-											}
-										}
-									},
-									"diagnosticsOmitted": {
-										"type": "integer",
-										"minimum": 0,
-										"maximum": 65536
-									},
-									"themeName": {
-										"enum": ["terminal-native", "one-light", "one-dark"]
-									}
-								}
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": ["field", "reason"],
-								"additionalProperties": false,
-								"properties": {
-									"field": {
-										"enum": [
-											"file",
-											"ORCHBEE_CONFIG_FILE",
-											"APPDATA",
-											"ORCHBEE_RESUME_AGENTS_ON_RESTORE"
-										]
-									},
-									"reason": {
-										"enum": [
-											"invalid-path",
-											"invalid-boolean",
-											"missing",
-											"io-error",
-											"not-file",
-											"too-large",
-											"invalid-utf8",
-											"invalid-toml"
-										]
-									}
-								},
-								"oneOf": [
-									{
-										"properties": {
-											"field": {
-												"const": "file"
-											},
-											"reason": {
-												"enum": [
-													"invalid-path",
-													"missing",
-													"io-error",
-													"not-file",
-													"too-large",
-													"invalid-utf8",
-													"invalid-toml"
-												]
-											}
-										}
-									},
-									{
-										"properties": {
-											"field": {
-												"enum": ["ORCHBEE_CONFIG_FILE", "APPDATA"]
-											},
-											"reason": {
-												"const": "invalid-path"
-											}
-										}
-									},
-									{
-										"properties": {
-											"field": {
-												"const": "ORCHBEE_RESUME_AGENTS_ON_RESTORE"
-											},
-											"reason": {
-												"const": "invalid-boolean"
-											}
-										}
-									}
-								]
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"status": {
-								"const": "pass"
-							}
-						},
-						"required": ["status"]
-					},
-					"then": {
-						"properties": {
-							"details": {
-								"properties": {
-									"diagnostics": {
-										"maxItems": 0
-									},
-									"diagnosticsOmitted": {
-										"const": 0
-									}
-								}
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"status": {
-								"const": "warning"
-							}
-						},
-						"required": ["status"]
-					},
-					"then": {
-						"properties": {
-							"details": {
-								"anyOf": [
-									{
-										"properties": {
-											"diagnostics": {
-												"minItems": 1
-											}
-										}
-									},
-									{
-										"properties": {
-											"diagnosticsOmitted": {
-												"minimum": 1
-											}
-										}
-									}
-								]
-							}
-						}
-					}
-				}
-			]
+			"required": ["kind"],
+			"additionalProperties": false
 		}
 	}
 }

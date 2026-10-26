@@ -123,7 +123,7 @@ fn notification_pipe_receipts_are_correlated_and_never_retried() {
             );
         } else {
             let document: Value = serde_json::from_slice(&output.stdout).unwrap();
-            assert_eq!(document["version"], 2);
+            assert_eq!(document["version"], 1);
             validate(
                 &document,
                 include_str!("../src/cli/schemas/orchbee.notification.show.json"),

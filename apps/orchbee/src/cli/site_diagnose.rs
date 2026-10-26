@@ -55,6 +55,61 @@ pub(crate) struct DiagnoseDocument {
     pub(crate) advisories: Vec<&'static str>,
 }
 
+/// Platform-specific observations share one machine shape. Text keeps its concise rows.
+#[cfg(any(target_os = "linux", windows))]
+fn complete_rows(value: &mut Value) {
+    let Some(object) = value.as_object_mut() else {
+        return;
+    };
+    if object.contains_key("state") {
+        let absence = object.get("state") == Some(&json!("absent"));
+        for key in [
+            "reason",
+            "path",
+            "pathBytesHex",
+            "pathUtf16",
+            "kind",
+            "ownerMatch",
+            "mode",
+            "size",
+            "linkCount",
+            "private",
+            "activation",
+            "stopRequestId",
+        ] {
+            let unsupported = if cfg!(windows) {
+                matches!(
+                    key,
+                    "pathBytesHex" | "kind" | "ownerMatch" | "mode" | "size" | "linkCount"
+                )
+            } else {
+                matches!(
+                    key,
+                    "pathUtf16" | "private" | "activation" | "stopRequestId"
+                )
+            };
+            object.entry(key.to_owned()).or_insert_with(|| {
+                if unsupported {
+                    json!({"kind":"unsupported"})
+                } else if absence
+                    || matches!(
+                        key,
+                        "reason" | "path" | "pathBytesHex" | "pathUtf16" | "stopRequestId"
+                    )
+                {
+                    Value::Null
+                } else {
+                    json!("unknown")
+                }
+            });
+        }
+    } else {
+        for member in object.values_mut() {
+            complete_rows(member);
+        }
+    }
+}
+
 pub(crate) fn run(format: OutputFormat, locale: Locale) -> Output {
     match collect() {
         // Like `server start`, every `server diagnose` answer — failure
@@ -478,6 +533,8 @@ fn envelope(
         "advisories".to_owned(),
         json!(advisories.iter().collect::<Vec<_>>()),
     );
+    let mut result = Value::Object(result);
+    complete_rows(&mut result);
     DiagnoseDocument {
         envelope: json!({
             "schema": "orchbee.site.diagnose",

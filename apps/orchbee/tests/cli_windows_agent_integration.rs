@@ -2026,7 +2026,7 @@ fn outdated_filter_preserves_unknown_and_blocked_inspections_without_effects() {
             jsonschema::validator_for(&schema).unwrap().is_valid(&doc),
             "{doc}"
         );
-        assert_eq!(doc["version"], 6);
+        assert_eq!(doc["version"], 1);
         let result = &doc["result"];
         assert_eq!(result["inspectedCount"], 1);
         assert_eq!(result["outdatedOnly"], true);

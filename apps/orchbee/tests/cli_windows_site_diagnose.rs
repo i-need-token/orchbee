@@ -51,7 +51,7 @@ impl Fixture {
         assert!(output.stderr.is_empty());
         let document: Value = serde_json::from_slice(&output.stdout).unwrap();
         let schema: Value = serde_json::from_str(include_str!(
-            "../src/cli/schemas/orchbee.site.diagnose.windows.json"
+            "../src/cli/schemas/orchbee.site.diagnose.json"
         ))
         .unwrap();
         let validator = jsonschema::draft202012::new(&schema).unwrap();

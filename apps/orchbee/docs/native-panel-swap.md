@@ -70,7 +70,7 @@ uses the fresh view revision, and input during accepted control uses existing in
 
 ## Receipts and recovery
 
-`orchbee.panel.swap` v2 identifies headless exchange with `scope:shared` and null Client/focus/geometry
+`orchbee.panel.swap` v1 identifies headless exchange with `scope:shared` and null Client/focus/geometry
 fields. It preserves the canonical request and outcome, including unknown results, independently.
 The Client workflow uses v1, which separates target resolution, canonical submission and focus observation.
 It identifies the Session, selected Client, exact pair and submitted request IDs when known. Canonical

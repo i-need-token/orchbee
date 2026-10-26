@@ -163,7 +163,6 @@ pub(super) fn failed_after_send(
         json!("wait-read-failed")
     };
     let failure = Failure::new(failure.kind)
-        .version(2)
         .failure_schema(super::FAILURE_SCHEMA)
         .source(receipt["source"].clone())
         .details(Map::from_iter([
@@ -185,15 +184,7 @@ pub(super) fn success(
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
-    let version = if matched
-        .as_ref()
-        .is_some_and(|matched| matched.client_view.is_some())
-    {
-        10
-    } else {
-        9
-    };
-    let document = json!({"schema":"orchbee.agent.prompt","version":version,"source":receipt["source"],
+    let document = json!({"schema":"orchbee.agent.prompt","version":1,"source":receipt["source"],
         "result":{"target":{"kind":"terminal","binding":binding},"submission":receipt,
             "wait":matched.as_ref().map(Matched::document)}});
     let encoded = match format {

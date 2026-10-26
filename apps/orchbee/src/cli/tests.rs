@@ -95,19 +95,16 @@ fn integration_list_documents_cover_the_entire_provider_registry() {
         validator
             .validate(&document)
             .unwrap_or_else(|error| panic!("{document}: {error}"));
-        assert_eq!(document["version"], if outdated_only { 6 } else { 5 });
+        assert_eq!(document["version"], 1);
         assert_eq!(
             document["result"]["integrations"].as_array().unwrap().len(),
             IntegrationId::ALL.len()
         );
-        let mut legacy = document;
-        legacy["version"] = json!(if outdated_only { 2 } else { 1 });
-        assert!(!validator.is_valid(&legacy));
     }
 }
 
 #[test]
-fn launch_profile_documents_preserve_platform_paths_and_legacy_constraints() {
+fn launch_profile_documents_preserve_platform_paths_and_reject_relative_paths() {
     use super::results::{LaunchProfileCatalogDoc, LaunchProfileCatalogSelection};
     use orchbee_workbench_protocol::{
         LaunchProfileCatalogRevision, LaunchProfileEntry, LaunchProfileId, LaunchProfileName,
@@ -156,10 +153,7 @@ fn launch_profile_documents_preserve_platform_paths_and_legacy_constraints() {
             .unwrap();
             let validator = jsonschema::validator_for(&schema).unwrap();
             validator.validate(&document).unwrap();
-            assert_eq!(document["version"], 2);
-            document["version"] = json!(1);
-            assert_eq!(validator.is_valid(&document), executable.starts_with('/'));
-            document["version"] = json!(2);
+            assert_eq!(document["version"], 1);
             let profile = if list {
                 &mut document["result"]["profiles"][0]
             } else {
@@ -676,14 +670,14 @@ fn terminal_get_preserves_launch_arguments_and_omits_unknown_selection_in_all_lo
                 match format {
                     OutputFormat::Json => {
                         let doc = envelope(&result.stdout);
-                        assert_eq!(doc["version"], 4);
+                        assert_eq!(doc["version"], 1);
                         let terminal = &doc["result"]["terminal"];
                         if explicit {
                             assert_eq!(terminal["launchSelection"], expected);
                         } else {
-                            assert!(terminal.get("launchSelection").is_none());
+                            assert!(terminal["launchSelection"].is_null());
                         }
-                        assert!(terminal.get("launchProfile").is_none());
+                        assert!(terminal["launchProfile"].is_null());
                     }
                     OutputFormat::Text => {
                         let text = String::from_utf8(result.stdout).unwrap();

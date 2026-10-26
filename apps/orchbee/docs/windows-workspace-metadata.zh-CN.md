@@ -78,10 +78,10 @@ Workspace list/get 在同一个已准入连接和原有五秒总期限内组合�
 既有最终权威／Client 检查保留。并发变更、过期或目标缺失使查询失败，不发布混合／部分结果。
 取消和传输结果保留原有含义。值和来源在两种语言输出中都进行转义，不解释为终端控制序列。
 
-`orchbee.workspace.list/get` v6 为每行增加 `tokens` 映射；没有保留值时也返回空映射。
+`orchbee.workspace.list/get` v1 为每行增加 `tokens` 映射；没有保留值时也返回空映射。
 根级 `metadataSource` 携带 Session、Workbench 和元数据修订，以及全部读取请求 ID。
-`orchbee.cli.failure.workbench-query` v2 新增 `metadata-changed`。
-嵌入目录为 v84，共 88 份文档；原生 CLI 有 99 条命令路径。
+`orchbee.cli.failure.workbench-query` v1 新增 `metadata-changed`。
+嵌入目录列出当前文档与命令路径。
 
 ## 证据与交付
 

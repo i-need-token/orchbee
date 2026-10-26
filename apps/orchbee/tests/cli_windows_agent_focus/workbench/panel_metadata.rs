@@ -236,7 +236,7 @@ fn panel_metadata_queries_enforce_exact_batches_binding_fences_and_original_dead
                     include_str!("../../../src/cli/schemas/orchbee.panel.list.json")
                 },
             );
-            assert_eq!(doc["version"], 11);
+            assert_eq!(doc["version"], 1);
             if count > 0 {
                 let row = if case == "get" {
                     &doc["result"]["panel"]
@@ -272,31 +272,7 @@ fn panel_metadata_queries_enforce_exact_batches_binding_fences_and_original_dead
             };
             let schema: Value = serde_json::from_str(schema).unwrap();
             let validator = jsonschema::validator_for(&schema).unwrap();
-            let mut legacy = doc.clone();
-            legacy["version"] = json!(7);
-            if count > 0 {
-                assert!(!validator.is_valid(&legacy));
-            }
-            if case == "get" {
-                legacy["result"]["panel"]
-                    .as_object_mut()
-                    .unwrap()
-                    .remove("metadata");
-                legacy["result"]["panel"]
-                    .as_object_mut()
-                    .unwrap()
-                    .remove("reportedAgent");
-            } else {
-                for row in legacy["result"]["panels"].as_array_mut().unwrap() {
-                    row.as_object_mut().unwrap().remove("metadata");
-                    row.as_object_mut().unwrap().remove("reportedAgent");
-                }
-            }
-            assert!(validator.is_valid(&legacy));
-            legacy["version"] = json!(8);
-            if count > 0 {
-                assert!(!validator.is_valid(&legacy));
-            }
+            assert!(validator.is_valid(&doc));
         } else {
             assert!(doc.get("result").is_none());
             assert_eq!(

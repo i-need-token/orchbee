@@ -10,7 +10,7 @@
 			"const": "orchbee.agent.resolve"
 		},
 		"version": {
-			"enum": [1, 2, 3]
+			"const": 1
 		},
 		"source": {
 			"type": "object",
@@ -26,69 +26,41 @@
 			}
 		},
 		"result": {
-			"anyOf": [
-				{
-					"type": "object",
-					"required": ["kind", "sessionId", "resolvedBy"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "resolved"
-						},
-						"sessionId": {
-							"$ref": "#/$defs/sessionId"
-						},
-						"resolvedBy": {
-							"enum": ["session-id", "name", "presentation"]
-						}
-					}
+			"type": "object",
+			"required": ["kind", "target", "resolvedBy"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "resolved-target"
 				},
-				{
-					"type": "object",
-					"required": ["kind", "target", "resolvedBy"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "resolved-target"
-						},
-						"target": {
-							"$ref": "#/$defs/nameTarget"
-						},
-						"resolvedBy": {
-							"enum": ["session-id", "name", "presentation"]
-						}
-					},
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"target": {
-										"properties": {
-											"kind": {
-												"const": "terminal"
-											}
-										}
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"resolvedBy": {
-										"enum": ["name", "presentation"]
-									}
-								}
+				"target": {
+					"$ref": "#/$defs/nameTarget"
+				},
+				"resolvedBy": {
+					"enum": ["session-id", "name", "presentation"]
+				}
+			},
+			"if": {
+				"properties": {
+					"target": {
+						"properties": {
+							"kind": {
+								"const": "terminal"
 							}
 						}
-					]
+					}
 				}
-			]
+			},
+			"then": {
+				"properties": {
+					"resolvedBy": {
+						"enum": ["name", "presentation"]
+					}
+				}
+			}
 		}
 	},
 	"$defs": {
-		"agentName": {
-			"type": "string",
-			"pattern": "^[a-z][a-z0-9_-]{0,31}$"
-		},
 		"sessionId": {
 			"$ref": "#/$defs/opaqueIdentity"
 		},
@@ -98,8 +70,7 @@
 		},
 		"obapRequestId": {
 			"type": "string",
-			"pattern": "^[0-9a-f]{32}$",
-			"$comment": "Request identity: exactly 32 lowercase hexadecimal characters and never the zero sentinel; the nonzero rule is a semantic invariant enforced by each binding."
+			"pattern": "^[0-9a-f]{32}$"
 		},
 		"nameTarget": {
 			"oneOf": [
@@ -130,19 +101,6 @@
 					}
 				}
 			]
-		},
-		"namedTarget": {
-			"type": "object",
-			"required": ["name", "target"],
-			"additionalProperties": false,
-			"properties": {
-				"name": {
-					"$ref": "#/$defs/agentName"
-				},
-				"target": {
-					"$ref": "#/$defs/nameTarget"
-				}
-			}
 		},
 		"launchBinding": {
 			"type": "object",
@@ -179,106 +137,5 @@
 				}
 			}
 		}
-	},
-	"allOf": [
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 1
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"properties": {
-							"resolvedBy": {
-								"enum": ["session-id", "name"]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 3
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"anyOf": [
-							{
-								"type": "object",
-								"required": ["kind", "target", "resolvedBy"],
-								"additionalProperties": false,
-								"properties": {
-									"kind": {
-										"const": "resolved-target"
-									},
-									"target": {
-										"$ref": "#/$defs/nameTarget"
-									},
-									"resolvedBy": {
-										"enum": ["session-id", "name", "presentation"]
-									}
-								},
-								"allOf": [
-									{
-										"if": {
-											"properties": {
-												"target": {
-													"properties": {
-														"kind": {
-															"const": "terminal"
-														}
-													}
-												}
-											}
-										},
-										"then": {
-											"properties": {
-												"resolvedBy": {
-													"enum": ["name", "presentation"]
-												}
-											}
-										}
-									}
-								]
-							}
-						]
-					}
-				}
-			},
-			"else": {
-				"properties": {
-					"result": {
-						"anyOf": [
-							{
-								"type": "object",
-								"required": ["kind", "sessionId", "resolvedBy"],
-								"additionalProperties": false,
-								"properties": {
-									"kind": {
-										"const": "resolved"
-									},
-									"sessionId": {
-										"$ref": "#/$defs/sessionId"
-									},
-									"resolvedBy": {
-										"enum": ["session-id", "name", "presentation"]
-									}
-								}
-							}
-						]
-					}
-				}
-			}
-		}
-	]
+	}
 }

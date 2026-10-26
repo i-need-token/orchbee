@@ -58,9 +58,9 @@ that times out retires the connection, while actual EOF remains transport loss.
 Routing refusals retain `orchbee.cli.failure.client-control` v1. Enrichment uses the existing
 Workbench-query failures, including `client-changed` and `workbench-changed`, without partial
 results. Generic current-stage failures retain the exact `current-panel` stage. Windows success
-uses `orchbee.panel.current` v8, with canonical Panel structure and an explicit `currentPresentation`.
-Non-Windows current retains v3; the embedded schema strictly separates these shapes.
-`orchbee.panel.process-info` remains v2. Catalog v100 contains 92 documents and 109 command paths.
+uses `orchbee.panel.current` v1, with canonical Panel structure and an explicit `currentPresentation`.
+All supported platforms use this version and these members; unsupported enrichment is explicitly `{kind:"unsupported"}`.
+`orchbee.panel.process-info` remains v1. The offline catalog lists the current documents and command paths.
 
 ## Refinement and evidence
 
@@ -74,14 +74,14 @@ Grammar/help/completion evidence covers each selector and conflicting option. Sc
 peers establish explicit/caller paths without Client reads, unique/explicit Client selection,
 ambiguity, invalid caller, stale membership, bounded partial replies, enriched/unavailable
 observations, stable Busy/history reads, unchanged process-query readiness guards, changed Client views (including move-away-and-back), changed snapshots, strict
-legacy/current schemas, and absence of mutating controls or input requests. Actual Windows PowerShell 5.1/7 and two ConPTY Clients exercise selection and
+current schemas, and absence of mutating controls or input requests. Actual Windows PowerShell 5.1/7 and two ConPTY Clients exercise selection and
 unchanged focus; a partial reply plus Ctrl+C exercises cancellation and peer teardown. These
 checks do not establish atomic snapshot/Client/OS observations or other-platform support.
 
 The passive Presentation read extends the matched private wire cohort; no dependency, durable state,
 or migration changes. Existing non-Windows
-query behavior remains unchanged; `--client` is Windows-only. Consumers of Windows current v3
-must accept the v8 enrichment contract. Rollout and rollback replace the CLI executable within
+query behavior remains unchanged; `--client` is Windows-only. Consumers of Windows current v1
+must accept the v1 enrichment contract. Rollout and rollback replace the CLI executable within
 the existing cohort; they do not migrate saved data.
 
 ## Exact current Presentation for process information
@@ -90,7 +90,7 @@ Windows `panel process-info` resolves an explicit Panel to its primary terminal.
 metadata it retains the exact validated terminal, including a child Presentation. With a Client
 it passively reads `Presentation { panelId }` before querying the Host: the Workbench Client owns
 the selected Presentation, binding, attachment generation and pane incarnation. Missing local
-membership is unavailable, never a fallback to the primary. Existing process-info v2 already
+membership is unavailable, never a fallback to the primary. Existing process-info v1 already
 identifies the exact terminal and Presentation and remains closed.
 
 The workflow is snapshot → exact member read → Host process read/viewer cleanup → canonical
@@ -106,7 +106,7 @@ member contains its exact installed viewport observation; an absent member does 
 viewport facts. Native projection validates canonical owner and binding before exporting the
 existing local generation token. Server retains only a bounded operation receipt. The private
 matched cohort rolls out together and rolls back with source; no durable migration is required.
-Client control receipt v6 admits this new intent while v1–v5 remain closed.
+Client control receipt v1 admits this new intent.
 
 Evidence covers strict contract parsing and reply identity, native child projection without
 primary borrowing, caller child resolution, and controlled Windows CLI request ordering and
@@ -115,14 +115,13 @@ The following enrichment uses this same member identity; [Report writes](windows
 
 ## Current member enrichment
 
-Windows `panel current` v8 resolves one canonical Presentation before joining observations.
+Windows `panel current` v1 resolves one canonical Presentation before joining observations.
 Explicit Panel targets choose their primary (including an unbound primary), caller metadata
 chooses that exact bound terminal, and Client targets use the passive exact-member read.
 `currentPresentation` identifies this member, its canonical label/override/binding and origin
 (`primary`, `caller`, `client` with local attachment generation/incarnation, or
 `client-unbound` with selection generation). Canonical
-`primaryPresentation` and `childPresentations` retain their actual structure. Existing v3–v7
-remain closed; Panel Get/List retain their existing primary semantics.
+`primaryPresentation` and `childPresentations` retain their actual structure. Panel Get/List retain their existing primary semantics.
 
 Current Agent membership, terminal title/directory/runtime, reports, metadata and Client scroll
 all use the same resolved member. Exact report reads validate Presentation ID, owning Panel and
@@ -140,7 +139,7 @@ claim atomic Host/process/Agent observations, and creates no input or focus effe
 
 Pure target tests and actual Windows CLI peer traces cover primary, child caller, selected child,
 unbound explicit primary, exact report/metadata association, stale tokens/revisions, failure
-envelopes and legacy schema rejection. The final provider/multi-Client/full gate remains deferred.
+envelopes and invalid-shape rejection. The final provider/multi-Client/full gate remains deferred.
 No new dependency or durable migration is required; the unbound wire alternative is described below. Roll out the updated native CLI
 with its existing matched cohort, and roll back by source. [Report writes](windows-panel-agent-reports.md#exact-member-targets) select an explicit member separately.
 
@@ -153,11 +152,11 @@ incarnation and viewport shape. Null still means no local member. Only Ready or 
 SelectedWithoutAttachment may export empty identities; a pending Switch target is not an observation.
 The Client checks exact canonical Panel/member membership and absence of binding before answering.
 
-Windows current v8 uses `source: {kind: "client-unbound", selectionGeneration}` with `binding: null`.
+Windows current v1 uses `source: {kind: "client-unbound", selectionGeneration}` with `binding: null`.
 Both member reads must retain the same kind, ID and generation, alongside existing canonical and
 Client view fences. Exact report/metadata/Agent joins retain the empty member, scroll is not-attached,
 and no physical terminal is queried. Client process-info fails with the existing missing-terminal
-result; it never borrows a bound sibling. Legacy current v7 and control v6 reject this new shape.
+result; it never borrows a bound sibling.
 Strict cross-binding vectors, state/UI reads and actual Windows CLI pipe traces cover these rules;
 provider and multi-Client visual acceptance remain final validation obligations. This extends the
-matched private cohort and public current v8/control v7; source rollback needs no data migration.
+matched private cohort and public current v1/control v1; source rollback needs no data migration.

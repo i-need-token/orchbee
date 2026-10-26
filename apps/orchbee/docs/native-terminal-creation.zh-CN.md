@@ -47,7 +47,7 @@ Server 将比例保存在规范分割及重启存档中；每个 Client 按各�
 
 ## 回执与恢复
 
-Windows 创建在已知规范提交后输出 `orchbee.creation.result` v3。保留已有规范 `source`
+Windows 创建在已知规范提交后输出 `orchbee.creation.result` v1。保留已有规范 `source`
 和 `result` 事实，另以 `postCreate` 记录请求的比例／焦点、必要时的精确 Client、各次
 已提交 Client 观测、阶段与失败。只有全部请求的 Client 阶段完成才是进程成功；单独规范
 提交不代表聚焦成功。无 Client 请求的无界面创建在收到规范回执后完成。已知提交前的
@@ -55,8 +55,7 @@ Windows 创建在已知规范提交后输出 `orchbee.creation.result` v3。保�
 
 JSON 向 stdout 输出一个完整有界文档。失败文本写 stderr 并包含已知效果。未完成时先
 检查返回身份与当前状态，再决定后续动作；重复创建可能再创建资源。Client control-status
-可观察已经提交的 Client 操作。不增加持久流程日志或重启恢复。schema 目录为 v36、69
-个文档；命令路径仍为 81 个。
+可观察已经提交的 Client 操作。不增加持久流程日志或重启恢复。目录列出当前文档与命令路径。
 
 ## 证据与兼容性
 
@@ -96,7 +95,7 @@ Terminal 的 Windows Job，仅根 PID 对应行提供 cwd，不使用任意子�
 | Observing | 一次可取消 viewer 采样，不影响控制权、焦点、尺寸或终端输入。                     |
 | Resolved  | 可用绝对 cwd 成为单次启动覆盖；明确缺失则保留启动默认值。                        |
 | Creating  | 原 Snapshot 修订和既有规范载体约束唯一一次提交。                                 |
-| Finished  | 创建回执 v3 分别记录请求策略、观测来源／路径及来源 Panel，不将其等同于启动成功。 |
+| Finished  | 创建回执 v1 分别记录请求策略、观测来源／路径及来源 Panel，不将其等同于启动成功。 |
 
 进程 cwd 是某一时刻的观测，不是租约；之后改变进程目录是允许的。目录在启动前可能消失，
 启动的既有类型化失败仍为权威。Windows 交互式 PowerShell 通过 Worker 拥有的 prompt 集成
@@ -110,7 +109,7 @@ ConPTY 创建轨迹覆盖此模型。目录解析后仍沿用既有阶段顺序�
 
 ## 插件覆盖层
 
-Windows 插件覆盖层通过活动 Client 的水平 split 和一次带守卫的焦点／zoom 交接创建。创建前被动读取成员，固定返回 Panel 实际选中的主／子 Presentation 与 binding。创建 v5 记录 overlay 请求；v2–v4 保持原有内嵌 Client-control v1 契约。仅 v5 接受新增的 Overlay control v8 答复。成员过期、焦点交接失败或回执不明仍保留已知创建，绝不重复创建。[Windows 插件](windows-plugins.zh-CN.md#覆盖层生命周期模型)负责临时返回链、自然终止、规范移除和 popup 排除边界。
+Windows 插件覆盖层通过活动 Client 的水平 split 和一次带守卫的焦点／zoom 交接创建。创建前被动读取成员，固定返回 Panel 实际选中的主／子 Presentation 与 binding。创建 v1 记录 overlay 请求。仅 v1 接受新增的 Overlay control v1 答复。成员过期、焦点交接失败或回执不明仍保留已知创建，绝不重复创建。[Windows 插件](windows-plugins.zh-CN.md#覆盖层生命周期模型)负责临时返回链、自然终止、规范移除和 popup 排除边界。
 
 ## TUI 启动失败
 
@@ -142,6 +141,6 @@ Client 结束释放；未捕获描述的其他失败使用通用指引，不声�
 
 查找最多使用 256 个绝对 UTF-8 目录项，PATH 总长上限为 1 MiB，选取首个可执行文件。跳过空、相对路径或包含控制字符的目录项。Windows 对无扩展名的名称依次尝试 `.exe`、`.com`，也接受显式指定这两种扩展名；不使用 `PATHEXT` 或脚本关联。Unix 要求为可执行的普通文件。参数不会交给 shell 求值。提交前会依据启动契约再次校验最终路径与参数。
 
-程序名回执增加包含 `exec` 和 `args` 的 `resolvedLaunch`：`orchbee.creation.result` 版本 6/7/8 对应版本 3/4/5，`orchbee.workspace.creation` 版本 3 接续版本 2，`orchbee.panel.terminal-create` 版本 2 接续版本 1，Linux 规范回执 `orchbee.mutation.result` 版本 7 接续版本 4。既有绝对路径回执版本保持原样。文本输出显示解析后的程序。解析只是输入事实，不证明进程已经启动；原始提交、失败和清理事实仍是权威。
+创建回执始终包含可空的 `resolvedLaunch`：`orchbee.creation.result`、`orchbee.workspace.creation`、`orchbee.panel.terminal-create` 和 `orchbee.mutation.result` 均使用版本 1。程序名解析填写 `exec` 与 `args`，其他情况该成员为 null。文本显示解析后的程序。解析是输入事实，不证明进程已经启动；原始提交、失败及清理观测仍是权威。
 
-例如，`orchbee tab create --exec pwsh --arg -NoExit --arg -Command --arg "npm run dev"` 解析 PowerShell 一次，并将命令作为一个字面参数传递。PATH 查找覆盖顺序、程序缺失、无效名称与相对目录项；回执覆盖版本选择与不确定结果的保留。
+例如，`orchbee tab create --exec pwsh --arg -NoExit --arg -Command --arg "npm run dev"` 解析 PowerShell 一次，并将命令作为一个字面参数传递。PATH 查找覆盖顺序、程序缺失、无效名称与相对目录项；回执覆盖固定成员及不确定结果的保留。

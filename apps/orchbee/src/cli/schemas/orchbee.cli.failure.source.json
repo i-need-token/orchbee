@@ -6,15 +6,70 @@
 	"required": ["schema", "version", "failure"],
 	"additionalProperties": false,
 	"properties": {
-		"schema": { "const": "orchbee.cli.failure.source" },
-		"version": { "const": 1 },
+		"schema": {
+			"const": "orchbee.cli.failure.source"
+		},
+		"version": {
+			"const": 1
+		},
 		"failure": {
 			"type": "object",
 			"required": ["kind", "details"],
 			"additionalProperties": false,
 			"properties": {
-				"kind": { "enum": ["cancelled", "timeout"] },
-				"details": { "$ref": "#/$defs/inputDetails" }
+				"kind": {
+					"enum": ["cancelled", "timeout"]
+				},
+				"details": {
+					"$ref": "#/$defs/inputDetails"
+				}
+			}
+		}
+	},
+	"$defs": {
+		"inputDetails": {
+			"type": "object",
+			"required": ["stage", "inputSource"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "input"
+				},
+				"inputSource": {
+					"enum": ["file", "stdin"]
+				},
+				"timeoutMs": {
+					"type": "integer",
+					"minimum": 1
+				}
+			}
+		}
+	},
+	"if": {
+		"properties": {
+			"failure": {
+				"properties": {
+					"kind": {
+						"const": "timeout"
+					}
+				},
+				"required": ["kind"]
+			}
+		}
+	},
+	"then": {
+		"properties": {
+			"failure": {
+				"properties": {
+					"details": {
+						"required": ["stage", "inputSource", "timeoutMs"],
+						"properties": {
+							"timeoutMs": {
+								"const": 5000
+							}
+						}
+					}
+				}
 			}
 		}
 	},
@@ -23,29 +78,11 @@
 			"if": {
 				"properties": {
 					"failure": {
-						"properties": { "kind": { "const": "timeout" } },
-						"required": ["kind"]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"failure": {
 						"properties": {
-							"details": {
-								"required": ["stage", "inputSource", "timeoutMs"],
-								"properties": { "timeoutMs": { "const": 5000 } }
+							"kind": {
+								"const": "cancelled"
 							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"failure": {
-						"properties": { "kind": { "const": "cancelled" } },
+						},
 						"required": ["kind"]
 					}
 				}
@@ -56,24 +93,14 @@
 						"properties": {
 							"details": {
 								"required": ["stage", "inputSource"],
-								"not": { "required": ["timeoutMs"] }
+								"not": {
+									"required": ["timeoutMs"]
+								}
 							}
 						}
 					}
 				}
 			}
 		}
-	],
-	"$defs": {
-		"inputDetails": {
-			"type": "object",
-			"required": ["stage", "inputSource"],
-			"additionalProperties": false,
-			"properties": {
-				"stage": { "const": "input" },
-				"inputSource": { "enum": ["file", "stdin"] },
-				"timeoutMs": { "type": "integer", "minimum": 1 }
-			}
-		}
-	}
+	]
 }

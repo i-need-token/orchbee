@@ -3,353 +3,7 @@
 	"$id": "orchbee.agent.integration.mutation",
 	"title": "orchbee agent integration mutation envelope",
 	"description": "Historical closed provider envelopes and the current canonical public provider vocabulary.",
-	"oneOf": [
-		{
-			"type": "object",
-			"required": ["schema", "version", "source", "result"],
-			"additionalProperties": false,
-			"properties": {
-				"schema": {
-					"const": "orchbee.agent.integration.mutation"
-				},
-				"version": {
-					"const": 1
-				},
-				"source": {
-					"type": "object",
-					"required": ["kind"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "local-inspection"
-						}
-					}
-				},
-				"result": {
-					"type": "object",
-					"required": ["invocationId", "provider", "direction", "outcome", "attempted", "observed"],
-					"additionalProperties": false,
-					"properties": {
-						"invocationId": {
-							"type": "string",
-							"minLength": 1
-						},
-						"provider": {
-							"enum": [
-								"claude-code",
-								"codex",
-								"grok",
-								"opencode",
-								"kilo",
-								"cursor",
-								"qodercli",
-								"antigravity-cli",
-								"mastracode",
-								"droid",
-								"kimi",
-								"letta",
-								"devin",
-								"hermes",
-								"pi",
-								"omp",
-								"gemini",
-								"github-copilot",
-								"cline",
-								"qwen-code"
-							]
-						},
-						"direction": {
-							"enum": ["enable", "disable"]
-						},
-						"outcome": {
-							"enum": ["completed", "refused", "failed", "unknown", "cancelled"]
-						},
-						"failure": {
-							"type": "object",
-							"required": ["code"],
-							"additionalProperties": false,
-							"properties": {
-								"code": {
-									"enum": [
-										"agent-unavailable",
-										"conflict",
-										"manual-action-required",
-										"inspection-failed",
-										"capsule-unavailable",
-										"capsule-invalid",
-										"timed-out",
-										"operation-failed",
-										"verification-failed",
-										"output-too-large",
-										"leaked"
-									]
-								}
-							}
-						},
-						"attempted": {
-							"type": "array",
-							"items": {
-								"$ref": "#/$defs/attemptedStep"
-							}
-						},
-						"observed": {
-							"type": "object",
-							"required": ["item", "provenance"],
-							"additionalProperties": false,
-							"properties": {
-								"item": {
-									"oneOf": [
-										{
-											"type": "null"
-										},
-										{
-											"$ref": "#/$defs/item"
-										}
-									]
-								},
-								"provenance": {
-									"enum": ["pre-effect", "post-effect", "partial", "unavailable"]
-								}
-							}
-						},
-						"residue": {
-							"type": "array",
-							"items": {
-								"type": "string",
-								"minLength": 1
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"allOf": [
-				{
-					"type": "object",
-					"required": ["schema", "version", "source", "result"],
-					"additionalProperties": false,
-					"properties": {
-						"schema": {
-							"const": "orchbee.agent.integration.mutation"
-						},
-						"version": {
-							"const": 2
-						},
-						"source": {
-							"type": "object",
-							"required": ["kind"],
-							"additionalProperties": false,
-							"properties": {
-								"kind": {
-									"const": "local-inspection"
-								}
-							}
-						},
-						"result": {
-							"type": "object",
-							"required": [
-								"invocationId",
-								"provider",
-								"direction",
-								"outcome",
-								"attempted",
-								"observed"
-							],
-							"additionalProperties": false,
-							"properties": {
-								"invocationId": {
-									"type": "string",
-									"minLength": 1
-								},
-								"provider": {
-									"enum": [
-										"claude-code",
-										"codex",
-										"grok",
-										"opencode",
-										"kilo",
-										"cursor",
-										"qodercli",
-										"antigravity",
-										"mastracode",
-										"droid",
-										"kimi",
-										"letta",
-										"devin",
-										"hermes",
-										"pi",
-										"omp",
-										"gemini",
-										"github-copilot",
-										"cline",
-										"qwen-code"
-									]
-								},
-								"direction": {
-									"enum": ["enable", "disable"]
-								},
-								"outcome": {
-									"enum": ["completed", "refused", "failed", "unknown", "cancelled"]
-								},
-								"failure": {
-									"type": "object",
-									"required": ["code"],
-									"additionalProperties": false,
-									"properties": {
-										"code": {
-											"enum": [
-												"agent-unavailable",
-												"conflict",
-												"manual-action-required",
-												"inspection-failed",
-												"capsule-unavailable",
-												"capsule-invalid",
-												"timed-out",
-												"operation-failed",
-												"verification-failed",
-												"output-too-large",
-												"leaked"
-											]
-										}
-									}
-								},
-								"attempted": {
-									"type": "array",
-									"items": {
-										"$ref": "#/$defs/publicProvider_attemptedStep"
-									}
-								},
-								"observed": {
-									"type": "object",
-									"required": ["item", "provenance"],
-									"additionalProperties": false,
-									"properties": {
-										"item": {
-											"oneOf": [
-												{
-													"type": "null"
-												},
-												{
-													"$ref": "#/$defs/publicProvider_item"
-												}
-											]
-										},
-										"provenance": {
-											"enum": ["pre-effect", "post-effect", "partial", "unavailable"]
-										}
-									}
-								},
-								"residue": {
-									"type": "array",
-									"items": {
-										"type": "string",
-										"minLength": 1
-									}
-								}
-							}
-						}
-					}
-				},
-				{
-					"properties": {
-						"version": {
-							"enum": [2]
-						}
-					}
-				}
-			]
-		}
-	],
 	"$defs": {
-		"item": {
-			"type": "object",
-			"required": ["integrationId", "availability", "managementMode", "state", "issue"],
-			"additionalProperties": false,
-			"properties": {
-				"integrationId": {
-					"enum": [
-						"claude-code",
-						"codex",
-						"grok",
-						"opencode",
-						"kilo",
-						"cursor",
-						"qodercli",
-						"antigravity-cli",
-						"mastracode",
-						"droid",
-						"kimi",
-						"letta",
-						"devin",
-						"hermes",
-						"pi",
-						"omp",
-						"gemini",
-						"github-copilot",
-						"cline",
-						"qwen-code"
-					]
-				},
-				"availability": {
-					"enum": ["available", "not-found", "unknown"]
-				},
-				"managementMode": {
-					"enum": ["managed-local", "manual-only"]
-				},
-				"state": {
-					"enum": ["conflict", "disabled", "enabled", "not-installed", "update-required", "unknown"]
-				},
-				"issue": {
-					"enum": [
-						"inspection-failed",
-						"manual-action-required",
-						"unsupported-platform",
-						"unsupported-version",
-						null
-					]
-				}
-			}
-		},
-		"attemptedStep": {
-			"type": "object",
-			"required": ["kind", "outcome"],
-			"additionalProperties": false,
-			"properties": {
-				"kind": {
-					"enum": ["provider-command", "filesystem"]
-				},
-				"executable": {
-					"type": "string",
-					"minLength": 1
-				},
-				"argv": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					}
-				},
-				"operation": {
-					"type": "string",
-					"minLength": 1
-				},
-				"target": {
-					"type": "string",
-					"minLength": 1
-				},
-				"outcome": {
-					"enum": [
-						"completed",
-						"conflict",
-						"failed",
-						"deadline",
-						"timed-out",
-						"leaked",
-						"output-too-large"
-					]
-				}
-			}
-		},
 		"publicProvider_item": {
 			"type": "object",
 			"required": ["integrationId", "availability", "managementMode", "state", "issue"],
@@ -435,6 +89,123 @@
 						"leaked",
 						"output-too-large"
 					]
+				}
+			}
+		}
+	},
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.agent.integration.mutation"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "local-inspection"
+				}
+			}
+		},
+		"result": {
+			"type": "object",
+			"required": ["invocationId", "provider", "direction", "outcome", "attempted", "observed"],
+			"additionalProperties": false,
+			"properties": {
+				"invocationId": {
+					"type": "string",
+					"minLength": 1
+				},
+				"provider": {
+					"enum": [
+						"claude-code",
+						"codex",
+						"grok",
+						"opencode",
+						"kilo",
+						"cursor",
+						"qodercli",
+						"antigravity",
+						"mastracode",
+						"droid",
+						"kimi",
+						"letta",
+						"devin",
+						"hermes",
+						"pi",
+						"omp",
+						"gemini",
+						"github-copilot",
+						"cline",
+						"qwen-code"
+					]
+				},
+				"direction": {
+					"enum": ["enable", "disable"]
+				},
+				"outcome": {
+					"enum": ["completed", "refused", "failed", "unknown", "cancelled"]
+				},
+				"failure": {
+					"type": "object",
+					"required": ["code"],
+					"additionalProperties": false,
+					"properties": {
+						"code": {
+							"enum": [
+								"agent-unavailable",
+								"conflict",
+								"manual-action-required",
+								"inspection-failed",
+								"capsule-unavailable",
+								"capsule-invalid",
+								"timed-out",
+								"operation-failed",
+								"verification-failed",
+								"output-too-large",
+								"leaked"
+							]
+						}
+					}
+				},
+				"attempted": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/publicProvider_attemptedStep"
+					}
+				},
+				"observed": {
+					"type": "object",
+					"required": ["item", "provenance"],
+					"additionalProperties": false,
+					"properties": {
+						"item": {
+							"oneOf": [
+								{
+									"type": "null"
+								},
+								{
+									"$ref": "#/$defs/publicProvider_item"
+								}
+							]
+						},
+						"provenance": {
+							"enum": ["pre-effect", "post-effect", "partial", "unavailable"]
+						}
+					}
+				},
+				"residue": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
 				}
 			}
 		}

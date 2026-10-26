@@ -202,16 +202,14 @@
 									"type": "string",
 									"minLength": 1,
 									"maxLength": 30720,
-									"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000]*$",
-									"$comment": "The authoritative executable plus arguments bound is 30720 UTF-8 bytes and worst-case JSON string-content bytes."
+									"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000]*$"
 								}
 							],
 							"items": {
 								"type": "string",
 								"pattern": "^[^\\u0000]*$",
 								"maxLength": 30720
-							},
-							"$comment": "A variadic argv tuple: one absolute executable followed by zero to 128 literal arguments."
+							}
 						},
 						{
 							"type": "null"
@@ -234,96 +232,87 @@
 					"type": "boolean"
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"start": {
-								"const": false
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"cwd": {
-								"type": "null"
-							},
-							"command": {
-								"type": "null"
-							}
-						}
-					}
-				}
-			]
-		}
-	},
-	"$comment": "Exact primary/child observations preserve unbound start:false members. At most 24 Panels and 16 levels, with 16 children per Panel; total 1 MiB and runtime byte bounds are enforced by the CLI.",
-	"allOf": [
-		{
 			"if": {
 				"properties": {
-					"source": {
-						"properties": {
-							"scope": {
-								"const": "client"
-							}
-						}
+					"start": {
+						"const": false
 					}
 				}
 			},
 			"then": {
 				"properties": {
-					"source": {
-						"properties": {
-							"clientId": {
-								"$ref": "#/$defs/id"
-							},
-							"viewRevision": {
-								"$ref": "#/$defs/decimal"
-							}
-						}
+					"cwd": {
+						"type": "null"
 					},
-					"result": {
-						"properties": {
-							"layout": {
-								"properties": {
-									"zoomed": {
-										"type": "boolean"
-									}
-								}
-							}
-						}
+					"command": {
+						"type": "null"
+					}
+				}
+			}
+		}
+	},
+	"if": {
+		"properties": {
+			"source": {
+				"properties": {
+					"scope": {
+						"const": "client"
+					}
+				}
+			}
+		}
+	},
+	"then": {
+		"properties": {
+			"source": {
+				"properties": {
+					"clientId": {
+						"$ref": "#/$defs/id"
+					},
+					"viewRevision": {
+						"$ref": "#/$defs/decimal"
 					}
 				}
 			},
-			"else": {
+			"result": {
 				"properties": {
-					"source": {
+					"layout": {
 						"properties": {
-							"clientId": {
-								"type": "null"
-							},
-							"viewRevision": {
-								"type": "null"
-							}
-						}
-					},
-					"result": {
-						"properties": {
-							"layout": {
-								"properties": {
-									"zoomed": {
-										"type": "null"
-									},
-									"focusedPanelId": {
-										"type": "null"
-									}
-								}
+							"zoomed": {
+								"type": "boolean"
 							}
 						}
 					}
 				}
 			}
 		}
-	]
+	},
+	"else": {
+		"properties": {
+			"source": {
+				"properties": {
+					"clientId": {
+						"type": "null"
+					},
+					"viewRevision": {
+						"type": "null"
+					}
+				}
+			},
+			"result": {
+				"properties": {
+					"layout": {
+						"properties": {
+							"zoomed": {
+								"type": "null"
+							},
+							"focusedPanelId": {
+								"type": "null"
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 }

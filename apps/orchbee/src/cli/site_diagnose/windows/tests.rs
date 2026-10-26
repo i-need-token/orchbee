@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn named_session_diagnosis_validates_without_widening_legacy_scope() {
+fn named_session_diagnosis_uses_the_shared_schema() {
     let scope = format!("orchbee-session-{}", "a".repeat(47));
     let mut document = collect_at(
         Path::new("never-created-relative-path"),
@@ -10,15 +10,11 @@ fn named_session_diagnosis_validates_without_widening_legacy_scope() {
     )
     .unwrap()
     .envelope;
-    let schema: Value = serde_json::from_str(include_str!(
-        "../../schemas/orchbee.site.diagnose.windows.json"
-    ))
-    .unwrap();
+    let schema: Value =
+        serde_json::from_str(include_str!("../../schemas/orchbee.site.diagnose.json")).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
     validator.validate(&document).unwrap();
-    assert_eq!(document["version"], 3);
-    document["version"] = json!(2);
-    assert!(!validator.is_valid(&document));
+    assert_eq!(document["version"], 1);
     document["result"]["scope"] = json!(format!("orchbee-native-{}", "a".repeat(32)));
     assert!(validator.is_valid(&document));
 }

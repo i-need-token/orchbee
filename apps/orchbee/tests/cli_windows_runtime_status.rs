@@ -301,7 +301,7 @@ fn offline_client_json_identifies_a_sibling_proven_missing_by_open() {
     fs::remove_file(fixture.cohort_directory().join("orchbee-server.exe")).unwrap();
     let json_output = fixture.run(&["status", "client", "--format=json"]);
     let client = success(json_output, "client");
-    assert_eq!(client["version"], 3);
+    assert_eq!(client["version"], 1);
     assert_eq!(client["result"]["cohort"]["state"], "unavailable");
     assert_eq!(client["result"]["cohort"]["reason"], "missing");
     assert_eq!(

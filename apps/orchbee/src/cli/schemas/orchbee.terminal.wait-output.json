@@ -10,14 +10,14 @@
 			"const": "orchbee.terminal.wait-output"
 		},
 		"version": {
-			"enum": [1, 2, 3, 4]
+			"const": 1
 		},
 		"source": {
 			"$ref": "#/$defs/snapshotSource"
 		},
 		"result": {
 			"type": "object",
-			"required": ["terminal", "matched", "match", "observed"],
+			"required": ["terminal", "matched", "match", "observed", "selection", "after"],
 			"additionalProperties": false,
 			"properties": {
 				"terminal": {
@@ -33,153 +33,41 @@
 					"$ref": "#/$defs/observed"
 				},
 				"selection": {
-					"type": "object",
-					"required": ["source", "lines"],
-					"additionalProperties": false,
-					"properties": {
-						"source": {
-							"enum": ["visible", "recent", "recent-unwrapped", "detection"]
+					"anyOf": [
+						{
+							"type": "object",
+							"required": ["source", "lines"],
+							"additionalProperties": false,
+							"properties": {
+								"source": {
+									"enum": ["visible", "recent", "recent-unwrapped", "detection"]
+								},
+								"lines": {
+									"type": ["integer", "null"],
+									"minimum": 0,
+									"maximum": 1000
+								}
+							}
 						},
-						"lines": {
-							"type": ["integer", "null"],
-							"minimum": 0,
-							"maximum": 1000
+						{
+							"type": "null"
 						}
-					}
+					]
 				},
 				"after": {
-					"type": "string",
-					"pattern": "^o1:[0-9a-f]{32}:[0-9a-f]{32}:[1-9][0-9]*:[1-9][0-9]*:[0-9]+:[0-9]+$"
+					"anyOf": [
+						{
+							"type": "string",
+							"pattern": "^o1:[0-9a-f]{32}:[0-9a-f]{32}:[1-9][0-9]*:[1-9][0-9]*:[0-9]+:[0-9]+$"
+						},
+						{
+							"type": "null"
+						}
+					]
 				}
 			}
 		}
 	},
-	"allOf": [
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 1
-					}
-				},
-				"required": ["version"],
-				"type": "object"
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"properties": {
-							"match": {
-								"not": {
-									"required": ["patternKind"],
-									"type": "object"
-								}
-							}
-						},
-						"type": "object"
-					}
-				},
-				"type": "object"
-			},
-			"else": {
-				"if": {
-					"properties": {
-						"version": {
-							"const": 2
-						}
-					},
-					"required": ["version"],
-					"type": "object"
-				},
-				"then": {
-					"properties": {
-						"result": {
-							"properties": {
-								"match": {
-									"required": ["patternKind"],
-									"type": "object"
-								}
-							},
-							"type": "object"
-						}
-					},
-					"type": "object"
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"enum": [3, 4]
-					}
-				},
-				"required": ["version"],
-				"type": "object"
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"required": ["selection"],
-						"type": "object"
-					}
-				},
-				"type": "object"
-			},
-			"else": {
-				"properties": {
-					"result": {
-						"not": {
-							"required": ["selection"],
-							"type": "object"
-						},
-						"properties": {
-							"observed": {
-								"properties": {
-									"timeoutMs": {
-										"type": "integer"
-									},
-									"requestedRows": {
-										"minimum": 1,
-										"maximum": 1000,
-										"type": "integer"
-									}
-								},
-								"type": "object"
-							}
-						},
-						"type": "object"
-					}
-				},
-				"type": "object"
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 4
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"required": ["after"]
-					}
-				}
-			},
-			"else": {
-				"properties": {
-					"result": {
-						"not": {
-							"required": ["after"]
-						}
-					}
-				}
-			}
-		}
-	],
 	"$defs": {
 		"id": {
 			"type": "string",
@@ -235,7 +123,13 @@
 				"rowStart",
 				"rowEnd",
 				"revision",
-				"generation"
+				"generation",
+				"patternKind",
+				"matchLength",
+				"matched",
+				"matchedTruncated",
+				"startsMidLine",
+				"endsMidLine"
 			],
 			"additionalProperties": false,
 			"properties": {
@@ -264,68 +158,104 @@
 					"$ref": "#/$defs/positiveDecimal"
 				},
 				"patternKind": {
-					"const": "regex"
+					"enum": ["literal", "regex"]
 				},
 				"matchLength": {
-					"$ref": "#/$defs/decimal"
+					"anyOf": [
+						{
+							"$ref": "#/$defs/decimal"
+						},
+						{
+							"type": "null"
+						}
+					]
 				},
 				"matched": {
-					"type": "string"
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
 				},
 				"matchedTruncated": {
-					"type": "boolean"
+					"anyOf": [
+						{
+							"type": "boolean"
+						},
+						{
+							"type": "null"
+						}
+					]
 				},
 				"startsMidLine": {
-					"type": "boolean"
+					"anyOf": [
+						{
+							"type": "boolean"
+						},
+						{
+							"type": "null"
+						}
+					]
 				},
 				"endsMidLine": {
-					"type": "boolean"
+					"anyOf": [
+						{
+							"type": "boolean"
+						},
+						{
+							"type": "null"
+						}
+					]
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"required": ["patternKind"],
-						"type": "object"
-					},
-					"then": {
-						"required": [
-							"matchLength",
-							"matched",
-							"matchedTruncated",
-							"startsMidLine",
-							"endsMidLine"
-						],
-						"type": "object"
-					},
-					"else": {
-						"not": {
-							"anyOf": [
-								{
-									"required": ["matchLength"],
-									"type": "object"
-								},
-								{
-									"required": ["matched"],
-									"type": "object"
-								},
-								{
-									"required": ["matchedTruncated"],
-									"type": "object"
-								},
-								{
-									"required": ["startsMidLine"],
-									"type": "object"
-								},
-								{
-									"required": ["endsMidLine"],
-									"type": "object"
-								}
-							]
-						}
+			"if": {
+				"properties": {
+					"patternKind": {
+						"const": "regex"
 					}
 				}
-			]
+			},
+			"then": {
+				"properties": {
+					"matchLength": {
+						"$ref": "#/$defs/decimal"
+					},
+					"matched": {
+						"type": "string"
+					},
+					"matchedTruncated": {
+						"type": "boolean"
+					},
+					"startsMidLine": {
+						"type": "boolean"
+					},
+					"endsMidLine": {
+						"type": "boolean"
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"matchLength": {
+						"type": "null"
+					},
+					"matched": {
+						"type": "null"
+					},
+					"matchedTruncated": {
+						"type": "null"
+					},
+					"startsMidLine": {
+						"type": "null"
+					},
+					"endsMidLine": {
+						"type": "null"
+					}
+				}
+			}
 		},
 		"observed": {
 			"type": "object",

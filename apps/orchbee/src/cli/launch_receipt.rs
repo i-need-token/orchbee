@@ -48,14 +48,17 @@ fn oversized(mut original: Output, format: OutputFormat, locale: Locale) -> Outp
 }
 
 fn attach(document: &mut Value, launch: &LaunchSelection) -> bool {
-    let version = match (document["schema"].as_str(), document["version"].as_u64()) {
-        (Some("orchbee.creation.result"), Some(version @ 3..=5)) => version + 3,
-        (Some("orchbee.workspace.creation"), Some(2)) => 3,
-        (Some("orchbee.panel.terminal-create"), Some(1)) => 2,
-        (Some("orchbee.mutation.result"), Some(4)) => 7,
-        _ => return false,
-    };
-    document["version"] = json!(version);
+    if !matches!(
+        document["schema"].as_str(),
+        Some(
+            "orchbee.creation.result"
+                | "orchbee.workspace.creation"
+                | "orchbee.panel.terminal-create"
+                | "orchbee.mutation.result"
+        )
+    ) {
+        return false;
+    }
     document["resolvedLaunch"] = json!(launch);
     true
 }

@@ -3,17 +3,15 @@ use super::*;
 #[test]
 fn annotates_supported_receipts_without_replacing_their_results() {
     let launch = LaunchSelection::new("/bin/tool".into(), vec!["literal $value".into()]).unwrap();
-    for (schema, before, after) in [
-        ("orchbee.creation.result", 3, 6),
-        ("orchbee.creation.result", 4, 7),
-        ("orchbee.creation.result", 5, 8),
-        ("orchbee.workspace.creation", 2, 3),
-        ("orchbee.panel.terminal-create", 1, 2),
-        ("orchbee.mutation.result", 4, 7),
+    for schema in [
+        "orchbee.creation.result",
+        "orchbee.workspace.creation",
+        "orchbee.panel.terminal-create",
+        "orchbee.mutation.result",
     ] {
-        let mut document = json!({"schema":schema,"version":before,"result":{"outcome":"unknown"}});
+        let mut document = json!({"schema":schema,"version":1,"resolvedLaunch":null,"result":{"outcome":"unknown"}});
         assert!(attach(&mut document, &launch));
-        assert_eq!(document["version"], after);
+        assert_eq!(document["version"], 1);
         assert_eq!(document["resolvedLaunch"]["exec"], "/bin/tool");
         assert_eq!(document["result"]["outcome"], "unknown");
     }
@@ -30,7 +28,7 @@ fn resolved_launch_annotation_obeys_the_existing_output_bound() {
         let stdout = if format == OutputFormat::Text {
             vec![b'x'; output::LIMIT]
         } else {
-            let document = json!({"schema":"orchbee.creation.result","version":3,
+            let document = json!({"schema":"orchbee.creation.result","version":1,
                 "result":"x".repeat(output::LIMIT - 100)});
             let bytes = document.to_string().into_bytes();
             assert!(bytes.len() <= output::LIMIT);

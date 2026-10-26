@@ -146,7 +146,7 @@ fn plugin_install_real_cli_fetches_builds_lists_provenance_and_uninstalls_offlin
         &listed,
         include_str!("../src/cli/schemas/orchbee.plugin.registry.json"),
     );
-    assert_eq!(listed["version"], 2);
+    assert_eq!(listed["version"], 1);
     assert_eq!(
         &listed["result"]["catalog"]["plugins"][0]["source"],
         source_info

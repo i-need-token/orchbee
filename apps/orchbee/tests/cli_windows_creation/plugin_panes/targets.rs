@@ -498,7 +498,7 @@ fn plugin_zoomed_different_target_reads_that_pane_before_forced_client_focus() {
         &document,
         include_str!("../../../src/cli/schemas/orchbee.creation.result.json"),
     );
-    assert_eq!(document["version"], 4);
+    assert_eq!(document["version"], 1);
     assert_eq!(document["postCreate"]["requested"]["focus"], true);
     assert_eq!(document["postCreate"]["requested"]["zoom"], true);
 }

@@ -41,7 +41,7 @@ Focus reads a fresh same-Session snapshot at or beyond the commit revision, reso
 
 ## Machine output and organization commands
 
-All Windows creation forms emit `orchbee.workspace.creation` v2. `workspace.result` contains resource IDs and terminal facts from mutation v6, with required-nullable `projectId`. The envelope records directory provenance, optional Client/focus facts, stage and structured failure. The removed outer `project` receipt and `project` stage are rejected. Completion requires each requested phase to succeed; terminal pending remains explicit. Parser/preparation failures use their existing failure envelopes, including `workspace-creation` stage failures and retained unknown request identity.
+All Windows creation forms emit `orchbee.workspace.creation` v1. `workspace.result` contains resource IDs and terminal facts from mutation v1, with required-nullable `projectId`. The envelope records directory provenance, optional Client/focus facts, stage and structured failure. The removed outer `project` receipt and `project` stage are rejected. Completion requires each requested phase to succeed; terminal pending remains explicit. Parser/preparation failures use their existing failure envelopes, including `workspace-creation` stage failures and retained unknown request identity.
 
 Existing Workspaces can be organized without PTY, cwd, Git or filesystem effects:
 

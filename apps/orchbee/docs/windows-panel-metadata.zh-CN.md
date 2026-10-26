@@ -9,8 +9,7 @@
 
 精确请求／回复使用现有载体中的 `report-presentation` / `presentation-reported`；旧
 `report` / `reported` 仍仅针对主项。回复关联请求、Session、Panel、Presentation 和绑定。
-显式成员输出 `orchbee.panel.metadata` v4，必需携带 `presentationId`，包括未知或失败的已
-提交结果；v1/v2 保持封闭；主项上报使用 v3。文本标识成员。准入前检查请求边界，绝不重放结果不确定的写入。
+所有上报均输出 `orchbee.panel.metadata` 版本 1 并携带 `presentationId`：显式成员 ID 或默认主项的 null，包括未知或失败的已提交结果。文本标识成员。准入前检查请求边界，绝不重放结果不确定的写入。
 
 [Agent 报告目标模型](windows-panel-agent-reports.zh-CN.md#精确成员目标)拥有共用 CLI 解析及
 证据边界。元数据轨迹另外保留 token／来源隔离、TTL 与重放语义。不新增载体、依赖或持久化
@@ -45,7 +44,7 @@ Agent 守卫不会被截断或移除内部控制字符：超出现有 80 标量�
 退出 5，修订号／期限／结果边界失败退出 1。清理失败退出 1，但提交结果已未知时仍退出 8。
 
 `orchbee.panel.metadata` v1 包含请求／Session／Panel ID、observation（带原始应答的 `server`，
-或带封闭原因的 `unknown`）、`interrupted` 和 `cleanupFailed`。目录 v90 包含 90 个 schema。
+或带封闭原因的 `unknown`）、`interrupted` 和 `cleanupFailed`。目录列出当前文档与命令路径。
 OBWP 33/34 承载 `workbench.panel-metadata` 及其结果；请求上限 16 KiB，结果上限 512 KiB。
 Server 在 Session 锁内按读取权限读取、按导航权限上报。读取返回至多四个有序且唯一 Panel 的来源
 记录。元数据与 Workbench 修订号独立。需部署匹配 cohort；旧端拒绝未知通信类型。无持久化
@@ -83,16 +82,15 @@ Agent Get 使用唯一且存活的主绑定；Agent 已结束、未绑定、多�
 引用与规范观察 Session ID 独立，查询不会执行引用。自动 Host 进程生产、关联名称、provider
 恢复／持久化及 TUI 发布仍是独立集成义务。
 
-Windows Panel list/get 输出 v9，current 输出 v8，Agent Get 输出 v11（带 `--client` 时为 v12）。
+Windows Panel list/get 输出 v1，current 输出 v1，Agent Get 输出 v1（带 `--client` 时为 v1）。
 每个 Panel 行和非 null 的 Agent terminal 必须包含 metadata 与 reportedAgent。前序元数据版本
 保留 null 守卫上下文并拒绝 reportedAgent；更早版本同时拒绝 metadata，原有闭合形状仍被接受。
-本地化文本转义有效元数据、上报详情、消息和外部引用。目录 v90 包含 90 份 schema 和 104 条
-命令路径；此次查询变更不增加命令或 schema 身份。
+本地化文本转义有效元数据、上报详情、消息和外部引用。目录列出当前文档与命令路径。
 
 接纳时将元数据与上报编码行的合计大小限制在既有 CLI 8 MiB 输出预算内。元数据接纳后，上报
 仅使用剩余行预算；每批在扩展状态前校验。最终封套仍单独受限。超限或不一致读取不输出部分
 结果。测试覆盖两类修订号复核、精确分批、错误／缺失行与绑定、权限、传输丢失、原始共享期限、
-闭合旧／新 schema、带守卫展示、全局 tokens 和转义文本。匹配 Windows cohort 验收实际公开
+封闭当前 schema、带守卫展示、全局 tokens 和转义文本。匹配 Windows cohort 验收实际公开
 上报及查询，不代表最终 TUI 或认证 provider 任务证明。
 
 Windows TUI 现通过独立修订号校验的一轮上报／元数据读取，展示当前 Tab 各 Panel 所选 Presentation 的状态。自定义标题保持优先；有效元数据、字面 token 和本地化 Agent 状态绘制在既有单面板、分屏或放大标题栏中。范围、失败与关闭规则见 [Panel 上报展示](windows-panel-report-presentation.zh-CN.md)。

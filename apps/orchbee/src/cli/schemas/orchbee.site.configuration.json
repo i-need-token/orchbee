@@ -2,3247 +2,438 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.site.configuration",
 	"title": "Site configuration publication receipt",
-	"oneOf": [
-		{
-			"$ref": "#/$defs/v1"
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.site.configuration"
 		},
-		{
-			"$ref": "#/$defs/v2"
+		"version": {
+			"const": 1
 		},
-		{
-			"$ref": "#/$defs/v3"
-		},
-		{
-			"$ref": "#/$defs/v4"
-		},
-		{
-			"$ref": "#/$defs/v5"
-		},
-		{
-			"$ref": "#/$defs/v6"
-		},
-		{
-			"$ref": "#/$defs/v7"
-		},
-		{
-			"$ref": "#/$defs/v8"
-		},
-		{
-			"$ref": "#/$defs/v9"
-		}
-	],
-	"$defs": {
-		"v1": {
+		"source": {
 			"type": "object",
-			"required": ["schema", "version", "source", "result"],
+			"required": ["kind"],
 			"additionalProperties": false,
 			"properties": {
-				"schema": {
-					"const": "orchbee.site.configuration"
-				},
-				"version": {
-					"const": 1
-				},
-				"source": {
-					"type": "object",
-					"required": ["kind"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "local-runtime"
-						}
-					}
-				},
-				"result": {
-					"type": "object",
-					"required": ["action", "reply", "interrupted", "cleanupFailed"],
-					"additionalProperties": false,
-					"properties": {
-						"action": {
-							"enum": ["current", "reload"]
-						},
-						"reply": {
-							"anyOf": [
-								{
-									"type": "null"
-								},
-								{
-									"type": "object",
-									"required": ["protocolVersion", "requestId", "siteId", "outcome"],
-									"additionalProperties": false,
-									"properties": {
-										"protocolVersion": {
-											"const": 1
-										},
-										"requestId": {
-											"type": "string",
-											"pattern": "^[0-9a-f]{32}$"
-										},
-										"siteId": {
-											"type": "string",
-											"pattern": "^[0-9a-f]{32}$"
-										},
-										"outcome": {
-											"oneOf": [
-												{
-													"type": "object",
-													"required": ["kind", "snapshot"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "current"
-														},
-														"snapshot": {
-															"type": "object",
-															"required": [
-																"revision",
-																"keysProfile",
-																"restartRequired",
-																"manifestCheck"
-															],
-															"additionalProperties": false,
-															"properties": {
-																"revision": {
-																	"type": "string",
-																	"pattern": "^(0|[1-9][0-9]{0,19})$"
-																},
-																"keysProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 65536
-																},
-																"restartRequired": {
-																	"type": "array",
-																	"uniqueItems": true,
-																	"maxItems": 3,
-																	"items": {
-																		"enum": [
-																			"terminal.default_shell",
-																			"terminal.shell_mode",
-																			"session.resume_agents_on_restore"
-																		]
-																	}
-																},
-																"manifestCheck": {
-																	"type": "boolean"
-																}
-															}
-														}
-													}
-												},
-												{
-													"type": "object",
-													"required": ["kind", "snapshot", "changed"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "reloaded"
-														},
-														"snapshot": {
-															"type": "object",
-															"required": [
-																"revision",
-																"keysProfile",
-																"restartRequired",
-																"manifestCheck"
-															],
-															"additionalProperties": false,
-															"properties": {
-																"revision": {
-																	"type": "string",
-																	"pattern": "^(0|[1-9][0-9]{0,19})$"
-																},
-																"keysProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 65536
-																},
-																"restartRequired": {
-																	"type": "array",
-																	"uniqueItems": true,
-																	"maxItems": 3,
-																	"items": {
-																		"enum": [
-																			"terminal.default_shell",
-																			"terminal.shell_mode",
-																			"session.resume_agents_on_restore"
-																		]
-																	}
-																},
-																"manifestCheck": {
-																	"type": "boolean"
-																}
-															}
-														},
-														"changed": {
-															"type": "boolean"
-														}
-													}
-												},
-												{
-													"type": "object",
-													"required": ["kind", "reason", "field", "detail"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "failed"
-														},
-														"reason": {
-															"enum": [
-																"denied",
-																"unavailable",
-																"site-mismatch",
-																"busy",
-																"load-failed",
-																"revision-exhausted"
-															]
-														},
-														"field": {
-															"type": ["string", "null"],
-															"minLength": 1,
-															"maxLength": 128
-														},
-														"detail": {
-															"type": ["string", "null"],
-															"minLength": 1,
-															"maxLength": 128
-														}
-													},
-													"allOf": [
-														{
-															"if": {
-																"properties": {
-																	"reason": {
-																		"not": {
-																			"const": "load-failed"
-																		}
-																	}
-																}
-															},
-															"then": {
-																"properties": {
-																	"field": {
-																		"type": "null"
-																	},
-																	"detail": {
-																		"type": "null"
-																	}
-																}
-															}
-														},
-														{
-															"oneOf": [
-																{
-																	"properties": {
-																		"field": {
-																			"type": "null"
-																		},
-																		"detail": {
-																			"type": "null"
-																		}
-																	}
-																},
-																{
-																	"properties": {
-																		"field": {
-																			"type": "string"
-																		},
-																		"detail": {
-																			"type": "string"
-																		}
-																	}
-																}
-															]
-														}
-													]
-												}
-											]
-										}
-									}
-								}
-							]
-						},
-						"interrupted": {
-							"type": "boolean"
-						},
-						"cleanupFailed": {
-							"type": "boolean"
-						}
-					},
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"action": {
-										"const": "current"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"reply": {
-										"properties": {
-											"outcome": {
-												"properties": {
-													"kind": {
-														"enum": ["current", "failed"]
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						},
-						{
-							"if": {
-								"properties": {
-									"action": {
-										"const": "reload"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"reply": {
-										"properties": {
-											"outcome": {
-												"properties": {
-													"kind": {
-														"enum": ["reloaded", "failed"]
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-					]
+				"kind": {
+					"const": "local-runtime"
 				}
 			}
 		},
-		"v2": {
+		"result": {
 			"type": "object",
-			"required": ["schema", "version", "source", "result"],
+			"required": ["action", "reply", "interrupted", "cleanupFailed"],
 			"additionalProperties": false,
 			"properties": {
-				"schema": {
-					"const": "orchbee.site.configuration"
+				"action": {
+					"enum": ["current", "reload"]
 				},
-				"version": {
-					"const": 2
-				},
-				"source": {
-					"type": "object",
-					"required": ["kind"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "local-runtime"
-						}
-					}
-				},
-				"result": {
-					"type": "object",
-					"required": ["action", "reply", "interrupted", "cleanupFailed"],
-					"additionalProperties": false,
-					"properties": {
-						"action": {
-							"enum": ["current", "reload"]
+				"reply": {
+					"anyOf": [
+						{
+							"type": "null"
 						},
-						"reply": {
-							"anyOf": [
-								{
-									"type": "null"
+						{
+							"type": "object",
+							"required": ["protocolVersion", "requestId", "siteId", "outcome"],
+							"additionalProperties": false,
+							"properties": {
+								"protocolVersion": {
+									"const": 1
 								},
-								{
-									"type": "object",
-									"required": ["protocolVersion", "requestId", "siteId", "outcome"],
-									"additionalProperties": false,
-									"properties": {
-										"protocolVersion": {
-											"const": 1
-										},
-										"requestId": {
-											"type": "string",
-											"pattern": "^[0-9a-f]{32}$"
-										},
-										"siteId": {
-											"type": "string",
-											"pattern": "^[0-9a-f]{32}$"
-										},
-										"outcome": {
-											"oneOf": [
-												{
-													"type": "object",
-													"required": ["kind", "snapshot"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "current"
-														},
-														"snapshot": {
-															"type": "object",
-															"required": [
-																"revision",
-																"keysProfile",
-																"restartRequired",
-																"manifestCheck",
-																"defaultShell",
-																"shellMode"
-															],
-															"additionalProperties": false,
-															"properties": {
-																"revision": {
-																	"type": "string",
-																	"pattern": "^(0|[1-9][0-9]{0,19})$"
-																},
-																"keysProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 65536
-																},
-																"restartRequired": {
-																	"type": "array",
-																	"uniqueItems": true,
-																	"maxItems": 3,
-																	"items": {
-																		"enum": [
-																			"terminal.default_shell",
-																			"terminal.shell_mode",
-																			"session.resume_agents_on_restore"
-																		]
-																	}
-																},
-																"manifestCheck": {
-																	"type": "boolean"
-																},
-																"defaultShell": {
-																	"type": "string",
-																	"maxLength": 4096,
-																	"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
-																	"$comment": "Bindings additionally enforce the 4096 UTF-8 byte limit and Unicode scalar strings."
-																},
-																"shellMode": {
-																	"enum": ["auto", "login", "non_login"]
-																}
-															}
-														}
-													}
+								"requestId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"siteId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"outcome": {
+									"oneOf": [
+										{
+											"type": "object",
+											"required": ["kind", "snapshot"],
+											"additionalProperties": false,
+											"properties": {
+												"kind": {
+													"const": "current"
 												},
-												{
+												"snapshot": {
 													"type": "object",
-													"required": ["kind", "snapshot", "changed"],
+													"required": [
+														"revision",
+														"diagnostics",
+														"keysProfile",
+														"restartRequired",
+														"manifestCheck",
+														"defaultShell",
+														"shellMode",
+														"windowTitle",
+														"notificationProfile",
+														"agentSidebarProfile",
+														"spacesSidebarProfile",
+														"themeName"
+													],
 													"additionalProperties": false,
 													"properties": {
-														"kind": {
-															"const": "reloaded"
+														"revision": {
+															"type": "string",
+															"pattern": "^(0|[1-9][0-9]{0,19})$"
 														},
-														"snapshot": {
-															"type": "object",
-															"required": [
-																"revision",
-																"keysProfile",
-																"restartRequired",
-																"manifestCheck",
-																"defaultShell",
-																"shellMode"
-															],
-															"additionalProperties": false,
-															"properties": {
-																"revision": {
-																	"type": "string",
-																	"pattern": "^(0|[1-9][0-9]{0,19})$"
-																},
-																"keysProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 65536
-																},
-																"restartRequired": {
-																	"type": "array",
-																	"uniqueItems": true,
-																	"maxItems": 3,
-																	"items": {
-																		"enum": [
-																			"terminal.default_shell",
-																			"terminal.shell_mode",
-																			"session.resume_agents_on_restore"
-																		]
-																	}
-																},
-																"manifestCheck": {
-																	"type": "boolean"
-																},
-																"defaultShell": {
-																	"type": "string",
-																	"maxLength": 4096,
-																	"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
-																	"$comment": "Bindings additionally enforce the 4096 UTF-8 byte limit and Unicode scalar strings."
-																},
-																"shellMode": {
-																	"enum": ["auto", "login", "non_login"]
-																}
+														"keysProfile": {
+															"type": "string",
+															"minLength": 1,
+															"maxLength": 65536
+														},
+														"restartRequired": {
+															"type": "array",
+															"uniqueItems": true,
+															"maxItems": 3,
+															"items": {
+																"enum": [
+																	"terminal.default_shell",
+																	"terminal.shell_mode",
+																	"session.resume_agents_on_restore"
+																]
 															}
 														},
-														"changed": {
+														"manifestCheck": {
 															"type": "boolean"
-														}
-													}
-												},
-												{
-													"type": "object",
-													"required": ["kind", "reason", "field", "detail"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "failed"
 														},
-														"reason": {
-															"enum": [
-																"denied",
-																"unavailable",
-																"site-mismatch",
-																"busy",
-																"load-failed",
-																"revision-exhausted"
-															]
+														"defaultShell": {
+															"type": "string",
+															"maxLength": 4096,
+															"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$"
 														},
-														"field": {
-															"type": ["string", "null"],
+														"shellMode": {
+															"enum": ["auto", "login", "non_login"]
+														},
+														"windowTitle": {
+															"type": "string",
+															"maxLength": 4096
+														},
+														"notificationProfile": {
+															"type": "string",
 															"minLength": 1,
-															"maxLength": 128
+															"maxLength": 16384
 														},
-														"detail": {
-															"type": ["string", "null"],
+														"agentSidebarProfile": {
+															"type": "string",
 															"minLength": 1,
-															"maxLength": 128
-														}
-													},
-													"allOf": [
-														{
-															"if": {
-																"properties": {
-																	"reason": {
-																		"not": {
-																			"const": "load-failed"
-																		}
-																	}
-																}
-															},
-															"then": {
-																"properties": {
-																	"field": {
-																		"type": "null"
-																	},
-																	"detail": {
-																		"type": "null"
-																	}
-																}
-															}
+															"maxLength": 32768
 														},
-														{
-															"oneOf": [
-																{
-																	"properties": {
-																		"field": {
-																			"type": "null"
-																		},
-																		"detail": {
-																			"type": "null"
-																		}
-																	}
-																},
-																{
-																	"properties": {
-																		"field": {
-																			"type": "string"
-																		},
-																		"detail": {
-																			"type": "string"
-																		}
-																	}
-																}
-															]
-														}
-													]
-												}
-											]
-										}
-									}
-								}
-							]
-						},
-						"interrupted": {
-							"type": "boolean"
-						},
-						"cleanupFailed": {
-							"type": "boolean"
-						}
-					},
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"action": {
-										"const": "current"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"reply": {
-										"properties": {
-											"outcome": {
-												"properties": {
-													"kind": {
-														"enum": ["current", "failed"]
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						},
-						{
-							"if": {
-								"properties": {
-									"action": {
-										"const": "reload"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"reply": {
-										"properties": {
-											"outcome": {
-												"properties": {
-													"kind": {
-														"enum": ["reloaded", "failed"]
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-					]
-				}
-			}
-		},
-		"v3": {
-			"type": "object",
-			"required": ["schema", "version", "source", "result"],
-			"additionalProperties": false,
-			"properties": {
-				"schema": {
-					"const": "orchbee.site.configuration"
-				},
-				"version": {
-					"const": 3
-				},
-				"source": {
-					"type": "object",
-					"required": ["kind"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "local-runtime"
-						}
-					}
-				},
-				"result": {
-					"type": "object",
-					"required": ["action", "reply", "interrupted", "cleanupFailed"],
-					"additionalProperties": false,
-					"properties": {
-						"action": {
-							"enum": ["current", "reload"]
-						},
-						"reply": {
-							"anyOf": [
-								{
-									"type": "null"
-								},
-								{
-									"type": "object",
-									"required": ["protocolVersion", "requestId", "siteId", "outcome"],
-									"additionalProperties": false,
-									"properties": {
-										"protocolVersion": {
-											"const": 1
-										},
-										"requestId": {
-											"type": "string",
-											"pattern": "^[0-9a-f]{32}$"
-										},
-										"siteId": {
-											"type": "string",
-											"pattern": "^[0-9a-f]{32}$"
-										},
-										"outcome": {
-											"oneOf": [
-												{
-													"type": "object",
-													"required": ["kind", "snapshot"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "current"
+														"spacesSidebarProfile": {
+															"type": "string",
+															"minLength": 1,
+															"maxLength": 32768
 														},
-														"snapshot": {
+														"diagnostics": {
 															"type": "object",
-															"required": [
-																"revision",
-																"keysProfile",
-																"restartRequired",
-																"manifestCheck",
-																"defaultShell",
-																"shellMode",
-																"windowTitle"
-															],
+															"required": ["items", "omittedCount"],
 															"additionalProperties": false,
 															"properties": {
-																"revision": {
-																	"type": "string",
-																	"pattern": "^(0|[1-9][0-9]{0,19})$"
-																},
-																"keysProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 65536
-																},
-																"restartRequired": {
+																"items": {
 																	"type": "array",
+																	"maxItems": 128,
 																	"uniqueItems": true,
-																	"maxItems": 3,
 																	"items": {
-																		"enum": [
-																			"terminal.default_shell",
-																			"terminal.shell_mode",
-																			"session.resume_agents_on_restore"
-																		]
-																	}
-																},
-																"manifestCheck": {
-																	"type": "boolean"
-																},
-																"defaultShell": {
-																	"type": "string",
-																	"maxLength": 4096,
-																	"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
-																	"$comment": "Bindings additionally enforce the 4096 UTF-8 byte limit and Unicode scalar strings."
-																},
-																"shellMode": {
-																	"enum": ["auto", "login", "non_login"]
-																},
-																"windowTitle": {
-																	"type": "string",
-																	"maxLength": 4096
-																}
-															}
-														}
-													}
-												},
-												{
-													"type": "object",
-													"required": ["kind", "snapshot", "changed"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "reloaded"
-														},
-														"snapshot": {
-															"type": "object",
-															"required": [
-																"revision",
-																"keysProfile",
-																"restartRequired",
-																"manifestCheck",
-																"defaultShell",
-																"shellMode",
-																"windowTitle"
-															],
-															"additionalProperties": false,
-															"properties": {
-																"revision": {
-																	"type": "string",
-																	"pattern": "^(0|[1-9][0-9]{0,19})$"
-																},
-																"keysProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 65536
-																},
-																"restartRequired": {
-																	"type": "array",
-																	"uniqueItems": true,
-																	"maxItems": 3,
-																	"items": {
-																		"enum": [
-																			"terminal.default_shell",
-																			"terminal.shell_mode",
-																			"session.resume_agents_on_restore"
-																		]
-																	}
-																},
-																"manifestCheck": {
-																	"type": "boolean"
-																},
-																"defaultShell": {
-																	"type": "string",
-																	"maxLength": 4096,
-																	"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
-																	"$comment": "Bindings additionally enforce the 4096 UTF-8 byte limit and Unicode scalar strings."
-																},
-																"shellMode": {
-																	"enum": ["auto", "login", "non_login"]
-																},
-																"windowTitle": {
-																	"type": "string",
-																	"maxLength": 4096
-																}
-															}
-														},
-														"changed": {
-															"type": "boolean"
-														}
-													}
-												},
-												{
-													"type": "object",
-													"required": ["kind", "reason", "field", "detail"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "failed"
-														},
-														"reason": {
-															"enum": [
-																"denied",
-																"unavailable",
-																"site-mismatch",
-																"busy",
-																"load-failed",
-																"revision-exhausted"
-															]
-														},
-														"field": {
-															"type": ["string", "null"],
-															"minLength": 1,
-															"maxLength": 128
-														},
-														"detail": {
-															"type": ["string", "null"],
-															"minLength": 1,
-															"maxLength": 128
-														}
-													},
-													"allOf": [
-														{
-															"if": {
-																"properties": {
-																	"reason": {
-																		"not": {
-																			"const": "load-failed"
-																		}
-																	}
-																}
-															},
-															"then": {
-																"properties": {
-																	"field": {
-																		"type": "null"
-																	},
-																	"detail": {
-																		"type": "null"
-																	}
-																}
-															}
-														},
-														{
-															"oneOf": [
-																{
-																	"properties": {
-																		"field": {
-																			"type": "null"
-																		},
-																		"detail": {
-																			"type": "null"
-																		}
-																	}
-																},
-																{
-																	"properties": {
-																		"field": {
-																			"type": "string"
-																		},
-																		"detail": {
-																			"type": "string"
-																		}
-																	}
-																}
-															]
-														}
-													]
-												}
-											]
-										}
-									}
-								}
-							]
-						},
-						"interrupted": {
-							"type": "boolean"
-						},
-						"cleanupFailed": {
-							"type": "boolean"
-						}
-					},
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"action": {
-										"const": "current"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"reply": {
-										"properties": {
-											"outcome": {
-												"properties": {
-													"kind": {
-														"enum": ["current", "failed"]
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						},
-						{
-							"if": {
-								"properties": {
-									"action": {
-										"const": "reload"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"reply": {
-										"properties": {
-											"outcome": {
-												"properties": {
-													"kind": {
-														"enum": ["reloaded", "failed"]
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-					]
-				}
-			}
-		},
-		"v4": {
-			"type": "object",
-			"required": ["schema", "version", "source", "result"],
-			"additionalProperties": false,
-			"properties": {
-				"schema": {
-					"const": "orchbee.site.configuration"
-				},
-				"version": {
-					"const": 4
-				},
-				"source": {
-					"type": "object",
-					"required": ["kind"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "local-runtime"
-						}
-					}
-				},
-				"result": {
-					"type": "object",
-					"required": ["action", "reply", "interrupted", "cleanupFailed"],
-					"additionalProperties": false,
-					"properties": {
-						"action": {
-							"enum": ["current", "reload"]
-						},
-						"reply": {
-							"anyOf": [
-								{
-									"type": "null"
-								},
-								{
-									"type": "object",
-									"required": ["protocolVersion", "requestId", "siteId", "outcome"],
-									"additionalProperties": false,
-									"properties": {
-										"protocolVersion": {
-											"const": 1
-										},
-										"requestId": {
-											"type": "string",
-											"pattern": "^[0-9a-f]{32}$"
-										},
-										"siteId": {
-											"type": "string",
-											"pattern": "^[0-9a-f]{32}$"
-										},
-										"outcome": {
-											"oneOf": [
-												{
-													"type": "object",
-													"required": ["kind", "snapshot"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "current"
-														},
-														"snapshot": {
-															"type": "object",
-															"required": [
-																"revision",
-																"keysProfile",
-																"restartRequired",
-																"manifestCheck",
-																"defaultShell",
-																"shellMode",
-																"windowTitle",
-																"notificationProfile"
-															],
-															"additionalProperties": false,
-															"properties": {
-																"revision": {
-																	"type": "string",
-																	"pattern": "^(0|[1-9][0-9]{0,19})$"
-																},
-																"keysProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 65536
-																},
-																"restartRequired": {
-																	"type": "array",
-																	"uniqueItems": true,
-																	"maxItems": 3,
-																	"items": {
-																		"enum": [
-																			"terminal.default_shell",
-																			"terminal.shell_mode",
-																			"session.resume_agents_on_restore"
-																		]
-																	}
-																},
-																"manifestCheck": {
-																	"type": "boolean"
-																},
-																"defaultShell": {
-																	"type": "string",
-																	"maxLength": 4096,
-																	"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
-																	"$comment": "Bindings additionally enforce the 4096 UTF-8 byte limit and Unicode scalar strings."
-																},
-																"shellMode": {
-																	"enum": ["auto", "login", "non_login"]
-																},
-																"windowTitle": {
-																	"type": "string",
-																	"maxLength": 4096
-																},
-																"notificationProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 1024
-																}
-															}
-														}
-													}
-												},
-												{
-													"type": "object",
-													"required": ["kind", "snapshot", "changed"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "reloaded"
-														},
-														"snapshot": {
-															"type": "object",
-															"required": [
-																"revision",
-																"keysProfile",
-																"restartRequired",
-																"manifestCheck",
-																"defaultShell",
-																"shellMode",
-																"windowTitle",
-																"notificationProfile"
-															],
-															"additionalProperties": false,
-															"properties": {
-																"revision": {
-																	"type": "string",
-																	"pattern": "^(0|[1-9][0-9]{0,19})$"
-																},
-																"keysProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 65536
-																},
-																"restartRequired": {
-																	"type": "array",
-																	"uniqueItems": true,
-																	"maxItems": 3,
-																	"items": {
-																		"enum": [
-																			"terminal.default_shell",
-																			"terminal.shell_mode",
-																			"session.resume_agents_on_restore"
-																		]
-																	}
-																},
-																"manifestCheck": {
-																	"type": "boolean"
-																},
-																"defaultShell": {
-																	"type": "string",
-																	"maxLength": 4096,
-																	"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
-																	"$comment": "Bindings additionally enforce the 4096 UTF-8 byte limit and Unicode scalar strings."
-																},
-																"shellMode": {
-																	"enum": ["auto", "login", "non_login"]
-																},
-																"windowTitle": {
-																	"type": "string",
-																	"maxLength": 4096
-																},
-																"notificationProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 1024
-																}
-															}
-														},
-														"changed": {
-															"type": "boolean"
-														}
-													}
-												},
-												{
-													"type": "object",
-													"required": ["kind", "reason", "field", "detail"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "failed"
-														},
-														"reason": {
-															"enum": [
-																"denied",
-																"unavailable",
-																"site-mismatch",
-																"busy",
-																"load-failed",
-																"revision-exhausted"
-															]
-														},
-														"field": {
-															"type": ["string", "null"],
-															"minLength": 1,
-															"maxLength": 128
-														},
-														"detail": {
-															"type": ["string", "null"],
-															"minLength": 1,
-															"maxLength": 128
-														}
-													},
-													"allOf": [
-														{
-															"if": {
-																"properties": {
-																	"reason": {
-																		"not": {
-																			"const": "load-failed"
-																		}
-																	}
-																}
-															},
-															"then": {
-																"properties": {
-																	"field": {
-																		"type": "null"
-																	},
-																	"detail": {
-																		"type": "null"
-																	}
-																}
-															}
-														},
-														{
-															"oneOf": [
-																{
-																	"properties": {
-																		"field": {
-																			"type": "null"
-																		},
-																		"detail": {
-																			"type": "null"
-																		}
-																	}
-																},
-																{
-																	"properties": {
-																		"field": {
-																			"type": "string"
-																		},
-																		"detail": {
-																			"type": "string"
-																		}
-																	}
-																}
-															]
-														}
-													]
-												}
-											]
-										}
-									}
-								}
-							]
-						},
-						"interrupted": {
-							"type": "boolean"
-						},
-						"cleanupFailed": {
-							"type": "boolean"
-						}
-					},
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"action": {
-										"const": "current"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"reply": {
-										"properties": {
-											"outcome": {
-												"properties": {
-													"kind": {
-														"enum": ["current", "failed"]
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						},
-						{
-							"if": {
-								"properties": {
-									"action": {
-										"const": "reload"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"reply": {
-										"properties": {
-											"outcome": {
-												"properties": {
-													"kind": {
-														"enum": ["reloaded", "failed"]
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-					]
-				}
-			}
-		},
-		"v5": {
-			"type": "object",
-			"required": ["schema", "version", "source", "result"],
-			"additionalProperties": false,
-			"properties": {
-				"schema": {
-					"const": "orchbee.site.configuration"
-				},
-				"version": {
-					"const": 5
-				},
-				"source": {
-					"type": "object",
-					"required": ["kind"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "local-runtime"
-						}
-					}
-				},
-				"result": {
-					"type": "object",
-					"required": ["action", "reply", "interrupted", "cleanupFailed"],
-					"additionalProperties": false,
-					"properties": {
-						"action": {
-							"enum": ["current", "reload"]
-						},
-						"reply": {
-							"anyOf": [
-								{
-									"type": "null"
-								},
-								{
-									"type": "object",
-									"required": ["protocolVersion", "requestId", "siteId", "outcome"],
-									"additionalProperties": false,
-									"properties": {
-										"protocolVersion": {
-											"const": 1
-										},
-										"requestId": {
-											"type": "string",
-											"pattern": "^[0-9a-f]{32}$"
-										},
-										"siteId": {
-											"type": "string",
-											"pattern": "^[0-9a-f]{32}$"
-										},
-										"outcome": {
-											"oneOf": [
-												{
-													"type": "object",
-													"required": ["kind", "snapshot"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "current"
-														},
-														"snapshot": {
-															"type": "object",
-															"required": [
-																"revision",
-																"keysProfile",
-																"restartRequired",
-																"manifestCheck",
-																"defaultShell",
-																"shellMode",
-																"windowTitle",
-																"notificationProfile",
-																"agentSidebarProfile"
-															],
-															"additionalProperties": false,
-															"properties": {
-																"revision": {
-																	"type": "string",
-																	"pattern": "^(0|[1-9][0-9]{0,19})$"
-																},
-																"keysProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 65536
-																},
-																"restartRequired": {
-																	"type": "array",
-																	"uniqueItems": true,
-																	"maxItems": 3,
-																	"items": {
-																		"enum": [
-																			"terminal.default_shell",
-																			"terminal.shell_mode",
-																			"session.resume_agents_on_restore"
-																		]
-																	}
-																},
-																"manifestCheck": {
-																	"type": "boolean"
-																},
-																"defaultShell": {
-																	"type": "string",
-																	"maxLength": 4096,
-																	"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
-																	"$comment": "Bindings additionally enforce the 4096 UTF-8 byte limit and Unicode scalar strings."
-																},
-																"shellMode": {
-																	"enum": ["auto", "login", "non_login"]
-																},
-																"windowTitle": {
-																	"type": "string",
-																	"maxLength": 4096
-																},
-																"notificationProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 1024
-																},
-																"agentSidebarProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 32768
-																}
-															}
-														}
-													}
-												},
-												{
-													"type": "object",
-													"required": ["kind", "snapshot", "changed"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "reloaded"
-														},
-														"snapshot": {
-															"type": "object",
-															"required": [
-																"revision",
-																"keysProfile",
-																"restartRequired",
-																"manifestCheck",
-																"defaultShell",
-																"shellMode",
-																"windowTitle",
-																"notificationProfile",
-																"agentSidebarProfile"
-															],
-															"additionalProperties": false,
-															"properties": {
-																"revision": {
-																	"type": "string",
-																	"pattern": "^(0|[1-9][0-9]{0,19})$"
-																},
-																"keysProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 65536
-																},
-																"restartRequired": {
-																	"type": "array",
-																	"uniqueItems": true,
-																	"maxItems": 3,
-																	"items": {
-																		"enum": [
-																			"terminal.default_shell",
-																			"terminal.shell_mode",
-																			"session.resume_agents_on_restore"
-																		]
-																	}
-																},
-																"manifestCheck": {
-																	"type": "boolean"
-																},
-																"defaultShell": {
-																	"type": "string",
-																	"maxLength": 4096,
-																	"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
-																	"$comment": "Bindings additionally enforce the 4096 UTF-8 byte limit and Unicode scalar strings."
-																},
-																"shellMode": {
-																	"enum": ["auto", "login", "non_login"]
-																},
-																"windowTitle": {
-																	"type": "string",
-																	"maxLength": 4096
-																},
-																"notificationProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 1024
-																},
-																"agentSidebarProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 32768
-																}
-															}
-														},
-														"changed": {
-															"type": "boolean"
-														}
-													}
-												},
-												{
-													"type": "object",
-													"required": ["kind", "reason", "field", "detail"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "failed"
-														},
-														"reason": {
-															"enum": [
-																"denied",
-																"unavailable",
-																"site-mismatch",
-																"busy",
-																"load-failed",
-																"revision-exhausted"
-															]
-														},
-														"field": {
-															"type": ["string", "null"],
-															"minLength": 1,
-															"maxLength": 128
-														},
-														"detail": {
-															"type": ["string", "null"],
-															"minLength": 1,
-															"maxLength": 128
-														}
-													},
-													"allOf": [
-														{
-															"if": {
-																"properties": {
-																	"reason": {
-																		"not": {
-																			"const": "load-failed"
-																		}
-																	}
-																}
-															},
-															"then": {
-																"properties": {
-																	"field": {
-																		"type": "null"
-																	},
-																	"detail": {
-																		"type": "null"
-																	}
-																}
-															}
-														},
-														{
-															"oneOf": [
-																{
-																	"properties": {
-																		"field": {
-																			"type": "null"
-																		},
-																		"detail": {
-																			"type": "null"
-																		}
-																	}
-																},
-																{
-																	"properties": {
-																		"field": {
-																			"type": "string"
-																		},
-																		"detail": {
-																			"type": "string"
-																		}
-																	}
-																}
-															]
-														}
-													]
-												}
-											]
-										}
-									}
-								}
-							]
-						},
-						"interrupted": {
-							"type": "boolean"
-						},
-						"cleanupFailed": {
-							"type": "boolean"
-						}
-					},
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"action": {
-										"const": "current"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"reply": {
-										"properties": {
-											"outcome": {
-												"properties": {
-													"kind": {
-														"enum": ["current", "failed"]
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						},
-						{
-							"if": {
-								"properties": {
-									"action": {
-										"const": "reload"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"reply": {
-										"properties": {
-											"outcome": {
-												"properties": {
-													"kind": {
-														"enum": ["reloaded", "failed"]
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-					]
-				}
-			}
-		},
-		"v6": {
-			"type": "object",
-			"required": ["schema", "version", "source", "result"],
-			"additionalProperties": false,
-			"properties": {
-				"schema": {
-					"const": "orchbee.site.configuration"
-				},
-				"version": {
-					"const": 6
-				},
-				"source": {
-					"type": "object",
-					"required": ["kind"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "local-runtime"
-						}
-					}
-				},
-				"result": {
-					"type": "object",
-					"required": ["action", "reply", "interrupted", "cleanupFailed"],
-					"additionalProperties": false,
-					"properties": {
-						"action": {
-							"enum": ["current", "reload"]
-						},
-						"reply": {
-							"anyOf": [
-								{
-									"type": "null"
-								},
-								{
-									"type": "object",
-									"required": ["protocolVersion", "requestId", "siteId", "outcome"],
-									"additionalProperties": false,
-									"properties": {
-										"protocolVersion": {
-											"const": 1
-										},
-										"requestId": {
-											"type": "string",
-											"pattern": "^[0-9a-f]{32}$"
-										},
-										"siteId": {
-											"type": "string",
-											"pattern": "^[0-9a-f]{32}$"
-										},
-										"outcome": {
-											"oneOf": [
-												{
-													"type": "object",
-													"required": ["kind", "snapshot"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "current"
-														},
-														"snapshot": {
-															"type": "object",
-															"required": [
-																"revision",
-																"keysProfile",
-																"restartRequired",
-																"manifestCheck",
-																"defaultShell",
-																"shellMode",
-																"windowTitle",
-																"notificationProfile",
-																"agentSidebarProfile",
-																"spacesSidebarProfile"
-															],
-															"additionalProperties": false,
-															"properties": {
-																"revision": {
-																	"type": "string",
-																	"pattern": "^(0|[1-9][0-9]{0,19})$"
-																},
-																"keysProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 65536
-																},
-																"restartRequired": {
-																	"type": "array",
-																	"uniqueItems": true,
-																	"maxItems": 3,
-																	"items": {
-																		"enum": [
-																			"terminal.default_shell",
-																			"terminal.shell_mode",
-																			"session.resume_agents_on_restore"
-																		]
-																	}
-																},
-																"manifestCheck": {
-																	"type": "boolean"
-																},
-																"defaultShell": {
-																	"type": "string",
-																	"maxLength": 4096,
-																	"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
-																	"$comment": "Bindings additionally enforce the 4096 UTF-8 byte limit and Unicode scalar strings."
-																},
-																"shellMode": {
-																	"enum": ["auto", "login", "non_login"]
-																},
-																"windowTitle": {
-																	"type": "string",
-																	"maxLength": 4096
-																},
-																"notificationProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 1024
-																},
-																"agentSidebarProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 32768
-																},
-																"spacesSidebarProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 32768
-																}
-															}
-														}
-													}
-												},
-												{
-													"type": "object",
-													"required": ["kind", "snapshot", "changed"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "reloaded"
-														},
-														"snapshot": {
-															"type": "object",
-															"required": [
-																"revision",
-																"keysProfile",
-																"restartRequired",
-																"manifestCheck",
-																"defaultShell",
-																"shellMode",
-																"windowTitle",
-																"notificationProfile",
-																"agentSidebarProfile",
-																"spacesSidebarProfile"
-															],
-															"additionalProperties": false,
-															"properties": {
-																"revision": {
-																	"type": "string",
-																	"pattern": "^(0|[1-9][0-9]{0,19})$"
-																},
-																"keysProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 65536
-																},
-																"restartRequired": {
-																	"type": "array",
-																	"uniqueItems": true,
-																	"maxItems": 3,
-																	"items": {
-																		"enum": [
-																			"terminal.default_shell",
-																			"terminal.shell_mode",
-																			"session.resume_agents_on_restore"
-																		]
-																	}
-																},
-																"manifestCheck": {
-																	"type": "boolean"
-																},
-																"defaultShell": {
-																	"type": "string",
-																	"maxLength": 4096,
-																	"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
-																	"$comment": "Bindings additionally enforce the 4096 UTF-8 byte limit and Unicode scalar strings."
-																},
-																"shellMode": {
-																	"enum": ["auto", "login", "non_login"]
-																},
-																"windowTitle": {
-																	"type": "string",
-																	"maxLength": 4096
-																},
-																"notificationProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 1024
-																},
-																"agentSidebarProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 32768
-																},
-																"spacesSidebarProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 32768
-																}
-															}
-														},
-														"changed": {
-															"type": "boolean"
-														}
-													}
-												},
-												{
-													"type": "object",
-													"required": ["kind", "reason", "field", "detail"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "failed"
-														},
-														"reason": {
-															"enum": [
-																"denied",
-																"unavailable",
-																"site-mismatch",
-																"busy",
-																"load-failed",
-																"revision-exhausted"
-															]
-														},
-														"field": {
-															"type": ["string", "null"],
-															"minLength": 1,
-															"maxLength": 128
-														},
-														"detail": {
-															"type": ["string", "null"],
-															"minLength": 1,
-															"maxLength": 128
-														}
-													},
-													"allOf": [
-														{
-															"if": {
-																"properties": {
-																	"reason": {
-																		"not": {
-																			"const": "load-failed"
-																		}
-																	}
-																}
-															},
-															"then": {
-																"properties": {
-																	"field": {
-																		"type": "null"
-																	},
-																	"detail": {
-																		"type": "null"
-																	}
-																}
-															}
-														},
-														{
-															"oneOf": [
-																{
-																	"properties": {
-																		"field": {
-																			"type": "null"
-																		},
-																		"detail": {
-																			"type": "null"
-																		}
-																	}
-																},
-																{
-																	"properties": {
-																		"field": {
-																			"type": "string"
-																		},
-																		"detail": {
-																			"type": "string"
-																		}
-																	}
-																}
-															]
-														}
-													]
-												}
-											]
-										}
-									}
-								}
-							]
-						},
-						"interrupted": {
-							"type": "boolean"
-						},
-						"cleanupFailed": {
-							"type": "boolean"
-						}
-					},
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"action": {
-										"const": "current"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"reply": {
-										"properties": {
-											"outcome": {
-												"properties": {
-													"kind": {
-														"enum": ["current", "failed"]
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						},
-						{
-							"if": {
-								"properties": {
-									"action": {
-										"const": "reload"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"reply": {
-										"properties": {
-											"outcome": {
-												"properties": {
-													"kind": {
-														"enum": ["reloaded", "failed"]
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-					]
-				}
-			}
-		},
-		"v7": {
-			"type": "object",
-			"required": ["schema", "version", "source", "result"],
-			"additionalProperties": false,
-			"properties": {
-				"schema": {
-					"const": "orchbee.site.configuration"
-				},
-				"version": {
-					"const": 7
-				},
-				"source": {
-					"type": "object",
-					"required": ["kind"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "local-runtime"
-						}
-					}
-				},
-				"result": {
-					"type": "object",
-					"required": ["action", "reply", "interrupted", "cleanupFailed"],
-					"additionalProperties": false,
-					"properties": {
-						"action": {
-							"enum": ["current", "reload"]
-						},
-						"reply": {
-							"anyOf": [
-								{
-									"type": "null"
-								},
-								{
-									"type": "object",
-									"required": ["protocolVersion", "requestId", "siteId", "outcome"],
-									"additionalProperties": false,
-									"properties": {
-										"protocolVersion": {
-											"const": 1
-										},
-										"requestId": {
-											"type": "string",
-											"pattern": "^[0-9a-f]{32}$"
-										},
-										"siteId": {
-											"type": "string",
-											"pattern": "^[0-9a-f]{32}$"
-										},
-										"outcome": {
-											"oneOf": [
-												{
-													"type": "object",
-													"required": ["kind", "snapshot"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "current"
-														},
-														"snapshot": {
-															"type": "object",
-															"required": [
-																"revision",
-																"keysProfile",
-																"restartRequired",
-																"manifestCheck",
-																"defaultShell",
-																"shellMode",
-																"windowTitle",
-																"notificationProfile",
-																"agentSidebarProfile",
-																"spacesSidebarProfile"
-															],
-															"additionalProperties": false,
-															"properties": {
-																"revision": {
-																	"type": "string",
-																	"pattern": "^(0|[1-9][0-9]{0,19})$"
-																},
-																"keysProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 65536
-																},
-																"restartRequired": {
-																	"type": "array",
-																	"uniqueItems": true,
-																	"maxItems": 3,
-																	"items": {
-																		"enum": [
-																			"terminal.default_shell",
-																			"terminal.shell_mode",
-																			"session.resume_agents_on_restore"
-																		]
-																	}
-																},
-																"manifestCheck": {
-																	"type": "boolean"
-																},
-																"defaultShell": {
-																	"type": "string",
-																	"maxLength": 4096,
-																	"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
-																	"$comment": "Bindings additionally enforce the 4096 UTF-8 byte limit and Unicode scalar strings."
-																},
-																"shellMode": {
-																	"enum": ["auto", "login", "non_login"]
-																},
-																"windowTitle": {
-																	"type": "string",
-																	"maxLength": 4096
-																},
-																"notificationProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 16384
-																},
-																"agentSidebarProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 32768
-																},
-																"spacesSidebarProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 32768
-																}
-															}
-														}
-													}
-												},
-												{
-													"type": "object",
-													"required": ["kind", "snapshot", "changed"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "reloaded"
-														},
-														"snapshot": {
-															"type": "object",
-															"required": [
-																"revision",
-																"keysProfile",
-																"restartRequired",
-																"manifestCheck",
-																"defaultShell",
-																"shellMode",
-																"windowTitle",
-																"notificationProfile",
-																"agentSidebarProfile",
-																"spacesSidebarProfile"
-															],
-															"additionalProperties": false,
-															"properties": {
-																"revision": {
-																	"type": "string",
-																	"pattern": "^(0|[1-9][0-9]{0,19})$"
-																},
-																"keysProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 65536
-																},
-																"restartRequired": {
-																	"type": "array",
-																	"uniqueItems": true,
-																	"maxItems": 3,
-																	"items": {
-																		"enum": [
-																			"terminal.default_shell",
-																			"terminal.shell_mode",
-																			"session.resume_agents_on_restore"
-																		]
-																	}
-																},
-																"manifestCheck": {
-																	"type": "boolean"
-																},
-																"defaultShell": {
-																	"type": "string",
-																	"maxLength": 4096,
-																	"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
-																	"$comment": "Bindings additionally enforce the 4096 UTF-8 byte limit and Unicode scalar strings."
-																},
-																"shellMode": {
-																	"enum": ["auto", "login", "non_login"]
-																},
-																"windowTitle": {
-																	"type": "string",
-																	"maxLength": 4096
-																},
-																"notificationProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 16384
-																},
-																"agentSidebarProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 32768
-																},
-																"spacesSidebarProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 32768
-																}
-															}
-														},
-														"changed": {
-															"type": "boolean"
-														}
-													}
-												},
-												{
-													"type": "object",
-													"required": ["kind", "reason", "field", "detail"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "failed"
-														},
-														"reason": {
-															"enum": [
-																"denied",
-																"unavailable",
-																"site-mismatch",
-																"busy",
-																"load-failed",
-																"revision-exhausted"
-															]
-														},
-														"field": {
-															"type": ["string", "null"],
-															"minLength": 1,
-															"maxLength": 128
-														},
-														"detail": {
-															"type": ["string", "null"],
-															"minLength": 1,
-															"maxLength": 128
-														}
-													},
-													"allOf": [
-														{
-															"if": {
-																"properties": {
-																	"reason": {
-																		"not": {
-																			"const": "load-failed"
-																		}
-																	}
-																}
-															},
-															"then": {
-																"properties": {
-																	"field": {
-																		"type": "null"
-																	},
-																	"detail": {
-																		"type": "null"
-																	}
-																}
-															}
-														},
-														{
-															"oneOf": [
-																{
-																	"properties": {
-																		"field": {
-																			"type": "null"
-																		},
-																		"detail": {
-																			"type": "null"
-																		}
-																	}
-																},
-																{
-																	"properties": {
-																		"field": {
-																			"type": "string"
-																		},
-																		"detail": {
-																			"type": "string"
-																		}
-																	}
-																}
-															]
-														}
-													]
-												}
-											]
-										}
-									}
-								}
-							]
-						},
-						"interrupted": {
-							"type": "boolean"
-						},
-						"cleanupFailed": {
-							"type": "boolean"
-						}
-					},
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"action": {
-										"const": "current"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"reply": {
-										"properties": {
-											"outcome": {
-												"properties": {
-													"kind": {
-														"enum": ["current", "failed"]
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						},
-						{
-							"if": {
-								"properties": {
-									"action": {
-										"const": "reload"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"reply": {
-										"properties": {
-											"outcome": {
-												"properties": {
-													"kind": {
-														"enum": ["reloaded", "failed"]
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-					]
-				}
-			}
-		},
-		"v8": {
-			"type": "object",
-			"required": ["schema", "version", "source", "result"],
-			"additionalProperties": false,
-			"properties": {
-				"schema": {
-					"const": "orchbee.site.configuration"
-				},
-				"version": {
-					"const": 8
-				},
-				"source": {
-					"type": "object",
-					"required": ["kind"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "local-runtime"
-						}
-					}
-				},
-				"result": {
-					"type": "object",
-					"required": ["action", "reply", "interrupted", "cleanupFailed"],
-					"additionalProperties": false,
-					"properties": {
-						"action": {
-							"enum": ["current", "reload"]
-						},
-						"reply": {
-							"anyOf": [
-								{
-									"type": "null"
-								},
-								{
-									"type": "object",
-									"required": ["protocolVersion", "requestId", "siteId", "outcome"],
-									"additionalProperties": false,
-									"properties": {
-										"protocolVersion": {
-											"const": 1
-										},
-										"requestId": {
-											"type": "string",
-											"pattern": "^[0-9a-f]{32}$"
-										},
-										"siteId": {
-											"type": "string",
-											"pattern": "^[0-9a-f]{32}$"
-										},
-										"outcome": {
-											"oneOf": [
-												{
-													"type": "object",
-													"required": ["kind", "snapshot"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "current"
-														},
-														"snapshot": {
-															"type": "object",
-															"required": [
-																"revision",
-																"diagnostics",
-																"keysProfile",
-																"restartRequired",
-																"manifestCheck",
-																"defaultShell",
-																"shellMode",
-																"windowTitle",
-																"notificationProfile",
-																"agentSidebarProfile",
-																"spacesSidebarProfile"
-															],
-															"additionalProperties": false,
-															"properties": {
-																"revision": {
-																	"type": "string",
-																	"pattern": "^(0|[1-9][0-9]{0,19})$"
-																},
-																"keysProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 65536
-																},
-																"restartRequired": {
-																	"type": "array",
-																	"uniqueItems": true,
-																	"maxItems": 3,
-																	"items": {
-																		"enum": [
-																			"terminal.default_shell",
-																			"terminal.shell_mode",
-																			"session.resume_agents_on_restore"
-																		]
-																	}
-																},
-																"manifestCheck": {
-																	"type": "boolean"
-																},
-																"defaultShell": {
-																	"type": "string",
-																	"maxLength": 4096,
-																	"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
-																	"$comment": "Bindings additionally enforce the 4096 UTF-8 byte limit and Unicode scalar strings."
-																},
-																"shellMode": {
-																	"enum": ["auto", "login", "non_login"]
-																},
-																"windowTitle": {
-																	"type": "string",
-																	"maxLength": 4096
-																},
-																"notificationProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 16384
-																},
-																"agentSidebarProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 32768
-																},
-																"spacesSidebarProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 32768
-																},
-																"diagnostics": {
-																	"type": "object",
-																	"required": ["items", "omittedCount"],
-																	"additionalProperties": false,
-																	"properties": {
-																		"items": {
-																			"type": "array",
-																			"maxItems": 128,
-																			"uniqueItems": true,
-																			"$comment": "Bindings additionally enforce strict (field, reason) order.",
-																			"items": {
-																				"type": "object",
-																				"required": ["field", "reason", "disposition"],
-																				"additionalProperties": false,
-																				"properties": {
-																					"field": {
-																						"type": "string",
-																						"minLength": 1,
-																						"maxLength": 256,
-																						"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$",
-																						"$comment": "Bindings additionally enforce the 256 UTF-8 byte limit and Unicode scalar strings."
-																					},
-																					"reason": {
-																						"type": "string",
-																						"minLength": 1,
-																						"maxLength": 64,
-																						"pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
-																					},
-																					"disposition": {
-																						"enum": ["defaulted", "disabled", "ignored"]
-																					}
-																				}
+																		"type": "object",
+																		"required": ["field", "reason", "disposition"],
+																		"additionalProperties": false,
+																		"properties": {
+																			"field": {
+																				"type": "string",
+																				"minLength": 1,
+																				"maxLength": 256,
+																				"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+																			},
+																			"reason": {
+																				"type": "string",
+																				"minLength": 1,
+																				"maxLength": 64,
+																				"pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+																			},
+																			"disposition": {
+																				"enum": ["defaulted", "disabled", "ignored"]
 																			}
-																		},
-																		"omittedCount": {
-																			"type": "integer",
-																			"minimum": 0,
-																			"maximum": 65536
 																		}
 																	}
+																},
+																"omittedCount": {
+																	"type": "integer",
+																	"minimum": 0,
+																	"maximum": 65536
 																}
 															}
+														},
+														"themeName": {
+															"enum": ["terminal-native", "one-light", "one-dark"]
 														}
 													}
+												}
+											}
+										},
+										{
+											"type": "object",
+											"required": ["kind", "snapshot", "changed"],
+											"additionalProperties": false,
+											"properties": {
+												"kind": {
+													"const": "reloaded"
 												},
-												{
+												"snapshot": {
 													"type": "object",
-													"required": ["kind", "snapshot", "changed"],
+													"required": [
+														"revision",
+														"diagnostics",
+														"keysProfile",
+														"restartRequired",
+														"manifestCheck",
+														"defaultShell",
+														"shellMode",
+														"windowTitle",
+														"notificationProfile",
+														"agentSidebarProfile",
+														"spacesSidebarProfile",
+														"themeName"
+													],
 													"additionalProperties": false,
 													"properties": {
-														"kind": {
-															"const": "reloaded"
+														"revision": {
+															"type": "string",
+															"pattern": "^(0|[1-9][0-9]{0,19})$"
 														},
-														"snapshot": {
+														"keysProfile": {
+															"type": "string",
+															"minLength": 1,
+															"maxLength": 65536
+														},
+														"restartRequired": {
+															"type": "array",
+															"uniqueItems": true,
+															"maxItems": 3,
+															"items": {
+																"enum": [
+																	"terminal.default_shell",
+																	"terminal.shell_mode",
+																	"session.resume_agents_on_restore"
+																]
+															}
+														},
+														"manifestCheck": {
+															"type": "boolean"
+														},
+														"defaultShell": {
+															"type": "string",
+															"maxLength": 4096,
+															"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$"
+														},
+														"shellMode": {
+															"enum": ["auto", "login", "non_login"]
+														},
+														"windowTitle": {
+															"type": "string",
+															"maxLength": 4096
+														},
+														"notificationProfile": {
+															"type": "string",
+															"minLength": 1,
+															"maxLength": 16384
+														},
+														"agentSidebarProfile": {
+															"type": "string",
+															"minLength": 1,
+															"maxLength": 32768
+														},
+														"spacesSidebarProfile": {
+															"type": "string",
+															"minLength": 1,
+															"maxLength": 32768
+														},
+														"diagnostics": {
 															"type": "object",
-															"required": [
-																"revision",
-																"diagnostics",
-																"keysProfile",
-																"restartRequired",
-																"manifestCheck",
-																"defaultShell",
-																"shellMode",
-																"windowTitle",
-																"notificationProfile",
-																"agentSidebarProfile",
-																"spacesSidebarProfile"
-															],
+															"required": ["items", "omittedCount"],
 															"additionalProperties": false,
 															"properties": {
-																"revision": {
-																	"type": "string",
-																	"pattern": "^(0|[1-9][0-9]{0,19})$"
-																},
-																"keysProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 65536
-																},
-																"restartRequired": {
+																"items": {
 																	"type": "array",
+																	"maxItems": 128,
 																	"uniqueItems": true,
-																	"maxItems": 3,
 																	"items": {
-																		"enum": [
-																			"terminal.default_shell",
-																			"terminal.shell_mode",
-																			"session.resume_agents_on_restore"
-																		]
-																	}
-																},
-																"manifestCheck": {
-																	"type": "boolean"
-																},
-																"defaultShell": {
-																	"type": "string",
-																	"maxLength": 4096,
-																	"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
-																	"$comment": "Bindings additionally enforce the 4096 UTF-8 byte limit and Unicode scalar strings."
-																},
-																"shellMode": {
-																	"enum": ["auto", "login", "non_login"]
-																},
-																"windowTitle": {
-																	"type": "string",
-																	"maxLength": 4096
-																},
-																"notificationProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 16384
-																},
-																"agentSidebarProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 32768
-																},
-																"spacesSidebarProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 32768
-																},
-																"diagnostics": {
-																	"type": "object",
-																	"required": ["items", "omittedCount"],
-																	"additionalProperties": false,
-																	"properties": {
-																		"items": {
-																			"type": "array",
-																			"maxItems": 128,
-																			"uniqueItems": true,
-																			"$comment": "Bindings additionally enforce strict (field, reason) order.",
-																			"items": {
-																				"type": "object",
-																				"required": ["field", "reason", "disposition"],
-																				"additionalProperties": false,
-																				"properties": {
-																					"field": {
-																						"type": "string",
-																						"minLength": 1,
-																						"maxLength": 256,
-																						"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$",
-																						"$comment": "Bindings additionally enforce the 256 UTF-8 byte limit and Unicode scalar strings."
-																					},
-																					"reason": {
-																						"type": "string",
-																						"minLength": 1,
-																						"maxLength": 64,
-																						"pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
-																					},
-																					"disposition": {
-																						"enum": ["defaulted", "disabled", "ignored"]
-																					}
-																				}
+																		"type": "object",
+																		"required": ["field", "reason", "disposition"],
+																		"additionalProperties": false,
+																		"properties": {
+																			"field": {
+																				"type": "string",
+																				"minLength": 1,
+																				"maxLength": 256,
+																				"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+																			},
+																			"reason": {
+																				"type": "string",
+																				"minLength": 1,
+																				"maxLength": 64,
+																				"pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+																			},
+																			"disposition": {
+																				"enum": ["defaulted", "disabled", "ignored"]
 																			}
-																		},
-																		"omittedCount": {
-																			"type": "integer",
-																			"minimum": 0,
-																			"maximum": 65536
 																		}
 																	}
+																},
+																"omittedCount": {
+																	"type": "integer",
+																	"minimum": 0,
+																	"maximum": 65536
 																}
 															}
 														},
-														"changed": {
-															"type": "boolean"
+														"themeName": {
+															"enum": ["terminal-native", "one-light", "one-dark"]
 														}
 													}
 												},
-												{
-													"type": "object",
-													"required": ["kind", "reason", "field", "detail"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "failed"
-														},
-														"reason": {
-															"enum": [
-																"denied",
-																"unavailable",
-																"site-mismatch",
-																"busy",
-																"load-failed",
-																"revision-exhausted"
-															]
-														},
-														"field": {
-															"type": ["string", "null"],
-															"minLength": 1,
-															"maxLength": 128
-														},
-														"detail": {
-															"type": ["string", "null"],
-															"minLength": 1,
-															"maxLength": 128
-														}
-													},
-													"allOf": [
-														{
-															"if": {
-																"properties": {
-																	"reason": {
-																		"not": {
-																			"const": "load-failed"
-																		}
-																	}
-																}
-															},
-															"then": {
-																"properties": {
-																	"field": {
-																		"type": "null"
-																	},
-																	"detail": {
-																		"type": "null"
-																	}
-																}
-															}
-														},
-														{
-															"oneOf": [
-																{
-																	"properties": {
-																		"field": {
-																			"type": "null"
-																		},
-																		"detail": {
-																			"type": "null"
-																		}
-																	}
-																},
-																{
-																	"properties": {
-																		"field": {
-																			"type": "string"
-																		},
-																		"detail": {
-																			"type": "string"
-																		}
-																	}
-																}
-															]
-														}
+												"changed": {
+													"type": "boolean"
+												}
+											}
+										},
+										{
+											"type": "object",
+											"required": ["kind", "reason", "field", "detail"],
+											"additionalProperties": false,
+											"properties": {
+												"kind": {
+													"const": "failed"
+												},
+												"reason": {
+													"enum": [
+														"denied",
+														"unavailable",
+														"site-mismatch",
+														"busy",
+														"load-failed",
+														"revision-exhausted"
 													]
+												},
+												"field": {
+													"type": ["string", "null"],
+													"minLength": 1,
+													"maxLength": 128
+												},
+												"detail": {
+													"type": ["string", "null"],
+													"minLength": 1,
+													"maxLength": 128
 												}
-											]
-										}
-									}
-								}
-							]
-						},
-						"interrupted": {
-							"type": "boolean"
-						},
-						"cleanupFailed": {
-							"type": "boolean"
-						}
-					},
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"action": {
-										"const": "current"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"reply": {
-										"properties": {
-											"outcome": {
+											},
+											"if": {
 												"properties": {
-													"kind": {
-														"enum": ["current", "failed"]
+													"reason": {
+														"not": {
+															"const": "load-failed"
+														}
 													}
 												}
-											}
-										}
-									}
-								}
-							}
-						},
-						{
-							"if": {
-								"properties": {
-									"action": {
-										"const": "reload"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"reply": {
-										"properties": {
-											"outcome": {
+											},
+											"then": {
 												"properties": {
-													"kind": {
-														"enum": ["reloaded", "failed"]
+													"field": {
+														"type": "null"
+													},
+													"detail": {
+														"type": "null"
 													}
 												}
-											}
-										}
-									}
-								}
-							}
-						}
-					]
-				}
-			}
-		},
-		"v9": {
-			"type": "object",
-			"required": ["schema", "version", "source", "result"],
-			"additionalProperties": false,
-			"properties": {
-				"schema": {
-					"const": "orchbee.site.configuration"
-				},
-				"version": {
-					"const": 9
-				},
-				"source": {
-					"type": "object",
-					"required": ["kind"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "local-runtime"
-						}
-					}
-				},
-				"result": {
-					"type": "object",
-					"required": ["action", "reply", "interrupted", "cleanupFailed"],
-					"additionalProperties": false,
-					"properties": {
-						"action": {
-							"enum": ["current", "reload"]
-						},
-						"reply": {
-							"anyOf": [
-								{
-									"type": "null"
-								},
-								{
-									"type": "object",
-									"required": ["protocolVersion", "requestId", "siteId", "outcome"],
-									"additionalProperties": false,
-									"properties": {
-										"protocolVersion": {
-											"const": 1
-										},
-										"requestId": {
-											"type": "string",
-											"pattern": "^[0-9a-f]{32}$"
-										},
-										"siteId": {
-											"type": "string",
-											"pattern": "^[0-9a-f]{32}$"
-										},
-										"outcome": {
+											},
 											"oneOf": [
 												{
-													"type": "object",
-													"required": ["kind", "snapshot"],
-													"additionalProperties": false,
 													"properties": {
-														"kind": {
-															"const": "current"
-														},
-														"snapshot": {
-															"type": "object",
-															"required": [
-																"revision",
-																"diagnostics",
-																"keysProfile",
-																"restartRequired",
-																"manifestCheck",
-																"defaultShell",
-																"shellMode",
-																"windowTitle",
-																"notificationProfile",
-																"agentSidebarProfile",
-																"spacesSidebarProfile",
-																"themeName"
-															],
-															"additionalProperties": false,
-															"properties": {
-																"revision": {
-																	"type": "string",
-																	"pattern": "^(0|[1-9][0-9]{0,19})$"
-																},
-																"keysProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 65536
-																},
-																"restartRequired": {
-																	"type": "array",
-																	"uniqueItems": true,
-																	"maxItems": 3,
-																	"items": {
-																		"enum": [
-																			"terminal.default_shell",
-																			"terminal.shell_mode",
-																			"session.resume_agents_on_restore"
-																		]
-																	}
-																},
-																"manifestCheck": {
-																	"type": "boolean"
-																},
-																"defaultShell": {
-																	"type": "string",
-																	"maxLength": 4096,
-																	"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
-																	"$comment": "Bindings additionally enforce the 4096 UTF-8 byte limit and Unicode scalar strings."
-																},
-																"shellMode": {
-																	"enum": ["auto", "login", "non_login"]
-																},
-																"windowTitle": {
-																	"type": "string",
-																	"maxLength": 4096
-																},
-																"notificationProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 16384
-																},
-																"agentSidebarProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 32768
-																},
-																"spacesSidebarProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 32768
-																},
-																"diagnostics": {
-																	"type": "object",
-																	"required": ["items", "omittedCount"],
-																	"additionalProperties": false,
-																	"properties": {
-																		"items": {
-																			"type": "array",
-																			"maxItems": 128,
-																			"uniqueItems": true,
-																			"$comment": "Bindings additionally enforce strict (field, reason) order.",
-																			"items": {
-																				"type": "object",
-																				"required": ["field", "reason", "disposition"],
-																				"additionalProperties": false,
-																				"properties": {
-																					"field": {
-																						"type": "string",
-																						"minLength": 1,
-																						"maxLength": 256,
-																						"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$",
-																						"$comment": "Bindings additionally enforce the 256 UTF-8 byte limit and Unicode scalar strings."
-																					},
-																					"reason": {
-																						"type": "string",
-																						"minLength": 1,
-																						"maxLength": 64,
-																						"pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
-																					},
-																					"disposition": {
-																						"enum": ["defaulted", "disabled", "ignored"]
-																					}
-																				}
-																			}
-																		},
-																		"omittedCount": {
-																			"type": "integer",
-																			"minimum": 0,
-																			"maximum": 65536
-																		}
-																	}
-																},
-																"themeName": {
-																	"enum": ["terminal-native", "one-light", "one-dark"]
-																}
-															}
-														}
-													}
-												},
-												{
-													"type": "object",
-													"required": ["kind", "snapshot", "changed"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "reloaded"
-														},
-														"snapshot": {
-															"type": "object",
-															"required": [
-																"revision",
-																"diagnostics",
-																"keysProfile",
-																"restartRequired",
-																"manifestCheck",
-																"defaultShell",
-																"shellMode",
-																"windowTitle",
-																"notificationProfile",
-																"agentSidebarProfile",
-																"spacesSidebarProfile",
-																"themeName"
-															],
-															"additionalProperties": false,
-															"properties": {
-																"revision": {
-																	"type": "string",
-																	"pattern": "^(0|[1-9][0-9]{0,19})$"
-																},
-																"keysProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 65536
-																},
-																"restartRequired": {
-																	"type": "array",
-																	"uniqueItems": true,
-																	"maxItems": 3,
-																	"items": {
-																		"enum": [
-																			"terminal.default_shell",
-																			"terminal.shell_mode",
-																			"session.resume_agents_on_restore"
-																		]
-																	}
-																},
-																"manifestCheck": {
-																	"type": "boolean"
-																},
-																"defaultShell": {
-																	"type": "string",
-																	"maxLength": 4096,
-																	"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
-																	"$comment": "Bindings additionally enforce the 4096 UTF-8 byte limit and Unicode scalar strings."
-																},
-																"shellMode": {
-																	"enum": ["auto", "login", "non_login"]
-																},
-																"windowTitle": {
-																	"type": "string",
-																	"maxLength": 4096
-																},
-																"notificationProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 16384
-																},
-																"agentSidebarProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 32768
-																},
-																"spacesSidebarProfile": {
-																	"type": "string",
-																	"minLength": 1,
-																	"maxLength": 32768
-																},
-																"diagnostics": {
-																	"type": "object",
-																	"required": ["items", "omittedCount"],
-																	"additionalProperties": false,
-																	"properties": {
-																		"items": {
-																			"type": "array",
-																			"maxItems": 128,
-																			"uniqueItems": true,
-																			"$comment": "Bindings additionally enforce strict (field, reason) order.",
-																			"items": {
-																				"type": "object",
-																				"required": ["field", "reason", "disposition"],
-																				"additionalProperties": false,
-																				"properties": {
-																					"field": {
-																						"type": "string",
-																						"minLength": 1,
-																						"maxLength": 256,
-																						"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$",
-																						"$comment": "Bindings additionally enforce the 256 UTF-8 byte limit and Unicode scalar strings."
-																					},
-																					"reason": {
-																						"type": "string",
-																						"minLength": 1,
-																						"maxLength": 64,
-																						"pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
-																					},
-																					"disposition": {
-																						"enum": ["defaulted", "disabled", "ignored"]
-																					}
-																				}
-																			}
-																		},
-																		"omittedCount": {
-																			"type": "integer",
-																			"minimum": 0,
-																			"maximum": 65536
-																		}
-																	}
-																},
-																"themeName": {
-																	"enum": ["terminal-native", "one-light", "one-dark"]
-																}
-															}
-														},
-														"changed": {
-															"type": "boolean"
-														}
-													}
-												},
-												{
-													"type": "object",
-													"required": ["kind", "reason", "field", "detail"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "failed"
-														},
-														"reason": {
-															"enum": [
-																"denied",
-																"unavailable",
-																"site-mismatch",
-																"busy",
-																"load-failed",
-																"revision-exhausted"
-															]
-														},
 														"field": {
-															"type": ["string", "null"],
-															"minLength": 1,
-															"maxLength": 128
+															"type": "null"
 														},
 														"detail": {
-															"type": ["string", "null"],
-															"minLength": 1,
-															"maxLength": 128
+															"type": "null"
 														}
-													},
-													"allOf": [
-														{
-															"if": {
-																"properties": {
-																	"reason": {
-																		"not": {
-																			"const": "load-failed"
-																		}
-																	}
-																}
-															},
-															"then": {
-																"properties": {
-																	"field": {
-																		"type": "null"
-																	},
-																	"detail": {
-																		"type": "null"
-																	}
-																}
-															}
+													}
+												},
+												{
+													"properties": {
+														"field": {
+															"type": "string"
 														},
-														{
-															"oneOf": [
-																{
-																	"properties": {
-																		"field": {
-																			"type": "null"
-																		},
-																		"detail": {
-																			"type": "null"
-																		}
-																	}
-																},
-																{
-																	"properties": {
-																		"field": {
-																			"type": "string"
-																		},
-																		"detail": {
-																			"type": "string"
-																		}
-																	}
-																}
-															]
+														"detail": {
+															"type": "string"
 														}
-													]
+													}
 												}
 											]
 										}
-									}
-								}
-							]
-						},
-						"interrupted": {
-							"type": "boolean"
-						},
-						"cleanupFailed": {
-							"type": "boolean"
-						}
-					},
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"action": {
-										"const": "current"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"reply": {
-										"properties": {
-											"outcome": {
-												"properties": {
-													"kind": {
-														"enum": ["current", "failed"]
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						},
-						{
-							"if": {
-								"properties": {
-									"action": {
-										"const": "reload"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"reply": {
-										"properties": {
-											"outcome": {
-												"properties": {
-													"kind": {
-														"enum": ["reloaded", "failed"]
-													}
-												}
-											}
-										}
-									}
+									]
 								}
 							}
 						}
 					]
+				},
+				"interrupted": {
+					"type": "boolean"
+				},
+				"cleanupFailed": {
+					"type": "boolean"
 				}
-			}
+			},
+			"if": {
+				"properties": {
+					"action": {
+						"const": "current"
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"reply": {
+						"properties": {
+							"outcome": {
+								"properties": {
+									"kind": {
+										"enum": ["current", "failed"]
+									}
+								}
+							}
+						}
+					}
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"action": {
+								"const": "reload"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"reply": {
+								"properties": {
+									"outcome": {
+										"properties": {
+											"kind": {
+												"enum": ["reloaded", "failed"]
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			]
 		}
 	}
 }

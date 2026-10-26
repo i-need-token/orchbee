@@ -92,7 +92,7 @@ fn wait_keeps_a_transient_completion_separate_from_the_current_working_sample() 
         &document,
         include_str!("../../src/cli/schemas/orchbee.agent.wait.json"),
     );
-    assert_eq!(document["version"], 7);
+    assert_eq!(document["version"], 1);
     assert_eq!(document["result"]["revision"], 9);
     assert_eq!(document["result"]["session"]["status"]["kind"], "working");
     assert_eq!(document["result"]["matchedChange"]["revision"], 8);

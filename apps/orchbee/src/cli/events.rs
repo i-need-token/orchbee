@@ -195,7 +195,7 @@ fn execute(
             Err(failure) => (failure.kind.exit_code(), failure.kind.as_str()),
         };
         if relay.healthy() {
-            let record = json!({"schema":"orchbee.events.stream","version":4,"kind":"closed","source":source(&snapshot),"reason":reason,"cleanup":cleanup});
+            let record = json!({"schema":"orchbee.events.stream","version":1,"kind":"closed","source":source(&snapshot),"reason":reason,"cleanup":cleanup});
             let bytes = if format == OutputFormat::Json {
                 output::encode_record(&record)
             } else {
@@ -245,7 +245,7 @@ fn finish_reply(
 ) -> Result<Output, Failure> {
     let status = status(&reply.outcome);
     let stdout = match format {
-        OutputFormat::Json => output::encode_record(&json!({"schema":"orchbee.events.wait","version":4,"source":source(snapshot),"result":public_reply(&reply)?,"cleanup":cleanup})),
+        OutputFormat::Json => output::encode_record(&json!({"schema":"orchbee.events.wait","version":1,"source":source(snapshot),"result":public_reply(&reply)?,"cleanup":cleanup})),
         OutputFormat::Text => {
             let mut text = locale.events_status(status).to_owned();
             if let Outcome::Matched {event, ..} = &reply.outcome { text.push_str(&format!("{}\t{}\n", crate::invocation::events::public_name(event.event), super::escape::escape(&serde_json::to_string(&event.data).map_err(|_| Failure::new(FailureKind::InternalFailure))?))); }
@@ -328,7 +328,7 @@ fn emit(
     format: OutputFormat,
     signal: &ControlInterrupt,
 ) -> Result<(), Failure> {
-    let bytes = if format == OutputFormat::Json { output::encode_record(&json!({"schema":"orchbee.events.stream","version":4,"kind":kind,"source":source(snapshot),"result":public_reply(reply)?})) }
+    let bytes = if format == OutputFormat::Json { output::encode_record(&json!({"schema":"orchbee.events.stream","version":1,"kind":kind,"source":source(snapshot),"result":public_reply(reply)?})) }
     else { output::encode_text(&text::record(kind, &reply.outcome, &text::clock(std::time::SystemTime::now()), locale)) }.map_err(|_| Failure::new(FailureKind::OutputTooLarge))?;
     relay
         .record(&bytes, Instant::now() + Duration::from_secs(3), &|| {

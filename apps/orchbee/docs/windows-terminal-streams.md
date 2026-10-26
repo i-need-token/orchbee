@@ -28,7 +28,7 @@ record is appended after partial output, and no successful-stream claim is made.
 `--cols` and `--rows` select the observer viewport without resizing the terminal. Full ANSI frames
 are synthesized from validated styled cells, clipped/padded to that viewport. Each record reports
 source dimensions separately. The stream is a screen projection, not raw PTY bytes or graphics.
-Every JSON record names `orchbee.terminal.stream` version 2 and its kind. Frame bytes use base64;
+Every JSON record names `orchbee.terminal.stream` version 1 and its kind. Frame bytes use base64;
 sequence/generation/revision identities are decimal strings. Both format selections emit NDJSON.
 
 Windows stdout is mediated by an invocation-owned system PowerShell process running a fixed
@@ -89,7 +89,7 @@ ANSI from validated cells, preserving captured colors, style attributes and wide
 It shares the live cell painter and never replays raw PTY output. Graphics resources are strictly
 validated but are not displayed; graphics history remains a separate obligation.
 
-Every stream output record uses version 2. `control` reports command receipts; `history` reports
+Every stream output record uses version 1. `control` reports command receipts; `history` reports
 a retained row surface; ordinary `frame` and `reset` retain their projection meanings. While
 history is active, a frame acknowledgement follows output of the active history surface or a
 pending reset, not display of a hidden live frame. EOF and release are successful only after

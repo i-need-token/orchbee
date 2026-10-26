@@ -91,10 +91,10 @@ Concurrent mutation, expiry or missing targets fails the query without mixed/par
 Cancel and transport outcomes keep their own meaning. Values and sources are escaped in both
 locales, never interpreted as terminal control sequences.
 
-`orchbee.workspace.list/get` v6 adds a `tokens` map to every row, including an empty map
+`orchbee.workspace.list/get` v1 adds a `tokens` map to every row, including an empty map
 when no values remain. Root `metadataSource` carries Session, Workbench and metadata revisions
-and all read request IDs. `orchbee.cli.failure.workbench-query` v2 adds `metadata-changed`.
-The embedded catalog is v84 with 88 documents; the native CLI has 99 command paths.
+and all read request IDs. `orchbee.cli.failure.workbench-query` v1 adds `metadata-changed`.
+The catalog exposes the current documents and command paths.
 
 ## Evidence and delivery
 

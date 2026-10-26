@@ -53,7 +53,7 @@ resize acknowledgment. The canonical terminal launch may still be pending or hav
 
 ## Receipts and recovery
 
-Windows creation emits `orchbee.creation.result` v3 after a known canonical commit. It preserves
+Windows creation emits `orchbee.creation.result` v1 after a known canonical commit. It preserves
 the existing canonical `source` and `result` facts and separately records `postCreate`: requested
 ratio/focus, exact Client when needed, each submitted Client observation, stage and failure.
 Only completion of every requested Client phase is process success; a canonical commit alone does
@@ -65,7 +65,7 @@ JSON emits one complete bounded document to stdout. Failed text output goes to s
 known effects. After an incomplete result, inspect the returned identities and current state before
 choosing a follow-up; repeating creation may create another resource. Client control-status can
 observe a submitted Client operation. No durable workflow journal or restart restoration is added.
-The schema catalog is v36 with 69 documents; command-path count remains 81.
+The catalog exposes the current documents and command paths.
 
 ## Evidence and compatibility
 
@@ -111,7 +111,7 @@ canonical retry. Attachment drop/detach, reads and mutation share the command de
 | Observing | One cancellable viewer sample has no controller, focus, resize or terminal input effect.                            |
 | Resolved  | A usable absolute cwd becomes the per-launch override; a known absence retains launch defaults.                     |
 | Creating  | The original Snapshot revision and existing canonical carrier fence the one submission.                             |
-| Finished  | Creation receipt v3 records requested policy, observed source/path and source Panel separately from launch success. |
+| Finished  | Creation receipt v1 records requested policy, observed source/path and source Panel separately from launch success. |
 
 Process cwd is a point-in-time observation, not a lease; a later process-directory change is allowed.
 Directory existence can change before launch, whose existing typed failure remains authoritative.
@@ -128,7 +128,7 @@ cohort; rollback does not rewrite user profiles or existing terminal processes.
 
 ## Plugin overlays
 
-Windows plugin overlay creation uses an active-Client horizontal split and one guarded focus/zoom handoff. A passive member read pins the return Panel’s actual primary/child Presentation and binding before creation. Creation v5 records the overlay request; v2–v4 retain their original embedded Client-control v1 contract. Only v5 admits the additive Overlay control v8 answer. A stale member, failed focus handoff or unknown reply preserves known creation and never repeats it. [Windows plugins](windows-plugins.md#overlay-lifecycle-model) owns transient return chains, natural settlement, canonical removal and popup exclusions.
+Windows plugin overlay creation uses an active-Client horizontal split and one guarded focus/zoom handoff. A passive member read pins the return Panel’s actual primary/child Presentation and binding before creation. Creation v1 records the overlay request. The current receipt includes the Overlay control answer. A stale member, failed focus handoff or unknown reply preserves known creation and never repeats it. [Windows plugins](windows-plugins.md#overlay-lifecycle-model) owns transient return chains, natural settlement, canonical removal and popup exclusions.
 
 ## TUI failed launches
 
@@ -167,6 +167,6 @@ Creation commands accept `--exec <path|name>` with literal repeated `--arg` valu
 
 Lookup uses the first executable in at most 256 absolute UTF-8 directory entries of a PATH bounded to 1 MiB. Empty, relative and control-containing entries are skipped. Windows tries `.exe` then `.com` for extensionless names and accepts those extensions explicitly; it does not use `PATHEXT` or script associations. Unix requires an executable regular file. Arguments are never evaluated by a shell. The final path and arguments are revalidated against the launch contract before submission.
 
-Named-program receipts add `resolvedLaunch` with `exec` and `args`: `orchbee.creation.result` versions 6/7/8 correspond to versions 3/4/5, `orchbee.workspace.creation` version 3 follows version 2, `orchbee.panel.terminal-create` version 2 follows version 1, and the Linux canonical `orchbee.mutation.result` version 7 follows version 4. Existing absolute-path receipts keep their versions. Text output shows the resolved executable. Resolution is an input fact, not evidence that the process started; original submission, failure and cleanup facts remain authoritative.
+Creation receipts always include nullable `resolvedLaunch`: `orchbee.creation.result`, `orchbee.workspace.creation`, `orchbee.panel.terminal-create`, and `orchbee.mutation.result` all use version 1. Named-program resolution fills `exec` and `args`; otherwise this member is null. Text reports the resolved program. Resolution is an input fact, not proof of process startup; original submission, failure and cleanup observations remain authoritative.
 
 For example, `orchbee tab create --exec pwsh --arg -NoExit --arg -Command --arg "npm run dev"` resolves PowerShell once and passes the command as one literal argument. PATH lookup is covered for ordering, missing executables, invalid names and relative entries; receipt coverage checks version selection and preservation of unknown outcomes.

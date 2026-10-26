@@ -393,8 +393,6 @@ pub(crate) struct Failure {
     /// bounded command family (`worktree list`); `None` is the shared
     /// `orchbee.cli.failure` document.
     pub(crate) failure_schema: Option<&'static str>,
-    /// Envelope version selected by the owning command, never inferred by rendering.
-    pub(crate) version: u32,
     /// Exact missing-sibling evidence from a native cohort check, carried to
     /// localized text only. Raw I/O details belong to `status client` JSON.
     /// Boxed so it never enlarges the hot Result.
@@ -420,7 +418,7 @@ pub(crate) struct IoDiagnostic {
 impl Failure {
     /// Composite operations preserve rich failures alongside earlier known commits.
     pub(super) fn observation(&self) -> Value {
-        json!({"kind":self.kind.as_str(),"details":self.details,"source":self.source,"schema":self.failure_schema.unwrap_or(schema::FAILURE_ID),"version":self.version})
+        json!({"kind":self.kind.as_str(),"details":self.details,"source":self.source,"schema":self.failure_schema.unwrap_or(schema::FAILURE_ID),"version":1})
     }
 
     pub(super) fn document(&self) -> Value {
@@ -429,7 +427,7 @@ impl Failure {
                 "schema".to_owned(),
                 json!(self.failure_schema.unwrap_or(schema::FAILURE_ID)),
             ),
-            ("version".to_owned(), json!(self.version)),
+            ("version".to_owned(), json!(1)),
         ]);
         let mut failure = Map::from_iter([("kind".to_owned(), json!(self.kind.as_str()))]);
         if let Some(details) = &self.details {
@@ -449,15 +447,9 @@ impl Failure {
             source: None,
             usage: None,
             failure_schema: None,
-            version: 1,
             io_diagnostic: None,
             candidate_display: None,
         }
-    }
-
-    pub(crate) fn version(mut self, version: u32) -> Self {
-        self.version = version;
-        self
     }
 
     pub(crate) fn details(mut self, details: Map<String, Value>) -> Self {
@@ -611,7 +603,6 @@ pub(crate) fn parse_failure(failure: ParseFailure, locale: Locale) -> Output {
         source: None,
         usage: failure.usage.map(Box::new),
         failure_schema: None,
-        version: 1,
         io_diagnostic: None,
         candidate_display: None,
     };
@@ -1033,33 +1024,11 @@ fn success_output(
     };
     match document_format {
         OutputFormat::Json => {
-            let version = results::schema_version(command);
-            #[cfg(windows)]
-            let version = match &projection {
-                results::Projection::AgentTerminalExplanation(terminal) => {
-                    if terminal.explanation.manifest.is_some() {
-                        5
-                    } else {
-                        4
-                    }
-                }
-                results::Projection::AgentTerminalInspection { client_view, .. } => {
-                    if client_view.is_some() { 20 } else { 19 }
-                }
-                results::Projection::AgentTerminalWait(wait) => {
-                    if wait.client_view.is_some() {
-                        10
-                    } else {
-                        9
-                    }
-                }
-                _ => version,
-            };
             let document = json!({
                 "schema": schema_id,
-                "version": version,
+                "version": 1,
                 "source": source,
-                "result": projection.result(),
+                "result": results::complete(command, projection.result()),
             });
             match output::encode_document(&document) {
                 Ok(stdout) => Output {

@@ -41,16 +41,22 @@ only when a person is present.
 
 ## Machine documents
 
-| Rule                | Contract                                                                                                                                                                  |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Shape               | One JSON object ending in a newline; two-space indentation for documents, one line per record for streams.                                                                |
-| Schema identity     | Every document names its schema identifier, and the identified schema is retrievable offline from the same build. A shape change is a new schema identifier or version.   |
-| Closed vocabularies | Failure kinds, stages, reasons, resource names, and enum values are finite, lowercase, kebab-case, documented values validated by the embedded schema.                    |
-| Failure envelope    | A failure document carries the failure kind, a details object whose shape is fixed per kind, and, only when derived from an authoritative source, that source's identity. |
-| No prose            | Machine documents contain no `message`, no localized text, and no exception or `Display` text. Presentation belongs to standard error and the `text` projection.          |
-| Provenance          | Every field has a trusted source. `null` means the source said none; `"unknown"` means the source cannot say; the two never mix, and no field is fabricated.              |
-| Untrusted data      | User-controlled labels, paths, and terminal text are preserved losslessly with standard JSON encoding; they are never truncated, sanitized, or translated in `json`.      |
-| Request identity    | A mutation result and a detached acceptance include the request identity so the caller can `get` or `wait` on it later.                                                   |
+| Rule                | Contract                                                                                                                                                                                                                                                                                         |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Shape               | One JSON object ending in a newline; two-space indentation for documents, one line per record for streams.                                                                                                                                                                                       |
+| Schema identity     | Every document names its schema identifier, and the identified schema is retrievable offline from the same build. Before the first public release, shape changes update the current contract directly and the version remains `1`; follow [Data boundaries](../ARCHITECTURE.md#data-boundaries). |
+| Stable members      | The same command exposes the same members across platforms and options. A member with no platform capability is `{ "kind": "unsupported" }`, using the shared `$defs/unsupported` definition through `oneOf: [<value>, { "$ref": "#/$defs/unsupported" }]`.                                      |
+| Closed vocabularies | Failure kinds, stages, reasons, resource names, and enum values are finite, lowercase, kebab-case, documented values validated by the embedded schema.                                                                                                                                           |
+| Failure envelope    | A failure document carries the failure kind, a details object whose shape is fixed per kind, and, only when derived from an authoritative source, that source's identity.                                                                                                                        |
+| No prose            | Machine documents contain no `message`, no localized text, and no exception or `Display` text. Presentation belongs to standard error and the `text` projection.                                                                                                                                 |
+| Provenance          | Every field has a trusted source. `null` means the source said none; `"unknown"` means the source cannot say; the two never mix, and no field is fabricated.                                                                                                                                     |
+| Untrusted data      | User-controlled labels, paths, and terminal text are preserved losslessly with standard JSON encoding; they are never truncated, sanitized, or translated in `json`.                                                                                                                             |
+| Request identity    | A mutation result and a detached acceptance include the request identity so the caller can `get` or `wait` on it later.                                                                                                                                                                          |
+
+Each schema defines `unsupported` as a closed object with only required `kind`, whose value is
+`"unsupported"`. `null` means the source said none; `"unknown"` means the source cannot say.
+Neither represents an unsupported platform. An unsupported command emits a failure with
+`stage: "platform"`, `reason: "unsupported-platform"`, and exit code `4`.
 
 ## Exit codes
 

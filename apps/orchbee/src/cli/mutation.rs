@@ -174,22 +174,16 @@ impl Receipt {
         if let Some(name) = &self.name {
             result.insert("name".to_owned(), json!(name));
         }
-        json!({
+        let mut document = json!({
             "schema": self.schema_id,
-            // Workspace/organization v6 removes mandatory Project scope;
-            // relocation remains v5 and other shared actions remain v4.
-            "version": if matches!(self.schema_id, super::schema::PROJECT_RENAME_RESULT_ID | super::schema::PANEL_RENAME_RESULT_ID | super::schema::PANEL_INPUT_RESULT_ID | super::schema::TAB_MOVE_RESULT_ID | super::schema::WORKSPACE_MOVE_RESULT_ID) {
-                1
-            } else if self.action.starts_with("workspace.") || self.action == "project.dissolve" {
-                6
-            } else if self.action == "panel.relocate" {
-                5
-            } else {
-                4
-            },
+            "version": 1,
             "source": self.source(),
             "result": Value::Object(result),
-        })
+        });
+        if self.schema_id == super::schema::MUTATION_RESULT_ID {
+            document["resolvedLaunch"] = Value::Null;
+        }
+        document
     }
 
     fn revision(mut self, revision: WorkbenchRevision) -> Self {
@@ -604,9 +598,7 @@ mod linux {
                             .and_then(serde_json::Value::as_str)
                             == Some("tab-move-order-conflict"))
                 {
-                    failure
-                        .failure_schema(super::super::schema::TAB_MOVE_FAILURE_ID)
-                        .version(2)
+                    failure.failure_schema(super::super::schema::TAB_MOVE_FAILURE_ID)
                 } else {
                     failure
                 };

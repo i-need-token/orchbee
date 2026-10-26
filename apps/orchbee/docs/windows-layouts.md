@@ -40,8 +40,8 @@ atomic process snapshot. A final canonical revision check rejects interleaved me
 [--timeout <milliseconds>] [--format text|json]` creates a new Tab or replaces the selected Tab.
 Omitted destination uses the selected Client context. Replacement requires confirmation; exported
 IDs never select a destination or reuse processes. Explicit destinations without `--client` or
-`--focus` run headlessly (v3), including confirmed replacement. Ratios use the shared Server CAS.
-An omitted destination, `--client` or `--focus` requires a Ready Client (v2). Default focus is false;
+`--focus` run headlessly (v1), including confirmed replacement. Ratios use the shared Server CAS.
+An omitted destination, `--client` or `--focus` requires a Ready Client (v1). Default focus is false;
 replacing that selected Client's active Tab selects the new Tab. Explicit label wins;
 otherwise the old custom Tab label is retained or numbering remains automatic.
 
@@ -78,13 +78,13 @@ part of the original timeout. Once ready, focus/Close/final-observation failure 
 layout. The old tree remains usable until its Close is submitted; accepted or unknown Close is
 never called rolled back. Ctrl+C finishes bounded known recovery and preserves uncertain effects.
 
-The result is `orchbee.layout.apply` v2/v3: completed/incomplete, stage, old/new Tab IDs, up to 448
+The result is `orchbee.layout.apply` v1: completed/incomplete, stage, old/new Tab IDs, up to 448
 bounded effect receipts, recovery, structured final layout and failure, under the native 8 MiB
 output ceiling. The final export still has its own 1 MiB limit; exceeding it leaves an incomplete
 post-ready receipt with the new Tab and effects preserved. Layout effects record only
 action, Session, request, base revision and validated outcome, never launch arguments or environment.
 The catalog describes both output versions and the unchanged layout-apply failure v1.
-Headless v3 records null source Client identity and retains each shared ratio CAS effect separately. Text diagnostics
+Headless v1 records null source Client identity and retains each shared ratio CAS effect separately. Text diagnostics
 remain localized. Group/pin roundtrip and complete saved-focus restoration remain separate work.
 
 ## Ownership and evidence
@@ -98,7 +98,7 @@ Focused tests cover current exports, incompatible-export refusal and template in
 failure boundary, exact binding deltas, stale metadata and response correlation. Controlled Windows
 CLI peers exercise actual process dispatch and receipts, not a real provider or interactive Client.
 Full packaged Windows/TUI, provider and multi-Client acceptance and the complete regression gate
-remain final integration obligations; old v1 acceptance does not prove the changed v2/v3 workflows.
+remain final integration obligations; old v1 acceptance does not prove the changed v1 workflows.
 Headless process cases cover export, topology reads, ratio changes, pair swaps and apply with a
 controlled peer that refuses any Client observation/control request. These reuse existing Server
 transitions; no virtual viewport, new canonical mutation or hidden Client registration is introduced.

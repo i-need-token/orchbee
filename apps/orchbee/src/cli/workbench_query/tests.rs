@@ -133,20 +133,12 @@ fn selected_queries_publish_global_focus_and_client_memory_with_closed_schemas()
                 Locale::EnUs,
             );
             assert_eq!(output.status, 0);
-            let mut doc: Value = serde_json::from_slice(&output.stdout).unwrap();
-            if !selected
-                && matches!(
-                    command,
-                    QueryCommand::PanelList { .. } | QueryCommand::PanelGet(_)
-                )
-            {
-                doc["version"] = json!(7);
-            }
+            let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
             assert!(
                 validator.is_valid(&doc),
                 "schema rejected {key} selected={selected}"
             );
-            assert_eq!(doc["result"].get("client").is_some(), selected);
+            assert_eq!(!doc["result"]["client"].is_null(), selected);
             if !selected {
                 continue;
             }

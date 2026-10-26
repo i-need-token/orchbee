@@ -44,11 +44,11 @@ fn shared_path_budget_matches_wire_and_cli_failure_preserves_field() {
 }
 
 #[test]
-fn named_theme_config_check_v14_is_required_closed_and_keeps_v13_unchanged() {
+fn named_theme_config_check_is_required_and_closed() {
     use serde_json::{Value, json};
     let mut schema: Value =
         serde_json::from_str(include_str!("../schemas/orchbee.config.check.json")).unwrap();
-    schema["$ref"] = json!("#/$defs/userConfigCheckV14");
+    schema["$ref"] = json!("#/$defs/userConfigCheck");
     for key in ["required", "properties", "additionalProperties", "allOf"] {
         schema.as_object_mut().unwrap().remove(key);
     }
@@ -73,9 +73,4 @@ fn named_theme_config_check_v14_is_required_closed_and_keeps_v13_unchanged() {
         .unwrap()
         .remove("themeName");
     assert!(!validator.is_valid(&check));
-    schema["$ref"] = json!("#/$defs/userConfigCheckV13");
-    let old_validator = jsonschema::validator_for(&schema).unwrap();
-    assert!(old_validator.is_valid(&check));
-    check["details"]["themeName"] = json!("terminal-native");
-    assert!(!old_validator.is_valid(&check));
 }

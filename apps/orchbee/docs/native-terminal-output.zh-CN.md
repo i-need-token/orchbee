@@ -9,9 +9,7 @@
 所有语法在副作用前解析。Agent 目标可显式用 `--terminal`／`@terminal:` 选择包括子终端的
 精确终端，或用 `--panel`／`@panel:` 选择主终端。
 
-纯文本 JSON 读取输出 `orchbee.terminal.output` v3，样式读取为 v4。历史
-`orchbee.terminal.read`／`history` Schema 继续用于旧回执，当前 CLI 语法只使用来源模型。
-回滚恢复旧可执行文件，无持久化迁移。
+纯文本和样式 JSON 读取均输出 `orchbee.terminal.output` 版本 1，成员相同。`result.encoding` 为 `text` 或 `ansi`；`result.cursor` 始终存在且可空。来源模型拥有当前 CLI 语法；内部 read/history 内容投影也只有一个当前版本。
 
 ## 选择模型
 
@@ -56,9 +54,9 @@ Agent 解析在同一会话的附着前完成。可见或空选择无需行请�
 ## 输出与兼容性
 
 人类可读文本保留可打印的反斜杠、引号和 Unicode，同时转义终端控制字符和双向格式字符。
-读取标记保持本地化。JSON 使用 `orchbee.terminal.output` v3，包含规范
+读取标记保持本地化。JSON 使用 `orchbee.terminal.output` v1，包含规范
 快照来源、终端身份、来源选择、修订/代次、物理范围、
-容量截断、片段边缘和文本。离线 `api schema` 目录发布当前及历史回执的 schema。
+容量截断、片段边缘和文本。离线 `api schema` 目录发布当前回执的 schema。
 `--plain` 在相同准备上限内原样输出 JSON 文本成员的 UTF-8 字节；
 文本模式失败保持 stdout 为空。它是
 [CLI 输出标准](../../../docs/zh-CN/cli/output.md) 下明确的数据导出，不是普通人类文本展示。
@@ -72,7 +70,7 @@ Agent 解析在同一会话的附着前完成。可见或空选择无需行请�
 
 Linux／Windows `terminal wait-output` 使用此来源模型，默认 recent（80 个物理行）及
 30000 ms 总期限。`--timeout` 接受 1..3600000 毫秒；显式 `--forever` 取消总期限，与 timeout
-互斥。`--lines` 控制窗口，拒绝旧 `--rows`。来源等待输出 v3，指定 `--after` 时为 v4；
+互斥。`--lines` 控制窗口，拒绝旧 `--rows`。来源等待输出版本 1；`after` 始终存在，未指定 `--after` 时为 null；
 来源范围仍以最近端点为准。
 
 每次准入及 I/O 仍有五秒上限。有限超时沿用既有正数范围，模式沿用非空及
@@ -91,11 +89,11 @@ detection 在与读取相同的空白行移除及尾部选择后匹配物理行�
 原始换行边缘。空的所选文本从不匹配；零行无限等待因此只会在取消或运行时失败时结束。
 已有输出可以立即满足等待；成功从不证明新命令或命令完成。
 
-来源模式输出 `orchbee.terminal.wait-output` v3。必需的 `selection` 包含来源及可选行数限制；
+来源模式输出 `orchbee.terminal.wait-output` v1。必需的 `selection` 包含来源及可选行数限制；
 观察字段 `timeoutMs` 默认为 30000，仅在显式指定 `--forever` 时为 null。
 `requestedRows` 是容量/保留范围钳制前的物理来源预算：visible/detection 为屏幕高度，recent 为显式/默认行数。
 `windowTruncated` 只报告容量损失。已完成观察次数统计完成匹配检查的已验证样本，
-包括可见帧样本。版本 1/2 文档及约束保持不变；离线 `api schema` 目录发布这些版本的封闭 schema。
+包括可见帧样本。离线 `api schema` 目录发布这一当前封闭 schema。
 
 固定版本 Herdr 的等待也搜索文本行，将 recent 映射为 recent-unwrapped，并允许无总期限。
 其 raw 开关只传递被读取处理器忽略的剥离字段；没有需要复现的原始 PTY 字节匹配器。
@@ -110,8 +108,8 @@ Linux／Windows `terminal read` 和 `agent read` 接受 `--ansi`，用于导出�
 仍可使用 `--format json`；否则 stdout 直接写出准备完成的 UTF-8 ANSI 字符串，不带标题。
 这是与纯文本导出相同的显式数据导出例外，不改变普通人类可读文本的转义规则。
 
-ANSI JSON 使用 `orchbee.terminal.output` v4，并包含 `result.encoding:"ansi"`；`content.text`
-承载 ANSI 字符串。text/plain 来源读取输出 v3，并包含相同的游标字段。目录列出当前 schema 和命令路径。空选择不导出字节。准备及序列化保留既有 8 MiB 输出上限，并在写 stdout 前完成；
+ANSI JSON 使用 `orchbee.terminal.output` v1，并包含 `result.encoding:"ansi"`；`content.text`
+承载 ANSI 字符串。text/plain 来源读取输出 v1，并包含相同的游标字段。目录列出当前 schema 和命令路径。空选择不导出字节。准备及序列化保留既有 8 MiB 输出上限，并在写 stdout 前完成；
 超限结果整体失败。直接导出和 JSON 内容都能容纳时，它们的 UTF-8 字节完全一致。
 
 来源范围仍由已确认的帧决定。visible ANSI 使用该帧已验证的单元格样式；recent 来源按帧的
@@ -181,9 +179,9 @@ OBTF 与 OBPB 的网格几何以 `(0, 0)` 保留未知字符像素尺寸，与 H
 
 ## 输出游标
 
-当前纯文本和 ANSI 输出封套分别为 v3、v4，包含可空的 `result.cursor`；历史 v1/v2 保持封闭形状。游标标识一个主屏终端、Host epoch、generation、输出原点 epoch、修订和占用行与已有内容端点中较后的行。备用屏或旧 Host 不提供游标。编码值应视为不透明数据。
+纯文本和 ANSI 输出封套均为 v1，包含可空的 `result.cursor`。游标标识一个主屏终端、Host epoch、generation、输出原点 epoch、修订和占用行与已有内容端点中较后的行。备用屏或旧 Host 不提供游标。编码值应视为不透明数据。
 
-`wait-output --after <cursor|now>` 输出 v4，并包含准入的 `after` 边界；未加该选项时仍为 v3，可以匹配保留输出。`now` 捕获首个一致样本。匹配排除占用的边界行和提示符／输入行，再对后续行应用既有匹配及软换行规则；不检测边界行内部的追加。身份不匹配、重启、重置／重排、历史淘汰或所选窗口之前缺行时，以 `rejected` 和 `output-cursor-reset` 返回；不支持的来源返回 `output-cursor-unavailable`。不隐藏游标重置。观察者绝不提交输入。
+`wait-output --after <cursor|now>` 输出 v1，并包含准入的 `after` 边界；未加该选项时仍为 v1，可以匹配保留输出。`now` 捕获首个一致样本。匹配排除占用的边界行和提示符／输入行，再对后续行应用既有匹配及软换行规则；不检测边界行内部的追加。身份不匹配、重启、重置／重排、历史淘汰或所选窗口之前缺行时，以 `rejected` 和 `output-cursor-reset` 返回；不支持的来源返回 `output-cursor-unavailable`。不隐藏游标重置。观察者绝不提交输入。
 
 ## 终端输入输出的 Panel 目标
 

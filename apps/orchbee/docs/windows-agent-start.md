@@ -132,7 +132,7 @@ for any further interpretation it performs internally.
 
 ## Results and recovery
 
-Success is `orchbee.agent.start` v2 with name, provider, session, reservation identity, elapsed
+Success is `orchbee.agent.start` v1 with name, provider, session, reservation identity, elapsed
 time and the original terminal-send receipt. Failure is `orchbee.cli.failure.agent-start` v1
 with independently retained reservation disposition, last observed reservation, bounded upstream cause and input
 receipt or submission failure. Remaining time in the last observation is historical.
@@ -147,9 +147,9 @@ even if its worker has already exited, so worker-exit observation cannot discard
 
 Timeout, cancellation and release do not kill the Agent. If release is not confirmed, inspect
 `agent names` and the terminal before retrying. Never replay an uncertain reserve, complete or
-send automatically. `agent names` v2 lists committed bindings and separate pending reservations;
+send automatically. `agent names` v1 lists committed bindings and separate pending reservations;
 their combined Server capacity is 512. Resolve/rename/clear refuse reserved names or terminals
-with `launch-pending` (names failure v3). Cold restart drops ordinary names and pending reservations. Completed managed names with an
+with `launch-pending` (names failure v1). Cold restart drops ordinary names and pending reservations. Completed managed names with an
 admitted provider reference restore onto fresh terminals only when Agent resume is enabled.
 Closing a terminal retires its pending reservation. A committed name follows the canonical
 session lifecycle: detaching a still-live session keeps its name until end/removal or explicit
@@ -168,12 +168,12 @@ combined runtime separately. TLA model execution is not required for this Window
 
 ## Inspecting completed startup
 
-Windows Agent Get v9 (v10 with a selected Client) includes `management` with its own read source, sampled canonical revision and `state`. The Server retains active startup identity only after accepted Complete; manual naming remains unmanaged. Active means that launch was confirmed interactive, independently of later work, attention, freshness or OS focus. Name clear, end/removal/disposal, provider mismatch and exact physical-binding retirement/replacement clear the managed record. Renaming preserves it. Completed managed names and provider intent survive clean restart through
+Windows Agent Get v1 (v1 with a selected Client) includes `management` with its own read source, sampled canonical revision and `state`. The Server retains active startup identity only after accepted Complete; manual naming remains unmanaged. Active means that launch was confirmed interactive, independently of later work, attention, freshness or OS focus. Name clear, end/removal/disposal, provider mismatch and exact physical-binding retirement/replacement clear the managed record. Renaming preserves it. Completed managed names and provider intent survive clean restart through
 [checkpoint version 1](../../orchbee-server/docs/agent-canonical-model.md#managed-name-restart).
-Restored physical Get v14 reports active provider ownership with its own read source, without an old
+Restored physical Get v1 reports active provider ownership with its own read source, without an old
 Session, reservation or new interactive-readiness claim. Clearing a restored name also clears only its
 matching owned persisted resume reference; later independent reports remain.
 
-Pending status carries its original reservation and a current blocked flag. Reads never extend its deadline or complete it. Get marks promptReady false while pending; prompt reads management after its canonical/process preflight and refuses pending startup before sending. The same original admission/total and signal owner apply. Failed Status reads preserve the Agent failure family and operation management in v3. Successful Start v2 adds required interactiveReady true to its existing completion and send evidence; the v1 schema remains available for older callers. The CLI blocked-start cancellation policy is unchanged. The interactive board can wait for canonical attention to clear within its original budget; neither path infers trust prompts from screen text.
+Pending status carries its original reservation and a current blocked flag. Reads never extend its deadline or complete it. Get marks promptReady false while pending; prompt reads management after its canonical/process preflight and refuses pending startup before sending. The same original admission/total and signal owner apply. Failed Status reads preserve the Agent failure family and operation management in v1. Successful Start v1 adds required interactiveReady true to its existing completion and send evidence; the v1 schema remains available for older callers. The CLI blocked-start cancellation policy is unchanged. The interactive board can wait for canonical attention to clear within its original budget; neither path infers trust prompts from screen text.
 
 The native form leaves provider and automatic name unset while detection has no result. Found providers precede manual choices; an explicit choice stays pinned by provider identity across catalog updates. Without an explicit choice, the first found provider becomes the default; a completed empty catalog selects the first manual provider. Startup feedback appears once in the board status row and directs unconfirmed outcomes to the terminal. Only a pinned canonical attention observation declares that input is needed; process presence alone never proves readiness.

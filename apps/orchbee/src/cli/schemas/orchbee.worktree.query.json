@@ -8,7 +8,7 @@
 			"const": "orchbee.worktree.query"
 		},
 		"version": {
-			"const": 2
+			"const": 1
 		},
 		"result": {
 			"$ref": "#/$defs/result"
@@ -31,7 +31,6 @@
 		},
 		"directoryPath": {
 			"title": "WorkbenchDirectoryPath",
-			"$comment": "The independent bindings additionally enforce the 4096-byte UTF-8 limit.",
 			"type": "string",
 			"minLength": 1,
 			"maxLength": 4096,
@@ -147,64 +146,56 @@
 			},
 			"required": ["worktreePath", "bare", "detached", "locked", "prunable"],
 			"additionalProperties": false,
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"bare": {
-								"const": true
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"head": {
-								"type": "null"
-							},
-							"branch": {
-								"type": "null"
-							},
-							"detached": {
-								"const": false
-							}
-						}
-					},
-					"else": {
-						"required": ["head"],
-						"properties": {
-							"head": {
-								"type": "string"
-							}
-						},
-						"allOf": [
-							{
-								"if": {
-									"properties": {
-										"detached": {
-											"const": true
-										}
-									}
-								},
-								"then": {
-									"properties": {
-										"branch": {
-											"type": "null"
-										}
-									}
-								},
-								"else": {
-									"required": ["branch"],
-									"properties": {
-										"branch": {
-											"type": "string"
-										}
-									}
-								}
-							}
-						]
+			"if": {
+				"properties": {
+					"bare": {
+						"const": true
 					}
 				}
-			]
+			},
+			"then": {
+				"properties": {
+					"head": {
+						"type": "null"
+					},
+					"branch": {
+						"type": "null"
+					},
+					"detached": {
+						"const": false
+					}
+				}
+			},
+			"else": {
+				"required": ["head"],
+				"properties": {
+					"head": {
+						"type": "string"
+					}
+				},
+				"if": {
+					"properties": {
+						"detached": {
+							"const": true
+						}
+					}
+				},
+				"then": {
+					"properties": {
+						"branch": {
+							"type": "null"
+						}
+					}
+				},
+				"else": {
+					"required": ["branch"],
+					"properties": {
+						"branch": {
+							"type": "string"
+						}
+					}
+				}
+			}
 		},
 		"entry": {
 			"type": "object",

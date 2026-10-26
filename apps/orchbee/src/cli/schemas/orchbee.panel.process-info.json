@@ -10,7 +10,7 @@
 			"const": "orchbee.panel.process-info"
 		},
 		"version": {
-			"const": 2
+			"const": 1
 		},
 		"source": {
 			"$ref": "#/$defs/source"
@@ -152,23 +152,6 @@
 							"$ref": "#/$defs/id"
 						}
 					}
-				}
-			}
-		},
-		"snapshotSource": {
-			"type": "object",
-			"required": ["kind", "siteId", "revision"],
-			"additionalProperties": false,
-			"properties": {
-				"kind": {
-					"const": "workbench-snapshot"
-				},
-				"siteId": {
-					"$ref": "#/$defs/id"
-				},
-				"revision": {
-					"type": "string",
-					"pattern": "^(0|[1-9][0-9]*)$"
 				}
 			}
 		},

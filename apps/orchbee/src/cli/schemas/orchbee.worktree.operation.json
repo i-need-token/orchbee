@@ -8,7 +8,7 @@
 			"const": "orchbee.worktree.operation"
 		},
 		"version": {
-			"enum": [1, 2, 3, 4, 5]
+			"const": 1
 		},
 		"source": {
 			"type": "object",
@@ -112,59 +112,66 @@
 					]
 				},
 				"postOpen": {
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["clientId", "focus", "stage", "failure", "outcome"],
-					"properties": {
-						"clientId": {
-							"anyOf": [
-								{
-									"$ref": "#/$defs/control/$defs/clientId"
+					"anyOf": [
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["clientId", "focus", "stage", "failure", "outcome"],
+							"properties": {
+								"clientId": {
+									"anyOf": [
+										{
+											"$ref": "#/$defs/control/$defs/clientId"
+										},
+										{
+											"type": "null"
+										}
+									]
 								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"focus": {
-							"anyOf": [
-								{
-									"$ref": "#/$defs/control"
+								"focus": {
+									"anyOf": [
+										{
+											"$ref": "#/$defs/control"
+										},
+										{
+											"type": "null"
+										}
+									]
 								},
-								{
-									"type": "null"
+								"failure": {
+									"enum": [
+										"ambiguous",
+										"cancelled",
+										"check-failed",
+										"denied",
+										"incompatible",
+										"internal-failure",
+										"invalid-identifier",
+										"invalid-usage",
+										"not-found",
+										"outcome-unknown",
+										"output-too-large",
+										"protocol-invalid",
+										"rejected",
+										"service-unavailable",
+										"connection-capacity",
+										"timeout",
+										"transport-loss",
+										null
+									]
+								},
+								"stage": {
+									"enum": ["worktree", "focus-observation", "focus", "complete"]
+								},
+								"outcome": {
+									"enum": ["completed", "incomplete"]
 								}
-							]
+							}
 						},
-						"failure": {
-							"enum": [
-								"ambiguous",
-								"cancelled",
-								"check-failed",
-								"denied",
-								"incompatible",
-								"internal-failure",
-								"invalid-identifier",
-								"invalid-usage",
-								"not-found",
-								"outcome-unknown",
-								"output-too-large",
-								"protocol-invalid",
-								"rejected",
-								"service-unavailable",
-								"connection-capacity",
-								"timeout",
-								"transport-loss",
-								null
-							]
-						},
-						"stage": {
-							"enum": ["worktree", "focus-observation", "focus", "complete"]
-						},
-						"outcome": {
-							"enum": ["completed", "incomplete"]
+						{
+							"type": "null"
 						}
-					}
+					]
 				},
 				"setup": {
 					"type": "object",
@@ -197,8 +204,11 @@
 					}
 				}
 			},
-			"required": ["operationId", "observation", "wait"],
-			"additionalProperties": false
+			"required": ["operationId", "observation", "wait", "postOpen", "setup"],
+			"additionalProperties": false,
+			"not": {
+				"required": ["setup"]
+			}
 		}
 	},
 	"required": ["schema", "version", "source", "result"],
@@ -211,22 +221,14 @@
 				"const": "00000000000000000000000000000000"
 			}
 		},
-		"label": {
-			"type": "string",
-			"minLength": 1,
-			"maxLength": 512,
-			"pattern": "^[^]*$"
-		},
 		"directoryPath": {
 			"title": "WorkbenchDirectoryPath",
-			"$comment": "The independent bindings additionally enforce the 4096-byte UTF-8 limit.",
 			"type": "string",
 			"minLength": 1,
 			"maxLength": 4096,
 			"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000]*$"
 		},
 		"terminalGeometry": {
-			"$comment": "Semantic validation additionally requires columns * rows <= 262144, columns * cellPixelWidth <= 65535, and rows * cellPixelHeight <= 65535. The cellPixelWidth/cellPixelHeight pair must be either both positive (pixels known) or both zero (pixels unknown); a mixed pair is invalid.",
 			"type": "object",
 			"properties": {
 				"columns": {
@@ -316,211 +318,12 @@
 			"type": "string",
 			"minLength": 1,
 			"maxLength": 1024,
-			"pattern": "^(?!-)[^\\u0000-\\u001f\\u007f]+$",
-			"$comment": "Independent bindings additionally enforce the 1024-byte UTF-8 bound."
+			"pattern": "^(?!-)[^\\u0000-\\u001f\\u007f]+$"
 		},
 		"attempt": {
 			"type": "integer",
 			"minimum": 1,
 			"maximum": 64
-		},
-		"source": {
-			"oneOf": [
-				{
-					"type": "object",
-					"properties": {
-						"kind": {
-							"const": "workspace"
-						},
-						"workspaceId": {
-							"$ref": "#/$defs/identity"
-						}
-					},
-					"required": ["kind", "workspaceId"],
-					"additionalProperties": false
-				},
-				{
-					"type": "object",
-					"properties": {
-						"kind": {
-							"const": "directory"
-						},
-						"path": {
-							"$ref": "#/$defs/directoryPath"
-						}
-					},
-					"required": ["kind", "path"],
-					"additionalProperties": false
-				}
-			]
-		},
-		"selector": {
-			"oneOf": [
-				{
-					"type": "object",
-					"properties": {
-						"kind": {
-							"const": "path"
-						},
-						"path": {
-							"$ref": "#/$defs/directoryPath"
-						}
-					},
-					"required": ["kind", "path"],
-					"additionalProperties": false
-				},
-				{
-					"type": "object",
-					"properties": {
-						"kind": {
-							"const": "branch"
-						},
-						"branch": {
-							"$ref": "#/$defs/reference"
-						}
-					},
-					"required": ["kind", "branch"],
-					"additionalProperties": false
-				}
-			]
-		},
-		"intent": {
-			"oneOf": [
-				{
-					"type": "object",
-					"properties": {
-						"kind": {
-							"const": "create"
-						},
-						"source": {
-							"$ref": "#/$defs/source"
-						},
-						"label": {
-							"$ref": "#/$defs/label"
-						},
-						"geometry": {
-							"$ref": "#/$defs/terminalGeometry"
-						},
-						"trustRepository": {
-							"type": "boolean"
-						},
-						"branch": {
-							"$ref": "#/$defs/reference"
-						},
-						"base": {
-							"$ref": "#/$defs/reference"
-						},
-						"path": {
-							"$ref": "#/$defs/directoryPath"
-						}
-					},
-					"required": ["kind", "source", "geometry", "trustRepository"],
-					"additionalProperties": false
-				},
-				{
-					"type": "object",
-					"properties": {
-						"kind": {
-							"const": "open"
-						},
-						"source": {
-							"$ref": "#/$defs/source"
-						},
-						"label": {
-							"$ref": "#/$defs/label"
-						},
-						"geometry": {
-							"$ref": "#/$defs/terminalGeometry"
-						},
-						"trustRepository": {
-							"type": "boolean"
-						},
-						"selector": {
-							"$ref": "#/$defs/selector"
-						}
-					},
-					"required": ["kind", "source", "geometry", "trustRepository", "selector"],
-					"additionalProperties": false
-				},
-				{
-					"type": "object",
-					"properties": {
-						"kind": {
-							"const": "remove"
-						},
-						"workspaceId": {
-							"$ref": "#/$defs/identity"
-						},
-						"force": {
-							"type": "boolean"
-						},
-						"trustRepository": {
-							"type": "boolean"
-						}
-					},
-					"required": ["kind", "workspaceId", "force", "trustRepository"],
-					"additionalProperties": false
-				}
-			]
-		},
-		"action": {
-			"oneOf": [
-				{
-					"type": "object",
-					"properties": {
-						"kind": {
-							"const": "start"
-						},
-						"operationId": {
-							"$ref": "#/$defs/identity"
-						},
-						"projectId": {
-							"anyOf": [
-								{
-									"$ref": "#/$defs/identity"
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"intent": {
-							"$ref": "#/$defs/intent"
-						}
-					},
-					"required": ["kind", "operationId", "projectId", "intent"],
-					"additionalProperties": false
-				},
-				{
-					"type": "object",
-					"properties": {
-						"kind": {
-							"const": "read"
-						},
-						"operationId": {
-							"$ref": "#/$defs/identity"
-						}
-					},
-					"required": ["kind", "operationId"],
-					"additionalProperties": false
-				},
-				{
-					"type": "object",
-					"properties": {
-						"kind": {
-							"const": "resume"
-						},
-						"operationId": {
-							"$ref": "#/$defs/identity"
-						},
-						"expectedAttempt": {
-							"$ref": "#/$defs/attempt"
-						}
-					},
-					"required": ["kind", "operationId", "expectedAttempt"],
-					"additionalProperties": false
-				}
-			]
 		},
 		"checkout": {
 			"type": "object",
@@ -644,8 +447,7 @@
 				}
 			},
 			"required": ["path", "checkout", "workspace", "gitEffect"],
-			"additionalProperties": false,
-			"$comment": "Independent bindings require checkout.path to equal progress.path whenever checkout is present."
+			"additionalProperties": false
 		},
 		"failure": {
 			"oneOf": [
@@ -700,26 +502,22 @@
 					},
 					"required": ["kind", "stage", "error", "status", "diagnostics"],
 					"additionalProperties": false,
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"error": {
-										"not": {
-											"const": "git-failed"
-										}
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"status": {
-										"type": "null"
-									}
+					"if": {
+						"properties": {
+							"error": {
+								"not": {
+									"const": "git-failed"
 								}
 							}
 						}
-					]
+					},
+					"then": {
+						"properties": {
+							"status": {
+								"type": "null"
+							}
+						}
+					}
 				},
 				{
 					"type": "object",
@@ -897,31 +695,27 @@
 					},
 					"required": ["kind", "checkout", "workspaceId", "reused", "terminalOutcome"],
 					"additionalProperties": false,
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"reused": {
-										"const": true
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"terminalOutcome": {
-										"type": "null"
-									}
-								}
-							},
-							"else": {
-								"properties": {
-									"terminalOutcome": {
-										"$ref": "#/$defs/terminalOutcome"
-									}
-								}
+					"if": {
+						"properties": {
+							"reused": {
+								"const": true
 							}
 						}
-					]
+					},
+					"then": {
+						"properties": {
+							"terminalOutcome": {
+								"type": "null"
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"terminalOutcome": {
+								"$ref": "#/$defs/terminalOutcome"
+							}
+						}
+					}
 				},
 				{
 					"type": "object",
@@ -1469,6 +1263,293 @@
 							},
 							"required": ["kind", "terminalContextId", "tabId", "path", "ratio"],
 							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "agent-attention"
+								},
+								"sessionIds": {
+									"type": "array",
+									"minItems": 1,
+									"maxItems": 100,
+									"uniqueItems": true,
+									"items": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 128,
+										"pattern": "^[A-Za-z0-9:._-]+$"
+									}
+								}
+							},
+							"required": ["kind", "sessionIds"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "selections"
+								},
+								"terminalContextIds": {
+									"type": "array",
+									"minItems": 1,
+									"maxItems": 128,
+									"uniqueItems": true,
+									"items": {
+										"$ref": "#/$defs/control/$defs/terminalContextId"
+									}
+								}
+							},
+							"required": ["kind", "terminalContextIds"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "viewports"
+								},
+								"panelIds": {
+									"type": "array",
+									"minItems": 1,
+									"maxItems": 16,
+									"uniqueItems": true,
+									"items": {
+										"type": "string",
+										"pattern": "^[0-9a-f]{32}$",
+										"not": {
+											"const": "00000000000000000000000000000000"
+										}
+									}
+								}
+							},
+							"required": ["kind", "panelIds"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "terminal-agent-attention"
+								},
+								"bindings": {
+									"type": "array",
+									"minItems": 1,
+									"maxItems": 100,
+									"uniqueItems": true,
+									"items": {
+										"$ref": "#/$defs/control/$defs/physicalBinding"
+									}
+								}
+							},
+							"required": ["kind", "bindings"]
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "agent-focus"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/control/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/control/$defs/tabId"
+								},
+								"panelId": {
+									"$ref": "#/$defs/control/$defs/panelId"
+								},
+								"presentationId": {
+									"$ref": "#/$defs/control/$defs/physicalIdentity"
+								},
+								"target": {
+									"oneOf": [
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "session"
+												},
+												"sessionId": {
+													"type": "string",
+													"minLength": 1,
+													"maxLength": 128,
+													"pattern": "^[A-Za-z0-9:._-]+$"
+												}
+											},
+											"required": ["kind", "sessionId"],
+											"additionalProperties": false
+										},
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "terminal"
+												},
+												"binding": {
+													"$ref": "#/$defs/control/$defs/physicalBinding"
+												}
+											},
+											"required": ["kind", "binding"],
+											"additionalProperties": false
+										}
+									]
+								}
+							},
+							"required": [
+								"kind",
+								"terminalContextId",
+								"tabId",
+								"panelId",
+								"presentationId",
+								"target"
+							],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "presentation"
+								},
+								"panelId": {
+									"$ref": "#/$defs/control/$defs/panelId"
+								}
+							},
+							"required": ["kind", "panelId"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": [
+								"kind",
+								"terminalContextId",
+								"tabId",
+								"panelId",
+								"presentationId",
+								"expectedBinding",
+								"returnTo",
+								"previouslyZoomed"
+							],
+							"properties": {
+								"kind": {
+									"const": "overlay"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/control/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/control/$defs/tabId"
+								},
+								"panelId": {
+									"$ref": "#/$defs/control/$defs/panelId"
+								},
+								"presentationId": {
+									"$ref": "#/$defs/control/$defs/identity"
+								},
+								"expectedBinding": {
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["workerId", "terminalId"],
+									"properties": {
+										"workerId": {
+											"$ref": "#/$defs/control/$defs/identity"
+										},
+										"terminalId": {
+											"$ref": "#/$defs/control/$defs/identity"
+										}
+									}
+								},
+								"returnTo": {
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["panelId", "presentationId", "binding"],
+									"properties": {
+										"panelId": {
+											"$ref": "#/$defs/control/$defs/panelId"
+										},
+										"presentationId": {
+											"$ref": "#/$defs/control/$defs/identity"
+										},
+										"binding": {
+											"anyOf": [
+												{
+													"type": "object",
+													"additionalProperties": false,
+													"required": ["workerId", "terminalId"],
+													"properties": {
+														"workerId": {
+															"$ref": "#/$defs/control/$defs/identity"
+														},
+														"terminalId": {
+															"$ref": "#/$defs/control/$defs/identity"
+														}
+													}
+												},
+												{
+													"type": "null"
+												}
+											]
+										}
+									}
+								},
+								"previouslyZoomed": {
+									"type": "boolean"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "popup-open"
+								},
+								"spec": {
+									"$ref": "#/$defs/control/$defs/popupSpec"
+								}
+							},
+							"required": ["kind", "spec"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "popup-close"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "editor-open"
+								},
+								"spec": {
+									"$ref": "#/$defs/control/$defs/editorSpec"
+								}
+							},
+							"required": ["kind", "spec"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "command-popup-open"
+								},
+								"spec": {
+									"$ref": "#/$defs/control/$defs/configuredPopupSpec"
+								}
+							},
+							"required": ["kind", "spec"],
+							"additionalProperties": false
 						}
 					]
 				},
@@ -1674,6 +1755,118 @@
 								}
 							},
 							"required": ["kind", "adjustment", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "attention-read"
+								},
+								"attention": {
+									"$ref": "#/$defs/control/$defs/attentionSnapshot"
+								},
+								"view": {
+									"$ref": "#/$defs/control/$defs/view"
+								}
+							},
+							"required": ["kind", "attention", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "navigation-read"
+								},
+								"navigation": {
+									"$ref": "#/$defs/control/$defs/navigationSnapshot"
+								},
+								"view": {
+									"$ref": "#/$defs/control/$defs/view"
+								}
+							},
+							"required": ["kind", "navigation", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "viewport-read"
+								},
+								"viewport": {
+									"$ref": "#/$defs/control/$defs/viewportSnapshot"
+								},
+								"view": {
+									"$ref": "#/$defs/control/$defs/view"
+								}
+							},
+							"required": ["kind", "viewport", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "terminal-attention-read"
+								},
+								"attention": {
+									"$ref": "#/$defs/control/$defs/physicalAttentionSnapshot"
+								},
+								"view": {
+									"$ref": "#/$defs/control/$defs/view"
+								}
+							},
+							"required": ["kind", "attention", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "presentation-read"
+								},
+								"presentation": {
+									"$ref": "#/$defs/control/$defs/presentationSnapshot"
+								},
+								"view": {
+									"$ref": "#/$defs/control/$defs/view"
+								}
+							},
+							"required": ["kind", "presentation", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "popup-opened"
+								},
+								"popupId": {
+									"$ref": "#/$defs/control/$defs/requestId"
+								},
+								"view": {
+									"$ref": "#/$defs/control/$defs/view"
+								}
+							},
+							"required": ["kind", "popupId", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "popup-closed"
+								},
+								"hadPopup": {
+									"type": "boolean"
+								},
+								"view": {
+									"$ref": "#/$defs/control/$defs/view"
+								}
+							},
+							"required": ["kind", "hadPopup", "view"],
 							"additionalProperties": false
 						}
 					]
@@ -2100,1224 +2293,2609 @@
 					},
 					"required": ["terminalContextId", "tabId", "workbenchRevision", "selected", "change"],
 					"additionalProperties": false
-				}
-			}
-		},
-		"genericFailure": {
-			"title": "orchbee cli failure envelope",
-			"type": "object",
-			"required": ["schema", "version", "failure"],
-			"additionalProperties": false,
-			"properties": {
-				"schema": {
-					"const": "orchbee.cli.failure"
 				},
-				"version": {
-					"enum": [1, 2]
-				},
-				"failure": {
+				"attentionSnapshot": {
 					"type": "object",
-					"required": ["kind"],
-					"additionalProperties": false,
 					"properties": {
-						"kind": {
-							"enum": [
-								"ambiguous",
-								"cancelled",
-								"check-failed",
-								"denied",
-								"incompatible",
-								"internal-failure",
-								"invalid-identifier",
-								"invalid-usage",
-								"not-found",
-								"outcome-unknown",
-								"output-too-large",
-								"protocol-invalid",
-								"rejected",
-								"service-unavailable",
-								"connection-capacity",
-								"timeout",
-								"transport-loss"
-							]
+						"cursor": {
+							"type": "string",
+							"pattern": "^v1\\.[A-Za-z0-9_-]{59}\\.[A-Za-z0-9_-]{43}$"
 						},
-						"details": {
-							"type": "object"
+						"revision": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 9007199254740991
+						},
+						"outerFocused": {
+							"type": ["boolean", "null"]
+						},
+						"entries": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 100,
+							"items": {
+								"type": "object",
+								"properties": {
+									"sessionId": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 128,
+										"pattern": "^[A-Za-z0-9:._-]+$"
+									},
+									"state": {
+										"oneOf": [
+											{
+												"type": "null"
+											},
+											{
+												"type": "object",
+												"properties": {
+													"generation": {
+														"type": "integer",
+														"minimum": 0,
+														"maximum": 9007199254740991
+													},
+													"sequence": {
+														"type": "integer",
+														"minimum": 0,
+														"maximum": 9007199254740991
+													},
+													"stateChangeRevision": {
+														"type": "integer",
+														"minimum": 0,
+														"maximum": 9007199254740991
+													},
+													"seen": {
+														"type": "boolean"
+													}
+												},
+												"required": ["generation", "sequence", "stateChangeRevision", "seen"],
+												"additionalProperties": false
+											}
+										]
+									}
+								},
+								"required": ["sessionId", "state"],
+								"additionalProperties": false
+							}
+						}
+					},
+					"required": ["cursor", "revision", "outerFocused", "entries"],
+					"additionalProperties": false
+				},
+				"navigationSnapshot": {
+					"type": "object",
+					"properties": {
+						"workbenchRevision": {
+							"$ref": "#/$defs/control/$defs/revision"
+						},
+						"contexts": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 128,
+							"items": {
+								"type": "object",
+								"properties": {
+									"terminalContextId": {
+										"$ref": "#/$defs/control/$defs/terminalContextId"
+									},
+									"activeTabId": {
+										"anyOf": [
+											{
+												"$ref": "#/$defs/control/$defs/tabId"
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								},
+								"required": ["terminalContextId", "activeTabId"],
+								"additionalProperties": false
+							}
+						}
+					},
+					"required": ["workbenchRevision", "contexts"],
+					"additionalProperties": false
+				},
+				"scrollMetrics": {
+					"type": "object",
+					"properties": {
+						"offsetFromBottom": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64"
+						},
+						"maxOffsetFromBottom": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64"
+						},
+						"viewportRows": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						}
+					},
+					"required": ["offsetFromBottom", "maxOffsetFromBottom", "viewportRows"],
+					"additionalProperties": false
+				},
+				"viewportSource": {
+					"type": "object",
+					"properties": {
+						"hostEpoch": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$",
+							"not": {
+								"const": "00000000000000000000000000000000"
+							}
+						},
+						"attachmentId": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$",
+							"not": {
+								"const": "00000000000000000000000000000000"
+							}
+						},
+						"generation": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64",
+							"not": {
+								"const": "0"
+							}
+						},
+						"revision": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64"
+						},
+						"columns": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"alternateScreen": {
+							"type": "boolean"
+						},
+						"totalRows": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64"
+						},
+						"startRow": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64"
+						}
+					},
+					"required": [
+						"hostEpoch",
+						"attachmentId",
+						"generation",
+						"revision",
+						"columns",
+						"alternateScreen",
+						"totalRows",
+						"startRow"
+					],
+					"additionalProperties": false
+				},
+				"viewportObservation": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"state": {
+									"const": "unavailable"
+								},
+								"reason": {
+									"enum": ["not-attached", "frame-unavailable"]
+								}
+							},
+							"required": ["state", "reason"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"state": {
+									"const": "pending"
+								},
+								"phase": {
+									"enum": ["entering", "awaiting-window", "recovering"]
+								}
+							},
+							"required": ["state", "phase"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"state": {
+									"const": "observed"
+								},
+								"mode": {
+									"enum": ["live", "history"]
+								},
+								"source": {
+									"$ref": "#/$defs/control/$defs/viewportSource"
+								},
+								"scroll": {
+									"$ref": "#/$defs/control/$defs/scrollMetrics"
+								}
+							},
+							"required": ["state", "mode", "source", "scroll"],
+							"additionalProperties": false
+						}
+					]
+				},
+				"viewportSnapshot": {
+					"type": "object",
+					"properties": {
+						"workbenchRevision": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64"
+						},
+						"panels": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 16,
+							"items": {
+								"type": "object",
+								"properties": {
+									"panelId": {
+										"type": "string",
+										"pattern": "^[0-9a-f]{32}$",
+										"not": {
+											"const": "00000000000000000000000000000000"
+										}
+									},
+									"primaryTerminalId": {
+										"anyOf": [
+											{
+												"type": "string",
+												"pattern": "^[0-9a-f]{32}$",
+												"not": {
+													"const": "00000000000000000000000000000000"
+												}
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"observation": {
+										"$ref": "#/$defs/control/$defs/viewportObservation"
+									}
+								},
+								"required": ["panelId", "primaryTerminalId", "observation"],
+								"additionalProperties": false,
+								"if": {
+									"properties": {
+										"primaryTerminalId": {
+											"type": "null"
+										}
+									}
+								},
+								"then": {
+									"properties": {
+										"observation": {
+											"type": "object",
+											"properties": {
+												"state": {
+													"const": "unavailable"
+												},
+												"reason": {
+													"const": "not-attached"
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"required": ["workbenchRevision", "panels"],
+					"additionalProperties": false
+				},
+				"physicalIdentity": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"physicalBinding": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["presentationId", "generation", "hostEpoch", "hostTerminalId"],
+					"properties": {
+						"presentationId": {
+							"$ref": "#/$defs/control/$defs/physicalIdentity"
+						},
+						"generation": {
+							"$ref": "#/$defs/control/$defs/physicalIdentity"
+						},
+						"hostEpoch": {
+							"$ref": "#/$defs/control/$defs/physicalIdentity"
+						},
+						"hostTerminalId": {
+							"$ref": "#/$defs/control/$defs/physicalIdentity"
 						}
 					}
 				},
-				"source": {
-					"$ref": "#/$defs/genericFailure/$defs/source"
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"version": {
-								"const": 1
+				"physicalAttentionSnapshot": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"reportRevision": {
+							"$ref": "#/$defs/control/$defs/revision"
+						},
+						"outerFocused": {
+							"type": ["boolean", "null"]
+						},
+						"entries": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 100,
+							"items": {
+								"type": "object",
+								"additionalProperties": false,
+								"properties": {
+									"binding": {
+										"$ref": "#/$defs/control/$defs/physicalBinding"
+									},
+									"state": {
+										"anyOf": [
+											{
+												"type": "null"
+											},
+											{
+												"type": "object",
+												"additionalProperties": false,
+												"properties": {
+													"sequence": {
+														"$ref": "#/$defs/control/$defs/revision"
+													},
+													"seen": {
+														"type": "boolean"
+													}
+												},
+												"required": ["sequence", "seen"]
+											}
+										]
+									}
+								},
+								"required": ["binding", "state"]
 							}
 						}
 					},
-					"then": {
-						"allOf": [
-							{
-								"if": {
-									"properties": {
-										"failure": {
-											"properties": {
-												"kind": {
-													"const": "ambiguous"
-												}
-											},
-											"required": ["kind"]
-										}
-									}
+					"required": ["reportRevision", "outerFocused", "entries"]
+				},
+				"presentationSelection": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/control/$defs/boundPresentationSelection"
+						},
+						{
+							"$ref": "#/$defs/control/$defs/unboundPresentationSelection"
+						}
+					]
+				},
+				"presentationSnapshot": {
+					"type": "object",
+					"properties": {
+						"workbenchRevision": {
+							"$ref": "#/$defs/control/$defs/revision"
+						},
+						"panelId": {
+							"$ref": "#/$defs/control/$defs/panelId"
+						},
+						"presentation": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/presentationSelection"
 								},
-								"then": {
-									"properties": {
-										"failure": {
-											"required": ["details"],
-											"properties": {
-												"details": {
-													"$ref": "#/$defs/genericFailure/$defs/ambiguousDetails"
-												}
-											}
-										}
-									}
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["workbenchRevision", "panelId", "presentation"],
+					"additionalProperties": false
+				},
+				"boundPresentationSelection": {
+					"type": "object",
+					"properties": {
+						"presentationId": {
+							"title": "WorkbenchPanelId",
+							"$ref": "#/$defs/control/$defs/identity"
+						},
+						"binding": {
+							"type": "object",
+							"properties": {
+								"workerId": {
+									"title": "WorkbenchPanelId",
+									"$ref": "#/$defs/control/$defs/identity"
+								},
+								"terminalId": {
+									"title": "WorkbenchPanelId",
+									"$ref": "#/$defs/control/$defs/identity"
 								}
 							},
-							{
-								"if": {
-									"properties": {
-										"failure": {
-											"properties": {
-												"kind": {
-													"const": "check-failed"
-												}
-											},
-											"required": ["kind"]
-										}
-									}
+							"required": ["workerId", "terminalId"],
+							"additionalProperties": false
+						},
+						"attachmentGeneration": {
+							"title": "WorkbenchRevision",
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 20,
+							"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64"
+						},
+						"incarnation": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 4294967295
+						},
+						"viewport": {
+							"$ref": "#/$defs/control/$defs/viewportObservation"
+						}
+					},
+					"required": [
+						"presentationId",
+						"binding",
+						"attachmentGeneration",
+						"incarnation",
+						"viewport"
+					],
+					"additionalProperties": false
+				},
+				"unboundPresentationSelection": {
+					"type": "object",
+					"properties": {
+						"presentationId": {
+							"title": "WorkbenchPanelId",
+							"$ref": "#/$defs/control/$defs/identity"
+						},
+						"selectionGeneration": {
+							"$ref": "#/$defs/control/$defs/selectionGeneration"
+						}
+					},
+					"required": ["presentationId", "selectionGeneration"],
+					"additionalProperties": false
+				},
+				"selectionGeneration": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 20,
+					"pattern": "^(?:[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}|1844674407370955160[0-9]{1}|1844674407370955161[0-4]|18446744073709551615)(?![\\s\\S])"
+				},
+				"popupSize": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "cells"
 								},
-								"then": {
-									"properties": {
-										"failure": {
-											"required": ["details"],
-											"properties": {
-												"details": {
-													"oneOf": [
-														{
-															"$ref": "#/$defs/genericFailure/$defs/checkStageDetails"
-														},
-														{
-															"$ref": "#/$defs/genericFailure/$defs/platformDetails"
-														}
-													]
-												}
-											}
-										}
-									}
+								"value": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 65535
 								}
 							},
-							{
-								"if": {
-									"properties": {
-										"failure": {
-											"properties": {
-												"kind": {
-													"const": "service-unavailable"
-												}
-											},
-											"required": ["kind"]
-										}
-									}
+							"required": ["kind", "value"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "percent"
 								},
-								"then": {
-									"properties": {
-										"failure": {
-											"required": ["details"],
-											"properties": {
-												"details": {
-													"oneOf": [
-														{
-															"$ref": "#/$defs/genericFailure/$defs/unavailableStageDetails"
-														},
-														{
-															"$ref": "#/$defs/genericFailure/$defs/commandUnavailableDetails"
-														},
-														{
-															"$ref": "#/$defs/genericFailure/$defs/historyReadUnavailableDetails"
-														},
-														{
-															"$ref": "#/$defs/genericFailure/$defs/waitOutputUnavailableDetails"
-														},
-														{
-															"$ref": "#/$defs/genericFailure/$defs/platformDetails"
-														},
-														{
-															"$ref": "#/$defs/genericFailure/$defs/cohortStageDetails"
-														},
-														{
-															"$ref": "#/$defs/genericFailure/$defs/socketBudgetDetails"
-														}
-													]
-												}
-											}
-										}
-									}
+								"value": {
+									"type": "integer",
+									"minimum": 1,
+									"maximum": 100
 								}
 							},
-							{
-								"if": {
-									"properties": {
-										"failure": {
-											"properties": {
-												"kind": {
-													"const": "transport-loss"
-												}
-											},
-											"required": ["kind"]
-										}
-									}
+							"required": ["kind", "value"],
+							"additionalProperties": false
+						}
+					]
+				},
+				"popupSelector": {
+					"type": "object",
+					"properties": {
+						"pluginId": {
+							"type": "string",
+							"pattern": "^[A-Za-z0-9._:-]{1,120}$"
+						},
+						"entrypointId": {
+							"type": "string",
+							"pattern": "^[A-Za-z0-9_:-]{1,120}$"
+						}
+					},
+					"required": ["pluginId", "entrypointId"],
+					"additionalProperties": false
+				},
+				"popupContext": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": [],
+					"properties": {
+						"workspaceId": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
 								},
-								"then": {
-									"properties": {
-										"failure": {
-											"required": ["details"],
-											"properties": {
-												"details": {
-													"$ref": "#/$defs/genericFailure/$defs/transportStageDetails"
-												}
-											}
+								{
+									"type": "null"
+								}
+							]
+						},
+						"workspaceLabel": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"workspaceCwd": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"tabId": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"tabLabel": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"focusedPaneId": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"focusedPaneCwd": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"focusedPaneAgent": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"focusedPaneStatus": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"selectedText": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 8192,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"invocationSource": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"correlationId": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"clickedUrl": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"linkHandlerId": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"worktree": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/worktreeContext"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					}
+				},
+				"worktreeContext": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"workerId",
+						"repositoryRoot",
+						"commonDirectory",
+						"repositoryName",
+						"checkoutPath",
+						"linked"
+					],
+					"properties": {
+						"workerId": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$",
+							"not": {
+								"const": "00000000000000000000000000000000"
+							}
+						},
+						"repositoryRoot": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 4096,
+							"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])",
+							"not": {
+								"pattern": "\u0000"
+							}
+						},
+						"commonDirectory": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 4096,
+							"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])",
+							"not": {
+								"pattern": "\u0000"
+							}
+						},
+						"repositoryName": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 4096,
+							"not": {
+								"pattern": "\u0000"
+							}
+						},
+						"checkoutPath": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 4096,
+							"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])",
+							"not": {
+								"pattern": "\u0000"
+							}
+						},
+						"linked": {
+							"type": "boolean"
+						}
+					}
+				},
+				"popupEnvironment": {
+					"type": "array",
+					"maxItems": 32,
+					"items": {
+						"type": "array",
+						"prefixItems": [
+							{
+								"type": "string",
+								"pattern": "^[A-Za-z_][A-Za-z0-9_]{0,127}$",
+								"not": {
+									"pattern": "^[Oo][Rr][Cc][Hh][Bb][Ee][Ee]_"
+								},
+								"allOf": [
+									{
+										"not": {
+											"pattern": "^(?:[Tt][Ee][Rr][Mm]|[Cc][Oo][Ll][Oo][Rr][Tt][Ee][Rr][Mm]|[Tt][Ee][Rr][Mm]_[Pp][Rr][Oo][Gg][Rr][Aa][Mm])$"
 										}
 									}
-								}
+								]
 							},
 							{
-								"if": {
-									"properties": {
-										"failure": {
-											"properties": {
-												"kind": {
-													"const": "incompatible"
-												}
-											},
-											"required": ["kind"]
-										}
-									}
+								"type": "string",
+								"pattern": "^[^\\u0000]*$"
+							}
+						],
+						"minItems": 2,
+						"maxItems": 2,
+						"items": false
+					}
+				},
+				"popupDirectoryPath": {
+					"title": "WorkbenchDirectoryPath",
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096,
+					"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000]*$"
+				},
+				"popupSource": {
+					"type": "object",
+					"properties": {
+						"terminalContextId": {
+							"$ref": "#/$defs/control/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/control/$defs/tabId"
+						},
+						"member": {
+							"$ref": "#/$defs/control/$defs/presentationSelection"
+						},
+						"panelId": {
+							"$ref": "#/$defs/control/$defs/panelId"
+						}
+					},
+					"required": ["terminalContextId", "tabId", "member", "panelId"],
+					"additionalProperties": false
+				},
+				"popupSpec": {
+					"type": "object",
+					"properties": {
+						"selector": {
+							"$ref": "#/$defs/control/$defs/popupSelector"
+						},
+						"source": {
+							"$ref": "#/$defs/control/$defs/popupSource"
+						},
+						"context": {
+							"$ref": "#/$defs/control/$defs/popupContext"
+						},
+						"cwd": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/popupDirectoryPath"
 								},
-								"then": {
-									"properties": {
-										"failure": {
-											"required": ["details"],
-											"properties": {
-												"details": {
-													"oneOf": [
-														{
-															"$ref": "#/$defs/genericFailure/$defs/admissionDetails"
-														},
-														{
-															"$ref": "#/$defs/genericFailure/$defs/cohortStageDetails"
-														}
-													]
-												}
-											}
-										}
-									}
+								{
+									"type": "null"
+								}
+							]
+						},
+						"environment": {
+							"$ref": "#/$defs/control/$defs/popupEnvironment"
+						},
+						"width": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/popupSize"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"height": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/popupSize"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["selector", "source", "context", "cwd", "environment", "width", "height"],
+					"additionalProperties": false
+				},
+				"editorSource": {
+					"type": "object",
+					"properties": {
+						"terminalContextId": {
+							"$ref": "#/$defs/control/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/control/$defs/tabId"
+						},
+						"member": {
+							"$ref": "#/$defs/control/$defs/boundPresentationSelection"
+						},
+						"panelId": {
+							"$ref": "#/$defs/control/$defs/panelId"
+						}
+					},
+					"required": ["terminalContextId", "tabId", "member", "panelId"],
+					"additionalProperties": false
+				},
+				"editorSpec": {
+					"type": "object",
+					"properties": {
+						"source": {
+							"$ref": "#/$defs/control/$defs/editorSource"
+						}
+					},
+					"required": ["source"],
+					"additionalProperties": false
+				},
+				"configuredPopupSpec": {
+					"type": "object",
+					"properties": {
+						"commandId": {
+							"type": "string",
+							"pattern": "^cmd_[A-Za-z0-9_]*$",
+							"maxLength": 120
+						},
+						"source": {
+							"type": "object",
+							"properties": {
+								"terminalContextId": {
+									"$ref": "#/$defs/control/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/control/$defs/tabId"
+								},
+								"member": {
+									"$ref": "#/$defs/control/$defs/boundPresentationSelection"
+								},
+								"panelId": {
+									"$ref": "#/$defs/control/$defs/panelId"
 								}
 							},
-							{
-								"if": {
-									"properties": {
-										"failure": {
+							"required": ["terminalContextId", "tabId", "member", "panelId"],
+							"additionalProperties": false
+						},
+						"context": {
+							"$ref": "#/$defs/control/$defs/popupContext"
+						},
+						"width": {
+							"oneOf": [
+								{
+									"oneOf": [
+										{
+											"type": "object",
 											"properties": {
 												"kind": {
-													"const": "connection-capacity"
+													"const": "cells"
+												},
+												"value": {
+													"type": "integer",
+													"minimum": 1,
+													"maximum": 4096
 												}
 											},
-											"required": ["kind"]
-										}
-									}
-								},
-								"then": {
-									"properties": {
-										"failure": {
-											"required": ["details"],
+											"required": ["kind", "value"],
+											"additionalProperties": false
+										},
+										{
+											"type": "object",
 											"properties": {
-												"details": {
-													"$ref": "#/$defs/genericFailure/$defs/admissionDetails"
+												"kind": {
+													"const": "percent"
+												},
+												"value": {
+													"type": "integer",
+													"minimum": 1,
+													"maximum": 100
 												}
-											}
+											},
+											"required": ["kind", "value"],
+											"additionalProperties": false
 										}
-									}
+									]
+								},
+								{
+									"type": "null"
 								}
-							},
-							{
-								"if": {
-									"properties": {
-										"failure": {
+							]
+						},
+						"height": {
+							"oneOf": [
+								{
+									"oneOf": [
+										{
+											"type": "object",
 											"properties": {
 												"kind": {
-													"const": "protocol-invalid"
+													"const": "cells"
+												},
+												"value": {
+													"type": "integer",
+													"minimum": 1,
+													"maximum": 4096
 												}
 											},
-											"required": ["kind"]
-										}
-									}
-								},
-								"then": {
-									"properties": {
-										"failure": {
-											"required": ["details"],
+											"required": ["kind", "value"],
+											"additionalProperties": false
+										},
+										{
+											"type": "object",
 											"properties": {
-												"details": {
-													"oneOf": [
-														{
-															"$ref": "#/$defs/genericFailure/$defs/protocolStageDetails"
-														},
-														{
-															"$ref": "#/$defs/genericFailure/$defs/correlationDetails"
-														}
-													]
+												"kind": {
+													"const": "percent"
+												},
+												"value": {
+													"type": "integer",
+													"minimum": 1,
+													"maximum": 100
 												}
-											}
+											},
+											"required": ["kind", "value"],
+											"additionalProperties": false
 										}
-									}
+									]
+								},
+								{
+									"type": "null"
 								}
-							},
-							{
-								"if": {
-									"properties": {
-										"failure": {
-											"properties": {
-												"kind": {
-													"enum": ["invalid-identifier", "not-found"]
-												}
-											},
-											"required": ["kind"]
-										}
-									}
+							]
+						}
+					},
+					"required": ["commandId", "source", "context", "width", "height"],
+					"additionalProperties": false
+				}
+			}
+		},
+		"failureObservation": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "details", "source", "schema", "version"],
+			"properties": {
+				"kind": {},
+				"details": {},
+				"source": {},
+				"schema": {},
+				"version": {
+					"const": 1
+				}
+			},
+			"oneOf": [
+				{
+					"title": "orchbee cli failure envelope",
+					"type": "object",
+					"required": ["schema", "version", "failure"],
+					"additionalProperties": false,
+					"properties": {
+						"schema": {
+							"const": "orchbee.cli.failure"
+						},
+						"version": {
+							"const": 1
+						},
+						"failure": {
+							"type": "object",
+							"required": ["kind"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"enum": [
+										"ambiguous",
+										"cancelled",
+										"check-failed",
+										"denied",
+										"incompatible",
+										"internal-failure",
+										"invalid-identifier",
+										"invalid-usage",
+										"not-found",
+										"outcome-unknown",
+										"output-too-large",
+										"protocol-invalid",
+										"rejected",
+										"service-unavailable",
+										"connection-capacity",
+										"timeout",
+										"transport-loss"
+									]
 								},
-								"then": {
-									"properties": {
-										"failure": {
-											"required": ["details"],
-											"properties": {
-												"details": {
-													"$ref": "#/$defs/genericFailure/$defs/identifierDetails"
-												}
-											}
-										}
-									}
-								}
-							},
-							{
-								"if": {
-									"properties": {
-										"failure": {
-											"properties": {
-												"kind": {
-													"const": "outcome-unknown"
-												}
-											},
-											"required": ["kind"]
-										}
-									}
-								},
-								"then": {
-									"properties": {
-										"failure": {
-											"required": ["details"],
-											"properties": {
-												"details": {
-													"$ref": "#/$defs/genericFailure/$defs/outcomeUnknownDetails"
-												}
-											}
-										}
-									}
-								}
-							},
-							{
-								"if": {
-									"properties": {
-										"failure": {
-											"properties": {
-												"kind": {
-													"const": "rejected"
-												}
-											},
-											"required": ["kind"]
-										}
-									}
-								},
-								"then": {
-									"properties": {
-										"failure": {
-											"required": ["details"],
-											"properties": {
-												"details": {
-													"oneOf": [
-														{
-															"$ref": "#/$defs/genericFailure/$defs/rejectedDetails"
-														},
-														{
-															"$ref": "#/$defs/genericFailure/$defs/historyReadRejectedDetails"
-														},
-														{
-															"$ref": "#/$defs/genericFailure/$defs/waitOutputRejectedDetails"
-														},
-														{
-															"$ref": "#/$defs/genericFailure/$defs/recoveryRequiredDetails"
-														}
-													]
-												}
-											}
-										}
-									}
-								}
-							},
-							{
-								"if": {
-									"properties": {
-										"failure": {
-											"properties": {
-												"kind": {
-													"const": "output-too-large"
-												}
-											},
-											"required": ["kind"]
-										}
-									}
-								},
-								"then": {
-									"properties": {
-										"failure": {
-											"required": ["details"],
-											"properties": {
-												"details": {
-													"$ref": "#/$defs/genericFailure/$defs/limitDetails"
-												}
-											}
-										}
-									}
-								}
-							},
-							{
-								"if": {
-									"properties": {
-										"failure": {
-											"properties": {
-												"kind": {
-													"const": "timeout"
-												}
-											},
-											"required": ["kind"]
-										}
-									}
-								},
-								"then": {
-									"properties": {
-										"failure": {
-											"required": ["details"],
-											"properties": {
-												"details": {
-													"oneOf": [
-														{
-															"$ref": "#/$defs/genericFailure/$defs/waitTimeoutDetails"
-														},
-														{
-															"$ref": "#/$defs/genericFailure/$defs/activationStageDetails"
-														},
-														{
-															"$ref": "#/$defs/genericFailure/$defs/cohortStageDetails"
-														},
-														{
-															"$ref": "#/$defs/genericFailure/$defs/runtimeStatusStageDetails"
-														},
-														{
-															"$ref": "#/$defs/genericFailure/$defs/currentPanelStageDetails"
-														}
-													]
-												}
-											}
-										}
-									}
-								}
-							},
-							{
-								"if": {
-									"properties": {
-										"failure": {
-											"properties": {
-												"kind": {
-													"const": "cancelled"
-												}
-											},
-											"required": ["kind"]
-										}
-									}
-								},
-								"then": {
-									"properties": {
-										"failure": {
-											"required": ["details"],
-											"properties": {
-												"details": {
-													"oneOf": [
-														{
-															"$ref": "#/$defs/genericFailure/$defs/waitCancelledDetails"
-														},
-														{
-															"$ref": "#/$defs/genericFailure/$defs/doctorStageDetails"
-														},
-														{
-															"$ref": "#/$defs/genericFailure/$defs/runtimeStatusStageDetails"
-														},
-														{
-															"$ref": "#/$defs/genericFailure/$defs/currentPanelStageDetails"
-														}
-													]
-												}
-											}
-										}
-									}
-								}
-							},
-							{
-								"if": {
-									"properties": {
-										"failure": {
-											"properties": {
-												"kind": {
-													"const": "denied"
-												}
-											},
-											"required": ["kind"]
-										}
-									}
-								},
-								"then": {
-									"properties": {
-										"failure": {
-											"properties": {
-												"details": {
-													"oneOf": [
-														{
-															"$ref": "#/$defs/genericFailure/$defs/cohortStageDetails"
-														}
-													]
-												}
-											}
-										}
-									}
-								}
-							},
-							{
-								"if": {
-									"properties": {
-										"failure": {
-											"properties": {
-												"kind": {
-													"const": "internal-failure"
-												}
-											},
-											"required": ["kind"]
-										}
-									}
-								},
-								"then": {
-									"properties": {
-										"failure": {
-											"properties": {
-												"details": {
-													"oneOf": [
-														{
-															"$ref": "#/$defs/genericFailure/$defs/activationStageDetails"
-														},
-														{
-															"$ref": "#/$defs/genericFailure/$defs/cohortStageDetails"
-														}
-													]
-												}
-											}
-										}
-									}
-								}
-							},
-							{
-								"if": {
-									"properties": {
-										"failure": {
-											"properties": {
-												"kind": {
-													"const": "invalid-usage"
-												}
-											},
-											"required": ["kind"]
-										}
-									}
-								},
-								"then": {
-									"properties": {
-										"failure": {
-											"not": {
-												"required": ["details"]
-											}
-										}
-									}
+								"details": {
+									"type": "object"
 								}
 							}
-						]
+						},
+						"source": {
+							"$ref": "#/$defs/failureObservation/oneOf/0/$defs/source"
+						}
 					},
-					"else": {
+					"$defs": {
+						"id": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$"
+						},
+						"resource": {
+							"enum": ["panel", "project", "schema", "tab", "terminal", "workspace"]
+						},
+						"ambiguityResource": {
+							"enum": ["panel", "project", "tab", "terminal", "workspace"]
+						},
+						"identifierDetails": {
+							"type": "object",
+							"required": ["resource", "target"],
+							"additionalProperties": false,
+							"properties": {
+								"resource": {
+									"$ref": "#/$defs/failureObservation/oneOf/0/$defs/resource"
+								},
+								"target": {
+									"type": "string"
+								}
+							}
+						},
+						"ambiguousDetails": {
+							"type": "object",
+							"required": ["resource", "target", "candidates", "totalCount"],
+							"additionalProperties": false,
+							"properties": {
+								"resource": {
+									"$ref": "#/$defs/failureObservation/oneOf/0/$defs/ambiguityResource"
+								},
+								"target": {
+									"type": "string"
+								},
+								"candidates": {
+									"type": "array",
+									"items": {
+										"$ref": "#/$defs/failureObservation/oneOf/0/$defs/id"
+									},
+									"minItems": 2,
+									"maxItems": 8
+								},
+								"totalCount": {
+									"type": "integer",
+									"minimum": 2
+								}
+							}
+						},
+						"checkStageDetails": {
+							"type": "object",
+							"required": ["stage"],
+							"additionalProperties": false,
+							"properties": {
+								"stage": {
+									"enum": ["cohort", "runtime-base", "runtime-directory", "socket"]
+								}
+							}
+						},
+						"unavailableStageDetails": {
+							"type": "object",
+							"required": ["stage"],
+							"additionalProperties": false,
+							"properties": {
+								"stage": {
+									"enum": [
+										"admission",
+										"discovery",
+										"launch-read",
+										"snapshot",
+										"viewer",
+										"current-panel"
+									]
+								},
+								"matchObserved": {
+									"const": true
+								},
+								"cleanup": {
+									"$ref": "#/$defs/failureObservation/oneOf/0/$defs/cleanupState"
+								}
+							}
+						},
+						"commandUnavailableDetails": {
+							"type": "object",
+							"required": ["stage", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"stage": {
+									"const": "command"
+								},
+								"reason": {
+									"$ref": "#/$defs/failureObservation/oneOf/0/$defs/unavailableReason"
+								}
+							}
+						},
+						"transportStageDetails": {
+							"type": "object",
+							"required": ["stage"],
+							"additionalProperties": false,
+							"properties": {
+								"stage": {
+									"enum": [
+										"admission",
+										"command",
+										"launch-read",
+										"send",
+										"snapshot",
+										"viewer",
+										"current-panel"
+									]
+								},
+								"matchObserved": {
+									"const": true
+								},
+								"cleanup": {
+									"$ref": "#/$defs/failureObservation/oneOf/0/$defs/cleanupState"
+								}
+							}
+						},
+						"rejectedDetails": {
+							"type": "object",
+							"required": ["stage", "reason", "revision"],
+							"additionalProperties": false,
+							"properties": {
+								"stage": {
+									"const": "command"
+								},
+								"reason": {
+									"$ref": "#/$defs/failureObservation/oneOf/0/$defs/rejectionReason"
+								},
+								"revision": {
+									"$ref": "#/$defs/failureObservation/oneOf/0/$defs/revision"
+								}
+							}
+						},
+						"outcomeUnknownDetails": {
+							"type": "object",
+							"required": ["stage", "requestId", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"stage": {
+									"enum": ["command", "send"]
+								},
+								"requestId": {
+									"$ref": "#/$defs/failureObservation/oneOf/0/$defs/id"
+								},
+								"reason": {
+									"$ref": "#/$defs/failureObservation/oneOf/0/$defs/outcomeUnknownReason"
+								}
+							}
+						},
+						"historyReadRejectedDetails": {
+							"type": "object",
+							"required": ["stage", "operation", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"stage": {
+									"const": "viewer"
+								},
+								"operation": {
+									"const": "read-history"
+								},
+								"reason": {
+									"const": "limit-exceeded"
+								}
+							}
+						},
+						"historyReadUnavailableDetails": {
+							"type": "object",
+							"required": ["stage", "operation", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"stage": {
+									"const": "viewer"
+								},
+								"operation": {
+									"const": "read-history"
+								},
+								"reason": {
+									"enum": [
+										"history-evicted",
+										"invalid-phase",
+										"missing-resource",
+										"resource-exhausted",
+										"stale-generation",
+										"stale-revision"
+									]
+								}
+							}
+						},
+						"waitOutputRejectedDetails": {
+							"type": "object",
+							"required": ["stage", "operation", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"stage": {
+									"const": "viewer"
+								},
+								"operation": {
+									"const": "wait-output"
+								},
+								"reason": {
+									"enum": ["limit-exceeded", "output-cursor-unavailable", "output-cursor-reset"]
+								},
+								"matchObserved": {
+									"const": true
+								},
+								"cleanup": {
+									"$ref": "#/$defs/failureObservation/oneOf/0/$defs/cleanupState"
+								}
+							}
+						},
+						"waitOutputUnavailableDetails": {
+							"type": "object",
+							"required": ["stage", "operation", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"stage": {
+									"const": "viewer"
+								},
+								"operation": {
+									"const": "wait-output"
+								},
+								"reason": {
+									"enum": [
+										"history-evicted",
+										"invalid-phase",
+										"missing-resource",
+										"resource-exhausted",
+										"stale-generation",
+										"stale-revision"
+									]
+								},
+								"matchObserved": {
+									"const": true
+								},
+								"cleanup": {
+									"$ref": "#/$defs/failureObservation/oneOf/0/$defs/cleanupState"
+								}
+							}
+						},
+						"cleanupState": {
+							"enum": ["confirmed", "requested", "unconfirmed"]
+						},
+						"waitTimeoutDetails": {
+							"type": "object",
+							"required": ["stage", "timeoutMs", "observed"],
+							"additionalProperties": false,
+							"properties": {
+								"stage": {
+									"const": "wait"
+								},
+								"timeoutMs": {
+									"type": "integer",
+									"minimum": 1,
+									"maximum": 3600000
+								},
+								"observed": {
+									"type": "object",
+									"required": ["completedObservations"],
+									"additionalProperties": false,
+									"properties": {
+										"completedObservations": {
+											"type": "integer",
+											"minimum": 0
+										}
+									}
+								},
+								"matchObserved": {
+									"const": true
+								},
+								"cleanup": {
+									"$ref": "#/$defs/failureObservation/oneOf/0/$defs/cleanupState"
+								}
+							}
+						},
+						"waitCancelledDetails": {
+							"type": "object",
+							"required": ["stage"],
+							"additionalProperties": false,
+							"properties": {
+								"stage": {
+									"const": "wait"
+								},
+								"matchObserved": {
+									"const": true
+								},
+								"cleanup": {
+									"$ref": "#/$defs/failureObservation/oneOf/0/$defs/cleanupState"
+								}
+							}
+						},
+						"doctorStageDetails": {
+							"type": "object",
+							"required": ["stage"],
+							"additionalProperties": false,
+							"properties": {
+								"stage": {
+									"const": "agent-doctor"
+								}
+							}
+						},
+						"unavailableReason": {
+							"enum": [
+								"directory-unavailable",
+								"no-compatible-worker",
+								"request-ledger-full",
+								"server-busy",
+								"service-unavailable",
+								"terminal-busy",
+								"terminal-runtime-unavailable"
+							]
+						},
+						"rejectionReason": {
+							"enum": [
+								"identity-exhausted",
+								"panel-unavailable",
+								"project-unavailable",
+								"request-identity-conflict",
+								"resource-limit",
+								"revision-exhausted",
+								"revision-mismatch",
+								"site-mismatch",
+								"tab-unavailable",
+								"terminal-context-unavailable",
+								"workspace-directory-conflict",
+								"workspace-directory-unavailable",
+								"workspace-unavailable"
+							]
+						},
+						"outcomeUnknownReason": {
+							"enum": [
+								"action-incompatible",
+								"correlation-mismatch",
+								"response-invalid",
+								"response-loss",
+								"validation-failed",
+								"write-failure"
+							]
+						},
+						"admissionDetails": {
+							"type": "object",
+							"required": ["stage"],
+							"additionalProperties": false,
+							"properties": {
+								"stage": {
+									"const": "admission"
+								}
+							}
+						},
+						"protocolStageDetails": {
+							"type": "object",
+							"required": ["stage"],
+							"additionalProperties": false,
+							"properties": {
+								"stage": {
+									"enum": ["admission", "launch-read", "snapshot", "viewer", "current-panel"]
+								},
+								"matchObserved": {
+									"const": true
+								},
+								"cleanup": {
+									"$ref": "#/$defs/failureObservation/oneOf/0/$defs/cleanupState"
+								}
+							}
+						},
+						"correlationDetails": {
+							"type": "object",
+							"required": ["stage", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"stage": {
+									"enum": ["launch-read", "snapshot", "viewer"]
+								},
+								"reason": {
+									"const": "correlation-mismatch"
+								},
+								"matchObserved": {
+									"const": true
+								},
+								"cleanup": {
+									"$ref": "#/$defs/failureObservation/oneOf/0/$defs/cleanupState"
+								}
+							}
+						},
+						"revision": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]*)$"
+						},
+						"platformDetails": {
+							"type": "object",
+							"required": ["stage", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"stage": {
+									"const": "platform"
+								},
+								"reason": {
+									"const": "unsupported-platform"
+								},
+								"command": {
+									"enum": ["agent doctor", "config check"]
+								}
+							}
+						},
+						"limitDetails": {
+							"type": "object",
+							"required": ["limitBytes"],
+							"additionalProperties": false,
+							"properties": {
+								"limitBytes": {
+									"const": 8388608
+								}
+							}
+						},
+						"activationStageDetails": {
+							"type": "object",
+							"required": ["stage"],
+							"additionalProperties": false,
+							"properties": {
+								"stage": {
+									"const": "activation"
+								}
+							}
+						},
+						"cohortStageDetails": {
+							"type": "object",
+							"required": ["stage"],
+							"additionalProperties": false,
+							"properties": {
+								"stage": {
+									"const": "cohort"
+								}
+							}
+						},
+						"recoveryRequiredDetails": {
+							"type": "object",
+							"required": ["stage", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"stage": {
+									"const": "activation"
+								},
+								"reason": {
+									"const": "recovery-required"
+								}
+							}
+						},
+						"socketBudgetDetails": {
+							"type": "object",
+							"required": ["stage", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"stage": {
+									"const": "runtime-directory"
+								},
+								"reason": {
+									"const": "address-too-long"
+								}
+							}
+						},
+						"source": {
+							"oneOf": [
+								{
+									"type": "object",
+									"required": ["kind", "siteId", "revision"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "workbench-snapshot"
+										},
+										"siteId": {
+											"$ref": "#/$defs/failureObservation/oneOf/0/$defs/id"
+										},
+										"revision": {
+											"$ref": "#/$defs/failureObservation/oneOf/0/$defs/revision"
+										}
+									}
+								},
+								{
+									"type": "object",
+									"required": ["kind", "siteId", "revision"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "terminal-launch-read"
+										},
+										"siteId": {
+											"$ref": "#/$defs/failureObservation/oneOf/0/$defs/id"
+										},
+										"revision": {
+											"$ref": "#/$defs/failureObservation/oneOf/0/$defs/revision"
+										}
+									}
+								},
+								{
+									"type": "object",
+									"required": ["kind", "siteId", "requestId", "snapshotRevision"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "terminal.send"
+										},
+										"siteId": {
+											"$ref": "#/$defs/failureObservation/oneOf/0/$defs/id"
+										},
+										"requestId": {
+											"$ref": "#/$defs/failureObservation/oneOf/0/$defs/id"
+										},
+										"snapshotRevision": {
+											"$ref": "#/$defs/failureObservation/oneOf/0/$defs/revision"
+										}
+									}
+								},
+								{
+									"type": "object",
+									"required": ["kind", "siteId", "requestId", "expectedRevision"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "workbench-command"
+										},
+										"siteId": {
+											"$ref": "#/$defs/failureObservation/oneOf/0/$defs/id"
+										},
+										"requestId": {
+											"$ref": "#/$defs/failureObservation/oneOf/0/$defs/id"
+										},
+										"expectedRevision": {
+											"$ref": "#/$defs/failureObservation/oneOf/0/$defs/revision"
+										}
+									}
+								},
+								{
+									"type": "object",
+									"required": ["kind"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "embedded"
+										}
+									}
+								},
+								{
+									"type": "object",
+									"required": ["kind"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "local-runtime"
+										}
+									}
+								}
+							]
+						},
+						"runtimeStatusStageDetails": {
+							"type": "object",
+							"required": ["stage"],
+							"additionalProperties": false,
+							"properties": {
+								"stage": {
+									"const": "runtime-status"
+								}
+							}
+						},
+						"currentPanelStageDetails": {
+							"type": "object",
+							"required": ["stage"],
+							"additionalProperties": false,
+							"properties": {
+								"stage": {
+									"const": "current-panel"
+								}
+							}
+						},
+						"pluginDetails": {
+							"type": "object",
+							"required": ["stage", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"stage": {
+									"const": "plugin"
+								},
+								"reason": {
+									"enum": [
+										"selector-unavailable",
+										"plugin-not-found",
+										"pane-not-found",
+										"registry-unavailable",
+										"client-listing-unavailable",
+										"binding-unavailable",
+										"plugin-unavailable",
+										"plugin-disabled",
+										"unsupported-platform",
+										"invalid-title",
+										"invalid-geometry",
+										"popup-focus-required",
+										"popup-target-unsupported",
+										"client-not-ready",
+										"invalid-popup-spec",
+										"client-changed",
+										"context-invalid",
+										"pane-changed",
+										"transport-loss",
+										"invalid-reply"
+									]
+								}
+							}
+						}
+					},
+					"if": {
+						"properties": {
+							"failure": {
+								"properties": {
+									"details": {
+										"properties": {
+											"stage": {
+												"const": "plugin"
+											}
+										},
+										"required": ["stage"]
+									}
+								},
+								"required": ["details"]
+							}
+						},
+						"required": ["failure"]
+					},
+					"then": {
 						"properties": {
 							"failure": {
 								"required": ["details"],
 								"properties": {
 									"kind": {
 										"enum": [
+											"internal-failure",
 											"not-found",
 											"service-unavailable",
-											"protocol-invalid",
+											"rejected",
 											"transport-loss",
-											"timeout",
-											"cancelled"
+											"protocol-invalid"
 										]
 									},
 									"details": {
-										"type": "object",
-										"additionalProperties": false,
-										"required": ["stage"],
-										"properties": {
-											"stage": {
-												"const": "workspace-creation"
+										"$ref": "#/$defs/failureObservation/oneOf/0/$defs/pluginDetails"
+									}
+								},
+								"if": {
+									"properties": {
+										"kind": {
+											"const": "internal-failure"
+										}
+									}
+								},
+								"then": {
+									"properties": {
+										"details": {
+											"properties": {
+												"reason": {
+													"enum": ["selector-unavailable"]
+												}
+											}
+										}
+									}
+								},
+								"allOf": [
+									{
+										"if": {
+											"properties": {
+												"kind": {
+													"const": "not-found"
+												}
+											}
+										},
+										"then": {
+											"properties": {
+												"details": {
+													"properties": {
+														"reason": {
+															"enum": ["plugin-not-found", "pane-not-found"]
+														}
+													}
+												}
+											}
+										}
+									},
+									{
+										"if": {
+											"properties": {
+												"kind": {
+													"const": "service-unavailable"
+												}
+											}
+										},
+										"then": {
+											"properties": {
+												"details": {
+													"properties": {
+														"reason": {
+															"enum": [
+																"registry-unavailable",
+																"client-listing-unavailable",
+																"binding-unavailable",
+																"plugin-unavailable"
+															]
+														}
+													}
+												}
+											}
+										}
+									},
+									{
+										"if": {
+											"properties": {
+												"kind": {
+													"const": "rejected"
+												}
+											}
+										},
+										"then": {
+											"properties": {
+												"details": {
+													"properties": {
+														"reason": {
+															"enum": [
+																"plugin-disabled",
+																"unsupported-platform",
+																"invalid-title",
+																"invalid-geometry",
+																"popup-focus-required",
+																"popup-target-unsupported",
+																"client-not-ready",
+																"invalid-popup-spec",
+																"client-changed",
+																"context-invalid",
+																"pane-changed"
+															]
+														}
+													}
+												}
+											}
+										}
+									},
+									{
+										"if": {
+											"properties": {
+												"kind": {
+													"const": "transport-loss"
+												}
+											}
+										},
+										"then": {
+											"properties": {
+												"details": {
+													"properties": {
+														"reason": {
+															"enum": ["transport-loss"]
+														}
+													}
+												}
+											}
+										}
+									},
+									{
+										"if": {
+											"properties": {
+												"kind": {
+													"const": "protocol-invalid"
+												}
+											}
+										},
+										"then": {
+											"properties": {
+												"details": {
+													"properties": {
+														"reason": {
+															"enum": ["invalid-reply"]
+														}
+													}
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					},
+					"else": {
+						"if": {
+							"properties": {
+								"failure": {
+									"properties": {
+										"details": {
+											"properties": {
+												"stage": {
+													"const": "workspace-creation"
+												}
+											},
+											"required": ["stage"]
+										}
+									},
+									"required": ["details"]
+								}
+							},
+							"required": ["failure"]
+						},
+						"then": {
+							"properties": {
+								"failure": {
+									"required": ["details"],
+									"properties": {
+										"kind": {
+											"enum": [
+												"not-found",
+												"service-unavailable",
+												"protocol-invalid",
+												"transport-loss",
+												"timeout",
+												"cancelled"
+											]
+										},
+										"details": {
+											"type": "object",
+											"additionalProperties": false,
+											"required": ["stage"],
+											"properties": {
+												"stage": {
+													"const": "workspace-creation"
+												}
 											}
 										}
 									}
 								}
 							}
-						}
-					}
-				}
-			],
-			"$defs": {
-				"id": {
-					"type": "string",
-					"pattern": "^[0-9a-f]{32}$"
-				},
-				"resource": {
-					"enum": ["panel", "project", "schema", "tab", "terminal", "workspace"]
-				},
-				"ambiguityResource": {
-					"enum": ["panel", "project", "tab", "terminal", "workspace"]
-				},
-				"identifierDetails": {
-					"type": "object",
-					"required": ["resource", "target"],
-					"additionalProperties": false,
-					"properties": {
-						"resource": {
-							"$ref": "#/$defs/genericFailure/$defs/resource"
 						},
-						"target": {
-							"type": "string"
-						}
-					}
-				},
-				"ambiguousDetails": {
-					"type": "object",
-					"required": ["resource", "target", "candidates", "totalCount"],
-					"additionalProperties": false,
-					"properties": {
-						"resource": {
-							"$ref": "#/$defs/genericFailure/$defs/ambiguityResource"
-						},
-						"target": {
-							"type": "string"
-						},
-						"candidates": {
-							"type": "array",
-							"items": {
-								"$ref": "#/$defs/genericFailure/$defs/id"
+						"else": {
+							"if": {
+								"properties": {
+									"failure": {
+										"properties": {
+											"kind": {
+												"const": "ambiguous"
+											}
+										},
+										"required": ["kind"]
+									}
+								}
 							},
-							"minItems": 2,
-							"maxItems": 8
-						},
-						"totalCount": {
-							"type": "integer",
-							"minimum": 2
-						}
-					}
-				},
-				"checkStageDetails": {
-					"type": "object",
-					"required": ["stage"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"enum": ["cohort", "runtime-base", "runtime-directory", "socket"]
-						}
-					}
-				},
-				"unavailableStageDetails": {
-					"type": "object",
-					"required": ["stage"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"enum": [
-								"admission",
-								"discovery",
-								"launch-read",
-								"snapshot",
-								"viewer",
-								"current-panel"
+							"then": {
+								"properties": {
+									"failure": {
+										"required": ["details"],
+										"properties": {
+											"details": {
+												"$ref": "#/$defs/failureObservation/oneOf/0/$defs/ambiguousDetails"
+											}
+										}
+									}
+								}
+							},
+							"allOf": [
+								{
+									"if": {
+										"properties": {
+											"failure": {
+												"properties": {
+													"kind": {
+														"const": "check-failed"
+													}
+												},
+												"required": ["kind"]
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"failure": {
+												"required": ["details"],
+												"properties": {
+													"details": {
+														"$ref": "#/$defs/failureObservation/oneOf/0/$defs/checkStageDetails"
+													}
+												}
+											}
+										}
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"failure": {
+												"properties": {
+													"kind": {
+														"const": "service-unavailable"
+													}
+												},
+												"required": ["kind"]
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"failure": {
+												"required": ["details"],
+												"properties": {
+													"details": {
+														"oneOf": [
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/unavailableStageDetails"
+															},
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/commandUnavailableDetails"
+															},
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/historyReadUnavailableDetails"
+															},
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/waitOutputUnavailableDetails"
+															},
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/platformDetails"
+															},
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/cohortStageDetails"
+															},
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/socketBudgetDetails"
+															}
+														]
+													}
+												}
+											}
+										}
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"failure": {
+												"properties": {
+													"kind": {
+														"const": "transport-loss"
+													}
+												},
+												"required": ["kind"]
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"failure": {
+												"required": ["details"],
+												"properties": {
+													"details": {
+														"$ref": "#/$defs/failureObservation/oneOf/0/$defs/transportStageDetails"
+													}
+												}
+											}
+										}
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"failure": {
+												"properties": {
+													"kind": {
+														"const": "incompatible"
+													}
+												},
+												"required": ["kind"]
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"failure": {
+												"required": ["details"],
+												"properties": {
+													"details": {
+														"oneOf": [
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/admissionDetails"
+															},
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/cohortStageDetails"
+															}
+														]
+													}
+												}
+											}
+										}
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"failure": {
+												"properties": {
+													"kind": {
+														"const": "connection-capacity"
+													}
+												},
+												"required": ["kind"]
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"failure": {
+												"required": ["details"],
+												"properties": {
+													"details": {
+														"$ref": "#/$defs/failureObservation/oneOf/0/$defs/admissionDetails"
+													}
+												}
+											}
+										}
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"failure": {
+												"properties": {
+													"kind": {
+														"const": "protocol-invalid"
+													}
+												},
+												"required": ["kind"]
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"failure": {
+												"required": ["details"],
+												"properties": {
+													"details": {
+														"oneOf": [
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/protocolStageDetails"
+															},
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/correlationDetails"
+															}
+														]
+													}
+												}
+											}
+										}
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"failure": {
+												"properties": {
+													"kind": {
+														"enum": ["invalid-identifier", "not-found"]
+													}
+												},
+												"required": ["kind"]
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"failure": {
+												"required": ["details"],
+												"properties": {
+													"details": {
+														"$ref": "#/$defs/failureObservation/oneOf/0/$defs/identifierDetails"
+													}
+												}
+											}
+										}
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"failure": {
+												"properties": {
+													"kind": {
+														"const": "outcome-unknown"
+													}
+												},
+												"required": ["kind"]
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"failure": {
+												"required": ["details"],
+												"properties": {
+													"details": {
+														"$ref": "#/$defs/failureObservation/oneOf/0/$defs/outcomeUnknownDetails"
+													}
+												}
+											}
+										}
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"failure": {
+												"properties": {
+													"kind": {
+														"const": "rejected"
+													}
+												},
+												"required": ["kind"]
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"failure": {
+												"required": ["details"],
+												"properties": {
+													"details": {
+														"oneOf": [
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/rejectedDetails"
+															},
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/historyReadRejectedDetails"
+															},
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/waitOutputRejectedDetails"
+															},
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/recoveryRequiredDetails"
+															}
+														]
+													}
+												}
+											}
+										}
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"failure": {
+												"properties": {
+													"kind": {
+														"const": "output-too-large"
+													}
+												},
+												"required": ["kind"]
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"failure": {
+												"required": ["details"],
+												"properties": {
+													"details": {
+														"$ref": "#/$defs/failureObservation/oneOf/0/$defs/limitDetails"
+													}
+												}
+											}
+										}
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"failure": {
+												"properties": {
+													"kind": {
+														"const": "timeout"
+													}
+												},
+												"required": ["kind"]
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"failure": {
+												"required": ["details"],
+												"properties": {
+													"details": {
+														"oneOf": [
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/waitTimeoutDetails"
+															},
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/activationStageDetails"
+															},
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/cohortStageDetails"
+															},
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/runtimeStatusStageDetails"
+															},
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/currentPanelStageDetails"
+															}
+														]
+													}
+												}
+											}
+										}
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"failure": {
+												"properties": {
+													"kind": {
+														"const": "cancelled"
+													}
+												},
+												"required": ["kind"]
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"failure": {
+												"required": ["details"],
+												"properties": {
+													"details": {
+														"oneOf": [
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/waitCancelledDetails"
+															},
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/doctorStageDetails"
+															},
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/runtimeStatusStageDetails"
+															},
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/currentPanelStageDetails"
+															}
+														]
+													}
+												}
+											}
+										}
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"failure": {
+												"properties": {
+													"kind": {
+														"const": "denied"
+													}
+												},
+												"required": ["kind"]
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"failure": {
+												"properties": {
+													"details": {
+														"$ref": "#/$defs/failureObservation/oneOf/0/$defs/cohortStageDetails"
+													}
+												}
+											}
+										}
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"failure": {
+												"properties": {
+													"kind": {
+														"const": "internal-failure"
+													}
+												},
+												"required": ["kind"]
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"failure": {
+												"properties": {
+													"details": {
+														"oneOf": [
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/activationStageDetails"
+															},
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/cohortStageDetails"
+															}
+														]
+													}
+												}
+											}
+										}
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"failure": {
+												"properties": {
+													"kind": {
+														"const": "invalid-usage"
+													}
+												},
+												"required": ["kind"]
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"failure": {
+												"not": {
+													"required": ["details"]
+												}
+											}
+										}
+									}
+								}
 							]
-						},
-						"matchObserved": {
-							"const": true
-						},
-						"cleanup": {
-							"$ref": "#/$defs/genericFailure/$defs/cleanupState"
 						}
 					}
 				},
-				"commandUnavailableDetails": {
+				{
+					"title": "orchbee launch profile failure envelope",
 					"type": "object",
-					"required": ["stage", "reason"],
+					"required": ["schema", "version", "failure"],
 					"additionalProperties": false,
 					"properties": {
-						"stage": {
-							"const": "command"
+						"schema": {
+							"const": "orchbee.cli.failure.launch-profile"
 						},
-						"reason": {
-							"$ref": "#/$defs/genericFailure/$defs/unavailableReason"
+						"version": {
+							"const": 1
+						},
+						"failure": {
+							"type": "object",
+							"required": ["kind"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"enum": [
+										"ambiguous",
+										"denied",
+										"internal-failure",
+										"not-found",
+										"protocol-invalid",
+										"service-unavailable",
+										"timeout",
+										"transport-loss"
+									]
+								},
+								"details": {
+									"type": "object"
+								}
+							}
+						},
+						"source": {
+							"$ref": "#/$defs/failureObservation/oneOf/1/$defs/source"
 						}
-					}
-				},
-				"transportStageDetails": {
-					"type": "object",
-					"required": ["stage"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"enum": [
-								"admission",
-								"command",
-								"launch-read",
-								"send",
-								"snapshot",
-								"viewer",
-								"current-panel"
-							]
-						},
-						"matchObserved": {
-							"const": true
-						},
-						"cleanup": {
-							"$ref": "#/$defs/genericFailure/$defs/cleanupState"
-						}
-					}
-				},
-				"rejectedDetails": {
-					"type": "object",
-					"required": ["stage", "reason", "revision"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"const": "command"
-						},
-						"reason": {
-							"$ref": "#/$defs/genericFailure/$defs/rejectionReason"
+					},
+					"$defs": {
+						"id": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$"
 						},
 						"revision": {
-							"$ref": "#/$defs/genericFailure/$defs/revision"
-						}
-					}
-				},
-				"outcomeUnknownDetails": {
-					"type": "object",
-					"required": ["stage", "requestId", "reason"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"enum": ["command", "send"]
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]*)$"
 						},
-						"requestId": {
-							"$ref": "#/$defs/genericFailure/$defs/id"
+						"profileId": {
+							"type": "string",
+							"pattern": "^[0-9A-Za-z][0-9A-Za-z._:-]{0,127}$"
 						},
-						"reason": {
-							"$ref": "#/$defs/genericFailure/$defs/outcomeUnknownReason"
-						}
-					}
-				},
-				"historyReadRejectedDetails": {
-					"type": "object",
-					"required": ["stage", "operation", "reason"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"const": "viewer"
-						},
-						"operation": {
-							"const": "read-history"
-						},
-						"reason": {
-							"const": "limit-exceeded"
-						}
-					}
-				},
-				"historyReadUnavailableDetails": {
-					"type": "object",
-					"required": ["stage", "operation", "reason"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"const": "viewer"
-						},
-						"operation": {
-							"const": "read-history"
-						},
-						"reason": {
-							"enum": [
-								"history-evicted",
-								"invalid-phase",
-								"missing-resource",
-								"resource-exhausted",
-								"stale-generation",
-								"stale-revision"
-							]
-						}
-					}
-				},
-				"waitOutputRejectedDetails": {
-					"type": "object",
-					"required": ["stage", "operation", "reason"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"const": "viewer"
-						},
-						"operation": {
-							"const": "wait-output"
-						},
-						"reason": {
-							"const": "limit-exceeded"
-						},
-						"matchObserved": {
-							"const": true
-						},
-						"cleanup": {
-							"$ref": "#/$defs/genericFailure/$defs/cleanupState"
-						}
-					}
-				},
-				"waitOutputUnavailableDetails": {
-					"type": "object",
-					"required": ["stage", "operation", "reason"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"const": "viewer"
-						},
-						"operation": {
-							"const": "wait-output"
-						},
-						"reason": {
-							"enum": [
-								"history-evicted",
-								"invalid-phase",
-								"missing-resource",
-								"resource-exhausted",
-								"stale-generation",
-								"stale-revision"
-							]
-						},
-						"matchObserved": {
-							"const": true
-						},
-						"cleanup": {
-							"$ref": "#/$defs/genericFailure/$defs/cleanupState"
-						}
-					}
-				},
-				"cleanupState": {
-					"enum": ["confirmed", "requested", "unconfirmed"]
-				},
-				"waitTimeoutDetails": {
-					"type": "object",
-					"required": ["stage", "timeoutMs", "observed"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"const": "wait"
-						},
-						"timeoutMs": {
-							"type": "integer",
-							"minimum": 1,
-							"maximum": 3600000
-						},
-						"observed": {
+						"launchProfileDetails": {
 							"type": "object",
-							"required": ["completedObservations"],
+							"required": ["resource", "target"],
 							"additionalProperties": false,
 							"properties": {
-								"completedObservations": {
+								"resource": {
+									"const": "launch-profile"
+								},
+								"target": {
+									"type": "string",
+									"maxLength": 512
+								}
+							}
+						},
+						"launchProfileAmbiguousDetails": {
+							"type": "object",
+							"required": ["resource", "target", "candidates", "totalCount"],
+							"additionalProperties": false,
+							"properties": {
+								"resource": {
+									"const": "launch-profile"
+								},
+								"target": {
+									"type": "string",
+									"maxLength": 512
+								},
+								"candidates": {
+									"type": "array",
+									"minItems": 1,
+									"maxItems": 8,
+									"items": {
+										"$ref": "#/$defs/failureObservation/oneOf/1/$defs/profileId"
+									}
+								},
+								"totalCount": {
 									"type": "integer",
-									"minimum": 0
+									"minimum": 1
 								}
 							}
 						},
-						"matchObserved": {
-							"const": true
-						},
-						"cleanup": {
-							"$ref": "#/$defs/genericFailure/$defs/cleanupState"
-						}
-					}
-				},
-				"waitCancelledDetails": {
-					"type": "object",
-					"required": ["stage"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"const": "wait"
-						},
-						"matchObserved": {
-							"const": true
-						},
-						"cleanup": {
-							"$ref": "#/$defs/genericFailure/$defs/cleanupState"
-						}
-					}
-				},
-				"doctorStageDetails": {
-					"type": "object",
-					"required": ["stage"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"const": "agent-doctor"
-						}
-					}
-				},
-				"unavailableReason": {
-					"enum": [
-						"directory-unavailable",
-						"no-compatible-worker",
-						"request-ledger-full",
-						"server-busy",
-						"service-unavailable",
-						"terminal-busy",
-						"terminal-runtime-unavailable"
-					]
-				},
-				"rejectionReason": {
-					"enum": [
-						"identity-exhausted",
-						"panel-unavailable",
-						"project-unavailable",
-						"request-identity-conflict",
-						"resource-limit",
-						"revision-exhausted",
-						"revision-mismatch",
-						"site-mismatch",
-						"tab-unavailable",
-						"terminal-context-unavailable",
-						"workspace-directory-conflict",
-						"workspace-directory-unavailable",
-						"workspace-unavailable"
-					]
-				},
-				"outcomeUnknownReason": {
-					"enum": [
-						"action-incompatible",
-						"correlation-mismatch",
-						"response-invalid",
-						"response-loss",
-						"validation-failed",
-						"write-failure"
-					]
-				},
-				"admissionDetails": {
-					"type": "object",
-					"required": ["stage"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"const": "admission"
-						}
-					}
-				},
-				"protocolStageDetails": {
-					"type": "object",
-					"required": ["stage"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"enum": ["admission", "launch-read", "snapshot", "viewer", "current-panel"]
-						},
-						"matchObserved": {
-							"const": true
-						},
-						"cleanup": {
-							"$ref": "#/$defs/genericFailure/$defs/cleanupState"
-						}
-					}
-				},
-				"correlationDetails": {
-					"type": "object",
-					"required": ["stage", "reason"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"enum": ["launch-read", "snapshot", "viewer"]
-						},
-						"reason": {
-							"const": "correlation-mismatch"
-						},
-						"matchObserved": {
-							"const": true
-						},
-						"cleanup": {
-							"$ref": "#/$defs/genericFailure/$defs/cleanupState"
-						}
-					}
-				},
-				"revision": {
-					"type": "string",
-					"pattern": "^(0|[1-9][0-9]*)$"
-				},
-				"platformDetails": {
-					"type": "object",
-					"required": ["stage", "reason"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"const": "platform"
-						},
-						"reason": {
-							"const": "unsupported-platform"
-						},
-						"command": {
-							"enum": ["agent doctor", "config check"]
-						}
-					}
-				},
-				"limitDetails": {
-					"type": "object",
-					"required": ["limitBytes"],
-					"additionalProperties": false,
-					"properties": {
-						"limitBytes": {
-							"const": 8388608
-						}
-					}
-				},
-				"activationStageDetails": {
-					"type": "object",
-					"required": ["stage"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"const": "activation"
-						}
-					}
-				},
-				"cohortStageDetails": {
-					"type": "object",
-					"required": ["stage"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"const": "cohort"
-						}
-					}
-				},
-				"recoveryRequiredDetails": {
-					"type": "object",
-					"required": ["stage", "reason"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"const": "activation"
-						},
-						"reason": {
-							"const": "recovery-required"
-						}
-					}
-				},
-				"socketBudgetDetails": {
-					"type": "object",
-					"required": ["stage", "reason"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"const": "runtime-directory"
-						},
-						"reason": {
-							"const": "address-too-long"
-						}
-					}
-				},
-				"source": {
-					"oneOf": [
-						{
+						"catalogStageDetails": {
 							"type": "object",
-							"required": ["kind", "siteId", "revision"],
+							"required": ["stage"],
 							"additionalProperties": false,
 							"properties": {
-								"kind": {
-									"const": "workbench-snapshot"
-								},
-								"siteId": {
-									"$ref": "#/$defs/genericFailure/$defs/id"
-								},
-								"revision": {
-									"$ref": "#/$defs/genericFailure/$defs/revision"
+								"stage": {
+									"const": "launch-profile-catalog"
 								}
 							}
 						},
-						{
+						"catalogUnavailableDetails": {
 							"type": "object",
-							"required": ["kind", "siteId", "revision"],
+							"required": ["stage", "reason"],
 							"additionalProperties": false,
 							"properties": {
-								"kind": {
-									"const": "terminal-launch-read"
+								"stage": {
+									"const": "launch-profile-catalog"
 								},
-								"siteId": {
-									"$ref": "#/$defs/genericFailure/$defs/id"
-								},
-								"revision": {
-									"$ref": "#/$defs/genericFailure/$defs/revision"
+								"reason": {
+									"const": "service-unavailable"
 								}
 							}
 						},
-						{
+						"catalogTimeoutDetails": {
 							"type": "object",
-							"required": ["kind", "siteId", "requestId", "snapshotRevision"],
+							"required": ["stage", "timeoutMs"],
 							"additionalProperties": false,
 							"properties": {
-								"kind": {
-									"const": "terminal.send"
+								"stage": {
+									"const": "launch-profile-catalog"
 								},
-								"siteId": {
-									"$ref": "#/$defs/genericFailure/$defs/id"
-								},
-								"requestId": {
-									"$ref": "#/$defs/genericFailure/$defs/id"
-								},
-								"snapshotRevision": {
-									"$ref": "#/$defs/genericFailure/$defs/revision"
+								"timeoutMs": {
+									"const": 5000
 								}
 							}
 						},
-						{
+						"catalogCorrelationDetails": {
 							"type": "object",
-							"required": ["kind", "siteId", "requestId", "expectedRevision"],
+							"required": ["stage", "reason"],
 							"additionalProperties": false,
 							"properties": {
-								"kind": {
-									"const": "workbench-command"
+								"stage": {
+									"const": "launch-profile-catalog"
 								},
-								"siteId": {
-									"$ref": "#/$defs/genericFailure/$defs/id"
-								},
-								"requestId": {
-									"$ref": "#/$defs/genericFailure/$defs/id"
-								},
-								"expectedRevision": {
-									"$ref": "#/$defs/genericFailure/$defs/revision"
+								"reason": {
+									"const": "correlation-mismatch"
 								}
 							}
 						},
-						{
-							"type": "object",
-							"required": ["kind"],
-							"additionalProperties": false,
-							"properties": {
-								"kind": {
-									"const": "embedded"
+						"source": {
+							"oneOf": [
+								{
+									"type": "object",
+									"required": ["kind", "siteId", "revision"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "workbench-snapshot"
+										},
+										"siteId": {
+											"$ref": "#/$defs/failureObservation/oneOf/1/$defs/id"
+										},
+										"revision": {
+											"$ref": "#/$defs/failureObservation/oneOf/1/$defs/revision"
+										}
+									}
+								},
+								{
+									"type": "object",
+									"required": ["kind", "siteId", "requestId", "expectedRevision"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "workbench-command"
+										},
+										"siteId": {
+											"$ref": "#/$defs/failureObservation/oneOf/1/$defs/id"
+										},
+										"requestId": {
+											"$ref": "#/$defs/failureObservation/oneOf/1/$defs/id"
+										},
+										"expectedRevision": {
+											"$ref": "#/$defs/failureObservation/oneOf/1/$defs/revision"
+										}
+									}
 								}
-							}
-						},
-						{
-							"type": "object",
-							"required": ["kind"],
-							"additionalProperties": false,
-							"properties": {
-								"kind": {
-									"const": "local-runtime"
-								}
-							}
-						}
-					]
-				},
-				"runtimeStatusStageDetails": {
-					"type": "object",
-					"required": ["stage"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"const": "runtime-status"
-						}
-					}
-				},
-				"currentPanelStageDetails": {
-					"type": "object",
-					"required": ["stage"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"const": "current-panel"
-						}
-					}
-				}
-			}
-		},
-		"profileFailure": {
-			"title": "orchbee launch profile failure envelope",
-			"type": "object",
-			"required": ["schema", "version", "failure"],
-			"additionalProperties": false,
-			"properties": {
-				"schema": {
-					"const": "orchbee.cli.failure.launch-profile"
-				},
-				"version": {
-					"const": 1
-				},
-				"failure": {
-					"type": "object",
-					"required": ["kind"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"enum": [
-								"ambiguous",
-								"denied",
-								"internal-failure",
-								"not-found",
-								"protocol-invalid",
-								"service-unavailable",
-								"timeout",
-								"transport-loss"
 							]
-						},
-						"details": {
-							"type": "object"
 						}
-					}
-				},
-				"source": {
-					"$ref": "#/$defs/profileFailure/$defs/source"
-				}
-			},
-			"allOf": [
-				{
+					},
 					"if": {
 						"properties": {
 							"failure": {
@@ -3336,1162 +4914,17 @@
 								"required": ["details"],
 								"properties": {
 									"details": {
-										"$ref": "#/$defs/profileFailure/$defs/launchProfileDetails"
+										"$ref": "#/$defs/failureObservation/oneOf/1/$defs/launchProfileDetails"
 									}
 								}
 							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"failure": {
-								"properties": {
-									"kind": {
-										"const": "ambiguous"
-									}
-								},
-								"required": ["kind"]
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"failure": {
-								"required": ["details"],
-								"properties": {
-									"details": {
-										"$ref": "#/$defs/profileFailure/$defs/launchProfileAmbiguousDetails"
-									}
-								}
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"failure": {
-								"properties": {
-									"kind": {
-										"const": "denied"
-									}
-								},
-								"required": ["kind"]
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"failure": {
-								"required": ["details"],
-								"properties": {
-									"details": {
-										"$ref": "#/$defs/profileFailure/$defs/catalogStageDetails"
-									}
-								}
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"failure": {
-								"properties": {
-									"kind": {
-										"const": "service-unavailable"
-									}
-								},
-								"required": ["kind"]
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"failure": {
-								"required": ["details"],
-								"properties": {
-									"details": {
-										"$ref": "#/$defs/profileFailure/$defs/catalogUnavailableDetails"
-									}
-								}
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"failure": {
-								"properties": {
-									"kind": {
-										"const": "timeout"
-									}
-								},
-								"required": ["kind"]
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"failure": {
-								"required": ["details"],
-								"properties": {
-									"details": {
-										"$ref": "#/$defs/profileFailure/$defs/catalogTimeoutDetails"
-									}
-								}
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"failure": {
-								"properties": {
-									"kind": {
-										"const": "transport-loss"
-									}
-								},
-								"required": ["kind"]
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"failure": {
-								"required": ["details"],
-								"properties": {
-									"details": {
-										"$ref": "#/$defs/profileFailure/$defs/catalogStageDetails"
-									}
-								}
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"failure": {
-								"properties": {
-									"kind": {
-										"const": "protocol-invalid"
-									}
-								},
-								"required": ["kind"]
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"failure": {
-								"required": ["details"],
-								"properties": {
-									"details": {
-										"oneOf": [
-											{
-												"$ref": "#/$defs/profileFailure/$defs/catalogStageDetails"
-											},
-											{
-												"$ref": "#/$defs/profileFailure/$defs/catalogCorrelationDetails"
-											}
-										]
-									}
-								}
-							}
-						}
-					}
-				}
-			],
-			"$defs": {
-				"id": {
-					"type": "string",
-					"pattern": "^[0-9a-f]{32}$"
-				},
-				"revision": {
-					"type": "string",
-					"pattern": "^(0|[1-9][0-9]*)$"
-				},
-				"profileId": {
-					"type": "string",
-					"pattern": "^[0-9A-Za-z][0-9A-Za-z._:-]{0,127}$"
-				},
-				"launchProfileDetails": {
-					"type": "object",
-					"required": ["resource", "target"],
-					"additionalProperties": false,
-					"properties": {
-						"resource": {
-							"const": "launch-profile"
-						},
-						"target": {
-							"type": "string",
-							"maxLength": 512
-						}
-					}
-				},
-				"launchProfileAmbiguousDetails": {
-					"type": "object",
-					"required": ["resource", "target", "candidates", "totalCount"],
-					"additionalProperties": false,
-					"properties": {
-						"resource": {
-							"const": "launch-profile"
-						},
-						"target": {
-							"type": "string",
-							"maxLength": 512
-						},
-						"candidates": {
-							"type": "array",
-							"minItems": 1,
-							"maxItems": 8,
-							"items": {
-								"$ref": "#/$defs/profileFailure/$defs/profileId"
-							}
-						},
-						"totalCount": {
-							"type": "integer",
-							"minimum": 1
-						}
-					}
-				},
-				"catalogStageDetails": {
-					"type": "object",
-					"required": ["stage"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"const": "launch-profile-catalog"
-						}
-					}
-				},
-				"catalogUnavailableDetails": {
-					"type": "object",
-					"required": ["stage", "reason"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"const": "launch-profile-catalog"
-						},
-						"reason": {
-							"const": "service-unavailable"
-						}
-					}
-				},
-				"catalogTimeoutDetails": {
-					"type": "object",
-					"required": ["stage", "timeoutMs"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"const": "launch-profile-catalog"
-						},
-						"timeoutMs": {
-							"const": 5000
-						}
-					}
-				},
-				"catalogCorrelationDetails": {
-					"type": "object",
-					"required": ["stage", "reason"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"const": "launch-profile-catalog"
-						},
-						"reason": {
-							"const": "correlation-mismatch"
-						}
-					}
-				},
-				"source": {
-					"oneOf": [
-						{
-							"type": "object",
-							"required": ["kind", "siteId", "revision"],
-							"additionalProperties": false,
-							"properties": {
-								"kind": {
-									"const": "workbench-snapshot"
-								},
-								"siteId": {
-									"$ref": "#/$defs/profileFailure/$defs/id"
-								},
-								"revision": {
-									"$ref": "#/$defs/profileFailure/$defs/revision"
-								}
-							}
-						},
-						{
-							"type": "object",
-							"required": ["kind", "siteId", "requestId", "expectedRevision"],
-							"additionalProperties": false,
-							"properties": {
-								"kind": {
-									"const": "workbench-command"
-								},
-								"siteId": {
-									"$ref": "#/$defs/profileFailure/$defs/id"
-								},
-								"requestId": {
-									"$ref": "#/$defs/profileFailure/$defs/id"
-								},
-								"expectedRevision": {
-									"$ref": "#/$defs/profileFailure/$defs/revision"
-								}
-							}
-						}
-					]
-				}
-			}
-		},
-		"controlFailure": {
-			"title": "Native Client routing and composed Agent read failures",
-			"type": "object",
-			"properties": {
-				"schema": {
-					"const": "orchbee.cli.failure.client-control"
-				},
-				"version": {
-					"enum": [1, 2]
-				},
-				"failure": {
-					"type": "object"
-				}
-			},
-			"required": ["schema", "version", "failure"],
-			"additionalProperties": false,
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"version": {
-								"const": 1
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"failure": {
-								"type": "object",
-								"properties": {
-									"kind": {
-										"enum": ["ambiguous", "not-found", "service-unavailable", "rejected"]
-									},
-									"details": {
-										"type": "object",
-										"properties": {
-											"stage": {
-												"const": "client-selection"
-											},
-											"reason": {
-												"enum": [
-													"client-not-found",
-													"client-stale",
-													"client-not-ready",
-													"client-ambiguous",
-													"client-panel-unavailable"
-												]
-											},
-											"candidates": {
-												"type": "array",
-												"maxItems": 32,
-												"uniqueItems": true,
-												"items": {
-													"type": "string",
-													"pattern": "^[0-9a-f]{32}$",
-													"not": {
-														"const": "00000000000000000000000000000000"
-													}
-												}
-											}
-										},
-										"required": ["stage", "reason", "candidates"],
-										"additionalProperties": false
-									}
-								},
-								"required": ["kind", "details"],
-								"additionalProperties": false
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"version": {
-								"const": 2
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"failure": {
-								"type": "object",
-								"properties": {
-									"kind": {
-										"enum": [
-											"not-found",
-											"denied",
-											"rejected",
-											"service-unavailable",
-											"transport-loss",
-											"protocol-invalid",
-											"timeout",
-											"cancelled",
-											"internal-failure"
-										]
-									},
-									"details": {
-										"type": "object",
-										"properties": {
-											"stage": {
-												"const": "client-agent-read"
-											}
-										},
-										"required": ["stage"],
-										"additionalProperties": false
-									}
-								},
-								"required": ["kind", "details"],
-								"additionalProperties": false
-							}
-						}
-					}
-				}
-			]
-		},
-		"failureObservation": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["kind", "details", "source", "schema", "version"],
-			"properties": {
-				"kind": {},
-				"details": {},
-				"source": {},
-				"schema": {},
-				"version": {}
-			},
-			"oneOf": [
-				{
-					"type": "object",
-					"required": ["schema", "version", "kind", "details"],
-					"properties": {
-						"schema": {
-							"const": "orchbee.cli.failure"
-						},
-						"version": {
-							"enum": [1, 2]
-						},
-						"source": {
-							"anyOf": [
-								{
-									"$ref": "#/$defs/genericFailure/$defs/source"
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"kind": {
-							"enum": [
-								"ambiguous",
-								"cancelled",
-								"check-failed",
-								"denied",
-								"incompatible",
-								"internal-failure",
-								"invalid-identifier",
-								"invalid-usage",
-								"not-found",
-								"outcome-unknown",
-								"output-too-large",
-								"protocol-invalid",
-								"rejected",
-								"service-unavailable",
-								"connection-capacity",
-								"timeout",
-								"transport-loss"
-							]
-						},
-						"details": {
-							"allOf": [
-								{
-									"type": "object"
-								},
-								{
-									"type": "object"
-								}
-							]
 						}
 					},
 					"allOf": [
 						{
 							"if": {
 								"properties": {
-									"version": {
-										"const": 1
-									}
-								}
-							},
-							"then": {
-								"allOf": [
-									{
-										"if": {
-											"allOf": [
-												{},
-												{
-													"properties": {
-														"kind": {
-															"const": "ambiguous"
-														}
-													},
-													"required": ["kind"]
-												}
-											]
-										},
-										"then": {
-											"allOf": [
-												{},
-												{
-													"required": ["details"],
-													"properties": {
-														"details": {
-															"$ref": "#/$defs/genericFailure/$defs/ambiguousDetails"
-														}
-													}
-												}
-											]
-										}
-									},
-									{
-										"if": {
-											"allOf": [
-												{},
-												{
-													"properties": {
-														"kind": {
-															"const": "check-failed"
-														}
-													},
-													"required": ["kind"]
-												}
-											]
-										},
-										"then": {
-											"allOf": [
-												{},
-												{
-													"required": ["details"],
-													"properties": {
-														"details": {
-															"oneOf": [
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/checkStageDetails"
-																},
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/platformDetails"
-																}
-															]
-														}
-													}
-												}
-											]
-										}
-									},
-									{
-										"if": {
-											"allOf": [
-												{},
-												{
-													"properties": {
-														"kind": {
-															"const": "service-unavailable"
-														}
-													},
-													"required": ["kind"]
-												}
-											]
-										},
-										"then": {
-											"allOf": [
-												{},
-												{
-													"required": ["details"],
-													"properties": {
-														"details": {
-															"oneOf": [
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/unavailableStageDetails"
-																},
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/commandUnavailableDetails"
-																},
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/historyReadUnavailableDetails"
-																},
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/waitOutputUnavailableDetails"
-																},
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/platformDetails"
-																},
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/cohortStageDetails"
-																},
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/socketBudgetDetails"
-																}
-															]
-														}
-													}
-												}
-											]
-										}
-									},
-									{
-										"if": {
-											"allOf": [
-												{},
-												{
-													"properties": {
-														"kind": {
-															"const": "transport-loss"
-														}
-													},
-													"required": ["kind"]
-												}
-											]
-										},
-										"then": {
-											"allOf": [
-												{},
-												{
-													"required": ["details"],
-													"properties": {
-														"details": {
-															"$ref": "#/$defs/genericFailure/$defs/transportStageDetails"
-														}
-													}
-												}
-											]
-										}
-									},
-									{
-										"if": {
-											"allOf": [
-												{},
-												{
-													"properties": {
-														"kind": {
-															"const": "incompatible"
-														}
-													},
-													"required": ["kind"]
-												}
-											]
-										},
-										"then": {
-											"allOf": [
-												{},
-												{
-													"required": ["details"],
-													"properties": {
-														"details": {
-															"oneOf": [
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/admissionDetails"
-																},
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/cohortStageDetails"
-																}
-															]
-														}
-													}
-												}
-											]
-										}
-									},
-									{
-										"if": {
-											"allOf": [
-												{},
-												{
-													"properties": {
-														"kind": {
-															"const": "connection-capacity"
-														}
-													},
-													"required": ["kind"]
-												}
-											]
-										},
-										"then": {
-											"allOf": [
-												{},
-												{
-													"required": ["details"],
-													"properties": {
-														"details": {
-															"$ref": "#/$defs/genericFailure/$defs/admissionDetails"
-														}
-													}
-												}
-											]
-										}
-									},
-									{
-										"if": {
-											"allOf": [
-												{},
-												{
-													"properties": {
-														"kind": {
-															"const": "protocol-invalid"
-														}
-													},
-													"required": ["kind"]
-												}
-											]
-										},
-										"then": {
-											"allOf": [
-												{},
-												{
-													"required": ["details"],
-													"properties": {
-														"details": {
-															"oneOf": [
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/protocolStageDetails"
-																},
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/correlationDetails"
-																}
-															]
-														}
-													}
-												}
-											]
-										}
-									},
-									{
-										"if": {
-											"allOf": [
-												{},
-												{
-													"properties": {
-														"kind": {
-															"enum": ["invalid-identifier", "not-found"]
-														}
-													},
-													"required": ["kind"]
-												}
-											]
-										},
-										"then": {
-											"allOf": [
-												{},
-												{
-													"required": ["details"],
-													"properties": {
-														"details": {
-															"$ref": "#/$defs/genericFailure/$defs/identifierDetails"
-														}
-													}
-												}
-											]
-										}
-									},
-									{
-										"if": {
-											"allOf": [
-												{},
-												{
-													"properties": {
-														"kind": {
-															"const": "outcome-unknown"
-														}
-													},
-													"required": ["kind"]
-												}
-											]
-										},
-										"then": {
-											"allOf": [
-												{},
-												{
-													"required": ["details"],
-													"properties": {
-														"details": {
-															"$ref": "#/$defs/genericFailure/$defs/outcomeUnknownDetails"
-														}
-													}
-												}
-											]
-										}
-									},
-									{
-										"if": {
-											"allOf": [
-												{},
-												{
-													"properties": {
-														"kind": {
-															"const": "rejected"
-														}
-													},
-													"required": ["kind"]
-												}
-											]
-										},
-										"then": {
-											"allOf": [
-												{},
-												{
-													"required": ["details"],
-													"properties": {
-														"details": {
-															"oneOf": [
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/rejectedDetails"
-																},
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/historyReadRejectedDetails"
-																},
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/waitOutputRejectedDetails"
-																},
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/recoveryRequiredDetails"
-																}
-															]
-														}
-													}
-												}
-											]
-										}
-									},
-									{
-										"if": {
-											"allOf": [
-												{},
-												{
-													"properties": {
-														"kind": {
-															"const": "output-too-large"
-														}
-													},
-													"required": ["kind"]
-												}
-											]
-										},
-										"then": {
-											"allOf": [
-												{},
-												{
-													"required": ["details"],
-													"properties": {
-														"details": {
-															"$ref": "#/$defs/genericFailure/$defs/limitDetails"
-														}
-													}
-												}
-											]
-										}
-									},
-									{
-										"if": {
-											"allOf": [
-												{},
-												{
-													"properties": {
-														"kind": {
-															"const": "timeout"
-														}
-													},
-													"required": ["kind"]
-												}
-											]
-										},
-										"then": {
-											"allOf": [
-												{},
-												{
-													"required": ["details"],
-													"properties": {
-														"details": {
-															"oneOf": [
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/waitTimeoutDetails"
-																},
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/activationStageDetails"
-																},
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/cohortStageDetails"
-																},
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/runtimeStatusStageDetails"
-																},
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/currentPanelStageDetails"
-																}
-															]
-														}
-													}
-												}
-											]
-										}
-									},
-									{
-										"if": {
-											"allOf": [
-												{},
-												{
-													"properties": {
-														"kind": {
-															"const": "cancelled"
-														}
-													},
-													"required": ["kind"]
-												}
-											]
-										},
-										"then": {
-											"allOf": [
-												{},
-												{
-													"required": ["details"],
-													"properties": {
-														"details": {
-															"oneOf": [
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/waitCancelledDetails"
-																},
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/doctorStageDetails"
-																},
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/runtimeStatusStageDetails"
-																},
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/currentPanelStageDetails"
-																}
-															]
-														}
-													}
-												}
-											]
-										}
-									},
-									{
-										"if": {
-											"allOf": [
-												{},
-												{
-													"properties": {
-														"kind": {
-															"const": "denied"
-														}
-													},
-													"required": ["kind"]
-												}
-											]
-										},
-										"then": {
-											"allOf": [
-												{},
-												{
-													"properties": {
-														"details": {
-															"oneOf": [
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/cohortStageDetails"
-																}
-															]
-														}
-													}
-												}
-											]
-										}
-									},
-									{
-										"if": {
-											"allOf": [
-												{},
-												{
-													"properties": {
-														"kind": {
-															"const": "internal-failure"
-														}
-													},
-													"required": ["kind"]
-												}
-											]
-										},
-										"then": {
-											"allOf": [
-												{},
-												{
-													"properties": {
-														"details": {
-															"oneOf": [
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/activationStageDetails"
-																},
-																{
-																	"$ref": "#/$defs/genericFailure/$defs/cohortStageDetails"
-																}
-															]
-														}
-													}
-												}
-											]
-										}
-									},
-									{
-										"if": {
-											"allOf": [
-												{},
-												{
-													"properties": {
-														"kind": {
-															"const": "invalid-usage"
-														}
-													},
-													"required": ["kind"]
-												}
-											]
-										},
-										"then": {
-											"allOf": [
-												{},
-												{
-													"not": {
-														"required": ["details"]
-													}
-												}
-											]
-										}
-									}
-								]
-							},
-							"else": {
-								"allOf": [
-									{},
-									{
-										"required": ["details"],
-										"properties": {
-											"kind": {
-												"enum": [
-													"not-found",
-													"service-unavailable",
-													"protocol-invalid",
-													"transport-loss",
-													"timeout",
-													"cancelled"
-												]
-											},
-											"details": {
-												"type": "object",
-												"additionalProperties": false,
-												"required": ["stage"],
-												"properties": {
-													"stage": {
-														"const": "workspace-creation"
-													}
-												}
-											}
-										}
-									}
-								]
-							}
-						}
-					]
-				},
-				{
-					"type": "object",
-					"required": ["schema", "version", "kind", "details"],
-					"properties": {
-						"schema": {
-							"const": "orchbee.cli.failure.launch-profile"
-						},
-						"version": {
-							"const": 1
-						},
-						"source": {
-							"anyOf": [
-								{
-									"$ref": "#/$defs/profileFailure/$defs/source"
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"kind": {
-							"enum": [
-								"ambiguous",
-								"denied",
-								"internal-failure",
-								"not-found",
-								"protocol-invalid",
-								"service-unavailable",
-								"timeout",
-								"transport-loss"
-							]
-						},
-						"details": {
-							"allOf": [
-								{
-									"type": "object"
-								},
-								{
-									"type": "object"
-								}
-							]
-						}
-					},
-					"allOf": [
-						{
-							"if": {
-								"allOf": [
-									{},
-									{
-										"properties": {
-											"kind": {
-												"const": "not-found"
-											}
-										},
-										"required": ["kind"]
-									}
-								]
-							},
-							"then": {
-								"allOf": [
-									{},
-									{
-										"required": ["details"],
-										"properties": {
-											"details": {
-												"$ref": "#/$defs/profileFailure/$defs/launchProfileDetails"
-											}
-										}
-									}
-								]
-							}
-						},
-						{
-							"if": {
-								"allOf": [
-									{},
-									{
+									"failure": {
 										"properties": {
 											"kind": {
 												"const": "ambiguous"
@@ -4499,27 +4932,25 @@
 										},
 										"required": ["kind"]
 									}
-								]
+								}
 							},
 							"then": {
-								"allOf": [
-									{},
-									{
+								"properties": {
+									"failure": {
 										"required": ["details"],
 										"properties": {
 											"details": {
-												"$ref": "#/$defs/profileFailure/$defs/launchProfileAmbiguousDetails"
+												"$ref": "#/$defs/failureObservation/oneOf/1/$defs/launchProfileAmbiguousDetails"
 											}
 										}
 									}
-								]
+								}
 							}
 						},
 						{
 							"if": {
-								"allOf": [
-									{},
-									{
+								"properties": {
+									"failure": {
 										"properties": {
 											"kind": {
 												"const": "denied"
@@ -4527,27 +4958,25 @@
 										},
 										"required": ["kind"]
 									}
-								]
+								}
 							},
 							"then": {
-								"allOf": [
-									{},
-									{
+								"properties": {
+									"failure": {
 										"required": ["details"],
 										"properties": {
 											"details": {
-												"$ref": "#/$defs/profileFailure/$defs/catalogStageDetails"
+												"$ref": "#/$defs/failureObservation/oneOf/1/$defs/catalogStageDetails"
 											}
 										}
 									}
-								]
+								}
 							}
 						},
 						{
 							"if": {
-								"allOf": [
-									{},
-									{
+								"properties": {
+									"failure": {
 										"properties": {
 											"kind": {
 												"const": "service-unavailable"
@@ -4555,27 +4984,25 @@
 										},
 										"required": ["kind"]
 									}
-								]
+								}
 							},
 							"then": {
-								"allOf": [
-									{},
-									{
+								"properties": {
+									"failure": {
 										"required": ["details"],
 										"properties": {
 											"details": {
-												"$ref": "#/$defs/profileFailure/$defs/catalogUnavailableDetails"
+												"$ref": "#/$defs/failureObservation/oneOf/1/$defs/catalogUnavailableDetails"
 											}
 										}
 									}
-								]
+								}
 							}
 						},
 						{
 							"if": {
-								"allOf": [
-									{},
-									{
+								"properties": {
+									"failure": {
 										"properties": {
 											"kind": {
 												"const": "timeout"
@@ -4583,27 +5010,25 @@
 										},
 										"required": ["kind"]
 									}
-								]
+								}
 							},
 							"then": {
-								"allOf": [
-									{},
-									{
+								"properties": {
+									"failure": {
 										"required": ["details"],
 										"properties": {
 											"details": {
-												"$ref": "#/$defs/profileFailure/$defs/catalogTimeoutDetails"
+												"$ref": "#/$defs/failureObservation/oneOf/1/$defs/catalogTimeoutDetails"
 											}
 										}
 									}
-								]
+								}
 							}
 						},
 						{
 							"if": {
-								"allOf": [
-									{},
-									{
+								"properties": {
+									"failure": {
 										"properties": {
 											"kind": {
 												"const": "transport-loss"
@@ -4611,27 +5036,25 @@
 										},
 										"required": ["kind"]
 									}
-								]
+								}
 							},
 							"then": {
-								"allOf": [
-									{},
-									{
+								"properties": {
+									"failure": {
 										"required": ["details"],
 										"properties": {
 											"details": {
-												"$ref": "#/$defs/profileFailure/$defs/catalogStageDetails"
+												"$ref": "#/$defs/failureObservation/oneOf/1/$defs/catalogStageDetails"
 											}
 										}
 									}
-								]
+								}
 							}
 						},
 						{
 							"if": {
-								"allOf": [
-									{},
-									{
+								"properties": {
+									"failure": {
 										"properties": {
 											"kind": {
 												"const": "protocol-invalid"
@@ -4639,154 +5062,118 @@
 										},
 										"required": ["kind"]
 									}
-								]
+								}
 							},
 							"then": {
-								"allOf": [
-									{},
-									{
+								"properties": {
+									"failure": {
 										"required": ["details"],
 										"properties": {
 											"details": {
 												"oneOf": [
 													{
-														"$ref": "#/$defs/profileFailure/$defs/catalogStageDetails"
+														"$ref": "#/$defs/failureObservation/oneOf/1/$defs/catalogStageDetails"
 													},
 													{
-														"$ref": "#/$defs/profileFailure/$defs/catalogCorrelationDetails"
+														"$ref": "#/$defs/failureObservation/oneOf/1/$defs/catalogCorrelationDetails"
 													}
 												]
 											}
 										}
 									}
-								]
+								}
 							}
 						}
 					]
 				},
 				{
+					"title": "Native Client routing and composed Agent read failures",
 					"type": "object",
 					"properties": {
 						"schema": {
 							"const": "orchbee.cli.failure.client-control"
 						},
 						"version": {
-							"enum": [1, 2]
+							"const": 1
 						},
-						"source": {
-							"type": "null"
-						},
-						"details": {
-							"allOf": [
+						"failure": {
+							"oneOf": [
 								{
-									"type": "object"
+									"type": "object",
+									"properties": {
+										"kind": {
+											"enum": ["ambiguous", "not-found", "service-unavailable", "rejected"]
+										},
+										"details": {
+											"type": "object",
+											"properties": {
+												"stage": {
+													"const": "client-selection"
+												},
+												"reason": {
+													"enum": [
+														"client-not-found",
+														"client-stale",
+														"client-not-ready",
+														"client-ambiguous",
+														"client-panel-unavailable"
+													]
+												},
+												"candidates": {
+													"type": "array",
+													"maxItems": 32,
+													"uniqueItems": true,
+													"items": {
+														"type": "string",
+														"pattern": "^[0-9a-f]{32}$",
+														"not": {
+															"const": "00000000000000000000000000000000"
+														}
+													}
+												}
+											},
+											"required": ["stage", "reason", "candidates"],
+											"additionalProperties": false
+										}
+									},
+									"required": ["kind", "details"],
+									"additionalProperties": false
 								},
 								{
-									"type": "object"
+									"type": "object",
+									"properties": {
+										"kind": {
+											"enum": [
+												"not-found",
+												"denied",
+												"rejected",
+												"service-unavailable",
+												"transport-loss",
+												"protocol-invalid",
+												"timeout",
+												"cancelled",
+												"internal-failure"
+											]
+										},
+										"details": {
+											"type": "object",
+											"properties": {
+												"stage": {
+													"const": "client-agent-read"
+												}
+											},
+											"required": ["stage"],
+											"additionalProperties": false
+										}
+									},
+									"required": ["kind", "details"],
+									"additionalProperties": false
 								}
 							]
 						}
 					},
-					"required": ["schema", "version", "details"],
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"version": {
-										"const": 1
-									}
-								}
-							},
-							"then": {
-								"allOf": [
-									{},
-									{
-										"type": "object",
-										"properties": {
-											"kind": {
-												"enum": ["ambiguous", "not-found", "service-unavailable", "rejected"]
-											},
-											"details": {
-												"type": "object",
-												"properties": {
-													"stage": {
-														"const": "client-selection"
-													},
-													"reason": {
-														"enum": [
-															"client-not-found",
-															"client-stale",
-															"client-not-ready",
-															"client-ambiguous",
-															"client-panel-unavailable"
-														]
-													},
-													"candidates": {
-														"type": "array",
-														"maxItems": 32,
-														"uniqueItems": true,
-														"items": {
-															"type": "string",
-															"pattern": "^[0-9a-f]{32}$",
-															"not": {
-																"const": "00000000000000000000000000000000"
-															}
-														}
-													}
-												},
-												"required": ["stage", "reason", "candidates"],
-												"additionalProperties": false
-											}
-										},
-										"required": ["kind", "details"]
-									}
-								]
-							}
-						},
-						{
-							"if": {
-								"properties": {
-									"version": {
-										"const": 2
-									}
-								}
-							},
-							"then": {
-								"allOf": [
-									{},
-									{
-										"type": "object",
-										"properties": {
-											"kind": {
-												"enum": [
-													"not-found",
-													"denied",
-													"rejected",
-													"service-unavailable",
-													"transport-loss",
-													"protocol-invalid",
-													"timeout",
-													"cancelled",
-													"internal-failure"
-												]
-											},
-											"details": {
-												"type": "object",
-												"properties": {
-													"stage": {
-														"const": "client-agent-read"
-													}
-												},
-												"required": ["stage"],
-												"additionalProperties": false
-											}
-										},
-										"required": ["kind", "details"]
-									}
-								]
-							}
-						}
-					]
+					"required": ["schema", "version", "failure"],
+					"additionalProperties": false
 				},
 				{
 					"properties": {
@@ -4821,16 +5208,15 @@
 			]
 		},
 		"canonical": {
-			"title": "orchbee workbench mutation result envelope",
 			"type": "object",
-			"required": ["schema", "version", "source", "result"],
+			"required": ["schema", "version", "source", "result", "resolvedLaunch"],
 			"additionalProperties": false,
 			"properties": {
 				"schema": {
 					"const": "orchbee.mutation.result"
 				},
 				"version": {
-					"enum": [4, 5, 6]
+					"const": 1
 				},
 				"source": {
 					"oneOf": [
@@ -4993,20 +5379,18 @@
 							"additionalProperties": false
 						}
 					},
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"outcome": {
-										"enum": ["committed", "unchanged"]
-									}
-								},
-								"required": ["outcome"]
-							},
-							"then": {
-								"required": ["revision"]
+					"if": {
+						"properties": {
+							"outcome": {
+								"enum": ["committed", "unchanged"]
 							}
 						},
+						"required": ["outcome"]
+					},
+					"then": {
+						"required": ["revision"]
+					},
+					"allOf": [
 						{
 							"if": {
 								"properties": {
@@ -5099,10 +5483,154 @@
 									}
 								}
 							}
+						},
+						{
+							"properties": {},
+							"if": {
+								"properties": {
+									"action": {
+										"enum": [
+											"workspace.close",
+											"workspace.close-resume",
+											"workspace.rename",
+											"workspace.accept-directory"
+										]
+									}
+								}
+							},
+							"then": {
+								"not": {
+									"required": ["projectId"]
+								}
+							},
+							"allOf": [
+								{
+									"if": {
+										"properties": {
+											"action": {
+												"enum": [
+													"workspace.create",
+													"workspace.set-project",
+													"workspace.create-project"
+												]
+											}
+										}
+									},
+									"then": {
+										"required": ["projectId", "workspaceId"]
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"action": {
+												"const": "project.dissolve"
+											}
+										}
+									},
+									"then": {
+										"required": ["projectId"],
+										"properties": {
+											"projectId": {
+												"$ref": "#/$defs/canonical/$defs/id"
+											}
+										}
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"action": {
+												"const": "workspace.set-project"
+											}
+										}
+									},
+									"then": {
+										"required": ["revision", "workspaceId", "projectId"],
+										"properties": {
+											"outcome": {
+												"enum": ["committed", "unchanged"]
+											}
+										},
+										"propertyNames": {
+											"enum": ["action", "outcome", "revision", "workspaceId", "projectId"]
+										}
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"action": {
+												"const": "workspace.create-project"
+											}
+										}
+									},
+									"then": {
+										"required": ["revision", "workspaceId", "projectId"],
+										"properties": {
+											"projectId": {
+												"$ref": "#/$defs/canonical/$defs/id"
+											},
+											"outcome": {
+												"enum": ["committed"]
+											}
+										},
+										"propertyNames": {
+											"enum": ["action", "outcome", "revision", "workspaceId", "projectId"]
+										}
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"action": {
+												"const": "project.dissolve"
+											}
+										}
+									},
+									"then": {
+										"required": ["revision", "projectId"],
+										"properties": {
+											"outcome": {
+												"enum": ["committed"]
+											}
+										},
+										"propertyNames": {
+											"enum": ["action", "outcome", "revision", "projectId"]
+										}
+									}
+								}
+							]
+						}
+					]
+				},
+				"resolvedLaunch": {
+					"anyOf": [
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["exec", "args"],
+							"properties": {
+								"exec": {
+									"type": "string",
+									"minLength": 1
+								},
+								"args": {
+									"type": "array",
+									"maxItems": 128,
+									"items": {
+										"type": "string"
+									}
+								}
+							}
+						},
+						{
+							"type": "null"
 						}
 					]
 				}
 			},
+			"title": "orchbee workbench mutation result envelope",
 			"$defs": {
 				"id": {
 					"type": "string",
@@ -5186,258 +5714,23 @@
 						}
 					}
 				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"version": {
-								"const": 4
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"result": {
-								"not": {
-									"required": ["transfer"]
-								}
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"version": {
-								"const": 5
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"result": {
-								"properties": {
-									"action": {
-										"const": "panel.relocate"
-									}
-								}
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"version": {
-								"enum": [4, 5]
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"result": {
-								"properties": {
-									"projectId": {
-										"$ref": "#/$defs/canonical/$defs/id"
-									},
-									"action": {
-										"not": {
-											"enum": [
-												"workspace.set-project",
-												"workspace.create-project",
-												"project.dissolve"
-											]
-										}
-									}
-								},
-								"allOf": [
-									{
-										"if": {
-											"properties": {
-												"action": {
-													"enum": ["workspace.close", "workspace.close-resume"]
-												}
-											}
-										},
-										"then": {
-											"required": ["projectId"]
-										}
-									}
-								]
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"version": {
-								"const": 6
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"result": {
-								"allOf": [
-									{
-										"if": {
-											"properties": {
-												"action": {
-													"enum": [
-														"workspace.close",
-														"workspace.close-resume",
-														"workspace.rename",
-														"workspace.accept-directory"
-													]
-												}
-											}
-										},
-										"then": {
-											"not": {
-												"required": ["projectId"]
-											}
-										}
-									},
-									{
-										"if": {
-											"properties": {
-												"action": {
-													"enum": [
-														"workspace.create",
-														"workspace.set-project",
-														"workspace.create-project"
-													]
-												}
-											}
-										},
-										"then": {
-											"required": ["projectId", "workspaceId"]
-										}
-									},
-									{
-										"if": {
-											"properties": {
-												"action": {
-													"const": "project.dissolve"
-												}
-											}
-										},
-										"then": {
-											"required": ["projectId"],
-											"properties": {
-												"projectId": {
-													"$ref": "#/$defs/canonical/$defs/id"
-												}
-											}
-										}
-									},
-									{
-										"if": {
-											"properties": {
-												"action": {
-													"const": "workspace.set-project"
-												}
-											}
-										},
-										"then": {
-											"required": ["revision", "workspaceId", "projectId"],
-											"properties": {
-												"outcome": {
-													"enum": ["committed", "unchanged"]
-												}
-											},
-											"propertyNames": {
-												"enum": ["action", "outcome", "revision", "workspaceId", "projectId"]
-											}
-										}
-									},
-									{
-										"if": {
-											"properties": {
-												"action": {
-													"const": "workspace.create-project"
-												}
-											}
-										},
-										"then": {
-											"required": ["revision", "workspaceId", "projectId"],
-											"properties": {
-												"projectId": {
-													"$ref": "#/$defs/canonical/$defs/id"
-												},
-												"outcome": {
-													"enum": ["committed"]
-												}
-											},
-											"propertyNames": {
-												"enum": ["action", "outcome", "revision", "workspaceId", "projectId"]
-											}
-										}
-									},
-									{
-										"if": {
-											"properties": {
-												"action": {
-													"const": "project.dissolve"
-												}
-											}
-										},
-										"then": {
-											"required": ["revision", "projectId"],
-											"properties": {
-												"outcome": {
-													"enum": ["committed"]
-												}
-											},
-											"propertyNames": {
-												"enum": ["action", "outcome", "revision", "projectId"]
-											}
-										}
-									}
-								],
-								"properties": {
-									"action": {
-										"enum": [
-											"workspace.create",
-											"workspace.rename",
-											"workspace.close",
-											"workspace.close-resume",
-											"workspace.accept-directory",
-											"workspace.set-project",
-											"workspace.create-project",
-											"project.dissolve"
-										]
-									}
-								}
-							}
-						}
-					}
-				}
-			]
+			}
 		},
 		"projectReceipt": {
-			"allOf": [
-				{
-					"$ref": "#/$defs/canonical"
-				},
-				{
+			"$ref": "#/$defs/canonical",
+			"properties": {
+				"result": {
 					"properties": {
-						"result": {
-							"properties": {
-								"action": {
-									"const": "project.create"
-								},
-								"outcome": {
-									"const": "committed"
-								}
-							},
-							"required": ["projectId", "revision", "label"]
+						"action": {
+							"const": "project.create"
+						},
+						"outcome": {
+							"const": "committed"
 						}
-					}
+					},
+					"required": ["projectId", "revision", "label"]
 				}
-			]
+			}
 		},
 		"restoration": {
 			"type": "object",
@@ -5481,205 +5774,5 @@
 			"required": ["total", "attempted", "started", "failed", "unknown", "failure"],
 			"additionalProperties": false
 		}
-	},
-	"allOf": [
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 2
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"required": ["postOpen"]
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 1
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"not": {
-							"required": ["postOpen"]
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 3
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"required": ["setup"]
-					}
-				}
-			},
-			"else": {
-				"if": {
-					"properties": {
-						"version": {
-							"enum": [1, 2]
-						}
-					}
-				},
-				"then": {
-					"properties": {
-						"result": {
-							"not": {
-								"required": ["setup"]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 4
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"properties": {
-							"observation": {
-								"properties": {
-									"reply": {
-										"properties": {
-											"outcome": {
-												"properties": {
-													"status": {
-														"properties": {
-															"progress": {
-																"required": ["restoration"]
-															}
-														},
-														"required": ["progress"]
-													}
-												},
-												"required": ["status"]
-											}
-										},
-										"required": ["outcome"]
-									}
-								},
-								"required": ["reply"]
-							}
-						},
-						"required": ["observation"]
-					}
-				},
-				"required": ["result"]
-			},
-			"else": {
-				"if": {
-					"properties": {
-						"version": {
-							"enum": [1, 2, 3]
-						}
-					}
-				},
-				"then": {
-					"properties": {
-						"result": {
-							"properties": {
-								"observation": {
-									"properties": {
-										"reply": {
-											"properties": {
-												"outcome": {
-													"properties": {
-														"status": {
-															"properties": {
-																"progress": {
-																	"not": {
-																		"required": ["restoration"]
-																	}
-																}
-															}
-														}
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 5
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"not": {
-							"required": ["setup"]
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"enum": [1, 2, 3, 4]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"properties": {
-							"observation": {
-								"properties": {
-									"reply": {
-										"properties": {
-											"outcome": {
-												"properties": {
-													"projectId": {
-														"$ref": "#/$defs/identity"
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	]
+	}
 }

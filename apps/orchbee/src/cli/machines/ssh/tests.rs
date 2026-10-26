@@ -6,7 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 fn client_document() -> Value {
-    json!({"schema":"orchbee.status.client","version":3,"result":{
+    json!({"schema":"orchbee.status.client","version":1,"result":{
         "version":env!("CARGO_PKG_VERSION"),"platform":"windows","architecture":std::env::consts::ARCH,
         "protocols":{"admission":orchbee_local_client_protocol::PROTOCOL_VERSION,
             "terminal":orchbee_client_server_protocol::PROTOCOL_VERSION},
@@ -14,14 +14,13 @@ fn client_document() -> Value {
         "executable":{"path":"C:/remote/orchbee.exe"}}})
 }
 #[test]
-fn installed_client_admission_keeps_v2_compatibility_and_accepts_v3() {
-    for version in [2, 3] {
-        let mut document = client_document();
-        document["version"] = json!(version);
-        let admitted = client(&document).unwrap();
-        assert_eq!(admitted.executable, "C:/remote/orchbee.exe");
-        assert_eq!(admitted.cohort, "a".repeat(64));
-    }
+fn installed_client_admission_requires_current_document_version() {
+    let mut document = client_document();
+    let admitted = client(&document).unwrap();
+    assert_eq!(admitted.executable, "C:/remote/orchbee.exe");
+    assert_eq!(admitted.cohort, "a".repeat(64));
+    document["version"] = json!(2);
+    assert!(client(&document).is_err());
 }
 
 fn server_document() -> Value {

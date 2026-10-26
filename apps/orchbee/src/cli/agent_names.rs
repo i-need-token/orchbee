@@ -56,6 +56,43 @@ pub(crate) fn run(command: AgentNamesCommand, format: OutputFormat, locale: Loca
     answer
 }
 
+/// Canonical and physical identities share the same public target vocabulary.
+fn current_outcome(mut outcome: Value) -> Value {
+    if let Some(rows) = outcome.get_mut("bindings").and_then(Value::as_array_mut) {
+        for row in rows {
+            if let Some(object) = row.as_object_mut()
+                && let Some(session) = object.remove("sessionId")
+            {
+                object.remove("lifecycle");
+                object.insert(
+                    "target".into(),
+                    json!({"kind":"session","sessionId":session}),
+                );
+            }
+        }
+    }
+    if let Some(object) = outcome.as_object_mut()
+        && let Some(session) = object.remove("sessionId")
+    {
+        object.insert(
+            "target".into(),
+            json!({"kind":"session","sessionId":session}),
+        );
+    }
+    let kind = match outcome["kind"].as_str() {
+        Some("resolved") => Some("resolved-target"),
+        Some("listed") => Some("listed-targets"),
+        Some("assigned") => Some("assigned-target"),
+        Some("unchanged") => Some("unchanged-target"),
+        Some("released") => Some("released-target"),
+        _ => None,
+    };
+    if let Some(kind) = kind {
+        outcome["kind"] = json!(kind);
+    }
+    outcome
+}
+
 fn render(result: &AgentNamesResult, format: OutputFormat, locale: Locale) -> Output {
     let source = json!({ "kind": "agent-names", "requestId": result.request_id() });
     match project(result, locale) {
@@ -65,51 +102,10 @@ fn render(result: &AgentNamesResult, format: OutputFormat, locale: Locale) -> Ou
             locale,
         ),
         Ok((schema, outcome, text)) => {
-            let version = match result {
-                AgentNamesResult::Resolve { result, .. }
-                    if matches!(result.outcome, AgentResolveOutcome::ResolvedTarget { .. }) =>
-                {
-                    3
-                }
-                AgentNamesResult::NamesList { result, .. }
-                    if matches!(result.outcome, AgentNamesListOutcome::ListedTargets { .. }) =>
-                {
-                    3
-                }
-                AgentNamesResult::NameAssign { result, .. }
-                    if matches!(
-                        result.outcome,
-                        AgentNameAssignOutcome::AssignedTarget { .. }
-                            | AgentNameAssignOutcome::UnchangedTarget { .. }
-                    ) =>
-                {
-                    2
-                }
-                AgentNamesResult::NameRelease { result, .. }
-                    if matches!(
-                        result.outcome,
-                        AgentNameReleaseOutcome::ReleasedTarget { .. }
-                            | AgentNameReleaseOutcome::UnchangedTarget { .. }
-                    ) =>
-                {
-                    2
-                }
-                _ => {
-                    if matches!(result, AgentNamesResult::NamesList { .. })
-                        || matches!(result, AgentNamesResult::Resolve { result, .. }
-                        if matches!(result.outcome, AgentResolveOutcome::Resolved {
-                            resolved_by: orchbee_agent_observation_protocol::AgentResolvedBy::Presentation, ..
-                        }))
-                    {
-                        2
-                    } else {
-                        1
-                    }
-                }
-            };
+            let outcome = current_outcome(outcome);
             let bytes = match format {
                 OutputFormat::Json => output::encode_document(
-                    &json!({ "schema": schema, "version": version, "source": source, "result": outcome }),
+                    &json!({ "schema": schema, "version": 1, "source": source, "result": outcome }),
                 ),
                 OutputFormat::Text => output::encode_text(&text),
             };
@@ -134,11 +130,6 @@ pub(super) fn rejection(
     reason: Value,
     conflict: Option<&orchbee_agent_observation_protocol::AgentSessionId>,
 ) -> Failure {
-    let version = match reason.as_str() {
-        Some("launch-pending") => 3,
-        Some("ambiguous-target") => 2,
-        _ => 1,
-    };
     let kind = match reason.as_str() {
         Some("ambiguous-target") => FailureKind::Ambiguous,
         Some("read-denied" | "manage-denied") => FailureKind::Denied,
@@ -150,9 +141,12 @@ pub(super) fn rejection(
         ("reason".to_owned(), reason),
     ]);
     if let Some(id) = conflict {
-        details.insert("conflictSessionId".to_owned(), json!(id));
+        details.insert(
+            "conflictTarget".to_owned(),
+            json!({"kind":"session","sessionId":id}),
+        );
     }
-    Failure::new(kind).details(details).version(version)
+    Failure::new(kind).details(details)
 }
 
 fn project(
@@ -244,13 +238,13 @@ fn project(
             AgentNameAssignOutcome::RejectedTarget {
                 reason,
                 conflict_target,
-            } => Err(Failure::new(FailureKind::Rejected).version(4).details(
-                serde_json::Map::from_iter([
+            } => Err(
+                Failure::new(FailureKind::Rejected).details(serde_json::Map::from_iter([
                     ("stage".into(), json!("agent-names")),
                     ("reason".into(), json!(reason)),
                     ("conflictTarget".into(), json!(conflict_target)),
-                ]),
-            )),
+                ])),
+            ),
             AgentNameAssignOutcome::Assigned {
                 session_id, name, ..
             }

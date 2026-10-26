@@ -3,401 +3,7 @@
 	"$id": "orchbee.agent.integrations",
 	"title": "orchbee agent integration list envelope",
 	"description": "Historical closed provider envelopes and the current canonical public provider vocabulary.",
-	"oneOf": [
-		{
-			"type": "object",
-			"required": ["schema", "version", "source", "result"],
-			"additionalProperties": false,
-			"properties": {
-				"schema": {
-					"const": "orchbee.agent.integrations"
-				},
-				"version": {
-					"enum": [1, 2, 3, 4]
-				},
-				"source": {
-					"type": "object",
-					"required": ["kind"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "local-inspection"
-						}
-					}
-				},
-				"result": {
-					"type": "object",
-					"required": ["complete", "capsule", "integrations"],
-					"additionalProperties": false,
-					"properties": {
-						"complete": {
-							"type": "boolean"
-						},
-						"capsule": {
-							"$ref": "#/$defs/capsule"
-						},
-						"integrations": {
-							"type": "array",
-							"maxItems": 20,
-							"items": {
-								"$ref": "#/$defs/item"
-							}
-						},
-						"outdatedOnly": {
-							"const": true
-						},
-						"inspectedCount": {
-							"type": "integer",
-							"minimum": 1,
-							"maximum": 20
-						},
-						"unresolvedProviderIds": {
-							"type": "array",
-							"maxItems": 20,
-							"uniqueItems": true,
-							"items": {
-								"$ref": "#/$defs/item/properties/integrationId"
-							}
-						},
-						"blockedProviderIds": {
-							"type": "array",
-							"maxItems": 20,
-							"uniqueItems": true,
-							"items": {
-								"$ref": "#/$defs/item/properties/integrationId"
-							}
-						}
-					}
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"version": {
-								"enum": [2, 4]
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"result": {
-								"required": [
-									"outdatedOnly",
-									"inspectedCount",
-									"unresolvedProviderIds",
-									"blockedProviderIds"
-								],
-								"properties": {
-									"integrations": {
-										"items": {
-											"properties": {
-												"state": {
-													"const": "update-required"
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"result": {
-								"not": {
-									"anyOf": [
-										{
-											"required": ["outdatedOnly"]
-										},
-										{
-											"required": ["inspectedCount"]
-										},
-										{
-											"required": ["unresolvedProviderIds"]
-										},
-										{
-											"required": ["blockedProviderIds"]
-										}
-									]
-								}
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"version": {
-								"enum": [1, 2]
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"result": {
-								"properties": {
-									"integrations": {
-										"maxItems": 14
-									},
-									"unresolvedProviderIds": {
-										"maxItems": 14
-									},
-									"blockedProviderIds": {
-										"maxItems": 14
-									},
-									"inspectedCount": {
-										"maximum": 11
-									}
-								}
-							}
-						}
-					}
-				}
-			]
-		},
-		{
-			"allOf": [
-				{
-					"type": "object",
-					"required": ["schema", "version", "source", "result"],
-					"additionalProperties": false,
-					"properties": {
-						"schema": {
-							"const": "orchbee.agent.integrations"
-						},
-						"version": {
-							"enum": [5, 6]
-						},
-						"source": {
-							"type": "object",
-							"required": ["kind"],
-							"additionalProperties": false,
-							"properties": {
-								"kind": {
-									"const": "local-inspection"
-								}
-							}
-						},
-						"result": {
-							"type": "object",
-							"required": ["complete", "capsule", "integrations"],
-							"additionalProperties": false,
-							"properties": {
-								"complete": {
-									"type": "boolean"
-								},
-								"capsule": {
-									"$ref": "#/$defs/publicProvider_capsule"
-								},
-								"integrations": {
-									"type": "array",
-									"maxItems": 20,
-									"items": {
-										"$ref": "#/$defs/publicProvider_item"
-									}
-								},
-								"outdatedOnly": {
-									"const": true
-								},
-								"inspectedCount": {
-									"type": "integer",
-									"minimum": 1,
-									"maximum": 20
-								},
-								"unresolvedProviderIds": {
-									"type": "array",
-									"maxItems": 20,
-									"uniqueItems": true,
-									"items": {
-										"$ref": "#/$defs/publicProvider_item/properties/integrationId"
-									}
-								},
-								"blockedProviderIds": {
-									"type": "array",
-									"maxItems": 20,
-									"uniqueItems": true,
-									"items": {
-										"$ref": "#/$defs/publicProvider_item/properties/integrationId"
-									}
-								}
-							}
-						}
-					},
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"version": {
-										"enum": [6]
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"result": {
-										"required": [
-											"outdatedOnly",
-											"inspectedCount",
-											"unresolvedProviderIds",
-											"blockedProviderIds"
-										],
-										"properties": {
-											"integrations": {
-												"items": {
-													"properties": {
-														"state": {
-															"const": "update-required"
-														}
-													}
-												}
-											}
-										}
-									}
-								}
-							},
-							"else": {
-								"properties": {
-									"result": {
-										"not": {
-											"anyOf": [
-												{
-													"required": ["outdatedOnly"]
-												},
-												{
-													"required": ["inspectedCount"]
-												},
-												{
-													"required": ["unresolvedProviderIds"]
-												},
-												{
-													"required": ["blockedProviderIds"]
-												}
-											]
-										}
-									}
-								}
-							}
-						},
-						{
-							"if": {
-								"properties": {
-									"version": {
-										"enum": [1, 2]
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"result": {
-										"properties": {
-											"integrations": {
-												"maxItems": 14
-											},
-											"unresolvedProviderIds": {
-												"maxItems": 14
-											},
-											"blockedProviderIds": {
-												"maxItems": 14
-											},
-											"inspectedCount": {
-												"maximum": 11
-											}
-										}
-									}
-								}
-							}
-						}
-					]
-				},
-				{
-					"properties": {
-						"version": {
-							"enum": [5, 6]
-						}
-					}
-				}
-			]
-		}
-	],
 	"$defs": {
-		"item": {
-			"type": "object",
-			"required": ["integrationId", "availability", "managementMode", "state", "issue"],
-			"additionalProperties": false,
-			"properties": {
-				"integrationId": {
-					"enum": [
-						"claude-code",
-						"codex",
-						"grok",
-						"opencode",
-						"kilo",
-						"cursor",
-						"qodercli",
-						"antigravity-cli",
-						"mastracode",
-						"droid",
-						"kimi",
-						"letta",
-						"devin",
-						"hermes",
-						"pi",
-						"omp",
-						"gemini",
-						"github-copilot",
-						"cline",
-						"qwen-code"
-					]
-				},
-				"availability": {
-					"enum": ["available", "not-found", "unknown"]
-				},
-				"managementMode": {
-					"enum": ["managed-local", "manual-only"]
-				},
-				"state": {
-					"enum": ["conflict", "disabled", "enabled", "not-installed", "update-required", "unknown"]
-				},
-				"issue": {
-					"enum": [
-						"inspection-failed",
-						"manual-action-required",
-						"unsupported-platform",
-						"unsupported-version",
-						null
-					]
-				}
-			}
-		},
-		"capsule": {
-			"type": "object",
-			"required": ["state", "source", "payloadSha256"],
-			"additionalProperties": false,
-			"properties": {
-				"state": {
-					"enum": ["ready", "not-ready", "source-absent", "binding-failed"]
-				},
-				"source": {
-					"enum": ["cohort-sidecar", "adapter-source-override", "absent"]
-				},
-				"bindingFailure": {
-					"const": true
-				},
-				"rootPath": {
-					"type": "string",
-					"minLength": 1
-				},
-				"rootPathBytesHex": {
-					"type": "string",
-					"pattern": "^([0-9a-f]{2})+$"
-				},
-				"payloadSha256": {
-					"type": "string",
-					"pattern": "^[0-9a-f]{64}$"
-				}
-			}
-		},
 		"publicProvider_item": {
 			"type": "object",
 			"required": ["integrationId", "availability", "managementMode", "state", "issue"],
@@ -472,6 +78,79 @@
 				"payloadSha256": {
 					"type": "string",
 					"pattern": "^[0-9a-f]{64}$"
+				}
+			}
+		}
+	},
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.agent.integrations"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "local-inspection"
+				}
+			}
+		},
+		"result": {
+			"type": "object",
+			"required": [
+				"complete",
+				"capsule",
+				"integrations",
+				"outdatedOnly",
+				"inspectedCount",
+				"unresolvedProviderIds",
+				"blockedProviderIds"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"complete": {
+					"type": "boolean"
+				},
+				"capsule": {
+					"$ref": "#/$defs/publicProvider_capsule"
+				},
+				"integrations": {
+					"type": "array",
+					"maxItems": 20,
+					"items": {
+						"$ref": "#/$defs/publicProvider_item"
+					}
+				},
+				"outdatedOnly": {
+					"type": "boolean"
+				},
+				"inspectedCount": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 20
+				},
+				"unresolvedProviderIds": {
+					"type": "array",
+					"maxItems": 20,
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/publicProvider_item/properties/integrationId"
+					}
+				},
+				"blockedProviderIds": {
+					"type": "array",
+					"maxItems": 20,
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/publicProvider_item/properties/integrationId"
+					}
 				}
 			}
 		}

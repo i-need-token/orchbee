@@ -140,7 +140,7 @@ fn physical_explanation_pins_binding_preserves_evidence_and_escapes_both_locales
                 &document,
                 include_str!("../src/cli/schemas/orchbee.agent.explain.json"),
             );
-            assert_eq!(document["version"], if case == "manifest" { 5 } else { 4 });
+            assert_eq!(document["version"], 1);
             assert_eq!(document["source"]["kind"], "panel-agent-explain");
             assert_eq!(document["result"]["kind"], "terminal-found");
             assert_eq!(

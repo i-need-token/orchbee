@@ -170,20 +170,12 @@ fn indexed_move_known_refused_and_unknown_outcomes_never_replay_or_focus() {
         if let Some(kind) = failure {
             assert!(!output.status.success(), "{case}");
             assert_eq!(doc["failure"]["kind"], kind, "{case}: {doc}");
-            assert_eq!(doc["version"], 2);
+            assert_eq!(doc["version"], 1);
             validate(&doc, FAILURE);
             if case == "order-conflict" {
                 assert_eq!(
                     doc["failure"]["details"]["reason"],
                     "tab-move-order-conflict"
-                );
-                let mut legacy = doc.clone();
-                legacy["version"] = json!(1);
-                let schema: Value = serde_json::from_str(FAILURE).unwrap();
-                assert!(
-                    !jsonschema::validator_for(&schema)
-                        .unwrap()
-                        .is_valid(&legacy)
                 );
             }
             if case == "bounds" {
@@ -250,7 +242,7 @@ fn order_classifies_order_conflict_but_not_index_only_refusal() {
         assert_eq!(doc["schema"], schema);
         assert_eq!(doc["failure"]["kind"], kind);
         if reason == WorkbenchRejectionReason::TabMoveOrderConflict {
-            assert_eq!(doc["version"], 2);
+            assert_eq!(doc["version"], 1);
             validate(&doc, FAILURE);
         } else {
             assert_eq!(doc["version"], 1);

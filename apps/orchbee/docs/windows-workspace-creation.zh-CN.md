@@ -41,7 +41,7 @@ orchbee workspace create --project demo --workspace source --cwd workspace --foc
 
 ## 机器输出与组织命令
 
-所有 Windows 创建形式输出 `orchbee.workspace.creation` v2。`workspace.result` 包含 mutation v6 的资源标识及终端事实，`projectId` 必填但可为 null。外层记录目录来源、可选 Client/聚焦事实、阶段和结构化失败。已移除的外层 `project` 回执及 `project` 阶段会被拒绝。完成要求所有请求阶段成功；终端 pending 保持显式。解析/准备失败使用既有失败 envelope，包括 `workspace-creation` 阶段失败及未知结果原始请求标识。
+所有 Windows 创建形式输出 `orchbee.workspace.creation` v1。`workspace.result` 包含 mutation v1 的资源标识及终端事实，`projectId` 必填但可为 null。外层记录目录来源、可选 Client/聚焦事实、阶段和结构化失败。已移除的外层 `project` 回执及 `project` 阶段会被拒绝。完成要求所有请求阶段成功；终端 pending 保持显式。解析/准备失败使用既有失败 envelope，包括 `workspace-creation` 阶段失败及未知结果原始请求标识。
 
 已有 Workspace 可在不影响 PTY、cwd、Git 或文件系统的情况下组织：
 

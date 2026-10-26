@@ -196,7 +196,7 @@ fn physical_agent_focus_pins_the_full_binding_and_never_substitutes_a_childs_par
         assert_eq!(output.status.success(), case == "primary", "{output:?}");
         if case == "primary" {
             let document = document(&output);
-            assert_eq!(document["version"], 5);
+            assert_eq!(document["version"], 1);
             receipt(&document);
         }
     }

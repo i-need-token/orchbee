@@ -448,10 +448,6 @@ const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("schemas/orchbee.site.diagnose.json"),
     ),
     (
-        "orchbee.site.diagnose.windows",
-        include_str!("schemas/orchbee.site.diagnose.windows.json"),
-    ),
-    (
         "orchbee.site.start",
         include_str!("schemas/orchbee.site.start.json"),
     ),
@@ -548,51 +544,19 @@ fn document(schema_id: &str) -> Option<&'static str> {
         .map(|(_id, document)| *document)
 }
 
-/// The versions one schema admits: `properties.version` as a constant or an
-/// enumeration, else the union of its top-level variants' constants.
-fn versions(document: &Value) -> Vec<u64> {
-    let own = |schema: &Value| -> Vec<u64> {
-        let version = &schema["properties"]["version"];
-        version["const"]
-            .as_u64()
-            .map(|version| vec![version])
-            .or_else(|| {
-                version["enum"]
-                    .as_array()
-                    .map(|values| values.iter().filter_map(Value::as_u64).collect())
-            })
-            .unwrap_or_default()
-    };
-    let mut versions = own(document);
-    for key in ["oneOf", "allOf"] {
-        for variant in document[key].as_array().into_iter().flatten() {
-            versions.extend(own(variant));
-        }
-    }
-    versions.sort_unstable();
-    versions.dedup();
-    versions
-}
-
-/// Text `api schema` without an ID: one row per schema with its versions and
+/// Text `api schema` without an ID: one row per schema with its version and
 /// title, then where the documents themselves are.
 fn catalog(locale: Locale) -> Result<String, Failure> {
     let mut rows = Vec::with_capacity(DOCUMENTS.len());
     for (schema_id, document) in DOCUMENTS {
         let document = serde_json::from_str::<Value>(document)
             .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
-        let versions = versions(&document);
         rows.push(vec![
             (*schema_id).to_owned(),
-            if versions.is_empty() {
-                "-".to_owned()
-            } else {
-                versions
-                    .iter()
-                    .map(u64::to_string)
-                    .collect::<Vec<_>>()
-                    .join(",")
-            },
+            document["properties"]["version"]["const"]
+                .as_u64()
+                .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?
+                .to_string(),
             document["title"].as_str().unwrap_or("-").to_owned(),
         ]);
     }
@@ -675,7 +639,7 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        "version": 154,
+        "version": 1,
         "source": embedded_source(),
         "result": result,
     });

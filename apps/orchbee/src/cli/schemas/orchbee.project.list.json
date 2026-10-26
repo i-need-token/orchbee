@@ -10,7 +10,7 @@
 			"const": "orchbee.project.list"
 		},
 		"version": {
-			"const": 2
+			"const": 1
 		},
 		"source": {
 			"$ref": "#/$defs/snapshotSource"

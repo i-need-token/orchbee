@@ -24,7 +24,7 @@ fn current_stream_envelopes_validate_without_reopening_historical_event_names() 
             _ => continue,
         };
         kinds.insert(kind);
-        let mut document = json!({"schema":"orchbee.events.stream","version":4,
+        let mut document = json!({"schema":"orchbee.events.stream","version":1,
             "kind":kind,"source":source,"result":public_reply(&reply).unwrap()});
         validator.validate(&document).unwrap();
         if let Outcome::Matched { event, .. } = &reply.outcome
@@ -32,11 +32,9 @@ fn current_stream_envelopes_validate_without_reopening_historical_event_names() 
         {
             document["result"] = json!(reply);
             assert!(!validator.is_valid(&document));
-            document["version"] = json!(3);
-            validator.validate(&document).unwrap();
         }
     }
-    let closed = json!({"schema":"orchbee.events.stream","version":4,"kind":"closed",
+    let closed = json!({"schema":"orchbee.events.stream","version":1,"kind":"closed",
         "source":source,"reason":"completed","cleanup":"closed"});
     validator.validate(&closed).unwrap();
     assert_eq!(
@@ -73,7 +71,7 @@ fn organization_events_have_one_nullable_project_location_in_both_machine_envelo
         ] {
             let schema: serde_json::Value = serde_json::from_str(document_schema).unwrap();
             let validator = jsonschema::validator_for(&schema).unwrap();
-            let mut document = json!({"schema":schema_id,"version":2,
+            let mut document = json!({"schema":schema_id,"version":1,
                 "source":{"kind":"server","siteId":reply.site_id,"revision":"1"},"result":reply});
             if schema_id == "orchbee.events.stream" {
                 document["kind"] = json!("event");
@@ -90,8 +88,6 @@ fn organization_events_have_one_nullable_project_location_in_both_machine_envelo
                 .unwrap()
                 .remove("projectId");
             assert!(!validator.is_valid(&wrong));
-            document["version"] = json!(1);
-            assert!(!validator.is_valid(&document));
         }
     }
 }

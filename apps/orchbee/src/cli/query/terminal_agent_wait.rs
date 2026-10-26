@@ -34,17 +34,15 @@ pub(crate) struct Matched {
 }
 impl Matched {
     pub(in crate::cli) fn document(&self) -> Value {
-        let mut wait = json!({"until":self.until.iter().map(|c| c.as_str()).collect::<Vec<_>>(),
-            "timeoutMs":self.timeout_ms,"observations":self.observations,"elapsedMs":self.elapsed_ms});
-        if let Some(fence) = self.after_revision {
-            wait["afterRevision"] = json!(fence);
-        }
+        let wait = json!({"until":self.until.iter().map(|c| c.as_str()).collect::<Vec<_>>(),
+            "afterRevision":self.after_revision,"timeoutMs":self.timeout_ms,"observations":self.observations,"elapsedMs":self.elapsed_ms});
         let mut result = json!({"kind":"terminal-matched","target":{"kind":"terminal","binding":self.read.observation.binding},
             "semantic":self.read.document(),"matchedConditions":self.conditions.iter().map(|c| c.as_str()).collect::<Vec<_>>(),
             "matchedChange":self.change,"wait":wait});
-        if let Some(view) = &self.client_view {
-            result["clientView"] = view.document();
-        }
+        result["clientView"] = self
+            .client_view
+            .as_ref()
+            .map_or(Value::Null, |view| view.document());
         result
     }
 }

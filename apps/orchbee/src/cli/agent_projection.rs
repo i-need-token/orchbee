@@ -49,16 +49,12 @@ impl List {
             .iter()
             .map(|i| {
                 let mut row = i.row.document(i.ordinal, i.cwd.as_deref());
-                if let Some(client) = &i.client {
-                    row["client"] = client.clone()
-                }
+                row["client"] = i.client.clone().unwrap_or(Value::Null);
                 row
             })
             .collect::<Vec<_>>();
         let mut result = json!({"kind":"listed","revision":self.revision,"nextCursor":self.next.as_ref().map(Cursor::as_str),"items":items});
-        if let Some(client) = &self.client {
-            result["clientId"] = json!(client)
-        }
+        result["clientId"] = json!(self.client);
         result
     }
 }

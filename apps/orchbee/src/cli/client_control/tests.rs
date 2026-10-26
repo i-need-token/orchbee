@@ -24,7 +24,7 @@ fn sample(name: &str) -> Value {
 }
 
 #[test]
-fn physical_attention_receipt_uses_closed_v4_client_control_schema() {
+fn physical_attention_receipt_uses_closed_client_control_schema() {
     let WorkbenchResponse::ClientView(reply) =
         serde_json::from_value(sample("client-physical-agent-attention-read")).unwrap()
     else {
@@ -43,19 +43,15 @@ fn physical_attention_receipt_uses_closed_v4_client_control_schema() {
     };
     assert_eq!(answer.exit_code(), 0);
     let mut document = answer.document();
-    assert_eq!(document["version"], 4);
+    assert_eq!(document["version"], 1);
     let schema: Value =
         serde_json::from_str(include_str!("../schemas/orchbee.client.control.json")).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
     validator.validate(&document).unwrap();
-    for version in 1..4 {
-        document["version"] = json!(version);
-        assert!(!validator.is_valid(&document));
-    }
 }
 
 #[test]
-fn agent_focus_receipts_require_v5_without_widening_older_control_versions() {
+fn agent_focus_receipts_keep_current_control_shape_closed() {
     let schema: Value =
         serde_json::from_str(include_str!("../schemas/orchbee.client.control.json")).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
@@ -80,12 +76,8 @@ fn agent_focus_receipts_require_v5_without_widening_older_control_versions() {
         };
         let mut document = answer.document();
         assert_eq!(answer.exit_code(), 0);
-        assert_eq!(document["version"], 5);
+        assert_eq!(document["version"], 1);
         validator.validate(&document).unwrap();
-        for version in 1..5 {
-            document["version"] = json!(version);
-            assert!(!validator.is_valid(&document));
-        }
     }
 }
 fn record() -> ClientViewRecord {
@@ -1093,11 +1085,8 @@ fn layout_adjustment_receipts_have_closed_json_and_honest_bilingual_text() {
 }
 
 #[test]
-fn presentation_receipts_keep_bound_v6_and_empty_v7_closed() {
-    for (name, expected) in [
-        ("presentation-exact-child", 6),
-        ("presentation-empty-member", 7),
-    ] {
+fn presentation_receipts_keep_bound_and_empty_shapes_closed() {
+    for name in ["presentation-exact-child", "presentation-empty-member"] {
         let WorkbenchResponse::ClientView(reply) = serde_json::from_value(sample(name)).unwrap()
         else {
             panic!("Client view response")
@@ -1115,23 +1104,16 @@ fn presentation_receipts_keep_bound_v6_and_empty_v7_closed() {
         };
         assert_eq!(answer.exit_code(), 0);
         let mut document = answer.document();
-        assert_eq!(document["version"], expected);
+        assert_eq!(document["version"], 1);
         let schema: Value =
             serde_json::from_str(include_str!("../schemas/orchbee.client.control.json")).unwrap();
         let validator = jsonschema::validator_for(&schema).unwrap();
         validator.validate(&document).unwrap();
-        for version in 1..=7 {
-            if version == expected {
-                continue;
-            }
-            document["version"] = json!(version);
-            assert!(!validator.is_valid(&document));
-        }
     }
 }
 
 #[test]
-fn editor_control_v10_is_closed_and_legacy_versions_reject_editor_intent() {
+fn editor_control_receipt_is_closed() {
     let corpus: Value = serde_json::from_str(include_str!(
         "../../../../../schemas/workbench/v1/workbench-client-view-conformance-v1.json"
     ))
@@ -1162,7 +1144,7 @@ fn editor_control_v10_is_closed_and_legacy_versions_reject_editor_intent() {
         wait: None,
     };
     let document = answer.document();
-    assert_eq!(document["version"], 10);
+    assert_eq!(document["version"], 1);
     assert_eq!(answer.exit_code(), 0);
     let schema: Value =
         serde_json::from_str(include_str!("../schemas/orchbee.client.control.json")).unwrap();
@@ -1172,11 +1154,6 @@ fn editor_control_v10_is_closed_and_legacy_versions_reject_editor_intent() {
         "{:?}",
         validator.iter_errors(&document).collect::<Vec<_>>()
     );
-    for version in 1..=9 {
-        let mut old = document.clone();
-        old["version"] = json!(version);
-        assert!(!validator.is_valid(&old), "v{version}");
-    }
     let mut extra = document.clone();
     extra["observation"]["reply"]["outcome"]["operation"]["command"]["intent"]["spec"]["program"] =
         json!("notepad.exe");
@@ -1184,7 +1161,7 @@ fn editor_control_v10_is_closed_and_legacy_versions_reject_editor_intent() {
 }
 
 #[test]
-fn configured_popup_receipt_requires_v11_and_keeps_old_versions_closed() {
+fn configured_popup_receipt_is_closed() {
     let WorkbenchResponse::ClientView(mut reply) =
         serde_json::from_value(sample("editor-opened-acknowledged-source")).unwrap()
     else {
@@ -1223,13 +1200,9 @@ fn configured_popup_receipt_requires_v11_and_keeps_old_versions_closed() {
     };
     let mut document = answer.document();
     assert_eq!(answer.exit_code(), 0);
-    assert_eq!(document["version"], 11);
+    assert_eq!(document["version"], 1);
     let schema: Value =
         serde_json::from_str(include_str!("../schemas/orchbee.client.control.json")).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
     validator.validate(&document).unwrap();
-    for version in 1..=10 {
-        document["version"] = json!(version);
-        assert!(!validator.is_valid(&document), "v{version}");
-    }
 }

@@ -164,7 +164,7 @@ fn observe_repeated_frames_flush_before_ack_reset_and_detach_once() -> TestResul
                     .validate(&emitted)
                     .map_err(|error| io::Error::other(error.to_string()))?;
                 assert_eq!(emitted["schema"], SCHEMA);
-                assert_eq!(emitted["version"], 2);
+                assert_eq!(emitted["version"], 1);
                 if invalid {
                     assert!(matches!(
                         feedback.action(),

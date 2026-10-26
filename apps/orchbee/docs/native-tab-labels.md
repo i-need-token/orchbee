@@ -58,8 +58,8 @@ rename on the fixed Tab is unchanged. Blank-name reset is not part of this contr
 CLI Tab rows, Workspace Tab references, and all Tab label selectors use the effective display
 name. Exact IDs and suffix selectors retain their existing precedence; multiple matching names
 produce the existing ambiguity result. `api snapshot` exposes raw canonical state. Query row
-shapes remain unchanged. `orchbee.api.snapshot` v4 admits the optional metadata; the native schema
-catalog is v36 with 69 documents.
+shapes remain unchanged. `orchbee.api.snapshot` v1 admits the optional metadata; the native schema
+The catalog exposes the current documents and command paths.
 
 The native strict projector retains raw text and naming mode. Exact-revision move/split/close
 checks preserve the complete surviving metadata; a rename changes only its target text and

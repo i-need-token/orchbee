@@ -231,7 +231,7 @@ fn check(output: std::process::Output, success: bool) -> Value {
             &document,
             include_str!("../src/cli/schemas/orchbee.creation.result.json"),
         );
-        assert_eq!(document["version"], 3);
+        assert_eq!(document["version"], 1);
     }
     document
 }

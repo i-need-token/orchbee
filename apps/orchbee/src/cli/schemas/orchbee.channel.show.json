@@ -40,28 +40,24 @@
 					"type": "boolean"
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"source": {
-								"const": "file"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"exists": {
-								"const": true
-							},
-							"path": {
-								"type": "string",
-								"minLength": 1
-							}
-						}
+			"if": {
+				"properties": {
+					"source": {
+						"const": "file"
 					}
 				}
-			]
+			},
+			"then": {
+				"properties": {
+					"exists": {
+						"const": true
+					},
+					"path": {
+						"type": "string",
+						"minLength": 1
+					}
+				}
+			}
 		}
 	}
 }

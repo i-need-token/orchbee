@@ -19,9 +19,7 @@ pub(crate) struct Client {
     pub(crate) cohort: String,
 }
 pub(crate) fn client(value: &Value) -> Result<Client, AdmissionError> {
-    if value["schema"] != "orchbee.status.client"
-        || !matches!(value["version"].as_u64(), Some(2 | 3))
-    {
+    if value["schema"] != "orchbee.status.client" || value["version"] != 1 {
         return Err(AdmissionError::Protocol);
     }
     let r = &value["result"];

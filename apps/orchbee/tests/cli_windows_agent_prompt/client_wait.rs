@@ -121,7 +121,7 @@ fn prompt_wait_uses_actual_state_and_outcomes_independently_of_client_seen() {
             &doc,
             include_str!("../../src/cli/schemas/orchbee.agent.prompt.json"),
         );
-        assert_eq!(doc["version"], 8);
+        assert_eq!(doc["version"], 1);
         assert_eq!(
             doc["result"]["client"]["status"],
             if outcome == "failed" {

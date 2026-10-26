@@ -6,34 +6,64 @@
 	"required": ["schema", "version", "source", "result"],
 	"additionalProperties": false,
 	"properties": {
-		"schema": { "const": "orchbee.project.rename" },
-		"version": { "const": 1 },
-		"source": { "$ref": "#/$defs/commandSource" },
+		"schema": {
+			"const": "orchbee.project.rename"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"$ref": "#/$defs/commandSource"
+		},
 		"result": {
 			"type": "object",
 			"required": ["action", "outcome", "revision", "projectId", "label"],
 			"additionalProperties": false,
 			"properties": {
-				"action": { "const": "project.rename" },
-				"outcome": { "enum": ["committed", "unchanged"] },
-				"revision": { "$ref": "#/$defs/revision" },
-				"projectId": { "$ref": "#/$defs/id" },
-				"label": { "type": "string" }
+				"action": {
+					"const": "project.rename"
+				},
+				"outcome": {
+					"enum": ["committed", "unchanged"]
+				},
+				"revision": {
+					"$ref": "#/$defs/revision"
+				},
+				"projectId": {
+					"$ref": "#/$defs/id"
+				},
+				"label": {
+					"type": "string"
+				}
 			}
 		}
 	},
 	"$defs": {
-		"id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
-		"revision": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"revision": {
+			"type": "string",
+			"pattern": "^(0|[1-9][0-9]*)$"
+		},
 		"commandSource": {
 			"type": "object",
 			"required": ["kind", "siteId", "requestId", "expectedRevision"],
 			"additionalProperties": false,
 			"properties": {
-				"kind": { "const": "workbench-command" },
-				"siteId": { "$ref": "#/$defs/id" },
-				"requestId": { "$ref": "#/$defs/id" },
-				"expectedRevision": { "$ref": "#/$defs/revision" }
+				"kind": {
+					"const": "workbench-command"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"requestId": {
+					"$ref": "#/$defs/id"
+				},
+				"expectedRevision": {
+					"$ref": "#/$defs/revision"
+				}
 			}
 		}
 	}

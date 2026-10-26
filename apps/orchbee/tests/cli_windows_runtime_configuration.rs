@@ -179,7 +179,7 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
                 &document,
                 include_str!("../src/cli/schemas/orchbee.site.configuration.json"),
             );
-            assert_eq!(document["version"], 9);
+            assert_eq!(document["version"], 1);
             if matches!(
                 case,
                 "startup" | "current" | "reload" | "restart" | "warning"
@@ -231,119 +231,49 @@ fn reload_does_not_activate_a_site_and_rejects_unrelated_flags_before_admission(
 }
 
 #[test]
-fn public_configuration_versions_keep_closed_independent_snapshots() {
+fn public_configuration_requires_complete_current_snapshots() {
     let schema: Value = serde_json::from_str(include_str!(
         "../src/cli/schemas/orchbee.site.configuration.json"
     ))
     .unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
-    let mut document = serde_json::json!({
-        "schema": "orchbee.site.configuration", "version": 1,
-        "source": {"kind": "local-runtime"},
-        "result": {"action": "current", "interrupted": false, "cleanupFailed": false,
-            "reply": {"protocolVersion": 1, "requestId": "00000000000000000000000000000001", "siteId": "00000000000000000000000000000002",
-                "outcome": {"kind": "current", "snapshot": {"revision": "0", "keysProfile": "[keys]", "manifestCheck": true, "restartRequired": []}}}}
+    let document = serde_json::json!({
+        "schema":"orchbee.site.configuration","version":1,"source":{"kind":"local-runtime"},
+        "result":{"action":"current","interrupted":false,"cleanupFailed":false,
+            "reply":{"protocolVersion":1,"requestId":"00000000000000000000000000000001","siteId":"00000000000000000000000000000002",
+                "outcome":{"kind":"current","snapshot":{"revision":"0","keysProfile":"[keys]","manifestCheck":true,"restartRequired":[],
+                    "defaultShell":"pwsh.exe","shellMode":"non_login","windowTitle":"{tab}","notificationProfile":"[ui.toast]",
+                    "agentSidebarProfile":"{}","spacesSidebarProfile":"{}","themeName":"one-light",
+                    "diagnostics":{"items":[{"field":"keys.help","reason":"invalid-keybinding","disposition":"disabled"}],"omittedCount":0}}}}}
     });
     assert!(validator.is_valid(&document));
-    document["version"] = 2.into();
-    assert!(!validator.is_valid(&document));
-    let snapshot = &mut document["result"]["reply"]["outcome"]["snapshot"];
-    snapshot["defaultShell"] = "pwsh.exe".into();
-    snapshot["shellMode"] = "non_login".into();
-    assert!(validator.is_valid(&document));
-    document["version"] = 1.into();
-    assert!(!validator.is_valid(&document));
-    document["version"] = 3.into();
-    assert!(!validator.is_valid(&document));
-    document["result"]["reply"]["outcome"]["snapshot"]["windowTitle"] = "{tab}".into();
-    assert!(validator.is_valid(&document));
-    document["version"] = 4.into();
-    assert!(!validator.is_valid(&document));
-    document["result"]["reply"]["outcome"]["snapshot"]["notificationProfile"] = "[ui.toast]".into();
-    assert!(validator.is_valid(&document));
-    document["version"] = 5.into();
-    assert!(!validator.is_valid(&document));
-    document["result"]["reply"]["outcome"]["snapshot"]["agentSidebarProfile"] =
-        r#"{"rows":[],"rows_by_agent":{},"row_gap":2}"#.into();
-    assert!(validator.is_valid(&document));
-    document["version"] = 6.into();
-    assert!(!validator.is_valid(&document));
-    document["result"]["reply"]["outcome"]["snapshot"]["spacesSidebarProfile"] =
-        "{\"rows\":[],\"row_gap\":0}".into();
-    assert!(validator.is_valid(&document));
-    document["version"] = 7.into();
-    document["result"]["reply"]["outcome"]["snapshot"]["notificationProfile"] =
-        "x".repeat(1025).into();
-    assert!(validator.is_valid(&document));
-    document["version"] = 8.into();
-    assert!(!validator.is_valid(&document));
-    document["result"]["reply"]["outcome"]["snapshot"]["diagnostics"] = serde_json::json!({
-        "items": [{"field":"keys.help","reason":"invalid-keybinding","disposition":"disabled"}],
-        "omittedCount": 0
-    });
-    assert!(validator.is_valid(&document));
-    document["version"] = 9.into();
-    assert!(!validator.is_valid(&document));
-    for name in ["terminal-native", "one-light", "one-dark"] {
-        document["result"]["reply"]["outcome"]["snapshot"]["themeName"] = name.into();
-        assert!(validator.is_valid(&document));
+    for field in [
+        "defaultShell",
+        "shellMode",
+        "windowTitle",
+        "notificationProfile",
+        "agentSidebarProfile",
+        "spacesSidebarProfile",
+        "themeName",
+        "diagnostics",
+    ] {
+        let mut missing = document.clone();
+        missing["result"]["reply"]["outcome"]["snapshot"]
+            .as_object_mut()
+            .unwrap()
+            .remove(field);
+        assert!(!validator.is_valid(&missing), "required {field}");
     }
-    document["result"]["reply"]["outcome"]["snapshot"]["themeName"] = "custom".into();
-    assert!(!validator.is_valid(&document));
-    document["result"]["reply"]["outcome"]["snapshot"]["themeName"] = "one-light".into();
-    document["version"] = 8.into();
-    assert!(!validator.is_valid(&document));
-    document["result"]["reply"]["outcome"]["snapshot"]
-        .as_object_mut()
-        .unwrap()
-        .remove("themeName");
-    assert!(validator.is_valid(&document));
-    document["result"]["reply"]["outcome"]["snapshot"]["diagnostics"]["items"] = serde_json::json!([
-        {"field":"keys.help","reason":"invalid-keybinding","disposition":"disabled"},
-        {"field":"keys.help","reason":"invalid-keybinding","disposition":"disabled"}
-    ]);
-    assert!(!validator.is_valid(&document));
-    document["result"]["reply"]["outcome"]["snapshot"]["diagnostics"]["items"] = serde_json::json!([
-        {"field":"keys.help","reason":"invalid-keybinding","disposition":"disabled"}
-    ]);
-    document["version"] = 7.into();
-    assert!(!validator.is_valid(&document));
-    document["result"]["reply"]["outcome"]["snapshot"]
-        .as_object_mut()
-        .unwrap()
-        .remove("diagnostics");
-    assert!(validator.is_valid(&document));
-    document["version"] = 6.into();
-    assert!(!validator.is_valid(&document));
-    document["result"]["reply"]["outcome"]["snapshot"]["notificationProfile"] = "[ui.toast]".into();
-    document["version"] = 5.into();
-    assert!(!validator.is_valid(&document));
-    document["result"]["reply"]["outcome"]["snapshot"]
-        .as_object_mut()
-        .unwrap()
-        .remove("spacesSidebarProfile");
-    assert!(validator.is_valid(&document));
-    document["version"] = 4.into();
-    assert!(!validator.is_valid(&document));
-    document["result"]["reply"]["outcome"]["snapshot"]
-        .as_object_mut()
-        .unwrap()
-        .remove("agentSidebarProfile");
-    assert!(validator.is_valid(&document));
-    document["version"] = 3.into();
-    assert!(!validator.is_valid(&document));
-    document["result"]["reply"]["outcome"]["snapshot"]
-        .as_object_mut()
-        .unwrap()
-        .remove("notificationProfile");
-    assert!(validator.is_valid(&document));
-    document["version"] = 2.into();
-    assert!(!validator.is_valid(&document));
-    document["result"]["reply"]["outcome"]["snapshot"]
-        .as_object_mut()
-        .unwrap()
-        .remove("windowTitle");
-    assert!(validator.is_valid(&document));
-    document["result"]["reply"]["outcome"]["snapshot"]["shellMode"] = "unknown".into();
-    assert!(!validator.is_valid(&document));
+    let mut invalid = document.clone();
+    invalid["result"]["reply"]["outcome"]["snapshot"]["themeName"] = "custom".into();
+    assert!(!validator.is_valid(&invalid));
+    let mut invalid = document.clone();
+    invalid["result"]["reply"]["outcome"]["snapshot"]["shellMode"] = "unknown".into();
+    assert!(!validator.is_valid(&invalid));
+    let mut invalid = document;
+    let items = invalid["result"]["reply"]["outcome"]["snapshot"]["diagnostics"]["items"]
+        .as_array_mut()
+        .unwrap();
+    items.push(items[0].clone());
+    assert!(!validator.is_valid(&invalid));
 }

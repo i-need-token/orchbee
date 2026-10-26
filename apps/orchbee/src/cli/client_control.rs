@@ -74,63 +74,7 @@ impl Answer {
         } else {
             json!({"kind": if self.status_only { "unobserved" } else { "not-submitted" }})
         };
-        let selection_read = self.reply.as_ref().is_some_and(|reply| {
-            matches!(&reply.outcome, ClientViewOutcome::Operation { operation }
-                if matches!(operation.command.intent, orchbee_workbench_protocol::ClientViewIntent::Selections { .. }))
-        });
-        let viewport_read = self.reply.as_ref().is_some_and(|reply| {
-            matches!(&reply.outcome, ClientViewOutcome::Operation { operation }
-                if matches!(operation.command.intent, orchbee_workbench_protocol::ClientViewIntent::Viewports { .. }))
-        });
-        let physical_attention=self.reply.as_ref().is_some_and(|reply|matches!(&reply.outcome,ClientViewOutcome::Operation {operation} if matches!(operation.command.intent,orchbee_workbench_protocol::ClientViewIntent::TerminalAgentAttention {..})));
-        let agent_focus = self.reply.as_ref().is_some_and(|reply| {
-            matches!(&reply.outcome,
-            ClientViewOutcome::Operation { operation } if matches!(operation.command.intent,
-                orchbee_workbench_protocol::ClientViewIntent::AgentFocus { .. }))
-        });
-        let presentation_read = self.reply.as_ref().is_some_and(|reply| {
-            matches!(&reply.outcome, ClientViewOutcome::Operation { operation }
-                if matches!(operation.command.intent, orchbee_workbench_protocol::ClientViewIntent::Presentation { .. }))
-        });
-        let unbound_read = self.reply.as_ref().is_some_and(|reply| {
-            matches!(&reply.outcome, ClientViewOutcome::Operation { operation }
-                if matches!(&operation.status, ClientViewControlStatus::PresentationRead { presentation, .. }
-                    if matches!(presentation.presentation, Some(orchbee_workbench_protocol::ClientPresentationSelection::Unbound { .. }))))
-        });
-        let overlay = self.reply.as_ref().is_some_and(|reply| matches!(&reply.outcome, ClientViewOutcome::Operation { operation } if matches!(operation.command.intent, orchbee_workbench_protocol::ClientViewIntent::Overlay { .. })));
-        let popup = self.reply.as_ref().is_some_and(|reply| matches!(&reply.outcome, ClientViewOutcome::Operation { operation }
-            if matches!(operation.command.intent, orchbee_workbench_protocol::ClientViewIntent::PopupOpen { .. }
-                | orchbee_workbench_protocol::ClientViewIntent::PopupClose {})));
-        let editor = self.reply.as_ref().is_some_and(|reply| {
-            matches!(&reply.outcome,
-            ClientViewOutcome::Operation { operation } if matches!(operation.command.intent,
-                orchbee_workbench_protocol::ClientViewIntent::EditorOpen { .. }))
-        });
-        let configured = self.reply.as_ref().is_some_and(|reply| matches!(&reply.outcome, ClientViewOutcome::Operation {operation} if matches!(operation.command.intent, orchbee_workbench_protocol::ClientViewIntent::CommandPopupOpen {..})));
-        let version = if configured {
-            11
-        } else if editor {
-            10
-        } else if popup {
-            9
-        } else if overlay {
-            8
-        } else if unbound_read {
-            7
-        } else if presentation_read {
-            6
-        } else if agent_focus {
-            5
-        } else if physical_attention {
-            4
-        } else if viewport_read {
-            3
-        } else if selection_read {
-            2
-        } else {
-            1
-        };
-        json!({"schema":"orchbee.client.control","version":version,"siteId":self.site_id,
+        json!({"schema":"orchbee.client.control","version":1,"siteId":self.site_id,
             "operationId":self.operation_id,"observation":observation,"wait":wait})
     }
     pub(super) fn exit_code(&self) -> u8 {

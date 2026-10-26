@@ -8,7 +8,7 @@
 			"const": "orchbee.panel.swap"
 		},
 		"version": {
-			"enum": [1, 2]
+			"const": 1
 		},
 		"siteId": {
 			"$ref": "#/$defs/siteId"
@@ -21,7 +21,8 @@
 				{
 					"type": "null"
 				}
-			]
+			],
+			"type": "null"
 		},
 		"baseRevision": {
 			"$ref": "#/$defs/revision"
@@ -47,7 +48,8 @@
 				{
 					"type": "null"
 				}
-			]
+			],
+			"type": "null"
 		},
 		"layoutOperationId": {
 			"anyOf": [
@@ -57,7 +59,8 @@
 				{
 					"type": "null"
 				}
-			]
+			],
+			"type": "null"
 		},
 		"layoutRevision": {
 			"anyOf": [
@@ -67,7 +70,8 @@
 				{
 					"type": "null"
 				}
-			]
+			],
+			"type": "null"
 		},
 		"requestId": {
 			"anyOf": [
@@ -376,7 +380,8 @@
 				{
 					"type": "null"
 				}
-			]
+			],
+			"type": "null"
 		},
 		"stage": {
 			"enum": ["resolution", "exchange", "client-observation", "focus", "complete"]
@@ -432,7 +437,7 @@
 			"enum": ["swapped", "incomplete", "unchanged", "unknown", "not-swapped"]
 		},
 		"scope": {
-			"const": "shared"
+			"enum": ["client", "shared"]
 		}
 	},
 	"required": [
@@ -452,7 +457,8 @@
 		"stage",
 		"reason",
 		"failure",
-		"outcome"
+		"outcome",
+		"scope"
 	],
 	"additionalProperties": false,
 	"$defs": {
@@ -630,46 +636,5 @@
 				"directory-unavailable"
 			]
 		}
-	},
-	"allOf": [
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 1
-					}
-				}
-			},
-			"then": {
-				"not": {
-					"required": ["scope"]
-				},
-				"properties": {
-					"clientId": {
-						"$ref": "#/$defs/clientId"
-					}
-				}
-			},
-			"else": {
-				"required": ["scope"],
-				"properties": {
-					"clientId": {
-						"type": "null"
-					},
-					"focus": {
-						"type": "null"
-					},
-					"direction": {
-						"type": "null"
-					},
-					"layoutOperationId": {
-						"type": "null"
-					},
-					"layoutRevision": {
-						"type": "null"
-					}
-				}
-			}
-		}
-	]
+	}
 }

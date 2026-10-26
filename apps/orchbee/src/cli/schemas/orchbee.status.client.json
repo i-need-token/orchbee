@@ -10,7 +10,7 @@
 			"const": "orchbee.status.client"
 		},
 		"version": {
-			"enum": [1, 2, 3]
+			"const": 1
 		},
 		"source": {
 			"type": "object",
@@ -22,7 +22,9 @@
 				}
 			}
 		},
-		"result": {}
+		"result": {
+			"$ref": "#/$defs/client"
+		}
 	},
 	"$defs": {
 		"path": {
@@ -89,7 +91,7 @@
 				},
 				{
 					"type": "object",
-					"required": ["state", "reason"],
+					"required": ["state", "reason", "diagnostic"],
 					"additionalProperties": false,
 					"properties": {
 						"state": {
@@ -97,258 +99,9 @@
 						},
 						"reason": {
 							"enum": ["missing", "invalid", "denied", "timed-out", "io-error"]
-						}
-					}
-				}
-			]
-		},
-		"clientV1": {
-			"type": "object",
-			"required": [
-				"version",
-				"platform",
-				"architecture",
-				"buildProfile",
-				"delivery",
-				"updateChannel",
-				"executable",
-				"protocols",
-				"cohort"
-			],
-			"additionalProperties": false,
-			"properties": {
-				"version": {
-					"type": "string",
-					"minLength": 1,
-					"maxLength": 64,
-					"pattern": "^[!-~]+$"
-				},
-				"platform": {
-					"const": "windows"
-				},
-				"architecture": {
-					"type": "string",
-					"minLength": 1
-				},
-				"buildProfile": {
-					"enum": ["debug", "release"]
-				},
-				"delivery": {
-					"const": "development-cohort"
-				},
-				"updateChannel": {
-					"type": "null"
-				},
-				"executable": {
-					"$ref": "#/$defs/path"
-				},
-				"protocols": {
-					"$ref": "#/$defs/protocols"
-				},
-				"cohort": {
-					"$ref": "#/$defs/cohort"
-				}
-			}
-		},
-		"clientV2": {
-			"type": "object",
-			"required": [
-				"version",
-				"platform",
-				"architecture",
-				"buildProfile",
-				"delivery",
-				"updateChannel",
-				"executable",
-				"protocols",
-				"cohort",
-				"installation"
-			],
-			"additionalProperties": false,
-			"properties": {
-				"version": {
-					"type": "string",
-					"minLength": 1,
-					"maxLength": 64,
-					"pattern": "^[!-~]+$"
-				},
-				"platform": {
-					"const": "windows"
-				},
-				"architecture": {
-					"type": "string",
-					"minLength": 1
-				},
-				"buildProfile": {
-					"enum": ["debug", "release"]
-				},
-				"delivery": {
-					"enum": ["development-cohort", "native-release", "unknown"]
-				},
-				"updateChannel": {
-					"enum": ["stable", "preview", null]
-				},
-				"executable": {
-					"$ref": "#/$defs/path"
-				},
-				"protocols": {
-					"$ref": "#/$defs/protocols"
-				},
-				"cohort": {
-					"$ref": "#/$defs/cohort"
-				},
-				"installation": {
-					"oneOf": [
-						{
-							"type": "object",
-							"additionalProperties": false,
-							"required": ["state"],
-							"properties": {
-								"state": {
-									"enum": ["development", "unavailable"]
-								}
-							}
 						},
-						{
-							"type": "object",
-							"additionalProperties": false,
-							"required": ["state", "channel", "version", "buildId", "manifestSha256"],
-							"properties": {
-								"state": {
-									"const": "verified"
-								},
-								"channel": {
-									"enum": ["stable", "preview"]
-								},
-								"version": {
-									"type": "string",
-									"pattern": "^[A-Za-z0-9._+-]{1,96}$"
-								},
-								"buildId": {
-									"type": "string",
-									"pattern": "^[A-Za-z0-9._+-]{1,96}$"
-								},
-								"manifestSha256": {
-									"type": "string",
-									"pattern": "^[a-f0-9]{64}$"
-								}
-							}
-						}
-					]
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"installation": {
-								"properties": {
-									"state": {
-										"const": "development"
-									}
-								}
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"delivery": {
-								"const": "development-cohort"
-							},
-							"updateChannel": {
-								"const": null
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"installation": {
-								"properties": {
-									"state": {
-										"const": "unavailable"
-									}
-								}
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"delivery": {
-								"const": "unknown"
-							},
-							"updateChannel": {
-								"const": null
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"installation": {
-								"required": ["channel"],
-								"properties": {
-									"state": {
-										"const": "verified"
-									},
-									"channel": {
-										"const": "stable"
-									}
-								}
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"delivery": {
-								"const": "native-release"
-							},
-							"updateChannel": {
-								"const": "stable"
-							},
-							"cohort": {
-								"properties": {
-									"state": {
-										"const": "available"
-									}
-								}
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"installation": {
-								"required": ["channel"],
-								"properties": {
-									"state": {
-										"const": "verified"
-									},
-									"channel": {
-										"const": "preview"
-									}
-								}
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"delivery": {
-								"const": "native-release"
-							},
-							"updateChannel": {
-								"const": "preview"
-							},
-							"cohort": {
-								"properties": {
-									"state": {
-										"const": "available"
-									}
-								}
-							}
+						"diagnostic": {
+							"$ref": "#/$defs/cohortDiagnostic"
 						}
 					}
 				}
@@ -396,41 +149,7 @@
 				}
 			}
 		},
-		"cohortV3": {
-			"oneOf": [
-				{
-					"type": "object",
-					"required": ["state", "identity"],
-					"additionalProperties": false,
-					"properties": {
-						"state": {
-							"const": "available"
-						},
-						"identity": {
-							"type": "string",
-							"pattern": "^[0-9a-f]{64}$"
-						}
-					}
-				},
-				{
-					"type": "object",
-					"required": ["state", "reason", "diagnostic"],
-					"additionalProperties": false,
-					"properties": {
-						"state": {
-							"const": "unavailable"
-						},
-						"reason": {
-							"enum": ["missing", "invalid", "denied", "timed-out", "io-error"]
-						},
-						"diagnostic": {
-							"$ref": "#/$defs/cohortDiagnostic"
-						}
-					}
-				}
-			]
-		},
-		"clientV3": {
+		"client": {
 			"type": "object",
 			"required": [
 				"version",
@@ -475,7 +194,7 @@
 					"$ref": "#/$defs/protocols"
 				},
 				"cohort": {
-					"$ref": "#/$defs/cohortV3"
+					"$ref": "#/$defs/cohort"
 				},
 				"installation": {
 					"oneOf": [
@@ -517,30 +236,28 @@
 					]
 				}
 			},
-			"allOf": [
-				{
-					"if": {
+			"if": {
+				"properties": {
+					"installation": {
 						"properties": {
-							"installation": {
-								"properties": {
-									"state": {
-										"const": "development"
-									}
-								}
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"delivery": {
-								"const": "development-cohort"
-							},
-							"updateChannel": {
-								"const": null
+							"state": {
+								"const": "development"
 							}
 						}
 					}
-				},
+				}
+			},
+			"then": {
+				"properties": {
+					"delivery": {
+						"const": "development-cohort"
+					},
+					"updateChannel": {
+						"const": null
+					}
+				}
+			},
+			"allOf": [
 				{
 					"if": {
 						"properties": {
@@ -634,46 +351,5 @@
 				}
 			]
 		}
-	},
-	"allOf": [
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 1
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"$ref": "#/$defs/clientV1"
-					}
-				}
-			},
-			"else": {
-				"if": {
-					"properties": {
-						"version": {
-							"const": 2
-						}
-					}
-				},
-				"then": {
-					"properties": {
-						"result": {
-							"$ref": "#/$defs/clientV2"
-						}
-					}
-				},
-				"else": {
-					"properties": {
-						"result": {
-							"$ref": "#/$defs/clientV3"
-						}
-					}
-				}
-			}
-		}
-	]
+	}
 }

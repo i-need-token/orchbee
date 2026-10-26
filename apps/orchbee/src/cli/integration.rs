@@ -194,12 +194,16 @@ impl Prepared {
                 if outdated_only {
                     items.retain(|item| item.state == State::UpdateRequired);
                 }
-                let mut document = json!({
+                let document = json!({
                     "schema": INTEGRATIONS_SCHEMA,
-                    "version": if outdated_only {6} else {5},
+                    "version": 1,
                     "source": { "kind": "local-inspection" },
                     "result": {
                         "complete": complete,
+                        "outdatedOnly": outdated_only,
+                        "inspectedCount": inspected,
+                        "unresolvedProviderIds": unresolved,
+                        "blockedProviderIds": blocked,
                         "capsule": capsule_json(&capsule),
                         "integrations": items.iter().map(item_json).collect::<Vec<_>>(),
                     },
@@ -209,10 +213,6 @@ impl Prepared {
                     text.push_str(&list_summary(&items, &capsule, locale));
                 }
                 if outdated_only {
-                    document["result"]["outdatedOnly"] = json!(true);
-                    document["result"]["inspectedCount"] = json!(inspected);
-                    document["result"]["unresolvedProviderIds"] = json!(unresolved);
-                    document["result"]["blockedProviderIds"] = json!(blocked);
                     text.push_str(&locale.cli_integration_maintenance(
                         inspected,
                         items.len(),
@@ -230,7 +230,7 @@ impl Prepared {
             } => {
                 let document = json!({
                     "schema": PLAN_SCHEMA,
-                    "version": 2,
+                    "version": 1,
                     "source": { "kind": "local-inspection" },
                     "result": {
                         "provider": item.integration_id.provider(),
@@ -425,7 +425,7 @@ fn mutation_document(report: &MutationReport) -> Value {
     }
     json!({
         "schema": MUTATION_SCHEMA,
-        "version": 2,
+        "version": 1,
         "source": { "kind": "local-inspection" },
         "result": Value::Object(result),
     })

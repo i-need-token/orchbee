@@ -144,9 +144,6 @@
 				"tool"
 			]
 		},
-		"visibility": {
-			"enum": ["hidden", "unknown", "visible"]
-		},
 		"fidelity": {
 			"enum": ["basic", "heuristic", "rich"]
 		},
@@ -161,35 +158,6 @@
 		},
 		"lifecycle": {
 			"enum": ["ended", "live"]
-		},
-		"executionLocation": {
-			"type": "object",
-			"required": ["executionLocationId"],
-			"additionalProperties": false,
-			"properties": {
-				"executionLocationId": {
-					"$ref": "#/$defs/opaqueId"
-				}
-			}
-		},
-		"presentationAttachment": {
-			"type": "object",
-			"required": ["generation", "navigable", "presentationId", "visibility"],
-			"additionalProperties": false,
-			"properties": {
-				"generation": {
-					"$ref": "#/$defs/opaqueId"
-				},
-				"navigable": {
-					"type": "boolean"
-				},
-				"presentationId": {
-					"$ref": "#/$defs/hexId"
-				},
-				"visibility": {
-					"$ref": "#/$defs/visibility"
-				}
-			}
 		},
 		"observation": {
 			"type": "object",

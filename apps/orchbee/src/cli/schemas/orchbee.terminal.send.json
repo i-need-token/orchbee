@@ -118,20 +118,18 @@
 					"maximum": 67108864
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"inputStatus": {
-								"enum": ["not-submitted", "rejected", "partial-accepted"]
-							}
-						},
-						"required": ["inputStatus"]
-					},
-					"then": {
-						"required": ["reason"]
+			"if": {
+				"properties": {
+					"inputStatus": {
+						"enum": ["not-submitted", "rejected", "partial-accepted"]
 					}
 				},
+				"required": ["inputStatus"]
+			},
+			"then": {
+				"required": ["reason"]
+			},
+			"allOf": [
 				{
 					"if": {
 						"properties": {

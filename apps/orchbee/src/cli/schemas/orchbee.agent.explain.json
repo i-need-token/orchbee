@@ -2,284 +2,6 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.agent.explain",
 	"title": "orchbee agent explain envelope",
-	"$comment": "Earlier envelope versions retain their closed Agent state vocabulary. The unprefixed definitions describe current inputs and outputs.",
-	"oneOf": [
-		{
-			"oneOf": [
-				{
-					"type": "object",
-					"required": ["schema", "version", "source", "result"],
-					"additionalProperties": false,
-					"properties": {
-						"schema": {
-							"const": "orchbee.agent.explain"
-						},
-						"version": {
-							"const": 1
-						},
-						"source": {
-							"$ref": "#/$defs/agentReadSource"
-						},
-						"result": {
-							"type": "object",
-							"required": ["kind", "revision", "session", "explanation"],
-							"additionalProperties": false,
-							"properties": {
-								"kind": {
-									"const": "found"
-								},
-								"revision": {
-									"$ref": "#/$defs/safeInteger"
-								},
-								"session": {
-									"$ref": "#/$defs/sessionDetail"
-								},
-								"explanation": {
-									"$ref": "#/$defs/explanation"
-								}
-							}
-						}
-					}
-				},
-				{
-					"type": "object",
-					"required": ["schema", "version", "source", "result"],
-					"additionalProperties": false,
-					"properties": {
-						"schema": {
-							"const": "orchbee.agent.explain"
-						},
-						"version": {
-							"const": 2
-						},
-						"source": {
-							"type": "object",
-							"required": ["kind", "siteId", "workbenchRevision", "reportRevision", "requestId"],
-							"additionalProperties": false,
-							"properties": {
-								"kind": {
-									"const": "panel-agent-explain"
-								},
-								"siteId": {
-									"$ref": "#/$defs/hexId"
-								},
-								"workbenchRevision": {
-									"$ref": "#/$defs/physical_revision"
-								},
-								"reportRevision": {
-									"$ref": "#/$defs/physical_revision"
-								},
-								"requestId": {
-									"$ref": "#/$defs/hexId"
-								}
-							}
-						},
-						"result": {
-							"type": "object",
-							"required": ["kind", "terminal"],
-							"additionalProperties": false,
-							"properties": {
-								"kind": {
-									"const": "terminal-found"
-								},
-								"terminal": {
-									"$ref": "#/$defs/legacyAgentState_terminalExplanation"
-								}
-							}
-						}
-					}
-				},
-				{
-					"type": "object",
-					"required": ["schema", "version", "source", "result"],
-					"additionalProperties": false,
-					"properties": {
-						"schema": {
-							"const": "orchbee.agent.explain"
-						},
-						"version": {
-							"const": 3
-						},
-						"source": {
-							"type": "object",
-							"required": ["kind", "siteId", "workbenchRevision", "reportRevision", "requestId"],
-							"additionalProperties": false,
-							"properties": {
-								"kind": {
-									"const": "panel-agent-explain"
-								},
-								"siteId": {
-									"$ref": "#/$defs/hexId"
-								},
-								"workbenchRevision": {
-									"$ref": "#/$defs/physical_revision"
-								},
-								"reportRevision": {
-									"$ref": "#/$defs/physical_revision"
-								},
-								"requestId": {
-									"$ref": "#/$defs/hexId"
-								}
-							}
-						},
-						"result": {
-							"type": "object",
-							"required": ["kind", "terminal"],
-							"additionalProperties": false,
-							"properties": {
-								"kind": {
-									"const": "terminal-found"
-								},
-								"terminal": {
-									"$ref": "#/$defs/legacyAgentState_terminalExplanationV3"
-								}
-							}
-						}
-					}
-				}
-			]
-		},
-		{
-			"oneOf": [
-				{
-					"type": "object",
-					"required": ["schema", "version", "source", "result"],
-					"additionalProperties": false,
-					"properties": {
-						"schema": {
-							"const": "orchbee.agent.explain"
-						},
-						"version": {
-							"const": 1
-						},
-						"source": {
-							"$ref": "#/$defs/agentReadSource"
-						},
-						"result": {
-							"type": "object",
-							"required": ["kind", "revision", "session", "explanation"],
-							"additionalProperties": false,
-							"properties": {
-								"kind": {
-									"const": "found"
-								},
-								"revision": {
-									"$ref": "#/$defs/safeInteger"
-								},
-								"session": {
-									"$ref": "#/$defs/sessionDetail"
-								},
-								"explanation": {
-									"$ref": "#/$defs/explanation"
-								}
-							}
-						}
-					}
-				},
-				{
-					"type": "object",
-					"required": ["schema", "version", "source", "result"],
-					"additionalProperties": false,
-					"properties": {
-						"schema": {
-							"const": "orchbee.agent.explain"
-						},
-						"version": {
-							"const": 4
-						},
-						"source": {
-							"type": "object",
-							"required": ["kind", "siteId", "workbenchRevision", "reportRevision", "requestId"],
-							"additionalProperties": false,
-							"properties": {
-								"kind": {
-									"const": "panel-agent-explain"
-								},
-								"siteId": {
-									"$ref": "#/$defs/hexId"
-								},
-								"workbenchRevision": {
-									"$ref": "#/$defs/physical_revision"
-								},
-								"reportRevision": {
-									"$ref": "#/$defs/physical_revision"
-								},
-								"requestId": {
-									"$ref": "#/$defs/hexId"
-								}
-							}
-						},
-						"result": {
-							"type": "object",
-							"required": ["kind", "terminal"],
-							"additionalProperties": false,
-							"properties": {
-								"kind": {
-									"const": "terminal-found"
-								},
-								"terminal": {
-									"$ref": "#/$defs/terminalExplanation"
-								}
-							}
-						}
-					}
-				},
-				{
-					"type": "object",
-					"required": ["schema", "version", "source", "result"],
-					"additionalProperties": false,
-					"properties": {
-						"schema": {
-							"const": "orchbee.agent.explain"
-						},
-						"version": {
-							"const": 5
-						},
-						"source": {
-							"type": "object",
-							"required": ["kind", "siteId", "workbenchRevision", "reportRevision", "requestId"],
-							"additionalProperties": false,
-							"properties": {
-								"kind": {
-									"const": "panel-agent-explain"
-								},
-								"siteId": {
-									"$ref": "#/$defs/hexId"
-								},
-								"workbenchRevision": {
-									"$ref": "#/$defs/physical_revision"
-								},
-								"reportRevision": {
-									"$ref": "#/$defs/physical_revision"
-								},
-								"requestId": {
-									"$ref": "#/$defs/hexId"
-								}
-							}
-						},
-						"result": {
-							"type": "object",
-							"required": ["kind", "terminal"],
-							"additionalProperties": false,
-							"properties": {
-								"kind": {
-									"const": "terminal-found"
-								},
-								"terminal": {
-									"$ref": "#/$defs/terminalExplanationV3"
-								}
-							}
-						}
-					}
-				}
-			],
-			"properties": {
-				"version": {
-					"enum": [4, 5]
-				}
-			}
-		}
-	],
 	"$defs": {
 		"agentReadSource": {
 			"type": "object",
@@ -1032,7 +754,8 @@
 				"skipStateUpdate",
 				"skippedUpdateReason",
 				"fallbackReason",
-				"evaluatedRules"
+				"evaluatedRules",
+				"manifest"
 			],
 			"additionalProperties": false,
 			"properties": {
@@ -1068,7 +791,7 @@
 					"$ref": "#/$defs/physical_state"
 				},
 				"manifestSource": {
-					"enum": ["bundled", null]
+					"enum": ["bundled", "local-override", "remote-cache"]
 				},
 				"manifestVersion": {
 					"oneOf": [
@@ -1101,7 +824,7 @@
 					"type": "boolean"
 				},
 				"screenDetectionSkipped": {
-					"type": "boolean"
+					"const": false
 				},
 				"screenDetectionSkipReason": {
 					"enum": ["full-lifecycle-hook-authority", null]
@@ -1142,6 +865,16 @@
 							}
 						}
 					}
+				},
+				"manifest": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/manifestInfo"
+						},
+						{
+							"type": "null"
+						}
+					]
 				}
 			}
 		},
@@ -1173,28 +906,16 @@
 							"additionalProperties": false,
 							"properties": {
 								"frameSequence": {
-									"allOf": [
-										{
-											"$ref": "#/$defs/physical_revision"
-										},
-										{
-											"not": {
-												"const": "0"
-											}
-										}
-									]
+									"$ref": "#/$defs/physical_revision",
+									"not": {
+										"const": "0"
+									}
 								},
 								"frameGeneration": {
-									"allOf": [
-										{
-											"$ref": "#/$defs/physical_revision"
-										},
-										{
-											"not": {
-												"const": "0"
-											}
-										}
-									]
+									"$ref": "#/$defs/physical_revision",
+									"not": {
+										"const": "0"
+									}
 								},
 								"frameRevision": {
 									"$ref": "#/$defs/physical_revision"
@@ -1224,140 +945,124 @@
 					]
 				}
 			},
-			"allOf": [
-				{
-					"if": {
+			"if": {
+				"properties": {
+					"explanation": {
 						"properties": {
-							"explanation": {
-								"properties": {
-									"screenDetectionSkipped": {
-										"const": true
-									}
-								},
-								"type": "object"
-							}
-						},
-						"type": "object"
-					},
-					"then": {
-						"properties": {
-							"sample": {
-								"type": "null"
-							},
-							"explanation": {
-								"properties": {
-									"manifestSource": {
-										"type": "null"
-									},
-									"manifestVersion": {
-										"type": "null"
-									},
-									"matchedRule": {
-										"type": "null"
-									},
-									"skippedUpdateReason": {
-										"type": "null"
-									},
-									"fallbackReason": {
-										"type": "null"
-									},
-									"visibleIdle": {
-										"const": false
-									},
-									"visibleBlocker": {
-										"const": false
-									},
-									"visibleWorking": {
-										"const": false
-									},
-									"skipStateUpdate": {
-										"const": false
-									},
-									"screenDetectionSkipReason": {
-										"const": "full-lifecycle-hook-authority"
-									},
-									"evaluatedRules": {
-										"maxItems": 0,
-										"type": "array"
-									}
-								},
-								"type": "object"
-							}
-						},
-						"type": "object"
-					},
-					"else": {
-						"properties": {
-							"sample": {
-								"type": "object",
-								"required": [
-									"frameSequence",
-									"frameGeneration",
-									"frameRevision",
-									"rootPid",
-									"agentPid"
-								],
-								"additionalProperties": false,
-								"properties": {
-									"frameSequence": {
-										"allOf": [
-											{
-												"$ref": "#/$defs/physical_revision"
-											},
-											{
-												"not": {
-													"const": "0"
-												}
-											}
-										]
-									},
-									"frameGeneration": {
-										"allOf": [
-											{
-												"$ref": "#/$defs/physical_revision"
-											},
-											{
-												"not": {
-													"const": "0"
-												}
-											}
-										]
-									},
-									"frameRevision": {
-										"$ref": "#/$defs/physical_revision"
-									},
-									"rootPid": {
-										"type": "integer",
-										"minimum": 1,
-										"maximum": 4294967295
-									},
-									"agentPid": {
-										"oneOf": [
-											{
-												"type": "integer",
-												"minimum": 1,
-												"maximum": 4294967295
-											},
-											{
-												"type": "null"
-											}
-										]
-									}
-								}
-							},
-							"explanation": {
-								"properties": {
-									"screenDetectionSkipReason": {
-										"type": "null"
-									}
-								},
-								"type": "object"
+							"screenDetectionSkipped": {
+								"const": true
 							}
 						},
 						"type": "object"
 					}
-				}
-			]
+				},
+				"type": "object"
+			},
+			"then": {
+				"properties": {
+					"sample": {
+						"type": "null"
+					},
+					"explanation": {
+						"properties": {
+							"manifestSource": {
+								"type": "null"
+							},
+							"manifestVersion": {
+								"type": "null"
+							},
+							"matchedRule": {
+								"type": "null"
+							},
+							"skippedUpdateReason": {
+								"type": "null"
+							},
+							"fallbackReason": {
+								"type": "null"
+							},
+							"visibleIdle": {
+								"const": false
+							},
+							"visibleBlocker": {
+								"const": false
+							},
+							"visibleWorking": {
+								"const": false
+							},
+							"skipStateUpdate": {
+								"const": false
+							},
+							"screenDetectionSkipReason": {
+								"const": "full-lifecycle-hook-authority"
+							},
+							"evaluatedRules": {
+								"maxItems": 0,
+								"type": "array"
+							}
+						},
+						"type": "object"
+					}
+				},
+				"type": "object"
+			},
+			"else": {
+				"properties": {
+					"sample": {
+						"type": "object",
+						"required": [
+							"frameSequence",
+							"frameGeneration",
+							"frameRevision",
+							"rootPid",
+							"agentPid"
+						],
+						"additionalProperties": false,
+						"properties": {
+							"frameSequence": {
+								"$ref": "#/$defs/physical_revision",
+								"not": {
+									"const": "0"
+								}
+							},
+							"frameGeneration": {
+								"$ref": "#/$defs/physical_revision",
+								"not": {
+									"const": "0"
+								}
+							},
+							"frameRevision": {
+								"$ref": "#/$defs/physical_revision"
+							},
+							"rootPid": {
+								"type": "integer",
+								"minimum": 1,
+								"maximum": 4294967295
+							},
+							"agentPid": {
+								"oneOf": [
+									{
+										"type": "integer",
+										"minimum": 1,
+										"maximum": 4294967295
+									},
+									{
+										"type": "null"
+									}
+								]
+							}
+						}
+					},
+					"explanation": {
+						"properties": {
+							"screenDetectionSkipReason": {
+								"type": "null"
+							}
+						},
+						"type": "object"
+					}
+				},
+				"type": "object"
+			}
 		},
 		"manifestInfo": {
 			"type": "object",
@@ -1412,30 +1117,28 @@
 					}
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"source": {
-								"const": "bundled"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"path": {
-								"type": "null"
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"path": {
-								"type": "string"
-							}
-						}
+			"if": {
+				"properties": {
+					"source": {
+						"const": "bundled"
 					}
-				},
+				}
+			},
+			"then": {
+				"properties": {
+					"path": {
+						"type": "null"
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"path": {
+						"type": "string"
+					}
+				}
+			},
+			"allOf": [
 				{
 					"if": {
 						"properties": {
@@ -1469,1121 +1172,96 @@
 					}
 				}
 			]
-		},
-		"screenExplanationV3": {
+		}
+	},
+	"oneOf": [
+		{
 			"type": "object",
-			"required": [
-				"agent",
-				"state",
-				"manifestSource",
-				"manifestVersion",
-				"matchedRule",
-				"visibleIdle",
-				"visibleBlocker",
-				"visibleWorking",
-				"screenDetectionSkipped",
-				"screenDetectionSkipReason",
-				"skipStateUpdate",
-				"skippedUpdateReason",
-				"fallbackReason",
-				"evaluatedRules",
-				"manifest"
-			],
+			"required": ["schema", "version", "source", "result"],
 			"additionalProperties": false,
 			"properties": {
-				"agent": {
-					"enum": [
-						"pi",
-						"claude",
-						"codex",
-						"gemini",
-						"cursor",
-						"devin",
-						"agy",
-						"cline",
-						"omp",
-						"mastracode",
-						"opencode",
-						"copilot",
-						"kimi",
-						"kiro",
-						"droid",
-						"amp",
-						"grok",
-						"hermes",
-						"kilo",
-						"qodercli",
-						"qwen",
-						"letta",
-						"maki",
-						"muse"
-					]
+				"schema": {
+					"const": "orchbee.agent.explain"
 				},
-				"state": {
-					"$ref": "#/$defs/physical_state"
+				"version": {
+					"const": 1
 				},
-				"manifestSource": {
-					"enum": ["bundled", "local-override", "remote-cache"]
+				"source": {
+					"$ref": "#/$defs/agentReadSource"
 				},
-				"manifestVersion": {
-					"oneOf": [
-						{
-							"type": "string",
-							"maxLength": 128
+				"result": {
+					"type": "object",
+					"required": ["kind", "revision", "session", "explanation"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "found"
 						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"matchedRule": {
-					"oneOf": [
-						{
-							"$ref": "#/$defs/screenRule"
+						"revision": {
+							"$ref": "#/$defs/safeInteger"
 						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"visibleIdle": {
-					"type": "boolean"
-				},
-				"visibleBlocker": {
-					"type": "boolean"
-				},
-				"visibleWorking": {
-					"type": "boolean"
-				},
-				"screenDetectionSkipped": {
-					"const": false
-				},
-				"screenDetectionSkipReason": {
-					"enum": ["full-lifecycle-hook-authority", null]
-				},
-				"skipStateUpdate": {
-					"type": "boolean"
-				},
-				"skippedUpdateReason": {
-					"oneOf": [
-						{
-							"type": "string",
-							"pattern": "^matched-rule:.+"
+						"session": {
+							"$ref": "#/$defs/sessionDetail"
 						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"fallbackReason": {
-					"enum": ["no-matching-state-evidence", null]
-				},
-				"evaluatedRules": {
-					"type": "array",
-					"maxItems": 128,
-					"items": {
-						"type": "object",
-						"required": ["rule", "matched", "evidence"],
-						"additionalProperties": false,
-						"properties": {
-							"rule": {
-								"$ref": "#/$defs/screenRule"
-							},
-							"matched": {
-								"type": "boolean"
-							},
-							"evidence": {
-								"$ref": "#/$defs/screenEvidence"
-							}
-						}
-					}
-				},
-				"manifest": {
-					"$ref": "#/$defs/manifestInfo"
-				}
-			}
-		},
-		"terminalExplanationV3": {
-			"type": "object",
-			"required": ["binding", "view", "explanation", "sample"],
-			"additionalProperties": false,
-			"properties": {
-				"binding": {
-					"$ref": "#/$defs/physical_terminalBinding"
-				},
-				"view": {
-					"$ref": "#/$defs/physical_view"
-				},
-				"explanation": {
-					"$ref": "#/$defs/screenExplanationV3"
-				},
-				"sample": {
-					"oneOf": [
-						{
-							"type": "object",
-							"required": [
-								"frameSequence",
-								"frameGeneration",
-								"frameRevision",
-								"rootPid",
-								"agentPid"
-							],
-							"additionalProperties": false,
-							"properties": {
-								"frameSequence": {
-									"allOf": [
-										{
-											"$ref": "#/$defs/physical_revision"
-										},
-										{
-											"not": {
-												"const": "0"
-											}
-										}
-									]
-								},
-								"frameGeneration": {
-									"allOf": [
-										{
-											"$ref": "#/$defs/physical_revision"
-										},
-										{
-											"not": {
-												"const": "0"
-											}
-										}
-									]
-								},
-								"frameRevision": {
-									"$ref": "#/$defs/physical_revision"
-								},
-								"rootPid": {
-									"type": "integer",
-									"minimum": 1,
-									"maximum": 4294967295
-								},
-								"agentPid": {
-									"oneOf": [
-										{
-											"type": "integer",
-											"minimum": 1,
-											"maximum": 4294967295
-										},
-										{
-											"type": "null"
-										}
-									]
-								}
-							}
-						},
-						{
-							"type": "null"
-						}
-					]
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"explanation": {
-								"properties": {
-									"screenDetectionSkipped": {
-										"const": true
-									}
-								},
-								"type": "object"
-							}
-						},
-						"type": "object"
-					},
-					"then": {
-						"properties": {
-							"sample": {
-								"type": "null"
-							},
-							"explanation": {
-								"properties": {
-									"manifestSource": {
-										"type": "null"
-									},
-									"manifestVersion": {
-										"type": "null"
-									},
-									"matchedRule": {
-										"type": "null"
-									},
-									"skippedUpdateReason": {
-										"type": "null"
-									},
-									"fallbackReason": {
-										"type": "null"
-									},
-									"visibleIdle": {
-										"const": false
-									},
-									"visibleBlocker": {
-										"const": false
-									},
-									"visibleWorking": {
-										"const": false
-									},
-									"skipStateUpdate": {
-										"const": false
-									},
-									"screenDetectionSkipReason": {
-										"const": "full-lifecycle-hook-authority"
-									},
-									"evaluatedRules": {
-										"maxItems": 0,
-										"type": "array"
-									}
-								},
-								"type": "object"
-							}
-						},
-						"type": "object"
-					},
-					"else": {
-						"properties": {
-							"sample": {
-								"type": "object",
-								"required": [
-									"frameSequence",
-									"frameGeneration",
-									"frameRevision",
-									"rootPid",
-									"agentPid"
-								],
-								"additionalProperties": false,
-								"properties": {
-									"frameSequence": {
-										"allOf": [
-											{
-												"$ref": "#/$defs/physical_revision"
-											},
-											{
-												"not": {
-													"const": "0"
-												}
-											}
-										]
-									},
-									"frameGeneration": {
-										"allOf": [
-											{
-												"$ref": "#/$defs/physical_revision"
-											},
-											{
-												"not": {
-													"const": "0"
-												}
-											}
-										]
-									},
-									"frameRevision": {
-										"$ref": "#/$defs/physical_revision"
-									},
-									"rootPid": {
-										"type": "integer",
-										"minimum": 1,
-										"maximum": 4294967295
-									},
-									"agentPid": {
-										"oneOf": [
-											{
-												"type": "integer",
-												"minimum": 1,
-												"maximum": 4294967295
-											},
-											{
-												"type": "null"
-											}
-										]
-									}
-								}
-							},
-							"explanation": {
-								"properties": {
-									"screenDetectionSkipReason": {
-										"type": "null"
-									}
-								},
-								"type": "object"
-							}
-						},
-						"type": "object"
-					}
-				}
-			]
-		},
-		"legacyAgentState_physical_state": {
-			"enum": ["idle", "working", "blocked", "unknown"]
-		},
-		"legacyAgentState_physical_view": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-				"agent": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/physical_normalizedAgent"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"state": {
-					"$ref": "#/$defs/legacyAgentState_physical_state"
-				},
-				"authoritySource": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"message": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"session": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/physical_session"
-						},
-						{
-							"type": "null"
-						}
-					]
-				}
-			},
-			"required": ["agent", "state", "authoritySource", "message", "session"]
-		},
-		"legacyAgentState_screenExplanation": {
-			"type": "object",
-			"required": [
-				"agent",
-				"state",
-				"manifestSource",
-				"manifestVersion",
-				"matchedRule",
-				"visibleIdle",
-				"visibleBlocker",
-				"visibleWorking",
-				"screenDetectionSkipped",
-				"screenDetectionSkipReason",
-				"skipStateUpdate",
-				"skippedUpdateReason",
-				"fallbackReason",
-				"evaluatedRules"
-			],
-			"additionalProperties": false,
-			"properties": {
-				"agent": {
-					"enum": [
-						"pi",
-						"claude",
-						"codex",
-						"gemini",
-						"cursor",
-						"devin",
-						"agy",
-						"cline",
-						"omp",
-						"mastracode",
-						"opencode",
-						"copilot",
-						"kimi",
-						"kiro",
-						"droid",
-						"amp",
-						"grok",
-						"hermes",
-						"kilo",
-						"qodercli",
-						"qwen",
-						"letta",
-						"maki",
-						"muse"
-					]
-				},
-				"state": {
-					"$ref": "#/$defs/legacyAgentState_physical_state"
-				},
-				"manifestSource": {
-					"enum": ["bundled", null]
-				},
-				"manifestVersion": {
-					"oneOf": [
-						{
-							"type": "string",
-							"maxLength": 128
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"matchedRule": {
-					"oneOf": [
-						{
-							"$ref": "#/$defs/legacyAgentState_screenRule"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"visibleIdle": {
-					"type": "boolean"
-				},
-				"visibleBlocker": {
-					"type": "boolean"
-				},
-				"visibleWorking": {
-					"type": "boolean"
-				},
-				"screenDetectionSkipped": {
-					"type": "boolean"
-				},
-				"screenDetectionSkipReason": {
-					"enum": ["full-lifecycle-hook-authority", null]
-				},
-				"skipStateUpdate": {
-					"type": "boolean"
-				},
-				"skippedUpdateReason": {
-					"oneOf": [
-						{
-							"type": "string",
-							"pattern": "^matched-rule:.+"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"fallbackReason": {
-					"enum": ["default-known-agent-idle-fallback", null]
-				},
-				"evaluatedRules": {
-					"type": "array",
-					"maxItems": 128,
-					"items": {
-						"type": "object",
-						"required": ["rule", "matched", "evidence"],
-						"additionalProperties": false,
-						"properties": {
-							"rule": {
-								"$ref": "#/$defs/legacyAgentState_screenRule"
-							},
-							"matched": {
-								"type": "boolean"
-							},
-							"evidence": {
-								"$ref": "#/$defs/screenEvidence"
-							}
+						"explanation": {
+							"$ref": "#/$defs/explanation"
 						}
 					}
 				}
 			}
 		},
-		"legacyAgentState_screenExplanationV3": {
+		{
 			"type": "object",
-			"required": [
-				"agent",
-				"state",
-				"manifestSource",
-				"manifestVersion",
-				"matchedRule",
-				"visibleIdle",
-				"visibleBlocker",
-				"visibleWorking",
-				"screenDetectionSkipped",
-				"screenDetectionSkipReason",
-				"skipStateUpdate",
-				"skippedUpdateReason",
-				"fallbackReason",
-				"evaluatedRules",
-				"manifest"
-			],
+			"required": ["schema", "version", "source", "result"],
 			"additionalProperties": false,
 			"properties": {
-				"agent": {
-					"enum": [
-						"pi",
-						"claude",
-						"codex",
-						"gemini",
-						"cursor",
-						"devin",
-						"agy",
-						"cline",
-						"omp",
-						"mastracode",
-						"opencode",
-						"copilot",
-						"kimi",
-						"kiro",
-						"droid",
-						"amp",
-						"grok",
-						"hermes",
-						"kilo",
-						"qodercli",
-						"qwen",
-						"letta",
-						"maki",
-						"muse"
-					]
+				"schema": {
+					"const": "orchbee.agent.explain"
 				},
-				"state": {
-					"$ref": "#/$defs/legacyAgentState_physical_state"
+				"version": {
+					"const": 1
 				},
-				"manifestSource": {
-					"enum": ["bundled", "local-override", "remote-cache"]
-				},
-				"manifestVersion": {
-					"oneOf": [
-						{
-							"type": "string",
-							"maxLength": 128
+				"source": {
+					"type": "object",
+					"required": ["kind", "siteId", "workbenchRevision", "reportRevision", "requestId"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "panel-agent-explain"
 						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"matchedRule": {
-					"oneOf": [
-						{
-							"$ref": "#/$defs/legacyAgentState_screenRule"
+						"siteId": {
+							"$ref": "#/$defs/hexId"
 						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"visibleIdle": {
-					"type": "boolean"
-				},
-				"visibleBlocker": {
-					"type": "boolean"
-				},
-				"visibleWorking": {
-					"type": "boolean"
-				},
-				"screenDetectionSkipped": {
-					"const": false
-				},
-				"screenDetectionSkipReason": {
-					"enum": ["full-lifecycle-hook-authority", null]
-				},
-				"skipStateUpdate": {
-					"type": "boolean"
-				},
-				"skippedUpdateReason": {
-					"oneOf": [
-						{
-							"type": "string",
-							"pattern": "^matched-rule:.+"
+						"workbenchRevision": {
+							"$ref": "#/$defs/physical_revision"
 						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"fallbackReason": {
-					"enum": ["default-known-agent-idle-fallback", null]
-				},
-				"evaluatedRules": {
-					"type": "array",
-					"maxItems": 128,
-					"items": {
-						"type": "object",
-						"required": ["rule", "matched", "evidence"],
-						"additionalProperties": false,
-						"properties": {
-							"rule": {
-								"$ref": "#/$defs/legacyAgentState_screenRule"
-							},
-							"matched": {
-								"type": "boolean"
-							},
-							"evidence": {
-								"$ref": "#/$defs/screenEvidence"
-							}
+						"reportRevision": {
+							"$ref": "#/$defs/physical_revision"
+						},
+						"requestId": {
+							"$ref": "#/$defs/hexId"
 						}
 					}
 				},
-				"manifest": {
-					"$ref": "#/$defs/manifestInfo"
+				"result": {
+					"type": "object",
+					"required": ["kind", "terminal"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "terminal-found"
+						},
+						"terminal": {
+							"$ref": "#/$defs/terminalExplanation"
+						}
+					}
 				}
 			}
-		},
-		"legacyAgentState_screenRule": {
-			"type": "object",
-			"required": ["id", "priority", "region", "state"],
-			"additionalProperties": false,
-			"properties": {
-				"id": {
-					"type": "string",
-					"minLength": 1,
-					"maxLength": 128
-				},
-				"priority": {
-					"type": "integer",
-					"minimum": -2147483648,
-					"maximum": 2147483647
-				},
-				"region": {
-					"type": "string",
-					"minLength": 1,
-					"maxLength": 128
-				},
-				"state": {
-					"$ref": "#/$defs/legacyAgentState_physical_state"
-				}
-			}
-		},
-		"legacyAgentState_terminalExplanation": {
-			"type": "object",
-			"required": ["binding", "view", "explanation", "sample"],
-			"additionalProperties": false,
-			"properties": {
-				"binding": {
-					"$ref": "#/$defs/physical_terminalBinding"
-				},
-				"view": {
-					"$ref": "#/$defs/legacyAgentState_physical_view"
-				},
-				"explanation": {
-					"$ref": "#/$defs/legacyAgentState_screenExplanation"
-				},
-				"sample": {
-					"oneOf": [
-						{
-							"type": "object",
-							"required": [
-								"frameSequence",
-								"frameGeneration",
-								"frameRevision",
-								"rootPid",
-								"agentPid"
-							],
-							"additionalProperties": false,
-							"properties": {
-								"frameSequence": {
-									"allOf": [
-										{
-											"$ref": "#/$defs/physical_revision"
-										},
-										{
-											"not": {
-												"const": "0"
-											}
-										}
-									]
-								},
-								"frameGeneration": {
-									"allOf": [
-										{
-											"$ref": "#/$defs/physical_revision"
-										},
-										{
-											"not": {
-												"const": "0"
-											}
-										}
-									]
-								},
-								"frameRevision": {
-									"$ref": "#/$defs/physical_revision"
-								},
-								"rootPid": {
-									"type": "integer",
-									"minimum": 1,
-									"maximum": 4294967295
-								},
-								"agentPid": {
-									"oneOf": [
-										{
-											"type": "integer",
-											"minimum": 1,
-											"maximum": 4294967295
-										},
-										{
-											"type": "null"
-										}
-									]
-								}
-							}
-						},
-						{
-							"type": "null"
-						}
-					]
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"explanation": {
-								"properties": {
-									"screenDetectionSkipped": {
-										"const": true
-									}
-								},
-								"type": "object"
-							}
-						},
-						"type": "object"
-					},
-					"then": {
-						"properties": {
-							"sample": {
-								"type": "null"
-							},
-							"explanation": {
-								"properties": {
-									"manifestSource": {
-										"type": "null"
-									},
-									"manifestVersion": {
-										"type": "null"
-									},
-									"matchedRule": {
-										"type": "null"
-									},
-									"skippedUpdateReason": {
-										"type": "null"
-									},
-									"fallbackReason": {
-										"type": "null"
-									},
-									"visibleIdle": {
-										"const": false
-									},
-									"visibleBlocker": {
-										"const": false
-									},
-									"visibleWorking": {
-										"const": false
-									},
-									"skipStateUpdate": {
-										"const": false
-									},
-									"screenDetectionSkipReason": {
-										"const": "full-lifecycle-hook-authority"
-									},
-									"evaluatedRules": {
-										"maxItems": 0,
-										"type": "array"
-									}
-								},
-								"type": "object"
-							}
-						},
-						"type": "object"
-					},
-					"else": {
-						"properties": {
-							"sample": {
-								"type": "object",
-								"required": [
-									"frameSequence",
-									"frameGeneration",
-									"frameRevision",
-									"rootPid",
-									"agentPid"
-								],
-								"additionalProperties": false,
-								"properties": {
-									"frameSequence": {
-										"allOf": [
-											{
-												"$ref": "#/$defs/physical_revision"
-											},
-											{
-												"not": {
-													"const": "0"
-												}
-											}
-										]
-									},
-									"frameGeneration": {
-										"allOf": [
-											{
-												"$ref": "#/$defs/physical_revision"
-											},
-											{
-												"not": {
-													"const": "0"
-												}
-											}
-										]
-									},
-									"frameRevision": {
-										"$ref": "#/$defs/physical_revision"
-									},
-									"rootPid": {
-										"type": "integer",
-										"minimum": 1,
-										"maximum": 4294967295
-									},
-									"agentPid": {
-										"oneOf": [
-											{
-												"type": "integer",
-												"minimum": 1,
-												"maximum": 4294967295
-											},
-											{
-												"type": "null"
-											}
-										]
-									}
-								}
-							},
-							"explanation": {
-								"properties": {
-									"screenDetectionSkipReason": {
-										"type": "null"
-									}
-								},
-								"type": "object"
-							}
-						},
-						"type": "object"
-					}
-				}
-			]
-		},
-		"legacyAgentState_terminalExplanationV3": {
-			"type": "object",
-			"required": ["binding", "view", "explanation", "sample"],
-			"additionalProperties": false,
-			"properties": {
-				"binding": {
-					"$ref": "#/$defs/physical_terminalBinding"
-				},
-				"view": {
-					"$ref": "#/$defs/legacyAgentState_physical_view"
-				},
-				"explanation": {
-					"$ref": "#/$defs/legacyAgentState_screenExplanationV3"
-				},
-				"sample": {
-					"oneOf": [
-						{
-							"type": "object",
-							"required": [
-								"frameSequence",
-								"frameGeneration",
-								"frameRevision",
-								"rootPid",
-								"agentPid"
-							],
-							"additionalProperties": false,
-							"properties": {
-								"frameSequence": {
-									"allOf": [
-										{
-											"$ref": "#/$defs/physical_revision"
-										},
-										{
-											"not": {
-												"const": "0"
-											}
-										}
-									]
-								},
-								"frameGeneration": {
-									"allOf": [
-										{
-											"$ref": "#/$defs/physical_revision"
-										},
-										{
-											"not": {
-												"const": "0"
-											}
-										}
-									]
-								},
-								"frameRevision": {
-									"$ref": "#/$defs/physical_revision"
-								},
-								"rootPid": {
-									"type": "integer",
-									"minimum": 1,
-									"maximum": 4294967295
-								},
-								"agentPid": {
-									"oneOf": [
-										{
-											"type": "integer",
-											"minimum": 1,
-											"maximum": 4294967295
-										},
-										{
-											"type": "null"
-										}
-									]
-								}
-							}
-						},
-						{
-							"type": "null"
-						}
-					]
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"explanation": {
-								"properties": {
-									"screenDetectionSkipped": {
-										"const": true
-									}
-								},
-								"type": "object"
-							}
-						},
-						"type": "object"
-					},
-					"then": {
-						"properties": {
-							"sample": {
-								"type": "null"
-							},
-							"explanation": {
-								"properties": {
-									"manifestSource": {
-										"type": "null"
-									},
-									"manifestVersion": {
-										"type": "null"
-									},
-									"matchedRule": {
-										"type": "null"
-									},
-									"skippedUpdateReason": {
-										"type": "null"
-									},
-									"fallbackReason": {
-										"type": "null"
-									},
-									"visibleIdle": {
-										"const": false
-									},
-									"visibleBlocker": {
-										"const": false
-									},
-									"visibleWorking": {
-										"const": false
-									},
-									"skipStateUpdate": {
-										"const": false
-									},
-									"screenDetectionSkipReason": {
-										"const": "full-lifecycle-hook-authority"
-									},
-									"evaluatedRules": {
-										"maxItems": 0,
-										"type": "array"
-									}
-								},
-								"type": "object"
-							}
-						},
-						"type": "object"
-					},
-					"else": {
-						"properties": {
-							"sample": {
-								"type": "object",
-								"required": [
-									"frameSequence",
-									"frameGeneration",
-									"frameRevision",
-									"rootPid",
-									"agentPid"
-								],
-								"additionalProperties": false,
-								"properties": {
-									"frameSequence": {
-										"allOf": [
-											{
-												"$ref": "#/$defs/physical_revision"
-											},
-											{
-												"not": {
-													"const": "0"
-												}
-											}
-										]
-									},
-									"frameGeneration": {
-										"allOf": [
-											{
-												"$ref": "#/$defs/physical_revision"
-											},
-											{
-												"not": {
-													"const": "0"
-												}
-											}
-										]
-									},
-									"frameRevision": {
-										"$ref": "#/$defs/physical_revision"
-									},
-									"rootPid": {
-										"type": "integer",
-										"minimum": 1,
-										"maximum": 4294967295
-									},
-									"agentPid": {
-										"oneOf": [
-											{
-												"type": "integer",
-												"minimum": 1,
-												"maximum": 4294967295
-											},
-											{
-												"type": "null"
-											}
-										]
-									}
-								}
-							},
-							"explanation": {
-								"properties": {
-									"screenDetectionSkipReason": {
-										"type": "null"
-									}
-								},
-								"type": "object"
-							}
-						},
-						"type": "object"
-					}
-				}
-			]
+		}
+	],
+	"properties": {
+		"version": {
+			"const": 1
 		}
 	}
 }

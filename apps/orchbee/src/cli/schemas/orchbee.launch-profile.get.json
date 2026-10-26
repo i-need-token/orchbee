@@ -10,7 +10,7 @@
 			"const": "orchbee.launch-profile.get"
 		},
 		"version": {
-			"enum": [1, 2]
+			"const": 1
 		},
 		"source": {
 			"$ref": "#/$defs/catalogSource"
@@ -92,35 +92,5 @@
 				}
 			}
 		}
-	},
-	"allOf": [
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 1
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"properties": {
-							"profile": {
-								"properties": {
-									"launch": {
-										"properties": {
-											"exec": {
-												"pattern": "^/"
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	]
+	}
 }

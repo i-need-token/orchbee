@@ -151,7 +151,7 @@ fn selected_client_get_joins_only_current_versions_and_keeps_canonical_outcome()
             &doc,
             include_str!("../../src/cli/schemas/orchbee.agent.get.json"),
         );
-        assert_eq!(doc["version"], 19);
+        assert_eq!(doc["version"], 1);
         assert_eq!(doc["result"]["kind"], "projected");
         assert_eq!(
             doc["result"]["inspection"]["session"]["status"]["kind"],
@@ -307,15 +307,15 @@ fn selected_client_get_failures_keep_their_declared_contract() {
             &doc,
             include_str!("../../src/cli/schemas/orchbee.cli.failure.client-control.json"),
         );
-        let (kind, version) = match case {
-            "missing" => ("not-found", 1),
-            "stale" => ("service-unavailable", 1),
-            "denied" => ("denied", 2),
-            "deadline" => ("timeout", 2),
-            _ => ("protocol-invalid", 2),
+        let kind = match case {
+            "missing" => "not-found",
+            "stale" => "service-unavailable",
+            "denied" => "denied",
+            "deadline" => "timeout",
+            _ => "protocol-invalid",
         };
         assert!(!output.status.success());
         assert_eq!(doc["failure"]["kind"], kind);
-        assert_eq!(doc["version"], version);
+        assert_eq!(doc["version"], 1);
     }
 }

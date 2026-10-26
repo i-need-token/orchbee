@@ -176,17 +176,6 @@ fn topology_documents_validate_and_text_escapes_labels_in_both_locales() {
         );
         assert_eq!(output.status, 0);
         let document: Value = serde_json::from_slice(&output.stdout).unwrap();
-        #[cfg(windows)]
-        let document = {
-            let mut document = document;
-            if matches!(command, QueryCommand::PanelList { .. }) {
-                // This suite owns the Snapshot-only v7 projection. The joined v9
-                // document is validated by workbench_query's selected-query suite.
-                assert!(!validator.is_valid(&document));
-                document["version"] = json!(7);
-            }
-            document
-        };
         validator.validate(&document).unwrap();
         let mut wrong_version = document.clone();
         wrong_version["version"] = json!(0);

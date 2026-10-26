@@ -10,7 +10,7 @@
 			"const": "orchbee.agent.start"
 		},
 		"version": {
-			"enum": [1, 2]
+			"const": 1
 		},
 		"result": {
 			"type": "object",
@@ -21,7 +21,8 @@
 				"providerId",
 				"reservationId",
 				"elapsedMs",
-				"submission"
+				"submission",
+				"interactiveReady"
 			],
 			"additionalProperties": false,
 			"properties": {
@@ -60,15 +61,12 @@
 				"const": "00000000000000000000000000000000"
 			}
 		},
-		"id": {
-			"type": "string",
-			"pattern": "^[0-9a-f]{32}$"
-		},
 		"opaqueId": {
 			"type": "string",
 			"pattern": "^[0-9A-Za-z._:-]{1,128}$"
 		},
 		"sendReceipt": {
+			"title": "orchbee terminal send result envelope",
 			"type": "object",
 			"required": ["schema", "version", "source", "result"],
 			"additionalProperties": false,
@@ -80,7 +78,7 @@
 					"const": 1
 				},
 				"source": {
-					"$ref": "#/$defs/sendSource"
+					"$ref": "#/$defs/sendReceipt/$defs/sendSource"
 				},
 				"result": {
 					"type": "object",
@@ -104,16 +102,16 @@
 							"const": "terminal.send"
 						},
 						"requestId": {
-							"$ref": "#/$defs/id"
+							"$ref": "#/$defs/sendReceipt/$defs/id"
 						},
 						"siteId": {
-							"$ref": "#/$defs/id"
+							"$ref": "#/$defs/sendReceipt/$defs/id"
 						},
 						"workerId": {
-							"$ref": "#/$defs/id"
+							"$ref": "#/$defs/sendReceipt/$defs/id"
 						},
 						"terminalId": {
-							"$ref": "#/$defs/id"
+							"$ref": "#/$defs/sendReceipt/$defs/id"
 						},
 						"payloadKind": {
 							"enum": ["text", "key", "bytes", "paste", "sequence"]
@@ -157,10 +155,10 @@
 									"pattern": "^[1-9][0-9]*$"
 								},
 								"hostEpoch": {
-									"$ref": "#/$defs/id"
+									"$ref": "#/$defs/sendReceipt/$defs/id"
 								},
 								"hostTerminalId": {
-									"$ref": "#/$defs/id"
+									"$ref": "#/$defs/sendReceipt/$defs/id"
 								}
 							}
 						},
@@ -185,20 +183,18 @@
 							"maximum": 67108864
 						}
 					},
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"inputStatus": {
-										"enum": ["not-submitted", "rejected", "partial-accepted"]
-									}
-								},
-								"required": ["inputStatus"]
-							},
-							"then": {
-								"required": ["reason"]
+					"if": {
+						"properties": {
+							"inputStatus": {
+								"enum": ["not-submitted", "rejected", "partial-accepted"]
 							}
 						},
+						"required": ["inputStatus"]
+					},
+					"then": {
+						"required": ["reason"]
+					},
+					"allOf": [
 						{
 							"if": {
 								"properties": {
@@ -295,25 +291,31 @@
 						}
 					]
 				}
-			}
-		},
-		"sendSource": {
-			"type": "object",
-			"required": ["kind", "siteId", "requestId", "snapshotRevision"],
-			"additionalProperties": false,
-			"properties": {
-				"kind": {
-					"const": "terminal.send"
-				},
-				"siteId": {
-					"$ref": "#/$defs/id"
-				},
-				"requestId": {
-					"$ref": "#/$defs/id"
-				},
-				"snapshotRevision": {
+			},
+			"$defs": {
+				"id": {
 					"type": "string",
-					"pattern": "^(0|[1-9][0-9]*)$"
+					"pattern": "^[0-9a-f]{32}$"
+				},
+				"sendSource": {
+					"type": "object",
+					"required": ["kind", "siteId", "requestId", "snapshotRevision"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "terminal.send"
+						},
+						"siteId": {
+							"$ref": "#/$defs/sendReceipt/$defs/id"
+						},
+						"requestId": {
+							"$ref": "#/$defs/sendReceipt/$defs/id"
+						},
+						"snapshotRevision": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]*)$"
+						}
+					}
 				}
 			}
 		},
@@ -330,32 +332,5 @@
 			"minimum": 0,
 			"maximum": 9007199254740991
 		}
-	},
-	"allOf": [
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 2
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"required": ["interactiveReady"]
-					}
-				}
-			},
-			"else": {
-				"properties": {
-					"result": {
-						"not": {
-							"required": ["interactiveReady"]
-						}
-					}
-				}
-			}
-		}
-	]
+	}
 }

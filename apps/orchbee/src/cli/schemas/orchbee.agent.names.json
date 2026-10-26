@@ -10,7 +10,7 @@
 			"const": "orchbee.agent.names"
 		},
 		"version": {
-			"enum": [2, 3]
+			"const": 1
 		},
 		"source": {
 			"type": "object",
@@ -26,70 +26,28 @@
 			}
 		},
 		"result": {
-			"oneOf": [
-				{
-					"type": "object",
-					"required": ["kind", "bindings", "pending"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "listed"
-						},
-						"bindings": {
-							"type": "array",
-							"maxItems": 512,
-							"items": {
-								"type": "object",
-								"required": ["name", "sessionId", "lifecycle"],
-								"additionalProperties": false,
-								"properties": {
-									"name": {
-										"$ref": "#/$defs/agentName"
-									},
-									"sessionId": {
-										"$ref": "#/$defs/sessionId"
-									},
-									"lifecycle": {
-										"const": "live"
-									}
-								}
-							}
-						},
-						"pending": {
-							"type": "array",
-							"maxItems": 512,
-							"items": {
-								"$ref": "#/$defs/launchReservation"
-							}
-						}
-					},
-					"$comment": "Bindings and pending reservations share a combined cap of 512; semantic validation enforces disjoint sorted names, unique sessions and unique pending presentations and reservation IDs."
+			"type": "object",
+			"required": ["kind", "bindings", "pending"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "listed-targets"
 				},
-				{
-					"type": "object",
-					"required": ["kind", "bindings", "pending"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "listed-targets"
-						},
-						"bindings": {
-							"type": "array",
-							"maxItems": 512,
-							"items": {
-								"$ref": "#/$defs/namedTarget"
-							}
-						},
-						"pending": {
-							"type": "array",
-							"maxItems": 512,
-							"items": {
-								"$ref": "#/$defs/launchReservation"
-							}
-						}
+				"bindings": {
+					"type": "array",
+					"maxItems": 512,
+					"items": {
+						"$ref": "#/$defs/namedTarget"
+					}
+				},
+				"pending": {
+					"type": "array",
+					"maxItems": 512,
+					"items": {
+						"$ref": "#/$defs/launchReservation"
 					}
 				}
-			]
+			}
 		}
 	},
 	"$defs": {
@@ -106,8 +64,7 @@
 		},
 		"obapRequestId": {
 			"type": "string",
-			"pattern": "^[0-9a-f]{32}$",
-			"$comment": "Request identity: exactly 32 lowercase hexadecimal characters and never the zero sentinel; the nonzero rule is a semantic invariant enforced by each binding."
+			"pattern": "^[0-9a-f]{32}$"
 		},
 		"launchBinding": {
 			"type": "object",
@@ -228,94 +185,5 @@
 				}
 			}
 		}
-	},
-	"allOf": [
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 3
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"anyOf": [
-							{
-								"type": "object",
-								"required": ["kind", "bindings", "pending"],
-								"additionalProperties": false,
-								"properties": {
-									"kind": {
-										"const": "listed-targets"
-									},
-									"bindings": {
-										"type": "array",
-										"maxItems": 512,
-										"items": {
-											"$ref": "#/$defs/namedTarget"
-										}
-									},
-									"pending": {
-										"type": "array",
-										"maxItems": 512,
-										"items": {
-											"$ref": "#/$defs/launchReservation"
-										}
-									}
-								}
-							}
-						]
-					}
-				}
-			},
-			"else": {
-				"properties": {
-					"result": {
-						"oneOf": [
-							{
-								"type": "object",
-								"required": ["kind", "bindings", "pending"],
-								"additionalProperties": false,
-								"properties": {
-									"kind": {
-										"const": "listed"
-									},
-									"bindings": {
-										"type": "array",
-										"maxItems": 512,
-										"items": {
-											"type": "object",
-											"required": ["name", "sessionId", "lifecycle"],
-											"additionalProperties": false,
-											"properties": {
-												"name": {
-													"$ref": "#/$defs/agentName"
-												},
-												"sessionId": {
-													"$ref": "#/$defs/sessionId"
-												},
-												"lifecycle": {
-													"const": "live"
-												}
-											}
-										}
-									},
-									"pending": {
-										"type": "array",
-										"maxItems": 512,
-										"items": {
-											"$ref": "#/$defs/launchReservation"
-										}
-									}
-								},
-								"$comment": "Bindings and pending reservations share a combined cap of 512; semantic validation enforces disjoint sorted names, unique sessions and unique pending presentations and reservation IDs."
-							}
-						]
-					}
-				}
-			}
-		}
-	]
+	}
 }

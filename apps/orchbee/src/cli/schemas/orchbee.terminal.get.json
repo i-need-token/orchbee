@@ -10,7 +10,7 @@
 			"const": "orchbee.terminal.get"
 		},
 		"version": {
-			"const": 4
+			"const": 1
 		},
 		"source": {
 			"$ref": "#/$defs/launchReadSource"
@@ -35,13 +35,16 @@
 			"type": "string",
 			"pattern": "^(0|[1-9][0-9]*)$"
 		},
-		"positiveDecimal": {
-			"type": "string",
-			"pattern": "^[1-9][0-9]*$"
-		},
 		"terminal": {
 			"type": "object",
-			"required": ["terminalId", "workerId", "boundTo", "launch"],
+			"required": [
+				"terminalId",
+				"workerId",
+				"boundTo",
+				"launch",
+				"launchProfile",
+				"launchSelection"
+			],
 			"additionalProperties": false,
 			"properties": {
 				"terminalId": {
@@ -54,21 +57,35 @@
 					"$ref": "#/$defs/launch"
 				},
 				"launchSelection": {
-					"$ref": "#/$defs/launchSelection"
+					"anyOf": [
+						{
+							"$ref": "#/$defs/launchSelection"
+						},
+						{
+							"type": "null"
+						}
+					]
 				},
 				"launchProfile": {
-					"type": "object",
-					"required": ["profileId", "catalogRevision"],
-					"additionalProperties": false,
-					"properties": {
-						"profileId": {
-							"type": "string",
-							"pattern": "^[0-9A-Za-z][0-9A-Za-z._:-]{0,127}$"
+					"anyOf": [
+						{
+							"type": "object",
+							"required": ["profileId", "catalogRevision"],
+							"additionalProperties": false,
+							"properties": {
+								"profileId": {
+									"type": "string",
+									"pattern": "^[0-9A-Za-z][0-9A-Za-z._:-]{0,127}$"
+								},
+								"catalogRevision": {
+									"$ref": "#/$defs/decimal"
+								}
+							}
 						},
-						"catalogRevision": {
-							"$ref": "#/$defs/decimal"
+						{
+							"type": "null"
 						}
-					}
+					]
 				},
 				"boundTo": {
 					"type": "object",
@@ -90,29 +107,25 @@
 					}
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"required": ["launch"],
+			"if": {
+				"required": ["launch"],
+				"properties": {
+					"launch": {
+						"type": "object",
+						"required": ["state"],
 						"properties": {
-							"launch": {
-								"type": "object",
-								"required": ["state"],
-								"properties": {
-									"state": {
-										"const": "not-tracked"
-									}
-								}
+							"state": {
+								"const": "not-tracked"
 							}
-						}
-					},
-					"then": {
-						"properties": {
-							"launchSelection": false
 						}
 					}
 				}
-			]
+			},
+			"then": {
+				"properties": {
+					"launchSelection": false
+				}
+			}
 		},
 		"launchSelection": {
 			"type": "object",
@@ -124,8 +137,7 @@
 					"type": "string",
 					"minLength": 1,
 					"maxLength": 30720,
-					"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000]*$",
-					"$comment": "The combined executable/arguments bound is 30720 UTF-8 bytes and 30720 worst-case escaped JSON string-content bytes; code-point limits are necessary but not sufficient."
+					"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000]*$"
 				},
 				"args": {
 					"type": "array",
@@ -136,8 +148,7 @@
 						"maxLength": 30720
 					}
 				}
-			},
-			"$comment": "Executable and arguments together are at most 30720 UTF-8 bytes and worst-case JSON string-content bytes, enforced by the binding."
+			}
 		},
 		"geometry": {
 			"type": "object",
@@ -300,24 +311,22 @@
 					]
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"state": {
-								"const": "started"
-							}
-						},
-						"required": ["state"]
-					},
-					"then": {
-						"properties": {
-							"geometry": {
-								"type": "object"
-							}
-						}
+			"if": {
+				"properties": {
+					"state": {
+						"const": "started"
 					}
 				},
+				"required": ["state"]
+			},
+			"then": {
+				"properties": {
+					"geometry": {
+						"type": "object"
+					}
+				}
+			},
+			"allOf": [
 				{
 					"if": {
 						"properties": {

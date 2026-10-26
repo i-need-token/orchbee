@@ -213,8 +213,7 @@
 																	"label": {
 																		"type": "string",
 																		"minLength": 1,
-																		"maxLength": 512,
-																		"$comment": "The typed bindings enforce valid Unicode scalar text before this output is encoded."
+																		"maxLength": 512
 																	},
 																	"close": {
 																		"anyOf": [
@@ -237,8 +236,7 @@
 																										"type": "string",
 																										"pattern": "^[1-9][0-9]{0,19}$",
 																										"maxLength": 20,
-																										"format": "orchbee-uint64",
-																										"$comment": "One nonzero Close attempt-generation domain, distinct from Workbench revision; increment must be checked."
+																										"format": "orchbee-uint64"
 																									},
 																									"status": {
 																										"oneOf": [

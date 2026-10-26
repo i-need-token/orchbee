@@ -552,7 +552,6 @@ fn check(deadline: Instant, signals: &mut ArmedSignals) -> Result<(), Failure> {
 fn classify(failure: Failure) -> Failure {
     if failure.failure_schema.is_none() && failure.details.is_none() && failure.source.is_none() {
         failure
-            .version(2)
             .failure_schema("orchbee.cli.failure.client-control")
             .details(crate::cli::stage_details("client-agent-read"))
     } else {

@@ -10,8 +10,7 @@ binding-keyed metadata owner preserves source sequencing, guards, resource limit
 
 Exact requests/replies use `report-presentation` / `presentation-reported` in the existing carrier;
 legacy `report` / `reported` remain primary-only. Replies correlate request, Session, Panel,
-Presentation and binding. An explicit member emits `orchbee.panel.metadata` v4 with required
-`presentationId`, including unknown or failed submitted outcomes; v1/v2 remain closed; primary reports use v3. Text identifies
+Presentation and binding. All reports emit `orchbee.panel.metadata` version 1 with `presentationId`: the explicit member ID, or null for the default primary, including unknown or failed submitted outcomes. Text identifies
 the member. Request bounds are checked before admission and no ambiguous outcome is replayed.
 
 The [Agent report target model](windows-panel-agent-reports.md#exact-member-targets) owns shared
@@ -55,8 +54,7 @@ refusals exit 3, unavailability 4, invalid request 5, revision/deadline/result b
 failure exits 1 unless the submitted result is already unknown.
 
 `orchbee.panel.metadata` v1 contains request/Session/Panel IDs, observation (`server` with the exact
-reply, or `unknown` with a closed reason), `interrupted` and `cleanupFailed`. Catalog v90 includes
-90 schemas. OBWP 33/34 carries `workbench.panel-metadata` and its result; request limit is 16 KiB,
+reply, or `unknown` with a closed reason), `interrupted` and `cleanupFailed`. The catalog lists the current documents and command paths. OBWP 33/34 carries `workbench.panel-metadata` and its result; request limit is 16 KiB,
 result limit 512 KiB. Server reads use read permission and reports navigation permission under
 the Session gate. Reads expose source records for up to four ordered unique Panels. Metadata and
 Workbench revisions remain separate. Same-cohort deployment is required; old peers reject the
@@ -102,18 +100,15 @@ readiness. External provider references remain separate from canonical observati
 and are not executed by these queries. Automatic Host process production, associated names,
 provider resume/persistence and TUI publication remain separate integration obligations.
 
-Windows Panel list/get emit v9, current emits v8, and Agent Get emits v11 (v12 with `--client`).
-Every Panel row and non-null Agent terminal requires metadata and reportedAgent. Earlier metadata
-versions retain null guard context and reject reportedAgent; still older versions reject metadata
-as well. Their closed previous shapes remain accepted. Localized text escapes effective metadata,
-report details, messages and external references. Catalog v90 contains 90 schemas and 104 command
-paths; this query change adds no command or schema identity.
+Windows Panel list/get emit v1, current emits v1, and Agent Get emits v1 (v1 with `--client`).
+Every Panel row and non-null Agent terminal requires metadata and reportedAgent. Their closed previous shapes remain accepted. Localized text escapes effective metadata,
+report details, messages and external references. The offline catalog lists the current documents and command paths.
 
 Admission caps combined encoded metadata and report rows at the existing 8 MiB CLI output budget.
 After metadata admission, reports consume only the remaining row budget; each batch is validated
 before extending state. The final envelope remains independently bounded. Oversize or inconsistent
 reads fail without partial output. Tests cover both revision fences, exact batches, wrong/missing
-rows and bindings, permissions, transport loss, original shared deadline, closed legacy/new schema
+rows and bindings, permissions, transport loss, original shared deadline, closed current schema
 shapes, guarded presentation, global tokens and escaped text. Matched Windows cohort acceptance
 exercises the actual public reports and queries; it is not final TUI or authenticated provider proof.
 

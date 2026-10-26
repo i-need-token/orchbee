@@ -103,8 +103,8 @@ fn real_projection_rows_validate_with_each_identity_and_client_selection() {
             list_validator.is_valid(&document),
             "{name} list output must validate: {document}"
         );
-        assert!(document["result"].get("clientId").is_none());
-        assert!(document["result"]["items"][0].get("client").is_none());
+        assert!(document["result"]["clientId"].is_null());
+        assert!(document["result"]["items"][0]["client"].is_null());
     }
 
     let client_document = listed(terminal_only.clone(), true);

@@ -10,7 +10,7 @@
 			"const": "orchbee.cli.failure.agent-names"
 		},
 		"version": {
-			"enum": [1, 2, 3, 4]
+			"const": 1
 		},
 		"failure": {
 			"type": "object",
@@ -61,9 +61,6 @@
 						"requestId": {
 							"$ref": "#/$defs/obapRequestId"
 						},
-						"conflictSessionId": {
-							"$ref": "#/$defs/sessionId"
-						},
 						"conflictTarget": {
 							"$ref": "#/$defs/nameTarget"
 						}
@@ -86,10 +83,6 @@
 		}
 	},
 	"$defs": {
-		"agentName": {
-			"type": "string",
-			"pattern": "^[a-z][a-z0-9_-]{0,31}$"
-		},
 		"sessionId": {
 			"$ref": "#/$defs/opaqueIdentity"
 		},
@@ -99,8 +92,7 @@
 		},
 		"obapRequestId": {
 			"type": "string",
-			"pattern": "^[0-9a-f]{32}$",
-			"$comment": "Request identity: exactly 32 lowercase hexadecimal characters and never the zero sentinel; the nonzero rule is a semantic invariant enforced by each binding."
+			"pattern": "^[0-9a-f]{32}$"
 		},
 		"nameTarget": {
 			"oneOf": [
@@ -168,106 +160,38 @@
 			}
 		}
 	},
-	"allOf": [
-		{
-			"if": {
+	"if": {
+		"properties": {
+			"failure": {
 				"properties": {
-					"version": {
-						"const": 1
+					"details": {
+						"required": ["conflictTarget"]
 					}
-				}
-			},
-			"then": {
-				"properties": {
-					"failure": {
-						"properties": {
-							"kind": {
-								"not": {
-									"const": "ambiguous"
-								}
-							},
-							"details": {
-								"properties": {
-									"reason": {
-										"not": {
-											"const": "ambiguous-target"
-										}
-									}
-								}
-							}
-						}
-					}
-				}
+				},
+				"required": ["details"]
 			}
 		},
-		{
-			"if": {
+		"required": ["failure"]
+	},
+	"then": {
+		"properties": {
+			"failure": {
+				"required": ["details"],
 				"properties": {
-					"version": {
-						"enum": [1, 2]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"failure": {
+					"kind": {
+						"const": "rejected"
+					},
+					"details": {
+						"required": ["stage", "reason", "conflictTarget"],
 						"properties": {
-							"details": {
-								"properties": {
-									"reason": {
-										"not": {
-											"const": "launch-pending"
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 4
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"failure": {
-						"required": ["details"],
-						"properties": {
-							"kind": {
-								"const": "rejected"
+							"reason": {
+								"const": "name-in-use"
 							},
-							"details": {
-								"required": ["stage", "reason", "conflictTarget"],
-								"properties": {
-									"reason": {
-										"const": "name-in-use"
-									},
-									"conflictSessionId": false
-								}
-							}
-						}
-					}
-				}
-			},
-			"else": {
-				"properties": {
-					"failure": {
-						"properties": {
-							"details": {
-								"properties": {
-									"conflictTarget": false
-								}
-							}
+							"conflictSessionId": false
 						}
 					}
 				}
 			}
 		}
-	]
+	}
 }

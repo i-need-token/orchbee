@@ -2,155 +2,6 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.agent.list",
 	"title": "orchbee agent list envelope",
-	"$comment": "Version 1 preserves the non-Windows canonical list. Windows version 2 is the bounded joined Agent projection; client facets stay separate from semantic status.",
-	"oneOf": [
-		{
-			"type": "object",
-			"required": ["schema", "version", "source", "result"],
-			"additionalProperties": false,
-			"properties": {
-				"schema": {
-					"const": "orchbee.agent.list"
-				},
-				"version": {
-					"const": 1
-				},
-				"source": {
-					"$ref": "#/$defs/agentReadSource"
-				},
-				"result": {
-					"type": "object",
-					"required": ["kind", "revision", "items", "nextCursor"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "listed"
-						},
-						"revision": {
-							"$ref": "#/$defs/safeInteger"
-						},
-						"items": {
-							"type": "array",
-							"maxItems": 100,
-							"items": {
-								"allOf": [
-									{
-										"$ref": "#/$defs/legacyAgentState_sessionSummary"
-									},
-									{
-										"not": {
-											"required": ["client"]
-										}
-									}
-								]
-							}
-						},
-						"nextCursor": {
-							"oneOf": [
-								{
-									"$ref": "#/$defs/cursor"
-								},
-								{
-									"type": "null"
-								}
-							]
-						}
-					}
-				}
-			}
-		},
-		{
-			"type": "object",
-			"required": ["schema", "version", "source", "result"],
-			"additionalProperties": false,
-			"properties": {
-				"schema": {
-					"const": "orchbee.agent.list"
-				},
-				"version": {
-					"const": 2
-				},
-				"source": {
-					"$ref": "#/$defs/agentProjectionSource"
-				},
-				"result": {
-					"type": "object",
-					"required": ["kind", "revision", "items", "nextCursor"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "listed"
-						},
-						"revision": {
-							"$ref": "#/$defs/safeInteger"
-						},
-						"items": {
-							"type": "array",
-							"maxItems": 100,
-							"items": {
-								"$ref": "#/$defs/agentProjectionRow"
-							}
-						},
-						"nextCursor": {
-							"oneOf": [
-								{
-									"$ref": "#/$defs/projectionCursor"
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"clientId": {
-							"$ref": "#/$defs/hexId"
-						}
-					}
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"result": {
-								"required": ["clientId"]
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"result": {
-								"properties": {
-									"items": {
-										"items": {
-											"required": ["client"]
-										}
-									}
-								}
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"result": {
-								"not": {
-									"required": ["clientId"]
-								},
-								"properties": {
-									"items": {
-										"items": {
-											"not": {
-												"required": ["client"]
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			]
-		}
-	],
 	"$defs": {
 		"agentReadSource": {
 			"type": "object",
@@ -507,191 +358,31 @@
 					]
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"state": {
-								"const": "current"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"seen": {
-								"type": "boolean"
-							},
-							"stateChangeRevision": {
-								"$ref": "#/$defs/safeInteger"
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"seen": {
-								"type": "null"
-							},
-							"stateChangeRevision": {
-								"type": "null"
-							}
-						}
+			"if": {
+				"properties": {
+					"state": {
+						"const": "current"
 					}
-				}
-			]
-		},
-		"legacyAgentState_clientView": {
-			"type": "object",
-			"required": [
-				"clientId",
-				"operationId",
-				"phase",
-				"outerFocused",
-				"focused",
-				"attentionRevision",
-				"state",
-				"stateChangeRevision",
-				"seen",
-				"status"
-			],
-			"additionalProperties": false,
-			"properties": {
-				"clientId": {
-					"$ref": "#/$defs/hexId"
-				},
-				"operationId": {
-					"$ref": "#/$defs/hexId"
-				},
-				"phase": {
-					"enum": ["starting", "ready", "busy", "unavailable"]
-				},
-				"outerFocused": {
-					"type": ["boolean", "null"]
-				},
-				"focused": {
-					"type": "boolean"
-				},
-				"attentionRevision": {
-					"$ref": "#/$defs/safeInteger"
-				},
-				"state": {
-					"enum": ["current", "missing", "stale"]
-				},
-				"stateChangeRevision": {
-					"anyOf": [
-						{
-							"type": "null"
-						},
-						{
-							"$ref": "#/$defs/safeInteger"
-						}
-					]
-				},
-				"seen": {
-					"type": ["boolean", "null"]
-				},
-				"status": {
-					"enum": [
-						null,
-						"idle",
-						"done",
-						"blocked",
-						"working",
-						"unknown",
-						"ended",
-						"stale",
-						"disconnected"
-					]
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"state": {
-								"const": "current"
-							}
-						}
+			"then": {
+				"properties": {
+					"seen": {
+						"type": "boolean"
 					},
-					"then": {
-						"properties": {
-							"seen": {
-								"type": "boolean"
-							},
-							"stateChangeRevision": {
-								"$ref": "#/$defs/safeInteger"
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"seen": {
-								"type": "null"
-							},
-							"stateChangeRevision": {
-								"type": "null"
-							}
-						}
+					"stateChangeRevision": {
+						"$ref": "#/$defs/safeInteger"
 					}
 				}
-			]
-		},
-		"legacyAgentState_sessionSummary": {
-			"type": "object",
-			"required": [
-				"executionLocation",
-				"lifecycle",
-				"observation",
-				"parentSessionId",
-				"pendingRequestCount",
-				"presentationAttachments",
-				"providerId",
-				"sessionId",
-				"status"
-			],
-			"additionalProperties": false,
-			"properties": {
-				"executionLocation": {
-					"$ref": "#/$defs/executionLocation"
-				},
-				"lifecycle": {
-					"$ref": "#/$defs/lifecycle"
-				},
-				"observation": {
-					"$ref": "#/$defs/observation"
-				},
-				"parentSessionId": {
-					"oneOf": [
-						{
-							"$ref": "#/$defs/opaqueId"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"pendingRequestCount": {
-					"type": "integer",
-					"minimum": 0,
-					"maximum": 128
-				},
-				"presentationAttachments": {
-					"type": "array",
-					"maxItems": 32,
-					"items": {
-						"$ref": "#/$defs/presentationAttachment"
+			},
+			"else": {
+				"properties": {
+					"seen": {
+						"type": "null"
+					},
+					"stateChangeRevision": {
+						"type": "null"
 					}
-				},
-				"providerId": {
-					"$ref": "#/$defs/providerId"
-				},
-				"sessionId": {
-					"$ref": "#/$defs/opaqueId"
-				},
-				"status": {
-					"$ref": "#/$defs/semanticStatus"
-				},
-				"client": {
-					"$ref": "#/$defs/legacyAgentState_clientView"
 				}
 			}
 		},
@@ -730,16 +421,10 @@
 			"pattern": "^u1\\.[A-Za-z0-9_-]+$"
 		},
 		"projectionCanonicalSummary": {
-			"allOf": [
-				{
-					"$ref": "#/$defs/sessionSummary"
-				},
-				{
-					"not": {
-						"required": ["client"]
-					}
-				}
-			]
+			"$ref": "#/$defs/sessionSummary",
+			"not": {
+				"required": ["client"]
+			}
 		},
 		"agentProjectionTerminal": {
 			"type": "object",
@@ -987,7 +672,8 @@
 				"canonical",
 				"terminal",
 				"placement",
-				"cwd"
+				"cwd",
+				"client"
 			],
 			"additionalProperties": false,
 			"properties": {
@@ -1019,50 +705,90 @@
 				"terminal": {
 					"oneOf": [
 						{
-							"$ref": "#/$defs/agentProjectionTerminal"
+							"oneOf": [
+								{
+									"$ref": "#/$defs/agentProjectionTerminal"
+								},
+								{
+									"type": "null"
+								}
+							]
 						},
 						{
-							"type": "null"
+							"$ref": "#/$defs/unsupported"
 						}
 					]
 				},
 				"placement": {
 					"oneOf": [
 						{
-							"$ref": "#/$defs/agentProjectionPlacement"
+							"oneOf": [
+								{
+									"$ref": "#/$defs/agentProjectionPlacement"
+								},
+								{
+									"type": "null"
+								}
+							]
 						},
 						{
-							"type": "null"
+							"$ref": "#/$defs/unsupported"
 						}
 					]
 				},
 				"cwd": {
-					"type": ["string", "null"]
+					"oneOf": [
+						{
+							"type": ["string", "null"]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
 				},
 				"client": {
-					"$ref": "#/$defs/agentProjectionClient"
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"$ref": "#/$defs/agentProjectionClient"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				}
+			},
+			"if": {
+				"properties": {
+					"source": {
+						"const": "canonical"
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"canonical": {
+						"$ref": "#/$defs/projectionCanonicalSummary"
+					},
+					"terminal": {
+						"oneOf": [
+							{
+								"type": "null"
+							},
+							{
+								"$ref": "#/$defs/unsupported"
+							}
+						]
+					}
 				}
 			},
 			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"source": {
-								"const": "canonical"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"canonical": {
-								"$ref": "#/$defs/projectionCanonicalSummary"
-							},
-							"terminal": {
-								"type": "null"
-							}
-						}
-					}
-				},
 				{
 					"if": {
 						"properties": {
@@ -1110,6 +836,87 @@
 					}
 				}
 			]
+		},
+		"unsupported": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"const": "unsupported"
+				}
+			},
+			"required": ["kind"],
+			"additionalProperties": false
+		}
+	},
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.agent.list"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"oneOf": [
+				{
+					"$ref": "#/$defs/agentProjectionSource"
+				},
+				{
+					"$ref": "#/$defs/agentReadSource"
+				}
+			]
+		},
+		"result": {
+			"type": "object",
+			"required": ["kind", "revision", "items", "nextCursor", "clientId"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "listed"
+				},
+				"revision": {
+					"$ref": "#/$defs/safeInteger"
+				},
+				"items": {
+					"type": "array",
+					"maxItems": 100,
+					"items": {
+						"$ref": "#/$defs/agentProjectionRow"
+					}
+				},
+				"nextCursor": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/projectionCursor"
+						},
+						{
+							"$ref": "#/$defs/cursor"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"clientId": {
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"$ref": "#/$defs/hexId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				}
+			}
 		}
 	}
 }

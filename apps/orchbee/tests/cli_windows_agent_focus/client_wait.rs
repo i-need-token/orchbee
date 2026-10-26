@@ -96,7 +96,7 @@ fn selected_wait_matches_actual_state_independently_of_seen_or_missing_acknowled
             &doc,
             include_str!("../../src/cli/schemas/orchbee.agent.wait.json"),
         );
-        assert_eq!(doc["version"], 8);
+        assert_eq!(doc["version"], 1);
         assert_eq!(doc["result"]["wait"]["observations"], 1);
         assert_eq!(doc["result"]["client"]["status"], condition);
         assert_eq!(doc["result"]["client"]["seen"], json!(seen));

@@ -229,9 +229,10 @@ fn join_text(rows: &[OutputRow], unwrap: bool) -> Result<String, Failure> {
 
 impl TerminalOutputDoc {
     pub(crate) fn result(&self) -> Value {
-        let mut result = json!({
+        json!({
             "terminal": super::results::terminal_row_json(&self.terminal),
             "cursor": self.cursor,
+            "encoding": if self.ansi { "ansi" } else { "text" },
             "selection": { "source": self.selection.source.token(), "lines": self.selection.lines },
             "observed": { "revision": self.revision.to_string(), "generation": self.generation.to_string(),
                 "alternateScreen": self.alternate, "columns": self.columns, "screenRows": self.screen_rows,
@@ -242,11 +243,7 @@ impl TerminalOutputDoc {
                 "lastRow": self.span.last_row.map(|index| index.to_string()),
                 "startsMidLine": self.span.starts_mid_line,
                 "endsMidLine": self.span.ends_mid_line },
-        });
-        if self.ansi {
-            result["encoding"] = json!("ansi");
-        }
-        result
+        })
     }
 }
 

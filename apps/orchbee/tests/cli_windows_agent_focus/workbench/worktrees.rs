@@ -109,7 +109,7 @@ fn workspace_queries_join_git_without_trust_and_fail_closed_on_changed_or_lost_s
                 include_str!("../../../src/cli/schemas/orchbee.workspace.list.json"),
             );
             let row = &doc["result"]["workspaces"][0];
-            assert_eq!(doc["version"], 8);
+            assert_eq!(doc["version"], 1);
             assert_eq!(
                 row["worktreeObservation"]["state"],
                 match case {

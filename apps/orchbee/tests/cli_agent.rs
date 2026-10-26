@@ -1067,7 +1067,7 @@ fn list_runtime_unavailable_is_agent_failure_document() -> TestResult {
 }
 
 #[test]
-fn get_found_emits_verbatim_outcome() -> TestResult {
+fn get_found_emits_current_inspection() -> TestResult {
     let base = base_dir("aget");
     let scope = stage_scope(&base);
     let peer = spawn_peer(&scope, 1, |stream| {
@@ -1106,13 +1106,13 @@ fn get_found_emits_verbatim_outcome() -> TestResult {
     assert_eq!(output.status.code(), Some(0));
     let document = document(&output);
     assert_eq!(document["schema"], "orchbee.agent.get");
-    assert_eq!(document["result"]["kind"], "found");
+    assert_eq!(document["result"]["kind"], "projected");
     assert_eq!(
-        document["result"]["session"]["snapshot"]["sessionId"],
+        document["result"]["inspection"]["session"]["snapshot"]["sessionId"],
         "sess-alpha"
     );
     assert!(
-        document["result"]["session"]["snapshot"]["lastOutcome"].is_null(),
+        document["result"]["inspection"]["session"]["snapshot"]["lastOutcome"].is_null(),
         "required-nullable fields stay explicit on the wire document"
     );
     Ok(())
@@ -1735,7 +1735,7 @@ fn wait_matched_emits_wait_envelope_on_one_held_session() -> TestResult {
     assert_eq!(document["result"]["wait"]["observations"], 2);
     assert!(document["result"]["wait"]["elapsedMs"].is_u64());
     assert!(
-        document["result"]["wait"].get("afterRevision").is_none(),
+        document["result"]["wait"]["afterRevision"].is_null(),
         "afterRevision is omitted when the fence was not supplied"
     );
     Ok(())
@@ -2207,7 +2207,7 @@ fn wait_envelope_schema_admits_real_answers_only() -> TestResult {
         }
         serde_json::json!({
             "schema": "orchbee.agent.wait",
-            "version": 2,
+            "version": 1,
             "source": {"kind": "agent-read", "requestId": "11111111111111111111111111111111"},
             "result": {
                 "matchedConditions": matched,

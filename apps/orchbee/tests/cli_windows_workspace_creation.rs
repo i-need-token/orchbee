@@ -642,7 +642,7 @@ fn worktree_directory_start_has_one_operation_without_project_setup() {
             &doc,
             include_str!("../src/cli/schemas/orchbee.worktree.operation.json"),
         );
-        assert_eq!(doc["version"], 5);
+        assert_eq!(doc["version"], 1);
         assert!(doc["result"].get("setup").is_none());
         assert_eq!(status == 0, cut == "complete", "{cut}: {doc}");
     }

@@ -59,42 +59,40 @@
 					}
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"action": {
-								"const": "workspace.move"
-							}
-						}
-					},
-					"then": {
-						"required": ["workspaceId", "insertIndex"],
-						"not": {
-							"anyOf": [
-								{
-									"required": ["workspaceIds"]
-								},
-								{
-									"required": ["beforeWorkspaceId"]
-								}
-							]
-						}
-					},
-					"else": {
-						"required": ["workspaceIds"],
-						"not": {
-							"anyOf": [
-								{
-									"required": ["workspaceId"]
-								},
-								{
-									"required": ["insertIndex"]
-								}
-							]
-						}
+			"if": {
+				"properties": {
+					"action": {
+						"const": "workspace.move"
 					}
-				},
+				}
+			},
+			"then": {
+				"required": ["workspaceId", "insertIndex"],
+				"not": {
+					"anyOf": [
+						{
+							"required": ["workspaceIds"]
+						},
+						{
+							"required": ["beforeWorkspaceId"]
+						}
+					]
+				}
+			},
+			"else": {
+				"required": ["workspaceIds"],
+				"not": {
+					"anyOf": [
+						{
+							"required": ["workspaceId"]
+						},
+						{
+							"required": ["insertIndex"]
+						}
+					]
+				}
+			},
+			"allOf": [
 				{
 					"if": {
 						"properties": {

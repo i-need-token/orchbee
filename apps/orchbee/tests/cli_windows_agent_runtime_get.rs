@@ -132,11 +132,11 @@ fn agent_get_returns_process_facts_and_bounded_prompt_readiness() {
             &doc,
             include_str!("../src/cli/schemas/orchbee.agent.get.json"),
         );
-        assert_eq!(doc["version"], 19);
+        assert_eq!(doc["version"], 1);
         assert_eq!(doc["source"]["kind"], "agent-projection");
         assert_eq!(doc["result"]["kind"], "projected");
         assert_eq!(doc["result"]["agent"]["source"], "canonical");
-        assert!(doc["result"]["inspection"].get("client").is_none());
+        assert!(doc["result"]["inspection"]["client"].is_null());
         if case == "ready" {
             let schema: Value =
                 serde_json::from_str(include_str!("../src/cli/schemas/orchbee.agent.get.json"))
@@ -174,9 +174,6 @@ fn agent_get_returns_process_facts_and_bounded_prompt_readiness() {
             let mut bad = doc.clone();
             bad["result"]["agent"]["invented"] = json!(true);
             assert!(!validator.is_valid(&bad));
-            let mut obsolete = doc.clone();
-            obsolete["version"] = json!(18);
-            assert!(!validator.is_valid(&obsolete));
         }
 
         assert_eq!(
@@ -335,9 +332,6 @@ fn agent_terminal_observation_preserves_partial_availability_and_rejects_stale_o
         let validator = jsonschema::validator_for(&schema).unwrap();
         let mut invalid = doc.clone();
         invalid["result"]["inspection"]["runtime"]["promptReady"] = json!(true);
-        assert!(!validator.is_valid(&invalid));
-        let mut invalid = doc.clone();
-        invalid["version"] = json!(18);
         assert!(!validator.is_valid(&invalid));
     }
 }

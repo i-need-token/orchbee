@@ -10,7 +10,7 @@
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 154
+			"const": 1
 		},
 		"source": {
 			"type": "object",
@@ -145,7 +145,6 @@
 						"orchbee.site.agent-manifests",
 						"orchbee.site.configuration",
 						"orchbee.site.diagnose",
-						"orchbee.site.diagnose.windows",
 						"orchbee.site.start",
 						"orchbee.site.stop",
 						"orchbee.status",
@@ -284,7 +283,6 @@
 				"orchbee.site.agent-manifests",
 				"orchbee.site.configuration",
 				"orchbee.site.diagnose",
-				"orchbee.site.diagnose.windows",
 				"orchbee.site.start",
 				"orchbee.site.stop",
 				"orchbee.status",

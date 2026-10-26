@@ -408,7 +408,7 @@ fn implicit_source_keeps_the_selected_workspace_identity_with_or_without_a_direc
             },
         );
         assert_eq!(status, 0, "{document}");
-        assert_eq!(document["version"], 5);
+        assert_eq!(document["version"], 1);
         validate(
             &document,
             include_str!("../src/cli/schemas/orchbee.worktree.operation.json"),
@@ -659,7 +659,7 @@ fn focus_keeps_canonical_success_across_changed_view_and_uncertain_handoff() {
             &document,
             include_str!("../src/cli/schemas/orchbee.worktree.operation.json"),
         );
-        assert_eq!(document["version"], 5);
+        assert_eq!(document["version"], 1);
         assert_eq!(
             document["result"]["observation"]["reply"]["outcome"]["status"]["workspaceId"],
             id(20)
@@ -694,13 +694,10 @@ fn focus_keeps_canonical_success_across_changed_view_and_uncertain_handoff() {
             .unwrap();
             let validator = jsonschema::validator_for(&schema).unwrap();
             let mut wrong = document.clone();
-            wrong["version"] = json!(1);
-            assert!(!validator.is_valid(&wrong));
-            wrong = document;
             wrong["result"].as_object_mut().unwrap().remove("postOpen");
-            assert!(validator.is_valid(&wrong));
-            wrong["result"]["postOpen"] = Value::Null;
             assert!(!validator.is_valid(&wrong));
+            wrong["result"]["postOpen"] = Value::Null;
+            assert!(validator.is_valid(&wrong));
         }
     }
 }

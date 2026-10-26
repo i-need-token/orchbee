@@ -135,7 +135,7 @@ fn selected_client_lists_batch_once_and_preserves_truth_across_canonical_changes
             &doc,
             include_str!("../../src/cli/schemas/orchbee.agent.list.json"),
         );
-        assert_eq!(doc["version"], 2);
+        assert_eq!(doc["version"], 1);
         assert_eq!(doc["source"]["kind"], "agent-projection");
         assert_eq!(doc["result"]["clientId"], id(7));
         let items = doc["result"]["items"].as_array().unwrap();
@@ -217,7 +217,7 @@ fn unified_list_keeps_matched_aliases_and_physical_only_agents_as_distinct_rows(
         &doc,
         include_str!("../../src/cli/schemas/orchbee.agent.list.json"),
     );
-    assert_eq!(doc["version"], 2);
+    assert_eq!(doc["version"], 1);
     assert_eq!(doc["result"]["items"][0]["ordinal"], 1);
     assert_eq!(doc["result"]["items"][0]["provider"], "grok");
     assert_eq!(doc["result"]["items"][0]["source"], "both");

@@ -2,340 +2,84 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.panel.terminal-create",
 	"title": "Panel terminal creation receipt",
-	"oneOf": [
-		{
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"schema",
+		"version",
+		"source",
+		"target",
+		"directory",
+		"result",
+		"failure",
+		"resolvedLaunch"
+	],
+	"properties": {
+		"schema": {
+			"const": "orchbee.panel.terminal-create"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["schema", "version", "source", "target", "directory", "result", "failure"],
+			"required": ["siteId", "requestId", "baseRevision"],
 			"properties": {
-				"schema": {
-					"const": "orchbee.panel.terminal-create"
+				"siteId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$"
 				},
-				"version": {
-					"const": 1
+				"requestId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$"
 				},
-				"source": {
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["siteId", "requestId", "baseRevision"],
-					"properties": {
-						"siteId": {
-							"type": "string",
-							"pattern": "^[0-9a-f]{32}$"
-						},
-						"requestId": {
-							"type": "string",
-							"pattern": "^[0-9a-f]{32}$"
-						},
-						"baseRevision": {
-							"type": "string",
-							"pattern": "^(0|[1-9][0-9]{0,19})$"
-						}
-					}
+				"baseRevision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]{0,19})$"
+				}
+			}
+		},
+		"target": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["terminalContextId", "tabId", "panelId", "member"],
+			"properties": {
+				"terminalContextId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$"
 				},
-				"target": {
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["terminalContextId", "tabId", "panelId", "member"],
-					"properties": {
-						"terminalContextId": {
-							"type": "string",
-							"pattern": "^[0-9a-f]{32}$"
-						},
-						"tabId": {
-							"type": "string",
-							"pattern": "^[0-9a-f]{32}$"
-						},
-						"panelId": {
-							"type": "string",
-							"pattern": "^[0-9a-f]{32}$"
-						},
-						"member": {
-							"oneOf": [
-								{
-									"type": "object",
-									"properties": {
-										"kind": {
-											"const": "child"
-										},
-										"label": {
-											"type": "string",
-											"minLength": 1,
-											"maxLength": 512,
-											"pattern": "^[\\u0000-\\uD7FF\\uE000-\\u{10FFFF}]*$"
-										}
-									},
-									"required": ["kind", "label"],
-									"additionalProperties": false
-								},
-								{
-									"type": "object",
-									"properties": {
-										"kind": {
-											"const": "unbound"
-										},
-										"presentationId": {
-											"type": "string",
-											"pattern": "^[0-9a-f]{32}$",
-											"not": {
-												"const": "00000000000000000000000000000000"
-											},
-											"title": "TerminalPresentationId"
-										}
-									},
-									"required": ["kind", "presentationId"],
-									"additionalProperties": false
-								}
-							]
-						}
-					}
+				"tabId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$"
 				},
-				"directory": {
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["policy", "source", "path", "sourcePanelId"],
-					"properties": {
-						"policy": {
-							"enum": ["follow", "explicit", "home", "current", "workspace"]
-						},
-						"source": {
-							"enum": ["launch-default", "argument", "home", "current", "terminal-process"]
-						},
-						"path": {
-							"type": ["string", "null"],
-							"minLength": 1,
-							"maxLength": 4096
-						},
-						"sourcePanelId": {
-							"anyOf": [
-								{
-									"type": "string",
-									"pattern": "^[0-9a-f]{32}$"
-								},
-								{
-									"type": "null"
-								}
-							]
-						}
-					},
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"source": {
-										"const": "launch-default"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"path": {
-										"type": "null"
-									}
-								}
-							},
-							"else": {
-								"properties": {
-									"path": {
-										"type": "string"
-									}
-								}
-							}
-						},
-						{
-							"if": {
-								"properties": {
-									"source": {
-										"const": "terminal-process"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"sourcePanelId": {
-										"type": "string",
-										"pattern": "^[0-9a-f]{32}$"
-									}
-								}
-							}
-						}
-					],
-					"oneOf": [
-						{
-							"properties": {
-								"policy": {
-									"const": "follow"
-								},
-								"source": {
-									"enum": ["launch-default", "terminal-process"]
-								}
-							}
-						},
-						{
-							"properties": {
-								"policy": {
-									"const": "explicit"
-								},
-								"source": {
-									"enum": ["argument"]
-								},
-								"sourcePanelId": {
-									"type": "null"
-								}
-							}
-						},
-						{
-							"properties": {
-								"policy": {
-									"const": "home"
-								},
-								"source": {
-									"enum": ["home"]
-								},
-								"sourcePanelId": {
-									"type": "null"
-								}
-							}
-						},
-						{
-							"properties": {
-								"policy": {
-									"const": "current"
-								},
-								"source": {
-									"enum": ["current"]
-								},
-								"sourcePanelId": {
-									"type": "null"
-								}
-							}
-						},
-						{
-							"properties": {
-								"policy": {
-									"const": "workspace"
-								},
-								"source": {
-									"enum": ["launch-default"]
-								},
-								"sourcePanelId": {
-									"type": "null"
-								}
-							}
-						}
-					]
+				"panelId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$"
 				},
-				"result": {
+				"member": {
 					"oneOf": [
 						{
 							"type": "object",
 							"properties": {
 								"kind": {
-									"const": "rejected"
+									"const": "child"
 								},
-								"revision": {
-									"title": "WorkbenchRevision",
+								"label": {
 									"type": "string",
 									"minLength": 1,
-									"maxLength": 20,
-									"pattern": "^(?:0|[1-9][0-9]{0,19})$",
-									"format": "orchbee-uint64"
-								},
-								"reason": {
-									"enum": [
-										"site-mismatch",
-										"revision-mismatch",
-										"project-unavailable",
-										"workspace-unavailable",
-										"workspace-group-close-required",
-										"workspace-directory-unavailable",
-										"workspace-directory-conflict",
-										"terminal-context-unavailable",
-										"tab-unavailable",
-										"panel-unavailable",
-										"same-tab",
-										"resource-limit",
-										"identity-exhausted",
-										"revision-exhausted",
-										"request-identity-conflict",
-										"tab-move-index-out-of-bounds",
-										"tab-move-order-conflict",
-										"workspace-move-index-out-of-bounds",
-										"workspace-move-target-in-block"
-									]
+									"maxLength": 512,
+									"pattern": "^[\\u0000-\\uD7FF\\uE000-\\u{10FFFF}]*$"
 								}
 							},
-							"required": ["kind", "revision", "reason"],
+							"required": ["kind", "label"],
 							"additionalProperties": false
 						},
 						{
 							"type": "object",
 							"properties": {
 								"kind": {
-									"const": "denied"
-								}
-							},
-							"required": ["kind"],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "unavailable"
-								},
-								"reason": {
-									"enum": [
-										"request-ledger-full",
-										"no-compatible-worker",
-										"server-busy",
-										"service-unavailable",
-										"terminal-busy",
-										"terminal-runtime-unavailable",
-										"directory-unavailable"
-									]
-								}
-							},
-							"required": ["kind", "reason"],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "panel-terminal-pending"
-								},
-								"revision": {
-									"title": "WorkbenchRevision",
-									"type": "string",
-									"minLength": 1,
-									"maxLength": 20,
-									"pattern": "^(?:0|[1-9][0-9]{0,19})$",
-									"format": "orchbee-uint64"
-								},
-								"terminalContextId": {
-									"type": "string",
-									"pattern": "^[0-9a-f]{32}$",
-									"not": {
-										"const": "00000000000000000000000000000000"
-									},
-									"title": "WorkbenchTerminalContextId"
-								},
-								"tabId": {
-									"type": "string",
-									"pattern": "^[0-9a-f]{32}$",
-									"not": {
-										"const": "00000000000000000000000000000000"
-									},
-									"title": "WorkbenchTabId"
-								},
-								"panelId": {
-									"type": "string",
-									"pattern": "^[0-9a-f]{32}$",
-									"not": {
-										"const": "00000000000000000000000000000000"
-									},
-									"title": "WorkbenchPanelId"
+									"const": "unbound"
 								},
 								"presentationId": {
 									"type": "string",
@@ -346,807 +90,492 @@
 									"title": "TerminalPresentationId"
 								}
 							},
-							"required": [
-								"kind",
-								"revision",
-								"terminalContextId",
-								"tabId",
-								"panelId",
-								"presentationId"
-							],
+							"required": ["kind", "presentationId"],
 							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "panel-terminal-created"
-								},
-								"revision": {
-									"title": "WorkbenchRevision",
-									"type": "string",
-									"minLength": 1,
-									"maxLength": 20,
-									"pattern": "^(?:0|[1-9][0-9]{0,19})$",
-									"format": "orchbee-uint64"
-								},
-								"terminalContextId": {
-									"type": "string",
-									"pattern": "^[0-9a-f]{32}$",
-									"not": {
-										"const": "00000000000000000000000000000000"
-									},
-									"title": "WorkbenchTerminalContextId"
-								},
-								"tabId": {
-									"type": "string",
-									"pattern": "^[0-9a-f]{32}$",
-									"not": {
-										"const": "00000000000000000000000000000000"
-									},
-									"title": "WorkbenchTabId"
-								},
-								"panelId": {
-									"type": "string",
-									"pattern": "^[0-9a-f]{32}$",
-									"not": {
-										"const": "00000000000000000000000000000000"
-									},
-									"title": "WorkbenchPanelId"
-								},
-								"presentationId": {
-									"type": "string",
-									"pattern": "^[0-9a-f]{32}$",
-									"not": {
-										"const": "00000000000000000000000000000000"
-									},
-									"title": "TerminalPresentationId"
-								},
-								"terminalOutcome": {
-									"oneOf": [
-										{
-											"type": "object",
-											"properties": {
-												"kind": {
-													"const": "started"
-												},
-												"geometry": {
-													"$comment": "Semantic validation additionally requires columns * rows <= 262144, columns * cellPixelWidth <= 65535, and rows * cellPixelHeight <= 65535. The cellPixelWidth/cellPixelHeight pair must be either both positive (pixels known) or both zero (pixels unknown); a mixed pair is invalid.",
-													"type": "object",
-													"properties": {
-														"columns": {
-															"type": "integer",
-															"minimum": 1,
-															"maximum": 4096
-														},
-														"rows": {
-															"type": "integer",
-															"minimum": 1,
-															"maximum": 4096
-														},
-														"cellPixelWidth": {
-															"type": "integer",
-															"minimum": 0,
-															"maximum": 4096
-														},
-														"cellPixelHeight": {
-															"type": "integer",
-															"minimum": 0,
-															"maximum": 4096
-														}
-													},
-													"required": ["columns", "rows", "cellPixelWidth", "cellPixelHeight"],
-													"additionalProperties": false
-												}
-											},
-											"required": ["kind", "geometry"],
-											"additionalProperties": false
-										},
-										{
-											"type": "object",
-											"properties": {
-												"kind": {
-													"const": "unavailable"
-												},
-												"reason": {
-													"enum": ["terminal-runtime-unavailable", "server-busy"]
-												}
-											},
-											"required": ["kind", "reason"],
-											"additionalProperties": false
-										},
-										{
-											"type": "object",
-											"properties": {
-												"kind": {
-													"const": "failed"
-												},
-												"reason": {
-													"enum": ["terminal-create-failed"]
-												}
-											},
-											"required": ["kind", "reason"],
-											"additionalProperties": false
-										},
-										{
-											"type": "object",
-											"properties": {
-												"kind": {
-													"const": "outcome-unknown"
-												}
-											},
-											"required": ["kind"],
-											"additionalProperties": false
-										}
-									]
-								}
-							},
-							"required": [
-								"kind",
-								"revision",
-								"terminalContextId",
-								"tabId",
-								"panelId",
-								"presentationId",
-								"terminalOutcome"
-							],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "launch-profile-unavailable"
-								}
-							},
-							"required": ["kind"],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "launch-profile-ambiguous"
-								},
-								"candidateIds": {
-									"type": "array",
-									"maxItems": 64,
-									"items": {
-										"type": "string",
-										"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
-									}
-								}
-							},
-							"required": ["kind", "candidateIds"],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"additionalProperties": false,
-							"required": ["kind", "reason"],
-							"properties": {
-								"kind": {
-									"const": "outcome-unknown"
-								},
-								"reason": {
-									"enum": [
-										"request-write",
-										"response-read",
-										"response-deadline",
-										"outcome-mismatch",
-										"response-mismatch"
-									]
-								}
-							}
-						},
-						{
-							"type": "object",
-							"additionalProperties": false,
-							"required": ["kind", "reason"],
-							"properties": {
-								"kind": {
-									"const": "not-submitted"
-								},
-								"reason": {
-									"enum": ["session-unavailable", "request-encoding", "request-not-submitted"]
-								}
-							}
 						}
-					]
-				},
-				"failure": {
-					"enum": [
-						null,
-						"denied",
-						"rejected",
-						"not-found",
-						"ambiguous",
-						"service-unavailable",
-						"protocol-invalid",
-						"outcome-unknown",
-						"timeout",
-						"cancelled",
-						"internal-failure"
 					]
 				}
 			}
 		},
-		{
+		"directory": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": [
-				"schema",
-				"version",
-				"source",
-				"target",
-				"directory",
-				"result",
-				"failure",
-				"resolvedLaunch"
-			],
+			"required": ["policy", "source", "path", "sourcePanelId"],
 			"properties": {
-				"schema": {
-					"const": "orchbee.panel.terminal-create"
-				},
-				"version": {
-					"enum": [2]
+				"policy": {
+					"enum": ["follow", "explicit", "home", "current", "workspace"]
 				},
 				"source": {
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["siteId", "requestId", "baseRevision"],
+					"enum": ["launch-default", "argument", "home", "current", "terminal-process"]
+				},
+				"path": {
+					"type": ["string", "null"],
+					"minLength": 1,
+					"maxLength": 4096
+				},
+				"sourcePanelId": {
+					"anyOf": [
+						{
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"oneOf": [
+				{
 					"properties": {
-						"siteId": {
-							"type": "string",
-							"pattern": "^[0-9a-f]{32}$"
+						"policy": {
+							"const": "follow"
 						},
-						"requestId": {
-							"type": "string",
-							"pattern": "^[0-9a-f]{32}$"
-						},
-						"baseRevision": {
-							"type": "string",
-							"pattern": "^(0|[1-9][0-9]{0,19})$"
+						"source": {
+							"enum": ["launch-default", "terminal-process"]
 						}
 					}
 				},
-				"target": {
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["terminalContextId", "tabId", "panelId", "member"],
+				{
 					"properties": {
+						"policy": {
+							"const": "explicit"
+						},
+						"source": {
+							"enum": ["argument"]
+						},
+						"sourcePanelId": {
+							"type": "null"
+						}
+					}
+				},
+				{
+					"properties": {
+						"policy": {
+							"const": "home"
+						},
+						"source": {
+							"enum": ["home"]
+						},
+						"sourcePanelId": {
+							"type": "null"
+						}
+					}
+				},
+				{
+					"properties": {
+						"policy": {
+							"const": "current"
+						},
+						"source": {
+							"enum": ["current"]
+						},
+						"sourcePanelId": {
+							"type": "null"
+						}
+					}
+				},
+				{
+					"properties": {
+						"policy": {
+							"const": "workspace"
+						},
+						"source": {
+							"enum": ["launch-default"]
+						},
+						"sourcePanelId": {
+							"type": "null"
+						}
+					}
+				}
+			],
+			"if": {
+				"properties": {
+					"source": {
+						"const": "launch-default"
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"path": {
+						"type": "null"
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"path": {
+						"type": "string"
+					}
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"source": {
+								"const": "terminal-process"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"sourcePanelId": {
+								"type": "string",
+								"pattern": "^[0-9a-f]{32}$"
+							}
+						}
+					}
+				}
+			]
+		},
+		"result": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "rejected"
+						},
+						"revision": {
+							"title": "WorkbenchRevision",
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 20,
+							"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64"
+						},
+						"reason": {
+							"enum": [
+								"site-mismatch",
+								"revision-mismatch",
+								"project-unavailable",
+								"workspace-unavailable",
+								"workspace-group-close-required",
+								"workspace-directory-unavailable",
+								"workspace-directory-conflict",
+								"terminal-context-unavailable",
+								"tab-unavailable",
+								"panel-unavailable",
+								"same-tab",
+								"resource-limit",
+								"identity-exhausted",
+								"revision-exhausted",
+								"request-identity-conflict",
+								"tab-move-index-out-of-bounds",
+								"tab-move-order-conflict",
+								"workspace-move-index-out-of-bounds",
+								"workspace-move-target-in-block"
+							]
+						}
+					},
+					"required": ["kind", "revision", "reason"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "denied"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"enum": [
+								"request-ledger-full",
+								"no-compatible-worker",
+								"server-busy",
+								"service-unavailable",
+								"terminal-busy",
+								"terminal-runtime-unavailable",
+								"directory-unavailable"
+							]
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "panel-terminal-pending"
+						},
+						"revision": {
+							"title": "WorkbenchRevision",
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 20,
+							"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64"
+						},
 						"terminalContextId": {
 							"type": "string",
-							"pattern": "^[0-9a-f]{32}$"
+							"pattern": "^[0-9a-f]{32}$",
+							"not": {
+								"const": "00000000000000000000000000000000"
+							},
+							"title": "WorkbenchTerminalContextId"
 						},
 						"tabId": {
 							"type": "string",
-							"pattern": "^[0-9a-f]{32}$"
+							"pattern": "^[0-9a-f]{32}$",
+							"not": {
+								"const": "00000000000000000000000000000000"
+							},
+							"title": "WorkbenchTabId"
 						},
 						"panelId": {
 							"type": "string",
-							"pattern": "^[0-9a-f]{32}$"
+							"pattern": "^[0-9a-f]{32}$",
+							"not": {
+								"const": "00000000000000000000000000000000"
+							},
+							"title": "WorkbenchPanelId"
 						},
-						"member": {
+						"presentationId": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$",
+							"not": {
+								"const": "00000000000000000000000000000000"
+							},
+							"title": "TerminalPresentationId"
+						}
+					},
+					"required": [
+						"kind",
+						"revision",
+						"terminalContextId",
+						"tabId",
+						"panelId",
+						"presentationId"
+					],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "panel-terminal-created"
+						},
+						"revision": {
+							"title": "WorkbenchRevision",
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 20,
+							"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64"
+						},
+						"terminalContextId": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$",
+							"not": {
+								"const": "00000000000000000000000000000000"
+							},
+							"title": "WorkbenchTerminalContextId"
+						},
+						"tabId": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$",
+							"not": {
+								"const": "00000000000000000000000000000000"
+							},
+							"title": "WorkbenchTabId"
+						},
+						"panelId": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$",
+							"not": {
+								"const": "00000000000000000000000000000000"
+							},
+							"title": "WorkbenchPanelId"
+						},
+						"presentationId": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$",
+							"not": {
+								"const": "00000000000000000000000000000000"
+							},
+							"title": "TerminalPresentationId"
+						},
+						"terminalOutcome": {
 							"oneOf": [
 								{
 									"type": "object",
 									"properties": {
 										"kind": {
-											"const": "child"
+											"const": "started"
 										},
-										"label": {
-											"type": "string",
-											"minLength": 1,
-											"maxLength": 512,
-											"pattern": "^[\\u0000-\\uD7FF\\uE000-\\u{10FFFF}]*$"
+										"geometry": {
+											"type": "object",
+											"properties": {
+												"columns": {
+													"type": "integer",
+													"minimum": 1,
+													"maximum": 4096
+												},
+												"rows": {
+													"type": "integer",
+													"minimum": 1,
+													"maximum": 4096
+												},
+												"cellPixelWidth": {
+													"type": "integer",
+													"minimum": 0,
+													"maximum": 4096
+												},
+												"cellPixelHeight": {
+													"type": "integer",
+													"minimum": 0,
+													"maximum": 4096
+												}
+											},
+											"required": ["columns", "rows", "cellPixelWidth", "cellPixelHeight"],
+											"additionalProperties": false
 										}
 									},
-									"required": ["kind", "label"],
+									"required": ["kind", "geometry"],
 									"additionalProperties": false
 								},
 								{
 									"type": "object",
 									"properties": {
 										"kind": {
-											"const": "unbound"
+											"const": "unavailable"
 										},
-										"presentationId": {
-											"type": "string",
-											"pattern": "^[0-9a-f]{32}$",
-											"not": {
-												"const": "00000000000000000000000000000000"
-											},
-											"title": "TerminalPresentationId"
+										"reason": {
+											"enum": ["terminal-runtime-unavailable", "server-busy"]
 										}
 									},
-									"required": ["kind", "presentationId"],
+									"required": ["kind", "reason"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "failed"
+										},
+										"reason": {
+											"enum": ["terminal-create-failed"]
+										}
+									},
+									"required": ["kind", "reason"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "outcome-unknown"
+										}
+									},
+									"required": ["kind"],
 									"additionalProperties": false
 								}
 							]
 						}
-					}
+					},
+					"required": [
+						"kind",
+						"revision",
+						"terminalContextId",
+						"tabId",
+						"panelId",
+						"presentationId",
+						"terminalOutcome"
+					],
+					"additionalProperties": false
 				},
-				"directory": {
+				{
 					"type": "object",
-					"additionalProperties": false,
-					"required": ["policy", "source", "path", "sourcePanelId"],
 					"properties": {
-						"policy": {
-							"enum": ["follow", "explicit", "home", "current", "workspace"]
-						},
-						"source": {
-							"enum": ["launch-default", "argument", "home", "current", "terminal-process"]
-						},
-						"path": {
-							"type": ["string", "null"],
-							"minLength": 1,
-							"maxLength": 4096
-						},
-						"sourcePanelId": {
-							"anyOf": [
-								{
-									"type": "string",
-									"pattern": "^[0-9a-f]{32}$"
-								},
-								{
-									"type": "null"
-								}
-							]
+						"kind": {
+							"const": "launch-profile-unavailable"
 						}
 					},
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"source": {
-										"const": "launch-default"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"path": {
-										"type": "null"
-									}
-								}
-							},
-							"else": {
-								"properties": {
-									"path": {
-										"type": "string"
-									}
-								}
-							}
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "launch-profile-ambiguous"
 						},
-						{
-							"if": {
-								"properties": {
-									"source": {
-										"const": "terminal-process"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"sourcePanelId": {
-										"type": "string",
-										"pattern": "^[0-9a-f]{32}$"
-									}
-								}
+						"candidateIds": {
+							"type": "array",
+							"maxItems": 64,
+							"items": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
 							}
 						}
-					],
-					"oneOf": [
-						{
-							"properties": {
-								"policy": {
-									"const": "follow"
-								},
-								"source": {
-									"enum": ["launch-default", "terminal-process"]
-								}
-							}
+					},
+					"required": ["kind", "candidateIds"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "reason"],
+					"properties": {
+						"kind": {
+							"const": "outcome-unknown"
 						},
-						{
-							"properties": {
-								"policy": {
-									"const": "explicit"
-								},
-								"source": {
-									"enum": ["argument"]
-								},
-								"sourcePanelId": {
-									"type": "null"
-								}
-							}
-						},
-						{
-							"properties": {
-								"policy": {
-									"const": "home"
-								},
-								"source": {
-									"enum": ["home"]
-								},
-								"sourcePanelId": {
-									"type": "null"
-								}
-							}
-						},
-						{
-							"properties": {
-								"policy": {
-									"const": "current"
-								},
-								"source": {
-									"enum": ["current"]
-								},
-								"sourcePanelId": {
-									"type": "null"
-								}
-							}
-						},
-						{
-							"properties": {
-								"policy": {
-									"const": "workspace"
-								},
-								"source": {
-									"enum": ["launch-default"]
-								},
-								"sourcePanelId": {
-									"type": "null"
-								}
-							}
+						"reason": {
+							"enum": [
+								"request-write",
+								"response-read",
+								"response-deadline",
+								"outcome-mismatch",
+								"response-mismatch"
+							]
 						}
-					]
+					}
 				},
-				"result": {
-					"oneOf": [
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "rejected"
-								},
-								"revision": {
-									"title": "WorkbenchRevision",
-									"type": "string",
-									"minLength": 1,
-									"maxLength": 20,
-									"pattern": "^(?:0|[1-9][0-9]{0,19})$",
-									"format": "orchbee-uint64"
-								},
-								"reason": {
-									"enum": [
-										"site-mismatch",
-										"revision-mismatch",
-										"project-unavailable",
-										"workspace-unavailable",
-										"workspace-group-close-required",
-										"workspace-directory-unavailable",
-										"workspace-directory-conflict",
-										"terminal-context-unavailable",
-										"tab-unavailable",
-										"panel-unavailable",
-										"same-tab",
-										"resource-limit",
-										"identity-exhausted",
-										"revision-exhausted",
-										"request-identity-conflict",
-										"tab-move-index-out-of-bounds",
-										"tab-move-order-conflict",
-										"workspace-move-index-out-of-bounds",
-										"workspace-move-target-in-block"
-									]
-								}
-							},
-							"required": ["kind", "revision", "reason"],
-							"additionalProperties": false
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "reason"],
+					"properties": {
+						"kind": {
+							"const": "not-submitted"
 						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "denied"
-								}
-							},
-							"required": ["kind"],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "unavailable"
-								},
-								"reason": {
-									"enum": [
-										"request-ledger-full",
-										"no-compatible-worker",
-										"server-busy",
-										"service-unavailable",
-										"terminal-busy",
-										"terminal-runtime-unavailable",
-										"directory-unavailable"
-									]
-								}
-							},
-							"required": ["kind", "reason"],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "panel-terminal-pending"
-								},
-								"revision": {
-									"title": "WorkbenchRevision",
-									"type": "string",
-									"minLength": 1,
-									"maxLength": 20,
-									"pattern": "^(?:0|[1-9][0-9]{0,19})$",
-									"format": "orchbee-uint64"
-								},
-								"terminalContextId": {
-									"type": "string",
-									"pattern": "^[0-9a-f]{32}$",
-									"not": {
-										"const": "00000000000000000000000000000000"
-									},
-									"title": "WorkbenchTerminalContextId"
-								},
-								"tabId": {
-									"type": "string",
-									"pattern": "^[0-9a-f]{32}$",
-									"not": {
-										"const": "00000000000000000000000000000000"
-									},
-									"title": "WorkbenchTabId"
-								},
-								"panelId": {
-									"type": "string",
-									"pattern": "^[0-9a-f]{32}$",
-									"not": {
-										"const": "00000000000000000000000000000000"
-									},
-									"title": "WorkbenchPanelId"
-								},
-								"presentationId": {
-									"type": "string",
-									"pattern": "^[0-9a-f]{32}$",
-									"not": {
-										"const": "00000000000000000000000000000000"
-									},
-									"title": "TerminalPresentationId"
-								}
-							},
-							"required": [
-								"kind",
-								"revision",
-								"terminalContextId",
-								"tabId",
-								"panelId",
-								"presentationId"
-							],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "panel-terminal-created"
-								},
-								"revision": {
-									"title": "WorkbenchRevision",
-									"type": "string",
-									"minLength": 1,
-									"maxLength": 20,
-									"pattern": "^(?:0|[1-9][0-9]{0,19})$",
-									"format": "orchbee-uint64"
-								},
-								"terminalContextId": {
-									"type": "string",
-									"pattern": "^[0-9a-f]{32}$",
-									"not": {
-										"const": "00000000000000000000000000000000"
-									},
-									"title": "WorkbenchTerminalContextId"
-								},
-								"tabId": {
-									"type": "string",
-									"pattern": "^[0-9a-f]{32}$",
-									"not": {
-										"const": "00000000000000000000000000000000"
-									},
-									"title": "WorkbenchTabId"
-								},
-								"panelId": {
-									"type": "string",
-									"pattern": "^[0-9a-f]{32}$",
-									"not": {
-										"const": "00000000000000000000000000000000"
-									},
-									"title": "WorkbenchPanelId"
-								},
-								"presentationId": {
-									"type": "string",
-									"pattern": "^[0-9a-f]{32}$",
-									"not": {
-										"const": "00000000000000000000000000000000"
-									},
-									"title": "TerminalPresentationId"
-								},
-								"terminalOutcome": {
-									"oneOf": [
-										{
-											"type": "object",
-											"properties": {
-												"kind": {
-													"const": "started"
-												},
-												"geometry": {
-													"$comment": "Semantic validation additionally requires columns * rows <= 262144, columns * cellPixelWidth <= 65535, and rows * cellPixelHeight <= 65535. The cellPixelWidth/cellPixelHeight pair must be either both positive (pixels known) or both zero (pixels unknown); a mixed pair is invalid.",
-													"type": "object",
-													"properties": {
-														"columns": {
-															"type": "integer",
-															"minimum": 1,
-															"maximum": 4096
-														},
-														"rows": {
-															"type": "integer",
-															"minimum": 1,
-															"maximum": 4096
-														},
-														"cellPixelWidth": {
-															"type": "integer",
-															"minimum": 0,
-															"maximum": 4096
-														},
-														"cellPixelHeight": {
-															"type": "integer",
-															"minimum": 0,
-															"maximum": 4096
-														}
-													},
-													"required": ["columns", "rows", "cellPixelWidth", "cellPixelHeight"],
-													"additionalProperties": false
-												}
-											},
-											"required": ["kind", "geometry"],
-											"additionalProperties": false
-										},
-										{
-											"type": "object",
-											"properties": {
-												"kind": {
-													"const": "unavailable"
-												},
-												"reason": {
-													"enum": ["terminal-runtime-unavailable", "server-busy"]
-												}
-											},
-											"required": ["kind", "reason"],
-											"additionalProperties": false
-										},
-										{
-											"type": "object",
-											"properties": {
-												"kind": {
-													"const": "failed"
-												},
-												"reason": {
-													"enum": ["terminal-create-failed"]
-												}
-											},
-											"required": ["kind", "reason"],
-											"additionalProperties": false
-										},
-										{
-											"type": "object",
-											"properties": {
-												"kind": {
-													"const": "outcome-unknown"
-												}
-											},
-											"required": ["kind"],
-											"additionalProperties": false
-										}
-									]
-								}
-							},
-							"required": [
-								"kind",
-								"revision",
-								"terminalContextId",
-								"tabId",
-								"panelId",
-								"presentationId",
-								"terminalOutcome"
-							],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "launch-profile-unavailable"
-								}
-							},
-							"required": ["kind"],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "launch-profile-ambiguous"
-								},
-								"candidateIds": {
-									"type": "array",
-									"maxItems": 64,
-									"items": {
-										"type": "string",
-										"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
-									}
-								}
-							},
-							"required": ["kind", "candidateIds"],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"additionalProperties": false,
-							"required": ["kind", "reason"],
-							"properties": {
-								"kind": {
-									"const": "outcome-unknown"
-								},
-								"reason": {
-									"enum": [
-										"request-write",
-										"response-read",
-										"response-deadline",
-										"outcome-mismatch",
-										"response-mismatch"
-									]
-								}
-							}
-						},
-						{
-							"type": "object",
-							"additionalProperties": false,
-							"required": ["kind", "reason"],
-							"properties": {
-								"kind": {
-									"const": "not-submitted"
-								},
-								"reason": {
-									"enum": ["session-unavailable", "request-encoding", "request-not-submitted"]
-								}
-							}
+						"reason": {
+							"enum": ["session-unavailable", "request-encoding", "request-not-submitted"]
 						}
-					]
-				},
-				"failure": {
-					"enum": [
-						null,
-						"denied",
-						"rejected",
-						"not-found",
-						"ambiguous",
-						"service-unavailable",
-						"protocol-invalid",
-						"outcome-unknown",
-						"timeout",
-						"cancelled",
-						"internal-failure"
-					]
-				},
-				"resolvedLaunch": {
+					}
+				}
+			]
+		},
+		"failure": {
+			"enum": [
+				null,
+				"denied",
+				"rejected",
+				"not-found",
+				"ambiguous",
+				"service-unavailable",
+				"protocol-invalid",
+				"outcome-unknown",
+				"timeout",
+				"cancelled",
+				"internal-failure"
+			]
+		},
+		"resolvedLaunch": {
+			"anyOf": [
+				{
 					"type": "object",
 					"additionalProperties": false,
 					"required": ["exec", "args"],
@@ -1163,8 +592,11 @@
 							}
 						}
 					}
+				},
+				{
+					"type": "null"
 				}
-			}
+			]
 		}
-	]
+	}
 }

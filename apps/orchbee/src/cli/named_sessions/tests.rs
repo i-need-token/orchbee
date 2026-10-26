@@ -28,11 +28,8 @@ fn unavailable_session_states_do_not_claim_a_running_server() {
     );
     let mut document: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert!(validator.is_valid(&document));
-    document["version"] = json!(1);
-    assert!(!validator.is_valid(&document));
     document["result"]["sessions"][0]["state"] = json!("stopped");
     assert!(validator.is_valid(&document));
-    document["version"] = json!(2);
     for (state, running) in [("recoverable", json!(false)), ("unreadable", json!(null))] {
         document["result"]["sessions"][0]["state"] = json!(state);
         document["result"]["sessions"][0]["running"] = running;

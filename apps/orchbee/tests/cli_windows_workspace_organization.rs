@@ -127,7 +127,7 @@ fn organization_actions_preserve_exact_scope_and_never_submit_terminal_or_filesy
             &doc,
             include_str!("../src/cli/schemas/orchbee.mutation.result.json"),
         );
-        assert_eq!(doc["version"], 6);
+        assert_eq!(doc["version"], 1);
         assert_eq!(
             doc["result"]["outcome"],
             if unchanged { "unchanged" } else { "committed" }

@@ -223,7 +223,7 @@ fn apply_records_structure_and_unknown_exact_child_launch_without_compensation_o
         &document,
         include_str!("../src/cli/schemas/orchbee.layout.apply.json"),
     );
-    assert_eq!(document["version"], 2);
+    assert_eq!(document["version"], 1);
     assert_eq!(document["result"]["newTabId"], id(11));
     assert_eq!(document["result"]["effects"].as_array().unwrap().len(), 2);
     assert_eq!(

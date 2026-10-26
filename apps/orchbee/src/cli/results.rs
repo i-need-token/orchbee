@@ -20,6 +20,9 @@ use orchbee_workbench_protocol::{
 use serde_json::{Map, Value, json};
 
 use super::{CandidateDisplay, Failure, FailureKind, target_details};
+mod shape;
+pub(super) use shape::complete;
+
 use crate::invocation::{
     AgentWaitCondition, PanelQueryTarget, QueryCommand, Resource, Target, TerminalListFilter,
 };
@@ -64,86 +67,6 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
         QueryCommand::ApiSnapshot => "orchbee.api.snapshot",
         QueryCommand::ApiSchema { .. } => "orchbee.api.schema",
         QueryCommand::ConfigCheck => "orchbee.config.check",
-    }
-}
-
-/// `terminal get` v2 added the
-/// `launch` member and a Server-joined source, v3 adds the `launchProfile`
-/// provenance sibling — each a deliberate break older validators reject.
-/// `terminal read`/`--source recent` and `terminal wait-output` carry a
-/// conditional v2: the envelope only reports `2` when the document actually
-/// bears the new members — `lines`/`lineCount`/`tail` on a read, the regex
-/// match detail on a wait — so flag-free output stays byte-identical.
-pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
-    match command {
-        QueryCommand::LaunchProfileList | QueryCommand::LaunchProfileGet(_) => 2,
-        #[cfg(windows)]
-        QueryCommand::AgentWait {
-            client: Some(_), ..
-        } => 8,
-        #[cfg(windows)]
-        QueryCommand::AgentList { .. } => 2,
-        #[cfg(windows)]
-        QueryCommand::AgentGet(_) => 19,
-        QueryCommand::AgentClientGet { .. } => {
-            if cfg!(windows) {
-                19
-            } else {
-                2
-            }
-        }
-        QueryCommand::TerminalSourceWait { after: Some(_), .. } => 4,
-        QueryCommand::TerminalSourceWait { .. } => 3,
-        QueryCommand::TerminalOutput { ansi: true, .. } => 4,
-        QueryCommand::TerminalOutput { .. } => 3,
-        QueryCommand::PanelGet(_) => {
-            if cfg!(windows) {
-                11
-            } else {
-                10
-            }
-        }
-        QueryCommand::PanelCurrent(_) => {
-            if cfg!(windows) {
-                9
-            } else {
-                3
-            }
-        }
-        QueryCommand::ApiSnapshot => 7,
-        QueryCommand::PanelList { .. } => {
-            if cfg!(windows) {
-                11
-            } else {
-                10
-            }
-        }
-        QueryCommand::TabGet(_) => 7,
-        QueryCommand::WorkspaceList { .. } | QueryCommand::WorkspaceGet(_) => 8,
-        QueryCommand::ProjectList
-        | QueryCommand::ProjectGet(_)
-        | QueryCommand::WorktreeList { .. }
-        | QueryCommand::WorkspaceCloseStatus { .. } => 2,
-        QueryCommand::TabList { .. } => 5,
-        QueryCommand::TerminalGet(_) => 4,
-        #[cfg(windows)]
-        QueryCommand::AgentWait { .. } => 7,
-        #[cfg(not(windows))]
-        QueryCommand::AgentWait { .. } => 2,
-        QueryCommand::PanelProcessInfo(_) => 2,
-        #[cfg(test)]
-        QueryCommand::TerminalRead { unwrap, lines, .. }
-        | QueryCommand::AgentRead { unwrap, lines, .. }
-            if *unwrap || lines.is_some() =>
-        {
-            2
-        }
-        #[cfg(test)]
-        QueryCommand::TerminalWaitOutput {
-            matcher: crate::invocation::WaitPattern::Regex(_),
-            ..
-        } => 2,
-        _ => 1,
     }
 }
 
@@ -375,7 +298,7 @@ pub(crate) struct PanelProcessInfoDoc {
     pub(crate) info: orchbee_terminal_protocol::TerminalProcessInfo,
 }
 
-/// `terminal get` v3: the Server's point-in-time join — the current routing
+/// `terminal get`: the Server's point-in-time join — the current routing
 /// row plus the retained launch fact under one coordinator lock, and the
 /// launch-profile provenance when the terminal was launched through a named
 /// profile. `terminal` keeps the shared identity shape; only this document
@@ -1428,10 +1351,9 @@ impl Projection {
         match self {
             #[cfg(windows)]
             Self::WorkbenchQuery(doc) => doc.result(),
-            // Agent projections serialize the exact wire outcome object —
-            // the typed enum is the single serialization truth.
+            // Preserve source facts while using the same current public row shape.
             #[cfg(not(windows))]
-            Self::AgentList(outcome) => json!(outcome),
+            Self::AgentList(outcome) => shape::canonical_list(outcome),
             #[cfg(windows)]
             Self::UnifiedAgentList(doc) => doc.document(),
             #[cfg(windows)]
@@ -1451,9 +1373,9 @@ impl Projection {
                 "kind":"terminal-found", "target":{"kind":"terminal","binding":binding},
                 "terminal":terminal, "management":{"source":management.source,"state":management.state}, "semantic":semantic.document(),
                 });
-                if let Some(view) = client_view {
-                    doc["clientView"] = view.document();
-                }
+                doc["clientView"] = client_view
+                    .as_ref()
+                    .map_or(Value::Null, |view| view.document());
                 doc
             }
             Self::AgentInspection(doc) => {
@@ -1462,20 +1384,27 @@ impl Projection {
                 {
                     result["terminal"] = json!(doc.terminal);
                 }
-                if let Some(client) = &doc.client {
-                    result["client"] = client.document();
-                }
+                result["client"] = doc
+                    .client
+                    .as_ref()
+                    .map_or(Value::Null, |client| client.document());
                 result
             }
             Self::AgentExplain(outcome) => json!(outcome),
             #[cfg(windows)]
             Self::AgentTerminalExplanation(terminal) => {
+                let mut terminal = json!(terminal);
+                terminal["explanation"]
+                    .as_object_mut()
+                    .expect("typed explanation")
+                    .entry("manifest")
+                    .or_insert(Value::Null);
                 json!({"kind":"terminal-found","terminal":terminal})
             }
             Self::AgentWait(doc) => {
                 // The wait echo carries every effective parameter the poll
                 // ran under — the condition list in requested order, the
-                // fence only when present, and the honest accounting.
+                // nullable fence, and the honest accounting.
                 let mut wait = Map::new();
                 wait.insert(
                     "until".to_owned(),
@@ -1486,9 +1415,7 @@ impl Projection {
                             .collect::<Vec<_>>()
                     ),
                 );
-                if let Some(fence) = doc.after_revision {
-                    wait.insert("afterRevision".to_owned(), json!(fence));
-                }
+                wait.insert("afterRevision".to_owned(), json!(doc.after_revision));
                 wait.insert("timeoutMs".to_owned(), json!(doc.timeout_ms));
                 wait.insert("observations".to_owned(), json!(doc.observations));
                 wait.insert("elapsedMs".to_owned(), json!(doc.elapsed_ms));
@@ -1658,25 +1585,19 @@ impl Projection {
                 let mut terminal = terminal_row_json(&doc.terminal);
                 if let Value::Object(members) = &mut terminal {
                     members.insert("launch".to_owned(), launch_fact_json(&doc.launch));
-                    if let Some(selection) = &doc.launch_selection {
-                        members.insert("launchSelection".to_owned(), json!(selection));
-                    }
-                    if let Some(provenance) = &doc.launch_profile {
-                        members.insert(
-                            "launchProfile".to_owned(),
-                            json!({
-                                "profileId": provenance.profile_id(),
-                                "catalogRevision": provenance.catalog_revision().to_string(),
-                            }),
-                        );
-                    }
+                    members.insert("launchSelection".to_owned(), json!(doc.launch_selection));
+                    members.insert("launchProfile".to_owned(), doc.launch_profile.as_ref().map_or(Value::Null, |provenance| json!({
+                        "profileId": provenance.profile_id(), "catalogRevision": provenance.catalog_revision().to_string()
+                    })));
                 }
                 json!({ "terminal": terminal })
             }
             Self::TerminalOutput(doc) => doc.result(),
             #[cfg(test)]
             Self::TerminalRead(doc) => {
-                let mut content = Map::new();
+                let mut content = Map::from_iter(
+                    ["rows", "lines", "lineCount", "tail"].map(|key| (key.to_owned(), Value::Null)),
+                );
                 // `--source recent-unwrapped` emits joined `lines` in place of `rows`; both
                 // shapes keep the physical `rowCount` and the fetch-bound
                 // `omittedRows` facts, and `--lines` adds its own `tail`
@@ -1766,7 +1687,9 @@ impl Projection {
             }
             #[cfg(test)]
             Self::TerminalHistory(doc) => {
-                let mut content = Map::new();
+                let mut content = Map::from_iter(
+                    ["rows", "lines", "lineCount", "tail"].map(|key| (key.to_owned(), Value::Null)),
+                );
                 match &doc.lines {
                     Some(lines) => {
                         // History row indexes are u64 — decimal strings like
@@ -1849,10 +1772,7 @@ impl Projection {
                 })
             }
             Self::TerminalWaitOutput(doc) => {
-                // A `--regex` hit adds the extended members — `patternKind`,
-                // the bounded `matched` text with its honest truncation flag
-                // and complete length, and the fragment-edge flags — while a
-                // literal `--match` hit keeps the v1 object byte-identical.
+                // Regex-only observations are explicit nulls for a literal match.
                 let mut matched = Map::from_iter([
                     ("excerpt".to_owned(), json!(doc.matched.excerpt)),
                     (
@@ -1875,6 +1795,16 @@ impl Projection {
                     ("revision".to_owned(), json!(doc.revision.to_string())),
                     ("generation".to_owned(), json!(doc.generation.to_string())),
                 ]);
+                matched.insert("patternKind".to_owned(), json!("literal"));
+                for key in [
+                    "matchLength",
+                    "matched",
+                    "matchedTruncated",
+                    "startsMidLine",
+                    "endsMidLine",
+                ] {
+                    matched.insert(key.to_owned(), Value::Null);
+                }
                 if let Some(regex) = &doc.matched.regex {
                     matched.insert("patternKind".to_owned(), json!("regex"));
                     matched.insert(
@@ -1892,6 +1822,7 @@ impl Projection {
                 let mut result = json!({
                     "terminal": terminal_row_json(&doc.terminal),
                     "matched": true,
+                    "selection": null,
                     "match": Value::Object(matched),
                     "observed": {
                         "attachmentId": doc.attachment_id,
@@ -1910,9 +1841,7 @@ impl Projection {
                     result["selection"] =
                         json!({ "source": selection.source.token(), "lines": selection.lines });
                 }
-                if let Some(after) = &doc.after {
-                    result["after"] = json!(after);
-                }
+                result["after"] = json!(doc.after);
                 result
             }
             Self::WorktreeList(doc) => json!({

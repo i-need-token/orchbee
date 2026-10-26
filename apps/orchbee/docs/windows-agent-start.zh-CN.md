@@ -97,7 +97,7 @@ Host 进程样本变化或暂时不可用时，在同一原始期限内重新采
 
 ## 结果与恢复
 
-成功为 `orchbee.agent.start` v2，含名称、提供方、会话、预留身份、耗时及原始终端发送回执。
+成功为 `orchbee.agent.start` v1，含名称、提供方、会话、预留身份、耗时及原始终端发送回执。
 失败为 `orchbee.cli.failure.agent-start` v1，独立保留预留处置、最后观察到的预留、有界上游原因，以及输入
 回执或提交失败。最后观察中的剩余时间是历史事实。已知部分输入保留退出码 9；输入未知
 或变更响应丢失保留退出码 8。已接受输入但清理未确认，不算启动成功。
@@ -108,9 +108,9 @@ Host 进程样本变化或暂时不可用时，在同一原始期限内重新采
 为权威，因此 worker 退出观察不能丢弃 Started 结果。
 
 超时、取消和释放都不终止 Agent。释放未确认时，重试前检查 `agent names` 与终端。
-不自动重放结果不确定的 reserve、complete 或 send。`agent names` v2 分别列出已绑定名称
+不自动重放结果不确定的 reserve、complete 或 send。`agent names` v1 分别列出已绑定名称
 和待完成预留，Server 合计容量为 512。Resolve/rename/clear 对预留名称或终端拒绝为
-`launch-pending`（名称失败 v3）。冷启动丢弃普通名称和待完成预留。只有启用 Agent 恢复时，带已接纳 provider 引用的
+`launch-pending`（名称失败 v1）。冷启动丢弃普通名称和待完成预留。只有启用 Agent 恢复时，带已接纳 provider 引用的
 已完成托管名称才会恢复到新终端。
 关闭终端会退休其待完成预留。已绑定名称遵循 canonical 会话生命周期：仍为 live 的会话
 解除终端绑定后保留名称，直到会话结束／移除，或显式执行 `agent rename <name> --clear`；
@@ -127,11 +127,11 @@ Host 进程样本变化或暂时不可用时，在同一原始期限内重新采
 
 ## 检查已完成启动
 
-Windows Agent Get v9（指定 Client 时为 v10）包含 `management`，携带自己的读取来源、采样规范修订及 `state`。Server 仅在接受 Complete 后保留活动启动身份；手动命名仍为非托管。Active 表示该启动已确认交互就绪，与后续工作、待处理事项、新鲜度或 OS 焦点相互独立。清名、结束／移除／销毁、provider 不符及精确物理绑定退役／替换会清除托管记录。重命名保留它。已完成托管名称及 provider 意图通过
+Windows Agent Get v1（指定 Client 时为 v1）包含 `management`，携带自己的读取来源、采样规范修订及 `state`。Server 仅在接受 Complete 后保留活动启动身份；手动命名仍为非托管。Active 表示该启动已确认交互就绪，与后续工作、待处理事项、新鲜度或 OS 焦点相互独立。清名、结束／移除／销毁、provider 不符及精确物理绑定退役／替换会清除托管记录。重命名保留它。已完成托管名称及 provider 意图通过
 [检查点版本 1](../../orchbee-server/docs/agent-canonical-model.zh-CN.md#托管名称重启)跨正常重启保留。
-恢复后的物理 Get v14 使用独立读取来源报告 active provider 归属，不携带旧 Session、预留或
+恢复后的物理 Get v1 使用独立读取来源报告 active provider 归属，不携带旧 Session、预留或
 新的交互就绪声明。清名同时仅清除仍匹配的自有持久恢复引用；保留后来的独立报告。
 
-Pending 状态携带原始预留及当前 blocked 标志。读取不延长期限、不完成启动。Pending 时 Get 将 promptReady 置为 false；prompt 在规范状态／进程预检后读取 management，并在发送前拒绝待启动状态。沿用原始准入／总期限及信号所有者。Status 读取失败保留 Agent 失败族，并在 v3 中标记 operation management。成功的 Start v2 在现有完成和发送证据上增加必需的 interactiveReady true；v1 schema 仍供旧调用者使用。CLI 的启动受阻取消策略保持不变。交互看板可在原始预算内等待规范关注解除；两个路径均不通过屏幕文本猜测信任提示。
+Pending 状态携带原始预留及当前 blocked 标志。读取不延长期限、不完成启动。Pending 时 Get 将 promptReady 置为 false；prompt 在规范状态／进程预检后读取 management，并在发送前拒绝待启动状态。沿用原始准入／总期限及信号所有者。Status 读取失败保留 Agent 失败族，并在 v1 中标记 operation management。成功的 Start v1 在现有完成和发送证据上增加必需的 interactiveReady true。CLI 的启动受阻取消策略保持不变。交互看板可在原始预算内等待规范关注解除；两个路径均不通过屏幕文本猜测信任提示。
 
 原生表单在检测尚无结果时不预选提供商，也不生成自动名称。已发现的提供商排在手动选项之前；显式选择按提供商身份固定，不随目录更新改变。没有显式选择时，首个发现的提供商成为默认项；检测结束且未发现候选时选择首个手动提供商。启动反馈仅在看板状态行显示一次，结果未确认时引导用户查看终端。只有固定身份的规范关注观察才声明需要输入；进程存在本身不能证明就绪。

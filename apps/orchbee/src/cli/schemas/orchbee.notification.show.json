@@ -1,262 +1,129 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.notification.show",
-	"oneOf": [
-		{
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.notification.show"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
 			"type": "object",
-			"required": ["schema", "version", "source", "result"],
+			"required": ["kind"],
 			"additionalProperties": false,
 			"properties": {
-				"schema": {
-					"const": "orchbee.notification.show"
-				},
-				"version": {
-					"const": 1
-				},
-				"source": {
-					"type": "object",
-					"required": ["kind"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "local-runtime"
-						}
-					}
-				},
-				"result": {
-					"type": "object",
-					"required": ["reply", "interrupted", "cleanupFailed"],
-					"additionalProperties": false,
-					"properties": {
-						"reply": {
-							"anyOf": [
-								{
-									"type": "null"
-								},
-								{
-									"type": "object",
-									"required": ["protocolVersion", "requestId", "siteId", "outcome"],
-									"additionalProperties": false,
-									"properties": {
-										"protocolVersion": {
-											"const": 1
-										},
-										"requestId": {
-											"type": "string",
-											"pattern": "^[0-9a-f]{32}$",
-											"not": {
-												"const": "00000000000000000000000000000000"
-											}
-										},
-										"siteId": {
-											"type": "string",
-											"pattern": "^[0-9a-f]{32}$",
-											"not": {
-												"const": "00000000000000000000000000000000"
-											}
-										},
-										"outcome": {
-											"oneOf": [
-												{
-													"type": "object",
-													"required": ["kind", "shown", "reason"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "show"
-														},
-														"shown": {
-															"type": "boolean"
-														},
-														"reason": {
-															"enum": ["shown", "busy", "rate-limited", "no-foreground-client"]
-														}
-													},
-													"allOf": [
-														{
-															"if": {
-																"properties": {
-																	"reason": {
-																		"const": "shown"
-																	}
-																}
-															},
-															"then": {
-																"properties": {
-																	"shown": {
-																		"const": true
-																	}
-																}
-															},
-															"else": {
-																"properties": {
-																	"shown": {
-																		"const": false
-																	}
-																}
-															}
-														}
-													]
-												},
-												{
-													"type": "object",
-													"required": ["kind", "reason"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "failed"
-														},
-														"reason": {
-															"enum": ["denied", "unavailable", "site-mismatch", "conflict"]
-														}
-													}
-												}
-											]
-										}
-									}
-								}
-							]
-						},
-						"interrupted": {
-							"type": "boolean"
-						},
-						"cleanupFailed": {
-							"type": "boolean"
-						}
-					}
+				"kind": {
+					"const": "local-runtime"
 				}
 			}
 		},
-		{
+		"result": {
 			"type": "object",
-			"required": ["schema", "version", "source", "result"],
+			"required": ["reply", "interrupted", "cleanupFailed"],
 			"additionalProperties": false,
 			"properties": {
-				"schema": {
-					"const": "orchbee.notification.show"
-				},
-				"version": {
-					"const": 2
-				},
-				"source": {
-					"type": "object",
-					"required": ["kind"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "local-runtime"
-						}
-					}
-				},
-				"result": {
-					"type": "object",
-					"required": ["reply", "interrupted", "cleanupFailed"],
-					"additionalProperties": false,
-					"properties": {
-						"reply": {
-							"anyOf": [
-								{
-									"type": "null"
+				"reply": {
+					"anyOf": [
+						{
+							"type": "null"
+						},
+						{
+							"type": "object",
+							"required": ["protocolVersion", "requestId", "siteId", "outcome"],
+							"additionalProperties": false,
+							"properties": {
+								"protocolVersion": {
+									"const": 1
 								},
-								{
-									"type": "object",
-									"required": ["protocolVersion", "requestId", "siteId", "outcome"],
-									"additionalProperties": false,
-									"properties": {
-										"protocolVersion": {
-											"const": 1
-										},
-										"requestId": {
-											"type": "string",
-											"pattern": "^[0-9a-f]{32}$",
-											"not": {
-												"const": "00000000000000000000000000000000"
-											}
-										},
-										"siteId": {
-											"type": "string",
-											"pattern": "^[0-9a-f]{32}$",
-											"not": {
-												"const": "00000000000000000000000000000000"
-											}
-										},
-										"outcome": {
-											"oneOf": [
-												{
-													"type": "object",
-													"required": ["kind", "shown", "reason"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "show"
-														},
-														"shown": {
-															"type": "boolean"
-														},
-														"reason": {
-															"enum": [
-																"shown",
-																"busy",
-																"rate-limited",
-																"no-foreground-client",
-																"disabled"
-															]
-														}
-													},
-													"allOf": [
-														{
-															"if": {
-																"properties": {
-																	"reason": {
-																		"const": "shown"
-																	}
-																}
-															},
-															"then": {
-																"properties": {
-																	"shown": {
-																		"const": true
-																	}
-																}
-															},
-															"else": {
-																"properties": {
-																	"shown": {
-																		"const": false
-																	}
-																}
-															}
-														}
-													]
+								"requestId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$",
+									"not": {
+										"const": "00000000000000000000000000000000"
+									}
+								},
+								"siteId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$",
+									"not": {
+										"const": "00000000000000000000000000000000"
+									}
+								},
+								"outcome": {
+									"oneOf": [
+										{
+											"type": "object",
+											"required": ["kind", "shown", "reason"],
+											"additionalProperties": false,
+											"properties": {
+												"kind": {
+													"const": "show"
 												},
-												{
-													"type": "object",
-													"required": ["kind", "reason"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"const": "failed"
-														},
-														"reason": {
-															"enum": ["denied", "unavailable", "site-mismatch", "conflict"]
-														}
+												"shown": {
+													"type": "boolean"
+												},
+												"reason": {
+													"enum": [
+														"shown",
+														"busy",
+														"rate-limited",
+														"no-foreground-client",
+														"disabled"
+													]
+												}
+											},
+											"if": {
+												"properties": {
+													"reason": {
+														"const": "shown"
 													}
 												}
-											]
+											},
+											"then": {
+												"properties": {
+													"shown": {
+														"const": true
+													}
+												}
+											},
+											"else": {
+												"properties": {
+													"shown": {
+														"const": false
+													}
+												}
+											}
+										},
+										{
+											"type": "object",
+											"required": ["kind", "reason"],
+											"additionalProperties": false,
+											"properties": {
+												"kind": {
+													"const": "failed"
+												},
+												"reason": {
+													"enum": ["denied", "unavailable", "site-mismatch", "conflict"]
+												}
+											}
 										}
-									}
+									]
 								}
-							]
-						},
-						"interrupted": {
-							"type": "boolean"
-						},
-						"cleanupFailed": {
-							"type": "boolean"
+							}
 						}
-					}
+					]
+				},
+				"interrupted": {
+					"type": "boolean"
+				},
+				"cleanupFailed": {
+					"type": "boolean"
 				}
 			}
 		}
-	]
+	}
 }

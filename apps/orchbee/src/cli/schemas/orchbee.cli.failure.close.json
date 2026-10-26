@@ -39,33 +39,199 @@
 			"$ref": "#/$defs/source"
 		}
 	},
-	"allOf": [
-		{
-			"if": {
-				"properties": {
-					"failure": {
-						"properties": {
-							"kind": {
-								"const": "denied"
-							}
-						},
-						"required": ["kind"]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"failure": {
-						"required": ["details"],
-						"properties": {
-							"details": {
-								"$ref": "#/$defs/closeStageDetails"
-							}
-						}
-					}
+	"$defs": {
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"revision": {
+			"type": "string",
+			"pattern": "^(0|[1-9][0-9]*)$"
+		},
+		"generation": {
+			"type": "string",
+			"pattern": "^[1-9][0-9]*$"
+		},
+		"closeStageDetails": {
+			"type": "object",
+			"required": ["stage"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"enum": ["close-status", "close-resume"]
 				}
 			}
 		},
+		"closeUnavailableDetails": {
+			"type": "object",
+			"required": ["stage", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"enum": ["close-status", "close-resume"]
+				},
+				"reason": {
+					"const": "server-busy"
+				}
+			}
+		},
+		"closeResumeRejectedDetails": {
+			"type": "object",
+			"required": ["stage", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "close-resume"
+				},
+				"reason": {
+					"enum": [
+						"generation-exhausted",
+						"generation-mismatch",
+						"not-resumable",
+						"operation-mismatch",
+						"operation-unavailable",
+						"request-identity-conflict",
+						"stale-generation"
+					]
+				},
+				"attemptGeneration": {
+					"$ref": "#/$defs/generation"
+				}
+			}
+		},
+		"closeOutcomeUnknownDetails": {
+			"type": "object",
+			"required": ["stage", "requestId", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "close-resume"
+				},
+				"requestId": {
+					"$ref": "#/$defs/id"
+				},
+				"reason": {
+					"enum": [
+						"action-incompatible",
+						"correlation-mismatch",
+						"response-invalid",
+						"response-loss",
+						"validation-failed",
+						"write-failure"
+					]
+				}
+			}
+		},
+		"closeStatusTimeoutDetails": {
+			"type": "object",
+			"required": ["stage", "timeoutMs"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "close-status"
+				},
+				"timeoutMs": {
+					"const": 5000
+				}
+			}
+		},
+		"closeLimitDetails": {
+			"type": "object",
+			"required": ["limitBytes"],
+			"additionalProperties": false,
+			"properties": {
+				"limitBytes": {
+					"const": 8388608
+				}
+			}
+		},
+		"closeInvalidDetails": {
+			"type": "object",
+			"required": ["stage", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"enum": ["close-status", "close-resume"]
+				},
+				"reason": {
+					"enum": ["correlation-mismatch", "scope-mismatch"]
+				}
+			}
+		},
+		"source": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["kind", "siteId", "revision"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "workbench-snapshot"
+						},
+						"siteId": {
+							"$ref": "#/$defs/id"
+						},
+						"revision": {
+							"$ref": "#/$defs/revision"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": [
+						"kind",
+						"siteId",
+						"requestId",
+						"closeRequestId",
+						"expectedAttemptGeneration"
+					],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "workspace-close-resume"
+						},
+						"siteId": {
+							"$ref": "#/$defs/id"
+						},
+						"requestId": {
+							"$ref": "#/$defs/id"
+						},
+						"closeRequestId": {
+							"$ref": "#/$defs/id"
+						},
+						"expectedAttemptGeneration": {
+							"$ref": "#/$defs/generation"
+						}
+					}
+				}
+			]
+		}
+	},
+	"if": {
+		"properties": {
+			"failure": {
+				"properties": {
+					"kind": {
+						"const": "denied"
+					}
+				},
+				"required": ["kind"]
+			}
+		}
+	},
+	"then": {
+		"properties": {
+			"failure": {
+				"required": ["details"],
+				"properties": {
+					"details": {
+						"$ref": "#/$defs/closeStageDetails"
+					}
+				}
+			}
+		}
+	},
+	"allOf": [
 		{
 			"if": {
 				"properties": {
@@ -255,173 +421,5 @@
 				}
 			}
 		}
-	],
-	"$defs": {
-		"id": {
-			"type": "string",
-			"pattern": "^[0-9a-f]{32}$"
-		},
-		"revision": {
-			"type": "string",
-			"pattern": "^(0|[1-9][0-9]*)$"
-		},
-		"generation": {
-			"type": "string",
-			"pattern": "^[1-9][0-9]*$"
-		},
-		"closeStageDetails": {
-			"type": "object",
-			"required": ["stage"],
-			"additionalProperties": false,
-			"properties": {
-				"stage": {
-					"enum": ["close-status", "close-resume"]
-				}
-			}
-		},
-		"closeUnavailableDetails": {
-			"type": "object",
-			"required": ["stage", "reason"],
-			"additionalProperties": false,
-			"properties": {
-				"stage": {
-					"enum": ["close-status", "close-resume"]
-				},
-				"reason": {
-					"const": "server-busy"
-				}
-			}
-		},
-		"closeResumeRejectedDetails": {
-			"type": "object",
-			"required": ["stage", "reason"],
-			"additionalProperties": false,
-			"properties": {
-				"stage": {
-					"const": "close-resume"
-				},
-				"reason": {
-					"enum": [
-						"generation-exhausted",
-						"generation-mismatch",
-						"not-resumable",
-						"operation-mismatch",
-						"operation-unavailable",
-						"request-identity-conflict",
-						"stale-generation"
-					]
-				},
-				"attemptGeneration": {
-					"$ref": "#/$defs/generation"
-				}
-			}
-		},
-		"closeOutcomeUnknownDetails": {
-			"type": "object",
-			"required": ["stage", "requestId", "reason"],
-			"additionalProperties": false,
-			"properties": {
-				"stage": {
-					"const": "close-resume"
-				},
-				"requestId": {
-					"$ref": "#/$defs/id"
-				},
-				"reason": {
-					"enum": [
-						"action-incompatible",
-						"correlation-mismatch",
-						"response-invalid",
-						"response-loss",
-						"validation-failed",
-						"write-failure"
-					]
-				}
-			}
-		},
-		"closeStatusTimeoutDetails": {
-			"type": "object",
-			"required": ["stage", "timeoutMs"],
-			"additionalProperties": false,
-			"properties": {
-				"stage": {
-					"const": "close-status"
-				},
-				"timeoutMs": {
-					"const": 5000
-				}
-			}
-		},
-		"closeLimitDetails": {
-			"type": "object",
-			"required": ["limitBytes"],
-			"additionalProperties": false,
-			"properties": {
-				"limitBytes": {
-					"const": 8388608
-				}
-			}
-		},
-		"closeInvalidDetails": {
-			"type": "object",
-			"required": ["stage", "reason"],
-			"additionalProperties": false,
-			"properties": {
-				"stage": {
-					"enum": ["close-status", "close-resume"]
-				},
-				"reason": {
-					"enum": ["correlation-mismatch", "scope-mismatch"]
-				}
-			}
-		},
-		"source": {
-			"oneOf": [
-				{
-					"type": "object",
-					"required": ["kind", "siteId", "revision"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "workbench-snapshot"
-						},
-						"siteId": {
-							"$ref": "#/$defs/id"
-						},
-						"revision": {
-							"$ref": "#/$defs/revision"
-						}
-					}
-				},
-				{
-					"type": "object",
-					"required": [
-						"kind",
-						"siteId",
-						"requestId",
-						"closeRequestId",
-						"expectedAttemptGeneration"
-					],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "workspace-close-resume"
-						},
-						"siteId": {
-							"$ref": "#/$defs/id"
-						},
-						"requestId": {
-							"$ref": "#/$defs/id"
-						},
-						"closeRequestId": {
-							"$ref": "#/$defs/id"
-						},
-						"expectedAttemptGeneration": {
-							"$ref": "#/$defs/generation"
-						}
-					}
-				}
-			]
-		}
-	}
+	]
 }

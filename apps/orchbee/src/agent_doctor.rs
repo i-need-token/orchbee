@@ -236,14 +236,14 @@ pub(crate) fn run(
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
-    // C-4: non-Linux is a command-level refusal — the failure envelope
+    // Unsupported platforms produce a command-level refusal — the failure envelope
     // carries the stage detail; no provider rows ever exist. The `command`
     // detail names this command so the shared platform arm never credits
     // the refusal to `config check`.
     let mut details = stage_reason_details("platform", "unsupported-platform");
     details.insert("command".to_owned(), serde_json::json!("agent doctor"));
     failure_output(
-        Failure::new(FailureKind::CheckFailed).details(details),
+        Failure::new(FailureKind::ServiceUnavailable).details(details),
         Some(format),
         locale,
     )
@@ -1569,12 +1569,15 @@ fn emit(run: DoctorRun, format: OutputFormat, locale: Locale) -> Output {
     };
     match format {
         OutputFormat::Json => {
-            let document = json!({
+            let mut document = json!({
                 "schema": "orchbee.agent.doctor",
-                "version": if cfg!(windows) { 6 } else { 5 },
+                "version": 1,
                 "source": local_runtime_source(),
                 "result": result,
             });
+            if cfg!(windows) {
+                document["result"]["endpoint"]["socket"] = json!({"kind":"unsupported"});
+            }
             match output::encode_document(&document) {
                 Ok(stdout) => Output {
                     status: 0,

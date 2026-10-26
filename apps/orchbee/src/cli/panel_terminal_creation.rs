@@ -216,7 +216,7 @@ fn execute(
         ),
     };
     *document = Some(json!({"schema":"orchbee.panel.terminal-create","version":1,
-        "source":{"siteId":snapshot.site_id,"requestId":request_id,"baseRevision":snapshot.revision},
+        "resolvedLaunch":null,"source":{"siteId":snapshot.site_id,"requestId":request_id,"baseRevision":snapshot.revision},
         "target":{"terminalContextId":resolved.context,"tabId":resolved.tab,"panelId":resolved.panel,"member":resolved.target},
         "directory":directory.document(),"result":outcome,"failure":failure.map(FailureKind::as_str)}));
     if let Some(kind) = failure {

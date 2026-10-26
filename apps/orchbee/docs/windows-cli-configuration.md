@@ -41,10 +41,10 @@ terminal-native contrast when no host background is observed. Shared preferences
 appearance. See [native themes](native-themes.md) for polarity, color capabilities, all chrome
 consumers, shared reload and rollback.
 
-`config check` v14 adds required `themeName` to admitted Windows user-config details;
-its fatal shapes remain unchanged and versions 1–13 stay closed. Session configuration
-v9 adds required `themeName` to successful snapshots; versions 1–8 stay closed.
-Catalog v142 publishes these extensions without adding schemas or command paths.
+`config check` v1 adds required `themeName` to admitted Windows user-config details;
+its fatal shapes remain unchanged . Session configuration
+v1 adds required `themeName` to successful snapshots.
+The offline catalog lists the current documents and command paths.
 
 ## Creation policy
 
@@ -62,7 +62,7 @@ The creation settings govern Windows CLI creation. The legacy explicit empty-Wor
 
 ## Check and correctness
 
-Windows `config check` version 13 extends the `user-config` check with the admitted warning list and omitted count. A warning result reports status `warning`, keeps the overall document successful and exits 0. Fatal file or environment admission reports status `fail` and exits 1. Versions 1 through 12 remain closed. The check reports the selected file, presence and normalized effective settings, and text output ends with a `Config file:` line naming that file as a copyable path; fatal creation configuration continues to use the separate `orchbee.cli.failure.configuration` envelope. Failed source discovery stops configured-path creation before first-Project setup; no mutation is retried.
+Windows `config check` version 1 extends the `user-config` check with the admitted warning list and omitted count. A warning result reports status `warning`, keeps the overall document successful and exits 0. Fatal file or environment admission reports status `fail` and exits 1. The check reports the selected file, presence and normalized effective settings, and text output ends with a `Config file:` line naming that file as a copyable path; fatal creation configuration continues to use the separate `orchbee.cli.failure.configuration` envelope. Failed source discovery stops configured-path creation before first-Project setup; no mutation is retried.
 
 The shared Windows settings reader owns bounded file inspection, deterministic field admission and normalization; the creation workflows own precedence and existing effect receipts. Reads have no writer or cached mutable state; the explicit reset operation below owns configuration repair. Core evidence covers malformed and duplicate TOML, field-local fallback, stable bounded warnings, relative/tilde paths, override precedence and pinned Herdr slug vectors. Windows public IPC traces cover effective launch cwd, configured checkout intent, failed discovery with no mutation, explicit path without discovery and unchanged no-file behavior. Full application acceptance remains a separate gate. Reference behavior: Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, `TerminalConfig`, `WorktreesConfig` and `default_checkout_path`.
 
@@ -74,14 +74,14 @@ The shared Windows settings reader in `orchbee-local-site-runtime` owns bounded 
 
 Client startup reads and validates once before durable Active publication or activation marker commitment. It passes the resolved restore boolean together with the frozen configuration location as private Server arguments. The Server validates those arguments and does not rederive the restore decision after consuming it. Before configuration publication, the Server reads one complete candidate at the frozen location, with the same inherited strict environment override, and makes that candidate the authoritative revision-0 baseline. Direct managed Server startup establishes the same startup decision and frozen location from its own first read. Fatal input leaves the preceding checkpoint and stopped state available for correction and retry. The private arguments require a matched cohort; rollback uses the preceding whole cohort.
 
-Windows `config check` version 3 reports `resumeAgentsOnRestore` and `resumeAgentsOnRestoreSource` (`default`, `file`, `environment`). Schemas for versions 1 and 2 remain available. Diagnostics report only a bounded field/reason. Checks must cover default/file/environment precedence, malformed and non-UTF-8 files, field-local type and key admission, read bounds, fatal before-commit refusal and corrected retry, unchanged existing-Session admission, and actual disabled/enabled restart. Live reload, names and managed-state restoration are separate obligations.
+Windows `config check` version 1 reports `resumeAgentsOnRestore` and `resumeAgentsOnRestoreSource` (`default`, `file`, `environment`). Diagnostics report only a bounded field/reason. Checks must cover default/file/environment precedence, malformed and non-UTF-8 files, field-local type and key admission, read bounds, fatal before-commit refusal and corrected retry, unchanged existing-Session admission, and actual disabled/enabled restart. Live reload, names and managed-state restoration are separate obligations.
 
 ## Rule update policy
 
-`[update] channel` accepts exactly `stable` (default) or `preview`, independently of `manifest_check`. `orchbee channel show [--format text|json]` reads the complete shared configuration without creating files, activating a Session or accessing the network. Text is the channel token; `orchbee.channel.show` v1 reports channel, default/file provenance, selected configuration path and file presence. An absent default file uses stable; an absent explicit file or malformed configuration fails. This is the requested release preference, not evidence about the currently installed cohort. Windows `config check` v9 and configuration failure v6 admit `update.channel` diagnostics; earlier schemas remain closed.
+`[update] channel` accepts exactly `stable` (default) or `preview`, independently of `manifest_check`. `orchbee channel show [--format text|json]` reads the complete shared configuration without creating files, activating a Session or accessing the network. Text is the channel token; `orchbee.channel.show` v1 reports channel, default/file provenance, selected configuration path and file presence. An absent default file uses stable; an absent explicit file or malformed configuration fails. This is the requested release preference, not evidence about the currently installed cohort. Windows `config check` v1 and configuration failure v1 admit `update.channel` diagnostics.
 
 `[update] manifest_check` is a TOML boolean, default true, with `default`/`file` provenance.
-Windows `config check` v4 adds `manifestCheck` and `manifestCheckSource` while v1-v3 remain closed.
+Windows `config check` v1 adds `manifestCheck` and `manifestCheckSource`.
 Client activation passes the validated check value/provenance and configuration path/explicit-file
 flag together with the resume policy. The managed Server admits these private values as its
 startup-policy snapshot, then reads the complete authoritative revision-0 candidate at the
@@ -161,9 +161,7 @@ CLI/TUI/default-shell restore preparations capture the latest published defaults
 Direct unmanaged Worker startup validates its configuration once before admission. Prepared
 operations and replay retain their resolved launch facts. Editing the file alone does not publish
 settings or change live shells; explicit reload updates defaults for subsequent preparations.
-Windows `config check` v5 reports `defaultShell` and `shellMode`; prior
-versions remain closed. Shell-specific creation errors use configuration failure v2; v1 keeps
-its original field/reason set. These are configured values, not a claim that a binary can launch.
+Windows `config check` v1 reports `defaultShell` and `shellMode`. Shell-specific creation errors use configuration failure v1. These are configured values, not a claim that a binary can launch.
 
 The shared parser and private snapshot admission, Worker launch resolver, explicit-override and
 owned-loop tests, and actual Windows CLI checks cover this contract. No public wire shape or
@@ -254,8 +252,8 @@ focus_agent = "prefix+alt+1..9"
 zoom = ""
 ```
 
-Windows `config check` v13 retains `keyPrefix` and `keyOverrides` and adds the bounded warning record;
-historical key configuration failure v3 remains closed for older cohorts. The machine `keyPrefix`
+Windows `config check` v1 retains `keyPrefix` and `keyOverrides` and adds the bounded warning record;
+The machine `keyPrefix`
 field keeps its stable platform-independent report spelling (`Ctrl+A` for this example), while TUI
 shortcut discovery shows the actual unshifted gesture (`Ctrl+a`). The example lets new Tab replace
 the default next-Tab chord; empty `zoom` disables its shortcut. Bindings currently apply to the main
@@ -322,9 +320,9 @@ The wire key profile is capped at 64 KiB; up to 144 expanded triggers per action
 
 No persisted configuration migration or automatic retry is introduced. Deterministic tests cover provisional startup, initial complete application, fatal preservation, atomic settings/diagnostic generations, monotonic later application and warning publication/clearing. The admitted payload includes `themeName`; a theme-only change uses the same publication owner, and Clients resolve their cached palette after complete admission. Connection tests cover propagation without assuming delivery fairness. Authorization, bounded serialization, no-change reload and shutdown remain implementation obligations. The settings commit/publication core has a narrower writer/CAS scope and does not prove this whole reload workflow.
 
-`server config` and `server reload-config` version 8 add the required `diagnostics` object to every
+`server config` and `server reload-config` version 1 add the required `diagnostics` object to every
 successful snapshot. Text output prints the visible count, exact omitted count and each bounded
-field/reason/disposition record. Versions 1 through 7 remain closed and do not accept this member.
+field/reason/disposition record.
 
 ## Live defaults for subsequent Windows terminals
 
@@ -340,15 +338,15 @@ The commit lock order is configuration registry, Session coordinator, then manif
 
 Launch preparation failure records the existing known pre-handoff failure, retains the Worker/Server connection and creates no Host terminal. The same failed request replays its failure; corrected settings require a fresh creation identity. The lazy loop also remains available before any Host exists. Host startup/transport uncertainty retains its prior retirement and no-retry policy. Evidence covers private framing, default/explicit/absent selection, preparation across reload, exact/conflicting replay, failure retention and real Windows pipe exchanges; full provider/multi-Client/visual acceptance remains deferred. Matching private cohorts deploy or roll back together without a durable migration.
 
-`server config` and reload receipts expose the admitted `defaultShell` and `shellMode` for subsequent default preparations, including after a lost reload reply. Empty shell means the platform default; these values are not Worker executable-resolution or launch-success evidence. CLI receipt v2 requires both fields while the historical v1 schema stays closed and unchanged. Matched private Workbench snapshots require the same bounded literal (4096 UTF-8 bytes, no controls) and `auto`/`login`/`non_login` mode. Human output escapes the literal and localizes the empty-shell label.
+`server config` and reload receipts expose the admitted `defaultShell` and `shellMode` for subsequent default preparations, including after a lost reload reply. Empty shell means the platform default; these values are not Worker executable-resolution or launch-success evidence. CLI receipt v1 requires both fields. Matched private Workbench snapshots require the same bounded literal (4096 UTF-8 bytes, no controls) and `auto`/`login`/`non_login` mode. Human output escapes the literal and localizes the empty-shell label.
 
 ## Outer window titles
 
-`[ui] window_title` defaults to `{hostname}: {workspace}` and reloads online. The [title owner](windows-terminal-title.md#configured-templates) defines tokens, literal braces, invalid/empty policy, bounded rendering and CLI override precedence. Invalid syntax, a wrong type or an over-4096-byte value now defaults this leaf and appears in the `config check` v13 warning record; unknown `[ui]` keys are ignored with their own warning. The effective `windowTitle` remains valid and `windowTitleDiagnostic` therefore stays null. `server config`/`server reload-config` v8 expose the effective published template and diagnostics. Prior public versions remain closed.
+`[ui] window_title` defaults to `{hostname}: {workspace}` and reloads online. The [title owner](windows-terminal-title.md#configured-templates) defines tokens, literal braces, invalid/empty policy, bounded rendering and CLI override precedence. Invalid syntax, a wrong type or an over-4096-byte value now defaults this leaf and appears in the `config check` v1 warning record; unknown `[ui]` keys are ignored with their own warning. The effective `windowTitle` remains valid and `windowTitleDiagnostic` therefore stays null. `server config`/`server reload-config` v1 expose the effective published template and diagnostics.
 
 ## Custom-notification configuration
 
-`ui.toast.delivery` accepts off (default), orchbee, terminal or system for manual CLI notifications. `ui.toast.overlay.position` selects the four-corner default. Shared `agentNotificationMode` and `soundEnabled` preferences govern automatic Agent notifications and sound. `ui.toast.delay_seconds` supplies their delay (one second by default, 0–3600); `[ui.sound.agents]` supplies per-Agent sound overrides without changing explicit `notification show` sound. Clipboard policy remains independent. Startup is Client-local; explicit Session reload publishes the complete bounded notification profile alongside keys, and Clients validate both before applying either. `server config`/reload v7 carry the 16 KiB `notificationProfile`, `config check` v12 exposes manual and automatic policy, and configuration failure v9 adds the automatic delay/sound diagnostics. Earlier public versions remain closed. See the complete [automatic notification contract](windows-notifications.md#automatic-physical-agent-notifications).
+`ui.toast.delivery` accepts off (default), orchbee, terminal or system for manual CLI notifications. `ui.toast.overlay.position` selects the four-corner default. Shared `agentNotificationMode` and `soundEnabled` preferences govern automatic Agent notifications and sound. `ui.toast.delay_seconds` supplies their delay (one second by default, 0–3600); `[ui.sound.agents]` supplies per-Agent sound overrides without changing explicit `notification show` sound. Clipboard policy remains independent. Startup is Client-local; explicit Session reload publishes the complete bounded notification profile alongside keys, and Clients validate both before applying either. `server config`/reload v1 carry the 16 KiB `notificationProfile`, `config check` v1 exposes manual and automatic policy, and configuration failure v1 adds the automatic delay/sound diagnostics. See the complete [automatic notification contract](windows-notifications.md#automatic-physical-agent-notifications).
 
 Common Agent reminder mode and global sound remain authoritative; manual notification delivery
 and per-Agent sound overrides retain their separate ownership.
@@ -375,7 +373,7 @@ orchbee update --format json
 
 The packaging tool verifies the existing cohort, adapter capsule and pinned ConPTY bundle, inventories bounded regular files, and exclusively writes `release.json` beside them. It refuses an existing feed. For HTTPS distribution, publish that directory at the feed URL; relative file URLs retain the same directory layout. Version must match the packaged Client's `--version`; buildId distinguishes releases with the same version.
 
-The immutable release also stores the exact admitted `release.json`, reserved outside the inventory. Reuse checks that it has not changed. `status client` v3 binds this manifest to the directory identity and verified cohort before projecting installed release provenance; it never substitutes the current configured preference.
+The immutable release also stores the exact admitted `release.json`, reserved outside the inventory. Reuse checks that it has not changed. `status client` v1 binds this manifest to the directory identity and verified cohort before projecting installed release provenance; it never substitutes the current configured preference.
 
 ## Windows Agent sidebar layouts
 
@@ -401,11 +399,10 @@ and one recognized leading activity glyph. Missing or cleared titles disappear;
 `$terminal_title` remains a separate custom value.
 `ui.sidebar.spaces` has its own Workspace layout and profile, described below.
 
-`config check` v11 and Session configuration receipts v6 expose required
+`config check` v1 and Session configuration receipts v1 expose required
 `agentSidebarProfile` and `spacesSidebarProfile` (closed canonical JSON, at most 32 KiB). Configuration failure
-v7 includes `ui.sidebar.agents` and layout/color/token/rule/provider diagnostics.
-All prior public versions retain their closed fields. Catalog v123 keeps 105 schemas
-and 141 grammar paths. Matched private cohorts carry the new required profile
+v1 includes `ui.sidebar.agents` and layout/color/token/rule/provider diagnostics.
+The catalog lists the current documents and command paths. Matched private cohorts carry the new required profile
 together; deployment/rollback is by whole cohort, without persistent migration.
 
 ## Windows Workspace sidebar layouts
@@ -447,9 +444,9 @@ startup or per-draw I/O occurs. Custom `$branch`/`$git_status` stay distinct.
 See the [Workspace sidebar model](machines.md#workspace-sidebar-model) for fences,
 aggregation, budgets, exact activation and acceptance limits.
 
-Configuration failure v8 admits `ui.sidebar.spaces`. Session/Client reload validates
+Configuration failure v1 admits `ui.sidebar.spaces`. Session/Client reload validates
 keys, notifications and both sidebar profiles before publishing any of them.
 Each profile caps at 32 KiB; the matched-cohort configuration frame caps at 256 KiB
-including escaping. Older public CLI versions retain their closed fields.
+including escaping.
 
 `terminal.focus_new_panel` accepts a boolean and defaults to `true`. Native Client splits select the newly committed pane; `false` preserves the original pane. The Client reads this preference at startup, so restart it after editing this field. Invalid types produce a field-local diagnostic and use the default. CLI `panel split --focus` retains its explicit command policy.

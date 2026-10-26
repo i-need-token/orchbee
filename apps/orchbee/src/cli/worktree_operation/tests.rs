@@ -269,7 +269,7 @@ fn opening_a_workspace_does_not_turn_a_failed_terminal_launch_into_success() {
 }
 
 #[test]
-fn restoration_receipt_has_v4_schema_and_localized_counts_without_losing_git_failure() {
+fn restoration_receipt_has_localized_counts_without_losing_git_failure() {
     let status = WorktreeOperationStatus::Failed {
         reason: WorktreeOperationFailure::Git {
             stage: WorktreeGitStage::Mutate,
@@ -303,7 +303,7 @@ fn restoration_receipt_has_v4_schema_and_localized_counts_without_losing_git_fai
     );
     assert_eq!(output.status, 8);
     let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(doc["version"], 5);
+    assert_eq!(doc["version"], 1);
     assert_eq!(
         doc["result"]["observation"]["reply"]["outcome"]["status"]["reason"]["status"],
         128
@@ -312,14 +312,6 @@ fn restoration_receipt_has_v4_schema_and_localized_counts_without_losing_git_fai
         serde_json::from_str(include_str!("../schemas/orchbee.worktree.operation.json")).unwrap();
     let validator = jsonschema::draft202012::new(&schema).unwrap();
     validator.validate(&doc).unwrap();
-    for version in 1..=4 {
-        let mut old = doc.clone();
-        old["version"] = serde_json::json!(version);
-        assert!(
-            !validator.is_valid(&old),
-            "old envelopes cannot silently gain recovery fields"
-        );
-    }
     let mut missing = doc.clone();
     missing["result"]["observation"]["reply"]["outcome"]["status"]["progress"]
         .as_object_mut()

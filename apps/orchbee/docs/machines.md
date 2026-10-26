@@ -697,8 +697,7 @@ profiles as one candidate. Fatal source failure or a malformed private publicati
 prior Client setting; an invalid configured sidebar uses its safe default and warning in the atomic
 candidate. The two 32 KiB sidebar profiles use a 256 KiB configuration frame,
 including JSON escaping; field budgets remain separate. Matched cohorts update
-together; public versioned CLI documents keep
-older variants closed. Core and adapter evidence cover strict admission,
+together; public CLI documents retain only their current version-1 contract. Core and adapter evidence cover strict admission,
 revision/generation replacement, cancellation, real Windows Git and pipes,
 null/unknown distinctions, style/Unicode rendering and navigation geometry.
 Whole-cohort and real emulator/SSH acceptance remain separate evidence.

@@ -52,9 +52,7 @@ impl Reason {
             Self::PaneChanged => (Rejected, "pane-changed"),
             Self::PluginUnavailable => (ServiceUnavailable, "plugin-unavailable"),
         };
-        Failure::new(kind)
-            .version(3)
-            .details(stage_reason_details("plugin", reason))
+        Failure::new(kind).details(stage_reason_details("plugin", reason))
     }
 }
 

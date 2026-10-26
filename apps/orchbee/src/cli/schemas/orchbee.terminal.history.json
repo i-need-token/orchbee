@@ -10,7 +10,7 @@
 			"const": "orchbee.terminal.history"
 		},
 		"version": {
-			"enum": [1, 2]
+			"const": 1
 		},
 		"source": {
 			"$ref": "#/$defs/snapshotSource"
@@ -32,71 +32,6 @@
 			}
 		}
 	},
-	"allOf": [
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 1
-					}
-				},
-				"required": ["version"],
-				"type": "object"
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"properties": {
-							"content": {
-								"required": ["rows"],
-								"not": {
-									"anyOf": [
-										{
-											"required": ["lines"],
-											"type": "object"
-										},
-										{
-											"required": ["lineCount"],
-											"type": "object"
-										},
-										{
-											"required": ["tail"],
-											"type": "object"
-										}
-									]
-								},
-								"type": "object"
-							}
-						},
-						"type": "object"
-					}
-				},
-				"type": "object"
-			},
-			"else": {
-				"properties": {
-					"result": {
-						"properties": {
-							"content": {
-								"anyOf": [
-									{
-										"required": ["lines"],
-										"type": "object"
-									},
-									{
-										"required": ["tail"],
-										"type": "object"
-									}
-								]
-							}
-						},
-						"type": "object"
-					}
-				},
-				"type": "object"
-			}
-		}
-	],
 	"$defs": {
 		"id": {
 			"type": "string",
@@ -200,30 +135,67 @@
 		},
 		"content": {
 			"type": "object",
-			"required": ["rowCount", "truncated", "omittedRows", "limits"],
+			"required": [
+				"rows",
+				"lines",
+				"lineCount",
+				"tail",
+				"rowCount",
+				"truncated",
+				"omittedRows",
+				"limits"
+			],
 			"additionalProperties": false,
 			"properties": {
 				"rows": {
-					"type": "array",
-					"maxItems": 1000,
-					"items": {
-						"$ref": "#/$defs/contentRow"
-					}
+					"anyOf": [
+						{
+							"type": "array",
+							"maxItems": 1000,
+							"items": {
+								"$ref": "#/$defs/contentRow"
+							}
+						},
+						{
+							"type": "null"
+						}
+					]
 				},
 				"lines": {
-					"type": "array",
-					"maxItems": 1000,
-					"items": {
-						"$ref": "#/$defs/logicalLine"
-					}
+					"anyOf": [
+						{
+							"type": "array",
+							"maxItems": 1000,
+							"items": {
+								"$ref": "#/$defs/logicalLine"
+							}
+						},
+						{
+							"type": "null"
+						}
+					]
 				},
 				"lineCount": {
-					"type": "integer",
-					"minimum": 0,
-					"maximum": 1000
+					"anyOf": [
+						{
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 1000
+						},
+						{
+							"type": "null"
+						}
+					]
 				},
 				"tail": {
-					"$ref": "#/$defs/tail"
+					"anyOf": [
+						{
+							"$ref": "#/$defs/tail"
+						},
+						{
+							"type": "null"
+						}
+					]
 				},
 				"rowCount": {
 					"type": "integer",
@@ -252,77 +224,46 @@
 					}
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"required": ["lines"],
-						"type": "object"
-					},
-					"then": {
-						"required": ["lineCount"],
-						"not": {
-							"required": ["rows"],
-							"type": "object"
-						},
+			"if": {
+				"required": ["lines"],
+				"type": "object"
+			},
+			"then": {
+				"required": ["lineCount"],
+				"not": {
+					"required": ["rows"],
+					"type": "object"
+				},
+				"properties": {
+					"tail": {
 						"properties": {
-							"tail": {
-								"properties": {
-									"entries": {
-										"const": "lines"
-									}
-								},
-								"type": "object"
-							}
-						},
-						"type": "object"
-					},
-					"else": {
-						"required": ["rows"],
-						"not": {
-							"required": ["lineCount"],
-							"type": "object"
-						},
-						"properties": {
-							"tail": {
-								"properties": {
-									"entries": {
-										"const": "rows"
-									}
-								},
-								"type": "object"
+							"entries": {
+								"const": "lines"
 							}
 						},
 						"type": "object"
 					}
 				},
-				{
-					"if": {
+				"type": "object"
+			},
+			"else": {
+				"required": ["rows"],
+				"not": {
+					"required": ["lineCount"],
+					"type": "object"
+				},
+				"properties": {
+					"tail": {
 						"properties": {
-							"truncated": {
-								"const": true
-							}
-						},
-						"type": "object"
-					},
-					"then": {
-						"properties": {
-							"omittedRows": {
-								"minimum": 1,
-								"type": "integer"
-							}
-						},
-						"type": "object"
-					},
-					"else": {
-						"properties": {
-							"omittedRows": {
-								"const": 0
+							"entries": {
+								"const": "rows"
 							}
 						},
 						"type": "object"
 					}
-				}
-			]
+				},
+				"type": "object"
+			}
 		},
 		"logicalLine": {
 			"type": "object",

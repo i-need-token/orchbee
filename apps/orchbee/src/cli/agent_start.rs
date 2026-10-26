@@ -182,7 +182,7 @@ fn project(
     finalization: Option<super::SourceFinalization>,
 ) -> Output {
     if let Verdict::Started { session } = &report.verdict {
-        let document = json!({"schema":"orchbee.agent.start", "version":2, "result":{
+        let document = json!({"schema":"orchbee.agent.start", "version":1, "result":{
             "kind":"started", "interactiveReady":true, "name":&report.name, "providerId":&report.provider,
             "sessionId":session, "reservationId":&report.reservation, "elapsedMs":report.elapsed_ms, "submission":&report.submission,
         }});
@@ -232,7 +232,7 @@ fn project(
         ("cause".into(), json!(cause)),
     ]));
     failure.source = None;
-    failure.version = 1;
+
     failure.failure_schema = Some(FAILURE_SCHEMA);
     let submission_status = (reason == "input-not-accepted")
         .then_some(report.submission_status)

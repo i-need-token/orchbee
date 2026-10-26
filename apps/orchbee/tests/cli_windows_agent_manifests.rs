@@ -169,14 +169,7 @@ fn cli_manifest_query_reload_status_and_lost_receipts_are_not_replayed() {
         } else {
             let document: Value = serde_json::from_slice(&output.stdout).unwrap();
             if case == "automatic" {
-                assert_eq!(document["version"], 3);
-                let schema: Value = serde_json::from_str(include_str!(
-                    "../src/cli/schemas/orchbee.site.agent-manifests.json"
-                ))
-                .unwrap();
-                let mut old = document.clone();
-                old["version"] = json!(2);
-                assert!(!jsonschema::validator_for(&schema).unwrap().is_valid(&old));
+                assert_eq!(document["version"], 1);
             }
             validate(
                 &document,
@@ -296,7 +289,7 @@ fn cli_update_polls_only_status_and_reports_partial_or_unknown_effects() {
             String::from_utf8_lossy(&output.stderr)
         );
         let document: Value = serde_json::from_slice(&output.stdout).unwrap();
-        assert_eq!(document["version"], 2);
+        assert_eq!(document["version"], 1);
         if case == "wrong-kind" {
             assert_eq!(
                 document["observation"]["reply"]["outcome"]["status"]["kind"],
@@ -306,17 +299,6 @@ fn cli_update_polls_only_status_and_reports_partial_or_unknown_effects() {
         validate(
             &document,
             include_str!("../src/cli/schemas/orchbee.site.agent-manifests.json"),
-        );
-        let mut legacy = document.clone();
-        legacy["version"] = json!(1);
-        let schema: Value = serde_json::from_str(include_str!(
-            "../src/cli/schemas/orchbee.site.agent-manifests.json"
-        ))
-        .unwrap();
-        assert!(
-            !jsonschema::validator_for(&schema)
-                .unwrap()
-                .is_valid(&legacy)
         );
     }
 }

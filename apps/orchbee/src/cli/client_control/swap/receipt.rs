@@ -128,17 +128,15 @@ impl Receipt {
         }
     }
     pub(super) fn document(&self) -> Value {
-        let mut document = json!({"schema":"orchbee.panel.swap","version":if self.client_id.is_some() { 1 } else { 2 },"siteId":self.site_id,
+        let document = json!({"schema":"orchbee.panel.swap","version":1,"siteId":self.site_id,
             "clientId":self.client_id,"baseRevision":self.base_revision,
+            "scope":if self.client_id.is_some() {"client"} else {"shared"},
             "source":self.source.document(),"target":self.target.as_ref().map(Panel::document),"direction":self.direction,
             "layoutOperationId":self.layout_operation_id,"layoutRevision":self.layout_revision,
             "requestId":self.request_id,"canonical":self.canonical.document(),
             "focus":self.focus.as_ref().map(focus_document),"stage":self.stage,
             "reason":self.reason,"failure":self.failure.map(FailureKind::as_str),
             "outcome":self.outcome()});
-        if self.client_id.is_none() {
-            document["scope"] = json!("shared");
-        }
         document
     }
     pub(super) fn emit(&self, format: OutputFormat, locale: Locale) -> Output {

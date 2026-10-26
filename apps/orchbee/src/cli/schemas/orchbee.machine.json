@@ -135,36 +135,34 @@
 					"type": "boolean"
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"changed": {
-								"const": true
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"committed": {
-								"const": true
-							},
-							"revision": {
-								"type": "integer"
-							},
-							"profiles": {
-								"type": "array"
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"committed": {
-								"const": false
-							}
-						}
+			"if": {
+				"properties": {
+					"changed": {
+						"const": true
 					}
-				},
+				}
+			},
+			"then": {
+				"properties": {
+					"committed": {
+						"const": true
+					},
+					"revision": {
+						"type": "integer"
+					},
+					"profiles": {
+						"type": "array"
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"committed": {
+						"const": false
+					}
+				}
+			},
+			"allOf": [
 				{
 					"if": {
 						"properties": {

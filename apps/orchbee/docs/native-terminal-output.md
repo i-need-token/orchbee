@@ -10,9 +10,7 @@ commands use `--rows` for dimensions.
 conflicts with `--plain`. All grammar resolves before effects. Agent targets can explicitly
 select `--terminal` / `@terminal:` including child terminals, or `--panel` / `@panel:` for a primary.
 
-Plain JSON reads emit `orchbee.terminal.output` v3 and styled reads v4. The historical
-`orchbee.terminal.read`/`history` schemas remain available for old receipts; current CLI syntax
-uses only the source model. Rollback restores the old executable without a persisted migration.
+Plain and styled JSON reads both emit `orchbee.terminal.output` version 1 with the same members. `result.encoding` is `text` or `ansi`; `result.cursor` is always present and nullable. The source model owns current CLI syntax; internal read/history content projections also have one current version.
 
 ## Selection model
 
@@ -59,10 +57,10 @@ fails before stdout. Read cleanup and platform admission retain the existing que
 ## Output and compatibility
 
 Human text preserves printable backslashes, quotes, and Unicode, while escaping terminal controls
-and bidirectional formatting. Read markers remain localized. JSON uses `orchbee.terminal.output` v3 with canonical
+and bidirectional formatting. Read markers remain localized. JSON uses `orchbee.terminal.output` v1 with canonical
 snapshot provenance, terminal identity, source selection, revision/generation, physical range,
 capacity truncation, fragment edges and text. The offline `api schema` catalog publishes current
-and historical receipt schemas. `--plain` emits exactly the JSON text member's UTF-8 bytes, under
+receipt schemas. `--plain` emits exactly the JSON text member's UTF-8 bytes, under
 the same preparation cap; failures leave text stdout empty. It is an explicit data export under
 the [CLI output standard](../../../docs/cli/output.md), not ordinary human text rendering.
 
@@ -76,7 +74,7 @@ checks and model review, not an unrun model-checking claim.
 Linux/Windows `terminal wait-output` uses this source model, defaulting to recent (80 physical
 rows) and a 30000 ms total deadline. `--timeout` accepts 1..3600000 ms; explicit `--forever`
 removes the total deadline and conflicts with timeout. `--lines` controls the window; legacy
-`--rows` is refused. Source waits emit v3, or v4 when `--after` is supplied. The source range
+`--rows` is refused. Source waits use version 1; `after` is always present and is null without `--after`. The source range
 remains governed by the recent endpoint.
 
 Every individual admission and I/O remains bounded to five seconds. Finite timeouts keep the existing
@@ -97,12 +95,12 @@ the original wrap edges when physical rows are searched separately. Empty select
 matches; zero-line infinite waits therefore end only on cancellation or a runtime failure.
 Existing output can satisfy a wait immediately: success never proves a new command or completion.
 
-Source mode emits `orchbee.terminal.wait-output` v3. Its required `selection` contains source and
+Source mode emits `orchbee.terminal.wait-output` v1. Its required `selection` contains source and
 optional line limit; observed `timeoutMs` defaults to 30000 and is null only when `--forever`
 is explicit. `requestedRows` is the physical source budget before capacity/retained clamps: screen
 height for visible/detection, or the explicit/default recent limit. `windowTruncated` reports capacity loss only. Completed
 observations count validated samples that finished a match pass, including visible-frame samples.
-Version 1/2 documents and their constraints remain unchanged; the offline `api schema` catalog publishes their closed schema.
+The offline `api schema` catalog publishes this current closed schema.
 
 Pinned Herdr waits also search text lines, map recent to recent-unwrapped, and permit an absent
 total deadline. Its raw switch only forwards a stripping field that the read handler ignores;
@@ -119,8 +117,8 @@ before runtime admission. `--format json` remains available; otherwise stdout co
 UTF-8 ANSI string directly, without headings. This is the same explicit data-export exception as
 plain output, not a change to ordinary escaped human text.
 
-JSON ANSI output uses `orchbee.terminal.output` v4 with `result.encoding:"ansi"`; `content.text`
-contains the ANSI string. Text/plain source reads emit v3 with the same cursor field. The catalog lists the current schemas and command paths. Empty selection exports no bytes. Preparation and
+JSON ANSI output uses `orchbee.terminal.output` v1 with `result.encoding:"ansi"`; `content.text`
+contains the ANSI string. Text/plain source reads emit v1 with the same cursor field. The catalog lists the current schemas and command paths. Empty selection exports no bytes. Preparation and
 serialization preserve the existing 8 MiB output limit and finish before stdout; an over-budget
 result fails completely. Raw export and JSON content have identical UTF-8 bytes when both fit.
 
@@ -205,9 +203,9 @@ while preventing shared grapheme aliases from bypassing the output budget during
 
 ## Output cursors
 
-Current plain and ANSI output envelopes are v3 and v4, respectively, with nullable `result.cursor`; historical v1/v2 retain their closed shapes. A cursor identifies one primary-screen terminal, Host epoch, generation, output-origin epoch, revision and later of the occupied row and existing content endpoint. It is unavailable on alternate screens or older Hosts. Treat the encoded value as opaque.
+Plain and ANSI output envelopes both use v1, with nullable `result.cursor`. A cursor identifies one primary-screen terminal, Host epoch, generation, output-origin epoch, revision and later of the occupied row and existing content endpoint. It is unavailable on alternate screens or older Hosts. Treat the encoded value as opaque.
 
-`wait-output --after <cursor|now>` emits v4 with the admitted `after` boundary. Without this flag, waits retain v3 and may match retained output. `now` captures the first consistent sample. Matching excludes the occupied boundary row and prompt/input rows, then applies the existing matching and wrap rules to later rows. It does not detect append-only changes within the boundary row. A mismatched identity, restart, reset/reflow, history eviction or missing rows before the selected window returns `rejected` with `output-cursor-reset`; an unsupported source returns `output-cursor-unavailable`. No cursor reset is hidden. The observer never submits input.
+`wait-output --after <cursor|now>` emits v1 with the admitted `after` boundary. Without this flag, waits retain v1 and may match retained output. `now` captures the first consistent sample. Matching excludes the occupied boundary row and prompt/input rows, then applies the existing matching and wrap rules to later rows. It does not detect append-only changes within the boundary row. A mismatched identity, restart, reset/reflow, history eviction or missing rows before the selected window returns `rejected` with `output-cursor-reset`; an unsupported source returns `output-cursor-unavailable`. No cursor reset is hidden. The observer never submits input.
 
 ## Panel targets for terminal I/O
 

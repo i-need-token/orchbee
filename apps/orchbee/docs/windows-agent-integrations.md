@@ -63,7 +63,7 @@ action remains outside this cooperative teardown claim.
 
 Windows `agent integration list --outdated-only` performs the usual bounded local inspection once and shows only update-required entries, including owned installations needing repair. It never installs or downloads. `agent integration enable --provider <id>` remains the explicit guarded update/repair action; conflicting and uninspectable entries are not replaced.
 
-Filtered lists use v6 with outdatedOnly true, inspectedCount, unresolvedProviderIds for unknown inspections and blockedProviderIds for conflicting entries. Complete is calculated from the entire selected inspection before filtering; an empty list cannot hide inspection failures. Text includes these counts and the same filtered entries. The default list uses v5. Both current versions admit all 20 canonical providers; v1/v2 retain their original collection and inspection bounds. The flag has no non-Windows runtime; original 40-second deadline, cancellation, profile isolation and local-only ownership remain. Detailed installed-version reporting and remaining provider Windows hook support are separate obligations.
+Filtered lists use v1 with outdatedOnly true, inspectedCount, unresolvedProviderIds for unknown inspections and blockedProviderIds for conflicting entries. Complete is calculated from the entire selected inspection before filtering; an empty list cannot hide inspection failures. Text includes these counts and the same filtered entries. The default list uses v1. The current schema admits all 20 canonical providers. The flag has no non-Windows runtime; original 40-second deadline, cancellation, profile isolation and local-only ownership remain. Detailed installed-version reporting and remaining provider Windows hook support are separate obligations.
 
 ## Claude exec hooks
 
@@ -242,7 +242,7 @@ older receivers reject the new adapter. Disable removes only proven owned rules.
 
 Sources: [Kimi configuration](https://moonshotai.github.io/kimi-code/en/configuration/config-files),
 [hooks](https://moonshotai.github.io/kimi-code/en/customization/hooks), and
-[pinned provider implementation](https://github.com/MoonshotAI/kimi-code/tree/be7d5f5fea7800778e4660cd5f36780ba783bddd/packages/agent-core-v2/src/features/externalHooks).
+[pinned provider implementation](https://github.com/MoonshotAI/kimi-code/tree/be7d5f5fea7800778e4660cd5f36780ba783bddd/packages/agent-core-v1/src/features/externalHooks).
 
 ## Letta Windows session hooks
 

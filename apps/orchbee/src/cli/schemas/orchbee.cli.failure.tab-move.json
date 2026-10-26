@@ -10,7 +10,7 @@
 			"const": "orchbee.cli.failure.tab-move"
 		},
 		"version": {
-			"enum": [1, 2]
+			"const": 1
 		},
 		"failure": {
 			"type": "object",
@@ -47,529 +47,6 @@
 			"$ref": "#/$defs/source"
 		}
 	},
-	"allOf": [
-		{
-			"if": {
-				"properties": {
-					"failure": {
-						"properties": {
-							"kind": {
-								"const": "ambiguous"
-							}
-						},
-						"required": ["kind"]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"failure": {
-						"required": ["details"],
-						"properties": {
-							"details": {
-								"$ref": "#/$defs/ambiguousDetails"
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"failure": {
-						"properties": {
-							"kind": {
-								"const": "check-failed"
-							}
-						},
-						"required": ["kind"]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"failure": {
-						"required": ["details"],
-						"properties": {
-							"details": {
-								"oneOf": [
-									{
-										"$ref": "#/$defs/checkStageDetails"
-									},
-									{
-										"$ref": "#/$defs/platformDetails"
-									}
-								]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"failure": {
-						"properties": {
-							"kind": {
-								"const": "service-unavailable"
-							}
-						},
-						"required": ["kind"]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"failure": {
-						"required": ["details"],
-						"properties": {
-							"details": {
-								"oneOf": [
-									{
-										"$ref": "#/$defs/unavailableStageDetails"
-									},
-									{
-										"$ref": "#/$defs/commandUnavailableDetails"
-									},
-									{
-										"$ref": "#/$defs/historyReadUnavailableDetails"
-									},
-									{
-										"$ref": "#/$defs/waitOutputUnavailableDetails"
-									},
-									{
-										"$ref": "#/$defs/platformDetails"
-									},
-									{
-										"$ref": "#/$defs/cohortStageDetails"
-									},
-									{
-										"$ref": "#/$defs/socketBudgetDetails"
-									}
-								]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"failure": {
-						"properties": {
-							"kind": {
-								"const": "transport-loss"
-							}
-						},
-						"required": ["kind"]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"failure": {
-						"required": ["details"],
-						"properties": {
-							"details": {
-								"$ref": "#/$defs/transportStageDetails"
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"failure": {
-						"properties": {
-							"kind": {
-								"const": "incompatible"
-							}
-						},
-						"required": ["kind"]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"failure": {
-						"required": ["details"],
-						"properties": {
-							"details": {
-								"oneOf": [
-									{
-										"$ref": "#/$defs/admissionDetails"
-									},
-									{
-										"$ref": "#/$defs/cohortStageDetails"
-									}
-								]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"failure": {
-						"properties": {
-							"kind": {
-								"const": "connection-capacity"
-							}
-						},
-						"required": ["kind"]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"failure": {
-						"required": ["details"],
-						"properties": {
-							"details": {
-								"$ref": "#/$defs/admissionDetails"
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"failure": {
-						"properties": {
-							"kind": {
-								"const": "protocol-invalid"
-							}
-						},
-						"required": ["kind"]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"failure": {
-						"required": ["details"],
-						"properties": {
-							"details": {
-								"oneOf": [
-									{
-										"$ref": "#/$defs/protocolStageDetails"
-									},
-									{
-										"$ref": "#/$defs/correlationDetails"
-									}
-								]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"failure": {
-						"properties": {
-							"kind": {
-								"enum": ["invalid-identifier", "not-found"]
-							}
-						},
-						"required": ["kind"]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"failure": {
-						"required": ["details"],
-						"properties": {
-							"details": {
-								"$ref": "#/$defs/identifierDetails"
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"failure": {
-						"properties": {
-							"kind": {
-								"const": "outcome-unknown"
-							}
-						},
-						"required": ["kind"]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"failure": {
-						"required": ["details"],
-						"properties": {
-							"details": {
-								"$ref": "#/$defs/outcomeUnknownDetails"
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"failure": {
-						"properties": {
-							"kind": {
-								"const": "rejected"
-							}
-						},
-						"required": ["kind"]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"failure": {
-						"required": ["details"],
-						"properties": {
-							"details": {
-								"oneOf": [
-									{
-										"$ref": "#/$defs/rejectedDetails"
-									},
-									{
-										"$ref": "#/$defs/historyReadRejectedDetails"
-									},
-									{
-										"$ref": "#/$defs/waitOutputRejectedDetails"
-									},
-									{
-										"$ref": "#/$defs/recoveryRequiredDetails"
-									}
-								]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"failure": {
-						"properties": {
-							"kind": {
-								"const": "output-too-large"
-							}
-						},
-						"required": ["kind"]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"failure": {
-						"required": ["details"],
-						"properties": {
-							"details": {
-								"$ref": "#/$defs/limitDetails"
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"failure": {
-						"properties": {
-							"kind": {
-								"const": "timeout"
-							}
-						},
-						"required": ["kind"]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"failure": {
-						"required": ["details"],
-						"properties": {
-							"details": {
-								"oneOf": [
-									{
-										"$ref": "#/$defs/waitTimeoutDetails"
-									},
-									{
-										"$ref": "#/$defs/activationStageDetails"
-									},
-									{
-										"$ref": "#/$defs/cohortStageDetails"
-									}
-								]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"failure": {
-						"properties": {
-							"kind": {
-								"const": "cancelled"
-							}
-						},
-						"required": ["kind"]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"failure": {
-						"required": ["details"],
-						"properties": {
-							"details": {
-								"oneOf": [
-									{
-										"$ref": "#/$defs/waitCancelledDetails"
-									},
-									{
-										"$ref": "#/$defs/doctorStageDetails"
-									}
-								]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"failure": {
-						"properties": {
-							"kind": {
-								"const": "denied"
-							}
-						},
-						"required": ["kind"]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"failure": {
-						"properties": {
-							"details": {
-								"oneOf": [
-									{
-										"$ref": "#/$defs/cohortStageDetails"
-									}
-								]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"failure": {
-						"properties": {
-							"kind": {
-								"const": "internal-failure"
-							}
-						},
-						"required": ["kind"]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"failure": {
-						"properties": {
-							"details": {
-								"oneOf": [
-									{
-										"$ref": "#/$defs/activationStageDetails"
-									},
-									{
-										"$ref": "#/$defs/cohortStageDetails"
-									}
-								]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"failure": {
-						"properties": {
-							"kind": {
-								"const": "invalid-usage"
-							}
-						},
-						"required": ["kind"]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"failure": {
-						"not": {
-							"required": ["details"]
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 1
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"failure": {
-						"properties": {
-							"details": {
-								"properties": {
-									"reason": {
-										"not": {
-											"const": "tab-move-order-conflict"
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	],
 	"$defs": {
 		"id": {
 			"type": "string",
@@ -1112,5 +589,496 @@
 				}
 			]
 		}
-	}
+	},
+	"if": {
+		"properties": {
+			"failure": {
+				"properties": {
+					"kind": {
+						"const": "ambiguous"
+					}
+				},
+				"required": ["kind"]
+			}
+		}
+	},
+	"then": {
+		"properties": {
+			"failure": {
+				"required": ["details"],
+				"properties": {
+					"details": {
+						"$ref": "#/$defs/ambiguousDetails"
+					}
+				}
+			}
+		}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "check-failed"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"oneOf": [
+									{
+										"$ref": "#/$defs/checkStageDetails"
+									},
+									{
+										"$ref": "#/$defs/platformDetails"
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "service-unavailable"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"oneOf": [
+									{
+										"$ref": "#/$defs/unavailableStageDetails"
+									},
+									{
+										"$ref": "#/$defs/commandUnavailableDetails"
+									},
+									{
+										"$ref": "#/$defs/historyReadUnavailableDetails"
+									},
+									{
+										"$ref": "#/$defs/waitOutputUnavailableDetails"
+									},
+									{
+										"$ref": "#/$defs/platformDetails"
+									},
+									{
+										"$ref": "#/$defs/cohortStageDetails"
+									},
+									{
+										"$ref": "#/$defs/socketBudgetDetails"
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "transport-loss"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"$ref": "#/$defs/transportStageDetails"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "incompatible"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"oneOf": [
+									{
+										"$ref": "#/$defs/admissionDetails"
+									},
+									{
+										"$ref": "#/$defs/cohortStageDetails"
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "connection-capacity"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"$ref": "#/$defs/admissionDetails"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "protocol-invalid"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"oneOf": [
+									{
+										"$ref": "#/$defs/protocolStageDetails"
+									},
+									{
+										"$ref": "#/$defs/correlationDetails"
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"enum": ["invalid-identifier", "not-found"]
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"$ref": "#/$defs/identifierDetails"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "outcome-unknown"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"$ref": "#/$defs/outcomeUnknownDetails"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "rejected"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"oneOf": [
+									{
+										"$ref": "#/$defs/rejectedDetails"
+									},
+									{
+										"$ref": "#/$defs/historyReadRejectedDetails"
+									},
+									{
+										"$ref": "#/$defs/waitOutputRejectedDetails"
+									},
+									{
+										"$ref": "#/$defs/recoveryRequiredDetails"
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "output-too-large"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"$ref": "#/$defs/limitDetails"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "timeout"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"oneOf": [
+									{
+										"$ref": "#/$defs/waitTimeoutDetails"
+									},
+									{
+										"$ref": "#/$defs/activationStageDetails"
+									},
+									{
+										"$ref": "#/$defs/cohortStageDetails"
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "cancelled"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"oneOf": [
+									{
+										"$ref": "#/$defs/waitCancelledDetails"
+									},
+									{
+										"$ref": "#/$defs/doctorStageDetails"
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "denied"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"details": {
+								"$ref": "#/$defs/cohortStageDetails"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "internal-failure"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"details": {
+								"oneOf": [
+									{
+										"$ref": "#/$defs/activationStageDetails"
+									},
+									{
+										"$ref": "#/$defs/cohortStageDetails"
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "invalid-usage"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"not": {
+							"required": ["details"]
+						}
+					}
+				}
+			}
+		}
+	]
 }

@@ -292,7 +292,7 @@ fn physical_wait_pins_identity_and_rejects_gaps_future_fences_and_provider_aba()
 }
 
 #[test]
-fn physical_wait_documents_reject_fabricated_canonical_fields_and_old_versions() {
+fn physical_wait_documents_reject_fabricated_fields_and_incomplete_client_views() {
     let mut initial = read(1, 1, Status::Idle, &[]);
     let id = "1".repeat(32);
     initial.source =
@@ -316,20 +316,15 @@ fn physical_wait_documents_reject_fabricated_canonical_fields_and_old_versions()
         .initial_match(&initial)
         .unwrap();
     let matched = super::super::matched_result(&options, initial, matched, 1);
-    let mut doc = json!({"schema":"orchbee.agent.wait","version":5,"source":matched.read.source,"result":matched.document()});
+    let mut doc = json!({"schema":"orchbee.agent.wait","version":1,"source":matched.read.source,"result":matched.document()});
     let schema: serde_json::Value =
         serde_json::from_str(include_str!("../../../schemas/orchbee.agent.wait.json")).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
     let errors: Vec<_> = validator.iter_errors(&doc).map(|e| e.to_string()).collect();
     assert!(errors.is_empty(), "{errors:?}");
-    doc["version"] = json!(4);
-    assert!(!validator.is_valid(&doc));
-    doc["version"] = json!(5);
     doc["result"]["clientView"] = json!({"clientId":id,"operationId":id,
         "view":{"workbenchRevision":"1","phase":"starting","selection":null},
         "reportRevision":"1","sequence":"1","seen":true,"status":"idle","outerFocused":null});
-    assert!(!validator.is_valid(&doc));
-    doc["version"] = json!(6);
     validator.validate(&doc).unwrap();
     let receipt = crate::cli::send::test_receipt(
         orchbee_client_server_protocol::TerminalSendOutcome::Accepted {
@@ -338,24 +333,20 @@ fn physical_wait_documents_reject_fabricated_canonical_fields_and_old_versions()
         },
     )
     .document();
-    let mut prompt = json!({"schema":"orchbee.agent.prompt","version":6,"source":receipt["source"],
+    let mut prompt = json!({"schema":"orchbee.agent.prompt","version":1,"source":receipt["source"],
         "result":{"target":doc["result"]["target"],"submission":receipt,"wait":doc["result"]}});
     let prompt_schema: serde_json::Value =
         serde_json::from_str(include_str!("../../../schemas/orchbee.agent.prompt.json")).unwrap();
     let prompt_validator = jsonschema::validator_for(&prompt_schema).unwrap();
     prompt_validator.validate(&prompt).unwrap();
-    prompt["version"] = json!(5);
-    assert!(!prompt_validator.is_valid(&prompt));
-    prompt["version"] = json!(6);
     prompt["result"]["wait"] = serde_json::Value::Null;
-    assert!(!prompt_validator.is_valid(&prompt));
+    assert!(prompt_validator.is_valid(&prompt));
     doc["result"]["clientView"]
         .as_object_mut()
         .unwrap()
         .remove("sequence");
     assert!(!validator.is_valid(&doc));
     doc["result"].as_object_mut().unwrap().remove("clientView");
-    doc["version"] = json!(5);
     doc["result"]["session"] = json!({});
     assert!(!validator.is_valid(&doc));
     let schema: serde_json::Value = serde_json::from_str(include_str!(

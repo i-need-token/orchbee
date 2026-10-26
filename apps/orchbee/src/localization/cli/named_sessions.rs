@@ -81,11 +81,11 @@ impl Locale {
         match (self, path) {
             (Self::EnUs, CommandPath::SessionList) => crate::localization::HelpDetails::new(
                 "orchbee session list [--format text|json]",
-                "Read local named sessions plus default without starting or creating them.\nAt most 256 entries, default first then exact name order, within one 5-second deadline.\nStates: running, stopping, stopped, absent, starting, deleting, recoverable, recovery-required.\nRecoverable is a guarded observation of complete v2 registration and all exact owners gone; later startup checks again.\nUncertain state is not reported as stopped. Inventory belongs to the selected runtime base.\nJSON emits orchbee.session.list v2; legacy v1 remains closed to its original states.",
+                "Read local named sessions plus default without starting or creating them.\nAt most 256 entries, default first then exact name order, within one 5-second deadline.\nStates: running, stopping, stopped, absent, starting, deleting, recoverable, recovery-required.\nRecoverable is a guarded observation of complete registration and all exact owners gone; later startup checks again.\nUncertain state is not reported as stopped. Inventory belongs to the selected runtime base.\nJSON emits orchbee.session.list v1.",
             ),
             (Self::ZhCn, CommandPath::SessionList) => crate::localization::HelpDetails::new(
                 "orchbee session list [--format text|json]",
-                "只读列出本地命名会话及 default，不启动或创建会话。最多 256 条，default 在前，随后按精确名称排序，共用 5 秒期限。状态：running、stopping、stopped、absent、starting、deleting、recoverable、recovery-required。\nRecoverable 是当次受门保护的观察：v2 登记完整且全部确切所有者消失；稍后启动仍重新检查。不确定状态不会报告为已停止。清单属于所选运行时基目录。\nJSON 输出 orchbee.session.list v2；旧 v1 保持原有封闭状态集合。",
+                "只读列出本地命名会话及 default，不启动或创建会话。最多 256 条，default 在前，随后按精确名称排序，共用 5 秒期限。状态：running、stopping、stopped、absent、starting、deleting、recoverable、recovery-required。\nRecoverable 是当次受门保护的观察：登记完整且全部确切所有者消失；稍后启动仍重新检查。不确定状态不会报告为已停止。清单属于所选运行时基目录。\nJSON 输出 orchbee.session.list v1。",
             ),
             (Self::EnUs, CommandPath::SessionAttach) => crate::localization::HelpDetails::new(
                 "orchbee session attach <name> [--mouse on|off]",

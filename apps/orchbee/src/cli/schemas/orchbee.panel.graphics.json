@@ -197,31 +197,27 @@
 						"drawnRevision",
 						"fileFrameDirectory"
 					],
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"clientId": {
-										"type": "null"
-									}
-								},
-								"required": ["clientId"]
+					"if": {
+						"properties": {
+							"clientId": {
+								"type": "null"
+							}
+						},
+						"required": ["clientId"]
+					},
+					"then": {
+						"properties": {
+							"capabilities": {
+								"type": "null"
 							},
-							"then": {
-								"properties": {
-									"capabilities": {
-										"type": "null"
-									},
-									"paneVisible": {
-										"type": "null"
-									},
-									"drawnRevision": {
-										"type": "null"
-									}
-								}
+							"paneVisible": {
+								"type": "null"
+							},
+							"drawnRevision": {
+								"type": "null"
 							}
 						}
-					]
+					}
 				},
 				{
 					"type": "object",
@@ -260,16 +256,10 @@
 							"$ref": "#/$defs/gfx_layerId"
 						},
 						"resourceRevision": {
-							"allOf": [
-								{
-									"$ref": "#/$defs/wb_revision"
-								},
-								{
-									"not": {
-										"const": "0"
-									}
-								}
-							]
+							"$ref": "#/$defs/wb_revision",
+							"not": {
+								"const": "0"
+							}
 						},
 						"width": {
 							"type": "integer",
@@ -336,34 +326,24 @@
 						}
 					},
 					"required": ["kind", "target", "layerId", "revision", "changed"],
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"changed": {
-										"const": true
-									}
-								},
-								"required": ["changed"]
-							},
-							"then": {
-								"properties": {
-									"revision": {
-										"allOf": [
-											{
-												"$ref": "#/$defs/wb_revision"
-											},
-											{
-												"not": {
-													"const": "0"
-												}
-											}
-										]
-									}
+					"if": {
+						"properties": {
+							"changed": {
+								"const": true
+							}
+						},
+						"required": ["changed"]
+					},
+					"then": {
+						"properties": {
+							"revision": {
+								"$ref": "#/$defs/wb_revision",
+								"not": {
+									"const": "0"
 								}
 							}
 						}
-					]
+					}
 				},
 				{
 					"type": "object",
@@ -387,16 +367,10 @@
 							"maximum": 2147483647
 						},
 						"revision": {
-							"allOf": [
-								{
-									"$ref": "#/$defs/wb_revision"
-								},
-								{
-									"not": {
-										"const": "0"
-									}
-								}
-							]
+							"$ref": "#/$defs/wb_revision",
+							"not": {
+								"const": "0"
+							}
 						},
 						"fileFrameDirectory": {
 							"oneOf": [
@@ -436,31 +410,19 @@
 							"$ref": "#/$defs/gfx_layerId"
 						},
 						"sequence": {
-							"allOf": [
-								{
-									"$ref": "#/$defs/wb_revision"
-								},
-								{
-									"not": {
-										"const": "0"
-									}
-								}
-							]
+							"$ref": "#/$defs/wb_revision",
+							"not": {
+								"const": "0"
+							}
 						},
 						"frameRevision": {
 							"$ref": "#/$defs/wb_revision"
 						},
 						"revision": {
-							"allOf": [
-								{
-									"$ref": "#/$defs/wb_revision"
-								},
-								{
-									"not": {
-										"const": "0"
-									}
-								}
-							]
+							"$ref": "#/$defs/wb_revision",
+							"not": {
+								"const": "0"
+							}
 						},
 						"changed": {
 							"type": "boolean"
@@ -605,32 +567,27 @@
 				}
 			},
 			"required": ["transport", "cellPixels", "pixelMouse"],
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"pixelMouse": {
-								"const": true
-							}
-						},
-						"required": ["pixelMouse"]
+			"if": {
+				"properties": {
+					"pixelMouse": {
+						"const": true
+					}
+				},
+				"required": ["pixelMouse"]
+			},
+			"then": {
+				"properties": {
+					"transport": {
+						"enum": ["kitty", "sixel"]
 					},
-					"then": {
-						"properties": {
-							"transport": {
-								"enum": ["kitty", "sixel"]
-							},
-							"cellPixels": {
-								"type": "object"
-							}
-						}
+					"cellPixels": {
+						"type": "object"
 					}
 				}
-			]
+			}
 		},
 		"wb_directoryPath": {
 			"title": "WorkbenchDirectoryPath",
-			"$comment": "The independent bindings additionally enforce the 4096-byte UTF-8 limit.",
 			"type": "string",
 			"minLength": 1,
 			"maxLength": 4096,
@@ -662,16 +619,10 @@
 					"$ref": "#/$defs/gfx_placement"
 				},
 				"resourceRevision": {
-					"allOf": [
-						{
-							"$ref": "#/$defs/wb_revision"
-						},
-						{
-							"not": {
-								"const": "0"
-							}
-						}
-					]
+					"$ref": "#/$defs/wb_revision",
+					"not": {
+						"const": "0"
+					}
 				},
 				"streamId": {
 					"oneOf": [

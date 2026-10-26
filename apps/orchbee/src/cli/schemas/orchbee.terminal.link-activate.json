@@ -273,26 +273,24 @@
 					]
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"kind": {
-								"const": "none"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"url": {
-								"type": "null"
-							},
-							"regions": {
-								"maxItems": 0
-							}
-						}
+			"if": {
+				"properties": {
+					"kind": {
+						"const": "none"
 					}
-				},
+				}
+			},
+			"then": {
+				"properties": {
+					"url": {
+						"type": "null"
+					},
+					"regions": {
+						"maxItems": 0
+					}
+				}
+			},
+			"allOf": [
 				{
 					"if": {
 						"properties": {

@@ -102,7 +102,7 @@ fn current_selection_cannot_move_during_joins_even_if_it_moves_back() {
 }
 
 #[test]
-fn enriched_current_schema_requires_complete_facts_and_keeps_legacy_v3_closed() {
+fn enriched_current_schema_requires_complete_facts() {
     let fixture = Fixture::new();
     let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
     let server = peer(&fixture, listener, move |mut stream| {
@@ -139,28 +139,6 @@ fn enriched_current_schema_requires_complete_facts_and_keeps_legacy_v3_closed() 
             .remove(field);
         assert!(!validator.is_valid(&missing), "required {field}");
     }
-    let mut legacy = doc.clone();
-    legacy["version"] = json!(3);
-    assert!(!validator.is_valid(&legacy));
-    legacy["result"].as_object_mut().unwrap().remove("agents");
-    legacy["result"]["panel"]
-        .as_object_mut()
-        .unwrap()
-        .retain(|key, _| {
-            [
-                "panelId",
-                "rightClick",
-                "tabId",
-                "context",
-                "slotPath",
-                "primaryPresentation",
-                "childPresentations",
-            ]
-            .contains(&key.as_str())
-        });
-    assert!(validator.is_valid(&legacy));
-    legacy["version"] = json!(4);
-    assert!(!validator.is_valid(&legacy));
 }
 
 #[test]

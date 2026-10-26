@@ -76,9 +76,6 @@ fn physical_prompt_failure_and_legacy_variants_are_closed() {
         &output,
         include_str!("../../../schemas/orchbee.cli.failure.agent-prompt.json"),
     );
-    doc["version"] = json!(1);
-    assert!(!validator.is_valid(&doc));
-    doc["version"] = json!(2);
     doc["failure"]["details"]["sessionId"] = json!("fabricated");
     assert!(!validator.is_valid(&doc));
     let output = success(

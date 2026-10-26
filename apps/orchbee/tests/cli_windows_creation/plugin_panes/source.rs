@@ -295,7 +295,7 @@ fn plugin_pane_source_context_tracks_child_observations_and_fails_before_creatio
                 &document,
                 include_str!("../../../src/cli/schemas/orchbee.creation.result.json"),
             );
-            assert_eq!(document["version"], 3);
+            assert_eq!(document["version"], 1);
         }
     }
 }
@@ -396,6 +396,6 @@ fn plugin_pane_explicit_destination_preserves_headless_and_empty_workspace_sourc
             &document,
             include_str!("../../../src/cli/schemas/orchbee.creation.result.json"),
         );
-        assert_eq!(document["version"], 3);
+        assert_eq!(document["version"], 1);
     }
 }

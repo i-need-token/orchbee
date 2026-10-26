@@ -414,7 +414,7 @@ fn windows_source_read_aged_rows_repin_and_retry() {
     }
 }
 
-fn wait_document(output: std::process::Output, version: u8) -> Value {
+fn wait_document(output: std::process::Output) -> Value {
     assert_eq!(
         output.status.code(),
         Some(0),
@@ -427,7 +427,7 @@ fn wait_document(output: std::process::Output, version: u8) -> Value {
         &doc,
         include_str!("../src/cli/schemas/orchbee.terminal.wait-output.json"),
     );
-    assert_eq!(doc["version"], version);
+    assert_eq!(doc["version"], 1);
     doc
 }
 
@@ -455,7 +455,7 @@ fn windows_source_wait_matches_visible_frame_without_row_read_and_forever_has_no
         } else {
             args.push("--timeout=30000");
         }
-        let doc = wait_document(fixture.run(&args), 3);
+        let doc = wait_document(fixture.run(&args));
         handler.join().unwrap();
         let result = &doc["result"];
         assert_eq!(
@@ -481,9 +481,6 @@ fn windows_source_wait_matches_visible_frame_without_row_read_and_forever_has_no
         .unwrap();
         let validator = jsonschema::validator_for(&schema).unwrap();
         let mut invalid = doc.clone();
-        invalid["version"] = Value::from(1);
-        assert!(!validator.is_valid(&invalid));
-        invalid = doc;
         invalid["result"]
             .as_object_mut()
             .unwrap()
@@ -557,20 +554,17 @@ fn windows_source_wait_repinning_never_counts_stale_samples_or_repeats_row_seque
         } else {
             "^HEADTAIL$"
         };
-        let doc = wait_document(
-            fixture.run(&[
-                "terminal",
-                "wait-output",
-                ID,
-                "--source",
-                source,
-                "--lines=2",
-                "--regex",
-                pattern,
-                "--format=json",
-            ]),
-            3,
-        );
+        let doc = wait_document(fixture.run(&[
+            "terminal",
+            "wait-output",
+            ID,
+            "--source",
+            source,
+            "--lines=2",
+            "--regex",
+            pattern,
+            "--format=json",
+        ]));
         handler.join().unwrap();
         assert_eq!(doc["result"]["observed"]["completedObservations"], 1);
         assert_eq!(doc["result"]["observed"]["windowTruncated"], false);
@@ -690,16 +684,13 @@ fn windows_default_wait_uses_recent_eighty_rows_and_a_thirty_second_deadline() {
             );
             detached(&mut stream, &viewer);
         });
-        let doc = wait_document(
-            fixture.run(&[
-                "terminal",
-                "wait-output",
-                ID,
-                if regex { "--regex=hit" } else { "--match=hit" },
-                "--format=json",
-            ]),
-            3,
-        );
+        let doc = wait_document(fixture.run(&[
+            "terminal",
+            "wait-output",
+            ID,
+            if regex { "--regex=hit" } else { "--match=hit" },
+            "--format=json",
+        ]));
         handler.join().unwrap();
         assert_eq!(
             doc["result"]["selection"],

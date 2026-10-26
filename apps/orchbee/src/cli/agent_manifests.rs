@@ -30,32 +30,28 @@ struct Answer {
 #[cfg(windows)]
 impl Answer {
     fn document(&self) -> serde_json::Value {
-        let observation = match &self.observation {
+        let mut observation = match &self.observation {
             Observation::Server(reply) => {
                 serde_json::json!({"kind":"server","reply":WorkbenchResponse::AgentManifests((**reply).clone())})
             }
             Observation::Unknown(reason) => serde_json::json!({"kind":"unknown","reason":reason}),
         };
-        let extended = matches!(self.action, AgentManifestsAction::Update { .. })
-            || match &self.observation {
-                Observation::Server(reply) => match &reply.outcome {
-                    AgentManifestsOutcome::Current { snapshot } => snapshot.maintenance.is_some(),
-                    AgentManifestsOutcome::Operation {
-                        status:
-                            AgentManifestsOperation::Updated { .. }
-                            | AgentManifestsOperation::Unknown { .. },
-                        ..
-                    } => true,
-                    AgentManifestsOutcome::Failed {
-                        reason:
-                            AgentManifestsFailure::Conflict | AgentManifestsFailure::UpdateUnavailable,
-                    } => true,
-                    _ => false,
-                },
-                _ => false,
-            };
-        let automatic = matches!(&self.observation,Observation::Server(reply) if matches!(&reply.outcome,AgentManifestsOutcome::Current {snapshot} if snapshot.maintenance.as_ref().is_some_and(|m|m.automatic.is_some())));
-        serde_json::json!({"schema":"orchbee.site.agent-manifests","version":if automatic {3} else if extended {2} else {1},"requestId":self.request_id,"siteId":self.site_id,"action":self.action,"observation":observation,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed})
+        if let Some(snapshot) = observation
+            .get_mut("reply")
+            .and_then(|reply| reply.get_mut("outcome"))
+            .and_then(|outcome| outcome.get_mut("snapshot"))
+            .and_then(serde_json::Value::as_object_mut)
+        {
+            let maintenance = snapshot
+                .entry("maintenance")
+                .or_insert(serde_json::Value::Null);
+            if let Some(maintenance) = maintenance.as_object_mut() {
+                maintenance
+                    .entry("automatic")
+                    .or_insert(serde_json::Value::Null);
+            }
+        }
+        serde_json::json!({"schema":"orchbee.site.agent-manifests","version":1,"requestId":self.request_id,"siteId":self.site_id,"action":self.action,"observation":observation,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed})
     }
     fn exit_code(&self) -> u8 {
         let failure = match &self.observation {

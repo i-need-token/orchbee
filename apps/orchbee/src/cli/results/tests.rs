@@ -107,7 +107,7 @@ fn failure(command: &QueryCommand) -> Failure {
 }
 
 #[test]
-fn split_ratio_projections_validate_without_widening_legacy_documents() {
+fn split_ratio_projections_validate_and_reject_out_of_bounds_values() {
     let mut state = snapshot();
     let PanelNode::Split { ratio, .. } = &mut state.terminal_contexts[1].tabs[0].root else {
         panic!("split fixture")
@@ -124,25 +124,11 @@ fn split_ratio_projections_validate_without_widening_legacy_documents() {
         ),
     ] {
         let source = json!({"kind":"workbench-snapshot","siteId":hex(0xaa),"revision":"9"});
-        let mut document = json!({"schema":schema_id(&command),"version":schema_version(&command),
-            "source":source,"result":project(&command, &state).unwrap().result()});
+        let mut document = json!({"schema":schema_id(&command),"version":1,
+            "source":source,"result":complete(&command, project(&command, &state).unwrap().result())});
         let definition: Value = serde_json::from_str(definition).unwrap();
         let validator = jsonschema::validator_for(&definition).unwrap();
         validator.validate(&document).unwrap();
-        document["version"] = 6.into();
-        assert!(
-            !validator.is_valid(&document),
-            "legacy schema must reject ratio"
-        );
-        let mut legacy = document.clone();
-        let legacy_root = if matches!(command, QueryCommand::ApiSnapshot) {
-            &mut legacy["result"]["snapshot"]["terminalContexts"][1]["tabs"][0]["root"]
-        } else {
-            &mut legacy["result"]["tab"]["root"]
-        };
-        legacy_root.as_object_mut().unwrap().remove("ratio");
-        validator.validate(&legacy).unwrap();
-        document["version"] = 7.into();
         let root = if matches!(command, QueryCommand::ApiSnapshot) {
             &mut document["result"]["snapshot"]["terminalContexts"][1]["tabs"][0]["root"]
         } else {
@@ -1388,7 +1374,7 @@ mod terminal_read {
         let content = &Projection::TerminalRead(doc).result()["content"];
         assert_eq!(content["rowCount"], 7);
         assert_eq!(content["lineCount"], 5);
-        assert!(content.get("rows").is_none());
+        assert!(content["rows"].is_null());
         let emitted = content["lines"].as_array().expect("lines array");
         assert_eq!(emitted[0]["firstRow"], 0);
         assert_eq!(emitted[0]["startsMidLine"], true);

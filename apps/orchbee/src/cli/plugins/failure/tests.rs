@@ -31,11 +31,6 @@ fn preparation_failures_are_typed_localized_and_closed_to_the_new_version() {
         let failure = reason.failure();
         let mut document = failure.document();
         validator.validate(&document).unwrap();
-        for version in [1, 2] {
-            document["version"] = version.into();
-            assert!(!validator.is_valid(&document));
-        }
-        document["version"] = 3.into();
         document["failure"]["details"]["reason"] = "unknown".into();
         assert!(!validator.is_valid(&document));
         for locale in [Locale::EnUs, Locale::ZhCn] {

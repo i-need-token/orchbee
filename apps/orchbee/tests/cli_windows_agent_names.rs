@@ -753,7 +753,7 @@ fn agent_visible_read_returns_a_schema_valid_frame_and_detaches_before_output() 
             &document,
             include_str!("../src/cli/schemas/orchbee.terminal.output.json"),
         );
-        assert_eq!(document["version"], 3);
+        assert_eq!(document["version"], 1);
         assert_eq!(
             document["result"]["terminal"]["terminalId"],
             "33333333333333333333333333333333"
@@ -844,7 +844,7 @@ fn infinite_wait_preserves_condition_names_and_rejects_a_different_session() {
                 &document,
                 include_str!("../src/cli/schemas/orchbee.agent.wait.json"),
             );
-            assert_eq!(document["version"], 7);
+            assert_eq!(document["version"], 1);
             assert_eq!(document["result"]["matchedConditions"], json!([condition]));
             assert!(document["result"]["wait"]["timeoutMs"].is_null());
         }
@@ -880,7 +880,7 @@ fn infinite_wait_still_times_out_a_stalled_read_without_reconnecting() {
         &document,
         include_str!("../src/cli/schemas/orchbee.cli.failure.agent.json"),
     );
-    assert_eq!(document["version"], 2);
+    assert_eq!(document["version"], 1);
     assert_eq!(document["failure"]["details"]["reason"], "read-deadline");
     assert!(document["failure"]["details"]["timeoutMs"].is_null());
 }
@@ -1152,7 +1152,7 @@ fn panel_rename_distinguishes_ambiguous_refusal_from_a_pre_mutation_read_loss() 
                 include_str!("../src/cli/schemas/orchbee.cli.failure.agent-names.json"),
             );
             assert_eq!(doc["failure"]["kind"], "ambiguous");
-            assert_eq!(doc["version"], 2);
+            assert_eq!(doc["version"], 1);
         }
     }
 }

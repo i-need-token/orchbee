@@ -4,16 +4,15 @@
 	"title": "Windows terminal creation and requested Client effects",
 	"$defs": {
 		"canonical": {
-			"title": "orchbee workbench mutation result envelope",
 			"type": "object",
-			"required": ["schema", "version", "source", "result"],
+			"required": ["schema", "version", "source", "result", "resolvedLaunch"],
 			"additionalProperties": false,
 			"properties": {
 				"schema": {
 					"const": "orchbee.mutation.result"
 				},
 				"version": {
-					"enum": [4, 5, 6]
+					"const": 1
 				},
 				"source": {
 					"oneOf": [
@@ -176,20 +175,18 @@
 							"additionalProperties": false
 						}
 					},
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"outcome": {
-										"enum": ["committed", "unchanged"]
-									}
-								},
-								"required": ["outcome"]
-							},
-							"then": {
-								"required": ["revision"]
+					"if": {
+						"properties": {
+							"outcome": {
+								"enum": ["committed", "unchanged"]
 							}
 						},
+						"required": ["outcome"]
+					},
+					"then": {
+						"required": ["revision"]
+					},
+					"allOf": [
 						{
 							"if": {
 								"properties": {
@@ -282,10 +279,154 @@
 									}
 								}
 							}
+						},
+						{
+							"properties": {},
+							"if": {
+								"properties": {
+									"action": {
+										"enum": [
+											"workspace.close",
+											"workspace.close-resume",
+											"workspace.rename",
+											"workspace.accept-directory"
+										]
+									}
+								}
+							},
+							"then": {
+								"not": {
+									"required": ["projectId"]
+								}
+							},
+							"allOf": [
+								{
+									"if": {
+										"properties": {
+											"action": {
+												"enum": [
+													"workspace.create",
+													"workspace.set-project",
+													"workspace.create-project"
+												]
+											}
+										}
+									},
+									"then": {
+										"required": ["projectId", "workspaceId"]
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"action": {
+												"const": "project.dissolve"
+											}
+										}
+									},
+									"then": {
+										"required": ["projectId"],
+										"properties": {
+											"projectId": {
+												"$ref": "#/$defs/canonical/$defs/id"
+											}
+										}
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"action": {
+												"const": "workspace.set-project"
+											}
+										}
+									},
+									"then": {
+										"required": ["revision", "workspaceId", "projectId"],
+										"properties": {
+											"outcome": {
+												"enum": ["committed", "unchanged"]
+											}
+										},
+										"propertyNames": {
+											"enum": ["action", "outcome", "revision", "workspaceId", "projectId"]
+										}
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"action": {
+												"const": "workspace.create-project"
+											}
+										}
+									},
+									"then": {
+										"required": ["revision", "workspaceId", "projectId"],
+										"properties": {
+											"projectId": {
+												"$ref": "#/$defs/canonical/$defs/id"
+											},
+											"outcome": {
+												"enum": ["committed"]
+											}
+										},
+										"propertyNames": {
+											"enum": ["action", "outcome", "revision", "workspaceId", "projectId"]
+										}
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"action": {
+												"const": "project.dissolve"
+											}
+										}
+									},
+									"then": {
+										"required": ["revision", "projectId"],
+										"properties": {
+											"outcome": {
+												"enum": ["committed"]
+											}
+										},
+										"propertyNames": {
+											"enum": ["action", "outcome", "revision", "projectId"]
+										}
+									}
+								}
+							]
+						}
+					]
+				},
+				"resolvedLaunch": {
+					"anyOf": [
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["exec", "args"],
+							"properties": {
+								"exec": {
+									"type": "string",
+									"minLength": 1
+								},
+								"args": {
+									"type": "array",
+									"maxItems": 128,
+									"items": {
+										"type": "string"
+									}
+								}
+							}
+						},
+						{
+							"type": "null"
 						}
 					]
 				}
 			},
+			"title": "orchbee workbench mutation result envelope",
 			"$defs": {
 				"id": {
 					"type": "string",
@@ -369,236 +510,7 @@
 						}
 					}
 				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"version": {
-								"const": 4
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"result": {
-								"not": {
-									"required": ["transfer"]
-								}
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"version": {
-								"const": 5
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"result": {
-								"properties": {
-									"action": {
-										"const": "panel.relocate"
-									}
-								}
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"version": {
-								"enum": [4, 5]
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"result": {
-								"properties": {
-									"projectId": {
-										"$ref": "#/$defs/canonical/$defs/id"
-									},
-									"action": {
-										"not": {
-											"enum": [
-												"workspace.set-project",
-												"workspace.create-project",
-												"project.dissolve"
-											]
-										}
-									}
-								},
-								"allOf": [
-									{
-										"if": {
-											"properties": {
-												"action": {
-													"enum": ["workspace.close", "workspace.close-resume"]
-												}
-											}
-										},
-										"then": {
-											"required": ["projectId"]
-										}
-									}
-								]
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"version": {
-								"const": 6
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"result": {
-								"allOf": [
-									{
-										"if": {
-											"properties": {
-												"action": {
-													"enum": [
-														"workspace.close",
-														"workspace.close-resume",
-														"workspace.rename",
-														"workspace.accept-directory"
-													]
-												}
-											}
-										},
-										"then": {
-											"not": {
-												"required": ["projectId"]
-											}
-										}
-									},
-									{
-										"if": {
-											"properties": {
-												"action": {
-													"enum": [
-														"workspace.create",
-														"workspace.set-project",
-														"workspace.create-project"
-													]
-												}
-											}
-										},
-										"then": {
-											"required": ["projectId", "workspaceId"]
-										}
-									},
-									{
-										"if": {
-											"properties": {
-												"action": {
-													"const": "project.dissolve"
-												}
-											}
-										},
-										"then": {
-											"required": ["projectId"],
-											"properties": {
-												"projectId": {
-													"$ref": "#/$defs/canonical/$defs/id"
-												}
-											}
-										}
-									},
-									{
-										"if": {
-											"properties": {
-												"action": {
-													"const": "workspace.set-project"
-												}
-											}
-										},
-										"then": {
-											"required": ["revision", "workspaceId", "projectId"],
-											"properties": {
-												"outcome": {
-													"enum": ["committed", "unchanged"]
-												}
-											},
-											"propertyNames": {
-												"enum": ["action", "outcome", "revision", "workspaceId", "projectId"]
-											}
-										}
-									},
-									{
-										"if": {
-											"properties": {
-												"action": {
-													"const": "workspace.create-project"
-												}
-											}
-										},
-										"then": {
-											"required": ["revision", "workspaceId", "projectId"],
-											"properties": {
-												"projectId": {
-													"$ref": "#/$defs/canonical/$defs/id"
-												},
-												"outcome": {
-													"enum": ["committed"]
-												}
-											},
-											"propertyNames": {
-												"enum": ["action", "outcome", "revision", "workspaceId", "projectId"]
-											}
-										}
-									},
-									{
-										"if": {
-											"properties": {
-												"action": {
-													"const": "project.dissolve"
-												}
-											}
-										},
-										"then": {
-											"required": ["revision", "projectId"],
-											"properties": {
-												"outcome": {
-													"enum": ["committed"]
-												}
-											},
-											"propertyNames": {
-												"enum": ["action", "outcome", "revision", "projectId"]
-											}
-										}
-									}
-								],
-								"properties": {
-									"action": {
-										"enum": [
-											"workspace.create",
-											"workspace.rename",
-											"workspace.close",
-											"workspace.close-resume",
-											"workspace.accept-directory",
-											"workspace.set-project",
-											"workspace.create-project",
-											"project.dissolve"
-										]
-									}
-								}
-							}
-						}
-					}
-				}
-			]
+			}
 		},
 		"control": {
 			"title": "Native Client control observation",
@@ -1010,6 +922,293 @@
 							},
 							"required": ["kind", "terminalContextId", "tabId", "path", "ratio"],
 							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "agent-attention"
+								},
+								"sessionIds": {
+									"type": "array",
+									"minItems": 1,
+									"maxItems": 100,
+									"uniqueItems": true,
+									"items": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 128,
+										"pattern": "^[A-Za-z0-9:._-]+$"
+									}
+								}
+							},
+							"required": ["kind", "sessionIds"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "selections"
+								},
+								"terminalContextIds": {
+									"type": "array",
+									"minItems": 1,
+									"maxItems": 128,
+									"uniqueItems": true,
+									"items": {
+										"$ref": "#/$defs/control/$defs/terminalContextId"
+									}
+								}
+							},
+							"required": ["kind", "terminalContextIds"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "viewports"
+								},
+								"panelIds": {
+									"type": "array",
+									"minItems": 1,
+									"maxItems": 16,
+									"uniqueItems": true,
+									"items": {
+										"type": "string",
+										"pattern": "^[0-9a-f]{32}$",
+										"not": {
+											"const": "00000000000000000000000000000000"
+										}
+									}
+								}
+							},
+							"required": ["kind", "panelIds"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "terminal-agent-attention"
+								},
+								"bindings": {
+									"type": "array",
+									"minItems": 1,
+									"maxItems": 100,
+									"uniqueItems": true,
+									"items": {
+										"$ref": "#/$defs/control/$defs/physicalBinding"
+									}
+								}
+							},
+							"required": ["kind", "bindings"]
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "agent-focus"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/control/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/control/$defs/tabId"
+								},
+								"panelId": {
+									"$ref": "#/$defs/control/$defs/panelId"
+								},
+								"presentationId": {
+									"$ref": "#/$defs/control/$defs/physicalIdentity"
+								},
+								"target": {
+									"oneOf": [
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "session"
+												},
+												"sessionId": {
+													"type": "string",
+													"minLength": 1,
+													"maxLength": 128,
+													"pattern": "^[A-Za-z0-9:._-]+$"
+												}
+											},
+											"required": ["kind", "sessionId"],
+											"additionalProperties": false
+										},
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "terminal"
+												},
+												"binding": {
+													"$ref": "#/$defs/control/$defs/physicalBinding"
+												}
+											},
+											"required": ["kind", "binding"],
+											"additionalProperties": false
+										}
+									]
+								}
+							},
+							"required": [
+								"kind",
+								"terminalContextId",
+								"tabId",
+								"panelId",
+								"presentationId",
+								"target"
+							],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "presentation"
+								},
+								"panelId": {
+									"$ref": "#/$defs/control/$defs/panelId"
+								}
+							},
+							"required": ["kind", "panelId"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": [
+								"kind",
+								"terminalContextId",
+								"tabId",
+								"panelId",
+								"presentationId",
+								"expectedBinding",
+								"returnTo",
+								"previouslyZoomed"
+							],
+							"properties": {
+								"kind": {
+									"const": "overlay"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/control/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/control/$defs/tabId"
+								},
+								"panelId": {
+									"$ref": "#/$defs/control/$defs/panelId"
+								},
+								"presentationId": {
+									"$ref": "#/$defs/control/$defs/identity"
+								},
+								"expectedBinding": {
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["workerId", "terminalId"],
+									"properties": {
+										"workerId": {
+											"$ref": "#/$defs/control/$defs/identity"
+										},
+										"terminalId": {
+											"$ref": "#/$defs/control/$defs/identity"
+										}
+									}
+								},
+								"returnTo": {
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["panelId", "presentationId", "binding"],
+									"properties": {
+										"panelId": {
+											"$ref": "#/$defs/control/$defs/panelId"
+										},
+										"presentationId": {
+											"$ref": "#/$defs/control/$defs/identity"
+										},
+										"binding": {
+											"anyOf": [
+												{
+													"type": "object",
+													"additionalProperties": false,
+													"required": ["workerId", "terminalId"],
+													"properties": {
+														"workerId": {
+															"$ref": "#/$defs/control/$defs/identity"
+														},
+														"terminalId": {
+															"$ref": "#/$defs/control/$defs/identity"
+														}
+													}
+												},
+												{
+													"type": "null"
+												}
+											]
+										}
+									}
+								},
+								"previouslyZoomed": {
+									"type": "boolean"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "popup-open"
+								},
+								"spec": {
+									"$ref": "#/$defs/control/$defs/popupSpec"
+								}
+							},
+							"required": ["kind", "spec"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "popup-close"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "editor-open"
+								},
+								"spec": {
+									"$ref": "#/$defs/control/$defs/editorSpec"
+								}
+							},
+							"required": ["kind", "spec"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "command-popup-open"
+								},
+								"spec": {
+									"$ref": "#/$defs/control/$defs/configuredPopupSpec"
+								}
+							},
+							"required": ["kind", "spec"],
+							"additionalProperties": false
 						}
 					]
 				},
@@ -1215,6 +1414,118 @@
 								}
 							},
 							"required": ["kind", "adjustment", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "attention-read"
+								},
+								"attention": {
+									"$ref": "#/$defs/control/$defs/attentionSnapshot"
+								},
+								"view": {
+									"$ref": "#/$defs/control/$defs/view"
+								}
+							},
+							"required": ["kind", "attention", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "navigation-read"
+								},
+								"navigation": {
+									"$ref": "#/$defs/control/$defs/navigationSnapshot"
+								},
+								"view": {
+									"$ref": "#/$defs/control/$defs/view"
+								}
+							},
+							"required": ["kind", "navigation", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "viewport-read"
+								},
+								"viewport": {
+									"$ref": "#/$defs/control/$defs/viewportSnapshot"
+								},
+								"view": {
+									"$ref": "#/$defs/control/$defs/view"
+								}
+							},
+							"required": ["kind", "viewport", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "terminal-attention-read"
+								},
+								"attention": {
+									"$ref": "#/$defs/control/$defs/physicalAttentionSnapshot"
+								},
+								"view": {
+									"$ref": "#/$defs/control/$defs/view"
+								}
+							},
+							"required": ["kind", "attention", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "presentation-read"
+								},
+								"presentation": {
+									"$ref": "#/$defs/control/$defs/presentationSnapshot"
+								},
+								"view": {
+									"$ref": "#/$defs/control/$defs/view"
+								}
+							},
+							"required": ["kind", "presentation", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "popup-opened"
+								},
+								"popupId": {
+									"$ref": "#/$defs/control/$defs/requestId"
+								},
+								"view": {
+									"$ref": "#/$defs/control/$defs/view"
+								}
+							},
+							"required": ["kind", "popupId", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "popup-closed"
+								},
+								"hadPopup": {
+									"type": "boolean"
+								},
+								"view": {
+									"$ref": "#/$defs/control/$defs/view"
+								}
+							},
+							"required": ["kind", "hadPopup", "view"],
 							"additionalProperties": false
 						}
 					]
@@ -1641,6 +1952,1030 @@
 					},
 					"required": ["terminalContextId", "tabId", "workbenchRevision", "selected", "change"],
 					"additionalProperties": false
+				},
+				"attentionSnapshot": {
+					"type": "object",
+					"properties": {
+						"cursor": {
+							"type": "string",
+							"pattern": "^v1\\.[A-Za-z0-9_-]{59}\\.[A-Za-z0-9_-]{43}$"
+						},
+						"revision": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 9007199254740991
+						},
+						"outerFocused": {
+							"type": ["boolean", "null"]
+						},
+						"entries": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 100,
+							"items": {
+								"type": "object",
+								"properties": {
+									"sessionId": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 128,
+										"pattern": "^[A-Za-z0-9:._-]+$"
+									},
+									"state": {
+										"oneOf": [
+											{
+												"type": "null"
+											},
+											{
+												"type": "object",
+												"properties": {
+													"generation": {
+														"type": "integer",
+														"minimum": 0,
+														"maximum": 9007199254740991
+													},
+													"sequence": {
+														"type": "integer",
+														"minimum": 0,
+														"maximum": 9007199254740991
+													},
+													"stateChangeRevision": {
+														"type": "integer",
+														"minimum": 0,
+														"maximum": 9007199254740991
+													},
+													"seen": {
+														"type": "boolean"
+													}
+												},
+												"required": ["generation", "sequence", "stateChangeRevision", "seen"],
+												"additionalProperties": false
+											}
+										]
+									}
+								},
+								"required": ["sessionId", "state"],
+								"additionalProperties": false
+							}
+						}
+					},
+					"required": ["cursor", "revision", "outerFocused", "entries"],
+					"additionalProperties": false
+				},
+				"navigationSnapshot": {
+					"type": "object",
+					"properties": {
+						"workbenchRevision": {
+							"$ref": "#/$defs/control/$defs/revision"
+						},
+						"contexts": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 128,
+							"items": {
+								"type": "object",
+								"properties": {
+									"terminalContextId": {
+										"$ref": "#/$defs/control/$defs/terminalContextId"
+									},
+									"activeTabId": {
+										"anyOf": [
+											{
+												"$ref": "#/$defs/control/$defs/tabId"
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								},
+								"required": ["terminalContextId", "activeTabId"],
+								"additionalProperties": false
+							}
+						}
+					},
+					"required": ["workbenchRevision", "contexts"],
+					"additionalProperties": false
+				},
+				"scrollMetrics": {
+					"type": "object",
+					"properties": {
+						"offsetFromBottom": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64"
+						},
+						"maxOffsetFromBottom": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64"
+						},
+						"viewportRows": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						}
+					},
+					"required": ["offsetFromBottom", "maxOffsetFromBottom", "viewportRows"],
+					"additionalProperties": false
+				},
+				"viewportSource": {
+					"type": "object",
+					"properties": {
+						"hostEpoch": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$",
+							"not": {
+								"const": "00000000000000000000000000000000"
+							}
+						},
+						"attachmentId": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$",
+							"not": {
+								"const": "00000000000000000000000000000000"
+							}
+						},
+						"generation": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64",
+							"not": {
+								"const": "0"
+							}
+						},
+						"revision": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64"
+						},
+						"columns": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"alternateScreen": {
+							"type": "boolean"
+						},
+						"totalRows": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64"
+						},
+						"startRow": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64"
+						}
+					},
+					"required": [
+						"hostEpoch",
+						"attachmentId",
+						"generation",
+						"revision",
+						"columns",
+						"alternateScreen",
+						"totalRows",
+						"startRow"
+					],
+					"additionalProperties": false
+				},
+				"viewportObservation": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"state": {
+									"const": "unavailable"
+								},
+								"reason": {
+									"enum": ["not-attached", "frame-unavailable"]
+								}
+							},
+							"required": ["state", "reason"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"state": {
+									"const": "pending"
+								},
+								"phase": {
+									"enum": ["entering", "awaiting-window", "recovering"]
+								}
+							},
+							"required": ["state", "phase"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"state": {
+									"const": "observed"
+								},
+								"mode": {
+									"enum": ["live", "history"]
+								},
+								"source": {
+									"$ref": "#/$defs/control/$defs/viewportSource"
+								},
+								"scroll": {
+									"$ref": "#/$defs/control/$defs/scrollMetrics"
+								}
+							},
+							"required": ["state", "mode", "source", "scroll"],
+							"additionalProperties": false
+						}
+					]
+				},
+				"viewportSnapshot": {
+					"type": "object",
+					"properties": {
+						"workbenchRevision": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64"
+						},
+						"panels": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 16,
+							"items": {
+								"type": "object",
+								"properties": {
+									"panelId": {
+										"type": "string",
+										"pattern": "^[0-9a-f]{32}$",
+										"not": {
+											"const": "00000000000000000000000000000000"
+										}
+									},
+									"primaryTerminalId": {
+										"anyOf": [
+											{
+												"type": "string",
+												"pattern": "^[0-9a-f]{32}$",
+												"not": {
+													"const": "00000000000000000000000000000000"
+												}
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"observation": {
+										"$ref": "#/$defs/control/$defs/viewportObservation"
+									}
+								},
+								"required": ["panelId", "primaryTerminalId", "observation"],
+								"additionalProperties": false,
+								"if": {
+									"properties": {
+										"primaryTerminalId": {
+											"type": "null"
+										}
+									}
+								},
+								"then": {
+									"properties": {
+										"observation": {
+											"type": "object",
+											"properties": {
+												"state": {
+													"const": "unavailable"
+												},
+												"reason": {
+													"const": "not-attached"
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"required": ["workbenchRevision", "panels"],
+					"additionalProperties": false
+				},
+				"physicalIdentity": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"physicalBinding": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["presentationId", "generation", "hostEpoch", "hostTerminalId"],
+					"properties": {
+						"presentationId": {
+							"$ref": "#/$defs/control/$defs/physicalIdentity"
+						},
+						"generation": {
+							"$ref": "#/$defs/control/$defs/physicalIdentity"
+						},
+						"hostEpoch": {
+							"$ref": "#/$defs/control/$defs/physicalIdentity"
+						},
+						"hostTerminalId": {
+							"$ref": "#/$defs/control/$defs/physicalIdentity"
+						}
+					}
+				},
+				"physicalAttentionSnapshot": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"reportRevision": {
+							"$ref": "#/$defs/control/$defs/revision"
+						},
+						"outerFocused": {
+							"type": ["boolean", "null"]
+						},
+						"entries": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 100,
+							"items": {
+								"type": "object",
+								"additionalProperties": false,
+								"properties": {
+									"binding": {
+										"$ref": "#/$defs/control/$defs/physicalBinding"
+									},
+									"state": {
+										"anyOf": [
+											{
+												"type": "null"
+											},
+											{
+												"type": "object",
+												"additionalProperties": false,
+												"properties": {
+													"sequence": {
+														"$ref": "#/$defs/control/$defs/revision"
+													},
+													"seen": {
+														"type": "boolean"
+													}
+												},
+												"required": ["sequence", "seen"]
+											}
+										]
+									}
+								},
+								"required": ["binding", "state"]
+							}
+						}
+					},
+					"required": ["reportRevision", "outerFocused", "entries"]
+				},
+				"presentationSelection": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/control/$defs/boundPresentationSelection"
+						},
+						{
+							"$ref": "#/$defs/control/$defs/unboundPresentationSelection"
+						}
+					]
+				},
+				"presentationSnapshot": {
+					"type": "object",
+					"properties": {
+						"workbenchRevision": {
+							"$ref": "#/$defs/control/$defs/revision"
+						},
+						"panelId": {
+							"$ref": "#/$defs/control/$defs/panelId"
+						},
+						"presentation": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/presentationSelection"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["workbenchRevision", "panelId", "presentation"],
+					"additionalProperties": false
+				},
+				"boundPresentationSelection": {
+					"type": "object",
+					"properties": {
+						"presentationId": {
+							"title": "WorkbenchPanelId",
+							"$ref": "#/$defs/control/$defs/identity"
+						},
+						"binding": {
+							"type": "object",
+							"properties": {
+								"workerId": {
+									"title": "WorkbenchPanelId",
+									"$ref": "#/$defs/control/$defs/identity"
+								},
+								"terminalId": {
+									"title": "WorkbenchPanelId",
+									"$ref": "#/$defs/control/$defs/identity"
+								}
+							},
+							"required": ["workerId", "terminalId"],
+							"additionalProperties": false
+						},
+						"attachmentGeneration": {
+							"title": "WorkbenchRevision",
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 20,
+							"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64"
+						},
+						"incarnation": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 4294967295
+						},
+						"viewport": {
+							"$ref": "#/$defs/control/$defs/viewportObservation"
+						}
+					},
+					"required": [
+						"presentationId",
+						"binding",
+						"attachmentGeneration",
+						"incarnation",
+						"viewport"
+					],
+					"additionalProperties": false
+				},
+				"unboundPresentationSelection": {
+					"type": "object",
+					"properties": {
+						"presentationId": {
+							"title": "WorkbenchPanelId",
+							"$ref": "#/$defs/control/$defs/identity"
+						},
+						"selectionGeneration": {
+							"$ref": "#/$defs/control/$defs/selectionGeneration"
+						}
+					},
+					"required": ["presentationId", "selectionGeneration"],
+					"additionalProperties": false
+				},
+				"selectionGeneration": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 20,
+					"pattern": "^(?:[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}|1844674407370955160[0-9]{1}|1844674407370955161[0-4]|18446744073709551615)(?![\\s\\S])"
+				},
+				"popupSize": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "cells"
+								},
+								"value": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 65535
+								}
+							},
+							"required": ["kind", "value"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "percent"
+								},
+								"value": {
+									"type": "integer",
+									"minimum": 1,
+									"maximum": 100
+								}
+							},
+							"required": ["kind", "value"],
+							"additionalProperties": false
+						}
+					]
+				},
+				"popupSelector": {
+					"type": "object",
+					"properties": {
+						"pluginId": {
+							"type": "string",
+							"pattern": "^[A-Za-z0-9._:-]{1,120}$"
+						},
+						"entrypointId": {
+							"type": "string",
+							"pattern": "^[A-Za-z0-9_:-]{1,120}$"
+						}
+					},
+					"required": ["pluginId", "entrypointId"],
+					"additionalProperties": false
+				},
+				"popupContext": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": [],
+					"properties": {
+						"workspaceId": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"workspaceLabel": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"workspaceCwd": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"tabId": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"tabLabel": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"focusedPaneId": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"focusedPaneCwd": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"focusedPaneAgent": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"focusedPaneStatus": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"selectedText": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 8192,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"invocationSource": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"correlationId": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"clickedUrl": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"linkHandlerId": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"worktree": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/worktreeContext"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					}
+				},
+				"worktreeContext": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"workerId",
+						"repositoryRoot",
+						"commonDirectory",
+						"repositoryName",
+						"checkoutPath",
+						"linked"
+					],
+					"properties": {
+						"workerId": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$",
+							"not": {
+								"const": "00000000000000000000000000000000"
+							}
+						},
+						"repositoryRoot": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 4096,
+							"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])",
+							"not": {
+								"pattern": "\u0000"
+							}
+						},
+						"commonDirectory": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 4096,
+							"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])",
+							"not": {
+								"pattern": "\u0000"
+							}
+						},
+						"repositoryName": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 4096,
+							"not": {
+								"pattern": "\u0000"
+							}
+						},
+						"checkoutPath": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 4096,
+							"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])",
+							"not": {
+								"pattern": "\u0000"
+							}
+						},
+						"linked": {
+							"type": "boolean"
+						}
+					}
+				},
+				"popupEnvironment": {
+					"type": "array",
+					"maxItems": 32,
+					"items": {
+						"type": "array",
+						"prefixItems": [
+							{
+								"type": "string",
+								"pattern": "^[A-Za-z_][A-Za-z0-9_]{0,127}$",
+								"not": {
+									"pattern": "^[Oo][Rr][Cc][Hh][Bb][Ee][Ee]_"
+								},
+								"allOf": [
+									{
+										"not": {
+											"pattern": "^(?:[Tt][Ee][Rr][Mm]|[Cc][Oo][Ll][Oo][Rr][Tt][Ee][Rr][Mm]|[Tt][Ee][Rr][Mm]_[Pp][Rr][Oo][Gg][Rr][Aa][Mm])$"
+										}
+									}
+								]
+							},
+							{
+								"type": "string",
+								"pattern": "^[^\\u0000]*$"
+							}
+						],
+						"minItems": 2,
+						"maxItems": 2,
+						"items": false
+					}
+				},
+				"popupDirectoryPath": {
+					"title": "WorkbenchDirectoryPath",
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096,
+					"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000]*$"
+				},
+				"popupSource": {
+					"type": "object",
+					"properties": {
+						"terminalContextId": {
+							"$ref": "#/$defs/control/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/control/$defs/tabId"
+						},
+						"member": {
+							"$ref": "#/$defs/control/$defs/presentationSelection"
+						},
+						"panelId": {
+							"$ref": "#/$defs/control/$defs/panelId"
+						}
+					},
+					"required": ["terminalContextId", "tabId", "member", "panelId"],
+					"additionalProperties": false
+				},
+				"popupSpec": {
+					"type": "object",
+					"properties": {
+						"selector": {
+							"$ref": "#/$defs/control/$defs/popupSelector"
+						},
+						"source": {
+							"$ref": "#/$defs/control/$defs/popupSource"
+						},
+						"context": {
+							"$ref": "#/$defs/control/$defs/popupContext"
+						},
+						"cwd": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/popupDirectoryPath"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"environment": {
+							"$ref": "#/$defs/control/$defs/popupEnvironment"
+						},
+						"width": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/popupSize"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"height": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/popupSize"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["selector", "source", "context", "cwd", "environment", "width", "height"],
+					"additionalProperties": false
+				},
+				"editorSource": {
+					"type": "object",
+					"properties": {
+						"terminalContextId": {
+							"$ref": "#/$defs/control/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/control/$defs/tabId"
+						},
+						"member": {
+							"$ref": "#/$defs/control/$defs/boundPresentationSelection"
+						},
+						"panelId": {
+							"$ref": "#/$defs/control/$defs/panelId"
+						}
+					},
+					"required": ["terminalContextId", "tabId", "member", "panelId"],
+					"additionalProperties": false
+				},
+				"editorSpec": {
+					"type": "object",
+					"properties": {
+						"source": {
+							"$ref": "#/$defs/control/$defs/editorSource"
+						}
+					},
+					"required": ["source"],
+					"additionalProperties": false
+				},
+				"configuredPopupSpec": {
+					"type": "object",
+					"properties": {
+						"commandId": {
+							"type": "string",
+							"pattern": "^cmd_[A-Za-z0-9_]*$",
+							"maxLength": 120
+						},
+						"source": {
+							"type": "object",
+							"properties": {
+								"terminalContextId": {
+									"$ref": "#/$defs/control/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/control/$defs/tabId"
+								},
+								"member": {
+									"$ref": "#/$defs/control/$defs/boundPresentationSelection"
+								},
+								"panelId": {
+									"$ref": "#/$defs/control/$defs/panelId"
+								}
+							},
+							"required": ["terminalContextId", "tabId", "member", "panelId"],
+							"additionalProperties": false
+						},
+						"context": {
+							"$ref": "#/$defs/control/$defs/popupContext"
+						},
+						"width": {
+							"oneOf": [
+								{
+									"oneOf": [
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "cells"
+												},
+												"value": {
+													"type": "integer",
+													"minimum": 1,
+													"maximum": 4096
+												}
+											},
+											"required": ["kind", "value"],
+											"additionalProperties": false
+										},
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "percent"
+												},
+												"value": {
+													"type": "integer",
+													"minimum": 1,
+													"maximum": 100
+												}
+											},
+											"required": ["kind", "value"],
+											"additionalProperties": false
+										}
+									]
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"height": {
+							"oneOf": [
+								{
+									"oneOf": [
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "cells"
+												},
+												"value": {
+													"type": "integer",
+													"minimum": 1,
+													"maximum": 4096
+												}
+											},
+											"required": ["kind", "value"],
+											"additionalProperties": false
+										},
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "percent"
+												},
+												"value": {
+													"type": "integer",
+													"minimum": 1,
+													"maximum": 100
+												}
+											},
+											"required": ["kind", "value"],
+											"additionalProperties": false
+										}
+									]
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["commandId", "source", "context", "width", "height"],
+					"additionalProperties": false
 				}
 			}
 		},
@@ -1652,7 +2987,7 @@
 					"const": "orchbee.client.control"
 				},
 				"version": {
-					"const": 8
+					"const": 1
 				},
 				"siteId": {
 					"anyOf": [
@@ -1745,40 +3080,474 @@
 			"additionalProperties": false,
 			"$defs": {
 				"siteId": {
-					"$ref": "#/$defs/control/$defs/siteId"
+					"title": "SiteId",
+					"$ref": "#/$defs/overlayControl/$defs/identity"
 				},
 				"requestId": {
-					"$ref": "#/$defs/control/$defs/requestId"
+					"title": "WorkbenchRequestId",
+					"$ref": "#/$defs/overlayControl/$defs/identity"
 				},
 				"terminalContextId": {
-					"$ref": "#/$defs/control/$defs/terminalContextId"
+					"title": "WorkbenchTerminalContextId",
+					"$ref": "#/$defs/overlayControl/$defs/identity"
 				},
 				"tabId": {
-					"$ref": "#/$defs/control/$defs/tabId"
+					"title": "WorkbenchTabId",
+					"$ref": "#/$defs/overlayControl/$defs/identity"
 				},
 				"panelId": {
-					"$ref": "#/$defs/control/$defs/panelId"
+					"title": "WorkbenchPanelId",
+					"$ref": "#/$defs/overlayControl/$defs/identity"
 				},
 				"revision": {
-					"$ref": "#/$defs/control/$defs/revision"
+					"title": "WorkbenchRevision",
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 20,
+					"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+					"format": "orchbee-uint64"
 				},
 				"clientId": {
-					"$ref": "#/$defs/control/$defs/clientId"
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
 				},
 				"sequence": {
-					"$ref": "#/$defs/control/$defs/sequence"
+					"type": "string",
+					"pattern": "^[1-9][0-9]{0,19}$"
 				},
 				"phase": {
-					"$ref": "#/$defs/control/$defs/phase"
+					"enum": ["starting", "ready", "busy", "unavailable"]
 				},
 				"selection": {
-					"$ref": "#/$defs/control/$defs/selection"
+					"type": "object",
+					"properties": {
+						"terminalContextId": {
+							"$ref": "#/$defs/overlayControl/$defs/terminalContextId"
+						},
+						"tabId": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/overlayControl/$defs/tabId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"panelId": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/overlayControl/$defs/panelId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"zoomed": {
+							"type": "boolean"
+						},
+						"panelCount": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 65535
+						}
+					},
+					"required": ["terminalContextId", "tabId", "panelId", "zoomed", "panelCount"],
+					"additionalProperties": false
 				},
 				"view": {
-					"$ref": "#/$defs/control/$defs/view"
+					"type": "object",
+					"properties": {
+						"workbenchRevision": {
+							"$ref": "#/$defs/overlayControl/$defs/revision"
+						},
+						"phase": {
+							"$ref": "#/$defs/overlayControl/$defs/phase"
+						},
+						"selection": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/overlayControl/$defs/selection"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"splitRevision": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/overlayControl/$defs/revision"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["workbenchRevision", "phase", "selection"],
+					"additionalProperties": false
 				},
 				"intent": {
 					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "context"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/overlayControl/$defs/terminalContextId"
+								}
+							},
+							"required": ["kind", "terminalContextId"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "tab"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/overlayControl/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/overlayControl/$defs/tabId"
+								}
+							},
+							"required": ["kind", "terminalContextId", "tabId"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "panel"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/overlayControl/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/overlayControl/$defs/tabId"
+								},
+								"panelId": {
+									"$ref": "#/$defs/overlayControl/$defs/panelId"
+								}
+							},
+							"required": ["kind", "terminalContextId", "tabId", "panelId"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "zoom"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/overlayControl/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/overlayControl/$defs/tabId"
+								},
+								"panelId": {
+									"$ref": "#/$defs/overlayControl/$defs/panelId"
+								},
+								"enabled": {
+									"type": "boolean"
+								}
+							},
+							"required": ["kind", "terminalContextId", "tabId", "panelId", "enabled"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "toggle-zoom"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/overlayControl/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/overlayControl/$defs/tabId"
+								},
+								"panelId": {
+									"$ref": "#/$defs/overlayControl/$defs/panelId"
+								}
+							},
+							"required": ["kind", "terminalContextId", "tabId", "panelId"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "layout"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/overlayControl/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/overlayControl/$defs/tabId"
+								},
+								"panelId": {
+									"$ref": "#/$defs/overlayControl/$defs/panelId"
+								}
+							},
+							"required": ["kind", "terminalContextId", "tabId", "panelId"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "focus-direction"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/overlayControl/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/overlayControl/$defs/tabId"
+								},
+								"panelId": {
+									"$ref": "#/$defs/overlayControl/$defs/panelId"
+								},
+								"direction": {
+									"enum": ["left", "right", "up", "down"]
+								}
+							},
+							"required": ["kind", "terminalContextId", "tabId", "panelId", "direction"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "resize"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/overlayControl/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/overlayControl/$defs/tabId"
+								},
+								"panelId": {
+									"$ref": "#/$defs/overlayControl/$defs/panelId"
+								},
+								"direction": {
+									"enum": ["left", "right", "up", "down"]
+								},
+								"amount": {
+									"$ref": "#/$defs/overlayControl/$defs/resizeAmount"
+								}
+							},
+							"required": ["kind", "terminalContextId", "tabId", "panelId", "direction", "amount"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "set-split-ratio"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/overlayControl/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/overlayControl/$defs/tabId"
+								},
+								"path": {
+									"$ref": "#/$defs/overlayControl/$defs/splitPath"
+								},
+								"ratio": {
+									"$ref": "#/$defs/overlayControl/$defs/splitRatio"
+								},
+								"expectedSplit": {
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["splitId", "firstSlotId", "secondSlotId"],
+									"properties": {
+										"splitId": {
+											"type": "string",
+											"pattern": "^[0-9a-f]{32}$"
+										},
+										"firstSlotId": {
+											"type": "string",
+											"pattern": "^[0-9a-f]{32}$"
+										},
+										"secondSlotId": {
+											"type": "string",
+											"pattern": "^[0-9a-f]{32}$"
+										}
+									}
+								}
+							},
+							"required": ["kind", "terminalContextId", "tabId", "path", "ratio"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "agent-attention"
+								},
+								"sessionIds": {
+									"type": "array",
+									"minItems": 1,
+									"maxItems": 100,
+									"uniqueItems": true,
+									"items": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 128,
+										"pattern": "^[A-Za-z0-9:._-]+$"
+									}
+								}
+							},
+							"required": ["kind", "sessionIds"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "selections"
+								},
+								"terminalContextIds": {
+									"type": "array",
+									"minItems": 1,
+									"maxItems": 128,
+									"uniqueItems": true,
+									"items": {
+										"$ref": "#/$defs/overlayControl/$defs/terminalContextId"
+									}
+								}
+							},
+							"required": ["kind", "terminalContextIds"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "viewports"
+								},
+								"panelIds": {
+									"type": "array",
+									"minItems": 1,
+									"maxItems": 16,
+									"uniqueItems": true,
+									"items": {
+										"type": "string",
+										"pattern": "^[0-9a-f]{32}$",
+										"not": {
+											"const": "00000000000000000000000000000000"
+										}
+									}
+								}
+							},
+							"required": ["kind", "panelIds"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "terminal-agent-attention"
+								},
+								"bindings": {
+									"type": "array",
+									"minItems": 1,
+									"maxItems": 100,
+									"uniqueItems": true,
+									"items": {
+										"$ref": "#/$defs/overlayControl/$defs/physicalBinding"
+									}
+								}
+							},
+							"required": ["kind", "bindings"]
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "agent-focus"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/overlayControl/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/overlayControl/$defs/tabId"
+								},
+								"panelId": {
+									"$ref": "#/$defs/overlayControl/$defs/panelId"
+								},
+								"presentationId": {
+									"$ref": "#/$defs/overlayControl/$defs/physicalIdentity"
+								},
+								"target": {
+									"oneOf": [
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "session"
+												},
+												"sessionId": {
+													"type": "string",
+													"minLength": 1,
+													"maxLength": 128,
+													"pattern": "^[A-Za-z0-9:._-]+$"
+												}
+											},
+											"required": ["kind", "sessionId"],
+											"additionalProperties": false
+										},
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "terminal"
+												},
+												"binding": {
+													"$ref": "#/$defs/overlayControl/$defs/physicalBinding"
+												}
+											},
+											"required": ["kind", "binding"],
+											"additionalProperties": false
+										}
+									]
+								}
+							},
+							"required": [
+								"kind",
+								"terminalContextId",
+								"tabId",
+								"panelId",
+								"presentationId",
+								"target"
+							],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "presentation"
+								},
+								"panelId": {
+									"$ref": "#/$defs/overlayControl/$defs/panelId"
+								}
+							},
+							"required": ["kind", "panelId"],
+							"additionalProperties": false
+						},
 						{
 							"type": "object",
 							"additionalProperties": false,
@@ -1858,6 +3627,55 @@
 									"type": "boolean"
 								}
 							}
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "popup-open"
+								},
+								"spec": {
+									"$ref": "#/$defs/overlayControl/$defs/popupSpec"
+								}
+							},
+							"required": ["kind", "spec"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "popup-close"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "editor-open"
+								},
+								"spec": {
+									"$ref": "#/$defs/overlayControl/$defs/editorSpec"
+								}
+							},
+							"required": ["kind", "spec"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "command-popup-open"
+								},
+								"spec": {
+									"$ref": "#/$defs/overlayControl/$defs/configuredPopupSpec"
+								}
+							},
+							"required": ["kind", "spec"],
+							"additionalProperties": false
 						}
 					]
 				},
@@ -1890,10 +3708,294 @@
 					"additionalProperties": false
 				},
 				"reason": {
-					"$ref": "#/$defs/control/$defs/reason"
+					"enum": [
+						"busy",
+						"stale-view",
+						"target-unavailable",
+						"projection-unavailable",
+						"interrupted",
+						"client-disconnected",
+						"expired",
+						"unsupported"
+					]
 				},
 				"status": {
-					"$ref": "#/$defs/control/$defs/status"
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "queued"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "delivered"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "applied"
+								},
+								"view": {
+									"$ref": "#/$defs/overlayControl/$defs/view"
+								}
+							},
+							"required": ["kind", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "rejected"
+								},
+								"reason": {
+									"$ref": "#/$defs/overlayControl/$defs/reason"
+								}
+							},
+							"required": ["kind", "reason"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "incomplete"
+								},
+								"reason": {
+									"$ref": "#/$defs/overlayControl/$defs/reason"
+								},
+								"view": {
+									"anyOf": [
+										{
+											"$ref": "#/$defs/overlayControl/$defs/view"
+										},
+										{
+											"type": "null"
+										}
+									]
+								}
+							},
+							"required": ["kind", "reason", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "zoom-unchanged"
+								},
+								"view": {
+									"$ref": "#/$defs/overlayControl/$defs/view"
+								}
+							},
+							"required": ["kind", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "zoom-toggled"
+								},
+								"view": {
+									"$ref": "#/$defs/overlayControl/$defs/view"
+								},
+								"previouslyZoomed": {
+									"type": "boolean"
+								}
+							},
+							"required": ["kind", "view", "previouslyZoomed"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "layout-read"
+								},
+								"layout": {
+									"$ref": "#/$defs/overlayControl/$defs/layout"
+								},
+								"view": {
+									"$ref": "#/$defs/overlayControl/$defs/view"
+								}
+							},
+							"required": ["kind", "layout", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "direction-focused"
+								},
+								"panelId": {
+									"$ref": "#/$defs/overlayControl/$defs/panelId"
+								},
+								"view": {
+									"$ref": "#/$defs/overlayControl/$defs/view"
+								}
+							},
+							"required": ["kind", "panelId", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "direction-unchanged"
+								},
+								"layoutRevision": {
+									"$ref": "#/$defs/overlayControl/$defs/revision"
+								},
+								"view": {
+									"$ref": "#/$defs/overlayControl/$defs/view"
+								}
+							},
+							"required": ["kind", "layoutRevision", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "layout-adjusted"
+								},
+								"adjustment": {
+									"$ref": "#/$defs/overlayControl/$defs/layoutAdjustment"
+								},
+								"view": {
+									"$ref": "#/$defs/overlayControl/$defs/view"
+								}
+							},
+							"required": ["kind", "adjustment", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "attention-read"
+								},
+								"attention": {
+									"$ref": "#/$defs/overlayControl/$defs/attentionSnapshot"
+								},
+								"view": {
+									"$ref": "#/$defs/overlayControl/$defs/view"
+								}
+							},
+							"required": ["kind", "attention", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "navigation-read"
+								},
+								"navigation": {
+									"$ref": "#/$defs/overlayControl/$defs/navigationSnapshot"
+								},
+								"view": {
+									"$ref": "#/$defs/overlayControl/$defs/view"
+								}
+							},
+							"required": ["kind", "navigation", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "viewport-read"
+								},
+								"viewport": {
+									"$ref": "#/$defs/overlayControl/$defs/viewportSnapshot"
+								},
+								"view": {
+									"$ref": "#/$defs/overlayControl/$defs/view"
+								}
+							},
+							"required": ["kind", "viewport", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "terminal-attention-read"
+								},
+								"attention": {
+									"$ref": "#/$defs/overlayControl/$defs/physicalAttentionSnapshot"
+								},
+								"view": {
+									"$ref": "#/$defs/overlayControl/$defs/view"
+								}
+							},
+							"required": ["kind", "attention", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "presentation-read"
+								},
+								"presentation": {
+									"$ref": "#/$defs/overlayControl/$defs/presentationSnapshot"
+								},
+								"view": {
+									"$ref": "#/$defs/overlayControl/$defs/view"
+								}
+							},
+							"required": ["kind", "presentation", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "popup-opened"
+								},
+								"popupId": {
+									"$ref": "#/$defs/overlayControl/$defs/requestId"
+								},
+								"view": {
+									"$ref": "#/$defs/overlayControl/$defs/view"
+								}
+							},
+							"required": ["kind", "popupId", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "popup-closed"
+								},
+								"hadPopup": {
+									"type": "boolean"
+								},
+								"view": {
+									"$ref": "#/$defs/overlayControl/$defs/view"
+								}
+							},
+							"required": ["kind", "hadPopup", "view"],
+							"additionalProperties": false
+						}
+					]
 				},
 				"operation": {
 					"type": "object",
@@ -1975,261 +4077,69 @@
 					]
 				},
 				"identity": {
-					"$ref": "#/$defs/control/$defs/identity"
-				},
-				"cellRect": {
-					"$ref": "#/$defs/control/$defs/cellRect"
-				},
-				"panelArea": {
-					"$ref": "#/$defs/control/$defs/panelArea"
-				},
-				"splitArea": {
-					"$ref": "#/$defs/control/$defs/splitArea"
-				},
-				"neighbors": {
-					"$ref": "#/$defs/control/$defs/neighbors"
-				},
-				"layout": {
-					"$ref": "#/$defs/control/$defs/layout"
-				},
-				"splitId": {
-					"$ref": "#/$defs/control/$defs/splitId"
-				},
-				"panelSlotId": {
-					"$ref": "#/$defs/control/$defs/panelSlotId"
-				},
-				"splitRatio": {
-					"$ref": "#/$defs/control/$defs/splitRatio"
-				},
-				"resizeAmount": {
-					"$ref": "#/$defs/control/$defs/resizeAmount"
-				},
-				"splitPath": {
-					"$ref": "#/$defs/control/$defs/splitPath"
-				},
-				"splitChange": {
-					"$ref": "#/$defs/control/$defs/splitChange"
-				},
-				"layoutChange": {
-					"$ref": "#/$defs/control/$defs/layoutChange"
-				},
-				"layoutAdjustment": {
-					"$ref": "#/$defs/control/$defs/layoutAdjustment"
-				}
-			}
-		}
-	},
-	"oneOf": [
-		{
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["schema", "version", "source", "result", "postCreate", "directory"],
-			"properties": {
-				"schema": {
-					"const": "orchbee.creation.result"
-				},
-				"version": {
-					"enum": [2, 3, 4, 5]
-				},
-				"source": {
-					"$ref": "#/$defs/canonical/$defs/commandSource"
-				},
-				"result": {
-					"allOf": [
-						{
-							"$ref": "#/$defs/canonical/properties/result"
-						},
-						{
-							"type": "object",
-							"properties": {
-								"action": {
-									"enum": ["tab.create", "panel.split"]
-								},
-								"outcome": {
-									"const": "committed"
-								}
-							},
-							"required": [
-								"action",
-								"outcome",
-								"revision",
-								"terminalContextId",
-								"tabId",
-								"panelId",
-								"presentationId",
-								"label",
-								"terminal"
-							],
-							"allOf": [
-								{
-									"if": {
-										"properties": {
-											"action": {
-												"const": "panel.split"
-											}
-										}
-									},
-									"then": {
-										"required": [
-											"newPanelId",
-											"splitId",
-											"firstSlotId",
-											"secondSlotId",
-											"direction"
-										]
-									}
-								}
-							]
-						}
-					]
-				},
-				"postCreate": {
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["clientId", "requested", "ratio", "focus", "stage", "failure", "outcome"],
-					"properties": {
-						"clientId": {
-							"anyOf": [
-								{
-									"$ref": "#/$defs/control/$defs/clientId"
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"requested": {
-							"type": "object",
-							"additionalProperties": false,
-							"required": ["ratio", "focus"],
-							"properties": {
-								"ratio": {
-									"anyOf": [
-										{
-											"type": "number",
-											"minimum": 0.1,
-											"maximum": 0.9
-										},
-										{
-											"type": "null"
-										}
-									]
-								},
-								"focus": {
-									"type": "boolean"
-								},
-								"zoom": {
-									"const": true
-								},
-								"overlay": {
-									"const": true
-								}
-							}
-						},
-						"ratio": {
-							"anyOf": [
-								{
-									"$ref": "#/$defs/control"
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"focus": {
-							"anyOf": [
-								{
-									"$ref": "#/$defs/control"
-								},
-								{
-									"$ref": "#/$defs/overlayControl"
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"stage": {
-							"enum": [
-								"created",
-								"ratio-resolution",
-								"ratio",
-								"focus-observation",
-								"focus",
-								"complete"
-							]
-						},
-						"failure": {
-							"anyOf": [
-								{
-									"enum": [
-										"invalid-usage",
-										"not-found",
-										"ambiguous",
-										"denied",
-										"rejected",
-										"service-unavailable",
-										"protocol-invalid",
-										"transport",
-										"outcome-unknown",
-										"timeout",
-										"cancelled",
-										"internal-failure",
-										"check-failed",
-										"output-too-large"
-									]
-								},
-								{
-									"type": "null"
-								}
-							],
-							"enum": [
-								"ambiguous",
-								"cancelled",
-								"check-failed",
-								"denied",
-								"incompatible",
-								"internal-failure",
-								"invalid-identifier",
-								"invalid-usage",
-								"not-found",
-								"outcome-unknown",
-								"output-too-large",
-								"protocol-invalid",
-								"rejected",
-								"service-unavailable",
-								"connection-capacity",
-								"timeout",
-								"transport-loss",
-								null
-							]
-						},
-						"outcome": {
-							"enum": ["not-requested", "completed", "incomplete"]
-						}
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
 					}
 				},
-				"directory": {
+				"cellRect": {
 					"type": "object",
-					"additionalProperties": false,
-					"required": ["policy", "source", "path", "sourcePanelId"],
 					"properties": {
-						"policy": {
-							"enum": ["follow", "explicit", "home", "current", "workspace", "plugin-root"]
+						"x": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 65535
 						},
-						"source": {
-							"enum": ["launch-default", "argument", "home", "current", "terminal-process"]
+						"y": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 65535
 						},
-						"path": {
-							"type": ["string", "null"],
-							"minLength": 1,
-							"maxLength": 4096
+						"width": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 65535
 						},
-						"sourcePanelId": {
+						"height": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 65535
+						}
+					},
+					"required": ["x", "y", "width", "height"],
+					"additionalProperties": false
+				},
+				"panelArea": {
+					"type": "object",
+					"properties": {
+						"panelId": {
+							"$ref": "#/$defs/overlayControl/$defs/panelId"
+						},
+						"unzoomed": {
 							"anyOf": [
 								{
-									"type": "string",
-									"pattern": "^[0-9a-f]{32}$"
+									"$ref": "#/$defs/overlayControl/$defs/cellRect"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"terminal": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/overlayControl/$defs/cellRect"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"displayed": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/overlayControl/$defs/cellRect"
 								},
 								{
 									"type": "null"
@@ -2237,171 +4147,1622 @@
 							]
 						}
 					},
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"source": {
-										"const": "launch-default"
-									}
+					"required": ["panelId", "unzoomed", "terminal", "displayed"],
+					"additionalProperties": false
+				},
+				"splitArea": {
+					"type": "object",
+					"properties": {
+						"splitId": {
+							"$ref": "#/$defs/overlayControl/$defs/splitId"
+						},
+						"firstSlotId": {
+							"$ref": "#/$defs/overlayControl/$defs/panelSlotId"
+						},
+						"secondSlotId": {
+							"$ref": "#/$defs/overlayControl/$defs/panelSlotId"
+						},
+						"orientation": {
+							"enum": ["horizontal", "vertical"]
+						},
+						"ratio": {
+							"type": "number",
+							"minimum": 0.1,
+							"maximum": 0.9
+						},
+						"area": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/overlayControl/$defs/cellRect"
+								},
+								{
+									"type": "null"
 								}
-							},
-							"then": {
-								"properties": {
-									"path": {
-										"type": "null"
-									}
+							]
+						},
+						"divider": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/overlayControl/$defs/cellRect"
+								},
+								{
+									"type": "null"
 								}
-							},
-							"else": {
-								"properties": {
-									"path": {
-										"type": "string"
-									}
+							]
+						}
+					},
+					"required": [
+						"splitId",
+						"firstSlotId",
+						"secondSlotId",
+						"orientation",
+						"ratio",
+						"area",
+						"divider"
+					],
+					"additionalProperties": false
+				},
+				"neighbors": {
+					"type": "object",
+					"properties": {
+						"left": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/overlayControl/$defs/panelId"
+								},
+								{
+									"type": "null"
 								}
+							]
+						},
+						"right": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/overlayControl/$defs/panelId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"up": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/overlayControl/$defs/panelId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"down": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/overlayControl/$defs/panelId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["left", "right", "up", "down"],
+					"additionalProperties": false
+				},
+				"layout": {
+					"type": "object",
+					"properties": {
+						"terminalContextId": {
+							"$ref": "#/$defs/overlayControl/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/overlayControl/$defs/tabId"
+						},
+						"sourcePanelId": {
+							"$ref": "#/$defs/overlayControl/$defs/panelId"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/overlayControl/$defs/revision"
+						},
+						"viewport": {
+							"$ref": "#/$defs/overlayControl/$defs/cellRect"
+						},
+						"area": {
+							"$ref": "#/$defs/overlayControl/$defs/cellRect"
+						},
+						"selected": {
+							"type": "boolean"
+						},
+						"zoomed": {
+							"type": "boolean"
+						},
+						"focusedPanelId": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/overlayControl/$defs/panelId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"sourceAvailable": {
+							"type": "boolean"
+						},
+						"neighbors": {
+							"$ref": "#/$defs/overlayControl/$defs/neighbors"
+						},
+						"panels": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 4096,
+							"items": {
+								"$ref": "#/$defs/overlayControl/$defs/panelArea"
 							}
 						},
-						{
-							"if": {
-								"properties": {
-									"source": {
-										"const": "terminal-process"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"sourcePanelId": {
-										"type": "string",
-										"pattern": "^[0-9a-f]{32}$"
-									}
-								}
-							}
-						},
-						{
-							"if": {
-								"properties": {
-									"policy": {
-										"const": "plugin-root"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"source": {
-										"const": "launch-default"
-									},
-									"path": {
-										"type": "null"
-									},
-									"sourcePanelId": {
-										"type": "null"
-									}
-								}
+						"splits": {
+							"type": "array",
+							"maxItems": 4096,
+							"items": {
+								"$ref": "#/$defs/overlayControl/$defs/splitArea"
 							}
 						}
+					},
+					"required": [
+						"terminalContextId",
+						"tabId",
+						"sourcePanelId",
+						"workbenchRevision",
+						"viewport",
+						"area",
+						"selected",
+						"zoomed",
+						"focusedPanelId",
+						"sourceAvailable",
+						"neighbors",
+						"panels",
+						"splits"
 					],
+					"additionalProperties": false
+				},
+				"splitId": {
+					"$ref": "#/$defs/overlayControl/$defs/identity"
+				},
+				"panelSlotId": {
+					"$ref": "#/$defs/overlayControl/$defs/identity"
+				},
+				"splitRatio": {
+					"type": "number",
+					"minimum": 0.1,
+					"maximum": 0.9
+				},
+				"resizeAmount": {
+					"type": "number",
+					"minimum": 0,
+					"maximum": 0.5
+				},
+				"splitPath": {
+					"type": "array",
+					"items": {
+						"type": "integer",
+						"enum": [0, 1]
+					},
+					"maxItems": 16
+				},
+				"splitChange": {
+					"type": "object",
+					"properties": {
+						"splitId": {
+							"$ref": "#/$defs/overlayControl/$defs/splitId"
+						},
+						"firstSlotId": {
+							"$ref": "#/$defs/overlayControl/$defs/panelSlotId"
+						},
+						"secondSlotId": {
+							"$ref": "#/$defs/overlayControl/$defs/panelSlotId"
+						},
+						"previousRatio": {
+							"$ref": "#/$defs/overlayControl/$defs/splitRatio"
+						},
+						"ratio": {
+							"$ref": "#/$defs/overlayControl/$defs/splitRatio"
+						}
+					},
+					"required": ["splitId", "firstSlotId", "secondSlotId", "previousRatio", "ratio"],
+					"additionalProperties": false
+				},
+				"layoutChange": {
 					"oneOf": [
 						{
+							"type": "object",
 							"properties": {
-								"policy": {
-									"const": "follow"
-								},
-								"source": {
-									"enum": ["launch-default", "terminal-process"]
+								"kind": {
+									"const": "no-split"
 								}
-							}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
 						},
 						{
+							"type": "object",
 							"properties": {
-								"policy": {
-									"const": "explicit"
+								"kind": {
+									"const": "split"
 								},
-								"source": {
-									"enum": ["argument"]
-								},
-								"sourcePanelId": {
-									"type": "null"
+								"split": {
+									"$ref": "#/$defs/overlayControl/$defs/splitChange"
 								}
+							},
+							"required": ["kind", "split"],
+							"additionalProperties": false
+						}
+					]
+				},
+				"layoutAdjustment": {
+					"type": "object",
+					"properties": {
+						"terminalContextId": {
+							"$ref": "#/$defs/overlayControl/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/overlayControl/$defs/tabId"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/overlayControl/$defs/revision"
+						},
+						"selected": {
+							"type": "boolean"
+						},
+						"change": {
+							"$ref": "#/$defs/overlayControl/$defs/layoutChange"
+						}
+					},
+					"required": ["terminalContextId", "tabId", "workbenchRevision", "selected", "change"],
+					"additionalProperties": false
+				},
+				"attentionSnapshot": {
+					"type": "object",
+					"properties": {
+						"cursor": {
+							"type": "string",
+							"pattern": "^v1\\.[A-Za-z0-9_-]{59}\\.[A-Za-z0-9_-]{43}$"
+						},
+						"revision": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 9007199254740991
+						},
+						"outerFocused": {
+							"type": ["boolean", "null"]
+						},
+						"entries": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 100,
+							"items": {
+								"type": "object",
+								"properties": {
+									"sessionId": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 128,
+										"pattern": "^[A-Za-z0-9:._-]+$"
+									},
+									"state": {
+										"oneOf": [
+											{
+												"type": "null"
+											},
+											{
+												"type": "object",
+												"properties": {
+													"generation": {
+														"type": "integer",
+														"minimum": 0,
+														"maximum": 9007199254740991
+													},
+													"sequence": {
+														"type": "integer",
+														"minimum": 0,
+														"maximum": 9007199254740991
+													},
+													"stateChangeRevision": {
+														"type": "integer",
+														"minimum": 0,
+														"maximum": 9007199254740991
+													},
+													"seen": {
+														"type": "boolean"
+													}
+												},
+												"required": ["generation", "sequence", "stateChangeRevision", "seen"],
+												"additionalProperties": false
+											}
+										]
+									}
+								},
+								"required": ["sessionId", "state"],
+								"additionalProperties": false
+							}
+						}
+					},
+					"required": ["cursor", "revision", "outerFocused", "entries"],
+					"additionalProperties": false
+				},
+				"navigationSnapshot": {
+					"type": "object",
+					"properties": {
+						"workbenchRevision": {
+							"$ref": "#/$defs/overlayControl/$defs/revision"
+						},
+						"contexts": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 128,
+							"items": {
+								"type": "object",
+								"properties": {
+									"terminalContextId": {
+										"$ref": "#/$defs/overlayControl/$defs/terminalContextId"
+									},
+									"activeTabId": {
+										"anyOf": [
+											{
+												"$ref": "#/$defs/overlayControl/$defs/tabId"
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								},
+								"required": ["terminalContextId", "activeTabId"],
+								"additionalProperties": false
+							}
+						}
+					},
+					"required": ["workbenchRevision", "contexts"],
+					"additionalProperties": false
+				},
+				"scrollMetrics": {
+					"type": "object",
+					"properties": {
+						"offsetFromBottom": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64"
+						},
+						"maxOffsetFromBottom": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64"
+						},
+						"viewportRows": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						}
+					},
+					"required": ["offsetFromBottom", "maxOffsetFromBottom", "viewportRows"],
+					"additionalProperties": false
+				},
+				"viewportSource": {
+					"type": "object",
+					"properties": {
+						"hostEpoch": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$",
+							"not": {
+								"const": "00000000000000000000000000000000"
 							}
 						},
-						{
-							"properties": {
-								"policy": {
-									"const": "home"
-								},
-								"source": {
-									"enum": ["home"]
-								},
-								"sourcePanelId": {
-									"type": "null"
-								}
+						"attachmentId": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$",
+							"not": {
+								"const": "00000000000000000000000000000000"
 							}
 						},
-						{
-							"properties": {
-								"policy": {
-									"const": "current"
-								},
-								"source": {
-									"enum": ["current"]
-								},
-								"sourcePanelId": {
-									"type": "null"
-								}
+						"generation": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64",
+							"not": {
+								"const": "0"
 							}
 						},
+						"revision": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64"
+						},
+						"columns": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"alternateScreen": {
+							"type": "boolean"
+						},
+						"totalRows": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64"
+						},
+						"startRow": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64"
+						}
+					},
+					"required": [
+						"hostEpoch",
+						"attachmentId",
+						"generation",
+						"revision",
+						"columns",
+						"alternateScreen",
+						"totalRows",
+						"startRow"
+					],
+					"additionalProperties": false
+				},
+				"viewportObservation": {
+					"oneOf": [
 						{
+							"type": "object",
 							"properties": {
-								"policy": {
-									"const": "workspace"
+								"state": {
+									"const": "unavailable"
 								},
-								"source": {
-									"enum": ["launch-default"]
-								},
-								"sourcePanelId": {
-									"type": "null"
+								"reason": {
+									"enum": ["not-attached", "frame-unavailable"]
 								}
-							}
+							},
+							"required": ["state", "reason"],
+							"additionalProperties": false
 						},
 						{
+							"type": "object",
 							"properties": {
-								"policy": {
-									"const": "plugin-root"
+								"state": {
+									"const": "pending"
+								},
+								"phase": {
+									"enum": ["entering", "awaiting-window", "recovering"]
+								}
+							},
+							"required": ["state", "phase"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"state": {
+									"const": "observed"
+								},
+								"mode": {
+									"enum": ["live", "history"]
 								},
 								"source": {
-									"const": "launch-default"
+									"$ref": "#/$defs/overlayControl/$defs/viewportSource"
 								},
-								"path": {
-									"type": "null"
+								"scroll": {
+									"$ref": "#/$defs/overlayControl/$defs/scrollMetrics"
+								}
+							},
+							"required": ["state", "mode", "source", "scroll"],
+							"additionalProperties": false
+						}
+					]
+				},
+				"viewportSnapshot": {
+					"type": "object",
+					"properties": {
+						"workbenchRevision": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64"
+						},
+						"panels": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 16,
+							"items": {
+								"type": "object",
+								"properties": {
+									"panelId": {
+										"type": "string",
+										"pattern": "^[0-9a-f]{32}$",
+										"not": {
+											"const": "00000000000000000000000000000000"
+										}
+									},
+									"primaryTerminalId": {
+										"anyOf": [
+											{
+												"type": "string",
+												"pattern": "^[0-9a-f]{32}$",
+												"not": {
+													"const": "00000000000000000000000000000000"
+												}
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"observation": {
+										"$ref": "#/$defs/overlayControl/$defs/viewportObservation"
+									}
 								},
-								"sourcePanelId": {
-									"type": "null"
+								"required": ["panelId", "primaryTerminalId", "observation"],
+								"additionalProperties": false,
+								"if": {
+									"properties": {
+										"primaryTerminalId": {
+											"type": "null"
+										}
+									}
+								},
+								"then": {
+									"properties": {
+										"observation": {
+											"type": "object",
+											"properties": {
+												"state": {
+													"const": "unavailable"
+												},
+												"reason": {
+													"const": "not-attached"
+												}
+											}
+										}
+									}
 								}
 							}
 						}
+					},
+					"required": ["workbenchRevision", "panels"],
+					"additionalProperties": false
+				},
+				"physicalIdentity": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"physicalBinding": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["presentationId", "generation", "hostEpoch", "hostTerminalId"],
+					"properties": {
+						"presentationId": {
+							"$ref": "#/$defs/overlayControl/$defs/physicalIdentity"
+						},
+						"generation": {
+							"$ref": "#/$defs/overlayControl/$defs/physicalIdentity"
+						},
+						"hostEpoch": {
+							"$ref": "#/$defs/overlayControl/$defs/physicalIdentity"
+						},
+						"hostTerminalId": {
+							"$ref": "#/$defs/overlayControl/$defs/physicalIdentity"
+						}
+					}
+				},
+				"physicalAttentionSnapshot": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"reportRevision": {
+							"$ref": "#/$defs/overlayControl/$defs/revision"
+						},
+						"outerFocused": {
+							"type": ["boolean", "null"]
+						},
+						"entries": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 100,
+							"items": {
+								"type": "object",
+								"additionalProperties": false,
+								"properties": {
+									"binding": {
+										"$ref": "#/$defs/overlayControl/$defs/physicalBinding"
+									},
+									"state": {
+										"anyOf": [
+											{
+												"type": "null"
+											},
+											{
+												"type": "object",
+												"additionalProperties": false,
+												"properties": {
+													"sequence": {
+														"$ref": "#/$defs/overlayControl/$defs/revision"
+													},
+													"seen": {
+														"type": "boolean"
+													}
+												},
+												"required": ["sequence", "seen"]
+											}
+										]
+									}
+								},
+								"required": ["binding", "state"]
+							}
+						}
+					},
+					"required": ["reportRevision", "outerFocused", "entries"]
+				},
+				"presentationSelection": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/overlayControl/$defs/boundPresentationSelection"
+						},
+						{
+							"$ref": "#/$defs/overlayControl/$defs/unboundPresentationSelection"
+						}
 					]
+				},
+				"presentationSnapshot": {
+					"type": "object",
+					"properties": {
+						"workbenchRevision": {
+							"$ref": "#/$defs/overlayControl/$defs/revision"
+						},
+						"panelId": {
+							"$ref": "#/$defs/overlayControl/$defs/panelId"
+						},
+						"presentation": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/overlayControl/$defs/presentationSelection"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["workbenchRevision", "panelId", "presentation"],
+					"additionalProperties": false
+				},
+				"boundPresentationSelection": {
+					"type": "object",
+					"properties": {
+						"presentationId": {
+							"title": "WorkbenchPanelId",
+							"$ref": "#/$defs/overlayControl/$defs/identity"
+						},
+						"binding": {
+							"type": "object",
+							"properties": {
+								"workerId": {
+									"title": "WorkbenchPanelId",
+									"$ref": "#/$defs/overlayControl/$defs/identity"
+								},
+								"terminalId": {
+									"title": "WorkbenchPanelId",
+									"$ref": "#/$defs/overlayControl/$defs/identity"
+								}
+							},
+							"required": ["workerId", "terminalId"],
+							"additionalProperties": false
+						},
+						"attachmentGeneration": {
+							"title": "WorkbenchRevision",
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 20,
+							"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+							"format": "orchbee-uint64"
+						},
+						"incarnation": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 4294967295
+						},
+						"viewport": {
+							"$ref": "#/$defs/overlayControl/$defs/viewportObservation"
+						}
+					},
+					"required": [
+						"presentationId",
+						"binding",
+						"attachmentGeneration",
+						"incarnation",
+						"viewport"
+					],
+					"additionalProperties": false
+				},
+				"unboundPresentationSelection": {
+					"type": "object",
+					"properties": {
+						"presentationId": {
+							"title": "WorkbenchPanelId",
+							"$ref": "#/$defs/overlayControl/$defs/identity"
+						},
+						"selectionGeneration": {
+							"$ref": "#/$defs/overlayControl/$defs/selectionGeneration"
+						}
+					},
+					"required": ["presentationId", "selectionGeneration"],
+					"additionalProperties": false
+				},
+				"selectionGeneration": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 20,
+					"pattern": "^(?:[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}|1844674407370955160[0-9]{1}|1844674407370955161[0-4]|18446744073709551615)(?![\\s\\S])"
+				},
+				"popupSize": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "cells"
+								},
+								"value": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 65535
+								}
+							},
+							"required": ["kind", "value"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "percent"
+								},
+								"value": {
+									"type": "integer",
+									"minimum": 1,
+									"maximum": 100
+								}
+							},
+							"required": ["kind", "value"],
+							"additionalProperties": false
+						}
+					]
+				},
+				"popupSelector": {
+					"type": "object",
+					"properties": {
+						"pluginId": {
+							"type": "string",
+							"pattern": "^[A-Za-z0-9._:-]{1,120}$"
+						},
+						"entrypointId": {
+							"type": "string",
+							"pattern": "^[A-Za-z0-9_:-]{1,120}$"
+						}
+					},
+					"required": ["pluginId", "entrypointId"],
+					"additionalProperties": false
+				},
+				"popupContext": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": [],
+					"properties": {
+						"workspaceId": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"workspaceLabel": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"workspaceCwd": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"tabId": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"tabLabel": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"focusedPaneId": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"focusedPaneCwd": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"focusedPaneAgent": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"focusedPaneStatus": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"selectedText": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 8192,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"invocationSource": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"correlationId": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"clickedUrl": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"linkHandlerId": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"worktree": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/overlayControl/$defs/worktreeContext"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					}
+				},
+				"worktreeContext": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"workerId",
+						"repositoryRoot",
+						"commonDirectory",
+						"repositoryName",
+						"checkoutPath",
+						"linked"
+					],
+					"properties": {
+						"workerId": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$",
+							"not": {
+								"const": "00000000000000000000000000000000"
+							}
+						},
+						"repositoryRoot": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 4096,
+							"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])",
+							"not": {
+								"pattern": "\u0000"
+							}
+						},
+						"commonDirectory": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 4096,
+							"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])",
+							"not": {
+								"pattern": "\u0000"
+							}
+						},
+						"repositoryName": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 4096,
+							"not": {
+								"pattern": "\u0000"
+							}
+						},
+						"checkoutPath": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 4096,
+							"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])",
+							"not": {
+								"pattern": "\u0000"
+							}
+						},
+						"linked": {
+							"type": "boolean"
+						}
+					}
+				},
+				"popupEnvironment": {
+					"type": "array",
+					"maxItems": 32,
+					"items": {
+						"type": "array",
+						"prefixItems": [
+							{
+								"type": "string",
+								"pattern": "^[A-Za-z_][A-Za-z0-9_]{0,127}$",
+								"not": {
+									"pattern": "^[Oo][Rr][Cc][Hh][Bb][Ee][Ee]_"
+								},
+								"allOf": [
+									{
+										"not": {
+											"pattern": "^(?:[Tt][Ee][Rr][Mm]|[Cc][Oo][Ll][Oo][Rr][Tt][Ee][Rr][Mm]|[Tt][Ee][Rr][Mm]_[Pp][Rr][Oo][Gg][Rr][Aa][Mm])$"
+										}
+									}
+								]
+							},
+							{
+								"type": "string",
+								"pattern": "^[^\\u0000]*$"
+							}
+						],
+						"minItems": 2,
+						"maxItems": 2,
+						"items": false
+					}
+				},
+				"popupDirectoryPath": {
+					"title": "WorkbenchDirectoryPath",
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096,
+					"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000]*$"
+				},
+				"popupSource": {
+					"type": "object",
+					"properties": {
+						"terminalContextId": {
+							"$ref": "#/$defs/overlayControl/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/overlayControl/$defs/tabId"
+						},
+						"member": {
+							"$ref": "#/$defs/overlayControl/$defs/presentationSelection"
+						},
+						"panelId": {
+							"$ref": "#/$defs/overlayControl/$defs/panelId"
+						}
+					},
+					"required": ["terminalContextId", "tabId", "member", "panelId"],
+					"additionalProperties": false
+				},
+				"popupSpec": {
+					"type": "object",
+					"properties": {
+						"selector": {
+							"$ref": "#/$defs/overlayControl/$defs/popupSelector"
+						},
+						"source": {
+							"$ref": "#/$defs/overlayControl/$defs/popupSource"
+						},
+						"context": {
+							"$ref": "#/$defs/overlayControl/$defs/popupContext"
+						},
+						"cwd": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/overlayControl/$defs/popupDirectoryPath"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"environment": {
+							"$ref": "#/$defs/overlayControl/$defs/popupEnvironment"
+						},
+						"width": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/overlayControl/$defs/popupSize"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"height": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/overlayControl/$defs/popupSize"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["selector", "source", "context", "cwd", "environment", "width", "height"],
+					"additionalProperties": false
+				},
+				"editorSource": {
+					"type": "object",
+					"properties": {
+						"terminalContextId": {
+							"$ref": "#/$defs/overlayControl/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/overlayControl/$defs/tabId"
+						},
+						"member": {
+							"$ref": "#/$defs/overlayControl/$defs/boundPresentationSelection"
+						},
+						"panelId": {
+							"$ref": "#/$defs/overlayControl/$defs/panelId"
+						}
+					},
+					"required": ["terminalContextId", "tabId", "member", "panelId"],
+					"additionalProperties": false
+				},
+				"editorSpec": {
+					"type": "object",
+					"properties": {
+						"source": {
+							"$ref": "#/$defs/overlayControl/$defs/editorSource"
+						}
+					},
+					"required": ["source"],
+					"additionalProperties": false
+				},
+				"configuredPopupSpec": {
+					"type": "object",
+					"properties": {
+						"commandId": {
+							"type": "string",
+							"pattern": "^cmd_[A-Za-z0-9_]*$",
+							"maxLength": 120
+						},
+						"source": {
+							"type": "object",
+							"properties": {
+								"terminalContextId": {
+									"$ref": "#/$defs/overlayControl/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/overlayControl/$defs/tabId"
+								},
+								"member": {
+									"$ref": "#/$defs/overlayControl/$defs/boundPresentationSelection"
+								},
+								"panelId": {
+									"$ref": "#/$defs/overlayControl/$defs/panelId"
+								}
+							},
+							"required": ["terminalContextId", "tabId", "member", "panelId"],
+							"additionalProperties": false
+						},
+						"context": {
+							"$ref": "#/$defs/overlayControl/$defs/popupContext"
+						},
+						"width": {
+							"oneOf": [
+								{
+									"oneOf": [
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "cells"
+												},
+												"value": {
+													"type": "integer",
+													"minimum": 1,
+													"maximum": 4096
+												}
+											},
+											"required": ["kind", "value"],
+											"additionalProperties": false
+										},
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "percent"
+												},
+												"value": {
+													"type": "integer",
+													"minimum": 1,
+													"maximum": 100
+												}
+											},
+											"required": ["kind", "value"],
+											"additionalProperties": false
+										}
+									]
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"height": {
+							"oneOf": [
+								{
+									"oneOf": [
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "cells"
+												},
+												"value": {
+													"type": "integer",
+													"minimum": 1,
+													"maximum": 4096
+												}
+											},
+											"required": ["kind", "value"],
+											"additionalProperties": false
+										},
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "percent"
+												},
+												"value": {
+													"type": "integer",
+													"minimum": 1,
+													"maximum": 100
+												}
+											},
+											"required": ["kind", "value"],
+											"additionalProperties": false
+										}
+									]
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["commandId", "source", "context", "width", "height"],
+					"additionalProperties": false
+				}
+			}
+		}
+	},
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"schema",
+		"version",
+		"source",
+		"result",
+		"postCreate",
+		"directory",
+		"resolvedLaunch"
+	],
+	"properties": {
+		"schema": {
+			"const": "orchbee.creation.result"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"$ref": "#/$defs/canonical/$defs/commandSource"
+		},
+		"result": {
+			"$ref": "#/$defs/canonical/properties/result",
+			"type": "object",
+			"properties": {
+				"action": {
+					"enum": ["tab.create", "panel.split"]
+				},
+				"outcome": {
+					"const": "committed"
+				}
+			},
+			"required": [
+				"action",
+				"outcome",
+				"revision",
+				"terminalContextId",
+				"tabId",
+				"panelId",
+				"presentationId",
+				"label",
+				"terminal"
+			],
+			"if": {
+				"properties": {
+					"action": {
+						"const": "panel.split"
+					}
+				}
+			},
+			"then": {
+				"required": ["newPanelId", "splitId", "firstSlotId", "secondSlotId", "direction"]
+			}
+		},
+		"postCreate": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["clientId", "requested", "ratio", "focus", "stage", "failure", "outcome"],
+			"properties": {
+				"clientId": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/control/$defs/clientId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"requested": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["ratio", "focus", "zoom", "overlay"],
+					"properties": {
+						"ratio": {
+							"anyOf": [
+								{
+									"type": "number",
+									"minimum": 0.1,
+									"maximum": 0.9
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"focus": {
+							"type": "boolean"
+						},
+						"zoom": {
+							"type": "boolean"
+						},
+						"overlay": {
+							"type": "boolean"
+						}
+					}
+				},
+				"ratio": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/control"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"focus": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/control"
+						},
+						{
+							"$ref": "#/$defs/overlayControl"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"stage": {
+					"enum": ["created", "ratio-resolution", "ratio", "focus-observation", "focus", "complete"]
+				},
+				"failure": {
+					"anyOf": [
+						{
+							"enum": [
+								"invalid-usage",
+								"not-found",
+								"ambiguous",
+								"denied",
+								"rejected",
+								"service-unavailable",
+								"protocol-invalid",
+								"transport",
+								"outcome-unknown",
+								"timeout",
+								"cancelled",
+								"internal-failure",
+								"check-failed",
+								"output-too-large"
+							]
+						},
+						{
+							"type": "null"
+						}
+					],
+					"enum": [
+						"ambiguous",
+						"cancelled",
+						"check-failed",
+						"denied",
+						"incompatible",
+						"internal-failure",
+						"invalid-identifier",
+						"invalid-usage",
+						"not-found",
+						"outcome-unknown",
+						"output-too-large",
+						"protocol-invalid",
+						"rejected",
+						"service-unavailable",
+						"connection-capacity",
+						"timeout",
+						"transport-loss",
+						null
+					]
+				},
+				"outcome": {
+					"enum": ["not-requested", "completed", "incomplete"]
+				}
+			}
+		},
+		"directory": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["policy", "source", "path", "sourcePanelId"],
+			"properties": {
+				"policy": {
+					"enum": ["follow", "explicit", "home", "current", "workspace", "plugin-root"]
+				},
+				"source": {
+					"enum": ["launch-default", "argument", "home", "current", "terminal-process"]
+				},
+				"path": {
+					"type": ["string", "null"],
+					"minLength": 1,
+					"maxLength": 4096
+				},
+				"sourcePanelId": {
+					"anyOf": [
+						{
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"oneOf": [
+				{
+					"properties": {
+						"policy": {
+							"const": "follow"
+						},
+						"source": {
+							"enum": ["launch-default", "terminal-process"]
+						}
+					}
+				},
+				{
+					"properties": {
+						"policy": {
+							"const": "explicit"
+						},
+						"source": {
+							"enum": ["argument"]
+						},
+						"sourcePanelId": {
+							"type": "null"
+						}
+					}
+				},
+				{
+					"properties": {
+						"policy": {
+							"const": "home"
+						},
+						"source": {
+							"enum": ["home"]
+						},
+						"sourcePanelId": {
+							"type": "null"
+						}
+					}
+				},
+				{
+					"properties": {
+						"policy": {
+							"const": "current"
+						},
+						"source": {
+							"enum": ["current"]
+						},
+						"sourcePanelId": {
+							"type": "null"
+						}
+					}
+				},
+				{
+					"properties": {
+						"policy": {
+							"const": "workspace"
+						},
+						"source": {
+							"enum": ["launch-default"]
+						},
+						"sourcePanelId": {
+							"type": "null"
+						}
+					}
+				},
+				{
+					"properties": {
+						"policy": {
+							"const": "plugin-root"
+						},
+						"source": {
+							"const": "launch-default"
+						},
+						"path": {
+							"type": "null"
+						},
+						"sourcePanelId": {
+							"type": "null"
+						}
+					}
+				}
+			],
+			"if": {
+				"properties": {
+					"source": {
+						"const": "launch-default"
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"path": {
+						"type": "null"
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"path": {
+						"type": "string"
+					}
 				}
 			},
 			"allOf": [
 				{
 					"if": {
 						"properties": {
-							"version": {
-								"const": 2
+							"source": {
+								"const": "terminal-process"
 							}
 						}
 					},
 					"then": {
 						"properties": {
-							"directory": {
-								"properties": {
-									"policy": {
-										"not": {
-											"const": "plugin-root"
-										}
-									}
-								}
+							"sourcePanelId": {
+								"type": "string",
+								"pattern": "^[0-9a-f]{32}$"
 							}
 						}
 					}
@@ -2409,465 +5770,30 @@
 				{
 					"if": {
 						"properties": {
-							"version": {
-								"enum": [4, 5]
+							"policy": {
+								"const": "plugin-root"
 							}
 						}
 					},
 					"then": {
 						"properties": {
-							"postCreate": {
-								"properties": {
-									"requested": {
-										"required": ["zoom"],
-										"properties": {
-											"focus": {
-												"const": true
-											}
-										}
-									}
-								}
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"postCreate": {
-								"properties": {
-									"requested": {
-										"not": {
-											"required": ["zoom"]
-										}
-									}
-								}
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"version": {
-								"const": 5
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"postCreate": {
-								"properties": {
-									"requested": {
-										"required": ["overlay", "zoom"],
-										"properties": {
-											"focus": {
-												"const": true
-											},
-											"ratio": {
-												"type": "null"
-											}
-										}
-									}
-								}
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"postCreate": {
-								"properties": {
-									"requested": {
-										"not": {
-											"required": ["overlay"]
-										}
-									},
-									"focus": {
-										"anyOf": [
-											{
-												"$ref": "#/$defs/control"
-											},
-											{
-												"type": "null"
-											}
-										]
-									}
-								}
+							"source": {
+								"const": "launch-default"
+							},
+							"path": {
+								"type": "null"
+							},
+							"sourcePanelId": {
+								"type": "null"
 							}
 						}
 					}
 				}
 			]
 		},
-		{
-			"type": "object",
-			"additionalProperties": false,
-			"required": [
-				"schema",
-				"version",
-				"source",
-				"result",
-				"postCreate",
-				"directory",
-				"resolvedLaunch"
-			],
-			"properties": {
-				"schema": {
-					"const": "orchbee.creation.result"
-				},
-				"version": {
-					"enum": [6, 7, 8]
-				},
-				"source": {
-					"$ref": "#/$defs/canonical/$defs/commandSource"
-				},
-				"result": {
-					"allOf": [
-						{
-							"$ref": "#/$defs/canonical/properties/result"
-						},
-						{
-							"type": "object",
-							"properties": {
-								"action": {
-									"enum": ["tab.create", "panel.split"]
-								},
-								"outcome": {
-									"const": "committed"
-								}
-							},
-							"required": [
-								"action",
-								"outcome",
-								"revision",
-								"terminalContextId",
-								"tabId",
-								"panelId",
-								"presentationId",
-								"label",
-								"terminal"
-							],
-							"allOf": [
-								{
-									"if": {
-										"properties": {
-											"action": {
-												"const": "panel.split"
-											}
-										}
-									},
-									"then": {
-										"required": [
-											"newPanelId",
-											"splitId",
-											"firstSlotId",
-											"secondSlotId",
-											"direction"
-										]
-									}
-								}
-							]
-						}
-					]
-				},
-				"postCreate": {
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["clientId", "requested", "ratio", "focus", "stage", "failure", "outcome"],
-					"properties": {
-						"clientId": {
-							"anyOf": [
-								{
-									"$ref": "#/$defs/control/$defs/clientId"
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"requested": {
-							"type": "object",
-							"additionalProperties": false,
-							"required": ["ratio", "focus"],
-							"properties": {
-								"ratio": {
-									"anyOf": [
-										{
-											"type": "number",
-											"minimum": 0.1,
-											"maximum": 0.9
-										},
-										{
-											"type": "null"
-										}
-									]
-								},
-								"focus": {
-									"type": "boolean"
-								},
-								"zoom": {
-									"const": true
-								},
-								"overlay": {
-									"const": true
-								}
-							}
-						},
-						"ratio": {
-							"anyOf": [
-								{
-									"$ref": "#/$defs/control"
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"focus": {
-							"anyOf": [
-								{
-									"$ref": "#/$defs/control"
-								},
-								{
-									"$ref": "#/$defs/overlayControl"
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"stage": {
-							"enum": [
-								"created",
-								"ratio-resolution",
-								"ratio",
-								"focus-observation",
-								"focus",
-								"complete"
-							]
-						},
-						"failure": {
-							"anyOf": [
-								{
-									"enum": [
-										"invalid-usage",
-										"not-found",
-										"ambiguous",
-										"denied",
-										"rejected",
-										"service-unavailable",
-										"protocol-invalid",
-										"transport",
-										"outcome-unknown",
-										"timeout",
-										"cancelled",
-										"internal-failure",
-										"check-failed",
-										"output-too-large"
-									]
-								},
-								{
-									"type": "null"
-								}
-							],
-							"enum": [
-								"ambiguous",
-								"cancelled",
-								"check-failed",
-								"denied",
-								"incompatible",
-								"internal-failure",
-								"invalid-identifier",
-								"invalid-usage",
-								"not-found",
-								"outcome-unknown",
-								"output-too-large",
-								"protocol-invalid",
-								"rejected",
-								"service-unavailable",
-								"connection-capacity",
-								"timeout",
-								"transport-loss",
-								null
-							]
-						},
-						"outcome": {
-							"enum": ["not-requested", "completed", "incomplete"]
-						}
-					}
-				},
-				"directory": {
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["policy", "source", "path", "sourcePanelId"],
-					"properties": {
-						"policy": {
-							"enum": ["follow", "explicit", "home", "current", "workspace", "plugin-root"]
-						},
-						"source": {
-							"enum": ["launch-default", "argument", "home", "current", "terminal-process"]
-						},
-						"path": {
-							"type": ["string", "null"],
-							"minLength": 1,
-							"maxLength": 4096
-						},
-						"sourcePanelId": {
-							"anyOf": [
-								{
-									"type": "string",
-									"pattern": "^[0-9a-f]{32}$"
-								},
-								{
-									"type": "null"
-								}
-							]
-						}
-					},
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"source": {
-										"const": "launch-default"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"path": {
-										"type": "null"
-									}
-								}
-							},
-							"else": {
-								"properties": {
-									"path": {
-										"type": "string"
-									}
-								}
-							}
-						},
-						{
-							"if": {
-								"properties": {
-									"source": {
-										"const": "terminal-process"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"sourcePanelId": {
-										"type": "string",
-										"pattern": "^[0-9a-f]{32}$"
-									}
-								}
-							}
-						},
-						{
-							"if": {
-								"properties": {
-									"policy": {
-										"const": "plugin-root"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"source": {
-										"const": "launch-default"
-									},
-									"path": {
-										"type": "null"
-									},
-									"sourcePanelId": {
-										"type": "null"
-									}
-								}
-							}
-						}
-					],
-					"oneOf": [
-						{
-							"properties": {
-								"policy": {
-									"const": "follow"
-								},
-								"source": {
-									"enum": ["launch-default", "terminal-process"]
-								}
-							}
-						},
-						{
-							"properties": {
-								"policy": {
-									"const": "explicit"
-								},
-								"source": {
-									"enum": ["argument"]
-								},
-								"sourcePanelId": {
-									"type": "null"
-								}
-							}
-						},
-						{
-							"properties": {
-								"policy": {
-									"const": "home"
-								},
-								"source": {
-									"enum": ["home"]
-								},
-								"sourcePanelId": {
-									"type": "null"
-								}
-							}
-						},
-						{
-							"properties": {
-								"policy": {
-									"const": "current"
-								},
-								"source": {
-									"enum": ["current"]
-								},
-								"sourcePanelId": {
-									"type": "null"
-								}
-							}
-						},
-						{
-							"properties": {
-								"policy": {
-									"const": "workspace"
-								},
-								"source": {
-									"enum": ["launch-default"]
-								},
-								"sourcePanelId": {
-									"type": "null"
-								}
-							}
-						},
-						{
-							"properties": {
-								"policy": {
-									"const": "plugin-root"
-								},
-								"source": {
-									"const": "launch-default"
-								},
-								"path": {
-									"type": "null"
-								},
-								"sourcePanelId": {
-									"type": "null"
-								}
-							}
-						}
-					]
-				},
-				"resolvedLaunch": {
+		"resolvedLaunch": {
+			"anyOf": [
+				{
 					"type": "object",
 					"additionalProperties": false,
 					"required": ["exec", "args"],
@@ -2884,121 +5810,11 @@
 							}
 						}
 					}
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"version": {
-								"const": -1
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"directory": {
-								"properties": {
-									"policy": {
-										"not": {
-											"const": "plugin-root"
-										}
-									}
-								}
-							}
-						}
-					}
 				},
 				{
-					"if": {
-						"properties": {
-							"version": {
-								"enum": [7, 8]
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"postCreate": {
-								"properties": {
-									"requested": {
-										"required": ["zoom"],
-										"properties": {
-											"focus": {
-												"const": true
-											}
-										}
-									}
-								}
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"postCreate": {
-								"properties": {
-									"requested": {
-										"not": {
-											"required": ["zoom"]
-										}
-									}
-								}
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"version": {
-								"const": 8
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"postCreate": {
-								"properties": {
-									"requested": {
-										"required": ["overlay", "zoom"],
-										"properties": {
-											"focus": {
-												"const": true
-											},
-											"ratio": {
-												"type": "null"
-											}
-										}
-									}
-								}
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"postCreate": {
-								"properties": {
-									"requested": {
-										"not": {
-											"required": ["overlay"]
-										}
-									},
-									"focus": {
-										"anyOf": [
-											{
-												"$ref": "#/$defs/control"
-											},
-											{
-												"type": "null"
-											}
-										]
-									}
-								}
-							}
-						}
-					}
+					"type": "null"
 				}
 			]
 		}
-	]
+	}
 }

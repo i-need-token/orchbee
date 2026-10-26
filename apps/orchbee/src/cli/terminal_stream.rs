@@ -263,7 +263,7 @@ fn emit(
     cancelled: &dyn Fn() -> bool,
 ) -> Result<(), Failure> {
     record["schema"] = json!(SCHEMA);
-    record["version"] = json!(2);
+    record["version"] = json!(1);
     let bytes =
         output::encode_record(&record).map_err(|_| Failure::new(FailureKind::OutputTooLarge))?;
     relay.record(&bytes, deadline, cancelled).map_err(|error| {

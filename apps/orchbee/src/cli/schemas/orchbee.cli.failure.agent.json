@@ -10,7 +10,7 @@
 			"const": "orchbee.cli.failure.agent"
 		},
 		"version": {
-			"enum": [1, 2, 3, 4]
+			"const": 1
 		},
 		"failure": {},
 		"source": {}
@@ -246,20 +246,18 @@
 					"$ref": "#/$defs/safeInteger"
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"reason": {
-								"const": "read-deadline"
-							}
-						},
-						"required": ["reason"]
-					},
-					"then": {
-						"required": ["readBudgetMs"]
+			"if": {
+				"properties": {
+					"reason": {
+						"const": "read-deadline"
 					}
 				},
+				"required": ["reason"]
+			},
+			"then": {
+				"required": ["readBudgetMs"]
+			},
+			"allOf": [
 				{
 					"if": {
 						"properties": {
@@ -418,290 +416,235 @@
 			}
 		}
 	},
-	"allOf": [
-		{
-			"if": {
+	"if": {
+		"properties": {
+			"failure": {
 				"properties": {
-					"version": {
-						"const": 4
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"failure": {
-						"$ref": "#/$defs/terminalFailure"
+					"details": {
+						"properties": {
+							"stage": {
+								"const": "agent-terminal"
+							}
+						},
+						"required": ["stage"]
 					}
 				},
-				"not": {
-					"required": ["source"]
-				}
-			},
-			"else": {
-				"properties": {
-					"failure": {
-						"$ref": "#/$defs/canonicalFailure"
-					},
-					"source": {
-						"$ref": "#/$defs/source"
-					}
-				},
-				"allOf": [
-					{
-						"if": {
-							"properties": {
-								"failure": {
-									"properties": {
-										"kind": {
-											"const": "not-found"
-										}
-									},
-									"required": ["kind"]
-								}
-							}
-						},
-						"then": {
-							"properties": {
-								"failure": {
-									"required": ["details"],
-									"properties": {
-										"details": {
-											"$ref": "#/$defs/notFoundDetails"
-										}
-									}
-								}
-							}
-						}
-					},
-					{
-						"if": {
-							"properties": {
-								"failure": {
-									"properties": {
-										"kind": {
-											"const": "denied"
-										}
-									},
-									"required": ["kind"]
-								}
-							}
-						},
-						"then": {
-							"properties": {
-								"failure": {
-									"required": ["details"],
-									"properties": {
-										"details": {
-											"$ref": "#/$defs/deniedDetails"
-										}
-									}
-								}
-							}
-						}
-					},
-					{
-						"if": {
-							"properties": {
-								"failure": {
-									"properties": {
-										"kind": {
-											"const": "rejected"
-										}
-									},
-									"required": ["kind"]
-								}
-							}
-						},
-						"then": {
-							"properties": {
-								"failure": {
-									"required": ["details"],
-									"properties": {
-										"details": {
-											"oneOf": [
-												{
-													"$ref": "#/$defs/rejectedDetails"
-												},
-												{
-													"$ref": "#/$defs/revisionAheadDetails"
-												}
-											]
-										}
-									}
-								}
-							}
-						}
-					},
-					{
-						"if": {
-							"properties": {
-								"failure": {
-									"properties": {
-										"kind": {
-											"const": "service-unavailable"
-										}
-									},
-									"required": ["kind"]
-								}
-							}
-						},
-						"then": {
-							"properties": {
-								"failure": {
-									"required": ["details"],
-									"properties": {
-										"details": {
-											"$ref": "#/$defs/unavailableDetails"
-										}
-									}
-								}
-							}
-						}
-					},
-					{
-						"if": {
-							"properties": {
-								"failure": {
-									"properties": {
-										"kind": {
-											"const": "timeout"
-										}
-									},
-									"required": ["kind"]
-								}
-							}
-						},
-						"then": {
-							"properties": {
-								"failure": {
-									"required": ["details"],
-									"properties": {
-										"details": {
-											"oneOf": [
-												{
-													"$ref": "#/$defs/timeoutDetails"
-												},
-												{
-													"$ref": "#/$defs/waitTimeoutDetails"
-												}
-											]
-										}
-									}
-								}
-							}
-						}
-					},
-					{
-						"if": {
-							"properties": {
-								"failure": {
-									"properties": {
-										"kind": {
-											"enum": ["cancelled", "protocol-invalid", "transport-loss"]
-										}
-									},
-									"required": ["kind"]
-								}
-							}
-						},
-						"then": {
-							"properties": {
-								"failure": {
-									"required": ["details"],
-									"properties": {
-										"details": {
-											"$ref": "#/$defs/commonDetails"
-										}
-									}
-								}
-							}
-						}
-					},
-					{
-						"if": {
-							"properties": {
-								"failure": {
-									"properties": {
-										"kind": {
-											"const": "internal-failure"
-										}
-									},
-									"required": ["kind"]
-								}
-							}
-						},
-						"then": {
-							"properties": {
-								"failure": {
-									"not": {
-										"required": ["details"]
-									}
-								}
-							}
-						}
-					},
-					{
-						"if": {
-							"properties": {
-								"failure": {
-									"properties": {
-										"details": {
-											"properties": {
-												"operation": {
-													"const": "management"
-												}
-											},
-											"required": ["operation"]
-										}
-									},
-									"required": ["details"]
-								}
-							}
-						},
-						"then": {
-							"properties": {
-								"version": {
-									"const": 3
-								}
-							}
-						},
-						"else": {
-							"if": {
-								"properties": {
-									"failure": {
-										"properties": {
-											"details": {
-												"properties": {
-													"timeoutMs": {
-														"type": "null"
-													}
-												},
-												"required": ["timeoutMs"]
-											}
-										},
-										"required": ["details"]
-									}
-								},
-								"required": ["failure"]
-							},
-							"then": {
-								"properties": {
-									"version": {
-										"const": 2
-									}
-								}
-							},
-							"else": {
-								"properties": {
-									"version": {
-										"const": 1
-									}
-								}
-							}
-						}
-					}
-				]
+				"required": ["details"]
 			}
+		},
+		"required": ["failure"]
+	},
+	"then": {
+		"properties": {
+			"failure": {
+				"$ref": "#/$defs/terminalFailure"
+			}
+		},
+		"not": {
+			"required": ["source"]
 		}
-	]
+	},
+	"else": {
+		"properties": {
+			"failure": {
+				"$ref": "#/$defs/canonicalFailure"
+			},
+			"source": {
+				"$ref": "#/$defs/source"
+			}
+		},
+		"if": {
+			"properties": {
+				"failure": {
+					"properties": {
+						"kind": {
+							"const": "not-found"
+						}
+					},
+					"required": ["kind"]
+				}
+			}
+		},
+		"then": {
+			"properties": {
+				"failure": {
+					"required": ["details"],
+					"properties": {
+						"details": {
+							"$ref": "#/$defs/notFoundDetails"
+						}
+					}
+				}
+			}
+		},
+		"allOf": [
+			{
+				"if": {
+					"properties": {
+						"failure": {
+							"properties": {
+								"kind": {
+									"const": "denied"
+								}
+							},
+							"required": ["kind"]
+						}
+					}
+				},
+				"then": {
+					"properties": {
+						"failure": {
+							"required": ["details"],
+							"properties": {
+								"details": {
+									"$ref": "#/$defs/deniedDetails"
+								}
+							}
+						}
+					}
+				}
+			},
+			{
+				"if": {
+					"properties": {
+						"failure": {
+							"properties": {
+								"kind": {
+									"const": "rejected"
+								}
+							},
+							"required": ["kind"]
+						}
+					}
+				},
+				"then": {
+					"properties": {
+						"failure": {
+							"required": ["details"],
+							"properties": {
+								"details": {
+									"oneOf": [
+										{
+											"$ref": "#/$defs/rejectedDetails"
+										},
+										{
+											"$ref": "#/$defs/revisionAheadDetails"
+										}
+									]
+								}
+							}
+						}
+					}
+				}
+			},
+			{
+				"if": {
+					"properties": {
+						"failure": {
+							"properties": {
+								"kind": {
+									"const": "service-unavailable"
+								}
+							},
+							"required": ["kind"]
+						}
+					}
+				},
+				"then": {
+					"properties": {
+						"failure": {
+							"required": ["details"],
+							"properties": {
+								"details": {
+									"$ref": "#/$defs/unavailableDetails"
+								}
+							}
+						}
+					}
+				}
+			},
+			{
+				"if": {
+					"properties": {
+						"failure": {
+							"properties": {
+								"kind": {
+									"const": "timeout"
+								}
+							},
+							"required": ["kind"]
+						}
+					}
+				},
+				"then": {
+					"properties": {
+						"failure": {
+							"required": ["details"],
+							"properties": {
+								"details": {
+									"oneOf": [
+										{
+											"$ref": "#/$defs/timeoutDetails"
+										},
+										{
+											"$ref": "#/$defs/waitTimeoutDetails"
+										}
+									]
+								}
+							}
+						}
+					}
+				}
+			},
+			{
+				"if": {
+					"properties": {
+						"failure": {
+							"properties": {
+								"kind": {
+									"enum": ["cancelled", "protocol-invalid", "transport-loss"]
+								}
+							},
+							"required": ["kind"]
+						}
+					}
+				},
+				"then": {
+					"properties": {
+						"failure": {
+							"required": ["details"],
+							"properties": {
+								"details": {
+									"$ref": "#/$defs/commonDetails"
+								}
+							}
+						}
+					}
+				}
+			},
+			{
+				"if": {
+					"properties": {
+						"failure": {
+							"properties": {
+								"kind": {
+									"const": "internal-failure"
+								}
+							},
+							"required": ["kind"]
+						}
+					}
+				},
+				"then": {
+					"properties": {
+						"failure": {
+							"not": {
+								"required": ["details"]
+							}
+						}
+					}
+				}
+			}
+		]
+	}
 }

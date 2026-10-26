@@ -34,8 +34,8 @@ Split 身份、有序槽位及所有已绑定主／子成员必须匹配捕获�
 `layout apply (--file <path> | --stdin) [--tab <target> --confirm | --workspace <target>] [--label <label>] [--client <id>] [--focus | --no-focus]
 [--timeout <milliseconds>] [--format text|json]` 创建新 Tab 或替换所选 Tab。
 省略目的地时使用所选 Client 上下文。替换需要确认；导出身份不用于选择目的地或复用进程。
-显式目的地且省略 `--client` 和 `--focus` 时可无头运行（v3），包括已确认的替换。比例使用共享 Server CAS。
-省略目的地、指定 `--client` 或 `--focus` 需要 Ready Client（v2）。默认不聚焦；
+显式目的地且省略 `--client` 和 `--focus` 时可无头运行（v1），包括已确认的替换。比例使用共享 Server CAS。
+省略目的地、指定 `--client` 或 `--focus` 需要 Ready Client（v1）。默认不聚焦；
 替换该所选 Client 的活动 Tab 时选择新 Tab。
 显式标签优先，否则保留旧自定义 Tab 标签或保持自动编号。
 
@@ -62,11 +62,11 @@ Split 身份、有序槽位及所有已绑定主／子成员必须匹配捕获�
 恢复使用原总超时中的预留部分。就绪后焦点／Close／最终观察失败保留新布局。
 旧树在提交 Close 前仍可使用；已接纳或未知 Close 不得称为已回滚。Ctrl+C 完成有界已知恢复并保留不确定副作用。
 
-结果为 `orchbee.layout.apply` v2/v3：完成／不完整、阶段、新旧 Tab 身份、最多 448 条有界副作用回执、恢复、
+结果为 `orchbee.layout.apply` v1：完成／不完整、阶段、新旧 Tab 身份、最多 448 条有界副作用回执、恢复、
 结构化最终布局及失败，遵守原生 8 MiB 输出上限。最终导出仍受自身 1 MiB 限额约束；超限产生就绪后的
 不完整回执，保留新 Tab 及副作用记录。布局副作用只记录动作、Session、请求、基准修订及已验证结果，不记录启动参数或环境。
 目录描述两个输出版本和保持不变的 layout-apply 失败 v1。
-无头 v3 的 source Client 身份为 null，单独保留每个共享比例 CAS 副作用。文本诊断继续本地化。
+无头 v1 的 source Client 身份为 null，单独保留每个共享比例 CAS 副作用。文本诊断继续本地化。
 分组／固定往返和完整已保存焦点恢复仍是独立工作。
 
 ## 所有权与证据
@@ -77,7 +77,7 @@ Windows 适配器负责精确绑定关联、单次提交、所有权围栏、取
 
 定向测试覆盖当前导出、不兼容导出拒绝及模板输入、子项／未绑定往返、字面启动数据、就绪前各失败边界、精确绑定变化、陈旧元数据及响应关联。
 受控 Windows CLI 对端测试覆盖真实进程分派和回执，不代表真实 provider 或交互 Client 验收。
-完整 Windows 打包／TUI、provider、多 Client 验收及全量回归仍属于最终集成义务；旧 v1 验收不能证明改动后的 v2/v3 流程。
+完整 Windows 打包／TUI、provider、多 Client 验收及全量回归仍属于最终集成义务；先前验收不能证明当前流程。
 无头进程用例覆盖导出、拓扑读取、比例修改、成对交换和应用，受控对端拒绝任何 Client 观察／控制请求。
 它们复用既有 Server 转换，不引入虚拟视口、新规范修改或隐藏 Client 注册。
 

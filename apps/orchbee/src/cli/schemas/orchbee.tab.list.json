@@ -2,319 +2,6 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.tab.list",
 	"title": "orchbee tab list envelope",
-	"$comment": "Earlier envelope versions retain their closed Agent state vocabulary. The unprefixed definitions describe current inputs and outputs.",
-	"oneOf": [
-		{
-			"type": "object",
-			"required": ["schema", "version", "source", "result"],
-			"additionalProperties": false,
-			"properties": {
-				"schema": {
-					"const": "orchbee.tab.list"
-				},
-				"version": {
-					"const": 4
-				},
-				"source": {
-					"$ref": "#/$defs/snapshotSource"
-				},
-				"result": {
-					"type": "object",
-					"required": ["tabs"],
-					"additionalProperties": false,
-					"properties": {
-						"tabs": {
-							"type": "array",
-							"items": {
-								"$ref": "#/$defs/legacyAgentState_tab"
-							}
-						},
-						"client": {
-							"$ref": "#/$defs/queryClient"
-						},
-						"agents": {
-							"$ref": "#/$defs/legacyAgentState_workbenchAgents"
-						}
-					},
-					"allOf": [
-						{
-							"if": {
-								"required": ["client"],
-								"type": "object"
-							},
-							"then": {
-								"properties": {
-									"tabs": {
-										"items": {
-											"required": ["focused"],
-											"type": "object"
-										},
-										"type": "array"
-									}
-								},
-								"type": "object"
-							},
-							"else": {
-								"properties": {
-									"tabs": {
-										"items": {
-											"not": {
-												"anyOf": [
-													{
-														"required": ["focused"],
-														"type": "object"
-													}
-												]
-											},
-											"type": "object"
-										},
-										"type": "array"
-									}
-								},
-								"type": "object"
-							}
-						},
-						{
-							"if": {
-								"type": "object",
-								"required": ["agents"]
-							},
-							"then": {
-								"type": "object",
-								"properties": {
-									"tabs": {
-										"type": "array",
-										"items": {
-											"type": "object",
-											"required": ["agentStatus", "agentSessionIds"]
-										}
-									}
-								}
-							},
-							"else": {
-								"type": "object",
-								"properties": {
-									"tabs": {
-										"type": "array",
-										"items": {
-											"type": "object",
-											"not": {
-												"anyOf": [
-													{
-														"required": ["agentStatus"]
-													},
-													{
-														"required": ["agentSessionIds"]
-													}
-												]
-											}
-										}
-									}
-								}
-							}
-						},
-						{
-							"if": {
-								"type": "object",
-								"required": ["client"]
-							},
-							"then": {
-								"type": "object",
-								"properties": {
-									"agents": {
-										"type": "object",
-										"properties": {
-											"sessions": {
-												"type": "array",
-												"items": {
-													"type": "object",
-													"required": ["client"]
-												}
-											}
-										}
-									}
-								}
-							},
-							"else": {
-								"type": "object",
-								"properties": {
-									"agents": {
-										"type": "object",
-										"properties": {
-											"sessions": {
-												"type": "array",
-												"items": {
-													"type": "object",
-													"not": {
-														"required": ["client"]
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-					]
-				}
-			}
-		},
-		{
-			"type": "object",
-			"required": ["schema", "version", "source", "result"],
-			"additionalProperties": false,
-			"properties": {
-				"schema": {
-					"const": "orchbee.tab.list"
-				},
-				"version": {
-					"enum": [5]
-				},
-				"source": {
-					"$ref": "#/$defs/snapshotSource"
-				},
-				"result": {
-					"type": "object",
-					"required": ["tabs"],
-					"additionalProperties": false,
-					"properties": {
-						"tabs": {
-							"type": "array",
-							"items": {
-								"$ref": "#/$defs/tab"
-							}
-						},
-						"client": {
-							"$ref": "#/$defs/queryClient"
-						},
-						"agents": {
-							"$ref": "#/$defs/workbenchAgents"
-						}
-					},
-					"allOf": [
-						{
-							"if": {
-								"required": ["client"],
-								"type": "object"
-							},
-							"then": {
-								"properties": {
-									"tabs": {
-										"items": {
-											"required": ["focused"],
-											"type": "object"
-										},
-										"type": "array"
-									}
-								},
-								"type": "object"
-							},
-							"else": {
-								"properties": {
-									"tabs": {
-										"items": {
-											"not": {
-												"anyOf": [
-													{
-														"required": ["focused"],
-														"type": "object"
-													}
-												]
-											},
-											"type": "object"
-										},
-										"type": "array"
-									}
-								},
-								"type": "object"
-							}
-						},
-						{
-							"if": {
-								"type": "object",
-								"required": ["agents"]
-							},
-							"then": {
-								"type": "object",
-								"properties": {
-									"tabs": {
-										"type": "array",
-										"items": {
-											"type": "object",
-											"required": ["agentStatus", "agentSessionIds"]
-										}
-									}
-								}
-							},
-							"else": {
-								"type": "object",
-								"properties": {
-									"tabs": {
-										"type": "array",
-										"items": {
-											"type": "object",
-											"not": {
-												"anyOf": [
-													{
-														"required": ["agentStatus"]
-													},
-													{
-														"required": ["agentSessionIds"]
-													}
-												]
-											}
-										}
-									}
-								}
-							}
-						},
-						{
-							"if": {
-								"type": "object",
-								"required": ["client"]
-							},
-							"then": {
-								"type": "object",
-								"properties": {
-									"agents": {
-										"type": "object",
-										"properties": {
-											"sessions": {
-												"type": "array",
-												"items": {
-													"type": "object",
-													"required": ["client"]
-												}
-											}
-										}
-									}
-								}
-							},
-							"else": {
-								"type": "object",
-								"properties": {
-									"agents": {
-										"type": "object",
-										"properties": {
-											"sessions": {
-												"type": "array",
-												"items": {
-													"type": "object",
-													"not": {
-														"required": ["client"]
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-					]
-				}
-			}
-		}
-	],
 	"$defs": {
 		"id": {
 			"type": "string",
@@ -338,7 +25,18 @@
 		},
 		"tab": {
 			"type": "object",
-			"required": ["tabId", "label", "pinned", "groupId", "context", "number", "panelCount"],
+			"required": [
+				"tabId",
+				"label",
+				"pinned",
+				"groupId",
+				"context",
+				"number",
+				"panelCount",
+				"focused",
+				"agentSessionIds",
+				"agentStatus"
+			],
 			"additionalProperties": false,
 			"properties": {
 				"tabId": {
@@ -372,18 +70,60 @@
 					"minimum": 0
 				},
 				"focused": {
-					"type": "boolean"
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"type": "boolean"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
 				},
 				"agentSessionIds": {
-					"type": "array",
-					"maxItems": 512,
-					"uniqueItems": true,
-					"items": {
-						"$ref": "#/$defs/agentOpaqueId"
-					}
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"type": "array",
+									"maxItems": 512,
+									"uniqueItems": true,
+									"items": {
+										"$ref": "#/$defs/agentOpaqueId"
+									}
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
 				},
 				"agentStatus": {
-					"enum": [null, "blocked", "done", "error", "working", "idle", "unknown"]
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"enum": [null, "blocked", "done", "error", "working", "idle", "unknown"]
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
 				}
 			}
 		},
@@ -618,37 +358,33 @@
 					]
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"state": {
-								"const": "current"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"seen": {
-								"type": "boolean"
-							},
-							"stateChangeRevision": {
-								"$ref": "#/$defs/agentSafeInteger"
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"seen": {
-								"type": "null"
-							},
-							"stateChangeRevision": {
-								"type": "null"
-							}
-						}
+			"if": {
+				"properties": {
+					"state": {
+						"const": "current"
 					}
 				}
-			]
+			},
+			"then": {
+				"properties": {
+					"seen": {
+						"type": "boolean"
+					},
+					"stateChangeRevision": {
+						"$ref": "#/$defs/agentSafeInteger"
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"seen": {
+						"type": "null"
+					},
+					"stateChangeRevision": {
+						"type": "null"
+					}
+				}
+			}
 		},
 		"agentExecutionLocation": {
 			"type": "object",
@@ -941,188 +677,202 @@
 				}
 			}
 		},
-		"legacyAgentState_agentClientView": {
+		"unsupported": {
 			"type": "object",
-			"required": [
-				"clientId",
-				"operationId",
-				"phase",
-				"outerFocused",
-				"focused",
-				"attentionRevision",
-				"state",
-				"stateChangeRevision",
-				"seen",
-				"status"
-			],
+			"properties": {
+				"kind": {
+					"const": "unsupported"
+				}
+			},
+			"required": ["kind"],
+			"additionalProperties": false
+		}
+	},
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.tab.list"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"$ref": "#/$defs/snapshotSource"
+		},
+		"result": {
+			"type": "object",
+			"required": ["tabs", "client", "agents"],
 			"additionalProperties": false,
 			"properties": {
-				"clientId": {
-					"$ref": "#/$defs/agentHexId"
+				"tabs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/tab"
+					}
 				},
-				"operationId": {
-					"$ref": "#/$defs/agentHexId"
-				},
-				"phase": {
-					"enum": ["starting", "ready", "busy", "unavailable"]
-				},
-				"outerFocused": {
-					"type": ["boolean", "null"]
-				},
-				"focused": {
-					"type": "boolean"
-				},
-				"attentionRevision": {
-					"$ref": "#/$defs/agentSafeInteger"
-				},
-				"state": {
-					"enum": ["current", "missing", "stale"]
-				},
-				"stateChangeRevision": {
-					"anyOf": [
+				"client": {
+					"oneOf": [
 						{
-							"type": "null"
+							"anyOf": [
+								{
+									"$ref": "#/$defs/queryClient"
+								},
+								{
+									"type": "null"
+								}
+							]
 						},
 						{
-							"$ref": "#/$defs/agentSafeInteger"
+							"$ref": "#/$defs/unsupported"
 						}
 					]
 				},
-				"seen": {
-					"type": ["boolean", "null"]
-				},
-				"status": {
-					"enum": [
-						null,
-						"idle",
-						"done",
-						"blocked",
-						"working",
-						"unknown",
-						"ended",
-						"stale",
-						"disconnected"
+				"agents": {
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"$ref": "#/$defs/workbenchAgents"
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
 					]
 				}
+			},
+			"if": {
+				"required": ["client"],
+				"type": "object",
+				"properties": {
+					"client": {
+						"type": "object",
+						"required": ["clientId"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"tabs": {
+						"items": {
+							"required": ["focused"],
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"type": "object"
+			},
+			"else": {
+				"properties": {
+					"tabs": {
+						"items": {
+							"not": {
+								"required": ["focused"],
+								"type": "object"
+							},
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"type": "object"
 			},
 			"allOf": [
 				{
 					"if": {
-						"properties": {
-							"state": {
-								"const": "current"
-							}
-						}
+						"type": "object",
+						"required": ["agents"]
 					},
 					"then": {
+						"type": "object",
 						"properties": {
-							"seen": {
-								"type": "boolean"
-							},
-							"stateChangeRevision": {
-								"$ref": "#/$defs/agentSafeInteger"
+							"tabs": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"required": ["agentStatus", "agentSessionIds"]
+								}
 							}
 						}
 					},
 					"else": {
+						"type": "object",
 						"properties": {
-							"seen": {
-								"type": "null"
-							},
-							"stateChangeRevision": {
-								"type": "null"
+							"tabs": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"not": {
+										"anyOf": [
+											{
+												"required": ["agentStatus"]
+											},
+											{
+												"required": ["agentSessionIds"]
+											}
+										]
+									}
+								}
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"type": "object",
+						"required": ["client"],
+						"properties": {
+							"client": {
+								"type": "object",
+								"required": ["clientId"]
+							}
+						}
+					},
+					"then": {
+						"type": "object",
+						"properties": {
+							"agents": {
+								"type": "object",
+								"properties": {
+									"sessions": {
+										"type": "array",
+										"items": {
+											"type": "object",
+											"required": ["client"]
+										}
+									}
+								}
+							}
+						}
+					},
+					"else": {
+						"type": "object",
+						"properties": {
+							"agents": {
+								"type": "object",
+								"properties": {
+									"sessions": {
+										"type": "array",
+										"items": {
+											"type": "object",
+											"not": {
+												"required": ["client"]
+											}
+										}
+									}
+								}
 							}
 						}
 					}
 				}
 			]
-		},
-		"legacyAgentState_tab": {
-			"type": "object",
-			"required": ["tabId", "label", "pinned", "groupId", "context", "number", "panelCount"],
-			"additionalProperties": false,
-			"properties": {
-				"tabId": {
-					"$ref": "#/$defs/id"
-				},
-				"label": {
-					"type": "string"
-				},
-				"pinned": {
-					"type": "boolean"
-				},
-				"groupId": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/id"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"context": {
-					"$ref": "#/$defs/context"
-				},
-				"number": {
-					"type": "integer",
-					"minimum": 1
-				},
-				"panelCount": {
-					"type": "integer",
-					"minimum": 0
-				},
-				"focused": {
-					"type": "boolean"
-				},
-				"agentSessionIds": {
-					"type": "array",
-					"maxItems": 512,
-					"uniqueItems": true,
-					"items": {
-						"$ref": "#/$defs/agentOpaqueId"
-					}
-				},
-				"agentStatus": {
-					"enum": [null, "blocked", "done", "working", "idle", "unknown"]
-				}
-			}
-		},
-		"legacyAgentState_workbenchAgents": {
-			"type": "object",
-			"required": ["revision", "requestIds", "sessions"],
-			"additionalProperties": false,
-			"properties": {
-				"revision": {
-					"$ref": "#/$defs/agentSafeInteger"
-				},
-				"requestIds": {
-					"type": "array",
-					"minItems": 1,
-					"maxItems": 12,
-					"uniqueItems": true,
-					"items": {
-						"$ref": "#/$defs/agentHexId"
-					}
-				},
-				"sessions": {
-					"type": "array",
-					"maxItems": 512,
-					"items": {
-						"type": "object",
-						"required": ["session"],
-						"additionalProperties": false,
-						"properties": {
-							"session": {
-								"$ref": "#/$defs/agentSessionSummary"
-							},
-							"client": {
-								"$ref": "#/$defs/legacyAgentState_agentClientView"
-							}
-						}
-					}
-				}
-			}
 		}
 	}
 }

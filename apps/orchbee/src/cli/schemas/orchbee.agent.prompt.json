@@ -2,237 +2,6 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.agent.prompt",
 	"title": "orchbee.agent.prompt",
-	"$comment": "Earlier envelope versions retain their closed Agent state vocabulary. The unprefixed definitions describe current inputs and outputs.",
-	"oneOf": [
-		{
-			"type": "object",
-			"required": ["schema", "version", "source", "result"],
-			"additionalProperties": false,
-			"properties": {
-				"schema": {
-					"const": "orchbee.agent.prompt"
-				},
-				"version": {
-					"enum": [2, 3, 4, 5, 6]
-				},
-				"source": {
-					"$ref": "#/$defs/sendSource"
-				},
-				"result": {}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"version": {
-								"const": 6
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"result": {
-								"$ref": "#/$defs/legacyAgentState_clientTerminalPrompt"
-							}
-						}
-					},
-					"else": {
-						"allOf": [
-							{
-								"if": {
-									"properties": {
-										"version": {
-											"const": 5
-										}
-									}
-								},
-								"then": {
-									"properties": {
-										"result": {
-											"$ref": "#/$defs/legacyAgentState_terminalPrompt"
-										}
-									}
-								},
-								"else": {
-									"properties": {
-										"result": {
-											"$ref": "#/$defs/legacyAgentState_canonicalPrompt"
-										}
-									},
-									"allOf": [
-										{
-											"if": {
-												"properties": {
-													"version": {
-														"enum": [3, 4]
-													}
-												}
-											},
-											"then": {
-												"properties": {
-													"result": {
-														"required": ["matchedChange"]
-													}
-												}
-											},
-											"else": {
-												"properties": {
-													"result": {
-														"not": {
-															"required": ["matchedChange"]
-														}
-													}
-												}
-											}
-										},
-										{
-											"if": {
-												"properties": {
-													"version": {
-														"const": 4
-													}
-												}
-											},
-											"then": {
-												"properties": {
-													"result": {
-														"required": ["client"]
-													}
-												}
-											},
-											"else": {
-												"properties": {
-													"result": {
-														"not": {
-															"required": ["client"]
-														}
-													}
-												}
-											}
-										}
-									]
-								}
-							}
-						]
-					}
-				}
-			]
-		},
-		{
-			"type": "object",
-			"required": ["schema", "version", "source", "result"],
-			"additionalProperties": false,
-			"properties": {
-				"schema": {
-					"const": "orchbee.agent.prompt"
-				},
-				"version": {
-					"enum": [7, 8, 9, 10]
-				},
-				"source": {
-					"$ref": "#/$defs/sendSource"
-				},
-				"result": {}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"version": {
-								"const": 10
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"result": {
-								"$ref": "#/$defs/clientTerminalPrompt"
-							}
-						}
-					},
-					"else": {
-						"allOf": [
-							{
-								"if": {
-									"properties": {
-										"version": {
-											"const": 9
-										}
-									}
-								},
-								"then": {
-									"properties": {
-										"result": {
-											"$ref": "#/$defs/terminalPrompt"
-										}
-									}
-								},
-								"else": {
-									"properties": {
-										"result": {
-											"$ref": "#/$defs/canonicalPrompt"
-										}
-									},
-									"allOf": [
-										{
-											"if": {
-												"properties": {
-													"version": {
-														"enum": [7, 8]
-													}
-												}
-											},
-											"then": {
-												"properties": {
-													"result": {
-														"required": ["matchedChange"]
-													}
-												}
-											},
-											"else": {
-												"properties": {
-													"result": {
-														"not": {
-															"required": ["matchedChange"]
-														}
-													}
-												}
-											}
-										},
-										{
-											"if": {
-												"properties": {
-													"version": {
-														"const": 8
-													}
-												}
-											},
-											"then": {
-												"properties": {
-													"result": {
-														"required": ["client"]
-													}
-												}
-											},
-											"else": {
-												"properties": {
-													"result": {
-														"not": {
-															"required": ["client"]
-														}
-													}
-												}
-											}
-										}
-									]
-								}
-							}
-						]
-					}
-				}
-			]
-		}
-	],
 	"$defs": {
 		"activity": {
 			"enum": [
@@ -503,6 +272,7 @@
 			]
 		},
 		"sendReceipt": {
+			"title": "orchbee terminal send result envelope",
 			"type": "object",
 			"required": ["schema", "version", "source", "result"],
 			"additionalProperties": false,
@@ -514,7 +284,7 @@
 					"const": 1
 				},
 				"source": {
-					"$ref": "#/$defs/sendSource"
+					"$ref": "#/$defs/sendReceipt/$defs/sendSource"
 				},
 				"result": {
 					"type": "object",
@@ -538,16 +308,16 @@
 							"const": "terminal.send"
 						},
 						"requestId": {
-							"$ref": "#/$defs/id"
+							"$ref": "#/$defs/sendReceipt/$defs/id"
 						},
 						"siteId": {
-							"$ref": "#/$defs/id"
+							"$ref": "#/$defs/sendReceipt/$defs/id"
 						},
 						"workerId": {
-							"$ref": "#/$defs/id"
+							"$ref": "#/$defs/sendReceipt/$defs/id"
 						},
 						"terminalId": {
-							"$ref": "#/$defs/id"
+							"$ref": "#/$defs/sendReceipt/$defs/id"
 						},
 						"payloadKind": {
 							"enum": ["text", "key", "bytes", "paste", "sequence"]
@@ -591,10 +361,10 @@
 									"pattern": "^[1-9][0-9]*$"
 								},
 								"hostEpoch": {
-									"$ref": "#/$defs/id"
+									"$ref": "#/$defs/sendReceipt/$defs/id"
 								},
 								"hostTerminalId": {
-									"$ref": "#/$defs/id"
+									"$ref": "#/$defs/sendReceipt/$defs/id"
 								}
 							}
 						},
@@ -619,20 +389,18 @@
 							"maximum": 67108864
 						}
 					},
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"inputStatus": {
-										"enum": ["not-submitted", "rejected", "partial-accepted"]
-									}
-								},
-								"required": ["inputStatus"]
-							},
-							"then": {
-								"required": ["reason"]
+					"if": {
+						"properties": {
+							"inputStatus": {
+								"enum": ["not-submitted", "rejected", "partial-accepted"]
 							}
 						},
+						"required": ["inputStatus"]
+					},
+					"then": {
+						"required": ["reason"]
+					},
+					"allOf": [
 						{
 							"if": {
 								"properties": {
@@ -728,6 +496,32 @@
 							}
 						}
 					]
+				}
+			},
+			"$defs": {
+				"id": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$"
+				},
+				"sendSource": {
+					"type": "object",
+					"required": ["kind", "siteId", "requestId", "snapshotRevision"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "terminal.send"
+						},
+						"siteId": {
+							"$ref": "#/$defs/sendReceipt/$defs/id"
+						},
+						"requestId": {
+							"$ref": "#/$defs/sendReceipt/$defs/id"
+						},
+						"snapshotRevision": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]*)$"
+						}
+					}
 				}
 			}
 		},
@@ -1080,37 +874,33 @@
 					]
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"state": {
-								"const": "current"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"seen": {
-								"type": "boolean"
-							},
-							"stateChangeRevision": {
-								"$ref": "#/$defs/safeInteger"
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"seen": {
-								"type": "null"
-							},
-							"stateChangeRevision": {
-								"type": "null"
-							}
-						}
+			"if": {
+				"properties": {
+					"state": {
+						"const": "current"
 					}
 				}
-			]
+			},
+			"then": {
+				"properties": {
+					"seen": {
+						"type": "boolean"
+					},
+					"stateChangeRevision": {
+						"$ref": "#/$defs/safeInteger"
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"seen": {
+						"type": "null"
+					},
+					"stateChangeRevision": {
+						"type": "null"
+					}
+				}
+			}
 		},
 		"physical_semanticChange": {
 			"type": "object",
@@ -1118,16 +908,10 @@
 			"required": ["sequence", "agent", "state"],
 			"properties": {
 				"sequence": {
-					"allOf": [
-						{
-							"$ref": "#/$defs/physical_revision"
-						},
-						{
-							"not": {
-								"const": "0"
-							}
-						}
-					]
+					"$ref": "#/$defs/physical_revision",
+					"not": {
+						"const": "0"
+					}
 				},
 				"agent": {
 					"anyOf": [
@@ -1335,102 +1119,9 @@
 				}
 			}
 		},
-		"terminalSource": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["siteId", "workbenchRevision", "reportRevision", "requestId"],
-			"properties": {
-				"siteId": {
-					"$ref": "#/$defs/physical_identity"
-				},
-				"workbenchRevision": {
-					"$ref": "#/$defs/physical_revision"
-				},
-				"reportRevision": {
-					"$ref": "#/$defs/physical_revision"
-				},
-				"requestId": {
-					"$ref": "#/$defs/physical_identity"
-				}
-			}
-		},
-		"terminalMatch": {
-			"type": "object",
-			"required": ["kind", "target", "semantic", "matchedConditions", "matchedChange", "wait"],
-			"additionalProperties": false,
-			"properties": {
-				"kind": {
-					"const": "terminal-matched"
-				},
-				"target": {
-					"$ref": "#/$defs/terminalTarget"
-				},
-				"semantic": {
-					"$ref": "#/$defs/terminalSemantic"
-				},
-				"matchedConditions": {
-					"type": "array",
-					"minItems": 1,
-					"maxItems": 5,
-					"uniqueItems": true,
-					"items": {
-						"enum": [
-							"idle",
-							"working",
-							"blocked",
-							"needs-attention",
-							"unknown",
-							"done",
-							"succeeded",
-							"failed"
-						]
-					}
-				},
-				"matchedChange": {
-					"anyOf": [
-						{
-							"type": "null"
-						},
-						{
-							"$ref": "#/$defs/physical_semanticChange"
-						}
-					]
-				},
-				"wait": {
-					"type": "object",
-					"required": ["until", "timeoutMs", "observations", "elapsedMs"],
-					"additionalProperties": false,
-					"properties": {
-						"until": {
-							"type": "array",
-							"minItems": 1,
-							"maxItems": 14,
-							"items": {
-								"$ref": "#/$defs/waitCondition"
-							},
-							"uniqueItems": true
-						},
-						"afterRevision": {
-							"$ref": "#/$defs/safeInteger"
-						},
-						"timeoutMs": {
-							"type": ["integer", "null"],
-							"minimum": 1,
-							"maximum": 3600000
-						},
-						"observations": {
-							"$ref": "#/$defs/positiveInteger"
-						},
-						"elapsedMs": {
-							"$ref": "#/$defs/safeInteger"
-						}
-					}
-				}
-			}
-		},
 		"canonicalPrompt": {
 			"type": "object",
-			"required": ["sessionId", "submission", "observation", "wait"],
+			"required": ["sessionId", "submission", "observation", "wait", "client", "matchedChange"],
 			"additionalProperties": false,
 			"properties": {
 				"sessionId": {
@@ -1508,48 +1199,56 @@
 					]
 				},
 				"matchedChange": {
-					"anyOf": [
+					"oneOf": [
 						{
-							"type": "null"
+							"anyOf": [
+								{
+									"anyOf": [
+										{
+											"type": "null"
+										},
+										{
+											"type": "object",
+											"properties": {
+												"source": {
+													"$ref": "#/$defs/agentReadSource"
+												},
+												"change": {
+													"$ref": "#/$defs/change"
+												}
+											},
+											"required": ["source", "change"],
+											"additionalProperties": false
+										}
+									]
+								},
+								{
+									"type": "null"
+								},
+								{
+									"const": "unknown"
+								}
+							]
 						},
 						{
-							"type": "object",
-							"properties": {
-								"source": {
-									"$ref": "#/$defs/agentReadSource"
-								},
-								"change": {
-									"$ref": "#/$defs/change"
-								}
-							},
-							"required": ["source", "change"],
-							"additionalProperties": false
+							"$ref": "#/$defs/unsupported"
 						}
 					]
 				},
 				"client": {
-					"$ref": "#/$defs/clientView"
-				}
-			}
-		},
-		"terminalPrompt": {
-			"type": "object",
-			"required": ["target", "submission", "wait"],
-			"additionalProperties": false,
-			"properties": {
-				"target": {
-					"$ref": "#/$defs/terminalTarget"
-				},
-				"submission": {
-					"$ref": "#/$defs/sendReceipt"
-				},
-				"wait": {
-					"anyOf": [
+					"oneOf": [
 						{
-							"type": "null"
+							"anyOf": [
+								{
+									"$ref": "#/$defs/clientView"
+								},
+								{
+									"type": "null"
+								}
+							]
 						},
 						{
-							"$ref": "#/$defs/terminalMatch"
+							"$ref": "#/$defs/unsupported"
 						}
 					]
 				}
@@ -1755,7 +1454,7 @@
 				},
 				"wait": {
 					"type": "object",
-					"required": ["until", "timeoutMs", "observations", "elapsedMs"],
+					"required": ["until", "afterRevision", "timeoutMs", "observations", "elapsedMs"],
 					"additionalProperties": false,
 					"properties": {
 						"until": {
@@ -1768,7 +1467,14 @@
 							"uniqueItems": true
 						},
 						"afterRevision": {
-							"$ref": "#/$defs/safeInteger"
+							"anyOf": [
+								{
+									"$ref": "#/$defs/safeInteger"
+								},
+								{
+									"type": "null"
+								}
+							]
 						},
 						"timeoutMs": {
 							"type": ["integer", "null"],
@@ -1784,7 +1490,14 @@
 					}
 				},
 				"clientView": {
-					"$ref": "#/$defs/physicalClientView"
+					"anyOf": [
+						{
+							"$ref": "#/$defs/physicalClientView"
+						},
+						{
+							"type": "null"
+						}
+					]
 				}
 			}
 		},
@@ -1800,573 +1513,50 @@
 					"$ref": "#/$defs/sendReceipt"
 				},
 				"wait": {
-					"$ref": "#/$defs/clientTerminalMatch"
-				}
-			}
-		},
-		"legacyAgentState_canonicalPrompt": {
-			"type": "object",
-			"required": ["sessionId", "submission", "observation", "wait"],
-			"additionalProperties": false,
-			"properties": {
-				"sessionId": {
-					"$ref": "#/$defs/opaqueId"
-				},
-				"submission": {
-					"$ref": "#/$defs/sendReceipt"
-				},
-				"observation": {
-					"oneOf": [
-						{
-							"type": "null"
-						},
-						{
-							"type": "object",
-							"required": ["source", "revision", "session"],
-							"additionalProperties": false,
-							"properties": {
-								"source": {
-									"$ref": "#/$defs/agentReadSource"
-								},
-								"revision": {
-									"$ref": "#/$defs/safeInteger"
-								},
-								"session": {
-									"$ref": "#/$defs/sessionDetail"
-								}
-							}
-						}
-					]
-				},
-				"wait": {
-					"oneOf": [
-						{
-							"type": "null"
-						},
-						{
-							"type": "object",
-							"required": [
-								"matchedConditions",
-								"timeoutMs",
-								"observations",
-								"elapsedMs",
-								"activityObserved"
-							],
-							"additionalProperties": false,
-							"properties": {
-								"matchedConditions": {
-									"type": "array",
-									"minItems": 1,
-									"maxItems": 14,
-									"uniqueItems": true,
-									"items": {
-										"$ref": "#/$defs/waitCondition"
-									}
-								},
-								"timeoutMs": {
-									"type": ["integer", "null"],
-									"minimum": 1,
-									"maximum": 3600000
-								},
-								"observations": {
-									"type": "integer",
-									"minimum": 1
-								},
-								"elapsedMs": {
-									"type": "integer",
-									"minimum": 0
-								},
-								"activityObserved": {
-									"const": true
-								}
-							}
-						}
-					]
-				},
-				"matchedChange": {
 					"anyOf": [
 						{
-							"type": "null"
+							"$ref": "#/$defs/clientTerminalMatch"
 						},
 						{
-							"type": "object",
-							"properties": {
-								"source": {
-									"$ref": "#/$defs/agentReadSource"
-								},
-								"change": {
-									"$ref": "#/$defs/change"
-								}
-							},
-							"required": ["source", "change"],
-							"additionalProperties": false
+							"type": "null"
 						}
 					]
-				},
-				"client": {
-					"$ref": "#/$defs/legacyAgentState_clientView"
 				}
 			}
 		},
-		"legacyAgentState_clientTerminalMatch": {
+		"unsupported": {
 			"type": "object",
-			"required": [
-				"kind",
-				"target",
-				"semantic",
-				"matchedConditions",
-				"matchedChange",
-				"wait",
-				"clientView"
-			],
-			"additionalProperties": false,
 			"properties": {
 				"kind": {
-					"const": "terminal-matched"
-				},
-				"target": {
-					"$ref": "#/$defs/terminalTarget"
-				},
-				"semantic": {
-					"$ref": "#/$defs/legacyAgentState_terminalSemantic"
-				},
-				"matchedConditions": {
-					"type": "array",
-					"minItems": 1,
-					"maxItems": 5,
-					"uniqueItems": true,
-					"items": {
-						"enum": ["idle", "working", "blocked", "needs-attention", "unknown"]
-					}
-				},
-				"matchedChange": {
-					"anyOf": [
-						{
-							"type": "null"
-						},
-						{
-							"$ref": "#/$defs/legacyAgentState_physical_semanticChange"
-						}
-					]
-				},
-				"wait": {
-					"type": "object",
-					"required": ["until", "timeoutMs", "observations", "elapsedMs"],
-					"additionalProperties": false,
-					"properties": {
-						"until": {
-							"type": "array",
-							"minItems": 1,
-							"maxItems": 14,
-							"items": {
-								"$ref": "#/$defs/waitCondition"
-							},
-							"uniqueItems": true
-						},
-						"afterRevision": {
-							"$ref": "#/$defs/safeInteger"
-						},
-						"timeoutMs": {
-							"type": ["integer", "null"],
-							"minimum": 1,
-							"maximum": 3600000
-						},
-						"observations": {
-							"$ref": "#/$defs/positiveInteger"
-						},
-						"elapsedMs": {
-							"$ref": "#/$defs/safeInteger"
-						}
-					}
-				},
-				"clientView": {
-					"$ref": "#/$defs/legacyAgentState_physicalClientView"
-				}
-			}
-		},
-		"legacyAgentState_clientTerminalPrompt": {
-			"type": "object",
-			"required": ["target", "submission", "wait"],
-			"additionalProperties": false,
-			"properties": {
-				"target": {
-					"$ref": "#/$defs/terminalTarget"
-				},
-				"submission": {
-					"$ref": "#/$defs/sendReceipt"
-				},
-				"wait": {
-					"$ref": "#/$defs/legacyAgentState_clientTerminalMatch"
-				}
-			}
-		},
-		"legacyAgentState_clientView": {
-			"type": "object",
-			"required": [
-				"clientId",
-				"operationId",
-				"phase",
-				"outerFocused",
-				"focused",
-				"attentionRevision",
-				"state",
-				"stateChangeRevision",
-				"seen",
-				"status"
-			],
-			"additionalProperties": false,
-			"properties": {
-				"clientId": {
-					"$ref": "#/$defs/hexId"
-				},
-				"operationId": {
-					"$ref": "#/$defs/hexId"
-				},
-				"phase": {
-					"enum": ["starting", "ready", "busy", "unavailable"]
-				},
-				"outerFocused": {
-					"type": ["boolean", "null"]
-				},
-				"focused": {
-					"type": "boolean"
-				},
-				"attentionRevision": {
-					"$ref": "#/$defs/safeInteger"
-				},
-				"state": {
-					"enum": ["current", "missing", "stale"]
-				},
-				"stateChangeRevision": {
-					"anyOf": [
-						{
-							"type": "null"
-						},
-						{
-							"$ref": "#/$defs/safeInteger"
-						}
-					]
-				},
-				"seen": {
-					"type": ["boolean", "null"]
-				},
-				"status": {
-					"enum": [
-						null,
-						"idle",
-						"done",
-						"blocked",
-						"working",
-						"unknown",
-						"ended",
-						"stale",
-						"disconnected"
-					]
+					"const": "unsupported"
 				}
 			},
-			"allOf": [
+			"required": ["kind"],
+			"additionalProperties": false
+		}
+	},
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.agent.prompt"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"$ref": "#/$defs/sendSource"
+		},
+		"result": {
+			"oneOf": [
 				{
-					"if": {
-						"properties": {
-							"state": {
-								"const": "current"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"seen": {
-								"type": "boolean"
-							},
-							"stateChangeRevision": {
-								"$ref": "#/$defs/safeInteger"
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"seen": {
-								"type": "null"
-							},
-							"stateChangeRevision": {
-								"type": "null"
-							}
-						}
-					}
+					"$ref": "#/$defs/canonicalPrompt"
+				},
+				{
+					"$ref": "#/$defs/clientTerminalPrompt"
 				}
 			]
-		},
-		"legacyAgentState_physicalClientView": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-				"clientId": {
-					"$ref": "#/$defs/physicalClient_clientId"
-				},
-				"operationId": {
-					"$ref": "#/$defs/physicalClient_requestId"
-				},
-				"view": {
-					"$ref": "#/$defs/physicalClient_view"
-				},
-				"reportRevision": {
-					"$ref": "#/$defs/physicalClient_revision"
-				},
-				"sequence": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/physicalClient_revision"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"seen": {
-					"type": ["boolean", "null"]
-				},
-				"status": {
-					"enum": [null, "idle", "done", "working", "blocked", "unknown"]
-				},
-				"outerFocused": {
-					"type": ["boolean", "null"]
-				}
-			},
-			"required": [
-				"clientId",
-				"operationId",
-				"view",
-				"reportRevision",
-				"sequence",
-				"seen",
-				"status",
-				"outerFocused"
-			]
-		},
-		"legacyAgentState_physical_semanticChange": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["sequence", "agent", "state"],
-			"properties": {
-				"sequence": {
-					"allOf": [
-						{
-							"$ref": "#/$defs/physical_revision"
-						},
-						{
-							"not": {
-								"const": "0"
-							}
-						}
-					]
-				},
-				"agent": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/physical_normalizedAgent"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"state": {
-					"$ref": "#/$defs/legacyAgentState_physical_state"
-				}
-			}
-		},
-		"legacyAgentState_physical_semanticObservation": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["binding", "sequence", "changes", "view"],
-			"properties": {
-				"binding": {
-					"$ref": "#/$defs/physical_terminalBinding"
-				},
-				"sequence": {
-					"$ref": "#/$defs/physical_revision"
-				},
-				"changes": {
-					"type": "array",
-					"maxItems": 128,
-					"items": {
-						"$ref": "#/$defs/legacyAgentState_physical_semanticChange"
-					}
-				},
-				"view": {
-					"$ref": "#/$defs/legacyAgentState_physical_view"
-				}
-			}
-		},
-		"legacyAgentState_physical_state": {
-			"enum": ["idle", "working", "blocked", "unknown"]
-		},
-		"legacyAgentState_physical_view": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-				"agent": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/physical_normalizedAgent"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"state": {
-					"$ref": "#/$defs/legacyAgentState_physical_state"
-				},
-				"authoritySource": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"message": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"session": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/physical_session"
-						},
-						{
-							"type": "null"
-						}
-					]
-				}
-			},
-			"required": ["agent", "state", "authoritySource", "message", "session"]
-		},
-		"legacyAgentState_terminalMatch": {
-			"type": "object",
-			"required": ["kind", "target", "semantic", "matchedConditions", "matchedChange", "wait"],
-			"additionalProperties": false,
-			"properties": {
-				"kind": {
-					"const": "terminal-matched"
-				},
-				"target": {
-					"$ref": "#/$defs/terminalTarget"
-				},
-				"semantic": {
-					"$ref": "#/$defs/legacyAgentState_terminalSemantic"
-				},
-				"matchedConditions": {
-					"type": "array",
-					"minItems": 1,
-					"maxItems": 5,
-					"uniqueItems": true,
-					"items": {
-						"enum": ["idle", "working", "blocked", "needs-attention", "unknown"]
-					}
-				},
-				"matchedChange": {
-					"anyOf": [
-						{
-							"type": "null"
-						},
-						{
-							"$ref": "#/$defs/legacyAgentState_physical_semanticChange"
-						}
-					]
-				},
-				"wait": {
-					"type": "object",
-					"required": ["until", "timeoutMs", "observations", "elapsedMs"],
-					"additionalProperties": false,
-					"properties": {
-						"until": {
-							"type": "array",
-							"minItems": 1,
-							"maxItems": 14,
-							"items": {
-								"$ref": "#/$defs/waitCondition"
-							},
-							"uniqueItems": true
-						},
-						"afterRevision": {
-							"$ref": "#/$defs/safeInteger"
-						},
-						"timeoutMs": {
-							"type": ["integer", "null"],
-							"minimum": 1,
-							"maximum": 3600000
-						},
-						"observations": {
-							"$ref": "#/$defs/positiveInteger"
-						},
-						"elapsedMs": {
-							"$ref": "#/$defs/safeInteger"
-						}
-					}
-				}
-			}
-		},
-		"legacyAgentState_terminalPrompt": {
-			"type": "object",
-			"required": ["target", "submission", "wait"],
-			"additionalProperties": false,
-			"properties": {
-				"target": {
-					"$ref": "#/$defs/terminalTarget"
-				},
-				"submission": {
-					"$ref": "#/$defs/sendReceipt"
-				},
-				"wait": {
-					"anyOf": [
-						{
-							"type": "null"
-						},
-						{
-							"$ref": "#/$defs/legacyAgentState_terminalMatch"
-						}
-					]
-				}
-			}
-		},
-		"legacyAgentState_terminalSemantic": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["source", "observation"],
-			"properties": {
-				"source": {
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["siteId", "workbenchRevision", "reportRevision", "requestId"],
-					"properties": {
-						"siteId": {
-							"$ref": "#/$defs/physical_identity"
-						},
-						"workbenchRevision": {
-							"$ref": "#/$defs/physical_revision"
-						},
-						"reportRevision": {
-							"$ref": "#/$defs/physical_revision"
-						},
-						"requestId": {
-							"$ref": "#/$defs/physical_identity"
-						}
-					}
-				},
-				"observation": {
-					"$ref": "#/$defs/legacyAgentState_physical_semanticObservation"
-				}
-			}
 		}
 	}
 }

@@ -11,9 +11,7 @@ by the binding and physical generation; source ordering and report policy are un
 
 Exact writes use the closed `report-presentation` / `presentation-reported` variants of the
 existing carrier. Positive replies must match request, Session, Panel, Presentation and binding;
-legacy `report` / `reported` remain primary-only. The CLI emits `orchbee.panel.agent-report` v4
-only for explicit member selection, including the requested `presentationId` for known and
-unknown submitted outcomes. Earlier v1/v2 remain closed; primary reports use v3. Localized text identifies the member.
+legacy `report` / `reported` remain primary-only. The CLI always emits `orchbee.panel.agent-report` version 1 with `presentationId`: the requested ID for explicit member selection, or null for the default primary. Known and unknown submitted outcomes retain this member. Localized text identifies the member.
 All phases retain the single five-second deadline, cancellation and no-replay rules below.
 
 Targeted contract and owner traces cover child/primary isolation, wrong owners, unbound members,
@@ -67,7 +65,7 @@ terminal input, provider execution or automatic retries occur. After handoff, a 
 mismatched or late response preserves the request ID and reports an unknown outcome. A late
 interrupt preserves a received result and sets `interrupted`.
 
-The original `orchbee.panel.agent-report` v1 introduced request/Session/Panel IDs, a Server reply or closed unknown
+The `orchbee.panel.agent-report` v1 carries request/Session/Panel IDs, a Server reply or closed unknown
 reason, `interrupted` and `cleanupFailed`. The reply contains independent Workbench/report revisions,
 binding, applied/ignored/deferred disposition, actual change flag and effective report view including
 an optional external provider session reference. Applied, ignored and deferred exit 0; target,
@@ -76,7 +74,7 @@ revision/clock/result bounds exit 1. Unknown after submission exits 8. Cleanup f
 the submitted outcome is already unknown. Localized text reports disposition and request identity;
 JSON carries the complete view without changing its strings.
 
-The initial catalog v90 published 90 schemas with 104 native command paths. OBWP 35/36 uses
+The catalog exposes the current documents and command paths. OBWP 35/36 uses
 the existing 16 KiB request and 512 KiB result limits. Deploy a matched private cohort; older peers
 reject these carrier kinds. State is transient and no persistence migration is involved.
 

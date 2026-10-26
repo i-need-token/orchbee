@@ -42,8 +42,7 @@
 					"maxItems": 200,
 					"items": {
 						"$ref": "#/$defs/log"
-					},
-					"$comment": "Latest requested records in strictly increasing sequence order, pinned to one Worker generation."
+					}
 				},
 				"failure": {
 					"enum": [
@@ -73,24 +72,20 @@
 					"type": "boolean"
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"worker": {
-								"type": "null"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"logs": {
-								"maxItems": 0
-							}
-						}
+			"if": {
+				"properties": {
+					"worker": {
+						"type": "null"
 					}
 				}
-			]
+			},
+			"then": {
+				"properties": {
+					"logs": {
+						"maxItems": 0
+					}
+				}
+			}
 		}
 	},
 	"$defs": {
@@ -228,80 +223,76 @@
 					"type": "boolean"
 				}
 			},
-			"allOf": [
-				{
+			"if": {
+				"properties": {
+					"finishedMs": {
+						"type": "null"
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"exitCode": {
+						"type": "null"
+					},
+					"failure": {
+						"type": "null"
+					},
+					"stdout": {
+						"const": ""
+					},
+					"stderr": {
+						"const": ""
+					},
+					"stdoutTruncated": {
+						"const": false
+					},
+					"stderrTruncated": {
+						"const": false
+					}
+				}
+			},
+			"else": {
+				"if": {
+					"properties": {
+						"failure": {
+							"type": "null"
+						}
+					}
+				},
+				"then": {
+					"properties": {
+						"exitCode": {
+							"const": 0
+						}
+					}
+				},
+				"else": {
 					"if": {
 						"properties": {
-							"finishedMs": {
-								"type": "null"
+							"failure": {
+								"const": "exit-failure"
 							}
 						}
 					},
 					"then": {
 						"properties": {
 							"exitCode": {
-								"type": "null"
-							},
-							"failure": {
-								"type": "null"
-							},
-							"stdout": {
-								"const": ""
-							},
-							"stderr": {
-								"const": ""
-							},
-							"stdoutTruncated": {
-								"const": false
-							},
-							"stderrTruncated": {
-								"const": false
+								"not": {
+									"const": 0
+								}
 							}
 						}
 					},
 					"else": {
-						"if": {
-							"properties": {
-								"failure": {
-									"type": "null"
-								}
-							}
-						},
-						"then": {
-							"properties": {
-								"exitCode": {
-									"const": 0
-								}
-							}
-						},
-						"else": {
-							"if": {
-								"properties": {
-									"failure": {
-										"const": "exit-failure"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"exitCode": {
-										"not": {
-											"const": 0
-										}
-									}
-								}
-							},
-							"else": {
-								"properties": {
-									"exitCode": {
-										"type": "null"
-									}
-								}
+						"properties": {
+							"exitCode": {
+								"type": "null"
 							}
 						}
 					}
 				}
-			]
+			}
 		}
 	}
 }

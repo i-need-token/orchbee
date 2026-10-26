@@ -525,114 +525,70 @@
 					"type": "boolean"
 				}
 			},
-			"allOf": [
-				{
+			"if": {
+				"properties": {
+					"finishedMs": {
+						"type": "null"
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"exitCode": {
+						"type": "null"
+					},
+					"failure": {
+						"type": "null"
+					},
+					"stdout": {
+						"const": ""
+					},
+					"stderr": {
+						"const": ""
+					},
+					"stdoutTruncated": {
+						"const": false
+					},
+					"stderrTruncated": {
+						"const": false
+					}
+				}
+			},
+			"else": {
+				"if": {
+					"properties": {
+						"failure": {
+							"type": "null"
+						}
+					}
+				},
+				"then": {
+					"properties": {
+						"exitCode": {
+							"const": 0
+						}
+					}
+				},
+				"else": {
 					"if": {
 						"properties": {
-							"finishedMs": {
-								"type": "null"
+							"failure": {
+								"const": "exit-failure"
 							}
 						}
 					},
 					"then": {
 						"properties": {
 							"exitCode": {
-								"type": "null"
-							},
-							"failure": {
-								"type": "null"
-							},
-							"stdout": {
-								"const": ""
-							},
-							"stderr": {
-								"const": ""
-							},
-							"stdoutTruncated": {
-								"const": false
-							},
-							"stderrTruncated": {
-								"const": false
+								"not": {
+									"const": 0
+								}
 							}
 						}
 					},
 					"else": {
-						"if": {
-							"properties": {
-								"failure": {
-									"type": "null"
-								}
-							}
-						},
-						"then": {
-							"properties": {
-								"exitCode": {
-									"const": 0
-								}
-							}
-						},
-						"else": {
-							"if": {
-								"properties": {
-									"failure": {
-										"const": "exit-failure"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"exitCode": {
-										"not": {
-											"const": 0
-										}
-									}
-								}
-							},
-							"else": {
-								"properties": {
-									"exitCode": {
-										"type": "null"
-									}
-								}
-							}
-						}
-					}
-				}
-			]
-		}
-	},
-	"allOf": [
-		{
-			"if": {
-				"properties": {
-					"operation": {
-						"const": "invoke"
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
 						"properties": {
-							"operationId": {
-								"type": "string",
-								"pattern": "^[0-9a-f]{32}$",
-								"not": {
-									"const": "00000000000000000000000000000000"
-								}
-							},
-							"replies": {
-								"maxItems": 1
-							}
-						}
-					}
-				}
-			},
-			"else": {
-				"properties": {
-					"result": {
-						"properties": {
-							"operationId": {
+							"exitCode": {
 								"type": "null"
 							}
 						}
@@ -640,5 +596,41 @@
 				}
 			}
 		}
-	]
+	},
+	"if": {
+		"properties": {
+			"operation": {
+				"const": "invoke"
+			}
+		}
+	},
+	"then": {
+		"properties": {
+			"result": {
+				"properties": {
+					"operationId": {
+						"type": "string",
+						"pattern": "^[0-9a-f]{32}$",
+						"not": {
+							"const": "00000000000000000000000000000000"
+						}
+					},
+					"replies": {
+						"maxItems": 1
+					}
+				}
+			}
+		}
+	},
+	"else": {
+		"properties": {
+			"result": {
+				"properties": {
+					"operationId": {
+						"type": "null"
+					}
+				}
+			}
+		}
+	}
 }

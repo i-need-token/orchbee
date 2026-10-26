@@ -10,14 +10,14 @@
 			"const": "orchbee.terminal.output"
 		},
 		"version": {
-			"enum": [1, 2, 3, 4]
+			"const": 1
 		},
 		"source": {
 			"$ref": "#/$defs/snapshotSource"
 		},
 		"result": {
 			"type": "object",
-			"required": ["terminal", "selection", "observed", "content"],
+			"required": ["terminal", "selection", "observed", "content", "encoding", "cursor"],
 			"additionalProperties": false,
 			"properties": {
 				"terminal": {
@@ -136,7 +136,7 @@
 					}
 				},
 				"encoding": {
-					"const": "ansi"
+					"enum": ["text", "ansi"]
 				},
 				"cursor": {
 					"anyOf": [
@@ -214,62 +214,5 @@
 				}
 			}
 		}
-	},
-	"allOf": [
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"enum": [2, 4]
-					}
-				},
-				"type": "object"
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"required": ["encoding"],
-						"type": "object"
-					}
-				},
-				"type": "object"
-			},
-			"else": {
-				"properties": {
-					"result": {
-						"not": {
-							"required": ["encoding"],
-							"type": "object"
-						}
-					}
-				},
-				"type": "object"
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"enum": [3, 4]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"required": ["cursor"]
-					}
-				}
-			},
-			"else": {
-				"properties": {
-					"result": {
-						"not": {
-							"required": ["cursor"]
-						}
-					}
-				}
-			}
-		}
-	]
+	}
 }

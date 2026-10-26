@@ -273,7 +273,7 @@ fn editor_cli_native_pipe_checks_target_and_view_and_retains_one_submission()
                 mode != 0
             );
             if mode == 0 {
-                assert_eq!(answer.document()["version"], 10);
+                assert_eq!(answer.document()["version"], 1);
             }
         }
         signals.finish()?;

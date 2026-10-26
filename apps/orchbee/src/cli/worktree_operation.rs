@@ -54,8 +54,7 @@ impl Answer {
             Wait::TransportLost => "transport-lost",
             Wait::ObservationFailed => "observation-failed",
         });
-        let mut result =
-            json!({"operationId":self.operation_id,"observation":observation,"wait":wait});
+        let mut result = json!({"operationId":self.operation_id,"observation":observation,"wait":wait,"postOpen":null});
         if let Some(receipt) = &self.post_open {
             result["postOpen"] = receipt.document();
         }
@@ -180,7 +179,7 @@ fn emit(site_id: Option<&SiteId>, answer: Answer, format: OutputFormat, locale: 
     let result = answer.document();
     let encoded = match format {
         OutputFormat::Json => {
-            output::encode_document(&json!({"schema":"orchbee.worktree.operation","version":5,
+            output::encode_document(&json!({"schema":"orchbee.worktree.operation","version":1,
             "source":{"kind":"local-worktree","siteId":site_id},"result":result}))
         }
         OutputFormat::Text => output::encode_text(&locale.cli_worktree_result(&result)),

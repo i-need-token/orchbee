@@ -64,27 +64,12 @@ fn installed_channel_is_bound_to_release_observation_without_widening_v1() {
     };
     let doc = report.document();
     validator.validate(&doc).unwrap();
-    assert_eq!(doc["version"], 3);
+    assert_eq!(doc["version"], 1);
     assert_eq!(doc["result"]["delivery"], "native-release");
     assert_eq!(doc["result"]["updateChannel"], "preview");
     let mut bad = doc.clone();
     bad["result"]["updateChannel"] = json!("stable");
     assert!(!validator.is_valid(&bad));
-    let mut old = doc;
-    old["version"] = json!(1);
-    assert!(!validator.is_valid(&old));
-    old["result"]
-        .as_object_mut()
-        .unwrap()
-        .remove("installation");
-    old["result"]["delivery"] = json!("development-cohort");
-    old["result"]["updateChannel"] = Value::Null;
-    validator.validate(&old).unwrap();
-
-    old["version"] = json!(2);
-    old["result"]["installation"] = json!({"state":"development"});
-    old["result"]["delivery"] = json!("development-cohort");
-    validator.validate(&old).unwrap();
 }
 
 #[test]
@@ -115,7 +100,7 @@ fn local_metadata_preserves_non_unicode_paths_and_closed_unavailable_states() {
         let report = make_report();
         let doc = report.document();
         validator.validate(&doc).unwrap();
-        assert_eq!(doc["version"], 3);
+        assert_eq!(doc["version"], 1);
         assert_eq!(doc["result"]["executable"], json!({"pathUtf16":units}));
         assert_eq!(
             doc["result"]["cohort"]["diagnostic"],
@@ -156,17 +141,6 @@ fn local_metadata_preserves_non_unicode_paths_and_closed_unavailable_states() {
         invented_artifact["result"]["cohort"]["diagnostic"]["missingArtifact"] =
             json!("orchbee-unexpected.exe");
         assert!(!validator.is_valid(&invented_artifact));
-        let mut legacy = doc.clone();
-        legacy["version"] = json!(2);
-        legacy["result"]["cohort"]
-            .as_object_mut()
-            .unwrap()
-            .remove("diagnostic");
-        validator.validate(&legacy).unwrap();
-        let mut legacy_with_diagnostic = legacy;
-        legacy_with_diagnostic["result"]["cohort"]["diagnostic"] =
-            json!({"ioKind":"not-found","osError":2});
-        assert!(!validator.is_valid(&legacy_with_diagnostic));
         let mut invented_channel = doc;
         invented_channel["result"]["updateChannel"] = json!("stable");
         assert!(!validator.is_valid(&invented_channel));

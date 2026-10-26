@@ -192,7 +192,7 @@ fn plugin_overlay_open_pins_actual_source_member_and_preserves_creation_on_focus
             &document,
             include_str!("../../src/cli/schemas/orchbee.creation.result.json"),
         );
-        assert_eq!(document["version"], 5);
+        assert_eq!(document["version"], 1);
         assert_eq!(document["postCreate"]["requested"]["overlay"], true);
         assert_eq!(document["postCreate"]["requested"]["focus"], true);
         assert_eq!(document["result"]["outcome"], "committed");
@@ -208,18 +208,7 @@ fn plugin_overlay_open_pins_actual_source_member_and_preserves_creation_on_focus
             "{document}"
         );
         if cut == Cut::Complete {
-            assert_eq!(document["postCreate"]["focus"]["version"], 8);
-            let mut legacy = document.clone();
-            legacy["version"] = json!(4);
-            let schema: Value = serde_json::from_str(include_str!(
-                "../../src/cli/schemas/orchbee.creation.result.json"
-            ))
-            .unwrap();
-            assert!(
-                !jsonschema::validator_for(&schema)
-                    .unwrap()
-                    .is_valid(&legacy)
-            );
+            assert_eq!(document["postCreate"]["focus"]["version"], 1);
         }
     }
 }
@@ -433,39 +422,17 @@ fn plugin_pane_open_submits_catalog_identity_once_and_preserves_canonical_receip
             } else {
                 assert!(output.status.success(), "{document}");
             }
-            assert_eq!(document["version"], if zoom { 4 } else { 3 });
+            assert_eq!(document["version"], 1);
             if zoom {
                 assert_eq!(document["postCreate"]["requested"]["zoom"], true);
                 assert_eq!(document["postCreate"]["requested"]["focus"], true);
                 assert_eq!(document["result"]["outcome"], "committed");
-                let mut legacy = document.clone();
-                legacy["version"] = json!(3);
-                let schema: Value = serde_json::from_str(include_str!(
-                    "../../src/cli/schemas/orchbee.creation.result.json"
-                ))
-                .unwrap();
-                assert!(
-                    !jsonschema::validator_for(&schema)
-                        .unwrap()
-                        .is_valid(&legacy)
-                );
             }
             validate(
                 &document,
                 include_str!("../../src/cli/schemas/orchbee.creation.result.json"),
             );
             assert_eq!(document["directory"]["policy"], "plugin-root");
-            let mut legacy = document.clone();
-            legacy["version"] = json!(2);
-            let schema: Value = serde_json::from_str(include_str!(
-                "../../src/cli/schemas/orchbee.creation.result.json"
-            ))
-            .unwrap();
-            assert!(
-                !jsonschema::validator_for(&schema)
-                    .unwrap()
-                    .is_valid(&legacy)
-            );
         }
     }
 }

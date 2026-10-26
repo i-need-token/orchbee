@@ -98,46 +98,42 @@
 					]
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"total": {
-								"const": "0"
-							}
-						},
-						"required": ["total"]
+			"if": {
+				"properties": {
+					"total": {
+						"const": "0"
+					}
+				},
+				"required": ["total"]
+			},
+			"then": {
+				"properties": {
+					"matches": {
+						"maxItems": 0
 					},
-					"then": {
-						"properties": {
-							"matches": {
-								"maxItems": 0
-							},
-							"current": {
-								"type": "null"
-							},
-							"currentGlobal": {
-								"type": "null"
-							}
-						}
+					"current": {
+						"type": "null"
 					},
-					"else": {
-						"properties": {
-							"matches": {
-								"minItems": 1
-							},
-							"current": {
-								"type": "integer",
-								"minimum": 0,
-								"maximum": 1023
-							},
-							"currentGlobal": {
-								"$ref": "#/$defs/decimal"
-							}
-						}
+					"currentGlobal": {
+						"type": "null"
 					}
 				}
-			]
+			},
+			"else": {
+				"properties": {
+					"matches": {
+						"minItems": 1
+					},
+					"current": {
+						"type": "integer",
+						"minimum": 0,
+						"maximum": 1023
+					},
+					"currentGlobal": {
+						"$ref": "#/$defs/decimal"
+					}
+				}
+			}
 		}
 	},
 	"$defs": {

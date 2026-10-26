@@ -69,7 +69,7 @@ fn ansi_visible_agent_json_and_zero_need_no_render_request() {
         );
         let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
         validate(&doc, SCHEMA);
-        assert_eq!(doc["version"], 4);
+        assert_eq!(doc["version"], 1);
         assert_eq!(doc["result"]["encoding"], "ansi");
         let text = doc["result"]["content"]["text"].as_str().unwrap();
         if zero {
@@ -83,9 +83,6 @@ fn ansi_visible_agent_json_and_zero_need_no_render_request() {
         let schema: Value = serde_json::from_str(SCHEMA).unwrap();
         let validator = jsonschema::validator_for(&schema).unwrap();
         assert!(!validator.is_valid(&absent));
-        let mut v1 = doc;
-        v1["version"] = Value::from(1);
-        assert!(!validator.is_valid(&v1));
     }
 }
 
@@ -239,7 +236,7 @@ fn ansi_detection_keeps_the_reference_plain_text_source() {
     assert_eq!(output.status.code(), Some(0));
     let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
     validate(&doc, SCHEMA);
-    assert_eq!(doc["version"], 4);
+    assert_eq!(doc["version"], 1);
     assert_eq!(
         doc["result"]["content"]["text"],
         "n\\u{1b}]x\\u{7}\ncursor\n"

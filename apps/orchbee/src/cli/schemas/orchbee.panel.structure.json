@@ -43,7 +43,7 @@
 					"$ref": "#/$defs/id"
 				},
 				"root": {
-					"$ref": "#/$defs/panelNodeV7"
+					"$ref": "#/$defs/panelNode"
 				}
 			}
 		}
@@ -73,7 +73,46 @@
 				}
 			}
 		},
-		"panelNodeV7": {
+		"presentation": {
+			"type": "object",
+			"required": ["presentationId", "label", "binding", "customLabel"],
+			"additionalProperties": false,
+			"properties": {
+				"customLabel": {
+					"type": ["string", "null"],
+					"minLength": 1,
+					"maxLength": 512,
+					"pattern": "^[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000](?:[\\s\\S]*[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000])?(?![\\s\\S])"
+				},
+				"presentationId": {
+					"$ref": "#/$defs/id"
+				},
+				"label": {
+					"type": "string"
+				},
+				"binding": {
+					"anyOf": [
+						{
+							"type": "object",
+							"required": ["terminalId", "workerId"],
+							"additionalProperties": false,
+							"properties": {
+								"terminalId": {
+									"$ref": "#/$defs/id"
+								},
+								"workerId": {
+									"$ref": "#/$defs/id"
+								}
+							}
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			}
+		},
+		"panelNode": {
 			"type": "object",
 			"required": ["kind"],
 			"oneOf": [
@@ -125,7 +164,7 @@
 										"$ref": "#/$defs/id"
 									},
 									"node": {
-										"$ref": "#/$defs/panelNodeV7"
+										"$ref": "#/$defs/panelNode"
 									}
 								}
 							}
@@ -140,45 +179,6 @@
 					"additionalProperties": false
 				}
 			]
-		},
-		"presentation": {
-			"type": "object",
-			"required": ["presentationId", "label", "binding", "customLabel"],
-			"additionalProperties": false,
-			"properties": {
-				"customLabel": {
-					"type": ["string", "null"],
-					"minLength": 1,
-					"maxLength": 512,
-					"pattern": "^[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000](?:[\\s\\S]*[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000])?(?![\\s\\S])"
-				},
-				"presentationId": {
-					"$ref": "#/$defs/id"
-				},
-				"label": {
-					"type": "string"
-				},
-				"binding": {
-					"anyOf": [
-						{
-							"type": "object",
-							"required": ["terminalId", "workerId"],
-							"additionalProperties": false,
-							"properties": {
-								"terminalId": {
-									"$ref": "#/$defs/id"
-								},
-								"workerId": {
-									"$ref": "#/$defs/id"
-								}
-							}
-						},
-						{
-							"type": "null"
-						}
-					]
-				}
-			}
 		}
 	}
 }

@@ -46,8 +46,8 @@ Panel、所选 Client 视图修订及最低 Workbench 修订。Client 复核自�
 
 ## 交付与验证
 
-不增加命令路径或 schema 标识。`orchbee.client.control` v5 携带保留的 Agent-focus 操作，
-旧版本保持封闭。既有 Agent／Client 选择失败保留来源归属。人类输出和帮助本地化，
+不增加命令路径或 schema 标识。`orchbee.client.control` v1 携带保留的 Agent-focus 操作，
+既有 Agent／Client 选择失败保留来源归属。人类输出和帮助本地化，
 JSON 不受语言影响。
 
 验证名称、显式 ID、Panel 选择器、调用者与显式 Client 路由、存活主绑定，以及结束／缺失／
@@ -75,8 +75,8 @@ Client 执行既有顺序导航，成功绘制后完成，包括目标已经聚�
 不增加 provider 输入或操作系统窗口激活。
 
 目标丢失、替换、操作被中断或过期均不能确认。导航前失败为 rejected，已执行导航步骤后
-失败为 incomplete。保留操作使用既有结果，状态读取不会重复效果。Client control v5 携带
-这一意图；旧版本保持封闭。匹配的 Client／Server cohort 必须一起更新。纯身份／确认和
+失败为 incomplete。保留操作使用既有结果，状态读取不会重复效果。Client control v1 携带
+这一意图；匹配的 Client／Server cohort 必须一起更新。纯身份／确认和
 有界控制器／协议检查先于最终 Windows 实机验收；它们本身不证明多 Client 或登录 provider
 行为。
 

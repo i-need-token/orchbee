@@ -195,7 +195,7 @@ fn client_empty_current_is_observable_and_never_queries_another_terminal() {
         let doc = document(&output);
         if case == "stable" {
             assert!(output.status.success(), "{output:?}");
-            assert_eq!(doc["version"], 9);
+            assert_eq!(doc["version"], 1);
             let row = &doc["result"]["panel"];
             assert_eq!(row["currentPresentation"]["presentationId"], id(106));
             assert_eq!(row["currentPresentation"]["binding"], Value::Null);
@@ -220,9 +220,6 @@ fn client_empty_current_is_observable_and_never_queries_another_terminal() {
             .unwrap();
             let validator = jsonschema::validator_for(&schema).unwrap();
             validator.validate(&doc).unwrap();
-            let mut legacy = doc.clone();
-            legacy["version"] = json!(7);
-            assert!(!validator.is_valid(&legacy));
         } else {
             assert!(!output.status.success(), "{case}: {output:?}");
             assert!(doc.get("result").is_none());
@@ -305,7 +302,7 @@ fn current_joins_selected_terminal_agent_report_and_metadata_without_rewriting_p
                 &doc,
                 include_str!("../../src/cli/schemas/orchbee.panel.current.json"),
             );
-            assert_eq!(doc["version"], 9);
+            assert_eq!(doc["version"], 1);
             let row = &doc["result"]["panel"];
             assert_eq!(row["primaryPresentation"]["presentationId"], id(106));
             assert_eq!(row["childPresentations"][0]["presentationId"], id(306));
@@ -318,7 +315,7 @@ fn current_joins_selected_terminal_agent_report_and_metadata_without_rewriting_p
                 if primary { "primary" } else { "caller" }
             );
             assert_eq!(row["scrollObservation"]["state"], "no-client");
-            assert!(doc["result"].get("client").is_none());
+            assert!(doc["result"]["client"].is_null());
             if unbound {
                 assert_eq!(row["terminalObservation"]["state"], "unbound");
                 assert!(row["metadata"]["binding"].is_null());
@@ -356,11 +353,6 @@ fn current_joins_selected_terminal_agent_report_and_metadata_without_rewriting_p
                 .unwrap()
                 .remove("currentPresentation");
             assert!(!validator.is_valid(&missing));
-            for version in 3..7 {
-                let mut legacy = doc.clone();
-                legacy["version"] = json!(version);
-                assert!(!validator.is_valid(&legacy));
-            }
         } else {
             assert!(!output.status.success(), "{case}: {output:?}");
             assert!(doc.get("result").is_none());

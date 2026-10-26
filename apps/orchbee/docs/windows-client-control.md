@@ -113,7 +113,7 @@ Both new completion variants use ordinary bounded frames 25/26. Rust, TypeScript
 
 ## Agent navigation
 
-Windows `agent focus <target> [--client <id>]` resolves a canonical Session or terminal-backed Agent to one navigable primary Panel. One `agent-focus` control retains the exact Agent and Presentation identity through Client navigation and completion. The Client rechecks its observation; a physical target also requires its matching Host frame. Successful explicit focus marks current known versions in the selected Tab seen, including an already-focused target and outer focus loss. Ordinary paint and read-only `agent attention` keep their existing rules. `--request-id`, `--detach`, the 30000 ms default total deadline and retained status recovery remain unchanged. Starting or Unavailable Clients refuse before Agent reads; Busy can enter the one-shot mode-exit preflight without discarding submitted operations. History waits for recovery and a fresh live frame; loss/replacement yields rejection or incomplete navigation, without retargeting. `orchbee.client.control` v5 carries this operation; no OS window activation occurs. The [Agent navigation contract](native-agent-navigation.md) owns identity, acknowledgement and final acceptance.
+Windows `agent focus <target> [--client <id>]` resolves a canonical Session or terminal-backed Agent to one navigable primary Panel. One `agent-focus` control retains the exact Agent and Presentation identity through Client navigation and completion. The Client rechecks its observation; a physical target also requires its matching Host frame. Successful explicit focus marks current known versions in the selected Tab seen, including an already-focused target and outer focus loss. Ordinary paint and read-only `agent attention` keep their existing rules. `--request-id`, `--detach`, the 30000 ms default total deadline and retained status recovery remain unchanged. Starting or Unavailable Clients refuse before Agent reads; Busy can enter the one-shot mode-exit preflight without discarding submitted operations. History waits for recovery and a fresh live frame; loss/replacement yields rejection or incomplete navigation, without retargeting. `orchbee.client.control` v1 carries this operation; no OS window activation occurs. The [Agent navigation contract](native-agent-navigation.md) owns identity, acknowledgement and final acceptance.
 
 ## Client-relative Workbench queries
 
@@ -162,14 +162,14 @@ member yields null; a stale binding cannot borrow another member's frame. This o
 cannot complete as applied navigation.
 
 The [current Panel contract](native-current-panel.md#exact-current-presentation-for-process-information)
-owns Windows process-info/current composition and their before/after member fences. Client control v6
-admits this intent; v1–v5 remain closed. Existing primary `viewports` reads retain their meaning.
+owns Windows process-info/current composition and their before/after member fences. Client control v1
+admits this intent. Existing primary `viewports` reads retain their meaning.
 
 Unbound native members extend the passive selection as a strict alternative containing only
 `presentationId` and nonzero `selectionGeneration`. They have no attachment, binding or viewport;
 null remains absent local membership. Native stable-state and canonical identity checks precede
-publication. Control v7 exposes this alternative, while existing bound/null receipts remain v6 and
-legacy versions reject the unbound shape. Neither variant acknowledges attention or changes focus.
+publication. Control v1 exposes this alternative, while existing bound/null receipts remain v1 and
+Neither variant acknowledges attention or changes focus.
 
 ## Explicit focus acknowledgement
 
@@ -212,11 +212,11 @@ remains part of final regression.
 
 ## Plugin overlay handoff
 
-The matched native cohort accepts a private `overlay` intent with exact context/Tab/Panel/Presentation, expected binding, required nullable return binding and prior zoom. The Client reserves one of 32 transient records before changing focus, and acknowledges only after the normal observed/drawn focus and zoom path. Canonical removal restores the exact surviving return member and prior zoom only while the overlay still owns focus; navigation, manual zoom and rebinds remain fenced. The isolated cancellable lifecycle lane observes full Host identity without input/resize or exclusive Close authority, retains uncertain Close identities and joins on shutdown. [Windows plugins](windows-plugins.md#overlay-lifecycle-model) owns the lifecycle contract. Known public Overlay answers use v8; v1–v7 remain closed to this intent. This adds no Desktop or OS-window activation.
+The matched native cohort accepts a private `overlay` intent with exact context/Tab/Panel/Presentation, expected binding, required nullable return binding and prior zoom. The Client reserves one of 32 transient records before changing focus, and acknowledges only after the normal observed/drawn focus and zoom path. Canonical removal restores the exact surviving return member and prior zoom only while the overlay still owns focus; navigation, manual zoom and rebinds remain fenced. The isolated cancellable lifecycle lane observes full Host identity without input/resize or exclusive Close authority, retains uncertain Close identities and joins on shutdown. [Windows plugins](windows-plugins.md#overlay-lifecycle-model) owns the lifecycle contract. Known public Overlay answers use v1. This adds no Desktop or OS-window activation.
 
 ## Scrollback editor popup model
 
-The private `editor-open` Client intent contains only `ScrollbackEditorSpec.source`: the exact current Context, Tab, Panel and bound native Presentation member. It uses the existing retained control operation and `popup-opened` completion; this completion requires the same source, minimum canonical revision, operation ID and Busy view as plugin popup opening. Its public control receipt is v10; v1-v9 remain closed to `editor-open`. Generic `popup-close` closes the current independent popup of either kind.
+The private `editor-open` Client intent contains only `ScrollbackEditorSpec.source`: the exact current Context, Tab, Panel and bound native Presentation member. It uses the existing retained control operation and `popup-opened` completion; this completion requires the same source, minimum canonical revision, operation ID and Busy view as plugin popup opening. Its public control receipt is v1. Generic `popup-close` closes the current independent popup of either kind.
 
 The Client owns one independent popup lane shared by typed plugin and editor variants. Editor geometry fills the admitted content surface with the existing frame; plugin dimensions and defaults are unchanged. Admission requires a Ready, sufficiently large Client, no competing modal/popup and a fresh exact member. It neither changes canonical Pane topology/selection nor controls or resizes the source terminal. Opening hides the source cursor and captures input; input is admitted only after a matching editor frame has been installed and drawn. The existing popup keyboard, paste, mouse, resize and close path owns editor interaction and restores normal source input after settlement.
 

@@ -52,8 +52,8 @@ re-resolving an Agent name. No rollback or automatic replacement focus is attemp
 
 ## Delivery and verification
 
-No new command path or schema identity is added. `orchbee.client.control` v5 carries retained
-Agent-focus operations; older versions remain closed. Existing Agent/Client selection failures keep
+No new command path or schema identity is added. `orchbee.client.control` v1 carries retained
+Agent-focus operations. Existing Agent/Client selection failures keep
 their source ownership. Human output and help are localized; JSON is locale independent.
 
 Verify names, explicit IDs, Panel selectors, caller versus explicit Client routing, live primary
@@ -88,8 +88,8 @@ acknowledgement. No provider input or OS window activation is added.
 
 Target loss, replacement, an interrupted operation or expiry cannot acknowledge. A refusal before
 navigation is rejected; failure after an applied navigation step is incomplete. The retained
-operation reports existing outcomes, and status reads never repeat the effect. Client control v5
-carries this intent; older versions remain closed. The matched Client/Server cohort must be updated
+operation reports existing outcomes, and status reads never repeat the effect. Client control v1
+carries this intent. The matched Client/Server cohort must be updated
 together. Pure identity/acknowledgement and bounded controller/protocol checks precede final live
 Windows acceptance; they do not by themselves prove multi-Client or authenticated-provider behavior.
 

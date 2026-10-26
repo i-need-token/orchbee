@@ -10,7 +10,7 @@
 			"const": "orchbee.worktree.list"
 		},
 		"version": {
-			"const": 2
+			"const": 1
 		},
 		"source": {
 			"$ref": "#/$defs/worktreeListSource"
@@ -79,17 +79,15 @@
 					"type": "boolean"
 				}
 			},
-			"allOf": [
+			"oneOf": [
 				{
-					"oneOf": [
-						{
-							"required": ["worktreePath"]
-						},
-						{
-							"required": ["worktreePathBytesHex"]
-						}
-					]
+					"required": ["worktreePath"]
 				},
+				{
+					"required": ["worktreePathBytesHex"]
+				}
+			],
+			"allOf": [
 				{
 					"oneOf": [
 						{
@@ -99,36 +97,6 @@
 							"required": ["branchBytesHex"]
 						}
 					]
-				},
-				{
-					"if": {
-						"properties": {
-							"bare": {
-								"const": true
-							}
-						},
-						"required": ["bare"]
-					},
-					"then": {
-						"properties": {
-							"head": {
-								"const": null
-							},
-							"branch": {
-								"const": null
-							},
-							"detached": {
-								"const": false
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"head": {
-								"type": "string"
-							}
-						}
-					}
 				},
 				{
 					"if": {
@@ -147,7 +115,35 @@
 						}
 					}
 				}
-			]
+			],
+			"if": {
+				"properties": {
+					"bare": {
+						"const": true
+					}
+				},
+				"required": ["bare"]
+			},
+			"then": {
+				"properties": {
+					"head": {
+						"const": null
+					},
+					"branch": {
+						"const": null
+					},
+					"detached": {
+						"const": false
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"head": {
+						"type": "string"
+					}
+				}
+			}
 		},
 		"worktreeListSource": {
 			"type": "object",

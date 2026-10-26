@@ -889,9 +889,7 @@ fn wait_timeout(
         );
         details.insert("lastRevision".to_owned(), json!(observed.revision.value()));
     }
-    WaitAttempt::Done(Err(Failure::new(FailureKind::Timeout)
-        .details(details)
-        .version(if timeout_ms.is_none() { 2 } else { 1 })))
+    WaitAttempt::Done(Err(Failure::new(FailureKind::Timeout).details(details)))
 }
 
 #[cfg(test)]

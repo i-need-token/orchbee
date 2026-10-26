@@ -201,13 +201,16 @@ fn collect_at(base: &Path, scope: &str, deadline: Instant) -> Result<DiagnoseDoc
         ("complete".to_owned(), json!(complete)),
         ("scope".to_owned(), json!(scope)),
         ("advisories".to_owned(), json!(advisories)),
+        ("hostScope".to_owned(), json!({"kind":"unsupported"})),
     ]);
     result.extend(
         rows.iter()
             .map(|(key, value)| (key.clone(), Value::Object(value.clone()))),
     );
+    let mut result = Value::Object(result);
+    super::complete_rows(&mut result);
     Ok(DiagnoseDocument {
-        envelope: json!({"schema":"orchbee.site.diagnose.windows", "version":3,
+        envelope: json!({"schema":"orchbee.site.diagnose", "version":1,
             "source":config::local_runtime_source(), "result":result}),
         rows,
         advisories,

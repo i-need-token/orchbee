@@ -26,4 +26,4 @@ Windows `[ui] window_title` 默认为 `{hostname}: {workspace}`。支持 `{hostn
 
 Session 按已接纳配置和 OS 主机名渲染，使用前台监听者提供的有界展示上下文。Windows 上 Orchbee 查询 OS 名称；固定版本 Herdr 读取 `COMPUTERNAME`，因此覆盖该环境变量不会更改 Orchbee 主机名变量。这些字符串不授予导航或终端权限。UI 每次 tick 更新选择标签及精确的实时焦点帧；过期/未绑定帧不提供终端标题。显式 CLI 覆盖在重载和选择变化后继续优先。Clear 移除覆盖并调度最新配置标题，禁用时使用回退标题。禁用自动标题保持宿主上一次标题。投递修订与 API 回执修订独立；空闲重复渲染被抑制，提升为前台时重新应用当前策略。
 
-`server reload-config` 无需重启终端即可发布标题变更。`server config` v8 暴露有效 `windowTitle` 及已接纳诊断记录；`config check` v13 暴露同一警告，并保留针对有效模板的可空语法诊断。旧公开版本保持封闭。私有监听请求现在要求有界四字段 `context`，匹配 cohort 同步升级/回退。不新增 live-handoff 或持久化覆盖。
+`server reload-config` 无需重启终端即可发布标题变更。`server config` v1 暴露有效 `windowTitle` 及已接纳诊断记录；`config check` v1 暴露同一警告，并保留针对有效模板的可空语法诊断。私有监听请求现在要求有界四字段 `context`，匹配 cohort 同步升级/回退。不新增 live-handoff 或持久化覆盖。

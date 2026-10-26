@@ -108,21 +108,10 @@ impl Fixture {
                 .map(|error| error.to_string())
                 .collect::<Vec<_>>()
         );
-        assert_eq!(document["version"], 6);
+        assert_eq!(document["version"], 1);
         assert_eq!(
-            document["result"]["endpoint"]["socket"]["reason"],
-            "windows-endpoint-not-inspected"
-        );
-        let mut invalid_v1 = document.clone();
-        invalid_v1["version"] = 1.into();
-        assert!(
-            !validator.is_valid(&invalid_v1),
-            "Windows vocabulary must not leak into v1"
-        );
-        invalid_v1["version"] = 2.into();
-        assert!(
-            !validator.is_valid(&invalid_v1),
-            "New Windows vocabulary must not leak into v2"
+            document["result"]["endpoint"]["socket"],
+            serde_json::json!({"kind":"unsupported"})
         );
         document
     }

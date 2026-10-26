@@ -216,7 +216,7 @@ impl Report {
                 )
             }
         };
-        json!({"schema":schema,"version":if matches!(self, Self::Client { .. }) {3} else {1},"source":config::local_runtime_source(),"result":result})
+        json!({"schema":schema,"version":1,"source":config::local_runtime_source(),"result":result})
     }
 }
 

@@ -112,10 +112,5 @@ pub(in crate::cli) fn read_agent_management(
             _ => Err(agent_protocol_invalid(operation)),
         }
     };
-    read().map_err(|failure| {
-        let version = if failure.details.is_some() { 3 } else { 1 };
-        failure
-            .version(version)
-            .failure_schema(crate::cli::schema::AGENT_FAILURE_ID)
-    })
+    read().map_err(|failure| failure.failure_schema(crate::cli::schema::AGENT_FAILURE_ID))
 }

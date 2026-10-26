@@ -85,11 +85,5 @@ fn panel_agent_receipts_survive_late_interrupt_and_validate_the_public_schema() 
         current["observation"]["reply"]["outcome"]["view"]["agent"] = "Fixture".into();
         current["observation"]["reply"]["outcome"]["view"]["state"] = state.into();
         validator.validate(&current).unwrap();
-        current["version"] = 1.into();
-        assert_eq!(
-            validator.is_valid(&current),
-            !matches!(state, "done" | "error"),
-            "legacy report vocabulary: {state}"
-        );
     }
 }

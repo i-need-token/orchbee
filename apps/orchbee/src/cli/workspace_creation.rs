@@ -105,7 +105,6 @@ fn preparation_failure(mut failure: Failure) -> Failure {
                 | FailureKind::Cancelled
         )
     {
-        failure.version = 2;
         failure.details = Some(super::stage_details("workspace-creation"));
     }
     failure

@@ -66,4 +66,4 @@ Windows 命令进程及双 TUI 验证覆盖调用者目标、响应丢失、共�
 没有持久化迁移。回退必须使用匹配套件，不为兼容旧读取器而静默抹掉策略。
 不新增 macOS 或 Linux 运行时实现。
 
-读取契约：`orchbee.panel.list` v2、`orchbee.panel.get/current` v3、`orchbee.tab.get` v2 及 `orchbee.api.snapshot` v4；目录 v36 含 69 个 schema。旧版本会拒绝新增字段。
+读取契约：`orchbee.panel.list` v1、`orchbee.panel.get/current` v1、`orchbee.tab.get` v1 及 `orchbee.api.snapshot` v1；目录列出当前文档与命令路径。

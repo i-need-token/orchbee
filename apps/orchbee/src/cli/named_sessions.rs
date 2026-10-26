@@ -364,7 +364,7 @@ fn emit(
 ) -> Output {
     let encoded = match format {
         OutputFormat::Json => output::encode_document(
-            &json!({"schema":schema,"version":if schema == "orchbee.session.list" {2} else {1},"source":config::local_runtime_source(),"result":result}),
+            &json!({"schema":schema,"version":1,"source":config::local_runtime_source(),"result":result}),
         ),
         OutputFormat::Text => output::encode_text(&text),
     };

@@ -2,76 +2,6 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.agent.get",
 	"title": "orchbee agent get envelope",
-	"$comment": "Versions 1 and 2 retain the current non-Windows canonical Get shapes. Windows version 19 presents a bounded projection identity and keeps detailed canonical or terminal inspection in a separate facet.",
-	"oneOf": [
-		{
-			"type": "object",
-			"required": ["schema", "version", "source", "result"],
-			"additionalProperties": false,
-			"properties": {
-				"schema": {
-					"const": "orchbee.agent.get"
-				},
-				"version": {
-					"enum": [1, 2]
-				},
-				"source": {
-					"$ref": "#/$defs/agentReadSource"
-				},
-				"result": {
-					"$ref": "#/$defs/canonicalInspection"
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"version": {
-								"const": 2
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"result": {
-								"required": ["client"],
-								"type": "object"
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"result": {
-								"not": {
-									"required": ["client"]
-								},
-								"type": "object"
-							}
-						}
-					}
-				}
-			]
-		},
-		{
-			"type": "object",
-			"required": ["schema", "version", "source", "result"],
-			"additionalProperties": false,
-			"properties": {
-				"schema": {
-					"const": "orchbee.agent.get"
-				},
-				"version": {
-					"const": 19
-				},
-				"source": {
-					"$ref": "#/$defs/agentProjectionSource"
-				},
-				"result": {
-					"$ref": "#/$defs/projectedGetResult"
-				}
-			}
-		}
-	],
 	"$defs": {
 		"agentReadSource": {
 			"type": "object",
@@ -571,37 +501,33 @@
 					]
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"state": {
-								"const": "current"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"seen": {
-								"type": "boolean"
-							},
-							"stateChangeRevision": {
-								"$ref": "#/$defs/safeInteger"
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"seen": {
-								"type": "null"
-							},
-							"stateChangeRevision": {
-								"type": "null"
-							}
-						}
+			"if": {
+				"properties": {
+					"state": {
+						"const": "current"
 					}
 				}
-			]
+			},
+			"then": {
+				"properties": {
+					"seen": {
+						"type": "boolean"
+					},
+					"stateChangeRevision": {
+						"$ref": "#/$defs/safeInteger"
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"seen": {
+						"type": "null"
+					},
+					"stateChangeRevision": {
+						"type": "null"
+					}
+				}
+			}
 		},
 		"runtimeProcess_id": {
 			"type": "string",
@@ -852,8 +778,7 @@
 		},
 		"managed_obapRequestId": {
 			"type": "string",
-			"pattern": "^[0-9a-f]{32}$",
-			"$comment": "Request identity: exactly 32 lowercase hexadecimal characters and never the zero sentinel; the nonzero rule is a semantic invariant enforced by each binding."
+			"pattern": "^[0-9a-f]{32}$"
 		},
 		"managed_agentName": {
 			"type": "string",
@@ -1317,52 +1242,42 @@
 					"$ref": "#/$defs/reportedAgent"
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"required": ["terminalObservation"],
+			"if": {
+				"required": ["terminalObservation"],
+				"properties": {
+					"terminalObservation": {
+						"type": "object",
 						"properties": {
-							"terminalObservation": {
-								"type": "object",
-								"properties": {
-									"state": {
-										"enum": ["unbound", "unavailable"]
-									}
-								}
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"cwd": {
-								"type": "null"
-							},
-							"cwdSource": {
-								"type": "null"
-							},
-							"foregroundCwd": {
-								"type": "null"
-							},
-							"terminalTitle": {
-								"type": "null"
-							},
-							"terminalTitleStripped": {
-								"type": "null"
+							"state": {
+								"enum": ["unbound", "unavailable"]
 							}
 						}
 					}
 				}
-			]
+			},
+			"then": {
+				"properties": {
+					"cwd": {
+						"type": "null"
+					},
+					"cwdSource": {
+						"type": "null"
+					},
+					"foregroundCwd": {
+						"type": "null"
+					},
+					"terminalTitle": {
+						"type": "null"
+					},
+					"terminalTitleStripped": {
+						"type": "null"
+					}
+				}
+			}
 		},
 		"windowsProjectedAgentTerminal": {
-			"allOf": [
-				{
-					"$ref": "#/$defs/agentTerminal"
-				},
-				{
-					"required": ["metadata", "reportedAgent"]
-				}
-			]
+			"$ref": "#/$defs/agentTerminal",
+			"required": ["metadata", "reportedAgent"]
 		},
 		"metadataIdentity": {
 			"type": "string",
@@ -1389,12 +1304,10 @@
 			"type": "string",
 			"minLength": 1,
 			"maxLength": 80,
+			"not": {
+				"pattern": "[^\\u0020-\\u007e\\u00a0-\\uD7FF\\uE000-\\uFFFF𐀀-􏿿]"
+			},
 			"allOf": [
-				{
-					"not": {
-						"pattern": "[^\\u0020-\\u007e\\u00a0-\\uD7FF\\uE000-\\uFFFF𐀀-􏿿]"
-					}
-				},
 				{
 					"not": {
 						"pattern": "^[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]|[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]$"
@@ -1459,16 +1372,10 @@
 					"$ref": "#/$defs/metadataValue"
 				},
 				"order": {
-					"allOf": [
-						{
-							"$ref": "#/$defs/metadataRevision"
-						},
-						{
-							"not": {
-								"const": "0"
-							}
-						}
-					]
+					"$ref": "#/$defs/metadataRevision",
+					"not": {
+						"const": "0"
+					}
 				}
 			}
 		},
@@ -1670,44 +1577,40 @@
 					}
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"binding": {
-								"type": "null"
-							}
-						}
+			"if": {
+				"properties": {
+					"binding": {
+						"type": "null"
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"tokens": {
+						"type": "object",
+						"maxProperties": 0
 					},
-					"then": {
+					"presentations": {
+						"type": "array",
+						"maxItems": 0
+					},
+					"presentation": {
+						"type": "object",
 						"properties": {
-							"tokens": {
+							"title": {
+								"type": "null"
+							},
+							"displayAgent": {
+								"type": "null"
+							},
+							"stateLabels": {
 								"type": "object",
 								"maxProperties": 0
-							},
-							"presentations": {
-								"type": "array",
-								"maxItems": 0
-							},
-							"presentation": {
-								"type": "object",
-								"properties": {
-									"title": {
-										"type": "null"
-									},
-									"displayAgent": {
-										"type": "null"
-									},
-									"stateLabels": {
-										"type": "object",
-										"maxProperties": 0
-									}
-								}
 							}
 						}
 					}
 				}
-			]
+			}
 		},
 		"reportIdentity": {
 			"type": "string",
@@ -1923,44 +1826,40 @@
 					}
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"binding": {
-								"type": "null"
-							}
-						}
+			"if": {
+				"properties": {
+					"binding": {
+						"type": "null"
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"tokens": {
+						"type": "object",
+						"maxProperties": 0
 					},
-					"then": {
+					"presentations": {
+						"type": "array",
+						"maxItems": 0
+					},
+					"presentation": {
+						"type": "object",
 						"properties": {
-							"tokens": {
+							"title": {
+								"type": "null"
+							},
+							"displayAgent": {
+								"type": "null"
+							},
+							"stateLabels": {
 								"type": "object",
 								"maxProperties": 0
-							},
-							"presentations": {
-								"type": "array",
-								"maxItems": 0
-							},
-							"presentation": {
-								"type": "object",
-								"properties": {
-									"title": {
-										"type": "null"
-									},
-									"displayAgent": {
-										"type": "null"
-									},
-									"stateLabels": {
-										"type": "object",
-										"maxProperties": 0
-									}
-								}
 							}
 						}
 					}
 				}
-			]
+			}
 		},
 		"reportedAgent": {
 			"type": "object",
@@ -2012,31 +1911,27 @@
 					]
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"binding": {
-								"type": "null"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"view": {
-								"type": "null"
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"view": {
-								"$ref": "#/$defs/reportView"
-							}
-						}
+			"if": {
+				"properties": {
+					"binding": {
+						"type": "null"
 					}
 				}
-			]
+			},
+			"then": {
+				"properties": {
+					"view": {
+						"type": "null"
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"view": {
+						"$ref": "#/$defs/reportView"
+					}
+				}
+			}
 		},
 		"nameTarget": {
 			"oneOf": [
@@ -2167,46 +2062,42 @@
 					"$ref": "#/$defs/opaqueIdentity"
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"required": ["terminalObservation"],
+			"if": {
+				"required": ["terminalObservation"],
+				"properties": {
+					"terminalObservation": {
+						"type": "object",
 						"properties": {
-							"terminalObservation": {
-								"type": "object",
-								"properties": {
-									"state": {
-										"enum": ["unbound", "unavailable"]
-									}
-								}
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"cwd": {
-								"type": "null"
-							},
-							"cwdSource": {
-								"type": "null"
-							},
-							"foregroundCwd": {
-								"type": "null"
-							},
-							"terminalTitle": {
-								"type": "null"
-							},
-							"terminalTitleStripped": {
-								"type": "null"
+							"state": {
+								"enum": ["unbound", "unavailable"]
 							}
 						}
 					}
 				}
-			]
+			},
+			"then": {
+				"properties": {
+					"cwd": {
+						"type": "null"
+					},
+					"cwdSource": {
+						"type": "null"
+					},
+					"foregroundCwd": {
+						"type": "null"
+					},
+					"terminalTitle": {
+						"type": "null"
+					},
+					"terminalTitleStripped": {
+						"type": "null"
+					}
+				}
+			}
 		},
 		"canonicalInspection": {
 			"type": "object",
-			"required": ["kind", "revision", "session"],
+			"required": ["kind", "revision", "session", "client", "runtime", "management", "terminal"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
@@ -2219,265 +2110,306 @@
 					"$ref": "#/$defs/sessionDetail"
 				},
 				"client": {
-					"$ref": "#/$defs/clientView"
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"$ref": "#/$defs/clientView"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
 				},
 				"runtime": {
 					"oneOf": [
 						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "unavailable"
-								},
-								"reason": {
-									"enum": [
-										"session-ended",
-										"unbound",
-										"ambiguous-primary",
-										"binding-changed",
-										"terminal-unavailable",
-										"process-unavailable"
-									]
-								}
-							},
-							"required": ["kind", "reason"],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "observed"
-								},
-								"source": {
-									"$ref": "#/$defs/runtimeProcess_source"
-								},
-								"processInfo": {
-									"type": "object",
-									"required": ["terminal", "scope", "rootPid", "processes", "foreground"],
-									"additionalProperties": false,
-									"properties": {
-										"terminal": {
-											"$ref": "#/$defs/runtimeProcess_terminal"
-										},
-										"scope": {
-											"const": "windows-job"
-										},
-										"rootPid": {
-											"type": "integer",
-											"minimum": 1,
-											"maximum": 4294967295
-										},
-										"processes": {
-											"type": "array",
-											"maxItems": 64,
-											"items": {
-												"$ref": "#/$defs/runtimeProcess_process"
-											}
-										},
-										"foreground": {
+							"anyOf": [
+								{
+									"oneOf": [
+										{
 											"type": "object",
-											"required": ["kind", "pid", "providerId"],
-											"additionalProperties": false,
 											"properties": {
 												"kind": {
-													"enum": ["agent-chain", "root", "ambiguous", "unavailable"]
+													"const": "unavailable"
 												},
-												"pid": {
-													"type": ["integer", "null"],
-													"minimum": 1,
-													"maximum": 4294967295
-												},
-												"providerId": {
-													"type": ["string", "null"],
-													"pattern": "^[0-9A-Za-z._:-]{1,128}$"
+												"reason": {
+													"enum": [
+														"session-ended",
+														"unbound",
+														"ambiguous-primary",
+														"binding-changed",
+														"terminal-unavailable",
+														"process-unavailable"
+													]
 												}
 											},
-											"oneOf": [
-												{
+											"required": ["kind", "reason"],
+											"additionalProperties": false
+										},
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "observed"
+												},
+												"source": {
+													"$ref": "#/$defs/runtimeProcess_source"
+												},
+												"processInfo": {
+													"type": "object",
+													"required": ["terminal", "scope", "rootPid", "processes", "foreground"],
+													"additionalProperties": false,
 													"properties": {
-														"kind": {
-															"const": "agent-chain"
+														"terminal": {
+															"$ref": "#/$defs/runtimeProcess_terminal"
 														},
-														"pid": {
-															"type": "integer"
+														"scope": {
+															"const": "windows-job"
 														},
-														"providerId": {
-															"type": "string"
+														"rootPid": {
+															"type": "integer",
+															"minimum": 1,
+															"maximum": 4294967295
+														},
+														"processes": {
+															"type": "array",
+															"maxItems": 64,
+															"items": {
+																"$ref": "#/$defs/runtimeProcess_process"
+															}
+														},
+														"foreground": {
+															"type": "object",
+															"required": ["kind", "pid", "providerId"],
+															"additionalProperties": false,
+															"properties": {
+																"kind": {
+																	"enum": ["agent-chain", "root", "ambiguous", "unavailable"]
+																},
+																"pid": {
+																	"type": ["integer", "null"],
+																	"minimum": 1,
+																	"maximum": 4294967295
+																},
+																"providerId": {
+																	"type": ["string", "null"],
+																	"pattern": "^[0-9A-Za-z._:-]{1,128}$"
+																}
+															},
+															"oneOf": [
+																{
+																	"properties": {
+																		"kind": {
+																			"const": "agent-chain"
+																		},
+																		"pid": {
+																			"type": "integer"
+																		},
+																		"providerId": {
+																			"type": "string"
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"kind": {
+																			"const": "root"
+																		},
+																		"pid": {
+																			"type": "integer"
+																		},
+																		"providerId": {
+																			"type": "null"
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"kind": {
+																			"const": "ambiguous"
+																		},
+																		"pid": {
+																			"type": "null"
+																		},
+																		"providerId": {
+																			"type": "null"
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"kind": {
+																			"const": "unavailable"
+																		},
+																		"pid": {
+																			"type": "null"
+																		},
+																		"providerId": {
+																			"type": "null"
+																		}
+																	}
+																}
+															]
 														}
 													}
 												},
-												{
-													"properties": {
-														"kind": {
-															"const": "root"
-														},
-														"pid": {
-															"type": "integer"
-														},
-														"providerId": {
-															"type": "null"
-														}
-													}
-												},
-												{
-													"properties": {
-														"kind": {
-															"const": "ambiguous"
-														},
-														"pid": {
-															"type": "null"
-														},
-														"providerId": {
-															"type": "null"
-														}
-													}
-												},
-												{
-													"properties": {
-														"kind": {
-															"const": "unavailable"
-														},
-														"pid": {
-															"type": "null"
-														},
-														"providerId": {
-															"type": "null"
-														}
-													}
+												"promptReady": {
+													"type": "boolean"
 												}
-											]
+											},
+											"required": ["kind", "source", "processInfo", "promptReady"],
+											"additionalProperties": false
 										}
-									}
+									]
 								},
-								"promptReady": {
-									"type": "boolean"
+								{
+									"const": "unknown"
 								}
-							},
-							"required": ["kind", "source", "processInfo", "promptReady"],
-							"additionalProperties": false
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
 						}
 					]
 				},
 				"management": {
-					"type": "object",
-					"required": ["source", "revision", "state"],
-					"additionalProperties": false,
-					"properties": {
-						"source": {
-							"$ref": "#/$defs/agentReadSource"
-						},
-						"revision": {
-							"$ref": "#/$defs/safeInteger"
-						},
-						"state": {
-							"$ref": "#/$defs/managed_agentManagement"
-						}
-					}
-				},
-				"terminal": {
-					"anyOf": [
-						{
-							"type": "null"
-						},
-						{
-							"$ref": "#/$defs/agentTerminal"
-						}
-					]
-				}
-			}
-		},
-		"windowsProjectedCanonicalInspection": {
-			"allOf": [
-				{
-					"$ref": "#/$defs/canonicalInspection"
-				},
-				{
-					"required": ["runtime", "terminal", "management"],
 					"oneOf": [
 						{
-							"properties": {
-								"runtime": {
-									"required": ["kind", "reason"],
+							"anyOf": [
+								{
+									"type": "object",
+									"required": ["source", "revision", "state"],
+									"additionalProperties": false,
 									"properties": {
-										"kind": { "const": "unavailable" },
-										"reason": {
-											"enum": ["session-ended", "unbound", "ambiguous-primary", "binding-changed"]
+										"source": {
+											"$ref": "#/$defs/agentReadSource"
+										},
+										"revision": {
+											"$ref": "#/$defs/safeInteger"
+										},
+										"state": {
+											"$ref": "#/$defs/managed_agentManagement"
 										}
 									}
 								},
-								"terminal": { "type": "null" }
-							}
+								{
+									"const": "unknown"
+								}
+							]
 						},
 						{
-							"properties": {
-								"runtime": {
-									"required": ["kind", "reason"],
-									"properties": {
-										"kind": { "const": "unavailable" },
-										"reason": {
-											"enum": ["terminal-unavailable", "process-unavailable"]
-										}
-									}
-								},
-								"terminal": {
-									"$ref": "#/$defs/windowsProjectedAgentTerminal"
-								}
-							}
-						},
-						{
-							"properties": {
-								"runtime": {
-									"required": ["kind"],
-									"properties": {
-										"kind": { "const": "observed" }
-									}
-								},
-								"terminal": {
-									"$ref": "#/$defs/windowsProjectedAgentTerminal"
-								}
-							}
-						}
-					]
-				}
-			]
-		},
-		"terminalInspection": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["kind", "target", "terminal", "management"],
-			"properties": {
-				"kind": {
-					"const": "terminal-found"
-				},
-				"target": {
-					"allOf": [
-						{
-							"$ref": "#/$defs/nameTarget"
-						},
-						{
-							"properties": {
-								"kind": {
-									"const": "terminal"
-								}
-							}
+							"$ref": "#/$defs/unsupported"
 						}
 					]
 				},
 				"terminal": {
-					"$ref": "#/$defs/namedTerminal"
-				},
-				"management": {
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["phase"],
-					"properties": {
-						"phase": {
-							"const": "unmanaged"
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"anyOf": [
+										{
+											"type": "null"
+										},
+										{
+											"$ref": "#/$defs/agentTerminal"
+										}
+									]
+								},
+								{
+									"type": "null"
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
 						}
+					]
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"terminal": {
+								"anyOf": [
+									{
+										"type": "null"
+									},
+									{
+										"$ref": "#/$defs/agentTerminal"
+									}
+								]
+							}
+						}
+					},
+					"then": {
+						"required": ["runtime", "terminal", "management"],
+						"oneOf": [
+							{
+								"properties": {
+									"runtime": {
+										"required": ["kind", "reason"],
+										"properties": {
+											"kind": {
+												"const": "unavailable"
+											},
+											"reason": {
+												"enum": ["session-ended", "unbound", "ambiguous-primary", "binding-changed"]
+											}
+										}
+									},
+									"terminal": {
+										"type": "null"
+									}
+								}
+							},
+							{
+								"properties": {
+									"runtime": {
+										"required": ["kind", "reason"],
+										"properties": {
+											"kind": {
+												"const": "unavailable"
+											},
+											"reason": {
+												"enum": ["terminal-unavailable", "process-unavailable"]
+											}
+										}
+									},
+									"terminal": {
+										"$ref": "#/$defs/windowsProjectedAgentTerminal"
+									}
+								}
+							},
+							{
+								"properties": {
+									"runtime": {
+										"required": ["kind"],
+										"properties": {
+											"kind": {
+												"const": "observed"
+											}
+										}
+									},
+									"terminal": {
+										"$ref": "#/$defs/windowsProjectedAgentTerminal"
+									}
+								}
+							}
+						]
 					}
 				}
-			}
+			]
 		},
 		"sessionId": {
 			"$ref": "#/$defs/opaqueIdentity"
@@ -2510,46 +2442,6 @@
 					}
 				}
 			]
-		},
-		"managedTerminalInspection": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["kind", "target", "terminal", "management"],
-			"properties": {
-				"kind": {
-					"const": "terminal-found"
-				},
-				"target": {
-					"allOf": [
-						{
-							"$ref": "#/$defs/nameTarget"
-						},
-						{
-							"properties": {
-								"kind": {
-									"const": "terminal"
-								}
-							}
-						}
-					]
-				},
-				"terminal": {
-					"$ref": "#/$defs/namedTerminal"
-				},
-				"management": {
-					"type": "object",
-					"required": ["source", "state"],
-					"additionalProperties": false,
-					"properties": {
-						"source": {
-							"$ref": "#/$defs/agentReadSource"
-						},
-						"state": {
-							"$ref": "#/$defs/terminalManagementState"
-						}
-					}
-				}
-			}
 		},
 		"physical_session": {
 			"type": "object",
@@ -2592,16 +2484,10 @@
 			"required": ["sequence", "agent", "state"],
 			"properties": {
 				"sequence": {
-					"allOf": [
-						{
-							"$ref": "#/$defs/physical_revision"
-						},
-						{
-							"not": {
-								"const": "0"
-							}
-						}
-					]
+					"$ref": "#/$defs/physical_revision",
+					"not": {
+						"const": "0"
+					}
 				},
 				"agent": {
 					"anyOf": [
@@ -2758,49 +2644,6 @@
 				},
 				"observation": {
 					"$ref": "#/$defs/physical_semanticObservation"
-				}
-			}
-		},
-		"semanticTerminalInspection": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["kind", "target", "terminal", "management", "semantic"],
-			"properties": {
-				"kind": {
-					"const": "terminal-found"
-				},
-				"target": {
-					"allOf": [
-						{
-							"$ref": "#/$defs/nameTarget"
-						},
-						{
-							"properties": {
-								"kind": {
-									"const": "terminal"
-								}
-							}
-						}
-					]
-				},
-				"terminal": {
-					"$ref": "#/$defs/namedTerminal"
-				},
-				"management": {
-					"type": "object",
-					"required": ["source", "state"],
-					"additionalProperties": false,
-					"properties": {
-						"source": {
-							"$ref": "#/$defs/agentReadSource"
-						},
-						"state": {
-							"$ref": "#/$defs/terminalManagementState"
-						}
-					}
-				},
-				"semantic": {
-					"$ref": "#/$defs/terminalSemantic"
 				}
 			}
 		},
@@ -2961,18 +2804,12 @@
 					"const": "terminal-found"
 				},
 				"target": {
-					"allOf": [
-						{
-							"$ref": "#/$defs/nameTarget"
-						},
-						{
-							"properties": {
-								"kind": {
-									"const": "terminal"
-								}
-							}
+					"$ref": "#/$defs/nameTarget",
+					"properties": {
+						"kind": {
+							"const": "terminal"
 						}
-					]
+					}
 				},
 				"terminal": {
 					"$ref": "#/$defs/namedTerminal"
@@ -2994,7 +2831,14 @@
 					"$ref": "#/$defs/terminalSemantic"
 				},
 				"clientView": {
-					"$ref": "#/$defs/physicalClientView"
+					"anyOf": [
+						{
+							"$ref": "#/$defs/physicalClientView"
+						},
+						{
+							"type": "null"
+						}
+					]
 				}
 			}
 		},
@@ -3185,26 +3029,24 @@
 					"type": ["string", "null"]
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"source": {
-								"const": "canonical"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"canonical": {
-								"$ref": "#/$defs/projectionCanonicalSummary"
-							},
-							"terminal": {
-								"type": "null"
-							}
-						}
+			"if": {
+				"properties": {
+					"source": {
+						"const": "canonical"
 					}
-				},
+				}
+			},
+			"then": {
+				"properties": {
+					"canonical": {
+						"$ref": "#/$defs/projectionCanonicalSummary"
+					},
+					"terminal": {
+						"type": "null"
+					}
+				}
+			},
+			"allOf": [
 				{
 					"if": {
 						"properties": {
@@ -3256,29 +3098,7 @@
 		"projectedInspection": {
 			"oneOf": [
 				{
-					"allOf": [
-						{
-							"$ref": "#/$defs/windowsProjectedCanonicalInspection"
-						},
-						{
-							"not": {
-								"required": ["client"]
-							}
-						}
-					]
-				},
-				{
-					"allOf": [
-						{
-							"$ref": "#/$defs/windowsProjectedCanonicalInspection"
-						},
-						{
-							"required": ["client"]
-						}
-					]
-				},
-				{
-					"$ref": "#/$defs/semanticTerminalInspection"
+					"$ref": "#/$defs/canonicalInspection"
 				},
 				{
 					"$ref": "#/$defs/clientTerminalInspection"
@@ -3294,12 +3114,53 @@
 					"const": "projected"
 				},
 				"agent": {
-					"$ref": "#/$defs/projectedAgent"
+					"oneOf": [
+						{
+							"$ref": "#/$defs/projectedAgent"
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
 				},
 				"inspection": {
 					"$ref": "#/$defs/projectedInspection"
 				}
 			}
+		},
+		"unsupported": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"const": "unsupported"
+				}
+			},
+			"required": ["kind"],
+			"additionalProperties": false
+		}
+	},
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.agent.get"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"oneOf": [
+				{
+					"$ref": "#/$defs/agentProjectionSource"
+				},
+				{
+					"$ref": "#/$defs/agentReadSource"
+				}
+			]
+		},
+		"result": {
+			"$ref": "#/$defs/projectedGetResult"
 		}
 	}
 }

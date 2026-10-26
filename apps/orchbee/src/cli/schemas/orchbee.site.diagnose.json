@@ -6,14 +6,20 @@
 	"required": ["schema", "version", "source", "result"],
 	"additionalProperties": false,
 	"properties": {
-		"schema": { "const": "orchbee.site.diagnose" },
-		"version": { "const": 1 },
+		"schema": {
+			"const": "orchbee.site.diagnose"
+		},
+		"version": {
+			"const": 1
+		},
 		"source": {
 			"type": "object",
 			"required": ["kind"],
 			"additionalProperties": false,
 			"properties": {
-				"kind": { "const": "local-runtime" }
+				"kind": {
+					"const": "local-runtime"
+				}
 			}
 		},
 		"result": {
@@ -31,18 +37,41 @@
 			],
 			"additionalProperties": false,
 			"properties": {
-				"complete": { "type": "boolean" },
-				"scope": { "type": "string", "pattern": "^orchbee-native-[0-9]+$" },
-				"runtimeBase": { "$ref": "#/$defs/row" },
-				"runtimeDirectory": { "$ref": "#/$defs/row" },
-				"marker": { "$ref": "#/$defs/row" },
+				"complete": {
+					"type": "boolean"
+				},
+				"scope": {
+					"anyOf": [
+						{
+							"type": "string",
+							"pattern": "^orchbee-native-[0-9]+$"
+						},
+						{
+							"type": "string",
+							"pattern": "^(orchbee-native-[0-9a-f]{32}|orchbee-session-[0-9a-f]{47})$"
+						}
+					]
+				},
+				"runtimeBase": {
+					"$ref": "#/$defs/row"
+				},
+				"runtimeDirectory": {
+					"$ref": "#/$defs/row"
+				},
+				"marker": {
+					"$ref": "#/$defs/row"
+				},
 				"locks": {
 					"type": "object",
 					"required": ["activation", "siteLifetime"],
 					"additionalProperties": false,
 					"properties": {
-						"activation": { "$ref": "#/$defs/row" },
-						"siteLifetime": { "$ref": "#/$defs/row" }
+						"activation": {
+							"$ref": "#/$defs/row"
+						},
+						"siteLifetime": {
+							"$ref": "#/$defs/row"
+						}
 					}
 				},
 				"endpoints": {
@@ -50,17 +79,38 @@
 					"required": ["client", "worker", "clientPending", "agentObservation", "hostEndpoint"],
 					"additionalProperties": false,
 					"properties": {
-						"client": { "$ref": "#/$defs/row" },
-						"worker": { "$ref": "#/$defs/row" },
-						"clientPending": { "$ref": "#/$defs/row" },
-						"agentObservation": { "$ref": "#/$defs/row" },
-						"hostEndpoint": { "$ref": "#/$defs/row" }
+						"client": {
+							"$ref": "#/$defs/row"
+						},
+						"worker": {
+							"$ref": "#/$defs/row"
+						},
+						"clientPending": {
+							"$ref": "#/$defs/row"
+						},
+						"agentObservation": {
+							"$ref": "#/$defs/row"
+						},
+						"hostEndpoint": {
+							"$ref": "#/$defs/row"
+						}
 					}
 				},
-				"hostScope": { "$ref": "#/$defs/row" },
+				"hostScope": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/row"
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
 				"advisories": {
 					"type": "array",
-					"items": { "enum": ["activation-recorded", "socket-residue"] }
+					"items": {
+						"enum": ["activation-recorded", "socket-residue", "pipe-name-present"]
+					}
 				}
 			}
 		}
@@ -68,38 +118,350 @@
 	"$defs": {
 		"row": {
 			"type": "object",
-			"required": ["state"],
+			"required": [
+				"state",
+				"reason",
+				"kind",
+				"ownerMatch",
+				"mode",
+				"size",
+				"linkCount",
+				"path",
+				"pathBytesHex",
+				"private",
+				"pathUtf16",
+				"activation",
+				"stopRequestId"
+			],
 			"additionalProperties": false,
 			"properties": {
 				"state": {
-					"enum": ["known", "absent", "unsafe", "uninspectable", "free", "held"]
-				},
-				"reason": {
-					"enum": [
-						"symlink",
-						"invalid-kind",
-						"foreign-owner",
-						"invalid-mode",
-						"invalid-size",
-						"invalid-link-count",
-						"invalid-lock",
-						"denied",
-						"io-error",
-						"invalid-path",
-						"identity-changed",
-						"unsafe-parent",
-						"parent-unavailable",
-						"deadline"
+					"anyOf": [
+						{
+							"enum": ["known", "absent", "unsafe", "uninspectable", "free", "held"]
+						},
+						{
+							"enum": ["known", "absent", "uninspectable", "free", "held", "unsafe"]
+						}
 					]
 				},
-				"kind": { "enum": ["socket", "regular", "directory", "symlink", "other"] },
-				"ownerMatch": { "type": "boolean" },
-				"mode": { "type": "string", "pattern": "^[0-7]{4,}$" },
-				"size": { "type": "integer", "minimum": 0 },
-				"linkCount": { "type": "integer", "minimum": 0 },
-				"path": { "type": "string", "minLength": 1 },
-				"pathBytesHex": { "type": "string", "pattern": "^([0-9a-f]{2})+$" }
-			}
+				"reason": {
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"anyOf": [
+										{
+											"enum": [
+												"symlink",
+												"invalid-kind",
+												"foreign-owner",
+												"invalid-mode",
+												"invalid-size",
+												"invalid-link-count",
+												"invalid-lock",
+												"denied",
+												"io-error",
+												"invalid-path",
+												"identity-changed",
+												"unsafe-parent",
+												"parent-unavailable",
+												"deadline"
+											]
+										},
+										{
+											"enum": [
+												"denied",
+												"io-error",
+												"invalid-path",
+												"parent-unavailable",
+												"deadline",
+												"observation-limit"
+											]
+										}
+									]
+								},
+								{
+									"type": "null"
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
+				"kind": {
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"enum": ["socket", "regular", "directory", "symlink", "other"]
+								},
+								{
+									"type": "null"
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
+				"ownerMatch": {
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"type": "boolean"
+								},
+								{
+									"type": "null"
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
+				"mode": {
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"type": "string",
+									"pattern": "^[0-7]{4,}$"
+								},
+								{
+									"type": "null"
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
+				"size": {
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"type": "integer",
+									"minimum": 0
+								},
+								{
+									"type": "null"
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
+				"linkCount": {
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"type": "integer",
+									"minimum": 0
+								},
+								{
+									"type": "null"
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
+				"path": {
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"anyOf": [
+										{
+											"type": "string",
+											"minLength": 1
+										},
+										{
+											"type": "string"
+										}
+									]
+								},
+								{
+									"type": "null"
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
+				"pathBytesHex": {
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"type": "string",
+									"pattern": "^([0-9a-f]{2})+$"
+								},
+								{
+									"type": "null"
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
+				"private": {
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"const": true
+								},
+								{
+									"type": "null"
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
+				"pathUtf16": {
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"type": "array",
+									"items": {
+										"type": "integer",
+										"minimum": 0,
+										"maximum": 65535
+									}
+								},
+								{
+									"type": "null"
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
+				"activation": {
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"enum": ["active", "stopped"]
+								},
+								{
+									"type": "null"
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
+				"stopRequestId": {
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"type": "string",
+									"pattern": "^(?!0{32}$)[0-9a-f]{32}$"
+								},
+								{
+									"type": "null"
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"activation": {
+								"const": "stopped"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"stopRequestId": {
+								"type": "string",
+								"pattern": "^(?!0{32}$)[0-9a-f]{32}$"
+							}
+						}
+					}
+				}
+			]
+		},
+		"unsupported": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"const": "unsupported"
+				}
+			},
+			"required": ["kind"],
+			"additionalProperties": false
 		}
 	}
 }

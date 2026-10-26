@@ -41,7 +41,7 @@ fn json_option_inputs_have_named_definitions_and_executable_examples() {
 }
 
 #[test]
-fn notification_configuration_failure_v9_admits_current_details_and_keeps_older_versions_closed() {
+fn notification_configuration_failure_admits_current_closed_details() {
     let schema: Value =
         serde_json::from_str(super::document("orchbee.cli.failure.configuration").unwrap())
             .unwrap();
@@ -53,18 +53,13 @@ fn notification_configuration_failure_v9_admits_current_details_and_keeps_older_
     ] {
         let mut document = serde_json::json!({
             "schema": "orchbee.cli.failure.configuration",
-            "version": 9,
+            "version": 1,
             "failure": {
                 "kind": "check-failed",
                 "details": { "field": field, "reason": reason }
             }
         });
         assert!(validator.is_valid(&document), "{field}: {reason}");
-        for version in 1..=8 {
-            document["version"] = version.into();
-            assert!(!validator.is_valid(&document), "legacy version {version}");
-        }
-        document["version"] = 9.into();
         document["failure"]["details"]["extra"] = true.into();
         assert!(!validator.is_valid(&document));
     }
@@ -104,16 +99,14 @@ fn configured_catalog_and_receipts_publish_closed_native_schema() {
 }
 
 #[test]
-fn plugin_catalog_v2_does_not_widen_legacy_receipts() {
+fn plugin_catalog_requires_current_provenance() {
     use serde_json::json;
     let schema: Value =
         serde_json::from_str(super::document("orchbee.plugin.registry").unwrap()).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
     let mut receipt = json!({"schema":"orchbee.plugin.registry","version":1,"source":{"kind":"local-configuration"},"operation":"list","result":{"kind":"catalog","catalog":{"revision":1,"changed":false,"plugins":[{"manifestPath":"C:/source/orchbee-plugin.toml","pluginRoot":"C:/source","enabled":true,"warning":null,"manifest":{"id":"tools","name":"Tools","version":"1","min_orchbee_version":null,"min_herdr_version":null,"description":null,"platforms":null,"build":[],"startup":[],"actions":[],"events":[],"panes":[],"link_handlers":[]}}]}}});
-    assert!(validator.is_valid(&receipt));
-    receipt["result"]["catalog"]["plugins"][0]["source"] = Value::Null;
     assert!(!validator.is_valid(&receipt));
-    receipt["version"] = json!(2);
+    receipt["result"]["catalog"]["plugins"][0]["source"] = Value::Null;
     assert!(validator.is_valid(&receipt));
     receipt["result"]["catalog"]["plugins"][0]
         .as_object_mut()
@@ -152,7 +145,7 @@ fn catalog_requires_and_admits_every_embedded_schema_exactly_once() {
         crate::localization::Locale::EnUs,
     );
     let published: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(published["version"], 154, "runtime catalog emitter version");
+    assert_eq!(published["version"], 1, "runtime catalog emitter version");
     let validator = jsonschema::validator_for(&catalog).unwrap();
     validator.validate(&published).unwrap();
     let mut stale = published;
@@ -161,91 +154,33 @@ fn catalog_requires_and_admits_every_embedded_schema_exactly_once() {
 }
 
 #[test]
-fn configuration_check_versions_keep_closed_and_required_restore_fields() {
-    use serde_json::json;
-    let schema: Value =
-        serde_json::from_str(super::document("orchbee.config.check").unwrap()).unwrap();
-    let validator = jsonschema::validator_for(&schema).unwrap();
-    let endpoint = json!({"presence":"absent","status":"not-applicable"});
-    let budget = json!({"presence":"unchecked","status":"not-applicable","reason":"presence-not-inspected","addressBytes":12,"addressCapacityBytes":200,"path":"C:/endpoint"});
-    let mut document = json!({
-        "schema":"orchbee.config.check", "version":3, "source":{"kind":"local-runtime"},
-        "result":{"ok":true,"checks":[
-            {"name":"runtime-base","status":"pass","details":{"exists":true,"path":"C:/runtime"}},
-            {"name":"runtime-directory","status":"pass","details":{"exists":true,"path":"C:/runtime/site"}},
-            {"name":"cohort","status":"pass","details":{"verified":true}},
-            {"name":"locale","status":"pass","details":{"locale":"en-US","source":"LC_ALL"}},
-            {"name":"sockets","status":"not-applicable","details":{"client":endpoint,"worker":endpoint,"host":budget,"clientPending":budget}},
-            {"name":"user-config","status":"pass","details":{"exists":true,"path":"C:/config.toml","newCwd":"follow","worktreeDirectory":null,"resumeAgentsOnRestore":false,"resumeAgentsOnRestoreSource":"file"}}
-        ]}
-    });
-    validator.validate(&document).unwrap();
-    for field in ["resumeAgentsOnRestore", "resumeAgentsOnRestoreSource"] {
-        let mut invalid = document.clone();
-        invalid["result"]["checks"][5]["details"]
-            .as_object_mut()
-            .unwrap()
-            .remove(field);
-        assert!(!validator.is_valid(&invalid), "missing {field}");
-    }
-    for (field, value) in [
-        ("resumeAgentsOnRestore", "false"),
-        ("resumeAgentsOnRestoreSource", "unknown"),
-    ] {
-        let mut invalid = document.clone();
-        invalid["result"]["checks"][5]["details"][field] = value.into();
-        assert!(!validator.is_valid(&invalid), "invalid {field}");
-    }
-    document["version"] = 2.into();
-    assert!(!validator.is_valid(&document));
-    let details = document["result"]["checks"][5]["details"]
-        .as_object_mut()
-        .unwrap();
-    details.remove("resumeAgentsOnRestore");
-    details.remove("resumeAgentsOnRestoreSource");
-    validator.validate(&document).unwrap();
-    document["version"] = 1.into();
-    assert!(!validator.is_valid(&document));
-    document["result"]["checks"].as_array_mut().unwrap().pop();
-    validator.validate(&document).unwrap();
-}
-
-#[test]
-fn terminal_name_schemas_accept_new_receipts_without_widening_legacy_versions() {
+fn terminal_name_schemas_accept_current_receipts() {
     use serde_json::json;
     let id = "11111111111111111111111111111111";
     let target = json!({"kind":"terminal","binding":{"presentationId":id,"generation":id,"hostEpoch":id,"hostTerminalId":id}});
-    for (schema, version, result, old) in [
+    for (schema, result) in [
         (
             "orchbee.agent.resolve",
-            3,
             json!({"kind":"resolved-target","target":target,"resolvedBy":"name"}),
-            2,
         ),
         (
             "orchbee.agent.names",
-            3,
             json!({"kind":"listed-targets","bindings":[{"name":"alpha","target":target}],"pending":[]}),
-            2,
         ),
         (
             "orchbee.agent.rename",
-            2,
             json!({"kind":"assigned-target","target":target,"name":"alpha","previousName":null}),
-            1,
         ),
     ] {
         let definition: Value = serde_json::from_str(super::document(schema).unwrap()).unwrap();
         let validator = jsonschema::validator_for(&definition).unwrap();
-        let mut document = json!({"schema":schema,"version":version,"source":{"kind":"agent-names","requestId":id},"result":result});
+        let document = json!({"schema":schema,"version":1,"source":{"kind":"agent-names","requestId":id},"result":result});
         validator.validate(&document).unwrap();
-        document["version"] = json!(old);
-        assert!(!validator.is_valid(&document));
     }
     let definition: Value =
         serde_json::from_str(super::document("orchbee.cli.failure.agent-names").unwrap()).unwrap();
     let validator = jsonschema::validator_for(&definition).unwrap();
-    let document = json!({"schema":"orchbee.cli.failure.agent-names","version":4,"failure":{"kind":"rejected","details":{"stage":"agent-names","reason":"name-in-use","conflictTarget":target}}});
+    let document = json!({"schema":"orchbee.cli.failure.agent-names","version":1,"failure":{"kind":"rejected","details":{"stage":"agent-names","reason":"name-in-use","conflictTarget":target}}});
     validator.validate(&document).unwrap();
     let mut invalid = document.clone();
     invalid["failure"]["details"]["conflictTarget"] = Value::Null;
@@ -342,27 +277,38 @@ fn current_canonical_terminal() -> Value {
 }
 
 #[test]
-fn canonical_agent_get_schema_preserves_emitted_versions() {
+fn canonical_agent_get_schema_has_fixed_members() {
     use crate::cli::results::Projection;
     use serde_json::json;
 
     let definition: Value =
         serde_json::from_str(super::document("orchbee.agent.get").unwrap()).unwrap();
     let validator = jsonschema::validator_for(&definition).unwrap();
-    for (version, client) in [(1, false), (2, true)] {
-        let result = Projection::AgentInspection(canonical_agent_inspection(client)).result();
+    for client in [false, true] {
+        let result = crate::cli::results::complete(
+            &crate::invocation::QueryCommand::AgentGet(crate::invocation::AgentTarget::Session {
+                session_id: orchbee_agent_observation_protocol::AgentSessionId::parse(
+                    "11111111111111111111111111111111",
+                )
+                .unwrap(),
+            }),
+            Projection::AgentInspection(canonical_agent_inspection(client)).result(),
+        );
         let document = json!({
             "schema":"orchbee.agent.get",
-            "version":version,
+            "version":1,
             "source":{"kind":"agent-read","requestId":"11111111111111111111111111111111"},
             "result":result
         });
         validator.validate(&document).unwrap();
         let mut minimal = document;
         for field in ["runtime", "terminal", "management"] {
-            minimal["result"].as_object_mut().unwrap().remove(field);
+            minimal["result"]["inspection"]
+                .as_object_mut()
+                .unwrap()
+                .remove(field);
         }
-        validator.validate(&minimal).unwrap();
+        assert!(!validator.is_valid(&minimal));
     }
 }
 
@@ -405,7 +351,7 @@ fn unified_agent_get_schema_is_closed_around_real_projection_and_inspection() {
         .result();
         json!({
             "schema":"orchbee.agent.get",
-            "version":19,
+            "version":1,
             "source":source.clone(),
             "result":result
         })
@@ -416,7 +362,7 @@ fn unified_agent_get_schema_is_closed_around_real_projection_and_inspection() {
         assert_eq!(current["result"]["agent"]["source"], "canonical");
         assert!(!current["result"]["agent"]["placement"].is_null());
         assert_eq!(
-            current["result"]["inspection"].get("client").is_some(),
+            !current["result"]["inspection"]["client"].is_null(),
             with_client
         );
     }
@@ -431,7 +377,7 @@ fn unified_agent_get_schema_is_closed_around_real_projection_and_inspection() {
     .result();
     let with_terminal = json!({
         "schema":"orchbee.agent.get",
-        "version":19,
+        "version":1,
         "source":source.clone(),
         "result":with_terminal
     });
@@ -478,12 +424,6 @@ fn unified_agent_get_schema_is_closed_around_real_projection_and_inspection() {
 
     let document = document(false);
     let mut invalid = document.clone();
-    invalid["version"] = 13.into();
-    assert!(
-        !validator.is_valid(&invalid),
-        "dropped Windows versions stay closed"
-    );
-    invalid = document.clone();
     invalid["result"]["agent"]["ordinal"] = 1.into();
     assert!(
         !validator.is_valid(&invalid),
@@ -591,7 +531,7 @@ fn unified_agent_get_physical_inspection_requires_current_management_and_semanti
     .result();
     let document = json!({
         "schema":"orchbee.agent.get",
-        "version":19,
+        "version":1,
         "source":source,
         "result":document
     });
@@ -615,46 +555,18 @@ fn unified_agent_get_physical_inspection_requires_current_management_and_semanti
     obsolete["result"]["inspection"]["management"] = json!({"phase":"unmanaged"});
     assert!(
         !validator.is_valid(&obsolete),
-        "the legacy physical inspection without semantic detail is not projected in v19"
+        "the legacy physical inspection without semantic detail is not a current projected inspection"
     );
 }
 
 #[test]
-fn configuration_v4_requires_update_policy_without_widening_v3() {
-    use serde_json::json;
-    let schema: Value =
-        serde_json::from_str(super::document("orchbee.config.check").unwrap()).unwrap();
-    let mut reduced = schema.clone();
-    reduced["$ref"] = json!("#/$defs/userConfigCheckV4");
-    reduced.as_object_mut().unwrap().remove("required");
-    reduced.as_object_mut().unwrap().remove("properties");
-    reduced
-        .as_object_mut()
-        .unwrap()
-        .remove("additionalProperties");
-    reduced.as_object_mut().unwrap().remove("allOf");
-    let check = json!({"name":"user-config","status":"pass","details":{"path":null,"exists":false,"newCwd":"follow","worktreeDirectory":null,"resumeAgentsOnRestore":true,"resumeAgentsOnRestoreSource":"default","manifestCheck":true,"manifestCheckSource":"default"}});
-    assert!(
-        jsonschema::validator_for(&reduced)
-            .unwrap()
-            .is_valid(&check)
-    );
-    reduced["$ref"] = json!("#/$defs/userConfigCheckV3");
-    assert!(
-        !jsonschema::validator_for(&reduced)
-            .unwrap()
-            .is_valid(&check)
-    );
-}
-
-#[test]
-fn configuration_v13_admits_bounded_warnings_without_widening_v12() {
+fn configuration_admits_bounded_warnings_and_requires_current_fields() {
     use serde_json::json;
     let schema: Value =
         serde_json::from_str(super::document("orchbee.config.check").unwrap()).unwrap();
     let full_validator = jsonschema::validator_for(&schema).unwrap();
     let mut reduced = schema.clone();
-    reduced["$ref"] = json!("#/$defs/userConfigCheckV13");
+    reduced["$ref"] = json!("#/$defs/userConfigCheck");
     reduced.as_object_mut().unwrap().remove("required");
     reduced.as_object_mut().unwrap().remove("properties");
     reduced
@@ -674,6 +586,7 @@ fn configuration_v13_admits_bounded_warnings_without_widening_v12() {
         "manifestCheckSource": "default",
         "defaultShell": "",
         "shellMode": "auto",
+        "themeName":"one-dark",
         "keyPrefix": "Ctrl+B",
         "keyOverrides": 0,
         "windowTitle": "{hostname}: {workspace}",
@@ -722,7 +635,7 @@ fn configuration_v13_admits_bounded_warnings_without_widening_v12() {
     let endpoint = json!({"presence":"absent","status":"not-applicable"});
     let budget = json!({"presence":"unchecked","status":"not-applicable","reason":"presence-not-inspected","addressBytes":12,"addressCapacityBytes":200,"path":"C:/endpoint"});
     let mut fatal = json!({
-        "schema":"orchbee.config.check", "version":13, "source":{"kind":"local-runtime"},
+        "schema":"orchbee.config.check", "version":1, "source":{"kind":"local-runtime"},
         "result":{"ok":false,"checks":[
             {"name":"runtime-base","status":"pass","details":{"exists":true,"path":"C:/runtime"}},
             {"name":"runtime-directory","status":"pass","details":{"exists":true,"path":"C:/runtime/site"}},
@@ -762,31 +675,20 @@ fn configuration_v13_admits_bounded_warnings_without_widening_v12() {
             "field-local or mismatched fatal pair admitted: {field}: {reason}"
         );
     }
-    drop(full_validator);
-    let mut v12 = schema;
-    v12["$ref"] = json!("#/$defs/userConfigCheckV12");
-    v12.as_object_mut().unwrap().remove("required");
-    v12.as_object_mut().unwrap().remove("properties");
-    v12.as_object_mut().unwrap().remove("additionalProperties");
-    v12.as_object_mut().unwrap().remove("allOf");
-    let v12_validator = jsonschema::validator_for(&v12).unwrap();
-    assert!(!v12_validator.is_valid(&warning));
-    let mut legacy_fatal = json!({
-        "name":"user-config",
-        "status":"fail",
-        "details":{"field":"terminal.new_cwd","reason":"invalid-path"}
-    });
-    for field in ["terminal.new_cwd", "worktrees.directory"] {
-        legacy_fatal["details"] = json!({"field":field,"reason":"invalid-path"});
-        assert!(
-            v12_validator.is_valid(&legacy_fatal),
-            "legacy v12 stopped accepting {field}: invalid-path"
-        );
+    for field in [
+        "resumeAgentsOnRestore",
+        "resumeAgentsOnRestoreSource",
+        "manifestCheck",
+        "manifestCheckSource",
+    ] {
+        let mut missing = pass.clone();
+        missing["details"].as_object_mut().unwrap().remove(field);
+        assert!(!validator.is_valid(&missing), "missing {field}");
     }
 }
 
 #[test]
-fn popup_receipts_and_client_control_v9_keep_older_versions_closed() {
+fn popup_receipts_and_client_control_keep_closed_shapes() {
     use serde_json::json;
     let corpus: Value = serde_json::from_str(include_str!(
         "../../../../../schemas/workbench/v1/workbench-client-view-conformance-v1.json"
@@ -800,20 +702,13 @@ fn popup_receipts_and_client_control_v9_keep_older_versions_closed() {
         .unwrap()["document"]
         .clone();
     reply.as_object_mut().unwrap().remove("kind");
-    let mut document = json!({"schema":"orchbee.client.control","version":9,
+    let mut document = json!({"schema":"orchbee.client.control","version":1,
         "siteId": reply["siteId"],"operationId":reply["outcome"]["operation"]["command"]["operationId"],
         "observation":{"kind":"server","reply":reply},"wait":null});
     let schema: Value =
         serde_json::from_str(super::document("orchbee.client.control").unwrap()).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
     assert!(validator.is_valid(&document));
-    for version in 1..=8 {
-        document["version"] = json!(version);
-        assert!(
-            !validator.is_valid(&document),
-            "old version {version} accepted popup"
-        );
-    }
     document["schema"] = json!("orchbee.popup.result");
     document["version"] = json!(1);
     let schema: Value =
@@ -864,40 +759,4 @@ fn text_catalog_lists_every_schema_and_explicit_requests_keep_documents() {
         single["result"]["schema"]["schemaId"],
         "orchbee.worktree.list"
     );
-}
-
-#[test]
-fn historical_agent_read_receipt_versions_remain_inspectable() {
-    let command = crate::invocation::QueryCommand::AgentRead {
-        target: crate::invocation::AgentTarget::Panel {
-            target: crate::invocation::Target::Id("00000000000000000000000000000001".into()),
-        },
-        history: None,
-        unwrap: true,
-        lines: None,
-    };
-    assert_eq!(crate::cli::results::schema_version(&command), 2);
-}
-
-#[test]
-fn historical_output_wait_receipt_versions_keep_literal_and_regex_shapes_distinct() {
-    for (matcher, version) in [
-        (crate::invocation::WaitPattern::Literal("ready".into()), 1),
-        (
-            crate::invocation::WaitPattern::Regex(regex::Regex::new("ready.*").unwrap()),
-            2,
-        ),
-    ] {
-        let command = crate::invocation::QueryCommand::TerminalWaitOutput {
-            target: crate::invocation::Target::Id("00000000000000000000000000000001".into()),
-            matcher,
-            rows: 1000,
-            timeout_ms: 30000,
-        };
-        assert_eq!(
-            crate::cli::results::schema_id(&command),
-            "orchbee.terminal.wait-output"
-        );
-        assert_eq!(crate::cli::results::schema_version(&command), version);
-    }
 }

@@ -61,7 +61,7 @@ Server 拥有 canonical 位置及比例，TUI 拥有焦点和缩放，CLI 拥有
 
 ## 回执与恢复
 
-`orchbee.panel.swap` v2 用 `scope:shared` 以及 null 的 Client／焦点／几何字段标识无头交换，
+`orchbee.panel.swap` v1 用 `scope:shared` 以及 null 的 Client／焦点／几何字段标识无头交换，
 独立保留规范请求及结果，包括未知结果。Client 流程使用 v1，区分目标解析、canonical 提交和聚焦观察，记录已知的 Session、所选
 Client、精确 Panel 对及已提交请求 ID。Canonical 的未提交、拒绝、无变化、已提交及未知
 保持不同。Focus 尚未开始时为 null，否则为包含 operationId、observation 和 wait 的紧凑记录。

@@ -12,7 +12,7 @@ orchbee workspace ungroup <workspace>
 orchbee project dissolve demo
 ```
 
-启动后台服务后，两条 Workspace 创建命令都用一次 launch 创建 Workspace 和默认 shell；不要求 Project/名称，不自动启动 AI。默认未分组，只有显式 `--project` 才加入已有项目。读取 `orchbee.workspace.creation` v2 的 `workspace.result`，其中 `projectId` 必填可空。既有 exec/profile/env/尺寸和可选 focus 参数保持可用。后四条是组织元数据操作，保留稳定 ID、目录、PTY 与全局顺序。Project 可组织多个仓库，普通 Workspace 与 worktree Workspace 同级。
+启动后台服务后，两条 Workspace 创建命令都用一次 launch 创建 Workspace 和默认 shell；不要求 Project/名称，不自动启动 AI。默认未分组，只有显式 `--project` 才加入已有项目。读取 `orchbee.workspace.creation` v1 的 `workspace.result`，其中 `projectId` 必填可空。既有 exec/profile/env/尺寸和可选 focus 参数保持可用。后四条是组织元数据操作，保留稳定 ID、目录、PTY 与全局顺序。Project 可组织多个仓库，普通 Workspace 与 worktree Workspace 同级。
 
 ```powershell
 orchbee workspace close <workspace> --confirm
@@ -67,7 +67,7 @@ $stopped = Invoke-OrchbeeJson -Words @('server', 'stop', '--confirm')
 
 这些命令完全离线，不改变配置。它们检查原生用户配置目录（显式配置时使用 `CODEX_HOME`）、
 PATH 上的 provider 条目、Node 及声明的胶囊完整性。第二条命令增加一个显式胶囊检查根，
-不会安装它。版本 3 JSON 和本地化文本报告 `windows-endpoint-not-inspected`。Capsule 0.4.16
+不会安装它。版本 1 JSON 和本地化文本报告 `windows-endpoint-not-inspected`。Capsule 0.4.16
 新增 Windows Codex hook，Windows x64 cohort 包含其所需的固定 ConPTY 运行时。
 Doctor 不执行该传输。已安装 hook 或 `complete:true` 不代表 Agent 看板已可用。
 已支持托管 enable/disable 和 `agent start`/`prompt`；参见 [Windows 接入](windows-agent-integrations.zh-CN.md)与[启动](windows-agent-start.zh-CN.md)。
@@ -287,4 +287,4 @@ orchbee workspace close-resume --workspace <workspace-id> \
 
 Worker 从继承环境依次选择非空 VISUAL、EDITOR，否则使用 Windows 系统目录 notepad.exe。修改 CLI 进程环境不会改变已运行 Worker 的偏好。参数保持字面值，Host 追加独占临时文档路径。捕获使用当前主／备用屏幕，解开软换行，超过 32 MiB 时整项拒绝。配置的编辑器可以是 popup 中的控制台编辑器，也可以是拥有独立窗口的 GUI 编辑器。
 
-保留编辑器控制操作的已知答复为 `orchbee.client.control` v10，保留准确操作／来源／成员、观察视图和等待状态；文本使用本地化 popup／控制结果。`popup-opened` 要求编辑器帧已安装；保留的 queued／delivered、拒绝、超时、取消和 unknown 结果不宣称编辑器就绪。未知提交绝不自动重放，应保留操作 ID 供 `client control-status` 查询。Ctrl+C 以退出码130停止等待，不撤销已提交请求。通过既有 popup 关闭控制／按钮关闭；恢复普通来源输入要求已知结算或模型规定的连接清理路径。实际编辑器／GUI 验收仍属于最终 Windows 验证。
+保留编辑器控制操作的已知答复为 `orchbee.client.control` v1，保留准确操作／来源／成员、观察视图和等待状态；文本使用本地化 popup／控制结果。`popup-opened` 要求编辑器帧已安装；保留的 queued／delivered、拒绝、超时、取消和 unknown 结果不宣称编辑器就绪。未知提交绝不自动重放，应保留操作 ID 供 `client control-status` 查询。Ctrl+C 以退出码130停止等待，不撤销已提交请求。通过既有 popup 关闭控制／按钮关闭；恢复普通来源输入要求已知结算或模型规定的连接清理路径。实际编辑器／GUI 验收仍属于最终 Windows 验证。

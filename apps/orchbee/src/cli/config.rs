@@ -102,18 +102,23 @@ pub(crate) fn check(format: OutputFormat, locale: Locale) -> Output {
         Err(failure) => failure_output(failure, Some(format), locale),
         Ok(checks) => {
             let failed = checks.iter().any(|check| check.status == "fail");
+            let check_documents = checks
+                .iter()
+                .map(|check| {
+                    json!({
+                        "name":check.name,"status":check.status,"details":check.details
+                    })
+                })
+                .collect::<Vec<_>>();
+            #[cfg(not(windows))]
+            let check_documents = {
+                let mut documents = check_documents;
+                documents.push(json!({"kind":"unsupported"}));
+                documents
+            };
             let result = json!({
                 "ok": !failed,
-                "checks": checks
-                    .iter()
-                    .map(|check| {
-                        json!({
-                            "name": check.name,
-                            "status": check.status,
-                            "details": check.details,
-                        })
-                    })
-                    .collect::<Vec<_>>(),
+                "checks": check_documents,
             });
             let stderr = if failed {
                 locale.cli_config_failed().to_owned()
@@ -136,7 +141,7 @@ pub(crate) fn check(format: OutputFormat, locale: Locale) -> Output {
                 OutputFormat::Json => {
                     let document = json!({
                         "schema": "orchbee.config.check",
-                        "version": if cfg!(windows) { 14 } else { 1 },
+                        "version": 1,
                         "source": local_runtime_source(),
                         "result": result,
                     });
@@ -171,7 +176,7 @@ pub(crate) fn check(format: OutputFormat, locale: Locale) -> Output {
 #[cfg(not(any(target_os = "linux", windows)))]
 fn run_checks() -> Result<Vec<CheckReport>, Failure> {
     Err(
-        Failure::new(FailureKind::CheckFailed).details(super::stage_reason_details(
+        Failure::new(FailureKind::ServiceUnavailable).details(super::stage_reason_details(
             "platform",
             "unsupported-platform",
         )),

@@ -6,20 +6,30 @@
 	"required": ["schema", "version", "failure"],
 	"additionalProperties": false,
 	"properties": {
-		"schema": { "const": "orchbee.cli.failure.command" },
-		"version": { "const": 1 },
+		"schema": {
+			"const": "orchbee.cli.failure.command"
+		},
+		"version": {
+			"const": 1
+		},
 		"failure": {
 			"type": "object",
 			"additionalProperties": false,
 			"required": ["kind", "details"],
 			"properties": {
-				"kind": { "const": "not-found" },
+				"kind": {
+					"const": "not-found"
+				},
 				"details": {
 					"type": "object",
 					"additionalProperties": false,
 					"required": ["commandId"],
 					"properties": {
-						"commandId": { "type": "string", "maxLength": 120, "pattern": "^cmd_[A-Za-z0-9_]*$" }
+						"commandId": {
+							"type": "string",
+							"maxLength": 120,
+							"pattern": "^cmd_[A-Za-z0-9_]*$"
+						}
 					}
 				}
 			}

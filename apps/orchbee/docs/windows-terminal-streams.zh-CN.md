@@ -26,7 +26,7 @@
 
 `--cols` 和 `--rows` 选择观察者视口，不调整终端尺寸。完整 ANSI 帧从验证后的样式单元格
 合成，裁剪／补齐到该视口，另行报告源尺寸。这是屏幕投影，不是原始 PTY 字节或图形。
-每条 JSON 记录声明 `orchbee.terminal.stream` 版本 2 及 kind。帧字节使用 base64，
+每条 JSON 记录声明 `orchbee.terminal.stream` 版本 1 及 kind。帧字节使用 base64，
 sequence／generation／revision 身份使用十进制字符串。两种 format 选择均输出 NDJSON。
 
 Windows stdout 通过本次调用拥有的系统 PowerShell 进程转发，运行固定脚本并禁用
@@ -78,7 +78,7 @@ attach 指针事件，在子程序请求像素格式时采用 SGR cell 降级；
 单元格合成有界 ANSI，保留捕获的颜色、样式属性及宽字符几何；与实时单元格共用绘制逻辑，
 不重放原始 PTY 输出。图形资源严格验证但暂不显示，图形历史继续作为独立义务。
 
-所有输出记录均使用版本 2。`control` 输出命令回执，`history` 输出保留行画面；普通
+所有输出记录均使用版本 1。`control` 输出命令回执，`history` 输出保留行画面；普通
 `frame`／`reset` 保持原有投影含义。历史活动时，帧确认发生于输出活动历史画面或 pending
 reset 之后，不代表隐藏的实时帧已经显示。EOF 和 release 仅在确认 detach 后成功；无法
 确认清理时为 outcome-unknown。Ctrl+C 和总超时沿用观察命令退出类别及有界清理预留。

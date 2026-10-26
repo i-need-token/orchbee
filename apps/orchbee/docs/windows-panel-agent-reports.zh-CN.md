@@ -9,8 +9,7 @@ CLI 在提交前解析规范成员关系并要求成员已绑定；Server 在既
 
 精确写入采用现有载体中封闭的 `report-presentation` / `presentation-reported` 变体。
 成功回复必须匹配请求、Session、Panel、Presentation 和绑定；旧 `report` / `reported` 仍仅针对
-主项。只有显式选择成员时，CLI 才输出 `orchbee.panel.agent-report` v4，已知或未知的已提交
-结果均保留请求的 `presentationId`。旧 v1/v2 保持封闭；主项上报使用 v3。本地化文本标识成员。所有阶段保留下文
+主项。CLI 始终输出 `orchbee.panel.agent-report` 版本 1 并包含 `presentationId`：显式选择成员时为请求的 ID，默认主项时为 null。已知或未知的已提交结果均保留此成员。本地化文本标识成员。所有阶段保留下文
 唯一五秒期限、取消及禁止重放规则。
 
 定向契约与所有者轨迹覆盖主／子项隔离、错误所属、未绑定成员、绑定变化和来源排序；CLI
@@ -63,7 +62,7 @@ applied/ignored/deferred 处理结果、实际变更标记及有效上报视图�
 所有者修订号、时钟或结果上限退出 1。提交后结果未知退出 8。清理失败退出 1，但已有提交结果
 未知时保留 8。本地化文本展示处理结果及请求身份；JSON 携带完整视图且不改写字符串。
 
-最初的目录 v90 发布 90 份 schema，配套 104 条原生命令路径。OBWP 35/36 使用既有 16 KiB 请求和
+目录列出当前文档与命令路径。OBWP 35/36 使用既有 16 KiB 请求和
 512 KiB 结果上限。部署匹配的私有 cohort；旧端拒绝这些 carrier kind。状态是临时的，无持久化迁移。
 
 ## 剩余集成与验证

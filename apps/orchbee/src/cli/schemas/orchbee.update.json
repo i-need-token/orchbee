@@ -109,27 +109,25 @@
 					"type": "boolean"
 				}
 			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"activated": {
-								"const": true
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"releasePath": {
-								"type": "string",
-								"minLength": 1
-							},
-							"phase": {
-								"const": "complete"
-							}
-						}
+			"if": {
+				"properties": {
+					"activated": {
+						"const": true
 					}
-				},
+				}
+			},
+			"then": {
+				"properties": {
+					"releasePath": {
+						"type": "string",
+						"minLength": 1
+					},
+					"phase": {
+						"const": "complete"
+					}
+				}
+			},
+			"allOf": [
 				{
 					"if": {
 						"properties": {

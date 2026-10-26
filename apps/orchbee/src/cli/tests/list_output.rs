@@ -365,6 +365,17 @@ fn list_and_status_machine_documents_keep_their_exact_json_bytes() {
         bytes
     }
 
+    let capability = if cfg!(windows) {
+        json!("unknown")
+    } else {
+        json!({"kind":"unsupported"})
+    };
+    let selection = if cfg!(windows) {
+        Value::Null
+    } else {
+        json!({"kind":"unsupported"})
+    };
+
     let source = json!({"kind":"workbench-snapshot","siteId":ID,"revision":"9"});
     let workspace_id = "abcdef0123456789abcdef0123456789";
     let workspace = WorkspaceRow {
@@ -391,9 +402,9 @@ fn list_and_status_machine_documents_keep_their_exact_json_bytes() {
         workspace_output.stdout,
         bytes(json!({
             "schema":"orchbee.workspace.list",
-            "version":8,
+            "version":1,
             "source":source,
-            "result":{"workspaces":[{
+            "result":{"client":selection,"agents":capability,"metadataSource":capability,"workspaces":[{
                 "workspaceId":workspace.workspace_id,
                 "number":workspace.number,
                 "tabCount":workspace.tab_count,
@@ -402,6 +413,9 @@ fn list_and_status_machine_documents_keep_their_exact_json_bytes() {
                 "projectId":workspace.project_id,
                 "primaryDirectoryId":workspace.primary_directory_id,
                 "terminalContextId":workspace.terminal_context_id,
+                "focused":selection,"activeTabId":selection,
+                "agentSessionIds":capability,"agentStatus":capability,
+                "worktree":capability,"worktreeObservation":capability,"tokens":capability,
             }]},
         }))
     );
@@ -432,15 +446,16 @@ fn list_and_status_machine_documents_keep_their_exact_json_bytes() {
         tab_output.stdout,
         bytes(json!({
             "schema":"orchbee.tab.list",
-            "version":5,
+            "version":1,
             "source":source,
-            "result":{"tabs":[{
+            "result":{"client":selection,"agents":capability,"tabs":[{
                 "tabId":tab.tab_id,
                 "number":tab.number,
                 "panelCount":tab.panel_count,
                 "label":tab.label,
                 "pinned":tab.pinned,
                 "groupId":tab.group_id,
+                "focused":selection,"agentSessionIds":capability,"agentStatus":capability,
                 "context":{
                     "kind":"workspace",
                     "terminalContextId":tab.context.terminal_context_id,

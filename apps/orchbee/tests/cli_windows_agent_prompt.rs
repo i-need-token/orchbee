@@ -771,7 +771,7 @@ fn prompt_history_opens_the_activity_gate_but_completion_must_remain_current() {
             &doc,
             include_str!("../src/cli/schemas/orchbee.agent.prompt.json"),
         );
-        assert_eq!(doc["version"], 7);
+        assert_eq!(doc["version"], 1);
         assert_eq!(
             doc["result"]["wait"]["observations"],
             if matches!(case, "completed-working" | "metadata-idle") {
@@ -904,7 +904,7 @@ fn prompt_refuses_pending_startup_and_failed_management_reads_before_any_input()
                 &doc,
                 include_str!("../src/cli/schemas/orchbee.cli.failure.agent.json"),
             );
-            assert_eq!(doc["version"], 3);
+            assert_eq!(doc["version"], 1);
             assert_eq!(doc["failure"]["details"]["operation"], "management");
         }
         assert!(doc["failure"]["details"].get("submission").is_none());

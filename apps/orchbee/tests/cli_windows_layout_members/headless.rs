@@ -365,7 +365,7 @@ fn headless_apply_builds_and_exports_the_shared_tree_in_one_session() {
         &document,
         include_str!("../../src/cli/schemas/orchbee.layout.apply.json"),
     );
-    assert_eq!(document["version"], 3);
+    assert_eq!(document["version"], 1);
     assert_eq!(document["result"]["outcome"], "completed");
     assert_eq!(document["result"]["layout"]["root"]["ratio"], 0.7);
     assert!(document["source"]["clientId"].is_null());

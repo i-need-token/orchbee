@@ -39,9 +39,9 @@ manifest_check = true
 系统模式跟随宿主默认背景，并在缺少宿主背景观测时使用终端原生对比度。共享偏好拥有应用外观。
 [原生主题](native-themes.zh-CN.md)定义极性、颜色能力、所有 chrome 消费界面、共享重载及回退。
 
-`config check` v14 为已准入的 Windows user-config details 增加必需 `themeName`；
-致命错误形状不变，1–13 版保持封闭。Session 配置 v9 为成功快照增加必需 `themeName`，
-1–8 版保持封闭。目录 v142 发布这些扩展，不增加 schema 或命令路径。
+`config check` v1 为已准入的 Windows user-config details 增加必需 `themeName`；
+致命错误形状不变，1–13 版保持封闭。Session 配置 v1 为成功快照增加必需 `themeName`，
+1–8 版保持封闭。目录 v1 发布这些扩展，不增加 schema 或命令路径。
 
 ## 创建策略
 
@@ -59,7 +59,7 @@ manifest_check = true
 
 ## 检查与正确性
 
-Windows `config check` 版本 13 为 `user-config` 检查增加已接纳的警告列表和省略数量。带警告的结果使用 `warning` 状态，整体文档仍成功并以 0 退出。致命文件或环境接纳错误使用 `fail` 状态并以 1 退出。版本 1 至 12 保持封闭。检查报告选定文件、存在状态和规范化有效配置，文本输出以一行 `Config file:` 结尾，以可复制路径给出该文件；致命的创建配置继续使用独立的 `orchbee.cli.failure.configuration` 信封。来源发现失败会在首个 Project 创建前停止配置路径创建，不重试修改。
+Windows `config check` 版本 1 为 `user-config` 检查增加已接纳的警告列表和省略数量。带警告的结果使用 `warning` 状态，整体文档仍成功并以 0 退出。致命文件或环境接纳错误使用 `fail` 状态并以 1 退出。检查报告选定文件、存在状态和规范化有效配置，文本输出以一行 `Config file:` 结尾，以可复制路径给出该文件；致命的创建配置继续使用独立的 `orchbee.cli.failure.configuration` 信封。来源发现失败会在首个 Project 创建前停止配置路径创建，不重试修改。
 
 共享 Windows 设置读取器拥有有界文件检查、确定性的逐字段接纳和规范化；创建流程拥有优先级及已有副作用回执。读取没有写入器或可变缓存状态；下述显式恢复操作负责配置修复。核心证据覆盖格式错误和重复 TOML、字段局部回退、稳定且有界的警告、相对及波浪线路径、覆盖优先级和固定 Herdr 的目录名向量。Windows 公开 IPC 轨迹覆盖有效启动 cwd、配置检出意图、发现失败后无修改、显式路径不查询及无文件时行为不变。完整应用验收为独立关卡。参考行为：Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 `TerminalConfig`、`WorktreesConfig` 和 `default_checkout_path`。
 
@@ -71,14 +71,14 @@ Windows `config check` 版本 13 为 `user-config` 检查增加已接纳的警�
 
 Client 启动在持久 Active 发布或激活标记提交前读取并校验一次，将确定的恢复布尔值与冻结配置位置作为私有 Server 参数传递。Server 校验这些参数，恢复决定一经消费便不再重新推导。配置发布前，Server 在冻结位置按同一套继承的严格环境覆盖规则读取一个完整候选，并将其作为权威版本 0 基线。未携带私有参数的直接托管 Server 启动，通过自己的首次读取确定相同的启动决定和冻结位置。致命输入保留此前检查点和已停止状态，可修正后重试。私有参数需要匹配 cohort；回退使用此前完整 cohort。
 
-Windows `config check` 版本 3 报告 `resumeAgentsOnRestore` 和 `resumeAgentsOnRestoreSource`（`default`、`file`、`environment`）。保留版本 1、2 的 schema。诊断只报告有界字段和原因。验证须覆盖默认值／文件／环境优先级、畸形及非 UTF-8 文件、字段级类型／键准入、读取边界、致命错误提交前拒绝及修正重试、已有 Session 准入不变和实际禁用／启用恢复。热重载、名称和托管状态恢复仍是独立义务。
+Windows `config check` 版本 1 报告 `resumeAgentsOnRestore` 和 `resumeAgentsOnRestoreSource`（`default`、`file`、`environment`）。诊断只报告有界字段和原因。验证须覆盖默认值／文件／环境优先级、畸形及非 UTF-8 文件、字段级类型／键准入、读取边界、致命错误提交前拒绝及修正重试、已有 Session 准入不变和实际禁用／启用恢复。热重载、名称和托管状态恢复仍是独立义务。
 
 ## 规则更新策略
 
-`[update] channel` 仅接受 `stable`（默认）或 `preview`，与 `manifest_check` 相互独立。`orchbee channel show [--format text|json]` 读取完整共享配置，不创建文件、不激活 Session、不访问网络。文本仅为频道标记；`orchbee.channel.show` v1 报告频道、default/file 来源、选定配置路径和文件存在状态。默认文件缺失时使用 stable；显式文件缺失或配置非法时失败。这是期望的发布频道偏好，不代表当前安装 cohort 的事实。Windows `config check` v9 和配置失败 v6 接受 `update.channel` 诊断；旧 schema 保持封闭。
+`[update] channel` 仅接受 `stable`（默认）或 `preview`，与 `manifest_check` 相互独立。`orchbee channel show [--format text|json]` 读取完整共享配置，不创建文件、不激活 Session、不访问网络。文本仅为频道标记；`orchbee.channel.show` v1 报告频道、default/file 来源、选定配置路径和文件存在状态。默认文件缺失时使用 stable；显式文件缺失或配置非法时失败。这是期望的发布频道偏好，不代表当前安装 cohort 的事实。Windows `config check` v1 和配置失败 v1 接受 `update.channel` 诊断；旧 schema 保持封闭。
 
 `[update] manifest_check` 是 TOML 布尔值，默认 true，来源为 `default`／`file`。
-Windows `config check` v4 增加 `manifestCheck` 和 `manifestCheckSource`，v1-v3 保持封闭。
+Windows `config check` v1 增加 `manifestCheck` 和 `manifestCheckSource`。
 Client 激活将已校验的检查值、来源、配置路径和显式文件标志与恢复策略一起传递。
 托管 Server 将其接纳为启动策略快照，随后在冻结位置读取完整的权威版本 0 候选；已消费的恢复策略不会改变。
 直接启动通过同一设置所有者建立这两种角色。cohort 必须匹配。
@@ -124,7 +124,7 @@ Windows `config reset-keys [--format text|json]` 是离线配置修复操作，�
 
 `terminal.shell_mode` 仅接受 `auto`（默认）、`login`、`non_login`。Windows 上 auto/non_login 不增加参数；login 只给 sh、bash、zsh、ksh、dash、ash、mksh、fish、csh、tcsh 添加 `-l`，名称忽略大小写和可选 `.exe` 后缀。其他 Shell 不加登录参数。已有 PowerShell 提示符集成在选择 Shell 后执行。显式可执行文件和 Launch Profile 保留原参数，绕过默认 Shell 选择。
 
-Client 激活在提交前连同已有配置冻结这两个值。匹配版本的 Server 把私有快照传给 Worker，不重读配置。Worker 保留快照作为延迟 Host 启动及后续准备的回退值。Server 授权的 CLI/TUI/默认 Shell 恢复准备捕获最新已发布默认值，详见下文。非托管 Worker 直接启动在接入前读取并校验一次配置。已准备操作及重放保留确定的启动事实。仅编辑文件不发布配置，也不改变运行中的 Shell；显式重载更新后续准备所用的默认值。Windows `config check` v5 报告 `defaultShell`、`shellMode`，旧版本保持封闭。Shell 专属创建错误使用 configuration failure v2，v1 保留原字段和原因集合。这些值代表配置，不保证程序实际能启动。
+Client 激活在提交前连同已有配置冻结这两个值。匹配版本的 Server 把私有快照传给 Worker，不重读配置。Worker 保留快照作为延迟 Host 启动及后续准备的回退值。Server 授权的 CLI/TUI/默认 Shell 恢复准备捕获最新已发布默认值，详见下文。非托管 Worker 直接启动在接入前读取并校验一次配置。已准备操作及重放保留确定的启动事实。仅编辑文件不发布配置，也不改变运行中的 Shell；显式重载更新后续准备所用的默认值。Windows `config check` v1 报告 `defaultShell`、`shellMode`，Shell 专属创建错误使用 configuration failure v1，v1 保留原字段和原因集合。这些值代表配置，不保证程序实际能启动。
 
 共享解析器、私有快照接入、Worker 启动解析、显式覆盖与运行循环测试，以及真实 Windows CLI 检查覆盖本契约。不修改公开线协议或持久化检查点；部署和回退均使用匹配的整套程序。
 
@@ -193,8 +193,8 @@ focus_agent = "prefix+alt+1..9"
 zoom = ""
 ```
 
-Windows `config check` v13 保留 `keyPrefix`、`keyOverrides` 并增加有界警告记录；历史
-按键配置 failure v3 对旧 cohort 保持封闭。机器字段 `keyPrefix` 保持稳定且不随平台变化
+Windows `config check` v1 保留 `keyPrefix`、`keyOverrides` 并增加有界警告记录；历史
+机器字段 `keyPrefix` 保持稳定且不随平台变化
 的报告拼写（本例为 `Ctrl+A`），TUI 快捷键发现则显示实际未按 Shift 的手势（`Ctrl+a`）。
 示例让新建 Tab 取代默认的下一 Tab 快捷键；空 `zoom` 禁用放大快捷键。当前绑定只在主
 TUI 使用。CLI 终端流 attach 保留独立的 Ctrl+B/q 转义；固定 Herdr `e0507237` 在
@@ -247,9 +247,8 @@ Client 独立配置策略仍待补全。
 
 不引入持久配置迁移或自动重试。确定性测试覆盖临时启动、首次完整应用、致命失败保留、原子 settings/diagnostic 代次、后续单调应用及警告发布/清除。获准 payload 包含 `themeName`；仅主题变化使用同一发布所有者，Client 在完整准入后解析缓存调色板。连接测试覆盖传播，不假设交付公平性。授权、有界序列化、无变化重载及退出仍是实现义务。设置提交/发布核心的范围更窄，只涉及 writer/CAS，不证明整个重载流程。
 
-`server config` 与 `server reload-config` 版本 8 为每个成功快照增加必需的 `diagnostics` 对象。
-文本输出包含可见数量、精确省略数量，以及每条有界的字段／原因／处置记录。版本 1 至 7
-保持封闭，不接受该成员。
+`server config` 与 `server reload-config` 版本 1 为每个成功快照增加必需的 `diagnostics` 对象。
+文本输出包含可见数量、精确省略数量，以及每条有界的字段／原因／处置记录。
 
 ## 后续 Windows 终端的在线默认值
 
@@ -264,15 +263,15 @@ Client 独立配置策略仍待补全。
 
 启动准备失败记录既有的确定交接前失败，保留 Worker/Server 连接，不创建 Host 终端。同一失败请求重放原失败；修正设置后必须使用新的创建标识。首次 Host 尚不存在时，延迟循环也保持可用。Host 启动/传输不确定性仍保留原退出与不重试策略。证据覆盖私有帧、默认/显式/缺省选择、跨重载准备、精确/冲突重放、失败保留和真实 Windows 管道交换；provider/多 Client/视觉全量验收仍延后。匹配的私有 cohort 整套部署或回退，不迁移持久化数据。
 
-`server config` 和重载回执显示后续默认创建所用的已接纳 `defaultShell` 与 `shellMode`，包括重载响应丢失后的查询。空 Shell 表示平台默认；这些值不证明 Worker 已解析可执行文件或启动成功。CLI 回执 v2 必须包含两字段；历史 v1 schema 保持原有封闭字段集。匹配私有 cohort 的 Workbench 快照同样要求有界字面量（4096 UTF-8 字节、无控制字符）以及 `auto`/`login`/`non_login` 模式。人类可读输出转义字面量，并本地化空 Shell 标签。
+`server config` 和重载回执显示后续默认创建所用的已接纳 `defaultShell` 与 `shellMode`，包括重载响应丢失后的查询。空 Shell 表示平台默认；这些值不证明 Worker 已解析可执行文件或启动成功。CLI 回执 v1 必须包含两字段。匹配私有 cohort 的 Workbench 快照同样要求有界字面量（4096 UTF-8 字节、无控制字符）以及 `auto`/`login`/`non_login` 模式。人类可读输出转义字面量，并本地化空 Shell 标签。
 
 ## 外层窗口标题
 
-`[ui] window_title` 默认为 `{hostname}: {workspace}`，可在线重载。[标题所有者](windows-terminal-title.zh-CN.md#配置模板) 定义变量、字面花括号、无效/空策略、有界渲染及 CLI 覆盖优先级。语法错误、类型错误或超过 4096 字节现在只让该叶字段回退，并出现在 `config check` v13 的警告记录中；未知 `[ui]` 键会忽略并单独警告。有效 `windowTitle` 始终可解析，因此 `windowTitleDiagnostic` 保持 null。`server config`/`server reload-config` v8 暴露已发布的有效模板及诊断，旧公开版本保持封闭。
+`[ui] window_title` 默认为 `{hostname}: {workspace}`，可在线重载。[标题所有者](windows-terminal-title.zh-CN.md#配置模板) 定义变量、字面花括号、无效/空策略、有界渲染及 CLI 覆盖优先级。语法错误、类型错误或超过 4096 字节现在只让该叶字段回退，并出现在 `config check` v1 的警告记录中；未知 `[ui]` 键会忽略并单独警告。有效 `windowTitle` 始终可解析，因此 `windowTitleDiagnostic` 保持 null。`server config`/`server reload-config` v1 暴露已发布的有效模板及诊断，
 
 ## 自定义通知配置
 
-`ui.toast.delivery` 接受 off（默认）、orchbee、terminal 或 system，用于手动 CLI 通知。`ui.toast.overlay.position` 选择四角默认位置。共享偏好 `agentNotificationMode` 和 `soundEnabled` 管理自动 Agent 通知及声音。`ui.toast.delay_seconds` 提供延迟（默认一秒，范围 0–3600）；`[ui.sound.agents]` 提供逐 Agent 声音覆盖，不改变显式 `notification show` 的声音；剪贴板策略仍然独立。启动配置属于 Client；显式 Session 重载与键位一起发布完整的有界通知 profile，Client 在同时校验两者之后应用。`server config`/重载 v7 携带 16 KiB `notificationProfile`，`config check` v12 暴露手动与自动策略，配置失败 v9 增加自动延迟／声音诊断。旧公开版本保持封闭。详见完整的[自动通知契约](windows-notifications.zh-CN.md#自动物理-agent-通知)。
+`ui.toast.delivery` 接受 off（默认）、orchbee、terminal 或 system，用于手动 CLI 通知。`ui.toast.overlay.position` 选择四角默认位置。共享偏好 `agentNotificationMode` 和 `soundEnabled` 管理自动 Agent 通知及声音。`ui.toast.delay_seconds` 提供延迟（默认一秒，范围 0–3600）；`[ui.sound.agents]` 提供逐 Agent 声音覆盖，不改变显式 `notification show` 的声音；剪贴板策略仍然独立。启动配置属于 Client；显式 Session 重载与键位一起发布完整的有界通知 profile，Client 在同时校验两者之后应用。`server config`/重载 v1 携带 16 KiB `notificationProfile`，`config check` v1 暴露手动与自动策略，配置失败 v1 增加自动延迟／声音诊断。详见完整的[自动通知契约](windows-notifications.zh-CN.md#自动物理-agent-通知)。
 
 通用 Agent 提醒模式和全局声音保持权威；手动通知投递与逐 Agent 声音覆盖保持独立归属。
 
@@ -298,7 +297,7 @@ orchbee update --format json
 
 打包工具校验现有 cohort、适配器 capsule 和固定 ConPTY 包，清点有界普通文件，再独占写入同目录的 `release.json`，拒绝已有清单。HTTPS 分发需将此目录发布到清单 URL；相对文件 URL 沿用目录布局。版本必须匹配所打包 Client 的 `--version`；buildId 区分同版本号的不同发布。
 
-独立版本目录同时保存经过接纳的原始 `release.json`；该保留文件不属于文件清单条目，复用时核对其未改变。`status client` v3 将清单绑定到目录标识和已验证 cohort 后再投影实际安装来源，不以当前配置偏好替代。
+独立版本目录同时保存经过接纳的原始 `release.json`；该保留文件不属于文件清单条目，复用时核对其未改变。`status client` v1 将清单绑定到目录标识和已验证 cohort 后再投影实际安装来源，不以当前配置偏好替代。
 
 ## Windows Agent 侧栏布局
 
@@ -320,9 +319,9 @@ claude = [["state_icon", "agent"], [{ token = "$model", fg = "#8bc", rules = [{ 
 缺失或清除的标题消失；`$terminal_title` 仍是独立自定义值。
 `ui.sidebar.spaces` 使用独立 Workspace 布局与 profile，见下文。
 
-`config check` v11 和 Session 配置回执 v6 必需携带 `agentSidebarProfile` 与 `spacesSidebarProfile`（最多 32 KiB
-的封闭规范 JSON）。配置失败 v7 增加 `ui.sidebar.agents` 及布局/颜色/token/规则/Provider
-诊断。旧公开版本保持原有封闭字段。目录 v123 仍有 105 个 schema、141 条语法路径。
+`config check` v1 和 Session 配置回执 v1 必需携带 `agentSidebarProfile` 与 `spacesSidebarProfile`（最多 32 KiB
+的封闭规范 JSON）。配置失败 v1 增加 `ui.sidebar.agents` 及布局/颜色/token/规则/Provider
+诊断。目录列出当前文档与命令路径。
 匹配的私有 cohort 一起携带新必需 profile，整套部署/回滚，无持久迁移。
 
 ## Windows Workspace 侧栏布局
@@ -356,8 +355,7 @@ Git 在所属 Worker 上读取已提交的 Workspace 目录，显示相对本地
 自定义 `$branch`／`$git_status` 保持独立。
 [Workspace 侧栏模型](machines.zh-CN.md#工作区侧栏模型)定义保护、聚合、预算、精确激活及验收限制。
 
-配置失败 v8 接纳 `ui.sidebar.spaces`。Session／Client 重载先验证键位、通知及两个侧栏 profile，
+配置失败 v1 接纳 `ui.sidebar.spaces`。Session／Client 重载先验证键位、通知及两个侧栏 profile，
 再统一发布。每个 profile 最多 32 KiB；匹配 cohort 的配置帧包括转义最多 256 KiB。
-旧公开 CLI 版本保持原有封闭字段。
 
 `terminal.focus_new_panel` 接受布尔值，默认为 `true`。原生 Client 分屏选中刚提交的新窗格；`false` 保留原窗格。Client 在启动时读取该偏好，编辑此字段后需重启。类型无效时产生字段级诊断并使用默认值。CLI `panel split --focus` 保留显式命令策略。

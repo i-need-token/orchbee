@@ -38,33 +38,173 @@
 			"$ref": "#/$defs/source"
 		}
 	},
-	"allOf": [
-		{
-			"if": {
-				"properties": {
-					"failure": {
-						"properties": {
-							"kind": {
-								"const": "not-found"
-							}
-						},
-						"required": ["kind"]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"failure": {
-						"required": ["details"],
-						"properties": {
-							"details": {
-								"$ref": "#/$defs/launchProfileDetails"
-							}
-						}
-					}
+	"$defs": {
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"revision": {
+			"type": "string",
+			"pattern": "^(0|[1-9][0-9]*)$"
+		},
+		"profileId": {
+			"type": "string",
+			"pattern": "^[0-9A-Za-z][0-9A-Za-z._:-]{0,127}$"
+		},
+		"launchProfileDetails": {
+			"type": "object",
+			"required": ["resource", "target"],
+			"additionalProperties": false,
+			"properties": {
+				"resource": {
+					"const": "launch-profile"
+				},
+				"target": {
+					"type": "string",
+					"maxLength": 512
 				}
 			}
 		},
+		"launchProfileAmbiguousDetails": {
+			"type": "object",
+			"required": ["resource", "target", "candidates", "totalCount"],
+			"additionalProperties": false,
+			"properties": {
+				"resource": {
+					"const": "launch-profile"
+				},
+				"target": {
+					"type": "string",
+					"maxLength": 512
+				},
+				"candidates": {
+					"type": "array",
+					"minItems": 1,
+					"maxItems": 8,
+					"items": {
+						"$ref": "#/$defs/profileId"
+					}
+				},
+				"totalCount": {
+					"type": "integer",
+					"minimum": 1
+				}
+			}
+		},
+		"catalogStageDetails": {
+			"type": "object",
+			"required": ["stage"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "launch-profile-catalog"
+				}
+			}
+		},
+		"catalogUnavailableDetails": {
+			"type": "object",
+			"required": ["stage", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "launch-profile-catalog"
+				},
+				"reason": {
+					"const": "service-unavailable"
+				}
+			}
+		},
+		"catalogTimeoutDetails": {
+			"type": "object",
+			"required": ["stage", "timeoutMs"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "launch-profile-catalog"
+				},
+				"timeoutMs": {
+					"const": 5000
+				}
+			}
+		},
+		"catalogCorrelationDetails": {
+			"type": "object",
+			"required": ["stage", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "launch-profile-catalog"
+				},
+				"reason": {
+					"const": "correlation-mismatch"
+				}
+			}
+		},
+		"source": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["kind", "siteId", "revision"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "workbench-snapshot"
+						},
+						"siteId": {
+							"$ref": "#/$defs/id"
+						},
+						"revision": {
+							"$ref": "#/$defs/revision"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "siteId", "requestId", "expectedRevision"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "workbench-command"
+						},
+						"siteId": {
+							"$ref": "#/$defs/id"
+						},
+						"requestId": {
+							"$ref": "#/$defs/id"
+						},
+						"expectedRevision": {
+							"$ref": "#/$defs/revision"
+						}
+					}
+				}
+			]
+		}
+	},
+	"if": {
+		"properties": {
+			"failure": {
+				"properties": {
+					"kind": {
+						"const": "not-found"
+					}
+				},
+				"required": ["kind"]
+			}
+		}
+	},
+	"then": {
+		"properties": {
+			"failure": {
+				"required": ["details"],
+				"properties": {
+					"details": {
+						"$ref": "#/$defs/launchProfileDetails"
+					}
+				}
+			}
+		}
+	},
+	"allOf": [
 		{
 			"if": {
 				"properties": {
@@ -228,147 +368,5 @@
 				}
 			}
 		}
-	],
-	"$defs": {
-		"id": {
-			"type": "string",
-			"pattern": "^[0-9a-f]{32}$"
-		},
-		"revision": {
-			"type": "string",
-			"pattern": "^(0|[1-9][0-9]*)$"
-		},
-		"profileId": {
-			"type": "string",
-			"pattern": "^[0-9A-Za-z][0-9A-Za-z._:-]{0,127}$"
-		},
-		"launchProfileDetails": {
-			"type": "object",
-			"required": ["resource", "target"],
-			"additionalProperties": false,
-			"properties": {
-				"resource": {
-					"const": "launch-profile"
-				},
-				"target": {
-					"type": "string",
-					"maxLength": 512
-				}
-			}
-		},
-		"launchProfileAmbiguousDetails": {
-			"type": "object",
-			"required": ["resource", "target", "candidates", "totalCount"],
-			"additionalProperties": false,
-			"properties": {
-				"resource": {
-					"const": "launch-profile"
-				},
-				"target": {
-					"type": "string",
-					"maxLength": 512
-				},
-				"candidates": {
-					"type": "array",
-					"minItems": 1,
-					"maxItems": 8,
-					"items": {
-						"$ref": "#/$defs/profileId"
-					}
-				},
-				"totalCount": {
-					"type": "integer",
-					"minimum": 1
-				}
-			}
-		},
-		"catalogStageDetails": {
-			"type": "object",
-			"required": ["stage"],
-			"additionalProperties": false,
-			"properties": {
-				"stage": {
-					"const": "launch-profile-catalog"
-				}
-			}
-		},
-		"catalogUnavailableDetails": {
-			"type": "object",
-			"required": ["stage", "reason"],
-			"additionalProperties": false,
-			"properties": {
-				"stage": {
-					"const": "launch-profile-catalog"
-				},
-				"reason": {
-					"const": "service-unavailable"
-				}
-			}
-		},
-		"catalogTimeoutDetails": {
-			"type": "object",
-			"required": ["stage", "timeoutMs"],
-			"additionalProperties": false,
-			"properties": {
-				"stage": {
-					"const": "launch-profile-catalog"
-				},
-				"timeoutMs": {
-					"const": 5000
-				}
-			}
-		},
-		"catalogCorrelationDetails": {
-			"type": "object",
-			"required": ["stage", "reason"],
-			"additionalProperties": false,
-			"properties": {
-				"stage": {
-					"const": "launch-profile-catalog"
-				},
-				"reason": {
-					"const": "correlation-mismatch"
-				}
-			}
-		},
-		"source": {
-			"oneOf": [
-				{
-					"type": "object",
-					"required": ["kind", "siteId", "revision"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "workbench-snapshot"
-						},
-						"siteId": {
-							"$ref": "#/$defs/id"
-						},
-						"revision": {
-							"$ref": "#/$defs/revision"
-						}
-					}
-				},
-				{
-					"type": "object",
-					"required": ["kind", "siteId", "requestId", "expectedRevision"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "workbench-command"
-						},
-						"siteId": {
-							"$ref": "#/$defs/id"
-						},
-						"requestId": {
-							"$ref": "#/$defs/id"
-						},
-						"expectedRevision": {
-							"$ref": "#/$defs/revision"
-						}
-					}
-				}
-			]
-		}
-	}
+	]
 }

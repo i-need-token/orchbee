@@ -275,7 +275,7 @@ impl Workflow<'_> {
                 } else {
                     DeliveryDisposition::NotApplied
                 };
-                let mut document = json!({"schema":failure.failure_schema.unwrap_or("orchbee.cli.failure"), "version":failure.version, "failure":{"kind":failure.kind.as_str()}});
+                let mut document = json!({"schema":failure.failure_schema.unwrap_or("orchbee.cli.failure"), "version":1, "failure":{"kind":failure.kind.as_str()}});
                 if let Some(source) = &failure.source {
                     document["source"] = source.clone();
                 }

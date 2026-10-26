@@ -144,15 +144,12 @@ fn exact_report_cli_preserves_primary_defaults_and_member_identity_through_unkno
             include_str!("../src/cli/schemas/orchbee.panel.agent-report.json")
         };
         validate(&doc, schema);
-        assert_eq!(doc["version"], if case == "primary" { 3 } else { 4 });
+        assert_eq!(doc["version"], 1);
         if case != "primary" {
             assert_eq!(doc["presentationId"], id(306));
             let validator =
                 jsonschema::validator_for(&serde_json::from_str::<Value>(schema).unwrap()).unwrap();
             let mut invalid = doc.clone();
-            invalid["version"] = json!(1);
-            assert!(!validator.is_valid(&invalid));
-            invalid = doc.clone();
             invalid.as_object_mut().unwrap().remove("presentationId");
             assert!(!validator.is_valid(&invalid));
         }
