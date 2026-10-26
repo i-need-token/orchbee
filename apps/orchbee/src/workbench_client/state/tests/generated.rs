@@ -1597,7 +1597,7 @@ fn reject_reused_committed_tuple(trace: &mut TraceState) -> Result<(), &'static 
 fn provenance_snapshot(
     session: &WorkbenchClientState,
 ) -> Result<Vec<CreateTerminalProvenance>, &'static str> {
-    (0..workbench_client.cache().tabs().len())
+    (0..session.cache().tabs().len())
         .map(|index| session.provenance(index).cloned().ok_or("provenance"))
         .collect()
 }

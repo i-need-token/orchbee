@@ -242,11 +242,14 @@ use orchbee_workbench_protocol::{
     WorkbenchWorkspaceId,
 };
 
+#[cfg(not(windows))]
+use super::PanelMoveDestination;
+#[cfg(windows)]
+use super::PanelRelocationDestination;
 use super::{
     AgentTarget, CommandPath, CompletionShell, ExpectedValue, FailureEnvelope, Family, HelpTopic,
-    MutationCommand, OutputFormat, PanelMoveDestination, ParseFailure, ParseFailureKind,
-    QueryCommand, Request, Resource, TabContext, Target, TerminalSendInput, UsageContext,
-    UsageReason, WaitPattern, parse_request,
+    MutationCommand, OutputFormat, ParseFailure, ParseFailureKind, QueryCommand, Request, Resource,
+    TabContext, Target, TerminalSendInput, UsageContext, UsageReason, WaitPattern, parse_request,
 };
 
 fn parse(arguments: &[&str]) -> Result<Request, ParseFailure> {

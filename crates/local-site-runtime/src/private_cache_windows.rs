@@ -20,7 +20,6 @@ pub struct WindowsPrivateCache {
 pub(crate) struct WindowsPrivateRead {
     bytes: Option<Vec<u8>>,
     _pins: Vec<File>,
-    _source: Option<File>,
 }
 
 /// One guarded configuration publication, with a definite observed-source conflict.
@@ -85,46 +84,12 @@ impl WindowsPrivateCache {
                 return Ok(WindowsPrivateRead {
                     bytes: None,
                     _pins: Vec::new(),
-                    _source: None,
                 });
             }
             Err(error) => return Err(error),
         };
         let bytes = read_leaf(&leaf, maximum)?;
-        Ok(WindowsPrivateRead {
-            bytes,
-            _pins: pins,
-            _source: None,
-        })
-    }
-    /// The frozen user-configuration leaf accepts Unicode names while rejecting Windows aliases.
-    pub(crate) fn read_configuration_existing_pinned(
-        path: &Path,
-        maximum: usize,
-    ) -> io::Result<WindowsPrivateRead> {
-        let parent = path.parent().ok_or(io::ErrorKind::InvalidInput)?;
-        let name = path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .ok_or(io::ErrorKind::InvalidInput)?;
-        let leaf = configuration_leaf(parent, name)?;
-        let pins = match permissions::open_tree(parent) {
-            Ok(pins) => pins,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                return Ok(WindowsPrivateRead {
-                    bytes: None,
-                    _pins: Vec::new(),
-                    _source: None,
-                });
-            }
-            Err(error) => return Err(error),
-        };
-        let (bytes, source) = read_snapshot_leaf(&leaf, maximum)?;
-        Ok(WindowsPrivateRead {
-            bytes,
-            _pins: pins,
-            _source: source,
-        })
+        Ok(WindowsPrivateRead { bytes, _pins: pins })
     }
     /// Read one admitted configuration snapshot under the already held writer lock.
     pub(crate) fn read_configuration(

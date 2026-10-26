@@ -1098,7 +1098,7 @@ mod linux {
                                         .first()
                                         .map(|id| (*id).clone())
                                 })
-                                .ok_or_else(internal)?;
+                                .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
                             return Ok(WorkbenchAction::PanelMove {
                                 terminal_context_id: context.terminal_context_id.clone(),
                                 tab_id: tab.tab_id.clone(),

@@ -294,13 +294,13 @@ pub(crate) fn read_snapshot() -> Result<Snapshot, Failure> {
     Ok(snapshot)
 }
 
-/// `terminal get`: the snapshot session admits the transport and supplies the
-/// typed target id — nothing else. The answer is the Server's own join under
+/// `terminal get`: the shared snapshot path admits the transport; the caller
+/// supplies the exact typed target id. The answer is the Server's own join under
 /// the coordinator lock: the current binding, the committed revision, and the
 /// retained launch fact. A stale snapshot route is never echoed back.
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) fn terminal_get(target: &Target) -> Result<(serde_json::Value, Projection), Failure> {
-    let (mut client, deadline, snapshot) = snapshot_session()?;
+    let (mut client, deadline, _) = snapshot_session()?;
     // A typed ID passes through to the Server's launch read unchanged — it
     // answers binding state itself. A compact selector expands to the same exact ID.
     let identity = match target {
