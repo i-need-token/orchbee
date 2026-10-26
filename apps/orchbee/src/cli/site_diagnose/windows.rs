@@ -192,7 +192,7 @@ fn collect_at(base: &Path, scope: &str, deadline: Instant) -> Result<DiagnoseDoc
             "locks".to_owned(),
             Map::from_iter([
                 ("activation".to_owned(), Value::Object(activation)),
-                ("siteLifetime".to_owned(), Value::Object(lifetime)),
+                ("sessionLifetime".to_owned(), Value::Object(lifetime)),
             ]),
         ),
         ("endpoints".to_owned(), endpoints),
@@ -210,7 +210,7 @@ fn collect_at(base: &Path, scope: &str, deadline: Instant) -> Result<DiagnoseDoc
     let mut result = Value::Object(result);
     super::complete_rows(&mut result);
     Ok(DiagnoseDocument {
-        envelope: json!({"schema":"orchbee.site.diagnose", "version":1,
+        envelope: json!({"schema":"orchbee.server.diagnose", "version":1,
             "source":config::local_runtime_source(), "result":result}),
         rows,
         advisories,

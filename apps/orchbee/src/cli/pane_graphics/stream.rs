@@ -258,7 +258,7 @@ pub(super) fn run(
     };
     drop(client);
     if relay.healthy() {
-        let document = json!({"schema":"orchbee.panel.graphics.stream", "version":1, "kind":"closed", "siteId":snapshot.site_id, "target":exact_target, "layerId":spec.layer_id, "reason":reason, "cleanup":cleanup, "lastReply":last_reply, "closeReply":close_reply});
+        let document = json!({"schema":"orchbee.panel.graphics.stream", "version":1, "kind":"closed", "sessionId":snapshot.site_id, "target":exact_target, "layerId":spec.layer_id, "reason":reason, "cleanup":cleanup, "lastReply":last_reply, "closeReply":close_reply});
         let bytes = match format {
             OutputFormat::Json => output::encode_record(&document),
             OutputFormat::Text => output::encode_text(&format!("closed\t{reason}\t{cleanup}\n")),
@@ -294,7 +294,7 @@ fn emit(
     signals: &Signals,
 ) -> Result<(), Failure> {
     let (request, observation) = receipt;
-    let document = json!({"schema":"orchbee.panel.graphics.stream", "version":1, "kind":"reply", "siteId":snapshot.site_id, "target":target, "layerId":spec.layer_id, "requestId":request.request_id, "observation":observation.document()});
+    let document = json!({"schema":"orchbee.panel.graphics.stream", "version":1, "kind":"reply", "sessionId":snapshot.site_id, "target":target, "layerId":spec.layer_id, "requestId":request.request_id, "observation":observation.document()});
     let bytes = match format {
         OutputFormat::Json => output::encode_record(&document),
         OutputFormat::Text => output::encode_text(&format!(

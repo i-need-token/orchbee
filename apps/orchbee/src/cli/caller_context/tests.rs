@@ -27,7 +27,7 @@ fn snapshot(child: bool, workspace: bool) -> Snapshot {
     let tab = json!({"tabId": hex(3), "label": "shell", "pinned": false, "groupId": null,
         "root": {"kind": "panel", "panelId": hex(4), "primaryPresentation": if child { &unbound } else { &bound },
         "childPresentations": if child { vec![bound.clone()] } else { vec![] }}});
-    let mut document = json!({"kind": "workbench.snapshot", "protocolVersion": 1, "siteId": hex(1), "revision": "7",
+    let mut document = json!({"kind": "workbench.snapshot", "protocolVersion": 1, "sessionId": hex(1), "revision": "7",
         "navigation": {"projects":[], "directories":[], "workspaces":[{"workspaceId":hex(2),"terminalContextId":hex(2),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},
         "terminalContexts": [{"terminalContextId": hex(2), "groups": [], "tabs": [tab.clone()]}]});
     if workspace {

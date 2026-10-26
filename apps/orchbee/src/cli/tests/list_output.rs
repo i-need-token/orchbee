@@ -93,7 +93,7 @@ fn workspace_and_tab_lists_show_localized_names_exact_handles_and_owners() {
     ] {
         let workspace_output = success_output(
             Projection::WorkspaceList(vec![workspace.clone(), ungrouped_workspace.clone()]),
-            json!({"kind":"workbench-snapshot","siteId":ID,"revision":"9"}),
+            json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"9"}),
             &QueryCommand::WorkspaceList { project: None },
             OutputFormat::Text,
             locale,
@@ -144,7 +144,7 @@ fn workspace_and_tab_lists_show_localized_names_exact_handles_and_owners() {
                 initial_workspace_tab.clone(),
                 unavailable_owner_tab.clone(),
             ]),
-            json!({"kind":"workbench-snapshot","siteId":ID,"revision":"9"}),
+            json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"9"}),
             &QueryCommand::TabList { workspace: None },
             OutputFormat::Text,
             locale,
@@ -207,7 +207,7 @@ fn empty_workspace_and_tab_lists_keep_localized_table_headers() {
     ] {
         let workspace_output = success_output(
             Projection::WorkspaceList(vec![]),
-            json!({"kind":"workbench-snapshot","siteId":ID,"revision":"9"}),
+            json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"9"}),
             &QueryCommand::WorkspaceList { project: None },
             OutputFormat::Text,
             locale,
@@ -220,7 +220,7 @@ fn empty_workspace_and_tab_lists_keep_localized_table_headers() {
 
         let tab_output = success_output(
             Projection::TabList(vec![]),
-            json!({"kind":"workbench-snapshot","siteId":ID,"revision":"9"}),
+            json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"9"}),
             &QueryCommand::TabList { workspace: None },
             OutputFormat::Text,
             locale,
@@ -287,7 +287,7 @@ fn status_text_reports_selected_session_identity_client_version_and_counts() {
                 panels: 5,
                 bound_terminals: 6,
             }),
-            json!({"kind":"workbench-snapshot","siteId":ID,"revision":"999"}),
+            json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"999"}),
             &QueryCommand::Status,
             OutputFormat::Text,
             locale,
@@ -347,7 +347,7 @@ fn status_text_reports_selected_session_identity_client_version_and_counts() {
             panels: 0,
             bound_terminals: 0,
         }),
-        json!({"kind":"workbench-snapshot","siteId":ID,"revision":"999"}),
+        json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"999"}),
         &QueryCommand::Status,
         OutputFormat::Text,
         Locale::EnUs,
@@ -376,7 +376,7 @@ fn list_and_status_machine_documents_keep_their_exact_json_bytes() {
         json!({"kind":"unsupported"})
     };
 
-    let source = json!({"kind":"workbench-snapshot","siteId":ID,"revision":"9"});
+    let source = json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"9"});
     let workspace_id = "abcdef0123456789abcdef0123456789";
     let workspace = WorkspaceRow {
         number: 1,
@@ -490,7 +490,7 @@ fn list_and_status_machine_documents_keep_their_exact_json_bytes() {
             "version":1,
             "source":source,
             "result":{
-                "site":{"reachable":true,"siteId":status.site_id,"revision":status.revision},
+                "session":{"reachable":true,"sessionId":status.site_id,"revision":status.revision},
                 "counts":{
                     "projects":status.projects,
                     "workspaces":status.workspaces,

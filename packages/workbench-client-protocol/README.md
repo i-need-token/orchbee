@@ -281,7 +281,7 @@ belongs to the Server/native CLI tests; the TLA asset is not executed in this pa
 
 ## Automatic Tab naming
 
-The [Tab label contract](../../apps/orchbee/docs/native-tab-labels.md) owns optional `automaticLabel` metadata. New Tabs without a supplied label use their current context position; explicit numeric names and legacy Tabs remain fixed. CLI queries, label selectors and TUI display agree after move or close, and rename chooses a fixed name. Native `api snapshot` v4 exposes canonical metadata; catalog v34 contains 68 schemas. Shared protocol consumers require a matching cohort.
+The [Tab label contract](../../apps/orchbee/docs/native-tab-labels.md) owns optional `automaticLabel` metadata. New Tabs without a supplied label use their current context position; explicit numeric names and legacy Tabs remain fixed. CLI queries, label selectors and TUI display agree after move or close, and rename chooses a fixed name. The current version-1 `api snapshot` exposes canonical metadata; the offline API catalog lists its schema. Shared protocol consumers require a matching cohort.
 
 Client attention snapshots reuse `@orchbee/agent` session identity validation. Their strict shapes and semantics preserve nullable focus/missing state, ordered unique batches, bounded revisions and exact intent correspondence. These wire DTOs describe Client observations; they do not move acknowledgement into canonical Workbench or Agent state.
 
@@ -324,7 +324,7 @@ Active rule provenance extends physical Explain with an optional `manifest` obje
 (`bundled`, `local-override`, `remote-cache`), required nullable actual path/cached version,
 shadowing and bounded typed warnings. Missing metadata preserves the earlier shape; explicit null
 is rejected. Remote source/version and warning source uniqueness are checked by both bindings.
-The CLI emits v3 when metadata is present while preserving the closed v1/v2 envelopes.
+The CLI carries this metadata in its sole version-1 envelope.
 
 Compact physical `states` reads accept 0–64 unique presentation IDs and return rows in request order,
 with Workbench/report revisions and a required nullable full binding/sequence/Agent/state snapshot.
@@ -343,7 +343,7 @@ owns explicit acknowledgement and rejection after identity loss.
 `workbench.agent-manifests` / `.result` use OBWP 37/38 and a 512 KiB result bound. Strict Rust,
 TypeScript and JSON contracts cover installed snapshots, optional maintenance metadata, retained
 Reload/Update operations and separate cache-report/activation facts. Current/status queries are
-read-only. Mutations use explicit Site-lifetime operation IDs; repeated same-kind IDs read the
+read-only. Mutations use explicit Session-lifetime operation IDs; repeated same-kind IDs read the
 retained receipt and cross-kind reuse refuses. Update reports retain per-provider attempted/cached
 versions and failures, catalog/time and persistence facts; unknown effects never claim success.
 The shared `workbench-agent-manifests-conformance-v1.json` corpus covers accepted/refused shapes,
@@ -414,14 +414,13 @@ bound `ScrollbackEditorSpec.source`. It shares the exact-source `popup-opened`
 completion and generic `popup-close` with typed plugin/editor actors. The
 [Client popup model](../../apps/orchbee/docs/windows-client-control.md#scrollback-editor-popup-model)
 owns same-connection read-only capture, full-content geometry, input, cancellation
-and cleanup. Public editor operation receipts use control v10; v1-v9 reject this
-intent. The public Windows `terminal edit-scrollback` path is defined in
+and cleanup. Public editor operation receipts use the sole version-1 control contract. The public Windows `terminal edit-scrollback` path is defined in
 [CLI workflows](../../apps/orchbee/docs/cli-workflows.md#edit-the-focused-terminals-scrollback).
 Focused wire/actor evidence does not establish final GUI/cohort acceptance.
 
 ## Configured Windows command contracts
 
-The configured-command request/result binding and Client `command-popup-open` intent share one strict popup specification. The native installed keys profile owns opaque IDs; these decoded values never carry executable command text. Four action receipts preserve Worker spawn, canonical Pane creation, plugin invocation and Client popup control as distinct results. Optional plugin selection pins both row/column endpoints and the exact terminal content revision, requires a bound current source and limits capture to 4096 rows and 8192 UTF-8 bytes. Requests/results remain bounded at 256 KiB. Client control v11 admits the configured popup intent; older native output versions remain closed. Server resolution, temporary observer cleanup, physical jobs and TUI execution are described in [Windows custom commands](../../apps/orchbee/docs/windows-custom-commands.md).
+The configured-command request/result binding and Client `command-popup-open` intent share one strict popup specification. The native installed keys profile owns opaque IDs; these decoded values never carry executable command text. Four action receipts preserve Worker spawn, canonical Pane creation, plugin invocation and Client popup control as distinct results. Optional plugin selection pins both row/column endpoints and the exact terminal content revision, requires a bound current source and limits capture to 4096 rows and 8192 UTF-8 bytes. Requests/results remain bounded at 256 KiB. The sole version-1 Client control contract admits the configured popup intent. Server resolution, temporary observer cleanup, physical jobs and TUI execution are described in [Windows custom commands](../../apps/orchbee/docs/windows-custom-commands.md).
 
 ## Panel image binding
 

@@ -142,7 +142,7 @@ Open/read/close 由已认证 Client 连接持有，使用既有独立终端生�
 `WorkspaceGitRequest`／`WorkspaceGitResult` 增加封闭的 `workbench.workspace-git`
 与 `workbench.workspace-git.result` 方向，OBWP kind 49/50，分别在分配前限制为 8 KiB。
 必需 nullable branch/divergence 区分缺失与零；分支为无控制字符、最多 1024 字节的 UTF-8，
-计数为 uint32，游离分支不能携带计数。必须精确关联请求／Site／Workspace。
+计数为 uint32，游离分支不能携带计数。必须精确关联请求／会话／Workspace。
 [Schema 与共享语料](../../schemas/workbench/README.zh-CN.md#workspace-git-状态读取)
 覆盖 Rust 及 TypeScript。不授予变更或 Desktop 命令。
 配置发布还携带独立必需的 32 KiB `spacesSidebarProfile`；匹配 cohort 配置帧预算为 256 KiB。
@@ -160,7 +160,7 @@ Pane 启动选项增加可选、有界的 `pluginContext`，仅允许与 Tab／�
 ## 私有 scrollback 编辑器 popup 契约
 
 `workbench.terminal-editor` 及结果使用配套版本 OBWP51／52，不改变旧编号或公开
-CLI 定义。闭合 Open／Read／Close 消息携带 Site／request／popup 关联。Open
+CLI 定义。闭合 Open／Read／Close 消息携带 会话／request／popup 关联。Open
 指定规范已绑定 Client popup 来源、同连接只读 viewer、十进制字符串正 generation
 及完整 u64 revision，以及可绘制尺寸；不接纳可执行程序、环境、文档路径或终端
 内容。结果区分 opened／state／closing／closed／unknown 及闭合失败，并核对
@@ -173,8 +173,7 @@ CLI 定义。闭合 Open／Read／Close 消息携带 Site／request／popup 关�
 `ScrollbackEditorSpec.source`。明确类型的插件／编辑器 actor 共用准确来源的
 `popup-opened` 完成和通用 `popup-close`。
 [Client popup 模型](../../apps/orchbee/docs/windows-client-control.zh-CN.md#scrollback-编辑器-popup-模型)
-负责同连接只读捕获、完整内容区几何、输入、取消和清理。公开编辑器操作回执使用控制 v10；
-v1–v9 拒绝此意图。公开 Windows `terminal edit-scrollback` 路径由
+负责同连接只读捕获、完整内容区几何、输入、取消和清理。公开编辑器操作回执使用唯一的版本 1 控制契约。公开 Windows `terminal edit-scrollback` 路径由
 [CLI 工作流程](../../apps/orchbee/docs/cli-workflows.zh-CN.md#编辑当前聚焦终端的滚动记录)
 定义。定向管道／actor 证据不等于最终 GUI／cohort 验收。
 
@@ -198,6 +197,6 @@ Windows cohort 的整链见证。
 
 ## 保留 Close 身份查询
 
-`CloseOperationRead` 与 `CloseOperationResult` 在既有 intent 大小上限内使用 OBWP 61/62。它们按原始请求 ID 读取保留 Close，精确关联 Site／request／operation，并使用封闭的 Workspace／Tab／Panel 目标。此读取不创建状态，并保留墓碑。Rust、TypeScript 和 JSON Schema 共享命令语料；[CLI 操作状态](../../apps/orchbee/docs/native-operation-status.zh-CN.md) 负责调用及恢复。
+`CloseOperationRead` 与 `CloseOperationResult` 在既有 intent 大小上限内使用 OBWP 61/62。它们按原始请求 ID 读取保留 Close，精确关联 会话／request／operation，并使用封闭的 Workspace／Tab／Panel 目标。此读取不创建状态，并保留墓碑。Rust、TypeScript 和 JSON Schema 共享命令语料；[CLI 操作状态](../../apps/orchbee/docs/native-operation-status.zh-CN.md) 负责调用及恢复。
 
-<!-- documentation-pairing: english-sha256=42cb7657b535efd03e44a452fb47679fee74f0a9cc713a2af4e6d532cbdff40c zh-cn-sha256=8571973bde57509e90ad8a01aee23f36840cdf266b8512bdf81f7fddc0b2a1e5 -->
+<!-- documentation-pairing: english-sha256=5be6ec4bfc4fdc8240d41569674030d0130b1b1cdb499868a0364262c9a56a61 zh-cn-sha256=0e7f98398958572123717a19ed5af78258a7495988f7f96529632f852cd4d3d5 -->

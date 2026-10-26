@@ -23,7 +23,7 @@
 			},
 			"protocolVersion": 1,
 			"revision": "1",
-			"siteId": "11111111111111111111111111111111",
+			"sessionId": "11111111111111111111111111111111",
 			"terminalContexts": [
 				{
 					"groups": [],
@@ -49,7 +49,7 @@
 			},
 			"protocolVersion": 1,
 			"revision": "2",
-			"siteId": "11111111111111111111111111111111",
+			"sessionId": "11111111111111111111111111111111",
 			"terminalContexts": [
 				{
 					"groups": [],
@@ -75,7 +75,7 @@
 			},
 			"protocolVersion": 1,
 			"revision": "3",
-			"siteId": "11111111111111111111111111111111",
+			"sessionId": "11111111111111111111111111111111",
 			"terminalContexts": [
 				{
 					"groups": [],
@@ -101,7 +101,7 @@
 			},
 			"protocolVersion": 1,
 			"revision": "2",
-			"siteId": "11111111111111111111111111111111",
+			"sessionId": "11111111111111111111111111111111",
 			"terminalContexts": [
 				{
 					"groups": [],
@@ -166,7 +166,7 @@
 			},
 			"protocolVersion": 1,
 			"revision": "2",
-			"siteId": "11111111111111111111111111111111",
+			"sessionId": "11111111111111111111111111111111",
 			"terminalContexts": [
 				{
 					"groups": [],
@@ -215,7 +215,7 @@
 			},
 			"protocolVersion": 1,
 			"revision": "2",
-			"siteId": "11111111111111111111111111111111",
+			"sessionId": "11111111111111111111111111111111",
 			"terminalContexts": [
 				{
 					"groups": [],
@@ -304,7 +304,7 @@
 			"kind": "workbench.delta",
 			"protocolVersion": 1,
 			"revision": "2",
-			"siteId": "11111111111111111111111111111111"
+			"sessionId": "11111111111111111111111111111111"
 		},
 		"delta-upsert-r1-r2": {
 			"baseRevision": "1",
@@ -342,7 +342,7 @@
 			"kind": "workbench.delta",
 			"protocolVersion": 1,
 			"revision": "2",
-			"siteId": "11111111111111111111111111111111"
+			"sessionId": "11111111111111111111111111111111"
 		},
 		"delta-add-workspace-r1-r2": {
 			"baseRevision": "1",
@@ -393,7 +393,7 @@
 			"kind": "workbench.delta",
 			"protocolVersion": 1,
 			"revision": "2",
-			"siteId": "11111111111111111111111111111111"
+			"sessionId": "11111111111111111111111111111111"
 		},
 		"delta-remove-workspace-r2-r3": {
 			"baseRevision": "2",
@@ -422,15 +422,15 @@
 			"kind": "workbench.delta",
 			"protocolVersion": 1,
 			"revision": "3",
-			"siteId": "11111111111111111111111111111111"
+			"sessionId": "11111111111111111111111111111111"
 		},
-		"delta-site-mismatch": {
+		"delta-session-mismatch": {
 			"baseRevision": "1",
 			"changes": [],
 			"kind": "workbench.delta",
 			"protocolVersion": 1,
 			"revision": "2",
-			"siteId": "99999999999999999999999999999999"
+			"sessionId": "99999999999999999999999999999999"
 		},
 		"delta-base-mismatch": {
 			"baseRevision": "9",
@@ -438,7 +438,7 @@
 			"kind": "workbench.delta",
 			"protocolVersion": 1,
 			"revision": "10",
-			"siteId": "11111111111111111111111111111111"
+			"sessionId": "11111111111111111111111111111111"
 		},
 		"delta-non-increasing": {
 			"baseRevision": "1",
@@ -446,7 +446,7 @@
 			"kind": "workbench.delta",
 			"protocolVersion": 1,
 			"revision": "1",
-			"siteId": "11111111111111111111111111111111"
+			"sessionId": "11111111111111111111111111111111"
 		},
 		"delta-duplicate-context-target": {
 			"baseRevision": "1",
@@ -467,7 +467,7 @@
 			"kind": "workbench.delta",
 			"protocolVersion": 1,
 			"revision": "2",
-			"siteId": "11111111111111111111111111111111"
+			"sessionId": "11111111111111111111111111111111"
 		},
 		"delta-invalid-result": {
 			"baseRevision": "1",
@@ -480,7 +480,7 @@
 			"kind": "workbench.delta",
 			"protocolVersion": 1,
 			"revision": "2",
-			"siteId": "11111111111111111111111111111111"
+			"sessionId": "11111111111111111111111111111111"
 		},
 		"snapshot-panel-input-r2": {
 			"kind": "workbench.snapshot",
@@ -517,7 +517,7 @@
 			},
 			"protocolVersion": 1,
 			"revision": "2",
-			"siteId": "11111111111111111111111111111111",
+			"sessionId": "11111111111111111111111111111111",
 			"terminalContexts": [
 				{
 					"groups": [],
@@ -636,7 +636,7 @@
 			},
 			"protocolVersion": 1,
 			"revision": "2",
-			"siteId": "11111111111111111111111111111111",
+			"sessionId": "11111111111111111111111111111111",
 			"terminalContexts": [
 				{
 					"groups": [],
@@ -741,7 +741,7 @@
 			},
 			"protocolVersion": 1,
 			"revision": "2",
-			"siteId": "11111111111111111111111111111111",
+			"sessionId": "11111111111111111111111111111111",
 			"terminalContexts": [
 				{
 					"groups": [],
@@ -826,7 +826,7 @@
 			},
 			"protocolVersion": 1,
 			"revision": "1",
-			"siteId": "11111111111111111111111111111111",
+			"sessionId": "11111111111111111111111111111111",
 			"terminalContexts": [
 				{
 					"groups": [],
@@ -910,7 +910,7 @@
 			},
 			"protocolVersion": 1,
 			"revision": "1",
-			"siteId": "11111111111111111111111111111111",
+			"sessionId": "11111111111111111111111111111111",
 			"terminalContexts": [
 				{
 					"groups": [],
@@ -1000,7 +1000,7 @@
 			},
 			"protocolVersion": 1,
 			"revision": "2",
-			"siteId": "11111111111111111111111111111111",
+			"sessionId": "11111111111111111111111111111111",
 			"terminalContexts": [
 				{
 					"groups": [],
@@ -1032,7 +1032,7 @@
 		"delta-workspace-order-cross-project": {
 			"kind": "workbench.delta",
 			"protocolVersion": 1,
-			"siteId": "11111111111111111111111111111111",
+			"sessionId": "11111111111111111111111111111111",
 			"baseRevision": "1",
 			"revision": "2",
 			"changes": [
@@ -1115,7 +1115,7 @@
 			},
 			"protocolVersion": 1,
 			"revision": "1",
-			"siteId": "11111111111111111111111111111111",
+			"sessionId": "11111111111111111111111111111111",
 			"terminalContexts": [
 				{
 					"groups": [
@@ -1160,7 +1160,7 @@
 			},
 			"protocolVersion": 1,
 			"revision": "2",
-			"siteId": "11111111111111111111111111111111",
+			"sessionId": "11111111111111111111111111111111",
 			"terminalContexts": [
 				{
 					"groups": [],
@@ -1221,7 +1221,7 @@
 			},
 			"protocolVersion": 1,
 			"revision": "2",
-			"siteId": "11111111111111111111111111111111",
+			"sessionId": "11111111111111111111111111111111",
 			"terminalContexts": [
 				{
 					"groups": [],
@@ -1282,7 +1282,7 @@
 			},
 			"protocolVersion": 1,
 			"revision": "3",
-			"siteId": "11111111111111111111111111111111",
+			"sessionId": "11111111111111111111111111111111",
 			"terminalContexts": [
 				{
 					"groups": [],
@@ -1304,7 +1304,7 @@
 		"delta-dissolve-project": {
 			"kind": "workbench.delta",
 			"protocolVersion": 1,
-			"siteId": "11111111111111111111111111111111",
+			"sessionId": "11111111111111111111111111111111",
 			"baseRevision": "2",
 			"revision": "3",
 			"changes": [
@@ -1391,7 +1391,7 @@
 			},
 			"protocolVersion": 1,
 			"revision": "2",
-			"siteId": "11111111111111111111111111111111",
+			"sessionId": "11111111111111111111111111111111",
 			"terminalContexts": [
 				{
 					"groups": [],
@@ -1415,7 +1415,7 @@
 			},
 			"protocolVersion": 1,
 			"revision": "1",
-			"siteId": "11111111111111111111111111111111",
+			"sessionId": "11111111111111111111111111111111",
 			"terminalContexts": []
 		}
 	},
@@ -1431,7 +1431,7 @@
 		"delta-upsert-r1-r2",
 		"delta-add-workspace-r1-r2",
 		"delta-remove-workspace-r2-r3",
-		"delta-site-mismatch",
+		"delta-session-mismatch",
 		"delta-base-mismatch",
 		"delta-non-increasing",
 		"delta-duplicate-context-target",
@@ -1482,7 +1482,7 @@
 				"kind": "workbench.delta",
 				"protocolVersion": 1,
 				"revision": "2",
-				"siteId": "11111111111111111111111111111111"
+				"sessionId": "11111111111111111111111111111111"
 			}
 		},
 		{
@@ -1522,7 +1522,7 @@
 				"kind": "workbench.delta",
 				"protocolVersion": 1,
 				"revision": "2",
-				"siteId": "11111111111111111111111111111111"
+				"sessionId": "11111111111111111111111111111111"
 			}
 		},
 		{
@@ -1546,7 +1546,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "1",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -1589,7 +1589,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "1",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -1606,7 +1606,7 @@
 		},
 		{
 			"boundary": "schema",
-			"name": "zero-site-identity",
+			"name": "zero-session-identity",
 			"value": {
 				"kind": "workbench.snapshot",
 				"navigation": {
@@ -1624,7 +1624,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "1",
-				"siteId": "00000000000000000000000000000000",
+				"sessionId": "00000000000000000000000000000000",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -1643,7 +1643,7 @@
 				"changes": [],
 				"protocolVersion": 1,
 				"revision": "2",
-				"siteId": "11111111111111111111111111111111"
+				"sessionId": "11111111111111111111111111111111"
 			}
 		},
 		{
@@ -1655,7 +1655,7 @@
 				"kind": "workbench.delta",
 				"protocolVersion": 1,
 				"revision": "18446744073709551616",
-				"siteId": "11111111111111111111111111111111"
+				"sessionId": "11111111111111111111111111111111"
 			}
 		},
 		{
@@ -1678,7 +1678,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "1",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -1720,7 +1720,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "1",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -1762,7 +1762,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "1",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -1797,7 +1797,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "1",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [
@@ -1851,7 +1851,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "1",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -1917,7 +1917,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "2",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -2040,7 +2040,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "2",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -2163,7 +2163,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "2",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -2286,7 +2286,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "2",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -2412,7 +2412,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "2",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -2539,7 +2539,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "2",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -2666,7 +2666,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "2",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -2779,7 +2779,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "2",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -2831,7 +2831,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "2",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -2869,7 +2869,7 @@
 			"value": {
 				"kind": "workbench.delta",
 				"protocolVersion": 1,
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"baseRevision": "1",
 				"revision": "2",
 				"changes": [
@@ -2942,7 +2942,7 @@
 			"value": {
 				"kind": "workbench.delta",
 				"protocolVersion": 1,
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"baseRevision": "1",
 				"revision": "2",
 				"changes": [
@@ -3014,7 +3014,7 @@
 			"value": {
 				"kind": "workbench.delta",
 				"protocolVersion": 1,
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"baseRevision": "1",
 				"revision": "2",
 				"changes": [
@@ -3087,7 +3087,7 @@
 			"value": {
 				"kind": "workbench.delta",
 				"protocolVersion": 1,
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"baseRevision": "1",
 				"revision": "2",
 				"changes": [
@@ -3168,7 +3168,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "1",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [
@@ -3216,7 +3216,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "2",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -3263,7 +3263,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "2",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -3316,7 +3316,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "2",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -3369,7 +3369,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "2",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -3427,7 +3427,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "2",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -3485,7 +3485,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "2",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -3542,7 +3542,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "2",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -3599,7 +3599,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "2",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -3659,7 +3659,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "2",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -3719,7 +3719,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "2",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -3782,7 +3782,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "2",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -3840,7 +3840,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "2",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -3898,7 +3898,7 @@
 				},
 				"protocolVersion": 1,
 				"revision": "2",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"terminalContexts": [
 					{
 						"groups": [],
@@ -3952,12 +3952,12 @@
 			}
 		},
 		{
-			"delta": "delta-site-mismatch",
+			"delta": "delta-session-mismatch",
 			"initial": "snapshot-empty-r1",
-			"name": "reject-site-mismatch",
+			"name": "reject-session-mismatch",
 			"outcome": {
 				"kind": "rejected",
-				"reason": "site-mismatch"
+				"reason": "session-mismatch"
 			}
 		},
 		{

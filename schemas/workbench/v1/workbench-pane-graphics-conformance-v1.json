@@ -8,7 +8,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "set",
 					"target": {
@@ -39,7 +39,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "set",
 					"target": {
@@ -70,7 +70,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "set",
 					"target": {
@@ -101,7 +101,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "set",
 					"target": {
@@ -132,7 +132,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "info",
 					"target": {
@@ -150,7 +150,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "catalog",
 					"target": {
@@ -167,7 +167,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "clear",
 					"target": {
@@ -185,7 +185,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "pixels",
 					"target": {
@@ -206,7 +206,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "stream-open",
 					"streamId": "00000000000000000000000000000005",
@@ -226,7 +226,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "stream-frame",
 					"streamId": "00000000000000000000000000000005",
@@ -265,7 +265,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "stream-frame",
 					"streamId": "00000000000000000000000000000005",
@@ -302,7 +302,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "stream-close",
 					"streamId": "00000000000000000000000000000005"
@@ -316,7 +316,7 @@
 				"kind": "workbench.pane-graphics.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "info",
 					"target": {
@@ -340,7 +340,7 @@
 				"kind": "workbench.pane-graphics.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "info",
 					"target": {
@@ -368,7 +368,7 @@
 				"kind": "workbench.pane-graphics.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "catalog",
 					"target": {
@@ -402,7 +402,7 @@
 				"kind": "workbench.pane-graphics.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "pixels",
 					"target": {
@@ -427,7 +427,7 @@
 				"kind": "workbench.pane-graphics.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "applied",
 					"target": {
@@ -447,7 +447,7 @@
 				"kind": "workbench.pane-graphics.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "applied",
 					"target": {
@@ -467,7 +467,7 @@
 				"kind": "workbench.pane-graphics.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "stream-opened",
 					"streamId": "00000000000000000000000000000005",
@@ -489,7 +489,7 @@
 				"kind": "workbench.pane-graphics.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "frame-applied",
 					"streamId": "00000000000000000000000000000005",
@@ -512,7 +512,7 @@
 				"kind": "workbench.pane-graphics.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "closed",
 					"streamId": "00000000000000000000000000000005",
@@ -528,7 +528,7 @@
 				"kind": "workbench.pane-graphics.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "failed",
 					"reason": "invalid-file"
@@ -542,7 +542,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "observe",
 					"clientId": "00000000000000000000000000000004",
@@ -576,7 +576,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "observe",
 					"clientId": "00000000000000000000000000000004",
@@ -601,7 +601,7 @@
 				"kind": "workbench.pane-graphics.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "observed",
 					"clientId": "00000000000000000000000000000004",
@@ -616,7 +616,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "set",
 					"target": {
@@ -650,7 +650,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "set",
 					"target": {
@@ -683,7 +683,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "set",
 					"target": {
@@ -714,7 +714,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "set",
 					"target": {
@@ -746,7 +746,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "set",
 					"target": {
@@ -778,7 +778,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "set",
 					"target": {
@@ -810,7 +810,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "set",
 					"target": {
@@ -842,7 +842,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "set",
 					"target": {
@@ -874,7 +874,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "set",
 					"target": {
@@ -906,7 +906,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "set",
 					"target": {
@@ -938,7 +938,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "set",
 					"target": {
@@ -970,7 +970,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "pixels",
 					"target": {
@@ -992,7 +992,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "pixels",
 					"target": {
@@ -1014,7 +1014,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "pixels",
 					"target": {
@@ -1036,7 +1036,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "pixels",
 					"target": {
@@ -1058,7 +1058,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "stream-frame",
 					"streamId": "00000000000000000000000000000005",
@@ -1098,7 +1098,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "stream-frame",
 					"streamId": "00000000000000000000000000000005",
@@ -1138,7 +1138,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "stream-frame",
 					"streamId": "00000000000000000000000000000005",
@@ -1176,7 +1176,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "stream-frame",
 					"streamId": "00000000000000000000000000000005",
@@ -1214,7 +1214,7 @@
 				"kind": "workbench.pane-graphics.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "info",
 					"target": {
@@ -1239,7 +1239,7 @@
 				"kind": "workbench.pane-graphics.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "info",
 					"target": {
@@ -1268,7 +1268,7 @@
 				"kind": "workbench.pane-graphics.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "info",
 					"target": {
@@ -1297,7 +1297,7 @@
 				"kind": "workbench.pane-graphics.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "catalog",
 					"target": {
@@ -1346,7 +1346,7 @@
 				"kind": "workbench.pane-graphics.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "catalog",
 					"target": {
@@ -1381,7 +1381,7 @@
 				"kind": "workbench.pane-graphics.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "catalog",
 					"target": {
@@ -1416,7 +1416,7 @@
 				"kind": "workbench.pane-graphics.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "pixels",
 					"target": {
@@ -1442,7 +1442,7 @@
 				"kind": "workbench.pane-graphics.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "pixels",
 					"target": {
@@ -1468,7 +1468,7 @@
 				"kind": "workbench.pane-graphics.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "applied",
 					"target": {
@@ -1489,7 +1489,7 @@
 				"kind": "workbench.pane-graphics.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "failed",
 					"reason": "unsupported"
@@ -1503,7 +1503,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "observe",
 					"clientId": "00000000000000000000000000000004",
@@ -1536,7 +1536,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "observe",
 					"clientId": "00000000000000000000000000000004",
@@ -1570,7 +1570,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "observe",
 					"clientId": "00000000000000000000000000000004",
@@ -1613,7 +1613,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "observe",
 					"clientId": "00000000000000000000000000000004",
@@ -1647,7 +1647,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "observe",
 					"clientId": "00000000000000000000000000000004",
@@ -1681,7 +1681,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "observe",
 					"clientId": "00000000000000000000000000000004",
@@ -1716,7 +1716,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "observe",
 					"clientId": "00000000000000000000000000000004",
@@ -2262,7 +2262,7 @@
 				"kind": "workbench.pane-graphics",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "set",
 					"target": {

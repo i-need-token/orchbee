@@ -41,7 +41,7 @@ Tab Strip 或可见侧边栏。焦点环只包含当前可用区域，顺序为�
 可见侧边栏。隐藏侧边栏和缺失终端会被跳过。临时对话框、菜单、搜索、Settings 及其他
 独占键盘表面不属于该环，并保留其更窄的焦点作用域。
 
-Tab Strip 是一个复合焦点站点。首次进入时记忆的 roving 项为活动 Tab，再次进入时为
+Tab Strip 是一个复合焦点会话。首次进入时记忆的 roving 项为活动 Tab，再次进入时为
 最近仍存活的键盘聚焦项。折叠分组头是其中隐藏活动 Tab 的可见代表；隐藏的分组子项
 绝不接收焦点。与方向一致的方向键会在边界回绕，只移动焦点而不激活；Home 和 End 移到第一个和最后
 一个可见项；Enter 和 Space 激活聚焦 Tab 或切换聚焦分组；Shift+F10 或 Menu 键打开
@@ -329,4 +329,4 @@ pnpm --filter @orchbee/workbench test
 pnpm --filter @orchbee/workbench test:exports
 ```
 
-<!-- documentation-pairing: english-sha256=c7e0cd0a9a4332a1fa81c78dca1be9302cd1357effd954be876a3a8538c12c76 zh-cn-sha256=8c2a57b1df975cee5fa7c2a08ee55c687e63f73900caaae8e66a23c337af04f7 -->
+<!-- documentation-pairing: english-sha256=c7e0cd0a9a4332a1fa81c78dca1be9302cd1357effd954be876a3a8538c12c76 zh-cn-sha256=4808c71c14355336c0734f452248a64e61507fd7747de9ed1f9a342581796902 -->

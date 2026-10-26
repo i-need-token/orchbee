@@ -16,7 +16,7 @@
 				"kind": {
 					"const": "local-worktree"
 				},
-				"siteId": {
+				"sessionId": {
 					"anyOf": [
 						{
 							"$ref": "#/$defs/identity"
@@ -27,7 +27,7 @@
 					]
 				}
 			},
-			"required": ["kind", "siteId"],
+			"required": ["kind", "sessionId"],
 			"additionalProperties": false
 		},
 		"result": {
@@ -588,7 +588,7 @@
 					"type": "object",
 					"properties": {
 						"kind": {
-							"const": "site-stopping"
+							"const": "session-stopping"
 						}
 					},
 					"required": ["kind"],
@@ -828,10 +828,10 @@
 				"version": {
 					"const": 1
 				},
-				"siteId": {
+				"sessionId": {
 					"anyOf": [
 						{
-							"$ref": "#/$defs/control/$defs/siteId"
+							"$ref": "#/$defs/control/$defs/sessionId"
 						},
 						{
 							"type": "null"
@@ -858,14 +858,14 @@
 										"requestId": {
 											"$ref": "#/$defs/control/$defs/requestId"
 										},
-										"siteId": {
-											"$ref": "#/$defs/control/$defs/siteId"
+										"sessionId": {
+											"$ref": "#/$defs/control/$defs/sessionId"
 										},
 										"outcome": {
 											"$ref": "#/$defs/control/$defs/outcome"
 										}
 									},
-									"required": ["protocolVersion", "requestId", "siteId", "outcome"],
+									"required": ["protocolVersion", "requestId", "sessionId", "outcome"],
 									"additionalProperties": false
 								}
 							},
@@ -915,11 +915,11 @@
 					]
 				}
 			},
-			"required": ["schema", "version", "siteId", "operationId", "observation", "wait"],
+			"required": ["schema", "version", "sessionId", "operationId", "observation", "wait"],
 			"additionalProperties": false,
 			"$defs": {
-				"siteId": {
-					"title": "SiteId",
+				"sessionId": {
+					"title": "SessionId",
 					"$ref": "#/$defs/control/$defs/identity"
 				},
 				"requestId": {

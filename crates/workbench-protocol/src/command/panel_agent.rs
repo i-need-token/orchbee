@@ -139,6 +139,7 @@ pub enum PanelAgentAction {
 pub struct PanelAgentRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub action: PanelAgentAction,
 }
@@ -241,6 +242,7 @@ pub struct PresentationAgentRow {
 pub enum PanelAgentFailure {
     Denied,
     Unavailable,
+    #[serde(rename = "session-mismatch")]
     SiteMismatch,
     InvalidRequest,
     NotFound,
@@ -318,6 +320,7 @@ pub enum PanelAgentOutcome {
 pub struct PanelAgentResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub outcome: PanelAgentOutcome,
 }

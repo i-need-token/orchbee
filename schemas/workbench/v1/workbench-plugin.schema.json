@@ -6,7 +6,7 @@
 		{
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "action"],
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "action"],
 			"properties": {
 				"kind": {
 					"const": "workbench.plugin"
@@ -21,7 +21,7 @@
 						"const": "00000000000000000000000000000000"
 					}
 				},
-				"siteId": {
+				"sessionId": {
 					"type": "string",
 					"pattern": "^[0-9a-f]{32}$",
 					"not": {
@@ -277,7 +277,7 @@
 		{
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"],
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "outcome"],
 			"properties": {
 				"kind": {
 					"const": "workbench.plugin.result"
@@ -292,7 +292,7 @@
 						"const": "00000000000000000000000000000000"
 					}
 				},
-				"siteId": {
+				"sessionId": {
 					"type": "string",
 					"pattern": "^[0-9a-f]{32}$",
 					"not": {
@@ -385,7 +385,7 @@
 									"enum": [
 										"denied",
 										"unavailable",
-										"site-mismatch",
+										"session-mismatch",
 										"worker-changed",
 										"invalid-intent",
 										"not-found",

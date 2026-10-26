@@ -146,7 +146,7 @@ fn registry_and_site_gate_failures_before_commit_return_server_busy() {
     assert!(
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let _guard = service.coordinator.lock().unwrap();
-            panic!("poison Site gate for tab.create boundary")
+            panic!("poison Session gate for tab.create boundary")
         }))
         .is_err()
     );
@@ -197,7 +197,7 @@ fn site_gate_loss_after_commit_returns_only_the_close_outcome_unknown_signal() -
     assert!(
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let _guard = service.coordinator.lock().unwrap();
-            panic!("poison Site gate after joint commit")
+            panic!("poison Session gate after joint commit")
         }))
         .is_err()
     );
@@ -205,7 +205,7 @@ fn site_gate_loss_after_commit_returns_only_the_close_outcome_unknown_signal() -
     assert_eq!(
         creator_result
             .recv_timeout(Duration::from_secs(5))
-            .map_err(|_timeout| "creator did not observe the postcommit Site failure")?,
+            .map_err(|_timeout| "creator did not observe the postcommit Session failure")?,
         Err(PostcommitCoordinationError)
     );
     assert_eq!(

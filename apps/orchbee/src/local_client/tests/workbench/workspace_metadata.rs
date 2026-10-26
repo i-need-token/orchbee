@@ -28,10 +28,10 @@ fn workspace_metadata_report_correlation_uncertainty_and_no_replay() -> TestResu
             },
         };
         let expected = request.clone();
-        let mut reply = serde_json::json!({"protocolVersion":1,"requestId":id(1),"siteId":id(2),"outcome":{"kind":"reported","workspaceId":id(3),"workbenchRevision":"5","metadataRevision":"1","disposition":"applied"}});
+        let mut reply = serde_json::json!({"protocolVersion":1,"requestId":id(1),"sessionId":id(2),"outcome":{"kind":"reported","workspaceId":id(3),"workbenchRevision":"5","metadataRevision":"1","disposition":"applied"}});
         match case {
             1 => reply["requestId"] = serde_json::json!(id(90)),
-            2 => reply["siteId"] = serde_json::json!(id(90)),
+            2 => reply["sessionId"] = serde_json::json!(id(90)),
             3 => reply["outcome"]["workspaceId"] = serde_json::json!(id(90)),
             4 => {
                 reply["outcome"] = serde_json::json!({"kind":"read","workbenchRevision":"5","metadataRevision":"1","workspaces":[]})

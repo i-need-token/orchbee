@@ -8,7 +8,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "invoke",
 					"operationId": "44444444444444444444444444444444",
@@ -34,7 +34,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "logs",
 					"pluginId": null,
@@ -50,7 +50,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "logs",
 					"pluginId": "tools",
@@ -72,7 +72,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "get",
 					"worker": {
@@ -90,7 +90,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "cancel",
 					"worker": {
@@ -108,7 +108,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "started",
 					"worker": {
@@ -141,7 +141,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "logs",
 					"worker": {
@@ -176,7 +176,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "started",
 					"worker": {
@@ -209,7 +209,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "started",
 					"worker": {
@@ -242,7 +242,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "started",
 					"worker": {
@@ -275,7 +275,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "started",
 					"worker": {
@@ -308,7 +308,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "started",
 					"worker": {
@@ -341,7 +341,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "started",
 					"worker": {
@@ -374,7 +374,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "logs",
 					"worker": {
@@ -393,7 +393,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "unknown",
 					"worker": {
@@ -410,7 +410,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "cancellation",
 					"worker": {
@@ -429,7 +429,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "failed",
 					"reason": "denied"
@@ -443,7 +443,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "failed",
 					"reason": "unavailable"
@@ -451,16 +451,16 @@
 			}
 		},
 		{
-			"name": "site-mismatch",
+			"name": "session-mismatch",
 			"direction": "response",
 			"document": {
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "failed",
-					"reason": "site-mismatch"
+					"reason": "session-mismatch"
 				}
 			}
 		},
@@ -471,7 +471,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "failed",
 					"reason": "worker-changed"
@@ -485,7 +485,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "failed",
 					"reason": "invalid-intent"
@@ -499,7 +499,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "failed",
 					"reason": "not-found"
@@ -513,7 +513,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "failed",
 					"reason": "disabled"
@@ -527,7 +527,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "failed",
 					"reason": "unsupported"
@@ -541,7 +541,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "failed",
 					"reason": "source-unavailable"
@@ -555,7 +555,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "failed",
 					"reason": "ambiguous"
@@ -569,7 +569,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "failed",
 					"reason": "busy"
@@ -583,7 +583,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "failed",
 					"reason": "conflict"
@@ -597,7 +597,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "failed",
 					"reason": "physical-unknown"
@@ -611,7 +611,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "invoke",
 					"operationId": "44444444444444444444444444444444",
@@ -639,7 +639,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "pane-get",
 					"panelId": "00000000000000000000000000000003"
@@ -653,7 +653,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "pane-found",
 					"revision": "12",
@@ -681,7 +681,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "pane-observe",
 					"pane": {
@@ -708,7 +708,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "pane-observed",
 					"revision": "12",
@@ -737,7 +737,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "popup-open",
 					"popupId": "00000000000000000000000000000003",
@@ -786,7 +786,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "popup-read",
 					"popupId": "00000000000000000000000000000003"
@@ -800,7 +800,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "popup-close",
 					"popupId": "00000000000000000000000000000003"
@@ -814,7 +814,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "popup-opened",
 					"popupId": "00000000000000000000000000000003",
@@ -829,7 +829,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "popup-state",
 					"popupId": "00000000000000000000000000000003",
@@ -844,7 +844,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "popup-closing",
 					"popupId": "00000000000000000000000000000003"
@@ -858,7 +858,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "popup-closed",
 					"popupId": "00000000000000000000000000000003"
@@ -872,7 +872,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "popup-unknown",
 					"popupId": "00000000000000000000000000000003"
@@ -886,7 +886,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "popup-open",
 					"popupId": "00000000000000000000000000000003",
@@ -946,7 +946,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "invoke",
 					"operationId": "00000000000000000000000000000000",
@@ -967,7 +967,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "invoke",
 					"operationId": "44444444444444444444444444444444",
@@ -987,7 +987,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "invoke",
 					"operationId": "44444444444444444444444444444444",
@@ -1013,7 +1013,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "invoke",
 					"operationId": "44444444444444444444444444444444",
@@ -1039,7 +1039,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "invoke",
 					"operationId": "44444444444444444444444444444444",
@@ -1065,7 +1065,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "invoke",
 					"operationId": "44444444444444444444444444444444",
@@ -1088,7 +1088,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "invoke",
 					"operationId": "44444444444444444444444444444444",
@@ -1114,7 +1114,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "invoke",
 					"operationId": "44444444444444444444444444444444",
@@ -1135,7 +1135,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "logs",
 					"pluginId": null,
@@ -1152,7 +1152,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "logs",
 					"cursor": null,
@@ -1168,7 +1168,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "invoke",
 					"operationId": "44444444444444444444444444444444",
@@ -1188,7 +1188,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "invoke",
 					"operationId": "44444444444444444444444444444444",
@@ -1208,7 +1208,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "started",
 					"worker": {
@@ -1242,7 +1242,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "started",
 					"worker": {
@@ -1276,7 +1276,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "started",
 					"worker": {
@@ -1310,7 +1310,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "logs",
 					"worker": {
@@ -1361,7 +1361,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "logs",
 					"worker": {
@@ -1403,7 +1403,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "invoke",
 					"operationId": "44444444444444444444444444444444",
@@ -1432,7 +1432,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "invoke",
 					"operationId": "44444444444444444444444444444444",
@@ -1461,7 +1461,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "invoke",
 					"operationId": "44444444444444444444444444444444",
@@ -1490,7 +1490,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "invoke",
 					"operationId": "44444444444444444444444444444444",
@@ -1520,7 +1520,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "invoke",
 					"operationId": "44444444444444444444444444444444",
@@ -1549,7 +1549,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "invoke",
 					"operationId": "44444444444444444444444444444444",
@@ -1578,7 +1578,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "invoke",
 					"operationId": "44444444444444444444444444444444",
@@ -1606,7 +1606,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "pane-found",
 					"revision": "0",
@@ -1634,7 +1634,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "pane-found",
 					"revision": "12",
@@ -1659,7 +1659,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "pane-found",
 					"revision": "12",
@@ -1687,7 +1687,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "pane-observe",
 					"pane": {
@@ -1714,7 +1714,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "pane-observe",
 					"pane": {
@@ -1737,7 +1737,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "pane-observed",
 					"revision": "12",
@@ -1766,7 +1766,7 @@
 				"kind": "workbench.plugin.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "pane-observed",
 					"revision": "0",
@@ -1795,7 +1795,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "popup-open",
 					"popupId": "00000000000000000000000000000003",
@@ -1845,7 +1845,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "popup-open",
 					"popupId": "00000000000000000000000000000003",
@@ -1895,7 +1895,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "popup-open",
 					"popupId": "00000000000000000000000000000003",
@@ -1941,7 +1941,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "popup-open",
 					"popupId": "00000000000000000000000000000003",
@@ -1991,7 +1991,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "popup-open",
 					"popupId": "00000000000000000000000000000003",
@@ -2042,7 +2042,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "popup-open",
 					"popupId": "00000000000000000000000000000003",
@@ -2092,7 +2092,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "popup-open",
 					"popupId": "00000000000000000000000000000003",
@@ -2142,7 +2142,7 @@
 				"kind": "workbench.plugin",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "popup-open",
 					"popupId": "00000000000000000000000000000003",

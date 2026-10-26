@@ -49,7 +49,7 @@ fn snapshot(stream: &mut LocalStream, created: bool, primary: bool, initial_work
             .as_str()
             .cmp(&right["terminalContextId"].as_str())
     });
-    let snapshot=serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":if created {"13"} else {"12"},"navigation":{"projects":if created {vec![json!({"projectId":id(3),"label":"project"})]} else {vec![]},"directories":directories,"workspaces":workspaces},"terminalContexts":contexts})).unwrap();
+    let snapshot=serde_json::from_value(json!({"protocolVersion":1,"sessionId":id(2),"revision":if created {"13"} else {"12"},"navigation":{"projects":if created {vec![json!({"projectId":id(3),"label":"project"})]} else {vec![]},"directories":directories,"workspaces":workspaces},"terminalContexts":contexts})).unwrap();
     write_workbench_response(
         stream,
         &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {

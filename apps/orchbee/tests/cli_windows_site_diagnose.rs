@@ -51,7 +51,7 @@ impl Fixture {
         assert!(output.stderr.is_empty());
         let document: Value = serde_json::from_slice(&output.stdout).unwrap();
         let schema: Value = serde_json::from_str(include_str!(
-            "../src/cli/schemas/orchbee.site.diagnose.json"
+            "../src/cli/schemas/orchbee.server.diagnose.json"
         ))
         .unwrap();
         let validator = jsonschema::draft202012::new(&schema).unwrap();
@@ -113,7 +113,7 @@ fn marker_lock_pipe_and_localization_are_facts_without_a_connection() {
     let document = fixture.document();
     assert_eq!(document["result"]["runtimeDirectory"]["private"], true);
     assert_eq!(
-        document["result"]["locks"]["siteLifetime"]["state"],
+        document["result"]["locks"]["sessionLifetime"]["state"],
         "absent"
     );
     assert_eq!(fs::read_dir(site.runtime_directory()).unwrap().count(), 0);
@@ -125,7 +125,10 @@ fn marker_lock_pipe_and_localization_are_facts_without_a_connection() {
     let listener = LocalListener::bind(site.client_socket_path()).unwrap();
     listener.set_nonblocking(true).unwrap();
     let document = fixture.document();
-    assert_eq!(document["result"]["locks"]["siteLifetime"]["state"], "held");
+    assert_eq!(
+        document["result"]["locks"]["sessionLifetime"]["state"],
+        "held"
+    );
     assert_eq!(document["result"]["marker"]["state"], "known");
     assert_eq!(document["result"]["marker"]["activation"], "active");
     assert_eq!(document["result"]["endpoints"]["client"]["state"], "known");
@@ -147,7 +150,10 @@ fn marker_lock_pipe_and_localization_are_facts_without_a_connection() {
     let (server, ()) = listener.accept().unwrap();
     drop((client, server, listener, held));
     let document = fixture.document();
-    assert_eq!(document["result"]["locks"]["siteLifetime"]["state"], "free");
+    assert_eq!(
+        document["result"]["locks"]["sessionLifetime"]["state"],
+        "free"
+    );
     assert_eq!(document["result"]["endpoints"]["client"]["state"], "absent");
     // This fixture owns no child processes; it can publish a completed stop.
     let mut record = site.retain_active_record().unwrap();

@@ -19,22 +19,22 @@
 				"requestId": {
 					"$ref": "#/$defs/requestId"
 				},
-				"siteId": {
-					"$ref": "#/$defs/siteId"
+				"sessionId": {
+					"$ref": "#/$defs/sessionId"
 				},
 				"outcome": {
 					"$ref": "#/$defs/outcome"
 				}
 			},
-			"required": ["protocolVersion", "requestId", "siteId", "outcome"],
+			"required": ["protocolVersion", "requestId", "sessionId", "outcome"],
 			"additionalProperties": false
 		}
 	},
 	"required": ["schema", "version", "result"],
 	"additionalProperties": false,
 	"$defs": {
-		"siteId": {
-			"title": "SiteId",
+		"sessionId": {
+			"title": "SessionId",
 			"$ref": "#/$defs/identity"
 		},
 		"requestId": {

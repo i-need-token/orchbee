@@ -62,7 +62,7 @@ fn configuration_roundtrips_have_distinct_carrier_kinds_and_exact_correlation() 
 #[test]
 fn configuration_rejects_unknown_fields_oversize_and_invalid_failure_shapes() {
     // Keep malformed Unicode outside the corpus container: serde_json rejects it before DTO admission.
-    let invalid = br#"{"kind":"workbench.configuration.result","protocolVersion":1,"requestId":"00000000000000000000000000000001","siteId":"00000000000000000000000000000002","outcome":{"kind":"current","snapshot":{"revision":"0","keysProfile":"[keys]","manifestCheck":true,"restartRequired":[],"defaultShell":"\ud800","shellMode":"auto"}}}"#;
+    let invalid = br#"{"kind":"workbench.configuration.result","protocolVersion":1,"requestId":"00000000000000000000000000000001","sessionId":"00000000000000000000000000000002","outcome":{"kind":"current","snapshot":{"revision":"0","keysProfile":"[keys]","manifestCheck":true,"restartRequired":[],"defaultShell":"\ud800","shellMode":"auto"}}}"#;
     assert!(parse_workbench_response(invalid).is_err());
     let request = request();
     let mut value = serde_json::to_value(&request).unwrap();

@@ -2,7 +2,7 @@
 
 ## Transient terminal clear
 
-The additive `clear` control action carries only an existing viewer `attachmentId`. It does not acquire or transfer a controller. A `cleared` outcome carries positive decimal `generation` and `revision`, and `cleanupConfirmed`; unknown delivery uses the existing `outcome-unknown` class. Other outcomes retain their closed meanings. The Server owns Site-exposure, physical-binding and Worker-generation fencing and fresh transient attachment identity; the Worker owns input-only attach → prompt-preserving Host clear → detach. [Native clear](../../apps/orchbee/docs/native-cli-query.md#clear-terminal-output) owns public command, deadlines and receipts. Matching development cohorts are required.
+The additive `clear` control action carries only an existing viewer `attachmentId`. It does not acquire or transfer a controller. A `cleared` outcome carries positive decimal `generation` and `revision`, and `cleanupConfirmed`; unknown delivery uses the existing `outcome-unknown` class. Other outcomes retain their closed meanings. The Server owns Session-exposure, physical-binding and Worker-generation fencing and fresh transient attachment identity; the Worker owns input-only attach → prompt-preserving Host clear → detach. [Native clear](../../apps/orchbee/docs/native-cli-query.md#clear-terminal-output) owns public command, deadlines and receipts. Matching development cohorts are required.
 
 ## Scope
 
@@ -150,7 +150,7 @@ inputs. This binding grants no controller authority and never retries an unknown
 
 `TerminalSendRequest`, `SendRecords`, `TerminalSendResult`, and `TerminalSendOutcome`
 carry one Server-authorized non-interactive input submission to an exposed Workbench terminal.
-The request is a flat `requestId` + `siteId`/`workerId`/`terminalId` binding triple + closed
+The request is a flat `requestId` + `sessionId`/`workerId`/`terminalId` binding triple + closed
 record sequence; the triple is the declared target the Server resolves at authorize time, not an
 incarnation lock. The binding grants no controller, viewer, resize, or lease authority, consumes
 no attachment slot, and never rebinds across a restart: a target that changed worker or Host
@@ -180,13 +180,13 @@ never mutates — the Server resolves the target against its current committed W
 membership inside the coordinator lock and answers in one pass.
 
 The `found` outcome carries the current routing row (`terminalId`, `workerId`, `boundTo`
-presentation/panel/tab/context identities), the `siteId`, the decimal-string
+presentation/panel/tab/context identities), the `sessionId`, the decimal-string
 `workbenchRevision` the join observed, and a `launch` fact object. When the terminal was
 launched through a named Launch Profile, `found` also carries an optional `launchProfile`
 member `{profileId, catalogRevision}` — the provenance frozen when the launch was prepared;
 the member is absent entirely for terminals launched another way, and it stays accurate even
 if the profile was deleted after its selection was captured. `not-found` and
-`unavailable{reason:"server-busy"}` are the only other outcomes; a site without a Workbench
+`unavailable{reason:"server-busy"}` are the only other outcomes; a session without a Workbench
 answers `not-found`, including for orphaned retained records.
 
 An explicit program also contributes optional `launchSelection:{exec,args}` to `found`.

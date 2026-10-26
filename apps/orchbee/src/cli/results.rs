@@ -74,7 +74,7 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
 pub(crate) fn snapshot_source(snapshot: &Snapshot) -> Value {
     json!({
         "kind": "workbench-snapshot",
-        "siteId": snapshot.site_id.as_str(),
+        "sessionId": snapshot.site_id.as_str(),
         "revision": snapshot.revision,
     })
 }
@@ -85,7 +85,7 @@ pub(crate) fn snapshot_source(snapshot: &Snapshot) -> Value {
 pub(crate) fn launch_read_source(site_id: &str, revision: u64) -> Value {
     json!({
         "kind": "terminal-launch-read",
-        "siteId": site_id,
+        "sessionId": site_id,
         "revision": revision.to_string(),
     })
 }
@@ -1435,9 +1435,9 @@ impl Projection {
             #[cfg(windows)]
             Self::AgentTerminalWait(doc) => doc.document(),
             Self::Status(doc) => json!({
-                "site": {
+                "session": {
                     "reachable": true,
-                    "siteId": doc.site_id,
+                    "sessionId": doc.site_id,
                     "revision": doc.revision,
                 },
                 "counts": {

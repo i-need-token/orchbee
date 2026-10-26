@@ -20,8 +20,8 @@
 		"workspaceId": {
 			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
 		},
-		"siteId": {
-			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/siteId"
+		"sessionId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/sessionId"
 		},
 		"label": {
 			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
@@ -92,14 +92,14 @@
 				"requestId": {
 					"$ref": "#/$defs/requestId"
 				},
-				"siteId": {
-					"$ref": "#/$defs/siteId"
+				"sessionId": {
+					"$ref": "#/$defs/sessionId"
 				},
 				"action": {
 					"$ref": "#/$defs/action"
 				}
 			},
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "action"],
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "action"],
 			"additionalProperties": false
 		},
 		"observation": {
@@ -194,7 +194,7 @@
 								"child-blocked",
 								"outcome-unknown",
 								"deadline",
-								"site-stopping",
+								"session-stopping",
 								"internal"
 							]
 						},

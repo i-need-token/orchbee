@@ -62,7 +62,7 @@
 			"type": "object",
 			"required": [
 				"kind",
-				"siteId",
+				"sessionId",
 				"snapshotRevision",
 				"requestId",
 				"hostRequestId",
@@ -75,7 +75,7 @@
 				"kind": {
 					"const": "terminal-process-query"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/id"
 				},
 				"snapshotRevision": {

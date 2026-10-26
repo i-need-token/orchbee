@@ -141,7 +141,7 @@ impl Locale {
             if failure.kind == FailureKind::NotFound {
                 return match self {
                     Self::EnUs => "No Agent session or name matches the target.\n",
-                    Self::ZhCn => "没有与目标匹配的 Agent 会话或名称。\n",
+                    Self::ZhCn => "没有与目标匹配的智能体会话或名称。\n",
                 }
                 .to_owned();
             }
@@ -154,7 +154,7 @@ impl Locale {
             {
                 return match self {
                     Self::EnUs => "This Agent name or terminal is reserved by a pending launch. Use `orchbee agent names` to inspect its remaining time.\n",
-                    Self::ZhCn => "此 Agent 名称或终端正被启动预留占用。可用 `orchbee agent names` 查看剩余时间。\n",
+                    Self::ZhCn => "此智能体名称或终端正被启动预留占用。可用 `orchbee agent names` 查看剩余时间。\n",
                 }.to_owned();
             }
         }
@@ -204,7 +204,7 @@ impl Locale {
                     "The local session has no Client Connection capacity for the start probe.\n"
                         .to_owned()
                 }
-                Self::ZhCn => "本地会话没有可接纳启动探针的 客户端连接 容量。\n".to_owned(),
+                Self::ZhCn => "本地会话没有可接纳启动探针的客户端连接 容量。\n".to_owned(),
             },
             FailureKind::TransportLoss if local_runtime => match self {
                 Self::EnUs => {
@@ -291,7 +291,7 @@ impl Locale {
                 Self::EnUs => {
                     "The local session has no Client Connection capacity for this query.\n".to_owned()
                 }
-                Self::ZhCn => "本地会话没有可接纳本次查询的 客户端连接 容量。\n".to_owned(),
+                Self::ZhCn => "本地会话没有可接纳本次查询的客户端连接 容量。\n".to_owned(),
             },
             FailureKind::TransportLoss => {
                 let stage = failure

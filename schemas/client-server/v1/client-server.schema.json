@@ -52,8 +52,8 @@
 			"title": "ClientServerRequestId",
 			"$ref": "#/$defs/identity"
 		},
-		"siteId": {
-			"title": "SiteId",
+		"sessionId": {
+			"title": "SessionId",
 			"$ref": "#/$defs/identity"
 		},
 		"workerId": {
@@ -572,13 +572,13 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "siteId", "workerId", "terminalId"],
+					"required": ["kind", "sessionId", "workerId", "terminalId"],
 					"properties": {
 						"kind": {
 							"const": "attach-binding"
 						},
-						"siteId": {
-							"$ref": "#/$defs/siteId"
+						"sessionId": {
+							"$ref": "#/$defs/sessionId"
 						},
 						"workerId": {
 							"$ref": "#/$defs/workerId"
@@ -1929,13 +1929,13 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "siteId", "workbenchRevision", "terminal", "launch"],
+					"required": ["kind", "sessionId", "workbenchRevision", "terminal", "launch"],
 					"properties": {
 						"kind": {
 							"const": "found"
 						},
-						"siteId": {
-							"$ref": "#/$defs/siteId"
+						"sessionId": {
+							"$ref": "#/$defs/sessionId"
 						},
 						"workbenchRevision": {
 							"$ref": "#/$defs/projectionUnsigned"

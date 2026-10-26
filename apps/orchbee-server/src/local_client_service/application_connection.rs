@@ -95,7 +95,7 @@ pub(super) enum ApplicationConnectionError {
 impl fmt::Display for ApplicationConnectionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Stopping => formatter.write_str("Site is stopping"),
+            Self::Stopping => formatter.write_str("Session is stopping"),
             Self::Prefix(error) => {
                 write!(formatter, "Application record prefix read failed: {error}")
             }

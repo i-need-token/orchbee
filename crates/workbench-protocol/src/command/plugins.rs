@@ -322,6 +322,7 @@ impl PluginAction {
 pub struct PluginRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub action: PluginAction,
 }
@@ -410,6 +411,7 @@ impl PluginCommandLog {
 pub enum PluginFailure {
     Denied,
     Unavailable,
+    #[serde(rename = "session-mismatch")]
     SiteMismatch,
     WorkerChanged,
     InvalidIntent,
@@ -505,6 +507,7 @@ impl PluginPaneInfo {
 pub struct PluginResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub outcome: PluginOutcome,
 }

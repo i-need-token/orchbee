@@ -20,12 +20,12 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "siteId", "baseRevision", "clientId"],
+					"required": ["kind", "sessionId", "baseRevision", "clientId"],
 					"properties": {
 						"kind": {
 							"const": "layout-application"
 						},
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/id"
 						},
 						"baseRevision": {
@@ -268,12 +268,12 @@
 				"source": {
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "siteId", "revision", "clientId", "viewRevision", "scope"],
+					"required": ["kind", "sessionId", "revision", "clientId", "viewRevision", "scope"],
 					"properties": {
 						"kind": {
 							"const": "layout-observation"
 						},
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/export/$defs/id"
 						},
 						"revision": {
@@ -1072,13 +1072,13 @@
 				},
 				"commandSource": {
 					"type": "object",
-					"required": ["kind", "siteId", "requestId", "expectedRevision"],
+					"required": ["kind", "sessionId", "requestId", "expectedRevision"],
 					"additionalProperties": false,
 					"properties": {
 						"kind": {
 							"const": "workbench-command"
 						},
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/mutation/$defs/id"
 						},
 						"requestId": {
@@ -1093,7 +1093,7 @@
 					"type": "object",
 					"required": [
 						"kind",
-						"siteId",
+						"sessionId",
 						"requestId",
 						"closeRequestId",
 						"expectedAttemptGeneration"
@@ -1103,7 +1103,7 @@
 						"kind": {
 							"const": "workspace-close-resume"
 						},
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/mutation/$defs/id"
 						},
 						"requestId": {
@@ -1184,13 +1184,13 @@
 				},
 				"commandSource": {
 					"type": "object",
-					"required": ["kind", "siteId", "requestId", "expectedRevision"],
+					"required": ["kind", "sessionId", "requestId", "expectedRevision"],
 					"additionalProperties": false,
 					"properties": {
 						"kind": {
 							"const": "workbench-command"
 						},
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/rename/$defs/id"
 						},
 						"requestId": {
@@ -1213,10 +1213,10 @@
 				"version": {
 					"const": 1
 				},
-				"siteId": {
+				"sessionId": {
 					"anyOf": [
 						{
-							"$ref": "#/$defs/control/$defs/siteId"
+							"$ref": "#/$defs/control/$defs/sessionId"
 						},
 						{
 							"type": "null"
@@ -1243,14 +1243,14 @@
 										"requestId": {
 											"$ref": "#/$defs/control/$defs/requestId"
 										},
-										"siteId": {
-											"$ref": "#/$defs/control/$defs/siteId"
+										"sessionId": {
+											"$ref": "#/$defs/control/$defs/sessionId"
 										},
 										"outcome": {
 											"$ref": "#/$defs/control/$defs/outcome"
 										}
 									},
-									"required": ["protocolVersion", "requestId", "siteId", "outcome"],
+									"required": ["protocolVersion", "requestId", "sessionId", "outcome"],
 									"additionalProperties": false
 								}
 							},
@@ -1300,11 +1300,11 @@
 					]
 				}
 			},
-			"required": ["schema", "version", "siteId", "operationId", "observation", "wait"],
+			"required": ["schema", "version", "sessionId", "operationId", "observation", "wait"],
 			"additionalProperties": false,
 			"$defs": {
-				"siteId": {
-					"title": "SiteId",
+				"sessionId": {
+					"title": "SessionId",
 					"$ref": "#/$defs/control/$defs/identity"
 				},
 				"requestId": {
@@ -3773,12 +3773,12 @@
 		"layoutEffect": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["action", "siteId", "requestId", "baseRevision", "result"],
+			"required": ["action", "sessionId", "requestId", "baseRevision", "result"],
 			"properties": {
 				"action": {
 					"enum": ["tab.create-layout", "panel.create-terminal"]
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/id"
 				},
 				"requestId": {
@@ -3815,7 +3815,7 @@
 								},
 								"reason": {
 									"enum": [
-										"site-mismatch",
+										"session-mismatch",
 										"revision-mismatch",
 										"project-unavailable",
 										"workspace-unavailable",
@@ -4117,7 +4117,7 @@
 			"type": "object",
 			"required": [
 				"action",
-				"siteId",
+				"sessionId",
 				"requestId",
 				"baseRevision",
 				"terminalContextId",
@@ -4132,7 +4132,7 @@
 				"action": {
 					"const": "layout.set-split-ratio"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/id"
 				},
 				"requestId": {

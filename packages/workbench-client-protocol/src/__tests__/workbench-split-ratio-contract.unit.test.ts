@@ -33,7 +33,7 @@ const request = {
 	kind: 'workbench.command',
 	protocolVersion: 1,
 	requestId: id(10),
-	siteId: id(11),
+	sessionId: id(11),
 	expectedRevision: '12',
 	action: {
 		kind: 'layout.set-split-ratio',

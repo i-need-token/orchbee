@@ -1971,7 +1971,7 @@ consumption, and projection's reclassification and epochs remain separate from C
 Missing or unknown reader markers, process-query failure, and incomplete prompt phases remain
 unknown; a normal post-command prompt can become idle again after its accepted line is acknowledged.
 
-On Windows, interactive PowerShell launches receive the Local Site Runtime's shared, process-local
+On Windows, interactive PowerShell launches receive the Local Session Runtime's shared, process-local
 `-NoExit -Command` bootstrap after normal profile execution. Worker-prepared argv is interactive
 only when the command operand exactly equals the shared common-initialization and reader assets,
 preceded solely by admitted interactive flags including `-NoExit`. The Host retains that argv

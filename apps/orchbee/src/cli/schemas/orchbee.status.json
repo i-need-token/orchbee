@@ -17,18 +17,18 @@
 		},
 		"result": {
 			"type": "object",
-			"required": ["site", "counts", "worker"],
+			"required": ["session", "counts", "worker"],
 			"additionalProperties": false,
 			"properties": {
-				"site": {
+				"session": {
 					"type": "object",
-					"required": ["reachable", "siteId", "revision"],
+					"required": ["reachable", "sessionId", "revision"],
 					"additionalProperties": false,
 					"properties": {
 						"reachable": {
 							"const": true
 						},
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/id"
 						},
 						"revision": {
@@ -87,13 +87,13 @@
 		},
 		"snapshotSource": {
 			"type": "object",
-			"required": ["kind", "siteId", "revision"],
+			"required": ["kind", "sessionId", "revision"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
 					"const": "workbench-snapshot"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/id"
 				},
 				"revision": {

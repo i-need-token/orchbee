@@ -15,7 +15,7 @@ canonical `PanelNode::Split` 包含有限的 `ratio`，范围为 `0.1..=0.9`，�
 slot 的份额。缺失表示 `0.5`；序列化省略均分默认值。split ID 与两个有序 slot ID 一起
 标识分屏。新分屏从均分开始；移动现有子树保留比例，删除分屏则同时删除其比例。
 
-`layout.set-split-ratio` 是经过认证的 Workbench 命令，携带 Site、request ID、精确的预期
+`layout.set-split-ratio` 是经过认证的 Workbench 命令，携带 会话、request ID、精确的预期
 Workbench revision、TerminalContext、Tab、分屏身份、原比例和请求比例。现有导航变更 grant
 准入此命令。视口几何和进程句柄都不作为 canonical 状态。无效比例在有界协议入口拒绝；
 CLI 归一化保留现有有限数值和夹取规则。
@@ -33,7 +33,7 @@ frame 格式、三副本保留、字节上限及自动保存时序不变；不�
 
 | 事件或守卫                                     | 状态与结果                                                                 |
 | ---------------------------------------------- | -------------------------------------------------------------------------- |
-| 未授权、Site 错误、authority 已退役或容量耗尽  | 现有类型化拒绝/不可用；不写比例                                            |
+| 未授权、会话 错误、authority 已退役或容量耗尽  | 现有类型化拒绝/不可用；不写比例                                            |
 | request ID 相同且完整命令相同                  | 重放保留结果，不再增加 delta 或 revision                                   |
 | request ID 相同但命令不同                      | 请求身份冲突；不写入                                                       |
 | revision 或原比例错误                          | Revision mismatch；不写入，也不自动重试                                    |
@@ -83,7 +83,7 @@ worker 拥有 deadline 和关闭唤醒端点；创建者在释放资源前 join�
 | 旧版默认值、升级准入与持久保留                          | checkpoint 往返/版本拒绝及 Windows catalog 准入案例                                  |
 | 共享名义比例精化为实际几何                              | Windows ConPTY 双 Client、控制者/只读、detach/reattach、停止/重启及布局导出/应用轨迹 |
 
-抽象模型检查一个已准入的 Site generation、两个 Client、两种 split incarnation、三种比例
+抽象模型检查一个已准入的 会话 generation、两个 Client、两种 split incarnation、三种比例
 等价类和每个 Client 一个请求；selected/inactive 阶段是显式的。checkpoint 发布和激活仍属于
 独立的存储/启动模型，不把其状态空间乘进比例提交模型。唯一公平性假设是 Server 最终结算
 完整提交的请求；UI 打断和缺失回执不假设绘制成功。它不证明无界拓扑、Win32 I/O 或超出
@@ -93,4 +93,4 @@ worker 拥有 deadline 和关闭唤醒端点；创建者在释放资源前 join�
 
 selected 成功可使用更新修订，只要 split 身份及提交比例仍保持；回执记录实际绘制缓存修订。`splitRevision` 使用投影缓存的规范 Workbench 修订。
 
-<!-- documentation-pairing: english-sha256=b887add08b59c1c1b60b0c02cd5dc6db2889a90012f972338ff641d90208c01e zh-cn-sha256=6030b014df52676af43b14a2f4effb648b722e64104ac6c3ae29decd9ee81f09 -->
+<!-- documentation-pairing: english-sha256=56a0be7fee119728ad58ad5bd3027300d2805e0352fe42a3f4eaad6cdcc85e74 zh-cn-sha256=f05ba1cb76c4021f5c300cc11ac2dd0db094d3459bc3d522aaa8a1afded0d838 -->

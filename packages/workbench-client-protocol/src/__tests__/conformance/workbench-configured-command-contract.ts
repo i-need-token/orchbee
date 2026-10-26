@@ -17,7 +17,7 @@ import { PluginResultSchema } from './workbench-plugin-contract';
 import { WorkbenchCommandOutcomeSchema } from './workbench-command-outcome-contract';
 import { WorkbenchTerminalGeometrySchema } from './workbench-terminal-launch-contract';
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	WorkbenchRequestIdSchema,
 	WorkbenchRevisionSchema,
 	WorkerIdSchema,
@@ -31,7 +31,7 @@ const bounded = (value: unknown) =>
 const correlation = {
 	protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 	requestId: WorkbenchRequestIdSchema,
-	siteId: SiteIdSchema,
+	sessionId: SessionIdSchema,
 };
 const ConfiguredCommandInvocationSchema = z
 	.strictObject({
@@ -147,7 +147,7 @@ export const ConfiguredCommandResultSchema = z
 				reason: z.enum([
 					'denied',
 					'invalid-intent',
-					'site-mismatch',
+					'session-mismatch',
 					'unavailable',
 					'busy',
 					'conflict',
@@ -175,11 +175,14 @@ export const ConfiguredCommandResultSchema = z
 		if (outcome.kind === 'plugin')
 			return (
 				outcome.result.requestId === value.requestId &&
-				outcome.result.siteId === value.siteId &&
+				outcome.result.sessionId === value.sessionId &&
 				['started', 'failed', 'unknown'].includes(outcome.result.outcome.kind)
 			);
 		if (outcome.kind === 'popup-control') {
-			if (outcome.result.requestId !== value.requestId || outcome.result.siteId !== value.siteId)
+			if (
+				outcome.result.requestId !== value.requestId ||
+				outcome.result.sessionId !== value.sessionId
+			)
 				return false;
 			const nested = outcome.result.outcome;
 			if (nested.kind !== 'operation')

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	TerminalPresentationIdSchema,
 	WORKBENCH_PROTOCOL_VERSION,
 	WorkbenchRequestIdSchema,
@@ -105,7 +105,7 @@ const PanelMetadataActionSchema = z.discriminatedUnion('kind', [
 ]);
 const PanelMetadataFailureSchema = z.enum([
 	'invalid-request',
-	'site-mismatch',
+	'session-mismatch',
 	'not-found',
 	'unbound',
 	'binding-changed',
@@ -248,7 +248,7 @@ export const PanelMetadataRequestSchema = z
 		kind: z.literal('workbench.panel-metadata'),
 		protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 		requestId: WorkbenchRequestIdSchema,
-		siteId: SiteIdSchema,
+		sessionId: SessionIdSchema,
 		action: PanelMetadataActionSchema,
 	})
 	.readonly();
@@ -257,7 +257,7 @@ export const PanelMetadataResultSchema = z
 		kind: z.literal('workbench.panel-metadata.result'),
 		protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 		requestId: WorkbenchRequestIdSchema,
-		siteId: SiteIdSchema,
+		sessionId: SessionIdSchema,
 		outcome: PanelMetadataOutcomeSchema,
 	})
 	.readonly();

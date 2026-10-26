@@ -340,7 +340,7 @@ impl Locale {
             ),
             (Self::ZhCn, CommandPath::AgentChanges) => crate::localization::HelpDetails::new(
                 "orchbee agent changes [--cursor <c>] [--limit <n>] [--format text|json]",
-                "Windows：读取一页有界 Agent 变更（limit 1-100，默认 50）。省略 cursor 建立当前头部检查点，再使用其 cursor 继续观察。\nreset-required 表示历史丢失，必须重建基线；先前会话启动实例或无效\ncursor 会被拒绝。不订阅、不自动重试。总读取期限 5 秒。\nJSON schema：orchbee.agent.changes。",
+                "Windows：读取一页有界智能体变更（limit 1-100，默认 50）。省略 cursor 建立当前头部检查点，再使用其 cursor 继续观察。\nreset-required 表示历史丢失，必须重建基线；先前会话启动实例或无效\ncursor 会被拒绝。不订阅、不自动重试。总读取期限 5 秒。\nJSON schema：orchbee.agent.changes。",
             ),
             #[cfg(windows)]
             (
@@ -355,7 +355,7 @@ impl Locale {
             ),
             (Self::ZhCn, CommandPath::AgentStart) => crate::localization::HelpDetails::new(
                 "orchbee agent start <name> --provider <provider> [--panel <id|@panel:0x<hex>>|--current] [--timeout <ms>] [--format text|json] [--arg <value>]... [-- <args>...]",
-                "Windows：在空闲终端启动交互式 Agent，确认就绪后绑定名称。默认目标为调用者 Panel。超时范围 3001–300000 毫秒，默认 30000。可重复使用 --arg=<value> 代替尾随参数。启动输入只提交一次。取消或超时在确认后释放名称，但不会终止 Agent。提供方 hook 必须能报告就绪；可用 agent integration 和 agent doctor 检查配置。\nstart、integration 和 doctor 统一使用 --provider antigravity。",
+                "Windows：在空闲终端启动交互式智能体，确认就绪后绑定名称。默认目标为调用者面板。超时范围 3001–300000 毫秒，默认 30000。可重复使用 --arg=<value> 代替尾随参数。启动输入只提交一次。取消或超时在确认后释放名称，但不会终止智能体。提供方 hook 必须能报告就绪；可用 agent integration 和 agent doctor 检查配置。\nstart、integration 和 doctor 统一使用 --provider antigravity。",
             ),
             (Self::EnUs, CommandPath::AgentPrompt) if cfg!(windows) => super::agent::HELP_AGENT_PROMPT_WINDOWS_EN,
             (Self::ZhCn, CommandPath::AgentPrompt) if cfg!(windows) => super::agent::HELP_AGENT_PROMPT_WINDOWS_ZH,
@@ -365,7 +365,7 @@ impl Locale {
             ),
             (Self::ZhCn, CommandPath::AgentPrompt) => crate::localization::HelpDetails::new(
                 "orchbee agent prompt (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) <text> [--wait] [--until <condition>]... [--timeout <ms> | --forever] [--format text|json]",
-                "向正在运行的 Agent 发送提示。使用 --wait 观察其后续状态。\n用 orchbee agent list 查找目标，或用 --panel 按面板选择 Agent。\n--until、--timeout 和 --forever 要求 --wait。投递结果不确定时，重试前先检查终端。",
+                "向正在运行的智能体发送提示。使用 --wait 观察其后续状态。\n用 orchbee agent list 查找目标，或用 --panel 按面板选择智能体。\n--until、--timeout 和 --forever 要求 --wait。投递结果不确定时，重试前先检查终端。",
             ),
             (Self::EnUs, CommandPath::AgentRead) if cfg!(windows) => super::agent::HELP_AGENT_OUTPUT_EN,
             (Self::ZhCn, CommandPath::AgentRead) if cfg!(windows) => super::agent::HELP_AGENT_OUTPUT_ZH,
@@ -389,7 +389,7 @@ impl Locale {
             ),
             (Self::ZhCn, CommandPath::AgentSendKeys) => crate::localization::HelpDetails::new(
                 "orchbee agent send-keys (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) <key>... [--format text|json]",
-                "向一个存活 Agent 终端发送 1..64 个语义按键或组合（enter、ctrl+c、alt+left、ctrl+shift+a）。目标：Session ID/名称/Panel ID、--agent-session <id>、--name <alias>\n或 --panel <id|@panel:0x<hex>>。Panel 选择主终端。使用 orchbee.terminal.send 回执。不重放不确定输入。",
+                "向一个存活智能体终端发送 1..64 个语义按键或组合（enter、ctrl+c、alt+left、ctrl+shift+a）。目标：会话 ID/名称/面板 ID、--agent-session <id>、--name <alias>\n或 --panel <id|@panel:0x<hex>>。面板选择主终端。使用 orchbee.terminal.send 回执。不重放不确定输入。",
             ),
             (Self::EnUs, CommandPath::AgentAttention) => super::client_control::HELP_AGENT_ATTENTION_EN,
             (Self::ZhCn, CommandPath::AgentAttention) => super::client_control::HELP_AGENT_ATTENTION_ZH,
@@ -405,7 +405,7 @@ impl Locale {
             ),
             (Self::ZhCn, CommandPath::AgentNames) => crate::localization::HelpDetails::new(
                 "orchbee agent names [--format text|json]",
-                "列出当前会话运行时中的 Agent 名称。会话结束或会话停止后名称会释放。",
+                "列出当前会话运行时中的智能体名称。会话结束或会话停止后名称会释放。",
             ),
             (Self::EnUs, CommandPath::AgentResolve) => crate::localization::HelpDetails::new(
                 "orchbee agent resolve <target> [--format text|json]\n       orchbee agent resolve --agent-session <id> | --name <alias> | --panel <id|@panel:0x<hex>> | --terminal <id|@terminal:0x<hex>>",
@@ -413,7 +413,7 @@ impl Locale {
             ),
             (Self::ZhCn, CommandPath::AgentResolve) => crate::localization::HelpDetails::new(
                 "orchbee agent resolve <target> [--format text|json]\n      orchbee agent resolve --agent-session <id> | --name <alias> | --panel <id|@panel:0x<hex>> | --terminal <id|@terminal:0x<hex>>",
-                "优先按完整 Session ID 定位，再查运行时名称，最后回退到 Panel ID。\nPanel 选择主终端，要求唯一存活 Agent。名称与 ID 冲突时，用 --name 明确选择名称。",
+                "优先按完整会话 ID 定位，再查运行时名称，最后回退到面板 ID。\nPanel 选择主终端，要求唯一存活智能体。名称与 ID 冲突时，用 --name 明确选择名称。",
             ),
             (Self::EnUs, CommandPath::AgentRename) => crate::localization::HelpDetails::new(
                 "orchbee agent rename (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) <new-name> [--format text|json]\n       orchbee agent rename (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) --clear",
@@ -421,7 +421,7 @@ impl Locale {
             ),
             (Self::ZhCn, CommandPath::AgentRename) => crate::localization::HelpDetails::new(
                 "orchbee agent rename (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) <new-name> [--format text|json]\n      orchbee agent rename (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) --clear",
-                "为存活 Agent 命名或原子重命名。名称格式为 [a-z][a-z0-9_-]{0,31}，拒绝重名。--clear 只释放名称。可将 <target> 替换成 --agent-session <id> 或 --name <alias>。会话结束或会话停止后名称释放。",
+                "为存活智能体命名或原子重命名。名称格式为 [a-z][a-z0-9_-]{0,31}，拒绝重名。--clear 只释放名称。可将 <target> 替换成 --agent-session <id> 或 --name <alias>。会话结束或会话停止后名称释放。",
             ),
             (Self::EnUs, CommandPath::AgentWait) => {
                 if cfg!(windows) {

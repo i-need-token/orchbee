@@ -11,7 +11,7 @@ fn snapshot() -> Snapshot {
         "childPresentations":[]})
     };
     serde_json::from_value(json!({
-        "protocolVersion":1,"siteId":id(2),"revision":"12",
+        "protocolVersion":1,"sessionId":id(2),"revision":"12",
         "navigation":{"projects":[],"directories":[],"workspaces":[{"workspaceId":id(4),"terminalContextId":id(4),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},
         "terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":[{
             "tabId":id(5),"label":"work","pinned":false,"groupId":null,"root":{

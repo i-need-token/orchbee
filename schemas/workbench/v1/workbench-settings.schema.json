@@ -1,7 +1,7 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://orchbee.dev/schemas/workbench/v1/workbench-settings.schema.json",
-	"title": "Site-scoped shared user settings",
+	"title": "Session-scoped shared user settings",
 	"description": "Matched native cohorts use the shared preference grammar and a 2 MiB request/result budget. Save confirms persistence; live client application is a separate observation. Launch-profile semantic bounds are inherited from the shared preferences contract.",
 	"oneOf": [
 		{
@@ -28,7 +28,7 @@
 		"request": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "operation"],
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "operation"],
 			"properties": {
 				"kind": {
 					"const": "workbench.settings"
@@ -45,7 +45,7 @@
 						"const": "00000000000000000000000000000000"
 					}
 				},
-				"siteId": {
+				"sessionId": {
 					"type": "string",
 					"minLength": 32,
 					"maxLength": 32,
@@ -89,7 +89,7 @@
 		"response": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"],
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "outcome"],
 			"properties": {
 				"kind": {
 					"const": "workbench.settings.result"
@@ -106,7 +106,7 @@
 						"const": "00000000000000000000000000000000"
 					}
 				},
-				"siteId": {
+				"sessionId": {
 					"type": "string",
 					"minLength": 32,
 					"maxLength": 32,
@@ -168,7 +168,7 @@
 									"enum": [
 										"denied",
 										"unavailable",
-										"site-mismatch",
+										"session-mismatch",
 										"busy",
 										"source-changed",
 										"invalid-source",

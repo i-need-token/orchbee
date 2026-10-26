@@ -1388,7 +1388,7 @@ Pending 状态。`Ctrl+B w` 可以刷新规范成员关系，但不会重放 Cre
 `Unchanged` 必须恰好为 `expectedRevision`，包括最大 revision。
 `Renamed` 仅携带 revision，没有可验证的目标或 label 回显。
 
-兼容的提交前拒绝原因恰好为 `site-mismatch`、`revision-mismatch`、
+兼容的提交前拒绝原因恰好为 `session-mismatch`、`revision-mismatch`、
 `terminal-context-unavailable`、`tab-unavailable`、`resource-limit`、`revision-exhausted` 和
 `request-identity-conflict`；保留其报告的 revision。`denied`、`request-ledger-full` 和
 `service-unavailable` 也兼容。其他结果或原因、关联不匹配、畸形响应和不可能的成功 revision
@@ -1537,7 +1537,7 @@ Workbench 命令提交方法，也不存在本地臆造的“不支持操作”�
 验证的请求。交付后，它要求结果为 `workbench.command.result`、请求 ID 精确匹配，并且结果与
 操作兼容。对于 `tab.create`，`denied` 和封闭枚举
 `WorkbenchCommandUnavailableReason` 的每个值都兼容。兼容的 `rejected` 原因恰好是
-`site-mismatch`、`revision-mismatch`、`terminal-context-unavailable`、`resource-limit`、
+`session-mismatch`、`revision-mismatch`、`terminal-context-unavailable`、`resource-limit`、
 `identity-exhausted`、`revision-exhausted` 和 `request-identity-conflict`；
 `project-unavailable` 与 `workspace-unavailable` 和该操作不兼容。Project/workspace 结果变体与
 `unchanged` 也不兼容；只有 TabCreatePending/TabCreated 已提交变体匹配 `tab.create`。
@@ -1844,4 +1844,4 @@ Client 独立于附着保留精确 Presentation ID。选中的空成员使用 `S
 
 原生分屏默认聚焦已提交的新 Panel。操作冻结此偏好，首次有效快照和后续恢复均按新 Panel ID 通过配对的成员清理／安装流程切换；新 Panel 已消失时执行普通的存续叶子修复。对端分屏保留本地焦点。Windows 启动设置 `terminal.focus_new_panel = false` 保留原选择，修改后需重启 Client。
 
-<!-- documentation-pairing: english-sha256=4e9cd35527b323f720b9515f7892b6f4b391cc0fbac3c4efbe4c8a8c50d41ad3 zh-cn-sha256=f6955153f8b5bc2d605aeca2f320fe68691b40e6d9903568f8c307f8b3b96271 -->
+<!-- documentation-pairing: english-sha256=12043cfe3f0c4e5f70374bba9eb7560da97b217825d29c7b3118b1bd73dbdaed zh-cn-sha256=88bce94738684bc8b119ff6289dbdbadf5aa6a057f96a11d391636f6bd57a0e7 -->

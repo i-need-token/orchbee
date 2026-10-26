@@ -10,7 +10,7 @@ fn routed_path_packets_retain_the_exact_unresolved_operand() {
         ["worktree", "create", "--path", r"~\remote", "--format=json"].as_slice(),
         ["worktree", "open", "--path", r"~\remote", "--format=json"].as_slice(),
     ] {
-        let packet = serde_json::json!({"version":1,"cohort":"a".repeat(64),"site":"work","arguments":arguments,"input":null,"locale":"en_US.UTF-8"});
+        let packet = serde_json::json!({"version":1,"cohort":"a".repeat(64),"session":"work","arguments":arguments,"input":null,"locale":"en_US.UTF-8"});
         let (admitted, input) = admit_packet(&serde_json::to_vec(&packet).unwrap()).unwrap();
         assert_eq!(admitted.arguments, arguments);
         assert!(input.is_empty());

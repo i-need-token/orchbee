@@ -285,6 +285,7 @@ struct DecodedTerminalLaunchFact {
 )]
 enum DecodedTerminalLaunchReadOutcome {
     Found {
+        #[serde(rename = "sessionId")]
         site_id: SiteId,
         #[serde(deserialize_with = "crate::number::decimal::deserialize")]
         workbench_revision: u64,

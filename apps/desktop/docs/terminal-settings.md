@@ -6,7 +6,7 @@ Desktop and TUI use the same device preference authority. The complete inventory
 validation, reset semantics and effect horizons belong to the
 [shared contract](../../../crates/workbench-protocol/docs/user-preferences.md).
 The renderer owns drafts and presentation; Main owns capability admission and Host publication;
-the matched `orchbee-settings` helper calls Native Site's `UserPreferencesStore`.
+the matched `orchbee-settings` helper calls Native Session's `UserPreferencesStore`.
 
 Scope follows the frozen native configuration identity, including explicit `ORCHBEE_CONFIG_FILE`,
 independently of Electron `userData`, Workspace and remote terminals.

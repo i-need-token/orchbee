@@ -11,8 +11,8 @@
 		}
 	],
 	"$defs": {
-		"siteId": {
-			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/siteId"
+		"sessionId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/sessionId"
 		},
 		"requestId": {
 			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
@@ -1376,14 +1376,14 @@
 				"requestId": {
 					"$ref": "#/$defs/requestId"
 				},
-				"siteId": {
-					"$ref": "#/$defs/siteId"
+				"sessionId": {
+					"$ref": "#/$defs/sessionId"
 				},
 				"action": {
 					"$ref": "#/$defs/action"
 				}
 			},
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "action"],
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "action"],
 			"additionalProperties": false
 		},
 		"result": {
@@ -1398,14 +1398,14 @@
 				"requestId": {
 					"$ref": "#/$defs/requestId"
 				},
-				"siteId": {
-					"$ref": "#/$defs/siteId"
+				"sessionId": {
+					"$ref": "#/$defs/sessionId"
 				},
 				"outcome": {
 					"$ref": "#/$defs/outcome"
 				}
 			},
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"],
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "outcome"],
 			"additionalProperties": false
 		},
 		"cellRect": {

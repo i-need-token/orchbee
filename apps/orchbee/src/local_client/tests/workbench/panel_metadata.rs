@@ -28,11 +28,11 @@ fn panel_metadata_report_correlation_uncertainty_and_no_replay() -> TestResult {
             },
         };
         let expected = request.clone();
-        let mut reply = serde_json::json!({"protocolVersion":1,"requestId":id(1),"siteId":id(2),"outcome":{"kind":"reported","panelId":id(3),"workbenchRevision":"5","metadataRevision":"1","disposition":"applied","binding":{"workerId":id(4),"terminalId":id(5)}}});
+        let mut reply = serde_json::json!({"protocolVersion":1,"requestId":id(1),"sessionId":id(2),"outcome":{"kind":"reported","panelId":id(3),"workbenchRevision":"5","metadataRevision":"1","disposition":"applied","binding":{"workerId":id(4),"terminalId":id(5)}}});
         match case {
             8 => reply["outcome"]["binding"]["terminalId"] = serde_json::json!(id(99)),
             1 => reply["requestId"] = serde_json::json!(id(90)),
-            2 => reply["siteId"] = serde_json::json!(id(90)),
+            2 => reply["sessionId"] = serde_json::json!(id(90)),
             3 => reply["outcome"]["panelId"] = serde_json::json!(id(90)),
             4 => {
                 reply["outcome"] = serde_json::json!({"kind":"read","workbenchRevision":"5","metadataRevision":"1","panels":[]})

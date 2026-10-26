@@ -37,7 +37,7 @@ fn panel_agent_permissions_are_independent_and_refusals_leave_topology_unchanged
     ))));
     let admin = service(&terminals, 31);
     let before = snapshot(&admin);
-    let mut request:PanelAgentRequest=serde_json::from_value(serde_json::json!({"protocolVersion":1,"requestId":"1".repeat(32),"siteId":before.site_id,"action":{"kind":"read","panelIds":[]}})).unwrap();
+    let mut request:PanelAgentRequest=serde_json::from_value(serde_json::json!({"protocolVersion":1,"requestId":"1".repeat(32),"sessionId":before.site_id,"action":{"kind":"read","panelIds":[]}})).unwrap();
     let execute = |grants, request: &PanelAgentRequest| {
         let WorkbenchResponse::PanelAgent(reply) = response(
             service(&terminals, grants).execute(WorkbenchRequest::PanelAgent(request.clone())),

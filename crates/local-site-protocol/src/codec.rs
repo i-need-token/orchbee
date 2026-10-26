@@ -88,19 +88,19 @@ pub enum ProtocolError {
 impl fmt::Display for ProtocolError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidMagic => formatter.write_str("invalid local Site frame magic"),
+            Self::InvalidMagic => formatter.write_str("invalid local Worker frame magic"),
             Self::IncompatibleVersion { received } => {
                 write!(
                     formatter,
-                    "incompatible local Site protocol version {received}"
+                    "incompatible local Worker protocol version {received}"
                 )
             }
             Self::PayloadTooLarge { actual, maximum } => write!(
                 formatter,
-                "local Site frame payload has {actual} bytes; maximum is {maximum}"
+                "local Worker frame payload has {actual} bytes; maximum is {maximum}"
             ),
-            Self::InvalidPayload => formatter.write_str("invalid local Site frame payload"),
-            Self::InvalidCohort => formatter.write_str("invalid local Site executable cohort"),
+            Self::InvalidPayload => formatter.write_str("invalid local Worker frame payload"),
+            Self::InvalidCohort => formatter.write_str("invalid local Worker executable cohort"),
         }
     }
 }

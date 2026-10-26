@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	TerminalIdSchema,
 	WorkbenchPanelIdSchema,
 	WorkbenchRevisionSchema,
@@ -21,8 +21,8 @@ const scroll = z
 	.readonly();
 const source = z
 	.strictObject({
-		hostEpoch: SiteIdSchema,
-		attachmentId: SiteIdSchema,
+		hostEpoch: SessionIdSchema,
+		attachmentId: SessionIdSchema,
 		generation: WorkbenchRevisionSchema.refine((value) => value !== '0'),
 		revision: WorkbenchRevisionSchema,
 		columns: z.number().int().min(1).max(4096),

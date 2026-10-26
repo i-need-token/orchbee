@@ -19,7 +19,7 @@ fn panel(panel: u64, primary: u64, child: u64) -> Value {
         "childPresentations":[{"presentationId":id(child),"label":"Child","customLabel":"Manual","binding":null}]})
 }
 fn snapshot() -> Snapshot {
-    serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":"12",
+    serde_json::from_value(json!({"protocolVersion":1,"sessionId":id(2),"revision":"12",
     "navigation":{"projects":[], "directories":[], "workspaces":[{"workspaceId":id(4),"terminalContextId":id(4),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},"terminalContexts":[{"terminalContextId":id(4),"groups":[],
     "tabs":[{"tabId":id(5),"label":"Old","pinned":false,"groupId":null,"root":panel(6,8,9)}]}]})).unwrap()
 }

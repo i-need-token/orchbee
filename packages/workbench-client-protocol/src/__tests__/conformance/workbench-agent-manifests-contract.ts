@@ -7,7 +7,7 @@ import {
 
 import { AgentDetectionManifestSchema } from './workbench-panel-agent-contract';
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	WorkbenchRequestIdSchema,
 	WorkbenchRevisionSchema,
 	WORKBENCH_PROTOCOL_VERSION,
@@ -67,7 +67,7 @@ export const AgentManifestsRequestSchema = z
 		kind: z.literal('workbench.agent-manifests'),
 		protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 		requestId: WorkbenchRequestIdSchema,
-		siteId: SiteIdSchema,
+		sessionId: SessionIdSchema,
 		action: AgentManifestsActionSchema,
 	})
 	.readonly();
@@ -76,7 +76,7 @@ export const AgentManifestsResultSchema = z
 		kind: z.literal('workbench.agent-manifests.result'),
 		protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 		requestId: WorkbenchRequestIdSchema,
-		siteId: SiteIdSchema,
+		sessionId: SessionIdSchema,
 		outcome: z.discriminatedUnion('kind', [
 			z.strictObject({ kind: z.literal('current'), snapshot: AgentManifestsSnapshotSchema }),
 			z.strictObject({

@@ -302,7 +302,10 @@ fn collect_at_reports_every_row_and_creates_nothing() {
     let document =
         collect_at(&base, Instant::now() + Duration::from_secs(5)).expect("collect populated");
     let result = &document.envelope["result"];
-    assert_eq!(document.envelope["schema"], json!("orchbee.site.diagnose"));
+    assert_eq!(
+        document.envelope["schema"],
+        json!("orchbee.server.diagnose")
+    );
     assert_eq!(document.envelope["version"], json!(1));
     assert_eq!(document.envelope["source"]["kind"], json!("local-runtime"));
     assert_eq!(result["complete"], json!(true));
@@ -312,7 +315,7 @@ fn collect_at_reports_every_row_and_creates_nothing() {
     assert_eq!(result["marker"]["state"], json!("known"));
     assert_eq!(result["marker"]["kind"], json!("regular"));
     assert_eq!(result["locks"]["activation"]["state"], json!("absent"));
-    assert_eq!(result["locks"]["siteLifetime"]["state"], json!("absent"));
+    assert_eq!(result["locks"]["sessionLifetime"]["state"], json!("absent"));
     assert_eq!(result["endpoints"]["client"]["state"], json!("known"));
     assert_eq!(result["endpoints"]["worker"]["state"], json!("absent"));
     assert_eq!(
@@ -347,11 +350,11 @@ fn collect_at_closes_missing_and_unsafe_directories_without_creating() {
     assert_eq!(result["marker"]["state"], json!("uninspectable"));
     assert_eq!(result["marker"]["reason"], json!("parent-unavailable"));
     assert_eq!(
-        result["locks"]["siteLifetime"]["state"],
+        result["locks"]["sessionLifetime"]["state"],
         json!("uninspectable")
     );
     assert_eq!(
-        result["locks"]["siteLifetime"]["reason"],
+        result["locks"]["sessionLifetime"]["reason"],
         json!("parent-unavailable")
     );
     assert_eq!(
@@ -398,14 +401,14 @@ fn collect_at_marks_a_held_lifetime_lock_without_acquiring_it() {
     let document =
         collect_at(&base, Instant::now() + Duration::from_secs(5)).expect("collect held");
     assert_eq!(
-        document.envelope["result"]["locks"]["siteLifetime"]["state"],
+        document.envelope["result"]["locks"]["sessionLifetime"]["state"],
         json!("held")
     );
     drop(held);
     let document =
         collect_at(&base, Instant::now() + Duration::from_secs(5)).expect("collect free");
     assert_eq!(
-        document.envelope["result"]["locks"]["siteLifetime"]["state"],
+        document.envelope["result"]["locks"]["sessionLifetime"]["state"],
         json!("free")
     );
     fs::remove_dir_all(&base).ok();
@@ -444,8 +447,9 @@ fn collect_at_with_a_spent_budget_closes_every_later_row() {
 
 #[test]
 fn emitted_documents_validate_against_the_embedded_schema() {
-    let schema: Value = serde_json::from_str(include_str!("../schemas/orchbee.site.diagnose.json"))
-        .expect("schema parses");
+    let schema: Value =
+        serde_json::from_str(include_str!("../schemas/orchbee.server.diagnose.json"))
+            .expect("schema parses");
     let validator = jsonschema::draft202012::new(&schema).expect("schema compiles");
 
     let populated = scratch("schema-populated");

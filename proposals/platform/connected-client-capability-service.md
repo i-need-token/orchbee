@@ -14,13 +14,13 @@ English remains canonical.
 
 ## Product direction
 
-An Orchbee Site is a product-state and coordination boundary with one active Server authority. It
-may serve several machines and Client instances. A Client-only installation connects to a Site
-without creating another Site or becoming a Worker. The product must eventually support:
+An Orchbee Session is a product-state and coordination boundary with one active Server authority. It
+may serve several machines and Client instances. A Client-only installation connects to a Session
+without creating another Session or becoming a Worker. The product must eventually support:
 
 - Desktop, Browser, TUI, mobile, and CLI clients that observe or control only their authorized product
   sessions;
-- a comparatively weak work computer acting only as a product client for a remote site;
+- a comparatively weak work computer acting only as a product client for a remote session;
 - another enrolled computer contributing typed compute or device capabilities; and
 - the coordinating computer contributing local capabilities while also coordinating other nodes.
 
@@ -39,13 +39,13 @@ accessing one machine remotely. Neither outcome requires every Client form to sh
 
 | User scenario                                  | Observable acceptance                                                                                                                                                                                             | Boundary                                                                                                             |
 | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Use a weak computer to reach a capable machine | An authenticated Client opens the selected Site's existing Workbench and retained terminal, receives real output, and may request control. It requires no local Worker or source checkout.                        | Connected-Client outcome; production network identity and transport still need their own accepted slice.             |
+| Use a weak computer to reach a capable machine | An authenticated Client opens the selected Session's existing Workbench and retained terminal, receives real output, and may request control. It requires no local Worker or source checkout.                     | Connected-Client outcome; production network identity and transport still need their own accepted slice.             |
 | Open the same work in several Clients          | Clients observe the same authorized shared structure and terminal identity while retaining independent focus and viewport. Several viewers do not create another terminal or another input-and-resize controller. | Local-terminal evidence starts with peer TUI Sessions; Web/Desktop migration proves the shared cross-Client outcome. |
 | Close a Client or lose its connection          | Retained execution continues when its Host remains healthy; a later authorized attachment returns to the same terminal. Unknown input is not replayed.                                                            | Client/transport continuity does not promise recovery after Host failure or OS restart.                              |
-| Run without an Electron window                 | The local Site and retained terminal lifetime are independent of any Desktop or TUI Client.                                                                                                                       | Accepted local-native direction; successful process handshakes alone do not establish it.                            |
+| Run without an Electron window                 | The local Session and retained terminal lifetime are independent of any Desktop or TUI Client.                                                                                                                    | Accepted local-native direction; successful process handshakes alone do not establish it.                            |
 | Contribute another machine's capability        | A separately enrolled Worker executes one explicitly admitted kind of work, with observable admission, result, failure, and revocation behavior.                                                                  | A later distributed-capability vertical; enrollment alone does not establish useful scheduling.                      |
 
-Remote viewing and control need a Server and an execution Worker at the selected Site; they do not
+Remote viewing and control need a Server and an execution Worker at the selected Session; they do not
 require remote Worker enrollment, automatic placement, source synchronization, or a general Agent
 scheduler. A shared Project identity also does not make files available on another Worker or make a
 live terminal movable between machines.
@@ -55,7 +55,7 @@ live terminal movable between machines.
 The initial accepted engineering milestone is the
 [local terminal vertical](native-runtime-topology.md#accepted-local-terminal-vertical-milestone):
 bare `orchbee` reaches a real retained shell through Client, Server, Worker, and Host; a second
-invocation joins the same Site; output, input, resize, detach, and reattach work through that path.
+invocation joins the same Session; output, input, resize, detach, and reattach work through that path.
 Its process, fault, and performance evidence must exercise the composed runtime. Models, codecs,
 handshakes, and staged UI modules are supporting evidence, not completion of this user outcome.
 
@@ -94,7 +94,7 @@ continuity experience. Public cutover still requires the recovery, migration, pa
 performance obligations in the native topology.
 
 The recommended subsequent product validation is one person using a remote Web or Desktop Client
-against one Site and its local Worker. This would test the connected-workbench value before adding
+against one Session and its local Worker. This would test the connected-workbench value before adding
 enrolled remote Workers or scheduling. The choice of first remote Client, supported network and
 identity contract, and its order relative to other migrations remains a product decision; this
 recommendation does not accept those contracts or expand the current local milestone.
@@ -214,14 +214,14 @@ Orchbee supports two complementary connection families:
 
 | Connection family     | Responsibility                                                                                                                                                                   |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Native site           | HTTPS establishes authenticated human or device sessions; WSS carries versioned control, event, progress, and bounded binary-projection messages through role-specific contracts |
+| Native session        | HTTPS establishes authenticated human or device sessions; WSS carries versioned control, event, progress, and bounded binary-projection messages through role-specific contracts |
 | SSH bootstrap/adapter | Connects an unmanaged machine, validates its host identity, bootstraps or repairs an Orchbee runtime, and may tunnel native protocol traffic during an explicitly bounded phase  |
 
 This connection family names a product capability, not a commitment to retain the current SSH
 Environment Runtime or protocol. Their accepted retirement may deliberately precede a replacement
 adapter when the existing product path is explicitly sunset.
 
-Native site connectivity is the long-term primary path for authenticated Clients and enrolled
+Native session connectivity is the long-term primary path for authenticated Clients and enrolled
 Workers. The accepted Connect-via-SSH path remains a first-use, compatibility, administration, and
 temporary-connection path; it is not the Workbench, Agent, scheduling, or state-synchronization
 protocol. An enrolled Worker normally establishes its own outbound native connection to Server with
@@ -252,11 +252,11 @@ Current native behavior is maintained in the [Server application guide](../../ap
 
 The trusted-LAN HTTP preview remains an explicitly enabled and warned exception to the production
 encrypted-transport direction. It establishes neither production Internet deployment nor
-Desktop-independent Site lifetime. Starting the standalone Server entry does not enable sharing.
+Desktop-independent Session lifetime. Starting the standalone Server entry does not enable sharing.
 
 ## Human Web access direction
 
-Network exposure remains off by default. Enabling sharing starts the accepted site ingress on an
+Network exposure remains off by default. Enabling sharing starts the accepted session ingress on an
 explicit interface and port; the shareable entry is the short origin, such as
 `https://192.0.2.1:8443/`, followed only by normal product routes. Credentials, bootstrap tokens,
 and session capabilities never belong in the shared query string or fragment.
@@ -276,7 +276,7 @@ or underlying network failure moves the affected attachment through an explicit 
 reconnecting, and recovering lifecycle. It does not request deletion, cancellation, or process
 termination.
 
-Reconnect establishes a fresh authenticated transport and reconciles stable site, Client Session,
+Reconnect establishes a fresh authenticated transport and reconciles stable session, Client Session,
 Node Session, Workbench revision, terminal inventory, Agent execution, and event-sequence identities.
 The authority returns a bounded missing-event range or a fresh snapshot when incremental recovery is
 unsafe or unavailable. Safe semantic commands use owner-defined operation identities and
@@ -308,10 +308,10 @@ local-lifecycle refinement of this logical design. Product review has additional
 | Area                     | Accepted direction                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Client and terminal use  | Every TUI invocation is an independent peer Client View over one shared Workbench document. Display attachment is transient and several Clients may view one retained terminal. One combined input-and-resize controller remains Server-fenced; explicit request, disconnect grace, and second-confirmation forced take define transfer, with no automatic promotion or collaborative input.                                          |
-| Optional capabilities    | Private Rust Agent Bridge feeds bounded local observation through Worker to Server-owned Agent semantics; managed Worktree Git effects and Archive content remain Worker-local; Server owns their canonical references/metadata plus the revisioned Launch Profile catalog; and each Client renders its own projection. None is required for a terminal-only Site.                                                                    |
+| Optional capabilities    | Private Rust Agent Bridge feeds bounded local observation through Worker to Server-owned Agent semantics; managed Worktree Git effects and Archive content remain Worker-local; Server owns their canonical references/metadata plus the revisioned Launch Profile catalog; and each Client renders its own projection. None is required for a terminal-only Session.                                                                 |
 | Connect via SSH          | Generic Environment is removed from the target. Server owns `SshTarget`/`SshConnection` intent, while a selected local Worker uses system OpenSSH, local host verification and credentials, and ephemeral AskPass to start a connection-scoped temporary remote Worker/Host. It is distinct from enrolled Workers, initially created from local TUI/Desktop, and replaces the old SSH Runtime/protocol only after migration evidence. |
 | Terminal path            | Server relay is the first and fallback route. Only measured need may enable a local native TUI/Desktop Client-to-Worker route under a short Server-minted, identity- and generation-bound capability. Browser/mobile stay relayed, no Client reaches Host directly, Server keeps control authority, and fallback never replays unknown input.                                                                                         |
-| Local Site lifecycle     | Lazy activation is default. An explicit `orchbee site enable` may install same-cohort per-user LaunchAgent/systemd-user Server and Worker units; Host remains lazy and no root daemon or extra supervisor exists. Restart preserves retained Host terminals; stop reports them and does not imply terminate-all. Signed side-by-side cohorts update atomically without replacing a live Host.                                         |
+| Local Session lifecycle  | Lazy activation is default. An explicit `orchbee session enable` may install same-cohort per-user LaunchAgent/systemd-user Server and Worker units; Host remains lazy and no root daemon or extra supervisor exists. Restart preserves retained Host terminals; stop reports them and does not imply terminate-all. Signed side-by-side cohorts update atomically without replacing a live Host.                                      |
 | Persistence and recovery | Production Server uses a transactional SQLite/WAL design for canonical intent, topology, ledgers, profiles, and references—not Client View, live attachments, terminal frames, PTY/scrollback, transient secrets, or raw hooks. Intent precedes effects; restart reconciles exact identities without replay. Unknown Host inventory is quarantined, and corrupt/incompatible storage opens read-only recovery rather than resetting.  |
 
 These are accepted future boundaries, not claims about the delivered Node Browser preview or
@@ -327,7 +327,7 @@ executable split; a concrete consumer and its behavior determine any further mod
 | Responsibility                                       | Candidate owner                                                                                                                                                 |
 | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | HTTP/WebSocket ingress and Web UI                    | A network ingress service; TLS, origin policy, routing fallback, rate limits, and static renderer delivery                                                      |
-| Human authentication                                 | A site identity/session service; bootstrap token exchange, secure Cookie session, expiry, revocation, and audit                                                 |
+| Human authentication                                 | A session identity/session service; bootstrap token exchange, secure Cookie session, expiry, revocation, and audit                                              |
 | Product coordination                                 | The Server application coordinator; authorized Workbench sessions, canonical state, semantic commitment, and recovery                                           |
 | Worker placement and optional source-tree references | Server product coordinator; exact Worker identity is native placement, while legacy SSH Environment identity exists only until current-path migration or sunset |
 | Capability-node enrollment                           | A device identity service; pairing, device credentials, attestation inputs, rotation, revocation, and presence                                                  |
@@ -352,11 +352,11 @@ above but remain gated implementation work; remote enrollment remains reserved.
 A connection has one explicit authenticated role. Device type, user agent, IP address, and local
 network presence never grant a role.
 
-| Role                 | Authority                                                                                                  |
-| -------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Human product client | Authorized read and semantic command access for selected product resources                                 |
-| Capability node      | Advertise accepted capability versions, accept scoped leases, report progress, and publish bounded results |
-| Site administrator   | Enroll and revoke devices, approve capabilities, set policy, and inspect security-relevant audit records   |
+| Role                  | Authority                                                                                                  |
+| --------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Human product client  | Authorized read and semantic command access for selected product resources                                 |
+| Capability node       | Advertise accepted capability versions, accept scoped leases, report progress, and publish bounded results |
+| Session administrator | Enroll and revoke devices, approve capabilities, set policy, and inspect security-relevant audit records   |
 
 A device may hold more than one role through separate credentials and scoped sessions. Browser
 Cookies authenticate human sessions; capability nodes require non-Cookie device credentials with
@@ -376,12 +376,12 @@ Every accepted remote capability contract must define:
 
 The local terminal baseline needs its concrete launch and live-terminal contracts. This list does
 not require adding a general task queue, scheduler, artifact service, or remote enrollment before
-that baseline or before a human Client can use a Site remotely. A new capability must name actual
+that baseline or before a human Client can use a Session remotely. A new capability must name actual
 work, its required node-local data and credentials, and its completion evidence before its generic
 infrastructure is admitted. Existing terminal retention never implies live migration or automatic
 reassignment of terminal input to another Worker.
 
-The site coordinator owns placement policy; a capability node owns execution of an accepted lease.
+The session coordinator owns placement policy; a capability node owns execution of an accepted lease.
 Neither a node nor a network adapter becomes a writer of Workbench shared state. Product Actions
 remain owner-internal semantic contracts. A separately reviewed CLI or remote API may expose only
 an explicitly automation-admitted operation through a serializable boundary; it never serializes a
@@ -389,13 +389,13 @@ prepared invocation or grants registry-wide authority.
 
 ## Deployment shapes
 
-| Shape                           | Required behavior                                                                                                                                   |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Single computer                 | Client, Server, local Worker capabilities, and optional Web ingress may be colocated                                                                |
-| Weak remote work computer       | A Desktop, Browser, mobile, or CLI Client renders and controls one authorized remote Server without becoming a Worker                               |
-| Current SSH Environment         | Until migration or sunset, the active product coordinator bootstraps and attaches one unmanaged remote Project environment without inventing a Site |
-| Distributed site                | One Server coordinates its local Worker and additional enrolled Workers through explicit identities and capabilities                                |
-| Coordinator temporarily offline | Clients and nodes fail closed or enter an explicitly modeled degraded mode; neither invents authority                                               |
+| Shape                           | Required behavior                                                                                                                                      |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Single computer                 | Client, Server, local Worker capabilities, and optional Web ingress may be colocated                                                                   |
+| Weak remote work computer       | A Desktop, Browser, mobile, or CLI Client renders and controls one authorized remote Server without becoming a Worker                                  |
+| Current SSH Environment         | Until migration or sunset, the active product coordinator bootstraps and attaches one unmanaged remote Project environment without inventing a Session |
+| Distributed session             | One Server coordinates its local Worker and additional enrolled Workers through explicit identities and capabilities                                   |
+| Coordinator temporarily offline | Clients and nodes fail closed or enter an explicitly modeled degraded mode; neither invents authority                                                  |
 
 LAN discovery, Internet relay, NAT traversal, public DNS, and cloud rendezvous are transport and
 deployment choices, not product authorization mechanisms.
@@ -415,7 +415,7 @@ deployment choices, not product authorization mechanisms.
   resolve its explicit Environment adapter.
 - Terminal Host retains its private local transport and never accepts an Internet or LAN peer
   directly under the current contract.
-- SSH and native site connections are replaceable transport attachments. Their loss never implies
+- SSH and native session connections are replaceable transport attachments. Their loss never implies
   deletion of a Project or Workspace, termination of retained remote work, or cancellation of an
   Agent task.
 - Recovery reconciles stable identities and revisions. It never replays terminal input or another
@@ -471,7 +471,7 @@ than a phase ledger in this proposal.
 | Local terminal vertical            | **Linux development path integrated, unpackaged:** bare invocation validates inherited TTY, the exact four-artifact cohort, and private runtime, connects first, and exclusively commits one Server attempt when needed. Server holds the lifetime guard and starts one Worker; Worker starts Host only after the first authorized Launch. Open, viewer, controller, and first frame share the Client startup deadline. Real PTY process tests cover two cold Clients, controlling/read-only roles, retained shell PID and variables after close/reopen, invalid cohort, failed marker, lock-contention deadline, and no replacement after Server/Worker/Host loss. The supported development boundary is verified Linux ext4/tmpfs with real cell/pixel geometry; macOS/Windows public startup, full Workbench, terminal interaction-mode parity, automatic recovery, installation/update, and release performance budgets remain undelivered. Handshake readiness is not first-frame readiness; this does not replace shipped entry points. Current contracts: [Client](../../apps/orchbee/README.md) and [shared runtime](../../crates/local-site-runtime/README.md). |
 | Shared Client and Server migration | Move canonical Workbench coordination and supported Browser session/relay behavior into Rust Server, move React presentation into `apps/web`, reduce Desktop to a Client/platform adapter, and migrate only explicitly admitted CLI capabilities.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | Accepted optional capabilities     | Implement Agent observation, managed Worktree, Archive, Launch Profiles, and Connect via SSH through their accepted owner-specific vertical migrations.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| Connected remote Client            | Validate a human Client on another machine against the same Site with its existing execution Worker. Select identity, network exposure, Client scope, and reconnect evidence in its own slice; remote Worker enrollment and scheduling are not prerequisites. Its priority follows the product decision described above.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Connected remote Client            | Validate a human Client on another machine against the same Session with its existing execution Worker. Select identity, network exposure, Client scope, and reconnect evidence in its own slice; remote Worker enrollment and scheduling are not prerequisites. Its priority follows the product decision described above.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | Distributed Worker capabilities    | Review enrollment and one concrete kind of remote work, including device identity, data/secret availability, placement, cancellation, and failure behavior. Add mobile background behavior, multi-user policy, and broader scheduling only through their own accepted scopes.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Remaining ownership migrations     | Require consumer evidence, installed-artifact handling, and rollback for the remaining Workbench, Agent, and Desktop ownership changes.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 

@@ -43,13 +43,13 @@
 		},
 		"snapshotSource": {
 			"type": "object",
-			"required": ["kind", "siteId", "revision"],
+			"required": ["kind", "sessionId", "revision"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
 					"const": "workbench-snapshot"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/id"
 				},
 				"revision": {
@@ -61,7 +61,7 @@
 			"type": "object",
 			"required": [
 				"action",
-				"siteId",
+				"sessionId",
 				"requestId",
 				"baseRevision",
 				"terminalContextId",
@@ -76,7 +76,7 @@
 				"action": {
 					"const": "layout.set-split-ratio"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/id"
 				},
 				"requestId": {

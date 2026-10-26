@@ -11,7 +11,7 @@ does not add Desktop, macOS or Linux event consumers.
 
 ## Event ownership and ordering
 
-One Site event journal receives accepted semantic changes at their real commit or observation
+One Session event journal receives accepted semantic changes at their real commit or observation
 point. Topology events derive from the before/after canonical projections inside the same commit;
 every intermediate commit is retained until journal eviction, including commits published as full
 Snapshots. Mere revision advance, refused commands and repeated unchanged observations emit no
@@ -24,7 +24,7 @@ the temporary viewer's capture sequence. Terminal exit requires an exact current
 observation of settlement; process-read failure or Agent departure never proves terminal exit.
 The existing periodic observer retains bounded last-observed versions, so unobserved physical
 transitions may coalesce. A newly observed source establishes a baseline; observed later changes
-enter the Site journal. Requested output-match probes independently inspect their admitted window.
+enter the Session journal. Requested output-match probes independently inspect their admitted window.
 
 Client observations may coalesce UI steps before publication. An optional full-width `splitRevision`
 tracks the actual Client split-ratio owner, including direct mouse/keyboard adjustments; omitted
@@ -48,14 +48,14 @@ Read and bounded wait consume the same retained scan cursor and probe state. Rep
 most 32 events and remain bounded independently of the global journal. Closing or EOF drops the
 subscription, compiled matchers and observation state. A new connection cannot claim its identity.
 
-| State  | Input              | Guard                                                   | Result and next state                         |
-| ------ | ------------------ | ------------------------------------------------------- | --------------------------------------------- |
-| Vacant | Subscribe          | Read grant, valid Site, bounded filters/cursor/matchers | Capture baseline; Open                        |
-| Open   | Subscribe          | Same ID and immutable definition                        | Existing receipt; Open                        |
-| Open   | Subscribe          | Different ID or definition                              | Conflict; Open                                |
-| Open   | Read / Wait        | Same subscription, valid bounds                         | Events, current, gap or timed-out slice; Open |
-| Open   | Close              | Same subscription                                       | Closed; Vacant                                |
-| Any    | EOF / cancellation | Connection owner ends                                   | Release owned state                           |
+| State  | Input              | Guard                                                      | Result and next state                         |
+| ------ | ------------------ | ---------------------------------------------------------- | --------------------------------------------- |
+| Vacant | Subscribe          | Read grant, valid Session, bounded filters/cursor/matchers | Capture baseline; Open                        |
+| Open   | Subscribe          | Same ID and immutable definition                           | Existing receipt; Open                        |
+| Open   | Subscribe          | Different ID or definition                                 | Conflict; Open                                |
+| Open   | Read / Wait        | Same subscription, valid bounds                            | Events, current, gap or timed-out slice; Open |
+| Open   | Close              | Same subscription                                          | Closed; Vacant                                |
+| Any    | EOF / cancellation | Connection owner ends                                      | Release owned state                           |
 
 Wait checks its admitted baseline before testing a deadline. CLI wait uses one filter and retains
 the same subscription across bounded wait slices; a slice timeout is not the overall timeout. A
@@ -93,7 +93,7 @@ condition; no replacement observer is attached until the old owner settles.
 Physical output capture runs in at most one connection-owned observation actor. Bounded waits poll
 its correlated completion instead of blocking on Worker I/O. Close/EOF cancels and joins the actor;
 an already-required Worker completion is consumed before cleanup, and uncertain viewer cleanup
-remains with the existing Site observation owner. Read-only Client query receipts retain the existing
+remains with the existing Session observation owner. Read-only Client query receipts retain the existing
 Client registry's bounded delivery/settlement ownership after the subscription ends.
 
 ## Correctness and evidence

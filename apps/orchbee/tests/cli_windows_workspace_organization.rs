@@ -17,7 +17,7 @@ fn snapshot(stream: &mut LocalStream, grouped: bool) {
         panic!("one snapshot")
     };
     let snapshot = serde_json::from_value(json!({
-        "protocolVersion":1,"siteId":id(1),"revision":"7",
+        "protocolVersion":1,"sessionId":id(1),"revision":"7",
         "navigation":{"projects":[{"projectId":id(3),"label":"multi-repo"},{"projectId":id(9),"label":"empty"}],
             "directories":[{"directoryId":id(6),"workerId":id(7),"path":"C:/repo"}],
             "workspaces":[{"workspaceId":id(2),"terminalContextId":id(2),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"},{"workspaceId":id(4),"projectId":if grouped {Some(id(3))} else {None},"label":"work","primaryDirectoryId":id(6),"terminalContextId":id(5)}],"workspaceOrder":[id(2),id(4)]},

@@ -131,8 +131,8 @@ const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("schemas/orchbee.notification.show.json"),
     ),
     (
-        "orchbee.site.configuration",
-        include_str!("schemas/orchbee.site.configuration.json"),
+        "orchbee.server.configuration",
+        include_str!("schemas/orchbee.server.configuration.json"),
     ),
     (
         "orchbee.config.reset-keys",
@@ -143,8 +143,8 @@ const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("schemas/orchbee.panel.terminal-create.json"),
     ),
     (
-        "orchbee.site.agent-manifests",
-        include_str!("schemas/orchbee.site.agent-manifests.json"),
+        "orchbee.server.agent-manifests",
+        include_str!("schemas/orchbee.server.agent-manifests.json"),
     ),
     (
         "orchbee.panel.agent-report",
@@ -291,8 +291,8 @@ const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("schemas/orchbee.worktree.operation.json"),
     ),
     (
-        "orchbee.site.stop",
-        include_str!("schemas/orchbee.site.stop.json"),
+        "orchbee.server.stop",
+        include_str!("schemas/orchbee.server.stop.json"),
     ),
     (
         "orchbee.agent.start",
@@ -444,12 +444,12 @@ const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("schemas/orchbee.project.rename.json"),
     ),
     (
-        "orchbee.site.diagnose",
-        include_str!("schemas/orchbee.site.diagnose.json"),
+        "orchbee.server.diagnose",
+        include_str!("schemas/orchbee.server.diagnose.json"),
     ),
     (
-        "orchbee.site.start",
-        include_str!("schemas/orchbee.site.start.json"),
+        "orchbee.server.start",
+        include_str!("schemas/orchbee.server.start.json"),
     ),
     (
         "orchbee.status",

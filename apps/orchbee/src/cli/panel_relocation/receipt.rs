@@ -90,7 +90,7 @@ impl Receipt {
         } else {
             "completed"
         };
-        json!({"schema":"orchbee.panel.move","version":1,"siteId":self.site_id,"baseRevision":self.base_revision,
+        json!({"schema":"orchbee.panel.move","version":1,"sessionId":self.site_id,"baseRevision":self.base_revision,
             "source":{"terminalContextId":self.source.terminal_context_id,"tabId":self.source.tab_id,"panelId":self.source.panel_id},"clientId":self.client_id,"requestedFocus":self.requested_focus,"requestedRatio":self.requested_ratio,
             "directoryPath":self.directory_path,"directorySource":self.directory_source,
             "movement":self.movement.as_ref().map(mutation::Receipt::document),

@@ -16,6 +16,7 @@ pub const MAXIMUM_ENCODED_WORKTREE_QUERY_RESULT_BYTES: usize = 32 * 1024;
 pub struct WorkbenchWorktreeQuery {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub source: WorktreeSource,
     pub trust_repository: bool,
@@ -96,6 +97,7 @@ pub enum WorktreeQueryFailure {
 )]
 pub enum WorkbenchWorktreeQueryOutcome {
     Found {
+        #[serde(rename = "sessionId")]
         site_id: SiteId,
         workbench_revision: WorkbenchRevision,
         worker_id: WorkerId,

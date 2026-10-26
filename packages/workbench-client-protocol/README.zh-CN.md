@@ -215,7 +215,7 @@ Panel swap 使用共享结构 placement 权威，在同一 Tab 中原子交换�
 
 ## 自动 Tab 命名
 
-[Tab 标签契约](../../apps/orchbee/docs/native-tab-labels.zh-CN.md) 拥有可选 `automaticLabel` 元数据。省略标签的新建 Tab 按当前上下文位置编号；显式数字名称及旧 Tab 保留固定名称。移动或关闭后 CLI 查询、标签选择器和 TUI 显示保持一致，重命名切换为固定名称。原生 `api snapshot` v4 暴露规范元数据；目录 v34 包含 68 份 schema。共享协议需要匹配 cohort。
+[Tab 标签契约](../../apps/orchbee/docs/native-tab-labels.zh-CN.md) 拥有可选 `automaticLabel` 元数据。省略标签的新建 Tab 按当前上下文位置编号；显式数字名称及旧 Tab 保留固定名称。移动或关闭后 CLI 查询、标签选择器和 TUI 显示保持一致，重命名切换为固定名称。当前版本 1 的 `api snapshot` 暴露规范元数据；离线 API 目录列出其 schema。共享协议需要匹配 cohort。
 
 Client 提示状态快照复用 `@orchbee/agent` 会话身份校验。严格形状与语义保留可空焦点/缺失状态、有序唯一批次、有界版本及精确意图对应。这些线 DTO 描述 Client 观察，不把确认转移到规范 Workbench 或 Agent 状态。
 
@@ -253,7 +253,7 @@ Rust／TypeScript 校验最后变化与当前头部／状态一致，Rust 关联
 生效规则来源为物理 Explain 增加可选 `manifest` 对象：来源（`bundled`、`local-override`、
 `remote-cache`）、必填且可空的实际路径／缓存版本、遮蔽情况及有界类型化告警。
 省略信息保留旧形状，显式 null 拒绝。两个 binding 都校验远程来源／版本及告警来源唯一性。
-CLI 携带来源信息时输出 v3，并保留封闭的 v1/v2 封套。
+CLI 在唯一的版本 1 封套中携带这些来源信息。
 
 精简物理 `states` 读取接受 0–64 个唯一展示 ID，按请求顺序返回条目、Workbench／报告修订，
 以及必填可空的完整绑定／序号／Agent／状态快照。成员不存在则拒绝整批；没有当前物理观察
@@ -269,7 +269,7 @@ CLI 携带来源信息时输出 v3，并保留封闭的 v1/v2 封套。
 
 `workbench.agent-manifests` / `.result` 使用 OBWP 37/38，结果上限 512 KiB。严格的 Rust、
 TypeScript 和 JSON 契约覆盖已安装快照、可选维护信息、保留的 Reload／Update 操作，
-以及分开的缓存报告与启用事实。当前快照及状态查询只读。修改使用明确的 Site 生命周期操作 ID；
+以及分开的缓存报告与启用事实。当前快照及状态查询只读。修改使用明确的 会话 生命周期操作 ID；
 相同类型复用 ID 读取保留回执，跨类型复用拒绝。更新报告保留逐 provider 的尝试版本、缓存版本
 和失败原因，以及目录源、时间和持久化事实；效果未知绝不声称成功。
 共享 `workbench-agent-manifests-conformance-v1.json` 语料覆盖接纳／拒绝的形状、可空字段、
@@ -332,14 +332,13 @@ CLI 能力。
 `ScrollbackEditorSpec.source`。明确类型的插件／编辑器 actor 共用准确来源的
 `popup-opened` 完成和通用 `popup-close`。
 [Client popup 模型](../../apps/orchbee/docs/windows-client-control.zh-CN.md#scrollback-编辑器-popup-模型)
-负责同连接只读捕获、完整内容区几何、输入、取消和清理。公开编辑器操作回执使用控制 v10；
-v1–v9 拒绝此意图。公开 Windows `terminal edit-scrollback` 路径由
+负责同连接只读捕获、完整内容区几何、输入、取消和清理。公开编辑器操作回执使用唯一的版本 1 控制契约。公开 Windows `terminal edit-scrollback` 路径由
 [CLI 工作流程](../../apps/orchbee/docs/cli-workflows.zh-CN.md#编辑当前聚焦终端的滚动记录)
 定义。定向管道／actor 证据不等于最终 GUI／cohort 验收。
 
 ## Windows配置命令契约
 
-configured-command请求／结果绑定与Client的 `command-popup-open` 意图共享严格popup规格。原生已安装keys profile拥有不透明ID，解码值从不携带可执行命令文本。四种动作分别保留Worker启动、规范Pane创建、plugin调用及Client popup控制回执。可选plugin选区固定两个行列端点和准确终端内容版本，要求已绑定当前来源，最多捕获4096行及8192 UTF-8字节。请求／结果上限256 KiB。Client control v11接受配置popup意图，较旧原生输出版本保持封闭。Server解析、临时观察器回收、物理作业及TUI执行见 [Windows自定义命令](../../apps/orchbee/docs/windows-custom-commands.zh-CN.md)。
+configured-command请求／结果绑定与Client的 `command-popup-open` 意图共享严格popup规格。原生已安装keys profile拥有不透明ID，解码值从不携带可执行命令文本。四种动作分别保留Worker启动、规范Pane创建、plugin调用及Client popup控制回执。可选plugin选区固定两个行列端点和准确终端内容版本，要求已绑定当前来源，最多捕获4096行及8192 UTF-8字节。请求／结果上限256 KiB。唯一的版本1 Client control契约接受配置popup意图。Server解析、临时观察器回收、物理作业及TUI执行见 [Windows自定义命令](../../apps/orchbee/docs/windows-custom-commands.zh-CN.md)。
 
 ## Panel 图片绑定
 
@@ -355,4 +354,4 @@ pane graphics 绑定与 Rust 共用封闭的图片、图层、像素块和生产
 
 封闭的 `CloseOperationReadSchema` 与 `CloseOperationResultSchema` 加入请求／结果联合及命令一致性语料。它们对应[保留 Close 身份查询](../../crates/workbench-protocol/README.zh-CN.md#保留-close-身份查询)，不引入 Client 所有的生命周期状态。
 
-<!-- documentation-pairing: english-sha256=8c4a2b02d3c4c24c9e47740a2f9e914f02127e0721d2cf25be0998b10b663dc9 zh-cn-sha256=a393f692f403845cdce029f95f9c3b3224c3a3b94e2148f38bd523f042d332db -->
+<!-- documentation-pairing: english-sha256=f4b48589e083ab69d5ffdff9175e329045a122a7f6c7a80afb0401a9e4f6e319 zh-cn-sha256=0c194be44f7101f7b574d9caf00ea262fa1c40dd04dcb612b91d14456d75dad8 -->

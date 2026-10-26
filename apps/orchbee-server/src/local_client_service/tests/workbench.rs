@@ -68,7 +68,7 @@ fn an_oblc_admitted_connection_with_read_only_policy_cannot_mutate_or_discover_l
         panic!("expected available")
     };
     let json = format!(
-        r#"{{"kind":"workbench.command","protocolVersion":1,"requestId":"22222222222222222222222222222222","siteId":"{}","expectedRevision":"0","action":{{"kind":"project.create","label":"Forbidden"}}}}"#,
+        r#"{{"kind":"workbench.command","protocolVersion":1,"requestId":"22222222222222222222222222222222","sessionId":"{}","expectedRevision":"0","action":{{"kind":"project.create","label":"Forbidden"}}}}"#,
         snapshot.site_id
     );
     let command = parse_workbench_request(json.as_bytes()).unwrap();

@@ -1,4 +1,4 @@
-# Local Site Runtime
+# Local 会话 Runtime
 
 供 Client、Server 和 Worker 共用的私有原生运行时设施。本库负责相对目录描述符的运行时准入、
 锁与标记原语，以及不可变开发 cohort 校验。应用负责进程启动、服务状态和终端授权。
@@ -14,7 +14,7 @@ Windows 复用固定祖先的私有缓存边界；Unix 使用基于目录描述�
 
 读取严格保留当前记录的已校验值、声明与来源，不把未声明的旧默认值改写为新默认值，也不改写原始字节。Desktop 导入字段不属于当前严格记录。
 
-偏好记录不存在时，返回规范默认值、空声明键集合和 `missing` 来源令牌。来源观测只包含偏好记录。应用负责 UI 草稿、轮询、向运行中终端发布，以及进程启动。桥接程序和原生 Site 消费同一个存储所有者，而不是各建一份存储。
+偏好记录不存在时，返回规范默认值、空声明键集合和 `missing` 来源令牌。来源观测只包含偏好记录。应用负责 UI 草稿、轮询、向运行中终端发布，以及进程启动。桥接程序和原生 会话 消费同一个存储所有者，而不是各建一份存储。
 
 ## 共享启动与通知策略
 
@@ -85,7 +85,7 @@ nonce 生成、保留、重试和关闭；本设施不启动进程或清理线�
 
 ## Windows 持久会话清单
 
-原生 Windows 命名及默认 Site 在 `LOCALAPPDATA/Orchbee/session-catalog/<runtime-base-digest>`
+原生 Windows 命名及默认 会话 在 `LOCALAPPDATA/Orchbee/session-catalog/<runtime-base-digest>`
 下保留有界私有生命周期记录。每条记录将精确名称、当前用户 scope 和规范运行时路径绑定到
 Active、Crashed、携带非零停止身份的 Stopped 或 Deleting。仅准入字段完整的当前数字版本 1，
 包括 Server／Worker／Host 的 PID 和创建 FILETIME 注册表。其他版本或形状返回 InvalidData，
@@ -208,7 +208,7 @@ Host 消费已验证的相邻可执行文件，不实现清单读取。
 `agent-observation-adapters` 相邻目录是惰性准入的 sidecar。`NativeCohort` 在启动期间不打开、不遍历、
 不校验负载；仅通过 `observation_adapters_sidecar()` 暴露固定的 sidecar 目录与清单声明的摘要。
 首个集成消费者在首次使用时私有校验该目录，并返回类型化的 unavailable 或 invalid 结果；
-缺失或损坏的 sidecar 不阻断 Site 启动或 Agent 读取。
+缺失或损坏的 sidecar 不阻断 会话 启动或 Agent 读取。
 
 精确 cohort 身份是以下 UTF-8 字节的 SHA-256 小写形式：
 `orchbee-native-cohort-v1\n`，随后按上述固定顺序连接每个可执行文件名、
@@ -244,11 +244,11 @@ Linux 与 macOS 测试覆盖真实内核锁、peer、哈希、PTY 和取消。
 远程、Workbench 成员关系、守护进程重启、自动清理/恢复、Server 丢失后的持久化，
 以及其他 Unix target 均不属于本契约。
 
-## POSIX 本机 Site rendezvous 底座
+## POSIX 本机 会话 rendezvous 底座
 
 crate-private 的 `rendezvous` module 向 Client、Server 和 Worker 提供经过 mode 检查的
 Unix rendezvous primitive。Installation composition 必须提供稳定的
-`SiteScope`；cohort version 与 digest 不属于该 scope，因此 update 会保留同一个 Site identity，
+`SiteScope`；cohort version 与 digest 不属于该 scope，因此 update 会保留同一个 会话 identity，
 release、local 与 checkout-scoped development installation 则可以彼此隔离。`SiteScope` 接受
 `[a-z][a-z0-9]*(?:-[a-z0-9]+)*` canonical form 的 1 到 63 个 ASCII byte，因此不能加入 path
 separator、dot component 或依赖平台的 encoding。
@@ -260,7 +260,7 @@ path 是：
 | ------------------- | --------------------------------------------------------------------- |
 | Scope directory     | `<runtime-base>/<site-scope>`                                         |
 | Activation lock     | `<runtime-base>/<site-scope>/activation.lock`                         |
-| Site lifetime lock  | `<runtime-base>/<site-scope>/site-lifetime.lock`                      |
+| 会话 lifetime lock  | `<runtime-base>/<site-scope>/site-lifetime.lock`                      |
 | Client socket       | `<runtime-base>/<site-scope>/client.sock`                             |
 | Client pending name | `<runtime-base>/<site-scope>/client-pending.sock`                     |
 | Worker socket       | `<runtime-base>/<site-scope>/worker.sock`                             |
@@ -339,7 +339,7 @@ Primitive 自身不选择应用启动策略、不重试、不移除陈旧端点�
 关闭协议负责。丢弃 `RetainedChild` 仍只释放观察所有权，不终止任何进程。
 
 `WindowsSessionStore` 在 `<LocalAppData>/Orchbee/native-sessions/<canonical-runtime-endpoint-digest>`
-下保留有界检查点字节。调用者传入 LocalAppData 目录及已准入 Site，Server 拥有检查点校验和恢复。
+下保留有界检查点字节。调用者传入 LocalAppData 目录及已准入 会话，Server 拥有检查点校验和恢复。
 不同运行基目录及命名作用域各自隔离存储。沿用私有祖先句柄、新目录的受保护 ACL、拒绝重解析点
 及文件单链接检查。私有 `state.lock` 在存储所有者存活期间独占持有；竞争者收到 `WouldBlock`。
 
@@ -352,10 +352,10 @@ Primitive 自身不选择应用启动策略、不重试、不移除陈旧端点�
 发布先写入并 flush 一个私有 `checkpoint.pending`，将被替换的无效原件保留到新的自有 raw 文件名，
 再在同一目录中以 `MoveFileEx(REPLACE_EXISTING)` 原子替换槽位。pending 字节不能提供恢复权限；失败
 保留此前有效槽位，并报告未确认的暂存清理。payload 未变化不消耗历史。raw 原件属于用户恢复数据，
-直到显式删除 Site 或授权修复才移除。私有 ACL 排除其他用户，同用户写入者遵守独占锁。适配层不声称
+直到显式删除 会话 或授权修复才移除。私有 ACL 排除其他用户，同用户写入者遵守独占锁。适配层不声称
 目录项 write-through；已确认的 pending 文件 flush 及原子替换不证明断电或硬件故障时的持久性。
 
-存储层不解释 JSON、不选择默认数据目录、不重新启动进程、不重放操作，也不授予 Site 重启权限。
+存储层不解释 JSON、不选择默认数据目录、不重新启动进程、不重放操作，也不授予 会话 重启权限。
 Server 拥有此 primitive 的启动／停止用法；原生进程崩溃／重启及机器重启见证仍是独立证据义务。
 
 Windows 原生适配保留激活锁和生命周期锁归属；下文的显式停止记录细化原有不可变尝试标记。
@@ -363,9 +363,9 @@ Windows 原生适配保留激活锁和生命周期锁归属；下文的显式停
 运行时父目录和末级目录必须归令牌用户所有，DACL 只能向该用户、SYSTEM
 或 Administrators 授权。新建目录设置受保护且可继承的 DACL；已有不安全
 对象直接拒绝，绝不修复。命名管道地址由规范运行时路径派生，默认 scope 以令牌 SID 为键；
-Host 标识使用相同路径摘要，避免不同 Site 冲突。连接准入仍证明对端令牌用户。
+Host 标识使用相同路径摘要，避免不同 会话 冲突。连接准入仍证明对端令牌用户。
 管道存在只是参考事实，不证明就绪或进程健康。Windows 可执行文件使用精确
-的 `.exe` 同级路径，并遵循现有 cohort 清单摘要规则。子进程使用原生分离创建标志并禁止句柄继承，在 Client 断开后继续由 Site 持有。
+的 `.exe` 同级路径，并遵循现有 cohort 清单摘要规则。子进程使用原生分离创建标志并禁止句柄继承，在 Client 断开后继续由 会话 持有。
 
 安全的 `windows-permissions` 依赖负责 `std` 无法表达的描述符和 ACL 查询。
 `winapi-util` 提供基于句柄的硬链接数，`winsafe` 提供禁止继承的进程创建及精确等待/退出观察。
@@ -460,7 +460,7 @@ Windows 的 `NativeCohort::artifact_sha256` 保留成功接纳时各程序的摘
 共享配置所有者分别接纳 `ui.sidebar.agents` 与 `ui.sidebar.spaces` 布局。
 token 样式／原始值首条匹配规则共用接纳所有者；各配置族包装器拒绝不支持的 token 和非文字规则。
 每个封闭规范 profile 独立限制 32 KiB。Workspace 布局使用 rows/row_gap；
-Agent 布局保留 Provider 覆盖。启动、CLI 检查及 Site 重载共同消费该所有者。
+Agent 布局保留 Provider 覆盖。启动、CLI 检查及 会话 重载共同消费该所有者。
 参见[用户指南](../../apps/orchbee/docs/windows-cli-configuration.zh-CN.md#windows-workspace-侧栏布局)。
 
 ## Windows 交接管道身份
@@ -471,4 +471,4 @@ cohort 准入、备用租约及进程／Server 所有权；普通 client／worke
 原生管道测试验证 scope／票据地址隔离，以及长 Unicode runtime 输入下仍有界的名称。
 [Worker 契约](../../apps/orchbee-worker/docs/windows-server-handoff.zh-CN.md) 负责连接转移。
 
-<!-- documentation-pairing: english-sha256=fa29eeab86a378fccd50566e464ace6c91dbda3a243d940378d766d0219d4eed zh-cn-sha256=16f5bb28b06171d4601da444bf08c6e3761bfd5487c710e9976c2da610c45536 -->
+<!-- documentation-pairing: english-sha256=5f4853affc829b091fc14c1d1d35ff5339606102fc06b9614aa4c7a18e0fb5f8 zh-cn-sha256=42955b2cffbf6457903ffbd73c6b5c42b89c69ea59874f2f6d37f78d5bdaedde -->

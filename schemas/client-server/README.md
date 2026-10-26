@@ -2,7 +2,7 @@
 
 ## Transient terminal clear
 
-The same-cohort additive `terminal-control` action `{kind:"clear", attachmentId}` is a one-shot prompt-preserving terminal mutation through the admitted viewer binding, independent of session controller acquisition. `cleared` reports canonical positive decimal generation/revision and a Boolean cleanup confirmation. Server validates current Site exposure, exact physical binding and Worker identity; Worker opens a fresh input-only Host attachment without resizing or transferring a controller. Known clears survive cleanup uncertainty, while missing effect acknowledgements remain unknown without retry. [Native clear](../../apps/orchbee/docs/native-cli-query.md#clear-terminal-output) owns the command and resource deadlines.
+The same-cohort additive `terminal-control` action `{kind:"clear", attachmentId}` is a one-shot prompt-preserving terminal mutation through the admitted viewer binding, independent of session controller acquisition. `cleared` reports canonical positive decimal generation/revision and a Boolean cleanup confirmation. Server validates current Session exposure, exact physical binding and Worker identity; Worker opens a fresh input-only Host attachment without resizing or transferring a controller. Known clears survive cleanup uncertainty, while missing effect acknowledgements remain unknown without retry. [Native clear](../../apps/orchbee/docs/native-cli-query.md#clear-terminal-output) owns the command and resource deadlines.
 
 ## Authority and boundary
 
@@ -53,8 +53,8 @@ rejected. Canonical encoding is deterministic compact JSON and emits ordinary in
 
 ## Identity, path, and geometry
 
-`requestId`, `terminalCreateRequestId`, `siteId`, `workerId`, and `terminalId` are opaque, nonzero
-128-bit values encoded as exactly 32 lowercase hexadecimal characters. Site, Worker, Terminal, and
+`requestId`, `terminalCreateRequestId`, `sessionId`, `workerId`, and `terminalId` are opaque, nonzero
+128-bit values encoded as exactly 32 lowercase hexadecimal characters. Session, Worker, Terminal, and
 request identities are distinct semantic domains, but their encoded bytes need not differ; each
 field is validated independently. `requestId` correlates one submitted request with its result; it
 is not a replay or Server-ledger identity. A Client generates a fresh `requestId` for every submitted
@@ -125,19 +125,19 @@ Create/Start results expose no internal Terminal, Worker, operation, lease, fenc
 admitted Client Session can own multiple read-only viewers on its existing ordered carrier. `attach` supplies only
 `terminalCreateRequestId`; Server resolves an accepted terminal in the same authority and subject,
 pins its existing Worker generation and Host epoch, and issues a fresh attachment identity.
-`attach-binding` instead supplies exactly `siteId`, `workerId`, and logical `terminalId` obtained
+`attach-binding` instead supplies exactly `sessionId`, `workerId`, and logical `terminalId` obtained
 from a canonical Workbench snapshot. It carries no Workbench revision, Worker generation, Host
 identity, operation, lease, or Create reference.
 
 The binding triple selects an existing terminal and grants no authorization. Server requires the
-current active Site and exact Worker/Terminal pair to remain exposed by a canonical Workbench
+current active Session and exact Worker/Terminal pair to remain exposed by a canonical Workbench
 presentation before resolving the exact retained terminal and its pinned Worker generation. Selection performs no
 Create, Start, launch, membership, rebind, navigation, input, resize, or controller effect. Target
 validation has this precedence after the Server-owned Session capacity guard:
 
-1. poisoned registry or Site ownership returns `server-busy`;
+1. poisoned registry or Session ownership returns `server-busy`;
 2. missing or retired Workbench returns `workbench-unavailable`;
-3. wrong Site or an unexposed exact pair returns `terminal-unavailable`;
+3. wrong Session or an unexposed exact pair returns `terminal-unavailable`;
 4. missing current Worker or a different logical Worker returns `terminal-runtime-unavailable`;
 5. a missing exact retained record returns `terminal-unavailable`;
 6. a different retained Worker generation returns `terminal-runtime-unavailable`;
@@ -368,7 +368,7 @@ A found launch read may also carry non-null `launchSelection:{exec,args}` under 
 
 Send results replace `acceptedBytes` with `progress`: numeric `recordsAccepted`, `firstStoppedRecord` (0–64) and `acceptedEncodedBytes` (0–67,108,864). Accepted records never exceed the stopped index. A successful outcome has a nonzero equal count/index and cleanup other than not-needed; any nonzero accepted count excludes not-needed. An unknown outcome excludes confirmed cleanup. Accepted/unknown or any cleanup other than not-needed requires a physical target. Cross-field relations are independently tested binding refinements. The unknown frontier never authorizes resend. `input-budget-exhausted` is an additional unavailable reason. Exact cohort rollout/rollback remains required; no persisted migration, Desktop support or Workbench schema equivalence is implied.
 
-The OBSN header is magic `OBSN`, big-endian u16 encoding version `1`, zero u16 reserved field, and u32 body length. The body is request/Site/Worker/Terminal identities (16 bytes each), u8 count (1–64), then ordered records. Its maximum body length is `64 + 1 + 64 * 7 + 1,048,576` bytes; reject a bad header before allocation. Each record starts with a u8 kind:
+The OBSN header is magic `OBSN`, big-endian u16 encoding version `1`, zero u16 reserved field, and u32 body length. The body is request/Session/Worker/Terminal identities (16 bytes each), u8 count (1–64), then ordered records. Its maximum body length is `64 + 1 + 64 * 7 + 1,048,576` bytes; reject a bad header before allocation. Each record starts with a u8 kind:
 
 | Kind     | Remaining record bytes                                                                       |
 | -------- | -------------------------------------------------------------------------------------------- |

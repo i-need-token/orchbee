@@ -571,13 +571,13 @@
 		},
 		"runtimeProcess_snapshotSource": {
 			"type": "object",
-			"required": ["kind", "siteId", "revision"],
+			"required": ["kind", "sessionId", "revision"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
 					"const": "workbench-snapshot"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/runtimeProcess_id"
 				},
 				"revision": {
@@ -654,7 +654,7 @@
 			"type": "object",
 			"required": [
 				"kind",
-				"siteId",
+				"sessionId",
 				"snapshotRevision",
 				"requestId",
 				"hostRequestId",
@@ -667,7 +667,7 @@
 				"kind": {
 					"const": "terminal-process-query"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/runtimeProcess_id"
 				},
 				"snapshotRevision": {
@@ -1049,7 +1049,7 @@
 			"type": "object",
 			"required": [
 				"kind",
-				"siteId",
+				"sessionId",
 				"snapshotRevision",
 				"requestId",
 				"hostRequestId",
@@ -1062,7 +1062,7 @@
 				"kind": {
 					"const": "terminal-process-query"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/agentTerminal_terminalProcessId"
 				},
 				"snapshotRevision": {
@@ -1492,9 +1492,9 @@
 				"source": {
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["siteId", "workbenchRevision", "metadataRevision", "requestIds"],
+					"required": ["sessionId", "workbenchRevision", "metadataRevision", "requestIds"],
 					"properties": {
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/metadataIdentity"
 						},
 						"workbenchRevision": {
@@ -1690,9 +1690,9 @@
 				"source": {
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["siteId", "workbenchRevision", "metadataRevision", "requestIds"],
+					"required": ["sessionId", "workbenchRevision", "metadataRevision", "requestIds"],
 					"properties": {
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/metadataIdentity"
 						},
 						"workbenchRevision": {
@@ -1825,9 +1825,9 @@
 				"source": {
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["siteId", "workbenchRevision", "reportRevision", "requestIds"],
+					"required": ["sessionId", "workbenchRevision", "reportRevision", "requestIds"],
 					"properties": {
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/metadataIdentity"
 						},
 						"workbenchRevision": {
@@ -2509,9 +2509,9 @@
 				"source": {
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["siteId", "workbenchRevision", "reportRevision", "requestId"],
+					"required": ["sessionId", "workbenchRevision", "reportRevision", "requestId"],
 					"properties": {
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/physical_identity"
 						},
 						"workbenchRevision": {
@@ -2714,13 +2714,13 @@
 		},
 		"agentProjectionSource": {
 			"type": "object",
-			"required": ["kind", "siteId", "workbenchRevision", "reportRevision", "canonicalRevision"],
+			"required": ["kind", "sessionId", "workbenchRevision", "reportRevision", "canonicalRevision"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
 					"const": "agent-projection"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/hexId"
 				},
 				"workbenchRevision": {

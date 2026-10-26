@@ -118,6 +118,7 @@ pub enum WorktreeListUnavailableReason {
 )]
 pub enum WorkbenchWorktreeListOutcome {
     Found {
+        #[serde(rename = "sessionId")]
         site_id: SiteId,
         workbench_revision: WorkbenchRevision,
         directory_id: WorkbenchDirectoryId,

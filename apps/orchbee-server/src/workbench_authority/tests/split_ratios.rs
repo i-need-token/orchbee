@@ -10,7 +10,7 @@ fn fixture(revision: u64) -> (WorkbenchAuthority, WorkbenchGrant) {
     ))
     .unwrap()["documents"]["snapshot-full-r2"]
         .clone();
-    value["siteId"] = serde_json::json!(owner.site_id().as_str());
+    value["sessionId"] = serde_json::json!(owner.site_id().as_str());
     value["revision"] = serde_json::json!(revision.to_string());
     owner.projection =
         WorkbenchProjectionStore::load(&serde_json::to_vec(&value).unwrap()).unwrap();

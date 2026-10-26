@@ -4,16 +4,16 @@
 
 Windows 私有会话存储传输不透明的 Workbench 文档。Server 验证领域含义并拥有捕获、恢复与保存调度。
 本契约落实已接受的保留和恢复策略：保留三份有效存档，回退到有效副本，保留无法读取的原文件，
-并在全部副本无效时明确提醒空恢复。它不授权在未知或仍存活的 Site owner 旁启动新会话。
-Windows 崩溃启动准入仍属于本地 Site runtime。
+并在全部副本无效时明确提醒空恢复。它不授权在未知或仍存活的 会话 owner 旁启动新会话。
+Windows 崩溃启动准入仍属于本地 会话 runtime。
 
 有界 Workbench payload、durable catalog 和私有 frame 分别仅使用当前版本 1 形状。
 checkpoint payload 保留共享比例、可选 Project 组织及全局 Workspace／Directory 身份。
 catalog 记录要求确切 PID／创建 FILETIME 注册表，不再有旧激活器隔离或按版本区分的恢复路径。
 版本遵循仓库[数据边界规范](../../../docs/zh-CN/ARCHITECTURE.md#数据边界)。
 
-Stopped Site 可以使用任一固定槽位或精确命名的自有损坏归档作为存储证据。
-默认和命名 Site 的每次新激活都在标记提交、Server 创建或存储效果前发布当前 Active 记录。
+Stopped 会话 可以使用任一固定槽位或精确命名的自有损坏归档作为存储证据。
+默认和命名 会话 的每次新激活都在标记提交、Server 创建或存储效果前发布当前 Active 记录。
 不支持或畸形的记录返回 `InvalidData` 并保持原样；具有已准入名称的命名记录在 `session list`
 中显示为 `unreadable`。显式 `session delete <name> --confirm` 仅在既有空闲 owner、端点、私有路径
 和存储锁检查通过后才可删除。Server 独立验证 checkpoint 内容。
@@ -52,9 +52,9 @@ generation 已为 `u64::MAX` 时仍视为耗尽并拒绝发布。
 无法保留无效字节时拒绝替换。generation 耗尽时拒绝发布并保留数据。最新封装 payload 未变化时
 无需再次发布；定时采样不能用相同副本消耗历史。
 
-损坏原件属于用户恢复数据，不计入三份有效副本预算。它们留在该 Site 的私有状态目录。对于已停止的
-命名 Site，`orchbee session delete <name> --confirm` 会随其他自有 checkpoint 文件一起删除其自有
-损坏 raw 归档。default Site 没有删除命令；它的 raw 归档会一直保留，直到另行授权的修复移除。它们
+损坏原件属于用户恢复数据，不计入三份有效副本预算。它们留在该 会话 的私有状态目录。对于已停止的
+命名 会话，`orchbee session delete <name> --confirm` 会随其他自有 checkpoint 文件一起删除其自有
+损坏 raw 归档。default 会话 没有删除命令；它的 raw 归档会一直保留，直到另行授权的修复移除。它们
 不是过程日志，不能静默回收。删除仅识别固定存储文件与精确的自有损坏文件命名语法；未知文件、链接项
 和仍存活 owner 继续沿用既有拒绝边界。
 
@@ -89,4 +89,4 @@ digest／格式／领域拒绝、与文件名无关的排序、generation 冲突
 [Workbench checkpoint 契约](../../../apps/orchbee-server/docs/workbench-checkpoint.zh-CN.md)
 拥有 payload、调度与确切物理目录 fence。
 
-<!-- documentation-pairing: english-sha256=09d1988789d032dd1fa8a90c1470077330dc3a743308efcbc9591f04f23f611f zh-cn-sha256=ba3b89ded86391ce3e534e9c7dbee0b217e59992ebb335338407dac9126bf802 -->
+<!-- documentation-pairing: english-sha256=ffb5f1abe5a0ee6180e688fbb3059cdbf8a68572bbbb7a6c8621d08c199feaee zh-cn-sha256=7a145fc40ae3092191b44ba0ec2e4eee9d101d09c7b037fb58878148e3707118 -->

@@ -110,7 +110,7 @@ fn classify(
         .find(|part| !part.is_empty())
         .ok_or_else(invalid)?;
     Ok(Observation::Observed {
-        source: json!({"kind":"worktree-query","requestId":request_id,"siteId":site_id,"workbenchRevision":workbench_revision}),
+        source: json!({"kind":"worktree-query","requestId":request_id,"sessionId":site_id,"workbenchRevision":workbench_revision}),
         summary: json!({"workerId":worker_id,"repositoryRoot":source.repository_root,
             "commonDirectory":source.common_directory,"repositoryName":name,
             "checkoutPath":source.checkout_path,"linked":checkout.linked}),

@@ -482,7 +482,7 @@ fn worktree_list_exchange(
         } => Ok((
             serde_json::json!({
                 "kind": "worktree-list",
-                "siteId": site_id.as_str(),
+                "sessionId": site_id.as_str(),
                 "revision": workbench_revision,
             }),
             super::results::WorktreeListDoc {
@@ -795,7 +795,7 @@ fn launch_profile_catalog_source(
 ) -> serde_json::Value {
     serde_json::json!({
         "kind": "launch-profile-catalog",
-        "siteId": site_id,
+        "sessionId": site_id,
         "catalogRevision": catalog_revision.to_string(),
     })
 }

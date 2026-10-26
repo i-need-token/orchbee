@@ -193,7 +193,7 @@ fn unavailable_authority_returns_service_unavailable_before_worker_selection() {
     let command = association(&available);
     let unavailable_service = LocalTerminalService::from_identity(
         Arc::new(Mutex::new(WorkerRegistry::new())),
-        Err(std::io::Error::other("test Site entropy unavailable")),
+        Err(std::io::Error::other("test Session entropy unavailable")),
     );
     assert_eq!(
         unavailable_service.execute_workspace_directory(command.clone()),

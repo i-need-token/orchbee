@@ -185,7 +185,7 @@ fn emit(site_id: Option<&SiteId>, answer: Answer, format: OutputFormat, locale: 
     let encoded = match format {
         OutputFormat::Json => {
             output::encode_document(&json!({"schema":"orchbee.worktree.operation","version":1,
-            "source":{"kind":"local-worktree","siteId":site_id},"result":result}))
+            "source":{"kind":"local-worktree","sessionId":site_id},"result":result}))
         }
         OutputFormat::Text => output::encode_text(&locale.cli_worktree_result(&result)),
     };

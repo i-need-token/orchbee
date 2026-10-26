@@ -1,4 +1,4 @@
-# 本机 Site Protocol
+# 本地 Worker 协议
 
 这是第一条 same-user POSIX Server-Worker process spine 的私有实验性 Rust connection contract。
 `orchbee-server` 与 `orchbee-worker` 是其具体 consumer。它不是 public API、remote protocol、
@@ -65,4 +65,4 @@ node scripts/tla/run-models.mjs --models local-site-startup
 pnpm verify
 ```
 
-<!-- documentation-pairing: english-sha256=a233896a88b1f526c8ba39d1e47d644fca27c69ee1cada51018ff80609b7c478 zh-cn-sha256=b4cb8b10df6cecdaf208f2ce37fbc0cf0d2a8d5d288fd2b11fd33988ab24b0cf -->
+<!-- documentation-pairing: english-sha256=297734512ddecf6fa2964bfbfdf0853530ef291d51f30effce18689f805bdacb zh-cn-sha256=f6a964422651a3485151a11a37873d7ac79bc9cf5723a7b12a3e15a38b67fe40 -->

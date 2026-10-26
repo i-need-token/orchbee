@@ -52,10 +52,9 @@ pub(crate) fn run(
         .is_some_and(|argument| argument == "--local-site")
     {
         arguments.next();
-        let runtime = arguments
-            .next()
-            .map(PathBuf::from)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "missing Site runtime"))?;
+        let runtime = arguments.next().map(PathBuf::from).ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidInput, "missing Session runtime")
+        })?;
         #[cfg(windows)]
         let settings = configuration_windows::resolve(arguments, || {
             orchbee_local_site_runtime::read_windows_user_settings(|name| std::env::var_os(name))

@@ -253,7 +253,7 @@ fn layout_result_document() -> serde_json::Value {
     json!({
         "kind":"workbench.client-view.result","protocolVersion":1,
         "requestId":"00000000000000000000000000000004",
-        "siteId":"00000000000000000000000000000005",
+        "sessionId":"00000000000000000000000000000005",
         "outcome":{"kind":"operation","operation":{
             "command":{"operationId":"00000000000000000000000000000006",
                 "clientId":"00000000000000000000000000000007",
@@ -304,7 +304,7 @@ fn layout_frames_have_dedicated_kinds_and_preserve_small_action_limits() {
     let request_document = json!({
         "kind":"workbench.client-view","protocolVersion":1,
         "requestId":"00000000000000000000000000000004",
-        "siteId":"00000000000000000000000000000005",
+        "sessionId":"00000000000000000000000000000005",
         "action":{"kind":"synchronize","heartbeat":"2","viewRevision":"1","view":view_document(),
             "completion":{"operationId":"00000000000000000000000000000006",
                 "outcome":{"kind":"layout-read","layout":layout_document()}}}

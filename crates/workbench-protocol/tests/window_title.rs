@@ -56,5 +56,5 @@ fn window_title_normalizes_controls_then_scalar_limit_then_trim() {
 
 #[test]
 fn window_title_rejects_unpaired_surrogate_on_the_wire() {
-    assert!(parse_workbench_request(br#"{"kind":"workbench.window-title","protocolVersion":1,"requestId":"11111111111111111111111111111111","siteId":"22222222222222222222222222222222","action":{"kind":"set","title":"\ud800"}}"#).is_err());
+    assert!(parse_workbench_request(br#"{"kind":"workbench.window-title","protocolVersion":1,"requestId":"11111111111111111111111111111111","sessionId":"22222222222222222222222222222222","action":{"kind":"set","title":"\ud800"}}"#).is_err());
 }

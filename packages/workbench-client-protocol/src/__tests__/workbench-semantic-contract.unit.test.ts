@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES,
 	WORKBENCH_MAXIMUM_ENCODED_PROJECTION_BYTES,
 	WORKBENCH_MAXIMUM_DIRECTORIES,
@@ -43,7 +43,7 @@ const transitionOutcomeSchema = z.discriminatedUnion('kind', [
 			'duplicate-change-target',
 			'invalid-projection',
 			'non-increasing-revision',
-			'site-mismatch',
+			'session-mismatch',
 		]),
 	}),
 ]);
@@ -146,7 +146,7 @@ function snapshotWithPanelDepth(depth: number): unknown {
 		},
 		protocolVersion: 1,
 		revision: '1',
-		siteId: '11111111111111111111111111111111',
+		sessionId: '11111111111111111111111111111111',
 		terminalContexts: [
 			{
 				groups: [],
@@ -227,8 +227,8 @@ describe('Workbench cross-language semantic contract', () => {
 		const { corpus } = await readContractArtifacts();
 		const snapshot = parseWorkbenchSnapshot(resolveDocument(corpus.documents, 'snapshot-full-r2'));
 
-		expect(SiteIdSchema.safeParse('11111111111111111111111111111111').success).toBe(true);
-		expect(SiteIdSchema.safeParse('00000000000000000000000000000000').success).toBe(false);
+		expect(SessionIdSchema.safeParse('11111111111111111111111111111111').success).toBe(true);
+		expect(SessionIdSchema.safeParse('00000000000000000000000000000000').success).toBe(false);
 		expect(WorkbenchRevisionSchema.safeParse('18446744073709551615').success).toBe(true);
 		expect(WorkbenchRevisionSchema.safeParse('18446744073709551616').success).toBe(false);
 		expect(Object.isFrozen(snapshot)).toBe(true);
@@ -293,7 +293,7 @@ describe('Workbench cross-language semantic contract', () => {
 			kind: 'workbench.delta',
 			protocolVersion: 1,
 			revision: '2',
-			siteId: '11111111111111111111111111111111',
+			sessionId: '11111111111111111111111111111111',
 		};
 		expect(WorkbenchDeltaSchema.safeParse(delta).success).toBe(true);
 		expect(

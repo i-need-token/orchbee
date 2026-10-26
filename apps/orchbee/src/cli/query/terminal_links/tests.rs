@@ -8,7 +8,7 @@ fn link_activation_receipt_requires_truthful_handled_and_closed_known_or_unknown
     .unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
     let id = "11111111111111111111111111111111";
-    let base = json!({"schema":"orchbee.terminal.link-activate","version":1,"source":{"kind":"workbench-snapshot","siteId":id,"revision":"1"},"result":{"terminal":{"terminalId":id,"workerId":id,"boundTo":{"presentationId":id,"panelId":id,"tabId":id,"terminalContextId":id}},"contentRevision":"0","contentGeneration":"1","hostEpoch":id,"origin":{"row":0,"col":0},"offsetFromBottom":"0","viewportStartRow":"0","kind":"none","url":null,"regions":[],"handled":false,"activation":{"state":"no-link"}}});
+    let base = json!({"schema":"orchbee.terminal.link-activate","version":1,"source":{"kind":"workbench-snapshot","sessionId":id,"revision":"1"},"result":{"terminal":{"terminalId":id,"workerId":id,"boundTo":{"presentationId":id,"panelId":id,"tabId":id,"terminalContextId":id}},"contentRevision":"0","contentGeneration":"1","hostEpoch":id,"origin":{"row":0,"col":0},"offsetFromBottom":"0","viewportStartRow":"0","kind":"none","url":null,"regions":[],"handled":false,"activation":{"state":"no-link"}}});
     validator.validate(&base).unwrap();
     for state in ["no-handler", "started", "failed", "unknown"] {
         let mut doc = base.clone();
@@ -81,7 +81,7 @@ fn link_resolve_receipt_is_closed_precise_and_distinguishes_explicit_plain_and_n
     .unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
     let id = "11111111111111111111111111111111";
-    let base = json!({"schema":"orchbee.terminal.link-resolve","version":1,"source":{"kind":"workbench-snapshot","siteId":id,"revision":"1"},"result":{"terminal":{"terminalId":id,"workerId":id,"boundTo":{"presentationId":id,"panelId":id,"tabId":id,"terminalContextId":id}},"contentRevision":u64::MAX.to_string(),"contentGeneration":"1","hostEpoch":id,"origin":{"row":0,"col":0},"offsetFromBottom":u64::MAX.to_string(),"viewportStartRow":"0","kind":"none","url":null,"regions":[]}});
+    let base = json!({"schema":"orchbee.terminal.link-resolve","version":1,"source":{"kind":"workbench-snapshot","sessionId":id,"revision":"1"},"result":{"terminal":{"terminalId":id,"workerId":id,"boundTo":{"presentationId":id,"panelId":id,"tabId":id,"terminalContextId":id}},"contentRevision":u64::MAX.to_string(),"contentGeneration":"1","hostEpoch":id,"origin":{"row":0,"col":0},"offsetFromBottom":u64::MAX.to_string(),"viewportStartRow":"0","kind":"none","url":null,"regions":[]}});
     validator.validate(&base).unwrap();
     for kind in ["explicit", "plain-text"] {
         let mut doc = base.clone();

@@ -109,7 +109,7 @@ fn mutation_requires_bounded_ratios_ordered_identity_and_roundtrips_canonical_re
     };
     let id = |value: u64| format!("{value:032x}");
     let request = json!({"kind":"workbench.command","protocolVersion":1,"requestId":id(1),
-        "siteId":id(2),"expectedRevision":"3","action":{"kind":"layout.set-split-ratio",
+        "sessionId":id(2),"expectedRevision":"3","action":{"kind":"layout.set-split-ratio",
         "terminalContextId":id(4),"tabId":id(5),"split":{"splitId":id(6),
         "firstSlotId":id(7),"secondSlotId":id(8)},"previousRatio":0.5,"ratio":0.7}});
     let parsed = parse_workbench_request(&serde_json::to_vec(&request).unwrap()).unwrap();

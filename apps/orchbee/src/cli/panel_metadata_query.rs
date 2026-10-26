@@ -314,7 +314,7 @@ impl Document {
             .view(id);
         let agent = view.and_then(|view| view.agent.as_deref());
         let authority = view.and_then(|view| view.authority_source.as_deref());
-        json!({"source":{"siteId":self.site,"workbenchRevision":self.workbench_revision,"metadataRevision":self.revision,"requestIds":self.request_ids},"binding":row.binding,"tokens":row.tokens,"presentations":row.presentations,"context":{"agent":agent,"authoritySource":authority},"presentation":row.presentation(agent,authority)})
+        json!({"source":{"sessionId":self.site,"workbenchRevision":self.workbench_revision,"metadataRevision":self.revision,"requestIds":self.request_ids},"binding":row.binding,"tokens":row.tokens,"presentations":row.presentations,"context":{"agent":agent,"authoritySource":authority},"presentation":row.presentation(agent,authority)})
     }
     pub(super) fn report_value(&self, id: &WorkbenchPanelId) -> Value {
         self.reports.as_ref().expect("completed report read").value(

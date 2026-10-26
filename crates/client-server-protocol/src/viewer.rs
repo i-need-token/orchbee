@@ -255,6 +255,7 @@ pub enum TerminalViewerAction {
         terminal_create_request_id: RequestId,
     },
     AttachBinding {
+        #[serde(rename = "sessionId")]
         site_id: SiteId,
         worker_id: WorkerId,
         terminal_id: TerminalId,

@@ -11,7 +11,7 @@ fn named_session_diagnosis_uses_the_shared_schema() {
     .unwrap()
     .envelope;
     let schema: Value =
-        serde_json::from_str(include_str!("../../schemas/orchbee.site.diagnose.json")).unwrap();
+        serde_json::from_str(include_str!("../../schemas/orchbee.server.diagnose.json")).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
     validator.validate(&document).unwrap();
     assert_eq!(document["version"], 1);

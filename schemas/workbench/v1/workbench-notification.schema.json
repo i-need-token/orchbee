@@ -5,7 +5,7 @@
 	"oneOf": [
 		{
 			"type": "object",
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "action"],
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "action"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
@@ -21,7 +21,7 @@
 						"const": "00000000000000000000000000000000"
 					}
 				},
-				"siteId": {
+				"sessionId": {
 					"type": "string",
 					"pattern": "^[0-9a-f]{32}$",
 					"not": {
@@ -91,7 +91,7 @@
 		},
 		{
 			"type": "object",
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"],
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "outcome"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
@@ -107,7 +107,7 @@
 						"const": "00000000000000000000000000000000"
 					}
 				},
-				"siteId": {
+				"sessionId": {
 					"type": "string",
 					"pattern": "^[0-9a-f]{32}$",
 					"not": {
@@ -215,7 +215,7 @@
 									"const": "failed"
 								},
 								"reason": {
-									"enum": ["denied", "unavailable", "site-mismatch", "conflict"]
+									"enum": ["denied", "unavailable", "session-mismatch", "conflict"]
 								}
 							}
 						}

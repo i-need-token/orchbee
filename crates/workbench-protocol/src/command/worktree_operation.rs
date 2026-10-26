@@ -146,6 +146,7 @@ impl WorkbenchWorktreeAction {
 pub struct WorkbenchWorktreeRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub action: WorkbenchWorktreeAction,
 }
@@ -317,6 +318,7 @@ pub enum WorktreeOperationFailure {
     CheckoutInUse {},
     AssociationFailed {},
     CloseIncomplete {},
+    #[serde(rename = "session-stopping")]
     SiteStopping {},
     Internal {},
 }

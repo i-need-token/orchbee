@@ -1,4 +1,4 @@
-# Local Site Runtime
+# Local Session Runtime
 
 Private native runtime facilities shared by the Client, Server, and Worker. This library
 owns descriptor-relative runtime admission, lock/marker primitives, and immutable development
@@ -18,7 +18,7 @@ replacement reports an unknown outcome and never authorizes automatic replay.
 
 Reads preserve validated current values, claims and source without reinterpreting an unclaimed old default or rewriting bytes. Desktop import fields are outside the current strict record.
 
-An absent preference record returns canonical defaults, no claimed keys and the `missing` source token. Only the preference record participates in source observation. Applications own UI drafts, polling, publication into running terminals, and process launch. The helper and native Site consume this same storage owner, not separate stores.
+An absent preference record returns canonical defaults, no claimed keys and the `missing` source token. Only the preference record participates in source observation. Applications own UI drafts, polling, publication into running terminals, and process launch. The helper and native Session consume this same storage owner, not separate stores.
 
 ## Shared launch and notification policy
 
@@ -248,7 +248,7 @@ The `agent-observation-adapters` sibling directory is a lazily admitted sidecar.
 never opens, traverses, or validates the payload during startup; it exposes only the fixed sidecar
 directory and the manifest-declared digest through `observation_adapters_sidecar()`. The first
 integration consumer validates that directory privately and answers a typed unavailable or invalid
-result, so an absent or damaged sidecar never blocks Site startup or Agent reads.
+result, so an absent or damaged sidecar never blocks Session startup or Agent reads.
 
 The exact cohort identity is lowercase SHA-256 of UTF-8 `orchbee-native-cohort-v1\n` followed,
 in the above fixed order, by each executable name, one NUL byte, its hexadecimal hash, and LF —
@@ -289,12 +289,12 @@ cancellation are exercised by Linux and macOS tests. Remote, Workbench membershi
 automatic cleanup/recovery, persistence across Server loss, and other Unix targets are
 outside this contract.
 
-## POSIX local Site rendezvous foundation
+## POSIX local Session rendezvous foundation
 
 The crate-private `rendezvous` module exposes mode-checked Unix rendezvous primitives to the
 Client, Server, and Worker. Installation composition
 must supply a stable `SiteScope`; cohort version and digest do not belong in that scope, so an
-update keeps one Site identity while release, local, and checkout-scoped development installations
+update keeps one Session identity while release, local, and checkout-scoped development installations
 can remain distinct. `SiteScope` accepts 1 through 63 ASCII bytes in the canonical form
 `[a-z][a-z0-9]*(?:-[a-z0-9]+)*` and therefore cannot add a path separator, dot component, or
 platform-dependent encoding.
@@ -302,16 +302,16 @@ platform-dependent encoding.
 For one trusted, existing, exactly normalized absolute per-user runtime base, the exact derived
 paths are:
 
-| Role                | Stable path                                                           |
-| ------------------- | --------------------------------------------------------------------- |
-| Scope directory     | `<runtime-base>/<site-scope>`                                         |
-| Activation lock     | `<runtime-base>/<site-scope>/activation.lock`                         |
-| Site lifetime lock  | `<runtime-base>/<site-scope>/site-lifetime.lock`                      |
-| Client socket       | `<runtime-base>/<site-scope>/client.sock`                             |
-| Client pending name | `<runtime-base>/<site-scope>/client-pending.sock`                     |
-| Worker socket       | `<runtime-base>/<site-scope>/worker.sock`                             |
-| Host scope          | `<runtime-base>/<site-scope>/host`                                    |
-| Host endpoint       | `<runtime-base>/<site-scope>/host/00000000000000000000000000000001.s` |
+| Role                  | Stable path                                                           |
+| --------------------- | --------------------------------------------------------------------- |
+| Scope directory       | `<runtime-base>/<site-scope>`                                         |
+| Activation lock       | `<runtime-base>/<site-scope>/activation.lock`                         |
+| Session lifetime lock | `<runtime-base>/<site-scope>/site-lifetime.lock`                      |
+| Client socket         | `<runtime-base>/<site-scope>/client.sock`                             |
+| Client pending name   | `<runtime-base>/<site-scope>/client-pending.sock`                     |
+| Worker socket         | `<runtime-base>/<site-scope>/worker.sock`                             |
+| Host scope            | `<runtime-base>/<site-scope>/host`                                    |
+| Host endpoint         | `<runtime-base>/<site-scope>/host/00000000000000000000000000000001.s` |
 
 The pending name is the transient pre-publish bind the Server renames to `client.sock`; the Host
 endpoint is the absolute address the Worker dials while the Host binds it relatively inside the
@@ -393,7 +393,7 @@ Dropping `RetainedChild` continues to release observation ownership without term
 
 `WindowsSessionStore` retains bounded checkpoint bytes under
 `<LocalAppData>/Orchbee/native-sessions/<canonical-runtime-endpoint-digest>`. Its caller supplies
-the LocalAppData directory and admitted Site; the Server owns checkpoint validation and recovery.
+the LocalAppData directory and admitted Session; the Server owns checkpoint validation and recovery.
 Different runtime bases and named scopes have separate stores. Private ancestor handles, protected
 new-directory ACLs, no-reparse admission and single-link file checks apply. A private `state.lock`
 is held exclusively for the store lifetime; a competing owner receives `WouldBlock`.
@@ -410,13 +410,13 @@ Publication writes and flushes one private `checkpoint.pending`, preserves any d
 original under a fresh owned raw filename, then atomically replaces a slot in the same directory
 with `MoveFileEx(REPLACE_EXISTING)`. Pending bytes never supply recovery authority; failure keeps
 prior valid slots and reports any unconfirmed staging cleanup. Unchanged payloads do not consume
-history. Raw originals are user recovery data retained until explicit Site deletion or authorized
+history. Raw originals are user recovery data retained until explicit Session deletion or authorized
 repair. Other users are excluded by the private ACL; same-user writers respect the lock. The
 adapter does not claim directory-entry write-through; the acknowledged pending-file flush and
 atomic replacement do not prove power-loss or hardware durability.
 
 The store does not interpret JSON, select a default data directory, relaunch a process, replay an
-operation or grant Site restart authority. The Server owns startup/stop use of this primitive;
+operation or grant Session restart authority. The Server owns startup/stop use of this primitive;
 native process-crash/restart and machine-restart witnesses remain separate evidence obligations.
 
 The native Windows adapter retains activation/lifetime-lock ownership; the explicit
@@ -430,7 +430,7 @@ Host identities use the same path digest so different Sites cannot collide. Conn
 admission still proves the peer's token user. Pipe existence is advisory and never
 proves readiness or process health. Windows executables use exact `.exe` siblings
 and the existing cohort manifest digest rules. Child processes use detached,
-native creation flags with handle inheritance disabled and remain owned by the Site after Client detach.
+native creation flags with handle inheritance disabled and remain owned by the Session after Client detach.
 
 The safe `windows-permissions` dependency owns descriptor/ACL queries that `std`
 cannot express. `winapi-util` supplies handle-based hard-link counts; `winsafe` supplies
@@ -549,7 +549,7 @@ The shared settings owner admits separate `ui.sidebar.agents` and `ui.sidebar.sp
 layouts. Token styling/raw-value first-match rules have one common admission owner;
 family-specific wrappers reject unsupported tokens and non-text rules. Each closed
 canonical profile caps at 32 KiB independently. Workspace layouts use rows/row_gap;
-Agent layouts retain provider overrides. Startup, CLI checks and Site reload all
+Agent layouts retain provider overrides. Startup, CLI checks and Session reload all
 consume this owner. See the [user guide](../../apps/orchbee/docs/windows-cli-configuration.md#windows-workspace-sidebar-layouts).
 
 ## Windows handoff pipe identity

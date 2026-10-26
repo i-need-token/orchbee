@@ -1,13 +1,13 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
-	"$id": "orchbee.site.start",
-	"title": "orchbee site start envelope",
+	"$id": "orchbee.server.start",
+	"title": "orchbee server start envelope",
 	"type": "object",
 	"required": ["schema", "version", "source", "result"],
 	"additionalProperties": false,
 	"properties": {
 		"schema": {
-			"const": "orchbee.site.start"
+			"const": "orchbee.server.start"
 		},
 		"version": {
 			"const": 1

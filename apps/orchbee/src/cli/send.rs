@@ -492,7 +492,7 @@ mod linux {
                 worker_id: "55555555555555555555555555555555".to_owned(),
                 terminal_id: "66666666666666666666666666666666".to_owned(),
             },
-            source: json!({"kind":"terminal.send", "siteId":"44444444444444444444444444444444", "requestId":request.as_str(), "snapshotRevision":"1"}),
+            source: json!({"kind":"terminal.send", "sessionId":"44444444444444444444444444444444", "requestId":request.as_str(), "snapshotRevision":"1"}),
         }
     }
 
@@ -633,7 +633,7 @@ mod linux {
         let mut document = Map::from_iter([
             ("action".to_owned(), json!("terminal.send")),
             ("requestId".to_owned(), json!(result.request_id().as_str())),
-            ("siteId".to_owned(), json!(facts.site_id)),
+            ("sessionId".to_owned(), json!(facts.site_id)),
             ("workerId".to_owned(), json!(facts.worker_id)),
             ("terminalId".to_owned(), json!(facts.terminal_id)),
         ]);
@@ -807,7 +807,7 @@ mod linux {
     fn send_source(snapshot: &Snapshot, request_id: &str) -> Value {
         json!({
             "kind": "terminal.send",
-            "siteId": snapshot.site_id.as_str(),
+            "sessionId": snapshot.site_id.as_str(),
             "requestId": request_id,
             "snapshotRevision": snapshot.revision,
         })

@@ -2,7 +2,7 @@
     target_os = "macos",
     expect(
         dead_code,
-        reason = "the Apple Silicon development Site omits Windows checkpoint, stop, and Agent-recovery paths"
+        reason = "the Apple Silicon development Session omits Windows checkpoint, stop, and Agent-recovery paths"
     )
 )]
 

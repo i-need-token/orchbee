@@ -195,7 +195,7 @@ fn cli_tab_create_launch_selection_runs_verbatim_and_replays_by_identity() -> Te
         .as_str()
         .expect("receipt requestId")
         .to_owned();
-    let site_id = receipt["source"]["siteId"].as_str().expect("siteId");
+    let site_id = receipt["source"]["sessionId"].as_str().expect("sessionId");
     let expected_revision = receipt["source"]["expectedRevision"]
         .as_str()
         .expect("expectedRevision");

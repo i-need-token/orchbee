@@ -164,6 +164,7 @@ pub enum WorkspaceMetadataAction {
 pub struct WorkspaceMetadataRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub action: WorkspaceMetadataAction,
 }
@@ -202,6 +203,7 @@ pub enum MetadataReportDisposition {
 #[serde(rename_all = "kebab-case")]
 pub enum WorkspaceMetadataFailure {
     InvalidRequest,
+    #[serde(rename = "session-mismatch")]
     SiteMismatch,
     NotFound,
     Denied,
@@ -241,6 +243,7 @@ pub enum WorkspaceMetadataOutcome {
 pub struct WorkspaceMetadataResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub outcome: WorkspaceMetadataOutcome,
 }

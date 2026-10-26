@@ -196,7 +196,7 @@ fn enforces_unicode_collection_and_tree_boundaries() -> Result<(), Box<dyn Error
         "kind": "workbench.delta",
         "protocolVersion": 1,
         "revision": "2",
-        "siteId": "11111111111111111111111111111111"
+        "sessionId": "11111111111111111111111111111111"
     });
     assert!(parse_document(&serde_json::to_vec(&bounded_delta)?).is_ok());
     let overflowing_delta = json!({
@@ -205,7 +205,7 @@ fn enforces_unicode_collection_and_tree_boundaries() -> Result<(), Box<dyn Error
         "kind": "workbench.delta",
         "protocolVersion": 1,
         "revision": "2",
-        "siteId": "11111111111111111111111111111111"
+        "sessionId": "11111111111111111111111111111111"
     });
     assert!(parse_document(&serde_json::to_vec(&overflowing_delta)?).is_err());
 
@@ -284,7 +284,7 @@ fn empty_snapshot_value(revision: &str) -> Value {
             "projects": []},
         "protocolVersion": 1,
         "revision": revision,
-        "siteId": "11111111111111111111111111111111",
+        "sessionId": "11111111111111111111111111111111",
         "terminalContexts": [{
             "groups": [],
             "tabs": [],
@@ -303,7 +303,7 @@ fn snapshot_with_depth(depth: usize) -> Value {
             "projects": []},
         "protocolVersion": 1,
         "revision": "1",
-        "siteId": "11111111111111111111111111111111",
+        "sessionId": "11111111111111111111111111111111",
         "terminalContexts": [{
             "groups": [],
             "tabs": [{

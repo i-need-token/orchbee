@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 pub struct CloseOperationRead {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub operation_id: WorkbenchRequestId,
 }
@@ -58,6 +59,7 @@ pub enum CloseOperationOutcome {
 pub struct CloseOperationResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub operation_id: WorkbenchRequestId,
     pub outcome: CloseOperationOutcome,

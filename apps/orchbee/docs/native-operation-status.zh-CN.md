@@ -26,7 +26,7 @@ Project 和 Worktree 恢复保留可选的 timeout 和 detach 控制。Generatio
 
 Close 状态按精确请求 ID 读取 Server 保留账本，包括
 布局成员消失后的墓碑。命令族不匹配时拒绝，不改选资源。
-新增的匹配 cohort 读取不增加持久索引或状态，并保留 Site 权限检查。
+新增的匹配 cohort 读取不增加持久索引或状态，并保留 会话 权限检查。
 缺失、拒绝及不可用观察保持区分；缺少历史不证明
 以前没有发生效果。
 
@@ -56,4 +56,4 @@ Server 权威用例覆盖保留身份和权限检查。本地验证遵循仓库�
 
 一次性 Client 提示、原生提示及已结算的设置结果在现有单调时钟 UI tick 上经过四秒后消失。同类提示合并，重绘不延长寿命。进行中的工作、未知结果、需恢复的结果与持久配置警告仍由所属流程管理；提示过期不丢弃回执，也不重试操作。
 
-<!-- documentation-pairing: english-sha256=c1804b50d732b35bcd566c9f1df9b2225f340a71327e64ed31ce184e0a175a31 zh-cn-sha256=f4d4c2d6461fb9db482eb794f52af451025e0f3bf822c7ee8256b19814ef06b2 -->
+<!-- documentation-pairing: english-sha256=a2d8534c3d7ec2fc176f5a795a9d78cbd4ebeb3a696b45b9ccb85109f9fa9634 zh-cn-sha256=cf756165b2ae041524f5db861ab4dcd77612bfb9f8fd0dd4ae9681eaed871567 -->

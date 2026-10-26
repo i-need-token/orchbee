@@ -4,13 +4,13 @@ impl Locale {
     pub(crate) fn cli_panel_relocation(self, document: &Value) -> String {
         let outcome = match (self, document["outcome"].as_str()) {
             (Self::EnUs, Some("completed")) => "Panel moved",
-            (Self::ZhCn, Some("completed")) => "窗格已迁移",
+            (Self::ZhCn, Some("completed")) => "面板已迁移",
             (Self::EnUs, Some("unchanged")) => "Panel unchanged",
-            (Self::ZhCn, Some("unchanged")) => "窗格未改变",
+            (Self::ZhCn, Some("unchanged")) => "面板未改变",
             (Self::EnUs, Some("outcome-unknown")) => "Panel move outcome unknown",
-            (Self::ZhCn, Some("outcome-unknown")) => "窗格迁移结果不确定",
+            (Self::ZhCn, Some("outcome-unknown")) => "面板迁移结果不确定",
             (Self::EnUs, _) => "Panel move incomplete",
-            (Self::ZhCn, _) => "窗格迁移未完整完成",
+            (Self::ZhCn, _) => "面板迁移未完整完成",
         };
         let mut text = format!("{outcome}\n");
         if document["reason"].as_str().is_some() {
@@ -23,7 +23,7 @@ impl Locale {
             let result = &document[phase]["result"];
             for (key, en, zh) in [
                 ("projectId", "Project", "项目"),
-                ("panelId", "Panel", "窗格"),
+                ("panelId", "Panel", "面板"),
                 ("targetTabId", "Target Tab", "目标标签页"),
                 ("revision", "Committed revision", "已提交修订"),
             ] {

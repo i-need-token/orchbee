@@ -138,7 +138,7 @@ generic command authority；remote lifecycle 与 relay policy 归 Desktop 和 SS
 
 Windows Host 在发布端点或启动服务工作者之前，通过 `SetConsoleCtrlHandler(NULL, FALSE)`
 清除继承的忽略 Ctrl+C 属性。这是一次进程启动操作，失败则拒绝服务准入；仅查询版本时
-不修改信号策略。分离运行的 Site 所创建的新进程组，不能让所有终端子进程都忽略 Ctrl+C。
+不修改信号策略。分离运行的 会话 所创建的新进程组，不能让所有终端子进程都忽略 Ctrl+C。
 Host 仍保持分离运行，终端 Job 包含关系不变。不附着调用者控制台、不广播信号、不向 shell
 注入命令、不在每次创建进程时切换全局状态，也不根据输入字节直接终止进程。
 
@@ -327,4 +327,4 @@ pnpm --filter @orchbee/terminal-host benchmark -- \
 
 `zig build test-graphics` 检查 PNG 服务、附件授权、终端文本保持及已有直接图形投影。Windows 服务测试自行创建并释放 ConPTY 进程和运行时，不打开 Desktop 窗口。
 
-<!-- documentation-pairing: english-sha256=e5cdbc27d7213112266372e978a7590e2a730e0e4c0b54843d180610f67eb8fc zh-cn-sha256=0e6436c356aa36066b7eceaf7efa7e7d6957cb21ba4d6eab1a3968077504a07a -->
+<!-- documentation-pairing: english-sha256=a034f0671bb75c4d3507e7e5779ff6103a48d740a5374a8640e66b99f09fc79b zh-cn-sha256=fa7f8d84be74db7945141a8a3ac25c9a0709717097f5d518211ed3dbff2ccb83 -->

@@ -50,6 +50,7 @@ impl WorkspaceGroupCloseAction {
 pub struct WorkbenchWorkspaceGroupCloseRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub action: WorkspaceGroupCloseAction,
 }
@@ -120,6 +121,7 @@ pub enum WorkspaceGroupCloseFailure {
     ChildBlocked,
     OutcomeUnknown,
     Deadline,
+    #[serde(rename = "session-stopping")]
     SiteStopping,
     Internal,
 }

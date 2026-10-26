@@ -192,10 +192,10 @@ fn worktree_list_journey_against_a_live_cohort_and_real_git() -> TestResult {
     validate(&validators, "orchbee.worktree.list", &output);
     assert_eq!(document["source"]["kind"], "worktree-list");
     assert!(
-        document["source"]["siteId"]
+        document["source"]["sessionId"]
             .as_str()
             .is_some_and(|id| !id.is_empty()),
-        "source carries the Site identity: {document}"
+        "source carries the Session identity: {document}"
     );
     assert!(
         document["source"]["revision"]

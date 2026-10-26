@@ -2782,7 +2782,7 @@ fn bash() -> String {
     format!(
         concat!(
             "# bash completion for orchbee — a static projection of the implemented grammar.\n",
-            "# No dynamic state: no Site, resource, or runtime enumeration.\n",
+            "# No dynamic state: no Session, resource, or runtime enumeration.\n",
             "_orchbee() {{\n",
             "    local cur candidates=\"\" extras=\"\" verbs=\"\" possible=\"\"\n",
             "    local flag_name=\"\" cur_name=\"\"\n",
@@ -3187,7 +3187,7 @@ fn zsh() -> String {
         concat!(
             "#compdef orchbee\n",
             "# zsh completion for orchbee — a static projection of the implemented\n",
-            "# grammar. No dynamic state: no Site, resource, or runtime enumeration.\n",
+            "# grammar. No dynamic state: no Session, resource, or runtime enumeration.\n",
             "_orchbee() {{\n",
             "    local candidates=\"\" extras=\"\" verbs=\"\" possible=\"\"\n",
             "    local state=verb help_a=\"\" help_b=\"\" help_c=\"\" family=\"\" sub=\"\" leaf=\"\"\n",
@@ -4021,7 +4021,7 @@ fn fish() -> String {
     let script = format!(
         concat!(
             "# fish completion for orchbee — a static projection of the implemented\n",
-            "# grammar. No dynamic state: no Site, resource, or runtime enumeration.\n",
+            "# grammar. No dynamic state: no Session, resource, or runtime enumeration.\n",
             "function __orchbee_narrow\n",
             "    for word in $argv[2..]\n",
             "        if contains -- $word (string split ' ' -- $argv[1]); echo $word; end\n",

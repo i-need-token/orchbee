@@ -126,7 +126,7 @@ import {
 } from './workbench-workspace-close-contract';
 
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES,
 	WORKBENCH_MAXIMUM_TABS_PER_CONTEXT,
 	WORKBENCH_MAXIMUM_ENCODED_PROJECTION_BYTES,
@@ -583,7 +583,7 @@ const WorkbenchCommandSchema = z
 	.strictObject({
 		kind: z.literal('workbench.command'),
 		...correlation,
-		siteId: SiteIdSchema,
+		sessionId: SessionIdSchema,
 		expectedRevision: WorkbenchRevisionSchema,
 		action: WorkbenchActionSchema,
 	})

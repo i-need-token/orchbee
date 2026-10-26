@@ -17,9 +17,9 @@ Windows Server 在同用户证明之后、cohort 相等及 Client Connection 接
 macOS 运行时适配器。[CLI 状态契约](../../apps/orchbee/docs/native-runtime-status.zh-CN.md)
 拥有公共比较／输出语义和证据，包括旧 Server 不兼容的处理。
 
-## 托管 Site 停止控制
+## 托管 会话 停止控制
 
-私有 OBLC v1 在现有 256 字节上限内增加类型 4/5，承载同用户、准确 cohort 的 Site 停止请求和状态响应。
+私有 OBLC v1 在现有 256 字节上限内增加类型 4/5，承载同用户、准确 cohort 的 会话 停止请求和状态响应。
 请求包含已验证 cohort、非零 128 位停止标识以及封闭的开始、状态或显式重试动作。响应回显该标识，区分未记录、
 处理中、失败、另一活动标识和非托管模式。处理中和失败状态保留正数尝试序号（最多 64）和封闭阶段；失败还保留
 原因及本次已知释放数量。响应绝不声明进程最终退出：托管所有者回收资源后的已准入 Windows 激活记录才是完成回执。
@@ -77,7 +77,7 @@ adapter 不发现 endpoint、不激活 service、不 retry、不启动 process �
 已接受的懒激活流程需要调用方拥有一个覆盖连接与握手的截止时间。POSIX
 ClientConnection::connect_before(endpoint, cohort, deadline) 在 Linux 与 macOS 提供该边界，
 apps/orchbee 通过私有 LocalClient::connect_before 消费它。现有 `connect` 保留独立的两秒握手超时。
-两个入口都不发现或激活 Site。macOS 原生验证覆盖同一 descriptor、poll、peer proof 与 handshake 路径；
+两个入口都不发现或激活 会话。macOS 原生验证覆盖同一 descriptor、poll、peer proof 与 handshake 路径；
 既有 `connect` 入口保持不变。
 
 只有 `ConnectFailed` 报告连接完成前的失败，从而保留拨号错误来源。
@@ -88,7 +88,7 @@ apps/orchbee 通过私有 LocalClient::connect_before 消费它。现有 `connec
 
 | 字段         | 契约                                                                                                                                                                                                             |
 | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem      | 静默或逐步响应的本机 Server 不能延长 Client 启动准入预算。本切片是一次连接尝试，不是完整 Site 激活。                                                                                                             |
+| Problem      | 静默或逐步响应的本机 Server 不能延长 Client 启动准入预算。本切片是一次连接尝试，不是完整 会话 激活。                                                                                                             |
 | Inputs       | 调用方选定的 endpoint 与绝对单调时钟 Instant；effect 前验证 cohort；不可信的内核连接、就绪、peer 观察与一条 OBLC 响应。                                                                                          |
 | Data         | 一个独占的 nonblocking socket、一个不变的截止时间、一条 hello、解码进度与有类型结果。没有 socket clone、进程、锁、重试账本或产品 state。                                                                         |
 | Outputs      | 精确的已接受 generation 及同一条 blocking、无缓冲 stream；现有有类型 IO、protocol 或 rejection error。过期携带 TimedOut。失败仅关闭候选连接。                                                                    |
@@ -160,17 +160,17 @@ pnpm verify
 
 ## Windows 准入
 
-Windows 使用 `orchbee-local-ipc` 本地命名管道承载相同的 OBLC 消息。适配器在发送 hello 前证明对端令牌用户，连接、读取和写入共用调用方的绝对截止时间，并通过借用的就绪源观察取消。它不启动或重试 Site。管道名称和权限归运行时与传输所有者负责；OBCS/OBWP 分帧不变。
+Windows 使用 `orchbee-local-ipc` 本地命名管道承载相同的 OBLC 消息。适配器在发送 hello 前证明对端令牌用户，连接、读取和写入共用调用方的绝对截止时间，并通过借用的就绪源观察取消。它不启动或重试 会话。管道名称和权限归运行时与传输所有者负责；OBCS/OBWP 分帧不变。
 
 10 毫秒的取消检查节奏只限制尚未连接时的内核等待，不是已认证连接的截止时间。
 管道在该切片后、调用方原始期限前完成打开和对端证明，仍会继续发送唯一一条 hello。
 只有传输层有类型的连接前等待结果允许再等待。拨号错误保留为 `ConnectFailed`；
 打开管道后的错误保留为 `Io`，因此认证失败和已连接 EOF 都不能被重新解释为连接前缺席。
 认证后遇到取消或总期限耗尽，会在 hello 前释放候选，不再次拨号、不延长总预算。
-元数据和 Site-stop 使用相同连接边界。不重试任何请求或效果。
+元数据和 会话-stop 使用相同连接边界。不重试任何请求或效果。
 
 `src/connection/windows_admission/tests.rs` 控制完成顺序与时钟推进，覆盖跨切片、等待时
 取消、连接后失败、迟到完成和候选清理。原生元数据／停止测试覆盖真实管道适配器。
 这些具名轨迹补充既有协议模型，不建模或限制 Windows 内核调度。
 
-<!-- documentation-pairing: english-sha256=7d798fe8db0abc8c21c4c1409ed68089b0b1d03821725383217dc2df2a0e5ede zh-cn-sha256=d76a95b63d7ee476ab594366cfbc690bafbe0489590ff7160e45ec65c667ffa1 -->
+<!-- documentation-pairing: english-sha256=9cef004e586f382e756db26df54d398b915f762ac3b3b13a816ec8c9283a504d zh-cn-sha256=de2f6d9967cdd8ddf0819b1fb71cc5cf9da7a78cb96dfcff9ab6ba4fa076102f -->

@@ -52,13 +52,13 @@ impl Locale {
                 "Windows endpoint delivery is not inspected by this offline command. Managed hooks and modules support the native transport; configuration and capsule presence do not prove a working Agent connection."
             }
             (Self::ZhCn, "windows-endpoint-not-inspected") => {
-                "此离线命令不检查 Windows 端点投递。托管 hook 和模块支持原生传输；检测到配置和胶囊不证明 Agent 已接通。"
+                "此离线命令不检查 Windows 端点投递。托管 hook 和模块支持原生传输；检测到配置和胶囊不证明智能体已接通。"
             }
             (Self::EnUs, "windows-hook-transport-unavailable") => {
                 "The shipped Agent hooks cannot yet deliver events on Windows. Configuration and capsule presence do not establish a working Agent connection."
             }
             (Self::ZhCn, "windows-hook-transport-unavailable") => {
-                "随附的 Agent hook 尚不能在 Windows 投递事件。检测到配置和胶囊不代表 Agent 已接通。"
+                "随附的智能体 hook 尚不能在 Windows 投递事件。检测到配置和胶囊不代表智能体已接通。"
             }
             (Self::EnUs, "endpoint-anomaly") => {
                 "the observation endpoint path exists but is not admitted by the consumers' ownership and type checks."
@@ -109,31 +109,31 @@ impl Locale {
                 "This Agent provider has no runtime identification rule. Inspect panel process-info before using terminal send explicitly.",
             ),
             (Self::ZhCn, "agent-provider-unsupported") => Some(
-                "此 Agent provider 尚无运行时识别规则。请先检查 panel process-info，再显式使用 terminal send。",
+                "此智能体 provider 尚无运行时识别规则。请先检查 panel process-info，再显式使用 terminal send。",
             ),
             (Self::EnUs, "agent-not-running") => Some(
                 "The terminal no longer contains the expected Agent. Inspect panel process-info and agent get before sending input.",
             ),
             (Self::ZhCn, "agent-not-running") => {
-                Some("终端中已找不到预期 Agent。发送前请检查 panel process-info 和 agent get。")
+                Some("终端中已找不到预期智能体。发送前请检查 panel process-info 和 agent get。")
             }
             (Self::EnUs, "agent-runtime-ambiguous") => Some(
                 "Several Agent processes cannot be resolved to one foreground chain. Inspect panel process-info before sending input.",
             ),
             (Self::ZhCn, "agent-runtime-ambiguous") => {
-                Some("多个 Agent 进程无法确定为一条前台链。发送前请检查 panel process-info。")
+                Some("多个智能体进程无法确定为一条前台链。发送前请检查 panel process-info。")
             }
             (Self::EnUs, "agent-provider-mismatch") => Some(
                 "The running Agent differs from the selected session. Inspect panel process-info and select the intended Agent.",
             ),
             (Self::ZhCn, "agent-provider-mismatch") => Some(
-                "实际运行的 Agent 与所选会话不同。请检查 panel process-info 并重新选择目标 Agent。",
+                "实际运行的智能体与所选会话不同。请检查 panel process-info 并重新选择目标智能体。",
             ),
             (Self::EnUs, "agent-binding-changed") => Some(
                 "The Agent binding changed during preflight. Resolve the target again before sending input.",
             ),
             (Self::ZhCn, "agent-binding-changed") => {
-                Some("预检期间 Agent 绑定已变化。发送前请重新解析目标。")
+                Some("预检期间智能体绑定已变化。发送前请重新解析目标。")
             }
             _ => None,
         }

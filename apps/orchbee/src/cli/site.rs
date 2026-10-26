@@ -75,7 +75,7 @@ pub(crate) fn start(format: OutputFormat, locale: Locale) -> Output {
             match format {
                 OutputFormat::Json => {
                     let document = json!({
-                        "schema": "orchbee.site.start",
+                        "schema": "orchbee.server.start",
                         "version": 1,
                         "source": super::config::local_runtime_source(),
                         "result": result,

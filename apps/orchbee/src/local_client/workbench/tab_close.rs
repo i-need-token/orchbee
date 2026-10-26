@@ -367,7 +367,7 @@ impl fmt::Display for WorkbenchTabCloseFailure {
                 "expected Workbench request {expected} but received {received}"
             ),
             Self::SiteMismatch { expected, received } => {
-                write!(f, "expected Site {expected} but received {received}")
+                write!(f, "expected Session {expected} but received {received}")
             }
             Self::TerminalContextMismatch { expected, received } => write!(
                 f,

@@ -162,13 +162,13 @@
 			"oneOf": [
 				{
 					"type": "object",
-					"required": ["kind", "siteId", "revision"],
+					"required": ["kind", "sessionId", "revision"],
 					"additionalProperties": false,
 					"properties": {
 						"kind": {
 							"const": "workbench-snapshot"
 						},
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/id"
 						},
 						"revision": {
@@ -180,7 +180,7 @@
 					"type": "object",
 					"required": [
 						"kind",
-						"siteId",
+						"sessionId",
 						"requestId",
 						"closeRequestId",
 						"expectedAttemptGeneration"
@@ -190,7 +190,7 @@
 						"kind": {
 							"const": "workspace-close-resume"
 						},
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/id"
 						},
 						"requestId": {

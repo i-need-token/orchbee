@@ -34,7 +34,7 @@ const workspaceLaunchReceipt = {
 };
 
 const WorkbenchRejectionReasonSchema = z.enum([
-	'site-mismatch',
+	'session-mismatch',
 	'revision-mismatch',
 	'project-unavailable',
 	'workspace-unavailable',

@@ -1,6 +1,6 @@
 # Rust Orchbee Worker
 
-这是为 Windows、Linux 和 macOS 上已获准的本地 Site 操作提供服务的实验性私有 Rust Worker 应用，也支持显式端点的 POSIX 模式。
+这是为 Windows、Linux 和 macOS 上已获准的本地 会话 操作提供服务的实验性私有 Rust Worker 应用，也支持显式端点的 POSIX 模式。
 产出的 `orchbee-worker` 可执行文件属于经过验证的四产物 cohort，并参与根 Cargo 验收。Server 负责激活；
 Worker 负责其已获准的 Host 连接及已授权任务的生命周期。
 
@@ -31,9 +31,9 @@ Worker 不创建文件、不追加路径，也不对字面编辑器 argv 增补 
 
 ## Windows 子终端 CLI 路由
 
-托管 Windows 启动从准入后的 Site 运行时目录覆盖 `ORCHBEE_RUNTIME_BASE` 和
+托管 Windows 启动从准入后的 会话 运行时目录覆盖 `ORCHBEE_RUNTIME_BASE` 和
 `ORCHBEE_RUNTIME_SCOPE`，并保留现有终端与 Worker 身份。覆盖值优先于继承值和启动参数中的值。
-延迟和立即启动使用相同路由；路径文本不可用或无效时拒绝准备，不静默将内部 CLI 命令路由到其他 Site。
+延迟和立即启动使用相同路由；路径文本不可用或无效时拒绝准备，不静默将内部 CLI 命令路由到其他 会话。
 不带托管运行时的显式端点启动保持现有行为。
 
 ## 进程边界
@@ -110,7 +110,7 @@ Host 启动、唯一连接和严格 OBTP 握手共用五秒预算；不续期或
 证明该路径是存在且归本 Worker effective user 所有的 socket 时才予以采纳。被采纳的
 socket 在现有 16 条 / 4 KiB overlay 上限内把 `ORCHBEE_AGENT_OBSERVATION_SOCKET`
 设为其绝对路径；候选缺失、非 socket、属主不符或非 UTF-8 时则不注入变量，也绝不因此
-使 Launch 失败。门禁在每次 Launch 重新求值，不缓存准入结果。显式端点路径不携带 Site
+使 Launch 失败。门禁在每次 Launch 重新求值，不缓存准入结果。显式端点路径不携带 会话
 运行时目录，不携带观察通道 overlay——远端与非 managed 启动不会获得观察通道，也不为此引入
 CNP 字段或 Server 私有代码。
 
@@ -265,7 +265,7 @@ launch adapter 使用的 carrier-neutral deterministic kernel，消费
 [`orchbee-capability-node-protocol`](../../crates/capability-node-protocol/README.zh-CN.md) 的
 semantic Launch 与 Start value。Loop 为每个已准入 Server attachment 构造一个 kernel。
 
-Composition root 只用当前 local-Site `WorkerId` 与 OBLS 接受的非零 Worker generation，
+Composition root 只用当前 local-会话 `WorkerId` 与 OBLS 接受的非零 Worker generation，
 构造这个本身固定为 version 2 的 kernel。其 carrier 必须认证 active
 authoritative Server，并且只提供 well-formed issuance：在该 Server
 authority 内，每个 `OperationId` 跨 Terminal、Worker 与 Worker generation 均全局 fresh。Kernel
@@ -294,14 +294,14 @@ rollback 不能让任何 expired lease 复活。
 | 字段   | 当前契约                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 问题   | OBCN carrier 可能重复、延迟、针对错误 Worker generation 或在 authority 已前移后交付 Server-authorized Launch 或 Start。Worker 必须在本地决定是否可以开始恰好一次 Host operation，并保留精确 terminal result，同时不取得 Server placement authority，也不自行执行 Host effect。                                                                                                                                                                                                                                                                                                                                             |
-| 输入   | 来自经过认证且遵守全局 fresh `OperationId` producer invariant 的 authoritative Server 的 canonical OBCN `AuthorizedTerminalLaunch` 或 `AuthorizedTerminalStart`，其 authorization capability 会根据 kernel 内置的 version 2 policy 检查；caller 提供的当前 local-Site Worker ID、非零 OBLS generation 与当前 Unix-millisecond time；Start admission 与 handoff boundary 再次观察到的 Host epoch；以及 typed Host completion。缺失 result 或 occupied slot 保持为显式 state，而不推断成 success。                                                                                                                           |
+| 输入   | 来自经过认证且遵守全局 fresh `OperationId` producer invariant 的 authoritative Server 的 canonical OBCN `AuthorizedTerminalLaunch` 或 `AuthorizedTerminalStart`，其 authorization capability 会根据 kernel 内置的 version 2 policy 检查；caller 提供的当前 local-会话 Worker ID、非零 OBLS generation 与当前 Unix-millisecond time；Start admission 与 handoff boundary 再次观察到的 Host epoch；以及 typed Host completion。缺失 result 或 occupied slot 保持为显式 state，而不推断成 success。                                                                                                                           |
 | 数据   | `AuthorizedHostOperationKernel` 为每个 Worker generation 最多持有 1,024 个完整 highest-fence binding，以 product `TerminalId` 为 key，并包含 operation kind、完整 authorization、Launch 或 Start payload，以及可选的精确 cached result。它另外持有一个处于 `empty`、`awaiting-handoff`、`handed-off` 或 `result-ready` 的 process-local slot，以及 maximum-observed Unix-millisecond high-water mark。私有 `AuthorizedHostDispatch` 保留完整 admitted operation，因此也保留其 generation 与 authority binding。                                                                                                            |
 | 输出   | Admission 返回 `Dispatch`、`ResultReady` 或 `SlotOccupied`；handoff 返回 `HandedOff` 或 `ResultReady`；`take_result` 返回一个 typed OBCN Launch 或 Start result，其中在达到 retained-binding limit 后，对有效且未见过的 terminal 返回 `CapacityExceeded`；非法 completion observation 返回 typed internal error，且不改变 slot。内核不开 carrier、不执行 Host call、不发 product event，也不写 durable state。                                                                                                                                                                                                             |
 | 不变量 | Wrong Worker、stale generation、unsupported capability、expired new lease、lower fence、conflicting same-fence binding，以及超出 capacity 的有效 unseen terminal 绝不 dispatch。Exact binding 最多 dispatch 一次，且即使 expiry 后或处于 capacity 时也只 replay 其 cached exact result。Kernel 一旦观察到 lease expired，之后较低的时间不能使它复活。即使在 capacity 时，有效 higher fence 也会替换 prior binding 并清除其 cache。Capacity rejection 绝不插入 tombstone，也不改变任何 binding。Global slot 最多由一个 operation 或 undelivered result 占用。只有 `handed-off` 才能变成 Host outcome。                      |
 | 决策   | 分类顺序为 occupied slot、Worker identity、Worker generation、exact cached replay、capability、lease expiry、per-terminal fence、unseen-terminal capacity，最后是 Start target epoch。因此在 capacity 时，unsupported 或 expired new request 保留其 capability 或 lease 分类；现有 lower 与 same-fence request 保留其 fence 分类；只有有效 unseen terminal 会收到 `CapacityExceeded`。在 Start admission 与 handoff 再次检查时，target epoch mismatch 变为 `HostIdentityChanged`；对 unseen terminal，capacity 先于该检查。Handoff expiry 会阻止 effect，accepted Start identity、epoch 与 geometry 必须保持精确。         |
 | 模型   | 一个 deterministic state owner 将 generation-local、1,024-entry 的 per-terminal monotonic binding map 与一个 globally bounded operation/result slot 组合起来。`admit_launch` 与 `admit_start` 是 principal entry point；`begin_host_handoff` 是命名的 external-effect boundary；typed observation method 会关闭 accepted binding 并排队其 result。容量测试覆盖跨终端限制，以及全局槽处于 empty、operation-pending 或 result-ready 时的新身份。                                                                                                                                                                             |
 | 转换   | 下方 transition table 定义 admission、handoff、completion、exact replay、result delivery、conflict 与 stale-token behavior。接受 binding 前的 rejection 会排队一个 uncached result；接受 binding 后的每个 terminal outcome 都会在公开前先缓存。                                                                                                                                                                                                                                                                                                                                                                            |
-| 依赖   | 仅依赖 Rust 标准库、canonical local-Site Worker identity，以及 OBCN semantic type 与 constructor。Time、socket liveness、decoded framing、current Host epoch 与 Host observation 均由 operation adapter 以 value 形式提供；kernel 会单调化 supplied time，但绝不读取 clock。它不读取 environment、filesystem、socket、process、profile、executable、shell 或 working directory，也不解析或编码 Host framing。                                                                                                                                                                                                              |
+| 依赖   | 仅依赖 Rust 标准库、canonical local-会话 Worker identity，以及 OBCN semantic type 与 constructor。Time、socket liveness、decoded framing、current Host epoch 与 Host observation 均由 operation adapter 以 value 形式提供；kernel 会单调化 supplied time，但绝不读取 clock。它不读取 environment、filesystem、socket、process、profile、executable、shell 或 working directory，也不解析或编码 Host framing。                                                                                                                                                                                                              |
 | 所有权 | Server 继续拥有 placement、authorization issuance 与 reconciliation。OBCN 拥有 carrier-independent request/result type 与 wire codec。Worker 只拥有本地 validation、monotonic replay memory、单一 dispatch gate，以及 Host handoff boundary 前后的分类。Terminal Host 仍是 terminal 与 process effect 的唯一 owner。                                                                                                                                                                                                                                                                                                       |
 | 验证   | Table-driven unit test 对两种 operation 覆盖 wrong identity、generation、legacy 与 future capability mismatch、expiry 与 clock rollback、重叠 rejection priority、1,023/1,024/1,025 capacity boundary、无 tombstone rejection、capacity 时的 exact replay 与 higher-fence replacement、lower 与 conflicting fence、每种 accepted/rejected/failed/unknown outcome 的 exact replay、admission 后 expiry、stale 与 wrong completion、slot backpressure、initial 与 raced Start identity change、mismatched Start completion geometry、两种 Launch mode 与两种 Start success transition。OBCN test 负责 value/codec validity。 |
 | 正确性 | 授权与容量测试检查准确 binding/fence 准入、单一全局槽、重放、拒绝保留及缓存 outcome/epoch/transition。进程测试将这些决策连接到 Host。此内核不另设 TLA 流程证明。                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -379,7 +379,7 @@ Host socket，也不改变 kernel state。
 | 决策   | Dispatch 前的 kernel result（包括 `CapacityExceeded`、`SlotOccupied` 与防御性 Start `HostIdentityChanged`）保持不同且绝不进入本 adapter model。Modeled handoff 期间，lease expiry 是精确 cached rejection，而不是 transport failure。Host loss 会 fail closed，且只能由全新的 connection lifecycle 安装不同 Host epoch。当前 Terminal Protocol 不存在 authoritative Host-rejection discriminator，因此相同的精确 generic `TypedFailure` input 会保守映射到 OBCN `Failed(HostReportedFailure)`。OBCN `HostRejected` 留给未来显式 classified owner contract。Post-handoff loss、timeout 或 invalid response 为 `OutcomeUnknown`。                                                       |
 | 模型   | 一个具体适配器保持 Server-first 准入和已接受 Host epoch，消费获授权 dispatch，并把 awaiting-handoff 与 handed-off 阶段映射到单一内核 operation 槽。[Host 契约](../terminal-host/docs/runtime-model.zh-CN.md) 拥有效果/未知结果边界。                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | 转换   | 下表覆盖 admission、lease-expiry `begin_host_handoff -> ResultReady` branch、确定 pre-call transport failure、成功 handoff、command 发出与可能 apply、concrete response validation、保守 generic failure、独立排序的 Server/Host loss、有界 exact-result delivery、unknown retry barrier，以及 retained-terminal recovery。                                                                                                                                                                                                                                                                                                                                                           |
-| 依赖   | 授权内核与代次内容量、OBCN 值/编解码、local-Site carrier、Terminal Protocol 绑定、Host 结果、认证 socket 及有界计时器。帧编码、期限、队列存储及 PTY 行为仍由具体所有者负责。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 依赖   | 授权内核与代次内容量、OBCN 值/编解码、local-会话 carrier、Terminal Protocol 绑定、Host 结果、认证 socket 及有界计时器。帧编码、期限、队列存储及 PTY 行为仍由具体所有者负责。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | 所有权 | Server 拥有放置、签发、代次与协调。Worker 内核拥有容量、准入/重放、缓存结果及单一 operation/result 槽。适配器只消费 `Dispatch`，不增加并行槽。OBCN 拥有结果变体，Terminal Protocol 拥有关联/响应身份，Host 拥有提交/效果/回复顺序。                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | 验证   | 内核与 socket 测试覆盖准入、租约过期、调用前失败、交接、准确/不匹配响应、通用失败、有序链路丢失、交付、不重试及不可变 epoch。下方真实 Worker/Host 进程证据将这些轨迹连接到集成。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | 正确性 | 保持准确槽位所有权，区分尝试交接与可能效果，在交付或放弃期间保留缓存结果，拒绝不匹配字段，将准确通用失败分类为 `HostReportedFailure`、不匹配分类为未知，并且绝不重放未知效果。这些义务由实现轨迹检查。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
@@ -565,7 +565,7 @@ Server-Worker framing。
 本机 connection 使用的 kernel same-user proof。
 [`orchbee-terminal-protocol`](../../schemas/terminal/references/protocol.zh-CN.md) package
 拥有 Host wire；其独立 Rust binding 提供本次消费的 control、envelope 与 routing codec。Capability-node
-protocol crate 拥有 OBCN semantic value 与 framing，不导入 local-Site 或 Terminal Host type。Worker
+protocol crate 拥有 OBCN semantic value 与 framing，不导入 local-会话 或 Terminal Host type。Worker
 拥有 admission order、Host broker connection、coupled liveness、已集成的 deterministic
 validation/replay/dispatch、有界 default interactive launch resolution、Host operation mapping，
 以及临时查看附件 relay state 和绑定 grant 的控制副作用。Server 仍是唯一 placement、authorization-issuance 与 reconciliation owner。Terminal
@@ -725,10 +725,10 @@ Windows 托管原生路径沿用 Worker 授权、回执、重放栅栏及 Host �
 
 Windows 还会在连接 Server 之前，使用已有的 OS 随机源生成一个非零 128 位 Worker ID。
 `WorkerHello`、保留的 `ServerConnection` 和操作内核共享该精确身份。不同连接不再
-复用原先固定的本地诊断 ID，否则不同 Site 的终端计数器可能误匹配旧调用者。随机源
+复用原先固定的本地诊断 ID，否则不同 会话 的终端计数器可能误匹配旧调用者。随机源
 失败或返回零值时，在连接前失败。抵抗身份碰撞依赖 OS 随机源。此修改不新增
 OBLS/OBCN 字段，也不启用重连、inventory 接管或旧 Worker 绑定迁移。
-Mac/Linux 保留原有身份行为。两次独立 Windows Site 进程轨迹覆盖 Terminal ID 复用
+Mac/Linux 保留原有身份行为。两次独立 Windows 会话 进程轨迹覆盖 Terminal ID 复用
 时对旧 Worker 上下文的拒绝。
 
 ## Windows Worktree 变更所有者
@@ -742,7 +742,7 @@ Start 在接触槽位前校验 Worker 身份／generation。相同保留 ID／�
 变更意图冲突。单个运行作业排斥其他作业，生命周期 64 次接纳在不让变更身份过期的
 前提下限制回执。channel 仅在意图及 join handle 已保留后释放所有者。Poll 只 join
 已结束线程。panic 或未证实的进程清理退役新接纳，并保持 PhysicalUnknown。取消只是
-请求，不是回滚。Site 关闭在报告后台工作停止前取消并 join 此所有者；从无 Host 到有
+请求，不是回滚。会话 关闭在报告后台工作停止前取消并 join 此所有者；从无 Host 到有
 Host 的交接保留同一槽位。正常传输退出也在协作式六秒清理窗口内取消并 join。
 Drop 只请求取消。
 
@@ -778,7 +778,7 @@ InspectSource 解析包含源目录的检出；Open 允许主检出。Create 在
 保留这些开关，通过 `-NoExit -Command` 添加固定的进程内初始化。
 未知开关、脚本、命令字符串、其他程序和其他平台均保留原始启动参数。
 
-共享 Local Site Runtime 启动命令连接其公共初始化与交互 reader 资产。Host 构建消费同样字节，
+共享 Local 会话 Runtime 启动命令连接其公共初始化与交互 reader 资产。Host 构建消费同样字节，
 将精确准备的 argv 识别为交互 shell，且不重复注入。仅有 `-Command` 开关不能获得此分类：
 修改过的脚本、额外命令操作数或非交互开关仍视为程序。reader 仅准入标准 PSReadLine 模块／导出
 身份与已知定义指纹；自定义或不受支持的定义保持原样，受保护的 Close 按 unknown 处理。
@@ -818,7 +818,7 @@ Windows 可运行的本地管道测试覆盖真实协议交换，不代表打包
 
 ## Windows 插件进程归属
 
-受理请求循环在 Host 创建前后处理有界插件任务 start/list/get/cancel 记录。`plugin_jobs` 保留最多 32 个命令 owner 和 200 条日志；共享 `orchbee-local-site-runtime` Windows 命令所有者 复用 Git 的 Job 清理方式。CLI 断开后已受理任务继续运行。显式停止 Site 时，必须先通知、清理并等待所有插件 owner 结束，才能报告成功。[原生插件行为](../orchbee/docs/windows-plugins.zh-CN.md) 管理调用、分页、输出上限及剩余集成。
+受理请求循环在 Host 创建前后处理有界插件任务 start/list/get/cancel 记录。`plugin_jobs` 保留最多 32 个命令 owner 和 200 条日志；共享 `orchbee-local-site-runtime` Windows 命令所有者 复用 Git 的 Job 清理方式。CLI 断开后已受理任务继续运行。显式停止 会话 时，必须先通知、清理并等待所有插件 owner 结束，才能报告成功。[原生插件行为](../orchbee/docs/windows-plugins.zh-CN.md) 管理调用、分页、输出上限及剩余集成。
 
 ## 插件终端启动环境
 
@@ -838,7 +838,7 @@ Windows 可运行的本地管道测试覆盖真实协议交换，不代表打包
 标题；不创建附着或新线程。无效/损坏的 Host 事件使连接退出，
 不会提升旧标题。详见[标题协议](../../crates/capability-node-protocol/README.zh-CN.md#windows-物理标题观察)
 及[Client 模型](../orchbee/docs/machines.zh-CN.md#实时终端标题观察模型)，
-了解帧、Site 栅栏、渲染及证据边界。
+了解帧、会话 栅栏、渲染及证据边界。
 
 ## Workspace Git 状态读取
 
@@ -858,4 +858,4 @@ Windows 可运行的本地管道测试覆盖真实协议交换，不代表打包
 启动前后均可用。[所属模型](docs/windows-server-handoff.zh-CN.md) 定义精确票据、截止点、
 回滚及证据边界。公开 Server 状态／端点交接仍需独立集成；传输回执不是最终 CLI 成功。
 
-<!-- documentation-pairing: english-sha256=e2a2d9e9ad4661c6d748609c004152f05ea3dcb445fde7311f2345565c834948 zh-cn-sha256=1e63dca0d522dfa1b02b5593287a6b402e90920ca5b96235f10e3dc529d81080 -->
+<!-- documentation-pairing: english-sha256=69ffca6d9524b01d096779f6f42276087cde0b328518bba989c64235efa99e63 zh-cn-sha256=d41e55a39e4e97e7e18d4ebb04e20d862ce3e6b675347c03d1e894d2c7119c27 -->

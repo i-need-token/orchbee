@@ -34,7 +34,7 @@ fn exports_and_templates_keep_literal_launch_values_without_reusing_ids() {
         node
     );
     let export = json!({"schema":"orchbee.layout.export","version":1,
-        "source":{"kind":"layout-observation","scope":"client","siteId":"1".repeat(32),"revision":"1","clientId":"2".repeat(32),"viewRevision":"1"},
+        "source":{"kind":"layout-observation","scope":"client","sessionId":"1".repeat(32),"revision":"1","clientId":"2".repeat(32),"viewRevision":"1"},
         "result":{"layout":{"workspaceId":"7".repeat(32),"terminalContextId":"3".repeat(32),"tabId":"4".repeat(32),
             "focusedPanelId":null,"zoomed":true,"root":{"type":"panel","panelId":"5".repeat(32),
                 "rightClick":"orchbee","children":[],"primary":{"presentationId":"6".repeat(32),

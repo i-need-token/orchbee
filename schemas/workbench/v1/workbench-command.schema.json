@@ -1392,7 +1392,7 @@
 		},
 		"rejectionReason": {
 			"enum": [
-				"site-mismatch",
+				"session-mismatch",
 				"revision-mismatch",
 				"project-unavailable",
 				"workspace-unavailable",
@@ -1502,8 +1502,8 @@
 				"requestId": {
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
 				},
-				"siteId": {
-					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/siteId"
+				"sessionId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/sessionId"
 				},
 				"expectedRevision": {
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
@@ -1512,7 +1512,14 @@
 					"$ref": "#/$defs/action"
 				}
 			},
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "expectedRevision", "action"],
+			"required": [
+				"kind",
+				"protocolVersion",
+				"requestId",
+				"sessionId",
+				"expectedRevision",
+				"action"
+			],
 			"additionalProperties": false
 		},
 		"commandOutcome": {
@@ -2607,8 +2614,8 @@
 				"requestId": {
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
 				},
-				"siteId": {
-					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/siteId"
+				"sessionId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/sessionId"
 				},
 				"terminalContextId": {
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
@@ -2617,7 +2624,14 @@
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
 				}
 			},
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "terminalContextId", "tabId"],
+			"required": [
+				"kind",
+				"protocolVersion",
+				"requestId",
+				"sessionId",
+				"terminalContextId",
+				"tabId"
+			],
 			"additionalProperties": false
 		},
 		"tabCloseReadOutcome": {
@@ -2720,8 +2734,8 @@
 				"requestId": {
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
 				},
-				"siteId": {
-					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/siteId"
+				"sessionId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/sessionId"
 				},
 				"terminalContextId": {
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
@@ -2740,7 +2754,7 @@
 				"kind",
 				"protocolVersion",
 				"requestId",
-				"siteId",
+				"sessionId",
 				"terminalContextId",
 				"tabId",
 				"closeRequestId",
@@ -2826,8 +2840,8 @@
 				"requestId": {
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
 				},
-				"siteId": {
-					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/siteId"
+				"sessionId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/sessionId"
 				},
 				"terminalContextId": {
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
@@ -2846,7 +2860,7 @@
 				"kind",
 				"protocolVersion",
 				"requestId",
-				"siteId",
+				"sessionId",
 				"terminalContextId",
 				"tabId",
 				"closeRequestId",
@@ -2978,14 +2992,14 @@
 				"requestId": {
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
 				},
-				"siteId": {
-					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/siteId"
+				"sessionId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/sessionId"
 				},
 				"workspaceId": {
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
 				}
 			},
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "workspaceId"],
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "workspaceId"],
 			"additionalProperties": false
 		},
 		"workspaceCloseReadOutcome": {
@@ -3100,8 +3114,8 @@
 				"requestId": {
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
 				},
-				"siteId": {
-					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/siteId"
+				"sessionId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/sessionId"
 				},
 				"workspaceId": {
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
@@ -3117,7 +3131,7 @@
 				"kind",
 				"protocolVersion",
 				"requestId",
-				"siteId",
+				"sessionId",
 				"workspaceId",
 				"closeRequestId",
 				"expectedAttemptGeneration"
@@ -3202,8 +3216,8 @@
 				"requestId": {
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
 				},
-				"siteId": {
-					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/siteId"
+				"sessionId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/sessionId"
 				},
 				"workspaceId": {
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
@@ -3219,7 +3233,7 @@
 				"kind",
 				"protocolVersion",
 				"requestId",
-				"siteId",
+				"sessionId",
 				"workspaceId",
 				"closeRequestId",
 				"outcome"
@@ -4094,8 +4108,8 @@
 						"kind": {
 							"const": "found"
 						},
-						"siteId": {
-							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/siteId"
+						"sessionId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/sessionId"
 						},
 						"workbenchRevision": {
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
@@ -4113,7 +4127,7 @@
 							}
 						}
 					},
-					"required": ["kind", "siteId", "workbenchRevision", "directoryId", "path", "entries"],
+					"required": ["kind", "sessionId", "workbenchRevision", "directoryId", "path", "entries"],
 					"additionalProperties": false
 				},
 				{
@@ -4293,7 +4307,7 @@
 		},
 		"closeOperationRead": {
 			"type": "object",
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "operationId"],
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "operationId"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
@@ -4305,8 +4319,8 @@
 				"requestId": {
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
 				},
-				"siteId": {
-					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/siteId"
+				"sessionId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/sessionId"
 				},
 				"operationId": {
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
@@ -4315,7 +4329,7 @@
 		},
 		"closeOperationResult": {
 			"type": "object",
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "operationId", "outcome"],
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "operationId", "outcome"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
@@ -4327,8 +4341,8 @@
 				"requestId": {
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
 				},
-				"siteId": {
-					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/siteId"
+				"sessionId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/sessionId"
 				},
 				"operationId": {
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"

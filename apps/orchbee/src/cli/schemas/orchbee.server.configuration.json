@@ -1,13 +1,13 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
-	"$id": "orchbee.site.configuration",
-	"title": "Site configuration publication receipt",
+	"$id": "orchbee.server.configuration",
+	"title": "Session configuration publication receipt",
 	"type": "object",
 	"required": ["schema", "version", "source", "result"],
 	"additionalProperties": false,
 	"properties": {
 		"schema": {
-			"const": "orchbee.site.configuration"
+			"const": "orchbee.server.configuration"
 		},
 		"version": {
 			"const": 1
@@ -37,7 +37,7 @@
 						},
 						{
 							"type": "object",
-							"required": ["protocolVersion", "requestId", "siteId", "outcome"],
+							"required": ["protocolVersion", "requestId", "sessionId", "outcome"],
 							"additionalProperties": false,
 							"properties": {
 								"protocolVersion": {
@@ -47,7 +47,7 @@
 									"type": "string",
 									"pattern": "^[0-9a-f]{32}$"
 								},
-								"siteId": {
+								"sessionId": {
 									"type": "string",
 									"pattern": "^[0-9a-f]{32}$"
 								},
@@ -306,7 +306,7 @@
 													"enum": [
 														"denied",
 														"unavailable",
-														"site-mismatch",
+														"session-mismatch",
 														"busy",
 														"load-failed",
 														"revision-exhausted"

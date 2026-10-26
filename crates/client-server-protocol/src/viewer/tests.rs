@@ -45,7 +45,7 @@ fn attach_binding_round_trips_equal_bytes_through_distinct_identity_domains()
     assert_eq!(
         frame.get(FRAME_HEADER_BYTES..),
         Some(
-            br#"{"kind":"terminal.viewer","protocolVersion":1,"requestId":"11111111111111111111111111111111","action":{"kind":"attach-binding","siteId":"11111111111111111111111111111111","workerId":"11111111111111111111111111111111","terminalId":"11111111111111111111111111111111"}}"#
+            br#"{"kind":"terminal.viewer","protocolVersion":1,"requestId":"11111111111111111111111111111111","action":{"kind":"attach-binding","sessionId":"11111111111111111111111111111111","workerId":"11111111111111111111111111111111","terminalId":"11111111111111111111111111111111"}}"#
                 .as_slice()
         )
     );

@@ -5,7 +5,7 @@ fn clear_receipt_rejects_impossible_outcomes_zero_revision_and_missing_identity(
         serde_json::from_str(include_str!("../schemas/orchbee.terminal.clear.json")).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
     let id = "11111111111111111111111111111111";
-    let base = json!({"schema":"orchbee.terminal.clear","version":1,"source":{"kind":"workbench-snapshot","siteId":id,"revision":"1"},"result":{"terminal":{"terminalId":id,"workerId":id,"boundTo":{"presentationId":id,"panelId":id,"tabId":id,"terminalContextId":id}},"operationId":id,"outcome":{"kind":"cleared","generation":"2","revision":"1","cleanupConfirmed":true}}});
+    let base = json!({"schema":"orchbee.terminal.clear","version":1,"source":{"kind":"workbench-snapshot","sessionId":id,"revision":"1"},"result":{"terminal":{"terminalId":id,"workerId":id,"boundTo":{"presentationId":id,"panelId":id,"tabId":id,"terminalContextId":id}},"operationId":id,"outcome":{"kind":"cleared","generation":"2","revision":"1","cleanupConfirmed":true}}});
     validator.validate(&base).unwrap();
     for outcome in [
         json!({"kind":"outcome-unknown"}),

@@ -18,7 +18,7 @@ slot's share before cell rounding. Absence means `0.5`; serialization omits the 
 The split ID and both ordered slot IDs identify the split. New splits start equal; moving an
 existing subtree retains its ratios, while removing that split removes its proportion.
 
-`layout.set-split-ratio` is an authenticated Workbench command with a Site, request ID, exact
+`layout.set-split-ratio` is an authenticated Workbench command with a Session, request ID, exact
 expected Workbench revision, TerminalContext, Tab, split identity, previous ratio and requested
 ratio. The existing navigation mutation grant admits it. Neither viewport geometry nor process
 handles are accepted as canonical state. Invalid ratios reject at the bounded protocol boundary;
@@ -37,17 +37,17 @@ The existing Workbench authority and request ledger own one atomic commit of the
 projection, publication and retained result. Validation, allocation, encoding and ledger capacity
 checks precede it. A post-commit transport failure cannot undo the ratio.
 
-| Event or guard                                                    | State and result                                                                                    |
-| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Unauthorized, wrong Site, retired authority or exhausted capacity | Existing typed denial/unavailability; no ratio write                                                |
-| Same request ID and same complete command                         | Replay the retained result without another delta or revision                                        |
-| Same request ID with different command                            | Request identity conflict; no write                                                                 |
-| Wrong revision or previous ratio                                  | Revision mismatch; no write and no automatic retry                                                  |
-| Missing context/Tab/split, or either ordered slot replaced        | Typed unavailable target; no write                                                                  |
-| Context has a pending close fence                                 | Terminal busy; no write                                                                             |
-| Requested ratio equals current ratio                              | Retained `unchanged`; revision and publication unchanged                                            |
-| All guards pass and ratio changes                                 | Exactly one revision advance, canonical ratio replacement and publication; `split-ratio-configured` |
-| Restart from an admitted checkpoint                               | Reconstructed graph preserves nominal ratios without live bindings or controller grants             |
+| Event or guard                                                       | State and result                                                                                    |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Unauthorized, wrong Session, retired authority or exhausted capacity | Existing typed denial/unavailability; no ratio write                                                |
+| Same request ID and same complete command                            | Replay the retained result without another delta or revision                                        |
+| Same request ID with different command                               | Request identity conflict; no write                                                                 |
+| Wrong revision or previous ratio                                     | Revision mismatch; no write and no automatic retry                                                  |
+| Missing context/Tab/split, or either ordered slot replaced           | Typed unavailable target; no write                                                                  |
+| Context has a pending close fence                                    | Terminal busy; no write                                                                             |
+| Requested ratio equals current ratio                                 | Retained `unchanged`; revision and publication unchanged                                            |
+| All guards pass and ratio changes                                    | Exactly one revision advance, canonical ratio replacement and publication; `split-ratio-configured` |
+| Restart from an admitted checkpoint                                  | Reconstructed graph preserves nominal ratios without live bindings or controller grants             |
 
 Ratios do not alter membership, labels, selection or the allocation high-water counter. A stale
 Client cannot assign a previously resolved resize delta to a replacement split. Concurrent
@@ -96,7 +96,7 @@ observe the layout while the current controller alone resizes their terminals.
 | Old default, upgraded admission and durable preservation               | Checkpoint roundtrip/version rejection and Windows catalog admission cases                                    |
 | Shared nominal ratios refine into actual geometry                      | Windows ConPTY two-Client, controller/read-only, detach/reattach, stop/restart and layout export/apply traces |
 
-The abstract model checks one admitted Site generation, two Clients, two split incarnations,
+The abstract model checks one admitted Session generation, two Clients, two split incarnations,
 three ratio classes and one request per Client; selected/inactive phases are explicit. Checkpoint
 publication and activation remain separate storage/startup models rather than multiplying their
 state spaces into the ratio-commit model. Its only fairness assumption is eventual Server resolution

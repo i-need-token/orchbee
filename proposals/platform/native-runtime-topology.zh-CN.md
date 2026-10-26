@@ -16,9 +16,9 @@
 
 本提案细化父提案的物理进程拓扑，并显式收窄其用于原生终端启动的逻辑 placement 模型。
 当前产品 runtime 尚未形成这一目标形态。下文通过当前 owner 汇总已完成的增量底座、已检查的
-Client-side 本机 Site activation model、本机 Server-Worker、Client Session 与 Worker-Host
+Client-side 本机 会话 activation model、本机 Server-Worker、Client Session 与 Worker-Host
 connection spine、已集成的 Server OBCS 终端授权、terminal-control contract、已集成的 Worker
-authorization/default-launch/Host execution loop、application-private local Client transport 与共享的 local-Site runtime，
+authorization/default-launch/Host execution loop、application-private local Client transport 与共享的 local-会话 runtime，
 以及已检查的 terminal Client authority model。Linux 本地开发纵向链路已接通；其他 runtime
 implementation、migration、cutover 与 deletion 继续受下文边界与保留决策约束。
 
@@ -29,7 +29,7 @@ implementation、migration、cutover 与 deletion 继续受下文边界与保留
 - 提供彼此独立的私有 Rust `orchbee-server`、Rust `orchbee-worker`、Zig
   `orchbee-terminal-host` 与可选 Rust `orchbee-agent-bridge` executable role；普通 terminal
   创建不需要也不会启动 Bridge；
-- Web、Desktop 和 mobile 是可选 Client 界面，消费同一个 Site 权威；
+- Web、Desktop 和 mobile 是可选 Client 界面，消费同一个 会话 权威；
 - Terminal Host 是独立的节点本地进程，也是唯一的 PTY/VT 权威；以及
 - Worker 基线仅负责与代码无关的 Terminal 启动；Agent 运行时效果只能作为可选 capability
   extension 准入，而不能变成通用 Files、Git、远程 shell 或任意命令服务。
@@ -74,8 +74,8 @@ slice 提供 model、evidence、cutover 与 rollback boundary 前继续保持权
 对于具备下列要求的产品，这种形态并不充分：
 
 - CLI 和 TUI 是每个完整本机安装中必备的界面；
-- 并发 TUI、Web、Desktop 与 mobile Client 实例可以观察同一个 Site；
-- 一个 Site 可以协调本机与远程执行节点；
+- 并发 TUI、Web、Desktop 与 mobile Client 实例可以观察同一个 会话；
+- 一个 会话 可以协调本机与远程执行节点；
 - 关闭或重启 Client 或 Server 不得隐式终止应保留的终端；
 - 安装 Agent hooks 的场景需要一个小巧、快速、有严格边界的原生 helper；以及
 - 面向用户的 `orchbee` 进程需要比完整后端更小、启动更快。
@@ -117,7 +117,7 @@ slice 提供 model、evidence、cutover 与 rollback boundary 前继续保持权
 
 ## 逻辑拓扑
 
-一个 Site 恰好拥有一个活跃的规范 Server 权威、零个或多个 Worker，以及零个或多个
+一个 会话 恰好拥有一个活跃的规范 Server 权威、零个或多个 Worker，以及零个或多个
 Client。一台机器可以共置多个角色，但不能合并它们的身份、状态或生命周期。
 
 ```text
@@ -149,8 +149,8 @@ baseline。Agent Bridge 是可选的一次性 ingress helper，不是长期运�
 
 | 可执行程序              | 语言 | 可见性 | 生命周期                       | 已接受职责                                                                                     |
 | ----------------------- | ---- | ------ | ------------------------------ | ---------------------------------------------------------------------------------------------- |
-| `orchbee`               | Rust | 公共   | 一次性 CLI 或交互式 TUI        | 人类命令入口、TUI Client、本机 Site 发现和显式生命周期命令                                     |
-| `orchbee-server`        | Rust | 私有   | 长期运行的 Site 服务           | Server 权威、Client Session、规范产品状态、placement、可选 Agent 编排和远程 Client relay       |
+| `orchbee`               | Rust | 公共   | 一次性 CLI 或交互式 TUI        | 人类命令入口、TUI Client、本机 会话 发现和显式生命周期命令                                     |
+| `orchbee-server`        | Rust | 私有   | 长期运行的 会话 服务           | Server 权威、Client Session、规范产品状态、placement、可选 Agent 编排和远程 Client relay       |
 | `orchbee-worker`        | Rust | 私有   | 每个执行节点长期运行           | 节点身份、限定范围且与代码无关的启动、Host 代理和可选 Agent 运行时效果                         |
 | `orchbee-terminal-host` | Zig  | 私有   | 按需保留的节点服务             | PTY、进程树、规范 Ghostty VT、终端历史、输入和 attachment 权威                                 |
 | `orchbee-agent-bridge`  | Rust | 私有   | 一次有边界的 provider callback | 清洗一条 provider observation，交付给本机 Worker，并只在确切 acceptance 后发送私有 correlation |
@@ -176,7 +176,7 @@ libexec/
 | Cohort                     | 必需可执行程序                                              |
 | -------------------------- | ----------------------------------------------------------- |
 | 仅原生 Client              | `orchbee`                                                   |
-| 本机 terminal Site         | `orchbee`、Server、Worker 与 Terminal Host                  |
+| 本机 terminal 会话         | `orchbee`、Server、Worker 与 Terminal Host                  |
 | Terminal-only 远程执行节点 | Worker 与 Terminal Host                                     |
 | 启用 Agent 的执行节点      | Worker、使用 terminal 时的 Terminal Host，以及 Agent Bridge |
 | Browser 或 mobile Client   | 不需要本机原生可执行程序；连接一个已授权 Server             |
@@ -189,7 +189,7 @@ libexec/
 
 Client 渲染一份经过授权的 projection，并提交语义意图。它为自己的确切 Client Session
 拥有 active location、focus、terminal viewport、search presentation、selection presentation、
-window geometry 和平台 clipboard effect。它不拥有任何规范 Site 状态、Worker lease、PTY
+window geometry 和平台 clipboard effect。它不拥有任何规范 会话 状态、Worker lease、PTY
 或 terminal lifecycle。
 
 每个活跃 TUI invocation、browser tab，以及独立活跃的 Desktop 或 mobile surface 都是一个
@@ -212,7 +212,7 @@ Client-local view state。
 
 ### Server
 
-Server 是 Site 唯一的控制面。它拥有：
+Server 是 会话 唯一的控制面。它拥有：
 
 - 人类认证、授权、Client Session 生命周期和远程入口；
 - 规范 Workspace、共享 Tab/Panel、Terminal intent、Agent task，以及可选 Project 或 managed
@@ -230,7 +230,7 @@ terminal-content 权威。
 
 ### Worker
 
-Worker 向一个 Site 代表一个执行节点。它拥有：
+Worker 向一个 会话 代表一个执行节点。它拥有：
 
 - 已 enrollment 的 Node identity、device credential 使用、connection generation、
   capability advertisement、compatibility state 以及到 Server 的出站连接；
@@ -256,7 +256,7 @@ Terminal Host 仍是节点本地终端权威。它拥有 retained Terminal ident
 和 attachment-scoped capability。它只暴露私有、同用户的本机 endpoint，并在目标拓扑中把
 Worker 作为常规 broker。
 
-Terminal Host 不拥有 Site、Client Session、Project、Workspace、Tab、Panel、Worker placement、
+Terminal Host 不拥有 会话、Client Session、Project、Workspace、Tab、Panel、Worker placement、
 Agent semantics、远程认证、网络 listener 或更新策略。Server 或 Client 重启不拥有它的生命周期。
 Host 或操作系统故障不承诺恢复 PTY。
 
@@ -288,7 +288,7 @@ Terminal 创建在每个信任与所有权边界使用不同 contract。以下�
 
 Server 是 placement authorization、lease generation 与 fence 的唯一 writer。Worker 只拥有这项已
 签发 authorization 的节点本地 admission 与 execution state。未经 Server 校验，不得把 Client field
-复制进 authorization envelope；Terminal Host 不会收到 Site、Client Session、Workspace、Project、
+复制进 authorization envelope；Terminal Host 不会收到 会话、Client Session、Workspace、Project、
 Checkout、Worktree、Environment、Worker lease 或 placement semantics。
 
 没有显式 Launch Profile 时，terminal baseline 启动 Worker 已接受的默认交互 shell：有效 absolute
@@ -367,7 +367,7 @@ product variable。后续 profile environment 或 secret injection 属于单独 
 
 ## Server、Worker 与 Terminal Host 为何保持分离
 
-- Server 是与位置无关的 Site 权威，而 Terminal Host 必须与 PTY 共置。把 Host 合入
+- Server 是与位置无关的 会话 权威，而 Terminal Host 必须与 PTY 共置。把 Host 合入
   Server，要么会阻止远程执行节点，要么会在每个节点复制一个不完整的 Server。
 - Worker 是 node identity、capability、lease 与 fencing 边界。显式保留 Worker，可以让
   本机节点与远程节点使用相同产品协议，而不是维护一条隐藏的仅本机 execution path。
@@ -429,31 +429,31 @@ executable。
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 本机 direct terminal path   | 首条与 fallback path 保持 `Host <-> Worker <-> Server relay <-> Client`。只有实测 relay 不足时才能启用 `Worker <-> local native TUI/Desktop Client`；Browser 与 mobile 继续经 Server，任何 Client 都不直连 Host。Server 签发 short-lived capability，绑定 Client Session、Terminal、Worker、Host epoch、controller generation 与 permission。Control 始终留在 Server。Server-Worker authority loss 停止 input/resize，最多允许一次显式 bounded read-only drain。Direct path 失败可以取得重新授权的 relay path，但绝不 replay unknown input。允许每个 Client Session 与 Worker 使用一条 multiplexed Client-Worker connection。                                                                                                                                                                                                                                                                                                                                                                                        |
 | Controller transfer         | 保持一个 combined input-and-resize controller。无人拥有时可以显式 acquire。已被占用时向当前 active owner 发送 request。Observed disconnect 只在 liveness grace 后 release；不自动提升任何 viewer。经过 modeled timeout 后，有权限的 requester 可以二次确认 forced take。Server 原子提交新的 controller generation 与 fence，拒绝旧 generation 的每条迟到 operation。Viewer 的 scroll、search 与 selection 保持独立。Collaborative input 与拆分 input/resize ownership 被排除。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| User services               | 默认 lazy start。`orchbee site enable` 安装 per-user LaunchAgent 或 systemd-user unit，为 Web/mobile/remote 提供 always-available Site；不使用 root/system daemon，也不增加 supervisor executable。Server 与 Worker 是同一 compatible cohort 中的独立 unit，并采用有界 restart backoff；Host 保持 lazy。`site restart` 保留 live Host terminal。`server stop` 停止 admission 及 Server/Worker，并显式报告 retained Host terminal；终止全部 terminal 是另一个 destructive operation。Disable、uninstall 与 upgrade 默认不删除 data 或终止 terminal。                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| User services               | 默认 lazy start。`orchbee session enable` 安装 per-user LaunchAgent 或 systemd-user unit，为 Web/mobile/remote 提供 always-available 会话；不使用 root/system daemon，也不增加 supervisor executable。Server 与 Worker 是同一 compatible cohort 中的独立 unit，并采用有界 restart backoff；Host 保持 lazy。`session restart` 保留 live Host terminal。`server stop` 停止 admission 及 Server/Worker，并显式报告 retained Host terminal；终止全部 terminal 是另一个 destructive operation。Disable、uninstall 与 upgrade 默认不删除 data 或终止 terminal。                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Update 与 compatibility     | 一份 signed manifest 记录每个 component/asset version 与 digest。Version side-by-side 安装，通过一个 atomic active pointer 切换；失败回滚完整 cohort。Compatibility 是 exact tested set，不是 open range。绝不替换 live Host。Compatible Server/Worker 可以围绕 retained old Host 更新；incompatible Host update 等 terminal 停止后才生效，首版不做 parallel takeover。Referenced old Agent Capsule 保留到 integration 显式 update。Database migration 先 snapshot，并可拒绝 unsafe downgrade。Package-manager 安装通过其 manager 更新；默认关闭 automatic installation。                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| Server persistence/recovery | Public release 前，Server 使用一个 transactional database，默认设计为 SQLite WAL。它持久化 Site/Workbench revision；Project、Workspace、Tab、Panel state；terminal intent、placement、lifecycle；Worker identity/enrollment 与 operation ledger；Profile；Worktree reference；Archive metadata；SSH target/connection intent；以及必需 operation identity。它不持久化 Client View、attachment/controller lease、terminal frame、PTY/live scrollback、transient environment/secret、raw hook payload 或默认完整 Agent observation history。Intent 在 external effect 前 commit。Restart 对账 exact Worker/Host inventory，绝不 replay create 或 input。Exact binding、generation、epoch 与 Terminal identity 可以恢复；unknown Host terminal 进入 `RecoveryRequired` quarantine，绝不自动 adopt、delete 或 replace。Corrupt/incompatible storage 进入 read-only recovery 而不是 reset。Credential 留在 operating-system credential store；Worker Archive content 与 Worktree journal 保持 node-local recovery owner。 |
+| Server persistence/recovery | Public release 前，Server 使用一个 transactional database，默认设计为 SQLite WAL。它持久化 会话/Workbench revision；Project、Workspace、Tab、Panel state；terminal intent、placement、lifecycle；Worker identity/enrollment 与 operation ledger；Profile；Worktree reference；Archive metadata；SSH target/connection intent；以及必需 operation identity。它不持久化 Client View、attachment/controller lease、terminal frame、PTY/live scrollback、transient environment/secret、raw hook payload 或默认完整 Agent observation history。Intent 在 external effect 前 commit。Restart 对账 exact Worker/Host inventory，绝不 replay create 或 input。Exact binding、generation、epoch 与 Terminal identity 可以恢复；unknown Host terminal 进入 `RecoveryRequired` quarantine，绝不自动 adopt、delete 或 replace。Corrupt/incompatible storage 进入 read-only recovery 而不是 reset。Credential 留在 operating-system credential store；Worker Archive content 与 Worktree journal 保持 node-local recovery owner。 |
 
 ## 进程生命周期与监督
 
 | 进程                  | 启动策略                                               | 停止与重启的后果                                                                            |
 | --------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
 | `orchbee` CLI         | 每次调用                                               | 只结束自身的 request 或 observation                                                         |
-| `orchbee` TUI         | 人类显式启动；可以发起有界本机 Site 懒激活             | 释放自己的 Client Session 和 attachment；不会停止 Site 或 terminal                          |
+| `orchbee` TUI         | 人类显式启动；可以发起有界本机 会话 懒激活             | 释放自己的 Client Session 和 attachment；不会停止 会话 或 terminal                          |
 | Server                | 确切 cohort 的本机懒激活或可选 user-service policy     | Client 与 Worker 重连；不能据此推断取消已保留的节点执行                                     |
 | Worker                | 确切 cohort 本机激活或 enrolled-node service policy    | Host 独立保留；替代 Worker 对 Host inventory 进行 reconciliation                            |
 | Terminal Host         | 首次使用 terminal 时，由 Worker 启动或发现确切兼容版本 | 只能依照已接受的无 broker/无 retained-terminal policy 退出；Host 丢失需要报告 terminal loss |
 | Agent Bridge          | 由显式安装的 provider callback 调用                    | 一次有边界的 local-Worker 尝试后退出；失败保持静默，并对发起调用的 Agent fail-open          |
-| Web 或 Desktop Client | 人类显式启动                                           | 只释放该 Client Session，除非人类另行请求共享产品或 Site lifecycle command                  |
+| Web 或 Desktop Client | 人类显式启动                                           | 只释放该 Client Session，除非人类另行请求共享产品或 会话 lifecycle command                  |
 
 裸 `orchbee` 可以发起 Server 与本机 Worker activation，并等待有界 ready。Ready 后，每个私有
 进程拥有自己的生命周期；发起 Client 不是其 supervisor，Client 退出也不是 stop signal。操作系统
-默认使用 lazy start。`orchbee site enable` 可以为 always-on access 安装 per-user LaunchAgent 或
+默认使用 lazy start。`orchbee session enable` 可以为 always-on access 安装 per-user LaunchAgent 或
 systemd-user unit；绝不安装 root/system daemon。确切 unit file 与 platform adapter 是受上文已接受
 user-service lifecycle 约束的 implementation detail。
 
 ## 部署形态
 
-### 本机 terminal Site
+### 本机 terminal 会话
 
 ```text
 orchbee CLI -----.
@@ -492,12 +492,12 @@ Desktop shell / renderer -- local IPC --'
 ```
 
 Desktop 仍是 Client shell 与 platform-effect adapter。它可以复用 Web renderer 而不启用
-Browser ingress。关闭 Desktop window 不代表停止 Site，也不代表终止 retained terminal。
+Browser ingress。关闭 Desktop window 不代表停止 会话，也不代表终止 retained terminal。
 
-### 分布式 Site
+### 分布式 会话
 
 ```text
-Machine A: Site
+Machine A: 会话
 |- Server
 |- optional local Worker
 |  `- Terminal Host
@@ -571,9 +571,9 @@ input admission outcome 未知时自动重放输入。
 
 ## 主要工作流
 
-### 本机 Site 激活
+### 本机 会话 激活
 
-1. TUI、会修改状态的 CLI 命令、Web opener 或 Desktop launch 发现确切的本机 Site。
+1. TUI、会修改状态的 CLI 命令、Web opener 或 Desktop launch 发现确切的本机 会话。
 2. 裸 `orchbee`，以及 contract 明确允许的其他 command，可以发起确切兼容私有 Server 与本机
    Worker cohort 的有界 activation。
 3. Launcher 等待 ready 或 typed unavailable/incompatible result，随后释放 activation resource；
@@ -607,7 +607,7 @@ input admission outcome 未知时自动重放输入。
    `WorkerLaunchAdmission`，并用一项 `HostLaunch` 调用 Terminal Host。
 6. Host 按现有 geometry 与 idempotency contract，以原子方式准备或创建 retained terminal，
    并返回 typed result；它不会收到 Project、repository、Checkout、Worktree、Environment、
-   Site 或 Worker lease 语义。
+   会话 或 Worker lease 语义。
 7. Worker 报告确切 observation；Server 进行 reconciliation 并发布产品 outcome。
 8. 各 Client 按需打开各自独立、经过授权的 attachment。Deferred creation 要求之后经同一
    Worker 提交一项携带完整 geometry 且由 Server 授权的 `StartTerminal`。
@@ -676,7 +676,7 @@ Host capability 或 raw PTY byte stream。
 
 目标形态至少区分：
 
-- Site、human identity 与 Client Session；
+- 会话、human identity 与 Client Session；
 - 稳定 Node identity、Node Session 或 connection generation，以及 device credential；
 - 可选 Project 或 managed-Worktree 产品 identity、Workspace presentation、确切 Worker placement
   与 terminal-launch operation；
@@ -693,12 +693,12 @@ attachment 和 capability revision 都必须 fail closed。结果未知的 termi
 
 - 与 Server 具有相同 effective operating-system user 的 local Human Client 可以读取已授权
   Workbench projection，并在 Server policy 下提交 ordinary terminal operation。Terminal ownership
-  属于 Site/Workbench state，不属于创建它的 Client Session；request identity 是 correlation value，
+  属于 会话/Workbench state，不属于创建它的 Client Session；request identity 是 correlation value，
   不是 capability。Remote authentication 保持独立。
 - Human Client credential 与 Worker device credential 保持不同，且不能互换。
 - Worker 通常主动连接 Server；Terminal Host 不暴露 LAN 或 Internet listener，Agent Bridge
   也必须保留这项约束。
-- Terminal Host 保持同用户本机信任边界，不获得任何 Site authorization 逻辑。
+- Terminal Host 保持同用户本机信任边界，不获得任何 会话 authorization 逻辑。
 - Server 授权的本机数据路径使用范围很窄的 attachment capability，而不是把同用户 ambient
   access 当作产品 authorization。
 - 每一条不受信任的消息都在首个可信边界做大小限制、解析、认证、授权和身份校验。
@@ -721,7 +721,7 @@ attachment 和 capability revision 都必须 fail closed。结果未知的 termi
 | Server-Worker 链路丢失                  | Worker 不接受凭空生成的 authority；retained Host terminal 继续运行；有界 observation 的保留或丢失策略仍然保留                                                      |
 | Worker 重启                             | Host 尽可能独立存活；替代 Worker 建立新的 generation，并对确切 Host inventory 进行 reconciliation                                                                  |
 | Terminal Host 崩溃                      | Worker 报告 terminal loss；不承诺 PTY recovery                                                                                                                     |
-| Node 或操作系统重启                     | 普通 PTY 和进程可能丢失；Site 报告单独的 machine-restart outcome                                                                                                   |
+| Node 或操作系统重启                     | 普通 PTY 和进程可能丢失；会话 报告单独的 machine-restart outcome                                                                                                   |
 | Agent Bridge 不可用或被拒绝             | Hook 以零状态退出、保持静默，且不生成虚假 observation                                                                                                              |
 | 缓慢的远程 Client                       | 暂停或关闭其有界 relay 或 attachment，不阻塞其他 Client 或 terminal                                                                                                |
 | Terminal-input acknowledgement 丢失     | outcome 未知，永不自动重放                                                                                                                                         |
@@ -764,10 +764,10 @@ consumer migration、public cutover 或 deletion。
 | `environment` 中的通用产品 placement 行为                                                                            | **从目标核心删除：**原生 terminal placement 直接解析到 Worker。当前 registry code 只保留到已接受 SSH connection migration 从该路径移除 generic Environment                                                                               |
 | `project-folder-acquisition`                                                                                         | **只保留 Desktop platform adapter：**可以展示 native picker，并把用户选择的本地 path 返回给已授权 Client workflow；它不创建 canonical Project state，也不声称 client-only 机器就是所选 Worker                                            |
 | `terminal-default-settings`                                                                                          | **拆分：**把 node-local default interactive-shell resolution 迁到 Worker；把 canonical revisioned named-profile catalog 迁到 Server；Desktop 只保留 Client presentation 与 preference editing                                            |
-| `application-lifetime`                                                                                               | **拆分并只保留 Desktop lifetime：**window/app quit 与 renderer teardown 留在 Desktop；Site shutdown、共享 terminal intent、Worker drain 与 Host retention 分别属于 Server、Worker 与 Host contract                                       |
+| `application-lifetime`                                                                                               | **拆分并只保留 Desktop lifetime：**window/app quit 与 renderer teardown 留在 Desktop；会话 shutdown、共享 terminal intent、Worker drain 与 Host retention 分别属于 Server、Worker 与 Host contract                                       |
 | `desktop-clipboard`、`window-actions`、`window-state`、`application-menu` 与 `secure-keyboard-entry`                 | **留在 Desktop：**确切 Client-local 或 operating-system effect                                                                                                                                                                           |
 | `desktop-renderer-protocol`、preload bootstrap 与其余 `broker` adapter                                               | **缩减并保留：**只暴露最小 sandboxed renderer bootstrap 与确切 Desktop platform capability；所属切片迁移后，删除 Server、Worker、terminal-authority、Agent-owner 与旧 Environment message                                                |
-| `composition` 与 `recovery`                                                                                          | **围绕存续 Desktop 职责重写：**只保留 Electron Client/platform composition 与 Client-local recovery；Server 拥有 Site recovery，Worker 拥有 node/Host reconciliation，任何替代 composition 都不能重新创建已移除 authority                |
+| `composition` 与 `recovery`                                                                                          | **围绕存续 Desktop 职责重写：**只保留 Electron Client/platform composition 与 Client-local recovery；Server 拥有 会话 recovery，Worker 拥有 node/Host reconciliation，任何替代 composition 都不能重新创建已移除 authority                |
 | `agent-observation` 中的共享 Agent state 与 `agent-integration-management`                                           | **把 canonical state 迁到 Server，把 node integration effect 迁到 Worker：**Desktop 只保留 Client presentation 与显式 platform interaction；provider callback 迁到私有 Rust Agent Bridge                                                 |
 | `project-worktree`                                                                                                   | **拆分：**Server 拥有 semantic intent/reference，Worker 拥有可选 managed-root Git workflow 与 recovery journal，Desktop 只保留 Client UI；首批迁移保留 create/discover/adopt，不增加 deletion                                            |
 | `terminal-archive`                                                                                                   | **拆分：**Worker capture/store 最终 platform-neutral snapshot，Server 拥有 metadata/index/authorization，Desktop 只保留 Client presentation；live VT/history 仍在 Host                                                                   |
@@ -835,8 +835,8 @@ migration 切换完整 consumer 路径前，当前 TypeScript、Electron、Node 
 | Workbench projection contract            | JSON Schema version 1 以及独立 TypeScript/Rust binding 提供有界只读 snapshot 与原子 delta。Schema、package guide、crate contract 与 conformance corpus 拥有维护事实；当前 writer 或 consumer 均未迁移。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Client-Server terminal contract          | [`schemas/client-server`](../../schemas/client-server/README.zh-CN.md) 与 [`orchbee-client-server-protocol`](../../crates/client-server-protocol/README.zh-CN.md) 拥有严格有界的 OBCS version 1 terminal Create/Start、viewer 和 controller intent 与 result contract，包括跨语言 corpus 与 at-most-once producer obligation。私有 Server 通过本机终端协调器将其映射到 OBCN carrier。私有 Rust `orchbee` Client 可以串行提交 typed request，每条都只在一个 monotonic total deadline 下至多提交一次，但 public invocation 不会到达该 transport。                                                                                                                                                                                                       |
 | Server-Worker launch contract            | [`orchbee-capability-node-protocol`](../../crates/capability-node-protocol/README.zh-CN.md) 拥有 OBCN frame version 1 与 terminal-launch capability version 1。Server 现在拥有 generation-scoped serialized OBCN carrier；其 launch-authorization 实现与 Worker 私有 kernel 在已记录的 Server-producer invariant 下拥有 admission、fencing、1,024 个 retained binding、exact replay、capacity rejection、handoff 与 result behavior。私有 Worker 现在通过该 kernel 与有界 Host execution loop 消费 authorized request；explicit binding retirement 仍是 production prerequisite。                                                                                                                                                                     |
-| 原生 `orchbee` 入口                      | [`apps/orchbee`](../../apps/orchbee/README.zh-CN.md) 拥有尚未打包的 Linux 裸 TUI 入口、无副作用的 help/version、私有本地 transport 和单终端 Session。它通过共享运行时校验开发 cohort 与 rendezvous，连接或启动 Site，等待有效首帧后进入界面。非 Linux 公共启动尚未交付。                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| 本机 Site activation model               | 保留的 LocalSiteStartup 协议及 Client 实现测试覆盖 connect-first activation、singleton exact-cohort launch、类型化 readiness/failure、截止时间、资源释放和 Client/Site 生命周期分离。旧的独立 activation 模型已退役；当前主张与边界由 Client 和 local-site-runtime 参考文档维护。                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| 原生 `orchbee` 入口                      | [`apps/orchbee`](../../apps/orchbee/README.zh-CN.md) 拥有尚未打包的 Linux 裸 TUI 入口、无副作用的 help/version、私有本地 transport 和单终端 Session。它通过共享运行时校验开发 cohort 与 rendezvous，连接或启动 会话，等待有效首帧后进入界面。非 Linux 公共启动尚未交付。                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 本机 会话 activation model               | 保留的 LocalSiteStartup 协议及 Client 实现测试覆盖 connect-first activation、singleton exact-cohort launch、类型化 readiness/failure、截止时间、资源释放和 Client/会话 生命周期分离。旧的独立 activation 模型已退役；当前主张与边界由 Client 和 local-site-runtime 参考文档维护。                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | Rust Server kernel 与 service            | [`apps/orchbee-server`](../../apps/orchbee-server/README.zh-CN.md) 拥有有界 Workbench read、failure-atomic 的内存 projection publication selection，以及彼此分离、尚未发布、私有且 same-user 的本机 Worker 和 Human Client service。Worker service 准入一个 compatible Worker，并通过唯一 serialized OBCN owner 与一个 submitted slot 保留其 post-OBLS stream；Client service 准入最多八个相互独立的 compatible Client Session。OBCS 协调器通过该 carrier 授权 Create/Start，跨 Client Session 提交精确终端绑定，并保留未知结果而不重放。Viewer record/feedback 和单 controller input/resize 现已通过同一 carrier 转发，并有精确 Session/grant cleanup。Activation、persistence、packaging 和 production lifecycle 仍未完成。                         |
 | Terminal Client authority 与 relay model | Server 保留精简的 ConnectionViewerOwnership 和 RelayDeliveryIsolation 协议核心，覆盖准确 viewer 归属、过期清理、有序反馈及慢 viewer 隔离。原生控制权接管有独立的有界协议。具体 carrier、编码、队列容量及跨进程失败组合采用实现测试。Server 参考文档拥有准确边界与排除项；此提案不声明仍检查旧的 authority/relay 组合状态空间。                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | Rust Worker process spine                | [`apps/orchbee-worker`](../../apps/orchbee-worker/README.zh-CN.md)、[`orchbee-local-site-protocol`](../../crates/local-site-protocol/README.zh-CN.md) 与 [`orchbee-local-peer-credentials`](../../crates/local-peer-credentials/README.zh-CN.md) 拥有尚未发布的 Server registration 加常规 Worker-to-Host Broker connection、有界私有 framing、两条 link 上的 POSIX peer proof、精确 Host handshake、保留的 admission identity 与 limit、耦合的 connection liveness，以及上文所述已集成的 authorization kernel、default interactive-shell resolver、Host command mapper 与有界 OBCN request/result loop。私有 Worker 可以创建／启动 retained Host terminal、转发 viewer record 和 feedback，以及执行已授权 input/resize；它没有 production consumer。 |
@@ -855,7 +855,7 @@ behavior、authority boundary、排除项、证据与 rollback 后，委托其�
 | 字段            | 已接受决策                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 问题            | 原生入口、Server kernel 与 Rust Host binding 各自经过验证，却没有形成可运行产品路径。继续逐 message 追求 parity 会增加未使用 protocol surface，同时仍不能验证单命令体验、Worker 边界、进程生命周期、真实终端渲染与 IPC 性能。                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| Outcome         | 在一台受支持本机上，裸 `orchbee` 发现或懒激活确切兼容的私有 Server 与本机 Worker cohort，进入真实 TUI Client Session，并能创建或附加一个默认交互式 Shell terminal；其真实 output、input 与 resize 经过保留的 Zig Terminal Host。关闭任一 Client 不会隐式终止 Site、私有 service 或 retained terminal。后续调用以另一个独立 Client Session 加入同一个 Site。                                                                                                                                                                                                                                                                                                                               |
+| Outcome         | 在一台受支持本机上，裸 `orchbee` 发现或懒激活确切兼容的私有 Server 与本机 Worker cohort，进入真实 TUI Client Session，并能创建或附加一个默认交互式 Shell terminal；其真实 output、input 与 resize 经过保留的 Zig Terminal Host。关闭任一 Client 不会隐式终止 会话、私有 service 或 retained terminal。后续调用以另一个独立 Client Session 加入同一个 会话。                                                                                                                                                                                                                                                                                                                               |
 | 范围            | 交付私有 Rust Server service boundary、一个私有 Rust 本机 Worker、现有 Zig Host discovery 或 activation、有界同用户本机 IPC、带可选 node-local `cwd` 的最小默认 Shell terminal intent、Host launch mapping、create/attach/output/input/resize flow、真实单 terminal TUI surface、有界 relay queue、version-cohort rejection，以及该路径需要的 process/fault/performance 证据。                                                                                                                                                                                                                                                                                                            |
 | Client 模型     | TUI、Web、Desktop、mobile、不同 browser tab、不同 Desktop window 与重复 `orchbee` invocation 都属于同一个 Client 模型中的同级对象。每个活跃实例拥有自己的 Client Session，以及本地 focus、active location、viewport、scroll 与 presentation state。共享 Workspace、Tab、Panel 与 Terminal fact 来自 Server。Terminal Host 只看 typed attachment 与 capability，绝不识别 renderer 类型。                                                                                                                                                                                                                                                                                                   |
 | Terminal 控制   | 不同 Client 可以控制不同 terminal。多个 Client Session 可以通过不同 attachment 查看同一个 terminal，但本 milestone 对该 terminal 只准入一个活跃 input-and-resize controller。其他 attachment 不具有控制权。上文已接受 transfer/forced-take contract 属于后续 implementation slice；collaborative input 继续被排除。                                                                                                                                                                                                                                                                                                                                                                       |
@@ -863,7 +863,7 @@ behavior、authority boundary、排除项、证据与 rollback 后，委托其�
 | Launch 边界     | Client intent 绝不提供权威 Worker placement、lease、generation、fence、executable、arbitrary argument、Environment、Project、Checkout、Worktree 或 Agent identity。Server 选择唯一的本机 Worker；Worker 解析已接受的默认交互式 Shell 与省略的本机 default；Host 只接收其确切 launch fact。第一个 milestone 发送空的 transient environment overlay。                                                                                                                                                                                                                                                                                                                                       |
 | 数据路径        | 第一条完整路径是 `Terminal Host <-> Worker <-> Server <-> Client`。Worker 与 Server 校验 routing、identity、role、size、queue 与 authorization fact，但不模拟 VT 或重新解释 frame content。Client 直连本机 Worker 不属于本 milestone；measurement 是启用上文已经接受 scoped-capability optimization 的 gate。                                                                                                                                                                                                                                                                                                                                                                             |
 | 信任            | 本 milestone 只暴露同一操作系统用户可访问的私有本机 endpoint。它不增加 LAN/Internet listener、Cookie 到 device credential 的转换、ambient direct Host access 或 multi-user claim。错误 peer role、过时 identity、畸形数据与不兼容 version 均失败关闭。                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| Claims          | 一个本机 Site 最多拥有一个活跃 Server authority 与一个准入的本机 Worker identity。Help/version 不启动 service。Mutating intent 最多提交一次，unknown terminal input 绝不 replay。慢 Client 不能阻塞 Worker progress 或另一 Client。Client disconnect 不意味着 terminal termination。Server 绝不成为 VT/history authority，Worker 绝不成为 generic command/filesystem service，baseline terminal 不需要 Project、repository、Worktree、Environment 或 Agent state。                                                                                                                                                                                                                        |
+| Claims          | 一个本机 会话 最多拥有一个活跃 Server authority 与一个准入的本机 Worker identity。Help/version 不启动 service。Mutating intent 最多提交一次，unknown terminal input 绝不 replay。慢 Client 不能阻塞 Worker progress 或另一 Client。Client disconnect 不意味着 terminal termination。Server 绝不成为 VT/history authority，Worker 绝不成为 generic command/filesystem service，baseline terminal 不需要 Project、repository、Worktree、Environment 或 Agent state。                                                                                                                                                                                                                        |
 | 非目标          | 不准入完整 Workbench UI、额外 public CLI grammar、selection/export/history/theme/clear/reset feature parity、direct Worker data path、最终 collaborative-input 或 takeover UX、Agent helper、managed Worktree、Archive、Launch Profile、SSH redesign、remote Worker、Web/mobile migration、production TLS、multi-user tenancy、durable Server recovery、操作系统重启后的 PTY recovery、login-time service installation、package-manager release、public cutover 或 compatibility promise。                                                                                                                                                                                                |
 | 证据            | 在现有 topology model 不足时，对 singleton activation、独立有序的 Client/Server/Worker/Host loss、controller ownership、有界 queue 与 unknown input outcome 建模。增加 absent/present/incompatible cohort、两个同时 Client Session、Client 退出而 terminal 保留、畸形 peer、Host loss 与有界 shutdown 的 process test。增加 create、attach、frame、input、resize、detach、reattach 与 exit 的端到端真实 PTY trace。在启用 direct path 或设置数值 release budget 前，测量 cold/warm activation、input latency、frame throughput、copy、queue memory 与 slow-client isolation。仍需通过适用 focused check 与根 `pnpm verify`；除非明确授权，否则继续排除会抢焦点的手动 native-window 测试。 |
 | 交付与 rollback | 首先收敛三份所属提案，然后依次交付无 terminal effect 的 process spine、最小 launch/Host broker、经 Server relay 的 terminal stream、TUI adapter，最后完成 loss/performance 收敛。每个切片保持增量和尚未发布，不含 durable migration，并让当前 Desktop 行为继续保持权威。Rollback 删除新的未使用切片或回到上一个已验证的增量 spine；绝不删除或切换现有 consumer。                                                                                                                                                                                                                                                                                                                          |
@@ -910,8 +910,8 @@ terminal 的兼容 retained Host 不会被替换。
 process/session/lease/reconnect model 选择 TLA+，因为 Client、Server、Worker、Host、transport
 与 persistence 中相互独立排序的 event 可能破坏 authority、continuity 或 at-most-once 主张。
 Property test 覆盖 identifier、stale generation、topology cardinality 和 serializable
-transition。Deterministic system test 至少覆盖一个全本机 Site，以及一个具备两个 Worker
-和三种并发 Client 形态的 Site。性能证据必须测量 input latency、frame copy、relay memory、
+transition。Deterministic system test 至少覆盖一个全本机 会话，以及一个具备两个 Worker
+和三种并发 Client 形态的 会话。性能证据必须测量 input latency、frame copy、relay memory、
 slow-client isolation 与 startup cost；仅统计 process hop 不是性能证据。在接受 Rust CLI
 交付切片前，其证据计划必须明确被测 command 与完成点、冷启动与热启动条件、artifact-size
 范围、峰值内存指标、参考平台、baseline 与 acceptance-budget owner。具体数值可以在有边界的
@@ -931,11 +931,11 @@ prototype 后确定，但 measurement contract 不能推迟到实施以后。
 4. Attachment 表示与既有 retained terminal 的 transient display/control relationship；绝不 create、
    clone、restart 或拥有 terminal。允许多个 viewer；一个 combined input-and-resize controller 只在
    unowned 时 acquire，release 绝不 auto-promote 或 steal。产品文案使用“打开”或“连接”。
-5. TUI 退出只 detach，last-Client rule 不会停止 Site。首个尚未发布 milestone 不做 durable Server
+5. TUI 退出只 detach，last-Client rule 不会停止 会话。首个尚未发布 milestone 不做 durable Server
    adoption：Server loss 关闭 Worker，Host 可以保留 terminal；unmatched nonempty Host inventory
    返回 `RecoveryRequired`，不自动 adopt、delete 或 replace。Production recovery 是发布前要求。
 6. 相同 effective user 的 local Human Client 可以读取已授权 Workbench，并在 Server policy 下提交
-   ordinary terminal operation。Terminal 属于 Site/Workbench state，不属于 creator Client Session；
+   ordinary terminal operation。Terminal 属于 会话/Workbench state，不属于 creator Client Session；
    request identity 不是 capability。Remote auth 保持独立。
 7. OBCS v1 保持狭窄，只负责 Create/Start Client-Server contract。一个 TUI business intent 让 Server
    协调 Workbench mutation 与 terminal creation，Client 不执行两个阶段。另一个有界 live-terminal
@@ -949,13 +949,13 @@ prototype 后确定，但 measurement contract 不能推迟到实施以后。
 9. TUI 使用全屏 alternate screen、Orchbee 业务 sidebar、Workbench tab/panel 与真实 terminal；窄
    layout 折叠 sidebar。Ratatui/Crossterm 和已记录的 `Ctrl+B` prefix map 是首版 implementation
    contract。
-10. 裸 `orchbee` 只在 TTY 运行，先尝试连接；Site 不存在时使用一个 per-user activation lock。
+10. 裸 `orchbee` 只在 TTY 运行，先尝试连接；会话 不存在时使用一个 per-user activation lock。
     并发 invocation 收敛到一个 Server/Worker cohort，各自创建 TUI；Host 保持 lazy。成功足够快时
     不输出，延迟时显示本地化进度，一个 monotonic total deadline 显式失败；Client 绝不 kill 或
-    downgrade 现有 Site。
+    downgrade 现有 会话。
 11. 一个 Rust `orchbee` 暴露裸/显式 TUI 与 CLI 提案中的 resource-first command family。不提供
-    public `orchbee server`、fuzzy abbreviation、旧 raw-session mode 或恢复的 `--skill`；Site lifecycle
-    位于 `orchbee site`，update 行为尊重 installation manager。
+    public `orchbee server`、fuzzy abbreviation、旧 raw-session mode 或恢复的 `--skill`；会话 lifecycle
+    位于 `orchbee session`，update 行为尊重 installation manager。
 12. 默认使用本地化 human-readable output。显式 machine output 是稳定 versioned JSON；stream 使用
     NDJSON；stdout 只含 data，stderr 只含 diagnostic。稳定语义 exit category 已接受，确切 numeric
     value 与 schema 留给各 slice。
@@ -1000,7 +1000,7 @@ prototype 后确定，但 measurement contract 不能推迟到实施以后。
     普通 request；disconnect 在 observed liveness grace 后 release。不自动提升 viewer。Timeout 后，
     有权限的二次确认 forced take 原子推进 Server generation/fence 并拒绝旧 input。Collaborative 与
     split control 被排除。
-23. 默认 lazy service start。`orchbee site enable` 安装 per-user LaunchAgent/systemd-user Server 与
+23. 默认 lazy service start。`orchbee session enable` 安装 per-user LaunchAgent/systemd-user Server 与
     Worker unit，使用同一 cohort 与有界 backoff；不增加 root daemon 或 supervisor，Host 保持 lazy。
     Restart 保留 retained terminal；stop 报告 retained Host terminal；terminate-all 是独立 destructive
     action。Disable/uninstall/upgrade 默认保留 data 与 terminal。
@@ -1016,7 +1016,7 @@ prototype 后确定，但 measurement contract 不能推迟到实施以后。
 
 ## 留待审阅的决策
 
-1. 定义 remote Worker enrollment、production human/device identity、remote Site authentication、
+1. 定义 remote Worker enrollment、production human/device identity、remote 会话 authentication、
    TLS 与 Internet ingress、discovery/relay/NAT traversal、multi-user tenancy、authorization
    hierarchy，以及 mobile background/push behavior。
 2. 在已接受 command/TUI boundary 内选择 exact JSON/NDJSON schema 与 numeric CLI exit code、remote
@@ -1065,4 +1065,4 @@ prototype 后确定，但 measurement contract 不能推迟到实施以后。
   DOM、pixel 或 Client-local focus state？
 - migration、compatibility、rollback 与 evidence obligation 是否足够小，可以切成可独立审阅的交付？
 
-<!-- documentation-pairing: english-sha256=bc6905691dee7532cdd3ecd9ef34509464e4fa6028c5c597d8d3c3b9ad3bbe25 zh-cn-sha256=005746a6dd006e29cfc23348de385c62bd35321f6c31780f2c0ed974e6bcb5c7 -->
+<!-- documentation-pairing: english-sha256=e0b28e30ad8c6b5e3883171a314fac7043e7a98439b3a8a165cd73c7da1abebd zh-cn-sha256=5eb58bfbf53a0506c7b09289daf24909d78b9d0d57950b8a962746de125b61bf -->

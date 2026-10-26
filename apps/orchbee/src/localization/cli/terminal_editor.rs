@@ -4,5 +4,5 @@ pub(super) const HELP_EN: crate::localization::HelpDetails = crate::localization
 );
 pub(super) const HELP_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee terminal edit-scrollback <terminal> [--client <id>] [--timeout <ms>] [--format json|text]",
-    "在配置的编辑器中打开聚焦终端保留的纯文本滚动记录。需要已有 Windows 会话和 Ready TUI；目标必须是该 Client 当前选择的原生成员。依次使用 Worker 的 VISUAL、EDITOR，否则使用系统 Notepad。控制台编辑器使用独立 popup；GUI 编辑器可能打开自身窗口。默认超时 30000 毫秒，范围 1-3600000。不会控制、缩放来源或向其发送输入。保留不确定操作 ID 供 client control-status 查询，请勿重复未知提交。",
+    "在配置的编辑器中打开聚焦终端保留的纯文本滚动记录。需要已有 Windows 会话和 Ready TUI；目标必须是该客户端当前选择的原生成员。依次使用 Worker 的 VISUAL、EDITOR，否则使用系统 Notepad。控制台编辑器使用独立 popup；GUI 编辑器可能打开自身窗口。默认超时 30000 毫秒，范围 1-3600000。不会控制、缩放来源或向其发送输入。保留不确定操作 ID 供 client control-status 查询，请勿重复未知提交。",
 );

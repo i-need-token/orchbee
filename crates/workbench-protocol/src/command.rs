@@ -799,7 +799,7 @@ pub enum WorkbenchAction {
         panel_id: WorkbenchPanelId,
         destination: WorkbenchPanelRelocateDestination,
     },
-    /// Create one ephemeral per-Site Launch Profile catalog entry. The
+    /// Create one ephemeral per-Session Launch Profile catalog entry. The
     /// selection passes the same closed lexical contract as an explicit
     /// `launch`, so a stored profile is always launchable.
     #[serde(rename = "launch-profile.create")]
@@ -988,6 +988,7 @@ pub enum WorkbenchPanelSplitDirection {
 pub struct WorkbenchCommand {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub expected_revision: WorkbenchRevision,
     pub action: WorkbenchAction,
@@ -1059,6 +1060,7 @@ pub enum WorkbenchRequest {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum WorkbenchRejectionReason {
+    #[serde(rename = "session-mismatch")]
     SiteMismatch,
     RevisionMismatch,
     ProjectUnavailable,

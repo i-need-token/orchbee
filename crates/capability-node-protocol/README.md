@@ -41,7 +41,7 @@ owns deadlines, ticket bounds, physical-owner preservation and focused evidence 
 The process-job lane admits configured Windows commands without a plugin identity or plugin log. OBPJ uses frame version 1 for every action and outcome. Request action 5 carries a bounded catalog ID, absolute directory, literal command and unique bounded `ORCHBEE_*` environment entries; result outcome 5 echoes the job ID and whether the same frozen job already exists. Worker ID, generation, operation correlation and closed refusals apply to plugin and configured jobs alike.
 
 The Server resolves the installed configuration before dispatch. The Worker
-overwrites Site routing, executes the literal command with Windows `cmd /d /c`,
+overwrites Session routing, executes the literal command with Windows `cmd /d /c`,
 and owns its cancellation and join independently of the invoking connection.
 Plugin and configured jobs share the 32-running-process admission bound.
 Configured receipts are bounded to 200 records and are never exposed as plugin
@@ -518,7 +518,7 @@ pnpm lint:projects
 
 ## Managed Worker shutdown
 
-The Windows managed Site lifecycle adds kinds 19/20 under frame version 1 and the
+The Windows managed Session lifecycle adds kinds 19/20 under frame version 1 and the
 existing 40 KiB bound. The request contains operation ID and Worker ID (16 nonzero
 bytes each), positive Worker generation (u64), and a cooperative budget (u32,
 1..15000 ms), all integers big-endian. Only the exact admitted managed Worker may

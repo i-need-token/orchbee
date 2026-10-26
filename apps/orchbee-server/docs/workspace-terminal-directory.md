@@ -17,7 +17,7 @@ Project may reference the same Directory. Regrouping and dissolving a Project pr
 identities, references, Worker placement and cwd. Unused Directory records remain valid.
 
 Newly created Workspaces are unconfigured and Empty. Directory identities use the existing nonzero
-128-bit identity form and Site allocation cursor. The global pool admits at most 65,536 Directories,
+128-bit identity form and Session allocation cursor. The global pool admits at most 65,536 Directories,
 subject to the 1 MiB snapshot bound; the historical 256-Directory per-Project limit no longer governs
 current admission. Paths follow the authorized local-platform cwd contract: absolute UTF-8,
 1 through 4,096 bytes, no NUL, including admitted Windows drive-absolute paths.
@@ -25,7 +25,7 @@ Preserve path spelling and follow symbolic links when
 validating; no realpath-based identity, enumeration, Git discovery or directory creation is implied.
 
 The explicit `workspace.primary-directory.accept` action carries Workspace ID and path
-under the existing command request ID, Site and expected revision. The Server selects the current
+under the existing command request ID, Session and expected revision. The Server selects the current
 local Worker; the Client supplies no Worker generation, fence or lease. This first operation creates
 one global Directory and selects it for that Workspace atomically, including when the Workspace
 is ungrouped. It is set-once and requires an empty context. This command does not select or deduplicate
@@ -35,16 +35,16 @@ navigation authority. Read-only snapshot access does not confer association or l
 
 ## Admission and transitions
 
-| Phase                  | Input and guard                                                                                                                       | Result and owner effect                                                                                                        |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Admission              | Grant, live authority, exact replay/conflict, ledger capacity, Site/revision, exact Workspace, empty context and no primary Directory | Definite refusal preserves canonical state; exact replay returns its retained result without validation                        |
-| Prepared validation    | A compatible current Worker and bounded request slot exist                                                                            | Capture exact Worker identity/generation and path; release registry and Site locks before I/O                                  |
-| Worker observation     | Exact request/generation; directory metadata lookup on that Worker                                                                    | Correlated valid, invalid-directory, unavailable or wrong-worker result; no Host, shell or canonical mutation                  |
-| Revalidation           | Validation succeeds before the carrier deadline                                                                                       | Reacquire registry then Site; repeat admission and require the captured Worker generation still current                        |
-| Commit preparation     | Identity, Directory count, revision, snapshot encoding and ledger bytes fit                                                           | Prepare complete projection and fixed result before any canonical mutation                                                     |
-| Commit                 | All prepared checks succeed                                                                                                           | Append Directory, select it, advance one revision and retain one immutable acceptance result atomically                        |
-| Result loss            | Commit may already have happened                                                                                                      | Client does not replay effects blindly; an exact command replay returns the original retained acceptance                       |
-| Workspace Tab creation | Exact context resolves to its Workspace and configured global Directory                                                               | Derive explicit cwd and exact Worker constraint; jointly commit membership and terminal intent using existing Create machinery |
+| Phase                  | Input and guard                                                                                                                          | Result and owner effect                                                                                                        |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Admission              | Grant, live authority, exact replay/conflict, ledger capacity, Session/revision, exact Workspace, empty context and no primary Directory | Definite refusal preserves canonical state; exact replay returns its retained result without validation                        |
+| Prepared validation    | A compatible current Worker and bounded request slot exist                                                                               | Capture exact Worker identity/generation and path; release registry and Session locks before I/O                               |
+| Worker observation     | Exact request/generation; directory metadata lookup on that Worker                                                                       | Correlated valid, invalid-directory, unavailable or wrong-worker result; no Host, shell or canonical mutation                  |
+| Revalidation           | Validation succeeds before the carrier deadline                                                                                          | Reacquire registry then Session; repeat admission and require the captured Worker generation still current                     |
+| Commit preparation     | Identity, Directory count, revision, snapshot encoding and ledger bytes fit                                                              | Prepare complete projection and fixed result before any canonical mutation                                                     |
+| Commit                 | All prepared checks succeed                                                                                                              | Append Directory, select it, advance one revision and retain one immutable acceptance result atomically                        |
+| Result loss            | Commit may already have happened                                                                                                         | Client does not replay effects blindly; an exact command replay returns the original retained acceptance                       |
+| Workspace Tab creation | Exact context resolves to its Workspace and configured global Directory                                                                  | Derive explicit cwd and exact Worker constraint; jointly commit membership and terminal intent using existing Create machinery |
 
 Different commands racing to configure one Workspace cannot both commit. Concurrent exact requests
 may perform duplicate read-only validations before either commits, but only one logical association
@@ -74,7 +74,7 @@ Worker loss without a home launch. Pure core tests alone do not establish filesy
 | Claim                                                                         | Maintained evidence                                                                                                                                                            | Limit                                                   |
 | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------- |
 | Admission, revalidation and replay preserve exact Directory ownership         | [Authority directory tests](../src/workbench_authority/tests/workspace_directory.rs) and [service directory tests](../src/local_terminal_service/workspace_directory/tests.rs) | Deterministic in-memory/transport fixtures              |
-| Tab creation uses the Workspace Worker/cwd and preserves unrelated membership | [Site creation tests](../src/site_coordinator/tests/tab_create.rs)                                                                                                             | Exact prepared and retained operation facts             |
+| Tab creation uses the Workspace Worker/cwd and preserves unrelated membership | [Session creation tests](../src/site_coordinator/tests/tab_create.rs)                                                                                                          | Exact prepared and retained operation facts             |
 | Two Clients observe the same real Workspace shell and failure outcomes        | [Workspace directory process witness](../tests/client_process/workspace_directory.rs)                                                                                          | Supported Linux cohort; other platforms remain separate |
 
 The Unix socket and Linux shell witnesses require their native host and built process prerequisites.

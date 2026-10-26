@@ -63,13 +63,13 @@
 		},
 		"commandSource": {
 			"type": "object",
-			"required": ["kind", "siteId", "requestId", "expectedRevision"],
+			"required": ["kind", "sessionId", "requestId", "expectedRevision"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
 					"const": "workbench-command"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/id"
 				},
 				"requestId": {

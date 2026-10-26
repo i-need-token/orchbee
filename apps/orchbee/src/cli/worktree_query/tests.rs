@@ -46,7 +46,7 @@ fn source_grammar_is_disjoint_from_registered_directory_and_mutation_flags() {
 #[test]
 fn directory_source_needs_no_project() {
     let snapshot = orchbee_workbench_protocol::parse_snapshot(&serde_json::to_vec(&json!({
-        "kind":"workbench.snapshot", "protocolVersion":1, "siteId":"00000000000000000000000000000001", "revision":"1",
+        "kind":"workbench.snapshot", "protocolVersion":1, "sessionId":"00000000000000000000000000000001", "revision":"1",
         "navigation":{ "projects":[], "directories":[], "workspaces":[{"workspaceId":"00000000000000000000000000000002","terminalContextId":"00000000000000000000000000000002","projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},
         "terminalContexts":[{"terminalContextId":"00000000000000000000000000000002", "groups":[], "tabs":[]}]
     })).unwrap()).unwrap();

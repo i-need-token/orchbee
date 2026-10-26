@@ -436,7 +436,7 @@ mod tests {
         observed_frame(Some((
             serde_json::json!({
                 "kind": "terminal-process-query",
-                "siteId": "1".repeat(32),
+                "sessionId": "1".repeat(32),
                 "snapshotRevision": 1,
                 "requestId": "7".repeat(32),
                 "hostRequestId": "8".repeat(32),

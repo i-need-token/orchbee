@@ -68,13 +68,13 @@
 		},
 		"agentProjectionSource": {
 			"type": "object",
-			"required": ["kind", "siteId", "workbenchRevision", "reportRevision", "canonicalRevision"],
+			"required": ["kind", "sessionId", "workbenchRevision", "reportRevision", "canonicalRevision"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
 					"const": "agent-projection"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/hexId"
 				},
 				"workbenchRevision": {

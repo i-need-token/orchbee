@@ -40,7 +40,7 @@ impl Locale {
             }
             #[cfg(windows)]
             (Self::ZhCn, StartupFailure::AlreadyInSession) => {
-                "当前终端已在此会话内。请返回现有 Client 切换位置，或使用 --session <name> 进入其他会话。CLI 子命令仍可正常使用。\n"
+                "当前终端已在此会话内。请返回现有客户端切换位置，或使用 --session <name> 进入其他会话。CLI 子命令仍可正常使用。\n"
             }
             #[cfg(windows)]
             (Self::EnUs, StartupFailure::Configuration) => {
@@ -94,7 +94,7 @@ impl Locale {
             (Self::EnUs, StartupFailure::Admission) => {
                 "The local session could not admit this Client connection.\n"
             }
-            (Self::ZhCn, StartupFailure::Admission) => "本地会话无法准入此 Client 连接。\n",
+            (Self::ZhCn, StartupFailure::Admission) => "本地会话无法准入此客户端连接。\n",
             (Self::EnUs, StartupFailure::TimedOut) => {
                 "Local terminal startup timed out. Existing session processes were retained.\n"
             }

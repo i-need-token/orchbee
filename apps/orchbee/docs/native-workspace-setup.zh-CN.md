@@ -73,7 +73,7 @@ Project；随后按规范顺序列出已有 Project，使用准确捕获的 ID�
 Directory 和终端身份，以及 cwd、Git 文件、Agent 和发起 Client 的选择。
 操作非当前 Workspace 不会进入它。Project 重命名同样针对确切行，不选择子 Workspace。
 
-侧栏拖拽及键盘排序改为经同一非模态 setup 通道提交一次 `navigation.configure`。源捕获 Site、
+侧栏拖拽及键盘排序改为经同一非模态 setup 通道提交一次 `navigation.configure`。源捕获 会话、
 revision 和完整 Navigation；释放或键盘准入复核该源，并要求已绘制的分组和显示顺序与其一致；
 权威层再次检查 CAS。共享纯转换为回执验证
 提供精确的预期成员关系与顺序；相同 revision 下的部分变化或无关修改均判为分歧。读取刷新前保留
@@ -171,4 +171,4 @@ Empty 工作台引导把目录保留为本地化事实，并且仅在没有输�
 
 显式目录确认表单在内容区绘制至多两条候选路径，随后分别绘制提示行和操作行。候选命中区域不与页脚重叠。宿主无法完整绘制确认表单时，不得提交。
 
-<!-- documentation-pairing: english-sha256=2cdc3ae065f9549cf0bb9d6a24dc229cd6b2de47d89f686ca6c7015a690db351 zh-cn-sha256=30a535a4dcbb839bd11d8cbbada22c968274aafd952e7f6d333a517bc374ac84 -->
+<!-- documentation-pairing: english-sha256=1be778dbb88991eb08816c2e708c8468de7c08921eeae4d5494f750844a46218 zh-cn-sha256=52309a04952fc40432556e2a598105dd31aaa05f03fdc875c1816a6a396918e1 -->

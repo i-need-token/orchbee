@@ -194,6 +194,7 @@ impl PaneGraphicsAction {
 pub struct PaneGraphicsRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub action: PaneGraphicsAction,
 }
@@ -202,6 +203,7 @@ pub struct PaneGraphicsRequest {
 pub enum PaneGraphicsFailure {
     Denied,
     InvalidIntent,
+    #[serde(rename = "session-mismatch")]
     SiteMismatch,
     Unavailable,
     Busy,
@@ -302,6 +304,7 @@ pub enum PaneGraphicsOutcome {
 pub struct PaneGraphicsResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub outcome: PaneGraphicsOutcome,
 }

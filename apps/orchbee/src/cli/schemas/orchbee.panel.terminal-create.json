@@ -24,9 +24,9 @@
 		"source": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["siteId", "requestId", "baseRevision"],
+			"required": ["sessionId", "requestId", "baseRevision"],
 			"properties": {
-				"siteId": {
+				"sessionId": {
 					"type": "string",
 					"pattern": "^[0-9a-f]{32}$"
 				},
@@ -248,7 +248,7 @@
 						},
 						"reason": {
 							"enum": [
-								"site-mismatch",
+								"session-mismatch",
 								"revision-mismatch",
 								"project-unavailable",
 								"workspace-unavailable",

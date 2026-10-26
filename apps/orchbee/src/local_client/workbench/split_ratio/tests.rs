@@ -10,7 +10,7 @@ use std::{
 
 fn command() -> WorkbenchCommand {
     serde_json::from_value(serde_json::json!({"protocolVersion":1,
-        "requestId":format!("{:032x}",1),"siteId":format!("{:032x}",2),"expectedRevision":"3",
+        "requestId":format!("{:032x}",1),"sessionId":format!("{:032x}",2),"expectedRevision":"3",
         "action":{"kind":"layout.set-split-ratio","terminalContextId":format!("{:032x}",4),
             "tabId":format!("{:032x}",5),"split":{"splitId":format!("{:032x}",6),
                 "firstSlotId":format!("{:032x}",7),"secondSlotId":format!("{:032x}",8)},

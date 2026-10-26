@@ -21,8 +21,8 @@
 				"const": "00000000000000000000000000000000"
 			}
 		},
-		"siteId": {
-			"title": "SiteId",
+		"sessionId": {
+			"title": "SessionId",
 			"$ref": "#/$defs/identity"
 		},
 		"requestId": {
@@ -472,7 +472,7 @@
 				"navigation",
 				"protocolVersion",
 				"revision",
-				"siteId",
+				"sessionId",
 				"terminalContexts"
 			],
 			"properties": {
@@ -488,8 +488,8 @@
 				"revision": {
 					"$ref": "#/$defs/revision"
 				},
-				"siteId": {
-					"$ref": "#/$defs/siteId"
+				"sessionId": {
+					"$ref": "#/$defs/sessionId"
 				},
 				"terminalContexts": {
 					"type": "array",
@@ -555,7 +555,7 @@
 		"delta": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["baseRevision", "changes", "kind", "protocolVersion", "revision", "siteId"],
+			"required": ["baseRevision", "changes", "kind", "protocolVersion", "revision", "sessionId"],
 			"properties": {
 				"baseRevision": {
 					"$ref": "#/$defs/revision"
@@ -576,8 +576,8 @@
 				"revision": {
 					"$ref": "#/$defs/revision"
 				},
-				"siteId": {
-					"$ref": "#/$defs/siteId"
+				"sessionId": {
+					"$ref": "#/$defs/sessionId"
 				}
 			}
 		}

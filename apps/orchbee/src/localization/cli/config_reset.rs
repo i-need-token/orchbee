@@ -25,7 +25,7 @@ impl Locale {
                 "Custom keys removed. Running Clients were not reloaded.\n".to_owned()
             }
             (WindowsKeysResetOutcome::Reset { .. }, Self::ZhCn) => {
-                "已移除自定义键位；未重载运行中的 Client。\n".to_owned()
+                "已移除自定义键位；未重载运行中的客户端。\n".to_owned()
             }
             (WindowsKeysResetOutcome::Failed { error, .. }, Self::EnUs) => format!(
                 "Keybinding reset failed ({}: {}).\n",

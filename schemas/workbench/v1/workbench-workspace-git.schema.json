@@ -5,7 +5,7 @@
 		{
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "workspaceId"],
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "workspaceId"],
 			"properties": {
 				"kind": {
 					"const": "workbench.workspace-git"
@@ -17,7 +17,7 @@
 					"type": "string",
 					"pattern": "^[0-9a-f]{32}$"
 				},
-				"siteId": {
+				"sessionId": {
 					"type": "string",
 					"pattern": "^[0-9a-f]{32}$"
 				},
@@ -30,7 +30,7 @@
 		{
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "workspaceId", "outcome"],
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "workspaceId", "outcome"],
 			"properties": {
 				"kind": {
 					"const": "workbench.workspace-git.result"
@@ -42,7 +42,7 @@
 					"type": "string",
 					"pattern": "^[0-9a-f]{32}$"
 				},
-				"siteId": {
+				"sessionId": {
 					"type": "string",
 					"pattern": "^[0-9a-f]{32}$"
 				},

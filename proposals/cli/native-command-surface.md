@@ -18,14 +18,14 @@ English remains canonical.
 - `orchbee` is the only public native executable name. Server, Worker, Terminal Host, and Agent
   Bridge remain private implementation processes.
 - Bare `orchbee` selects the interactive TUI. Explicit `orchbee tui` selects the same surface;
-  explicit resource commands, Site lifecycle commands, help, version, and completion select
+  explicit resource commands, Session lifecycle commands, help, version, and completion select
   one-shot behavior without initializing the TUI.
-- When the local Site is absent, bare `orchbee` may initiate bounded lazy activation of the exact
+- When the local Session is absent, bare `orchbee` may initiate bounded lazy activation of the exact
   compatible installed Server and local Worker cohort and wait for readiness. Once ready, the
   private processes own their lifetimes; `orchbee` never remains their supervisor.
 - Every TUI invocation is one independent Client Session under the same model as a Web tab,
   Desktop window, or mobile Client. It owns local focus, viewport, scroll, and presentation state,
-  but no shared Site or terminal authority merely because it initiated activation.
+  but no shared Session or terminal authority merely because it initiated activation.
 - `--help` and `--version` remain side-effect free and never discover or activate private services.
 - One-shot CLI execution does not initialize TUI rendering or load Server, Worker, Terminal Host, or
   Agent engines into the public process.
@@ -50,16 +50,16 @@ The local-terminal milestone in
 [`native-runtime-topology.md`](../platform/native-runtime-topology.md) accepts the observable bare
 invocation behavior. This proposal owns its command-facing boundary:
 
-| Concern         | Accepted behavior                                                                                                                                                                                                                                          |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Invocation      | An empty argument vector selects the interactive TUI route. No alternate public executable or hidden mode is required from the user.                                                                                                                       |
-| Terminal device | Bare and explicit TUI routes require an interactive TTY and never open `/dev/tty` implicitly. Help, version, and machine-readable one-shot output remain pipeable.                                                                                         |
-| Existing Site   | Connect to the exact compatible local Server and create a new Client Session; another invocation creates another peer session rather than reusing local view state.                                                                                        |
-| Absent Site     | Under one per-user activation lock, initiate the exact installed private Server and local Worker cohort, converge concurrent invocations on that singleton, and enter TUI only after typed readiness. Terminal Host remains lazy until first terminal use. |
-| Lifetime        | Activation is a bootstrap effect, not parent-child supervision. Closing the TUI releases only its Client Session and attachments; it does not stop the Site, services, or retained terminals.                                                              |
-| Boundary        | The public process neither embeds backend engines nor connects directly to Terminal Host. It reaches terminal behavior through the accepted Server-relayed Client path.                                                                                    |
-| Feedback        | A fast successful bootstrap stays silent. A delayed bootstrap shows localized progress. One monotonic total deadline ends in a typed unavailable or incompatible diagnostic; `orchbee` never kills, replaces, or downgrades an existing cohort to recover. |
-| Deferred detail | Exact timeout values and progress thresholds, remote targeting, detailed command schemas, public release cutover remain reserved. Legacy source retirement is separately accepted.                                                                         |
+| Concern          | Accepted behavior                                                                                                                                                                                                                                          |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Invocation       | An empty argument vector selects the interactive TUI route. No alternate public executable or hidden mode is required from the user.                                                                                                                       |
+| Terminal device  | Bare and explicit TUI routes require an interactive TTY and never open `/dev/tty` implicitly. Help, version, and machine-readable one-shot output remain pipeable.                                                                                         |
+| Existing Session | Connect to the exact compatible local Server and create a new Client Session; another invocation creates another peer session rather than reusing local view state.                                                                                        |
+| Absent Session   | Under one per-user activation lock, initiate the exact installed private Server and local Worker cohort, converge concurrent invocations on that singleton, and enter TUI only after typed readiness. Terminal Host remains lazy until first terminal use. |
+| Lifetime         | Activation is a bootstrap effect, not parent-child supervision. Closing the TUI releases only its Client Session and attachments; it does not stop the Session, services, or retained terminals.                                                           |
+| Boundary         | The public process neither embeds backend engines nor connects directly to Terminal Host. It reaches terminal behavior through the accepted Server-relayed Client path.                                                                                    |
+| Feedback         | A fast successful bootstrap stays silent. A delayed bootstrap shows localized progress. One monotonic total deadline ends in a typed unavailable or incompatible diagnostic; `orchbee` never kills, replaces, or downgrades an existing cohort to recover. |
+| Deferred detail  | Exact timeout values and progress thresholds, remote targeting, detailed command schemas, public release cutover remain reserved. Legacy source retirement is separately accepted.                                                                         |
 
 The checked model and its maintained bounds now live in the
 [`apps/orchbee` guide](../../apps/orchbee/README.md#accepted-local-session-activation-modeling-record).
@@ -75,7 +75,7 @@ not a global terminal picker and does not introduce a second Workbench model.
 | Shared document       | Server-owned Workbench state contains Project, Workspace, terminal context, Tab, Panel, and Presentation membership and ordering. A mutation accepted from any Client is published to every authorized Client.                                                                               |
 | Client view           | Each TUI invocation owns its active location, active Tab, focus, layout projection, viewport, scroll, search, and selection presentation. Opening another TUI creates another independent Client View, just as opening another Browser tab does.                                             |
 | Initial location      | Bare TUI defaults to the standalone terminal context and its first ordered Tab. Opening an empty context may create its first terminal exactly once through one Server-coordinated semantic operation; it does not show a startup terminal-picker modal.                                     |
-| Empty state           | Closing the final Tab leaves an explicit empty context. It does not close the TUI, stop the Site, or terminate unrelated retained terminals.                                                                                                                                                 |
+| Empty state           | Closing the final Tab leaves an explicit empty context. It does not close the TUI, stop the Session, or terminate unrelated retained terminals.                                                                                                                                              |
 | Attachment            | Only a visible active terminal needs a transient display attachment. Switching releases the old attachment and opens the new one; neither action creates, clones, restarts, or terminates the retained terminal. Product copy uses “open” or “connect”; `attachment` is an engineering term. |
 | Controller            | Several attachments may view one terminal. One combined input-and-resize controller exists at a time. Attach acquires it only when unowned; otherwise the Client enters explicit view-only mode. Release never auto-promotes another viewer or steals control.                               |
 | First-create geometry | The full-screen TUI obtains one complete actual cell and pixel geometry before submitting immediate Create. It never fabricates 80x24. Deferred Create plus Start remains available to other flows whose real first geometry is not yet known.                                               |
@@ -105,16 +105,16 @@ terminal. Orchbee owns its information architecture and visual design.
 Commands use explicit resource-first noun/verb vocabulary, with no fuzzy abbreviations and no
 public aliases for private executable names. The accepted target command families are:
 
-| Family          | Accepted commands                                                                                                                               | Delivery boundary                                                                                                |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Entry and tools | bare `orchbee`, `tui`, `status`, `completion`, `config check`, `api schema`, `api snapshot`, `--help`, and `--version`                          | Entry, basic tools, schema discovery, and bounded read-only snapshots belong in the first public command cohort. |
-| Project         | `project list`, `project get`                                                                                                                   | Read-only in the first cohort.                                                                                   |
-| Workspace       | `workspace list`, `workspace get`, `workspace create`, `workspace focus`, `workspace rename`, `workspace close`                                 | `list` and `get` first; mutations follow only after their Server state machines are admitted.                    |
-| Tab             | `tab list`, `tab get`, `tab create`, `tab focus`, `tab rename`, `tab close`                                                                     | `list` and `get` first; mutations follow only after their Server state machines are admitted.                    |
-| Panel           | `panel list`, `panel get`, `panel focus`, `panel split`, `panel resize`, `panel move`, `panel close`                                            | `list` and `get` first; mutations follow only after their Server state machines are admitted.                    |
-| Terminal        | `terminal list`, `terminal get`, `terminal read`, `terminal open`; later `terminal send-text`, `terminal send-keys`, and `terminal wait-output` | Read-only and `open` first; active input automation remains a later explicitly authorized slice.                 |
-| Site lifecycle  | `site enable`, `server stop`, and `site restart`                                                                                                | Later lifecycle slices; there is no public `orchbee server` command.                                             |
-| Later domains   | Agent, managed Worktree, Archive, Launch Profile, and integration commands                                                                      | Added only by their owning accepted domain contracts.                                                            |
+| Family            | Accepted commands                                                                                                                               | Delivery boundary                                                                                                |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Entry and tools   | bare `orchbee`, `tui`, `status`, `completion`, `config check`, `api schema`, `api snapshot`, `--help`, and `--version`                          | Entry, basic tools, schema discovery, and bounded read-only snapshots belong in the first public command cohort. |
+| Project           | `project list`, `project get`                                                                                                                   | Read-only in the first cohort.                                                                                   |
+| Workspace         | `workspace list`, `workspace get`, `workspace create`, `workspace focus`, `workspace rename`, `workspace close`                                 | `list` and `get` first; mutations follow only after their Server state machines are admitted.                    |
+| Tab               | `tab list`, `tab get`, `tab create`, `tab focus`, `tab rename`, `tab close`                                                                     | `list` and `get` first; mutations follow only after their Server state machines are admitted.                    |
+| Panel             | `panel list`, `panel get`, `panel focus`, `panel split`, `panel resize`, `panel move`, `panel close`                                            | `list` and `get` first; mutations follow only after their Server state machines are admitted.                    |
+| Terminal          | `terminal list`, `terminal get`, `terminal read`, `terminal open`; later `terminal send-text`, `terminal send-keys`, and `terminal wait-output` | Read-only and `open` first; active input automation remains a later explicitly authorized slice.                 |
+| Session lifecycle | `session enable`, `server stop`, and `session restart`                                                                                          | Later lifecycle slices; there is no public `orchbee server` command.                                             |
+| Later domains     | Agent, managed Worktree, Archive, Launch Profile, and integration commands                                                                      | Added only by their owning accepted domain contracts.                                                            |
 
 `Tab`, `Panel`, and `Terminal` remain distinct product nouns. There is no monolithic
 `--no-session` mode and no compatibility grammar built around the old raw `session` term. Root help
@@ -166,7 +166,7 @@ This proposal owns:
 
 - the public `orchbee` invocation modes and command hierarchy;
 - argument, input, output, diagnostic, and exit contracts;
-- local Site discovery and explicitly admitted activation commands;
+- local Session discovery and explicitly admitted activation commands;
 - the boundary between human text and versioned automation output;
 - CLI/TUI process isolation inside one Rust artifact;
 - compatibility, public cutover, and rollback of future native release cohorts; and
@@ -209,9 +209,9 @@ materialize these dimensions explicitly before extending the parser:
 
 | Dimension       | Required decision                                                                                                                                                           |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Modes           | Bare TUI, one-shot resource commands, Site lifecycle commands, help, version, completion, and any machine-only discovery mode                                               |
+| Modes           | Bare TUI, one-shot resource commands, Session lifecycle commands, help, version, completion, and any machine-only discovery mode                                            |
 | Nouns and verbs | Stable product vocabulary, nesting, aliases, abbreviation policy, and how unsupported capabilities are reported                                                             |
-| Targeting       | Local Site default, explicit remote Site or Worker selection, identity validation, ambiguity, and no-target behavior                                                        |
+| Targeting       | Local Session default, explicit remote Session or Worker selection, identity validation, ambiguity, and no-target behavior                                                  |
 | Input           | Positional values, options, stdin/files, size bounds, secret classification, confirmation, and noninteractive failure                                                       |
 | Output          | Human projection, bounded Workbench semantic snapshots, versioned automation schema, stdout/stderr ownership, streaming, pagination, redaction, and compatibility lifecycle |
 | Completion      | Synchronous result, detached request identity, observation, wait, cancellation, signals, timeout, and unknown-outcome behavior                                              |
@@ -298,7 +298,7 @@ provides no evidence of a packaged-entry cutover.
    numeric exit codes without changing the accepted semantic categories.
 2. Select the exact first-release subset from the accepted read-only and `terminal open` families,
    then admit each later mutation only with its owner state machine and safety evidence.
-3. Define remote Site targeting and authentication. Remote enrollment, production human/device
+3. Define remote Session targeting and authentication. Remote enrollment, production human/device
    identity, TLS, Internet reachability, multi-user tenancy, and mobile background behavior are not
    implied by the local command surface.
 4. Define detailed TUI visual composition, accessibility projection, configurable binding policy,

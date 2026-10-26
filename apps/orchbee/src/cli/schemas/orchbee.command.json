@@ -56,8 +56,8 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.command",
 	"$defs": {
-		"siteId": {
-			"$ref": "#/$defs/wb_siteId"
+		"sessionId": {
+			"$ref": "#/$defs/wb_sessionId"
 		},
 		"requestId": {
 			"$ref": "#/$defs/wb_requestId"
@@ -2486,7 +2486,7 @@
 		},
 		"wc_rejectionReason": {
 			"enum": [
-				"site-mismatch",
+				"session-mismatch",
 				"revision-mismatch",
 				"project-unavailable",
 				"workspace-unavailable",
@@ -3619,7 +3619,7 @@
 		"configuredPluginResult": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["protocolVersion", "requestId", "siteId", "outcome"],
+			"required": ["protocolVersion", "requestId", "sessionId", "outcome"],
 			"properties": {
 				"protocolVersion": {
 					"const": 1
@@ -3631,7 +3631,7 @@
 						"const": "00000000000000000000000000000000"
 					}
 				},
-				"siteId": {
+				"sessionId": {
 					"type": "string",
 					"pattern": "^[0-9a-f]{32}$",
 					"not": {
@@ -3724,7 +3724,7 @@
 									"enum": [
 										"denied",
 										"unavailable",
-										"site-mismatch",
+										"session-mismatch",
 										"worker-changed",
 										"invalid-intent",
 										"not-found",
@@ -3942,14 +3942,14 @@
 				"requestId": {
 					"$ref": "#/$defs/requestId"
 				},
-				"siteId": {
-					"$ref": "#/$defs/siteId"
+				"sessionId": {
+					"$ref": "#/$defs/sessionId"
 				},
 				"outcome": {
 					"$ref": "#/$defs/outcome"
 				}
 			},
-			"required": ["protocolVersion", "requestId", "siteId", "outcome"],
+			"required": ["protocolVersion", "requestId", "sessionId", "outcome"],
 			"additionalProperties": false
 		},
 		"configuredPayloadResult": {
@@ -3961,8 +3961,8 @@
 				"requestId": {
 					"$ref": "#/$defs/requestId"
 				},
-				"siteId": {
-					"$ref": "#/$defs/siteId"
+				"sessionId": {
+					"$ref": "#/$defs/sessionId"
 				},
 				"outcome": {
 					"oneOf": [
@@ -4284,7 +4284,7 @@
 									"enum": [
 										"denied",
 										"invalid-intent",
-										"site-mismatch",
+										"session-mismatch",
 										"unavailable",
 										"busy",
 										"conflict",
@@ -4300,7 +4300,7 @@
 					]
 				}
 			},
-			"required": ["protocolVersion", "requestId", "siteId", "outcome"],
+			"required": ["protocolVersion", "requestId", "sessionId", "outcome"],
 			"additionalProperties": false
 		},
 		"nativeControlReceipt": {
@@ -4313,10 +4313,10 @@
 				"version": {
 					"const": 1
 				},
-				"siteId": {
+				"sessionId": {
 					"anyOf": [
 						{
-							"$ref": "#/$defs/nativeControlReceipt/$defs/siteId"
+							"$ref": "#/$defs/nativeControlReceipt/$defs/sessionId"
 						},
 						{
 							"type": "null"
@@ -4343,14 +4343,14 @@
 										"requestId": {
 											"$ref": "#/$defs/nativeControlReceipt/$defs/requestId"
 										},
-										"siteId": {
-											"$ref": "#/$defs/nativeControlReceipt/$defs/siteId"
+										"sessionId": {
+											"$ref": "#/$defs/nativeControlReceipt/$defs/sessionId"
 										},
 										"outcome": {
 											"$ref": "#/$defs/nativeControlReceipt/$defs/outcome"
 										}
 									},
-									"required": ["protocolVersion", "requestId", "siteId", "outcome"],
+									"required": ["protocolVersion", "requestId", "sessionId", "outcome"],
 									"additionalProperties": false
 								}
 							},
@@ -4400,11 +4400,11 @@
 					]
 				}
 			},
-			"required": ["schema", "version", "siteId", "operationId", "observation", "wait"],
+			"required": ["schema", "version", "sessionId", "operationId", "observation", "wait"],
 			"additionalProperties": false,
 			"$defs": {
-				"siteId": {
-					"title": "SiteId",
+				"sessionId": {
+					"title": "SessionId",
 					"$ref": "#/$defs/nativeControlReceipt/$defs/identity"
 				},
 				"requestId": {
@@ -6777,8 +6777,8 @@
 				"const": "00000000000000000000000000000000"
 			}
 		},
-		"wb_siteId": {
-			"title": "SiteId",
+		"wb_sessionId": {
+			"title": "SessionId",
 			"$ref": "#/$defs/wb_identity"
 		},
 		"wb_requestId": {

@@ -104,7 +104,7 @@ fn source_view_cli_returns_correlated_effects_and_never_claims_lost_mutations_su
             include_str!("../src/cli/schemas/orchbee.agent.view.json"),
         );
         assert_eq!(doc["operation"], verb);
-        assert_eq!(doc["siteId"], "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        assert_eq!(doc["sessionId"], "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
         if matches!(case, "lost" | "wrong-effect") {
             assert_eq!(output.status.code(), Some(8), "{verb}/{case}: {output:?}");
             assert_eq!(doc["result"]["kind"], "unknown");

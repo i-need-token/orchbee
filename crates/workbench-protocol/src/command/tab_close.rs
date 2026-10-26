@@ -154,6 +154,7 @@ pub enum WorkbenchTabCloseStatus {
 pub struct WorkbenchTabCloseRead {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub terminal_context_id: WorkbenchTerminalContextId,
     pub tab_id: WorkbenchTabId,
@@ -194,6 +195,7 @@ pub struct WorkbenchTabCloseReadResult {
 pub struct WorkbenchTabCloseResume {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub terminal_context_id: WorkbenchTerminalContextId,
     pub tab_id: WorkbenchTabId,
@@ -229,6 +231,7 @@ pub enum WorkbenchTabCloseResumeOutcome {
 pub struct WorkbenchTabCloseResumeResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub terminal_context_id: WorkbenchTerminalContextId,
     pub tab_id: WorkbenchTabId,

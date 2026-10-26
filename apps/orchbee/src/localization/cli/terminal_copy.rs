@@ -66,7 +66,7 @@ pub(super) const HELP_MOTION_EN: crate::localization::HelpDetails =
 pub(super) const HELP_MOTION_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal copy-motion <terminal> --cursor ROW:COL --motion MOTION [--content-revision N] [--generation N] [--format text|json]",
-        "Windows：计算屏幕缓冲区光标，不发送输入，也不改 Client 选区。移动：line-end、first-non-blank、next-word-start、previous-word-start、\nnext-word-end、next-big-word-start、previous-big-word-start、next-big-word-end、\nprevious-paragraph、next-paragraph。普通词按 ASCII 标点分隔，大词仅按空白分隔；保留完整字形／软换行。段落找 999 行内最近空白行，没有目标保留原光标。零起点 u32 行／u16 列必须在捕获缓冲区几何内。内容修订为可选完整 u64，\ngeneration 为正 u64。一次既有会话只读 viewer，总期限五秒，可取消；完整扫描最多 65536 行、8 MiB 编码／逻辑文本及 1048576 保留字形；过期／回收／超限整体失败。JSON：orchbee.terminal.copy-motion v1。",
+        "Windows：计算屏幕缓冲区光标，不发送输入，也不改客户端选区。移动：line-end、first-non-blank、next-word-start、previous-word-start、\nnext-word-end、next-big-word-start、previous-big-word-start、next-big-word-end、\nprevious-paragraph、next-paragraph。普通词按 ASCII 标点分隔，大词仅按空白分隔；保留完整字形／软换行。段落找 999 行内最近空白行，没有目标保留原光标。零起点 u32 行／u16 列必须在捕获缓冲区几何内。内容修订为可选完整 u64，\ngeneration 为正 u64。一次既有会话只读 viewer，总期限五秒，可取消；完整扫描最多 65536 行、8 MiB 编码／逻辑文本及 1048576 保留字形；过期／回收／超限整体失败。JSON：orchbee.terminal.copy-motion v1。",
     );
 pub(super) const HELP_SEARCH_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(

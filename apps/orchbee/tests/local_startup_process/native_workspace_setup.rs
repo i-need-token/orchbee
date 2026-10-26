@@ -27,7 +27,7 @@ fn native_empty_workspace_uses_literal_directory_and_only_explicitly_launches() 
     let initial = observer.snapshot()?;
     assert!(
         initial.navigation.projects.is_empty(),
-        "fresh Site has no Projects"
+        "fresh Session has no Projects"
     );
     assert_eq!(initial.terminal_contexts.len(), 1);
     assert_eq!(initial.terminal_contexts[0].tabs.len(), 1);

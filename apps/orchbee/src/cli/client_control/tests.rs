@@ -92,7 +92,7 @@ fn record() -> ClientViewRecord {
 }
 fn snapshot() -> Snapshot {
     let id = |number| format!("{number:032x}");
-    serde_json::from_value(json!({"protocolVersion":1, "siteId":id(2), "revision":"12",
+    serde_json::from_value(json!({"protocolVersion":1, "sessionId":id(2), "revision":"12",
         "navigation":{"projects":[], "directories":[], "workspaces":[{"workspaceId":id(4),"terminalContextId":id(4),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},
         "terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":[{"tabId":id(5),"label":"shell","pinned":false,"groupId":null,
         "root":{"kind":"panel","panelId":id(6),"primaryPresentation":{"customLabel":null,"presentationId":id(8),"label":"shell","binding":null},"childPresentations":[]}}]}]})).unwrap()

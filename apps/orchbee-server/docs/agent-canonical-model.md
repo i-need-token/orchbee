@@ -36,7 +36,7 @@ The production surface now covers the managed local observation path end to end:
   the status/summary/detail/explanation projections consumed by the OBAP
   `list`/`get`/`explain` operations;
 - `local_site_service/agent_observation_endpoint.rs` — the managed private Unix
-  endpoint bound before Site readiness;
+  endpoint bound before Session readiness;
 - `local_terminal_service/agent_drain_read.rs` — the production drain-read pump wired
   as the `execute_prepared` provider.
 
@@ -48,7 +48,7 @@ bridge seams (`admit_hook_envelope`, `observe_hook_signal`, `hook_environment_ov
 seams (`native_apply_event`, `native_apply_gap`, `native_reconcile_bindings`,
 `native_reconcile_and_snapshot`, `native_sweep`, `native_held_count`), the test-only
 `environment_overlay_for` overlay seam (the production overlay is generated
-Worker-side from the validated site runtime), aggregate/location/wait projections,
+Worker-side from the validated session runtime), aggregate/location/wait projections,
 and all conformance harnesses.
 Production builds contain no
 seeding flag, environment variable, wire replay, or second state path. Native fold classification
@@ -133,7 +133,7 @@ frame:
 | `local_client_service/application_connection/tests/agent.rs`   | OBAP demux coverage: routing, interleaved OBCS ordering, malformed records, executor faults, result write failures                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `local_terminal_service/agent_drain_read.rs`                   | The production Agent drain read pump — the `execute_prepared` provider invoked once per read: typed carrier tri-state (`NoCarrier` is the only true-none read), one in-flight exchange under the private four-second window minted once before preparation locking, 25 ms backpressure-only admission retry, one whole-page fold, the barrier pinned once from the first carrier-matched reply, and the fenced final snapshot taken while the registry -> coordinator guards stay held in that order                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `local_terminal_service/agent_drain_read/tests.rs`             | Real-wire composition evidence: the canonical hint + rich observation through the real registry/`UnixStream`/coordinator projection, `NoCarrier`/pending/`Unavailable` distinction, carrier-rotation and page fences, deadline refusal, poison/disposal, and retained-snapshot `NoCarrier` reads                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `local_site_service/agent_observation_endpoint.rs`             | The managed observation endpoint — private Unix-socket transport for the hook ingress, bound inside the Site runtime directory before readiness: one bound path per site, one nonblocking listener plus a stop pipe on a single poll thread, bounded accept draining, the per-connection read/admission/ACK machine under one shared 500 ms deadline, and identity-gated unlink on drop                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `local_site_service/agent_observation_endpoint.rs`             | The managed observation endpoint — private Unix-socket transport for the hook ingress, bound inside the Session runtime directory before readiness: one bound path per session, one nonblocking listener plus a stop pipe on a single poll thread, bounded accept draining, the per-connection read/admission/ACK machine under one shared 500 ms deadline, and identity-gated unlink on drop                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `local_site_service/agent_observation_endpoint/tests.rs`       | Real-socket endpoint evidence: immediate vs settled application, unmatched/zero-correlation refusals, deadline sweep, connection cap and interleaved connections, poisoned/disposed cells, scripted writer seams, identity mismatch, live-connection drop reaping, and the bounded accept batch                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
 Read projection never mutates canonical state: every request runs through one shared
@@ -525,7 +525,7 @@ registry admission.
 `local_site_service/agent_observation_endpoint.rs` is the
 production private Unix transport that feeds the managed hook-observation ingress.
 `local_site_service::managed` binds
-one socket per site (`agent-observation-v1.sock`, mode `0600`) inside the site runtime
+one socket per session (`agent-observation-v1.sock`, mode `0600`) inside the session runtime
 directory, records the bound path's filesystem identity at bind time, and runs a single
 poll thread multiplexing the listener, a stop pipe, and up to `MAX_ACTIVE_CONNECTIONS`
 accepted nonblocking streams; a stream that fails `set_nonblocking` is dropped, and
@@ -565,9 +565,9 @@ successful spawn; `AgentObservationEndpoint::drop` writes the stop byte, uncondi
 joins the thread, then unlinks the path only when its current metadata still matches the
 identity recorded at bind — a replaced or foreign path is never removed.
 
-Production activation is live for the accepted managed local Site path:
+Production activation is live for the accepted managed local Session path:
 `local_site_service::managed` creates or obtains the runtime directory, binds this
-endpoint before publishing Site readiness, and fails `server start` honestly when the
+endpoint before publishing Session readiness, and fails `server start` honestly when the
 bind or endpoint initialization fails — there is no silent Agent-unavailable mode.
 The managed path constructs the canonical `AgentService` once through
 `open_observing(policy, socket_path)` — the socket path is bound into the translator

@@ -277,7 +277,7 @@ impl ModeCheckedLocalSiteRendezvous {
         {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::PermissionDenied,
-                "invalid local Site activation marker",
+                "invalid local Session activation marker",
             ));
         }
         Ok(())
@@ -302,7 +302,7 @@ impl ModeCheckedLocalSiteRendezvous {
             }
             Ok(_) => Err(std::io::Error::new(
                 std::io::ErrorKind::PermissionDenied,
-                "invalid local Site socket",
+                "invalid local Session socket",
             )),
             Err(Errno::ENOENT) => Ok(false),
             Err(error) => Err(error.into()),
@@ -425,7 +425,7 @@ impl ModeCheckedLocalSiteRendezvous {
             EntryObservation::Present { .. } => {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::PermissionDenied,
-                    "unadmitted local Site host directory",
+                    "unadmitted local Session host directory",
                 ));
             }
         }

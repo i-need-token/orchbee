@@ -246,7 +246,7 @@ impl Document {
         workbench_revision: WorkbenchRevision,
     ) -> Value {
         let row = self.rows.get(id).expect("complete correlated report rows");
-        json!({"source":{"siteId":site,"workbenchRevision":workbench_revision,
+        json!({"source":{"sessionId":site,"workbenchRevision":workbench_revision,
             "reportRevision":self.revision,"requestIds":self.request_ids},"binding":row.binding,"view":row.report})
     }
 }

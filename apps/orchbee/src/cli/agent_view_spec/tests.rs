@@ -38,7 +38,7 @@ fn agent_view_receipts_have_closed_schema_status_and_localized_text() {
     assert!(
         String::from_utf8(answer.emit(OutputFormat::Text, Locale::ZhCn).stdout)
             .unwrap()
-            .contains("Agent 视图")
+            .contains("智能体视图")
     );
     for (reason, code) in [
         (AgentViewFailure::Denied, 3),

@@ -101,7 +101,7 @@ fn binding_attach_reports_registry_and_site_poison_before_workbench_availability
     assert!(
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let _guard = service.coordinator.lock().unwrap();
-            panic!("poison Site coordinator for precedence witness");
+            panic!("poison Session coordinator for precedence witness");
         }))
         .is_err()
     );
@@ -138,7 +138,7 @@ fn close_site_lookup_returns_unavailable_for_missing_or_poisoned_site_owner() {
     assert!(
         std::thread::spawn(move || {
             let _gate = poison.coordinator.lock().unwrap();
-            panic!("poison Site for Close refusal witness");
+            panic!("poison Session for Close refusal witness");
         })
         .join()
         .is_err()

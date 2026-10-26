@@ -50,7 +50,7 @@ impl Locale {
             (Self::EnUs, DetailLabel::Command) => "Command",
             (Self::ZhCn, DetailLabel::Command) => "命令",
             (Self::EnUs, DetailLabel::Agent) => "Agent",
-            (Self::ZhCn, DetailLabel::Agent) => "Agent",
+            (Self::ZhCn, DetailLabel::Agent) => "智能体",
             (Self::EnUs, DetailLabel::Processes) => "Processes",
             (Self::ZhCn, DetailLabel::Processes) => "进程列表",
         }
@@ -115,7 +115,7 @@ impl Locale {
                 provider.unwrap_or("-")
             ),
             (Self::ZhCn, Selection::AgentChain) => {
-                format!("前台进程是 {} Agent。\n", provider.unwrap_or("-"))
+                format!("前台进程是 {} 智能体。\n", provider.unwrap_or("-"))
             }
             (Self::EnUs, Selection::Root) => {
                 "The foreground process is the terminal's shell or launched program.\n".to_owned()
@@ -124,7 +124,7 @@ impl Locale {
             (Self::EnUs, Selection::Ambiguous) => {
                 "More than one Agent process could be in the foreground.\n".to_owned()
             }
-            (Self::ZhCn, Selection::Ambiguous) => "有多个 Agent 进程可能处于前台。\n".to_owned(),
+            (Self::ZhCn, Selection::Ambiguous) => "有多个智能体进程可能处于前台。\n".to_owned(),
             (Self::EnUs, Selection::Unavailable) => {
                 "The foreground process could not be determined.\n".to_owned()
             }
@@ -135,7 +135,7 @@ impl Locale {
     pub(crate) const fn cli_process_headers(self) -> [&'static str; 6] {
         match self {
             Self::EnUs => ["PID", "PARENT", "NAME", "AGENT", "STARTED", "DIRECTORY"],
-            Self::ZhCn => ["PID", "父 PID", "名称", "Agent", "启动时间", "目录"],
+            Self::ZhCn => ["PID", "父 PID", "名称", "智能体", "启动时间", "目录"],
         }
     }
 }

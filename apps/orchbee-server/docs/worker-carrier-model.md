@@ -135,7 +135,7 @@ generation check refuse it. No mutex is held across socket I/O, and the unmanage
 `register_carrier_impl` without a service argument. The managed listener path wires the
 seam in production: `LocalSiteService` calls `register_carrier_with_agents` when the
 shared `AgentService` exists and plain `register_carrier` otherwise; lifecycle authority
-stays at the site composition root.
+stays at the session composition root.
 
 ## Lock discipline
 

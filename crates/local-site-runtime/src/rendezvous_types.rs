@@ -136,7 +136,7 @@ pub enum RendezvousError {
 impl fmt::Display for RendezvousError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidSiteScope => formatter.write_str("invalid local Site scope"),
+            Self::InvalidSiteScope => formatter.write_str("invalid local Session scope"),
             Self::RuntimeBaseNotAbsolute { path } => {
                 write!(
                     formatter,

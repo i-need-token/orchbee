@@ -204,7 +204,7 @@ impl Locale {
                 "--agent" => (
                     "<name>",
                     "Agent associated with this terminal.",
-                    "此终端关联的 Agent。",
+                    "此终端关联的智能体。",
                 ),
                 "--amount" => (
                     "<step>",
@@ -271,7 +271,7 @@ impl Locale {
                 "--clear-display-agent" => (
                     "",
                     "Clear the displayed Agent override.",
-                    "清除显示的 Agent 覆盖值。",
+                    "清除显示的智能体覆盖值。",
                 ),
                 "--clear-state-labels" => {
                     ("", "Clear the custom state labels.", "清除自定义状态标签。")
@@ -353,7 +353,7 @@ impl Locale {
                     "Register the plugin as disabled.",
                     "注册插件并将其设为禁用。",
                 ),
-                "--display-agent" => ("<text>", "Agent name to display.", "要显示的 Agent 名称。"),
+                "--display-agent" => ("<text>", "Agent name to display.", "要显示的智能体名称。"),
                 "--dry-run" => (
                     "",
                     "Preview the change without writing it.",
@@ -419,7 +419,7 @@ impl Locale {
                 "--include-ended" => (
                     "",
                     "Include ended Agent sessions.",
-                    "包含已结束的 Agent 会话。",
+                    "包含已结束的智能体会话。",
                 ),
                 "--insert-index" => (
                     "<n>",
@@ -475,7 +475,7 @@ impl Locale {
                 "--name" => (
                     "<name>",
                     "Select an Agent by its saved session name.",
-                    "按保存的会话名称选择 Agent。",
+                    "按保存的会话名称选择智能体。",
                 ),
                 "--new-tab" => ("", "Move into a newly created tab.", "移入新建的标签页。"),
                 "--new-workspace" => (
@@ -559,7 +559,7 @@ impl Locale {
                 "--provider" => (
                     "<id>",
                     "Limit the operation to this Agent provider.",
-                    "将操作限定到此 Agent 提供方。",
+                    "将操作限定到此智能体提供方。",
                 ),
                 "--query" => ("<text>", "Text to search for.", "要搜索的文本。"),
                 "--ratio" => ("<n>", "Desired split ratio.", "目标分屏比例。"),
@@ -611,7 +611,7 @@ impl Locale {
                 "--agent-session" => (
                     "<id>",
                     "Select an Agent session explicitly.",
-                    "显式选择 Agent 会话。",
+                    "显式选择智能体会话。",
                 ),
                 "--session" => (
                     "<name>",
@@ -629,11 +629,11 @@ impl Locale {
                     "Command specification; see the command's accepted input form.",
                     "命令定义；输入形式见本命令说明。",
                 ),
-                "--state" => ("<state>", "Agent state to report.", "要报告的 Agent 状态。"),
+                "--state" => ("<state>", "Agent state to report.", "要报告的智能体状态。"),
                 "--state-label" => (
                     "<state=text>",
                     "Custom label for one Agent state; repeatable.",
-                    "某个 Agent 状态的自定义标签；可重复。",
+                    "某个智能体状态的自定义标签；可重复。",
                 ),
                 "--stdin" => (
                     "",

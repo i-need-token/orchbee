@@ -28,7 +28,7 @@ const identitySchema = z
 	.regex(/^[0-9a-f]{32}$/u)
 	.refine((value) => value !== ZERO_IDENTITY, 'Identity must not use the zero sentinel');
 
-export const SiteIdSchema = identitySchema.brand<'SiteId'>();
+export const SessionIdSchema = identitySchema.brand<'SessionId'>();
 export const WorkbenchRequestIdSchema = identitySchema.brand<'WorkbenchRequestId'>();
 export const WorkbenchProjectIdSchema = identitySchema.brand<'WorkbenchProjectId'>();
 export const WorkbenchWorkspaceIdSchema = identitySchema.brand<'WorkbenchWorkspaceId'>();
@@ -396,7 +396,7 @@ export const WorkbenchNavigationSchema = z
 			if (workspace.primaryDirectoryId !== null && !directories.has(workspace.primaryDirectoryId)) {
 				context.addIssue({
 					code: 'custom',
-					message: 'Workspace Directory must resolve in the Site',
+					message: 'Workspace Directory must resolve in the Session',
 				});
 			}
 		}
@@ -420,7 +420,7 @@ const workbenchSnapshotShapeSchema = z.strictObject({
 	navigation: WorkbenchNavigationSchema,
 	protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 	revision: WorkbenchRevisionSchema,
-	siteId: SiteIdSchema,
+	sessionId: SessionIdSchema,
 	terminalContexts: z
 		.array(WorkbenchTerminalContextSchema)
 		.max(WORKBENCH_MAXIMUM_TERMINAL_CONTEXTS)
@@ -471,7 +471,7 @@ const workbenchDeltaBaseSchema = z
 		kind: z.literal('workbench.delta'),
 		protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 		revision: WorkbenchRevisionSchema,
-		siteId: SiteIdSchema,
+		sessionId: SessionIdSchema,
 	})
 	.readonly();
 
@@ -497,7 +497,7 @@ type WorkbenchDeltaRejectionReason =
 	| 'duplicate-change-target'
 	| 'invalid-projection'
 	| 'non-increasing-revision'
-	| 'site-mismatch';
+	| 'session-mismatch';
 
 type WorkbenchDeltaApplicationResult =
 	| { readonly kind: 'applied'; readonly snapshot: WorkbenchSnapshot }
@@ -515,7 +515,8 @@ export function applyWorkbenchDelta(
 	snapshot: WorkbenchSnapshot,
 	delta: WorkbenchDelta,
 ): WorkbenchDeltaApplicationResult {
-	if (snapshot.siteId !== delta.siteId) return { kind: 'rejected', reason: 'site-mismatch' };
+	if (snapshot.sessionId !== delta.sessionId)
+		return { kind: 'rejected', reason: 'session-mismatch' };
 	if (snapshot.revision !== delta.baseRevision) {
 		return { kind: 'rejected', reason: 'base-revision-mismatch' };
 	}
@@ -561,7 +562,7 @@ export function applyWorkbenchDelta(
 		navigation,
 		protocolVersion: WORKBENCH_PROTOCOL_VERSION,
 		revision: delta.revision,
-		siteId: snapshot.siteId,
+		sessionId: snapshot.sessionId,
 		terminalContexts: [...terminalContexts.values()].sort((left, right) =>
 			compareIdentity(left.terminalContextId, right.terminalContextId),
 		),

@@ -10,10 +10,10 @@
 		"version": {
 			"const": 1
 		},
-		"siteId": {
+		"sessionId": {
 			"anyOf": [
 				{
-					"$ref": "#/$defs/siteId"
+					"$ref": "#/$defs/sessionId"
 				},
 				{
 					"type": "null"
@@ -40,14 +40,14 @@
 								"requestId": {
 									"$ref": "#/$defs/requestId"
 								},
-								"siteId": {
-									"$ref": "#/$defs/siteId"
+								"sessionId": {
+									"$ref": "#/$defs/sessionId"
 								},
 								"outcome": {
 									"$ref": "#/$defs/outcome"
 								}
 							},
-							"required": ["protocolVersion", "requestId", "siteId", "outcome"],
+							"required": ["protocolVersion", "requestId", "sessionId", "outcome"],
 							"additionalProperties": false
 						}
 					},
@@ -195,7 +195,7 @@
 	"required": [
 		"schema",
 		"version",
-		"siteId",
+		"sessionId",
 		"operationId",
 		"observation",
 		"wait",
@@ -204,8 +204,8 @@
 	],
 	"additionalProperties": false,
 	"$defs": {
-		"siteId": {
-			"title": "SiteId",
+		"sessionId": {
+			"title": "SessionId",
 			"$ref": "#/$defs/identity"
 		},
 		"requestId": {

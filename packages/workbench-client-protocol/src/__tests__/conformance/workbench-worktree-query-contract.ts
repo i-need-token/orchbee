@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	WORKBENCH_PROTOCOL_VERSION,
 	WorkbenchRequestIdSchema,
 	WorkbenchRevisionSchema,
@@ -120,7 +120,7 @@ const WorkbenchWorktreeQueryOutcomeSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('found'),
-			siteId: SiteIdSchema,
+			sessionId: SessionIdSchema,
 			workbenchRevision: WorkbenchRevisionSchema,
 			workerId: WorkerIdSchema,
 			source: WorktreeQuerySourceSchema,
@@ -170,7 +170,7 @@ export const WorkbenchWorktreeQuerySchema = z
 		kind: z.literal('workbench.worktree.query'),
 		protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 		requestId: WorkbenchRequestIdSchema,
-		siteId: SiteIdSchema,
+		sessionId: SessionIdSchema,
 		source: WorktreeSourceSchema,
 		trustRepository: z.boolean(),
 	})

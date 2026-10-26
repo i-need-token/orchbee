@@ -257,7 +257,7 @@ Node and capsule integrity without starting a Session or changing provider setup
 document reports endpoint delivery as uninspected; installed configuration is not proof of
 a working Agent connection.
 
-Windows `agent integration list/explain/enable/disable --provider <id>` manages Claude Code, Codex, Grok, GitHub Copilot, OpenCode, Kilo, Pi, OMP, Gemini and Qwen Code. See the [Windows integration contract](docs/windows-agent-integrations.md). Windows `server diagnose` reports read-only runtime, lock and pipe-name facts using `orchbee.site.diagnose.windows` v2. Capsule 0.4.16 supplies Claude Code, Codex, Grok and GitHub Copilot hooks and JavaScript modules using the native observation pipe and console correlation.
+Windows `agent integration list/explain/enable/disable --provider <id>` manages Claude Code, Codex, Grok, GitHub Copilot, OpenCode, Kilo, Pi, OMP, Gemini and Qwen Code. See the [Windows integration contract](docs/windows-agent-integrations.md). Windows `server diagnose` reports read-only runtime, lock and pipe-name facts using `orchbee.server.diagnose.windows` v2. Capsule 0.4.16 supplies Claude Code, Codex, Grok and GitHub Copilot hooks and JavaScript modules using the native observation pipe and console correlation.
 Windows x64 cohorts include the pinned ConPTY runtime needed to preserve that correlation.
 Other providers retain their
 existing platform limits. `terminal send --stdin` accepts redirected regular
@@ -838,7 +838,7 @@ The connected TUI reads a correlated OBWP snapshot before choosing a location. S
 
 An identity-less `NoWorkspace` is only the Client's empty landing state: it owns no Context, creates no terminal, appears in no navigation row and is never saved as a Workspace position. Workspace Project membership remains nullable. Empty Workspaces preserve their identity and support explicit configuration/creation.
 
-The Client attaches only the snapshot's exact Site/Worker/Terminal binding through `attach-binding`. Known pending, failed, unavailable or outcome-unknown creation provenance cannot be replaced by attachment permission. View-only, controller, Resize and first-frame readiness keep their existing authority and deadlines. Client exit preserves shared membership and live terminals; last-Tab Close leaves an empty Workspace and later startup does not recreate it. [Context selection](docs/native-context-selection.md) and [terminal creation](docs/native-terminal-creation.md) own the detailed rules.
+The Client attaches only the snapshot's exact Session/Worker/Terminal binding through `attach-binding`. Known pending, failed, unavailable or outcome-unknown creation provenance cannot be replaced by attachment permission. View-only, controller, Resize and first-frame readiness keep their existing authority and deadlines. Client exit preserves shared membership and live terminals; last-Tab Close leaves an empty Workspace and later startup does not recreate it. [Context selection](docs/native-context-selection.md) and [terminal creation](docs/native-terminal-creation.md) own the detailed rules.
 
 ## Windows explicit Session stop
 

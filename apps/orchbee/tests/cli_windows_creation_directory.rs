@@ -17,7 +17,7 @@ fn snapshot(stream: &mut LocalStream) {
     let WorkbenchRequest::SnapshotRead(request) = read_workbench_request(stream).unwrap() else {
         panic!("snapshot");
     };
-    let snapshot = serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":"12","navigation":{"projects":[], "directories":[], "workspaces":[{"workspaceId":id(4),"terminalContextId":id(4),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},"terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":[{"tabId":id(5),"label":"one","groupId":null,"pinned":false,"root":{"kind":"panel","panelId":id(6),"primaryPresentation":{"customLabel":null,"presentationId":id(7),"label":"shell","binding":{"terminalId":id(3),"workerId":id(9)}},"childPresentations":[]}}]}]})).unwrap();
+    let snapshot = serde_json::from_value(json!({"protocolVersion":1,"sessionId":id(2),"revision":"12","navigation":{"projects":[], "directories":[], "workspaces":[{"workspaceId":id(4),"terminalContextId":id(4),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},"terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":[{"tabId":id(5),"label":"one","groupId":null,"pinned":false,"root":{"kind":"panel","panelId":id(6),"primaryPresentation":{"customLabel":null,"presentationId":id(7),"label":"shell","binding":{"terminalId":id(3),"workerId":id(9)}},"childPresentations":[]}}]}]})).unwrap();
     write_workbench_response(
         stream,
         &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
@@ -82,7 +82,7 @@ fn observe(stream: &mut LocalStream, cut: Cut) -> bool {
     let request = viewer(stream);
     assert_eq!(
         json!(request.action()),
-        json!({"kind":"attach-binding","siteId":id(2),"workerId":id(9),"terminalId":id(3)})
+        json!({"kind":"attach-binding","sessionId":id(2),"workerId":id(9),"terminalId":id(3)})
     );
     if cut == Cut::AttachUnavailable {
         answer(

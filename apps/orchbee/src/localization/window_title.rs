@@ -29,13 +29,13 @@ impl Locale {
     pub(crate) fn window_title_result(self, label: &str) -> &'static str {
         match (self, label) {
             (Self::EnUs, "set") => "Title override published for the foreground Client.\n",
-            (Self::ZhCn, "set") => "标题覆盖已发布给前台 Client。\n",
+            (Self::ZhCn, "set") => "标题覆盖已发布给前台客户端。\n",
             (Self::EnUs, "cleared") => "Title override cleared for the foreground Client.\n",
-            (Self::ZhCn, "cleared") => "前台 Client 的标题覆盖已清除。\n",
+            (Self::ZhCn, "cleared") => "前台客户端的标题覆盖已清除。\n",
             (Self::EnUs, "no-foreground-client") => {
                 "Title policy published; no foreground Client is connected.\n"
             }
-            (Self::ZhCn, "no-foreground-client") => "标题策略已发布；尚无前台 Client 连接。\n",
+            (Self::ZhCn, "no-foreground-client") => "标题策略已发布；尚无前台客户端连接。\n",
             (Self::EnUs, "unknown") => "Title publication unknown; it was not retried.\n",
             (Self::ZhCn, "unknown") => "标题发布结果未知；未重试。\n",
             (Self::EnUs, _) => "Title publication failed.\n",

@@ -291,6 +291,7 @@ impl LaunchProfileProvenance {
 )]
 pub enum TerminalLaunchReadOutcome {
     Found {
+        #[serde(rename = "sessionId")]
         site_id: SiteId,
         #[serde(serialize_with = "crate::number::decimal::serialize")]
         workbench_revision: u64,

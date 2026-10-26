@@ -116,7 +116,7 @@ impl Locale {
             (Self::EnUs, "stale") => "Stale",
             (Self::ZhCn, "stale") => "状态已过期",
             (Self::EnUs, "capture-hint") => "Esc Close · ↑/↓ Choose · Enter Open · Tab Mode",
-            (Self::ZhCn, "capture-hint") => "Esc 关闭 · ↑/↓ 选择 · Enter 打开 · Tab 切换",
+            (Self::ZhCn, "capture-hint") => "Esc 关闭 · ↑/↓ 选择 · Enter 打开 · 标签页切换",
             (Self::EnUs, "capture-short-hint") => "Esc Close",
             (Self::ZhCn, "capture-short-hint") => "Esc 关闭",
             (Self::EnUs, "picker-close-hint") => "Close",
@@ -136,7 +136,7 @@ impl Locale {
             (Self::EnUs, "workspaces-mode") => "Workspaces",
             (Self::ZhCn, "workspaces-mode") => "工作区",
             (Self::EnUs, "agents-mode") => "Agents",
-            (Self::ZhCn, "agents-mode") => "Agent",
+            (Self::ZhCn, "agents-mode") => "智能体",
             (Self::EnUs, "workspace-sidebar-open") => "Browse",
             (Self::ZhCn, "workspace-sidebar-open") => "浏览",
             (Self::EnUs, "sidebar-create") => "Create",
@@ -146,9 +146,9 @@ impl Locale {
             (Self::EnUs, "agent-sidebar-open") => "Filter",
             (Self::ZhCn, "agent-sidebar-open") => "筛选",
             (Self::EnUs, "no-agents") => "No agents",
-            (Self::ZhCn, "no-agents") => "暂无 Agent",
+            (Self::ZhCn, "no-agents") => "暂无智能体",
             (Self::EnUs, "agents-no-matches") => "No matching agents",
-            (Self::ZhCn, "agents-no-matches") => "暂无匹配的 Agent",
+            (Self::ZhCn, "agents-no-matches") => "暂无匹配的智能体",
             (Self::EnUs, "agent-done") => "Done",
             (Self::ZhCn, "agent-done") => "已完成",
             (Self::EnUs, "agent-error") => "Error",
@@ -160,7 +160,7 @@ impl Locale {
             (Self::EnUs, "agent-search") => "Search",
             (Self::ZhCn, "agent-search") => "搜索",
             (Self::EnUs, "agent-search-prompt") => "to search agents",
-            (Self::ZhCn, "agent-search-prompt") => "搜索 Agent",
+            (Self::ZhCn, "agent-search-prompt") => "搜索智能体",
             (Self::EnUs, "workspace-search") => "Search Workspaces",
             (Self::ZhCn, "workspace-search") => "搜索工作区",
             (Self::EnUs, "workspaces-no-matches") => "No matching Workspaces.",
@@ -184,15 +184,15 @@ impl Locale {
             (Self::EnUs, "agent-order-priority") => "Status priority",
             (Self::ZhCn, "agent-order-priority") => "状态优先",
             (Self::EnUs, "agent-order-provider") => "Agent name",
-            (Self::ZhCn, "agent-order-provider") => "Agent 名称",
+            (Self::ZhCn, "agent-order-provider") => "智能体名称",
             (Self::EnUs, "agent-order-title") => "Title",
             (Self::ZhCn, "agent-order-title") => "标题",
             (Self::EnUs, "agent-order-sequence") => "Update version",
             (Self::ZhCn, "agent-order-sequence") => "更新序号",
             (Self::EnUs, "agents-loading") => "Reading agents",
-            (Self::ZhCn, "agents-loading") => "读取 Agent 中",
+            (Self::ZhCn, "agents-loading") => "读取智能体中",
             (Self::EnUs, "agents-unavailable") => "Agents unavailable",
-            (Self::ZhCn, "agents-unavailable") => "Agent 不可用",
+            (Self::ZhCn, "agents-unavailable") => "智能体不可用",
             (Self::EnUs, "agent-idle") => "Idle",
             (Self::ZhCn, "agent-idle") => "空闲",
             (Self::EnUs, "agent-working") => "Working",
@@ -211,7 +211,7 @@ impl Locale {
                 "↑/↓ Choose · Enter/Click Open\nTab Machines/Workspaces/Agents · Esc Close"
             }
             (Self::ZhCn, "hint") => {
-                "↑/↓ 选择 · Enter/点击打开\nTab 切换机器/工作区/Agent · Esc 关闭"
+                "↑/↓ 选择 · Enter/点击打开\nTab 切换机器/工作区/智能体 · Esc 关闭"
             }
             (Self::EnUs, "connecting") => {
                 "Switching… Esc cancels selection; background discovery continues."
@@ -410,7 +410,7 @@ impl Locale {
             (Self::EnUs, "ssh-unavailable") => {
                 "Windows OpenSSH Client is unavailable in the system directory."
             }
-            (Self::ZhCn, "ssh-unavailable") => "系统目录中的 Windows OpenSSH Client 不可用。",
+            (Self::ZhCn, "ssh-unavailable") => "系统目录中的 Windows OpenSSH 客户端不可用。",
             (Self::EnUs, "ssh-failed") => {
                 "SSH preparation failed. Check OpenSSH batch authentication, host trust, and the installed remote orchbee.exe."
             }
@@ -420,7 +420,7 @@ impl Locale {
             (Self::EnUs, "remote-protocol") => {
                 "The remote Client returned an invalid or unsupported status document."
             }
-            (Self::ZhCn, "remote-protocol") => "远端 Client 返回了无效或不支持的状态文档。",
+            (Self::ZhCn, "remote-protocol") => "远端客户端返回了无效或不支持的状态文档。",
             (Self::EnUs, "remote-incompatible") => {
                 "The remote Windows Orchbee version, protocols, or cohort are incompatible. Install the matching cohort first."
             }

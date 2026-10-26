@@ -374,7 +374,7 @@
 			"additionalProperties": false
 		},
 		"publicPanel_d0": {
-			"title": "SiteId",
+			"title": "SessionId",
 			"$ref": "#/$defs/publicPanel_d1"
 		},
 		"publicPanel_d1": {
@@ -401,14 +401,14 @@
 				"requestId": {
 					"$ref": "#/$defs/publicPanel_d4"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/publicPanel_d0"
 				},
 				"outcome": {
 					"$ref": "#/$defs/publicPanel_d5"
 				}
 			},
-			"required": ["protocolVersion", "requestId", "siteId", "outcome"],
+			"required": ["protocolVersion", "requestId", "sessionId", "outcome"],
 			"additionalProperties": false
 		},
 		"publicPanel_d4": {
@@ -551,7 +551,7 @@
 								"denied",
 								"invalid-intent",
 								"invalid-regex",
-								"site-mismatch",
+								"session-mismatch",
 								"unavailable",
 								"busy",
 								"conflict",
@@ -1747,7 +1747,7 @@
 					"type": "object",
 					"properties": {
 						"kind": {
-							"const": "site-stopping"
+							"const": "session-stopping"
 						}
 					},
 					"required": ["kind"],
@@ -2160,14 +2160,14 @@
 						"kind": {
 							"const": "server"
 						},
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/publicPanel_d0"
 						},
 						"revision": {
 							"$ref": "#/$defs/publicPanel_d2"
 						}
 					},
-					"required": ["kind", "siteId", "revision"],
+					"required": ["kind", "sessionId", "revision"],
 					"additionalProperties": false
 				},
 				"result": {
@@ -2195,14 +2195,14 @@
 						"kind": {
 							"const": "server"
 						},
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/publicPanel_d0"
 						},
 						"revision": {
 							"$ref": "#/$defs/publicPanel_d2"
 						}
 					},
-					"required": ["kind", "siteId", "revision"],
+					"required": ["kind", "sessionId", "revision"],
 					"additionalProperties": false
 				},
 				"result": {
@@ -2230,14 +2230,14 @@
 						"kind": {
 							"const": "server"
 						},
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/publicPanel_d0"
 						},
 						"revision": {
 							"$ref": "#/$defs/publicPanel_d2"
 						}
 					},
-					"required": ["kind", "siteId", "revision"],
+					"required": ["kind", "sessionId", "revision"],
 					"additionalProperties": false
 				},
 				"result": {
@@ -2265,14 +2265,14 @@
 						"kind": {
 							"const": "server"
 						},
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/publicPanel_d0"
 						},
 						"revision": {
 							"$ref": "#/$defs/publicPanel_d2"
 						}
 					},
-					"required": ["kind", "siteId", "revision"],
+					"required": ["kind", "sessionId", "revision"],
 					"additionalProperties": false
 				},
 				"reason": {

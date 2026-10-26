@@ -228,7 +228,7 @@ fn panel_move_scopes_target_panel_to_the_source_tab() {
         "kind": "workbench.snapshot",
         "protocolVersion": 1,
         "revision": "9",
-        "siteId": tid(0, 0xaa00),
+        "sessionId": tid(0, 0xaa00),
         "navigation": {"projects":[{"projectId":tid(0, 0xbb), "label":"p"}], "directories":[], "workspaces":[{"workspaceId":tid(0, 0x01),"terminalContextId":tid(0, 0x01),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"},{"workspaceId":tid(0, 0xdd), "label":"w", "primaryDirectoryId":null, "terminalContextId":tid(0, 0x60), "projectId":tid(0, 0xbb)}]},
         "terminalContexts": [
             {

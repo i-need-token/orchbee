@@ -33,7 +33,7 @@
 						},
 						{
 							"type": "object",
-							"required": ["protocolVersion", "requestId", "siteId", "outcome"],
+							"required": ["protocolVersion", "requestId", "sessionId", "outcome"],
 							"additionalProperties": false,
 							"properties": {
 								"protocolVersion": {
@@ -46,7 +46,7 @@
 										"const": "00000000000000000000000000000000"
 									}
 								},
-								"siteId": {
+								"sessionId": {
 									"type": "string",
 									"pattern": "^[0-9a-f]{32}$",
 									"not": {
@@ -173,7 +173,7 @@
 													"const": "failed"
 												},
 												"reason": {
-													"enum": ["denied", "unavailable", "site-mismatch", "conflict", "busy"]
+													"enum": ["denied", "unavailable", "session-mismatch", "conflict", "busy"]
 												}
 											}
 										}

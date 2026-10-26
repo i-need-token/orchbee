@@ -164,7 +164,7 @@ Plugin PaneGet is read-only and returns PaneFound with a nonzero canonical revis
 and `workbench.workspace-git.result` directions, OBWP kinds 49/50, with independent
 8 KiB pre-allocation limits. Required nullable branch/divergence fields distinguish
 absence from zero; branch text is control-free UTF-8 at most 1024 bytes, counts are
-uint32, and detached branches cannot carry counts. Exact request/Site/Workspace
+uint32, and detached branches cannot carry counts. Exact request/Session/Workspace
 correlation is mandatory. The [schema and shared corpus](../../schemas/workbench/README.md#workspace-git-status-reads)
 cover both Rust and TypeScript. This read grants no mutation or Desktop command.
 Configuration publication additionally carries separate required 32 KiB
@@ -184,7 +184,7 @@ Private plugin PopupOpen/PopupRead/PopupClose use the existing matched-cohort pl
 
 `workbench.terminal-editor` and its result use matched-cohort OBWP51/52 without
 changing old kinds or public CLI definitions. Closed Open/Read/Close messages carry
-Site/request/popup correlation. Open names a canonical bound Client popup source,
+Session/request/popup correlation. Open names a canonical bound Client popup source,
 a same-connection read viewer and positive generation/full-u64 revision as decimal
 strings, plus drawable geometry. No executable, environment, document path or
 transcript is admitted. Results distinguish opened/state/closing/closed/unknown
@@ -199,8 +199,7 @@ bound `ScrollbackEditorSpec.source`. It shares the exact-source `popup-opened`
 completion and generic `popup-close` with typed plugin/editor actors. The
 [Client popup model](../../apps/orchbee/docs/windows-client-control.md#scrollback-editor-popup-model)
 owns same-connection read-only capture, full-content geometry, input, cancellation
-and cleanup. Public editor operation receipts use control v10; v1-v9 reject this
-intent. The public Windows `terminal edit-scrollback` path is defined in
+and cleanup. Public editor operation receipts use the sole version-1 control contract. The public Windows `terminal edit-scrollback` path is defined in
 [CLI workflows](../../apps/orchbee/docs/cli-workflows.md#edit-the-focused-terminals-scrollback).
 Focused wire/actor evidence does not establish final GUI/cohort acceptance.
 
@@ -226,4 +225,4 @@ Matched Windows cohorts use closed `workbench.settings` kinds 59/60 with indepen
 
 ## Retained close identity lookup
 
-`CloseOperationRead` and `CloseOperationResult` use OBWP 61/62 within the existing intent size cap. They read a retained close by its original request ID, with exact Site/request/operation correlation and closed Workspace/Tab/Panel targets. This read creates no state and retains tombstones. Rust, TypeScript and JSON Schema share the command corpus; [CLI operation status](../../apps/orchbee/docs/native-operation-status.md) owns invocation and recovery.
+`CloseOperationRead` and `CloseOperationResult` use OBWP 61/62 within the existing intent size cap. They read a retained close by its original request ID, with exact Session/request/operation correlation and closed Workspace/Tab/Panel targets. This read creates no state and retains tombstones. Rust, TypeScript and JSON Schema share the command corpus; [CLI operation status](../../apps/orchbee/docs/native-operation-status.md) owns invocation and recovery.

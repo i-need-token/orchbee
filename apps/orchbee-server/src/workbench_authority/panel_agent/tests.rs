@@ -25,7 +25,7 @@ fn physical(n: u128, generation: u64) -> TerminalAgentBinding {
     }
 }
 fn tree() -> Value {
-    json!({"kind":"workbench.snapshot","protocolVersion":1,"revision":"9","siteId":format!("{:032x}",80),"navigation":{"workspaceOrder":[],"projects":[],"directories":[],"workspaces":[{"workspaceId":format!("{:032x}",1),"terminalContextId":format!("{:032x}",1),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},"terminalContexts":[{"terminalContextId":format!("{:032x}",1),"groups":[],"tabs":[{"tabId":format!("{:032x}",2),"label":"tab","pinned":false,"groupId":null,"root":{"kind":"panel","panelId":format!("{:032x}",3),"primaryPresentation":{"customLabel":null,"presentationId":format!("{:032x}",4),"label":"main","binding":binding(1)},"childPresentations":[{"customLabel":null,"presentationId":format!("{:032x}",5),"label":"child","binding":binding(2)}]}}]}]})
+    json!({"kind":"workbench.snapshot","protocolVersion":1,"revision":"9","sessionId":format!("{:032x}",80),"navigation":{"workspaceOrder":[],"projects":[],"directories":[],"workspaces":[{"workspaceId":format!("{:032x}",1),"terminalContextId":format!("{:032x}",1),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},"terminalContexts":[{"terminalContextId":format!("{:032x}",1),"groups":[],"tabs":[{"tabId":format!("{:032x}",2),"label":"tab","pinned":false,"groupId":null,"root":{"kind":"panel","panelId":format!("{:032x}",3),"primaryPresentation":{"customLabel":null,"presentationId":format!("{:032x}",4),"label":"main","binding":binding(1)},"childPresentations":[{"customLabel":null,"presentationId":format!("{:032x}",5),"label":"child","binding":binding(2)}]}}]}]})
 }
 fn install(a: &mut WorkbenchAuthority, doc: &Value) {
     let snap = parse_snapshot(&serde_json::to_vec(doc).unwrap()).unwrap();
@@ -345,7 +345,7 @@ fn metadata(
     sequence: &str,
     now: Instant,
 ) {
-    let value = json!({"protocolVersion":1,"requestId":"a".repeat(32),"siteId":a.site_id(),"action":{"kind":"report","panelId":panel(),"expectedBinding":binding(1),"source":source,"patch":{"agent":agent,"title":title,"tokens":{"progress":"kept"}},"sequence":sequence}});
+    let value = json!({"protocolVersion":1,"requestId":"a".repeat(32),"sessionId":a.site_id(),"action":{"kind":"report","panelId":panel(),"expectedBinding":binding(1),"source":source,"patch":{"agent":agent,"title":title,"tokens":{"progress":"kept"}},"sequence":sequence}});
     let request = serde_json::from_value(value).unwrap();
     assert!(matches!(
         a.panel_metadata(request, now).outcome,
@@ -356,7 +356,7 @@ fn metadata_read(
     a: &mut WorkbenchAuthority,
     now: Instant,
 ) -> orchbee_workbench_protocol::PanelMetadataRow {
-    let request=serde_json::from_value(json!({"protocolVersion":1,"requestId":"a".repeat(32),"siteId":a.site_id(),"action":{"kind":"read","panelIds":[panel()]}})).unwrap();
+    let request=serde_json::from_value(json!({"protocolVersion":1,"requestId":"a".repeat(32),"sessionId":a.site_id(),"action":{"kind":"read","panelIds":[panel()]}})).unwrap();
     let orchbee_workbench_protocol::PanelMetadataOutcome::Read { mut panels, .. } =
         a.panel_metadata(request, now).outcome
     else {

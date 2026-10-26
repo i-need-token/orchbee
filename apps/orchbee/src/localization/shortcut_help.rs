@@ -138,7 +138,7 @@ impl Locale {
             (Self::EnUs, ShortcutHelpGroup::Panel) => "Panel",
             (Self::ZhCn, ShortcutHelpGroup::Panel) => "面板",
             (Self::EnUs, ShortcutHelpGroup::Agent) => "Agent",
-            (Self::ZhCn, ShortcutHelpGroup::Agent) => "Agent",
+            (Self::ZhCn, ShortcutHelpGroup::Agent) => "智能体",
             (Self::EnUs, ShortcutHelpGroup::Client) => "Client",
             (Self::ZhCn, ShortcutHelpGroup::Client) => "客户端",
             (Self::EnUs, ShortcutHelpGroup::Other) => "Other",
@@ -149,9 +149,9 @@ impl Locale {
     pub(crate) const fn shortcut_scope_label(self, expanded: bool) -> &'static str {
         match (self, expanded) {
             (Self::EnUs, false) => "[Tab: All + symbols]",
-            (Self::ZhCn, false) => "[Tab: 全部及符号]",
+            (Self::ZhCn, false) => "[标签页: 全部及符号]",
             (Self::EnUs, true) => "[Tab: Common]",
-            (Self::ZhCn, true) => "[Tab: 常用]",
+            (Self::ZhCn, true) => "[标签页: 常用]",
         }
     }
     pub(crate) const fn shortcut_buttons_hint(self) -> &'static str {
@@ -604,17 +604,17 @@ impl Locale {
             #[cfg(windows)]
             PrefixAction::Client(A::OpenMachines) => Some(match self {
                 Self::EnUs => "Search machines, Workspaces and Agents",
-                Self::ZhCn => "搜索机器、工作区和 Agent",
+                Self::ZhCn => "搜索机器、工作区和智能体",
             }),
             #[cfg(windows)]
             PrefixAction::Client(A::PreviousAgent) => Some(match self {
                 Self::EnUs => "Select previous Agent",
-                Self::ZhCn => "选择上一个 Agent",
+                Self::ZhCn => "选择上一个智能体",
             }),
             #[cfg(windows)]
             PrefixAction::Client(A::NextAgent) => Some(match self {
                 Self::EnUs => "Select next Agent",
-                Self::ZhCn => "选择下一个 Agent",
+                Self::ZhCn => "选择下一个智能体",
             }),
             PrefixAction::Client(A::ToggleBusinessSidebar) | PrefixAction::SidebarToggle => {
                 Some(match self {
@@ -631,7 +631,7 @@ impl Locale {
             PrefixAction::BoardToggle | PrefixAction::Client(A::ToggleAgentBoard) => {
                 Some(match self {
                     Self::EnUs => "Agent board",
-                    Self::ZhCn => "Agent 看板",
+                    Self::ZhCn => "智能体看板",
                 })
             }
             PrefixAction::ShowHelp | PrefixAction::Client(A::OpenShortcutHelp) => {
@@ -655,7 +655,7 @@ impl Locale {
             #[cfg(windows)]
             PrefixAction::SelectAgentDigit => Some(match self {
                 Self::EnUs => "Select Agent by number",
-                Self::ZhCn => "按编号选择 Agent",
+                Self::ZhCn => "按编号选择智能体",
             }),
             _ => None,
         };
@@ -708,7 +708,7 @@ impl Locale {
             #[cfg(windows)]
             (Self::EnUs, A::Worktree) => "worktree",
             #[cfg(windows)]
-            (Self::ZhCn, A::Worktree) => "Worktree",
+            (Self::ZhCn, A::Worktree) => "工作树",
             (Self::EnUs, A::Project) => "project",
             (Self::ZhCn, A::Project) => "项目",
             (Self::EnUs, A::Tab) => "tab",
@@ -738,7 +738,7 @@ impl Locale {
             (Self::EnUs, A::Navigator) => "navigate",
             (Self::ZhCn, A::Navigator) => "导航",
             (Self::EnUs, A::Agent) => "agent",
-            (Self::ZhCn, A::Agent) => "Agent",
+            (Self::ZhCn, A::Agent) => "智能体",
             (Self::EnUs, A::Help) => "help",
             (Self::ZhCn, A::Help) => "帮助",
             (Self::EnUs, A::Mouse) => "mouse pointer",

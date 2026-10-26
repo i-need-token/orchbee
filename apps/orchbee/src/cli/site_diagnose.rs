@@ -422,7 +422,7 @@ fn collect_at(base: &Path, deadline: Instant) -> Result<DiagnoseDocument, Failur
                 "locks".to_owned(),
                 Map::from_iter([
                     ("activation".to_owned(), Value::Object(descendant())),
-                    ("siteLifetime".to_owned(), Value::Object(descendant())),
+                    ("sessionLifetime".to_owned(), Value::Object(descendant())),
                 ]),
             ));
             rows.push((
@@ -491,7 +491,7 @@ fn collect_at(base: &Path, deadline: Instant) -> Result<DiagnoseDocument, Failur
                 "locks".to_owned(),
                 Map::from_iter([
                     ("activation".to_owned(), Value::Object(activation_row)),
-                    ("siteLifetime".to_owned(), Value::Object(lifetime)),
+                    ("sessionLifetime".to_owned(), Value::Object(lifetime)),
                 ]),
             ));
             rows.push((
@@ -513,7 +513,7 @@ fn collect_at(base: &Path, deadline: Instant) -> Result<DiagnoseDocument, Failur
     }
 }
 
-/// Assemble the `orchbee.site.diagnose` v1 envelope: `complete` is the
+/// Assemble the `orchbee.server.diagnose` v1 envelope: `complete` is the
 /// attempted-or-classified coverage fact, never a health verdict.
 #[cfg(target_os = "linux")]
 fn envelope(
@@ -537,7 +537,7 @@ fn envelope(
     complete_rows(&mut result);
     DiagnoseDocument {
         envelope: json!({
-            "schema": "orchbee.site.diagnose",
+            "schema": "orchbee.server.diagnose",
             "version": 1,
             "source": super::config::local_runtime_source(),
             "result": result,

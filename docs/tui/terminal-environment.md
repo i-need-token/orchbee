@@ -23,7 +23,7 @@ and observable host path provide the evidence required by this standard.
 - An application may declare a bounded awaiting-geometry phase in its owning contract for a zero
   or not-yet-drawable cell report. That phase uses only the already-admitted descriptors and the
   original startup deadline; wait input and its surface stay owned by the terminal mode lifecycle,
-  which may enter and later restore the modes the wait surface needs. The phase starts no site,
+  which may enter and later restore the modes the wait surface needs. The phase starts no session,
   service, or retained terminal; cancellation, timeout, or a fault restores every acquired mode,
   and input consumed while waiting is never replayed. A path that does not declare this phase keeps
   refusing a non-drawable report.

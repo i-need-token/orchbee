@@ -306,7 +306,7 @@ impl TerminalFact {
 fn command_source(site_id: &str, request_id: &str, base: WorkbenchRevision) -> Value {
     json!({
         "kind": "workbench-command",
-        "siteId": site_id,
+        "sessionId": site_id,
         "requestId": request_id,
         "expectedRevision": base,
     })
@@ -2154,7 +2154,7 @@ mod linux {
         let resume_request_id = resume.request_id.clone();
         let source = json!({
             "kind": "workspace-close-resume",
-            "siteId": snapshot.site_id.as_str(),
+            "sessionId": snapshot.site_id.as_str(),
             "requestId": resume_request_id.as_str(),
             "closeRequestId": close_request_id.as_str(),
             "expectedAttemptGeneration": generation.value().to_string(),
@@ -2433,7 +2433,7 @@ mod linux {
                 "invalid-navigation-configuration"
             }
 
-            WorkbenchRejectionReason::SiteMismatch => "site-mismatch",
+            WorkbenchRejectionReason::SiteMismatch => "session-mismatch",
             WorkbenchRejectionReason::RevisionMismatch => "revision-mismatch",
             WorkbenchRejectionReason::ProjectUnavailable => "project-unavailable",
             WorkbenchRejectionReason::WorkspaceUnavailable => "workspace-unavailable",

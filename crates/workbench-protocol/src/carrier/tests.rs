@@ -62,7 +62,7 @@ fn direction_kind_version_and_size_fail_before_body_allocation_or_read() {
 #[test]
 fn tab_create_and_started_result_roundtrip_through_their_obwp_kinds() {
     let request = parse_workbench_request(
-        br#"{"kind":"workbench.command","protocolVersion":1,"requestId":"11111111111111111111111111111111","siteId":"22222222222222222222222222222222","expectedRevision":"7","action":{"kind":"tab.create","terminalContextId":"33333333333333333333333333333333","label":"2","geometry":{"columns":120.0,"rows":3.6e1,"cellPixelWidth":9,"cellPixelHeight":18}}}"#,
+        br#"{"kind":"workbench.command","protocolVersion":1,"requestId":"11111111111111111111111111111111","sessionId":"22222222222222222222222222222222","expectedRevision":"7","action":{"kind":"tab.create","terminalContextId":"33333333333333333333333333333333","label":"2","geometry":{"columns":120.0,"rows":3.6e1,"cellPixelWidth":9,"cellPixelHeight":18}}}"#,
     )
     .unwrap();
     let mut request_frame = Vec::new();

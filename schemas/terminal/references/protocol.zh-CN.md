@@ -49,7 +49,7 @@
 
 `TerminalTheme` 是一个完整的运行时颜色值，包含 `colorScheme`、无符号 24 位 `defaultForegroundRgb` 和 `defaultBackgroundRgb`、可空无符号 24 位 `defaultCursorRgb` 以及恰好 256 个无符号 24 位`palette` 条目。 `TerminalThemeState` 添加了规范的十进制文本 uint64 `revision` 和可为空的 `operationId`。修订版 `0` 是启动基线，是唯一具有空操作标识的合法状态；每个正数（positive）revision 都携带提交它的 identity。运行时主题不包括光标形状/闪烁、覆盖、应用程序令牌、内容修订或生成。
 
-消息注册表还拥有每种类型是否可以是请求、响应、事件或声明的组合；每个合法角色中的有效负载编码；以及每个请求的成功响应类型。 TypeScript 连接代码派生这些事实，而不是接受它们作为调用站点参数。本机生产镜像注册表并在记录传递之前拒绝错误的角色或编码。三种语言的注册表测试会针对 `v1/constants.json` 比较每个镜像消息字段，而不仅仅是数字类型集。
+消息注册表还拥有每种类型是否可以是请求、响应、事件或声明的组合；每个合法角色中的有效负载编码；以及每个请求的成功响应类型。 TypeScript 连接代码派生这些事实，而不是接受它们作为调用会话参数。本机生产镜像注册表并在记录传递之前拒绝错误的角色或编码。三种语言的注册表测试会针对 `v1/constants.json` 比较每个镜像消息字段，而不仅仅是数字类型集。
 
 `Hello` 和 `HelloAccepted` 最多携带 64 个 `supportedOptionalFeatures` 名称，每个名称非空，最多 64 个 UTF-8 字节。可选功能名称与其解码后的 JSON 字符串值进行比较；因此，Unicode 代码点可以使用多个字节，同时保持在字节范围内。
 
@@ -527,4 +527,4 @@ fixture。
 
 该观察代表最近一次协作式 Shell 调用，不含命令文本，也不替代 kind 4 的呈现元数据。只有 generation 和输出 epoch 仍一致时，坐标才属于当前保留物理行。最旧保留行 pin 失去连续性时 Host 改变输出 epoch；客户端绝不能由饱和行数推断连续性。旧消费者跳过这一可选扩展。Windows CLI 将其与终端身份及 Host epoch 结合，为不透明输出游标提供围栏。
 
-<!-- documentation-pairing: english-sha256=13f512bccd9a8cfe09839128641f5f3426595f4e886e8c2ca598590aef0033f9 zh-cn-sha256=875ae809bc7b42739cb57464abc5b027662281186d54897bb4d9d3ebd76a9d23 -->
+<!-- documentation-pairing: english-sha256=13f512bccd9a8cfe09839128641f5f3426595f4e886e8c2ca598590aef0033f9 zh-cn-sha256=3b6d79551b513d0d2033dd0b7a4f5ec4ac68be2cb5f68e4313ebed699f8f37fa -->

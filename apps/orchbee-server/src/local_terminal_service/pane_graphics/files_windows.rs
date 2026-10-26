@@ -91,7 +91,7 @@ impl GraphicsFiles {
         }
         let nonce = format!("{:032x}", u128::from_be_bytes(nonce));
         let note = serde_json::to_vec(&serde_json::json!({
-            "version": 1, "siteId": site, "source": source, "connection": connection.get(),
+            "version": 1, "sessionId": site, "source": source, "connection": connection.get(),
             "streamId": stream, "processId": std::process::id(), "nonce": nonce,
             "owner": "site-graphics-producer", "release": "producer retired and last reader settled"
         }))

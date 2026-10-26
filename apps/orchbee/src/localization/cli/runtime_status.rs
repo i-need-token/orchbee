@@ -17,7 +17,7 @@ pub(super) fn help(locale: Locale, server: bool) -> crate::localization::HelpDet
         ),
         (Locale::ZhCn, true) => crate::localization::HelpDetails::new(
             "orchbee status server [--format text|json]",
-            "Windows：在普通 Client 准入前查询选中本地 Server 的版本、PID、终端协议、\ncohort 及已实现能力，并与查询 Client 比较；未知本地元数据保持未知。不启动会话、不分配 客户端连接，也不重启任何内容。采集共用五秒时限。该作用域没有 Server 时退出 0；旧 Server 不支持元数据查询时报告不兼容（退出 6），不误报为不存在。\nJSON schema：orchbee.status.server（v1）。",
+            "Windows：在普通客户端准入前查询选中本地 Server 的版本、PID、终端协议、\ncohort 及已实现能力，并与查询客户端比较；未知本地元数据保持未知。不启动会话、不分配客户端连接，也不重启任何内容。采集共用五秒时限。该作用域没有 Server 时退出 0；旧 Server 不支持元数据查询时报告不兼容（退出 6），不误报为不存在。\nJSON schema：orchbee.status.server（v1）。",
         ),
     }
 }
@@ -41,7 +41,7 @@ impl Locale {
     #[cfg(windows)]
     pub(crate) fn cli_runtime_status_label(self, label: &str) -> &str {
         let (en, zh) = match label {
-            "client" => ("Client version", "Client 版本"),
+            "client" => ("Client version", "客户端版本"),
             "server" => ("Server", "Server 状态"),
             "version" => ("Server version", "Server 版本"),
             "process" => ("Process ID", "进程 ID"),
@@ -72,8 +72,8 @@ impl Locale {
             "compatible" => ("Compatible", "兼容"),
             "restartRequired" => ("Matching-cohort restart required", "需要按匹配 cohort 重启"),
             "terminalRenderRows" => ("Styled terminal reads", "终端样式读取"),
-            "clientViewControl" => ("Client view control", "Client 视图控制"),
-            "agentObservation" => ("Agent observation", "Agent 观测"),
+            "clientViewControl" => ("Client view control", "客户端视图控制"),
+            "agentObservation" => ("Agent observation", "智能体观测"),
             "liveHandoff" => ("Live handoff", "在线交接"),
             "managedStop" => ("Managed stop", "托管停止"),
             "unknownBits" => ("Unknown feature bits", "未知特性位"),

@@ -38,7 +38,7 @@ fn state(count: u64, source: bool, created: bool, revision: u64) -> Snapshot {
             .as_str()
             .cmp(&b["terminalContextId"].as_str())
     });
-    serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":revision.to_string(),"navigation":{"projects":projects,"directories":directories,"workspaces":std::iter::once(serde_json::json!({"workspaceId":id(10),"terminalContextId":id(10),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"})).chain(workspaces).collect::<Vec<_>>()},"terminalContexts":contexts})).unwrap()
+    serde_json::from_value(json!({"protocolVersion":1,"sessionId":id(2),"revision":revision.to_string(),"navigation":{"projects":projects,"directories":directories,"workspaces":std::iter::once(serde_json::json!({"workspaceId":id(10),"terminalContextId":id(10),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"})).chain(workspaces).collect::<Vec<_>>()},"terminalContexts":contexts})).unwrap()
 }
 fn snapshot(stream: &mut LocalStream, state: Snapshot) {
     let WorkbenchRequest::SnapshotRead(request) = read_workbench_request(stream).unwrap() else {
@@ -672,7 +672,7 @@ fn root_cwd(stream: &mut LocalStream, cwd: Option<&str>) {
     let request = viewer(stream);
     assert_eq!(
         json!(request.action()),
-        json!({"kind":"attach-binding","siteId":id(2),"workerId":id(9),"terminalId":id(12)})
+        json!({"kind":"attach-binding","sessionId":id(2),"workerId":id(9),"terminalId":id(12)})
     );
     viewer_reply(
         stream,

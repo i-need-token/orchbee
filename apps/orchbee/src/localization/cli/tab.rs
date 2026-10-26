@@ -9,7 +9,7 @@ pub(super) const HELP_TAB_LIST_EN: crate::localization::HelpDetails =
 pub(super) const HELP_TAB_LIST_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee tab list [--workspace <t>] [--client <id>] [--format text|json]",
-        "列出 Tab。过滤参数可选择一个 Workspace 的上下文（精确 ID、@workspace:0x<hex> 或 label）。字段：各 ID、label、置顶标记、分组与所属上下文类型。\n\nWindows --client <id> 附加指定 TUI 的选择与焦点；Workspace 结果包含记忆的活动 Tab。不猜测 Client，查询不导航。读取总超时为 5000 毫秒。\nWindows 结果包含关联的存活 Agent 会话及汇总状态。使用 --client 区分空闲已读和完成待查看；无法确认已读状态时返回 null。",
+        "列出标签页。过滤参数可选择一个工作区的上下文（精确 ID、@workspace:0x<hex> 或 label）。字段：各 ID、label、置顶标记、分组与所属上下文类型。\n\nWindows --client <id> 附加指定 TUI 的选择与焦点；工作区结果包含记忆的活动标签页。不猜测客户端，查询不导航。读取总超时为 5000 毫秒。\nWindows 结果包含关联的存活智能体会话及汇总状态。使用 --client 区分空闲已读和完成待查看；无法确认已读状态时返回 null。",
     );
 
 pub(super) const HELP_TAB_GET_EN: crate::localization::HelpDetails =
@@ -21,7 +21,7 @@ pub(super) const HELP_TAB_GET_EN: crate::localization::HelpDetails =
 pub(super) const HELP_TAB_GET_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee tab get <target> [--client <id>] [--format text|json]",
-        "显示一个 Tab，包括其完整 PanelNode 根子树。\n\nWindows --client <id> 附加指定 TUI 的选择与焦点；Workspace 结果包含记忆的活动 Tab。不猜测 Client，查询不导航。读取总超时为 5000 毫秒。\nWindows 结果包含关联的存活 Agent 会话及汇总状态。使用 --client 区分空闲已读和完成待查看；无法确认已读状态时返回 null。",
+        "显示一个标签页，包括其完整 PanelNode 根子树。\n\nWindows --client <id> 附加指定 TUI 的选择与焦点；工作区结果包含记忆的活动标签页。不猜测客户端，查询不导航。读取总超时为 5000 毫秒。\nWindows 结果包含关联的存活智能体会话及汇总状态。使用 --client 区分空闲已读和完成待查看；无法确认已读状态时返回 null。",
     );
 
 pub(super) const HELP_TAB_CREATE_EN: crate::localization::HelpDetails =
@@ -33,7 +33,7 @@ pub(super) const HELP_TAB_CREATE_EN: crate::localization::HelpDetails =
 pub(super) const HELP_TAB_CREATE_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee tab create [--workspace <target>] [--label <label>] [--cols <n> --rows <n> --cell-width <px> --cell-height <px>] [--profile <s> | --exec <path|name> [--arg <v>]...] [--cwd <abs|follow|home|current|workspace>] [--env NAME=VALUE]... [--focus | --no-focus] [--client <id>] [--timeout <ms>] [--format text|json]",
-        "在所选终端上下文内创建一个 Tab：由精确 ID、@workspace:0x<hex> 或精确 label 选择的\nWorkspace。四个几何 flag 为全有或全无组：全部省略时请求 80x24 逻辑网格且单元像素为未知 (0,0)——这是请求策略而非实测显示事实；提供其中任何一个就必须提供全部四个。结果携带已提交修订、新的 tab、panel、presentation ID 及终端拉起结果。\n'--exec' 接受绝对路径或在最终 CLI 的 PATH 中解析程序名，每个 '--arg' 逐字追加一个参数；两者均省略时启动默认 shell。\n'--profile' 改为按精确 ID 或唯一匹配的名称选择已存储的启动配置，由 Server 解析——不能与 '--exec' 或 '--arg' 组合。\nWindows --cwd 默认为 follow：采样已解析来源 Panel 的根进程目录。绝对路径直接覆盖；\nhome/current 使用 CLI 的主目录／当前目录；workspace 保留 Server Workspace／Worker 主目录默认值。明确缺失 cwd 时保留默认值；读取失败则在创建前停止。显式无界面 Tab 上下文不会为查目录选择 Client。其他平台仍只使用绝对路径。\n'--env NAME=VALUE' 可重复使用，覆盖继承的变量；值逐字保留，允许空值。这些选项也可配合 '--profile' 或默认 shell 使用。名称只允许 ASCII 字母、数字和下划线，1..128 字节且不能以数字开头；拒绝忽略大小写后重复的名称、\nORCHBEE_*、TERM、COLORTERM 和 TERM_PROGRAM。至多 32 项，名称和值合计不超过 1,024 UTF-8 字节，不能含 NUL。目录不可用时启动失败。\n\nWindows：省略目标时使用经校验的调用者上下文，或唯一 current Client 的选择。无效调用者信息不回退；显式 --client 忽略调用者环境。未命名 Tab 显示当前从一开始的位置序号；--label 固定名称，包括数字名称。分屏标签默认为创建前 Panel 数加一。默认不聚焦；--focus 在创建后等待原 Client 聚焦新 Panel。显式目标且无需 Client 操作时可无 TUI 运行。总超时默认 30000ms（1..3600000）。orchbee.creation.result v1 记录目录策略／来源／路径，并保留已创建身份及后续步骤结果；后续失败不会撤销创建，勿盲目重试。",
+        "在所选终端上下文内创建一个标签页：由精确 ID、@workspace:0x<hex> 或精确 label 选择的\nWorkspace。四个几何 flag 为全有或全无组：全部省略时请求 80x24 逻辑网格且单元像素为未知 (0,0)——这是请求策略而非实测显示事实；提供其中任何一个就必须提供全部四个。结果携带已提交修订、新的 tab、panel、presentation ID 及终端拉起结果。\n'--exec' 接受绝对路径或在最终 CLI 的 PATH 中解析程序名，每个 '--arg' 逐字追加一个参数；两者均省略时启动默认 shell。\n'--profile' 改为按精确 ID 或唯一匹配的名称选择已存储的启动配置，由 Server 解析——不能与 '--exec' 或 '--arg' 组合。\nWindows --cwd 默认为 follow：采样已解析来源面板的根进程目录。绝对路径直接覆盖；\nhome/current 使用 CLI 的主目录／当前目录；workspace 保留 Server 工作区／Worker 主目录默认值。明确缺失 cwd 时保留默认值；读取失败则在创建前停止。显式无界面标签页上下文不会为查目录选择客户端。其他平台仍只使用绝对路径。\n'--env NAME=VALUE' 可重复使用，覆盖继承的变量；值逐字保留，允许空值。这些选项也可配合 '--profile' 或默认 shell 使用。名称只允许 ASCII 字母、数字和下划线，1..128 字节且不能以数字开头；拒绝忽略大小写后重复的名称、\nORCHBEE_*、TERM、COLORTERM 和 TERM_PROGRAM。至多 32 项，名称和值合计不超过 1,024 UTF-8 字节，不能含 NUL。目录不可用时启动失败。\n\nWindows：省略目标时使用经校验的调用者上下文，或唯一 current 客户端的选择。无效调用者信息不回退；显式 --client 忽略调用者环境。未命名标签页显示当前从一开始的位置序号；--label 固定名称，包括数字名称。分屏标签默认为创建前面板数加一。默认不聚焦；--focus 在创建后等待原客户端聚焦新面板。显式目标且无需客户端操作时可无 TUI 运行。总超时默认 30000ms（1..3600000）。orchbee.creation.result v1 记录目录策略／来源／路径，并保留已创建身份及后续步骤结果；后续失败不会撤销创建，勿盲目重试。",
     );
 
 pub(super) const HELP_TAB_RENAME_EN: crate::localization::HelpDetails =
@@ -45,7 +45,7 @@ pub(super) const HELP_TAB_RENAME_EN: crate::localization::HelpDetails =
 pub(super) const HELP_TAB_RENAME_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee tab rename <target> --label <label> [--format text|json]",
-        "重命名一个由精确 ID、@tab:0x<hex> 或精确 label 选择的 Tab。committed 结果携带新修订；unchanged 表示固定名称本已相同。自动命名 Tab 即使文本相同，重命名也会将其改为固定名称。",
+        "重命名一个由精确 ID、@tab:0x<hex> 或精确 label 选择的标签页。committed 结果携带新修订；unchanged 表示固定名称本已相同。自动命名标签页即使文本相同，重命名也会将其改为固定名称。",
     );
 
 pub(super) const HELP_TAB_MOVE_EN: crate::localization::HelpDetails =
@@ -57,7 +57,7 @@ pub(super) const HELP_TAB_MOVE_EN: crate::localization::HelpDetails =
 pub(super) const HELP_TAB_MOVE_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee tab move <target> (--order <previous|next|first|last> | --insert-index <N>) [--format text|json]",
-        "在标签条内移动一个 Tab。committed 结果携带新修订；unchanged 表示 Tab\n本已在目标位置。\nWindows --insert-index 使用原顺序的边界：0 为首位，Tab 总数为末尾；源位置及其后一边界无变化。超出当前数量会拒绝。",
+        "在标签条内移动一个标签页。committed 结果携带新修订；unchanged 表示标签页\n本已在目标位置。\nWindows --insert-index 使用原顺序的边界：0 为首位，标签页总数为末尾；源位置及其后一边界无变化。超出当前数量会拒绝。",
     );
 
 pub(super) const HELP_TAB_CLOSE_EN: crate::localization::HelpDetails =
@@ -69,5 +69,5 @@ pub(super) const HELP_TAB_CLOSE_EN: crate::localization::HelpDetails =
 pub(super) const HELP_TAB_CLOSE_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee tab close <target> (--confirm [--detach | --timeout <ms>] | --dry-run) [--format text|json]",
-        "关闭一个由精确 ID、@tab:0x<hex> 或精确 label 选择的 Tab。'--confirm' 为必填。\n默认等待 Tab 消失（--timeout，默认 30000 毫秒；超时以 7 退出，关闭继续进行）。--detach 在接纳后立即返回，携带已接受修订与关闭请求 ID。--dry-run 无需 --confirm，列出将结束的终端、标题与 Agent。",
+        "关闭一个由精确 ID、@tab:0x<hex> 或精确 label 选择的标签页。'--confirm' 为必填。\n默认等待标签页消失（--timeout，默认 30000 毫秒；超时以 7 退出，关闭继续进行）。--detach 在接纳后立即返回，携带已接受修订与关闭请求 ID。--dry-run 无需 --confirm，列出将结束的终端、标题与智能体。",
     );

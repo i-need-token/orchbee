@@ -32,13 +32,13 @@ pub(super) fn run(
     let site = ModeCheckedLocalSiteRendezvous::from_runtime_directory(runtime)
         .map_err(io::Error::other)?;
     if !site.activation_started()? {
-        return Err(io::Error::other("Site activation was not committed"));
+        return Err(io::Error::other("Session activation was not committed"));
     }
     let LockAttempt::Acquired(_lifetime) = site
         .try_acquire_site_lifetime_lock()
         .map_err(io::Error::other)?
     else {
-        return Err(io::Error::other("Site lifetime is already owned"));
+        return Err(io::Error::other("Session lifetime is already owned"));
     };
     #[cfg(windows)]
     let record = site.retain_active_record()?;

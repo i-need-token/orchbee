@@ -58,7 +58,7 @@ fn plugin_matches_shared_corpus_and_distinct_carrier_kinds() {
 
 #[test]
 fn plugin_large_log_frames_and_query_correlation_are_bounded() {
-    let request: PluginRequest = serde_json::from_value(json!({"protocolVersion":1,"requestId":"11111111111111111111111111111111","siteId":"22222222222222222222222222222222","action":{"kind":"logs","pluginId":null,"cursor":null,"limit":4}})).unwrap();
+    let request: PluginRequest = serde_json::from_value(json!({"protocolVersion":1,"requestId":"11111111111111111111111111111111","sessionId":"22222222222222222222222222222222","action":{"kind":"logs","pluginId":null,"cursor":null,"limit":4}})).unwrap();
     let log = json!({"jobId":"44444444444444444444444444444444","sequence":1,"pluginId":"tools","commandId":"hello","command":["cmd.exe"],"startedMs":1,"finishedMs":2,"exitCode":0,"failure":null,"stdout":"\0".repeat(65536),"stderr":"\0".repeat(65536),"stdoutTruncated":false,"stderrTruncated":false});
     let logs = (1..=4)
         .rev()
@@ -68,7 +68,7 @@ fn plugin_large_log_frames_and_query_correlation_are_bounded() {
             log
         })
         .collect::<Vec<_>>();
-    let mut result:PluginResult=serde_json::from_value(json!({"protocolVersion":1,"requestId":request.request_id,"siteId":request.site_id,"outcome":{"kind":"logs","worker":{"workerId":"33333333333333333333333333333333","generation":"1"},"logs":logs,"next":null}})).unwrap();
+    let mut result:PluginResult=serde_json::from_value(json!({"protocolVersion":1,"requestId":request.request_id,"sessionId":request.site_id,"outcome":{"kind":"logs","worker":{"workerId":"33333333333333333333333333333333","generation":"1"},"logs":logs,"next":null}})).unwrap();
     assert!(result.answers(&request));
     let message = WorkbenchResponse::Plugin(result.clone());
     let mut wire = Vec::new();
@@ -94,13 +94,13 @@ fn plugin_large_log_frames_and_query_correlation_are_bounded() {
 
 #[test]
 fn plugin_wire_rejects_unpaired_surrogate_context() {
-    assert!(parse_workbench_request(br#"{"kind":"workbench.plugin","protocolVersion":1,"requestId":"11111111111111111111111111111111","siteId":"22222222222222222222222222222222","action":{"kind":"invoke","operationId":"44444444444444444444444444444444","pluginId":null,"actionId":"hello","context":{"selectedText":"\ud800"}}}"#).is_err());
+    assert!(parse_workbench_request(br#"{"kind":"workbench.plugin","protocolVersion":1,"requestId":"11111111111111111111111111111111","sessionId":"22222222222222222222222222222222","action":{"kind":"invoke","operationId":"44444444444444444444444444444444","pluginId":null,"actionId":"hello","context":{"selectedText":"\ud800"}}}"#).is_err());
 }
 
 #[test]
 fn plugin_uncertain_cancellation_still_pins_worker_generation() {
-    let request: PluginRequest = serde_json::from_value(json!({"protocolVersion":1,"requestId":"11111111111111111111111111111111","siteId":"22222222222222222222222222222222","action":{"kind":"cancel","worker":{"workerId":"33333333333333333333333333333333","generation":"1"},"jobId":"44444444444444444444444444444444"}})).unwrap();
-    let mut result: PluginResult = serde_json::from_value(json!({"protocolVersion":1,"requestId":request.request_id,"siteId":request.site_id,"outcome":{"kind":"unknown","worker":{"workerId":"33333333333333333333333333333333","generation":"1"}}})).unwrap();
+    let request: PluginRequest = serde_json::from_value(json!({"protocolVersion":1,"requestId":"11111111111111111111111111111111","sessionId":"22222222222222222222222222222222","action":{"kind":"cancel","worker":{"workerId":"33333333333333333333333333333333","generation":"1"},"jobId":"44444444444444444444444444444444"}})).unwrap();
+    let mut result: PluginResult = serde_json::from_value(json!({"protocolVersion":1,"requestId":request.request_id,"sessionId":request.site_id,"outcome":{"kind":"unknown","worker":{"workerId":"33333333333333333333333333333333","generation":"1"}}})).unwrap();
     assert!(result.answers(&request));
     if let PluginOutcome::Unknown { worker } = &mut result.outcome {
         worker.generation = WorkbenchRevision::new(2);

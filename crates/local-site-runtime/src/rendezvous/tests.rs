@@ -602,7 +602,7 @@ impl TestDirectory {
     fn new(label: &str) -> io::Result<Self> {
         let filesystem_lock = FILESYSTEM_TEST_LOCK
             .lock()
-            .map_err(|_| io::Error::other("local Site filesystem test lock is poisoned"))?;
+            .map_err(|_| io::Error::other("local Session filesystem test lock is poisoned"))?;
         let temporary_root = if cfg!(target_os = "macos") {
             Path::new("/private/tmp")
         } else {
@@ -627,7 +627,7 @@ impl TestDirectory {
         }
         Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
-            "could not allocate a unique local Site rendezvous test directory",
+            "could not allocate a unique local Session rendezvous test directory",
         ))
     }
 

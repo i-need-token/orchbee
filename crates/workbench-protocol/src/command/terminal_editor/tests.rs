@@ -6,7 +6,7 @@ use crate::{
 
 fn request() -> serde_json::Value {
     serde_json::json!({"kind":"workbench.terminal-editor", "protocolVersion":1,
-        "requestId":"00000000000000000000000000000001","siteId":"00000000000000000000000000000002",
+        "requestId":"00000000000000000000000000000001","sessionId":"00000000000000000000000000000002",
         "action":{"kind":"open","popupId":"00000000000000000000000000000003",
         "spec":{"source":{"terminalContextId":"00000000000000000000000000000004","tabId":"00000000000000000000000000000005","panelId":"00000000000000000000000000000006",
             "member":{"presentationId":"00000000000000000000000000000007","binding":{"workerId":"00000000000000000000000000000008","terminalId":"00000000000000000000000000000009"},"attachmentGeneration":"1","incarnation":0,"viewport":{"state":"unavailable","reason":"frame-unavailable"}}}},

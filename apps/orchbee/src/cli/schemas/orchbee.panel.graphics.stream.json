@@ -18,8 +18,8 @@
 				"requestId": {
 					"$ref": "#/$defs/wb_requestId"
 				},
-				"siteId": {
-					"$ref": "#/$defs/wb_siteId"
+				"sessionId": {
+					"$ref": "#/$defs/wb_sessionId"
 				},
 				"target": {
 					"$ref": "#/$defs/gfx_target"
@@ -73,7 +73,7 @@
 				"version",
 				"kind",
 				"requestId",
-				"siteId",
+				"sessionId",
 				"target",
 				"layerId",
 				"observation"
@@ -92,8 +92,8 @@
 				"kind": {
 					"const": "closed"
 				},
-				"siteId": {
-					"$ref": "#/$defs/wb_siteId"
+				"sessionId": {
+					"$ref": "#/$defs/wb_sessionId"
 				},
 				"target": {
 					"$ref": "#/$defs/gfx_target"
@@ -159,7 +159,7 @@
 				"schema",
 				"version",
 				"kind",
-				"siteId",
+				"sessionId",
 				"target",
 				"layerId",
 				"reason",
@@ -180,14 +180,14 @@
 				"requestId": {
 					"$ref": "#/$defs/wb_requestId"
 				},
-				"siteId": {
-					"$ref": "#/$defs/wb_siteId"
+				"sessionId": {
+					"$ref": "#/$defs/wb_sessionId"
 				},
 				"outcome": {
 					"$ref": "#/$defs/gfx_outcome"
 				}
 			},
-			"required": ["protocolVersion", "requestId", "siteId", "outcome"]
+			"required": ["protocolVersion", "requestId", "sessionId", "outcome"]
 		},
 		"wb_requestId": {
 			"title": "WorkbenchRequestId",
@@ -200,8 +200,8 @@
 				"const": "00000000000000000000000000000000"
 			}
 		},
-		"wb_siteId": {
-			"title": "SiteId",
+		"wb_sessionId": {
+			"title": "SessionId",
 			"$ref": "#/$defs/wb_identity"
 		},
 		"gfx_outcome": {
@@ -575,7 +575,7 @@
 							"enum": [
 								"denied",
 								"invalid-intent",
-								"site-mismatch",
+								"session-mismatch",
 								"unavailable",
 								"busy",
 								"not-found",

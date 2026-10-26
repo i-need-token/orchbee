@@ -51,7 +51,7 @@ Desktop 严格要求唯一的当前 Host 协议 `0.1.0`；预发布版本既不�
 
 在 POSIX 上构造 `HostConnection` 之前，Desktop 的进程内本机端点适配器会验证运行时目录和实际套接字、建立连接，并根据内核对端凭据验证服务器的有效 UID。只有经过验证的同 UID 连接才能抑制 Host 启动，并且每次重试或稍后 Desktop 重连都会重复检查。适配器把已验证描述符直接移交给 Node 套接字且不启动帮助进程，因此 `serve` 是唯一的 Terminal Host 产品进程。其所有权、失败、证据和回滚合同见 [`docs/posix-host-endpoint.md`](docs/posix-host-endpoint.zh-CN.md)。
 
-Desktop 将一个 Terminal Host 端点扩展到其产品 `userData` 身份，该身份将 OS 用户、产品配置文件和发布通道数据根分开。短 POSIX 运行时路径是操作系统受信任的每用户运行时位置（Linux 上的 `/run/user/<effective-uid>` 与 macOS 上 Electron 的每用户临时位置）的稳定产品范围子代，从来都不是确定性的共享 `/tmp` 的子级。 Windows 命名管道标识源自相同的产品范围。显式端点和运行时覆盖仅适用于受控开发和测试； POSIX 覆盖仍然通过本机无跟随所有者、私有模式和 ACL 准备和验证。每次成功握手后，Desktop 都会通过 `SetTerminalDefaults` 发送当前终端默认值，因此重新连接到已运行的单例与新启动 CLI 具有相同的结果。新终端使用与 Workbench canvas 对齐的轻量（light）profile；保留的终端保留与其现有主机会话一起存储的配置。通用偏好共享 Native Site 的配置作用域存储；宿主字体与像素展示保持渲染端本地。滚动历史更新未来终端的 Host 默认值。
+Desktop 将一个 Terminal Host 端点扩展到其产品 `userData` 身份，该身份将 OS 用户、产品配置文件和发布通道数据根分开。短 POSIX 运行时路径是操作系统受信任的每用户运行时位置（Linux 上的 `/run/user/<effective-uid>` 与 macOS 上 Electron 的每用户临时位置）的稳定产品范围子代，从来都不是确定性的共享 `/tmp` 的子级。 Windows 命名管道标识源自相同的产品范围。显式端点和运行时覆盖仅适用于受控开发和测试； POSIX 覆盖仍然通过本机无跟随所有者、私有模式和 ACL 准备和验证。每次成功握手后，Desktop 都会通过 `SetTerminalDefaults` 发送当前终端默认值，因此重新连接到已运行的单例与新启动 CLI 具有相同的结果。新终端使用与 Workbench canvas 对齐的轻量（light）profile；保留的终端保留与其现有主机会话一起存储的配置。通用偏好共享 Native 会话 的配置作用域存储；宿主字体与像素展示保持渲染端本地。滚动历史更新未来终端的 Host 默认值。
 
 运行时配置统一按照声明的平台规则解析资源与存储路径，包括 CLI 启动器。模拟平台的检查使用对应平台的路径 fixture；访问真实文件系统的测试使用实际执行平台。Windows 盘符和 UNC 资源路径保持 Windows 路径语义，不受测试宿主影响。
 
@@ -394,7 +394,7 @@ Electron 或 Host 编译失败不会影响最后运行的进程。只有新二�
 
 桌面开发运行时拥有一个序列化更新工作流程。替换过程中到达的较新的成功构建将被合并并随后应用；即使连续观察看到相同的源摘要，每个更改的主机二进制文件也会被接纳。捕获的二进制文件仅限于活动代、回滚代和挂起代，并且关闭 Rsbuild 服务器会阻止所有重新启动。确定性运行时测试自己的命令顺序、适配器故障、中止准备、更新合并、工作区清理和捕获的二进制不变性。强制操作系统终止、编译器正确性和跨主机进程的 PTY 迁移仍然不在这些声明范围内。
 
-Host 源摘要除原生源码与构建文件外，还包含两个共享 Local Site Runtime PowerShell 启动资产。
+Host 源摘要除原生源码与构建文件外，还包含两个共享 Local 会话 Runtime PowerShell 启动资产。
 Zig 已登记的复制输入会在任一脚本修改时唤醒既有构建监听；Desktop 监听器观察产生的二进制文件。
 缺少共享资产会使观察失败，不会将旧启动字节视为当前代次。
 
@@ -489,4 +489,4 @@ pnpm --filter @orchbee/desktop benchmark -- \
 
 它还可以收集受控的 Ghostty 和仅主机引用。结果是诊断证据；它们不是当前开发阶段的合并或切片完成门。
 
-<!-- documentation-pairing: english-sha256=3251b67a0bc34b49690d6029cb864fd32d13a30a17c0a3628e904c8e3b6f2eeb zh-cn-sha256=53661c24930c7f94c06e0de1667f8a19c6cfaf83f735fbe3441c3ab88f7e0125 -->
+<!-- documentation-pairing: english-sha256=3362f354f60c09aa9fbeb59a1d0a7d54f14fc6c014d4fe196bb7c08f12833280 zh-cn-sha256=92c0212d1fb1e4e917dc215cdabd2ebab9f3aac16787dda3269da4585ccf25e8 -->

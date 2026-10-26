@@ -5,7 +5,7 @@
 Desktop 与 TUI 使用同一设备偏好权威。完整清单、默认值、校验、重置语义与生效时机属于
 [共享契约](../../../crates/workbench-protocol/docs/user-preferences.zh-CN.md)。
 渲染端负责草稿与展示；Main 负责能力准入和 Host 发布；匹配的
-`orchbee-settings` 辅助程序调用 Native Site 的 `UserPreferencesStore`。
+`orchbee-settings` 辅助程序调用 Native 会话 的 `UserPreferencesStore`。
 
 作用域遵循冻结的原生配置身份，包括显式 `ORCHBEE_CONFIG_FILE`，
 独立于 Electron `userData`、Workspace 和远端终端。
@@ -63,4 +63,4 @@ Browser Preview 保持独立 origin 存储，省略不可用的原生启动与�
 模型及负向对照见[原生契约](../../orchbee/docs/native-settings.zh-CN.md#正确性与证据)。
 执行受影响根门禁。原生进程证据仅适用于实际运行的宿主。
 
-<!-- documentation-pairing: english-sha256=5a5f1d27030e9c189880fb387c5a211041809c13699dfca49ee9a6dec737fae3 zh-cn-sha256=22b24fa1cd7e4756df78b420dca604c0e26664079d3ab10bece58ac430166a06 -->
+<!-- documentation-pairing: english-sha256=17cb9d3eb5c16ec595cf0c16a8c02f73b28a3cdab33f03658bdace7fe3acd003 zh-cn-sha256=a78c44ed37bd094b1dce3b1b7405c9360863dc56d2c099892c8be89ed521ba8e -->

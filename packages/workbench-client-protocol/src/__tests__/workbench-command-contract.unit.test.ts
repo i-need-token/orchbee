@@ -9,7 +9,7 @@ import type {
 	WorkbenchTabMoveDirection,
 } from './conformance/workbench-command-contract';
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	WorkbenchDirectoryIdSchema,
 	WorkbenchDirectoryPathSchema,
 	WorkbenchRequestIdSchema,
@@ -63,7 +63,7 @@ describe('Workbench command contract', () => {
 			kind: 'workbench.command',
 			protocolVersion: 1,
 			requestId: WorkbenchRequestIdSchema.parse('11111111111111111111111111111111'),
-			siteId: SiteIdSchema.parse('22222222222222222222222222222222'),
+			sessionId: SessionIdSchema.parse('22222222222222222222222222222222'),
 			expectedRevision: WorkbenchRevisionSchema.parse('7'),
 			action: {
 				kind: 'workspace.primary-directory.accept',
@@ -94,7 +94,7 @@ describe('Workbench command contract', () => {
 				kind: 'workbench.command',
 				protocolVersion: 1,
 				requestId: WorkbenchRequestIdSchema.parse('11111111111111111111111111111111'),
-				siteId: SiteIdSchema.parse('22222222222222222222222222222222'),
+				sessionId: SessionIdSchema.parse('22222222222222222222222222222222'),
 				expectedRevision: WorkbenchRevisionSchema.parse('7'),
 				action: {
 					kind: 'tab.move',
@@ -270,7 +270,7 @@ describe('Workbench command contract', () => {
 			kind: 'workbench.command',
 			protocolVersion: 1,
 			requestId: '11111111111111111111111111111111',
-			siteId: '22222222222222222222222222222222',
+			sessionId: '22222222222222222222222222222222',
 			expectedRevision: '0',
 			action: { kind: 'project.create', label: '  exact  ' },
 		};

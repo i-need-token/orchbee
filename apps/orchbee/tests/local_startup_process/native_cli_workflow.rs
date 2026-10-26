@@ -40,7 +40,7 @@ const GEOMETRY: [&str; 8] = [
 /// `terminal list` until `tab_id` carries a bound terminal; the create receipt
 /// is a commit, not a live shell, so binding is polled with a bounded
 /// deadline. Returns the row's `(terminalId, workerId)` plus the envelope's
-/// `source.siteId` so later receipts are cross-checked against the same list
+/// `source.sessionId` so later receipts are cross-checked against the same list
 /// observation instead of a second lookup.
 fn bind_terminal(fixture: &Fixture, tab_id: &str) -> (String, String, String) {
     let deadline = Instant::now() + BIND_DEADLINE;
@@ -56,9 +56,9 @@ fn bind_terminal(fixture: &Fixture, tab_id: &str) -> (String, String, String) {
             return (
                 row["terminalId"].as_str().expect("terminalId").to_owned(),
                 row["workerId"].as_str().expect("workerId").to_owned(),
-                terminals["source"]["siteId"]
+                terminals["source"]["sessionId"]
                     .as_str()
-                    .expect("siteId")
+                    .expect("sessionId")
                     .to_owned(),
             );
         }
@@ -206,7 +206,7 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
     let terminal_b = binding_b.0.clone();
     assert_eq!(
         binding_a.2, binding_b.2,
-        "both bindings observe the same Site"
+        "both bindings observe the same Session"
     );
     assert_ne!(terminal_a, terminal_b, "independent terminal identities");
 
@@ -273,7 +273,7 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
             "receipt worker matches the binding list row"
         );
         assert_eq!(
-            result["siteId"],
+            result["sessionId"],
             binding.2.as_str(),
             "receipt site matches the list envelope source"
         );
@@ -356,7 +356,7 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
             "wait observed the same worker the send receipt recorded"
         );
         assert_eq!(
-            matched["source"]["siteId"], sent_result["siteId"],
+            matched["source"]["sessionId"], sent_result["sessionId"],
             "wait source site matches the send receipt's site"
         );
         assert_eq!(
@@ -473,7 +473,7 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
     );
     assert_eq!(got["source"]["kind"], "terminal-launch-read");
     assert_eq!(
-        got["source"]["siteId"],
+        got["source"]["sessionId"],
         binding_a.2.as_str(),
         "get source site matches the list envelope source"
     );
@@ -902,7 +902,7 @@ fn cli_get_reads_the_retained_failed_launch_without_tui() -> TestResult {
     validate(&validators, "orchbee.terminal.get", &output);
     assert_eq!(got["version"], 1);
     assert_eq!(got["source"]["kind"], "terminal-launch-read");
-    assert_eq!(got["source"]["siteId"], site_id.as_str());
+    assert_eq!(got["source"]["sessionId"], site_id.as_str());
     let terminal = &got["result"]["terminal"];
     assert_eq!(terminal["terminalId"], terminal_id.as_str());
     assert_eq!(terminal["workerId"], worker_id.as_str());

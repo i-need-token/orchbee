@@ -304,7 +304,7 @@ fn scope_without_client_socket_is_service_unavailable() -> TestResult {
     assert_eq!(
         scope.read_dir()?.count(),
         0,
-        "query must leave the Site scope untouched"
+        "query must leave the Session scope untouched"
     );
     Ok(())
 }
@@ -493,7 +493,7 @@ fn fixture_document() -> &'static [u8] {
   "kind": "workbench.snapshot",
   "protocolVersion": 1,
   "revision": "7",
-  "siteId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "sessionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "navigation": {"projects":[{"projectId":"00000000000000000000000000000010", "label":"proj"}], "directories":[{
             "directoryId": "00000000000000000000000000000011",
             "workerId": "6f7263686265652d6c6f63616c2d7631",
@@ -912,7 +912,7 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
         get["source"],
         serde_json::json!({
             "kind": "terminal-launch-read",
-            "siteId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sessionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "revision": "7",
         })
     );
@@ -952,7 +952,7 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
     // re-encodes the document itself.
     let status = &documents[13]["result"];
     assert_eq!(
-        status["server"]["siteId"],
+        status["server"]["sessionId"],
         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     );
     assert_eq!(status["server"]["revision"], "7");
@@ -3360,7 +3360,7 @@ fn terminal_get_launch_read_failure_envelopes_validate() -> TestResult {
                         "kind": "terminal.launch.read.result",
                         "outcome": {
                             "kind": "found",
-                            "siteId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                            "sessionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                             "workbenchRevision": "7",
                             "terminal": {
                                 "terminalId": request.terminal_id().as_str(),
@@ -6058,7 +6058,7 @@ fn project_rename_schema_is_strict_and_distinct() -> TestResult {
         "version": 1,
         "source": {
             "kind": "workbench-command",
-            "siteId": id(0xaa),
+            "sessionId": id(0xaa),
             "requestId": id(0xbb),
             "expectedRevision": "7"
         },
@@ -6075,7 +6075,7 @@ fn project_rename_schema_is_strict_and_distinct() -> TestResult {
         "version": 1,
         "source": {
             "kind": "workbench-command",
-            "siteId": id(0xaa),
+            "sessionId": id(0xaa),
             "requestId": id(0xbb),
             "expectedRevision": "7"
         },
@@ -6092,19 +6092,19 @@ fn project_rename_schema_is_strict_and_distinct() -> TestResult {
 
     for variant in [
         // Wrong action — another resource's rename must not fit.
-        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"workbench-command","siteId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7"},"result":{"action":"workspace.rename","outcome":"committed","revision":"8","projectId":id(0x10),"label":"x"}}),
+        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"workbench-command","sessionId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7"},"result":{"action":"workspace.rename","outcome":"committed","revision":"8","projectId":id(0x10),"label":"x"}}),
         // Unknown outcome.
-        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"workbench-command","siteId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7"},"result":{"action":"project.rename","outcome":"accepted","revision":"8","projectId":id(0x10),"label":"x"}}),
+        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"workbench-command","sessionId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7"},"result":{"action":"project.rename","outcome":"accepted","revision":"8","projectId":id(0x10),"label":"x"}}),
         // Extra top-level / source / result fields.
-        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"workbench-command","siteId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7"},"result":{"action":"project.rename","outcome":"committed","revision":"8","projectId":id(0x10),"label":"x"},"extra":true}),
-        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"workbench-command","siteId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7","extra":1},"result":{"action":"project.rename","outcome":"committed","revision":"8","projectId":id(0x10),"label":"x"}}),
-        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"workbench-command","siteId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7"},"result":{"action":"project.rename","outcome":"committed","revision":"8","projectId":id(0x10),"label":"x","extra":1}}),
+        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"workbench-command","sessionId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7"},"result":{"action":"project.rename","outcome":"committed","revision":"8","projectId":id(0x10),"label":"x"},"extra":true}),
+        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"workbench-command","sessionId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7","extra":1},"result":{"action":"project.rename","outcome":"committed","revision":"8","projectId":id(0x10),"label":"x"}}),
+        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"workbench-command","sessionId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7"},"result":{"action":"project.rename","outcome":"committed","revision":"8","projectId":id(0x10),"label":"x","extra":1}}),
         // Missing required result fields.
-        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"workbench-command","siteId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7"},"result":{"action":"project.rename","outcome":"committed","revision":"8","projectId":id(0x10)}}),
-        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"workbench-command","siteId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7"},"result":{"action":"project.rename","outcome":"committed","projectId":id(0x10),"label":"x"}}),
+        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"workbench-command","sessionId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7"},"result":{"action":"project.rename","outcome":"committed","revision":"8","projectId":id(0x10)}}),
+        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"workbench-command","sessionId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7"},"result":{"action":"project.rename","outcome":"committed","projectId":id(0x10),"label":"x"}}),
         // Wrong source kind and wrong identifier shapes.
-        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"embedded","siteId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7"},"result":{"action":"project.rename","outcome":"committed","revision":"8","projectId":id(0x10),"label":"x"}}),
-        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"workbench-command","siteId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7"},"result":{"action":"project.rename","outcome":"committed","revision":"8","projectId":"not-an-id","label":"x"}}),
+        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"embedded","sessionId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7"},"result":{"action":"project.rename","outcome":"committed","revision":"8","projectId":id(0x10),"label":"x"}}),
+        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"workbench-command","sessionId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7"},"result":{"action":"project.rename","outcome":"committed","revision":"8","projectId":"not-an-id","label":"x"}}),
     ] {
         assert!(
             !rename_schema.is_valid(&variant),
@@ -6120,7 +6120,7 @@ fn project_rename_schema_is_strict_and_distinct() -> TestResult {
         "version": 1,
         "source": {
             "kind": "workbench-command",
-            "siteId": id(0xaa),
+            "sessionId": id(0xaa),
             "requestId": id(0xbb),
             "expectedRevision": "7"
         },
@@ -6193,8 +6193,8 @@ fn api_schema_catalog_is_closed_and_self_consistent() -> TestResult {
         "orchbee.agent.rename",
         "orchbee.cli.failure.agent-names",
         "orchbee.agent.doctor",
-        "orchbee.site.diagnose",
-        "orchbee.site.stop",
+        "orchbee.server.diagnose",
+        "orchbee.server.stop",
         "orchbee.launch-profile.list",
         "orchbee.launch-profile.get",
         "orchbee.cli.failure.launch-profile",
@@ -6279,7 +6279,7 @@ fn worktree_list_schemas_pin_document_and_failure_shapes() -> TestResult {
 
     let source = serde_json::json!({
         "kind": "worktree-list",
-        "siteId": id(1),
+        "sessionId": id(1),
         "revision": "7",
     });
     let entry = serde_json::json!({
@@ -6395,7 +6395,7 @@ fn worktree_list_schemas_pin_document_and_failure_shapes() -> TestResult {
             "schema": "orchbee.cli.failure.worktree",
             "version": 1,
             "failure": {"kind": "not-found", "details": details},
-            "source": {"kind": "workbench-snapshot", "siteId": id(1), "revision": "7"},
+            "source": {"kind": "workbench-snapshot", "sessionId": id(1), "revision": "7"},
         });
         assert!(failure_schema.is_valid(&envelope), "not-found envelope");
     }
@@ -6441,7 +6441,7 @@ fn worktree_list_schemas_pin_document_and_failure_shapes() -> TestResult {
             "schema": "orchbee.cli.failure.worktree",
             "version": 1,
             "failure": failure,
-            "source": {"kind": "workbench-snapshot", "siteId": id(1), "revision": "7"},
+            "source": {"kind": "workbench-snapshot", "sessionId": id(1), "revision": "7"},
         });
         assert!(
             failure_schema.is_valid(&envelope),

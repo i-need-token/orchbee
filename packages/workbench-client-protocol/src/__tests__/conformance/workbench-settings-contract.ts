@@ -7,7 +7,7 @@ import {
 import { z } from 'zod';
 
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	WorkbenchRequestIdSchema,
 	WORKBENCH_PROTOCOL_VERSION,
 } from './workbench-semantic-contract';
@@ -20,7 +20,7 @@ const NativeSettingsChangesSchema = UserPreferencesPatchSchema.refine(
 const correlation = {
 	protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 	requestId: WorkbenchRequestIdSchema,
-	siteId: SiteIdSchema,
+	sessionId: SessionIdSchema,
 };
 export const NativeSettingsRequestSchema = z
 	.strictObject({
@@ -56,7 +56,7 @@ export const NativeSettingsResultSchema = z
 				reason: z.enum([
 					'denied',
 					'unavailable',
-					'site-mismatch',
+					'session-mismatch',
 					'busy',
 					'source-changed',
 					'invalid-source',

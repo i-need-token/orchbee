@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	WORKBENCH_PROTOCOL_VERSION,
 	TerminalPresentationIdSchema,
 	WorkbenchPanelIdSchema,
@@ -79,7 +79,7 @@ const correlation = {
 	requestId: WorkbenchRequestIdSchema,
 };
 const scope = {
-	siteId: SiteIdSchema,
+	sessionId: SessionIdSchema,
 	workspaceId: WorkbenchWorkspaceIdSchema,
 };
 const deniedSchema = z.strictObject({ kind: z.literal('denied') }).readonly();

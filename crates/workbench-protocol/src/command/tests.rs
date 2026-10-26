@@ -151,8 +151,8 @@ fn terminal_geometry_matches_the_obcs_numeric_boundaries_without_a_protocol_depe
 
 #[test]
 fn request_bound_is_checked_before_parsing_and_semantic_equality_ignores_encoding() {
-    let first = br#"{"kind":"workbench.command","protocolVersion":1,"requestId":"11111111111111111111111111111111","siteId":"22222222222222222222222222222222","expectedRevision":"0","action":{"kind":"project.create","label":"A"}}"#;
-    let second = br#"{ "action":{"label":"\u0041","kind":"project.create"},"expectedRevision":"0","siteId":"22222222222222222222222222222222","requestId":"11111111111111111111111111111111","protocolVersion":1,"kind":"workbench.command" }"#;
+    let first = br#"{"kind":"workbench.command","protocolVersion":1,"requestId":"11111111111111111111111111111111","sessionId":"22222222222222222222222222222222","expectedRevision":"0","action":{"kind":"project.create","label":"A"}}"#;
+    let second = br#"{ "action":{"label":"\u0041","kind":"project.create"},"expectedRevision":"0","sessionId":"22222222222222222222222222222222","requestId":"11111111111111111111111111111111","protocolVersion":1,"kind":"workbench.command" }"#;
     assert_eq!(
         parse_workbench_request(first).unwrap(),
         parse_workbench_request(second).unwrap()
@@ -195,7 +195,7 @@ fn typed_tab_moves_preserve_exact_fields_through_json_and_obwp() {
             serde_json::from_slice::<Value>(&encoded).unwrap(),
             serde_json::json!({
                 "kind": "workbench.command", "protocolVersion": 1,
-                "requestId": request_id, "siteId": "22222222222222222222222222222222",
+                "requestId": request_id, "sessionId": "22222222222222222222222222222222",
                 "expectedRevision": "7",
                 "action": { "kind": "tab.move", "terminalContextId": context,
                     "tabId": tab, "direction": wire_direction }
@@ -260,7 +260,7 @@ fn typed_workspace_primary_directory_acceptance_preserves_exact_fields() {
             "kind": "workbench.command",
             "protocolVersion": 1,
             "requestId": request_id,
-            "siteId": "22222222222222222222222222222222",
+            "sessionId": "22222222222222222222222222222222",
             "expectedRevision": "7",
             "action": {
                 "kind": "workspace.primary-directory.accept",
@@ -306,7 +306,7 @@ mod worktree_list;
 fn workspace_launch_wire_requires_cwd_and_preserves_windows_environment() {
     let mut value = serde_json::json!({
         "kind": "workbench.command", "protocolVersion": 1,
-        "requestId": "00000000000000000000000000000011", "siteId": "00000000000000000000000000000012", "expectedRevision": "1",
+        "requestId": "00000000000000000000000000000011", "sessionId": "00000000000000000000000000000012", "expectedRevision": "1",
         "action": {"kind": "workspace.launch", "placement": {"kind": "project", "projectId": "00000000000000000000000000000013"}, "label": "开发",
             "geometry": {"columns": 80, "rows": 24, "cellPixelWidth": 0, "cellPixelHeight": 0},
             "options": {"cwd": "C:\\project space", "environment": [["DEMO", "a=b $literal"]]}}

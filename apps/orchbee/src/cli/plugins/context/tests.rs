@@ -4,7 +4,7 @@ fn id(n: u128) -> String {
     format!("{n:032x}")
 }
 fn snapshot() -> Snapshot {
-    serde_json::from_value(json!({"protocolVersion":1,"siteId":id(1),"revision":"3",
+    serde_json::from_value(json!({"protocolVersion":1,"sessionId":id(1),"revision":"3",
         "navigation":{ "projects":[{"projectId":id(3), "label":"project"}], "directories":[{"directoryId":id(4),"workerId":id(5),"path":"C:/repo"}], "workspaces":[{"workspaceId":id(2),"terminalContextId":id(2),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"},{"workspaceId":id(6), "label":"workspace", "primaryDirectoryId":id(4), "terminalContextId":id(7), "projectId":id(3)}]},
         "terminalContexts":[{"terminalContextId":id(2),"groups":[],"tabs":[]},
         {"terminalContextId":id(7),"groups":[],"tabs":[{"tabId":id(8),"label":"tab","groupId":null,"pinned":false,

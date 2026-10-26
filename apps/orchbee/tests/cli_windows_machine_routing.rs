@@ -18,7 +18,7 @@ fn packet(fixture: &Fixture, args: &[&str]) -> Value {
         Instant::now() + Duration::from_secs(15),
     )
     .unwrap();
-    json!({"version":1,"cohort":cohort.identity(),"site":"route-test","arguments":args,"input":null,"locale":"en_US.UTF-8"})
+    json!({"version":1,"cohort":cohort.identity(),"session":"route-test","arguments":args,"input":null,"locale":"en_US.UTF-8"})
 }
 fn relay(fixture: &Fixture, packet: &Value, shell: bool) -> Value {
     relay_with_environment(fixture, packet, shell, &[])

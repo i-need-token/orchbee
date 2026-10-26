@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	WorkbenchRequestIdSchema,
 	type WorkbenchRevision,
 	WorkbenchTabIdSchema,
@@ -49,7 +49,7 @@ describe('Workbench Tab Close contract', () => {
 			kind: 'workbench.tab-close.resume',
 			protocolVersion: 1,
 			requestId: WorkbenchRequestIdSchema.parse('11111111111111111111111111111111'),
-			siteId: SiteIdSchema.parse('22222222222222222222222222222222'),
+			sessionId: SessionIdSchema.parse('22222222222222222222222222222222'),
 			terminalContextId: WorkbenchTerminalContextIdSchema.parse('33333333333333333333333333333333'),
 			tabId: WorkbenchTabIdSchema.parse('44444444444444444444444444444444'),
 			closeRequestId: WorkbenchRequestIdSchema.parse('55555555555555555555555555555555'),
@@ -60,7 +60,7 @@ describe('Workbench Tab Close contract', () => {
 			kind: 'workbench.tab-close.resume.result',
 			protocolVersion: 1,
 			requestId: request.requestId,
-			siteId: request.siteId,
+			sessionId: request.sessionId,
 			terminalContextId: request.terminalContextId,
 			tabId: request.tabId,
 			closeRequestId: request.closeRequestId,

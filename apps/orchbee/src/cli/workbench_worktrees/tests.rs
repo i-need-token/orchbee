@@ -31,7 +31,7 @@ fn fixture(linked: bool) -> (Snapshot, WorkspaceRow, WorkbenchWorktreeQueryOutco
         "C:/repo/sub"
     };
     let checkout = if linked { "C:/trees/中文" } else { "C:/repo" };
-    let snapshot:Snapshot = serde_json::from_value(json!({"protocolVersion":1,"siteId":id(1),"revision":"7",
+    let snapshot:Snapshot = serde_json::from_value(json!({"protocolVersion":1,"sessionId":id(1),"revision":"7",
         "navigation":{"projects":[{"projectId":id(2), "label":"project"}], "directories":[{"directoryId":id(4),"workerId":id(5),"path":path}], "workspaces":[{"workspaceId":id(7),"terminalContextId":id(7),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"},{"workspaceId":id(3), "label":"work", "primaryDirectoryId":id(4), "terminalContextId":id(6), "projectId":id(2)}]},
         "terminalContexts":[{"terminalContextId":id(6),"groups":[],"tabs":[]},{"terminalContextId":id(7),"groups":[],"tabs":[]}]})).unwrap();
     let Projection::WorkspaceGet(doc) = super::super::results::project(
@@ -51,7 +51,7 @@ fn fixture(linked: bool) -> (Snapshot, WorkspaceRow, WorkbenchWorktreeQueryOutco
     if linked {
         entries.push(entry(checkout, true, true));
     }
-    let outcome=serde_json::from_value(json!({"kind":"found","siteId":id(1),"workbenchRevision":"7","workerId":id(5),
+    let outcome=serde_json::from_value(json!({"kind":"found","sessionId":id(1),"workbenchRevision":"7","workerId":id(5),
         "source":{"requestedPath":path,"repositoryRoot":"C:/repo","commonDirectory":"C:/repo/.git","checkoutPath":checkout,"workspaceId":id(3)},"entries":entries})).unwrap();
     (snapshot, doc.row, outcome)
 }
@@ -84,7 +84,7 @@ fn live_git_source_keeps_main_linked_and_subdirectory_identity() {
 fn source_binding_and_revision_mismatches_never_publish_a_summary() {
     let (snapshot, row, outcome) = fixture(true);
     for (pointer, value) in [
-        ("/siteId", json!(id(99))),
+        ("/sessionId", json!(id(99))),
         ("/workbenchRevision", json!("8")),
         ("/workerId", json!(id(99))),
         ("/source/requestedPath", json!("C:/elsewhere")),

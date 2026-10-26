@@ -142,7 +142,7 @@
 			"enum": [
 				"denied",
 				"unavailable",
-				"site-mismatch",
+				"session-mismatch",
 				"busy",
 				"resource-limit",
 				"not-found",
@@ -388,7 +388,7 @@
 		},
 		"request": {
 			"type": "object",
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "action"],
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "action"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
@@ -400,7 +400,7 @@
 				"requestId": {
 					"$ref": "#/$defs/identity"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/identity"
 				},
 				"action": {
@@ -410,7 +410,7 @@
 		},
 		"result": {
 			"type": "object",
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"],
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "outcome"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
@@ -422,7 +422,7 @@
 				"requestId": {
 					"$ref": "#/$defs/identity"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/identity"
 				},
 				"outcome": {

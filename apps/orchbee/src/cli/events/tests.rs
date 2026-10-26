@@ -9,7 +9,7 @@ fn current_stream_envelopes_validate_without_reopening_historical_event_names() 
         "../../../../../schemas/workbench/v1/workbench-events-conformance-v1.json"
     ))
     .unwrap();
-    let source = json!({"kind":"server","siteId":"1".repeat(32),"revision":"1"});
+    let source = json!({"kind":"server","sessionId":"1".repeat(32),"revision":"1"});
     let mut kinds = std::collections::BTreeSet::new();
     for case in corpus["valid"].as_array().unwrap() {
         let mut value = case["document"].clone();
@@ -72,7 +72,7 @@ fn organization_events_have_one_nullable_project_location_in_both_machine_envelo
             let schema: serde_json::Value = serde_json::from_str(document_schema).unwrap();
             let validator = jsonschema::validator_for(&schema).unwrap();
             let mut document = json!({"schema":schema_id,"version":1,
-                "source":{"kind":"server","siteId":reply.site_id,"revision":"1"},"result":reply});
+                "source":{"kind":"server","sessionId":reply.site_id,"revision":"1"},"result":reply});
             if schema_id == "orchbee.events.stream" {
                 document["kind"] = json!("event");
             } else {

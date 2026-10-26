@@ -58,9 +58,9 @@ impl Locale {
             Row::CopyOnSelect => ("Copy on select", "选中即复制"),
             Row::TrimAgents => (
                 "Hide empty space below Agent output",
-                "收起 Agent 输出底部空白",
+                "收起智能体输出底部空白",
             ),
-            Row::Reminders => ("Agent status notifications", "Agent 状态通知"),
+            Row::Reminders => ("Agent status notifications", "智能体状态通知"),
             Row::CompletionReminders => ("Completion reminders", "命令完成提醒"),
             Row::CompletionThreshold => {
                 ("Minimum command duration (seconds)", "最短命令时长（秒）")
@@ -180,7 +180,7 @@ impl Locale {
             ),
             Row::TrimAgents => self.setting(
                 "Trim blank agent rows after Save; preserves active history and selection.",
-                "保存后裁剪 Agent 空白行；保留正在操作的历史和选区。",
+                "保存后裁剪智能体空白行；保留正在操作的历史和选区。",
             ),
             Row::Scrollback => self.setting(
                 "History capacity for new terminals: 0–1000 MB; 1 MB = 1,000,000 bytes.",
@@ -188,7 +188,7 @@ impl Locale {
             ),
             Row::Reminders => self.setting(
                 "Future hidden-agent notifications after Save; host and mute rules apply.",
-                "保存后用于后续隐藏 Agent 通知；遵循宿主与静音规则。",
+                "保存后用于后续隐藏智能体通知；遵循宿主与静音规则。",
             ),
             Row::CompletionReminders => self.setting(
                 "Future command reminders after Save; requires shell integration.",
@@ -239,7 +239,7 @@ impl Locale {
                 self.setting("Never", "从不")
             }
             Choice::AgentReminders(AgentReminderMode::Hidden) => {
-                self.setting("When Agent location is hidden", "Agent 位置不可见时")
+                self.setting("When Agent location is hidden", "智能体位置不可见时")
             }
             Choice::CompletionReminders(CompletionReminderMode::Unfocused) => {
                 self.setting("When terminal is unfocused", "终端未聚焦时")
@@ -301,7 +301,7 @@ impl Locale {
             Row::Reminders => match values.agent_notification_mode {
                 AgentReminderMode::Never => self.setting("Never", "从不"),
                 AgentReminderMode::Hidden => {
-                    self.setting("When Agent location is hidden", "Agent 位置不可见时")
+                    self.setting("When Agent location is hidden", "智能体位置不可见时")
                 }
             },
             Row::CompletionReminders => match values.completion_reminder_mode {
@@ -576,11 +576,11 @@ impl Locale {
             ),
             Row::TrimAgents => self.setting(
                 "After Save: existing detected agents; active selection and history stay put.",
-                "保存后用于现有已检测 Agent；保留正在操作的选区和历史视图。",
+                "保存后用于现有已检测智能体；保留正在操作的选区和历史视图。",
             ),
             Row::Reminders => self.setting(
                 "After Save: future hidden-agent events; host delivery and per-agent mute apply.",
-                "保存后用于后续隐藏 Agent 事件；仍遵循宿主交付与各 Agent 静音设置。",
+                "保存后用于后续隐藏智能体事件；仍遵循宿主交付与各智能体静音设置。",
             ),
             Row::CompletionReminders | Row::CompletionThreshold => self.setting(
                 "After Save: future command completions; requires shell integration; no replay.",
@@ -588,7 +588,7 @@ impl Locale {
             ),
             Row::Sound => self.setting(
                 "After Save: eligible future reminders; host sound and per-agent mute apply.",
-                "保存后用于后续符合条件的提醒；仍遵循宿主声音能力与各 Agent 静音设置。",
+                "保存后用于后续符合条件的提醒；仍遵循宿主声音能力与各智能体静音设置。",
             ),
             Row::Scrollback => self.setting(
                 "After Save: new terminals only. Existing terminals keep their captured limit.",

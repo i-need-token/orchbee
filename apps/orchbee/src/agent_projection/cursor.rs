@@ -11,6 +11,7 @@ pub(crate) struct Cursor(String);
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Position {
+    #[serde(rename = "session")]
     site: SiteId,
     workbench: WorkbenchRevision,
     canonical: AgentSafeInteger,

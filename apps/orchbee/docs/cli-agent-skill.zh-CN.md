@@ -8,7 +8,7 @@
 
 `--version`、`--skill`、`completion <shell>`、`api schema` 和 Windows `--default-config` 均可离线使用。补全支持 Bash、Zsh、Fish、PowerShell 和 Elvish。`api schema` 列出 schema ID；用 `api schema <schema-id>` 查看同一构建的机器契约，或添加 `--output <path>` 导出。读取输出中的 `schema` 与 `version`；本指南不固定目录数量或历史版本。
 
-所有 CLI JSON 文档均使用版本 `1`，每种只有一个当前 schema。不同平台及参数下字段均保留：`{kind:"unsupported"}` 表示平台无此能力，`null` 表示来源说没有，`"unknown"` 表示来源说不清。整条命令不支持时返回 `stage: "platform"`、`reason: "unsupported-platform"`，退出码为 `4`。Linux 与 Windows 的 `server diagnose` 均使用 `orchbee.site.diagnose`。
+所有 CLI JSON 文档均使用版本 `1`，每种只有一个当前 schema。不同平台及参数下字段均保留：`{kind:"unsupported"}` 表示平台无此能力，`null` 表示来源说没有，`"unknown"` 表示来源说不清。整条命令不支持时返回 `stage: "platform"`、`reason: "unsupported-platform"`，退出码为 `4`。Linux 与 Windows 的 `server diagnose` 均使用 `orchbee.server.diagnose`。
 
 PowerShell 用户可用 `orchbee completion powershell` 输出补全脚本。
 
@@ -67,7 +67,7 @@ Windows Codex 的检查与安装使用同一配置根：非空 `CODEX_HOME`，�
 
 `agent start review --provider codex --panel <panel-id>` 在已观察到空闲的 cmd、PowerShell 或 pwsh 终端启动，并等待验证后的就绪。默认时限 30000 毫秒，允许范围 3001–300000。字面提供方参数放在 `--` 后，或使用可重复的 `--arg=<value>`。超时或取消后提供方可能仍在运行；重试前检查输入回执，并用 `agent names` 查看待完成预留。
 
-`agent list/get/explain` 检查当前 Agent 状态。Windows 上，`agent list` 会合并规范会话与物理终端 Agent，并为每行报告来源、语义状态和位置；`--client <id>` 添加独立的 Client 观察，不改变状态。每页 1–100 行，默认 50 行。Windows JSON 使用 `orchbee.agent.list` v1 和 `orchbee.agent.get` v1。Windows 列表游标使用 `u1.<base64url>`，载荷为编码成 base64url 的规范 JSON，最多 1024 个字符，并绑定 Site、来源修订、筛选条件和 Client 选择。畸形游标在读取实时来源前作为用法错误拒绝；判断游标是否过期需要读取当前来源。收到 `cursor-restart` 后应从第一页重新开始。每页最多为 64 行添加可选 cwd 信息；无法获取时为 null。
+`agent list/get/explain` 检查当前 Agent 状态。Windows 上，`agent list` 会合并规范会话与物理终端 Agent，并为每行报告来源、语义状态和位置；`--client <id>` 添加独立的 Client 观察，不改变状态。每页 1–100 行，默认 50 行。Windows JSON 使用 `orchbee.agent.list` v1 和 `orchbee.agent.get` v1。Windows 列表游标使用 `u1.<base64url>`，载荷为编码成 base64url 的规范 JSON，最多 1024 个字符，并绑定 会话、来源修订、筛选条件和 Client 选择。畸形游标在读取实时来源前作为用法错误拒绝；判断游标是否过期需要读取当前来源。收到 `cursor-restart` 后应从第一页重新开始。每页最多为 64 行添加可选 cwd 信息；无法获取时为 null。
 
 Windows 上，`@agent:<kind>` 选择唯一提供方，`@agent:<n>` 选择当前完整列表中的一基序号，而不是当前页的序号。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。`agent get`、`read`、`prompt`、`send-keys`、`wait` 和 `focus` 共用此解析器；不完整投影不能证明提供方匹配唯一。v1 `agent get` 将普通 Agent 身份和状态放在 `result.agent`，将各来源分面的详细信息放在 `result.inspection`。
 
@@ -171,4 +171,4 @@ Workspace、Tab、Panel、Project、Worktree、Client 和 Server 操作使用回
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=f68115b0adfa26a64ea6b21d40ee16166404bf83b02f0dd8f697ee8dc115c52a zh-cn-sha256=e33df6a6a20755d73418756307dcb5ab03750648fd2eda19e68c4f2b1f2dd691 -->
+<!-- documentation-pairing: english-sha256=4ef0d7f645b0dfda111d651ba62add5d75363298c673479ba9af008452e69072 zh-cn-sha256=4f628c683b17ffb1f836e5a777805dcff193dfdd1aad1cf0db85ef48591f8e19 -->

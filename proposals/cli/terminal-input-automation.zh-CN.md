@@ -36,7 +36,7 @@ multiplexer 上为 agent 提供的能力（发送输入、等待输出、挂接�
 直连 Terminal Host、把终端输出当作 Agent 或 Workbench 权威、创建或终止终端、resize，或跨调用
 持有状态。
 
-本切片的 non-goals：实现这些命令；Site 生命周期操作；remote targeting；Agent 启动或控制命令；
+本切片的 non-goals：实现这些命令；会话 生命周期操作；remote targeting；Agent 启动或控制命令；
 resize 动词（controller 授权已覆盖它，但本提案不提出 CLI 动词）；semantic-key wire 扩展；
 scrollback 或字节流谓词；`--detach` 支持；close/kill 动词。
 
@@ -48,8 +48,8 @@ viewer/control 契约：
 
 | 阶段    | Wire 语义                                                                                                                                                                                                                                                       |
 | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 定向    | `<target>` 只接受完整的类型化终端 ID（恰好 32 个小写十六进制字符，非零），规则同 `terminal get`；不提供 label 匹配。解析把 snapshot 绑定映射为 `{siteId, workerId, terminalId}`；未绑定或不存在的终端是 `not-found`                                             |
-| Attach  | `terminal.viewer` `attach-binding` `{siteId, workerId, terminalId}` → `attached` `{attachmentId, hostEpoch}`——一个由本 Session 持有的新只读 viewer                                                                                                              |
+| 定向    | `<target>` 只接受完整的类型化终端 ID（恰好 32 个小写十六进制字符，非零），规则同 `terminal get`；不提供 label 匹配。解析把 snapshot 绑定映射为 `{sessionId, workerId, terminalId}`；未绑定或不存在的终端是 `not-found`                                          |
+| Attach  | `terminal.viewer` `attach-binding` `{sessionId, workerId, terminalId}` → `attached` `{attachmentId, hostEpoch}`——一个由本 Session 持有的新只读 viewer                                                                                                           |
 | Acquire | `terminal.control` `acquire` `{attachmentId}` → `acquired` `{controllerId}`——请求该终端唯一的合并 input-and-resize 授权。竞争返回 `rejected` `{reason:"controller-busy"}`；Server 没有等待队列，因此 CLI 报告拒绝而不是阻塞                                     |
 | Input   | `terminal.control` `input` `{attachmentId, controllerId, sequence, bytes}`，1–4,096 个裸字节 → `input-accepted`；或一条 `paste` `OBCQ` 记录，1–262,144 字节 → `pasted` `{acceptedBytes}`。Acceptance 的含义是进入 Host 的有界输入队列，而不是应用已消费或执行它 |
 | Observe | `terminal.viewer` `poll` `{attachmentId}` → `empty` 或一条二进制 `OBSR` 记录；客户端应用该记录后用 `frame-applied` `{sequence, generation, revision}` 确认；sequence 或解码分歧经 `need-snapshot` 恢复                                                          |
@@ -237,7 +237,7 @@ create-or-rejoin 流程，与本命令无关。本命令绝不 acquire controlle
 流边界：
 
 - `--format json` 发出 NDJSON：每行一个 `{schema:"orchbee.terminal.open",version:1,source,event}`
-  对象，`source` 是用于定向解析的 `{kind:"workbench-snapshot",siteId,revision}`。事件按流
+  对象，`source` 是用于定向解析的 `{kind:"workbench-snapshot",sessionId,revision}`。事件按流
   序：
   - `attached`——`{kind:"attached",terminal:{terminalId,workerId},attachmentId,hostEpoch}`，
     恰好一次且在最前。
@@ -263,7 +263,7 @@ create-or-rejoin 流程，与本命令无关。本命令绝不 acquire controlle
 
 - 机器数据只在 stdout；本地化诊断只在 stderr；text 为默认，`--format json` 选择上述版本化
   机器文档。`open` 的机器文档是 NDJSON，因为该操作是流；其余命令发出一份 pretty JSON 文档。
-- 成功 envelope 保持已交付的 `{schema,version:1,source,result}` 形态，`source:{kind:"workbench-snapshot",siteId,revision}`
+- 成功 envelope 保持已交付的 `{schema,version:1,source,result}` 形态，`source:{kind:"workbench-snapshot",sessionId,revision}`
   来自定向读取。`source` 描述的是定向快照，而不是生效时刻状态。
 - 新 schema ID：`orchbee.terminal.send-text`、`orchbee.terminal.send-keys`、
   `orchbee.terminal.wait`、`orchbee.terminal.open`（NDJSON 事件 envelope）。
@@ -365,4 +365,4 @@ scrollback 谓词）；agent 控制域归属与任何独立的 agent 域策略�
 模型与一个客户端有界观察循环——因此不需要新的 TLA+ 模型。触发范围覆盖 `apps/orchbee` 源与
 测试路径的已注册模型仍必须实际运行；inventory 输出不能替代运行。
 
-<!-- documentation-pairing: english-sha256=2918ea125a62b8696adc50cc5a3be531bbfe5c52235f5413c2ea4da1f4419d18 zh-cn-sha256=6fdd03902769a5d6efe8f6c1088a2c21573f691165ea5b6637aeb343e4eee1ef -->
+<!-- documentation-pairing: english-sha256=6d08793a0db99ca217d38a1fd7e3eb24166e01edd63afcbdb012a2511e5054d9 zh-cn-sha256=2ca11a83c5ffdde16663a491646a35f88f4954dd70914c3970d1e20dba279e98 -->

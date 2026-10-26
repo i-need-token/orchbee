@@ -7,7 +7,7 @@
 	"required": [
 		"schema",
 		"version",
-		"siteId",
+		"sessionId",
 		"baseRevision",
 		"source",
 		"clientId",
@@ -33,7 +33,7 @@
 		"version": {
 			"const": 1
 		},
-		"siteId": {
+		"sessionId": {
 			"$ref": "#/$defs/canonical/$defs/id"
 		},
 		"baseRevision": {
@@ -700,13 +700,13 @@
 				},
 				"commandSource": {
 					"type": "object",
-					"required": ["kind", "siteId", "requestId", "expectedRevision"],
+					"required": ["kind", "sessionId", "requestId", "expectedRevision"],
 					"additionalProperties": false,
 					"properties": {
 						"kind": {
 							"const": "workbench-command"
 						},
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/canonical/$defs/id"
 						},
 						"requestId": {
@@ -721,7 +721,7 @@
 					"type": "object",
 					"required": [
 						"kind",
-						"siteId",
+						"sessionId",
 						"requestId",
 						"closeRequestId",
 						"expectedAttemptGeneration"
@@ -731,7 +731,7 @@
 						"kind": {
 							"const": "workspace-close-resume"
 						},
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/canonical/$defs/id"
 						},
 						"requestId": {
@@ -757,10 +757,10 @@
 				"version": {
 					"const": 1
 				},
-				"siteId": {
+				"sessionId": {
 					"anyOf": [
 						{
-							"$ref": "#/$defs/control/$defs/siteId"
+							"$ref": "#/$defs/control/$defs/sessionId"
 						},
 						{
 							"type": "null"
@@ -787,14 +787,14 @@
 										"requestId": {
 											"$ref": "#/$defs/control/$defs/requestId"
 										},
-										"siteId": {
-											"$ref": "#/$defs/control/$defs/siteId"
+										"sessionId": {
+											"$ref": "#/$defs/control/$defs/sessionId"
 										},
 										"outcome": {
 											"$ref": "#/$defs/control/$defs/outcome"
 										}
 									},
-									"required": ["protocolVersion", "requestId", "siteId", "outcome"],
+									"required": ["protocolVersion", "requestId", "sessionId", "outcome"],
 									"additionalProperties": false
 								}
 							},
@@ -844,11 +844,11 @@
 					]
 				}
 			},
-			"required": ["schema", "version", "siteId", "operationId", "observation", "wait"],
+			"required": ["schema", "version", "sessionId", "operationId", "observation", "wait"],
 			"additionalProperties": false,
 			"$defs": {
-				"siteId": {
-					"title": "SiteId",
+				"sessionId": {
+					"title": "SessionId",
 					"$ref": "#/$defs/control/$defs/identity"
 				},
 				"requestId": {
@@ -3224,10 +3224,10 @@
 				"version": {
 					"const": 1
 				},
-				"siteId": {
+				"sessionId": {
 					"anyOf": [
 						{
-							"$ref": "#/$defs/layout/$defs/siteId"
+							"$ref": "#/$defs/layout/$defs/sessionId"
 						},
 						{
 							"type": "null"
@@ -3254,14 +3254,14 @@
 										"requestId": {
 											"$ref": "#/$defs/layout/$defs/requestId"
 										},
-										"siteId": {
-											"$ref": "#/$defs/layout/$defs/siteId"
+										"sessionId": {
+											"$ref": "#/$defs/layout/$defs/sessionId"
 										},
 										"outcome": {
 											"$ref": "#/$defs/layout/$defs/outcome"
 										}
 									},
-									"required": ["protocolVersion", "requestId", "siteId", "outcome"],
+									"required": ["protocolVersion", "requestId", "sessionId", "outcome"],
 									"additionalProperties": false
 								}
 							},
@@ -3409,7 +3409,7 @@
 			"required": [
 				"schema",
 				"version",
-				"siteId",
+				"sessionId",
 				"operationId",
 				"observation",
 				"wait",
@@ -3418,8 +3418,8 @@
 			],
 			"additionalProperties": false,
 			"$defs": {
-				"siteId": {
-					"title": "SiteId",
+				"sessionId": {
+					"title": "SessionId",
 					"$ref": "#/$defs/layout/$defs/identity"
 				},
 				"requestId": {

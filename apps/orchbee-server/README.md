@@ -2,7 +2,7 @@
 
 ## Windows semantic events
 
-The Site journal records actual accepted topology, metadata, worktree, Agent and Client changes.
+The Session journal records actual accepted topology, metadata, worktree, Agent and Client changes.
 An authenticated connection owns one bounded subscription; read/wait retain its cursor and probes,
 while close/EOF releases the owner. Terminal output and exit use admitted Host observations, and
 Client scroll/visible output use the exact read-only Client viewport. History gaps, unavailable
@@ -30,14 +30,14 @@ publishes durable Stopped before completing the runtime activation record. A pub
 leaves recovery uncertainty and never grants a successful clean-stop receipt. The runtime crate
 owns catalog encoding, path admission and replacement; the Server owns when shutdown is proven.
 
-## Managed Windows Site shutdown
+## Managed Windows Session shutdown
 
 The managed Server automatically saves committed Workbench changes after a 500ms debounce and
 refreshes cached directories every 30 seconds. It retains three
 valid snapshots and excludes terminal screens. Startup restores the newest valid snapshot;
 unreadable copies are retained and reported to the Client, including an explicit empty-workspace
 notice if every copy is invalid. The [checkpoint contract](docs/workbench-checkpoint.md) owns
-capture, physical-directory fences and restoration; Site-owner admission remains a runtime decision.
+capture, physical-directory fences and restoration; Session-owner admission remains a runtime decision.
 
 One stop identity owns the remaining managed Server lifetime. Accepting it atomically closes new
 application-record admission; existing admitted operations and result writes settle before cleanup.
@@ -72,14 +72,14 @@ English remains canonical.
 
 Sidebar deletion can submit `workspace.close-if-idle` or `project.dissolve-if-idle` with distinct
 full fingerprints. The [conditional admission owner](docs/terminal-tab-close.md#conditional-idle-admission)
-proves the whole captured scope under the Site gate, including pending reservations and child
+proves the whole captured scope under the Session gate, including pending reservations and child
 bindings. A runtime-backed or unresolved scope never becomes empty from Client observations.
 Conditional Workspace Close installs the ordinary retained fence; conditional Project dissolution
 removes organization only and preserves member resources. A definite `confirmation-required`
 refusal permits a new reviewed decision, never automatic unconditional resubmission. Existing
 explicitly confirmed actions and receipts keep their semantics.
 
-`WorkbenchAuthority` owns one in-memory Site navigation document and a bounded request/result
+`WorkbenchAuthority` owns one in-memory Session navigation document and a bounded request/result
 ledger. Navigation stores global, identity-sorted `directories`, `projects` and `workspaces` arrays
 and independent `projectOrder` and `workspaceOrder` permutations. A Project contains only its identity and label;
 each Workspace has a required nullable `projectId`, so ungrouped Workspaces are ordinary members
@@ -106,7 +106,7 @@ request I/O never does.
 The local `tab.create` command appends a configured Workspace Tab, jointly commits
 membership and retained terminal intent, and dispatches one launch. Exact replay returns the same
 pending or final result. A later Close may remove that membership without rewriting the historical
-Create result. A Client can attach a viewer using a current snapshot's exact Site/Worker/Terminal
+Create result. A Client can attach a viewer using a current snapshot's exact Session/Worker/Terminal
 binding through OBCS. The [authority model](docs/workbench-authority.md) defines authorization, revision conflicts,
 semantic replay, allocation, retirement and evidence. Reads clone the committed snapshot under the
 same gate as writes; response I/O occurs after the gate is released.
@@ -158,13 +158,13 @@ only by its own executable. Complete TUI/Desktop/CLI Workbench integration remai
 ## In-memory advancement and publication
 
 The authority's private `WorkbenchProjectionStore::advance_projection` accepts one complete
-internally supplied snapshot. It requires the same Site and a strictly increasing revision, then
+internally supplied snapshot. It requires the same Session and a strictly increasing revision, then
 derives navigation replacement followed by changed contexts in canonical identity order. It returns
 `WorkbenchPublication::Delta` within the 1,024-change and 1 MiB encoded bounds, or a complete
 snapshot otherwise. An empty delta may advance revision without visible projection changes.
 
 Before changing state, the store validates and serializes the publication. An applied delta must
-reproduce the candidate exactly. Parsing, Site, revision, refinement or serialization failure leaves
+reproduce the candidate exactly. Parsing, Session, revision, refinement or serialization failure leaves
 state unchanged. Only the authority advances this private component. Clients cannot replace
 snapshots or submit deltas. The carrier provides read-after-write; every committed publication is
 retained in a 64-entry journal and served to readers through `workbench.publication.read` under the
@@ -172,7 +172,7 @@ same read grant, so a Client holding a baseline revision fast-forwards with orde
 instead of full snapshots. A journal that cannot connect the caller's revision answers with one
 complete snapshot boundary publication. Push subscription remains unfinished.
 
-## Managed Linux and macOS Site startup
+## Managed Linux and macOS Session startup
 
 The private `--local-site <absolute-runtime-directory>` entry consumes the
 [shared runtime contract](../../crates/local-site-runtime/README.md).
@@ -187,7 +187,7 @@ its independent total startup deadline. This readiness means registered Server +
 existing Host or terminal. Managed standard streams are null; this mode emits no explicit-endpoint
 stdout readiness marker.
 
-Client exit does not end the Site. Worker loss makes its capabilities unavailable without starting
+Client exit does not end the Session. Worker loss makes its capabilities unavailable without starting
 a replacement; Server loss leaves the attempt marker and retained Host terminals for explicit
 recovery. This entry implements no recovery, automatic cleanup, service-manager installation, or
 restart. The ordinary explicit-endpoint test entry retains the behavior below.
@@ -480,7 +480,7 @@ implementation limits, not release performance budgets.
 ## Local terminal send
 
 An admitted Client may submit one non-interactive input send against an exposed Workbench terminal
-it could already close. The selector names the exact site, worker, and terminal binding the Server
+it could already close. The selector names the exact session, worker, and terminal binding the Server
 validates at that admission; it is not an implicit incarnation lock taken from an earlier list
 result. Send is a new explicit orchestration-input authority, not a read-only query and not a
 zero-permission change; it adds no remote exposure and bypasses no cohort, peer, or Host capability
@@ -615,12 +615,12 @@ joint command preparation and settlement with origin-bound, consuming owner toke
 preparation. WorkbenchAuthority's `terminal_binding_selection` child owns the read-only canonical exposure query;
 `terminal_tab_create` owns command admission, prepared membership, reserved ledger bytes and settlement.
 The `workspace_directory` children own directory admission and canonical commit in WorkbenchAuthority,
-its Site grant composition, and the service's lock-free Worker observation followed by revalidation.
-`terminal_tab_move` owns Move admission and prepared permutation; Site checks composition before
+its Session grant composition, and the service's lock-free Worker observation followed by revalidation.
+`terminal_tab_move` owns Move admission and prepared permutation; Session checks composition before
 target/no-op evaluation. Both share command preflight; Move reuses the authority's prepared
 settled-command publication.
 LocalTerminalService's parent owns shared entropy acquisition; its `tab_create` child pins Worker
-placement under registry-then-Site locks, dispatches outside both, and settles both owners before returning the retained command result. Shared helpers are defined in parents; children do not import siblings.
+placement under registry-then-Session locks, dispatches outside both, and settles both owners before returning the retained command result. Shared helpers are defined in parents; children do not import siblings.
 The service's `viewer_connection` owns attachment lifetime; `controller_connection` owns terminal
 reservation, Connection grants, effect sequences and exact release; `projection` owns routing and
 feedback. Client `record_stream` owns post-admission I/O deadlines. Reverse and other lateral imports
@@ -628,19 +628,19 @@ remain forbidden; tests do not widen production visibility.
 
 The carrier owns I/O, exact echo validation and generation retirement, not OBCS or product policy.
 Deterministic cores import no transport, clock or process adapter. Terminal service operations take
-registry then Site locks, or registry then controller-map locks for grants. Workbench access takes
-only the Site gate after external OBWP policy checking for reads and pure navigation. The opaque
+registry then Session locks, or registry then controller-map locks for grants. Workbench access takes
+only the Session gate after external OBWP policy checking for reads and pure navigation. The opaque
 `WorkbenchReadOrNavigationRequest` excludes `tab.create`, `tab.move`, `tab.close`,
 `panel.split`, `panel.close`, `panel.move` and
-`workspace.primary-directory.accept`, which need their explicit Site composition paths.
-Move requires the navigation grant and only the Site gate; `tab.create` additionally requires
+`workspace.primary-directory.accept`, which need their explicit Session composition paths.
+Move requires the navigation grant and only the Session gate; `tab.create` additionally requires
 the terminal-create grant and uses the composed path above. Binding viewer selection holds registry
-and Site locks, then samples the handle's active state; its internal canonical query uses OBCS
+and Session locks, then samples the handle's active state; its internal canonical query uses OBCS
 subject admission and preserves Workbench-first failure precedence. I/O releases every gate; no automatic retry is added.
 The `application_connection` runner dispatches exact OBCS/OBWP prefixes to separate semantic handlers
 and imports only their contracts and standard-library I/O. A postcommit coordination failure closes
 the mixed carrier without fabricating a command result. The unpublished application library
-exposes the authority, Site grants and typed internal membership/exposure/preparation results; whole-projection writing
+exposes the authority, Session grants and typed internal membership/exposure/preparation results; whole-projection writing
 remains private.
 
 ## Verification
@@ -667,25 +667,25 @@ The relay core has one configuration with a 20-second deadline. It must enumerat
 
 ## Workspace terminal creation
 
-The Site starts with an empty Workbench. Every terminal-bearing Context has one real Workspace owner; Project membership may be null. Explicit `workspace.launch` or `tab.create` prepares canonical membership and the runtime reservation together, commits once, and launches through that Workspace's admitted Worker/directory. Exact replay returns the retained pending/final result without another launch.
+The Session starts with an empty Workbench. Every terminal-bearing Context has one real Workspace owner; Project membership may be null. Explicit `workspace.launch` or `tab.create` prepares canonical membership and the runtime reservation together, commits once, and launches through that Workspace's admitted Worker/directory. Exact replay returns the retained pending/final result without another launch.
 
 Clients read canonical membership and attach its exact binding. There is no `terminal.open` endpoint, singleton first-terminal reference or Workspace-less fallback. Empty Workspaces remain navigable; an empty Workbench creates no terminal implicitly. See [Workspace membership](docs/workbench-authority.md#workspace-terminal-membership-model), [Tab creation](docs/workbench-authority.md#workspace-tab-creation-model) and [directory admission](docs/workspace-terminal-directory.md).
 
-## Windows native Site
+## Windows native Session
 
-The managed Windows Site keeps the existing in-memory authority and lifecycle guard. It accepts current-token-user named-pipe peers and starts one exact sibling `orchbee-worker.exe` with handle inheritance disabled, so CLI output capture finishes independently of the retained Site. Runtime path, ACL, lock, marker, and cohort validation remain in `orchbee-local-site-runtime`. The Windows observation ingress accepts one bounded complete JSON value without Unix half-close; malformed connections do not terminate other clients. This ingress adapter does not port the Unix provider hooks. See the [Client quick start](../orchbee/README.md#native-windows-quick-start) for the usable surface and remaining limits.
+The managed Windows Session keeps the existing in-memory authority and lifecycle guard. It accepts current-token-user named-pipe peers and starts one exact sibling `orchbee-worker.exe` with handle inheritance disabled, so CLI output capture finishes independently of the retained Session. Runtime path, ACL, lock, marker, and cohort validation remain in `orchbee-local-site-runtime`. The Windows observation ingress accepts one bounded complete JSON value without Unix half-close; malformed connections do not terminate other clients. This ingress adapter does not port the Unix provider hooks. See the [Client quick start](../orchbee/README.md#native-windows-quick-start) for the usable surface and remaining limits.
 
 ## Directory Workspace launch
 
 The native unpublished `workspace.launch` command creates a Workspace, accepts its absolute directory and creates its first terminal under one request identity. Placement is `ungrouped`, an existing `project`, a `new-project`, or `alongside` a source Workspace. Alongside uses the source's current Project at final admission; if it is ungrouped, only that source and the new Workspace enter a newly created Project. A closed or closing source is refused. Navigation, directory association and terminal creation grants are all required. Explicit argv, environment and Launch Profiles use the existing bounded launch contracts. Client focus is outside this operation.
 
-The Server checks admission, releases its gates for a read-only Worker directory probe, then rechecks the request, revision, source membership and exact Worker generation under registry-to-Site locking. It prepares six structural identities and any required Project identity in one candidate projection, reserves the retained result and terminal admission, and commits Project placement, Workspace, Directory, Context and first Tab/Panel/Presentation together at one revision. Failed admission publishes no partial Workspace or Project and cannot regroup the source. Terminal dispatch occurs only after commit; pending or failed launch retains all committed identities for inspection and explicit Close. The receipt carries the resulting nullable Project. Exact replay never dispatches again. A lost response is outcome unknown and must not be automatically retried.
+The Server checks admission, releases its gates for a read-only Worker directory probe, then rechecks the request, revision, source membership and exact Worker generation under registry-to-Session locking. It prepares six structural identities and any required Project identity in one candidate projection, reserves the retained result and terminal admission, and commits Project placement, Workspace, Directory, Context and first Tab/Panel/Presentation together at one revision. Failed admission publishes no partial Workspace or Project and cannot regroup the source. Terminal dispatch occurs only after commit; pending or failed launch retains all committed identities for inspection and explicit Close. The receipt carries the resulting nullable Project. Exact replay never dispatches again. A lost response is outcome unknown and must not be automatically retried.
 
 This refinement reuses the Tab creation commit and settlement owner. Verification obligations cover grant separation, stale revision and Worker generation across the probe, capacity and identity bounds, exact replay, postcommit launch failure, and a Windows cwd/environment process witness. It does not claim durable restart recovery, Desktop support, focus changes or TLA execution.
 
 ## Retained Windows Worktree continuation
 
-`workbench.worktree.operation` admits Start, pure Read and attempt-fenced Resume. The Workbench authority retains at most 64 operations, one Pending globally, and canonical Workspace association; a lazy maintenance owner continues after Client disconnect. Registry-to-Site admission and publication recheck the source and exact Worker incarnation; OBCN IPC runs outside both gates. Create/Open observe Worker checkout facts before reusing or launching a Workspace. Remove checks dirty state before Close, reserves new Workspace/directory admissions, holds canonical publication and waits for terminal disposal plus cleanup before Git removal. A known Git failure verifies the original checkout and restores fresh default shells into the retained presentation slots; independent bounded restoration counts preserve failed and unknown launches. Unknown deletion keeps the layout fenced without launching shells. Known success releases publication; final Close retries never repeat Git. Explicit ordinary Close after a failed Worktree can release the hold without Git. Explicit Site stop joins this owner before Close maintenance and Worker carrier freeze. See the [CLI/continuation contract](../orchbee/docs/windows-worktrees.md) and [shared protocol](../../schemas/workbench/v1/workbench-worktree.schema.json) for limits and recovery.
+`workbench.worktree.operation` admits Start, pure Read and attempt-fenced Resume. The Workbench authority retains at most 64 operations, one Pending globally, and canonical Workspace association; a lazy maintenance owner continues after Client disconnect. Registry-to-Session admission and publication recheck the source and exact Worker incarnation; OBCN IPC runs outside both gates. Create/Open observe Worker checkout facts before reusing or launching a Workspace. Remove checks dirty state before Close, reserves new Workspace/directory admissions, holds canonical publication and waits for terminal disposal plus cleanup before Git removal. A known Git failure verifies the original checkout and restores fresh default shells into the retained presentation slots; independent bounded restoration counts preserve failed and unknown launches. Unknown deletion keeps the layout fenced without launching shells. Known success releases publication; final Close retries never repeat Git. Explicit ordinary Close after a failed Worktree can release the hold without Git. Explicit Session stop joins this owner before Close maintenance and Worker carrier freeze. See the [CLI/continuation contract](../orchbee/docs/windows-worktrees.md) and [shared protocol](../../schemas/workbench/v1/workbench-worktree.schema.json) for limits and recovery.
 
 Worktree Start has a required nullable `projectId`: only a Directory source may request an
 existing Project; Workspace sources and Remove require `null`. Retained outcomes preserve that
@@ -696,13 +696,13 @@ Project membership, so regrouping does not discard retained checkout facts.
 
 ## Read-only Worktree source queries
 
-`workbench.worktree.query` resolves an explicit Workspace or literal directory without requiring a Project. It captures the source and Worker incarnation under registry-to-Site gates, runs one bounded discovery job outside the gates, then rechecks before joining current Workspace labels/identities. Multiple associations stay explicit; no arbitrary first match, focus, Workspace creation or mutation receipt is involved. The shared porcelain parser accepts absolute Windows drive paths as well as its existing path forms. Source changes, Worker loss, malformed metadata and expired budgets produce typed failures. See the [owning contract](../orchbee/docs/windows-worktrees.md#source-based-discovery).
+`workbench.worktree.query` resolves an explicit Workspace or literal directory without requiring a Project. It captures the source and Worker incarnation under registry-to-Session gates, runs one bounded discovery job outside the gates, then rechecks before joining current Workspace labels/identities. Multiple associations stay explicit; no arbitrary first match, focus, Workspace creation or mutation receipt is involved. The shared porcelain parser accepts absolute Windows drive paths as well as its existing path forms. Source changes, Worker loss, malformed metadata and expired budgets produce typed failures. See the [owning contract](../orchbee/docs/windows-worktrees.md#source-based-discovery).
 
 ## Retained Workspace group Close
 
 Ordinary `workspace.close` removes only the selected Workspace and its terminal context, even when other Workspaces share its Project or Git repository. It does not cascade to physical Git peers or delete Project metadata.
 
-`workbench.workspace-group-close` explicitly closes all members of one `projectId`. Admission captures at most 256 members in current Workspace display order, across any repositories, and composes their ordinary Workspace Close receipts. Workspaces in another Project are excluded even when they share a repository; later members are not added to the retained attempt. Empty Projects are valid targets. The result retains the Project identity, attempt, status and each captured Workspace's identity, label and Close result. Project metadata remains until a separate `project.dissolve`. Group and Worktree fresh mutations reserve each other while Pending. A shared maintenance lifetime adapter owns separate wake/thread/join instances; Windows Site stop joins both submitters before Close maintenance freezes. The [Project close-all contract](../orchbee/docs/windows-worktrees.md#project-close-all) defines limits, partial failure and recovery; [the wire schema](../../schemas/workbench/v1/workbench-workspace-group-close.schema.json) owns public bytes. Group closure does not invoke Git removal.
+`workbench.workspace-group-close` explicitly closes all members of one `projectId`. Admission captures at most 256 members in current Workspace display order, across any repositories, and composes their ordinary Workspace Close receipts. Workspaces in another Project are excluded even when they share a repository; later members are not added to the retained attempt. Empty Projects are valid targets. The result retains the Project identity, attempt, status and each captured Workspace's identity, label and Close result. Project metadata remains until a separate `project.dissolve`. Group and Worktree fresh mutations reserve each other while Pending. A shared maintenance lifetime adapter owns separate wake/thread/join instances; Windows Session stop joins both submitters before Close maintenance freezes. The [Project close-all contract](../orchbee/docs/windows-worktrees.md#project-close-all) defines limits, partial failure and recovery; [the wire schema](../../schemas/workbench/v1/workbench-workspace-group-close.schema.json) owns public bytes. Group closure does not invoke Git removal.
 
 ## Windows Client view routing
 
@@ -710,13 +710,13 @@ Transport admission remains surface-neutral. An admitted Windows Connection may 
 
 ## Workspace metadata reports
 
-The [Workspace metadata model](../orchbee/docs/windows-workspace-metadata.md) owns transient token values, per-source sequence fences and monotonic TTL under the existing Site gate. The separate OBWP 31/32 RPC uses read permission for queries and navigation permission for reports, without creating topology ledger entries, changing canonical revision or requiring a terminal Worker. Reports are atomic across token/source/resource limits; stale sequences do not refresh expiry. State is absent after restart, and closed Workspace identities are pruned at the next metadata operation. Generic metadata events remain a separate integration.
+The [Workspace metadata model](../orchbee/docs/windows-workspace-metadata.md) owns transient token values, per-source sequence fences and monotonic TTL under the existing Session gate. The separate OBWP 31/32 RPC uses read permission for queries and navigation permission for reports, without creating topology ledger entries, changing canonical revision or requiring a terminal Worker. Reports are atomic across token/source/resource limits; stale sequences do not refresh expiry. State is absent after restart, and closed Workspace identities are pruned at the next metadata operation. Generic metadata events remain a separate integration.
 
-Panel presentation reports use OBWP 33/34 under the Site gate, with read/navigation permissions and exact primary-binding guards. The [state model](docs/workbench-authority.md#panel-presentation-metadata) owns transient per-terminal sources, field priority, tokens and expiry.
+Panel presentation reports use OBWP 33/34 under the Session gate, with read/navigation permissions and exact primary-binding guards. The [state model](docs/workbench-authority.md#panel-presentation-metadata) owns transient per-terminal sources, field priority, tokens and expiry.
 
 ## Native plugin action admission
 
-Workbench plugin execution requires read, terminal-creation and lifecycle grants before source resolution. Local terminal service checks Site/Worker identity, enabled manifest availability, action ambiguity and Windows platform support, freezes argv/cwd/context and submits once to Worker. It does not own subprocesses. Read pages remain bound to Worker generation; lost mutation replies preserve uncertainty. [Native plugin behavior](../orchbee/docs/windows-plugins.md) owns the full contract and outstanding lifecycle integration.
+Workbench plugin execution requires read, terminal-creation and lifecycle grants before source resolution. Local terminal service checks Session/Worker identity, enabled manifest availability, action ambiguity and Windows platform support, freezes argv/cwd/context and submits once to Worker. It does not own subprocesses. Read pages remain bound to Worker generation; lost mutation replies preserve uncertainty. [Native plugin behavior](../orchbee/docs/windows-plugins.md) owns the full contract and outstanding lifecycle integration.
 
 Plugin Pane Tab/split admission resolves catalog selectors after grant, revision and replay guards, then freezes an explicit program, plugin-root fallback cwd and protected display environment. Both terminal planning and completion corroborate that environment with the frozen launch, cwd, ordinary environment and Worker generation. Resolution refusal precedes canonical reservation; retained requests replay without reading a changed manifest. Batch entrypoints are refused until a literal Windows shell-wrapper contract is available.
 
@@ -727,7 +727,7 @@ Plugin Pane membership is prepared against the candidate canonical snapshot and 
 `workbench.workspace-git` is a read-granted query of a canonical Workspace on the
 current Worker incarnation. It reads the latest exact-physical directory sample of
 the Workspace's first terminal, otherwise the committed directory; it never attaches
-a viewer for this read. Site, committed directory, canonical revision and Worker
+a viewer for this read. Session, committed directory, canonical revision and Worker
 generation are checked before and after the discovery job; no topology or metadata
 report is mutated. Status headers supply branch and local upstream counts, with
 explicit absence; Git exit 128 is a nonrepository observation without branch facts. The [Workspace sidebar model](../orchbee/docs/machines.md#workspace-sidebar-model)
@@ -768,8 +768,8 @@ foreground contenders receive `ServerBusy` without dispatch.
 | Active reader consumes a terminal result                 | Release its permit; the registered foreground successor has priority over new status reads.                      |
 | Active reader abandons an admitted job                   | Queue one exact-job Cancel without waiting, then release the permit; Worker TTL owns cleanup if admission fails. |
 
-No Site, registry or gate mutex is held across IPC, polling delays or admission
-waits. Source, Site and Worker generation fences still surround observation;
+No Session, registry or gate mutex is held across IPC, polling delays or admission
+waits. Source, Session and Worker generation fences still surround observation;
 organization or terminal resources are never changed by discovery. The gate is
 ephemeral and does not survive a Server restart.
 
@@ -814,7 +814,7 @@ unknown creation/start is retained and never resubmitted. The states are Opening
 Active, Queued, Waiting, Dispose, Unknown and Closed. A known deferred target
 abandoned before Start may enter Dispose directly; inventory AwaitingStart is
 also disposable without claiming child exit. EOF transfers accepted cleanup to
-existing Site maintenance. Source read attachments remain owned until their last
+existing Session maintenance. Source read attachments remain owned until their last
 capture consumer, then detach; popup process/document cleanup remains Host-owned.
 
 The serial application dispatcher shares its connection viewer owner between

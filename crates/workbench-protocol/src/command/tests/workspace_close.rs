@@ -47,7 +47,7 @@ fn workspace_close_envelopes_preserve_exact_fields_through_json_and_obwp() {
             "kind": "workbench.workspace-close.read",
             "protocolVersion": 1,
             "requestId": "11111111111111111111111111111111",
-            "siteId": "22222222222222222222222222222222",
+            "sessionId": "22222222222222222222222222222222",
             "workspaceId": "44444444444444444444444444444444",
         })
     );

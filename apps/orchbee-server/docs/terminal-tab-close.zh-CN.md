@@ -32,7 +32,7 @@ Resume 流程，不发送 Dispose。
 
 发布在清理后重新提取当前目标成员，仅移除捕获范围。同级 Create／Rename／Move 和其他 Context 保留。待完成创建通过原 token 结算，不重写历史修订。最后一个 Tab 移除后 Workspace 及 Directory 引用保留；之后显式 Tab 创建重新检查目录准入并分配新身份。
 
-Close 主操作容量和 revision credit 作用于整个 Site：每个非 Closed 主操作在共享 ledger 中
+Close 主操作容量和 revision credit 作用于整个 会话：每个非 Closed 主操作在共享 ledger 中
 保留一个未来 revision；发布恰好消耗该 credit 并增加一次 revision。准入、别名和精确重放
 不推进 revision 或重复清理。Closed 墓碑和不可变确认在后续上下文变化后仍保留。失败或未知
 Dispose 不能发布移除；已知 Dispose 但清理阻塞时保留状态，沿用既有显式 Resume 路径。
@@ -48,8 +48,8 @@ Closed 表示已知 Host 释放、准确 Worker／Server 清理及规范移除�
 
 本地传输集成将 `manage_terminal_lifecycle` 授权独立于读取、导航、Create、Viewer 和
 controller 权限；仅受信本地组合显式设置它。Close 和 Resume 需要此授权；状态 Read 需要
-读取授权。已授权请求进入保留的 Site/Workbench Close 权威。Read/Resume 在查找操作前
-检查保留 Site 身份：错误 Site 返回 Denied。匹配的 Read 返回保留操作或 NotClosing；
+读取授权。已授权请求进入保留的 会话/Workbench Close 权威。Read/Resume 在查找操作前
+检查保留 会话 身份：错误 会话 返回 Denied。匹配的 Read 返回保留操作或 NotClosing；
 权威不可用时仍返回不可用。此身份检查在发布退役后仍可用，且不生成快照。维护可用性在
 保留重放/别名/回执判定之后约束新主操作接受及全新 Resume，不清除旧确认或状态。既有 Create/Move
 adapter 将 Close 专属原因、已接受结果及响应信封拒绝为 action 不兼容。
@@ -68,13 +68,13 @@ Close。准入解析独立于 Project 归属的当前 `(workspace, terminalConte
 接受返回 `workspace-close-accepted {closeRequestId, workspaceId,
 terminalContextId, acceptedRevision}`：主命令请求 ID 即 `closeRequestId`，
 `acceptedRevision` 为准入基础修订，与成员级 Close 完全一致。无副作用的
-`workbench.workspace-close.read {protocolVersion, requestId, siteId, workspaceId}`
+`workbench.workspace-close.read {protocolVersion, requestId, sessionId, workspaceId}`
 不分配账本条目，返回 `not-closing`、`denied`、`unavailable {reason:server-busy}` 或
 `available {closeRequestId, workspaceId, terminalContextId,
 attemptGeneration, status, counts, members}`：`members` 按冻结的准入顺序保留，仅携带
 每成员生命周期事实——close 修订只属于范围级 `status`——`counts` 对相同的行聚合。
 范围查询包含 closed 墓碑，因此已被发布移除的范围仍返回 `available`。
-`workbench.workspace-close.resume {protocolVersion, requestId, siteId,
+`workbench.workspace-close.resume {protocolVersion, requestId, sessionId,
 workspaceId, closeRequestId, expectedAttemptGeneration}` 应用相同的代次纪律与预留控制
 存储，每个结果均回显范围字段。
 
@@ -85,21 +85,21 @@ Workspace 及其 Terminal Context，并记录 Closed 墓碑。Project 元数据�
 ## 条件式空闲准入
 
 `workspace.close-if-idle {workspaceId}` 使用独立命令指纹，沿用普通生命周期授权、重放／冲突、
-容量、Site／revision 及完整 Context 成员检查，并共用待处理 create／split 与重叠 Close 守卫。
-Site 在持有 coordinator gate 时解析**每个已绑定 Presentation**，包括未绑定 primary 下的子项。
+容量、会话／revision 及完整 Context 成员检查，并共用待处理 create／split 与重叠 Close 守卫。
+会话 在持有 coordinator gate 时解析**每个已绑定 Presentation**，包括未绑定 primary 下的子项。
 空绑定范围、准确 `Uncreated` 证据，或**每个**成员的新鲜 `IdleRuntime` 证据才允许条件准入。
 `Uncreated` 仍要求准确绑定的 Create 在 Host 提交前明确失败／不可用，运行时身份为
 `Unavailable(None)`；缺失或歧义记录不能证明它。保留的 Started 结果或 Client 附着的 pane
 都不是实时进程证据。
 
-对于已有运行时，服务先释放 registry／Site 锁，再通过只读 `InspectInventoryPage` 遍历清单。
+对于已有运行时，服务先释放 registry／会话 锁，再通过只读 `InspectInventoryPage` 遍历清单。
 每个目标固定 Worker generation、绑定 fence 及完整的 Host creation／epoch／terminal 身份。
 整个范围共享四秒准入窗口和 32 页额度；已发出的慢速传输仍受既有 carrier 回复时限约束，
 不能延长该窗口。每个目标要求完整且代次一致的清单以及唯一匹配。AwaitingStart、Exited 与
 Failed 证明没有活动程序；Running 要求 Host 新鲜 `idle` 且没有终止意图。活动 Host 只能在
 接受产生字节的活动输入之前证明空闲；已结算的 OS 写入及后续提示符周期均不能证明 shell 消费。
 输入后，即使普通命令已返回提示符，也要求确认，直到终端被替换或已证实结束。Finishing、遏制、
-active、unknown、缺失、不支持或不可用证据均要求确认。最终准入在 Site gate 内重做普通门禁
+active、unknown、缺失、不支持或不可用证据均要求确认。最终准入在 会话 gate 内重做普通门禁
 及准确运行时匹配。同一来源版本上的 `confirmation-required` 不产生 Close 额度、围栏、发布
 或运行时效果；revision／结构冲突保留既有准确结果。
 
@@ -111,14 +111,14 @@ active、unknown、缺失、不支持或不可用证据均要求确认。最终�
 升级。精确请求重放不会再授予尝试，同一请求 ID 更换动作仍然冲突。
 
 `project.dissolve-if-idle {projectId}` 要求导航授权，在同一 gate 内冻结目标 Project 的全部成员
-Context。借用式准入先执行普通授权、重放／容量、Site／revision、Project 和组织冲突检查，
+Context。借用式准入先执行普通授权、重放／容量、会话／revision、Project 和组织冲突检查，
 拒绝当前 revision 上**任一**成员 Context 已提交但尚未结算的终端创建，并在接受逐绑定精确
 证据前准备有界组织计划。它保留更严格的从未创建证明；每个已有运行时仍要求确认。接受只删除 Project
 元数据并将 Workspace 取消分组，保留全部成员 ID、目录、Context 与运行时，绝不组合 Close
 操作。显式 `project.dissolve` 保持兼容。
 
 尚未提交的 Tab／Panel 创建准入与准备值持有 Authority 的独占可变借用；服务在提交或丢弃前
-始终持有 registry → Site gate。成员关系与保留的 pending 条目共同提交前，条件命令无法插入。
+始终持有 registry → 会话 gate。成员关系与保留的 pending 条目共同提交前，条件命令无法插入。
 创建提交增加规范 revision，而之后的运行时结算不增加。调用方即使使用新的 revision，
 只要准确 Context 仍有待定终端结算，也必须被拒绝。丢弃准入或准备保留原快照，不安装待定预留。
 
@@ -127,24 +127,24 @@ Context。借用式准入先执行普通授权、重放／容量、Site／revisi
 保持独立，不能被转换为空闲或自动重试。有限权威转换和
 [条件准入测试](../src/workbench_authority/terminal_tab_close/tests/context/idle.rs)覆盖当前 revision
 上已提交但尚未结算的创建、丢弃尚未提交的准备、接受后的创建栅栏、整个 Project 与仅子项范围、保留拒绝／重放、授权拒绝和
-已确认动作兼容性。Site 测试另行负责真实终端记录到这些证据的映射；解析器和权威测试本身
+已确认动作兼容性。会话 测试另行负责真实终端记录到这些证据的映射；解析器和权威测试本身
 不能证明当前 Host 进程状态或真实 TUI 行为。
 
 这是既有保留 Close 状态机的准入谓词细化，不引入第二个生命周期所有者：已接受的条件 Close
 进入相同的预留与发布转换。新 wire 判别值细化完整请求指纹；明确拒绝没有效果，之后仍需另行
 审阅无条件请求。已注册的重放与 Close 模型保留各自抽象范围；执行它们本身不能证明新鲜进程／提示符分类、信号派发时的空闲门禁，或具体的
 从未创建谓词、完整 primary／child／Project 成员提取、具体 pending 条目与预提交 gate 互斥、跨语言
-解码，或新的 Client 绘制与请求 ID 升级。上述实现与 Site 见证分别承担这些义务，
+解码，或新的 Client 绘制与请求 ID 升级。上述实现与 会话 见证分别承担这些义务，
 原生进程与提示符行为还要求 Host 回归及真实 TUI 见证。
 
 ## Close 命令与保留状态
 
 既有 `workbench.command` 信封及完整指纹
-`(requestId, siteId, expectedRevision, action)` 准入
+`(requestId, sessionId, expectedRevision, action)` 准入
 `{kind:"tab.close", terminalContextId, tabId}`、
 `{kind:"panel.close", terminalContextId, tabId, panelId}` 及
 `{kind:"workspace.close", workspaceId}`。优先级依次为：生命周期授权；精确重放/冲突；
-新变更的退役检查；账本条目容量；Site/基础修订/上下文/严格成员关系；精确目标及终端关联；
+新变更的退役检查；账本条目容量；会话/基础修订/上下文/严格成员关系；精确目标及终端关联；
 Busy/运行时身份不可用；资源预留；共同接受。已接受 Close 的重放在 Workbench 退役后仍可读取。
 重放没有副作用。
 
@@ -177,8 +177,8 @@ expectedRevision；仍保留别名自身的完整请求指纹。Client 验证目
 `TabUnavailable`；保留的重放/状态仍描述旧操作。既有类型化 Denied/Rejected/Unavailable
 适用；精确新增的效果前 Unavailable 原因为 `terminal-busy` 与 `terminal-runtime-unavailable`。
 
-`workbench.tab-close.read {protocolVersion, requestId, siteId, terminalContextId, tabId}`
-无副作用，使用 Site 读取授权，发布退役后仍可使用。不分配命令账本条目。
+`workbench.tab-close.read {protocolVersion, requestId, sessionId, terminalContextId, tabId}`
+无副作用，使用 会话 读取授权，发布退役后仍可使用。不分配命令账本条目。
 `workbench.tab-close.result` 回显读取身份，返回 `not-closing`、`denied`、
 `unavailable {reason:server-busy}` 或
 `available {closeRequestId, terminalContextId, tabId, attemptGeneration, status}`。
@@ -206,16 +206,16 @@ Retry Close 要求已显示的可恢复状态及重新确认。接受回复丢�
 别名、读取及命令重放从不恢复执行。
 
 读取结果精确包含 `kind`、`protocolVersion`、`requestId` 和 `outcome`；只有 Available
-包含上述目标字段。Read 或 Resume 的 Site 不匹配在查询目标前返回 Denied。
+包含上述目标字段。Read 或 Resume 的 会话 不匹配在查询目标前返回 Denied。
 这不改变 Close 命令既有 SiteMismatch 优先级。
 
 ## 使用预留控制存储的 Resume
 
 主操作准入预留一个有界控制单元及最后一次已接受 Resume 回执，包含最大编码响应存储。
 恢复无需普通账本条目或别名分配。Close 专属控制为
-`workbench.tab-close.resume {protocolVersion,requestId,siteId,terminalContextId,tabId,closeRequestId,expectedAttemptGeneration}`；
+`workbench.tab-close.resume {protocolVersion,requestId,sessionId,terminalContextId,tabId,closeRequestId,expectedAttemptGeneration}`；
 Workspace 范围控制 `workbench.workspace-close.resume
-{protocolVersion,requestId,siteId,workspaceId,closeRequestId,expectedAttemptGeneration}`
+{protocolVersion,requestId,sessionId,workspaceId,closeRequestId,expectedAttemptGeneration}`
 遵循相同规则并回显其范围字段。
 它使用既有请求 ID 类型、生命周期授权及再次面向所有 Client 的确认。
 `workbench.tab-close.resume.result` 回显请求 ID 及规范目标，返回
@@ -224,7 +224,7 @@ Workspace 范围控制 `workbench.workspace-close.resume
 `operation-unavailable`、`operation-mismatch`、`request-identity-conflict`、`generation-mismatch`、
 `not-resumable` 及 `generation-exhausted`。
 
-每个 Resume 结果精确包含 `kind`、`protocolVersion`、`requestId`、`siteId`、
+每个 Resume 结果精确包含 `kind`、`protocolVersion`、`requestId`、`sessionId`、
 `terminalContextId`、`tabId`、`closeRequestId` 和 `outcome`。即使 Denied 也回显提交请求的
 目标字段：失败时不披露或确认既有操作。Resumed 和 Stale 对应已验证操作，不回显预期代次。
 [线协议契约](../../../schemas/workbench/README.zh-CN.md#已接受的-tab-close-线协议契约)
@@ -251,14 +251,14 @@ Workbench 修订：非零 u64 值，在线上编码为
 
 ## Server 继续执行与精确 Host 生命周期
 
-每个可见 Tab 至多一个 Close 所有者，每个上下文最多 256 个 Tab。整个 Site 的主操作与别名
+每个可见 Tab 至多一个 Close 所有者，每个上下文最多 256 个 Tab。整个 会话 的主操作与别名
 共用 4096 条目、8 MiB 的命令 ledger 上限。一个维护所有者服务当前单个
-`LocalTerminalService`/Site。每轮至多准入一个 Worker 步骤，遇背压让出，等待时不持有
-registry/Site 锁。轮转选择不保证 OS 公平性。阻塞的回执等待将该 Site 的 Close 步骤
-串行化；其他 Client 线程仍可写 Site 状态，并共享既有有界 Worker 载体。Client 断连不取消
+`LocalTerminalService`/会话。每轮至多准入一个 Worker 步骤，遇背压让出，等待时不持有
+registry/会话 锁。轮转选择不保证 OS 公平性。阻塞的回执等待将该 会话 的 Close 步骤
+串行化；其他 Client 线程仍可写 会话 状态，并共享既有有界 Worker 载体。Client 断连不取消
 Server 所有的尝试。
 
-两个生产 Site 构造路径均在 Client 准入前启动唯一命名维护线程；线程创建失败即阻止启动。
+两个生产 会话 构造路径均在 Client 准入前启动唯一命名维护线程；线程创建失败即阻止启动。
 服务保留线程句柄，线程在轮次之间仅持有服务弱引用。既有进程生命周期所有权不新增生产
 Drop join 或关闭预算。接受先于生命周期 IPC 提交，返回其确认不等待维护回复；回复交付
 不是派发门槛。所有者可用性仅在精确重放/别名/回执判定之后限制新主操作接受和新 Resume。
@@ -326,7 +326,7 @@ Close 前已准入但确认延迟的 Acquire 不得恢复目标租约。已准�
    或属于其他 controller ID，旧 lease 只在本地结算，不发送 carrier 请求，也不修改映射。
    精确所有者的清理继续在 gate 外走现有传输路径；无法读取 gate 不代表已经撤销。
    该检查不会取消撤销前已经接纳的清理。
-3. 保留 registry → Site 锁顺序；controller 门锁仅涵盖短暂精确变更。不跨传输或租约 Drop
+3. 保留 registry → 会话 锁顺序；controller 门锁仅涵盖短暂精确变更。不跨传输或租约 Drop
    持有所有者锁。本地清理失败保留 DisposedAwaitingPublication(target-cleanup-pending)，
    发布等待。清理完成后发布失败，仅重试发布。
 
@@ -345,17 +345,17 @@ fence 的完整已接受运行时。Close 准入解析恰好一个保留绑定�
 保留既有会话/请求/序号/当前 Worker 检查。新增栅栏拒绝中，Attach 使用 TerminalUnavailable，
 Control 使用 ViewerUnavailable，Start 使用 TerminalCreateUnavailable。Start 在既有
 AlreadyStarted/GeometryConflict 判定之后、新 fence/身份/派发准备之前应用栅栏。
-Registry → Site → controllers 保护 Acquire 预留及返回授权安装；Attach 也在重新验证后于
-Site 门锁内安装。失败时保留候选所有权，直到所有门锁释放。已接纳的 Input/Resize 保留真实
+Registry → 会话 → controllers 保护 Acquire 预留及返回授权安装；Attach 也在重新验证后于
+会话 门锁内安装。失败时保留候选所有权，直到所有门锁释放。已接纳的 Input/Resize 保留真实
 结果。精确已销毁 Viewer 的 Detach 将本地不存在结算为 Detached，Poll/反馈变为
 TerminalRuntimeUnavailable，且不发送 Worker 清理请求。仅 Closing/Unknown 不允许这种
 基于销毁的结算。
 
 Server 清理以保留的规范请求 ID 及完整运行时作为 Dispose 前身份 seal。在同一个不间断
-Site 门锁内验证 KnownDisposed，在一个 controller 门锁内捕获并仅移除当前精确 controller
+会话 门锁内验证 KnownDisposed，在一个 controller 门锁内捕获并仅移除当前精确 controller
 ID，释放该门锁后再标记 authority 清理完成。预留不存在即已清空。该本地切点不分配目标/映射
 存储、不执行传输或租约 Drop，也不要求活动 Worker。证明或 controller 访问失败保留
-target-cleanup-pending。旧租约结算保留无关/较新 ID，绝不持有 controllers 再获取 Site。
+target-cleanup-pending。旧租约结算保留无关/较新 ID，绝不持有 controllers 再获取 会话。
 声称交付前，实际八个空闲 Client 的容量释放以及晚到 Attach/Acquire 进程/载体轨迹必须覆盖
 维护消费者。
 
@@ -409,19 +409,19 @@ Resume 在任何状态变更前实测真实候选回执：它必须装入其预�
 计费，比较上比纯堆界更宽——实际恰好：每个候选装入其槽，每个已存回执在自身准入时亦装
 入同一槽，其余堆单元在提交后不可增长。
 
-先保留 KnownDisposed 并完成精确本地清理。在 Site 门锁内验证当前适用的成员关系及精确目标
+先保留 KnownDisposed 并完成精确本地清理。在 会话 门锁内验证当前适用的成员关系及精确目标
 元组，再从**当前** snapshot 准备：聚合 Close 将整棵捕获树的每个 leaf 作为一次 Tab 发布移除，
 保留其他 Tab、顺序及标签。叶子级 Close 恰好移除其捕获的叶子：该叶子的父 Split 被兄弟子树
 替换，兄弟自身的 slot 与 Split 身份保留，存活 Tab 保持其 ID、标签及剩余成员；当被关闭叶子
 已是 Tab 根时，与聚合 Close 一样移除整个 Tab。释放门锁要求重新验证/准备。旧准入 snapshot
-不替换后续写入，不跨宽限冻结整个 Site，额度也不预先指定最终修订。
+不替换后续写入，不跨宽限冻结整个 会话，额度也不预先指定最终修订。
 
 检查实际编码投影限制及 delta/full-snapshot 回退；不假定已预分配未来完整缓冲区。准备失败
 保留销毁、成员关系、额度及可寻址状态，既不是效果前拒绝，也不允许再次终止。不变量引发的
-Workbench 退役仍允许读取清理状态。成功准备后，成员关系、活动 Site 关联、额度消耗及 Closed
+Workbench 退役仍允许读取清理状态。成功准备后，成员关系、活动 会话 关联、额度消耗及 Closed
 共同提交，不再执行可能失败的工作。响应丢失不撤销该提交。
 
-## 准确 Site 完成
+## 准确 会话 完成
 
 Close 发布在已知释放及准确运行时清理后，只移除捕获的 Workspace 成员范围。它基于当前规范成员关系重新计算，保留所有无关绑定及元数据。移除最后一个 Tab 留下空 Workspace；移除最后一个 Workspace 留下空 Workbench。不参与 Open 槽位、引用重定向或变化通知。
 
@@ -501,7 +501,7 @@ Presentation 身份和终端绑定，存活 Presentation 绝不改变其绑定�
 重新绑定要求当前旧绑定完全一致、新绑定位于同一 Worker、Close 已静止，
 且保留的操作和尝试匹配。准备阶段在提交前验证完整的新投影。
 过期尝试、已替换的槽位、重复终端绑定或无关 Close 均不能修改投影。
-Site 组合在派发默认 shell 启动之前，将此投影与新的 TerminalCoordinator Create 预留一起提交。
+会话 组合在派发默认 shell 启动之前，将此投影与新的 TerminalCoordinator Create 预留一起提交。
 
 集成恢复所有者在已知 Git 失败后，先验证原 checkout，再启动任何 shell。
 它使用已验证的 checkout 目录、默认 shell、空自定义环境和初始 80×24 几何尺寸；
@@ -512,13 +512,13 @@ Site 组合在派发默认 shell 启动之前，将此投影与新的 TerminalCo
 
 核心证据覆盖空与非空静止范围、清理未完成、过期或外部所有权、重复绑定、
 重复替换与取消、布局身份不变、旧绑定限制、直接发布和 Resume 拒绝，
-以及取消后的全新普通 Close。Site 和 Windows 驱动证据进一步验证预留先于派发、
+以及取消后的全新普通 Close。会话 和 Windows 驱动证据进一步验证预留先于派发、
 代际限制、已知失败后的验证、部分启动和重试行为。这些是有界测试；
 完整平台验收仍是独立义务。此流程不另设 TLA 模型。
 
 ## 启动失败后的移除
 
-包含已确认 Create 失败成员的 Tab、Panel 或 Workspace 仍可关闭。TerminalCoordinator 在 Site gate 内、Close 准入前解析全部捕获的 binding。恰好一个 binding 处于 `Unavailable(None)` 且保留 failed/unavailable Create outcome，才能证明没有提交 Host terminal；仅缺少 identity 不足以证明。Host Create failure 发生在不可失败的 terminal commit 之前。Start 和 lifecycle failure 不构成该事实。
+包含已确认 Create 失败成员的 Tab、Panel 或 Workspace 仍可关闭。TerminalCoordinator 在 会话 gate 内、Close 准入前解析全部捕获的 binding。恰好一个 binding 处于 `Unavailable(None)` 且保留 failed/unavailable Create outcome，才能证明没有提交 Host terminal；仅缺少 identity 不足以证明。Host Create failure 发生在不可失败的 terminal commit 之前。Start 和 lifecycle failure 不构成该事实。
 
 `WorkbenchTabCloseMemberRuntime` 携带精确 runtime observation 或精确的 `Uncreated` 产品 binding。每个捕获成员仍保留在有序 Close record 与 reservation 计量中。Uncreated 成员没有 runtime identity，直接进入 publication；它不发送 lifecycle 命令，也不进行 controller cleanup，因为从未有成功 identity 可用于准入 Viewer/controller。此处 `disposed-awaiting-publication` 表示已证明的不存在，不声称收到 Host Dispose acknowledgment。混合 scope 仍须在任何准入效果前解析全部 runtime 成员。maintenance owner 仍为必需，但全部为 Uncreated 的 scope 无需连接 Worker。
 
@@ -538,6 +538,6 @@ Panel、Tab 和 Workspace Close 按规范 Tab／树顺序捕获全部已绑定�
 
 ## 回执身份读取
 
-OBWP 61/62 在既有 Site 读取权限下，按原始请求 ID 读取精确保留 Close 账本项，包括空范围及已完成范围。它返回原始目标和 generation，不解析当前布局成员。[CLI 状态与恢复](../../orchbee/docs/native-operation-status.zh-CN.md) 复用既有 generation 围栏恢复准入；读取本身不续期尝试，也不调度清理。
+OBWP 61/62 在既有 会话 读取权限下，按原始请求 ID 读取精确保留 Close 账本项，包括空范围及已完成范围。它返回原始目标和 generation，不解析当前布局成员。[CLI 状态与恢复](../../orchbee/docs/native-operation-status.zh-CN.md) 复用既有 generation 围栏恢复准入；读取本身不续期尝试，也不调度清理。
 
-<!-- documentation-pairing: english-sha256=8d055e45e6f31c71367fd46d0e97fbc6a5da4c30b11d838d3e95eb91aed9f3c4 zh-cn-sha256=7d63fc0f24805bd1945a6d0c9c3f5cfd29fa5cb1d3aa7053ea5ec65f24061ecc -->
+<!-- documentation-pairing: english-sha256=dfc87feb5756f462b52b7bff774cdcd4260019aa049643363d80f0dedcd2bbe6 zh-cn-sha256=ba8206e7210b97b7ee345055342cf1ab75788a63df53b949d8bb7b39e8991f39 -->

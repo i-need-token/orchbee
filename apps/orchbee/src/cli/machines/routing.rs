@@ -28,6 +28,7 @@ const ARGUMENT_LIMIT: usize = 64 * 1024;
 struct Packet {
     version: u8,
     cohort: String,
+    #[serde(rename = "session")]
     site: String,
     arguments: Vec<String>,
     input: Option<String>,

@@ -24,7 +24,7 @@ names are permitted.
 Native Tab-strip, navigator, status and Tab-menu chrome share one display name. Fixed names remain
 exact. Automatic names prefer a selected Presentation's custom label, then its valid live OSC title;
 inactive Tabs may use their last observed title from the bounded frame cache only while the exact
-Site/context/Tab/Panel/Presentation/binding remains canonical. The launch executable basename is the
+Session/context/Tab/Panel/Presentation/binding remains canonical. The launch executable basename is the
 next fallback, then the localized position (`Tab 1` in `en-US`, `标签页 1` in `zh-CN`). Activity prefixes
 are stripped and all displayed text is sanitized. This presentation never renames canonical state or
 claims an observed title is authoritative process identity. Canonical ordinal labels, CLI selectors,
@@ -45,7 +45,7 @@ and narrow tokens keep their whole label selectable. Pinned Tabs are separated f
 vertical rule instead of a text annotation. Close validates the painted context/revision and exact Tab ID, then
 opens the existing confirmation for that single Tab. Two releases on the same unchanged Tab within
 500 ms and one horizontal cell request rename only if that Tab is now selected. Dragging, focus loss,
-other targets, changed Site/context identity, and capture release break the pair. A newer revision
+other targets, changed Session/context identity, and capture release break the pair. A newer revision
 from the first selection preserves the pair; the second click still validates the newly painted source.
 These controls never forward input.
 

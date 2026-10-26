@@ -18,12 +18,12 @@
 - `orchbee` 是唯一公开的原生可执行程序名称。Server、Worker、Terminal Host 与 Agent Bridge
   仍是私有实现进程。
 - 裸 `orchbee` 选择交互式 TUI。显式 `orchbee tui` 选择同一个界面；显式 resource command、
-  Site lifecycle command、help、version 与 completion 选择一次性行为，不初始化 TUI。
-- 本机 Site 不存在时，裸 `orchbee` 可以发起确切 compatible installed Server 与本机 Worker cohort
+  会话 lifecycle command、help、version 与 completion 选择一次性行为，不初始化 TUI。
+- 本机 会话 不存在时，裸 `orchbee` 可以发起确切 compatible installed Server 与本机 Worker cohort
   的有界懒激活并等待 ready。Ready 后由私有进程拥有各自生命周期；`orchbee` 绝不继续监督它们。
 - 每次 TUI invocation 都是一个独立 Client Session，与 Web tab、Desktop window 或 mobile Client
   使用同一模型。它拥有本地 focus、viewport、scroll 与 presentation state，但不会因为发起了
-  activation 就获得共享 Site 或 terminal authority。
+  activation 就获得共享 会话 或 terminal authority。
 - `--help` 与 `--version` 保持无副作用，绝不发现或激活私有 service。
 - 一次性 CLI 执行不会初始化 TUI 渲染，也不会把 Server、Worker、Terminal Host 或 Agent
   engine 加载进公共进程。
@@ -49,9 +49,9 @@
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Invocation  | 空 argument vector 选择交互式 TUI 路径。用户不需要另一个 public executable 或 hidden mode。                                                                                                              |
 | 终端设备    | 裸 TUI 与显式 TUI 路径要求 interactive TTY，绝不隐式打开 `/dev/tty`。Help、version 与 machine-readable 一次性输出保持可管道传递。                                                                        |
-| 已有 Site   | 连接确切 compatible local Server 并创建新的 Client Session；再次 invocation 会创建另一个同级 session，而不是复用本地 view state。                                                                        |
-| Site 不存在 | 在一个 per-user activation lock 下发起确切 installed private Server 与本机 Worker cohort，让并发 invocation 收敛到该 singleton，并只在 typed ready 后进入 TUI。Terminal Host 在首次使用终端前保持 lazy。 |
-| 生命周期    | Activation 是 bootstrap effect，不是 parent-child supervision。关闭 TUI 只释放自己的 Client Session 与 attachment；不会停止 Site、service 或 retained terminal。                                         |
+| 已有 会话   | 连接确切 compatible local Server 并创建新的 Client Session；再次 invocation 会创建另一个同级 session，而不是复用本地 view state。                                                                        |
+| 会话 不存在 | 在一个 per-user activation lock 下发起确切 installed private Server 与本机 Worker cohort，让并发 invocation 收敛到该 singleton，并只在 typed ready 后进入 TUI。Terminal Host 在首次使用终端前保持 lazy。 |
+| 生命周期    | Activation 是 bootstrap effect，不是 parent-child supervision。关闭 TUI 只释放自己的 Client Session 与 attachment；不会停止 会话、service 或 retained terminal。                                         |
 | 边界        | 公共进程既不内嵌 backend engine，也不直连 Terminal Host。它通过已接受且经 Server relay 的 Client path 获得 terminal behavior。                                                                           |
 | 反馈        | 快速成功的 bootstrap 保持静默；延迟时显示本地化进度。一个 monotonic 总 deadline 以 typed unavailable 或 incompatible diagnostic 结束；`orchbee` 绝不为恢复而杀死、替换或降级现有 cohort。                |
 | 延后细节    | 确切 timeout 和进度阈值、remote targeting、详细 command schema、public release cutover 继续保留。旧源代码退役已获独立接受。                                                                              |
@@ -70,7 +70,7 @@ TUI 是与 Web、Desktop 和 mobile 同一架构层级的 Workbench Client。它
 | 共享 document     | Server-owned Workbench state 包含 Project、Workspace、terminal context、Tab、Panel 与 Presentation 的 membership 和 ordering。任一 Client 发起并获接受的 mutation 都发布给所有已授权 Client。                            |
 | Client view       | 每次 TUI invocation 拥有自己的 active location、active Tab、focus、layout projection、viewport、scroll、search 与 selection presentation。再打开一个 TUI 会像再打开一个 Browser tab 一样创建独立 Client View。           |
 | 初始位置          | 裸 TUI 默认进入 standalone terminal context 及其第一个有序 Tab。打开空 context 时，可以通过一次由 Server 协调的 semantic operation 恰好创建一次首个 terminal；启动时不显示 terminal-picker modal。                       |
-| 空状态            | 关闭最后一个 Tab 后保留显式空 context；不会关闭 TUI、停止 Site，或终止无关 retained terminal。                                                                                                                           |
+| 空状态            | 关闭最后一个 Tab 后保留显式空 context；不会关闭 TUI、停止 会话，或终止无关 retained terminal。                                                                                                                           |
 | Attachment        | 只有 visible active terminal 需要 transient display attachment。切换会释放旧 attachment 并打开新 attachment；两者都不会创建、克隆、重启或终止 retained terminal。产品文案使用“打开”或“连接”，`attachment` 仅是工程术语。 |
 | Controller        | 多个 attachment 可以查看同一个 terminal；同一时间只有一个组合 input-and-resize controller。Attach 只在无人拥有时取得 controller；否则 Client 显式进入 view-only。Release 不会自动晋升另一 viewer，也不会抢占 control。   |
 | 首次创建 geometry | 全屏 TUI 在提交 immediate Create 前取得一份完整的真实 cell 和 pixel geometry，绝不伪造 80x24。Deferred Create 加 Start 仍供尚不知道首个真实 geometry 的其他 flow 使用。                                                  |
@@ -107,7 +107,7 @@ Command 使用显式 resource-first noun/verb 词汇，不支持 fuzzy abbreviat
 | Tab            | `tab list`、`tab get`、`tab create`、`tab focus`、`tab rename`、`tab close`                                                                  | `list` 与 `get` 优先；mutation 仅在其 Server state machine 获准后加入。               |
 | Panel          | `panel list`、`panel get`、`panel focus`、`panel split`、`panel resize`、`panel move`、`panel close`                                         | `list` 与 `get` 优先；mutation 仅在其 Server state machine 获准后加入。               |
 | Terminal       | `terminal list`、`terminal get`、`terminal read`、`terminal open`；后续 `terminal send-text`、`terminal send-keys` 与 `terminal wait-output` | 首批只做只读与 `open`；active input automation 仍是后续单独授权切片。                 |
-| Site lifecycle | `site enable`、`server stop` 与 `site restart`                                                                                               | 后续 lifecycle slice；不存在 public `orchbee server` command。                        |
+| 会话 lifecycle | `session enable`、`server stop` 与 `session restart`                                                                                         | 后续 lifecycle slice；不存在 public `orchbee server` command。                        |
 | 后续 domain    | Agent、managed Worktree、Archive、Launch Profile 与 integration command                                                                      | 只有所属 domain 的已接受 contract 才能添加。                                          |
 
 `Tab`、`Panel` 与 `Terminal` 保持不同的产品 noun。不存在 monolithic `--no-session` mode，也不围绕
@@ -156,7 +156,7 @@ migration、packaged upgrade/rollback 证据，以及经过真实 artifact 测�
 
 - 公开 `orchbee` 调用模式与命令层级；
 - argument、input、output、diagnostic 与 exit contract；
-- 本机 Site discovery 与显式准入的 activation command；
+- 本机 会话 discovery 与显式准入的 activation command；
 - human text 与 versioned automation output 之间的边界；
 - 同一个 Rust artifact 内的 CLI/TUI 进程隔离；
 - 未来原生发布 cohort 的 compatibility、public cutover 与 rollback；以及
@@ -197,9 +197,9 @@ Project，不直连 Terminal Host，也不把 terminal output 当作 Agent 或 W
 
 | 维度          | 必需决策                                                                                                                                                              |
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Mode          | 裸 TUI、一次性 resource command、Site lifecycle command、help、version、completion，以及任何 machine-only discovery mode                                              |
+| Mode          | 裸 TUI、一次性 resource command、会话 lifecycle command、help、version、completion，以及任何 machine-only discovery mode                                              |
 | Noun 与 verb  | 稳定产品词汇、层级、alias、缩写策略，以及 unsupported capability 的报告方式                                                                                           |
-| Targeting     | 本机 Site 默认值、显式 remote Site 或 Worker selection、identity validation、ambiguity 与 no-target behavior                                                          |
+| Targeting     | 本机 会话 默认值、显式 remote 会话 或 Worker selection、identity validation、ambiguity 与 no-target behavior                                                          |
 | Input         | Positional value、option、stdin/file、size bound、secret classification、confirmation 与 noninteractive failure                                                       |
 | Output        | Human projection、有界 Workbench semantic snapshot、versioned automation schema、stdout/stderr ownership、streaming、pagination、redaction 与 compatibility lifecycle |
 | Completion    | Synchronous result、detached request identity、observation、wait、cancellation、signal、timeout 与 unknown-outcome behavior                                           |
@@ -282,7 +282,7 @@ response 不明确后只对账该 identity；它绝不会自动重放 effect。
    已接受的语义 category。
 2. 从已接受的只读和 `terminal open` family 中选择确切 first-release subset；每项后续 mutation
    只有连同所属 owner state machine 与安全证据才能准入。
-3. 定义 remote Site targeting 与 authentication。本机 command surface 不暗含 remote enrollment、
+3. 定义 remote 会话 targeting 与 authentication。本机 command surface 不暗含 remote enrollment、
    production human/device identity、TLS、Internet reachability、multi-user tenancy 或 mobile
    background behavior。
 4. 定义已接受的全屏结构与默认 keyboard map 之外的详细 TUI visual composition、accessibility
@@ -294,4 +294,4 @@ response 不明确后只对账该 identity；它绝不会自动重放 effect。
    reference baseline 不设置 acceptance budget。
 7. 未来 packaged public cutover 需要 consumer、compatibility、signed-cohort upgrade、rollback、documentation 与 installed-artifact 证据。本次旧源代码退役已另行获得授权，不以该未来发布为前提。
 
-<!-- documentation-pairing: english-sha256=190f058eac7acc7a5cc35bd2bedf09f14a83068b65d69bf927d6dc6b438eaa5c zh-cn-sha256=882583d5e021ea07ca1896b6c9e9931fe91592c5b29a6ba8e323ba70c7ee307d -->
+<!-- documentation-pairing: english-sha256=3867a7a866acab3e5a560fd0fbb89d1e53b4d3aea0d84f89cb81bf744ffc36cd zh-cn-sha256=fe403bce9343286bdec30a769f0db1839f71aacef6dd2d15f4a10edc67cf298a -->

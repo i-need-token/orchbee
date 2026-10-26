@@ -4,7 +4,7 @@
 
 Windows supports Panel graphics set, clear, information and framed streams. A working renderer requires end-to-end evidence. Desktop, macOS and Linux runtime additions are outside this boundary.
 
-The Site owns ephemeral layers by canonical Panel and Presentation identity. Its existing
+The Session owns ephemeral layers by canonical Panel and Presentation identity. Its existing
 navigation-management grant admits visual writes; its read grant admits information and bounded
 asset reads. A graphic never writes PTY input or changes terminal scrollback. The Client owns the
 actual render surface, clipping, capability observations and draw acknowledgement. Caller-supplied
@@ -27,7 +27,7 @@ physical cleanup, and a failed decode or cleanup cannot install a layer.
 
 Canonical stored pixels are RGBA. Replacement stages complete pixels before releasing the old
 layer. Malformed input, source changes, budget exhaustion and stream conflicts leave the old layer
-intact. A Site retains at most 64 layer slots, at most 16 per Presentation and at most 64 MiB of
+intact. A Session retains at most 64 layer slots, at most 16 per Presentation and at most 64 MiB of
 stored pixels. A single preparing image and decoder scratch are bounded separately. Decoding is
 serialized by the graphics owner without holding the canonical topology lock.
 
@@ -59,7 +59,7 @@ Stream framing follows the reference: a bounded JSON header followed by its decl
 body. Every accepted frame returns its actual sequence/revision receipt. Damage rectangles are
 bounded hints against a complete canonical frame, never patches that leave unprovided pixels
 undefined. Bad framing terminates the producer and releases its layer. Private file frames admit
-only exact regular files within the Site-owned producer root, with pinned size and bounded reads;
+only exact regular files within the Session-owned producer root, with pinned size and bounded reads;
 consumed leases and producer roots are released after their last consumer. External paths are not
 an upload shortcut. A lost write receipt remains unknown and is not replayed.
 
@@ -106,7 +106,7 @@ the TUI retire corresponding output resources through the same renderer owner.
 
 ## Evidence and integration
 
-Dependency order is strict image/resource contracts, Site layer/stream transactions and bounds,
+Dependency order is strict image/resource contracts, Session layer/stream transactions and bounds,
 correlated existing Host PNG decoding, actual native Client consumption/rendering, then public
 CLI grammar/framing/receipts. Focused checks cover complete old-layer preservation, source changes,
 cross-connection producer conflict, EOF cleanup, ordering/exhaustion, chunk mismatch, PNG bounds,
@@ -116,7 +116,7 @@ alone do not mark these four methods aligned.
 
 ## Implementation checkpoint
 
-The Windows Site layer transactions and read-only Host PNG adapter are implemented. The canonical projection owns the shared layer store and retires disappeared or rebound sources at commit, without waiting for a graphics reader. Preparation has its own serial lock; lock order is canonical owner, then layer store, and PNG I/O holds neither. Static primary selectors are checked again after decoding.
+The Windows Session layer transactions and read-only Host PNG adapter are implemented. The canonical projection owns the shared layer store and retires disappeared or rebound sources at commit, without waiting for a graphics reader. Preparation has its own serial lock; lock order is canonical owner, then layer store, and PNG I/O holds neither. Static primary selectors are checked again after decoding.
 
 OBWP kinds 57/58 carry closed requests and results. OBNG carries a bounded viewer-scoped PNG request; existing correlated OBNR records carry its result. Terminal Host kinds 80/81 use the distinct graphics-image encoding (5), bounded at 32 MiB plus its 56-byte result header; ordinary input bounds are unchanged.
 

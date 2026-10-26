@@ -69,7 +69,7 @@ pub(super) fn submit(
         ),
     };
     Ok((
-        json!({"action":kind,"siteId":snapshot.site_id,"requestId":request_id,"baseRevision":snapshot.revision,"result":result}),
+        json!({"action":kind,"sessionId":snapshot.site_id,"requestId":request_id,"baseRevision":snapshot.revision,"result":result}),
         outcome,
     ))
 }

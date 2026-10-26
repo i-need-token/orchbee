@@ -49,7 +49,7 @@
 						null,
 						"denied",
 						"unavailable",
-						"site-mismatch",
+						"session-mismatch",
 						"worker-changed",
 						"invalid-intent",
 						"not-found",

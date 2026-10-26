@@ -14,7 +14,7 @@ returns exact identity alive, exact identity gone, or unknown. A reused PID mean
 is gone; it provides no termination authority over the replacement process.
 
 The private record writer lock serializes generation, child registration and recovery publication.
-Activation additionally holds the namespace, activation and Site lifetime guards. Effects derive
+Activation additionally holds the namespace, activation and Session lifetime guards. Effects derive
 paths from admitted scope and current-user inputs, never from serialized paths. Checkpoint storage
 must be idle and all Client, Worker, Host and observation endpoints absent before cold recovery.
 
@@ -46,7 +46,7 @@ a process discovered by PID. Server/Worker effects must not bypass registered cr
 Recovery never terminates old processes, fabricates a clean-stop receipt, deletes checkpoint data,
 or resumes an Agent into a still-owned terminal. A live orphan Host remains protected and requires
 the separately owned Host-adoption protocol. Refusal offers read-only diagnosis and an alternate
-named Site; it does not claim an unknown-owner cleanup capability.
+named Session; it does not claim an unknown-owner cleanup capability.
 
 Crashed publication precedes runtime reconciliation. A failure after durable publication is a
 partial committed result, retried for the same activation identity under the same guards. New

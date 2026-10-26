@@ -179,7 +179,7 @@ pub(super) fn parse(bytes: &[u8]) -> Result<Node, InputError> {
         if source.string("kind")? != "layout-observation" {
             return Err(InputError::InvalidLayout);
         }
-        source.decode::<orchbee_workbench_protocol::SiteId>("siteId")?;
+        source.decode::<orchbee_workbench_protocol::SiteId>("sessionId")?;
         source.decode::<orchbee_workbench_protocol::WorkbenchRevision>("revision")?;
         let client =
             source.decode::<Option<orchbee_workbench_protocol::WorkbenchClientId>>("clientId")?;

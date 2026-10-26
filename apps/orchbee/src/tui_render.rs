@@ -2506,7 +2506,7 @@ fn render_sidebar(
     let fit = |label: String| truncate_display(&label, inner_width, theme.glyphs.ellipsis);
     let items = [
         ListItem::new(Line::styled(
-            fit(text.site_section.to_owned()),
+            fit(text.session_section.to_owned()),
             theme
                 .style(Role::TextSecondary)
                 .add_modifier(Modifier::BOLD),

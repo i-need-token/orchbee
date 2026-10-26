@@ -139,7 +139,7 @@ fn control(
     controller.resize(geometry)?;
     controller.output.event(
         json!({"kind":"opened","mode":"control","controllerId":controller_id,"source":{
-        "siteId":snapshot.site_id,"revision":snapshot.revision,"terminalId":terminal.terminal_id,"workerId":terminal.worker_id,
+        "sessionId":snapshot.site_id,"revision":snapshot.revision,"terminalId":terminal.terminal_id,"workerId":terminal.worker_id,
         "viewerId":viewer,"attachmentId":attachment.to_text(),"hostEpoch":epoch.to_text()
     },"width":geometry.columns(),"height":geometry.rows()}),
         gate,

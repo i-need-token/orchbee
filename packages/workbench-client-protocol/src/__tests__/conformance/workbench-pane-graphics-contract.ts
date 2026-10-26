@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	WorkbenchRequestIdSchema,
 	WorkbenchRevisionSchema,
 	WorkbenchPanelIdSchema,
@@ -33,7 +33,7 @@ const encoder = new TextEncoder();
 const correlation = {
 	protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 	requestId: WorkbenchRequestIdSchema,
-	siteId: SiteIdSchema,
+	sessionId: SessionIdSchema,
 };
 const positiveRevision = WorkbenchRevisionSchema.refine((value) => BigInt(value) > 0n);
 const PaneGraphicsTargetSchema = z.strictObject({
@@ -61,7 +61,7 @@ const PaneGraphicsLayerSchema = z
 const PaneGraphicsFailureSchema = z.enum([
 	'denied',
 	'invalid-intent',
-	'site-mismatch',
+	'session-mismatch',
 	'unavailable',
 	'busy',
 	'not-found',

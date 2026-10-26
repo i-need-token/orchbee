@@ -6,7 +6,7 @@ pub(super) const EXPORT_EN: crate::localization::HelpDetails =
 pub(super) const EXPORT_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee layout export [--tab <target>|--panel <target>|--current] [--client <id>] [--timeout <ms>] [--format text|json]",
-        "导出可复用 JSON 布局，包含观测比例、手工标签、目录和不可变启动参数。显式 --tab／--panel 且省略 --client 时无头导出共享结构。添加 --client 可包含其焦点／缩放观察；省略目标需要 Ready Client。省略目标使用已验证调用者或所选 Client Panel，不改变焦点或终端控制权。总超时默认 30000 ms，最多 24 个 Panel、深度 16。不导出环境变量值。保留主／子终端顺序和空终端位，每个 Panel 最多 16 个子终端。两种格式成功时均输出 JSON。",
+        "导出可复用 JSON 布局，包含观测比例、手工标签、目录和不可变启动参数。显式 --tab／--panel 且省略 --client 时无头导出共享结构。添加 --client 可包含其焦点／缩放观察；省略目标需要 Ready 客户端。省略目标使用已验证调用者或所选客户端面板，不改变焦点或终端控制权。总超时默认 30000 ms，最多 24 个面板、深度 16。不导出环境变量值。保留主／子终端顺序和空终端位，每个面板最多 16 个子终端。两种格式成功时均输出 JSON。",
     );
 
 pub(super) const APPLY_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
@@ -15,7 +15,7 @@ pub(super) const APPLY_EN: crate::localization::HelpDetails = crate::localizatio
 );
 pub(super) const APPLY_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee layout apply (--file <path>|--stdin) [--tab <target> --confirm|--workspace <target>] [--label <label>] [--client <id>] [--focus|--no-focus] [--timeout <ms>] [--format text|json]",
-    "从 JSON 布局新建标签页；替换需要 --confirm，并等待所有新终端启动及布局就绪。显式目的地且省略 --client 和 --focus 时可无头运行；其他情况需要一个 Ready Windows TUI。接受原生导出、布局描述和 Panel 节点。导出标识不会选择目标或复用终端。默认不切换焦点，替换活动标签页除外。输入为 UTF-8 文件或非交互 stdin，允许 BOM，最多 1 MiB、24 个叶子、含根 16 层。总超时默认 30000 ms，包含恢复时间。失败回执保留已创建标识和已确认效果；结果不确定或被并发编辑的资源会保留。--format json 可查看完整回执。保留主／子终端顺序及空终端位，仅启动指定成员，每个 Panel 最多 16 个子终端。",
+    "从 JSON 布局新建标签页；替换需要 --confirm，并等待所有新终端启动及布局就绪。显式目的地且省略 --client 和 --focus 时可无头运行；其他情况需要一个 Ready Windows TUI。接受原生导出、布局描述和面板节点。导出标识不会选择目标或复用终端。默认不切换焦点，替换活动标签页除外。输入为 UTF-8 文件或非交互 stdin，允许 BOM，最多 1 MiB、24 个叶子、含根 16 层。总超时默认 30000 ms，包含恢复时间。失败回执保留已创建标识和已确认效果；结果不确定或被并发编辑的资源会保留。--format json 可查看完整回执。保留主／子终端顺序及空终端位，仅启动指定成员，每个面板最多 16 个子终端。",
 );
 
 impl crate::localization::Locale {
@@ -103,7 +103,7 @@ fn stage(locale: crate::localization::Locale, value: &str) -> &str {
         (Locale::ZhCn, "discovery") => "连接运行环境",
         (Locale::ZhCn, "directory") => "确认工作目录",
         (Locale::ZhCn, "create") => "新建标签页",
-        (Locale::ZhCn, "split") => "创建窗格",
+        (Locale::ZhCn, "split") => "创建面板",
         (Locale::ZhCn, "launch") => "等待终端启动",
         (Locale::ZhCn, "label") => "设置标签",
         (Locale::ZhCn, "ratio") => "设置分屏比例",

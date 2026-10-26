@@ -166,11 +166,11 @@ impl Locale {
                 "Dry run: closing this {resource} with --confirm would end these terminals and the processes and Agents running in them.\n"
             ),
             (Self::ZhCn, "workspace") => {
-                "试运行：使用 --confirm 关闭该工作区将结束以下终端及其中运行的进程和 Agent。\n"
+                "试运行：使用 --confirm 关闭该工作区将结束以下终端及其中运行的进程和智能体。\n"
                     .to_owned()
             }
             (Self::ZhCn, _) => {
-                "试运行：使用 --confirm 关闭该标签页将结束以下终端及其中运行的进程和 Agent。\n"
+                "试运行：使用 --confirm 关闭该标签页将结束以下终端及其中运行的进程和智能体。\n"
                     .to_owned()
             }
         }

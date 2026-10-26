@@ -462,13 +462,13 @@
 		},
 		"commandSource": {
 			"type": "object",
-			"required": ["kind", "siteId", "requestId", "expectedRevision"],
+			"required": ["kind", "sessionId", "requestId", "expectedRevision"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
 					"const": "workbench-command"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/id"
 				},
 				"requestId": {
@@ -481,13 +481,13 @@
 		},
 		"closeResumeSource": {
 			"type": "object",
-			"required": ["kind", "siteId", "requestId", "closeRequestId", "expectedAttemptGeneration"],
+			"required": ["kind", "sessionId", "requestId", "closeRequestId", "expectedAttemptGeneration"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
 					"const": "workspace-close-resume"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/id"
 				},
 				"requestId": {

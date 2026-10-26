@@ -4,7 +4,7 @@ pub(super) const HELP_EN: crate::localization::HelpDetails = crate::localization
 );
 pub(super) const HELP_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee panel create-terminal [<panel>|--current] [--client <id>] [--child|--presentation <id>] [--label <label>] [--exec <path|name> --arg <value>...|--profile <selector>] [--cwd <path|follow|home|current|workspace>] [--env NAME=VALUE] [--cols <n>] [--rows <n>] [--cell-width <n>] [--cell-height <n>] [--timeout <ms>] [--format text|json]",
-    "启动空主终端位；--presentation 绑定精确空成员；--child 追加新子终端（最多 16 个）。\n--label 仅命名新子项。显式 Panel 目标无需 TUI，省略目标使用经过验证的调用者或唯一 Ready Client；--client 指定该 Client。不改变 Client 焦点。--exec 接受绝对路径或在最终 CLI 的 PATH 中解析程序名。参数和环境变量保持字面值，总超时默认 30000 ms。Pending 表示已接受，尚未确认启动。不确定请求不会重试；JSON 回执保留精确请求及成员身份。仅支持 Windows。",
+    "启动空主终端位；--presentation 绑定精确空成员；--child 追加新子终端（最多 16 个）。\n--label 仅命名新子项。显式面板目标无需 TUI，省略目标使用经过验证的调用者或唯一 Ready 客户端；--client 指定该客户端。不改变客户端焦点。--exec 接受绝对路径或在最终 CLI 的 PATH 中解析程序名。参数和环境变量保持字面值，总超时默认 30000 ms。Pending 表示已接受，尚未确认启动。不确定请求不会重试；JSON 回执保留精确请求及成员身份。仅支持 Windows。",
 );
 impl super::Locale {
     pub(crate) fn cli_panel_terminal_create(self, document: &serde_json::Value) -> String {

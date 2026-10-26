@@ -72,6 +72,7 @@ impl NativeSettingsOperation {
 pub struct NativeSettingsRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub operation: NativeSettingsOperation,
 }
@@ -90,6 +91,7 @@ impl NativeSettingsRequest {
 pub enum NativeSettingsFailure {
     Denied,
     Unavailable,
+    #[serde(rename = "session-mismatch")]
     SiteMismatch,
     Busy,
     SourceChanged,
@@ -138,6 +140,7 @@ pub enum NativeSettingsOutcome {
 pub struct NativeSettingsResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub outcome: NativeSettingsOutcome,
 }

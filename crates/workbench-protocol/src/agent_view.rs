@@ -150,6 +150,7 @@ impl AgentViewAction {
 pub struct AgentViewRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub action: AgentViewAction,
 }
@@ -173,6 +174,7 @@ fn nullable<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<AgentViewSp
 pub enum AgentViewFailure {
     Denied,
     Unavailable,
+    #[serde(rename = "sessionMismatch")]
     SiteMismatch,
     InvalidRequest,
     PluginNotFound,
@@ -191,6 +193,7 @@ pub enum AgentViewOutcome {
 pub struct AgentViewResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub outcome: AgentViewOutcome,
 }

@@ -112,7 +112,7 @@ each Workspace, with independent lists expanded by default. Configuration still 
 
 Fallback chrome without projected navigation rows never invents a legacy Workspace row. When
 `sidebar_navigation_rows` is empty and no Workspace creation preview exists, the Windows sidebar
-omits Site, terminal-status, Business, Projects and Workspaces placeholders. New workspace,
+omits Session, terminal-status, Business, Projects and Workspaces placeholders. New workspace,
 Search and Settings keep their complete existing targets and footer geometry. A creation preview
 retains its pending row.
 The no-Workspace main content stays blank, without a Terminal title, onboarding statement or repeated

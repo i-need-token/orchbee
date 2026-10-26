@@ -7,7 +7,7 @@ authority reconstruction; it does not by itself enable disk persistence or resum
 
 [Canonical terminal Tab Close](terminal-tab-close.md) owns known Host disposal and exact target cleanup before removal, reserved revision/ledger/Resume capacity, and publication rebased over current membership. Other canonical writes may proceed during cleanup. Removing the last Tab leaves its Workspace empty; closing the last Workspace leaves an empty Workbench. New execution requires explicit Workspace/Tab creation.
 
-The Server library implements the retained authority and continuation core below. Site, exact
+The Server library implements the retained authority and continuation core below. Session, exact
 controller/Worker cleanup and the process-lifetime maintenance owner compose it with the local
 Close/Read/Resume endpoints. Deterministic and Linux protocol-client process tests cover credits,
 retained controls, current-snapshot removal, idle reservation release and eight live Client
@@ -30,7 +30,7 @@ is not exact cleanup authority: cleanup additionally compares the retained Worke
 complete Host identity and binding fence. Original launch/Start replay keeps its existing precedence.
 
 Close admission checks lifecycle authority, exact retained replay/conflict, retirement, ledger
-entry capacity, Site/base/context and the applicable strict or tree membership. Site validates
+entry capacity, Session/base/context and the applicable strict or tree membership. Session validates
 composition before target resolution. A visible existing primary is joined before any fresh runtime lookup, including an
 Unknown or disposed primary whose Worker is now unavailable. A new primary requires exact runtime
 association and all reservations before joint acceptance. Close replay remains readable after
@@ -50,16 +50,16 @@ retain that charge. These byte limits do not establish allocation, panic or cras
 After known Dispose and exact local cleanup, a borrowed publication plan validates the complete
 retained target against current applicable membership and prepares the current projection, encoded
 delta/full-snapshot fallback and final Closed revision/status. For an aggregate tree Close it
-captures the ordered `exact_removed_members` and exposes the before/after membership to Site's
+captures the ordered `exact_removed_members` and exposes the before/after membership to Session's
 disjoint slot-only retarget preparation.
-Both plans commit under the same Site gate with no further fallible work. Dropping preparation
+Both plans commit under the same Session gate with no further fallible work. Dropping preparation
 leaves membership and credit unchanged; failure retains disposed classification and permits only
 the remaining cleanup/publication. The continuation preserves outstanding receipts across expiry,
 and explicit Resume preserves signal, grace and query facts.
 
 Authority tests own concrete ledger/encoded bounds, alias/replay precedence, maximum revision and
 generation, receipt replacement, preparation rollback and current-snapshot removal. Continuation
-tests own clock/step/query boundaries and exact receipt settlement. Site and process tests must
+tests own clock/step/query boundaries and exact receipt settlement. Session and process tests must
 establish the joint association, cleanup and actual carrier/Host cuts before Close delivery is
 claimed. `cargo test -p orchbee-server --lib --locked` runs these authority/continuation tests;
 `cargo clippy -p orchbee-server --lib --locked -- -D warnings` checks the library implementation.
@@ -71,7 +71,7 @@ No separate Close workflow TLA model is retained.
 `panel.split` is the first accepted tree mutation. Workbench validates the exact context, Tab and
 leaf Panel, bounds the resulting tree, and commits the source leaf, new leaf, split orientation,
 two slot identities and presentation identity before dispatching the second terminal launch. The
-Server and Site retain all leaf bindings as one exact tree membership; a missing or unknown leaf
+Server and Session retain all leaf bindings as one exact tree membership; a missing or unknown leaf
 outcome quarantines the pending operation and cannot publish a partial tree.
 
 Aggregate Close captures a Tab's complete ordered bound membership, disposes and cleans each target, and publishes only after all proofs are known. Leaf-scoped `panel.close` removes that leaf and collapses its parent Split; a sole leaf closes the Tab. Aggregate scope fences overlapping split/move with transient `terminal-busy`, after normal grant/replay/revision/context checks. Unrelated Tabs proceed. Publication re-proves the captured scope against current membership. Native membership recovery attaches a surviving leaf or retains a retryable unavailable state; protocol/deadline failure follows the existing retirement rules. Provisional TUI split, close and move shortcuts use this authority.
@@ -83,7 +83,7 @@ Aggregate Close captures a Tab's complete ordered bound membership, disposes and
 The source tuple and expected revision are exact. Existing destination forms retain their
 source-context default. An explicit destination context enables cross-context moves, and an
 optional target Panel selects the graft leaf; absence retains the existing root-graft contract.
-A new Workspace specifies nullable Project membership, an optional Directory from the Site pool and labels. A new `primaryDirectoryPath` alternatively creates a Directory in that same commit. It is mutually exclusive with an existing directory ID. The local service probes the path through the current Worker, rechecks its generation and requires directory-association authority; the proven Worker must own the retained source terminal. Missing proof, capacity or path failure cannot publish topology. A created Directory adds one allocated identity and `transfer.createdDirectoryId`. Only new structural and directory identities are allocated. A moved leaf retains its Panel, Presentation, binding,
+A new Workspace specifies nullable Project membership, an optional Directory from the Session pool and labels. A new `primaryDirectoryPath` alternatively creates a Directory in that same commit. It is mutually exclusive with an existing directory ID. The local service probes the path through the current Worker, rechecks its generation and requires directory-association authority; the proven Worker must own the retained source terminal. Missing proof, capacity or path failure cannot publish topology. A created Directory adds one allocated identity and `transfer.createdDirectoryId`. Only new structural and directory identities are allocated. A moved leaf retains its Panel, Presentation, binding,
 custom label and input policy, including every ordered child Presentation. Unbound-member lifecycle
 remains separately tracked.
 
@@ -99,7 +99,7 @@ remains separately tracked.
 | New Tab or Workspace                                                              | Append the new Tab; append a new Workspace to explicit display order, preserving ownership.                    |
 | Lifecycle operation overlaps source/destination or a moved pending terminal       | Transient terminal-busy; no retained success or partial move.                                                  |
 
-One cloned candidate is validated and encoded before ledger admission. One commit publishes the snapshot, identity high-water and exact result. Replay returns that result; conflict and publication failure cannot allocate another move. Transfer facts identify the destination Context and removed/created Tab/Workspace identities. The Site-wide binding multiset is conserved under the shared commit gate.
+One cloned candidate is validated and encoded before ledger admission. One commit publishes the snapshot, identity high-water and exact result. Replay returns that result; conflict and publication failure cannot allocate another move. Transfer facts identify the destination Context and removed/created Tab/Workspace identities. The Session-wide binding multiset is conserved under the shared commit gate.
 
 Public Windows integration must additionally resolve the selected Client's target leaf, enforce
 zoom/no-op behavior and apply requested ratio/focus through that Client. These are separately
@@ -110,7 +110,7 @@ required for complete user acceptance. Generic semantic events remain a separate
 
 ## Accepted Workspace ordering model
 
-Users reorder a Site-wide Workspace list without moving Projects, directories, terminal contexts,
+Users reorder a Session-wide Workspace list without moving Projects, directories, terminal contexts,
 or running terminals. Navigation retains identity-sorted membership and an optional complete
 `workspaceOrder` permutation; absent/empty means the global Workspace identity order. Historical
 checkpoint migration materializes the former Project traversal as an explicit permutation. Display
@@ -126,7 +126,7 @@ order remains independent of optional Project membership and supports a block sp
 | Effective order unchanged                                                      | Retain Unchanged without revision, identity allocation or a redundant ordering field.       |
 | Effective order changed                                                        | Publish the complete permutation and one revision through the existing pure command commit. |
 
-The existing mutation grant, Site/revision checks, request replay/conflict and bounded ledger own
+The existing mutation grant, Session/revision checks, request replay/conflict and bounded ledger own
 admission and publication; a lost result does not authorize replay under a fresh identity. Every
 fallible permutation/projection preparation precedes the authoritative commit. Reordering leaves
 Workspace/Project membership, Directory references, terminal bindings, worktree associations and
@@ -164,7 +164,7 @@ terminal attachment, controller, Host input or Worker action belongs to this tra
 
 Move resolves an exact Workspace-owned Terminal Context. An ungrouped Workspace has a null Project ID and the same mutation rights as a grouped Workspace. Move requires neither an accepted Directory nor a live Worker. There is no reserved context, first-terminal slot or Open reference to reconcile.
 
-Navigation grant, retirement, retained replay/conflict, ledger capacity, Site and expected revision precede context and target lookup. Pending aggregate Close fences changed membership; an unchanged boundary move preserves revision. Candidate validation, publication and result-byte reservation complete before the one commit. Exact replay returns the original order and revision even after later writes; changed content under the same request ID conflicts. Moving Tabs preserves every Panel, Presentation, binding, naming mode and group/pinned invariant. No Worker effect is dispatched.
+Navigation grant, retirement, retained replay/conflict, ledger capacity, Session and expected revision precede context and target lookup. Pending aggregate Close fences changed membership; an unchanged boundary move preserves revision. Candidate validation, publication and result-byte reservation complete before the one commit. Exact replay returns the original order and revision even after later writes; changed content under the same request ID conflicts. Moving Tabs preserves every Panel, Presentation, binding, naming mode and group/pinned invariant. No Worker effect is dispatched.
 
 ## Accepted multi-leaf membership model
 
@@ -176,7 +176,7 @@ Pending creation settlement stays tied to its original operation token, includin
 
 ## Scope and ownership
 
-The native Server owns one canonical Workbench per Site. Projects hold organization metadata; Workspaces and Directories belong to the Site. Navigation stores global identity-sorted registries plus exact optional display-order permutations. Each Workspace owns exactly one Context and may have a null Project or primary Directory. Zero Workspaces/Contexts is valid. Every Context must have an owner; old ownerless navigation is rejected. Counts, paths, identity uniqueness and references are validated before publication.
+The native Server owns one canonical Workbench per Session. Projects hold organization metadata; Workspaces and Directories belong to the Session. Navigation stores global identity-sorted registries plus exact optional display-order permutations. Each Workspace owns exactly one Context and may have a null Project or primary Directory. Zero Workspaces/Contexts is valid. Every Context must have an owner; old ownerless navigation is rejected. Counts, paths, identity uniqueness and references are validated before publication.
 
 The projection store is a private implementation component of this authority. It has no public
 whole-snapshot mutation entry; only this authority may advance it. Every committed publication is
@@ -187,13 +187,13 @@ and complete Client Workbench integration remain unfinished.
 The language-neutral request/result authority is
 [the Workbench contract](../../../schemas/workbench/README.md). Workbench uses its own OBWP carrier
 on the same admitted local connection; OBCS remains the terminal-only contract. Same-user OBLC
-admission precedes either protocol. The Server then selects an explicit Site-scoped Workbench grant.
+admission precedes either protocol. The Server then selects an explicit Session-scoped Workbench grant.
 Development composition grants snapshot and publication reading plus the pure Workbench
 operations;
 `tab.create` also requires the explicit terminal-create grant. Directory association requires navigation
 and its independent directory-association grant. For externally submitted OBWP reads and commands, the
 authority checks that grant before any state read or ledger lookup. Read-only and denied policies
-remain representable. An absent or wrong-Site grant returns typed denied without state, revision,
+remain representable. An absent or wrong-Session grant returns typed denied without state, revision,
 identity or ledger disclosure; a grant never comes from wire input. Clients submit semantic operations and expected revisions;
 they cannot supply new product identities, replace the shared document, or publish Client deltas.
 
@@ -208,8 +208,8 @@ missing targets, authorization and capacity while preserving the binding and fal
 | Field              | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Problem            | Independent admitted Clients must modify and observe one shared navigation structure without lost updates or duplicate logical effects.                                                                                                                                                                                                                                                                                                  |
-| Inputs             | A strict snapshot or publication read intent, or a strict command with request identity, exact Site, expected revision, and an admitted pure action. Creation and Tab labels preserve their exact nonempty text, bounded to 512 Unicode code points; Panel overrides normalize bounded nullable updates as defined above. A Tab rename fingerprint includes its context, Tab, label, and base revision.                                  |
-| Data               | Active or retired authority, one validated Snapshot, a Server-owned non-reusing identity cursor, and a bounded request/result ledger. The initial revision is zero and the Workspace Terminal Context is empty. The adapter obtains a nonzero Site identity from operating-system randomness. The cursor never reuses navigation aggregate identities; unrelated Terminal/operation identity domains retain their existing owners.       |
+| Inputs             | A strict snapshot or publication read intent, or a strict command with request identity, exact Session, expected revision, and an admitted pure action. Creation and Tab labels preserve their exact nonempty text, bounded to 512 Unicode code points; Panel overrides normalize bounded nullable updates as defined above. A Tab rename fingerprint includes its context, Tab, label, and base revision.                               |
+| Data               | Active or retired authority, one validated Snapshot, a Server-owned non-reusing identity cursor, and a bounded request/result ledger. The initial revision is zero and the Workspace Terminal Context is empty. The adapter obtains a nonzero Session identity from operating-system randomness. The cursor never reuses navigation aggregate identities; unrelated Terminal/operation identity domains retain their existing owners.    |
 | Outputs            | Read returns correlated available { snapshot }, denied {}, or unavailable { reason }. Publication read returns current { revision }, published { publications }, denied {}, or unavailable { reason }. Command returns its typed navigation commit, unchanged, rejected, denied, or unavailable. Created identities appear only in their corresponding success variants.                                                                 |
 | Invariants         | Only Server commits shared structure. Every Workspace references exactly one context. Rejection preserves structure, revision and allocation state. A changed candidate advances exactly one revision. An equal fixed-name rename preserves revision. Tab rename changes only its target `Tab.label` and `Tab.automaticLabel`; non-target labels and every other projection fact remain exact. One request identity cannot commit twice. |
 | Decisions          | Authorization precedes retired-state and ledger inspection. Active exact replay precedes expected-revision checks. Changed content under a retained request identity is a conflict. A rejected command has no structural effect. An unexpected internal invariant failure retires the authority atomically; every later authorized read or command, including replay, is unavailable.                                                    |
@@ -242,7 +242,7 @@ linearizes at the atomic snapshot/cursor/ledger commit; a settled rejection or u
 linearizes at ledger insertion. Same-identity equal and conflicting races follow that same gate.
 
 For an authorized valid command, the owner first resolves exact replay or request-identity conflict. A new
-command is evaluated against the current Site and revision. It stages the complete candidate,
+command is evaluated against the current Session and revision. It stages the complete candidate,
 identity cursor, typed result and ledger entry before committing any of them. Candidate validation,
 encoding, and projection publication preflight precede ledger-byte reservation. `CommitPlan` retains
 an optional `PreparedProjectionAdvance`; after reservation, commit performs only `commit_prepared`
@@ -250,7 +250,7 @@ and cursor/ledger moves, with no recoverable check after the first mutation. An 
 unpublishable candidate cannot consume an identity or ledger capacity. The transport writes the correlated response after releasing state ownership.
 Losing that response never rolls back the committed state.
 
-Decision precedence is authorization, retired state, retained replay/conflict, ledger count, Site,
+Decision precedence is authorization, retired state, retained replay/conflict, ledger count, Session,
 expected revision, exact target context and then target member, equal-rename no-op, collection capacity, identity allocation,
 changed revision, and encoded candidate capacity. An equal rename is unchanged at `u64::MAX`.
 Workspace creation preflights both identities together. Finally, canonical ledger byte accounting
@@ -271,15 +271,15 @@ serialized accounting bounds, not an exact heap-size claim. New work exceeding e
 unavailable without effects; exact retained replay remains available. There is no automatic
 eviction that could turn an old request into a new effect.
 
-This ledger and Site identity are process-local until the persistence/recovery integration is
-implemented. A disconnected Client does not destroy the Site, and a replacement Client may
-reconcile an exact request in the same Site process. This does not authorize blind input replay or
-cross-restart request replay. A new Site identity rejects requests addressed to the former Site.
+This ledger and Session identity are process-local until the persistence/recovery integration is
+implemented. A disconnected Client does not destroy the Session, and a replacement Client may
+reconcile an exact request in the same Session process. This does not authorize blind input replay or
+cross-restart request replay. A new Session identity rejects requests addressed to the former Session.
 
 | Condition                                                                      | Result                                                                                                     |
 | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| Missing or wrong-Site grant, or a mutation under a read-only grant             | denied; no current revision or state is disclosed                                                          |
-| Command addresses another Site                                                 | rejected: site-mismatch                                                                                    |
+| Missing or wrong-Session grant, or a mutation under a read-only grant          | denied; no current revision or state is disclosed                                                          |
+| Command addresses another Session                                              | rejected: session-mismatch                                                                                 |
 | Expected revision differs                                                      | rejected: revision-mismatch                                                                                |
 | Project missing                                                                | rejected: project-unavailable                                                                              |
 | Workspace missing or unavailable for the addressed operation                   | rejected: workspace-unavailable                                                                            |
@@ -293,9 +293,9 @@ cross-restart request replay. A new Site identity rejects requests addressed to 
 
 ## Launch Profile catalog
 
-The authority also owns one ephemeral, per-Site Launch Profile catalog: private Server state that
+The authority also owns one ephemeral, per-Session Launch Profile catalog: private Server state that
 names reusable custom-executable launch selections for `tab.create` and `panel.split`. The catalog
-is memory-only and dies with the Site process; it never enters the public snapshot, so a
+is memory-only and dies with the Session process; it never enters the public snapshot, so a
 navigation commit cannot observe or mutate it and `deny_unknown_fields` fences old readers from
 new shapes entirely.
 
@@ -303,13 +303,13 @@ new shapes entirely.
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Problem      | Admitted Clients must list, resolve, create and delete named custom-executable selections and consume them at terminal creation without a second catalog writer or a persisted registry.                                                                                                                                                                                                                              |
 | Inputs       | A strict `workbench.launch-profile-catalog.read` intent with request identity and an optional selector, or a strict `launch-profile.create`/`launch-profile.delete` command. A selector is opaque 1–512-byte text; a name shares the label envelope; a selection is the closed launch contract.                                                                                                                       |
-| Data         | A bounded entry vector (64 entries, 256 KiB serialized aggregate), a private monotonically increasing catalog revision, and the same request/result ledger the navigation group uses. Profiles mint opaque ids `<siteHex>:<counterHex>` from the Site identity and the existing Server identity cursor.                                                                                                               |
+| Data         | A bounded entry vector (64 entries, 256 KiB serialized aggregate), a private monotonically increasing catalog revision, and the same request/result ledger the navigation group uses. Profiles mint opaque ids `<siteHex>:<counterHex>` from the Session identity and the existing Server identity cursor.                                                                                                            |
 | Outputs      | Read returns catalog { entries }, profile { entry }, not-found, ambiguous { candidateIds }, denied, or unavailable. Commands return launch-profile-created/deleted { revision, catalogRevision, profileId }, the journaled selector resolutions launch-profile-unavailable and launch-profile-ambiguous { candidateIds }, plus the ordinary rejected/denied/unavailable set.                                          |
 | Invariants   | Only Server commits catalog state. A committed create/delete advances the Workbench revision and the private catalog revision together, atomically with projection, ledger and retained-request updates. An exact profile-id match resolves before any name lookup; otherwise zero name matches is not-found, one is found, and more than one is ambiguous with the bounded id list captured at that same resolution. |
-| Decisions    | Reads carry the same site-identity grant semantics as snapshot reads and never enter the command ledger. Selector failures journal like every other settled outcome, so an identical request replays the same answer. Byte-capacity and revision-exhaustion rejections precede any catalog mutation. A dead Site's ids embed that Site identity and can never alias a different Site's entries.                       |
+| Decisions    | Reads carry the same site-identity grant semantics as snapshot reads and never enter the command ledger. Selector failures journal like every other settled outcome, so an identical request replays the same answer. Byte-capacity and revision-exhaustion rejections precede any catalog mutation. A dead Session's ids embed that Session identity and can never alias a different Session's entries.              |
 | Model        | The same deterministic serialized transition: candidate state is staged under the commit gate, and no recoverable check follows the first mutation.                                                                                                                                                                                                                                                                   |
 | Ownership    | The authority owns catalog entries, the private catalog revision and minting. The service owns policy mapping (reads under the read grant, mutations under navigation) and call serialization. Terminal creation consumes a resolved `LaunchProfileUse` — never the selector text — so the Worker launch payload still carries only executable and arguments.                                                         |
-| Verification | Authority stateful tests covering id-first/cardinality resolution, replay and conflict, count and serialized bounds, revision exhaustion with zero mutation, and cross-Site id non-aliasing; coordinator tests covering prepare-time freeze and provenance publication.                                                                                                                                               |
+| Verification | Authority stateful tests covering id-first/cardinality resolution, replay and conflict, count and serialized bounds, revision exhaustion with zero mutation, and cross-Session id non-aliasing; coordinator tests covering prepare-time freeze and provenance publication.                                                                                                                                            |
 
 `tab.create` and `panel.split` accept either the existing explicit `launch` selection or a `profile`
 selector, never both — the wire shape rejects the combination at parse and at serialize. A `profile`
@@ -328,7 +328,7 @@ never executable text from another resolution.
 | Reads observe one committed state; denied calls reveal none                                       | [Publication history and grant tests][authority-tests]                                         | Read linearizes at cloning under the commit gate                              |
 | Retirement fences subsequent reads, writes and replay                                             | [Authorization/retirement tests][authority-tests]                                              | Process-local retirement, no recovery claim                                   |
 | A slow snapshot writer does not block another Client                                              | [Stalled-writer application-session test][session-tests]                                       | Controlled stalled writer; response I/O follows cloning and lock release      |
-| Exact replay survives response loss without a new effect                                          | [Replay/conflict traces][authority-stateful] and [disconnect process trace][authority-process] | Retained Site-process ledger only                                             |
+| Exact replay survives response loss without a new effect                                          | [Replay/conflict traces][authority-stateful] and [disconnect process trace][authority-process] | Retained Session-process ledger only                                          |
 | A Tab rename changes only its target label and replays its original revision after a later commit | [Concrete rename tests][authority-tests] and [stateful traces][authority-stateful]             | Exact target, Unicode and byte cases; finite generated histories              |
 | Navigation remains valid and rejection is effect-free                                             | [Stateful command traces][authority-stateful] and snapshot validator                           | Existing snapshot collection, identity and byte limits                        |
 | Contract meanings agree across languages                                                          | Shared navigation command corpus consumed by Rust and TypeScript                               | Strict decoded JSON plus encoded carrier limits                               |
@@ -358,29 +358,29 @@ A new authority contains zero Workspaces and zero Terminal Contexts. `workspace.
 
 Terminal creation uses the Workspace's accepted Directory and exact Worker. Missing directory configuration or unavailable runtime produces a typed refusal, never a home-directory fallback or hidden Workspace. The canonical snapshot exposes bindings for `attach-binding`; attachment grants no creation or navigation authority.
 
-Prepared membership and terminal reservations are effect-free until their joint commit under the Site gate. Failure before commit leaves identities, revision, ledger and terminal state unchanged. No retained singleton Open state participates in creation, close, move or checkpoint restoration.
+Prepared membership and terminal reservations are effect-free until their joint commit under the Session gate. Failure before commit leaves identities, revision, ledger and terminal state unchanged. No retained singleton Open state participates in creation, close, move or checkpoint restoration.
 
 ## Terminal selection from Workbench bindings
 
-An admitted local Client selects an exact Site/Worker/logical Terminal binding from a canonical snapshot through `attach-binding`. Workbench proves current exposure before runtime lookup; Site then checks the retained Worker generation and Host identity. Selection grants no create, navigation, input or resize authority. Missing membership, unavailable runtime and changed attachment identity remain distinct typed outcomes.
+An admitted local Client selects an exact Session/Worker/logical Terminal binding from a canonical snapshot through `attach-binding`. Workbench proves current exposure before runtime lookup; Session then checks the retained Worker generation and Host identity. Selection grants no create, navigation, input or resize authority. Missing membership, unavailable runtime and changed attachment identity remain distinct typed outcomes.
 
-| Field        | Contract                                                                                                                                                                                                                                                      |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem      | A Client reading shared product state must select its retained terminal without depending on an internal Create reference or silently following a different execution identity.                                                                               |
-| Input        | An admitted Session and the exact Site/Worker/Server-terminal tuple. All three are independent opaque identity domains; none is a Host identity, generation, operation, lease or Create reference.                                                            |
-| Data         | Canonical exposed bindings, retained terminal authorization/phase, current Worker placement and Session-local attachment state.                                                                                                                               |
-| Output       | Existing Attached scope, or a typed refusal/unavailability. Selection has no terminal creation, start, input, resize, controller grant or Workbench effect.                                                                                                   |
-| Invariants   | Resolve only a binding exposed by the active current Site; pin the retained exact Worker generation; never substitute a terminal or Worker; refuse before allocating attachment identities when target validation fails.                                      |
-| Ownership    | WorkbenchAuthority checks canonical membership; TerminalCoordinator resolves retained execution; SiteCoordinator composes those checks under the existing registry-then-Site lock order. ViewerSession owns attachment IPC and cleanup after releasing locks. |
-| Model        | Resolve a typed target, prepare an attachment, dispatch through the pinned handle, and commit the Session attachment at the existing current-Worker check.                                                                                                    |
-| Dependencies | Unpublished OBCS v1 values, unchanged OBCN/OBSR relay, existing OBWP snapshot read, and the native Client's existing absolute submission deadline.                                                                                                            |
-| Limits       | Same-user local target resolution and no takeover. The Selection model does not prove multiple viewer routes, remote authorization, persistence, restart adoption, selection UI or continuous Worker availability.                                            |
+| Field        | Contract                                                                                                                                                                                                                                                         |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem      | A Client reading shared product state must select its retained terminal without depending on an internal Create reference or silently following a different execution identity.                                                                                  |
+| Input        | An admitted Session and the exact Session/Worker/Server-terminal tuple. All three are independent opaque identity domains; none is a Host identity, generation, operation, lease or Create reference.                                                            |
+| Data         | Canonical exposed bindings, retained terminal authorization/phase, current Worker placement and Session-local attachment state.                                                                                                                                  |
+| Output       | Existing Attached scope, or a typed refusal/unavailability. Selection has no terminal creation, start, input, resize, controller grant or Workbench effect.                                                                                                      |
+| Invariants   | Resolve only a binding exposed by the active current Session; pin the retained exact Worker generation; never substitute a terminal or Worker; refuse before allocating attachment identities when target validation fails.                                      |
+| Ownership    | WorkbenchAuthority checks canonical membership; TerminalCoordinator resolves retained execution; SiteCoordinator composes those checks under the existing registry-then-Session lock order. ViewerSession owns attachment IPC and cleanup after releasing locks. |
+| Model        | Resolve a typed target, prepare an attachment, dispatch through the pinned handle, and commit the Session attachment at the existing current-Worker check.                                                                                                       |
+| Dependencies | Unpublished OBCS v1 values, unchanged OBCN/OBSR relay, existing OBWP snapshot read, and the native Client's existing absolute submission deadline.                                                                                                               |
+| Limits       | Same-user local target resolution and no takeover. The Selection model does not prove multiple viewer routes, remote authorization, persistence, restart adoption, selection UI or continuous Worker availability.                                               |
 
 The [Session routing owner](../README.md#accepted-connection-viewer-routing-modeling-record) first
 reaps exact known-Disposed entries and enforces its capacity bound. With capacity available, a
 duplicate resolved live target in the same Session returns `already-attached` before Worker IPC;
-different targets can coexist. Within target resolution, poisoned registry or Site ownership returns
-`server-busy`. Missing or retired Workbench returns `workbench-unavailable`; a wrong Site or a
+different targets can coexist. Within target resolution, poisoned registry or Session ownership returns
+`server-busy`. Missing or retired Workbench returns `workbench-unavailable`; a wrong Session or a
 tuple absent from its currently exposed Presentation bindings returns `terminal-unavailable`.
 A missing current Worker or mismatched Worker identity is `terminal-runtime-unavailable`.
 Next, a missing exact retained record is `terminal-unavailable`; a mismatched retained generation
@@ -390,7 +390,7 @@ IPC. Identity capacity and known unchanged queue/attachment capacity retain the 
 a fresh OBCS request identity under the same logical deadline. There is no snapshot-read retry,
 fallback, terminal creation, retargeting or unknown-effect replay.
 
-Membership validation and target resolution linearize together under the Site gate while the
+Membership validation and target resolution linearize together under the Session gate while the
 Worker registry is held. Selection does not require the snapshot's revision to remain current:
 unrelated navigation may commit while the exact binding remains exposed. The prepared target pins
 the retained Worker generation and Host identity; the Client supplies neither. Later Workbench
@@ -400,23 +400,23 @@ the next viewer/control operation still applies existing generation fencing. Att
 promise that the Worker stays available.
 
 OBCS retains the existing same-user terminal admission. OBWP reading/navigation policy still owns
-only its respective requests; knowing a tuple creates no new authorization source. Production Site composition commits membership from the exact planned terminal authorization.
+only its respective requests; knowing a tuple creates no new authorization source. Production Session composition commits membership from the exact planned terminal authorization.
 An exposed tuple with no matching retained record, including a terminal stored under another
 Worker, is therefore unreachable through that construction. The query still returns
 `terminal-unavailable` for such an inconsistent fixture; it introduces no retirement or repair.
 The Workbench lookup is an internal read, not a second snapshot writer or a command-ledger entry.
 
-Required attachment witnesses cover foreign Site and missing membership precedence, retained generation/Host identity, exact primary-versus-child selection, terminal failure/unknown outcomes, retirement and attachment races. They must prove no launch or mutation occurs during selection and that unrelated canonical members remain unchanged.
+Required attachment witnesses cover foreign Session and missing membership precedence, retained generation/Host identity, exact primary-versus-child selection, terminal failure/unknown outcomes, retirement and attachment races. They must prove no launch or mutation occurs during selection and that unrelated canonical members remain unchanged.
 
 The Client's read-error and structural-selection rules belong to [Workspace startup](../../orchbee/README.md#workspace-terminal-startup). Typed identity domains and current snapshot membership remain the authority; labels or row positions never substitute for them.
 
 ## Workspace Tab creation model
 
-`tab.create` requires navigation and terminal-create grants, the exact Workspace Context and an accepted Directory owned by the selected Worker. Canonical command preflight preserves grant, retirement, exact replay/conflict, capacity, Site and revision precedence. Placement validates the addressed Tab/group and all resulting collection/tree bounds. Geometry, launch profile/options and directory facts are frozen before mutation.
+`tab.create` requires navigation and terminal-create grants, the exact Workspace Context and an accepted Directory owned by the selected Worker. Canonical command preflight preserves grant, retirement, exact replay/conflict, capacity, Session and revision precedence. Placement validates the addressed Tab/group and all resulting collection/tree bounds. Geometry, launch profile/options and directory facts are frozen before mutation.
 
 ### Admission and joint commit
 
-Workbench prepares the candidate Tab/Panel/Presentation, publication, identities and pending/final ledger reservation. The terminal coordinator separately prepares its exact runtime reservation. Site validates both plans before committing either under one gate; Worker I/O runs after releasing it. Dropping preparation has no effect. Transient precommit Worker/resource refusal does not retain success. A known launch failure retains the committed member and reports failure; an uncertain outcome remains unknown and never causes an automatic second launch.
+Workbench prepares the candidate Tab/Panel/Presentation, publication, identities and pending/final ledger reservation. The terminal coordinator separately prepares its exact runtime reservation. Session validates both plans before committing either under one gate; Worker I/O runs after releasing it. Dropping preparation has no effect. Transient precommit Worker/resource refusal does not retain success. A known launch failure retains the committed member and reports failure; an uncertain outcome remains unknown and never causes an automatic second launch.
 
 ### Completion and replay
 
@@ -436,7 +436,7 @@ The [Tab label contract](../../orchbee/docs/native-tab-labels.md) owns optional 
 (`workerId`, `terminalId`). Legacy reports resolve a Panel's current primary binding and require an exact
 `expectedBinding`; a changed, missing or unbound target fails before applying the report. Primary
 and child memberships retain the resource across moves and swaps. An operation prunes bindings
-absent from all committed memberships. Site disposal or restart drops this state.
+absent from all committed memberships. Session disposal or restart drops this state.
 
 Inputs are strict `PanelMetadataRequest` values with normalized source, display text, token keys,
 optional sequence and a 1–86,400,000 ms TTL. Read takes 0–4 unique ordered Panel IDs and returns
@@ -462,7 +462,7 @@ independent maintenance transition before an otherwise valid operation. Limits a
 32 token keys per binding, 4,096 retained bindings and 16 MiB of accounted retained payload; the
 accounting is not a process RSS bound. Sequence-only records count toward the source limit.
 
-The Site gate is the single writer and samples time after admission. This reducer has no I/O,
+The Session gate is the single writer and samples time after admission. This reducer has no I/O,
 background expiry timer, durable storage, canonical topology mutation or notification event.
 Read/report DTOs and the deterministic owner tests cover replacement, selective clearing,
 per-field precedence, guards, sequence replay, TTL boundaries, atomic capacity failures,
@@ -508,11 +508,11 @@ For Tab Move, the existing direction or original insertion boundary first determ
 permutation. No-op returns unchanged before revision allocation. The candidate must retain a pinned
 prefix and contiguous members for every group; otherwise `tab-move-order-conflict` is retained
 without mutation or retirement. Request replay, context-Close fences, all-member
-Site composition, capacity and rollback retain their existing owners. No process operation occurs.
+Session composition, capacity and rollback retain their existing owners. No process operation occurs.
 
 Evidence compares complete records against independent remove/insert and contiguous-span oracles,
 including legal/illegal placements, all directions, all insertion boundaries, no-op at exhausted
-revision, exact refusal replay and subsequent valid work. Restored grouped/pinned Site composition
+revision, exact refusal replay and subsequent valid work. Restored grouped/pinned Session composition
 and child-preserving create/split/placement/relocation remain required integration witnesses.
 Rust/TypeScript/wire schemas and native failure classification include the new reason together.
 Native indexed failures use v2 while schema v1 remains closed; direction uses the dedicated v2
@@ -522,12 +522,12 @@ unbound lifecycle and actual Windows multi-Client TUI acceptance remain separate
 
 ## Exact Presentation metadata reads
 
-Panel metadata `read-presentations` accepts at most four unique Presentation IDs in request order, including primary and child members and empty revision fences. Each `presentations-read` row contains `presentationId` and a nested `panel` row with owning Panel ID and the selected member’s binding, tokens and source records. Duplicate Panel IDs across different members are allowed. Unknown members reject the batch; unbound members expose empty metadata. Source uniqueness and nonzero field orders bounded by metadata revision apply identically to both read paths. Membership and binding-owned resources are resolved under the existing Site gate; reads do not mutate topology, selection or input ownership. Existing primary Panel reads and metadata writes retain their scope.
+Panel metadata `read-presentations` accepts at most four unique Presentation IDs in request order, including primary and child members and empty revision fences. Each `presentations-read` row contains `presentationId` and a nested `panel` row with owning Panel ID and the selected member’s binding, tokens and source records. Duplicate Panel IDs across different members are allowed. Unknown members reject the batch; unbound members expose empty metadata. Source uniqueness and nonzero field orders bounded by metadata revision apply identically to both read paths. Membership and binding-owned resources are resolved under the existing Session gate; reads do not mutate topology, selection or input ownership. Existing primary Panel reads and metadata writes retain their scope.
 
 ## Exact Presentation metadata writes
 
 `report-presentation` extends the existing metadata carrier with a required Presentation ID. The
-Site gate proves exact Panel ownership and a nonnull matching expected binding before applying
+Session gate proves exact Panel ownership and a nonnull matching expected binding before applying
 source guards, sequence ordering, token patches or TTL. It reuses the binding-owned resource;
 primary and child records therefore remain isolated, while moves retain the same terminal data.
 A wrong owner/member, unbound target or stale binding produces a typed failure with no redirected
@@ -549,7 +549,7 @@ Close scope and profile resolution are preconditions. An open leaf Close blocks 
 that Panel; aggregate Close blocks its Tab. Pending creation fences relocation of the actual
 terminal-owning Panel, including a retained Panel receiving a child.
 
-Site freezes cwd/environment/program/provenance and prepares canonical/runtime plans before joint commit and dispatch. Prebuilt bounded results and opaque settlement seals apply to primary and child creation. Receipts carry actual Context/Tab/Panel/Presentation identities. Unknown results stay unknown, replay never launches again, and known failure retains the committed member. Evidence covers allocation budgets, bounds/refusals, dropped preparation, foreign settlement, exact literal dispatch and Close fences; layout/member consumers share this owner.
+Session freezes cwd/environment/program/provenance and prepares canonical/runtime plans before joint commit and dispatch. Prebuilt bounded results and opaque settlement seals apply to primary and child creation. Receipts carry actual Context/Tab/Panel/Presentation identities. Unknown results stay unknown, replay never launches again, and known failure retains the committed member. Evidence covers allocation budgets, bounds/refusals, dropped preparation, foreign settlement, exact literal dispatch and Close fences; layout/member consumers share this owner.
 
 ## Unbound layout creation
 

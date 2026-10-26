@@ -78,7 +78,7 @@ map 最多准入 1,536 项，以及 1 MiB 存储后的 WTF-8 name、value 与 en
 空片段及重复片段均计数。真实读取器与纯投影以 typed failure 拒绝越界输入，而不截断或继续无界工作。
 确定性测试覆盖这些边界、名称匹配、展开依赖、User `%PATH%` phase 语义、未解析名称、环、
 unnamed value、缺失和不可读范围、`PATH` 顺序与去重、继承准入、启动优先级及不同启动之间的刷新。
-受控的原生 Windows 见证还须保持 Site 运行，修改一条可还原的 User `PATH` 项，并证明只有随后创建的
+受控的原生 Windows 见证还须保持 会话 运行，修改一条可还原的 User `PATH` 项，并证明只有随后创建的
 terminal 能解析新命令，然后还原该项。
 
 ## VT 命令输出
@@ -298,4 +298,4 @@ Windows 控制台记录不提供到达时间戳。这些样本不测量操作系
 
 用户成功离开（包括配置的 d/q 退出别名）后，先恢复终端模式、光标和备用屏幕，再向标准错误写入一行本地化提示。提示说明离开界面会让终端程序继续运行，并给出返回命令；远程机器的命令包含其稳定配置选择器。文案使用退出时已保存的实际语言。信号退出及运行或恢复失败时不打印成功离开提示。标准输出与机器文档不增加文本。
 
-<!-- documentation-pairing: english-sha256=74327db398797191d403391d289955cc4f02a4d242adb7ce5dcb0a602fb3d9e7 zh-cn-sha256=9e5c0dd56a0b36a39352abc1d91e99b3132c57cae0f8af2e9b87ee5f415effa7 -->
+<!-- documentation-pairing: english-sha256=15da4d61785c677d18b8bd6688c03ee1ca795d919a761498cc54aca3ecdb5ca1 zh-cn-sha256=e2742a0647777466d95cfad231323edafc65951cd276ee08ba5f6e5ec96caa0b -->

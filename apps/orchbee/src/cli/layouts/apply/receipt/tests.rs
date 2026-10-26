@@ -59,14 +59,14 @@ fn large_valid_member_layout_keeps_all_recovery_identities_within_the_native_out
         json!({"type":"panel","panelId":panel,"rightClick":"orchbee","primary":primary,"children":members})
     }
     let layout = json!({"workspaceId":id(5),"terminalContextId":id(2),"tabId":id(3),"zoomed":false,"focusedPanelId":id(101),"root":root(24,&mut 100)});
-    let export = json!({"schema":"orchbee.layout.export","version":1,"source":{"kind":"layout-observation","scope":"client","siteId":id(1),"revision":"500","clientId":id(4),"viewRevision":"2"},"result":{"layout":layout}});
+    let export = json!({"schema":"orchbee.layout.export","version":1,"source":{"kind":"layout-observation","scope":"client","sessionId":id(1),"revision":"500","clientId":id(4),"viewRevision":"2"},"result":{"layout":layout}});
     assert!(output::encode_document(&export).unwrap().len() <= 1024 * 1024);
     let mut receipt = Receipt::new();
     receipt.stage = "complete";
     receipt.new_tab = Some(WorkbenchTabId::parse(&id(3)).unwrap());
     receipt.layout = Some(layout);
     for n in 0..408 {
-        receipt.record("launch",json!({"action":"panel.create-terminal","siteId":id(1),"requestId":id(n+1000),"baseRevision":n.to_string(),
+        receipt.record("launch",json!({"action":"panel.create-terminal","sessionId":id(1),"requestId":id(n+1000),"baseRevision":n.to_string(),
             "result":{"kind":"panel-terminal-pending","revision":(n+1).to_string(),"terminalContextId":id(2),"tabId":id(3),"panelId":id(101),"presentationId":id(102)}}));
     }
     let output = receipt.emit(None, OutputFormat::Json, Locale::EnUs);

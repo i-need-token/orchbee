@@ -76,6 +76,7 @@ impl TerminalEditorAction {
 pub struct TerminalEditorRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub action: TerminalEditorAction,
 }
@@ -90,6 +91,7 @@ impl TerminalEditorRequest {
 pub enum TerminalEditorFailure {
     Denied,
     InvalidIntent,
+    #[serde(rename = "session-mismatch")]
     SiteMismatch,
     Unavailable,
     Busy,
@@ -145,6 +147,7 @@ impl TerminalEditorOutcome {
 pub struct TerminalEditorResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub outcome: TerminalEditorOutcome,
 }

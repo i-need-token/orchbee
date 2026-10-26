@@ -1,6 +1,6 @@
 # Windows 崩溃恢复
 
-此契约负责原生 Windows default 和命名 Site 的进程登记与冷恢复，范围为协作的当前用户 cohort
+此契约负责原生 Windows default 和命名 会话 的进程登记与冷恢复，范围为协作的当前用户 cohort
 进程及普通进程中断。Client 拥有激活；Server 和 Worker 分别登记其直接创建的 Worker 和 Terminal
 Host。Workbench checkpoint 的解释继续由 Server 负责。
 
@@ -11,7 +11,7 @@ Host。Workbench checkpoint 的解释继续由 Server 负责。
 仅有 PID 不能构成身份。Windows 进程观测返回确切身份仍活着、确切身份已消失或未知。
 PID 被重用意味着旧身份已消失，不授予对替代进程的终止权限。
 
-私有记录写锁串行协调代、子进程登记和恢复发布。激活还持有 namespace、activation 和 Site
+私有记录写锁串行协调代、子进程登记和恢复发布。激活还持有 namespace、activation 和 会话
 生存期 guard。效果路径从已准入的 scope 与当前用户输入推导，不信任序列化路径。冷恢复前，
 checkpoint 存储必须空闲，且全部 Client、Worker、Host、observation 端点不存在。
 
@@ -41,7 +41,7 @@ Server/Worker 的效果不得绕过登记式创建。
 
 恢复不终止旧进程，不伪造 clean-stop 回执，不删除 checkpoint 数据，也不向仍有 owner 的终端
 另行 resume Agent。仍活着的孤儿 Host 受到保护，需要其独立拥有的 Host 接管协议。
-拒绝提示提供只读诊断和另一个命名 Site，不声称具有清理未知 owner 的能力。
+拒绝提示提供只读诊断和另一个命名 会话，不声称具有清理未知 owner 的能力。
 
 Crashed 发布先于 runtime 对账。持久发布之后的失败是已部分提交的结果，在相同 guard 下针对
 同一激活身份重试。新激活不重用旧身份。clean-stop 发布使用当前记录内容，保留之后登记的
@@ -69,7 +69,7 @@ runtime base 及恶意管理员不在声明范围。runtime 叶目录被移除�
 | 旧活 owner 不与新恢复 owner 共存     | TLA+ 有界双 Client／双代模型及 Windows 激活争用轨迹  |
 | PID 重用不授予终止权限               | 纯身份比较及原生身份观测；恢复不暴露终止操作         |
 | 恢复中断保留代与 checkpoint          | 发布边界测试及隔离进程消失重启轨迹                   |
-| default 与命名 Site 使用相同策略     | 两种路由的原生 Windows 集成用例                      |
+| default 与命名 会话 使用相同策略     | 两种路由的原生 Windows 集成用例                      |
 
 抽象模型在换代后保留物理进程，不遗忘旧 owner。挂起创建、身份发布和 resume 为独立动作；
 父进程可以在其中任意两步间消失。进程查询拒绝和端点阻塞均拒绝恢复。模型仅有当前确切注册表的
@@ -78,4 +78,4 @@ runtime base 及恶意管理员不在声明范围。runtime 叶目录被移除�
 有限边界及 OS／进程适配假设不证明任意内核行为或 Host 接管。实际 Windows 重启与人工
 Windows Terminal 验收为独立证据。
 
-<!-- documentation-pairing: english-sha256=6e75c915d1284e12e85fc8ea95425f559bfe6c151e3e9ec5a6d659feb7e9ed88 zh-cn-sha256=49aa15199beeb99b94ba12f8205b47be9d8c8f223441b6d9764273afc4d825e5 -->
+<!-- documentation-pairing: english-sha256=8183c46305821dd7c8e1c36e7e221b45694570b46cda68e8e9bf22d642fd1717 zh-cn-sha256=fdf90c6c83c6cf9f4aeb800faf6bf6cc42720e4d496580e5f1c5fe64d97830cb -->

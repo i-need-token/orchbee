@@ -37,7 +37,7 @@ fn prepare_session(
     *remote = Remote::Unchanged;
     *remote = Remote::PossiblyStarted;
     let started = call(Some(&client.executable), "start")?;
-    if started["schema"] != "orchbee.site.start"
+    if started["schema"] != "orchbee.server.start"
         || started["version"] != 1
         || !matches!(
             started["result"]["outcome"].as_str(),

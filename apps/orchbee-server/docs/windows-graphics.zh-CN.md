@@ -4,7 +4,7 @@
 
 Windows 支持 Panel 图形 set、clear、information 和分帧 stream。渲染器可用性需要端到端证据。Desktop、macOS 和 Linux 运行时扩展不属于此边界。
 
-Site 按规范 Panel 与 Presentation 身份拥有临时图层。既有导航管理权限准入视觉写入，读取
+会话 按规范 Panel 与 Presentation 身份拥有临时图层。既有导航管理权限准入视觉写入，读取
 权限准入信息和有界资源读取。图形不写 PTY 输入，也不改变终端滚动历史。Client 拥有真实
 渲染表面、裁剪、能力观察与绘制确认。调用者提供的 cell 尺寸、viewport 可见性或渲染成功
 不是权威事实。
@@ -22,7 +22,7 @@ Wire 准入 PNG、RGB、RGBA 和 BGRA，带显式尺寸与规范补位 base64。
 服务。既有临时 viewer 所有者保留不确定物理回收，解码或回收失败不能安装图层。
 
 规范存储像素为 RGBA。替换先准备完整像素，再释放旧图层。畸形输入、来源变化、预算耗尽
-及 stream 冲突保留旧图层。Site 最多保留 64 个图层 slot，每个 Presentation 最多 16 个，
+及 stream 冲突保留旧图层。会话 最多保留 64 个图层 slot，每个 Presentation 最多 16 个，
 总存储像素最多 64 MiB。单个准备图像及解码暂存独立有界。图形所有者串行解码，但不持有
 规范拓扑锁。
 
@@ -51,13 +51,13 @@ Layer ID 含 1–80 个 ASCII 字母、数字、点、下划线或连字符。�
 Stream framing 遵循参考：有界 JSON header，后接声明长度的原始字节 body。每个接受的 frame
 返回真实 sequence／revision 回执。Damage rectangle 是针对完整规范 frame 的有界提示，
 不是让未提供像素未定义的 patch。错误 framing 结束 producer 并释放图层。私有文件 frame
-仅准入 Site 所有的 producer 根下精确普通文件，固定尺寸并有界读取；消费后的 lease 与
+仅准入 会话 所有的 producer 根下精确普通文件，固定尺寸并有界读取；消费后的 lease 与
 producer 根在最后使用者结束后释放。外部路径不是上传捷径。丢失写入回执保持未知，
 不能重放。
 
 ## Windows 生产者文件归属
 
-托管 Windows Site 为每个已准入生产者按需分配一个私有目录。纯 open 准备先证明规范来源、
+托管 Windows 会话 为每个已准入生产者按需分配一个私有目录。纯 open 准备先证明规范来源、
 连接归属和容量；目录 I/O 在规范锁之外执行，提交时再次核对来源和生产者。幂等 open
 返回同一目录。分配失败保留旧静态层。非托管 endpoint 模式不公布文件目录并拒绝文件帧。
 
@@ -89,7 +89,7 @@ raster 回退；协商的像素传输可提高分辨率，且不改变图层所�
 
 ## 证据与集成
 
-依赖顺序为严格图像／资源契约、Site 图层／stream 事务和上限、关联的既有 Host PNG 解码、
+依赖顺序为严格图像／资源契约、会话 图层／stream 事务和上限、关联的既有 Host PNG 解码、
 实际原生 Client 消费／渲染，然后是公开 CLI grammar／framing／回执。定向检查覆盖完整
 旧图层保留、来源变化、跨连接 producer 冲突、EOF 回收、顺序／耗尽、chunk 不一致、
 PNG 上限、alpha／z／负 placement 裁剪及真实 Windows CLI 管道。剩余主要能力全部实现后
@@ -97,7 +97,7 @@ PNG 上限、alpha／z／负 placement 裁剪及真实 Windows CLI 管道。剩�
 
 ## 当前实现范围
 
-Windows Site 图层事务和 Host 只读 PNG 适配器已实现。规范投影持有共享图层存储，在提交时立即清理消失或重新绑定的来源，无需等待读取图形。准备阶段有独立串行锁；锁顺序为规范状态所有者、图层存储，PNG I/O 不持有这两把锁。静态 primary 选择器在解码后再次核对。
+Windows 会话 图层事务和 Host 只读 PNG 适配器已实现。规范投影持有共享图层存储，在提交时立即清理消失或重新绑定的来源，无需等待读取图形。准备阶段有独立串行锁；锁顺序为规范状态所有者、图层存储，PNG I/O 不持有这两把锁。静态 primary 选择器在解码后再次核对。
 
 OBWP 57/58 承载封闭的请求和结果。OBNG 承载受限、由 viewer 定位的 PNG 请求；复用带关联标识的 OBNR 返回记录。Terminal Host 80/81 使用独立的 graphics-image 编码（5），上限为 32 MiB 加 56 字节结果头，普通输入上限保持原有约束。
 
@@ -109,4 +109,4 @@ OBWP 57/58 承载封闭的请求和结果。OBNG 承载受限、由 viewer 定�
 
 在同一已授权 Windows 补齐目标下，基础完成后先接入 CLI 上传及保留流，再接入实际 TUI 渲染与能力事实；两项均完成之后才进行组合验收。CLI 语法与输入规范由 [Windows Panel 图形 CLI](../../orchbee/docs/windows-panel-graphics.zh-CN.md) 拥有。实现顺序调整不改变对齐完成条件。
 
-<!-- documentation-pairing: english-sha256=40cb1fad4b41f850a28712db94d87a84099e6db81388d66babe127cf9792600d zh-cn-sha256=0f6166b95606c953350668faee202d1e1a73face64cf0e59fc98de6561c10e1d -->
+<!-- documentation-pairing: english-sha256=1d494fbd15085ed835c63e6dd4495959dff93817aaeb5a7acc6f9680fbd33c96 zh-cn-sha256=690b153cc0f9f9b60ab7288551cde727fabb5d66b57474425d03dba916b2f72f -->

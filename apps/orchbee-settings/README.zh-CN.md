@@ -3,13 +3,13 @@
 ## 职责
 
 `orchbee-settings --stdio-v1` 从已关闭的标准输入读取一个有界 JSON 请求，输出一个 JSON 响应。
-它不会启动 Site，也不接受请求提供的路径或命令。Desktop 负责精确的可执行文件身份、两秒交换
+它不会启动 会话，也不接受请求提供的路径或命令。Desktop 负责精确的可执行文件身份、两秒交换
 期限、取消和进程回收。该程序没有交互模式或面向人的本地化输出。退出码 0 对应快照；退出码 1
 对应拒绝、结果未知或输出失败。缺失或畸形输出表示结果未知，绝不构成重放写入的许可。
 
 [共享偏好契约](../../schemas/workbench/README.zh-CN.md)负责值与传输语义。
 [`orchbee-local-site-runtime`](../../crates/local-site-runtime/README.zh-CN.md)负责配置作用域内的
-存储与原生初始来源准入。原生 Site 直接调用同一个所有者。
+存储与原生初始来源准入。原生 会话 直接调用同一个所有者。
 
 独立的 `--system-shell-v1` 模式只接受已关闭输入的空 JSON 对象，
 返回一个 JSON 可执行文件路径或 null。它调用共享原生解析器，不启动 Shell。
@@ -21,7 +21,7 @@ Desktop 为每个新终端解析系统 Shell；自定义配置绕过发现。
 `%APPDATA%/Orchbee/config.toml`、`$XDG_CONFIG_HOME/Orchbee/config.toml`（回退到 `$HOME/.config`），
 或 macOS 的 `$HOME/Library/Application Support/Orchbee/config.toml`。配置文件名派生出独立的
 私有目录；同一父目录内的两个显式配置文件仍然隔离。Windows 原生 Shell 迁移可以通过 `PATH`
-解析显式配置的可执行文件，但绝不执行它。任何 Workspace、Site、远程设备或浏览器 origin 都
+解析显式配置的可执行文件，但绝不执行它。任何 Workspace、会话、远程设备或浏览器 origin 都
 不会被扩大到此设备作用域。
 
 ## 维护
@@ -32,4 +32,4 @@ Desktop 为每个新终端解析系统 Shell；自定义配置绕过发现。
 在 out/settings-bridge 暂存可执行文件与 SHA-256 清单，打包复制完整资源目录。
 开发编译构建相同的匹配产物。
 
-<!-- documentation-pairing: english-sha256=b502041f920602491684e97a66cce062ed00f10060d75cc465f3fafdee81ad4b zh-cn-sha256=7793673404e33ac0ba299bd28d0ef595b3bf47e50a46166a8f9a667ae5173641 -->
+<!-- documentation-pairing: english-sha256=56921c2fe4fabdeadaae952b8f6f8858da323dcc878e7530f5b1716526f61286 zh-cn-sha256=5b9f93440aac63a179451c06d48b891a9d0ad2effc82149763107ddafdb51c10 -->

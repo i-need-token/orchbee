@@ -99,6 +99,7 @@ pub enum NotificationAction {
 pub struct NotificationRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub action: NotificationAction,
 }
@@ -124,6 +125,7 @@ pub enum NotificationReason {
 pub enum NotificationFailure {
     Denied,
     Unavailable,
+    #[serde(rename = "session-mismatch")]
     SiteMismatch,
     Conflict,
 }
@@ -152,6 +154,7 @@ pub enum NotificationOutcome {
 pub struct NotificationResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub outcome: NotificationOutcome,
 }

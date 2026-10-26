@@ -27,7 +27,7 @@ impl Locale {
             Self::EnUs => {
                 "Ends this Workspace's terminals for every Client; keeps Git branches and checkouts."
             }
-            Self::ZhCn => "结束此工作区的全部终端，影响所有 Client；保留 Git 分支和检出目录。",
+            Self::ZhCn => "结束此工作区的全部终端，影响所有客户端；保留 Git 分支和检出目录。",
         }
     }
     pub(crate) const fn project_close_all_title(self) -> &'static str {
@@ -42,7 +42,7 @@ impl Locale {
                 "Closes all Workspaces (currently {count}) and ends their terminals for every Client; keeps the Project, Git branches and checkouts."
             ),
             Self::ZhCn => format!(
-                "关闭全部工作区（当前 {count} 个）并结束其全部终端，影响所有 Client；保留项目、Git 分支和检出目录。"
+                "关闭全部工作区（当前 {count} 个）并结束其全部终端，影响所有客户端；保留项目、Git 分支和检出目录。"
             ),
         }
     }

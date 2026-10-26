@@ -14,14 +14,14 @@ Workspace 必须包含可为 null 的 `primaryDirectoryId`，引用该全局池�
 或未分组的 Workspace 可引用同一 Directory。重新分组和解散 Project 保留 Directory 身份、
 引用、Worker 放置及 cwd。未使用的 Directory 记录仍有效。
 
-新建 Workspace 未配置且为 Empty。Directory 使用既有非零 128 位身份和 Site 分配游标。
+新建 Workspace 未配置且为 Empty。Directory 使用既有非零 128 位身份和 会话 分配游标。
 全局池最多接纳 65,536 个 Directory，同时受 1 MiB snapshot 上限约束；历史上每个 Project
 256 个 Directory 的上限不再限制当前准入。路径沿用已授权本地平台 cwd 契约：绝对 UTF-8、
 1 至 4,096 字节、无 NUL，包括已准入的 Windows 驱动器绝对路径。
 保留路径拼写，验证时跟随符号链接；不隐含 realpath 身份、枚举、Git
 发现或目录创建。
 
-显式 `workspace.primary-directory.accept` 在既有命令请求 ID、Site 和预期修订下携带 Workspace ID
+显式 `workspace.primary-directory.accept` 在既有命令请求 ID、会话 和预期修订下携带 Workspace ID
 和路径。Server 选择当前本地 Worker；Client 不提供 Worker generation、fence 或 lease。
 首个操作原子创建一个全局 Directory 并将其选为 Workspace 主目录，包括未分组 Workspace，
 仅允许设置一次且上下文必须为空。此命令不选择或去重既有 Directory 记录。重绑、删除和通用
@@ -32,10 +32,10 @@ Directory CRUD 不在此操作范围内。除导航权限外，
 
 | 阶段               | 输入与守卫                                                                             | 结果及所有者影响                                                                    |
 | ------------------ | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| 准入               | 授权、可用权威、精确重放/冲突、账本容量、Site/修订、确切 Workspace、空上下文且无主目录 | 明确拒绝保留规范状态；精确重放直接返回保留结果，不重新验证                          |
-| 准备验证           | 存在兼容的当前 Worker 及有界请求槽                                                     | 捕获确切 Worker 身份/generation 和路径；I/O 前释放 registry 和 Site 锁              |
+| 准入               | 授权、可用权威、精确重放/冲突、账本容量、会话/修订、确切 Workspace、空上下文且无主目录 | 明确拒绝保留规范状态；精确重放直接返回保留结果，不重新验证                          |
+| 准备验证           | 存在兼容的当前 Worker 及有界请求槽                                                     | 捕获确切 Worker 身份/generation 和路径；I/O 前释放 registry 和 会话 锁              |
 | Worker 观察        | 精确请求/generation；在该 Worker 查目录元数据                                          | 返回关联的有效、无效目录、不可用或错误 Worker 结果；无 Host、shell 或规范变更       |
-| 重新验证           | 载体截止前验证成功                                                                     | 按 registry 后 Site 顺序重新加锁；重复准入并确认捕获的 Worker generation 仍为当前值 |
+| 重新验证           | 载体截止前验证成功                                                                     | 按 registry 后 会话 顺序重新加锁；重复准入并确认捕获的 Worker generation 仍为当前值 |
 | 准备提交           | 身份、Directory 数量、修订、Snapshot 编码和账本字节均可接纳                            | 所有规范变更前准备完整投影及固定结果                                                |
 | 提交               | 所有准备检查成功                                                                       | 原子追加 Directory、设置主目录、推进一次修订并保留不可变接受结果                    |
 | 结果丢失           | 提交可能已发生                                                                         | Client 不盲目重放效果；精确命令重放返回原保留接受结果                               |
@@ -64,7 +64,7 @@ Directory ID 和 Worker ID。缺配置为 `workspace-directory-unavailable`；�
 | 声明                                                | 保留证据                                                                                                                                            | 限制                                  |
 | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
 | 准入、重新验证和重放保留准确 Directory 所有权       | [权威目录测试](../src/workbench_authority/tests/workspace_directory.rs)及[服务目录测试](../src/local_terminal_service/workspace_directory/tests.rs) | 确定性内存／传输夹具                  |
-| Tab 创建使用 Workspace Worker／cwd 并保留无关成员   | [Site 创建测试](../src/site_coordinator/tests/tab_create.rs)                                                                                        | 准确准备与保留操作事实                |
+| Tab 创建使用 Workspace Worker／cwd 并保留无关成员   | [会话 创建测试](../src/site_coordinator/tests/tab_create.rs)                                                                                        | 准确准备与保留操作事实                |
 | 两个 Client 观察同一真实 Workspace shell 及失败结果 | [Workspace 目录进程证据](../tests/client_process/workspace_directory.rs)                                                                            | 支持的 Linux cohort；其他平台独立验证 |
 
 Unix socket 与 Linux shell 见证需要对应原生主机及已构建的进程前置产物。
@@ -81,4 +81,4 @@ lazy 循环回归区分 `server_transport::send` 的 Host 关闭标志与 Server
 回退恢复先前未使用的 cohort，不能丢弃已接受执行效果或复活已终止进程。交付后本文继续保留于
 Server，作为持续维护的行为和证据所有者。
 
-<!-- documentation-pairing: english-sha256=a52ad11c55bfcf4548529effd71087ac84f83566857e92311653c5c3a1271ed6 zh-cn-sha256=0995c768b872a7d533de540cc8ebf62420770b101bee3f3f3ec2043338a457e2 -->
+<!-- documentation-pairing: english-sha256=be40dc717ec5f712db96d851cf25d8cf8497a2db4f73f9b3bc91981c684ace8a zh-cn-sha256=a00cda72403cac5db3ffa36bda2d971023978c384192689ebfb14294005ebb2a -->

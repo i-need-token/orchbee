@@ -3,9 +3,9 @@
 ## Scope and ownership
 
 `workbench_authority/checkpoint.rs` owns the private versioned projection of retained Workbench
-configuration and its reconstruction into a fresh authority. The managed Windows Site is the
+configuration and its reconstruction into a fresh authority. The managed Windows Session is the
 storage/startup consumer. The domain codec remains separate from Windows filesystem admission,
-checkpoint publication and terminal relaunch. Named-Site routing and the additional recovery owners
+checkpoint publication and terminal relaunch. Named-Session routing and the additional recovery owners
 remain separate obligations. No other platform adapter is introduced.
 
 The checkpoint retains optional Project membership, Project labels, global local-directory paths,
@@ -14,23 +14,23 @@ Tabs, groups, pinned state, split structure and ratios, Panel input policy and P
 retains Launch Profile definitions and the allocation high-water counter, including deleted IDs.
 All primary and child Presentations survive structurally but carry no terminal binding or launch failure.
 
-It does not retain running processes, Site/Worker identities, controller grants, leases, Client
+It does not retain running processes, Session/Worker identities, controller grants, leases, Client
 views/focus/zoom, request results, publication cursors, unfinished operations, Agent state
 or terminal history. Their recovery belongs to the corresponding runtime owners. A checkpoint
 never authorizes replay of a terminal command or Git operation.
 
 ## Model
 
-| Operation              | Preconditions                                                                                                                    | Result and invariant                                                                                                                                           |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Capture                | Authority is not retired; committed graph is valid; every Directory and bound Presentation belongs to the supplied local Worker. | One bounded checkpoint; source authority is unchanged; process bindings and Worker identities are removed.                                                     |
-| Decode                 | Strict current version 1 document, bounded bytes, normalized navigation, valid configuration graph, counters and directories.    | Complete retained configuration or a typed rejection; never partial or empty fallback.                                                                         |
-| Reconstruct            | Caller supplies a fresh boot Site identity and its admitted local Worker.                                                        | Retained structural IDs and local paths, fresh directory ownership, unbound Presentations, fresh profile Site prefixes, revision 0 and empty transient owners. |
-| Allocate after restore | Restored high-water counter permits advancement.                                                                                 | IDs remain above all previously allocated counters; exhaustion keeps the ordinary typed rejection.                                                             |
+| Operation              | Preconditions                                                                                                                    | Result and invariant                                                                                                                                              |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Capture                | Authority is not retired; committed graph is valid; every Directory and bound Presentation belongs to the supplied local Worker. | One bounded checkpoint; source authority is unchanged; process bindings and Worker identities are removed.                                                        |
+| Decode                 | Strict current version 1 document, bounded bytes, normalized navigation, valid configuration graph, counters and directories.    | Complete retained configuration or a typed rejection; never partial or empty fallback.                                                                            |
+| Reconstruct            | Caller supplies a fresh boot Session identity and its admitted local Worker.                                                     | Retained structural IDs and local paths, fresh directory ownership, unbound Presentations, fresh profile Session prefixes, revision 0 and empty transient owners. |
+| Allocate after restore | Restored high-water counter permits advancement.                                                                                 | IDs remain above all previously allocated counters; exhaustion keeps the ordinary typed rejection.                                                                |
 
-The caller owns freshness of the new Site identity. Profile IDs are `<siteHex>:<counterHex>`:
+The caller owns freshness of the new Session identity. Profile IDs are `<siteHex>:<counterHex>`:
 the stored form retains only the counter, name and launch definition, and reconstruction uses
-the new Site prefix. Old Site grants and profile IDs do not acquire authority over the new boot.
+the new Session prefix. Old Session grants and profile IDs do not acquire authority over the new boot.
 Names need not be unique; their existing ambiguous-selector semantics remain unchanged.
 
 ## Private format and validation
@@ -69,7 +69,7 @@ invalid paths reject the entire document; the 2 MiB limit remains.
 
 After request/background quiescence, clean stop takes a fresh bounded observation through the existing private viewer owner before Worker disposal. A valid terminal-reported directory takes precedence over the root process directory; child process directories never substitute for the root. The final physical membership and Worker generation must still match. Unknown detach remains owned by the stopped process observer, fails this stop attempt and preserves the preceding checkpoint; a later stop may settle that exact attachment.
 
-During normal operation the existing process sampler caches only its already observed validated directory, with the exact Worker generation, Host terminal identity and sample start time. Cached capture rechecks current physical membership under the Site gate. Stale, removed or replaced bindings contribute no directory. An unavailable observation does not fabricate a directory or erase retained restart intent. Saving never opens a viewer, samples processes or reads screen contents.
+During normal operation the existing process sampler caches only its already observed validated directory, with the exact Worker generation, Host terminal identity and sample start time. Cached capture rechecks current physical membership under the Session gate. Stale, removed or replaced bindings contribute no directory. An unavailable observation does not fabricate a directory or erase retained restart intent. Saving never opens a viewer, samples processes or reads screen contents.
 
 Capture maps admitted observations to current Presentation identities. If observation is unavailable, retained restart intent remains; otherwise ordinary workspace/home defaults apply. Removed members disappear. Fresh launch prefers the retained directory, then workspace default; if that selected path no longer names a directory, Windows restore uses the Worker's home default. This restoration policy does not alter explicit user launch validation. The shared PowerShell prompt synchronization also runs in restored encoded-command shells, so directory changes after a provider exits can be observed.
 
@@ -90,9 +90,9 @@ Format changes follow the repository data-boundary rule; there is no permissive 
 
 ## Terminal rebind preparation
 
-`checkpoint/restore.rs` enumerates every unbound primary and child Presentation in Workspace Context, Tab and depth-first tree order. Each target carries the fresh Site/local Worker, exact member identities and separate retained/Workspace directory intent. Read-only registration visits every primary and child; destructive operations retain their own guards. An unconfigured Workspace without retained cwd uses Worker home.
+`checkpoint/restore.rs` enumerates every unbound primary and child Presentation in Workspace Context, Tab and depth-first tree order. Each target carries the fresh Session/local Worker, exact member identities and separate retained/Workspace directory intent. Read-only registration visits every primary and child; destructive operations retain their own guards. An unconfigured Workspace without retained cwd uses Worker home.
 
-`prepare_restored_terminal` rechecks Site, local Worker, membership, unbound status and the cwd
+`prepare_restored_terminal` rechecks Session, local Worker, membership, unbound status and the cwd
 default, then validates and prepares the entire resulting projection/publication before mutation.
 Dropping preparation changes nothing. Commit sets exactly one binding and advances revision;
 structural identities, allocator high-water, labels, order, groups, input policy and profiles remain
@@ -117,7 +117,7 @@ errors still abort. Uncommitted pending-file cleanup remains unchanged.
 
 `WorkbenchCheckpoint` is an admitted
 configuration value: private graph-validation identities never become a runnable authority. Only
-reconstruction with the fresh Site and admitted Worker creates the new authority.
+reconstruction with the fresh Session and admitted Worker creates the new authority.
 
 Before launch IPC, the coordinator prepares all fresh shell reservations and Workbench bindings. Failure before dispatch leaves no Host/terminal; it terminates the creation-owned Worker and confirms exit. Each prepared request dispatches and settles once; failure/unknown outcomes remain explicit and are never retried automatically. Restored directories precede Workspace/home defaults; missing saved/configured directories fall back to Worker home. Geometry starts at 80x24 with 8x16 cells until resized. Primary and child members restore without an extra Tab. Undispatched requests settle unavailable at the deadline. Later boot failure stops maintenance, requests owned Host/terminal shutdown, confirms Worker/transport exit and stops observation. Unconfirmed cleanup retains recovery state; Worker termination alone does not prove Host cleanup.
 
@@ -140,11 +140,11 @@ This suppression applies only to unattended background saves. An explicit `serve
 confirms the current workspace, so its fresh final capture may publish the unchanged empty state;
 the storage owner archives the displaced invalid bytes before that commit.
 
-Capture takes the existing Site gate only to build a bounded configuration value and then releases
+Capture takes the existing Session gate only to build a bounded configuration value and then releases
 it. Filesystem validation, preservation, flush and replacement happen outside the gate, on the single
 writer. Revision changes during I/O remain dirty and schedule another capture. A failed save keeps
 the previous valid copies and a bounded error state; it does not terminate a terminal or authorize a
-fresh Site. The saver must settle before final clean-stop capture. Failure to join it prevents stop
+fresh Session. The saver must settle before final clean-stop capture. Failure to join it prevents stop
 completion rather than allowing two storage writers.
 
 ## Evidence
@@ -163,7 +163,7 @@ replacement, locking and exact-handle termination. Packaged Windows clean-stop/r
 compares retained layouts/profiles, fresh runtime identities, shell effects and TUI binding reattachment;
 blocked replacement must preserve old bytes and live terminals until an explicit successful retry,
 and invalid copies must retain their exact original bytes and produce the declared fallback/empty
-notice without bypassing Site-owner admission. Cached-capture tests cover physical replacement,
+notice without bypassing Session-owner admission. Cached-capture tests cover physical replacement,
 out-of-order samples and removed members. Scheduling tests use explicit times and delayed writes to
 prove debounce, periodic refresh, bounded pending work and final-stop ordering. Native crash/restart
 acceptance must compare multiple Tabs, nested splits, labels, directories;

@@ -11,10 +11,10 @@ fn agent_view_correlation_deadline_and_post_handoff_failure_never_replay() -> Te
             action: AgentViewAction::Clear { source: None },
         };
         let expected = request.clone();
-        let mut reply = serde_json::json!({"protocolVersion":1,"requestId":id(1),"siteId":id(2),"outcome":{"kind":"available","snapshot":{"revision":"1","spec":null}}});
+        let mut reply = serde_json::json!({"protocolVersion":1,"requestId":id(1),"sessionId":id(2),"outcome":{"kind":"available","snapshot":{"revision":"1","spec":null}}});
         match case {
             1 => reply["requestId"] = serde_json::json!(id(9)),
-            2 => reply["siteId"] = serde_json::json!(id(9)),
+            2 => reply["sessionId"] = serde_json::json!(id(9)),
             3 => {
                 reply["outcome"]["snapshot"]
                     .as_object_mut()

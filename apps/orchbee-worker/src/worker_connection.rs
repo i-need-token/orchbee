@@ -63,7 +63,9 @@ pub(crate) fn run(
         let runtime = arguments
             .next()
             .map(std::path::PathBuf::from)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "missing Site runtime"))?;
+            .ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidInput, "missing Session runtime")
+            })?;
         #[cfg(windows)]
         let shell = orchbee_local_site_runtime::WindowsShellSettings::from_private_arguments(
             &mut arguments,
@@ -78,7 +80,7 @@ pub(crate) fn run(
                 &runtime,
             )?;
         if !site.activation_started()? || !site.worker_socket_exists()? {
-            return Err(io::Error::other("Site startup is unavailable").into());
+            return Err(io::Error::other("Session startup is unavailable").into());
         }
         let server = connect_to_server(site.worker_socket_path(), cohort.identity())?;
         let generation = server.generation();

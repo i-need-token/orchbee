@@ -12,7 +12,7 @@ pub(super) const HELP_AGENT_LIST_EN: crate::localization::HelpDetails =
 pub(super) const HELP_AGENT_LIST_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent list [--include-ended] [--limit <n>] [--cursor <c>] [--client <id>] [--format text|json]",
-        "列出运行中的本地会话观察到的 Agent 会话。'--include-ended' 包含已结束会话；'--limit' 每页 1-100 条（默认 50）。Windows 会合并规范会话与物理终端 Agent；每行保留来源分面、协调后的状态和位置。'--client' 添加独立的 Client 观察，不改变语义状态。Windows JSON 使用 orchbee.agent.list v1。其 'u1.<base64url>' 游标最多 1024 个字符；旧游标或过期游标需要重新开始列表。所有支持的平台均使用 v1，并明确不支持的分面。",
+        "列出运行中的本地会话观察到的智能体会话。'--include-ended' 包含已结束会话；'--limit' 每页 1-100 条（默认 50）。Windows 会合并规范会话与物理终端智能体；每行保留来源分面、协调后的状态和位置。'--client' 添加独立的客户端观察，不改变语义状态。Windows JSON 使用 orchbee.agent.list v1。其 'u1.<base64url>' 游标最多 1024 个字符；旧游标或过期游标需要重新开始列表。所有支持的平台均使用 v1，并明确不支持的分面。",
     );
 
 pub(super) const HELP_AGENT_GET_EN: crate::localization::HelpDetails =
@@ -24,7 +24,7 @@ pub(super) const HELP_AGENT_GET_EN: crate::localization::HelpDetails =
 pub(super) const HELP_AGENT_GET_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent get (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) [--client <id>] [--format text|json]",
-        "显示一个 Agent 会话。Windows 会通过与 agent list 相同的投影解析规范会话和物理终端 Agent。Windows JSON 使用 orchbee.agent.get v1：'agent' 携带提供方、语义状态、来源、位置和 cwd；'inspection' 携带分面详情。'--client' 添加 Client 观察，不替换语义状态。其他支持的平台使用相同封套，保留规范 inspection，并将统一分面标为 unsupported。\n\nWindows 目标使用共享 Agent selector：'@agent:<kind>' 选择唯一提供方；'@agent:<n>' 选择完整列表中的一基序号（不是页内序号）。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。get、read、prompt、send-keys、wait 和 focus 共用此解析器；有歧义时拒绝。",
+        "显示一个智能体会话。Windows 会通过与 agent list 相同的投影解析规范会话和物理终端智能体。Windows JSON 使用 orchbee.agent.get v1：'agent' 携带提供方、语义状态、来源、位置和 cwd；'inspection' 携带分面详情。'--client' 添加客户端观察，不替换语义状态。其他支持的平台使用相同封套，保留规范 inspection，并将统一分面标为 unsupported。\n\nWindows 目标使用共享智能体 selector：'@agent:<kind>' 选择唯一提供方；'@agent:<n>' 选择完整列表中的一基序号（不是页内序号）。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。get、read、prompt、send-keys、wait 和 focus 共用此解析器；有歧义时拒绝。",
     );
 
 pub(super) const HELP_AGENT_PROMPT_WINDOWS_EN: crate::localization::HelpDetails =
@@ -36,7 +36,7 @@ pub(super) const HELP_AGENT_PROMPT_WINDOWS_EN: crate::localization::HelpDetails 
 pub(super) const HELP_AGENT_PROMPT_WINDOWS_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent prompt (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) <text> [--wait] [--until <condition>]... [--timeout <ms> | --forever] [--client <id>] [--format text|json]",
-        "向正在运行的 Agent 发送提示。使用 --wait 观察其后续状态。\nWindows 可用 '@agent:<kind>' 选择唯一提供方，或用 '@agent:<n>' 选择完整 Agent 列表中的一基序号（不是当前页序号）。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。get、read、prompt、send-keys、wait 和 focus 共用此解析器。\n--until、--timeout 和 --forever 要求 --wait。投递结果不确定时，重试前先检查终端。",
+        "向正在运行的智能体发送提示。使用 --wait 观察其后续状态。\nWindows 可用 '@agent:<kind>' 选择唯一提供方，或用 '@agent:<n>' 选择完整智能体列表中的一基序号（不是当前页序号）。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。get、read、prompt、send-keys、wait 和 focus 共用此解析器。\n--until、--timeout 和 --forever 要求 --wait。投递结果不确定时，重试前先检查终端。",
     );
 
 pub(super) const HELP_AGENT_SEND_KEYS_WINDOWS_EN: crate::localization::HelpDetails =
@@ -48,7 +48,7 @@ pub(super) const HELP_AGENT_SEND_KEYS_WINDOWS_EN: crate::localization::HelpDetai
 pub(super) const HELP_AGENT_SEND_KEYS_WINDOWS_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent send-keys (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) <key>... [--format text|json]",
-        "向一个存活 Agent 终端发送 1..64 个语义按键或组合（enter、ctrl+c、alt+left、ctrl+shift+a）。Windows 可用 '@agent:<kind>' 选择唯一提供方，或用 '@agent:<n>' 选择完整 Agent 列表中的一基序号（不是当前页序号）。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。get、read、prompt、send-keys、wait 和 focus 共用此解析器。\n使用 orchbee.terminal.send 回执。不重放不确定输入。",
+        "向一个存活智能体终端发送 1..64 个语义按键或组合（enter、ctrl+c、alt+left、ctrl+shift+a）。Windows 可用 '@agent:<kind>' 选择唯一提供方，或用 '@agent:<n>' 选择完整智能体列表中的一基序号（不是当前页序号）。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。get、read、prompt、send-keys、wait 和 focus 共用此解析器。\n使用 orchbee.terminal.send 回执。不重放不确定输入。",
     );
 
 pub(super) const HELP_AGENT_EXPLAIN_EN: crate::localization::HelpDetails =
@@ -60,7 +60,7 @@ pub(super) const HELP_AGENT_EXPLAIN_EN: crate::localization::HelpDetails =
 pub(super) const HELP_AGENT_EXPLAIN_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent explain (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) [--format text|json]",
-        "解释规范 Agent 会话或 Windows 物理终端。物理目标返回当前有效状态及一次新鲜规则评估：清单来源/版本、胜出规则、每条规则的匹配与有界区域证据。不发送输入或改变焦点。规范会话保留推导视图：规范状态依据、新鲜度含义、能力上限、观察来源与保真度，以及仅限导航的操作边界。'--format json' 输出\norchbee.agent.explain 版本 1 封套，包含规范或物理目标证据。目标：一个位置参数 Session ID/名称/Panel ID、--agent-session <id>、\n--name <alias> 或 --panel <id|@panel:0x<hex>>。Session ID、名称优先于 Panel。\nPanel 选择主终端，多 Agent 匹配时拒绝；等待固定到首次解析的 Session。",
+        "解释规范智能体会话或 Windows 物理终端。物理目标返回当前有效状态及一次新鲜规则评估：清单来源/版本、胜出规则、每条规则的匹配与有界区域证据。不发送输入或改变焦点。规范会话保留推导视图：规范状态依据、新鲜度含义、能力上限、观察来源与保真度，以及仅限导航的操作边界。'--format json' 输出\norchbee.agent.explain 版本 1 封套，包含规范或物理目标证据。目标：一个位置参数会话 ID/名称/面板 ID、--agent-session <id>、\n--name <alias> 或 --panel <id|@panel:0x<hex>>。会话 ID、名称优先于面板。\nPanel 选择主终端，多智能体匹配时拒绝；等待固定到首次解析的会话。",
     );
 
 pub(super) const HELP_AGENT_WAIT_EN: crate::localization::HelpDetails =
@@ -72,7 +72,7 @@ pub(super) const HELP_AGENT_WAIT_EN: crate::localization::HelpDetails =
 pub(super) const HELP_AGENT_WAIT_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent wait (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) [--until <条件>]... [--after-revision <n>] [--timeout <毫秒> | --forever] [--format text|json]",
-        "在持有的 客户端连接 上轮询一个 Agent 会话，直到请求的条件命中、修订栅栏拒绝、会话应答终止，或总截止到达。'--until' 可重复，取值为：\nblocked、done、needs-attention、failed、succeeded、canceled、interrupted、working、\nidle、unknown、ended、fresh、stale、disconnected（默认：\nneeds-attention failed succeeded canceled interrupted idle ended）。状态条件要求 fresh 新鲜度；三个新鲜度条件直接匹配观察。\n'--after-revision' 是全局修订栅栏而非回合身份；'--timeout' 将整个等待界于 1-3600000 毫秒（默认 600000）。--forever 取消总期限，与 --timeout 互斥，单次读取仍有界。blocked 匹配 fresh needs-attention；\ndone 匹配 fresh 的 succeeded/failed/canceled/interrupted，不代表未读。轮询采样当前状态：在两次已完成观察之间开始又结束的跃迁会被错过。'--format json' 输出\norchbee.agent.wait 封套。目标：一个位置参数 Session ID/名称/Panel ID、--agent-session <id>、\n--name <alias> 或 --panel <id|@panel:0x<hex>>。Session ID、名称优先于 Panel。\nPanel 选择主终端，多 Agent 匹配时拒绝；等待固定到首次解析的 Session。",
+        "在持有的客户端连接 上轮询一个智能体会话，直到请求的条件命中、修订栅栏拒绝、会话应答终止，或总截止到达。'--until' 可重复，取值为：\nblocked、done、needs-attention、failed、succeeded、canceled、interrupted、working、\nidle、unknown、ended、fresh、stale、disconnected（默认：\nneeds-attention failed succeeded canceled interrupted idle ended）。状态条件要求 fresh 新鲜度；三个新鲜度条件直接匹配观察。\n'--after-revision' 是全局修订栅栏而非回合身份；'--timeout' 将整个等待界于 1-3600000 毫秒（默认 600000）。--forever 取消总期限，与 --timeout 互斥，单次读取仍有界。blocked 匹配 fresh needs-attention；\ndone 匹配 fresh 的 succeeded/failed/canceled/interrupted，不代表未读。轮询采样当前状态：在两次已完成观察之间开始又结束的跃迁会被错过。'--format json' 输出\norchbee.agent.wait 封套。目标：一个位置参数会话 ID/名称/面板 ID、--agent-session <id>、\n--name <alias> 或 --panel <id|@panel:0x<hex>>。会话 ID、名称优先于面板。\nPanel 选择主终端，多智能体匹配时拒绝；等待固定到首次解析的会话。",
     );
 
 pub(super) const HELP_AGENT_DOCTOR_EN: crate::localization::HelpDetails =
@@ -84,7 +84,7 @@ pub(super) const HELP_AGENT_DOCTOR_EN: crate::localization::HelpDetails =
 pub(super) const HELP_AGENT_DOCTOR_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent doctor [--provider <id>]... [--asset-root <path>]... [--format text|json]",
-        "仅凭有界文件系统事实解释 Agent 观察为何可能未到达：各 provider 的可执行文件与托管 hook 状态、声明的 asset root、观察端点以及环境覆盖。\n'--provider' 选择规范 provider ID（可重复）；'--asset-root' 声明要检查的绝对 capsule root（可重复，至多 4 个）。不执行、不连接、不写入、不修复任何内容。'--format json' 输出 orchbee.agent.doctor 封套（受支持平台均为版本 1）。Windows 将端点探测标为不支持，不会把安装状态当成链路可用。",
+        "仅凭有界文件系统事实解释智能体观察为何可能未到达：各 provider 的可执行文件与托管 hook 状态、声明的 asset root、观察端点以及环境覆盖。\n'--provider' 选择规范 provider ID（可重复）；'--asset-root' 声明要检查的绝对 capsule root（可重复，至多 4 个）。不执行、不连接、不写入、不修复任何内容。'--format json' 输出 orchbee.agent.doctor 封套（受支持平台均为版本 1）。Windows 将端点探测标为不支持，不会把安装状态当成链路可用。",
     );
 
 pub(super) const HELP_AGENT_WAIT_WINDOWS_EN: crate::localization::HelpDetails =
@@ -96,7 +96,7 @@ pub(super) const HELP_AGENT_WAIT_WINDOWS_EN: crate::localization::HelpDetails =
 pub(super) const HELP_AGENT_WAIT_WINDOWS_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent wait (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) [--client <id>] [--until <条件>]... [--after-revision <n>] [--timeout <毫秒> | --forever] [--format text|json]",
-        "固定一个 Agent，结合当前样本和保留变更页等待。\nWindows 默认 idle、done、blocked，无总超时。--timeout 设置整个操作的\n1-3600000 毫秒期限；--forever 是无总超时的显式同义选项，与 --timeout 互斥。每次读取最多五秒；Ctrl+C 结束等待，读取失败不重新连接。条件：blocked、done、needs-attention、failed、succeeded、canceled、\ninterrupted、working、idle、unknown、ended、fresh、stale、disconnected。状态条件要求 fresh；blocked 表示 needs-attention；done 表示\nsucceeded/failed/canceled/interrupted，不合并 Client 未看见状态。\n--after-revision 是全局修订门槛，不代表回合身份。即使最新状态不同，短暂命中的变更仍作为证据返回。Windows JSON v1 将可空 matchedChange 与当前 session/revision 分开；使用 --client 时在 v1 增加独立 Client 投影。历史丢失或外部游标明确失败；会话已结束且没有条件命中时拒绝。Client 未看见状态仅为采样，不改变规范状态。目标：'@agent:<kind>' 选择唯一提供方；'@agent:<n>' 选择完整 Agent 列表中的一基序号（不是当前页序号）。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。get、read、prompt、send-keys、wait 和 focus 共用此解析器；部分投影不能证明提供方匹配唯一。等待前只解析一次；效果绑定并复核已解析的物理 Agent。",
+        "固定一个智能体，结合当前样本和保留变更页等待。\nWindows 默认 idle、done、blocked，无总超时。--timeout 设置整个操作的\n1-3600000 毫秒期限；--forever 是无总超时的显式同义选项，与 --timeout 互斥。每次读取最多五秒；Ctrl+C 结束等待，读取失败不重新连接。条件：blocked、done、needs-attention、failed、succeeded、canceled、\ninterrupted、working、idle、unknown、ended、fresh、stale、disconnected。状态条件要求 fresh；blocked 表示 needs-attention；done 表示\nsucceeded/failed/canceled/interrupted，不合并客户端未看见状态。\n--after-revision 是全局修订门槛，不代表回合身份。即使最新状态不同，短暂命中的变更仍作为证据返回。Windows JSON v1 将可空 matchedChange 与当前 session/revision 分开；使用 --client 时在 v1 增加独立客户端投影。历史丢失或外部游标明确失败；会话已结束且没有条件命中时拒绝。客户端未看见状态仅为采样，不改变规范状态。目标：'@agent:<kind>' 选择唯一提供方；'@agent:<n>' 选择完整智能体列表中的一基序号（不是当前页序号）。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。get、read、prompt、send-keys、wait 和 focus 共用此解析器；部分投影不能证明提供方匹配唯一。等待前只解析一次；效果绑定并复核已解析的物理智能体。",
     );
 
 pub(super) const HELP_AGENT_ATTACH_EN: crate::localization::HelpDetails =
@@ -108,7 +108,7 @@ pub(super) const HELP_AGENT_ATTACH_EN: crate::localization::HelpDetails =
 pub(super) const HELP_AGENT_ATTACH_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent attach (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) [--takeover] [--timeout ms] [--mouse on|off] [--format text|json]",
-        "解析唯一的活动 Agent 终端，再进入 Windows terminal attach 界面。目标可为名称、会话或 Panel；--name、--agent-session 和 --panel 可显式替代位置参数。不聚焦或启动资源。Ctrl+B 后按 q 脱离，Ctrl+C 交付应用；必须使用控制台\nstdin/stdout。默认不限总时长、启用鼠标。接管、超时、清理和输入语义见\nhelp terminal attach。",
+        "解析唯一的活动智能体终端，再进入 Windows terminal attach 界面。目标可为名称、会话或面板；--name、--agent-session 和 --panel 可显式替代位置参数。不聚焦或启动资源。Ctrl+B 后按 q 脱离，Ctrl+C 交付应用；必须使用控制台\nstdin/stdout。默认不限总时长、启用鼠标。接管、超时、清理和输入语义见\nhelp terminal attach。",
     );
 
 pub(super) const HELP_AGENT_OUTPUT_EN: crate::localization::HelpDetails =
@@ -131,7 +131,7 @@ impl Locale {
     pub(crate) const fn cli_agent_empty(self) -> &'static str {
         match self {
             Self::EnUs => "No agent sessions.\n",
-            Self::ZhCn => "没有 Agent 会话。\n",
+            Self::ZhCn => "没有智能体会话。\n",
         }
     }
 
@@ -252,7 +252,7 @@ impl Locale {
                 "Agent runtime unavailable: {}\n",
                 reason.unwrap_or("unknown")
             ),
-            (Self::ZhCn, None) => format!("Agent 运行时不可用：{}\n", reason.unwrap_or("unknown")),
+            (Self::ZhCn, None) => format!("智能体运行时不可用：{}\n", reason.unwrap_or("unknown")),
         }
     }
 
@@ -286,7 +286,7 @@ impl Locale {
                 view.client_id
             ),
             Self::ZhCn => format!(
-                "Client {}：状态 {status}；已看见 {seen}；聚焦 {focused}\n",
+                "客户端 {}：状态 {status}；已看见 {seen}；聚焦 {focused}\n",
                 view.client_id
             ),
         }
@@ -585,7 +585,7 @@ impl Locale {
             Self::EnUs => {
                 "actions are navigate-only; provider content is not available through agent reads\n"
             }
-            Self::ZhCn => "操作仅限导航；Agent 读取不提供提供方内容\n",
+            Self::ZhCn => "操作仅限导航；智能体读取不提供提供方内容\n",
         }
     }
 
@@ -605,12 +605,12 @@ impl Locale {
                 let escaped = crate::cli::escape::quoted(session);
                 match self {
                     Self::EnUs => format!("No agent session matches {escaped}.\n"),
-                    Self::ZhCn => format!("没有与 {escaped} 匹配的 Agent 会话。\n"),
+                    Self::ZhCn => format!("没有与 {escaped} 匹配的智能体会话。\n"),
                 }
             }
             FailureKind::Denied => match self {
                 Self::EnUs => "The local session denied the agent read.\n".to_owned(),
-                Self::ZhCn => "本地会话拒绝了本次 Agent 读取。\n".to_owned(),
+                Self::ZhCn => "本地会话拒绝了本次智能体读取。\n".to_owned(),
             },
             FailureKind::Rejected => {
                 let reason = failure
@@ -624,7 +624,7 @@ impl Locale {
                         format!("The local session rejected the agent list cursor ({reason}).\n")
                     }
                     Self::ZhCn => {
-                        format!("本地会话拒绝了该 Agent 列表游标（{reason}）。\n")
+                        format!("本地会话拒绝了该智能体列表游标（{reason}）。\n")
                     }
                 }
             }
@@ -632,38 +632,38 @@ impl Locale {
                 Self::EnUs => {
                     "The agent observation runtime is unavailable right now.\n".to_owned()
                 }
-                Self::ZhCn => "Agent 观察运行时当前不可用。\n".to_owned(),
+                Self::ZhCn => "智能体观察运行时当前不可用。\n".to_owned(),
             },
             FailureKind::Timeout => match self {
                 Self::EnUs => {
                     "The agent read did not finish within its 5-second deadline.\n".to_owned()
                 }
-                Self::ZhCn => "Agent 读取未能在 5 秒期限内完成。\n".to_owned(),
+                Self::ZhCn => "智能体读取未能在 5 秒期限内完成。\n".to_owned(),
             },
             FailureKind::TransportLoss => match self {
                 Self::EnUs => {
                     "The connection to the local session was lost during the agent read.\n"
                         .to_owned()
                 }
-                Self::ZhCn => "与本地会话的连接在 Agent 读取期间中断。\n".to_owned(),
+                Self::ZhCn => "与本地会话的连接在智能体读取期间中断。\n".to_owned(),
             },
             FailureKind::Cancelled => match self {
                 Self::EnUs => "The agent read was cancelled.\n".to_owned(),
-                Self::ZhCn => "Agent 读取已被取消。\n".to_owned(),
+                Self::ZhCn => "智能体读取已被取消。\n".to_owned(),
             },
             FailureKind::ProtocolInvalid => match self {
                 Self::EnUs => {
                     "The local session answered the agent read with an invalid protocol response.\n"
                         .to_owned()
                 }
-                Self::ZhCn => "本地会话对本次 Agent 读取返回了无效的协议响应。\n".to_owned(),
+                Self::ZhCn => "本地会话对本次智能体读取返回了无效的协议响应。\n".to_owned(),
             },
             _ => match self {
                 Self::EnUs => {
                     "The CLI hit an internal failure during the agent read; no data was written.\n"
                         .to_owned()
                 }
-                Self::ZhCn => "CLI 在 Agent 读取期间发生内部错误；未写出任何数据。\n".to_owned(),
+                Self::ZhCn => "CLI 在智能体读取期间发生内部错误；未写出任何数据。\n".to_owned(),
             },
         }
     }

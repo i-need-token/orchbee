@@ -977,7 +977,7 @@ C 会让命令保持 active，包括在 shell 进程内执行的 builtin，直�
 只证明传递，不证明消费；投影重新分类及 epoch 与 Close 准入保持分离。缺少或未知的 reader
 标记、进程查询失败及未完成的提示符阶段均保持 unknown；普通命令行被确认消费并回到就绪提示符后可重新成为 idle。
 
-Windows 上交互 PowerShell 启动在正常 profile 执行后使用 Local Site Runtime 共享、仅当前进程的
+Windows 上交互 PowerShell 启动在正常 profile 执行后使用 Local 会话 Runtime 共享、仅当前进程的
 `-NoExit -Command` bootstrap。Worker 准备的 argv 只有在命令操作数与共享公共初始化及 reader
 资产精确相等，且前面仅有已准入交互开关并包含 `-NoExit` 时，才视为交互启动。Host 保留该 argv，
 不重复注入；普通交互 argv 使用同一脚本。修改过的脚本、额外操作数与任意 `-Command`／`-File`
@@ -1014,4 +1014,4 @@ bundled-ConPTY 光标套件还会检查真实 Windows PowerShell 和可用 Power
 
 受管 PowerShell reader 只剥离返回命令开头的 `<#orchbee-run:<id>#> `。Prompt 在集成工作前捕获 `$?`，在渲染原提示符前发出 D 和匹配的 0/1 finish，然后清除 ID。原命令在正常作用域中运行。就绪标记说明集成能力和当前 reader 入口，不为调用者独占输入行。
 
-<!-- documentation-pairing: english-sha256=a2dd3fd5de66a92067449f6c2ba83a5220c01885001dc5896c9b9efbd96005a8 zh-cn-sha256=5f894833c03b133132fc028cef5cb8f97b0bcc9625d76335b073f48c310782ef -->
+<!-- documentation-pairing: english-sha256=a03242ca69376e92a114eb90fe87ebf54c0ab8d08d628b30919d3431fbd1e89e zh-cn-sha256=ff1bb93f11402cf13c098b205bd993db3b979fa4f8f0a7b499f47738739bd12d -->

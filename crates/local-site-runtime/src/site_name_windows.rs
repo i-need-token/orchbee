@@ -25,7 +25,7 @@ impl WindowsSiteName {
         {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "invalid Windows Site name",
+                "invalid Windows Session name",
             ));
         }
         Ok(Self(name.to_owned()))

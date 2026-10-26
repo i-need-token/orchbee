@@ -8,7 +8,7 @@
 				"kind": "workbench.workspace-git",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"workspaceId": "00000000000000000000000000000003"
 			}
 		},
@@ -19,7 +19,7 @@
 				"kind": "workbench.workspace-git.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"workspaceId": "00000000000000000000000000000003",
 				"outcome": {
 					"kind": "observed",
@@ -39,7 +39,7 @@
 				"kind": "workbench.workspace-git.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"workspaceId": "00000000000000000000000000000003",
 				"outcome": {
 					"kind": "observed",
@@ -56,7 +56,7 @@
 				"kind": "workbench.workspace-git.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"workspaceId": "00000000000000000000000000000003",
 				"outcome": {
 					"kind": "observed",
@@ -73,7 +73,7 @@
 				"kind": "workbench.workspace-git.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"workspaceId": "00000000000000000000000000000003",
 				"outcome": {
 					"kind": "observed",
@@ -95,7 +95,7 @@
 				"kind": "workbench.workspace-git.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"workspaceId": "00000000000000000000000000000003",
 				"outcome": {
 					"kind": "observed",
@@ -114,7 +114,7 @@
 				"kind": "workbench.workspace-git.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"workspaceId": "00000000000000000000000000000003",
 				"outcome": {
 					"kind": "observed",
@@ -134,7 +134,7 @@
 				"kind": "workbench.workspace-git.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"workspaceId": "00000000000000000000000000000003",
 				"outcome": {
 					"kind": "observed",
@@ -155,7 +155,7 @@
 				"kind": "workbench.workspace-git.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"workspaceId": "00000000000000000000000000000003",
 				"outcome": {
 					"kind": "observed",
@@ -176,7 +176,7 @@
 				"kind": "workbench.workspace-git.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"workspaceId": "00000000000000000000000000000003",
 				"outcome": {
 					"kind": "observed",
@@ -197,7 +197,7 @@
 				"kind": "workbench.workspace-git.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"workspaceId": "00000000000000000000000000000003",
 				"outcome": {
 					"kind": "observed",

@@ -10,7 +10,7 @@ pub(super) const HELP_AGENT_FOCUS_EN: crate::localization::HelpDetails =
 pub(super) const HELP_AGENT_FOCUS_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent focus [<target> | --agent-session <id> | --name <name> | --panel <id|@panel:0x<hex>> | --terminal <id|@terminal:0x<hex>>] [--client <id>] [--request-id <id>] [--detach] [--timeout <ms>] [--format text|json]",
-        "在已有 Windows 终端客户端中聚焦存活 Agent 唯一对应的主面板。必须选择一个目标：位置参数名称／会话／面板，或 --agent-session、--name、--panel。'@agent:<kind>' 选择唯一提供方；'@agent:<n>' 选择完整 Agent 列表中的一基序号（不是页内序号）。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。get、read、prompt、send-keys、wait 和 focus 共用此解析器；部分投影不能证明匹配唯一。拒绝仅有子终端或存在歧义的绑定。\n\n--client 显式选择客户端，否则使用调用者或唯一当前客户端。--request-id 保留可用于 client control-status 的标识。默认时限 30000 毫秒，范围 1..3600000；--detach 提交后立即返回，不等待绘制。\n\n超时或 Ctrl+C 只停止等待，不撤销已接受的聚焦。不启动 Agent，也不激活操作系统窗口。成功绘制会确认该客户端观察到的 Agent 状态，已知窗口未聚焦时除外。",
+        "在已有 Windows 终端客户端中聚焦存活智能体唯一对应的主面板。必须选择一个目标：位置参数名称／会话／面板，或 --agent-session、--name、--panel。'@agent:<kind>' 选择唯一提供方；'@agent:<n>' 选择完整智能体列表中的一基序号（不是页内序号）。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。get、read、prompt、send-keys、wait 和 focus 共用此解析器；部分投影不能证明匹配唯一。拒绝仅有子终端或存在歧义的绑定。\n\n--client 显式选择客户端，否则使用调用者或唯一当前客户端。--request-id 保留可用于 client control-status 的标识。默认时限 30000 毫秒，范围 1..3600000；--detach 提交后立即返回，不等待绘制。\n\n超时或 Ctrl+C 只停止等待，不撤销已接受的聚焦。不启动智能体，也不激活操作系统窗口。成功绘制会确认该客户端观察到的智能体状态，已知窗口未聚焦时除外。",
     );
 
 pub(super) const HELP_AGENT_ATTENTION_EN: crate::localization::HelpDetails =
@@ -21,7 +21,7 @@ pub(super) const HELP_AGENT_ATTENTION_EN: crate::localization::HelpDetails =
 pub(super) const HELP_AGENT_ATTENTION_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent attention [<target> | --agent-session <id> | --name <name> | --panel <id|@panel:0x<hex>> | --terminal <id|@terminal:0x<hex>>] [--client <id>] [--request-id <id>] [--detach] [--timeout <ms>] [--format text|json]",
-        "读取一个 Windows 终端客户端对 Agent 的已读／未读观察。必须选择一个目标：位置参数会话／名称／面板，或 --session、--name、--panel。\n\n--client 显式选择客户端，否则使用调用者或唯一当前客户端。--request-id 保留可用于 client control-status 的读取回执；--detach 提交后返回。默认时限 30000 毫秒，范围 1..3600000。\n\n此读取不聚焦窗口，也不将 Agent 标为已读。缺失与不可用的观察仍有区别；每个客户端单独保存确认状态。",
+        "读取一个 Windows 终端客户端对智能体的已读／未读观察。必须选择一个目标：位置参数会话／名称／面板，或 --session、--name、--panel。\n\n--client 显式选择客户端，否则使用调用者或唯一当前客户端。--request-id 保留可用于 client control-status 的读取回执；--detach 提交后返回。默认时限 30000 毫秒，范围 1..3600000。\n\n此读取不聚焦窗口，也不将智能体标为已读。缺失与不可用的观察仍有区别；每个客户端单独保存确认状态。",
     );
 
 impl Locale {
@@ -124,7 +124,7 @@ impl Locale {
                 "Reason",
             ),
             Self::ZhCn => (
-                "窗格交换",
+                "面板交换",
                 "客户端",
                 "来源",
                 "目标",
@@ -181,12 +181,12 @@ impl Locale {
         }
         if let Some(value) = document["reason"].as_str() {
             let message = match (self, value) {
-                (Self::ZhCn, "cross-tab") => "两个窗格不在同一标签页",
-                (Self::ZhCn, "same-panel") => "来源和目标是同一窗格",
+                (Self::ZhCn, "cross-tab") => "两个面板不在同一标签页",
+                (Self::ZhCn, "same-panel") => "来源和目标是同一面板",
                 (Self::ZhCn, "no-neighbor") => "该方向没有邻居",
                 (Self::ZhCn, "layout-unconfirmed") => "尚未确认布局读取",
                 (Self::ZhCn, "layout-revision-changed") => "布局修订已改变",
-                (Self::ZhCn, "source-unavailable") => "来源窗格不可用",
+                (Self::ZhCn, "source-unavailable") => "来源面板不可用",
                 (Self::ZhCn, "client-unavailable") => "客户端不可用",
                 (Self::ZhCn, "client-selection-changed") => "客户端选择已改变",
                 (Self::EnUs, "cross-tab") => "the Panels belong to different Tabs",
@@ -395,7 +395,7 @@ impl Locale {
             (Self::EnUs, "popup-closed") => "Popup close completed",
             (Self::ZhCn, "popup-closed") => "popup 关闭操作已完成",
             (Self::EnUs, "attention-read") => "Client Agent observation",
-            (Self::ZhCn, "attention-read") => "客户端 Agent 观察",
+            (Self::ZhCn, "attention-read") => "客户端智能体观察",
             (Self::EnUs, "current") => "Current",
             (Self::ZhCn, "current") => "当前有效",
             (Self::EnUs, "stale" | "stale-view") => "Stale view",
@@ -574,5 +574,5 @@ pub(super) const HELP_LAYOUT_RATIO_EN: crate::localization::HelpDetails =
 pub(super) const HELP_LAYOUT_RATIO_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path <root|0.1> --ratio <number> [--client <client-id>] [--request-id <operation-id>] [--timeout <ms>] [--format text|json]",
-        "设置共享分割比例，将有限数值限制到 0.1..0.9。root 表示 Tab 根；0 和 1 选择子节点，用点分隔，至多 16 步。叶节点或不存在的路径失败。显式 --tab／--panel 且省略 --client 时直接提交 Server，无需 TUI；JSON 使用 orchbee.layout.ratio v1，保留请求身份与结果。共享修改校验精确修订、Split 及原比例；结果未知时先检查现状再发新请求。指定 --client 或省略／使用当前目标时，使用所选 Ready Client 及其绘制确认。保留焦点和缩放。默认超时 30000ms（1..3600000）。中断仅停止等待；不支持 --detach。",
+        "设置共享分割比例，将有限数值限制到 0.1..0.9。root 表示标签页根；0 和 1 选择子节点，用点分隔，至多 16 步。叶节点或不存在的路径失败。显式 --tab／--panel 且省略 --client 时直接提交 Server，无需 TUI；JSON 使用 orchbee.layout.ratio v1，保留请求身份与结果。共享修改校验精确修订、Split 及原比例；结果未知时先检查现状再发新请求。指定 --client 或省略／使用当前目标时，使用所选 Ready 客户端及其绘制确认。保留焦点和缩放。默认超时 30000ms（1..3600000）。中断仅停止等待；不支持 --detach。",
     );

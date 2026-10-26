@@ -121,7 +121,7 @@ impl AgentReadExchange for ExplainRead {
                             return Err(crate::cli::workbench_agents::failure("workbench-changed"));
                         }
                         Ok((
-                            serde_json::json!({"kind":"panel-agent-explain","siteId":snapshot.site_id,"workbenchRevision":workbench_revision,"reportRevision":report_revision,"requestId":id}),
+                            serde_json::json!({"kind":"panel-agent-explain","sessionId":snapshot.site_id,"workbenchRevision":workbench_revision,"reportRevision":report_revision,"requestId":id}),
                             Projection::AgentTerminalExplanation(explanation),
                         ))
                     }

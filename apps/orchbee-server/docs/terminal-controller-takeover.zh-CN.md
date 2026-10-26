@@ -9,7 +9,7 @@ Client 不能指定另一 Session 的控制者，也不能自行提供授权。
 
 Server 拥有最多八项的预留表，以 Worker 身份/代次及 Host epoch/终端为键。
 预留包含 Viewer、controller 及 Pending 或 Active 阶段。Worker 拥有对应的 Host attachment，
-并串行执行完整控制操作；Host 拥有实际输入能力和 resize lease。按 Registry、Site、
+并串行执行完整控制操作；Host 拥有实际输入能力和 resize lease。按 Registry、会话、
 预留表的顺序加锁，在任何传输等待前释放这些锁。
 
 | 状态            | 事件与守卫                                          | 下一状态及效果                                               |
@@ -57,4 +57,4 @@ resize 封锁。同作者定向测试包含同一批 Viewer 的反复交接与�
 审查、崩溃恢复或真人 Windows Terminal 验收。原生集成增加受控状态／carrier 与 ConPTY
 证据；最终整体版本验收仍然必需。
 
-<!-- documentation-pairing: english-sha256=36010f5569b8f566ef6a3a1c5950041771d90f9b3268f6eaccefef3931def99a zh-cn-sha256=f5d1dd0aad30b48deae2ac7175273cf37dedbbf9c1c6d60ad1f0941a8de434ec -->
+<!-- documentation-pairing: english-sha256=d6baf80aae817c3964318f4b878d839ccb60d317d7a0f6b7afd781c40feaace0 zh-cn-sha256=772a4c0345839a73d279b1e13e784547f9ee9de1ff850ff1b933ed4a512da4dc -->

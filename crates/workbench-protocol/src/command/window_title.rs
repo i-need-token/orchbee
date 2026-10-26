@@ -106,6 +106,7 @@ pub enum WindowTitleAction {
 pub struct WindowTitleRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub action: WindowTitleAction,
 }
@@ -130,6 +131,7 @@ pub enum WindowTitleReason {
 pub enum WindowTitleFailure {
     Denied,
     Unavailable,
+    #[serde(rename = "session-mismatch")]
     SiteMismatch,
     Conflict,
     Busy,
@@ -160,6 +162,7 @@ pub enum WindowTitleOutcome {
 pub struct WindowTitleResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub outcome: WindowTitleOutcome,
 }

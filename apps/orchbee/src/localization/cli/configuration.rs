@@ -23,7 +23,7 @@ pub(super) const HELP_CONFIG_RESET_KEYS_EN: crate::localization::HelpDetails =
 pub(super) const HELP_CONFIG_RESET_KEYS_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee config reset-keys [--format text|json]",
-        "备份 APPDATA/Orchbee/config.toml（或 ORCHBEE_CONFIG_FILE 指定文件），并移除自定义键位。保留其他设置及被移除表之外的注释。文件不存在或无 keys\n时成功且不写入；TOML 无效或无法安全编辑时保持不变并失败。Windows 要求私有父目录和可独占打开的普通文件。请保留回执中的备份，直到不再需要恢复配置；恢复失败时报告 recoveryRequired=true。不连接、启动或重载 Client。成功或无变更退出 0，失败退出 1，用法错误退出 2。",
+        "备份 APPDATA/Orchbee/config.toml（或 ORCHBEE_CONFIG_FILE 指定文件），并移除自定义键位。保留其他设置及被移除表之外的注释。文件不存在或无 keys\n时成功且不写入；TOML 无效或无法安全编辑时保持不变并失败。Windows 要求私有父目录和可独占打开的普通文件。请保留回执中的备份，直到不再需要恢复配置；恢复失败时报告 recoveryRequired=true。不连接、启动或重载客户端。成功或无变更退出 0，失败退出 1，用法错误退出 2。",
     );
 
 impl Locale {

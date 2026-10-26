@@ -116,7 +116,7 @@ fn process_info_machine_contract_preserves_precision_nulls_and_escapes_text() {
         terminal,
         info: info(),
     });
-    let source = json!({"kind":"terminal-process-query","siteId":format!("{:032x}",16),"snapshotRevision":"7","requestId":format!("{:032x}",17),"hostRequestId":format!("{:032x}",18),"hostEpoch":format!("{:032x}",19),"attachmentId":format!("{:032x}",20),"hostTerminalId":format!("{:032x}",21)});
+    let source = json!({"kind":"terminal-process-query","sessionId":format!("{:032x}",16),"snapshotRevision":"7","requestId":format!("{:032x}",17),"hostRequestId":format!("{:032x}",18),"hostEpoch":format!("{:032x}",19),"attachmentId":format!("{:032x}",20),"hostTerminalId":format!("{:032x}",21)});
     let schema: Value = serde_json::from_str(include_str!(
         "../../schemas/orchbee.panel.process-info.json"
     ))
@@ -152,7 +152,7 @@ fn process_info_machine_contract_preserves_precision_nulls_and_escapes_text() {
 #[test]
 fn process_info_targets_only_the_primary_binding_without_child_fallback() {
     let id = |value: u8| format!("{value:032x}");
-    let mut value = json!({"kind":"workbench.snapshot","protocolVersion":1,"siteId":id(1),"revision":"7",
+    let mut value = json!({"kind":"workbench.snapshot","protocolVersion":1,"sessionId":id(1),"revision":"7",
     "navigation":{"projects":[], "directories":[], "workspaces":[{"workspaceId":id(2),"terminalContextId":id(2),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},
     "terminalContexts":[{"terminalContextId":id(2),"groups":[],"tabs":[{
         "tabId":id(3),"label":"tab","pinned":false,"groupId":null,

@@ -3,7 +3,7 @@
 本契约拥有 Desktop GUI 与原生 TUI 的设备通用偏好。
 Rust `user_preferences` 与 TypeScript `user-preferences-contract` 共用
 [JSON Schema 与一致性语料](../../../schemas/workbench/README.zh-CN.md#共享用户偏好)。
-原生持久化归 [Local Site Runtime](../../local-site-runtime/README.zh-CN.md#共享用户偏好存储) 所有。
+原生持久化归 [Local 会话 Runtime](../../local-site-runtime/README.zh-CN.md#共享用户偏好存储) 所有。
 客户端呈现、传输和宿主能力不会产生新的权威来源。
 
 ## 清单与生效时机
@@ -46,7 +46,7 @@ Shell 发现。新的默认启动会重新发现系统 Shell；失败会拒绝�
 
 ## 作用域与持久化
 
-配置身份在进程/Site 启动时冻结。显式 `ORCHBEE_CONFIG_FILE` 隔离该绝对
+配置身份在进程/会话 启动时冻结。显式 `ORCHBEE_CONFIG_FILE` 隔离该绝对
 配置路径；否则由平台原生配置位置选择记录。身份相同的客户端共用配置旁的
 一个私有记录。不同开发身份、设备或浏览器来源保持独立。本契约不新增
 Workspace 偏好或远程写入路径。
@@ -90,11 +90,11 @@ Desktop 会报告此状态，并提供显式重试宿主应用。显示/输入/�
 
 ## 验证归属
 
-Schema 语料检查 Rust/TypeScript 词汇、边界和非法输入。Local Site Runtime
+Schema 语料检查 Rust/TypeScript 词汇、边界和非法输入。Local 会话 Runtime
 检查源冲突、声明、私有存储和提交失败；匹配的辅助程序测试真实有界
 进程交换。Desktop 与原生测试检查草稿/源归属、发布、释放、启动捕获和已有
 终端呈现。[原生设置模型](../../../apps/orchbee/docs/native-settings.zh-CN.md#正确性与证据)
 检查两个写入者、重置、不确定回执和发布。可见同步及宿主特有
 效果仍要求真实 GUI/TUI 验收；交叉编译不能替代运行时验收。
 
-<!-- documentation-pairing: english-sha256=6e4d5c82a436d6e09c84824503e46175fe63046b548dd973907ff663a02c8da6 zh-cn-sha256=22bef16dcfeed699771955b30ae4cd469ef3947e26e5a5100efb26988f82e6f9 -->
+<!-- documentation-pairing: english-sha256=d37078c5ccd227bada8ab97eacbe88b22d39c2168e52a16c9453862f2a2dbd66 zh-cn-sha256=fcf3e0ecbc2d4004f5f638e0ef8044007a14e7272a151437f632e49ccea7856d -->

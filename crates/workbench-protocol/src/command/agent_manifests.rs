@@ -39,6 +39,7 @@ pub(super) fn nullable<'de, D: serde::Deserializer<'de>, T: Deserialize<'de>>(
 pub enum AgentManifestsFailure {
     Denied,
     Unavailable,
+    #[serde(rename = "session-mismatch")]
     SiteMismatch,
     Busy,
     ResourceLimit,
@@ -67,6 +68,7 @@ pub enum AgentManifestsAction {
 pub struct AgentManifestsRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub action: AgentManifestsAction,
 }
@@ -117,6 +119,7 @@ pub enum AgentManifestsOutcome {
 pub struct AgentManifestsResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub outcome: AgentManifestsOutcome,
 }

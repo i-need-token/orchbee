@@ -26,7 +26,7 @@ For multi-stage receipts, use the identity of the particular stage and its ownin
 
 Close status reads the retained Server ledger by exact request ID, including tombstones after
 layout membership disappears. A family mismatch refuses instead of selecting another resource.
-The new matched-cohort read has no persistent index or extra state and preserves Site grants.
+The new matched-cohort read has no persistent index or extra state and preserves Session grants.
 Missing, denied and unavailable observations remain distinct; missing history does not prove
 that an earlier effect did not happen.
 

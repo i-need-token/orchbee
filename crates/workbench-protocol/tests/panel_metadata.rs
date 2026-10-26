@@ -1,7 +1,7 @@
 use orchbee_workbench_protocol::*;
 use serde_json::{Value, json};
 fn report() -> Value {
-    json!({"protocolVersion":1,"requestId":"00000000000000000000000000000001","siteId":"00000000000000000000000000000002","action":{"kind":"report","panelId":"00000000000000000000000000000003","expectedBinding":{"workerId":"00000000000000000000000000000004","terminalId":"00000000000000000000000000000005"},"source":"hook:example","patch":{"title":"标题 😀","displayAgent":"辅助","stateLabels":{"working":"忙碌"},"tokens":{"summary":"value"}},"sequence":"18446744073709551615","ttlMilliseconds":86400000}})
+    json!({"protocolVersion":1,"requestId":"00000000000000000000000000000001","sessionId":"00000000000000000000000000000002","action":{"kind":"report","panelId":"00000000000000000000000000000003","expectedBinding":{"workerId":"00000000000000000000000000000004","terminalId":"00000000000000000000000000000005"},"source":"hook:example","patch":{"title":"标题 😀","displayAgent":"辅助","stateLabels":{"working":"忙碌"},"tokens":{"summary":"value"}},"sequence":"18446744073709551615","ttlMilliseconds":86400000}})
 }
 fn admitted(value: Value) -> bool {
     serde_json::from_value::<PanelMetadataRequest>(value).is_ok_and(|v| v.validate().is_ok())
@@ -63,7 +63,7 @@ fn metadata_contract_checks_whole_report_and_rejects_duplicate_map_members() {
     }
 }
 fn result() -> Value {
-    json!({"protocolVersion":1,"requestId":"00000000000000000000000000000001","siteId":"00000000000000000000000000000002","outcome":{"kind":"read","workbenchRevision":"1","metadataRevision":"2","panels":[{"panelId":"00000000000000000000000000000003","binding":{"workerId":"00000000000000000000000000000004","terminalId":"00000000000000000000000000000005"},"tokens":{},"presentations":[{"source":"source","agent":null,"appliesToSource":null,"title":{"value":"x","order":"2"},"displayAgent":null,"stateLabels":{}}]}]}})
+    json!({"protocolVersion":1,"requestId":"00000000000000000000000000000001","sessionId":"00000000000000000000000000000002","outcome":{"kind":"read","workbenchRevision":"1","metadataRevision":"2","panels":[{"panelId":"00000000000000000000000000000003","binding":{"workerId":"00000000000000000000000000000004","terminalId":"00000000000000000000000000000005"},"tokens":{},"presentations":[{"source":"source","agent":null,"appliesToSource":null,"title":{"value":"x","order":"2"},"displayAgent":null,"stateLabels":{}}]}]}})
 }
 #[test]
 fn metadata_read_contract_is_closed_bounded_correlated_and_preserves_nulls() {

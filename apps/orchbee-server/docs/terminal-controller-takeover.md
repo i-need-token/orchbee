@@ -11,7 +11,7 @@ Clients cannot name another Session's controller or supply their own grant.
 Server owns an eight-entry reservation map keyed by Worker identity/generation and Host
 epoch/terminal. A reservation contains its Viewer, controller and Pending or Active phase.
 Worker owns the corresponding Host attachment and serializes whole control operations; Host owns
-the actual input capabilities and resize lease. Registry, Site and reservation locks are acquired
+the actual input capabilities and resize lease. Registry, Session and reservation locks are acquired
 in that order and released before any transport wait.
 
 | State       | Event and guard                                                  | Next state and effect                                                              |

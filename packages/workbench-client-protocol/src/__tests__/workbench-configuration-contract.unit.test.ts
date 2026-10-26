@@ -37,7 +37,7 @@ const configurationResult = (notificationProfile: string) => ({
 	kind: 'workbench.configuration.result',
 	protocolVersion: 1,
 	requestId: '00000000000000000000000000000001',
-	siteId: '00000000000000000000000000000002',
+	sessionId: '00000000000000000000000000000002',
 	outcome: {
 		kind: 'current',
 		snapshot: {
@@ -57,7 +57,7 @@ const configurationResult = (notificationProfile: string) => ({
 	},
 });
 
-describe('Site configuration publication', () => {
+describe('Session configuration publication', () => {
 	it('admits exactly 16 KiB of ASCII notification profile and rejects the next byte', () => {
 		expect(
 			WorkbenchResponseSchema.safeParse(configurationResult('x'.repeat(NOTIFICATION_PROFILE_BYTES)))
@@ -98,7 +98,7 @@ describe('Site configuration publication', () => {
 			kind: 'workbench.configuration.result',
 			protocolVersion: 1,
 			requestId: '00000000000000000000000000000001',
-			siteId: '00000000000000000000000000000002',
+			sessionId: '00000000000000000000000000000002',
 			outcome: { kind: 'current', snapshot },
 		};
 		expect(new TextEncoder().encode(JSON.stringify(document)).length).toBeGreaterThan(128 * 1024);
@@ -112,7 +112,7 @@ describe('Site configuration publication', () => {
 				kind: 'workbench.configuration.result',
 				protocolVersion: 1,
 				requestId: '00000000000000000000000000000001',
-				siteId: '00000000000000000000000000000002',
+				sessionId: '00000000000000000000000000000002',
 				outcome: {
 					kind: 'current',
 					snapshot: {

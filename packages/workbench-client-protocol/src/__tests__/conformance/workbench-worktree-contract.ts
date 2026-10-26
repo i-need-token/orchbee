@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	WORKBENCH_PROTOCOL_VERSION,
 	WorkbenchRequestIdSchema,
 	WorkbenchProjectIdSchema,
@@ -100,7 +100,7 @@ export const WorkbenchWorktreeRequestSchema = z
 		kind: z.literal('workbench.worktree.operation'),
 		protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 		requestId: WorkbenchRequestIdSchema,
-		siteId: SiteIdSchema,
+		sessionId: SessionIdSchema,
 		action: WorkbenchWorktreeActionSchema,
 	})
 	.readonly();
@@ -182,7 +182,7 @@ const WorktreeOperationFailureSchema = z.discriminatedUnion('kind', [
 				'checkout-in-use',
 				'association-failed',
 				'close-incomplete',
-				'site-stopping',
+				'session-stopping',
 				'internal',
 			]),
 		})

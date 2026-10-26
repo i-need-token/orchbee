@@ -3,14 +3,14 @@
 ## 范围与归属
 
 `workbench_authority/checkpoint.rs` 拥有 Workbench 保留配置的私有版本化投影，以及将其重建为
-新权威的过程。Windows 托管 Site 是存储／启动消费者。领域编解码器与 Windows 文件系统准入、
-检查点发布及终端重新启动分离。命名 Site 路由和其他恢复所有者仍有独立义务，不新增其他平台适配器。
+新权威的过程。Windows 托管 会话 是存储／启动消费者。领域编解码器与 Windows 文件系统准入、
+检查点发布及终端重新启动分离。命名 会话 路由和其他恢复所有者仍有独立义务，不新增其他平台适配器。
 
 检查点保留可选 Project 成员关系、Project 标签、全局本地目录路径、Workspace 及其显示顺序、终端上下文、有序 Tab、分组、固定状态、
 分屏结构及比例、Panel 输入策略及 Presentation 标签，同时保留 Launch Profile 定义和分配高水位，
 包括已删除 ID。主／子 Presentation 均保留结构，但不携带终端绑定或启动失败。
 
-它不保留运行进程、Site／Worker 身份、控制权、租约、Client 视图／焦点／zoom、请求结果、发布
+它不保留运行进程、会话／Worker 身份、控制权、租约、Client 视图／焦点／zoom、请求结果、发布
 游标、未完成操作、Agent 状态或终端历史；这些恢复责任属于各自运行时所有者。检查点从不授权
 重放终端命令或 Git 操作。
 
@@ -20,11 +20,11 @@
 | ---------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | 捕获       | 权威未退役；已提交对象图有效；每个 Directory 和已绑定 Presentation 都属于传入的本地 Worker。 | 一个有界检查点；源权威不变；移除进程绑定和 Worker 身份。                                                       |
 | 解码       | 严格当前 version 1 文档、字节有界、规范化导航、配置图、计数器有效。                          | 完整保留配置或类型化拒绝；不返回部分结果或空成功。                                                             |
-| 重建       | 调用者传入新启动的 Site 身份及其已准入本地 Worker。                                          | 保留结构 ID 和本地路径，使用新目录所有者、无绑定 Presentation、新 Profile Site 前缀、revision 0 和空临时状态。 |
+| 重建       | 调用者传入新启动的 会话 身份及其已准入本地 Worker。                                          | 保留结构 ID 和本地路径，使用新目录所有者、无绑定 Presentation、新 Profile 会话 前缀、revision 0 和空临时状态。 |
 | 恢复后分配 | 恢复的高水位允许递增。                                                                       | 新 ID 高于所有已分配计数器；耗尽时保留既有类型化拒绝。                                                         |
 
-调用者负责新 Site 身份的新鲜性。Profile ID 为 `<siteHex>:<counterHex>`，存储形式仅保留
-计数器、名称和启动定义，重建使用新 Site 前缀。旧 Site 授权和 Profile ID 不获得新启动的权威。
+调用者负责新 会话 身份的新鲜性。Profile ID 为 `<siteHex>:<counterHex>`，存储形式仅保留
+计数器、名称和启动定义，重建使用新 会话 前缀。旧 会话 授权和 Profile ID 不获得新启动的权威。
 名称不要求唯一，既有选择器歧义语义保持不变。
 
 ## 私有格式与校验
@@ -61,7 +61,7 @@ Workspace 的 `projectId` 必填且可为 null。Directory 记录含 `directoryI
 请求／后台工作静止后，正常停止在 Worker 释放前，通过现有私有查看器所有者采集新的有界观察。有效终端上报目录优先于根进程目录；不会用子进程目录冒充根目录。最终物理成员关系与 Worker 代际必须仍匹配。未知 detach 由已停止的进程观察器继续负责，使本次停止失败并保留之前的检查点；后续停止可结算该精确附着。
 
 正常运行时，既有进程采样器仅缓存已经观测并验证的目录，同时保留确切 Worker generation、Host
-终端身份及采样起始时间。缓存捕获在 Site gate 下重新检查当前物理成员；过期、移除或替换的绑定
+终端身份及采样起始时间。缓存捕获在 会话 gate 下重新检查当前物理成员；过期、移除或替换的绑定
 不贡献目录。观测不可用时不伪造目录、不清除已有恢复意图。保存不打开 viewer、不采样进程、
 不读取屏幕内容。
 
@@ -80,9 +80,9 @@ Workspace 的 `projectId` 必填且可为 null。Directory 记录含 `directoryI
 
 ## 终端重新绑定准备
 
-`checkpoint/restore.rs` 按 Workspace Context、Tab 及深度优先树顺序枚举每个无绑定主／子 Presentation。每个目标携带新 Site／本地 Worker、准确成员身份及分开的保留／Workspace 目录意图。只读注册遍历全部主、子成员；破坏性操作保留各自守卫。没有保留 cwd 的未配置 Workspace 使用 Worker home。
+`checkpoint/restore.rs` 按 Workspace Context、Tab 及深度优先树顺序枚举每个无绑定主／子 Presentation。每个目标携带新 会话／本地 Worker、准确成员身份及分开的保留／Workspace 目录意图。只读注册遍历全部主、子成员；破坏性操作保留各自守卫。没有保留 cwd 的未配置 Workspace 使用 Worker home。
 
-`prepare_restored_terminal` 重新检查 Site、本地 Worker、成员关系、未绑定状态和 cwd 默认值，
+`prepare_restored_terminal` 重新检查 会话、本地 Worker、成员关系、未绑定状态和 cwd 默认值，
 再校验并准备完整的候选投影／发布，之后才允许变更。丢弃准备结果不改变任何状态。提交仅设置
 一个绑定并递增修订；结构身份、分配高水位、标签、顺序、分组、输入策略和 Profile 均不变。
 拒绝已绑定的目标及重复的物理终端绑定。
@@ -95,13 +95,13 @@ Workspace 的 `projectId` 必填且可为 null。Directory 记录含 `directoryI
 副本。存储 owner 从三个槽位选择最新且完整验证的 payload。无效副本保留并产生可见恢复提醒；
 全部副本无效时明确报告空恢复。数据缺失表示新 Workbench；私有路径或文件系统准入失败仍中止启动。
 详见 [Windows checkpoint 存储契约](../../../crates/local-site-runtime/docs/windows-checkpoint-storage.zh-CN.md)。
-默认和命名 Site 激活均在使用存储前发布当前版本 1 的 durable 记录。
+默认和命名 会话 激活均在使用存储前发布当前版本 1 的 durable 记录。
 Server 在打开 store 和清理 pending 文件前准入完整的 durable 形状。
 `WindowsSessionStore::read_validated` 将所有无效 payload 作为不可读副本处理：选择有效槽位或
 报告空恢复，保留无效字节，并在替换前归档。领域解析失败不再存在特殊的致命迁移错误；文件系统
 准入错误仍中止启动。未提交 pending 文件的清理保持不变。
 
-`WorkbenchCheckpoint` 是已准入配置值：私有对象图校验身份不会成为可运行权威，只有使用新 Site
+`WorkbenchCheckpoint` 是已准入配置值：私有对象图校验身份不会成为可运行权威，只有使用新 会话
 及已准入 Worker 重建后才产生新的权威。
 
 启动 IPC 前，协调器准备所有新 shell 预留和 Workbench 绑定。分发前失败尚无 Host／终端，终止创建所拥有的 Worker 并确认退出。每个准备请求仅分发、结算一次；失败／未知结果保持显式，不自动重试。保留目录优先于 Workspace／home 默认值；保存／配置目录缺失时回退到 Worker home。初始几何为 80x24、单元格 8x16，直到调整尺寸。主、子成员恢复不新增 Tab。期限到达时未分发请求结算不可用。后续启动失败停止维护，请求自有 Host／终端关闭，确认 Worker／传输退出并停止观察。未确认清理保留恢复状态；仅终止 Worker 不证明 Host 清理。
@@ -120,9 +120,9 @@ Workbench revision；每次变化重置 500ms 防抖。每 30 秒还捕获已缓
 该抑制仅适用于无人参与的后台保存。显式 `server stop --confirm` 表示确认当前工作区，因此其最新 final
 捕获即使仍是空状态也可以发布；存储 owner 会在提交前归档被替换的无效原始字节。
 
-捕获仅在构建有界配置值时持有既有 Site gate，随后释放。文件系统验证、原件保留、flush 与替换
+捕获仅在构建有界配置值时持有既有 会话 gate，随后释放。文件系统验证、原件保留、flush 与替换
 在 gate 外由唯一写者执行。I/O 期间的新 revision 仍标记为 dirty，安排下一次捕获。保存失败保留
-此前有效副本及有界错误状态；不终止终端、不授权新 Site。后台保存者必须在最终正常停止捕获前
+此前有效副本及有界错误状态；不终止终端、不授权新 会话。后台保存者必须在最终正常停止捕获前
 结算；无法 join 时停止不能完成，不能产生两个存储写者。
 
 ## 证据
@@ -138,8 +138,8 @@ Workbench revision；每次变化重置 500ms 防抖。每 30 秒还捕获已缓
 不可用结果。Windows 存储／进程测试覆盖私有替换、锁和准确句柄终止。真实打包 Windows 正常
 停止／重启验收对比保留的布局／Profile、新运行时身份、shell 执行效果及 TUI 绑定重附着；
 替换受阻时必须保留旧字节和运行中的终端，直到显式重试成功；无效副本必须保留准确原始字节，
-产生声明的回退／空恢复提醒，且不得绕过 Site owner 准入。缓存捕获测试覆盖物理替换、乱序采样与
+产生声明的回退／空恢复提醒，且不得绕过 会话 owner 准入。缓存捕获测试覆盖物理替换、乱序采样与
 已移除成员。调度测试使用显式时间及延迟写入，证明防抖、定期补存、有界待办与最终停止顺序。
 原生崩溃／重启验收须比较多个 Tab、嵌套分屏、标签、目录；机器重启及交互负载仍须单独提供证据。
 
-<!-- documentation-pairing: english-sha256=a266eeb5149ee10c11e222bdbda94ba90f3e271cf41b52ad6bda9d2a4b2107ae zh-cn-sha256=aa43ff08e4622e65da11f0b5b71da6773db54c53dcbac1fe7cf24505275552ad -->
+<!-- documentation-pairing: english-sha256=d4ff581dd3022615dee06e8cbbdf9be0f1523eaf8888c71d4da3aebc6437eac2 zh-cn-sha256=17034a3c35be36dbfbb9ef55fdf11b24c4083aadebabe4bd479f2fc855783c06 -->

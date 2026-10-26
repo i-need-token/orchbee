@@ -22,17 +22,9 @@ Panel 命令族使用位置 Panel 或 `--current`。Agent 目标额外接受 `--
 在 PowerShell 中，从可执行文件所在目录使用 `.\orchbee.exe server -h`；未加入 `PATH` 时，
 也可通过完整路径调用。
 
-| 旧拼写                     | 规范拼写                         |
-| -------------------------- | -------------------------------- |
-| `--site <name>`            | `--session <name>`               |
-| `ORCHBEE_SITE`             | `ORCHBEE_SESSION`                |
-| `site <command>`           | `server <command>`               |
-| `agent ... --session <id>` | `agent ... --agent-session <id>` |
-
-CLI 只接受规范拼写。`ORCHBEE_SITE` 保留为低于 `ORCHBEE_SESSION` 的旧环境变量兼容入口，
-使现有配置继续指向原会话。现有运行时名称、scope 哈希、清单、检查点和 JSON schema 保持原样；
-`siteId` 等机器字段以及 `orchbee.site.start` 等 schema 标识保留既有协议含义。
-本次术语调整不会使 Electron Desktop 运行时成为原生会话服务的消费者。
+CLI 只接受规范拼写。会话选择读取 `ORCHBEE_SESSION`，没有旧环境变量回退。
+机器字段使用 `sessionId`，服务文档使用 `orchbee.server.*`，版本保持为 `1`。
+这项术语边界保留 Desktop 当前的运行时集成。
 
 ## 独立 Agent 状态的 Schema 版本
 
@@ -50,7 +42,7 @@ Snapshot v1 与 Tab Get v1 接纳规范的可选分隔比例 `ratio`（0.1–0.9
 
 Agent 启动帮助说明 `--provider antigravity` 对应集成／诊断的 `--provider antigravity`。启动目标 Panel 不存在时，提示明确指出目标错误并引导运行 `orchbee panel list`。本地发布清单读取失败时，提示检查 `ORCHBEE_UPDATE_MANIFEST` 中的路径和读取权限；机器原因仍为 manifest 阶段的 `download`。
 
-Launch Profile list/get 使用版本 1，接纳 POSIX、驱动器绝对路径及 verbatim 驱动器可执行路径。Linux 与 Windows 诊断均对各自支持的 scope 使用 `orchbee.site.diagnose` 版本 1，不支持的事实通过成员明确表示。集成列表始终包含 `outdatedOnly`、检查数量及提供方 ID 列表，边界覆盖全部 20 个提供方。通用失败按语义阶段选择封闭详情，包括 `stage: plugin` 的本地插件准备失败。Session 清单与启动环境失败保留对应运行时阶段。Client 选择诊断指出 Client 及适用的 `--client` 处理方式。
+Launch Profile list/get 使用版本 1，接纳 POSIX、驱动器绝对路径及 verbatim 驱动器可执行路径。Linux 与 Windows 诊断均对各自支持的 scope 使用 `orchbee.server.diagnose` 版本 1，不支持的事实通过成员明确表示。集成列表始终包含 `outdatedOnly`、检查数量及提供方 ID 列表，边界覆盖全部 20 个提供方。通用失败按语义阶段选择封闭详情，包括 `stage: plugin` 的本地插件准备失败。Session 清单与启动环境失败保留对应运行时阶段。Client 选择诊断指出 Client 及适用的 `--client` 处理方式。
 
 事件流 Schema 在 `$defs/filter` 暴露结构化筛选输入，插件 runtime 在 `$defs/context` 暴露
 上下文输入。帮助包含有效 JSON 示例与 Schema 查找提示。Schema 描述结构输入；CLI 解码
@@ -412,7 +404,7 @@ Panel 读取接纳当前 Ready 或 Busy Client，包括历史浏览。直接对�
 `default` 选择现有默认 Session。先验证完整参数语法，再应用选择；离线 help、completion、
 version 和 schema 操作不会因为提供名称而发现运行时。
 
-选择优先级为显式 `--session`、托管终端的 `ORCHBEE_RUNTIME_SCOPE`、`ORCHBEE_SESSION`、旧的 `ORCHBEE_SITE`，最后
+选择优先级为显式 `--session`、托管终端的 `ORCHBEE_RUNTIME_SCOPE`、`ORCHBEE_SESSION`，最后
 为 `default`。`ORCHBEE_RUNTIME_BASE` 仍选择已存在的绝对基目录。Worker 将准入后的基目录和
 scope 传给子终端，使内部 CLI 命令保持所属 Session，即使 Server 继承了其他名称。
 显式 `--session default` 覆盖继承的 scope。选中的环境变量值无效时，发现失败，不静默回退默认 Session。
@@ -763,7 +755,7 @@ Windows wait 版本 1 新增可空的 `matchedChange`。空表示当前样本命
   `1..=100` 的十进制 `u64`，默认取 wire 契约的 50。重复、非数值或越界值均为
   `invalid-usage`。
 - `--cursor <c>`：带值 flag，单次使用，仅 `agent list` 受理。Windows 使用不超过
-  1024 个字符的结构化 `u1.<base64url>` 游标，绑定 Site、来源修订、筛选条件、Client
+  1024 个字符的结构化 `u1.<base64url>` 游标，绑定 会话、来源修订、筛选条件、Client
   选择和页位置／指纹。畸形游标在读取实时来源前作为无效输入拒绝。
   判断游标是否过期需要读取当前来源，因此只能在这些读取后
   拒绝过期的结构化游标。其他平台保留规范 Server 游标契约。
@@ -1115,7 +1107,7 @@ admission、快照与 worktree-list 交换各自只消耗剩余额度；不做�
    `orchbee.cli.failure.launch-profile` envelope；
    `not-found{resource:"launch-profile"}` 是 selector 未命中的应答，`ambiguous`
    携带受限候选 ID。两个成功 envelope 都携带
-   `source:{kind:"launch-profile-catalog",siteId, catalogRevision}`——目录私有
+   `source:{kind:"launch-profile-catalog",sessionId, catalogRevision}`——目录私有
    revision，与 Workbench 导航 revision 是不同的计数。
 
 ### Send 输入源
@@ -1322,7 +1314,7 @@ cohort 验证之前开始，且绝不按阶段重置：
 
 ## Session 诊断
 
-`server diagnose` 在 Linux 与 Windows 输出同一份封闭的 `orchbee.site.diagnose` v1 schema。
+`server diagnose` 在 Linux 与 Windows 输出同一份封闭的 `orchbee.server.diagnose` v1 schema。
 当前目录见上文。复用已有运行时路径／SID scope，不进行 cohort
 准入、激活、端点连接或进程发现。有序行描述选定基目录、已准入运行时目录、标记、
 激活／生命周期锁及五个命名管道地址。Windows 将文件系统 Host socket scope 及 POSIX mode／UID 成员标为 unsupported。`private` 只表示已检查当前用户归属和运行时 DACL 白名单，
@@ -1352,7 +1344,7 @@ runtime／IPC 测试覆盖准入、真实监听器和有界观察。
 connect 就会消耗一个准入槽——也不枚举、发信号或散列任何进程。
 
 每一行都是封闭状态的事实文档，绝非健康判定：`runtimeBase` 与 `runtimeDirectory`
-携带 `path`/`pathBytesHex`；`marker`、`locks:{activation,siteLifetime}`、
+携带 `path`/`pathBytesHex`；`marker`、`locks:{activation,sessionLifetime}`、
 `endpoints:{client,worker,clientPending,agentObservation,hostEndpoint}` 与
 `hostScope` 各自报告 `state`（`known|absent|unsafe|uninspectable`；生存期锁另有
 `free` 与 `held`），以及不完全已知时的具体 `reason`——`symlink`、`invalid-kind`、
@@ -1391,26 +1383,26 @@ terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresent
 
 快照与单效果命令封套使用 `{schema, version, source, result}`；分阶段流程有自己的内嵌 schema。全部机器文档与目录只使用版本 `1`。`api schema <id>` 离线提供完整当前契约。新增字段或 schema ID 直接更新当前契约。同一命令在平台和参数变化时保留相同成员，并明确不支持的能力。来源保留各所有者的含义：
 
-- `source.kind="workbench-snapshot"`：带同一份已验证快照的 `siteId` 与十进制字符串
+- `source.kind="workbench-snapshot"`：带同一份已验证快照的 `sessionId` 与十进制字符串
   `revision`——仅在完整有效读取之后出现。
-- `source.kind="workbench-command"`：带 `siteId`、`requestId` 与十进制字符串
+- `source.kind="workbench-command"`：带 `sessionId`、`requestId` 与十进制字符串
   `expectedRevision`——已产出的 mutation 结果，以及有效读取之后 command 阶段的失败。
 - `source.kind="embedded"`：随二进制编译内嵌的 schema 字典（`api schema` 结果及其
   `not-found` 失败）。
 - `source.kind="local-runtime"`：已产出的 `config check` 结果、`agent doctor` 结果、`server start` 的每个
   应答，以及每份 `server diagnose` 文档——本地运行时是激活 outcome、拒绝、离线诊断与
   有界运行时观察的应答权威。
-- `source.kind="terminal.send"`：`siteId`、send `requestId`，以及解析出该绑定的十进制
+- `source.kind="terminal.send"`：`sessionId`、send `requestId`，以及解析出该绑定的十进制
   字符串 `snapshotRevision`——出现在类型化 `terminal send` 应答上。
-- `source.kind="terminal-launch-read"`：`siteId` 与十进制字符串 `revision`——Server 在
+- `source.kind="terminal-launch-read"`：`sessionId` 与十进制字符串 `revision`——Server 在
   coordinator 锁内 join 出的修订——出现在 `terminal get` 应答上。
-- `source.kind="worktree-list"`：`siteId` 与 Server 权威 membership 核验时刻已提交
+- `source.kind="worktree-list"`：`sessionId` 与 Server 权威 membership 核验时刻已提交
   Workbench 的十进制字符串 `revision`——出现在 `worktree list` 结果及其快照后失败上。
 - `source.kind="agent-read"`：语义应答带回的相关联 `requestId`——出现在已产出的
   agent 读取结果与准入后语义拒答上。
-- `source.kind="launch-profile-catalog"`：`siteId` 与已解析目录的十进制字符串
+- `source.kind="launch-profile-catalog"`：`sessionId` 与已解析目录的十进制字符串
   `catalogRevision`——出现在 `launch-profile list`/`get` 结果及其会话后失败上。
-- `source.kind="workspace-close-resume"`：`siteId`、resume `requestId`、所指
+- `source.kind="workspace-close-resume"`：`sessionId`、resume `requestId`、所指
   `closeRequestId`，以及请求携带的十进制字符串 `expectedAttemptGeneration` 栅栏——
   出现在 `workspace close-resume` 应答上：保留 lifecycle 的 resume 没有
   `workbench.command`，resume 请求自身的回显即诚实来源。
@@ -1418,12 +1410,12 @@ terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresent
 
 结果载荷（schema ID 为稳定机器名）：
 
-- `orchbee.status` → `{site:{reachable:true,siteId,revision},
+- `orchbee.status` → `{session:{reachable:true,sessionId,revision},
 counts:{projects,workspaces,tabs,panels,boundTerminals},
 worker:{status:"unknown",reason:"not-in-workbench-snapshot"}}`。`boundTerminals` 统计带
   `binding` 的 presentation；快照校验已保证 terminalId 全局唯一，故每个绑定恰命名一个不同
   终端。`reachable` 只证明本次读取成功。文本视图仅在快照成功读取后报告 Session 正在运行，
-  随后列出本地化的资源计数。它省略内部 Site ID、快照修订号和 Worker 观察详情，也不声称
+  随后列出本地化的资源计数。它省略内部 会话 ID、快照修订号和 Worker 观察详情，也不声称
   Worker 或 Agent 已就绪。JSON 文档保持不变。
 - `orchbee.project.list` → `{projects:[{projectId,label,directoryCount,workspaceCount}]}`；
   `orchbee.project.get` → `{project:{projectId,label,directories:[{directoryId,workerId,path}],
@@ -1478,7 +1470,7 @@ tabId,terminalContextId}}]}`；JSON 行只包含身份，不含 lifecycle、proc
   `terminal list` 不同，`terminal get` 不从 Client
   持有的快照作答：它在已准入 session 上发送一次 `terminal.launch.read` 请求，由 Server 在
   coordinator 锁内解析当前绑定、路由与 retained launch fact——快照只提供类型化目标 id。
-  其 envelope 为 `version:1`，`source:{kind:"terminal-launch-read",siteId,revision}` 的
+  其 envelope 为 `version:1`，`source:{kind:"terminal-launch-read",sessionId,revision}` 的
   `revision` 是 join 所得 workbench 修订的十进制字符串。`launch` 为 `{state,workerGeneration,createOutcome,geometry}`：
   `state` 逐字呈现 retained phase——`creating`、`awaiting-start`、`starting`、`started`、
   `unknown`、`unavailable`——或在可见绑定没有可唯一归属且一致的记录时为 `not-tracked`；
@@ -1520,7 +1512,7 @@ tabId,terminalContextId}}]}`；JSON 行只包含身份，不含 lifecycle、proc
   `omittedRows` 诚实计为 `min(requestedRows,scrollbackRows)` 减去已发出行数——即被 `MAXIMUM_FRAME_CELLS/columns` 上限或文本预算截掉的
   行——而早于 `startRow` 的行从未被请求，不算遗漏。text 输出与 `terminal read` 一致：每个
   发出的行渲染为一行转义文本加标记。
-- `orchbee.terminal.send` → `{action:"terminal.send",requestId,siteId,workerId,terminalId,
+- `orchbee.terminal.send` → `{action:"terminal.send",requestId,sessionId,workerId,terminalId,
 payloadKind,records,recordBytes?,recordsAccepted,firstStoppedRecord,acceptedEncodedBytes,
 inputStatus,cleanupStatus,reason?,target?}`. `payloadKind` 为 text、key、bytes、paste 或 sequence；
   `records` 为提交记录总数。`recordBytes` 仅表示单条内容记录的字节数（text/bytes 可含折入的 CR），
@@ -1549,7 +1541,7 @@ inputStatus,cleanupStatus,reason?,target?}`. `payloadKind` 为 text、key、byte
   是当前 Get 样本的修订及原始 `AgentSessionDetail`。`matchedChange` 将历史匹配证据与该样本分开；它在 Windows 可空，在 Linux 为 unsupported；`wait` 回显有效的
   `{until,afterRevision,timeoutMs,observations,elapsedMs}`，`afterRevision` 始终存在，未选择修订时为 null。
 - `orchbee.api.snapshot` → `{snapshot}`：完整 `WorkbenchProtocolDocument::Snapshot` 的语义化
-  重编码，含 `kind:"workbench.snapshot"`；envelope 的 `siteId`/`revision` 与内部文档一致。
+  重编码，含 `kind:"workbench.snapshot"`；envelope 的 `sessionId`/`revision` 与内部文档一致。
 - `orchbee.api.schema` → 带参 `{schema:{schemaId,document}}`；无参
   `{schemas:{schemaId:document,…}}` 列出全部已交付字典（draft 2020-12）。
   目录保持封闭：`result.schemas` 恰好命名已注册的 id，且每个内嵌文档的 `$id`
@@ -1640,13 +1632,13 @@ endpoint:{socket},environment:{observationSocketEnv},asset:{roots:[<root>…]},h
   `state` 与恰居其一的 `path`（UTF-8）或 `pathBytesHex`（非 UTF-8）。`hints[].text` 是规范
   `en-US` 观察句——机器文档保持 locale 中立，文本输出会按 `id` 与 `evidence` 重新本地化
   同一句子。`complete:false` 标记受预算限制的部分文档；命令仍以 0 退出。
-- `orchbee.site.start` → `{outcome,scope,runtimeBase}`：`outcome` 取值 `started` 或
+- `orchbee.server.start` → `{outcome,scope,runtimeBase}`：`outcome` 取值 `started` 或
   `already-running`（本次调用实际走的分支，而非 Session 身份收据），`scope` 为
   `orchbee-native-<euid>`，`runtimeBase` 恰携带 `path`（UTF-8）或 `pathBytesHex`
   （非 UTF-8，绝非有损显示串）之一。
-- `orchbee.site.diagnose` → `{complete,scope,runtimeBase,runtimeDirectory,marker,locks,
+- `orchbee.server.diagnose` → `{complete,scope,runtimeBase,runtimeDirectory,marker,locks,
 endpoints,hostScope,advisories}`：Session 诊断一节描述的有界观察文档——封闭行状态与
-  reason、`locks:{activation,siteLifetime}`、
+  reason、`locks:{activation,sessionLifetime}`、
   `endpoints:{client,worker,clientPending,agentObservation,hostEndpoint}`、两个目录行的
   `path`/`pathBytesHex`，以及条件性 `advisories` token 清单。
 - `orchbee.cli.failure` → `{schema:"orchbee.cli.failure",version:1,failure:{kind,details?},
@@ -1703,7 +1695,7 @@ controller/viewer/resize 所有权。
 一次 discovery 与 admission、一次有界快照读取——然后在同一 5 秒 deadline 下再执行两个阶段：
 
 6. **Resolve** —— 把已验证快照纯函数式地投影为 wire action：每个 target 以查询 resolver
-   完全相同的语义解析（可能 `not-found`/`ambiguous`，此时提交零条命令），快照提供 `siteId`
+   完全相同的语义解析（可能 `not-found`/`ambiguous`，此时提交零条命令），快照提供 `sessionId`
    与 `expectedRevision`，并生成一个全新的 `WorkbenchRequestId`。
 7. **Command** —— 在已准入 session 上恰好提交一次 `workbench.command`。随后在任何结果
    映射与输出准备之前完全释放 Client Connection。
@@ -1773,12 +1765,12 @@ label 允许重复——label 无法唯一标识新 Project；收据中的 `proj
 launch-profile 失败 envelope；目录容量拒绝走通用 envelope 下的普通 command 阶段拒绝。
 
 Workspace 与组织变更使用 `schema:"orchbee.mutation.result"`、`version:1`；其他既有动作保留 v1，
-`source:{kind:"workbench-command",siteId,requestId,expectedRevision}`，`result` 携带 `action`
+`source:{kind:"workbench-command",sessionId,requestId,expectedRevision}`，`result` 携带 `action`
 （点分命令名）、`outcome`、该结果的 revision 字段、已解析 typed ID，以及命令具备时的
 `direction`/`label`/`terminal`/`catalogRevision`/`profileId`/`name`。`workspace
 close-resume` 是唯一的来源例外：保留 lifecycle 的 resume 没有 `workbench.command`，故其
 `resumed` 收据与提交后失败报告 `source.kind="workspace-close-resume"`——resume 请求自身的
-回显，带 `siteId`、`requestId`、`closeRequestId` 与 `expectedAttemptGeneration`。
+回显，带 `sessionId`、`requestId`、`closeRequestId` 与 `expectedAttemptGeneration`。
 文本输出按与查询相同的转义规则逐行渲染同样字段。
 `project rename` 是唯一例外：其收据使用专用的 `schema:"orchbee.project.rename"`、
 `version:1` 文档——`source` 仍为同一 `workbench-command` 形态，`result` 封闭于
@@ -1915,7 +1907,7 @@ disposition 交付——OS 默认终止遵循 shell 的 `128 + signal` 约定，
 | `server start` 标记或 socket 已提交但无存活属主；Server spawn 或 `try_wait` io 失败                                                 | `rejected`                                                                 | 3         | `{stage:"activation",reason:"recovery-required"}`                                             |
 | `server start` 激活 deadline 到期；取锁 `TimedOut`                                                                                  | `timeout`                                                                  | 7         | `{stage:"activation"}`                                                                        |
 | `server start` 标记/探针/锁 io 失败（非超时）                                                                                       | `internal-failure`                                                         | 1         | `{stage:"activation"}`                                                                        |
-| `server diagnose` 完整或部分事实文档——unsafe/uninspectable 行是事实而非失败                                                         | 类型化 `orchbee.site.diagnose` 文档                                        | 0         | 行 `state`/`reason` 字段                                                                      |
+| `server diagnose` 完整或部分事实文档——unsafe/uninspectable 行是事实而非失败                                                         | 类型化 `orchbee.server.diagnose` 文档                                      | 0         | 行 `state`/`reason` 字段                                                                      |
 | `server diagnose` 在 Linux/Windows 以外；网络查询、mutation、`server start`、`config check` 或 `agent doctor` 在 Linux/Windows 以外 | `service-unavailable`                                                      | 4         | `{stage:"platform",reason:"unsupported-platform"[,command]}`                                  |
 | `agent doctor` 在探测项之间捕获合格信号                                                                                             | `cancelled`                                                                | 130       | `{stage:"agent-doctor"}`——部分文档仅由预算耗尽产生                                            |
 | `terminal wait-output` 期限耗尽未命中                                                                                               | `timeout`                                                                  | 7         | `{stage:"wait",timeoutMs,observed}`                                                           |
@@ -2010,7 +2002,7 @@ deadline 到期在 wire 请求尚不存在时即退出。
   其他输出；轮询间隙滚过 Host 保留区的输出对任何消费者都不可见。
 - 没有可信来源的字段不存在；`null` 表示来源确定地表达"无"，`"unknown"` 表示来源无法回答——
   两者绝不混用。
-- 失败 envelope 绝不虚构 `source`：siteId/revision 只来自已验证快照。
+- 失败 envelope 绝不虚构 `source`：sessionId/revision 只来自已验证快照。
 - Ambiguous 绝不猜测：报告有界候选与真实总数。
 - `api schema`、help 与 completion 只枚举同一次构建中真实交付的命令。
 - `server start` 是唯一的激活面，也是唯一会创建本地运行时状态的命令：它可能创建运行时目录、
@@ -2226,7 +2218,7 @@ Host 的预期拒绝使用 `orchbee.cli.failure.process-info` v1，保留有界�
 
 托管 Windows Server 在 Workbench 提交变化后以 500ms 防抖保存，每 30 秒补存采样所得的逐终端目录，并在正常停止释放终端前执行最新 final 保存。后续已准入启动恢复布局／Launch Profile，并启动新的默认 shell。保存的终端 cwd 优先于工作区／home 默认值；保存目录不存在时回退到 Worker home。保存失败保留此前的有效存档、无效原件及运行终端，解决后可显式重试。启动会保留不可读存档并回退到较早有效副本；全部副本无效时会提示并打开空工作区。归属的[检查点契约](../../orchbee-server/docs/workbench-checkpoint.zh-CN.md)定义兼容性与恢复边界。不恢复旧进程、活跃 Agent 状态、Client 视图、终端屏幕或历史。
 
-`server stop --confirm [--request-id <32-hex>] [--retry] [--detach] [--timeout <ms>]` 停止现有托管 Windows Session，绝不激活新 Session。标识为非零小写 128 位十六进制值，省略时仅生成一次；`--retry` 必须提供标识。CLI 仅发送一次开始或重试请求，之后仅查询状态。`--detach` 立即返回已准入尝试；否则一个绝对截止时间（默认 65000 毫秒，范围 1–3600000 毫秒）覆盖运行时/cohort 准入、请求和轮询。取消或超时仅停止等待，不回滚已准入停止。每个运行时答案均保留请求标识，供 `server stop-status <id>` 查询。状态是事实文档，不是第二次变更。`orchbee.site.stop` v1 封套区分 stopped、pending、failed、busy、not-recorded、unmanaged 及 unavailable/unknown 传输结果。每个答案都包含 `wait`：没有等待状态时为 `null`，适用的 pending/传输结果则为 detached、timed-out 或 cancelled。已知 Server 失败保留尝试、阶段、原因及本次释放数量。只有准确匹配的严格已停止激活记录加上空闲的既有生命周期锁才能证明完成；端点消失、非法记录及不同标识均不能证明。后续启动消费该回执，因此未记录不能否定此前停止。Linux/macOS 返回 unsupported-platform，不产生运行时效果。
+`server stop --confirm [--request-id <32-hex>] [--retry] [--detach] [--timeout <ms>]` 停止现有托管 Windows Session，绝不激活新 Session。标识为非零小写 128 位十六进制值，省略时仅生成一次；`--retry` 必须提供标识。CLI 仅发送一次开始或重试请求，之后仅查询状态。`--detach` 立即返回已准入尝试；否则一个绝对截止时间（默认 65000 毫秒，范围 1–3600000 毫秒）覆盖运行时/cohort 准入、请求和轮询。取消或超时仅停止等待，不回滚已准入停止。每个运行时答案均保留请求标识，供 `server stop-status <id>` 查询。状态是事实文档，不是第二次变更。`orchbee.server.stop` v1 封套区分 stopped、pending、failed、busy、not-recorded、unmanaged 及 unavailable/unknown 传输结果。每个答案都包含 `wait`：没有等待状态时为 `null`，适用的 pending/传输结果则为 detached、timed-out 或 cancelled。已知 Server 失败保留尝试、阶段、原因及本次释放数量。只有准确匹配的严格已停止激活记录加上空闲的既有生命周期锁才能证明完成；端点消失、非法记录及不同标识均不能证明。后续启动消费该回执，因此未记录不能否定此前停止。Linux/macOS 返回 unsupported-platform，不产生运行时效果。
 
 ## Windows 保留 Worktree 操作
 
@@ -2330,11 +2322,11 @@ Windows `agent focus <target> [--client <id>]` 将规范 Session 或终端 Agent
 
 ## Windows 统一 Agent 投影
 
-Windows `agent list` 将规范 Server 会话和物理终端 Agent 合并为 `orchbee.agent.list` v1。`source.kind` 为 `agent-projection`；source 携带 `siteId`（32 位小写十六进制）、十进制字符串 `workbenchRevision` 和 `reportRevision`，以及安全整数 `canonicalRevision`。`result` 为 `{kind:"listed",revision,nextCursor,items,clientId}`；`nextCursor` 为 null 或 `u1` 游标。每行包含一基 `ordinal`（1–4096）、`provider`、语义 `status`（`unknown`、`idle`、`working`、`blocked`、`done`、`error`、`ended`）、身份 `source`（`canonical`、`terminal`、`both`）、既有且可为空的 canonical `AgentSessionSummary`，以及包含既有 launch binding、非空 provider、`PanelAgentState` 和十进制字符串 sequence 的可空物理终端记录。`source` 控制分面是否存在。物理行和 `both` 行始终有 `placement`，其中 Panel、Presentation、Terminal、Terminal Context 和 Tab ID 为 32 位十六进制；`workspaceId` 可为空。canonical 行也可能有 placement，表示对应终端 incarnation 当前观测为没有 Agent。`cwd` 为可空字符串。使用 `--include-ended` 时，已结束会话排在所有当前 live 行之后，因此 live 序号保持稳定；ended 行按 canonical ID 排序，并可通过精确的 `--agent-session` 检查。
+Windows `agent list` 将规范 Server 会话和物理终端 Agent 合并为 `orchbee.agent.list` v1。`source.kind` 为 `agent-projection`；source 携带 `sessionId`（32 位小写十六进制）、十进制字符串 `workbenchRevision` 和 `reportRevision`，以及安全整数 `canonicalRevision`。`result` 为 `{kind:"listed",revision,nextCursor,items,clientId}`；`nextCursor` 为 null 或 `u1` 游标。每行包含一基 `ordinal`（1–4096）、`provider`、语义 `status`（`unknown`、`idle`、`working`、`blocked`、`done`、`error`、`ended`）、身份 `source`（`canonical`、`terminal`、`both`）、既有且可为空的 canonical `AgentSessionSummary`，以及包含既有 launch binding、非空 provider、`PanelAgentState` 和十进制字符串 sequence 的可空物理终端记录。`source` 控制分面是否存在。物理行和 `both` 行始终有 `placement`，其中 Panel、Presentation、Terminal、Terminal Context 和 Tab ID 为 32 位十六进制；`workspaceId` 可为空。canonical 行也可能有 placement，表示对应终端 incarnation 当前观测为没有 Agent。`cwd` 为可空字符串。使用 `--include-ended` 时，已结束会话排在所有当前 live 行之后，因此 live 序号保持稳定；ended 行按 canonical ID 排序，并可通过精确的 `--agent-session` 检查。
 
 `clientId` 和每行的 `client` 始终存在，在 Windows 未选择 Client 时为 null；canonical 和 terminal Client 分面保持独立。Client 未读状态不会提供 Agent 语义状态。每页最多为 64 行添加可选 cwd 信息；不可用时为 null。每页 1–100 行，默认 50 行；合并输出上限为 4096 行和 8 MiB。来源准入可能更早失败：canonical 来源限制为 512 个会话／六页各 100 行，物理来源注册上限为 1024 条。因此不能据 4096 行输出上限承诺同等数量的物理来源。
 
-Windows 游标使用 `u1.<base64url>`，最多 1024 个字符。载荷为编码成 base64url 的规范 JSON。游标绑定 Site、来源修订、`includeEnded`／Client 筛选、页偏移和指纹；不保留文件。畸形游标在读取实时来源前作为无效输入拒绝。CLI 必须读取当前来源才能确定 `u1` 游标是否过期，因此只能在这些读取完成后拒绝过期的 `u1` 游标；调用方应从第一页重新开始。
+Windows 游标使用 `u1.<base64url>`，最多 1024 个字符。载荷为编码成 base64url 的规范 JSON。游标绑定 会话、来源修订、`includeEnded`／Client 筛选、页偏移和指纹；不保留文件。畸形游标在读取实时来源前作为无效输入拒绝。CLI 必须读取当前来源才能确定 `u1` 游标是否过期，因此只能在这些读取完成后拒绝过期的 `u1` 游标；调用方应从第一页重新开始。
 
 Windows `agent get` 无论是否提供 `--client` 都输出 `orchbee.agent.get` v1，并使用相同的投影 `source`。`result` 为 `{kind:"projected",agent,inspection}`。`agent` 包含投影行中的 provider、status、source、canonical／terminal 分面、placement 和 cwd，但不包含 `ordinal` 或 `client`；`inspection` 是当前既有的 canonical 或 terminal inspection。详细进程、终端元数据、管理状态和 Client 证据仍保留在各自分面 inspection 中。
 
@@ -2449,7 +2441,7 @@ provider 的实际来源、版本、路径、缓存和警告，也显示启动�
 相同类型复用已接纳 ID 只读原回执；跨类型复用失败。Reload 与 Update 共用一个活动槽，
 每个 Session 代次最多保留 1,024 条回执，不淘汰。重启结束回执范围；最近缓存报告仍保留在磁盘。
 
-`orchbee.site.agent-manifests` v1 包含 Update、维护信息、更新报告及
+`orchbee.server.agent-manifests` v1 包含 Update、维护信息、更新报告及
 效果未知回执。v1 增加自动策略门控、设置来源及最近自动操作。报告将尝试版本、缓存版本、逐 provider 失败与启用修订、失败原因分开呈现。
 文本本地化且转义。目录列出当前文档与命令路径。
 Server [已安装规则维护契约](../../orchbee-server/docs/agent-screen-model.zh-CN.md#已安装规则维护)
@@ -2488,4 +2480,4 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=01e8dee4eab5024dffff94e70f9ff63b920516da6b49cf63ef79262d38e0271f zh-cn-sha256=72cce007e028abc4085b2ecdcea4fd33b7c717ac5f2eee541420f451e3340bfb -->
+<!-- documentation-pairing: english-sha256=0610035087126f2978ded7ffba9c65be97f3bdaee4d6add69a1417bbc6b23a0d zh-cn-sha256=53b3d708083d6d44a23f23052dd1a93365df42198dd19358408e962812f78ed5 -->

@@ -18,7 +18,7 @@ import {
 } from './workbench-client-viewport-contract';
 import { AgentSessionIdSchema } from '@orchbee/agent';
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	TerminalPresentationIdSchema,
 	WORKBENCH_PROTOCOL_VERSION,
 	WorkbenchRequestIdSchema,
@@ -805,7 +805,7 @@ export const WorkbenchClientViewRequestSchema = z
 		kind: z.literal('workbench.client-view'),
 		protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 		requestId: WorkbenchRequestIdSchema,
-		siteId: SiteIdSchema,
+		sessionId: SessionIdSchema,
 		action: ClientViewActionSchema,
 	})
 	.readonly();
@@ -814,7 +814,7 @@ export const WorkbenchClientViewResultSchema = z
 		kind: z.literal('workbench.client-view.result'),
 		protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 		requestId: WorkbenchRequestIdSchema,
-		siteId: SiteIdSchema,
+		sessionId: SessionIdSchema,
 		outcome: ClientViewOutcomeSchema,
 	})
 	.superRefine(({ outcome }, context) => {

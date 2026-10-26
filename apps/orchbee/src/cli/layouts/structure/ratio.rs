@@ -49,7 +49,7 @@ pub(in crate::cli) fn submit(
         }),
     };
     let effect = json!({
-        "action":"layout.set-split-ratio","siteId":snapshot.site_id,"requestId":request_id,
+        "action":"layout.set-split-ratio","sessionId":snapshot.site_id,"requestId":request_id,
         "baseRevision":snapshot.revision,"terminalContextId":context,"tabId":tab,
         "split":split,"previousRatio":previous_ratio,"ratio":ratio,"result":outcome,
     });

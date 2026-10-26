@@ -39,7 +39,7 @@ impl Answer {
             Observation::Unknown(reason) => serde_json::json!({"kind":"unknown", "reason":reason}),
         };
         serde_json::json!({"schema":"orchbee.workspace.metadata", "version":1,
-            "requestId":self.request_id,"siteId":self.site_id,"workspaceId":self.workspace_id,
+            "requestId":self.request_id,"sessionId":self.site_id,"workspaceId":self.workspace_id,
             "observation":observation,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed})
     }
     fn exit_code(&self) -> u8 {

@@ -8,7 +8,7 @@ fn fixture() -> Snapshot {
         json!({"tabId":id(t),"label":"shell","pinned":false,"groupId":null,
             "root":{"kind":"panel","panelId":id(p),"primaryPresentation":{"customLabel":null,"presentationId":id(p+40),"label":"shell","binding":null},"childPresentations":[]}})
     };
-    serde_json::from_value(json!({"protocolVersion":1,"siteId":id(1),"revision":"2",
+    serde_json::from_value(json!({"protocolVersion":1,"sessionId":id(1),"revision":"2",
             "navigation":{ "projects":[{"projectId":id(10), "label":"Project"}], "directories":[], "workspaces":[{"workspaceId":id(2),"terminalContextId":id(2),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"},{"workspaceId":id(11), "label":"Work", "terminalContextId":id(12), "primaryDirectoryId":null, "projectId":id(10)}]},
             "terminalContexts":[{"terminalContextId":id(2),"groups":[],"tabs":[tab(3,4),tab(5,6)]},
                 {"terminalContextId":id(12),"groups":[],"tabs":[tab(13,14)]}]})).unwrap()

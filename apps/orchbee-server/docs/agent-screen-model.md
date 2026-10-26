@@ -62,7 +62,7 @@ workflow includes current-manifest queries, retained bounded reload and stabiliz
 owned real updater with atomic cache commits, truthful origin/status and cancellation/cleanup.
 
 Physical `agent explain` is a read, owned by the same detector and temporary-viewer lifecycle.
-An exact binding and current Workbench/report context are prepared under the Worker/Site fences.
+An exact binding and current Workbench/report context are prepared under the Worker/Session fences.
 The effective known provider, or the detected provider behind a custom label,
 selects the rules. A fresh frame/row/OSC capture is bracketed by stable complete process samples;
 the same binding and report context must still hold before publication. A changed context refuses
@@ -70,7 +70,7 @@ without retry. Raw rule prediction is distinct from the effective, stabilized re
 
 The process-observer thread owns at most one executing and one queued diagnostic request, together
 with its existing sole pending viewer cleanup. CLI cancellation ends the caller wait; it is not a wire cancellation request. The Server gives
-each diagnostic one four-second queue/read budget; timeout and Site shutdown stop new work, while
+each diagnostic one four-second queue/read budget; timeout and Session shutdown stop new work, while
 admitted Required exchanges still settle. Unconfirmed Detach keeps ownership and blocks
 new attachments. Queued expired work cannot attach. Diagnostics never send input, acquire control,
 change Client focus or publish a new Agent state. Periodic observations keep their existing owner.
@@ -87,20 +87,20 @@ Rule, region, bounds, priority and malformed-manifest tests exercise the engine 
 
 ## Installed manifest maintenance
 
-The Windows process observer owns the installed detector and a Site-lifetime revision starting at 1.
+The Windows process observer owns the installed detector and a Session-lifetime revision starting at 1.
 `workbench.agent-manifests` (OBWP 37/38) reads this snapshot, submits a reload identified by an
 operation ID, or reads that retained operation. Queries never reread files. Reload reads the same
 configuration parent resolved at startup. It runs between observer turns; sampling and Explain
-switch together. Under the maintenance lock and Site gate, installation clears screen stabilization
+switch together. Under the maintenance lock and Session gate, installation clears screen stabilization
 without discarding process identity or explicit reports, then publishes the new engine and revision.
 
 Reload shares one queued/running slot with Update. Up to 1,024 operation receipts are retained for
-the Site lifetime without eviction; duplicates return the existing receipt, and busy/capacity
+the Session lifetime without eviction; duplicates return the existing receipt, and busy/capacity
 refusals occur before admission. Reload transitions pending -> applied(revision) or failed(reason).
 Stopping cancels pending operations before installation. A failed load retains the prior engine.
 Read/status use read policy; Reload/Update use navigation-management policy. CLI uses one bounded budget,
 submits once, and retains the operation ID with pending/unknown results after lost acknowledgement
-or interruption. Status recovery never resubmits a mutation. Receipts end with the Site generation;
+or interruption. Status recovery never resubmits a mutation. Receipts end with the Session generation;
 this is not durable replay across Server restart. Explicit remote Update and its separate cache/activation outcomes are specified below.
 Automatic scheduling follows the configuration and ownership rules below.
 
@@ -137,7 +137,7 @@ versions intact.
 
 ## Retained production update operations
 
-Reload and Update share a single active maintenance slot and the bounded Site-lifetime receipt
+Reload and Update share a single active maintenance slot and the bounded Session-lifetime receipt
 ledger. An accepted operation ID is bound to its kind; cross-kind reuse is a conflict, and a repeated
 same-kind request reads the original receipt. Update executes on a separately owned thread. The
 observer polls only finished work, joins it, and installs its validated detector between sampling
@@ -150,7 +150,7 @@ cache paths; ordinary Current queries read the owner's retained snapshot.
 Stop closes admission, cancels network work and drains/joins the update before the observer exits.
 An executing update remains pending until its actual cache report and child cleanup settle; it is
 never installed after Stop. Worker panic yields an unknown effect receipt and disables subsequent
-Update admission for this Site. CLI Update submits once, then reads status within its single budget;
+Update admission for this Session. CLI Update submits once, then reads status within its single budget;
 late cancellation or missing confirmation preserves the ID without resubmitting the mutation.
 Native v1/v2 remain closed; automatic policy metadata uses v3. Scheduling and configuration
 ownership are specified below.
@@ -173,7 +173,7 @@ policy and detector. Disabling clears the next check; re-enabling schedules imme
 rule-maintenance reload, not a general settings or keybinding reload. An active Update owns the slot
 until settled. Current metadata exposes check/provenance, background/build gates, effective enabled
 state and the latest automatic operation; native v3 retains closed v1/v2. Automatic panic disables
-future updates for that Site; known failures retain the next interval. Stop cancels and joins the
+future updates for that Session; known failures retain the next interval. Stop cancels and joins the
 same owned worker before the observer returns. Source/cohort rollback preserves user configuration
 and cache files; older strict settings readers require removal of the newly admitted update section.
 

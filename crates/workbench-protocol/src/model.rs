@@ -232,6 +232,7 @@ pub struct Snapshot {
     pub navigation: Navigation,
     pub protocol_version: ProtocolVersion,
     pub revision: WorkbenchRevision,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub terminal_contexts: Vec<TerminalContext>,
 }
@@ -262,6 +263,7 @@ pub struct Delta {
     pub changes: Vec<DeltaChange>,
     pub protocol_version: ProtocolVersion,
     pub revision: WorkbenchRevision,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
 }
 
@@ -293,6 +295,7 @@ pub enum DeltaRejectionReason {
     DuplicateChangeTarget,
     InvalidProjection,
     NonIncreasingRevision,
+    #[serde(rename = "session-mismatch")]
     SiteMismatch,
 }
 

@@ -61,7 +61,7 @@ pub(super) fn read(stream: &mut LocalStream, panel: u64, client: Option<u64>, ca
     let request = viewer(stream);
     assert_eq!(
         json!(request.action()),
-        json!({"kind":"attach-binding", "siteId":id(2),
+        json!({"kind":"attach-binding", "sessionId":id(2),
         "workerId":"6f7263686265652d6c6f63616c2d7631", "terminalId":id(panel+if client.is_some() || case == "caller-child" {400} else {200})})
     );
     answer(

@@ -8,7 +8,7 @@ fn id(n: u64) -> String {
     format!("{n:032x}")
 }
 fn panel() -> results::PanelDoc {
-    let snapshot: Snapshot = serde_json::from_value(json!({"protocolVersion":1,"siteId":id(1),"revision":"7",
+    let snapshot: Snapshot = serde_json::from_value(json!({"protocolVersion":1,"sessionId":id(1),"revision":"7",
         "navigation":{"projects":[], "directories":[], "workspaces":[{"workspaceId":id(2),"terminalContextId":id(2),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},
         "terminalContexts":[{"terminalContextId":id(2),"groups":[],"tabs":[{"tabId":id(3),"label":"tab","pinned":false,"groupId":null,
         "root":{"kind":"panel","panelId":id(4),"primaryPresentation":{"customLabel":null,"presentationId":id(5),"label":"primary","binding":null},

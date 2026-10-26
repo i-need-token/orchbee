@@ -9,13 +9,13 @@
 		},
 		"snapshotSource": {
 			"type": "object",
-			"required": ["kind", "siteId", "revision"],
+			"required": ["kind", "sessionId", "revision"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
 					"const": "workbench-snapshot"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/id"
 				},
 				"revision": {
@@ -764,14 +764,14 @@
 								"requestId": {
 									"$ref": "#/$defs/id"
 								},
-								"siteId": {
+								"sessionId": {
 									"$ref": "#/$defs/id"
 								},
 								"workbenchRevision": {
 									"$ref": "#/$defs/revision"
 								}
 							},
-							"required": ["kind", "requestId", "siteId", "workbenchRevision"]
+							"required": ["kind", "requestId", "sessionId", "workbenchRevision"]
 						}
 					},
 					"required": ["state", "source"]
@@ -810,7 +810,7 @@
 		"metadataSource": {
 			"type": "object",
 			"properties": {
-				"siteId": {
+				"sessionId": {
 					"type": "string",
 					"pattern": "^[0-9a-f]{32}$",
 					"not": {
@@ -842,7 +842,7 @@
 					}
 				}
 			},
-			"required": ["siteId", "workbenchRevision", "metadataRevision", "requestIds"],
+			"required": ["sessionId", "workbenchRevision", "metadataRevision", "requestIds"],
 			"additionalProperties": false
 		},
 		"unsupported": {

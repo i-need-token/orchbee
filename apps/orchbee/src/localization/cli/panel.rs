@@ -21,7 +21,7 @@ pub(super) const HELP_PANEL_LIST_EN: crate::localization::HelpDetails =
 pub(super) const HELP_PANEL_LIST_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee panel list [--tab <t> | --workspace <t>] [--client <id>] [--format text|json]",
-        "列出 Panel，或仅列 --tab 所选 Tab 或 --workspace 所选 Workspace（精确 ID、选择器或 label）内的。Panel 无\nlabel；Presentation 的 label 不是 Panel 名。\n\nWindows --client <id> 附加指定 TUI 的选择与焦点；Workspace 结果包含记忆的活动 Tab。不猜测 Client，查询不导航。读取总超时为 5000 毫秒。\nWindows 结果包含关联的存活 Agent 会话及汇总状态。使用 --client 区分空闲已读和完成待查看；无法确认已读状态时返回 null。\nWindows 还观察主终端标题、目录和进程事实。不可用观察会明确标记；查询不控制或调整终端大小。",
+        "列出面板，或仅列 --tab 所选标签页或 --workspace 所选工作区（精确 ID、选择器或 label）内的。面板无\nlabel；Presentation 的 label 不是面板名。\n\nWindows --client <id> 附加指定 TUI 的选择与焦点；工作区结果包含记忆的活动标签页。不猜测客户端，查询不导航。读取总超时为 5000 毫秒。\nWindows 结果包含关联的存活智能体会话及汇总状态。使用 --client 区分空闲已读和完成待查看；无法确认已读状态时返回 null。\nWindows 还观察主终端标题、目录和进程事实。不可用观察会明确标记；查询不控制或调整终端大小。",
     );
 
 pub(super) const HELP_PANEL_GET_EN: crate::localization::HelpDetails =
@@ -33,7 +33,7 @@ pub(super) const HELP_PANEL_GET_EN: crate::localization::HelpDetails =
 pub(super) const HELP_PANEL_GET_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee panel get <panel> [--client <id>] [--format text|json]",
-        "按完整类型化 ID 或 @panel:0x<hex> 显示一个 Panel：所属 Tab、上下文、slot 路径及其主与子 Presentation。\n\nWindows --client <id> 附加指定 TUI 的选择与焦点；Workspace 结果包含记忆的活动 Tab。不猜测 Client，查询不导航。读取总超时为 5000 毫秒。\nWindows 结果包含关联的存活 Agent 会话及汇总状态。使用 --client 区分空闲已读和完成待查看；无法确认已读状态时返回 null。\nWindows 还观察主终端标题、目录和进程事实。不可用观察会明确标记；查询不控制或调整终端大小。",
+        "按完整类型化 ID 或 @panel:0x<hex> 显示一个面板：所属标签页、上下文、slot 路径及其主与子 Presentation。\n\nWindows --client <id> 附加指定 TUI 的选择与焦点；工作区结果包含记忆的活动标签页。不猜测客户端，查询不导航。读取总超时为 5000 毫秒。\nWindows 结果包含关联的存活智能体会话及汇总状态。使用 --client 区分空闲已读和完成待查看；无法确认已读状态时返回 null。\nWindows 还观察主终端标题、目录和进程事实。不可用观察会明确标记；查询不控制或调整终端大小。",
     );
 
 pub(super) const HELP_PANEL_SPLIT_EN: crate::localization::HelpDetails =
@@ -45,7 +45,7 @@ pub(super) const HELP_PANEL_SPLIT_EN: crate::localization::HelpDetails =
 pub(super) const HELP_PANEL_SPLIT_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee panel split [<panel> | --current] --direction <left|right|up|down> [--label <label>] [--cols <n> --rows <n> --cell-width <px> --cell-height <px>] [--profile <s> | --exec <path|name> [--arg <v>]...] [--cwd <abs|follow|home|current|workspace>] [--env NAME=VALUE]... [--right-click orchbee|panel] [--ratio <number>] [--focus | --no-focus] [--client <id>] [--timeout <ms>] [--format text|json]",
-        "分裂一个 Panel，在所选侧创建相邻 Panel。四个几何 flag 为全有或全无组：全部省略时请求 80x24 逻辑网格且单元像素为未知 (0,0)——这是请求策略而非实测显示事实；提供其中任何一个就必须提供全部四个。结果携带已提交修订、新的 panel、split、slot、presentation ID 及终端拉起结果。'--exec' 接受绝对路径或在最终 CLI 的 PATH 中解析程序名，每个 '--arg' 逐字追加一个参数；两者均省略时启动默认 shell。'--profile' 改为按精确 ID 或唯一匹配的名称选择已存储的启动配置，由 Server 解析——不能与 '--exec'\n或 '--arg' 组合。\nWindows --cwd 默认为 follow：采样已解析来源 Panel 的根进程目录。绝对路径直接覆盖；\nhome/current 使用 CLI 的主目录／当前目录；workspace 保留 Server Workspace／Worker 主目录默认值。明确缺失 cwd 时保留默认值；读取失败则在创建前停止。显式无界面 Tab 上下文不会为查目录选择 Client。其他平台仍只使用绝对路径。\n'--env NAME=VALUE' 可重复使用，覆盖继承的变量；值逐字保留，允许空值。这些选项也可配合 '--profile' 或默认 shell 使用。名称只允许 ASCII 字母、数字和下划线，1..128 字节且不能以数字开头；拒绝忽略大小写后重复的名称、\nORCHBEE_*、TERM、COLORTERM 和 TERM_PROGRAM。至多 32 项，名称和值合计不超过 1,024 UTF-8 字节，不能含 NUL。目录不可用时启动失败。\n\nWindows：省略目标时使用经校验的调用者上下文，或唯一 current Client 的选择。无效调用者信息不回退；显式 --client 忽略调用者环境。未命名 Tab 显示当前从一开始的位置序号；--label 固定名称，包括数字名称。分屏标签默认为创建前 Panel 数加一。默认不聚焦；--focus 在创建后等待原 Client 聚焦新 Panel。显式目标且无需 Client 操作时可无 TUI 运行。总超时默认 30000ms（1..3600000）。orchbee.creation.result v1 记录目录策略／来源／路径，并保留已创建身份及后续步骤结果；后续失败不会撤销创建，勿盲目重试。 --ratio 是第一子节点的份额，有限数值限制到 0.1..0.9；跨窗口共享并保存在重启存档中，不隐含聚焦。 --right-click 随创建原子设置新 Panel 的策略（默认 orchbee）；panel 允许无修饰键的右键在启用鼠标上报的终端内容内透传。",
+        "分裂一个面板，在所选侧创建相邻面板。四个几何 flag 为全有或全无组：全部省略时请求 80x24 逻辑网格且单元像素为未知 (0,0)——这是请求策略而非实测显示事实；提供其中任何一个就必须提供全部四个。结果携带已提交修订、新的 panel、split、slot、presentation ID 及终端拉起结果。'--exec' 接受绝对路径或在最终 CLI 的 PATH 中解析程序名，每个 '--arg' 逐字追加一个参数；两者均省略时启动默认 shell。'--profile' 改为按精确 ID 或唯一匹配的名称选择已存储的启动配置，由 Server 解析——不能与 '--exec'\n或 '--arg' 组合。\nWindows --cwd 默认为 follow：采样已解析来源面板的根进程目录。绝对路径直接覆盖；\nhome/current 使用 CLI 的主目录／当前目录；workspace 保留 Server 工作区／Worker 主目录默认值。明确缺失 cwd 时保留默认值；读取失败则在创建前停止。显式无界面标签页上下文不会为查目录选择客户端。其他平台仍只使用绝对路径。\n'--env NAME=VALUE' 可重复使用，覆盖继承的变量；值逐字保留，允许空值。这些选项也可配合 '--profile' 或默认 shell 使用。名称只允许 ASCII 字母、数字和下划线，1..128 字节且不能以数字开头；拒绝忽略大小写后重复的名称、\nORCHBEE_*、TERM、COLORTERM 和 TERM_PROGRAM。至多 32 项，名称和值合计不超过 1,024 UTF-8 字节，不能含 NUL。目录不可用时启动失败。\n\nWindows：省略目标时使用经校验的调用者上下文，或唯一 current 客户端的选择。无效调用者信息不回退；显式 --client 忽略调用者环境。未命名标签页显示当前从一开始的位置序号；--label 固定名称，包括数字名称。分屏标签默认为创建前面板数加一。默认不聚焦；--focus 在创建后等待原客户端聚焦新面板。显式目标且无需客户端操作时可无 TUI 运行。总超时默认 30000ms（1..3600000）。orchbee.creation.result v1 记录目录策略／来源／路径，并保留已创建身份及后续步骤结果；后续失败不会撤销创建，勿盲目重试。 --ratio 是第一子节点的份额，有限数值限制到 0.1..0.9；跨窗口共享并保存在重启存档中，不隐含聚焦。 --right-click 随创建原子设置新面板的策略（默认 orchbee）；panel 允许无修饰键的右键在启用鼠标上报的终端内容内透传。",
     );
 
 pub(super) const HELP_PANEL_CLOSE_EN: crate::localization::HelpDetails =
@@ -57,7 +57,7 @@ pub(super) const HELP_PANEL_CLOSE_EN: crate::localization::HelpDetails =
 pub(super) const HELP_PANEL_CLOSE_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee panel close <panel> --confirm [--format text|json]",
-        "关闭一个由完整类型化 ID 或 @panel:0x<hex> 选择的 Panel。'--confirm' 为必填。accepted\n结果携带已接受修订与关闭请求 ID；会话异步完成关闭。",
+        "关闭一个由完整类型化 ID 或 @panel:0x<hex> 选择的面板。'--confirm' 为必填。accepted\n结果携带已接受修订与关闭请求 ID；会话异步完成关闭。",
     );
 
 #[cfg(not(windows))]
@@ -83,7 +83,7 @@ pub(super) const HELP_PANEL_CURRENT_EN: crate::localization::HelpDetails =
 pub(super) const HELP_PANEL_CURRENT_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee panel current [<panel>] [--current|--client <client-id>] [--format text|json]",
-        "从运行中的 Windows 会话读取 Panel、Tab 和 Workspace。显式 Panel ID 或 @panel:0x<hex> 忽略调用者环境，无需 TUI。否则校验 ORCHBEE_TERMINAL_ID 与 ORCHBEE_WORKER_ID；两个变量均缺失时，使用唯一 current TUI Client，多个 Client 必须用 --client 指定。--client 忽略调用者环境，不能与 --panel 同用。部分缺失、无效或过期的调用者信息绝不回退。\nClient 必须处于就绪或忙碌状态，且所选 Panel 仍有效。补齐主 Agent 状态、终端标题/cwd 和进程观察。选定 Client 时包含焦点和滚动信息；读取中途变化则拒绝。总期限五秒；Ctrl+C 取消。不改变焦点，不激活会话。",
+        "从运行中的 Windows 会话读取面板、标签页和工作区。显式面板 ID 或 @panel:0x<hex> 忽略调用者环境，无需 TUI。否则校验 ORCHBEE_TERMINAL_ID 与 ORCHBEE_WORKER_ID；两个变量均缺失时，使用唯一 current TUI 客户端，多个客户端必须用 --client 指定。--client 忽略调用者环境，不能与 --panel 同用。部分缺失、无效或过期的调用者信息绝不回退。\nClient 必须处于就绪或忙碌状态，且所选面板仍有效。补齐主智能体状态、终端标题/cwd 和进程观察。选定客户端时包含焦点和滚动信息；读取中途变化则拒绝。总期限五秒；Ctrl+C 取消。不改变焦点，不激活会话。",
     );
 
 pub(super) const HELP_PANEL_PROCESS_INFO_EN: crate::localization::HelpDetails =
@@ -95,7 +95,7 @@ pub(super) const HELP_PANEL_PROCESS_INFO_EN: crate::localization::HelpDetails =
 pub(super) const HELP_PANEL_PROCESS_INFO_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee panel process-info [<panel> | --current] [--client <id>] [--format text|json]",
-        "读取主 Terminal 的 Windows Job 进程信息，接受完整 Panel ID 或 @panel:0x<hex>。显式 Panel 选择器互斥，也不能与 --client 同用。否则使用经校验的调用者上下文；仅当两个调用者变量均缺失时，选择唯一 current TUI Client。--client 指定 Client\n并忽略调用者环境。部分缺失、无效或过期的调用者信息绝不回退。Client 必须已就绪且所选 Panel 仍有效。样本列出归属进程的 PID、创建时间、映像、命令行和 cwd；不可用的可选字段为 null。总期限五秒；Ctrl+C 取消。不改变焦点或输入。",
+        "读取主 Terminal 的 Windows Job 进程信息，接受完整面板 ID 或 @panel:0x<hex>。显式面板选择器互斥，也不能与 --client 同用。否则使用经校验的调用者上下文；仅当两个调用者变量均缺失时，选择唯一 current TUI 客户端。--client 指定客户端\n并忽略调用者环境。部分缺失、无效或过期的调用者信息绝不回退。客户端必须已就绪且所选面板仍有效。样本列出归属进程的 PID、创建时间、映像、命令行和 cwd；不可用的可选字段为 null。总期限五秒；Ctrl+C 取消。不改变焦点或输入。",
     );
 
 pub(super) const HELP_PANEL_SWAP_EN: crate::localization::HelpDetails =
@@ -107,7 +107,7 @@ pub(super) const HELP_PANEL_SWAP_EN: crate::localization::HelpDetails =
 pub(super) const HELP_PANEL_SWAP_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee panel swap [<panel>] (--with <target> | --direction left|right|up|down) [--current] [--client <id>] [--timeout <ms>] [--format text|json]",
-        "显式来源及 --with 且省略 --client 时，无头交换共享位置，不执行聚焦阶段（orchbee.panel.swap v1）。其他模式需要 Ready Client，并保留既有聚焦流程。 交换同一 Tab 中两个完整 Panel 的位置，再在所选 Windows TUI 聚焦来源。来源选择器互斥；省略时使用有效调用者上下文或所选 Client。目标为精确 ID 或 @panel:0x<hex>。多个 Client 时须明确选择。\n\n同一 Panel、跨 Tab 或没有邻居不改变布局和焦点。位置提交先于聚焦确认；后续失败保留提交回执，绝不自动重试交换。总超时默认 30000 ms（1..3600000）。不支持 --detach 或 --request-id。",
+        "显式来源及 --with 且省略 --client 时，无头交换共享位置，不执行聚焦阶段（orchbee.panel.swap v1）。其他模式需要 Ready 客户端，并保留既有聚焦流程。 交换同一标签页中两个完整面板的位置，再在所选 Windows TUI 聚焦来源。来源选择器互斥；省略时使用有效调用者上下文或所选客户端。目标为精确 ID 或 @panel:0x<hex>。多个客户端时须明确选择。\n\n同一面板、跨标签页或没有邻居不改变布局和焦点。位置提交先于聚焦确认；后续失败保留提交回执，绝不自动重试交换。总超时默认 30000 ms（1..3600000）。不支持 --detach 或 --request-id。",
     );
 
 pub(super) const HELP_PANEL_INPUT_EN: crate::localization::HelpDetails =
@@ -119,7 +119,7 @@ pub(super) const HELP_PANEL_INPUT_EN: crate::localization::HelpDetails =
 pub(super) const HELP_PANEL_INPUT_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee panel input (<panel> | --current) --right-click orchbee|panel [--format text|json]",
-        "Windows：设置共享 Panel 右键策略，不改变焦点。--current 校验调用者\nTerminal/Worker 上下文；显式目标绕过该上下文。orchbee 将右键保留给\nClient；panel 允许无修饰键的右键在启用鼠标上报的终端内容中透传。现有控制权及就绪约束仍适用，策略改变作用于下一个手势。\nconfigured 或 unchanged 确认规范状态，不确认所有 Client 已绘制。未知结果不会自动重试。",
+        "Windows：设置共享面板右键策略，不改变焦点。--current 校验调用者\nTerminal/Worker 上下文；显式目标绕过该上下文。orchbee 将右键保留给\nClient；panel 允许无修饰键的右键在启用鼠标上报的终端内容中透传。现有控制权及就绪约束仍适用，策略改变作用于下一个手势。\nconfigured 或 unchanged 确认规范状态，不确认所有客户端已绘制。未知结果不会自动重试。",
     );
 
 #[cfg(windows)]

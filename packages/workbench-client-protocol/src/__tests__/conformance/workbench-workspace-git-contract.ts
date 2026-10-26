@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	WorkbenchRequestIdSchema,
 	WorkbenchWorkspaceIdSchema,
 	WorkbenchRevisionSchema,
@@ -15,7 +15,7 @@ const GitDivergenceSchema = z
 const identity = {
 	protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 	requestId: WorkbenchRequestIdSchema,
-	siteId: SiteIdSchema,
+	sessionId: SessionIdSchema,
 	workspaceId: WorkbenchWorkspaceIdSchema,
 };
 export const WorkspaceGitRequestSchema = z

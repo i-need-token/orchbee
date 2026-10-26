@@ -33,7 +33,7 @@ impl fmt::Display for ProjectionAdvanceError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Contract(error) => error.fmt(formatter),
-            Self::SiteMismatch => formatter.write_str("Workbench projection Site mismatch"),
+            Self::SiteMismatch => formatter.write_str("Workbench projection Session mismatch"),
             Self::NonIncreasingRevision => {
                 formatter.write_str("Workbench projection revision must increase")
             }

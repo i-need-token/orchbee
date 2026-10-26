@@ -75,7 +75,7 @@ pub(in crate::cli) fn read(
             }
             Ok(TerminalAgentRead {
                 report_revision,
-                source: serde_json::json!({"siteId":snapshot.site_id,"workbenchRevision":workbench_revision,"reportRevision":report_revision,"requestId":id}),
+                source: serde_json::json!({"sessionId":snapshot.site_id,"workbenchRevision":workbench_revision,"reportRevision":report_revision,"requestId":id}),
                 observation,
             })
         }

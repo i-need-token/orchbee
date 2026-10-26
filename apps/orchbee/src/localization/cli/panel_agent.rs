@@ -100,7 +100,7 @@ impl Locale {
             (Self::EnUs, true) => "Matched rule preserves the previous state",
             (Self::ZhCn, true) => "匹配规则要求保留先前状态",
             (Self::EnUs, false) => "No matching rule: known Agent defaults to idle",
-            (Self::ZhCn, false) => "没有匹配规则，已知 Agent 默认空闲",
+            (Self::ZhCn, false) => "没有匹配规则，已知智能体默认空闲",
         }
     }
     pub(crate) const fn cli_reported_agent_fields(self) -> [&'static str; 4] {
@@ -111,7 +111,7 @@ impl Locale {
                 "Authority source",
                 "Report message",
             ],
-            Self::ZhCn => ["上报 Agent", "上报状态", "权威来源", "上报消息"],
+            Self::ZhCn => ["上报智能体", "上报状态", "权威来源", "上报消息"],
         }
     }
     pub(crate) fn cli_panel_agent(
@@ -146,7 +146,7 @@ impl Locale {
             },
             Some(Outcome::Failed { reason }) => match (self, reason) {
                 (Self::EnUs, Failure::InvalidRequest) => "Invalid Agent report request",
-                (Self::ZhCn, Failure::InvalidRequest) => "Agent 上报请求无效",
+                (Self::ZhCn, Failure::InvalidRequest) => "智能体上报请求无效",
                 (Self::EnUs, Failure::SiteMismatch) => "Session identity changed",
                 (Self::ZhCn, Failure::SiteMismatch) => "会话身份已改变",
                 (Self::EnUs, Failure::Unbound) => "Target member has no bound terminal",
@@ -154,23 +154,23 @@ impl Locale {
                 (Self::EnUs, Failure::BindingChanged) => "Target terminal binding changed",
                 (Self::ZhCn, Failure::BindingChanged) => "目标终端绑定已改变",
                 (Self::EnUs, Failure::NotFound) => "Panel or requested member is unavailable",
-                (Self::ZhCn, Failure::NotFound) => "Panel 或请求成员已不可用",
+                (Self::ZhCn, Failure::NotFound) => "面板或请求成员已不可用",
                 (Self::EnUs, Failure::Denied) => "Agent report reporting denied",
-                (Self::ZhCn, Failure::Denied) => "Agent 上报上报被拒绝",
+                (Self::ZhCn, Failure::Denied) => "智能体上报上报被拒绝",
                 (Self::EnUs, Failure::Unavailable) => "Agent report service unavailable",
-                (Self::ZhCn, Failure::Unavailable) => "Agent 上报服务不可用",
+                (Self::ZhCn, Failure::Unavailable) => "智能体上报服务不可用",
                 (Self::EnUs, Failure::HistoryLimit) => "Agent session history limit reached",
-                (Self::ZhCn, Failure::HistoryLimit) => "Agent 会话历史已达上限",
+                (Self::ZhCn, Failure::HistoryLimit) => "智能体会话历史已达上限",
                 (Self::EnUs, Failure::SourceLimit) => "Sequence source limit reached",
                 (Self::ZhCn, Failure::SourceLimit) => "序号来源数量已达上限",
                 (Self::EnUs, Failure::ResourceLimit) => "Agent report capacity reached",
-                (Self::ZhCn, Failure::ResourceLimit) => "Agent 上报容量已达上限",
+                (Self::ZhCn, Failure::ResourceLimit) => "智能体上报容量已达上限",
                 (Self::EnUs, Failure::RevisionExhausted) => "Agent report revision exhausted",
-                (Self::ZhCn, Failure::RevisionExhausted) => "Agent 上报修订号已耗尽",
+                (Self::ZhCn, Failure::RevisionExhausted) => "智能体上报修订号已耗尽",
                 (Self::EnUs, Failure::ClockOverflow) => "Observation clock cannot be represented",
                 (Self::ZhCn, Failure::ClockOverflow) => "无法表示观察时钟",
                 (Self::EnUs, Failure::ResultTooLarge) => "Agent report response exceeds its limit",
-                (Self::ZhCn, Failure::ResultTooLarge) => "Agent 上报应答超出上限",
+                (Self::ZhCn, Failure::ResultTooLarge) => "智能体上报应答超出上限",
             },
             _ => match self {
                 Self::EnUs => "Report outcome unknown; do not retry automatically",
@@ -200,7 +200,7 @@ pub(super) const PANELREPORTAGENT_EN: crate::localization::HelpDetails =
 pub(super) const PANELREPORTAGENT_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee panel report-agent <panel> [--presentation <id>] --source <id> --agent <label> --state idle|working|blocked|done|error|unknown [--message <text>] [--seq <n>] [--format text|json]",
-        "上报显式 Agent 状态及可选消息。所有来源均按自定义来源处理，不授予 provider 身份。使用精确 Panel ID 或 @panel:0x<hex>。--presentation 指定该 Panel 内精确的主项或子项 Presentation；省略则使用主项。序号接受无符号 64 位十进制输入。report/release 的来源修剪空白后必须非空；clear 原样保留可选来源。未知 Agent 标签和消息不截断，完整请求须不超过 16 KiB。仅连接已有会话，总期限 5 秒，校验终端绑定，不改变焦点或自动重试。已应用和已忽略回执退出 0；提交后结果未知退出 8，并保留请求 ID。上报不证明进程存活，也不创建规范 Agent 会话。Panel get/list/current 与 Agent get 展示 reportedAgent，并使用实际上下文应用元数据守卫。",
+        "上报显式智能体状态及可选消息。所有来源均按自定义来源处理，不授予 provider 身份。使用精确面板 ID 或 @panel:0x<hex>。--presentation 指定该面板内精确的主项或子项 Presentation；省略则使用主项。序号接受无符号 64 位十进制输入。report/release 的来源修剪空白后必须非空；clear 原样保留可选来源。未知智能体标签和消息不截断，完整请求须不超过 16 KiB。仅连接已有会话，总期限 5 秒，校验终端绑定，不改变焦点或自动重试。已应用和已忽略回执退出 0；提交后结果未知退出 8，并保留请求 ID。上报不证明进程存活，也不创建规范智能体会话。面板 get/list/current 与智能体 get 展示 reportedAgent，并使用实际上下文应用元数据守卫。",
     );
 
 pub(super) const PANELCLEARAGENTAUTHORITY_EN: crate::localization::HelpDetails =
@@ -211,7 +211,7 @@ pub(super) const PANELCLEARAGENTAUTHORITY_EN: crate::localization::HelpDetails =
 pub(super) const PANELCLEARAGENTAUTHORITY_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee panel clear-agent-authority <panel> [--presentation <id>] [--source <id>] [--seq <n>] [--format text|json]",
-        "仅清除当前匹配的上报权威。省略 source 时匹配当前权威；显式空 source 只匹配空来源。使用精确 Panel ID 或 @panel:0x<hex>。--presentation 指定该 Panel 内精确的主项或子项 Presentation；省略则使用主项。序号接受无符号 64 位十进制输入。report/release 的来源修剪空白后必须非空；clear 原样保留可选来源。未知 Agent 标签和消息不截断，完整请求须不超过 16 KiB。仅连接已有会话，总期限 5 秒，校验终端绑定，不改变焦点或自动重试。已应用和已忽略回执退出 0；提交后结果未知退出 8，并保留请求 ID。上报不证明进程存活，也不创建规范 Agent 会话。Panel get/list/current 与 Agent get 展示 reportedAgent，并使用实际上下文应用元数据守卫。",
+        "仅清除当前匹配的上报权威。省略 source 时匹配当前权威；显式空 source 只匹配空来源。使用精确面板 ID 或 @panel:0x<hex>。--presentation 指定该面板内精确的主项或子项 Presentation；省略则使用主项。序号接受无符号 64 位十进制输入。report/release 的来源修剪空白后必须非空；clear 原样保留可选来源。未知智能体标签和消息不截断，完整请求须不超过 16 KiB。仅连接已有会话，总期限 5 秒，校验终端绑定，不改变焦点或自动重试。已应用和已忽略回执退出 0；提交后结果未知退出 8，并保留请求 ID。上报不证明进程存活，也不创建规范智能体会话。面板 get/list/current 与智能体 get 展示 reportedAgent，并使用实际上下文应用元数据守卫。",
     );
 
 pub(super) const PANELRELEASEAGENT_EN: crate::localization::HelpDetails =
@@ -222,5 +222,5 @@ pub(super) const PANELRELEASEAGENT_EN: crate::localization::HelpDetails =
 pub(super) const PANELRELEASEAGENT_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee panel release-agent <panel> [--presentation <id>] --source <id> --agent <label> [--seq <n>] [--format text|json]",
-        "释放自定义来源的 Agent 上报，不结束独立观察到的进程。使用精确 Panel ID 或 @panel:0x<hex>。--presentation 指定该 Panel 内精确的主项或子项 Presentation；省略则使用主项。序号接受无符号 64 位十进制输入。report/release 的来源修剪空白后必须非空；clear 原样保留可选来源。未知 Agent 标签和消息不截断，完整请求须不超过 16 KiB。仅连接已有会话，总期限 5 秒，校验终端绑定，不改变焦点或自动重试。已应用和已忽略回执退出 0；提交后结果未知退出 8，并保留请求 ID。上报不证明进程存活，也不创建规范 Agent 会话。Panel get/list/current 与 Agent get 展示 reportedAgent，并使用实际上下文应用元数据守卫。",
+        "释放自定义来源的智能体上报，不结束独立观察到的进程。使用精确面板 ID 或 @panel:0x<hex>。--presentation 指定该面板内精确的主项或子项 Presentation；省略则使用主项。序号接受无符号 64 位十进制输入。report/release 的来源修剪空白后必须非空；clear 原样保留可选来源。未知智能体标签和消息不截断，完整请求须不超过 16 KiB。仅连接已有会话，总期限 5 秒，校验终端绑定，不改变焦点或自动重试。已应用和已忽略回执退出 0；提交后结果未知退出 8，并保留请求 ID。上报不证明进程存活，也不创建规范智能体会话。面板 get/list/current 与智能体 get 展示 reportedAgent，并使用实际上下文应用元数据守卫。",
     );

@@ -127,11 +127,11 @@ impl Locale {
             (Self::EnUs, true) => {
                 "Use 1–512 characters. The shared Project label changes for all Clients."
             }
-            (Self::ZhCn, true) => "请输入 1–512 个字符。共享项目的名称会对所有 Client 更改。",
+            (Self::ZhCn, true) => "请输入 1–512 个字符。共享项目的名称会对所有客户端更改。",
             (Self::EnUs, false) => {
                 "Use 1–512 characters. The shared Workspace label changes for all Clients."
             }
-            (Self::ZhCn, false) => "请输入 1–512 个字符。共享工作区的名称会对所有 Client 更改。",
+            (Self::ZhCn, false) => "请输入 1–512 个字符。共享工作区的名称会对所有客户端更改。",
         }
     }
 }

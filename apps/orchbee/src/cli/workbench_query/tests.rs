@@ -55,7 +55,7 @@ fn snapshot() -> Snapshot {
     let panel = |p| json!({"kind":"panel","panelId":id(p),"primaryPresentation":{"customLabel":null,"presentationId":id(p+1),"label":"中文\u{1b}[31m","binding":null},"childPresentations":[]});
     let tab =
         |t, p| json!({"tabId":id(t),"label":"shell","pinned":false,"groupId":null,"root":panel(p)});
-    serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":"12",
+    serde_json::from_value(json!({"protocolVersion":1,"sessionId":id(2),"revision":"12",
         "navigation":{"projects":[{"projectId":id(20), "label":"project"}], "directories":[{"directoryId":id(23),"workerId":id(24),"path":"C:\\work"}], "workspaces":[{"workspaceId":id(4),"terminalContextId":id(4),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"},{"workspaceId":id(21), "label":"work", "primaryDirectoryId":id(23), "terminalContextId":id(9), "projectId":id(20)}, {"workspaceId":id(22), "label":"empty", "primaryDirectoryId":id(23), "terminalContextId":id(19), "projectId":id(20)}]},
         "terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":[tab(5,6)]},{"terminalContextId":id(9),"groups":[],"tabs":[tab(10,11),tab(13,14)]},{"terminalContextId":id(19),"groups":[],"tabs":[]}]})).unwrap()
 }

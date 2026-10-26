@@ -21,7 +21,7 @@ fn exact_report_receipts_correlate_every_target_dimension_and_reject_legacy_cros
         let request = find("exact-member-report-presentation");
         let mut response = find("exact-member-presentation-reported");
         response["requestId"] = request["requestId"].clone();
-        response["siteId"] = request["siteId"].clone();
+        response["sessionId"] = request["sessionId"].clone();
         let answers = |request: &Value, response: &Value| {
             let request = parse_workbench_request(&serde_json::to_vec(request).unwrap()).unwrap();
             let response =

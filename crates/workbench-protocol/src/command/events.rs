@@ -478,6 +478,7 @@ impl SemanticEventsAction {
 pub struct SemanticEventsRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub action: SemanticEventsAction,
 }
@@ -512,6 +513,7 @@ pub enum SemanticEventsFailure {
     Denied,
     InvalidIntent,
     InvalidRegex,
+    #[serde(rename = "session-mismatch")]
     SiteMismatch,
     Unavailable,
     Busy,
@@ -577,6 +579,7 @@ pub enum SemanticEventsOutcome {
 pub struct SemanticEventsResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub outcome: SemanticEventsOutcome,
 }

@@ -94,7 +94,7 @@ remain pending; parser and model evidence do not establish working Close effects
 
 ## Projection
 
-A `workbench.snapshot` is a complete authorized product projection for one Site revision. It
+A `workbench.snapshot` is a complete authorized product projection for one Session revision. It
 contains:
 
 - ordered Projects, global Directories and independent Workspaces with nullable Project membership;
@@ -121,7 +121,7 @@ environment and OS error text never enter it. It is runtime-only: rebinding or c
 removes it, and Clients show the failure instead of attaching.
 
 Project, Directory, Workspace, and Terminal Context arrays use ascending identity order. Directory
-identities are unique across the Site projection, and a non-null Workspace reference resolves in
+identities are unique across the Session projection, and a non-null Workspace reference resolves in
 the global Directory pool. Tab groups and Tabs
 retain their explicit product order. Pinned Tabs form one leading ungrouped prefix, and every Tab
 group's members are contiguous. Every referenced context exists exactly once and every context is
@@ -141,8 +141,7 @@ display order never changes ownership, Directory references or terminal bindings
 preserve the corresponding subsequence. Client-local selected identities remain Client-owned.
 
 The native ordering authority appends newly created Workspaces to an explicit order and removes
-closed identities. Version-6 private checkpoints require a complete explicit order; migrations from
-versions 1–5 preserve their original Project-major traversal when no order was recorded. All
+closed identities. Version-1 private checkpoints require a complete explicit order. All
 participants use one compatible cohort; incompatible strict decoders must never discard fields as
 a repair.
 
@@ -152,15 +151,15 @@ a repair.
 document union still admits only this intent, snapshots and deltas. Workbench command request/result
 envelopes are a separate additive contract; neither contract defines command-line grammar.
 
-A `workbench.delta` names one exact Site, base revision, greater result revision, and an unordered
+A `workbench.delta` names one exact Session, base revision, greater result revision, and an unordered
 atomic set of aggregate changes. A change may replace complete navigation, upsert one complete
 Terminal Context, or remove one complete Terminal Context. At most one navigation replacement and
 one change for each Terminal Context identity are allowed. An empty change set may advance the
-projection revision when authorized Site facts changed outside this projection.
+projection revision when authorized Session facts changed outside this projection.
 
 `applyWorkbenchDelta` performs these steps without side effects:
 
-1. reject a Site mismatch, base-revision mismatch, or non-increasing result revision;
+1. reject a Session mismatch, base-revision mismatch, or non-increasing result revision;
 2. reject duplicate navigation or Terminal Context targets;
 3. stage every aggregate replacement and sort Terminal Contexts by identity;
 4. validate the complete candidate snapshot; and
@@ -176,7 +175,7 @@ requests and results. [`v1/workbench-command-conformance-v1.json`](v1/workbench-
 is their shared Rust/TypeScript oracle; raw duplicate-key cases additionally exercise the Rust wire
 parser. TypeScript validates decoded values; its transport must reject duplicate keys before decoding.
 
-`workbench.command` carries protocolVersion, requestId, siteId, expectedRevision and one action:
+`workbench.command` carries protocolVersion, requestId, sessionId, expectedRevision and one action:
 project.create, project.rename, workspace.create, workspace.rename,
 workspace.primary-directory.accept, tab.rename, tab.create, panel.split, tab.move, tabs.configure, tab.close,
 panel.close or panel.move. Labels retain exact text,
@@ -241,9 +240,9 @@ preserved. The Client supplies no Directory or Worker identity. A successful
 `directoryId`, and selected `workerId`.
 
 The projection represents the atomic result by appending one ordered
-`Directory { directoryId, workerId, path }` to the Site pool and selecting it through the Workspace's
-required nullable `primaryDirectoryId`. The Site pool is bounded independently of Project membership.
-Directory identities are unique across the Site projection; a Workspace reference must resolve in
+`Directory { directoryId, workerId, path }` to the Session pool and selecting it through the Workspace's
+required nullable `primaryDirectoryId`. The Session pool is bounded independently of Project membership.
+Directory identities are unique across the Session projection; a Workspace reference must resolve in
 that pool. Missing required nullable fields, dangling references, duplicate or
 unordered Directory identities, invalid paths, unknown fields, and collection overflow are invalid.
 
@@ -278,7 +277,7 @@ does not change the projection or either label.
 | Field                   | Contract                                                                                                                                                                                                                                                               |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Problem and scope       | Independently implemented boundaries need one canonical semantic rename that cannot change terminal identity or presentation provenance. This record admits the unpublished wire meaning; the Server authority owns authorization, replay, capacity, and commit.       |
-| Inputs and trust        | Untrusted bounded JSON carrying exact Site, request identity, expected revision, Terminal Context, Tab, and label. Decoded values have no authority before validation and Server admission.                                                                            |
+| Inputs and trust        | Untrusted bounded JSON carrying exact Session, request identity, expected revision, Terminal Context, Tab, and label. Decoded values have no authority before validation and Server admission.                                                                         |
 | Data and ownership      | The schema owns closed fields and `tab-unavailable`; the Server owns the canonical projection, revision, and ledger. The target `Tab.label` is the only mutable product fact.                                                                                          |
 | Outputs and decisions   | `renamed`, `unchanged`, or an existing typed denied/rejected/unavailable result. Context resolution precedes Tab resolution; no result supplies a new identity or terminal outcome.                                                                                    |
 | Model and transitions   | One synchronous pure projection transition or no-op. Exact replay uses the retained fingerprint/result revision. Pending create settlement is independent and cannot rewrite the projection.                                                                           |
@@ -377,7 +376,7 @@ revision advance. No new product/terminal identity or terminal/viewer effect is 
 
 Existing `TabUnavailable` / `tab-unavailable` identifies an absent target only after the exact Workspace context and complete supported layout pass. Workspace Move requires neither a Directory nor a live Worker. Unsupported schema-valid
 native layout is internal divergence, not a product rejection. Full validated command equality,
-including Site, expected revision, context, Tab and direction, is the replay fingerprint.
+including Session, expected revision, context, Tab and direction, is the replay fingerprint.
 Retained exact replay returns the fixed original result/revision; same-ID changed content conflicts.
 [Server precedence and commit](../../apps/orchbee-server/docs/workbench-authority.md#accepted-canonical-tab-move-model)
 own authorization, retirement, capacity and publication. The strict corpus covers each direction
@@ -550,7 +549,7 @@ belongs to the Server/native CLI tests; the TLA asset is not executed in this pa
 
 ## Automatic Tab naming
 
-The [Tab label contract](../../apps/orchbee/docs/native-tab-labels.md) owns optional `automaticLabel` metadata. New Tabs without a supplied label use their current context position; explicit numeric names and legacy Tabs remain fixed. CLI queries, label selectors and TUI display agree after move or close, and rename chooses a fixed name. Native `api snapshot` v4 exposes canonical metadata; catalog v34 contains 68 schemas. Shared protocol consumers require a matching cohort.
+The [Tab label contract](../../apps/orchbee/docs/native-tab-labels.md) owns optional `automaticLabel` metadata. New Tabs without a supplied label use their current context position; explicit numeric names and legacy Tabs remain fixed. CLI queries, label selectors and TUI display agree after move or close, and rename chooses a fixed name. The current version-1 `api snapshot` exposes canonical metadata; the offline API catalog lists its schema. Shared protocol consumers require a matching cohort.
 
 Client-owned Agent attention reads name 1–100 unique canonical Agent session IDs. `agent-attention` submissions and `attention-read` completions use kind 29 with a 64 KiB pre-allocation limit; responses remain kind 26. Entries preserve request order, nullable missing-session state, observation generation/sequence, semantic-change revision and seen, together with a boot-authenticatable changes cursor and nullable host focus. Workbench binds the lightweight Agent protocol DTOs without owning Agent state. The [Client attention owner](../../apps/orchbee/docs/native-client-attention.md) defines read availability, unchanged acknowledgement, bounded receipt storage and CLI cursor authentication.
 
@@ -605,7 +604,7 @@ Active rule provenance extends physical Explain with an optional `manifest` obje
 (`bundled`, `local-override`, `remote-cache`), required nullable actual path/cached version,
 shadowing and bounded typed warnings. Missing metadata preserves the earlier shape; explicit null
 is rejected. Remote source/version and warning source uniqueness are checked by both bindings.
-The CLI emits v3 when metadata is present while preserving the closed v1/v2 envelopes.
+The CLI carries this metadata in its sole version-1 envelope.
 
 Compact physical `states` reads accept 0–64 unique presentation IDs and return rows in request order,
 with Workbench/report revisions and a required nullable full binding/sequence/Agent/state snapshot.
@@ -623,7 +622,7 @@ owns explicit acknowledgement and rejection after identity loss.
 
 `workbench.agent-manifests` / `.result` use OBWP 37/38 and a 512 KiB result bound. Strict Rust,
 TypeScript and JSON contracts cover installed snapshots and pending/applied/failed reload receipts.
-Current and operation queries are read-only; reload uses an explicit Site-lifetime operation ID.
+Current and operation queries are read-only; reload uses an explicit Session-lifetime operation ID.
 The shared `workbench-agent-manifests-conformance-v1.json` corpus covers accepted and refused
 shapes, nullable fields, numeric versions, sources, revisions and duplicates. Semantic byte/version
 and cross-field checks supplement JSON Schema. These DTOs describe actual installed state and do
@@ -672,45 +671,45 @@ command frame can carry the larger template. The Server owns atomic allocation a
 physical member creation remains a separate retained command. This private contract alone does
 not establish the public CLI export/apply roundtrip.
 
-## Site configuration publication
+## Session configuration publication
 
-`workbench.configuration` (OBWP kind 39) carries `current` or `reload`; `workbench.configuration.result` (kind 40) carries a closed current/reloaded/failed outcome. Each frame is capped at 256 KiB. The [configuration schema](v1/workbench-configuration.schema.json) owns the closed structural shape and code-point ceilings; the shared corpus checks structural and UTF-8 semantic boundaries, while the independent Rust/TypeScript bindings additionally enforce the stated UTF-8 byte limits. Snapshot revision 0 denotes the startup baseline; positive revisions denote explicit publications. Every successful snapshot includes a required, closed `diagnostics` record with at most 128 entries in strict ascending `(field, reason)` order by Unicode scalar value and no duplicate pair; `omittedCount` is 0–65536. Each nonempty field is control-free and at most 256 UTF-8 bytes, each reason is a lowercase ASCII kebab token of at most 64 bytes, and disposition is one of `defaulted`, `disabled` or `ignored`. The canonical keys-only profile is capped at 64 KiB, restart requirements are unique, and optional failure diagnostics are required nullable paired values (128 UTF-8 bytes, no controls, only for load failure). Request and Site identities must match; a successful result must match the requested action.
+`workbench.configuration` (OBWP kind 39) carries `current` or `reload`; `workbench.configuration.result` (kind 40) carries a closed current/reloaded/failed outcome. Each frame is capped at 256 KiB. The [configuration schema](v1/workbench-configuration.schema.json) owns the closed structural shape and code-point ceilings; the shared corpus checks structural and UTF-8 semantic boundaries, while the independent Rust/TypeScript bindings additionally enforce the stated UTF-8 byte limits. Snapshot revision 0 denotes the startup baseline; positive revisions denote explicit publications. Every successful snapshot includes a required, closed `diagnostics` record with at most 128 entries in strict ascending `(field, reason)` order by Unicode scalar value and no duplicate pair; `omittedCount` is 0–65536. Each nonempty field is control-free and at most 256 UTF-8 bytes, each reason is a lowercase ASCII kebab token of at most 64 bytes, and disposition is one of `defaulted`, `disabled` or `ignored`. The canonical keys-only profile is capped at 64 KiB, restart requirements are unique, and optional failure diagnostics are required nullable paired values (128 UTF-8 bytes, no controls, only for load failure). Request and Session identities must match; a successful result must match the requested action.
 
 The [Windows configuration owner](../../apps/orchbee/docs/windows-cli-configuration.md#live-configuration-reload) owns authorization, frozen path, candidate validation, publication, Client installation and shutdown. A publication is not an acknowledgement from every Client. Lost submitted reload replies remain unknown and are not retried automatically. No Desktop command is added; matched private cohorts roll out together without a persisted migration.
 
-Required `defaultShell` and `shellMode` expose admitted defaults for subsequent terminal preparation, not resolved Worker facts. The executable is empty for platform default or a control-free literal of at most 4096 UTF-8 bytes; mode is `auto`, `login` or `non_login`. Matched private cohorts change together. Public CLI configuration v2 projects these fields while its historical v1 schema remains closed.
+Required `defaultShell` and `shellMode` expose admitted defaults for subsequent terminal preparation, not resolved Worker facts. The executable is empty for platform default or a control-free literal of at most 4096 UTF-8 bytes; mode is `auto`, `login` or `non_login`. Matched private cohorts change together. The sole version-1 public CLI configuration document projects these fields.
 
 ## Transient Client notifications
 
 `workbench.notification` (OBWP kind 41) carries show/listen; `workbench.notification.result` (kind 42) carries show/listening/failed. Frames retain the 16 KiB intent bound. The [notification schema](v1/workbench-notification.schema.json) and shared corpus bind Rust and TypeScript to closed shapes, required nullable body/pending values, four corner positions and none/done/request sound. Normalized title/body contain at most 80/240 Unicode scalar values, collapsed ASCII spaces and no controls. Correlation matches both identities and the requested action; shown is true exactly for the shown reason.
 
-The [Windows notification owner](../../apps/orchbee/docs/windows-notifications.md) defines authorization, connection-owned bounded inboxes, expiry, replay and UI handoff. This is ephemeral, matched-cohort transport, with no persistence migration or Desktop command. Public `orchbee.notification.show` v2 preserves v1 and exposes submission facts, including null replies after uncertain submission; it does not promise display acknowledgement.
+The [Windows notification owner](../../apps/orchbee/docs/windows-notifications.md) defines authorization, connection-owned bounded inboxes, expiry, replay and UI handoff. This is ephemeral, matched-cohort transport, with no persistence migration or Desktop command. The sole version-1 public `orchbee.notification.show` document exposes submission facts, including null replies after uncertain submission; it does not promise display acknowledgement.
 
 ## Outer Client title publications
 
-`workbench.window-title` (OBWP 43) carries set/clear/listen; `workbench.window-title.result` (44) carries published/listening/failed under the 16 KiB intent bound. The [closed schema](v1/workbench-window-title.schema.json) and shared corpus bind Rust and TypeScript: a required nullable title, positive decimal u64 revision, control-free 200-scalar trimmed title, and reason/changed/title consistency. Request/reply identity, Site and action must match.
+`workbench.window-title` (OBWP 43) carries set/clear/listen; `workbench.window-title.result` (44) carries published/listening/failed under the 16 KiB intent bound. The [closed schema](v1/workbench-window-title.schema.json) and shared corpus bind Rust and TypeScript: a required nullable title, positive decimal u64 revision, control-free 200-scalar trimmed title, and reason/changed/title consistency. Request/reply identity, Session and action must match.
 
 [Windows title ownership](../../apps/orchbee/docs/windows-terminal-title.md) defines bounded replay, connection focus routing and restoration. The public `orchbee.terminal.title` v1 receipt distinguishes publication from physical display. This private cohort addition does not change persisted documents.
 
 ## Window title template inputs
 
-The matched-cohort `workbench.window-title` listen action requires `context` with workspace/tab/pane/terminalTitle, each a control-free string of at most 200 Unicode scalars (empty allowed). Only foreground rendering consumes these display values; they never confer selection authority. `ConfigurationSnapshot.windowTitle` is a required raw string bounded to 4096 UTF-8 bytes, allowing empty and malformed templates for the documented advisory policy. Rust/TypeScript bindings enforce byte/scalar bounds; schema and corpus keep field presence and closed shapes. Public configuration receipts advance to v3, checks to v7, configuration failures to v4 and catalog to v107; previous versions stay closed.
+The matched-cohort `workbench.window-title` listen action requires `context` with workspace/tab/pane/terminalTitle, each a control-free string of at most 200 Unicode scalars (empty allowed). Only foreground rendering consumes these display values; they never confer selection authority. `ConfigurationSnapshot.windowTitle` is a required raw string bounded to 4096 UTF-8 bytes, allowing empty and malformed templates for the documented advisory policy. Rust/TypeScript bindings enforce byte/scalar bounds; schema and corpus keep field presence and closed shapes. Public configuration, check, failure and API catalog documents use their sole version-1 contracts.
 
 ## Custom-notification policy projection
 
-The matched private notification message requires nullable `position`: null delegates to the receiving Client policy. Show outcomes add `disabled` for the Server-off/no-Client case; a connected Client may independently suppress visual display. Configuration snapshots require a nonempty `notificationProfile` bounded to 16 KiB of UTF-8; the Client admits only a valid canonical toast policy together with valid keys. Public notification receipts advance to v2, Site configuration to v4, checks to v8, configuration failures to v5 and catalog to v108. Prior public versions remain closed. Existing native Windows [notification ownership](../../apps/orchbee/docs/windows-notifications.md) governs effects and shutdown.
+The matched private notification message requires nullable `position`: null delegates to the receiving Client policy. Show outcomes add `disabled` for the Server-off/no-Client case; a connected Client may independently suppress visual display. Configuration snapshots require a nonempty `notificationProfile` bounded to 16 KiB of UTF-8; the Client admits only a valid canonical toast policy together with valid keys. Public notification, Session configuration, check, failure and catalog documents use version 1. Existing native Windows [notification ownership](../../apps/orchbee/docs/windows-notifications.md) governs effects and shutdown.
 
 The command launch-options schema admits a bounded `pluginPane` selector only on `tab.create` and `panel.split`, excluding explicit launch/profile fields. Rust and TypeScript share selector and conflict cases in the command conformance corpus. This is a matched-cohort extension; it does not add a new wire kind or admit child/Workspace plugin launches.
 
 Plugin PaneGet/PaneFound reuse OBWP kinds 45/46 with closed membership facts and no new mutation permission. Rust additionally correlates the response Panel with its request; Pane selectors share the launch-option identifier rules.
 
-Agent sidebar publication adds required nonempty `agentSidebarProfile`, capped at 32 KiB of UTF-8. It is a closed canonical JSON profile admitted by the Windows settings owner; transport bindings enforce the string and frame budget, while Client installation validates its token/layout/rule semantics. Keys, notifications and sidebar install atomically; malformed sidebar profiles retain all previous Client settings. Matched cohorts update together. Public `config check` v10, configuration failure v7 and Site configuration receipt v5 keep older versions closed; catalog v122 retains 105 schemas and 141 command paths.
+Agent sidebar publication adds required nonempty `agentSidebarProfile`, capped at 32 KiB of UTF-8. It is a closed canonical JSON profile admitted by the Windows settings owner; transport bindings enforce the string and frame budget, while Client installation validates its token/layout/rule semantics. Keys, notifications and sidebar install atomically; malformed sidebar profiles retain all previous Client settings. Matched cohorts update together. Public configuration check, failure, Session configuration and catalog documents use version 1.
 
 Physical title reads extend the closed Panel Agent contract with `titles`, at most
 four exact physical bindings and one ordered observation per binding. Observations
 are unavailable or observed with positive metadata revision and required nullable
 title, capped at 64 KiB of UTF-8. Rust and TypeScript enforce unique presentation
-IDs and byte bounds in addition to JSON Schema. The Site fences retained physical
+IDs and byte bounds in addition to JSON Schema. The Session fences retained physical
 identity before and after its Worker read. Titles do not alter report revision,
 Agent sequence, source filters or Client seen state; no public CLI output version
 changes. Matching private cohorts update together. Shared conformance cases cover
@@ -732,12 +731,11 @@ defines canonical directory/Worker fences, Git lifecycle and visible consumption
 Workspace sidebar publication adds required nonempty `spacesSidebarProfile`, capped
 at 32 KiB independently of `agentSidebarProfile`. The configuration frame is 256 KiB
 including JSON escaping; Clients validate all four profiles before installing any.
-Public config check v11, configuration failure v8 and Site configuration receipt
-v6 preserve all older closed variants. Catalog v123 retains 105 schemas/141 paths.
+Public configuration check, failure, Session configuration and catalog documents use version 1.
 
 ## Configured command wire contract
 
-[Configured commands](v1/workbench-configured-command.schema.json) close the native installed-command catalog, invoke and private independent-popup lifecycle. Native CLI `orchbee.command` embeds the same nested receipts; its Client popup follow-up uses control v11. IDs identify the normalized installed configuration and do not authorize caller-provided executable text. Required nullable source and selection fields distinguish global shell/plugin actions from current presentation-bound invocation; selected plugin text is captured from the exact terminal revision. Rust and TypeScript check ID/source/context correlation, row span, shared byte bounds and nested receipt identity in addition to JSON shape checks. [The native model](../../apps/orchbee/docs/windows-custom-commands.md) owns execution, uncertain effects, process retention and cleanup.
+[Configured commands](v1/workbench-configured-command.schema.json) close the native installed-command catalog, invoke and private independent-popup lifecycle. Native CLI `orchbee.command` embeds the same nested receipts; its Client popup follow-up uses the version-1 control contract. IDs identify the normalized installed configuration and do not authorize caller-provided executable text. Required nullable source and selection fields distinguish global shell/plugin actions from current presentation-bound invocation; selected plugin text is captured from the exact terminal revision. Rust and TypeScript check ID/source/context correlation, row span, shared byte bounds and nested receipt identity in addition to JSON shape checks. [The native model](../../apps/orchbee/docs/windows-custom-commands.md) owns execution, uncertain effects, process retention and cleanup.
 
 Nested Pane rejections retain the complete canonical command rejection vocabulary, including
 `confirmation-required`; both this schema and the embedded CLI receipt keep that same closed enum.
@@ -755,9 +753,7 @@ the named selection before installing any field; duplicate, stale or malformed
 snapshots retain the installed palette. Theme-only changes use the existing complete
 settings publication revision. The [native theme owner](../../apps/orchbee/docs/native-themes.md)
 defines startup projection, color capabilities, full-frame application and rollback.
-This matched-cohort wire addition does not migrate checkpoints. Public Site configuration
-v9 and Windows config check v14 preserve all previous closed versions; catalog v142
-retains the existing schema and command inventory.
+This matched-cohort wire addition does not migrate checkpoints. Public Session configuration, configuration check and catalog documents use version 1.
 
 ## Native Settings wire contract
 

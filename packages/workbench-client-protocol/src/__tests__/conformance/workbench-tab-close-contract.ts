@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	WORKBENCH_PROTOCOL_VERSION,
 	WorkbenchRequestIdSchema,
 	WorkbenchRevisionSchema,
@@ -91,7 +91,7 @@ const correlation = {
 	requestId: WorkbenchRequestIdSchema,
 };
 const target = {
-	siteId: SiteIdSchema,
+	sessionId: SessionIdSchema,
 	terminalContextId: WorkbenchTerminalContextIdSchema,
 	tabId: WorkbenchTabIdSchema,
 };

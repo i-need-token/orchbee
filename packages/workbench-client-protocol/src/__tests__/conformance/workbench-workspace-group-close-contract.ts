@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	WORKBENCH_PROTOCOL_VERSION,
 	WorkbenchRequestIdSchema,
 	WorkbenchProjectIdSchema,
@@ -38,7 +38,7 @@ export const WorkbenchWorkspaceGroupCloseRequestSchema = z
 		kind: z.literal('workbench.workspace-group-close'),
 		protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 		requestId: WorkbenchRequestIdSchema,
-		siteId: SiteIdSchema,
+		sessionId: SessionIdSchema,
 		action: WorkspaceGroupCloseActionSchema,
 	})
 	.readonly();
@@ -68,7 +68,7 @@ const WorkspaceGroupCloseFailureSchema = z.enum([
 	'child-blocked',
 	'outcome-unknown',
 	'deadline',
-	'site-stopping',
+	'session-stopping',
 	'internal',
 ]);
 const WorkspaceGroupCloseStatusSchema = z.discriminatedUnion('kind', [

@@ -12,7 +12,7 @@ impl LocalTerminalService {
     pub(crate) fn bind_agent_names(&self, agents: &Arc<AgentService>) -> io::Result<()> {
         self.coordinator
             .lock()
-            .map_err(|_| io::Error::other("Site coordinator unavailable"))?
+            .map_err(|_| io::Error::other("Session coordinator unavailable"))?
             .bind_agent_names(agents)
     }
     pub(crate) fn execute_agent_names(

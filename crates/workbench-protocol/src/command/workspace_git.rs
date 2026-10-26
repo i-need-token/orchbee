@@ -16,6 +16,7 @@ pub struct GitDivergence {
 pub struct WorkspaceGitRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub workspace_id: WorkbenchWorkspaceId,
 }
@@ -53,6 +54,7 @@ pub enum WorkspaceGitOutcome {
 pub struct WorkspaceGitResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub workspace_id: WorkbenchWorkspaceId,
     pub outcome: WorkspaceGitOutcome,

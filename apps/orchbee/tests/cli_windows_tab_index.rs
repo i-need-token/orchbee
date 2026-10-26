@@ -23,7 +23,7 @@ fn snapshot_reply(stream: &mut LocalStream) {
                 "binding":{"terminalId":format!("{:032x}",20 + i),"workerId":"6f7263686265652d6c6f63616c2d7631"}},
             "childPresentations":[]}
     })).collect();
-    let document = json!({"kind":"workbench.snapshot","protocolVersion":1,"siteId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","revision":"9",
+    let document = json!({"kind":"workbench.snapshot","protocolVersion":1,"sessionId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","revision":"9",
         "navigation":{ "projects":[], "directories":[], "workspaces":[{"workspaceId":CONTEXT,"terminalContextId":CONTEXT,"projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},
         "terminalContexts":[{"terminalContextId":CONTEXT,"groups":[],"tabs":tabs}]});
     let snapshot = parse_snapshot(&serde_json::to_vec(&document).unwrap()).unwrap();

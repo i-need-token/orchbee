@@ -13,11 +13,11 @@
 
 ## 产品方向
 
-Orchbee Site 是由一个活跃 Server 权威拥有的产品状态与协调边界，可以服务多台机器和多个 Client
-实例。仅安装 Client 的机器连接已有 Site，不会因此创建另一个 Site 或成为 Worker。产品最终必须支持：
+Orchbee 会话 是由一个活跃 Server 权威拥有的产品状态与协调边界，可以服务多台机器和多个 Client
+实例。仅安装 Client 的机器连接已有 会话，不会因此创建另一个 会话 或成为 Worker。产品最终必须支持：
 
 - Desktop、Browser、TUI、手机与 CLI 客户端只能观察或控制其获得授权的产品 session；
-- 性能相对较弱的工作电脑只作为远程站点的产品客户端；
+- 性能相对较弱的工作电脑只作为远程会话的产品客户端；
 - 另一台已登记的电脑提供有类型的算力或设备 capability；
 - 协调电脑在协调其他 node 的同时提供本地 capability。
 
@@ -33,13 +33,13 @@ Orchbee Site 是由一个活跃 Server 权威拥有的产品状态与协调边�
 
 | 用户场景                     | 可观察的验收结果                                                                                                              | 边界                                                                           |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| 用弱电脑访问主力机           | 已鉴权 Client 打开所选 Site 已有的 Workbench 与保留终端，收到真实输出，并可请求控制权；本机不需要 Worker 或源码 Checkout。    | 属于连接客户端的产品结果；生产网络身份与传输仍需各自已接受的切片。             |
+| 用弱电脑访问主力机           | 已鉴权 Client 打开所选 会话 已有的 Workbench 与保留终端，收到真实输出，并可请求控制权；本机不需要 Worker 或源码 Checkout。    | 属于连接客户端的产品结果；生产网络身份与传输仍需各自已接受的切片。             |
 | 在多个 Client 打开同一份工作 | Client 看到同一份已授权共享结构与相同终端身份，同时保留独立焦点和视口；多个观察者不会创建另一个终端或另一个输入与尺寸控制者。 | 本机终端证据先覆盖同级 TUI Session；Web/Desktop 迁移验证跨 Client 共享的结果。 |
 | 关闭 Client 或丢失连接       | Host 健康时，保留的执行继续运行；后续已授权连接回到同一个终端；不重放结果未知的输入。                                         | Client／传输连续性不承诺 Host 故障或操作系统重启后的恢复。                     |
-| 不打开 Electron 窗口也能运行 | 本机 Site 与保留终端的生命周期独立于任意 Desktop 或 TUI Client。                                                              | 属于已接受的本机原生方向；仅进程握手成功不足以证明这一点。                     |
+| 不打开 Electron 窗口也能运行 | 本机 会话 与保留终端的生命周期独立于任意 Desktop 或 TUI Client。                                                              | 属于已接受的本机原生方向；仅进程握手成功不足以证明这一点。                     |
 | 让另一台机器贡献能力         | 单独登记的 Worker 执行一种明确准入的工作，准入、结果、失败与撤销行为均可观察。                                                | 属于后续分布式能力纵向链路；仅完成登记不足以证明有效调度。                     |
 
-远程查看与控制需要所选 Site 的 Server 及执行 Worker，不需要远程 Worker 登记、自动放置、
+远程查看与控制需要所选 会话 的 Server 及执行 Worker，不需要远程 Worker 登记、自动放置、
 源码同步或通用 Agent 调度器。共享 Project 身份也不意味着文件已在另一 Worker 上可用，
 或活跃终端可以在机器间迁移。
 
@@ -47,7 +47,7 @@ Orchbee Site 是由一个活跃 Server 权威拥有的产品状态与协调边�
 
 最初接受的工程里程碑是
 [本机终端纵向链路](native-runtime-topology.zh-CN.md#已接受的本机终端纵向里程碑)：裸 `orchbee` 通过 Client、Server、Worker、
-Host 到达真实的保留 shell；第二次调用加入同一 Site；输出、输入、尺寸调整、断开与重新连接
+Host 到达真实的保留 shell；第二次调用加入同一 会话；输出、输入、尺寸调整、断开与重新连接
 通过这条路径工作。进程、故障与性能证据必须覆盖组合后的运行时。模型、编解码器、握手和
 尚待接线的 UI 模块是支撑证据，不等于这个用户结果已经完成。
 
@@ -77,7 +77,7 @@ attachment 切换消费这棵共享树；远程路由、持久化恢复及完整
 其中，对无法匹配的保留 Host inventory 返回 `RecoveryRequired` 是开发阶段边界，不是生产连续性
 体验。公开切换仍须满足原生拓扑中规定的恢复、迁移、打包与性能要求。
 
-建议后续先验证一个人通过远程 Web 或 Desktop Client 使用一个 Site 及其本地 Worker，
+建议后续先验证一个人通过远程 Web 或 Desktop Client 使用一个 会话 及其本地 Worker，
 在增加已登记远程 Worker 或调度之前验证连接工作台的产品价值。首个远程 Client、支持的网络与
 身份契约，以及它相对其他迁移的顺序，仍属于产品决策；这个建议不会接受这些契约，
 也不会扩大当前本机里程碑。
@@ -88,7 +88,7 @@ attachment 切换消费这棵共享树；远程路由、持久化恢复及完整
 
 | 角色   | Authority                                                                                                                                                         |
 | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Client | 渲染一个已授权产品 projection、提交语义 command，并拥有客户端本地 view 与平台 effect；不拥有站点级 durable 产品 state                                             |
+| Client | 渲染一个已授权产品 projection、提交语义 command，并拥有客户端本地 view 与平台 effect；不拥有会话级 durable 产品 state                                             |
 | Server | 拥有 canonical Workbench state、已授权语义 command 的提交、Agent 编排、Worker registry、capability placement 与 durable recovery                                  |
 | Worker | 只拥有已安装的 node-local capability 与 effect；terminal 基线拥有 launch admission 与 Host brokering，而 Files、Checkout、Git 与 Agent effect 都是可选 capability |
 
@@ -184,13 +184,13 @@ Orchbee 支持两个互补的连接族：
 
 | 连接族                | 职责                                                                                                                                        |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| 原生站点              | HTTPS 建立已鉴权的人类或设备 session；WSS 通过 role-specific contract 传输版本化 control、event、progress 与有界 binary projection message  |
+| 原生会话              | HTTPS 建立已鉴权的人类或设备 session；WSS 通过 role-specific contract 传输版本化 control、event、progress 与有界 binary projection message  |
 | SSH bootstrap/adapter | 连接未受 Orchbee 管理的机器、验证其 host identity、Bootstrap 或修复 Orchbee runtime，并可以在一个明确有界的阶段通过 tunnel 承载原生协议流量 |
 
 这个连接族描述的是产品 capability，并不承诺保留当前 SSH Environment Runtime 或协议。若现有
 产品路径已显式下线，已经接受的退役可以有意先于替代 adapter。
 
-原生站点连接是已鉴权 Client 与已登记 Worker 的长期主路径。已接受 Connect-via-SSH path 继续作为
+原生会话连接是已鉴权 Client 与已登记 Worker 的长期主路径。已接受 Connect-via-SSH path 继续作为
 首次使用、兼容、管理与 temporary-connection path；它不是 Workbench、Agent、调度或 state
 synchronization protocol。已登记 Worker 通常使用非 Cookie device credential 主动连接 Server；
 SSH-attached temporary Worker 是 connection-scoped，绝不隐式提升为 enrollment。
@@ -215,11 +215,11 @@ path、QUIC/WebTransport adapter、relay service 与 Internet ingress 仍是保�
 当前原生行为由 [Server 应用指南](../../apps/orchbee-server/README.md) 维护。旧 Node preview 指南已退役；未来 external-client 行为在已接受实现拥有契约前仍由本提案管辖。
 
 可信局域网 HTTP 预览仍是生产加密传输方向之外、必须明确启用并展示风险提示的例外。
-它不证明生产 Internet 部署或独立于 Desktop 的 Site 生命周期。单独启动 Server entry 不会启用共享。
+它不证明生产 Internet 部署或独立于 Desktop 的 会话 生命周期。单独启动 Server entry 不会启用共享。
 
 ## 人类用户的 Web 访问方向
 
-网络暴露默认关闭。用户启用共享后，已接受的站点入口才在明确的 interface 与端口上开始监听；可分发的入口是
+网络暴露默认关闭。用户启用共享后，已接受的会话入口才在明确的 interface 与端口上开始监听；可分发的入口是
 类似 `https://192.0.2.1:8443/` 的短 origin，后面只跟普通产品路由。credential、bootstrap token 与
 session capability 绝不能出现在被分享的 query string 或 fragment 中。
 
@@ -235,7 +235,7 @@ session capability 绝不能出现在被分享的 query string 或 fragment 中�
 或 durable 产品 session 的生命周期 owner。SSH、WebSocket 或底层网络失败会让受影响 attachment 进入明确
 的 disconnected、reconnecting 与 recovering lifecycle；它不会请求删除、取消或终止进程。
 
-重连会建立一条新的已鉴权 transport，并对账稳定的 site、Client Session、Node Session、Workbench
+重连会建立一条新的已鉴权 transport，并对账稳定的 session、Client Session、Node Session、Workbench
 revision、terminal inventory、Agent execution 与 event sequence identity。当增量恢复不安全或不可用时，
 authority 返回有界的缺失 event 范围或一份新 snapshot。安全的语义 command 使用 owner-defined operation
 identity 与 idempotency rule。Terminal input 或其他 admission outcome 未知的 effect 绝不能自动重放。
@@ -260,10 +260,10 @@ Transport 丢失、远程 runtime 失败与远程机器重启是不同的失败�
 | 区域                    | 已接受方向                                                                                                                                                                                                                                                                                                                                                                               |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Client 与 terminal use  | 每次 TUI invocation 都是共享 Workbench document 上的独立 peer Client View。Display attachment 是 transient 的，多个 Client 可以查看一个 retained terminal。一个 combined input-and-resize controller 由 Server fencing；显式 request、disconnect grace 与二次确认 forced take 定义 transfer，不做 automatic promotion 或 collaborative input。                                           |
-| 可选 capability         | 私有 Rust Agent Bridge 通过 Worker 向 Server-owned Agent semantics 提供有界 local observation；managed Worktree Git effect 与 Archive content 保持 Worker-local；Server 拥有其 canonical reference/metadata 与 revisioned Launch Profile catalog；每个 Client 各自渲染 projection。Terminal-only Site 不需要这些 capability。                                                            |
+| 可选 capability         | 私有 Rust Agent Bridge 通过 Worker 向 Server-owned Agent semantics 提供有界 local observation；managed Worktree Git effect 与 Archive content 保持 Worker-local；Server 拥有其 canonical reference/metadata 与 revisioned Launch Profile catalog；每个 Client 各自渲染 projection。Terminal-only 会话 不需要这些 capability。                                                            |
 | 通过 SSH 连接           | 目标中删除 generic Environment。Server 拥有 `SshTarget`/`SshConnection` intent，所选 local Worker 使用 system OpenSSH、本机 host verification/credential 与 ephemeral AskPass 启动 connection-scoped temporary remote Worker/Host。它不同于 enrolled Worker，首批从 local TUI/Desktop 创建；只有 migration evidence 完成后才替换旧 SSH Runtime/protocol。                                |
 | Terminal path           | Server relay 是首条和 fallback route。只有实测需要才可以在 short Server-minted、绑定 identity/generation 的 capability 下启用 local native TUI/Desktop Client-to-Worker route。Browser/mobile 保持 relay，任何 Client 不直连 Host，Server 保留 control authority，fallback 不 replay unknown input。                                                                                     |
-| Local Site lifecycle    | 默认 lazy activation。显式 `orchbee site enable` 可以安装 same-cohort per-user LaunchAgent/systemd-user Server 与 Worker unit；Host 保持 lazy，不增加 root daemon 或 supervisor。Restart 保留 retained Host terminal；stop 报告它们，不等同 terminate-all。Signed side-by-side cohort 原子更新，绝不替换 live Host。                                                                     |
+| Local 会话 lifecycle    | 默认 lazy activation。显式 `orchbee session enable` 可以安装 same-cohort per-user LaunchAgent/systemd-user Server 与 Worker unit；Host 保持 lazy，不增加 root daemon 或 supervisor。Restart 保留 retained Host terminal；stop 报告它们，不等同 terminate-all。Signed side-by-side cohort 原子更新，绝不替换 live Host。                                                                  |
 | Persistence 与 recovery | Production Server 对 canonical intent、topology、ledger、profile 与 reference 使用 transactional SQLite/WAL，而不保存 Client View、live attachment、terminal frame、PTY/scrollback、transient secret 或 raw hook。Intent 先于 effect；restart 对账 exact identity 且不 replay。Unknown Host inventory 被 quarantine，corrupt/incompatible storage 进入 read-only recovery 而不是 reset。 |
 
 这些是已接受的未来边界，并不表示已交付 Node Browser preview 或 Desktop-co-located runtime 已经具备
@@ -278,7 +278,7 @@ multi-user tenancy 与 mobile background behavior 仍未决定。
 | 职责                                          | 候选 owner                                                                                                                |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | HTTP/WebSocket 入口与 Web UI                  | 网络入口服务；拥有 TLS、Origin policy、路由 fallback、限流与 renderer 静态资源交付                                        |
-| 人类用户鉴权                                  | 站点 identity/session 服务；拥有 bootstrap token 换取、安全 Cookie session、过期、撤销与审计                              |
+| 人类用户鉴权                                  | 会话 identity/session 服务；拥有 bootstrap token 换取、安全 Cookie session、过期、撤销与审计                              |
 | 产品协调                                      | Server 应用 coordinator；拥有已授权 Workbench session、canonical state、语义提交与恢复                                    |
 | Worker placement 与可选 source-tree reference | Server product coordinator；确切 Worker identity 是原生 placement，旧 SSH Environment identity 只存在到当前路径迁移或下线 |
 | Capability node 登记                          | 设备 identity 服务；拥有配对、设备 credential、attestation 输入、轮换、撤销与在线状态                                     |
@@ -304,7 +304,7 @@ trust、state 或 lifecycle 职责。User-service installation 与 direct-path c
 | --------------- | ------------------------------------------------------------------------ |
 | 人类产品客户端  | 对选定产品资源进行已授权的读取和语义 command 操作                        |
 | Capability node | 声明已接受的 capability 版本、接收有范围的 lease、报告进度并发布有界结果 |
-| 站点管理员      | 登记和撤销设备、批准 capability、设置策略并查看安全相关审计记录          |
+| 会话管理员      | 登记和撤销设备、批准 capability、设置策略并查看安全相关审计记录          |
 
 一个设备可以通过不同 credential 和有范围的 session 同时承担多个角色。Browser Cookie 用于鉴权人类 session；
 capability node 必须使用可轮换、可撤销的非 Cookie 设备 credential。Browser token 绝不能成为 node
@@ -322,12 +322,12 @@ credential。
 - 断连、重新分配、部分结果与迟到结果的行为；
 - 授权工作并提交 durable outcome 的产品 owner。
 
-本机终端基线需要其具体启动与实时终端契约。这个清单不要求在基线完成或人类 Client 远程使用 Site
+本机终端基线需要其具体启动与实时终端契约。这个清单不要求在基线完成或人类 Client 远程使用 会话
 之前增加通用任务队列、调度器、artifact 服务或远程登记。新能力必须先明确实际工作、所需的
 节点本地数据与凭据，以及完成证据，再准入通用基础设施。已有终端保留语义绝不意味着实时迁移，
 也不意味着自动把终端输入重新分配给另一 Worker。
 
-站点 coordinator 拥有 placement policy；capability node 拥有已接受 lease 的执行。node 与网络 adapter
+会话 coordinator 拥有 placement policy；capability node 拥有已接受 lease 的执行。node 与网络 adapter
 都不能成为 Workbench shared state 的 writer。Product Action 继续是 owner-internal 语义契约。单独评审
 的 CLI 或远程 API 只能通过可序列化边界暴露明确允许 automation 的操作；它绝不能序列化 prepared
 invocation，也不能授予 registry-wide authority。
@@ -338,8 +338,8 @@ invocation，也不能授予 registry-wide authority。
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | 单台电脑             | Client、Server、本地 Worker capability 与可选 Web 入口可以共址                                                          |
 | 弱性能远程工作电脑   | Desktop、Browser、手机或 CLI Client 渲染并控制一个已授权远程 Server，而不成为 Worker                                    |
-| 当前 SSH Environment | 在迁移或下线前，当前产品 coordinator Bootstrap 并附着一个未受 Orchbee 管理的远程 Project Environment，而不虚构一个 Site |
-| 分布式站点           | 一个 Server 通过明确 identity 与 capability 协调本地 Worker 和其他已登记 Worker                                         |
+| 当前 SSH Environment | 在迁移或下线前，当前产品 coordinator Bootstrap 并附着一个未受 Orchbee 管理的远程 Project Environment，而不虚构一个 会话 |
+| 分布式会话           | 一个 Server 通过明确 identity 与 capability 协调本地 Worker 和其他已登记 Worker                                         |
 | Coordinator 暂时离线 | Client 与 node fail closed，或进入明确建模的降级模式；双方都不能凭空产生 authority                                      |
 
 LAN 发现、Internet relay、NAT 穿透、公共 DNS 与云端 rendezvous 是传输和部署选择，不是产品授权机制。
@@ -356,7 +356,7 @@ LAN 发现、Internet relay、NAT 穿透、公共 DNS 与云端 rendezvous 是�
   Worker，不要求 Project、Checkout、Worktree 或 Environment identity。具体 Checkout 解析到
   其确切 Worker；保留的 unmanaged-SSH 路径可以先解析其显式 Environment adapter。
 - 在当前契约下，Terminal Host 保持私有本地传输，绝不直接接受 Internet 或 LAN peer。
-- SSH 与原生站点连接是可替换的 transport attachment。连接丢失不表示删除 Project 或 Workspace、终止
+- SSH 与原生会话连接是可替换的 transport attachment。连接丢失不表示删除 Project 或 Workspace、终止
   retained remote work，或取消 Agent task。
 - 恢复过程对账稳定 identity 与 revision。它绝不能重放 admission outcome 未知的 Terminal input 或其他
   effect。
@@ -406,7 +406,7 @@ LAN 发现、Internet relay、NAT 穿透、公共 DNS 与云端 rendezvous 是�
 | 本机终端纵向链路                | **Linux 开发链路已接通，尚未打包发布：**裸命令校验继承 TTY、精确四产物 cohort 和私有运行时，先连接、必要时独占提交一次 Server 启动。Server 持有生命周期锁并只启动一个 Worker；Worker 仅在首个 Launch 授权通过后启动 Host。Open、viewer、controller 和首帧共用 Client 启动截止时间。真实 PTY 进程测试覆盖双 Client 冷启动、控制/只读、关闭后原 shell PID 和变量保留、失效 cohort、失败标记、锁竞争截止时间，以及 Server/Worker/Host 丢失后不启动替代进程。只支持已校验的 Linux ext4/tmpfs 开发路径与真实 cell/pixel geometry；macOS/Windows 公共启动、完整 Workbench、终端交互模式对齐、自动恢复、安装更新和发布性能预算尚未交付。握手就绪不等于终端首帧就绪；此链路不替换当前已交付入口。当前契约见 [Client](../../apps/orchbee/README.zh-CN.md) 和 [共享运行时](../../crates/local-site-runtime/README.zh-CN.md)。 |
 | 共享 Client 与 Server migration | 把 canonical Workbench coordination 和受支持 Browser session/relay 行为迁入 Rust Server，把 React presentation 迁入 `apps/web`，把 Desktop 缩减为 Client/platform adapter，并且只迁移显式准入的 CLI capability。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | 已接受的可选 capability         | 通过各自已接受的 owner-specific vertical migration 实现 Agent observation、managed Worktree、Archive、Launch Profile 与 Connect via SSH。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| 远程连接 Client                 | 验证另一台机器上的人类 Client 使用同一 Site 及其已有执行 Worker。在独立切片中选择身份、网络暴露、Client 范围与重连证据；远程 Worker 登记和调度不是前置条件。优先级遵循上文所述产品决策。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| 远程连接 Client                 | 验证另一台机器上的人类 Client 使用同一 会话 及其已有执行 Worker。在独立切片中选择身份、网络暴露、Client 范围与重连证据；远程 Worker 登记和调度不是前置条件。优先级遵循上文所述产品决策。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | 分布式 Worker capability        | 审阅登记与一种具体远程工作，覆盖设备身份、数据／secret 可用性、放置、取消与失败行为。Mobile background、多用户策略与更广调度仅通过各自已接受范围增加。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | 剩余所有权迁移                  | 剩余的 Workbench、Agent 与 Desktop 所有权变更需要 consumer 证据、installed-artifact handling 与 rollback。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
@@ -414,4 +414,4 @@ LAN 发现、Internet relay、NAT 穿透、公共 DNS 与云端 rendezvous 是�
 compatibility、observability、rollback 与 recovery claim。历史交付细节留在所属现行指南；本提案
 记录尚未解决的目标决策，而不是任务 chronology。
 
-<!-- documentation-pairing: english-sha256=c42c6d5df401069521340af9decbd5d22ff8d543fbe72503c82f69731b4e07a4 zh-cn-sha256=ec6575b7744f44d999b454c7e8fc961be149575afc33f940cb6162fab02d9b41 -->
+<!-- documentation-pairing: english-sha256=41a727087d9afeac52e1fc313fb5c535db8d90d28a97288873d74ed0359d1230 zh-cn-sha256=552f18f1b2dcd0dbb85883aabecf9a3a015747687bc5b3369d4d08e57acb7bdb -->

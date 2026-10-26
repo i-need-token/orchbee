@@ -8,7 +8,7 @@
 				"kind": "workbench.worktree.operation",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "start",
 					"operationId": "00000000000000000000000000000003",
@@ -40,7 +40,7 @@
 				"kind": "workbench.worktree.operation",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "read",
 					"operationId": "00000000000000000000000000000003"
@@ -54,7 +54,7 @@
 				"kind": "workbench.worktree.operation",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "resume",
 					"operationId": "00000000000000000000000000000003",
@@ -69,7 +69,7 @@
 				"kind": "workbench.worktree.operation",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "start",
 					"operationId": "00000000000000000000000000000003",
@@ -102,7 +102,7 @@
 				"kind": "workbench.worktree.operation",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "start",
 					"operationId": "00000000000000000000000000000003",
@@ -289,7 +289,7 @@
 				"kind": "workbench.worktree.operation",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "start",
 					"operationId": "00000000000000000000000000000003",
@@ -321,7 +321,7 @@
 				"kind": "workbench.worktree.operation",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "start",
 					"operationId": "00000000000000000000000000000003",
@@ -354,7 +354,7 @@
 				"kind": "workbench.worktree.operation",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "start",
 					"operationId": "00000000000000000000000000000003",
@@ -543,7 +543,7 @@
 				"kind": "workbench.worktree.operation",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "start",
 					"operationId": "00000000000000000000000000000003",
@@ -577,7 +577,7 @@
 				"kind": "workbench.worktree.operation",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "start",
 					"operationId": "00000000000000000000000000000003",
@@ -610,7 +610,7 @@
 				"kind": "workbench.worktree.operation",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "start",
 					"operationId": "00000000000000000000000000000003",
@@ -643,7 +643,7 @@
 				"kind": "workbench.worktree.operation",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "start",
 					"operationId": "00000000000000000000000000000003",
@@ -676,7 +676,7 @@
 				"kind": "workbench.worktree.operation",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "resume",
 					"operationId": "00000000000000000000000000000003",
@@ -988,7 +988,7 @@
 				"kind": "workbench.worktree.operation",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "start",
 					"operationId": "00000000000000000000000000000003",
@@ -1021,7 +1021,7 @@
 				"kind": "workbench.worktree.operation",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "start",
 					"operationId": "00000000000000000000000000000003",
@@ -1054,7 +1054,7 @@
 				"kind": "workbench.worktree.operation",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "start",
 					"operationId": "00000000000000000000000000000003",
@@ -1087,7 +1087,7 @@
 				"kind": "workbench.worktree.operation",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "start",
 					"operationId": "00000000000000000000000000000003",
@@ -1505,7 +1505,7 @@
 				"kind": "workbench.worktree.operation",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "start",
 					"operationId": "00000000000000000000000000000003",
@@ -1537,7 +1537,7 @@
 				"kind": "workbench.worktree.operation",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "start",
 					"operationId": "00000000000000000000000000000003",
@@ -1570,7 +1570,7 @@
 				"kind": "workbench.worktree.operation",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "start",
 					"operationId": "00000000000000000000000000000003",
@@ -1604,7 +1604,7 @@
 				"kind": "workbench.worktree.operation",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "start",
 					"operationId": "00000000000000000000000000000003",
@@ -1625,7 +1625,7 @@
 				"kind": "workbench.worktree.operation",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "start",
 					"operationId": "00000000000000000000000000000003",
@@ -1848,12 +1848,12 @@
 		{
 			"name": "integral-resume-attempt",
 			"direction": "request",
-			"json": "{\"kind\":\"workbench.worktree.operation\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000001\",\"siteId\":\"00000000000000000000000000000002\",\"action\":{\"kind\":\"resume\",\"operationId\":\"00000000000000000000000000000003\",\"expectedAttempt\":6.4e1}}",
+			"json": "{\"kind\":\"workbench.worktree.operation\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000001\",\"sessionId\":\"00000000000000000000000000000002\",\"action\":{\"kind\":\"resume\",\"operationId\":\"00000000000000000000000000000003\",\"expectedAttempt\":6.4e1}}",
 			"canonical": {
 				"kind": "workbench.worktree.operation",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "resume",
 					"operationId": "00000000000000000000000000000003",

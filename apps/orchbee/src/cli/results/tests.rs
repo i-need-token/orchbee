@@ -59,7 +59,7 @@ fn snapshot() -> Snapshot {
         "kind": "workbench.snapshot",
         "protocolVersion": 1,
         "revision": "9",
-        "siteId": hex(0xaa),
+        "sessionId": hex(0xaa),
         "navigation": {"projects":[{"projectId":hex(0x10), "label":"alpha"}, {"projectId":hex(0x11), "label":"alpha"}], "directories":[{
                         "directoryId": hex(0x30),
                         "workerId": WORKER,
@@ -123,7 +123,7 @@ fn split_ratio_projections_validate_and_reject_out_of_bounds_values() {
             include_str!("../schemas/orchbee.tab.get.json"),
         ),
     ] {
-        let source = json!({"kind":"workbench-snapshot","siteId":hex(0xaa),"revision":"9"});
+        let source = json!({"kind":"workbench-snapshot","sessionId":hex(0xaa),"revision":"9"});
         let mut document = json!({"schema":schema_id(&command),"version":1,
             "source":source,"result":complete(&command, project(&command, &state).unwrap().result())});
         let definition: Value = serde_json::from_str(definition).unwrap();
@@ -468,7 +468,7 @@ fn selector_snapshot() -> Snapshot {
         "kind": "workbench.snapshot",
         "protocolVersion": 1,
         "revision": "9",
-        "siteId": tid(0, 0xaa00),
+        "sessionId": tid(0, 0xaa00),
         "navigation": {"projects":[{"projectId":tid(0, 0xaa), "label":"p-a"}, {"projectId":tid(0, 0xbb), "label":"face"}, {"projectId":tid(1, 0xaa), "label":"p-b"}], "directories":[], "workspaces":[{"workspaceId":tid(0, 0x01),"terminalContextId":tid(0, 0x01),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"},{"workspaceId":tid(0, 0xcc), "label":"w", "primaryDirectoryId":null, "terminalContextId":tid(0, 0x50), "projectId":tid(0, 0xaa)}, {"workspaceId":tid(0, 0xdd), "label":"w3", "primaryDirectoryId":null, "terminalContextId":tid(0, 0x60), "projectId":tid(0, 0xbb)}, {"workspaceId":tid(1, 0xcc), "label":"w", "primaryDirectoryId":null, "terminalContextId":tid(0, 0x51), "projectId":tid(1, 0xaa)}]},
         "terminalContexts": [
             {
@@ -2028,7 +2028,7 @@ fn workspace_get_text_leads_with_the_workspace_and_its_directory_path() {
         let directory_id = doc.row.primary_directory_id.clone();
         let output = crate::cli::success_output(
             projection,
-            serde_json::json!({"kind":"workbench-snapshot","siteId":tid(0, 1),"revision":"1"}),
+            serde_json::json!({"kind":"workbench-snapshot","sessionId":tid(0, 1),"revision":"1"}),
             &command,
             crate::invocation::OutputFormat::Text,
             locale,

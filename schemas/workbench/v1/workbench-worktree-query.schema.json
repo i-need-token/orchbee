@@ -427,7 +427,7 @@
 						"kind": {
 							"const": "found"
 						},
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/identity"
 						},
 						"workbenchRevision": {
@@ -447,7 +447,7 @@
 							}
 						}
 					},
-					"required": ["kind", "siteId", "workbenchRevision", "workerId", "source", "entries"],
+					"required": ["kind", "sessionId", "workbenchRevision", "workerId", "source", "entries"],
 					"additionalProperties": false
 				},
 				{
@@ -477,7 +477,7 @@
 				"requestId": {
 					"$ref": "#/$defs/identity"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/identity"
 				},
 				"source": {
@@ -487,7 +487,14 @@
 					"type": "boolean"
 				}
 			},
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "source", "trustRepository"],
+			"required": [
+				"kind",
+				"protocolVersion",
+				"requestId",
+				"sessionId",
+				"source",
+				"trustRepository"
+			],
 			"additionalProperties": false
 		},
 		"result": {

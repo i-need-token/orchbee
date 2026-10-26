@@ -118,7 +118,7 @@ pub(super) fn read(
         let (request_id, revision, rows) =
             exchange(client, snapshot, chunk.to_vec(), deadline, signals)?;
         let doc = document.get_or_insert_with(|| Document { rows: BTreeMap::new(), revision, request_ids: vec![],
-            source: json!({"siteId":snapshot.site_id,"workbenchRevision":snapshot.revision,"metadataRevision":revision}) });
+            source: json!({"sessionId":snapshot.site_id,"workbenchRevision":snapshot.revision,"metadataRevision":revision}) });
         if doc.revision != revision {
             return Err(super::workbench_agents::failure("metadata-changed"));
         }
@@ -198,6 +198,6 @@ pub(super) fn empty_fixture(snapshot: &Snapshot, projection: &Projection) -> Opt
             .collect(),
         revision: WorkbenchRevision::new(0),
         request_ids: vec![WorkbenchRequestId::parse(&format!("{:032x}", 900)).unwrap()],
-        source: json!({"siteId":snapshot.site_id,"workbenchRevision":snapshot.revision,"metadataRevision":"0"}),
+        source: json!({"sessionId":snapshot.site_id,"workbenchRevision":snapshot.revision,"metadataRevision":"0"}),
     })
 }

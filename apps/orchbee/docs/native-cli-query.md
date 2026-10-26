@@ -24,18 +24,9 @@ Use `orchbee server -h` to list service commands and `orchbee server stop -h` fo
 shutdown and recovery options. In PowerShell, use `.\orchbee.exe server -h` from the binary's
 directory, or invoke its full path when it is not on `PATH`.
 
-| Previous spelling          | Canonical spelling               |
-| -------------------------- | -------------------------------- |
-| `--site <name>`            | `--session <name>`               |
-| `ORCHBEE_SITE`             | `ORCHBEE_SESSION`                |
-| `site <command>`           | `server <command>`               |
-| `agent ... --session <id>` | `agent ... --agent-session <id>` |
-
-Only canonical CLI spellings are accepted. `ORCHBEE_SITE` remains a legacy environment fallback
-below `ORCHBEE_SESSION`, preserving existing routes. Existing runtime names, scope hashes, catalogs,
-checkpoints and JSON schemas remain unchanged; machine fields such as `siteId` and schema IDs
-such as `orchbee.site.start` retain their existing protocol meaning. This terminology change
-does not make the Electron Desktop runtime a consumer of the Session service.
+Only canonical CLI spellings are accepted. Session selection reads `ORCHBEE_SESSION` without a
+legacy fallback. Machine fields use `sessionId`, and service documents use `orchbee.server.*`;
+their versions remain `1`. This terminology boundary preserves Desktop's current runtime integration.
 
 ## Schema versions for independent Agent status
 
@@ -53,7 +44,7 @@ Target help states ID/selector precedence: a display label shaped like an ID or 
 
 Agent startup help maps `--provider antigravity` to integration/doctor `--provider antigravity`. A missing startup Panel identifies the target failure and directs users to `orchbee panel list`. A local manifest read failure directs users to the path and read permissions configured by `ORCHBEE_UPDATE_MANIFEST`; its machine reason remains `download` at the manifest phase.
 
-Launch Profile list/get use version 1 and admit POSIX, drive-absolute and verbatim drive executable paths. Linux and Windows diagnosis use `orchbee.site.diagnose` version 1 for their supported scopes; unsupported facts are explicit members. Integration lists always include `outdatedOnly`, inspection counts and provider ID lists, with bounds covering all 20 providers. Generic failures select closed details by semantic stage, including local plugin preparation at `stage: plugin`. Session catalog and startup environment failures preserve their failed runtime stage. Client selection diagnostics identify Clients and the applicable `--client` remedy.
+Launch Profile list/get use version 1 and admit POSIX, drive-absolute and verbatim drive executable paths. Linux and Windows diagnosis use `orchbee.server.diagnose` version 1 for their supported scopes; unsupported facts are explicit members. Integration lists always include `outdatedOnly`, inspection counts and provider ID lists, with bounds covering all 20 providers. Generic failures select closed details by semantic stage, including local plugin preparation at `stage: plugin`. Session catalog and startup environment failures preserve their failed runtime stage. Client selection diagnostics identify Clients and the applicable `--client` remedy.
 
 The event stream schema exposes typed filter input at `$defs/filter`; plugin runtime exposes
 context input at `$defs/context`. Help includes valid JSON examples and schema lookup hints.
@@ -513,7 +504,7 @@ The complete argument grammar is validated before selection; offline help, compl
 version and schema operations do not discover a runtime because a name was supplied.
 
 Selection precedence is explicit `--session`, the managed terminal's `ORCHBEE_RUNTIME_SCOPE`,
-`ORCHBEE_SESSION`, legacy `ORCHBEE_SITE`, then `default`. `ORCHBEE_RUNTIME_BASE` still selects the existing absolute
+`ORCHBEE_SESSION`, then `default`. `ORCHBEE_RUNTIME_BASE` still selects the existing absolute
 base. The Worker supplies the admitted base and scope to child terminals, so nested CLI
 commands keep their owning Session even if a different name was inherited by the Server.
 An explicit `--session default` overrides that inherited scope. Invalid selected environment
@@ -945,7 +936,7 @@ close-status` and `workspace close-resume` both flags are strict stable IDs inst
   one decimal `u64` in `1..=100`, defaulting to the wire contract's 50. A repeated,
   non-numeric, or out-of-range value is `invalid-usage`.
 - `--cursor <c>`: single-use value flag, admitted only on `agent list`. Windows uses
-  a structured `u1.<base64url>` cursor capped at 1024 characters and bound to the Site,
+  a structured `u1.<base64url>` cursor capped at 1024 characters and bound to the Session,
   source revisions, filters, Client choice and page position/fingerprint. Malformed cursors
   fail as invalid input before live source reads. Determining whether a cursor is stale requires reading current sources, so stale structured
   cursors are rejected only after those reads. Other platforms retain their canonical
@@ -1349,7 +1340,7 @@ preamble plus one snapshot read, all under the same single 5-second deadline, th
    produces — including transport and protocol defects — wears the dedicated
    `orchbee.cli.failure.launch-profile` envelope; `not-found{resource:"launch-profile"}`
    is the unmatched-selector answer and `ambiguous` carries the bounded candidate IDs.
-   Both success envelopes carry `source:{kind:"launch-profile-catalog",siteId,
+   Both success envelopes carry `source:{kind:"launch-profile-catalog",sessionId,
 catalogRevision}` — the catalog-private revision, distinct from the Workbench
    navigation revision.
 
@@ -1610,7 +1601,7 @@ envelope. Windows explicit stop and subsequent start are described below; there 
 
 ## Session diagnostics
 
-`server diagnose` emits the same closed `orchbee.site.diagnose` v1 schema on Linux and Windows.
+`server diagnose` emits the same closed `orchbee.server.diagnose` v1 schema on Linux and Windows.
 The current catalog is listed above.
 The same existing-only runtime path/SID scope is used without cohort admission,
 activation, endpoint connection or process discovery. Ordered rows describe the
@@ -1649,7 +1640,7 @@ command. No endpoint is connected — `client.sock` least of all, where a connec
 an admission slot — and no process is enumerated, signaled, or hashed.
 
 Every row is a closed-state fact document, never a health verdict: `runtimeBase` and
-`runtimeDirectory` carry `path`/`pathBytesHex`; `marker`, `locks:{activation,siteLifetime}`,
+`runtimeDirectory` carry `path`/`pathBytesHex`; `marker`, `locks:{activation,sessionLifetime}`,
 `endpoints:{client,worker,clientPending,agentObservation,hostEndpoint}`, and `hostScope` each
 report `state` in `known|absent|unsafe|uninspectable` (the lifetime lock also reports `free` and
 `held`), plus a concrete `reason` when not fully known — `symlink`, `invalid-kind`,
@@ -1693,9 +1684,9 @@ falling back to global `navigation.workspaces` order when absent or empty. Other
 
 Snapshot and one-effect command envelopes use `{schema, version, source, result}`; staged workflows have their own embedded schemas. All machine documents and the catalog use only version `1`. `api schema <id>` retrieves the complete current contract offline. Adding fields or schema IDs updates this current contract directly. The same command keeps the same members across platform and option choices, with unsupported capabilities explicit. Sources retain their owner's meaning:
 
-- `source.kind="workbench-snapshot"` with `siteId` and decimal-string `revision` from the same
+- `source.kind="workbench-snapshot"` with `sessionId` and decimal-string `revision` from the same
   validated snapshot — present only after a complete valid read.
-- `source.kind="workbench-command"` with `siteId`, `requestId`, and decimal-string
+- `source.kind="workbench-command"` with `sessionId`, `requestId`, and decimal-string
   `expectedRevision` — produced mutation results, and command-stage failures after a valid
   read.
 - `source.kind="embedded"` — the compiled-in schema dictionary (`api schema` results and its
@@ -1703,19 +1694,19 @@ Snapshot and one-effect command envelopes use `{schema, version, source, result}
 - `source.kind="local-runtime"` — produced `config check` results, `agent doctor` results, every `server start`
   answer, and every `server diagnose` document: the local runtime is the answering authority
   for activation outcomes, refusals, offline diagnostics, and bounded runtime observations.
-- `source.kind="terminal.send"` — `siteId`, the send `requestId`, and the decimal-string
+- `source.kind="terminal.send"` — `sessionId`, the send `requestId`, and the decimal-string
   `snapshotRevision` the binding resolved from, on typed `terminal send` answers.
-- `source.kind="terminal-launch-read"` — `siteId` and the decimal-string `revision` the
+- `source.kind="terminal-launch-read"` — `sessionId` and the decimal-string `revision` the
   Server joined under the coordinator lock, on `terminal get` answers.
-- `source.kind="worktree-list"` — `siteId` and the decimal-string `revision` of the
+- `source.kind="worktree-list"` — `sessionId` and the decimal-string `revision` of the
   committed Workbench at the Server's authoritative membership check, on `worktree list`
   results and its post-snapshot failures.
 - `source.kind="agent-read"` — the correlated `requestId` the semantic answer carried
   back, on produced agent read results and on post-admission semantic refusals.
-- `source.kind="launch-profile-catalog"` — `siteId` and the decimal-string
+- `source.kind="launch-profile-catalog"` — `sessionId` and the decimal-string
   `catalogRevision` of the resolved catalog, on `launch-profile list`/`get` results and
   their post-session failures.
-- `source.kind="workspace-close-resume"` — `siteId`, the resume `requestId`, the
+- `source.kind="workspace-close-resume"` — `sessionId`, the resume `requestId`, the
   `closeRequestId` it names, and the decimal-string `expectedAttemptGeneration` fence the
   request carried, on `workspace close-resume` answers: no `workbench.command` exists for a
   retained lifecycle resume, so the resume request's own echo is the honest source.
@@ -1723,13 +1714,13 @@ Snapshot and one-effect command envelopes use `{schema, version, source, result}
 
 Result payloads (schema IDs are stable machine names):
 
-- `orchbee.status` → `{site:{reachable:true,siteId,revision},
+- `orchbee.status` → `{session:{reachable:true,sessionId,revision},
 counts:{projects,workspaces,tabs,panels,boundTerminals},
 worker:{status:"unknown",reason:"not-in-workbench-snapshot"}}`. `boundTerminals` counts
   presentations with a `binding`; snapshot validation already guarantees terminal IDs are unique,
   so each binding names a distinct terminal. `reachable` proves only this read succeeded.
   Text reports a running Session only after a successful snapshot read, followed by the
-  localized resource counts. It omits the internal Site ID, snapshot revision, and Worker
+  localized resource counts. It omits the internal Session ID, snapshot revision, and Worker
   observation detail; it does not claim Worker or Agent readiness. The JSON document is unchanged.
 - `orchbee.project.list` → `{projects:[{projectId,label,directoryCount,workspaceCount}]}`;
   `orchbee.project.get` → `{project:{projectId,label,directories:[{directoryId,workerId,path}],
@@ -1788,7 +1779,7 @@ tabId,terminalContextId}}]}`; the JSON rows carry identity only, with no lifecyc
   a `terminal.launch.read` request on the admitted session and the Server resolves the current
   binding, routing, and retained launch fact under the coordinator lock — the snapshot only
   supplies the typed target id. Its envelope is `version:1` with
-  `source:{kind:"terminal-launch-read",siteId,revision}` where `revision` is the joined
+  `source:{kind:"terminal-launch-read",sessionId,revision}` where `revision` is the joined
   workbench revision as a decimal string. `launch` is
   `{state,workerGeneration,createOutcome,geometry}`: `state` is the retained phase verbatim —
   `creating`, `awaiting-start`, `starting`, `started`, `unknown`, `unavailable` — or
@@ -1837,7 +1828,7 @@ tabId,terminalContextId}}]}`; the JSON rows carry identity only, with no lifecyc
   `MAXIMUM_FRAME_CELLS/columns` cap or the text budget never emitted — while rows older than
   `startRow` were never requested, not omitted. Text output matches `terminal read`: one escaped
   line per emitted row plus the marker.
-- `orchbee.terminal.send` → `{action:"terminal.send",requestId,siteId,workerId,terminalId,
+- `orchbee.terminal.send` → `{action:"terminal.send",requestId,sessionId,workerId,terminalId,
 payloadKind,records,recordBytes?,recordsAccepted,firstStoppedRecord,acceptedEncodedBytes,
 inputStatus,cleanupStatus,reason?,target?}`. `payloadKind` is text, key, bytes, paste or sequence;
   `records` is the submitted record count. `recordBytes` describes the single content record
@@ -1872,7 +1863,7 @@ inputStatus,cleanupStatus,reason?,target?}`. `payloadKind` is text, key, bytes, 
   effective run `{until,afterRevision,timeoutMs,observations,elapsedMs}` —
   `afterRevision` always present, null when no revision was selected.
 - `orchbee.api.snapshot` → `{snapshot}`: the complete `WorkbenchProtocolDocument::Snapshot`
-  semantic re-encode including `kind:"workbench.snapshot"`; envelope `siteId`/`revision` agree
+  semantic re-encode including `kind:"workbench.snapshot"`; envelope `sessionId`/`revision` agree
   with the inner document.
 - `orchbee.api.schema` → `{schema:{schemaId,document}}` for a named schema, or
   `{schemas:{schemaId:document,…}}` listing the whole delivered dictionary (draft 2020-12).
@@ -1975,13 +1966,13 @@ endpoint:{socket},environment:{observationSocketEnv},asset:{roots:[<root>…]},h
   document stays locale-neutral while text output re-localizes the same sentence from
   `id` and `evidence`. `complete:false` marks a budget-bounded partial document; the
   command still exits 0.
-- `orchbee.site.start` → `{outcome,scope,runtimeBase}`: `outcome` is `started` or
+- `orchbee.server.start` → `{outcome,scope,runtimeBase}`: `outcome` is `started` or
   `already-running` (the branch this invocation took, not a Session identity receipt), `scope`
   is `orchbee-native-<euid>`, and `runtimeBase` carries exactly one of `path` (UTF-8) or
   `pathBytesHex` (non-UTF-8, never a lossy display string).
-- `orchbee.site.diagnose` → `{complete,scope,runtimeBase,runtimeDirectory,marker,locks,
+- `orchbee.server.diagnose` → `{complete,scope,runtimeBase,runtimeDirectory,marker,locks,
 endpoints,hostScope,advisories}`: the bounded observation document described in Session
-  diagnostics — closed row states and reasons, `locks:{activation,siteLifetime}`,
+  diagnostics — closed row states and reasons, `locks:{activation,sessionLifetime}`,
   `endpoints:{client,worker,clientPending,agentObservation,hostEndpoint}`, `path`/`pathBytesHex`
   on the two directory rows, and the conditional `advisories` token list.
 - `orchbee.cli.failure` → `{schema:"orchbee.cli.failure",version:1,failure:{kind,details?},
@@ -2044,7 +2035,7 @@ performs two further stages under the same 5-second deadline:
 
 6. **Resolve** — a pure projection of the validated snapshot into the wire action: every
    target resolves with the query resolver's exact semantics (`not-found`/`ambiguous`
-   possible, zero commands submitted), the snapshot supplies `siteId` and
+   possible, zero commands submitted), the snapshot supplies `sessionId` and
    `expectedRevision`, and one fresh `WorkbenchRequestId` is generated.
 7. **Command** — exactly one `workbench.command` submission on the admitted session. The
    Client Connection is then fully released before the outcome is mapped or output prepared.
@@ -2131,13 +2122,13 @@ the launch-profile failure envelope; catalog capacity refusals arrive as ordinar
 command-stage rejections under the generic envelope.
 
 Workspace and organization mutations use `schema:"orchbee.mutation.result"`, `version:1`; other existing actions retain v1, with
-`source:{kind:"workbench-command",siteId,requestId,expectedRevision}` and a `result` carrying
+`source:{kind:"workbench-command",sessionId,requestId,expectedRevision}` and a `result` carrying
 `action` (the dotted command name), `outcome`, the outcome's revision fields, the resolved
 typed IDs, and `direction`/`label`/`terminal`/`catalogRevision`/`profileId`/`name` where
 the command has them. `workspace close-resume` is the single source exception: no
 `workbench.command` exists for a retained lifecycle resume, so its `resumed` receipt and
 its post-submission failures report `source.kind="workspace-close-resume"` — the resume
-request's own echo with `siteId`, `requestId`, `closeRequestId`, and
+request's own echo with `sessionId`, `requestId`, `closeRequestId`, and
 `expectedAttemptGeneration`. Text output
 renders the same fields one per line under the same escaping rules as queries.
 `project rename` is the single exception: its receipt uses the dedicated
@@ -2283,7 +2274,7 @@ the shell's `128 + signal` convention and is not a synthesized CLI result.
 | `server start` marker or sockets committed without a live owner; Server spawn or `try_wait` io failure                                    | `rejected`                                                                 | 3         | `{stage:"activation",reason:"recovery-required"}`                                                   |
 | `server start` activation deadline elapsed; lock acquisition `TimedOut`                                                                   | `timeout`                                                                  | 7         | `{stage:"activation"}`                                                                              |
 | `server start` marker/probe/lock io failure (non-timeout)                                                                                 | `internal-failure`                                                         | 1         | `{stage:"activation"}`                                                                              |
-| `server diagnose` complete or partial fact document — unsafe/uninspectable rows are facts, not failures                                   | typed `orchbee.site.diagnose` document                                     | 0         | row `state`/`reason` fields                                                                         |
+| `server diagnose` complete or partial fact document — unsafe/uninspectable rows are facts, not failures                                   | typed `orchbee.server.diagnose` document                                   | 0         | row `state`/`reason` fields                                                                         |
 | `server diagnose` outside Linux/Windows; network query, mutation, `server start`, `config check`, or `agent doctor` outside Linux/Windows | `service-unavailable`                                                      | 4         | `{stage:"platform",reason:"unsupported-platform"[,command]}`                                        |
 | `agent doctor` captures an eligible signal between probe items                                                                            | `cancelled`                                                                | 130       | `{stage:"agent-doctor"}` — partial documents arise only from budget exhaustion                      |
 | `terminal wait-output` deadline exhausted without a match                                                                                 | `timeout`                                                                  | 7         | `{stage:"wait",timeoutMs,observed}`                                                                 |
@@ -2399,7 +2390,7 @@ cancellation or an expired shared deadline exits without a wire request ever exi
   scrolled past Host retention between polls is unobservable to every consumer.
 - No result field exists without a trusted source; `null` means the source says "none" and
   `"unknown"` means the source cannot say — the two never mix.
-- Failure envelopes never invent `source`: siteId/revision appear only from a validated snapshot.
+- Failure envelopes never invent `source`: sessionId/revision appear only from a validated snapshot.
 - Ambiguous never guesses: it reports bounded candidates plus the true count.
 - `api schema`, help, and completion enumerate exactly the commands delivered in the same build.
 - `server start` is the single activation surface and the one command that creates local-runtime
@@ -2640,7 +2631,7 @@ Expected Host refusals use `orchbee.cli.failure.process-info` v1 with the bounde
 
 The managed Windows Server saves committed Workbench changes after a 500ms debounce, refreshes sampled per-terminal directories every 30 seconds, and performs a fresh final save before clean-stop terminal disposal. A later admitted start restores layout/Launch Profiles and launches fresh default shells. Saved terminal cwd precedes workspace/home defaults; a missing saved directory falls back to Worker home. Save failure retains preceding valid snapshots, invalid originals and live terminals; explicitly retry after resolving the failure. Startup retains unreadable snapshots and falls back to an older valid copy, or opens an empty workspace with a warning when none remain valid. The owning [checkpoint contract](../../orchbee-server/docs/workbench-checkpoint.md) defines compatibility and recovery limits. Old processes, live Agent state, Client views, terminal screens and history are not restored.
 
-`server stop --confirm [--request-id <32-hex>] [--retry] [--detach] [--timeout <ms>]` stops the existing managed Windows Session without activating one. The ID is a nonzero lowercase 128-bit value, generated once if omitted; `--retry` requires it. The CLI issues one start/retry request, then only status reads. `--detach` returns the admitted attempt immediately; otherwise one absolute deadline (65000 ms by default, 1–3600000 ms) covers runtime/cohort admission, request and polling. Cancellation or timeout stops waiting, never rolls back the admitted shutdown. Every runtime answer retains the request ID so `server stop-status <id>` can query it. Status is a fact document, not a second mutation. The `orchbee.site.stop` v1 envelope distinguishes stopped, pending, failed, busy, not-recorded, unmanaged and unavailable/unknown transport outcomes. Every answer includes `wait`: `null` when no wait disposition exists, or detached, timed-out or cancelled for the applicable pending/transport outcome. Known Server failures preserve attempt, phase, cause and per-attempt disposal count. Only the matching strict stopped activation record plus a free existing lifetime lock proves completion; disappearance, invalid records and a different ID never do. A later start consumes this receipt; not-recorded cannot disprove an earlier stop. Linux/macOS return unsupported-platform without runtime effects.
+`server stop --confirm [--request-id <32-hex>] [--retry] [--detach] [--timeout <ms>]` stops the existing managed Windows Session without activating one. The ID is a nonzero lowercase 128-bit value, generated once if omitted; `--retry` requires it. The CLI issues one start/retry request, then only status reads. `--detach` returns the admitted attempt immediately; otherwise one absolute deadline (65000 ms by default, 1–3600000 ms) covers runtime/cohort admission, request and polling. Cancellation or timeout stops waiting, never rolls back the admitted shutdown. Every runtime answer retains the request ID so `server stop-status <id>` can query it. Status is a fact document, not a second mutation. The `orchbee.server.stop` v1 envelope distinguishes stopped, pending, failed, busy, not-recorded, unmanaged and unavailable/unknown transport outcomes. Every answer includes `wait`: `null` when no wait disposition exists, or detached, timed-out or cancelled for the applicable pending/transport outcome. Known Server failures preserve attempt, phase, cause and per-attempt disposal count. Only the matching strict stopped activation record plus a free existing lifetime lock proves completion; disappearance, invalid records and a different ID never do. A later start consumes this receipt; not-recorded cannot disprove an earlier stop. Linux/macOS return unsupported-platform without runtime effects.
 
 ## Windows retained Worktree operations
 
@@ -2753,11 +2744,11 @@ For canonical session targets, Windows `agent prompt <target> <text> --wait --cl
 
 ## Windows unified Agent projection
 
-Windows `agent list` joins canonical Server sessions and physical terminal Agents into `orchbee.agent.list` v1. Its `source.kind` is `agent-projection`; the source carries `siteId` (32 lowercase hex), decimal-string `workbenchRevision` and `reportRevision`, and safe-integer `canonicalRevision`. Its `result` is `{kind:"listed",revision,nextCursor,items,clientId}`; `nextCursor` is null or a `u1` cursor. Each row has a one-based `ordinal` (1–4096), `provider`, semantic `status` (`unknown`, `idle`, `working`, `blocked`, `done`, `error`, `ended`), identity `source` (`canonical`, `terminal`, `both`), the existing nullable canonical `AgentSessionSummary`, and a nullable physical terminal record with its existing launch binding, nonempty provider, `PanelAgentState` and decimal-string sequence. `source` controls which facets are present. Physical and `both` rows always carry `placement` with 32-hex Panel, Presentation, Terminal, Terminal Context and Tab IDs; canonical-only rows may also carry placement when a current terminal incarnation is observed with no Agent. `workspaceId` within placement is nullable. `cwd` is a nullable string. When `--include-ended` is used, ended sessions sort after all current live rows, keeping live ordinals stable; ended rows follow canonical ID order and can be inspected by exact `--agent-session`.
+Windows `agent list` joins canonical Server sessions and physical terminal Agents into `orchbee.agent.list` v1. Its `source.kind` is `agent-projection`; the source carries `sessionId` (32 lowercase hex), decimal-string `workbenchRevision` and `reportRevision`, and safe-integer `canonicalRevision`. Its `result` is `{kind:"listed",revision,nextCursor,items,clientId}`; `nextCursor` is null or a `u1` cursor. Each row has a one-based `ordinal` (1–4096), `provider`, semantic `status` (`unknown`, `idle`, `working`, `blocked`, `done`, `error`, `ended`), identity `source` (`canonical`, `terminal`, `both`), the existing nullable canonical `AgentSessionSummary`, and a nullable physical terminal record with its existing launch binding, nonempty provider, `PanelAgentState` and decimal-string sequence. `source` controls which facets are present. Physical and `both` rows always carry `placement` with 32-hex Panel, Presentation, Terminal, Terminal Context and Tab IDs; canonical-only rows may also carry placement when a current terminal incarnation is observed with no Agent. `workspaceId` within placement is nullable. `cwd` is a nullable string. When `--include-ended` is used, ended sessions sort after all current live rows, keeping live ordinals stable; ended rows follow canonical ID order and can be inspected by exact `--agent-session`.
 
 `clientId` and every row's `client` are always present, null on Windows when no Client was selected, with canonical and terminal Client facets kept separate. Client unread state never supplies semantic Agent status. Optional cwd enrichment covers at most 64 rows per page and returns null when unavailable. Pages contain 1–100 rows (default 50); the joined output ceiling is 4096 rows and 8 MiB. Source admission can fail earlier: the canonical source is bounded to 512 sessions/six pages of 100, and physical source registration is bounded to 1024 entries. The 4096-row output ceiling does not promise that many physical sources.
 
-Windows cursors use `u1.<base64url>` and are at most 1024 characters. The payload is canonical JSON encoded as base64url. Cursors bind to Site, source revisions, `includeEnded`/Client filters, page offset and fingerprint; they require no retained files. Malformed cursors are rejected as invalid input before live source reads. The CLI must read current sources to determine whether a `u1` cursor is stale, so it can reject a stale `u1` cursor only after those reads; the caller must restart at the first page.
+Windows cursors use `u1.<base64url>` and are at most 1024 characters. The payload is canonical JSON encoded as base64url. Cursors bind to Session, source revisions, `includeEnded`/Client filters, page offset and fingerprint; they require no retained files. Malformed cursors are rejected as invalid input before live source reads. The CLI must read current sources to determine whether a `u1` cursor is stale, so it can reject a stale `u1` cursor only after those reads; the caller must restart at the first page.
 
 Windows `agent get` emits `orchbee.agent.get` v1 with and without `--client`, using the same projection `source`. `result` is `{kind:"projected",agent,inspection}`. `agent` has the projection row's provider, status, source, canonical/terminal facets, placement and cwd, without `ordinal` or `client`; `inspection` is the existing current canonical or terminal inspection. Detailed process, terminal metadata, management and Client evidence stay in their facet-specific inspection shape.
 
@@ -2884,7 +2875,7 @@ hexadecimal values; omission generates one. Same-kind accepted duplicates read t
 cross-kind reuse fails. One Reload/Update is active at a time, with 1,024 retained receipts for the
 Session generation and no eviction. Restart ends receipt scope; the last cache report remains on disk.
 
-`orchbee.site.agent-manifests` v1 includes Update, maintenance
+`orchbee.server.agent-manifests` v1 includes Update, maintenance
 metadata, update reports and unknown-effect receipts. v1 adds automatic policy gates, settings
 provenance and the latest automatic operation. Reports show attempted/cached versions and
 per-provider failures separately from activation revision/failure. Text is localized and escaped.

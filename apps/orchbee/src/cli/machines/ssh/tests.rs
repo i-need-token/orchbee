@@ -46,7 +46,7 @@ fn preparation_requires_a_fresh_compatible_observation_and_retains_partial_state
                 }
                 "start" => {
                     assert_eq!(path, Some("C:/remote/orchbee.exe"));
-                    json!({"schema":"orchbee.site.start","version":1,"result":{"outcome":"already-running"}})
+                    json!({"schema":"orchbee.server.start","version":1,"result":{"outcome":"already-running"}})
                 }
                 "server" => server_document(),
                 _ => panic!("unexpected call"),

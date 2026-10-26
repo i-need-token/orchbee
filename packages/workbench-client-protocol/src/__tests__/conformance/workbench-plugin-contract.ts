@@ -7,7 +7,7 @@ import {
 } from './workbench-terminal-launch-contract';
 import { z } from 'zod';
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	WorkbenchLabelSchema,
 	WorkbenchPanelIdSchema,
 	WorkbenchTabIdSchema,
@@ -54,7 +54,7 @@ const PluginLinkCatalogGuardSchema = z.strictObject({
 const correlation = {
 	protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 	requestId: WorkbenchRequestIdSchema,
-	siteId: SiteIdSchema,
+	sessionId: SessionIdSchema,
 };
 const failure = z.enum([
 	'exit-failure',
@@ -227,7 +227,7 @@ export const PluginResultSchema = z
 				reason: z.enum([
 					'denied',
 					'unavailable',
-					'site-mismatch',
+					'session-mismatch',
 					'worker-changed',
 					'invalid-intent',
 					'not-found',

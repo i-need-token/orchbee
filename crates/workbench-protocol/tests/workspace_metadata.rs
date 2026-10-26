@@ -1,7 +1,7 @@
 use orchbee_workbench_protocol::*;
 use serde_json::json;
 fn request() -> serde_json::Value {
-    json!({"kind":"workbench.workspace-metadata","protocolVersion":1,"requestId":"00000000000000000000000000000001","siteId":"00000000000000000000000000000002",
+    json!({"kind":"workbench.workspace-metadata","protocolVersion":1,"requestId":"00000000000000000000000000000001","sessionId":"00000000000000000000000000000002",
         "action":{"kind":"report","workspaceId":"00000000000000000000000000000003","source":"hook:codex","tokens":{"summary":"中文"},"sequence":"18446744073709551615","ttlMilliseconds":86400000}})
 }
 #[test]

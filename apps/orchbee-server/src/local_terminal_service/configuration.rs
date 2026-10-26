@@ -235,7 +235,7 @@ fn publication_result(outcome: Outcome) -> ConfigurationResult {
         request_id: WorkbenchRequestId::parse("00000000000000000000000000000001")
             .expect("fixed configuration preflight request id"),
         site_id: SiteId::parse("00000000000000000000000000000002")
-            .expect("fixed configuration preflight Site id"),
+            .expect("fixed configuration preflight Session id"),
         outcome,
     }
 }

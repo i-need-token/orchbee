@@ -219,7 +219,7 @@ fn entry_invariants_are_enforced_on_decode() {
             "requestId": "11111111111111111111111111111111",
             "outcome": {
                 "kind": "found",
-                "siteId": "22222222222222222222222222222222",
+                "sessionId": "22222222222222222222222222222222",
                 "workbenchRevision": "7",
                 "directoryId": "44444444444444444444444444444444",
                 "path": "/repo",

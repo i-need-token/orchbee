@@ -1,4 +1,4 @@
-# Local Site Protocol
+# Local Worker Protocol
 
 Private, experimental Rust connection contract for the first same-user POSIX Server-Worker process
 spine. `orchbee-server` and `orchbee-worker` are its concrete consumers. It is not a public API, a

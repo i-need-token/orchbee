@@ -36,7 +36,7 @@ The local Server accepts Close only for Workspace-owned Contexts. Lifecycle gran
 
 Publication re-extracts current target membership after cleanup and removes only its captured scope. Sibling Create/Rename/Move and other Contexts survive. Pending creation settles through its original token without rewriting historical revision. The last Tab leaves its Workspace and Directory reference intact; explicit later Tab creation rechecks directory admission and allocates fresh identities.
 
-Close primary capacity and revision credits are Site-wide: every non-Closed primary reserves one
+Close primary capacity and revision credits are Session-wide: every non-Closed primary reserves one
 future revision in the shared ledger, and publication consumes exactly that credit with one
 revision increment. Admission, aliases and exact replay do not advance revision or duplicate
 cleanup. Closed tombstones and immutable acknowledgments survive later context changes. Failed
@@ -57,8 +57,8 @@ Closed means known Host disposal, exact Worker/Server cleanup and canonical remo
 The local transport integration grants `manage_terminal_lifecycle` independently of read,
 navigation, Create, Viewer and controller authority; only trusted-local composition explicitly
 sets it. Close and Resume require that grant; status Read requires read authority. Authorized
-requests reach the retained Site/Workbench Close authority. Read/Resume check the retained Site
-identity before operation lookup: wrong Site is Denied. A matching Read reports the retained
+requests reach the retained Session/Workbench Close authority. Read/Resume check the retained Session
+identity before operation lookup: wrong Session is Denied. A matching Read reports the retained
 operation or NotClosing; unavailable authority remains unavailable. This identity check survives
 publication retirement and does not materialize a snapshot. Maintenance availability gates new
 primary acceptance and fresh Resume after retained replay/alias/receipt decisions; it does not
@@ -83,7 +83,7 @@ Acceptance returns `workspace-close-accepted {closeRequestId,
 workspaceId, terminalContextId, acceptedRevision}`: the primary command request ID
 is `closeRequestId`, and `acceptedRevision` is the admitted base, exactly as for a
 member Close. The effect-free `workbench.workspace-close.read {protocolVersion,
-requestId, siteId, workspaceId}` allocates no ledger entry and returns
+requestId, sessionId, workspaceId}` allocates no ledger entry and returns
 `not-closing`, `denied`, `unavailable {reason:server-busy}`, or
 `available {closeRequestId, workspaceId, terminalContextId,
 attemptGeneration, status, counts, members}`: `members` preserves the frozen
@@ -91,7 +91,7 @@ admission order with per-member lifecycle truth only — the close revision belo
 solely to the scope `status` — and `counts` aggregates the same rows. Scope lookup
 includes the closed tombstone, so a scope already removed by publication still
 answers `available`. `workbench.workspace-close.resume {protocolVersion,
-requestId, siteId, workspaceId, closeRequestId,
+requestId, sessionId, workspaceId, closeRequestId,
 expectedAttemptGeneration}` applies the identical generation discipline and
 reserved control storage, echoing the scope fields in every result.
 
@@ -104,15 +104,15 @@ row carries the close revision.
 ## Conditional idle admission
 
 `workspace.close-if-idle {workspaceId}` is a distinct command fingerprint with the ordinary
-lifecycle grant, replay/conflict, capacity, Site/revision and complete Context membership checks.
-It shares the pending-create/split and overlapping-Close guards. The Site resolves **every bound
+lifecycle grant, replay/conflict, capacity, Session/revision and complete Context membership checks.
+It shares the pending-create/split and overlapping-Close guards. The Session resolves **every bound
 Presentation**, including children under an unbound primary, while holding the coordinator gate.
 An empty bound scope, exact `Uncreated` evidence, or fresh `IdleRuntime` evidence for **every**
 member permits conditional admission. `Uncreated` still requires a settled failed/unavailable Create
 before Host commit with `Unavailable(None)` runtime identity; missing or ambiguous records never
 establish it. A retained Started result or a Client's attached panes is not live process evidence.
 
-For runtimes, the service drops registry/Site locks before the read-only `InspectInventoryPage`
+For runtimes, the service drops registry/Session locks before the read-only `InspectInventoryPage`
 walk. Every target pins Worker generation, binding fence and full Host creation/epoch/terminal
 identity. One four-second admission window and 32-page allowance cover the whole scope; slow
 outstanding transport keeps its existing carrier response bound and cannot renew this window.
@@ -121,7 +121,7 @@ Exited and Failed establish no live program; Running requires fresh Host `idle` 
 intent. A live Host can establish idle only before accepted activity-affecting input bytes; accounted OS
 writes and later prompt cycles do not establish shell consumption. After input, even an ordinary
 post-command prompt requires confirmation until replacement or proven settlement. Finishing,
-containment, active, unknown, missing, unsupported and unavailable evidence require confirmation. Final admission repeats ordinary guards and exact runtime matching under the Site gate.
+containment, active, unknown, missing, unsupported and unavailable evidence require confirmation. Final admission repeats ordinary guards and exact runtime matching under the Session gate.
 A same-base `confirmation-required` retains no Close credit, fence, publication or runtime effect;
 revision/structural conflicts retain their ordinary precise outcomes.
 
@@ -136,7 +136,7 @@ never grants another attempt, and changing the same request ID's action still co
 
 `project.dissolve-if-idle {projectId}` requires navigation authority and freezes all addressed
 Project member Contexts under that same gate. Its borrowed admission first applies ordinary
-grant, replay/capacity, Site/revision, Project and organization-conflict checks, rejects committed
+grant, replay/capacity, Session/revision, Project and organization-conflict checks, rejects committed
 but unsettled terminal creation in **any** member Context at the current revision, and prepares
 the bounded organization plan before accepting exact per-binding evidence. It retains the stricter
 never-created proof; every runtime still requires confirmation. Acceptance removes only Project metadata
@@ -144,7 +144,7 @@ and ungroups its Workspaces, preserving every member ID, directory, Context and 
 composes Close operations. Explicit `project.dissolve` remains compatible.
 
 Uncommitted Tab/Panel Create admission and preparation retain an exclusive mutable Authority
-borrow; the service retains registry → Site gates through their commit or drop. They cannot
+borrow; the service retains registry → Session gates through their commit or drop. They cannot
 interleave a conditional command before membership and its retained pending entry commit together.
 Create commits advance canonical revision, while later runtime settlement does not. A caller using
 that new revision must still be refused while the exact Context has a pending terminal settlement.
@@ -157,7 +157,7 @@ distinct and cannot become idle or automatic retry. The finite authority transit
 [conditional admission tests](../src/workbench_authority/terminal_tab_close/tests/context/idle.rs)
 cover committed-but-unsettled creation at the current revision, dropped uncommitted preparation,
 post-acceptance creation fences, whole-Project and
-child-only scope, retained refusal/replay, grant denial and confirmed-action compatibility. Site
+child-only scope, retained refusal/replay, grant denial and confirmed-action compatibility. Session
 tests additionally own the mapping from real terminal records to this evidence; parser and
 authority tests alone do not establish current Host process state or real TUI behavior.
 
@@ -167,17 +167,17 @@ The new wire discriminants refine complete request fingerprints, and definite re
 before a separately reviewed unconditional request. Registered replay and Close models retain their
 own abstract scope. Their execution does not by itself prove fresh process/prompt classification, guarded signal admission, or the concrete never-created predicate,
 the complete primary/child/Project-member extractor, concrete pending entries and precommit gate exclusion,
-cross-language decoding, or fresh Client draw and request-ID escalation. The implementation and Site
+cross-language decoding, or fresh Client draw and request-ID escalation. The implementation and Session
 witnesses above carry those obligations separately; native process and prompt behavior additionally require the Host regressions and real TUI witnesses.
 
 ## Close command and retained status
 
 The existing `workbench.command` envelope and full fingerprint
-`(requestId, siteId, expectedRevision, action)` admit
+`(requestId, sessionId, expectedRevision, action)` admit
 `{kind:"tab.close", terminalContextId, tabId}`,
 `{kind:"panel.close", terminalContextId, tabId, panelId}` and
 `{kind:"workspace.close", workspaceId}`. Precedence is lifecycle grant; exact
-replay/conflict; retirement for a new mutation; ledger entry capacity; Site/base/context/strict
+replay/conflict; retirement for a new mutation; ledger entry capacity; Session/base/context/strict
 membership; exact target and terminal association; Busy/unavailable runtime identity; resource
 reservations; joint acceptance. Accepted Close replay remains readable after Workbench retirement.
 Replays have no effects.
@@ -217,8 +217,8 @@ revision credit. A fresh Close of an already removed target returns `TabUnavaila
 replay/status still describe the old operation. Existing typed Denied/Rejected/Unavailable apply;
 the precise added pre-effect Unavailable reasons are `terminal-busy` and `terminal-runtime-unavailable`.
 
-`workbench.tab-close.read {protocolVersion, requestId, siteId, terminalContextId, tabId}` is
-effect-free and uses Site read authorization, including after publication retirement. It allocates
+`workbench.tab-close.read {protocolVersion, requestId, sessionId, terminalContextId, tabId}` is
+effect-free and uses Session read authorization, including after publication retirement. It allocates
 no command-ledger entry. `workbench.tab-close.result` echoes the read identity and returns
 `not-closing`, `denied`, `unavailable {reason:server-busy}`, or
 `available {closeRequestId, terminalContextId, tabId, attemptGeneration, status}`. Lookup includes
@@ -247,7 +247,7 @@ a displayed resumable status and fresh confirmation. Lost acceptance is recovere
 original command replay; aliases, reads and command replays never resume work.
 
 The read result has exactly `kind`, `protocolVersion`, `requestId`, and `outcome`; only Available
-contains the target fields above. A Read or Resume Site mismatch is Denied before target lookup.
+contains the target fields above. A Read or Resume Session mismatch is Denied before target lookup.
 This does not change the Close command's existing SiteMismatch precedence.
 
 ## Resume with reserved control storage
@@ -255,9 +255,9 @@ This does not change the Close command's existing SiteMismatch precedence.
 Primary admission reserves one bounded control cell and one last-accepted Resume receipt, including
 maximum encoded response storage. Recovery requires no ordinary ledger entry or alias allocation.
 The Close-specific control is
-`workbench.tab-close.resume {protocolVersion,requestId,siteId,terminalContextId,tabId,closeRequestId,expectedAttemptGeneration}`;
+`workbench.tab-close.resume {protocolVersion,requestId,sessionId,terminalContextId,tabId,closeRequestId,expectedAttemptGeneration}`;
 the Workspace-scope control `workbench.workspace-close.resume
-{protocolVersion,requestId,siteId,workspaceId,closeRequestId,expectedAttemptGeneration}`
+{protocolVersion,requestId,sessionId,workspaceId,closeRequestId,expectedAttemptGeneration}`
 follows the identical rules and echoes its scope fields.
 It uses existing request-ID types, the lifecycle grant and renewed all-Clients confirmation.
 `workbench.tab-close.resume.result` echoes request ID and canonical target and returns
@@ -266,7 +266,7 @@ It uses existing request-ID types, the lifecycle grant and renewed all-Clients c
 `operation-unavailable`, `operation-mismatch`, `request-identity-conflict`, `generation-mismatch`,
 `not-resumable`, and `generation-exhausted`.
 
-Every Resume result has exactly `kind`, `protocolVersion`, `requestId`, `siteId`,
+Every Resume result has exactly `kind`, `protocolVersion`, `requestId`, `sessionId`,
 `terminalContextId`, `tabId`, `closeRequestId`, and `outcome`. Target fields echo the submitted
 request even for Denied: on failure they neither disclose nor confirm an existing operation.
 Resumed and Stale refer to a validated operation. There is no expected-generation echo.
@@ -298,15 +298,15 @@ Resumed acknowledges that attempt, while a status read establishes its current p
 
 ## Server continuation and exact Host lifecycle
 
-Each visible Tab has at most one Close owner, with 256 Tabs per context. Site-wide primaries and
+Each visible Tab has at most one Close owner, with 256 Tabs per context. Session-wide primaries and
 aliases share the 4096-entry and 8 MiB command ledger limits. One
-maintenance owner serves the current single `LocalTerminalService`/Site. Each turn admits at most
-one Worker step, yields on backpressure and holds no registry/Site lock while waiting. Round-robin
+maintenance owner serves the current single `LocalTerminalService`/Session. Each turn admits at most
+one Worker step, yields on backpressure and holds no registry/Session lock while waiting. Round-robin
 selection is not an OS fairness guarantee. Blocking receipt waits serialize Close steps in that
-Site; other Client threads may write Site state and share the existing bounded Worker carrier.
+Session; other Client threads may write Session state and share the existing bounded Worker carrier.
 Client disconnect does not cancel the Server-owned attempt.
 
-Both production Site constructors start one named maintenance thread before Client admission;
+Both production Session constructors start one named maintenance thread before Client admission;
 spawn failure prevents startup. The service retains its handle and the thread holds only a weak
 service reference between turns. Existing process-lifetime ownership adds no production Drop join
 or shutdown budget. Acceptance commits before lifecycle IPC, and returning its acknowledgment
@@ -389,7 +389,7 @@ Clients polling or dropping, and preserve unrelated entries.
    locally without a carrier request or map mutation. Exact-owner cleanup keeps its existing
    transport path outside the gate; an unreadable gate is not evidence of revocation. This check
    does not cancel cleanup already admitted before revocation.
-3. Preserve registry → Site lock order; the controller gate covers only short exact mutations.
+3. Preserve registry → Session lock order; the controller gate covers only short exact mutations.
    Never hold owner locks across transport or lease Drop. A local cleanup failure retains
    DisposedAwaitingPublication(target-cleanup-pending); publication waits. After cleanup, a
    publication failure retries publication only.
@@ -412,20 +412,20 @@ requires the current Worker generation. Historical Started never implies that Ho
 Preserve existing session/request/sequence/current-Worker checks. Newly fenced Attach uses
 TerminalUnavailable, Control uses ViewerUnavailable, and Start uses TerminalCreateUnavailable.
 Start applies that fence after existing AlreadyStarted/GeometryConflict decisions and before new
-fence/identity/dispatch preparation. Registry → Site → controllers protects Acquire reservation
-and returned-grant installation; Attach also installs under Site after revalidation. Failure leaves
+fence/identity/dispatch preparation. Registry → Session → controllers protects Acquire reservation
+and returned-grant installation; Attach also installs under Session after revalidation. Failure leaves
 the candidate owned until all guards are released. Already-admitted Input/Resize retains its actual
 result. Exactly disposed Viewer Detach settles local absence as Detached; Poll/feedback becomes
 TerminalRuntimeUnavailable, with no Worker cleanup request. Closing/Unknown alone permits no such
 disposal-derived settlement.
 
 For Server cleanup, the retained canonical request ID and full runtime are the pre-Dispose identity
-seal. Under the same uninterrupted Site guard, validate KnownDisposed, capture and remove only the
+seal. Under the same uninterrupted Session guard, validate KnownDisposed, capture and remove only the
 current exact controller ID under one controller gate, release that gate, then mark authority
 cleanup complete. An absent reservation is already clear. This local cut allocates no target/map
 storage, performs no transport or lease Drop, and requires no live Worker. Failed proof or controller
 access retains target-cleanup-pending. Old lease settlement preserves unrelated/newer IDs; it never
-holds controllers while acquiring Site. Actual eight-idle-Client capacity release and late Attach/
+holds controllers while acquiring Session. Actual eight-idle-Client capacity release and late Attach/
 Acquire process/carrier traces must exercise the maintenance consumer before delivery is claimed.
 
 For a new Attach/AttachBinding, an existing exactly known-disposed Viewer may settle locally before
@@ -495,24 +495,24 @@ That total is wire-inclusive, so the comparison is looser than a heap-only bound
 — exact in practice: every candidate fits its slot, every stored receipt fit the
 same slot at its own admission, and no other heap cell can grow after commit.
 
-Retain KnownDisposed and complete exact local cleanup first. Under the Site gate, validate current
+Retain KnownDisposed and complete exact local cleanup first. Under the Session gate, validate current
 applicable membership and the exact target tuple, then prepare from the **current** snapshot: an
 aggregate Close removes every captured tree leaf as one Tab publication, preserving other Tabs,
 order and labels. A leaf-scoped Close removes exactly its captured leaf: the leaf's parent Split is
 replaced by the sibling subtree, retaining the sibling's own slot and Split identities, and the
 surviving Tab keeps its ID, label and remaining members; when the closed leaf is already the Tab
 root, the whole Tab is removed as for an aggregate Close. Releasing the gate requires
-revalidation/repreparation. No old admission snapshot replaces later writes, no Site-wide
+revalidation/repreparation. No old admission snapshot replaces later writes, no Session-wide
 freeze spans grace, and the credit does not preassign the final revision.
 
 Check actual encoded projection limits and delta/full-snapshot fallback; no future full buffer is
 assumed preallocated. Preparation failure retains disposal, membership, credit and addressable status;
 it is neither a pre-effect refusal nor permission to terminate again. Invariant-driven Workbench
-retirement still permits cleanup status reads. Successful preparation commits membership, live Site
+retirement still permits cleanup status reads. Successful preparation commits membership, live Session
 association, credit consumption and Closed together without further fallible work. Response loss
 does not undo that commit.
 
-## Exact Site completion
+## Exact Session completion
 
 Close publication removes only the captured Workspace member scope after known disposal and exact runtime cleanup. It preserves every unrelated binding and metadata value, rebasing over current canonical membership. Last-Tab removal leaves an empty Workspace; last-Workspace removal leaves an empty Workbench. No Open slot, reference retargeting or change notification participates.
 
@@ -603,7 +603,7 @@ never changes its binding. Rebinding requires
 the exact current old binding, a fresh binding on the same Worker, a quiescent
 Close, and the retained operation/attempt. Preparation validates the entire new
 projection before commit. A stale attempt, an already replaced slot, a duplicate
-terminal binding, or an unrelated Close cannot mutate the projection. Site
+terminal binding, or an unrelated Close cannot mutate the projection. Session
 composition commits this projection together with the new TerminalCoordinator
 Create reservation before dispatching the default-shell launch.
 
@@ -619,14 +619,14 @@ prove every replacement shell started. The Worktree receipt owns that distinctio
 Core witnesses cover empty and populated quiescent scopes, pending cleanup,
 stale/foreign ownership, duplicate bindings, repeated replacement/cancellation,
 unchanged layout identities, old-binding fences, direct publication and Resume
-refusal, and a fresh ordinary Close after cancellation. Site and Windows driver
+refusal, and a fresh ordinary Close after cancellation. Session and Windows driver
 witnesses additionally establish reserve-before-dispatch, generation fencing,
 known-failure verification, partial launches and retry behavior. These are bounded
 tests; full platform acceptance remains a separate obligation. This workflow has no separate TLA model.
 
 ## Failed launch removal
 
-A Tab, Panel or Workspace containing a definitively failed Create remains closable. Under the Site gate, TerminalCoordinator resolves every captured binding before Close admission. Exactly one binding in `Unavailable(None)` with a retained failed/unavailable Create outcome proves no Host terminal was committed; absence of an identity alone is insufficient. Host Create failures occur before its infallible terminal commit. Start and lifecycle failures do not establish this fact.
+A Tab, Panel or Workspace containing a definitively failed Create remains closable. Under the Session gate, TerminalCoordinator resolves every captured binding before Close admission. Exactly one binding in `Unavailable(None)` with a retained failed/unavailable Create outcome proves no Host terminal was committed; absence of an identity alone is insufficient. Host Create failures occur before its infallible terminal commit. Start and lifecycle failures do not establish this fact.
 
 `WorkbenchTabCloseMemberRuntime` carries either an exact runtime observation or the exact `Uncreated` product binding. Every captured member stays in the ordered Close record and reservation accounting. An Uncreated member has no runtime identity and starts at publication; it issues neither lifecycle commands nor controller cleanup, because no successful identity could admit a Viewer/controller. `disposed-awaiting-publication` describes proven absence here and does not claim a Host Dispose acknowledgment. Mixed scopes still require every runtime member to resolve before any admission effect. The maintenance owner remains required, while an all-Uncreated scope needs no connected Worker.
 
@@ -664,4 +664,4 @@ settlement, unknown effects, tampered membership, surviving metadata and Workspa
 
 ## Receipt identity reads
 
-OBWP 61/62 reads the exact retained Close ledger entry by original request ID, including empty and completed scopes, under the existing Site read grant. It returns the original target and generation without resolving current layout membership. [CLI status and resume](../../orchbee/docs/native-operation-status.md) reuse existing generation-fenced resume admission; the read itself never renews an attempt or schedules cleanup.
+OBWP 61/62 reads the exact retained Close ledger entry by original request ID, including empty and completed scopes, under the existing Session read grant. It returns the original target and generation without resolving current layout membership. [CLI status and resume](../../orchbee/docs/native-operation-status.md) reuse existing generation-fenced resume admission; the read itself never renews an attempt or schedules cleanup.

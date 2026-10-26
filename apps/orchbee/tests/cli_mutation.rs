@@ -312,7 +312,7 @@ fn fixture_document() -> &'static [u8] {
   "kind": "workbench.snapshot",
   "protocolVersion": 1,
   "revision": "7",
-  "siteId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "sessionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "navigation": {"projects":[{"projectId":"00000000000000000000000000000010", "label":"web"}], "directories":[], "workspaces":[{"workspaceId":"00000000000000000000000000000001","terminalContextId":"00000000000000000000000000000001","projectId":null,"primaryDirectoryId":null,"label":"Workspace"},{"workspaceId":"00000000000000000000000000000011", "label":"main", "primaryDirectoryId":null, "terminalContextId":"00000000000000000000000000000020", "projectId":"00000000000000000000000000000010"}]},
   "terminalContexts": [
     {
@@ -422,7 +422,7 @@ fn assert_command_base(command: &WorkbenchCommand, snapshot_request: &str) {
     assert_eq!(
         command.site_id.as_str(),
         SITE,
-        "Site identity from snapshot"
+        "Session identity from snapshot"
     );
     assert_eq!(
         command.expected_revision,
@@ -485,7 +485,7 @@ fn project_create_commits_under_a_fresh_request() -> TestResult {
     assert_eq!(document["schema"], "orchbee.mutation.result");
     assert_eq!(document["version"], 1);
     assert_eq!(document["source"]["kind"], "workbench-command");
-    assert_eq!(document["source"]["siteId"], SITE);
+    assert_eq!(document["source"]["sessionId"], SITE);
     assert_eq!(document["source"]["expectedRevision"], "7");
     assert_eq!(document["result"]["action"], "project.create");
     assert_eq!(document["result"]["outcome"], "committed");
@@ -563,7 +563,7 @@ fn workspace_create_commits_under_a_fresh_request() -> TestResult {
     assert_eq!(document["schema"], "orchbee.mutation.result");
     assert_eq!(document["version"], 1);
     assert_eq!(document["source"]["kind"], "workbench-command");
-    assert_eq!(document["source"]["siteId"], SITE);
+    assert_eq!(document["source"]["sessionId"], SITE);
     assert_eq!(document["source"]["expectedRevision"], "7");
     assert_eq!(document["result"]["action"], "workspace.create");
     assert_eq!(document["result"]["outcome"], "committed");
@@ -2209,7 +2209,7 @@ fn workspace_accept_directory_commits_under_a_fresh_request() -> TestResult {
     let document = envelope(&output);
     assert_eq!(document["schema"], "orchbee.mutation.result");
     assert_eq!(document["source"]["kind"], "workbench-command");
-    assert_eq!(document["source"]["siteId"], SITE);
+    assert_eq!(document["source"]["sessionId"], SITE);
     assert_eq!(document["source"]["expectedRevision"], "7");
     assert_eq!(document["result"]["action"], "workspace.accept-directory");
     assert_eq!(document["result"]["outcome"], "committed");
@@ -2434,7 +2434,7 @@ fn workspace_accept_directory_ambiguous_label_but_id_resolves() -> TestResult {
   "kind": "workbench.snapshot",
   "protocolVersion": 1,
   "revision": "7",
-  "siteId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "sessionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "navigation": {"projects":[{"projectId":"00000000000000000000000000000010", "label":"pa"}, {"projectId":"00000000000000000000000000000011", "label":"pb"}], "directories":[], "workspaces":[{"workspaceId":"00000000000000000000000000000001","terminalContextId":"00000000000000000000000000000001","projectId":null,"primaryDirectoryId":null,"label":"Workspace"},{"workspaceId":"00000000000000000000000000000012", "label":"dup", "primaryDirectoryId":null, "terminalContextId":"00000000000000000000000000000020", "projectId":"00000000000000000000000000000010"}, {"workspaceId":"00000000000000000000000000000013", "label":"dup", "primaryDirectoryId":null, "terminalContextId":"00000000000000000000000000000021", "projectId":"00000000000000000000000000000011"}]},
   "terminalContexts": [
     {
@@ -2640,7 +2640,7 @@ fn ambiguous_label_never_reaches_a_command() -> TestResult {
   "kind": "workbench.snapshot",
   "protocolVersion": 1,
   "revision": "3",
-  "siteId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "sessionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "navigation": {"projects":[], "directories":[], "workspaces":[{"workspaceId":"00000000000000000000000000000001","terminalContextId":"00000000000000000000000000000001","projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},
   "terminalContexts": [
     {
@@ -2968,7 +2968,7 @@ fn project_rename_commits_by_id_and_label() -> TestResult {
         assert_eq!(document["schema"], "orchbee.project.rename");
         assert_eq!(document["version"], 1);
         assert_eq!(document["source"]["kind"], "workbench-command");
-        assert_eq!(document["source"]["siteId"], SITE);
+        assert_eq!(document["source"]["sessionId"], SITE);
         assert_eq!(document["source"]["expectedRevision"], "7");
         assert_eq!(document["result"]["action"], "project.rename");
         assert_eq!(document["result"]["outcome"], "committed");
@@ -3307,7 +3307,7 @@ fn project_rename_machine_document_is_locale_neutral() -> TestResult {
         "/schema",
         "/version",
         "/source/kind",
-        "/source/siteId",
+        "/source/sessionId",
         "/source/expectedRevision",
         "/result/action",
         "/result/outcome",
@@ -3567,7 +3567,7 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
     assert_eq!(document["schema"], "orchbee.mutation.result");
     assert_eq!(document["version"], 1);
     assert_eq!(document["source"]["kind"], "workbench-command");
-    assert_eq!(document["source"]["siteId"], SITE);
+    assert_eq!(document["source"]["sessionId"], SITE);
     assert_eq!(document["source"]["expectedRevision"], "7");
     assert_eq!(
         document["source"]["requestId"].as_str().unwrap(),
@@ -3603,7 +3603,7 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
     assert_eq!(document["schema"], "orchbee.workspace.close-status");
     assert_eq!(document["version"], 1);
     assert_eq!(document["source"]["kind"], "workbench-snapshot");
-    assert_eq!(document["source"]["siteId"], SITE);
+    assert_eq!(document["source"]["sessionId"], SITE);
     assert_eq!(document["source"]["revision"], "7");
     assert_eq!(document["result"]["kind"], "available");
     assert_eq!(document["result"]["closeRequestId"], CLOSE_ID);
@@ -3639,7 +3639,7 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
     assert_eq!(document["version"], 1);
     // `close-resume` reports its own request echo — there is no command.
     assert_eq!(document["source"]["kind"], "workspace-close-resume");
-    assert_eq!(document["source"]["siteId"], SITE);
+    assert_eq!(document["source"]["sessionId"], SITE);
     assert_eq!(document["source"]["closeRequestId"], CLOSE_ID);
     assert_eq!(document["source"]["expectedAttemptGeneration"], "1");
     assert_eq!(document["result"]["action"], "workspace.close-resume");

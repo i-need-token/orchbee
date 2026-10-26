@@ -139,7 +139,7 @@ fn launch_profile_documents_preserve_platform_paths_and_reject_relative_paths() 
             });
             let output = super::success_output(
                 projection,
-                json!({"kind":"launch-profile-catalog","siteId":ID,"catalogRevision":"7"}),
+                json!({"kind":"launch-profile-catalog","sessionId":ID,"catalogRevision":"7"}),
                 &command,
                 OutputFormat::Json,
                 Locale::EnUs,
@@ -376,7 +376,7 @@ fn terminal_lists_use_localized_headers_and_copyable_stable_handles() {
             .collect();
         let output = super::success_output(
             Projection::TerminalList(TerminalListDocument::bare(rows)),
-            json!({"kind":"workbench-snapshot","siteId":ID,"revision":"1"}),
+            json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"1"}),
             &QueryCommand::TerminalList { filter: None },
             OutputFormat::Text,
             locale,
@@ -407,7 +407,7 @@ fn terminal_handles_keep_all_significant_digits_without_truncation() {
     });
     let output = super::success_output(
         Projection::TerminalList(TerminalListDocument::bare(rows.into())),
-        json!({"kind":"workbench-snapshot","siteId":ID,"revision":"1"}),
+        json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"1"}),
         &QueryCommand::TerminalList { filter: None },
         OutputFormat::Text,
         Locale::EnUs,
@@ -422,7 +422,7 @@ fn empty_terminal_lists_keep_the_localized_header() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let output = super::success_output(
             Projection::TerminalList(TerminalListDocument::bare(vec![])),
-            json!({"kind":"workbench-snapshot","siteId":ID,"revision":"1"}),
+            json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"1"}),
             &QueryCommand::TerminalList { filter: None },
             OutputFormat::Text,
             locale,
@@ -461,7 +461,7 @@ fn terminal_list_agent_states_are_localized() {
                         ..TerminalListDetails::default()
                     }],
                 }),
-                json!({"kind":"workbench-snapshot","siteId":ID,"revision":"1"}),
+                json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"1"}),
                 &QueryCommand::TerminalList { filter: None },
                 OutputFormat::Text,
                 locale,
@@ -495,7 +495,7 @@ fn terminal_list_keeps_full_paths_and_escapes_terminal_controls() {
                 cwd: Some(format!("C:\\work\\{}\\\u{001b}", "nested\\".repeat(32))),
             }],
         }),
-        json!({"kind":"workbench-snapshot","siteId":ID,"revision":"1"}),
+        json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"1"}),
         &QueryCommand::TerminalList { filter: None },
         OutputFormat::Text,
         Locale::EnUs,
@@ -544,7 +544,7 @@ fn terminal_list_shows_location_handles_and_program_names() {
                 rows: vec![row.clone()],
                 details: vec![placement(workspace)],
             }),
-            json!({"kind":"workbench-snapshot","siteId":ID,"revision":"1"}),
+            json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"1"}),
             &QueryCommand::TerminalList { filter: None },
             OutputFormat::Text,
             locale,
@@ -569,7 +569,7 @@ fn terminal_list_human_enrichment_does_not_change_json_bytes() {
         tab_id: "4".repeat(32),
         terminal_context_id: "5".repeat(32),
     }];
-    let source = json!({"kind":"workbench-snapshot","siteId":ID,"revision":"1"});
+    let source = json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"1"});
     let command = QueryCommand::TerminalList { filter: None };
     let plain = super::success_output(
         Projection::TerminalList(TerminalListDocument::bare(rows.clone())),
@@ -696,7 +696,7 @@ fn terminal_get_preserves_launch_arguments_and_omits_unknown_selection_in_all_lo
 fn oversized_json_result_emits_the_selected_envelope() {
     let output = super::success_output(
         oversized_terminals(),
-        json!({"kind": "workbench-snapshot", "siteId": ID, "revision": "7"}),
+        json!({"kind": "workbench-snapshot", "sessionId": ID, "revision": "7"}),
         &QueryCommand::TerminalList { filter: None },
         OutputFormat::Json,
         Locale::EnUs,
@@ -717,7 +717,7 @@ fn oversized_json_result_emits_the_selected_envelope() {
 fn api_snapshot_overflow_obeys_the_caller_format() {
     // `api snapshot` success is always a machine document, but its
     // preparation overflow answers in the caller's selected format.
-    let source = json!({"kind": "workbench-snapshot", "siteId": ID, "revision": "7"});
+    let source = json!({"kind": "workbench-snapshot", "sessionId": ID, "revision": "7"});
     let text = super::success_output(
         oversized_snapshot(),
         source.clone(),
@@ -833,7 +833,7 @@ fn renderer_path_lands_exactly_on_and_just_over_the_bound() {
 
     let output = super::success_output(
         doc(fill + 1),
-        json!({"kind": "workbench-snapshot", "siteId": ID, "revision": "7"}),
+        json!({"kind": "workbench-snapshot", "sessionId": ID, "revision": "7"}),
         &command,
         OutputFormat::Text,
         Locale::EnUs,

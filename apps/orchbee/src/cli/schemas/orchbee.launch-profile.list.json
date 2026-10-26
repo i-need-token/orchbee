@@ -82,13 +82,13 @@
 		},
 		"catalogSource": {
 			"type": "object",
-			"required": ["kind", "siteId", "catalogRevision"],
+			"required": ["kind", "sessionId", "catalogRevision"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
 					"const": "launch-profile-catalog"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/id"
 				},
 				"catalogRevision": {

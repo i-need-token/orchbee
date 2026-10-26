@@ -200,7 +200,7 @@ lifecycle and relay policy belong to Desktop and the SSH Runtime.
 Before publishing its endpoint or starting service workers, the Windows Host clears the inherited
 ignore-Ctrl+C attribute with `SetConsoleCtrlHandler(NULL, FALSE)`. This is one process-startup
 operation; failure aborts service admission. Version-only invocation does not change signal policy.
-A detached Site's new process group must not make every terminal child ignore Ctrl+C. The Host
+A detached Session's new process group must not make every terminal child ignore Ctrl+C. The Host
 remains detached, and terminal Job containment is unchanged. No console attachment, signal broadcast,
 shell injection, per-spawn global toggle or input-byte-triggered process kill is involved.
 

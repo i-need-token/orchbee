@@ -31,7 +31,7 @@ fn command_request(action: WorkbenchAction) -> WorkbenchRequest {
 
 fn command_json(action_json: &str) -> Vec<u8> {
     format!(
-        r#"{{"kind":"workbench.command","protocolVersion":1,"requestId":"11111111111111111111111111111111","siteId":"22222222222222222222222222222222","expectedRevision":"0","action":{action_json}}}"#
+        r#"{{"kind":"workbench.command","protocolVersion":1,"requestId":"11111111111111111111111111111111","sessionId":"22222222222222222222222222222222","expectedRevision":"0","action":{action_json}}}"#
     )
     .into_bytes()
 }

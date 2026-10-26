@@ -425,7 +425,7 @@
 		"request": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "action"],
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "action"],
 			"properties": {
 				"kind": {
 					"const": "workbench.panel-metadata"
@@ -436,7 +436,7 @@
 				"requestId": {
 					"$ref": "#/$defs/identity"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/identity"
 				},
 				"action": {
@@ -657,7 +657,7 @@
 				"reason": {
 					"enum": [
 						"invalid-request",
-						"site-mismatch",
+						"session-mismatch",
 						"not-found",
 						"unbound",
 						"binding-changed",
@@ -676,7 +676,7 @@
 		"result": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"],
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "outcome"],
 			"properties": {
 				"kind": {
 					"const": "workbench.panel-metadata.result"
@@ -687,7 +687,7 @@
 				"requestId": {
 					"$ref": "#/$defs/identity"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/identity"
 				},
 				"outcome": {

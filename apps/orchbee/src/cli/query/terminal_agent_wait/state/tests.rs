@@ -296,7 +296,7 @@ fn physical_wait_documents_reject_fabricated_fields_and_incomplete_client_views(
     let mut initial = read(1, 1, Status::Idle, &[]);
     let id = "1".repeat(32);
     initial.source =
-        json!({"siteId":id,"workbenchRevision":"1","reportRevision":"1","requestId":id});
+        json!({"sessionId":id,"workbenchRevision":"1","reportRevision":"1","requestId":id});
     let target = AgentTarget::Name {
         name: orchbee_agent_observation_protocol::AgentName::parse("test").unwrap(),
     };

@@ -165,98 +165,96 @@ impl Locale {
             }
             HelpTopic::Family(Family::Agent) => (
                 "Find, run and interact with AI Agents.",
-                "查找、启动并操作 AI Agent。",
+                "查找、启动并操作 AI 智能体。",
             ),
             #[cfg(windows)]
             HelpTopic::Family(Family::AgentView) => (
                 "Choose which Agents appear in the sidebar.",
-                "选择侧边栏显示的 Agent。",
+                "选择侧边栏显示的智能体。",
             ),
             #[cfg(windows)]
             HelpTopic::Command(CommandPath::AgentViewGet) => {
-                ("Show the Agent view settings.", "显示 Agent 视图设置。")
+                ("Show the Agent view settings.", "显示智能体视图设置。")
             }
             #[cfg(windows)]
             HelpTopic::Command(CommandPath::AgentViewSet) => (
                 "Save Agent filters, grouping and sorting.",
-                "保存 Agent 筛选、分组和排序设置。",
+                "保存智能体筛选、分组和排序设置。",
             ),
             #[cfg(windows)]
             HelpTopic::Command(CommandPath::AgentViewClear) => {
-                ("Restore the default Agent view.", "恢复默认 Agent 视图。")
+                ("Restore the default Agent view.", "恢复默认智能体视图。")
             }
             HelpTopic::Command(CommandPath::AgentList) => {
-                ("List observed Agents.", "列出已发现的 Agent。")
+                ("List observed Agents.", "列出已发现的智能体。")
             }
             HelpTopic::Command(CommandPath::AgentChanges) => (
                 "Read a page of Agent state changes.",
-                "分页读取 Agent 状态变化。",
+                "分页读取智能体状态变化。",
             ),
             HelpTopic::Command(CommandPath::AgentGet) => {
-                ("Show one Agent and its state.", "查看一个 Agent 及其状态。")
+                ("Show one Agent and its state.", "查看一个智能体及其状态。")
             }
             HelpTopic::Command(CommandPath::AgentFocus) => (
                 "Focus the terminal containing an Agent.",
-                "聚焦 Agent 所在的终端。",
+                "聚焦智能体所在的终端。",
             ),
             HelpTopic::Command(CommandPath::AgentAttention) => (
                 "Show an Agent's seen/unseen state in a client.",
-                "查看客户端对 Agent 的已读／未读状态。",
+                "查看客户端对智能体的已读／未读状态。",
             ),
-            HelpTopic::Command(CommandPath::AgentRead) => (
-                "Read an Agent's terminal output.",
-                "读取 Agent 的终端输出。",
-            ),
+            HelpTopic::Command(CommandPath::AgentRead) => {
+                ("Read an Agent's terminal output.", "读取智能体的终端输出。")
+            }
             HelpTopic::Command(CommandPath::AgentStart) => (
                 "Start an Agent with the requested launch settings.",
-                "按指定启动配置运行 Agent。",
+                "按指定启动配置运行智能体。",
             ),
             HelpTopic::Command(CommandPath::AgentPrompt) => {
-                ("Submit a prompt to an Agent.", "向 Agent 提交提示词。")
+                ("Submit a prompt to an Agent.", "向智能体提交提示词。")
             }
             HelpTopic::Command(CommandPath::AgentSendKeys) => {
-                ("Send key presses to an Agent.", "向 Agent 发送按键。")
+                ("Send key presses to an Agent.", "向智能体发送按键。")
             }
             HelpTopic::Command(CommandPath::AgentExplain) => (
                 "Explain how an Agent was identified.",
-                "说明 Agent 的识别依据。",
+                "说明智能体的识别依据。",
             ),
             HelpTopic::Command(CommandPath::AgentWait) => (
                 "Wait for an Agent to match a condition.",
-                "等待 Agent 满足指定条件。",
+                "等待智能体满足指定条件。",
             ),
             HelpTopic::Command(CommandPath::AgentDoctor) => {
-                ("Check local Agent integrations.", "检查本地 Agent 集成。")
+                ("Check local Agent integrations.", "检查本地智能体集成。")
             }
             HelpTopic::Command(CommandPath::AgentNames) => (
                 "List saved Agent session names.",
-                "列出已保存的 Agent 会话名称。",
+                "列出已保存的智能体会话名称。",
             ),
             HelpTopic::Command(CommandPath::AgentResolve) => (
                 "Resolve an Agent name to its session.",
-                "按名称查找 Agent 会话。",
+                "按名称查找智能体会话。",
             ),
             HelpTopic::Command(CommandPath::AgentRename) => {
-                ("Give an Agent session a name.", "设置 Agent 会话名称。")
+                ("Give an Agent session a name.", "设置智能体会话名称。")
             }
             HelpTopic::Family(Family::AgentIntegration) => {
-                ("Set up local Agent integrations.", "配置本地 Agent 集成。")
+                ("Set up local Agent integrations.", "配置本地智能体集成。")
             }
             HelpTopic::Command(CommandPath::AgentIntegrationList) => (
                 "List local Agent integration states.",
-                "列出本地 Agent 集成状态。",
+                "列出本地智能体集成状态。",
             ),
             HelpTopic::Command(CommandPath::AgentIntegrationExplain) => (
                 "Explain an Agent integration's setup.",
-                "说明 Agent 集成的配置情况。",
+                "说明智能体集成的配置情况。",
             ),
             HelpTopic::Command(CommandPath::AgentIntegrationEnable) => {
-                ("Enable a local Agent integration.", "启用本地 Agent 集成。")
+                ("Enable a local Agent integration.", "启用本地智能体集成。")
             }
-            HelpTopic::Command(CommandPath::AgentIntegrationDisable) => (
-                "Disable a local Agent integration.",
-                "停用本地 Agent 集成。",
-            ),
+            HelpTopic::Command(CommandPath::AgentIntegrationDisable) => {
+                ("Disable a local Agent integration.", "停用本地智能体集成。")
+            }
             HelpTopic::Family(Family::Project) => (
                 "Group related workspaces into projects.",
                 "用项目组织相关工作区。",
@@ -281,7 +279,7 @@ impl Locale {
             }
             HelpTopic::Command(CommandPath::AgentAttach) => (
                 "Interact with an Agent's terminal.",
-                "进入 Agent 所在的终端。",
+                "进入智能体所在的终端。",
             ),
             HelpTopic::Family(Family::WorkbenchClient) => (
                 "Stream terminal frames and control messages.",
@@ -415,15 +413,15 @@ impl Locale {
             }
             HelpTopic::Command(CommandPath::PanelReportAgent) => (
                 "Report an Agent associated with a panel.",
-                "报告面板关联的 Agent。",
+                "报告面板关联的智能体。",
             ),
             HelpTopic::Command(CommandPath::PanelClearAgentAuthority) => (
                 "Clear an Agent reporting assignment.",
-                "清除 Agent 状态报告关联。",
+                "清除智能体状态报告关联。",
             ),
             HelpTopic::Command(CommandPath::PanelReleaseAgent) => (
                 "Release a panel's Agent association.",
-                "解除面板的 Agent 关联。",
+                "解除面板的智能体关联。",
             ),
             HelpTopic::Command(CommandPath::WorkspaceReportMetadata) => (
                 "Update temporary workspace display details.",
@@ -655,7 +653,7 @@ impl Locale {
             ),
             HelpTopic::Command(CommandPath::SiteUpdateAgentManifests) => (
                 "Download and apply Agent detection rules.",
-                "下载并应用 Agent 识别规则。",
+                "下载并应用智能体识别规则。",
             ),
             HelpTopic::Command(CommandPath::SiteConfig) => (
                 "Show the running session's configuration.",
@@ -790,15 +788,15 @@ impl Locale {
             ),
             HelpTopic::Command(CommandPath::SiteAgentManifests) => (
                 "Show the active Agent detection rules.",
-                "显示当前 Agent 识别规则。",
+                "显示当前智能体识别规则。",
             ),
             HelpTopic::Command(CommandPath::SiteReloadAgentManifests) => (
                 "Reload local Agent detection rules.",
-                "重新加载本地 Agent 识别规则。",
+                "重新加载本地智能体识别规则。",
             ),
             HelpTopic::Command(CommandPath::SiteAgentManifestsStatus) => (
                 "Check an Agent detection rule update.",
-                "查看 Agent 识别规则的更新状态。",
+                "查看智能体识别规则的更新状态。",
             ),
             HelpTopic::Command(CommandPath::SiteStop) => (
                 "Stop the selected local session and its terminals; requires --confirm.",
@@ -881,25 +879,22 @@ impl Locale {
             HelpText::Examples => ("Examples (POSIX shell)", "示例（POSIX Shell）"),
             HelpText::GlobalOptions => ("Global options", "全局选项"),
             HelpText::Terminals => ("Terminals and layout", "终端与布局"),
-            HelpText::Agents => ("Agents and workflows", "Agent 与工作流程"),
+            HelpText::Agents => ("Agents and workflows", "智能体与工作流程"),
             HelpText::Sessions => ("Sessions and connections", "会话与连接"),
             HelpText::Setup => ("Setup and integration", "设置与集成"),
             HelpText::Introduction => (
                 "A terminal for running and coordinating AI Agents.",
-                "运行和协作 AI Agent 的终端。",
+                "运行和协作 AI 智能体的终端。",
             ),
             HelpText::OpenTerminal => ("Open the terminal interface.", "打开终端界面。"),
             HelpText::NewWorkspace => (
                 "Create a workspace and its first terminal.",
                 "创建工作区及其首个终端。",
             ),
-            HelpText::ListAgents => ("See your active Agents.", "查看正在运行的 Agent。"),
+            HelpText::ListAgents => ("See your active Agents.", "查看正在运行的智能体。"),
             HelpText::ShowHelp => ("Show this help and exit.", "显示本帮助后退出。"),
             HelpText::ShowVersion => ("Print the installed version.", "显示已安装的版本。"),
-            HelpText::ShowSkill => (
-                "Print the offline Agent guide.",
-                "显示离线 Agent 使用指南。",
-            ),
+            HelpText::ShowSkill => ("Print the offline Agent guide.", "显示离线智能体使用指南。"),
             HelpText::Session => (
                 "Select a local Orchbee session; default: default.",
                 "选择本地 Orchbee 会话；默认 default。",

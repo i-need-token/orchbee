@@ -54,7 +54,7 @@ fn settings_dispatch_checks_permission_and_site_before_shared_store_access() {
             service.clone(),
         );
         let request: NativeSettingsRequest = serde_json::from_value(json!({"protocolVersion": 1,
-            "requestId": "22222222222222222222222222222222", "siteId": site, "operation": operation})).unwrap();
+            "requestId": "22222222222222222222222222222222", "sessionId": site, "operation": operation})).unwrap();
         request.validate().unwrap();
         let WorkbenchExecution::Response(WorkbenchResponse::Settings(result)) =
             workbench.execute(WorkbenchRequest::Settings(request.clone()))

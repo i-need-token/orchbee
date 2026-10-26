@@ -92,7 +92,7 @@ Client's selection. Acting on a noncurrent Workspace does not enter it. Project 
 targets the exact row without selecting a child.
 
 Sidebar drag and keyboard sorting instead submit one `navigation.configure` through the same
-nonmodal setup lane. The source captures Site, revision and complete Navigation; release or keyboard
+nonmodal setup lane. The source captures Session, revision and complete Navigation; release or keyboard
 admission rechecks that source and requires the painted grouping and display order to match it; the
 authority rechecks CAS. The shared pure transition supplies
 the exact expected membership and order for receipt verification; a same-revision partial or

@@ -48,7 +48,7 @@ impl Fixture {
         );
         let document: Value = serde_json::from_slice(&output.stdout).unwrap();
         let schema: Value =
-            serde_json::from_str(include_str!("../src/cli/schemas/orchbee.site.stop.json"))
+            serde_json::from_str(include_str!("../src/cli/schemas/orchbee.server.stop.json"))
                 .unwrap();
         jsonschema::draft202012::new(&schema)
             .unwrap()

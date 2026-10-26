@@ -222,7 +222,7 @@
 					"required": [
 						"action",
 						"requestId",
-						"siteId",
+						"sessionId",
 						"workerId",
 						"terminalId",
 						"inputStatus",
@@ -241,7 +241,7 @@
 						"requestId": {
 							"$ref": "#/$defs/sendReceipt/$defs/id"
 						},
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/sendReceipt/$defs/id"
 						},
 						"workerId": {
@@ -436,13 +436,13 @@
 				},
 				"sendSource": {
 					"type": "object",
-					"required": ["kind", "siteId", "requestId", "snapshotRevision"],
+					"required": ["kind", "sessionId", "requestId", "snapshotRevision"],
 					"additionalProperties": false,
 					"properties": {
 						"kind": {
 							"const": "terminal.send"
 						},
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/sendReceipt/$defs/id"
 						},
 						"requestId": {
@@ -838,7 +838,7 @@
 						"resource-limit",
 						"revision-exhausted",
 						"revision-mismatch",
-						"site-mismatch",
+						"session-mismatch",
 						"tab-unavailable",
 						"terminal-context-unavailable",
 						"workspace-directory-conflict",
@@ -981,13 +981,13 @@
 					"oneOf": [
 						{
 							"type": "object",
-							"required": ["kind", "siteId", "revision"],
+							"required": ["kind", "sessionId", "revision"],
 							"additionalProperties": false,
 							"properties": {
 								"kind": {
 									"const": "workbench-snapshot"
 								},
-								"siteId": {
+								"sessionId": {
 									"$ref": "#/$defs/sendFailure/$defs/id"
 								},
 								"revision": {
@@ -997,13 +997,13 @@
 						},
 						{
 							"type": "object",
-							"required": ["kind", "siteId", "revision"],
+							"required": ["kind", "sessionId", "revision"],
 							"additionalProperties": false,
 							"properties": {
 								"kind": {
 									"const": "terminal-launch-read"
 								},
-								"siteId": {
+								"sessionId": {
 									"$ref": "#/$defs/sendFailure/$defs/id"
 								},
 								"revision": {
@@ -1013,13 +1013,13 @@
 						},
 						{
 							"type": "object",
-							"required": ["kind", "siteId", "requestId", "snapshotRevision"],
+							"required": ["kind", "sessionId", "requestId", "snapshotRevision"],
 							"additionalProperties": false,
 							"properties": {
 								"kind": {
 									"const": "terminal.send"
 								},
-								"siteId": {
+								"sessionId": {
 									"$ref": "#/$defs/sendFailure/$defs/id"
 								},
 								"requestId": {
@@ -1032,13 +1032,13 @@
 						},
 						{
 							"type": "object",
-							"required": ["kind", "siteId", "requestId", "expectedRevision"],
+							"required": ["kind", "sessionId", "requestId", "expectedRevision"],
 							"additionalProperties": false,
 							"properties": {
 								"kind": {
 									"const": "workbench-command"
 								},
-								"siteId": {
+								"sessionId": {
 									"$ref": "#/$defs/sendFailure/$defs/id"
 								},
 								"requestId": {

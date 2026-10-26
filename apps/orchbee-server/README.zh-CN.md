@@ -2,7 +2,7 @@
 
 ## Windows 语义事件
 
-Site 日志记录真实已接受的拓扑、元数据、worktree、Agent 与 Client 变化。
+会话 日志记录真实已接受的拓扑、元数据、worktree、Agent 与 Client 变化。
 已认证连接持有一个有界订阅；read／wait 保留 cursor 与探测，close／EOF 释放所有者。
 终端输出与退出依据已准入 Host 观察；Client 滚动／visible 输出读取准确的只读 Client viewport。
 历史断档、来源不可用与观察器回收不确定均明确报告。[事件所有权与验收](docs/windows-events.zh-CN.md)
@@ -25,11 +25,11 @@ CLI 行为和证据；[本机 Client 协议](../../crates/local-client-protocol/
 发布持久 Stopped，再完成运行时激活记录。发布失败保留恢复不确定性，绝不授予正常停止的成功回执。
 运行时 crate 拥有清单编码、路径准入及替换；Server 拥有关闭已确认的判定时机。
 
-## 托管 Windows Site 停止
+## 托管 Windows 会话 停止
 
 托管 Server 在 Workbench 已提交变化后以 500ms 防抖自动保存，每 30 秒补存已缓存目录。保留三份有效存档，不保存终端屏幕。启动时恢复最新有效存档；不可读副本保留并向
 Client 提醒，全部副本无效时明确提示空工作区。[checkpoint 契约](docs/workbench-checkpoint.zh-CN.md)
-拥有捕获、确切物理目录围栏及恢复；Site owner 的启动准入仍由 runtime 判定。
+拥有捕获、确切物理目录围栏及恢复；会话 owner 的启动准入仍由 runtime 判定。
 
 一个停止标识拥有托管 Server 剩余的生命周期。接受它会原子关闭新应用记录准入；已准入操作及结果写入先结束再清理。
 重复开始和状态请求观察保留的尝试；不同标识返回忙。只有相同失败标识的显式重试可开始下一次尝试，最多 64 次。
@@ -57,13 +57,13 @@ installer 或 service manager 消费。
 ## Workbench projection store
 
 侧栏删除可提交带独立完整指纹的 `workspace.close-if-idle` 或 `project.dissolve-if-idle`。
-[条件准入所有者](docs/terminal-tab-close.zh-CN.md#条件式空闲准入)在 Site gate 内证明整个捕获
+[条件准入所有者](docs/terminal-tab-close.zh-CN.md#条件式空闲准入)在 会话 gate 内证明整个捕获
 范围，包括待处理预留和子项绑定。已有运行时或未解析的范围绝不会因 Client 观察而成为空范围。
 条件 Workspace Close 安装普通保留栅栏；条件 Project 解散只移除组织，保留成员资源。
 确定的 `confirmation-required` 拒绝允许重新审核决定，绝不自动无条件重发。既有显式确认动作
 及回执保持原语义。
 
-`WorkbenchAuthority` 拥有一份内存 Site 导航文档及有界 request/result ledger。导航保存按身份排序的
+`WorkbenchAuthority` 拥有一份内存 会话 导航文档及有界 request/result ledger。导航保存按身份排序的
 全局 `directories`、`projects`、`workspaces` 数组，以及独立的 `projectOrder` 与 `workspaceOrder` 排列。
 Project 仅含身份和标签；每个 Workspace 都必须包含可为 null 的 `projectId`，未分组 Workspace
 也是同一文档的普通成员。Directory 是独立于 Project 成员关系的全局资源。
@@ -85,7 +85,7 @@ carrier 向该目录的属主 Worker 派发一个 fencing OBCN 发现 job；应�
 检查在锁内进行，请求 I/O 绝不在锁内。
 本地 `tab.create` 命令追加一个已配置 Workspace Tab，共同提交成员关系与保留的
 终端意图，再派发一次启动。精确重放返回同一份待处理或最终结果。后续 Close 可以移除该
-成员关系，但不改写历史 Create 结果。Client 可以使用当前 snapshot 中确切的 Site/Worker/Terminal binding，
+成员关系，但不改写历史 Create 结果。Client 可以使用当前 snapshot 中确切的 会话/Worker/Terminal binding，
 通过 OBCS attach viewer。[权威模型](docs/workbench-authority.zh-CN.md) 定义授权、revision
 冲突、语义重放、分配、停用和证据。读取在与写入相同的 gate 内克隆已提交 snapshot，响应 I/O
 位于释放 gate 之后。
@@ -130,19 +130,19 @@ snapshot 上限仍为 1 MiB。OBWP 拥有请求/结果 envelope。Application li
 ## In-memory advancement 与 publication
 
 权威的私有 `WorkbenchProjectionStore::advance_projection` 接受一份内部完整 snapshot，要求相同
-Site 和严格递增 revision，然后按 canonical identity 顺序派生 navigation replacement 与变化的
+会话 和严格递增 revision，然后按 canonical identity 顺序派生 navigation replacement 与变化的
 context。在 1,024-change 和 1 MiB 编码上限内返回 `WorkbenchPublication::Delta`，否则返回完整
 snapshot。没有可见 projection 变化时，empty delta 可以推进 revision。
 
 Store 在改变状态之前校验并序列化 publication。应用 delta 必须精确重现 candidate。Parsing、
-Site、revision、refinement 或 serialization 失败保持状态不变。只有权威可以推进该私有组件。
+会话、revision、refinement 或 serialization 失败保持状态不变。只有权威可以推进该私有组件。
 Client 不能替换 snapshot 或提交 delta。Carrier 提供写入后的按需读取；每条已提交 publication
 保留在 64 条上限的 journal 中，并通过 `workbench.publication.read` 在相同读取授权下提供给
 读取方，使持有基线 revision 的 Client 用有序 publication 快进，而不是重新拉取完整 snapshot。
 journal 无法衔接调用方 revision 时，以一条完整 snapshot 边界 publication 应答。主动推送订阅
 仍未完成。
 
-## 托管 Linux 与 macOS Site 启动
+## 托管 Linux 与 macOS 会话 启动
 
 私有 `--local-site <absolute-runtime-directory>` 入口消费
 [共享运行时契约](../../crates/local-site-runtime/README.zh-CN.md)。
@@ -155,7 +155,7 @@ Worker 注册后永久关闭 Worker listener，不准入替代代次；之后才
 这里的就绪表示 Server + Worker 注册，不表示已有 Host 或终端。
 托管角色的标准流为空；不会发出显式端点模式的 stdout readiness marker。
 
-Client 退出不关闭 Site。Worker 丢失会使能力不可用，不启动替代 Worker；
+Client 退出不关闭 会话。Worker 丢失会使能力不可用，不启动替代 Worker；
 Server 丢失保留启动标记和 Host 终端，需要显式恢复。本入口不实现恢复、自动清理、
 服务管理器安装或重启。普通显式端点测试入口保持下述原有行为。
 
@@ -418,7 +418,7 @@ exchange。Worker response 预算为二十秒，launch lease 为四十六秒，�
 ## 本机终端 send
 
 已准入 Client 可对其本可关闭的、已暴露 Workbench 终端提交一次非交互 input send。selector
-指明 Server 在本次准入时验证的精确 site、worker、terminal 绑定；它不是从早前 list 结果
+指明 Server 在本次准入时验证的精确 session、worker、terminal 绑定；它不是从早前 list 结果
 取得的隐式化身锁。send 是新增的显式编排输入权，不是只读查询，也不是权限零变化；它不新增
 远程暴露，也不绕过 cohort、peer 或 Host 能力检查。
 
@@ -537,12 +537,12 @@ Service 在锁外构造 Workbench 权威。SiteCoordinator 拥有 Workspace 终�
 保留目标解析和 attachment identity 准备。WorkbenchAuthority 的
 `terminal_binding_selection` 子模块拥有只读 canonical exposure query；`terminal_tab_create`
 拥有命令接纳、准备后的成员关系、预留账本字节及结算。
-`workspace_directory` 子模块分别拥有 WorkbenchAuthority 的目录接纳与规范提交、Site grant
+`workspace_directory` 子模块分别拥有 WorkbenchAuthority 的目录接纳与规范提交、会话 grant
 组合，以及 service 在锁外进行 Worker 观察后重新校验的流程。`terminal_tab_move` 拥有 Move 接纳与
-准备后的置换；Site 在目标/无操作判断前校验组合。二者共享命令预检；Move 复用权威的
+准备后的置换；会话 在目标/无操作判断前校验组合。二者共享命令预检；Move 复用权威的
 准备后已结算命令发布路径。
 LocalTerminalService 父模块拥有共享熵源
-获取；其 `tab_create` 子模块按 registry 再 Site 的顺序持锁固定 Worker placement，在两锁之外
+获取；其 `tab_create` 子模块按 registry 再 会话 的顺序持锁固定 Worker placement，在两锁之外
 派发，并先结算两个 owner，再返回保留命令结果。共享辅助函数定义在父模块中，子模块不导入兄弟模块。
 Service 的 `viewer_connection` 拥有附件 lifetime；
 `controller_connection` 拥有终端预留、Connection grant、副作用 sequence 和精确释放；
@@ -550,15 +550,15 @@ Service 的 `viewer_connection` 拥有附件 lifetime；
 反向及其他 lateral import 仍禁止；测试不扩大 production visibility。
 
 Carrier 拥有 I/O、精确 echo 验证和 generation retirement，不拥有 OBCS 或产品策略。
-确定性 core 不导入 transport、clock 或 process adapter。Terminal service 操作按 registry 再 Site
+确定性 core 不导入 transport、clock 或 process adapter。Terminal service 操作按 registry 再 会话
 的顺序获取锁；grant 操作则按 registry 再 controller map 获取锁。Workbench 访问先校验外部 OBWP policy，
-读取及纯导航随后只获取 Site gate。不透明的 `WorkbenchReadOrNavigationRequest` 排除需要 Site 组合的
+读取及纯导航随后只获取 会话 gate。不透明的 `WorkbenchReadOrNavigationRequest` 排除需要 会话 组合的
 `tab.create`、`tab.move`、`tab.close`、`panel.split`、`panel.close`、`panel.move` 和
-`workspace.primary-directory.accept`。Move 要求 navigation grant，且只获取 Site gate；
-`tab.create` 还要求 terminal-create grant，并使用上述组合路径。Binding viewer selection 先持有 registry 和 Site 锁，再采样 handle 的
+`workspace.primary-directory.accept`。Move 要求 navigation grant，且只获取 会话 gate；
+`tab.create` 还要求 terminal-create grant，并使用上述组合路径。Binding viewer selection 先持有 registry 和 会话 锁，再采样 handle 的
 active state；其内部 canonical query 使用 OBCS subject admission，并保持 Workbench 优先的失败顺序。I/O 前释放全部 gate，不增加自动重试。`application_connection` runner 将确切
 OBCS/OBWP prefix 分派给不同语义 handler，只导入其契约及标准库 I/O。提交后协调失败会关闭混合
-载体，不会伪造命令结果。尚未发布的 application library 暴露权威、Site grant 和内部
+载体，不会伪造命令结果。尚未发布的 application library 暴露权威、会话 grant 和内部
 membership/exposure/preparation 的 typed result；整份 projection 写入保持私有。
 
 ## 验证
@@ -584,25 +584,25 @@ relay 核心只有一个配置，期限为 20 秒。它必须穷举完整可达�
 
 ## Workspace 终端创建
 
-Site 从空 Workbench 开始。每个承载终端的上下文都有一个真实 Workspace 所有者，Project 成员关系可为 null。显式 `workspace.launch` 或 `tab.create` 联合准备规范成员与运行时预留，一次提交，并使用该 Workspace 已准入的 Worker／目录启动。精确重放返回保留的待完成／最终结果，不再次启动。
+会话 从空 Workbench 开始。每个承载终端的上下文都有一个真实 Workspace 所有者，Project 成员关系可为 null。显式 `workspace.launch` 或 `tab.create` 联合准备规范成员与运行时预留，一次提交，并使用该 Workspace 已准入的 Worker／目录启动。精确重放返回保留的待完成／最终结果，不再次启动。
 
 Client 读取规范成员并附着其准确绑定。不存在 `terminal.open` 端点、单例首终端引用或无 Workspace 的回退。空 Workspace 仍可导航；空 Workbench 不隐式创建终端。参见 [Workspace 成员关系](docs/workbench-authority.zh-CN.md#workspace-终端成员模型)、[Tab 创建](docs/workbench-authority.zh-CN.md#workspace-tab-创建模型)及[目录准入](docs/workspace-terminal-directory.zh-CN.md)。
 
-## Windows 原生 Site
+## Windows 原生 会话
 
-Windows 托管 Site 保留现有内存权威和生命周期锁。它准入当前令牌用户的命名管道对端，并禁用句柄继承来启动精确的同级 `orchbee-worker.exe`，使 CLI 输出捕获可独立于保留的 Site 结束。运行时路径、ACL、锁、标记及 cohort 校验仍由 `orchbee-local-site-runtime` 负责。Windows 观察入口无需 Unix 半关闭即可接收一个有界完整 JSON 值；畸形连接不会中断其他客户端。此入口适配器不移植 Unix provider hooks。可用命令面及剩余限制见 [Client 快速开始](../orchbee/README.zh-CN.md#windows-原生快速开始)。
+Windows 托管 会话 保留现有内存权威和生命周期锁。它准入当前令牌用户的命名管道对端，并禁用句柄继承来启动精确的同级 `orchbee-worker.exe`，使 CLI 输出捕获可独立于保留的 会话 结束。运行时路径、ACL、锁、标记及 cohort 校验仍由 `orchbee-local-site-runtime` 负责。Windows 观察入口无需 Unix 半关闭即可接收一个有界完整 JSON 值；畸形连接不会中断其他客户端。此入口适配器不移植 Unix provider hooks。可用命令面及剩余限制见 [Client 快速开始](../orchbee/README.zh-CN.md#windows-原生快速开始)。
 
 ## 目录工作区启动
 
 原生未发布的 `workspace.launch` 命令创建 Workspace、接纳绝对目录并创建首个终端，全程使用一个请求标识。放置方式为 `ungrouped`、既有 `project`、`new-project`，或位于来源 Workspace 旁的 `alongside`。Alongside 在最终准入时采用来源当前的 Project；来源未分组时，仅将该来源与新 Workspace 放入新建 Project。来源已关闭或正在关闭时拒绝。必须同时具备导航、目录关联和终端创建权限。显式 argv、环境变量及 Launch Profile 复用现有有界启动契约。Client 焦点不属于此操作。
 
-Server 检查准入，释放锁执行 Worker 只读目录探测，再按注册表到 Site 的锁顺序复查请求、修订、来源成员关系和精确 Worker 代次。它在一份候选投影中准备六个结构标识及所需的 Project 标识，预留保留结果与终端准入，然后在一次修订中一起提交 Project 放置、Workspace、Directory、Context 及首个 Tab/Panel/Presentation。准入失败不会发布半成品 Workspace 或 Project，也不会改变来源的分组。终端派发仅在提交后发生；启动待定或失败时保留所有已提交标识，供查询和显式 Close。回执携带最终可为 null 的 Project。精确重放绝不再次派发。响应丢失属于结果未知，不得自动重试。
+Server 检查准入，释放锁执行 Worker 只读目录探测，再按注册表到 会话 的锁顺序复查请求、修订、来源成员关系和精确 Worker 代次。它在一份候选投影中准备六个结构标识及所需的 Project 标识，预留保留结果与终端准入，然后在一次修订中一起提交 Project 放置、Workspace、Directory、Context 及首个 Tab/Panel/Presentation。准入失败不会发布半成品 Workspace 或 Project，也不会改变来源的分组。终端派发仅在提交后发生；启动待定或失败时保留所有已提交标识，供查询和显式 Close。回执携带最终可为 null 的 Project。精确重放绝不再次派发。响应丢失属于结果未知，不得自动重试。
 
 此细化复用 Tab 创建的提交与结算所有者。验证义务包括权限分离、探测期间的陈旧修订及 Worker 代次、容量与标识边界、精确重放、提交后的启动失败，以及 cwd/环境变量的 Windows 进程见证。不宣称持久化重启恢复、Desktop 支持、焦点变更或 TLA 执行。
 
 ## Windows 保留 Worktree 续执行
 
-`workbench.worktree.operation` 接纳 Start、纯 Read 与尝试序号约束的 Resume。Workbench 权威最多保留 64 个操作，全局一个 Pending，并拥有规范 Workspace 关联；惰性维护所有者在 Client 断线后继续执行。registry 到 Site 接纳及发布复查来源和精确 Worker 实例；OBCN IPC 在两道门之外运行。Create/Open 观察 Worker 检出事实后才复用或启动 Workspace。Remove 在 Close 前检查脏状态，保留新 Workspace／目录准入，暂缓规范发布，等待终端释放和清理后才执行 Git 移除。已知 Git 失败会验证原 checkout，并在保留的 presentation 槽位恢复全新的默认 shell；独立的有界恢复计数保留启动失败和未知结果。删除结果未知时保持布局受限，不启动 shell。已知成功后释放发布，最终 Close 重试不重复 Git。Worktree 失败后，显式普通 Close 可不执行 Git 而解除保留。显式 Site 停止在 Close 维护及 Worker carrier 冻结前 join 此所有者。界限及恢复见 [CLI／续执行契约](../orchbee/docs/windows-worktrees.zh-CN.md) 与[共享协议](../../schemas/workbench/v1/workbench-worktree.schema.json)。
+`workbench.worktree.operation` 接纳 Start、纯 Read 与尝试序号约束的 Resume。Workbench 权威最多保留 64 个操作，全局一个 Pending，并拥有规范 Workspace 关联；惰性维护所有者在 Client 断线后继续执行。registry 到 会话 接纳及发布复查来源和精确 Worker 实例；OBCN IPC 在两道门之外运行。Create/Open 观察 Worker 检出事实后才复用或启动 Workspace。Remove 在 Close 前检查脏状态，保留新 Workspace／目录准入，暂缓规范发布，等待终端释放和清理后才执行 Git 移除。已知 Git 失败会验证原 checkout，并在保留的 presentation 槽位恢复全新的默认 shell；独立的有界恢复计数保留启动失败和未知结果。删除结果未知时保持布局受限，不启动 shell。已知成功后释放发布，最终 Close 重试不重复 Git。Worktree 失败后，显式普通 Close 可不执行 Git 而解除保留。显式 会话 停止在 Close 维护及 Worker carrier 冻结前 join 此所有者。界限及恢复见 [CLI／续执行契约](../orchbee/docs/windows-worktrees.zh-CN.md) 与[共享协议](../../schemas/workbench/v1/workbench-worktree.schema.json)。
 
 Worktree Start 必须包含可为 null 的 `projectId`：仅 Directory 来源可指定既有 Project；
 Workspace 来源和 Remove 必须为 `null`。保留结果保留原请求元数据。基于 Workspace 的
@@ -612,13 +612,13 @@ Create/Open 在异步准备后需要新建 Workspace 时，按来源当前成员
 
 ## 只读 Worktree 来源查询
 
-`workbench.worktree.query` 解析显式 Workspace 或字面目录，无需 Project。它在 registry-to-Site 门内捕获来源及 Worker 实例，在门外执行一个有界发现 job，再复查并加入当前 Workspace 标签／身份。多个关联明确保留，不任取首个匹配，不改变焦点、创建 Workspace 或消耗变更回执。共享 porcelain 解析器接受 Windows 绝对驱动器路径及既有路径形式。来源变化、Worker 丢失、元数据无效及预算到期返回类型化失败。参见[所属契约](../orchbee/docs/windows-worktrees.zh-CN.md#按来源发现-worktree)。
+`workbench.worktree.query` 解析显式 Workspace 或字面目录，无需 Project。它在 registry-to-会话 门内捕获来源及 Worker 实例，在门外执行一个有界发现 job，再复查并加入当前 Workspace 标签／身份。多个关联明确保留，不任取首个匹配，不改变焦点、创建 Workspace 或消耗变更回执。共享 porcelain 解析器接受 Windows 绝对驱动器路径及既有路径形式。来源变化、Worker 丢失、元数据无效及预算到期返回类型化失败。参见[所属契约](../orchbee/docs/windows-worktrees.zh-CN.md#按来源发现-worktree)。
 
 ## 保留的 Workspace 组关闭
 
 普通 `workspace.close` 仅移除所选 Workspace 及其终端上下文，即使其他 Workspace 与它属于同一 Project 或 Git 仓库，也不会连带关闭物理 Git 同伴或删除 Project 元数据。
 
-`workbench.workspace-group-close` 显式关闭一个 `projectId` 的所有成员。准入按当前 Workspace 显示顺序捕获最多 256 个成员，允许跨仓库，并组合其普通 Workspace Close 回执。其他 Project 的 Workspace 即使共享仓库也不包含在内；后加入的成员不会追加到保留的尝试中。空 Project 也是有效目标。结果保留 Project 身份、尝试序号、状态，以及每个已捕获 Workspace 的身份、标签和 Close 结果。Project 元数据保留到单独执行 `project.dissolve`。组与 Worktree 的新修改在 Pending 期间互相保留执行权。共享维护生命周期适配器拥有各自的唤醒/线程/加入实例；Windows Site stop 在 Close 维护冻结前加入两个提交者。[Project 全部关闭契约](../orchbee/docs/windows-worktrees.zh-CN.md#project-全部关闭) 定义上限、部分失败和恢复；[线上 schema](../../schemas/workbench/v1/workbench-workspace-group-close.schema.json) 定义公开字节。组关闭不调用 Git 删除。
+`workbench.workspace-group-close` 显式关闭一个 `projectId` 的所有成员。准入按当前 Workspace 显示顺序捕获最多 256 个成员，允许跨仓库，并组合其普通 Workspace Close 回执。其他 Project 的 Workspace 即使共享仓库也不包含在内；后加入的成员不会追加到保留的尝试中。空 Project 也是有效目标。结果保留 Project 身份、尝试序号、状态，以及每个已捕获 Workspace 的身份、标签和 Close 结果。Project 元数据保留到单独执行 `project.dissolve`。组与 Worktree 的新修改在 Pending 期间互相保留执行权。共享维护生命周期适配器拥有各自的唤醒/线程/加入实例；Windows 会话 stop 在 Close 维护冻结前加入两个提交者。[Project 全部关闭契约](../orchbee/docs/windows-worktrees.zh-CN.md#project-全部关闭) 定义上限、部分失败和恢复；[线上 schema](../../schemas/workbench/v1/workbench-workspace-group-close.schema.json) 定义公开字节。组关闭不调用 Git 删除。
 
 ## Windows Client 视图路由
 
@@ -626,13 +626,13 @@ Create/Open 在异步准备后需要新建 Workspace 时，按来源当前成员
 
 ## Workspace 元数据上报
 
-[Workspace 元数据模型](../orchbee/docs/windows-workspace-metadata.zh-CN.md) 管理既有 Site 锁内的临时 token 值、各来源序号栅栏及单调 TTL。独立的 OBWP 31/32 RPC 以读取权限准入查询、以导航管理权限准入上报，不创建拓扑账本项、不改变权威修订，也不要求终端 Worker。上报在 token／来源／资源容量限制下保持原子性；旧序号不刷新过期时间。重启后状态为空，已关闭 Workspace 的身份在下一次元数据操作时清理。通用元数据事件仍需单独集成。
+[Workspace 元数据模型](../orchbee/docs/windows-workspace-metadata.zh-CN.md) 管理既有 会话 锁内的临时 token 值、各来源序号栅栏及单调 TTL。独立的 OBWP 31/32 RPC 以读取权限准入查询、以导航管理权限准入上报，不创建拓扑账本项、不改变权威修订，也不要求终端 Worker。上报在 token／来源／资源容量限制下保持原子性；旧序号不刷新过期时间。重启后状态为空，已关闭 Workspace 的身份在下一次元数据操作时清理。通用元数据事件仍需单独集成。
 
-Panel 展示上报通过 OBWP 33/34 在 Site 锁内运行，使用读取／导航权限及精确主绑定守卫。[状态模型](docs/workbench-authority.zh-CN.md#panel-展示元数据) 负责按终端保存的临时来源、字段优先级、tokens 和过期。
+Panel 展示上报通过 OBWP 33/34 在 会话 锁内运行，使用读取／导航权限及精确主绑定守卫。[状态模型](docs/workbench-authority.zh-CN.md#panel-展示元数据) 负责按终端保存的临时来源、字段优先级、tokens 和过期。
 
 ## 原生插件 action 受理
 
-Workbench 插件执行在解析源文件前要求读取、终端创建和生命周期权限。本地终端服务检查 Site/Worker 身份、已启用清单可用性、action 唯一性和 Windows 平台支持，固定 argv/cwd/context 后仅向 Worker 提交一次。它不拥有子进程。读取页面固定 Worker generation；修改回复丢失时保留未知状态。[原生插件行为](../orchbee/docs/windows-plugins.zh-CN.md) 管理完整契约及尚未接通的生命周期。
+Workbench 插件执行在解析源文件前要求读取、终端创建和生命周期权限。本地终端服务检查 会话/Worker 身份、已启用清单可用性、action 唯一性和 Windows 平台支持，固定 argv/cwd/context 后仅向 Worker 提交一次。它不拥有子进程。读取页面固定 Worker generation；修改回复丢失时保留未知状态。[原生插件行为](../orchbee/docs/windows-plugins.zh-CN.md) 管理完整契约及尚未接通的生命周期。
 
 插件 Pane 的 Tab／分屏受理在权限、修订号和重放检查后解析目录选择器，再冻结显式程序、插件根目录后备 cwd 及受保护的展示环境。终端规划与完成阶段均将环境与冻结的程序、cwd、普通环境和 Worker 代次进行关联核对。解析拒绝先于规范预留；保留请求重放时不重新读取已变化的清单。在有明确的 Windows shell 包装字面参数契约前，拒绝 batch 入口。
 
@@ -642,7 +642,7 @@ Workbench 插件执行在解析源文件前要求读取、终端创建和生命�
 
 `workbench.workspace-git` 按读取授权查询当前 Worker 实例上的规范 Workspace。
 它读取 Workspace 首个终端最新的精确物理目录采样，否则读取已提交目录；此读取绝不附加 viewer。
-Site、已提交目录、规范修订和 Worker 代际在发现 job 前后检查；不修改拓扑或元数据报告。
+会话、已提交目录、规范修订和 Worker 代际在发现 job 前后检查；不修改拓扑或元数据报告。
 状态头提供分支及本地 upstream 计数，明确保留缺失语义；Git 退出码 128 视为不含分支事实的非仓库观测。
 [工作区侧栏模型](../orchbee/docs/machines.zh-CN.md#工作区侧栏模型) 拥有完整消费者和证据边界。
 
@@ -676,8 +676,8 @@ Gate 保留一个活动读取器和至多一个等待的前台读取器，分别
 | 活动读取器消费终态结果         | 释放许可；已登记前台后继优先于新状态读取。                                        |
 | 活动读取器放弃已准入 job       | 不等待地排队一次精确 job Cancel，然后释放许可；准入失败时由 Worker TTL 拥有清理。 |
 
-Site、registry 与 gate mutex 均不跨越 IPC、轮询延迟或准入等待。
-来源、Site 与 Worker 代际仍在观测前后设防；发现不改变组织或终端资源。
+会话、registry 与 gate mutex 均不跨越 IPC、轮询延迟或准入等待。
+来源、会话 与 Worker 代际仍在观测前后设防；发现不改变组织或终端资源。
 Gate 是临时状态，不跨 Server 重启保留。
 
 所有读取器保留原五秒截止时间，包含准入与回复等待。唯一 wire owner 在读取器
@@ -712,11 +712,11 @@ context／Tab／Panel／Presentation／binding 来源、同连接拥有的只读
 确认创建后才 Start 独占写入文档、启动编辑器。创建／启动未知时保留且不重复提交。
 状态为 Opening、Active、Queued、Waiting、Dispose、Unknown、Closed。
 已知延迟目标在 Start 前放弃可直接 Dispose；inventory AwaitingStart 也可处置，
-不宣称子进程退出。EOF 将已接纳清理移交现有 Site 维护。来源只读 attachment
+不宣称子进程退出。EOF 将已接纳清理移交现有 会话 维护。来源只读 attachment
 保留到最后捕获消费者结束后 detach；popup 进程／文档清理仍归 Host。
 
 串行应用分发器通过本地 RefCell 在 OBCS 与编辑器 OBWP 请求间共用连接 viewer
-连接，每次请求一次借用，不存在重入回调或跨线程访问。授权／Site／来源／编辑器
+连接，每次请求一次借用，不存在重入回调或跨线程访问。授权／会话／来源／编辑器
 拒绝均在 Create 前发生。相关协议及原生 Windows 管道轨迹验证来源约束、延迟
 顺序、字面参数、未知结果、旧 plugin 行为、规范状态保持及物理清理；不构成部署后
 GUI、TUI／模拟器或完整 cohort 验收。Client overlay 和公开 CLI 入口需单独验证，
@@ -732,4 +732,4 @@ GUI、TUI／模拟器或完整 cohort 验收。Client overlay 和公开 CLI 入�
 
 规范分割比例由原生 Client 共享并保存在 checkpoint v6，catalog v5 负责准入。[检查点契约](docs/workbench-checkpoint.zh-CN.md) 负责版本 1–5 的严格迁移；[共享比例契约](docs/shared-split-ratios.zh-CN.md) 负责比例修改、投影与兼容性。
 
-<!-- documentation-pairing: english-sha256=ecb4621278085bc6ad5aaed36d6e8c9811b647549e44f5b253fb376a17b9b927 zh-cn-sha256=d04d8d60e4aa68da88dfc4402a985eda532ee1930d0aa5a45521fbc8b984872f -->
+<!-- documentation-pairing: english-sha256=07113c42c00775db4f208abe6709050c237bf70b41d28c8d52d29501f24acc0c zh-cn-sha256=4d17a3d459c8012a2e17ffbd43147a2d5c2fa6bfd6369644ce160ce1d7d72433 -->

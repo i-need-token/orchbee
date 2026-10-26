@@ -8,13 +8,13 @@ pub(super) const HELP_EN: crate::localization::HelpDetails = crate::localization
 );
 pub(super) const HELP_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee panel report-metadata <panel> [--presentation <id>] --source <id> [--title <text>] [--display-agent <text>] [--state-label <state=text>] [--agent <label>] [--applies-to-source <id>] [--clear-title] [--clear-display-agent] [--clear-state-labels] [--token <key=value>] [--clear-token <key>] [--seq <n>] [--ttl-ms <n>] [--format text|json]",
-    "向 Windows Panel 的主终端上报临时展示元数据。使用精确 Panel ID 或 @panel:0x<hex>。--presentation 指定该 Panel 内精确的主项或子项 Presentation；省略则使用主项。至少设置或清除一个展示字段或 token。状态：idle、working、blocked、done、error、unknown。可重复 state-label 和 token 选项，后者覆盖前者。文本规范化为至多 80 个 Unicode 标量；空 token 值表示清除，空展示值省略。无清除标记时替换该来源的展示记录；包含展示清除标记时保留其他字段及其优先级。可选守卫要求 Agent 名称和权威来源精确匹配，缺少上下文不匹配。序号为无符号 64 位整数；旧上报成功返回但不修改。TTL：1–86400000 毫秒。数据随绑定终端移动；绑定改变时拒绝上报。仅连接已有会话，总期限 5 秒，不改变焦点或自动重试。提交后的结果未知以退出码 8 和请求 ID 返回。不会修改 OSC 标题或 Agent 权威。Panel get/list/current 和 Agent get 提供带来源的元数据；带守卫字段需要真实权威上下文。",
+    "向 Windows 面板的主终端上报临时展示元数据。使用精确面板 ID 或 @panel:0x<hex>。--presentation 指定该面板内精确的主项或子项 Presentation；省略则使用主项。至少设置或清除一个展示字段或 token。状态：idle、working、blocked、done、error、unknown。可重复 state-label 和 token 选项，后者覆盖前者。文本规范化为至多 80 个 Unicode 标量；空 token 值表示清除，空展示值省略。无清除标记时替换该来源的展示记录；包含展示清除标记时保留其他字段及其优先级。可选守卫要求智能体名称和权威来源精确匹配，缺少上下文不匹配。序号为无符号 64 位整数；旧上报成功返回但不修改。TTL：1–86400000 毫秒。数据随绑定终端移动；绑定改变时拒绝上报。仅连接已有会话，总期限 5 秒，不改变焦点或自动重试。提交后的结果未知以退出码 8 和请求 ID 返回。不会修改 OSC 标题或智能体权威。面板 get/list/current 和智能体 get 提供带来源的元数据；带守卫字段需要真实权威上下文。",
 );
 impl Locale {
     pub(crate) const fn cli_panel_metadata_heading(self) -> &'static str {
         match self {
             Self::EnUs => "Panel metadata",
-            Self::ZhCn => "Panel 元数据",
+            Self::ZhCn => "面板元数据",
         }
     }
     pub(crate) fn cli_panel_metadata(
@@ -57,13 +57,13 @@ impl Locale {
                 (Self::EnUs, Failure::BindingChanged) => "Target terminal binding changed",
                 (Self::ZhCn, Failure::BindingChanged) => "目标终端绑定已改变",
                 (Self::EnUs, Failure::NotFound) => "Panel or requested member is unavailable",
-                (Self::ZhCn, Failure::NotFound) => "Panel 或请求成员已不可用",
+                (Self::ZhCn, Failure::NotFound) => "面板或请求成员已不可用",
                 (Self::EnUs, Failure::Denied) => "Metadata reporting denied",
                 (Self::ZhCn, Failure::Denied) => "元数据上报被拒绝",
                 (Self::EnUs, Failure::Unavailable) => "Metadata service unavailable",
                 (Self::ZhCn, Failure::Unavailable) => "元数据服务不可用",
                 (Self::EnUs, Failure::TokenLimit) => "Panel token limit reached",
-                (Self::ZhCn, Failure::TokenLimit) => "Panel token 数量已达上限",
+                (Self::ZhCn, Failure::TokenLimit) => "面板 token 数量已达上限",
                 (Self::EnUs, Failure::SourceLimit) => "Sequence source limit reached",
                 (Self::ZhCn, Failure::SourceLimit) => "序号来源数量已达上限",
                 (Self::EnUs, Failure::ResourceLimit) => "Metadata capacity reached",

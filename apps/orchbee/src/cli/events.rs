@@ -225,7 +225,7 @@ fn execute(
 }
 
 fn source(snapshot: &Snapshot) -> serde_json::Value {
-    json!({"kind":"server","siteId":snapshot.site_id,"revision":snapshot.revision})
+    json!({"kind":"server","sessionId":snapshot.site_id,"revision":snapshot.revision})
 }
 fn public_reply(reply: &SemanticEventsResult) -> Result<serde_json::Value, Failure> {
     let mut value =

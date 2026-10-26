@@ -50,7 +50,7 @@ fn presentation(id: u128, owner: &WorkerId, bound: bool) -> Value {
 fn graph(site_id: SiteId, owner: &WorkerId, bound: bool, revision: u64) -> Value {
     json!({
         "kind": "workbench.snapshot", "protocolVersion": 1,
-        "siteId": site_id, "revision": revision.to_string(),
+        "sessionId": site_id, "revision": revision.to_string(),
         "navigation": {
             "projects": [{"projectId": identity(2), "label": "项目"}],
             "directories": [{"directoryId": identity(3), "workerId": owner, "path": "C:\\work space\\项目"}],
@@ -180,7 +180,7 @@ fn preserves_the_graph_and_profiles_without_retaining_process_authority() {
     let text = String::from_utf8(encoded.clone()).unwrap();
     for omitted in [
         "workerId",
-        "siteId",
+        "sessionId",
         "terminalId",
         "revision",
         "requestId",
@@ -419,7 +419,7 @@ fn rejects_missing_unknown_duplicate_and_unsupported_fields() {
             "missing {path}/{field}"
         );
     }
-    assert!(restore(&changed(|value| value["siteId"] = json!(identity(100)))).is_err());
+    assert!(restore(&changed(|value| value["sessionId"] = json!(identity(100)))).is_err());
     assert!(restore(&changed(|value| value["schema"] = json!("another.schema"))).is_err());
     assert_eq!(
         restore(&changed(|value| value["version"] = json!(8))).err(),

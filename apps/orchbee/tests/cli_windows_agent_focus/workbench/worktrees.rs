@@ -10,7 +10,7 @@ pub(super) fn snapshot(stream: &mut LocalStream, count: u64, no_directory: bool)
         contexts.push(json!({"terminalContextId":id(200+n),"groups":[],"tabs":[]}));
         json!({"workspaceId":id(100+n),"projectId":id(30),"label":"work","primaryDirectoryId":if no_directory {Value::Null} else {json!(id(31))},"terminalContextId":id(200+n)})
     }).collect();
-    let value = json!({"protocolVersion":1,"siteId":id(2),"revision":"12",
+    let value = json!({"protocolVersion":1,"sessionId":id(2),"revision":"12",
         "navigation":{"projects":[{"projectId":id(30),"label":"project"}],"directories":[{"directoryId":id(31),"workerId":id(32),"path":"C:/repo/sub"}],"workspaces":std::iter::once(serde_json::json!({"workspaceId":id(4),"terminalContextId":id(4),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"})).chain(rows).collect::<Vec<_>>()},"terminalContexts":contexts});
     write_workbench_response(
         stream,
@@ -28,7 +28,7 @@ fn reply(stream: &mut LocalStream, request: WorkbenchWorktreeQuery, case: &str, 
     let outcome = if case == "unavailable" {
         json!({"kind":"failed","reason":{"kind":"git-failed","stage":"probe","status":128}})
     } else {
-        json!({"kind":"found","siteId":id(2),"workbenchRevision":if case=="changed-revision" {"13"} else {"12"},
+        json!({"kind":"found","sessionId":id(2),"workbenchRevision":if case=="changed-revision" {"13"} else {"12"},
             "workerId":id(if case=="wrong-worker" {33} else {32}),
             "source":{"requestedPath":if case=="wrong-path" {"C:/other"} else {"C:/repo/sub"},"repositoryRoot":"C:/repo","commonDirectory":"C:/repo/.git","checkoutPath":"C:/repo","workspaceId":id(100+n)},
             "entries":[{"checkout":{"worktreePath":"C:/repo","head":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","branch":"refs/heads/main","bare":false,"detached":false,"locked":false,"prunable":false},"linked":false,"workspaces":[{"workspaceId":id(100+n),"projectId":id(30),"label":"work"}]}]})

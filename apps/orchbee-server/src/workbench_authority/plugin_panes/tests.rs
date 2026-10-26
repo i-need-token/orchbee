@@ -244,7 +244,7 @@ fn admission_witness(root: PathBuf) {
     let mut authority = WorkbenchAuthority::workspace_fixture(site.clone()).unwrap();
     let grant = WorkbenchGrant::manage_navigation_and_terminal_create(site);
     let command: WorkbenchCommand = serde_json::from_value(json!({
-        "protocolVersion":1,"requestId":id(200),"siteId":id(100),"expectedRevision":"0",
+        "protocolVersion":1,"requestId":id(200),"sessionId":id(100),"expectedRevision":"0",
         "action":{"kind":"tab.create","terminalContextId":id(1),"label":"Dashboard",
         "geometry":{"columns":80,"rows":24,"cellPixelWidth":0,"cellPixelHeight":0},
         "options":{"pluginPane":{"pluginId":"tools","entrypointId":"dashboard"}}}

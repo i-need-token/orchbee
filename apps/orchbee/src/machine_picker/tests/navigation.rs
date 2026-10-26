@@ -690,7 +690,7 @@ fn agent_join_uses_choice_site_and_full_context_location_across_colliding_ids() 
         assert_eq!(
             visible[0].1.as_str(),
             format!("{member:032x}"),
-            "an Agent crossed its endpoint, Site, or Context owner"
+            "an Agent crossed its endpoint, Session, or Context owner"
         );
         assert!(picker.toggle_sidebar_context_agents(&owner));
     }

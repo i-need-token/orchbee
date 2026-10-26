@@ -932,7 +932,7 @@
 								"denied",
 								"invalid-intent",
 								"invalid-regex",
-								"site-mismatch",
+								"session-mismatch",
 								"unavailable",
 								"busy",
 								"conflict",
@@ -960,14 +960,14 @@
 				"requestId": {
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
 				},
-				"siteId": {
-					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/siteId"
+				"sessionId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/sessionId"
 				},
 				"outcome": {
 					"$ref": "#/$defs/outcome"
 				}
 			},
-			"required": ["protocolVersion", "requestId", "siteId", "outcome"],
+			"required": ["protocolVersion", "requestId", "sessionId", "outcome"],
 			"additionalProperties": false
 		},
 		"request": {
@@ -982,14 +982,14 @@
 				"requestId": {
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
 				},
-				"siteId": {
-					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/siteId"
+				"sessionId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/sessionId"
 				},
 				"action": {
 					"$ref": "#/$defs/action"
 				}
 			},
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "action"],
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "action"],
 			"additionalProperties": false
 		},
 		"result": {
@@ -1004,14 +1004,14 @@
 				"requestId": {
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
 				},
-				"siteId": {
-					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/siteId"
+				"sessionId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/sessionId"
 				},
 				"outcome": {
 					"$ref": "#/$defs/outcome"
 				}
 			},
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"],
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "outcome"],
 			"additionalProperties": false
 		}
 	},

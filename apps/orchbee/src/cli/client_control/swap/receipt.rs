@@ -128,7 +128,7 @@ impl Receipt {
         }
     }
     pub(super) fn document(&self) -> Value {
-        let document = json!({"schema":"orchbee.panel.swap","version":1,"siteId":self.site_id,
+        let document = json!({"schema":"orchbee.panel.swap","version":1,"sessionId":self.site_id,
             "clientId":self.client_id,"baseRevision":self.base_revision,
             "scope":if self.client_id.is_some() {"client"} else {"shared"},
             "source":self.source.document(),"target":self.target.as_ref().map(Panel::document),"direction":self.direction,

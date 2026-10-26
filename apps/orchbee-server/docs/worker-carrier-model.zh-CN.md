@@ -117,7 +117,7 @@ socket I/O 持有；非托管 `register_carrier()` 行为保持不变——它�
 `register_carrier_impl`，仅不带 service 实参。托管 listener 路径在生产中接线
 该缝：共享 `AgentService` 存在时 `LocalSiteService` 调用
 `register_carrier_with_agents`，否则调用普通 `register_carrier`；生命周期权威
-留在 site 组合根。
+留在 session 组合根。
 
 ## 锁纪律
 
@@ -151,4 +151,4 @@ Owned 后准入新 carrier；Worker 代际保持原值。
 不能续租或推断 Worker 租约。原生命名管道及确定性调度见证覆盖在飞顺序、阻塞清理释放、
 精确回显、回滚准入及提交后退休。规范导入与公开在线交接结果仍需队列边界之外的 Server 集成。
 
-<!-- documentation-pairing: english-sha256=36a374ecc8f4b9bb4a227c24774c5d0b73b120d63d99649a8d3ae29b69024c01 zh-cn-sha256=6b1b83f9b042408ba1ec9bf7a7724b36c16ca80977f6ee32f54653b053a9d7f9 -->
+<!-- documentation-pairing: english-sha256=d3ef63c6832a27234bdafc85a96315b236c838cbaee95e0039b418b73a6f0463 zh-cn-sha256=40fea9becc724259c251f227ce2d287ac7c81ad5baaa399bc6eb5c713450fdc4 -->

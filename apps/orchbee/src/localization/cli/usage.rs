@@ -143,7 +143,7 @@ impl Locale {
             }
             (_, ExpectedValue::NotificationSound) => "none, done, request",
             (Self::EnUs, ExpectedValue::ReportAgent) => "a nonempty Agent label",
-            (Self::ZhCn, ExpectedValue::ReportAgent) => "非空 Agent 标签",
+            (Self::ZhCn, ExpectedValue::ReportAgent) => "非空智能体标签",
             (Self::EnUs, ExpectedValue::ReportState) => {
                 "idle, working, blocked, done, error, or unknown"
             }
@@ -155,12 +155,12 @@ impl Locale {
             (Self::EnUs, ExpectedValue::ReportSize) => {
                 "an Agent report within the 16 KiB request limit"
             }
-            (Self::ZhCn, ExpectedValue::ReportSize) => "完整请求不超过 16 KiB 的 Agent 上报",
+            (Self::ZhCn, ExpectedValue::ReportSize) => "完整请求不超过 16 KiB 的智能体上报",
             (Self::EnUs, ExpectedValue::MetadataAgent) => {
                 "a nonempty Agent label, at most 80 Unicode scalars without control characters"
             }
             (Self::ZhCn, ExpectedValue::MetadataAgent) => {
-                "非空 Agent 标签，至多 80 个 Unicode 标量且不含控制字符"
+                "非空智能体标签，至多 80 个 Unicode 标量且不含控制字符"
             }
             (Self::EnUs, ExpectedValue::MetadataStateLabel) => {
                 "STATE=TEXT with nonempty text; state is idle, working, blocked, done, error or unknown"
@@ -208,12 +208,12 @@ impl Locale {
             (Self::EnUs, ExpectedValue::ClientId) => {
                 "a nonzero 32-character lowercase hexadecimal Client ID"
             }
-            (Self::ZhCn, ExpectedValue::ClientId) => "非零的 32 位小写十六进制 Client 标识",
+            (Self::ZhCn, ExpectedValue::ClientId) => "非零的 32 位小写十六进制客户端标识",
             (Self::EnUs, ExpectedValue::ClientOperationId) => {
                 "a nonzero 32-character lowercase hexadecimal Client control operation ID"
             }
             (Self::ZhCn, ExpectedValue::ClientOperationId) => {
-                "非零的 32 位小写十六进制 Client 控制操作标识"
+                "非零的 32 位小写十六进制客户端控制操作标识"
             }
             (Self::EnUs, ExpectedValue::WorktreeReference) => {
                 "a nonempty Git reference of at most 1024 UTF-8 bytes without a leading dash or control characters"
@@ -248,12 +248,12 @@ impl Locale {
             }
             (Self::ZhCn, ExpectedValue::WorkspaceInsertIndex) => "0 到 1023 的整数插入边界",
             (Self::EnUs, ExpectedValue::WorkspaceBlockSize) => "1 to 1023 Workspace targets",
-            (Self::ZhCn, ExpectedValue::WorkspaceBlockSize) => "1 到 1023 个 Workspace 目标",
+            (Self::ZhCn, ExpectedValue::WorkspaceBlockSize) => "1 到 1023 个工作区目标",
             (Self::EnUs, ExpectedValue::TabInsertIndex) => {
                 "an integer from 0 to 256 (boundary in the original Tab order)"
             }
             (Self::ZhCn, ExpectedValue::TabInsertIndex) => {
-                "0 到 256 的整数（原始 Tab 顺序中的插入边界）"
+                "0 到 256 的整数（原始标签页顺序中的插入边界）"
             }
             (Self::EnUs, ExpectedValue::TabDirection) => "'previous', 'next', 'first', or 'last'",
             (Self::ZhCn, ExpectedValue::TabDirection) => "'previous'、'next'、'first' 或 'last'",
@@ -412,13 +412,13 @@ impl Locale {
                 "an agent session identity (1–128 ASCII letters, digits, '.', '_', ':', '-')"
             }
             (Self::ZhCn, ExpectedValue::AgentSessionId) => {
-                "一个 Agent 会话身份（1–128 个 ASCII 字母、数字、'.'、'_'、':'、'-'）"
+                "一个智能体会话身份（1–128 个 ASCII 字母、数字、'.'、'_'、':'、'-'）"
             }
             (Self::EnUs, ExpectedValue::AgentTarget) => {
                 "an Agent session ID or name, a Panel ID, or @panel:0x<hex>; for a terminal, pass the Panel that shows it"
             }
             (Self::ZhCn, ExpectedValue::AgentTarget) => {
-                "Agent 会话 ID 或名称、Panel ID 或 @panel:0x<hex>；如要指定终端，请传入显示它的 Panel"
+                "智能体会话 ID 或名称、面板 ID 或 @panel:0x<hex>；如要指定终端，请传入显示它的面板"
             }
             (Self::EnUs, ExpectedValue::AgentListLimit) => "a decimal integer from 1 to 100",
             (Self::ZhCn, ExpectedValue::AgentListLimit) => "1–100 的十进制整数",
@@ -431,13 +431,13 @@ impl Locale {
             }
             (Self::ZhCn, ExpectedValue::AgentCursor) => {
                 if cfg!(windows) {
-                    "Windows Agent 列表游标 'u1.<base64url>'（最多 1024 个字符）"
+                    "Windows 智能体列表游标 'u1.<base64url>'（最多 1024 个字符）"
                 } else {
                     "上一页返回的 'v1.<payload>.<tag>' 列表游标"
                 }
             }
             (Self::EnUs, ExpectedValue::AgentViewSpec) => "a bounded Agent view JSON specification",
-            (Self::ZhCn, ExpectedValue::AgentViewSpec) => "有界的 Agent 视图 JSON 规格",
+            (Self::ZhCn, ExpectedValue::AgentViewSpec) => "有界的智能体视图 JSON 规格",
             (Self::EnUs, ExpectedValue::AgentViewSource) => {
                 "a source of 1–120 ASCII letters, digits or :._-"
             }

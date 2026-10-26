@@ -309,7 +309,7 @@ fn configured_agent_ordinal_uses_binding_digit_captures_tail_and_lists_actual_he
         let entries = shortcut_entries(locale, &view);
         let title = match locale {
             crate::localization::Locale::EnUs => "Select Agent by number",
-            crate::localization::Locale::ZhCn => "按编号选择 Agent",
+            crate::localization::Locale::ZhCn => "按编号选择智能体",
         };
         let numbered_agents = entries
             .iter()

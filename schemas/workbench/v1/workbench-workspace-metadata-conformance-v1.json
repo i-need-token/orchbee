@@ -8,7 +8,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -29,7 +29,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "read",
 					"workspaceIds": ["00000000000000000000000000000003", "00000000000000000000000000000004"]
@@ -43,7 +43,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "read",
 					"workspaceIds": []
@@ -57,7 +57,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "read",
 					"workspaceIds": [
@@ -80,7 +80,7 @@
 				"kind": "workbench.workspace-metadata.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "read",
 					"workbenchRevision": "5",
@@ -109,7 +109,7 @@
 				"kind": "workbench.workspace-metadata.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reported",
 					"workbenchRevision": "5",
@@ -126,7 +126,7 @@
 				"kind": "workbench.workspace-metadata.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reported",
 					"workbenchRevision": "5",
@@ -143,7 +143,7 @@
 				"kind": "workbench.workspace-metadata.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "failed",
 					"reason": "invalid-request"
@@ -151,16 +151,16 @@
 			}
 		},
 		{
-			"name": "failure-site-mismatch",
+			"name": "failure-session-mismatch",
 			"direction": "response",
 			"document": {
 				"kind": "workbench.workspace-metadata.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "failed",
-					"reason": "site-mismatch"
+					"reason": "session-mismatch"
 				}
 			}
 		},
@@ -171,7 +171,7 @@
 				"kind": "workbench.workspace-metadata.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "failed",
 					"reason": "not-found"
@@ -185,7 +185,7 @@
 				"kind": "workbench.workspace-metadata.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "failed",
 					"reason": "denied"
@@ -199,7 +199,7 @@
 				"kind": "workbench.workspace-metadata.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "failed",
 					"reason": "unavailable"
@@ -213,7 +213,7 @@
 				"kind": "workbench.workspace-metadata.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "failed",
 					"reason": "token-limit"
@@ -227,7 +227,7 @@
 				"kind": "workbench.workspace-metadata.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "failed",
 					"reason": "sequence-source-limit"
@@ -241,7 +241,7 @@
 				"kind": "workbench.workspace-metadata.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "failed",
 					"reason": "resource-limit"
@@ -255,7 +255,7 @@
 				"kind": "workbench.workspace-metadata.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "failed",
 					"reason": "revision-exhausted"
@@ -269,7 +269,7 @@
 				"kind": "workbench.workspace-metadata.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "failed",
 					"reason": "deadline-overflow"
@@ -283,7 +283,7 @@
 				"kind": "workbench.workspace-metadata.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "failed",
 					"reason": "result-too-large"
@@ -297,7 +297,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -318,7 +318,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -339,7 +339,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -360,7 +360,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -381,7 +381,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -402,7 +402,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -421,7 +421,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -444,7 +444,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -463,7 +463,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -482,7 +482,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -501,7 +501,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -522,7 +522,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -543,7 +543,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -564,7 +564,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -585,7 +585,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -606,7 +606,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -627,7 +627,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -648,7 +648,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -669,7 +669,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -690,7 +690,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -727,7 +727,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -749,7 +749,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -771,7 +771,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -793,7 +793,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -815,7 +815,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -837,7 +837,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -859,7 +859,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -881,7 +881,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -903,7 +903,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -925,7 +925,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -947,7 +947,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -969,7 +969,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -991,7 +991,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -1013,7 +1013,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 2,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -1035,7 +1035,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -1058,7 +1058,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "report",
 					"workspaceId": "00000000000000000000000000000003",
@@ -1080,7 +1080,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "read",
 					"workspaceIds": ["00000000000000000000000000000003", "00000000000000000000000000000003"]
@@ -1095,7 +1095,7 @@
 				"kind": "workbench.workspace-metadata",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "read",
 					"workspaceIds": [
@@ -1120,7 +1120,7 @@
 				"kind": "workbench.workspace-metadata.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "read",
 					"workbenchRevision": "5",
@@ -1148,7 +1148,7 @@
 				"kind": "workbench.workspace-metadata.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "read",
 					"workbenchRevision": "5",
@@ -1208,7 +1208,7 @@
 				"kind": "workbench.workspace-metadata.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "read",
 					"workbenchRevision": "5",
@@ -1236,7 +1236,7 @@
 				"kind": "workbench.workspace-metadata.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "failed",
 					"reason": "unknown"

@@ -22,15 +22,7 @@ impl Locale {
                 "Close",
                 "Generation",
             ],
-            Self::ZhCn => [
-                "操作",
-                "尝试",
-                "原因",
-                "等待",
-                "Project 成员",
-                "关闭",
-                "代次",
-            ],
+            Self::ZhCn => ["操作", "尝试", "原因", "等待", "项目成员", "关闭", "代次"],
         };
         let id = result["operationId"].as_str().unwrap_or("");
         text.push_str(&format!("{}: {}\n", labels[0], escape(id)));
@@ -100,7 +92,7 @@ impl Locale {
             (Self::EnUs, "closed") => "Closed",
             (Self::ZhCn, "closed") => "已关闭",
             (Self::EnUs, "failed") => "Project close-all failed",
-            (Self::ZhCn, "failed") => "Project 批量关闭失败",
+            (Self::ZhCn, "failed") => "项目批量关闭失败",
             (Self::EnUs, "not-found") => "Operation not recorded",
             (Self::ZhCn, "not-found") => "未找到操作记录",
             (Self::EnUs, "conflict") => "Operation identity conflict",

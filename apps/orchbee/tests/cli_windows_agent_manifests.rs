@@ -173,7 +173,7 @@ fn cli_manifest_query_reload_status_and_lost_receipts_are_not_replayed() {
             }
             validate(
                 &document,
-                include_str!("../src/cli/schemas/orchbee.site.agent-manifests.json"),
+                include_str!("../src/cli/schemas/orchbee.server.agent-manifests.json"),
             );
             if matches!(case, "lost" | "wrong-operation") {
                 assert_eq!(document["observation"]["kind"], "unknown");
@@ -298,7 +298,7 @@ fn cli_update_polls_only_status_and_reports_partial_or_unknown_effects() {
         }
         validate(
             &document,
-            include_str!("../src/cli/schemas/orchbee.site.agent-manifests.json"),
+            include_str!("../src/cli/schemas/orchbee.server.agent-manifests.json"),
         );
     }
 }

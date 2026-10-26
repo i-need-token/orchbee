@@ -38,7 +38,7 @@ Every command is a one-shot Client Session over the accepted Server-relayed path
 a TTY, connects to Terminal Host directly, treats terminal output as Agent or Workbench
 authority, creates or terminates terminals, resizes, or holds state across invocations.
 
-Non-goals for this slice: implementing the commands; Site lifecycle operations; remote
+Non-goals for this slice: implementing the commands; Session lifecycle operations; remote
 targeting; Agent startup or control commands; a resize verb (the controller grant covers it but
 no CLI verb is proposed); a semantic-key wire extension; scrollback or byte-stream predicates;
 `--detach` support; close/kill verbs.
@@ -51,8 +51,8 @@ targeting then continues on the same Client Session through the OBCS viewer/cont
 
 | Stage   | Wire semantics                                                                                                                                                                                                                                                                                                   |
 | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Target  | `<target>` accepts only a complete typed terminal ID (exactly 32 lowercase hexadecimal characters, nonzero), the same rule as `terminal get`; label matching is not offered. Resolution maps the snapshot binding to `{siteId, workerId, terminalId}`; an unbound or absent terminal is `not-found`              |
-| Attach  | `terminal.viewer` `attach-binding` `{siteId, workerId, terminalId}` → `attached` `{attachmentId, hostEpoch}` — a new read-only viewer owned by this Session                                                                                                                                                      |
+| Target  | `<target>` accepts only a complete typed terminal ID (exactly 32 lowercase hexadecimal characters, nonzero), the same rule as `terminal get`; label matching is not offered. Resolution maps the snapshot binding to `{sessionId, workerId, terminalId}`; an unbound or absent terminal is `not-found`           |
+| Attach  | `terminal.viewer` `attach-binding` `{sessionId, workerId, terminalId}` → `attached` `{attachmentId, hostEpoch}` — a new read-only viewer owned by this Session                                                                                                                                                   |
 | Acquire | `terminal.control` `acquire` `{attachmentId}` → `acquired` `{controllerId}` — requests the terminal's single combined input-and-resize grant. Contention returns `rejected` `{reason:"controller-busy"}`; the Server holds no wait queue, so the CLI reports a denial rather than blocking                       |
 | Input   | `terminal.control` `input` `{attachmentId, controllerId, sequence, bytes}` with 1–4,096 raw bytes → `input-accepted`, or one `paste` `OBCQ` record with 1–262,144 bytes → `pasted` `{acceptedBytes}`. Acceptance means admission to Host's bounded input queue, not that the application consumed or executed it |
 | Observe | `terminal.viewer` `poll` `{attachmentId}` → `empty` or one binary `OBSR` record; the client applies the record, then acknowledges it with `frame-applied` `{sequence, generation, revision}`; a sequence or decode divergence is recovered with `need-snapshot`                                                  |
@@ -265,7 +265,7 @@ unrelated to this command. The command never acquires the controller and never s
 Stream boundaries:
 
 - `--format json` emits NDJSON: one `{schema:"orchbee.terminal.open",version:1,source,event}`
-  object per line, where `source` is the `{kind:"workbench-snapshot",siteId,revision}` used for
+  object per line, where `source` is the `{kind:"workbench-snapshot",sessionId,revision}` used for
   target resolution. Events, in stream order:
   - `attached` — `{kind:"attached",terminal:{terminalId,workerId},attachmentId,hostEpoch}`
     exactly once, first.
@@ -297,7 +297,7 @@ one-by-one. A command that wants to stop on content uses `wait-output` instead.
   and `--format json` selects the versioned machine documents above. `open`'s machine document
   is NDJSON because the operation is a stream; the others emit one pretty JSON document.
 - Success envelopes keep the delivered `{schema,version:1,source,result}` shape with
-  `source:{kind:"workbench-snapshot",siteId,revision}` from the resolution read. `source`
+  `source:{kind:"workbench-snapshot",sessionId,revision}` from the resolution read. `source`
   describes the resolution snapshot, not effect-time state.
 - New schema IDs: `orchbee.terminal.send-text`, `orchbee.terminal.send-keys`,
   `orchbee.terminal.wait`, and `orchbee.terminal.open` (NDJSON event envelope).

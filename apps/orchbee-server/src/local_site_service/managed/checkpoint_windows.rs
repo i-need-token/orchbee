@@ -46,7 +46,7 @@ fn load_from(
     } else if loaded.notice.is_some() {
         // Unmanaged development scopes have no durable generation to authenticate a warning.
         return Err(io::Error::other(
-            "checkpoint restore needs a managed Site generation",
+            "checkpoint restore needs a managed Session generation",
         ));
     }
     Ok((store, checkpoint, record, suppress_initial_empty))

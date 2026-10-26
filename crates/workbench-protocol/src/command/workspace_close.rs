@@ -71,6 +71,7 @@ pub struct WorkbenchWorkspaceCloseCounts {
 pub struct WorkbenchWorkspaceCloseRead {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub workspace_id: WorkbenchWorkspaceId,
 }
@@ -131,6 +132,7 @@ impl WorkbenchWorkspaceCloseReadResult {
 pub struct WorkbenchWorkspaceCloseResume {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub workspace_id: WorkbenchWorkspaceId,
     pub close_request_id: WorkbenchRequestId,
@@ -165,6 +167,7 @@ pub enum WorkbenchWorkspaceCloseResumeOutcome {
 pub struct WorkbenchWorkspaceCloseResumeResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub workspace_id: WorkbenchWorkspaceId,
     pub close_request_id: WorkbenchRequestId,

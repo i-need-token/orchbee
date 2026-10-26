@@ -262,7 +262,7 @@ locally, and anywhere else over the pane it is consumed without dismissing the o
 
 On Windows, `ui/history_positions.rs` retains each canonical presentation's explicit Live or
 manual-history choice across tab/viewer replacement and context handoff in the same Client.
-Identity includes Site, context, tab, panel, presentation, Worker and terminal. Removed or rebound
+Identity includes Session, context, tab, panel, presentation, Worker and terminal. Removed or rebound
 members are pruned; retirement discards the bank. Nothing is persisted or shared with another
 Client. Automatic tail and copy episodes do not become manual-history bookmarks.
 
@@ -297,13 +297,13 @@ contract and invalidates any unadmitted direct selection.
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Accept a visible Agent     | `machine_picker/sidebar.rs` revalidates the exact machine and physical target and creates a Sidebar selection generation; the input dispatcher captures the packet.                                                                                                                                               |
 | Verify and wait            | `tui_shell/machines.rs` uses a cancellable read-only connection to verify current membership and physical Agent identity within the original 60-second selection budget. On the current machine it reuses the active Session. A busy Session retains only the latest waiting target; Busy precedes exact-current. |
-| Select an exact member     | `ui/direct_navigation.rs` resolves Site, context, Tab, Panel, Presentation and binding again. Same-context selection reuses the switch transaction; cross-context selection carries an exact member through snapshot validation and cleanup, without visiting a default member.                                   |
+| Select an exact member     | `ui/direct_navigation.rs` resolves Session, context, Tab, Panel, Presentation and binding again. Same-context selection reuses the switch transaction; cross-context selection carries an exact member through snapshot validation and cleanup, without visiting a default member.                                |
 | Keep current or move focus | Both fast paths require a live exact pane incarnation whose attached Host epoch and terminal match the verified target. A missing or different physical identity takes the fenced switch path.                                                                                                                    |
 | Attach and paint           | The selected member and physical Host fence survive membership cleanup. An unexpected attached Host is detached before polling, control acquisition or frame intake. Input and feedback remain unavailable until the existing first-frame contract admits them.                                                   |
 | Cancel or fail             | Escape, a newer selection or explicit Search retires unadmitted work; stale verification cannot install or reopen a surface. Accepted Session work retains its own settlement. A direct failure reports a localized retry notice without opening a picker.                                                        |
 
 `ui/retained_frames.rs` owns the render-only image bank: at most eight panes and 16 MiB. Reuse requires
-exact Site/context/Tab/Panel/Presentation/binding and geometry. Agent selection additionally evicts
+exact Session/context/Tab/Panel/Presentation/binding and geometry. Agent selection additionally evicts
 images from a different or unknown Host terminal or epoch. Retained images grant no cursor,
 selection, graphics, input or frame acknowledgement authority; fresh validated frames take over
 through the existing projection path. Cross-machine and explicit-picker selection keep the

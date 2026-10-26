@@ -102,12 +102,9 @@ fn resolve(
             name: None,
         });
     } else {
-        let (variable, value) = environment("ORCHBEE_SESSION")
-            .map(|value| ("ORCHBEE_SESSION", value))
-            .or_else(|| environment("ORCHBEE_SITE").map(|value| ("ORCHBEE_SITE", value)))
-            .unwrap_or_else(|| ("ORCHBEE_SESSION", OsString::from("default")));
-        let text = value.to_str().ok_or_else(|| invalid(variable))?;
-        WindowsSiteName::parse(text).map_err(|_| invalid(variable))?
+        let value = environment("ORCHBEE_SESSION").unwrap_or_else(|| OsString::from("default"));
+        let text = value.to_str().ok_or_else(|| invalid("ORCHBEE_SESSION"))?;
+        WindowsSiteName::parse(text).map_err(|_| invalid("ORCHBEE_SESSION"))?
     };
     Ok(Location {
         base,

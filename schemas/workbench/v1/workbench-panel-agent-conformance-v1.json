@@ -8,7 +8,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "report",
 					"panelId": "33333333333333333333333333333333",
@@ -34,7 +34,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "report",
 					"panelId": "33333333333333333333333333333333",
@@ -55,7 +55,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "report",
 					"panelId": "33333333333333333333333333333333",
@@ -79,7 +79,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "read",
 					"panelIds": ["33333333333333333333333333333333"]
@@ -93,7 +93,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "read",
 					"workbenchRevision": "9",
@@ -123,7 +123,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"action": {
 					"kind": "observe",
 					"binding": {
@@ -143,7 +143,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"outcome": {
 					"kind": "observed",
 					"workbenchRevision": "1",
@@ -185,7 +185,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "states",
 					"presentationIds": [
@@ -202,7 +202,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "states",
 					"workbenchRevision": "1",
@@ -237,7 +237,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "states",
 					"presentationIds": []
@@ -251,7 +251,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "explain",
 					"binding": {
@@ -270,7 +270,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "explained",
 					"workbenchRevision": "1",
@@ -364,7 +364,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "explained",
 					"workbenchRevision": "1",
@@ -414,7 +414,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "explained",
 					"workbenchRevision": "1",
@@ -520,7 +520,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "explained",
 					"workbenchRevision": "1",
@@ -621,7 +621,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "explained",
 					"workbenchRevision": "1",
@@ -722,7 +722,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "read-presentations",
 					"presentationIds": [
@@ -741,7 +741,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "read-presentations",
 					"presentationIds": []
@@ -755,7 +755,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "presentations-read",
 					"workbenchRevision": "9",
@@ -804,7 +804,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "presentations-read",
 					"workbenchRevision": "9",
@@ -820,7 +820,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "presentations-read",
 					"workbenchRevision": "9",
@@ -845,7 +845,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "report-presentation",
 					"panelId": "33333333333333333333333333333333",
@@ -872,7 +872,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "presentation-reported",
 					"workbenchRevision": "9",
@@ -901,7 +901,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "titles",
 					"workbenchRevision": "1",
@@ -930,7 +930,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "titles",
 					"workbenchRevision": "1",
@@ -959,7 +959,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "titles",
 					"workbenchRevision": "1",
@@ -986,7 +986,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "titles",
 					"bindings": [
@@ -1007,7 +1007,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "report",
 					"panelId": "33333333333333333333333333333333",
@@ -1033,7 +1033,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "report",
 					"panelId": "33333333333333333333333333333333",
@@ -1061,7 +1061,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "report",
 					"panelId": "33333333333333333333333333333333",
@@ -1088,7 +1088,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "report",
 					"panelId": "33333333333333333333333333333333",
@@ -1115,7 +1115,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "report",
 					"panelId": "33333333333333333333333333333333",
@@ -1142,7 +1142,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "report",
 					"panelId": "33333333333333333333333333333333",
@@ -1169,7 +1169,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "report",
 					"panelId": "33333333333333333333333333333333",
@@ -1197,7 +1197,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "read",
 					"panelIds": ["33333333333333333333333333333333", "33333333333333333333333333333333"]
@@ -1212,7 +1212,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "read",
 					"workbenchRevision": "9",
@@ -1242,7 +1242,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "read",
 					"workbenchRevision": "9",
@@ -1273,7 +1273,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"action": {
 					"kind": "observe",
 					"binding": {
@@ -1293,7 +1293,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"action": {
 					"kind": "observe",
 					"binding": {
@@ -1314,7 +1314,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"action": {
 					"kind": "observe",
 					"binding": {
@@ -1335,7 +1335,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"outcome": {
 					"kind": "observed",
 					"workbenchRevision": "1",
@@ -1378,7 +1378,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"outcome": {
 					"kind": "observed",
 					"workbenchRevision": "1",
@@ -1421,7 +1421,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"outcome": {
 					"kind": "observed",
 					"workbenchRevision": "1",
@@ -1464,7 +1464,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"outcome": {
 					"kind": "observed",
 					"workbenchRevision": "1",
@@ -1507,7 +1507,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
 				"outcome": {
 					"kind": "observed",
 					"workbenchRevision": "1",
@@ -1549,7 +1549,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "states",
 					"presentationIds": [
@@ -1567,7 +1567,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "states",
 					"presentationIds": [
@@ -1648,7 +1648,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "states",
 					"workbenchRevision": "1",
@@ -1673,7 +1673,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "states",
 					"workbenchRevision": "1",
@@ -1709,7 +1709,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "states",
 					"workbenchRevision": "1",
@@ -1746,7 +1746,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "explained",
 					"workbenchRevision": "1",
@@ -1841,7 +1841,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "explained",
 					"workbenchRevision": "1",
@@ -1935,7 +1935,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "explained",
 					"workbenchRevision": "1",
@@ -2030,7 +2030,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "explained",
 					"workbenchRevision": "1",
@@ -2125,7 +2125,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "explained",
 					"workbenchRevision": "1",
@@ -2220,7 +2220,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "explained",
 					"workbenchRevision": "1",
@@ -2315,7 +2315,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "explained",
 					"workbenchRevision": "1",
@@ -2410,7 +2410,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "explained",
 					"workbenchRevision": "1",
@@ -2505,7 +2505,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "explained",
 					"workbenchRevision": "1",
@@ -2594,7 +2594,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "explained",
 					"workbenchRevision": "1",
@@ -2690,7 +2690,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "explained",
 					"workbenchRevision": "1",
@@ -2785,7 +2785,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "explained",
 					"workbenchRevision": "1",
@@ -2887,7 +2887,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "explained",
 					"workbenchRevision": "1",
@@ -2989,7 +2989,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "explained",
 					"workbenchRevision": "1",
@@ -3100,7 +3100,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "explained",
 					"workbenchRevision": "1",
@@ -3207,7 +3207,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "explained",
 					"workbenchRevision": "1",
@@ -3309,7 +3309,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "explained",
 					"workbenchRevision": "1",
@@ -3411,7 +3411,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "explained",
 					"workbenchRevision": "1",
@@ -3513,7 +3513,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "explained",
 					"workbenchRevision": "1",
@@ -3610,7 +3610,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "explained",
 					"workbenchRevision": "1",
@@ -3712,7 +3712,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "explained",
 					"workbenchRevision": "1",
@@ -3813,7 +3813,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "read-presentations",
 					"presentationIds": [
@@ -3831,7 +3831,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "read-presentations",
 					"presentationIds": [
@@ -3852,7 +3852,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "read-presentations",
 					"presentationIds": ["00000000000000000000000000000001"],
@@ -3868,7 +3868,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "presentations-read",
 					"workbenchRevision": "9",
@@ -3918,7 +3918,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "presentations-read",
 					"workbenchRevision": "9",
@@ -4016,7 +4016,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "presentations-read",
 					"workbenchRevision": "9",
@@ -4047,7 +4047,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "presentations-read",
 					"workbenchRevision": "9",
@@ -4080,7 +4080,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "presentations-read",
 					"workbenchRevision": "9",
@@ -4115,7 +4115,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "report-presentation",
 					"panelId": "33333333333333333333333333333333",
@@ -4141,7 +4141,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "report-presentation",
 					"panelId": "33333333333333333333333333333333",
@@ -4168,7 +4168,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "report",
 					"panelId": "33333333333333333333333333333333",
@@ -4195,7 +4195,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "presentation-reported",
 					"workbenchRevision": "9",
@@ -4223,7 +4223,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "presentation-reported",
 					"workbenchRevision": "9",
@@ -4252,7 +4252,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "reported",
 					"workbenchRevision": "9",
@@ -4281,7 +4281,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "titles",
 					"workbenchRevision": "1",
@@ -4310,7 +4310,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "titles",
 					"workbenchRevision": "1",
@@ -4340,7 +4340,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "titles",
 					"workbenchRevision": "1",
@@ -4371,7 +4371,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "titles",
 					"workbenchRevision": "1",
@@ -4401,7 +4401,7 @@
 				"kind": "workbench.panel-agent.result",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"outcome": {
 					"kind": "titles",
 					"workbenchRevision": "1",
@@ -4444,7 +4444,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "titles",
 					"bindings": [
@@ -4490,7 +4490,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "titles",
 					"bindings": [
@@ -4518,7 +4518,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "report",
 					"panelId": "33333333333333333333333333333333",
@@ -4545,7 +4545,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "report",
 					"panelId": "33333333333333333333333333333333",
@@ -4571,7 +4571,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "report",
 					"panelId": "33333333333333333333333333333333",
@@ -4597,7 +4597,7 @@
 				"kind": "workbench.panel-agent",
 				"protocolVersion": 1,
 				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
+				"sessionId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "report",
 					"panelId": "33333333333333333333333333333333",

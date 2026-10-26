@@ -40,7 +40,7 @@ impl Answer {
             Observation::Unknown(reason) => serde_json::json!({"kind":"unknown", "reason":reason}),
         };
         let value = serde_json::json!({"schema":"orchbee.panel.agent-report", "version":1,
-            "requestId":self.request_id,"siteId":self.site_id,"panelId":self.panel_id,"presentationId":self.presentation_id,
+            "requestId":self.request_id,"sessionId":self.site_id,"panelId":self.panel_id,"presentationId":self.presentation_id,
             "observation":observation,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed});
         value
     }

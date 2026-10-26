@@ -177,7 +177,7 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
             let document: Value = serde_json::from_slice(&output.stdout).unwrap();
             validate(
                 &document,
-                include_str!("../src/cli/schemas/orchbee.site.configuration.json"),
+                include_str!("../src/cli/schemas/orchbee.server.configuration.json"),
             );
             assert_eq!(document["version"], 1);
             if matches!(
@@ -233,14 +233,14 @@ fn reload_does_not_activate_a_site_and_rejects_unrelated_flags_before_admission(
 #[test]
 fn public_configuration_requires_complete_current_snapshots() {
     let schema: Value = serde_json::from_str(include_str!(
-        "../src/cli/schemas/orchbee.site.configuration.json"
+        "../src/cli/schemas/orchbee.server.configuration.json"
     ))
     .unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
     let document = serde_json::json!({
-        "schema":"orchbee.site.configuration","version":1,"source":{"kind":"local-runtime"},
+        "schema":"orchbee.server.configuration","version":1,"source":{"kind":"local-runtime"},
         "result":{"action":"current","interrupted":false,"cleanupFailed":false,
-            "reply":{"protocolVersion":1,"requestId":"00000000000000000000000000000001","siteId":"00000000000000000000000000000002",
+            "reply":{"protocolVersion":1,"requestId":"00000000000000000000000000000001","sessionId":"00000000000000000000000000000002",
                 "outcome":{"kind":"current","snapshot":{"revision":"0","keysProfile":"[keys]","manifestCheck":true,"restartRequired":[],
                     "defaultShell":"pwsh.exe","shellMode":"non_login","windowTitle":"{tab}","notificationProfile":"[ui.toast]",
                     "agentSidebarProfile":"{}","spacesSidebarProfile":"{}","themeName":"one-light",

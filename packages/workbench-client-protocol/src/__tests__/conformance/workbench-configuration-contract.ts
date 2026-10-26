@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	WorkbenchRequestIdSchema,
 	WorkbenchRevisionSchema,
 	WORKBENCH_PROTOCOL_VERSION,
@@ -81,7 +81,7 @@ const failure = z
 		reason: z.enum([
 			'denied',
 			'unavailable',
-			'site-mismatch',
+			'session-mismatch',
 			'busy',
 			'load-failed',
 			'revision-exhausted',
@@ -97,7 +97,7 @@ const failure = z
 const correlation = {
 	protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 	requestId: WorkbenchRequestIdSchema,
-	siteId: SiteIdSchema,
+	sessionId: SessionIdSchema,
 };
 export const ConfigurationRequestSchema = z
 	.strictObject({

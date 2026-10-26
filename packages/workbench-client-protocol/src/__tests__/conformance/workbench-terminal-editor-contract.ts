@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { ClientPresentationSelectionSchema } from './workbench-client-presentation-contract';
 import { WorkbenchTerminalGeometrySchema } from './workbench-terminal-launch-contract';
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	WorkbenchRequestIdSchema,
 	WorkbenchRevisionSchema,
 	WorkbenchPanelIdSchema,
@@ -28,7 +28,7 @@ export const ScrollbackEditorSpecSchema = z
 const correlation = {
 	protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 	requestId: WorkbenchRequestIdSchema,
-	siteId: SiteIdSchema,
+	sessionId: SessionIdSchema,
 };
 const popup = { popupId: WorkbenchRequestIdSchema };
 export const TerminalEditorRequestSchema = z
@@ -80,7 +80,7 @@ export const TerminalEditorResultSchema = z
 				reason: z.enum([
 					'denied',
 					'invalid-intent',
-					'site-mismatch',
+					'session-mismatch',
 					'unavailable',
 					'busy',
 					'conflict',

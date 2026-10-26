@@ -7,7 +7,7 @@
 				"kind": "workbench.worktree.query",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"source": {
 					"kind": "directory",
 					"path": "C:/repo/sub"
@@ -22,7 +22,7 @@
 				"kind": "workbench.worktree.query",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"source": {
 					"kind": "workspace",
 					"workspaceId": "00000000000000000000000000000006"
@@ -39,7 +39,7 @@
 				"requestId": "00000000000000000000000000000001",
 				"outcome": {
 					"kind": "found",
-					"siteId": "00000000000000000000000000000002",
+					"sessionId": "00000000000000000000000000000002",
 					"workbenchRevision": "3",
 					"workerId": "00000000000000000000000000000004",
 					"source": {
@@ -95,7 +95,7 @@
 				"requestId": "00000000000000000000000000000001",
 				"outcome": {
 					"kind": "found",
-					"siteId": "00000000000000000000000000000002",
+					"sessionId": "00000000000000000000000000000002",
 					"workbenchRevision": "3",
 					"workerId": "00000000000000000000000000000004",
 					"source": {
@@ -156,7 +156,7 @@
 				"requestId": "00000000000000000000000000000001",
 				"outcome": {
 					"kind": "found",
-					"siteId": "00000000000000000000000000000002",
+					"sessionId": "00000000000000000000000000000002",
 					"workbenchRevision": "3",
 					"workerId": "00000000000000000000000000000004",
 					"source": {
@@ -306,7 +306,7 @@
 				"requestId": "00000000000000000000000000000001",
 				"outcome": {
 					"kind": "found",
-					"siteId": "00000000000000000000000000000002",
+					"sessionId": "00000000000000000000000000000002",
 					"workbenchRevision": "3",
 					"workerId": "00000000000000000000000000000004",
 					"source": {
@@ -362,7 +362,7 @@
 				"kind": "workbench.worktree.query",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"source": {
 					"kind": "directory",
 					"path": "C:/repo/sub"
@@ -377,7 +377,7 @@
 				"kind": "workbench.worktree.query",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"source": null,
 				"trustRepository": false
 			},
@@ -390,7 +390,7 @@
 				"kind": "workbench.worktree.query",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"source": {
 					"kind": "directory",
 					"path": "C:/repo/sub",
@@ -407,7 +407,7 @@
 				"kind": "workbench.worktree.query",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"source": {
 					"kind": "directory",
 					"path": "relative"
@@ -423,7 +423,7 @@
 				"kind": "workbench.worktree.query",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"source": {
 					"kind": "directory",
 					"path": "C:/repo/sub"
@@ -442,7 +442,7 @@
 				"requestId": "00000000000000000000000000000001",
 				"outcome": {
 					"kind": "found",
-					"siteId": "00000000000000000000000000000002",
+					"sessionId": "00000000000000000000000000000002",
 					"workbenchRevision": "3",
 					"workerId": "00000000000000000000000000000004",
 					"source": {
@@ -466,7 +466,7 @@
 				"requestId": "00000000000000000000000000000001",
 				"outcome": {
 					"kind": "found",
-					"siteId": "00000000000000000000000000000002",
+					"sessionId": "00000000000000000000000000000002",
 					"workbenchRevision": "3",
 					"workerId": "00000000000000000000000000000004",
 					"source": {
@@ -523,7 +523,7 @@
 				"requestId": "00000000000000000000000000000001",
 				"outcome": {
 					"kind": "found",
-					"siteId": "00000000000000000000000000000002",
+					"sessionId": "00000000000000000000000000000002",
 					"workbenchRevision": "3",
 					"workerId": "00000000000000000000000000000004",
 					"source": {
@@ -580,7 +580,7 @@
 				"requestId": "00000000000000000000000000000001",
 				"outcome": {
 					"kind": "found",
-					"siteId": "00000000000000000000000000000002",
+					"sessionId": "00000000000000000000000000000002",
 					"workbenchRevision": "3",
 					"workerId": "00000000000000000000000000000004",
 					"source": {
@@ -637,7 +637,7 @@
 				"requestId": "00000000000000000000000000000001",
 				"outcome": {
 					"kind": "found",
-					"siteId": "00000000000000000000000000000002",
+					"sessionId": "00000000000000000000000000000002",
 					"workbenchRevision": "3",
 					"workerId": "00000000000000000000000000000004",
 					"source": {
@@ -694,7 +694,7 @@
 				"requestId": "00000000000000000000000000000001",
 				"outcome": {
 					"kind": "found",
-					"siteId": "00000000000000000000000000000002",
+					"sessionId": "00000000000000000000000000000002",
 					"workbenchRevision": "3",
 					"workerId": "00000000000000000000000000000004",
 					"source": {
@@ -750,7 +750,7 @@
 				"requestId": "00000000000000000000000000000001",
 				"outcome": {
 					"kind": "found",
-					"siteId": "00000000000000000000000000000002",
+					"sessionId": "00000000000000000000000000000002",
 					"workbenchRevision": "3",
 					"workerId": "00000000000000000000000000000004",
 					"source": {
@@ -813,7 +813,7 @@
 				"requestId": "00000000000000000000000000000001",
 				"outcome": {
 					"kind": "found",
-					"siteId": "00000000000000000000000000000002",
+					"sessionId": "00000000000000000000000000000002",
 					"workbenchRevision": "3",
 					"workerId": "00000000000000000000000000000004",
 					"source": {
@@ -870,7 +870,7 @@
 				"requestId": "00000000000000000000000000000001",
 				"outcome": {
 					"kind": "found",
-					"siteId": "00000000000000000000000000000002",
+					"sessionId": "00000000000000000000000000000002",
 					"workbenchRevision": "3",
 					"workerId": "00000000000000000000000000000004",
 					"source": {
@@ -927,7 +927,7 @@
 				"requestId": "00000000000000000000000000000001",
 				"outcome": {
 					"kind": "found",
-					"siteId": "00000000000000000000000000000002",
+					"sessionId": "00000000000000000000000000000002",
 					"workbenchRevision": "3",
 					"workerId": "00000000000000000000000000000004",
 					"source": {
@@ -984,7 +984,7 @@
 				"requestId": "00000000000000000000000000000001",
 				"outcome": {
 					"kind": "found",
-					"siteId": "00000000000000000000000000000002",
+					"sessionId": "00000000000000000000000000000002",
 					"workbenchRevision": "3",
 					"workerId": "00000000000000000000000000000004",
 					"source": {
@@ -1059,7 +1059,7 @@
 				"requestId": "00000000000000000000000000000001",
 				"outcome": {
 					"kind": "found",
-					"siteId": "00000000000000000000000000000002",
+					"sessionId": "00000000000000000000000000000002",
 					"workbenchRevision": "3",
 					"workerId": "00000000000000000000000000000004",
 					"source": {

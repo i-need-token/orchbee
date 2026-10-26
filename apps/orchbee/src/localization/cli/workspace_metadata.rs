@@ -9,13 +9,13 @@ pub(super) const HELP_EN: crate::localization::HelpDetails = crate::localization
 );
 pub(super) const HELP_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee workspace report-metadata <target> --source <id> [--token <name=value>] [--clear-token <name>] [--seq <n>] [--ttl-ms <n>] [--format text|json]",
-    "向已有 Workspace 上报临时展示 token，至少设置或清除一个键。可按顺序重复 token／clear 选项，后者覆盖前者。值规范化为至多 80 个 Unicode 字符，空值表示清除。可选序号为无符号 64 位整数；旧序号成功返回但不改变值或 TTL。TTL：1–86400000 毫秒。不会启动会话、改变焦点或重试不确定的上报。总期限为 5 秒。",
+    "向已有工作区上报临时展示 token，至少设置或清除一个键。可按顺序重复 token／clear 选项，后者覆盖前者。值规范化为至多 80 个 Unicode 字符，空值表示清除。可选序号为无符号 64 位整数；旧序号成功返回但不改变值或 TTL。TTL：1–86400000 毫秒。不会启动会话、改变焦点或重试不确定的上报。总期限为 5 秒。",
 );
 impl Locale {
     pub(crate) const fn cli_workspace_metadata_heading(self) -> &'static str {
         match self {
             Self::EnUs => "Workspace metadata",
-            Self::ZhCn => "Workspace 元数据",
+            Self::ZhCn => "工作区元数据",
         }
     }
 
@@ -47,13 +47,13 @@ impl Locale {
                 (Self::EnUs, Failure::SiteMismatch) => "Session identity changed",
                 (Self::ZhCn, Failure::SiteMismatch) => "会话身份已改变",
                 (Self::EnUs, Failure::NotFound) => "Workspace no longer exists",
-                (Self::ZhCn, Failure::NotFound) => "Workspace 已不存在",
+                (Self::ZhCn, Failure::NotFound) => "工作区已不存在",
                 (Self::EnUs, Failure::Denied) => "Metadata reporting denied",
                 (Self::ZhCn, Failure::Denied) => "元数据上报被拒绝",
                 (Self::EnUs, Failure::Unavailable) => "Metadata service unavailable",
                 (Self::ZhCn, Failure::Unavailable) => "元数据服务不可用",
                 (Self::EnUs, Failure::TokenLimit) => "Workspace token limit reached",
-                (Self::ZhCn, Failure::TokenLimit) => "Workspace token 数量已达上限",
+                (Self::ZhCn, Failure::TokenLimit) => "工作区 token 数量已达上限",
                 (Self::EnUs, Failure::SequenceSourceLimit) => "Sequence source limit reached",
                 (Self::ZhCn, Failure::SequenceSourceLimit) => "序号来源数量已达上限",
                 (Self::EnUs, Failure::ResourceLimit) => "Metadata capacity reached",

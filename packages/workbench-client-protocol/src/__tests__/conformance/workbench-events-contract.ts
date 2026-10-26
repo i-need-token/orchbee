@@ -11,7 +11,7 @@ import {
 	WorkbenchWorktreeResultSchema,
 } from './workbench-worktree-contract';
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	WorkbenchRequestIdSchema,
 	WorkbenchRevisionSchema,
 	WorkbenchWorkspaceIdSchema,
@@ -34,7 +34,7 @@ const bounded = (value: unknown) =>
 const correlation = {
 	protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 	requestId: WorkbenchRequestIdSchema,
-	siteId: SiteIdSchema,
+	sessionId: SessionIdSchema,
 };
 const SemanticEventKindSchema = z.enum([
 	'workspace.created',
@@ -207,7 +207,7 @@ const SemanticEventSchema = z
 					value.event === 'layout.updated' &&
 					WorkbenchSnapshotSchema.safeParse({
 						protocolVersion: 1,
-						siteId: '1'.repeat(32),
+						sessionId: '1'.repeat(32),
 						revision: value.workbenchRevision,
 						navigation: {
 							directories: [],
@@ -403,7 +403,7 @@ const outcome = z.discriminatedUnion('kind', [
 			'denied',
 			'invalid-intent',
 			'invalid-regex',
-			'site-mismatch',
+			'session-mismatch',
 			'unavailable',
 			'busy',
 			'conflict',

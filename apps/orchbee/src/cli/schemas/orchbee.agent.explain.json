@@ -1040,13 +1040,13 @@
 				},
 				"source": {
 					"type": "object",
-					"required": ["kind", "siteId", "workbenchRevision", "reportRevision", "requestId"],
+					"required": ["kind", "sessionId", "workbenchRevision", "reportRevision", "requestId"],
 					"additionalProperties": false,
 					"properties": {
 						"kind": {
 							"const": "panel-agent-explain"
 						},
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/hexId"
 						},
 						"workbenchRevision": {

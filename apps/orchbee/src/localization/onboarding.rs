@@ -28,7 +28,7 @@ impl Locale {
             (Self::EnUs, Workspace) => "New workspace",
             (Self::ZhCn, Workspace) => "新建工作区",
             (Self::EnUs, Agent) => "Start an Agent",
-            (Self::ZhCn, Agent) => "启动 Agent",
+            (Self::ZhCn, Agent) => "启动智能体",
             (Self::EnUs, Menu) => "All actions",
             (Self::ZhCn, Menu) => "全部操作",
             (Self::EnUs, Help) => "Help",

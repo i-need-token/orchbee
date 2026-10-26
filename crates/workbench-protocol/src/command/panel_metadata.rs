@@ -143,6 +143,7 @@ pub enum PanelMetadataAction {
 pub struct PanelMetadataRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub action: PanelMetadataAction,
 }
@@ -285,6 +286,7 @@ impl PanelMetadataRow {
 #[serde(rename_all = "kebab-case")]
 pub enum PanelMetadataFailure {
     InvalidRequest,
+    #[serde(rename = "session-mismatch")]
     SiteMismatch,
     NotFound,
     Unbound,
@@ -340,6 +342,7 @@ pub enum PanelMetadataOutcome {
 pub struct PanelMetadataResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub outcome: PanelMetadataOutcome,
 }

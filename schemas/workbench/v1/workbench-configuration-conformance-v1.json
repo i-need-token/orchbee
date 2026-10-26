@@ -8,7 +8,7 @@
 				"kind": "workbench.configuration",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": "reload"
 			}
 		},
@@ -19,7 +19,7 @@
 				"kind": "workbench.configuration",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": "current"
 			}
 		},
@@ -30,7 +30,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -61,7 +61,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "current",
 					"snapshot": {
@@ -91,7 +91,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "failed",
 					"reason": "load-failed",
@@ -107,7 +107,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "failed",
 					"reason": "busy",
@@ -123,7 +123,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -154,7 +154,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -185,7 +185,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -216,7 +216,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -247,7 +247,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -278,7 +278,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "current",
 					"snapshot": {
@@ -319,7 +319,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "current",
 					"snapshot": {
@@ -990,7 +990,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -1021,7 +1021,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -1054,7 +1054,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "current",
 					"snapshot": {
@@ -1084,7 +1084,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "current",
 					"snapshot": {
@@ -1122,7 +1122,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "current",
 					"snapshot": {
@@ -1149,7 +1149,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "current",
 					"snapshot": {
@@ -1181,7 +1181,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "current",
 					"snapshot": {
@@ -1218,7 +1218,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "current",
 					"snapshot": {
@@ -1255,7 +1255,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "current",
 					"snapshot": {
@@ -1292,7 +1292,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "current",
 					"snapshot": {
@@ -1329,7 +1329,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "current",
 					"snapshot": {
@@ -1371,7 +1371,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "current",
 					"snapshot": {
@@ -1413,7 +1413,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "current",
 					"snapshot": {
@@ -1444,7 +1444,7 @@
 				"kind": "workbench.configuration",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": "current",
 				"unexpected": true
 			},
@@ -1457,7 +1457,7 @@
 				"kind": "workbench.configuration",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": "restart"
 			},
 			"boundary": "schema"
@@ -1469,7 +1469,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "failed",
 					"reason": "busy",
@@ -1486,7 +1486,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "failed",
 					"reason": "busy",
@@ -1503,7 +1503,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "current",
 					"snapshot": {
@@ -1534,7 +1534,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "current",
 					"snapshot": {
@@ -1565,7 +1565,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "current",
 					"snapshot": {
@@ -1596,7 +1596,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -1628,7 +1628,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -1660,7 +1660,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -1692,7 +1692,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -1723,7 +1723,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -1754,7 +1754,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -1785,7 +1785,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -1817,7 +1817,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -1847,7 +1847,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -1878,7 +1878,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -1910,7 +1910,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -1942,7 +1942,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -1971,7 +1971,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -2002,7 +2002,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -2033,7 +2033,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -2063,7 +2063,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -2094,7 +2094,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "current",
 					"snapshot": {
@@ -2771,7 +2771,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "current",
 					"snapshot": {
@@ -2808,7 +2808,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -2839,7 +2839,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -2870,7 +2870,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -2901,7 +2901,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {
@@ -2932,7 +2932,7 @@
 				"kind": "workbench.configuration.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "reloaded",
 					"snapshot": {

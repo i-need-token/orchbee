@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	TerminalPresentationIdSchema,
 	WORKBENCH_PROTOCOL_VERSION,
 	WorkbenchRequestIdSchema,
@@ -153,7 +153,7 @@ const PanelAgentRowSchema = z
 const PanelAgentFailureSchema = z.enum([
 	'denied',
 	'unavailable',
-	'site-mismatch',
+	'session-mismatch',
 	'invalid-request',
 	'not-found',
 	'unbound',
@@ -516,7 +516,7 @@ export const PanelAgentRequestSchema = z
 		kind: z.literal('workbench.panel-agent'),
 		protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 		requestId: WorkbenchRequestIdSchema,
-		siteId: SiteIdSchema,
+		sessionId: SessionIdSchema,
 		action: PanelAgentActionSchema,
 	})
 	.readonly();
@@ -525,7 +525,7 @@ export const PanelAgentResultSchema = z
 		kind: z.literal('workbench.panel-agent.result'),
 		protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 		requestId: WorkbenchRequestIdSchema,
-		siteId: SiteIdSchema,
+		sessionId: SessionIdSchema,
 		outcome: PanelAgentOutcomeSchema,
 	})
 	.readonly();

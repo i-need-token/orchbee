@@ -36,7 +36,7 @@ Worker／代际／cohort，且仅在收到 Owned 后认领连接。旧 wire 上�
 
 进程作业通道接收配置式 Windows 命令，不带插件身份或插件日志。OBPJ 的全部动作和结果均使用帧版本 1。请求动作 5 携带有界命令 ID、绝对目录、字面命令及名称唯一、有界的 `ORCHBEE_*` 环境条目；结果 outcome 5 回显作业 ID 及同一冻结作业是否已存在。插件和配置式作业均受 Worker ID、代次、操作关联及封闭拒绝原因约束。
 
-Server 在派发前解析已安装配置。Worker 覆盖 Site 路由，用 Windows `cmd /d /c`
+Server 在派发前解析已安装配置。Worker 覆盖 会话 路由，用 Windows `cmd /d /c`
 执行字面命令，独立于调用连接持有取消及 join。插件和配置作业共享最多 32 个
 运行进程的准入上限。配置回执最多保留 200 条，绝不显示为插件历史。
 关闭时先取消并 join 两类作业，再返回完整回执。
@@ -473,7 +473,7 @@ pnpm lint:projects
 
 ## 托管 Worker 停止
 
-Windows 托管 Site 生命周期在帧版本 1 和既有 40 KiB 上限下增加 kind 19/20。
+Windows 托管 会话 生命周期在帧版本 1 和既有 40 KiB 上限下增加 kind 19/20。
 请求依次包含操作 ID、Worker ID（各 16 字节，整体非零）、正 Worker generation（u64）
 和协作式预算（u32，1..15000 毫秒），整数均为大端。仅精确准入的托管 Worker 可执行；
 非托管或身份不匹配在效果前拒绝。既有 20 秒 carrier 回应窗口不变，响应回显完整请求。
@@ -669,4 +669,4 @@ Worker 将缺失的 Host 元数据映射为 unknown；保留的启动、终端�
 空闲证据。独立字节 golden、Worker 回执测试及 Server 条件关闭见证覆盖这些细化。配套原生
 cohort 一同升级／回滚；不支持混用版本绕过安全门禁。
 
-<!-- documentation-pairing: english-sha256=f5ab75d792208206c81d1d7de6965898fdac856ab1c95f4d397570d07c952fc2 zh-cn-sha256=eba6e8cd3f555fdd4f283df98d24d651066b3c96e7d27b56c2af3766637cc2d4 -->
+<!-- documentation-pairing: english-sha256=ca800b9f7c39a476cb8ec68671b486e2f5159c26faa7c855ce846a7e49657bdd zh-cn-sha256=6e5ad78be501a48edbfc573ecbda320856b861d728e4e0e5f3a16573146282ff -->

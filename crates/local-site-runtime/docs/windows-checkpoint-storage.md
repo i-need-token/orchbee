@@ -6,8 +6,8 @@ The private Windows session store transports opaque Workbench documents. The Ser
 their domain meaning and owns capture, restoration and scheduling. This contract implements the
 accepted retention and recovery policy: keep three valid snapshots, fall back to a valid copy,
 retain unreadable originals, and report an empty restoration when every copy is invalid. It does
-not authorize starting beside an unknown or living Site owner. Windows crash admission remains
-the local Site runtime's responsibility.
+not authorize starting beside an unknown or living Session owner. Windows crash admission remains
+the local Session runtime's responsibility.
 
 The bounded Workbench payload, durable catalog and private frame each use their current version 1
 shape. Checkpoint payloads retain shared ratios and optional Project organization with global
@@ -15,7 +15,7 @@ Workspace/Directory identities. Catalog records require the exact PID/creation-F
 there is no older-activator fence or version-dependent recovery. The repository
 [data-boundary rule](../../../docs/ARCHITECTURE.md#data-boundaries) governs versions.
 
-A stopped Site may use any fixed slot or exactly named owned corrupt archive as storage evidence.
+A stopped Session may use any fixed slot or exactly named owned corrupt archive as storage evidence.
 Every fresh default or named activation publishes its current Active record before marker commitment,
 Server spawn or storage effects. Unsupported/malformed records are `InvalidData` and remain intact;
 named records with an admitted name appear as `unreadable` in `session list`. Explicit
@@ -65,9 +65,9 @@ newest framed payload needs no new publication; periodic sampling does not consu
 identical copies.
 
 Corrupt originals are user recovery data, outside the three-valid-copy budget. They stay in this
-Site's private state directory. For a stopped named Site,
+Session's private state directory. For a stopped named Session,
 `orchbee session delete <name> --confirm` removes its owned corrupt raw archives with its other
-owned checkpoint files. The default Site has no delete command; its raw archives remain until a
+owned checkpoint files. The default Session has no delete command; its raw archives remain until a
 separately authorized repair removes them. They are not execution logs and must not be silently
 garbage-collected. Deletion recognizes only the fixed store files and the exact owned corrupt-name
 grammar; unknown files, linked entries and living owners retain the existing refusal boundary.

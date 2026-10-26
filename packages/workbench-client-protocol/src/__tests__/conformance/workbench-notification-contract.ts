@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	WorkbenchRequestIdSchema,
 	WORKBENCH_PROTOCOL_VERSION,
 } from './workbench-semantic-contract';
@@ -26,7 +26,7 @@ const NotificationSchema = z.strictObject({
 const correlation = {
 	protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 	requestId: WorkbenchRequestIdSchema,
-	siteId: SiteIdSchema,
+	sessionId: SessionIdSchema,
 };
 export const NotificationRequestSchema = z
 	.strictObject({
@@ -53,7 +53,7 @@ export const NotificationResultSchema = z
 			z.strictObject({ kind: z.literal('listening'), notification: NotificationSchema.nullable() }),
 			z.strictObject({
 				kind: z.literal('failed'),
-				reason: z.enum(['denied', 'unavailable', 'site-mismatch', 'conflict']),
+				reason: z.enum(['denied', 'unavailable', 'session-mismatch', 'conflict']),
 			}),
 		]),
 	})

@@ -10,7 +10,7 @@ fn common(schema: &str, result: Value) -> Value {
     result["contentRevision"] = json!(u64::MAX.to_string());
     result["contentGeneration"] = json!("1");
     result["hostEpoch"] = json!("22222222222222222222222222222222");
-    json!({"schema":schema,"version":1,"source":{"kind":"workbench-snapshot","siteId":id,"revision":"1"},"result":result})
+    json!({"schema":schema,"version":1,"source":{"kind":"workbench-snapshot","sessionId":id,"revision":"1"},"result":result})
 }
 #[test]
 fn copy_receipts_are_closed_precise_and_keep_empty_search_indexes_consistent() {

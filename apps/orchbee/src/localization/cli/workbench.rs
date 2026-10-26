@@ -10,34 +10,34 @@ impl Locale {
                 "The Client view changed or refused the read. Retry when the TUI is ready.\n"
             }
             (Self::ZhCn, FailureKind::Rejected) => {
-                "Client 视图已变化或拒绝读取。请在 TUI 就绪后重试。\n"
+                "客户端视图已变化或拒绝读取。请在 TUI 就绪后重试。\n"
             }
             (Self::EnUs, FailureKind::NotFound) => {
                 "The selected Client was not found. Check orchbee client list.\n"
             }
             (Self::ZhCn, FailureKind::NotFound) => {
-                "未找到指定 Client。请使用 orchbee client list 检查。\n"
+                "未找到指定客户端。请使用 orchbee client list 检查。\n"
             }
             (Self::EnUs, FailureKind::ServiceUnavailable) => {
                 "The selected Client is unavailable or not ready.\n"
             }
-            (Self::ZhCn, FailureKind::ServiceUnavailable) => "指定 Client 不可用或尚未就绪。\n",
+            (Self::ZhCn, FailureKind::ServiceUnavailable) => "指定客户端不可用或尚未就绪。\n",
             (Self::EnUs, FailureKind::Timeout) => {
                 "The Client query exceeded its five-second deadline.\n"
             }
-            (Self::ZhCn, FailureKind::Timeout) => "Client 查询超过了五秒期限。\n",
+            (Self::ZhCn, FailureKind::Timeout) => "客户端查询超过了五秒期限。\n",
             (Self::EnUs, FailureKind::Cancelled) => "The Client query was cancelled.\n",
-            (Self::ZhCn, FailureKind::Cancelled) => "Client 查询已取消。\n",
+            (Self::ZhCn, FailureKind::Cancelled) => "客户端查询已取消。\n",
             (Self::EnUs, FailureKind::ProtocolInvalid) => {
                 "The Client query returned inconsistent or invalid data.\n"
             }
-            (Self::ZhCn, FailureKind::ProtocolInvalid) => "Client 查询返回了不一致或无效的数据。\n",
+            (Self::ZhCn, FailureKind::ProtocolInvalid) => "客户端查询返回了不一致或无效的数据。\n",
             (Self::EnUs, FailureKind::TransportLoss) => "The Client query connection was lost.\n",
-            (Self::ZhCn, FailureKind::TransportLoss) => "Client 查询连接已断开。\n",
+            (Self::ZhCn, FailureKind::TransportLoss) => "客户端查询连接已断开。\n",
             (Self::EnUs, FailureKind::Denied) => "Access to the Client query was denied.\n",
-            (Self::ZhCn, FailureKind::Denied) => "Client 查询访问被拒绝。\n",
+            (Self::ZhCn, FailureKind::Denied) => "客户端查询访问被拒绝。\n",
             (Self::EnUs, _) => "The Client query could not be completed.\n",
-            (Self::ZhCn, _) => "无法完成 Client 查询。\n",
+            (Self::ZhCn, _) => "无法完成客户端查询。\n",
         }
     }
 
@@ -58,7 +58,7 @@ impl Locale {
     pub(crate) const fn cli_workbench_agents_heading(self) -> &'static str {
         match self {
             Self::EnUs => "Agent summary: resource / status / sessions",
-            Self::ZhCn => "Agent 汇总：资源 / 状态 / 会话数",
+            Self::ZhCn => "智能体汇总：资源 / 状态 / 会话数",
         }
     }
 
@@ -66,7 +66,7 @@ impl Locale {
     pub(crate) const fn cli_workspace_worktrees_heading(self) -> &'static str {
         match self {
             Self::EnUs => "Workspace worktrees",
-            Self::ZhCn => "Workspace 工作树",
+            Self::ZhCn => "工作区工作树",
         }
     }
 
@@ -110,25 +110,25 @@ impl Locale {
                 "The Agent list exceeds the bounded Workbench query capacity. Query Agent pages with orchbee agent list.\n"
             }
             (Self::ZhCn, Some("agent-capacity")) => {
-                "Agent 列表超过工作台查询容量。请使用 orchbee agent list 分页查询。\n"
+                "智能体列表超过工作台查询容量。请使用 orchbee agent list 分页查询。\n"
             }
             (Self::EnUs, Some("agent-page-invalid")) => {
                 "The Agent list returned inconsistent page data. No Workbench summary was published.\n"
             }
             (Self::ZhCn, Some("agent-page-invalid")) => {
-                "Agent 列表返回了不一致的分页数据，未输出工作台汇总。\n"
+                "智能体列表返回了不一致的分页数据，未输出工作台汇总。\n"
             }
             (Self::EnUs, Some("agent-revision-changed")) => {
                 "Agent state changed between query pages. Run the query again.\n"
             }
             (Self::ZhCn, Some("agent-revision-changed")) => {
-                "Agent 状态在分页查询期间发生变化，请重新查询。\n"
+                "智能体状态在分页查询期间发生变化，请重新查询。\n"
             }
             (Self::EnUs, Some("metadata-changed")) => {
                 "Workspace metadata changed or expired during the query. Run the query again.\n"
             }
             (Self::ZhCn, Some("metadata-changed")) => {
-                "Workspace 元数据在查询期间发生变化或过期，请重新查询。\n"
+                "工作区元数据在查询期间发生变化或过期，请重新查询。\n"
             }
             (Self::EnUs, Some("workbench-changed")) => {
                 "Workbench membership changed during the query. Run the query again.\n"

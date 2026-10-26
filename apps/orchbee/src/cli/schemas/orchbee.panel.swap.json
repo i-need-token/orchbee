@@ -10,8 +10,8 @@
 		"version": {
 			"const": 1
 		},
-		"siteId": {
-			"$ref": "#/$defs/siteId"
+		"sessionId": {
+			"$ref": "#/$defs/sessionId"
 		},
 		"clientId": {
 			"anyOf": [
@@ -443,7 +443,7 @@
 	"required": [
 		"schema",
 		"version",
-		"siteId",
+		"sessionId",
 		"clientId",
 		"baseRevision",
 		"source",
@@ -495,7 +495,7 @@
 		},
 		"rejectionReason": {
 			"enum": [
-				"site-mismatch",
+				"session-mismatch",
 				"revision-mismatch",
 				"project-unavailable",
 				"workspace-unavailable",
@@ -583,8 +583,8 @@
 			"required": ["terminalContextId", "tabId", "panelId", "zoomed", "panelCount"],
 			"additionalProperties": false
 		},
-		"siteId": {
-			"title": "SiteId",
+		"sessionId": {
+			"title": "SessionId",
 			"$ref": "#/$defs/identity"
 		},
 		"reason": {

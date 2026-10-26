@@ -18,7 +18,7 @@ describe('Panel Agent reports', () => {
 			kind: 'workbench.panel-agent.result',
 			protocolVersion: 1,
 			requestId: '1'.repeat(32),
-			siteId: '2'.repeat(32),
+			sessionId: '2'.repeat(32),
 			outcome: {
 				kind: 'titles',
 				workbenchRevision: '1',

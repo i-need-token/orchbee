@@ -8,7 +8,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -35,7 +35,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "list"
 				}
@@ -48,7 +48,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "get",
 					"clientId": "00000000000000000000000000000007"
@@ -62,7 +62,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "read",
 					"operationId": "00000000000000000000000000000003"
@@ -76,7 +76,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -99,7 +99,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -123,7 +123,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -148,7 +148,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -174,7 +174,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -206,7 +206,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -239,7 +239,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -272,7 +272,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -293,7 +293,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -314,7 +314,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -335,7 +335,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -362,7 +362,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "18446744073709551615",
@@ -389,7 +389,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "synchronized",
 					"client": {
@@ -431,7 +431,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "synchronized",
 					"client": {
@@ -462,7 +462,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "listed",
 					"clients": [
@@ -494,7 +494,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "listed",
 					"clients": []
@@ -508,7 +508,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "found",
 					"client": {
@@ -538,7 +538,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "not-found"
 				}
@@ -551,7 +551,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "conflict"
 				}
@@ -564,7 +564,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "denied"
 				}
@@ -577,7 +577,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "unavailable",
 					"reason": "client-unavailable"
@@ -591,7 +591,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "unavailable",
 					"reason": "server-busy"
@@ -605,7 +605,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "unavailable",
 					"reason": "receipt-capacity"
@@ -619,7 +619,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "unavailable",
 					"reason": "unsupported"
@@ -633,7 +633,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "unavailable",
 					"reason": "sequence-exhausted"
@@ -647,7 +647,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -677,7 +677,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -707,7 +707,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -748,7 +748,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -779,7 +779,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -821,7 +821,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -853,7 +853,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -895,7 +895,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -927,7 +927,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -952,7 +952,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -994,7 +994,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -1036,7 +1036,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -1077,7 +1077,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -1110,7 +1110,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -1135,7 +1135,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -1261,7 +1261,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -1396,7 +1396,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -1531,7 +1531,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -1641,7 +1641,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -1667,7 +1667,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -1710,7 +1710,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -1753,7 +1753,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -1790,7 +1790,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -1823,7 +1823,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -1856,7 +1856,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -1915,7 +1915,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -1974,7 +1974,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -2026,7 +2026,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -2085,7 +2085,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -2143,7 +2143,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -2201,7 +2201,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -2228,7 +2228,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -2254,7 +2254,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -2302,7 +2302,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -2365,7 +2365,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -2396,7 +2396,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -2420,7 +2420,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -2480,7 +2480,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -2533,7 +2533,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -2559,7 +2559,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -2614,7 +2614,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -2637,7 +2637,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -2704,7 +2704,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -2771,7 +2771,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -2823,7 +2823,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -2875,7 +2875,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -2927,7 +2927,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -2979,7 +2979,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -3408,7 +3408,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -3813,7 +3813,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -3844,7 +3844,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -3909,7 +3909,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -3960,7 +3960,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -3995,7 +3995,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -4025,7 +4025,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -4076,7 +4076,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -4122,7 +4122,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -4178,7 +4178,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -4222,7 +4222,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -4278,7 +4278,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -4334,7 +4334,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -4390,7 +4390,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -4439,7 +4439,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -4486,7 +4486,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -4533,7 +4533,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -4573,7 +4573,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -4616,7 +4616,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -4652,7 +4652,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -4704,7 +4704,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -4772,7 +4772,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -4811,7 +4811,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -4850,7 +4850,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -4909,7 +4909,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -4951,7 +4951,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -4974,7 +4974,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -5001,7 +5001,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"viewRevision": "2",
@@ -5028,7 +5028,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -5055,7 +5055,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "0",
@@ -5083,7 +5083,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "01",
@@ -5111,7 +5111,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "18446744073709551616",
@@ -5139,7 +5139,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": 1,
@@ -5167,7 +5167,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "-1",
@@ -5195,7 +5195,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1.0",
@@ -5223,7 +5223,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "",
@@ -5251,7 +5251,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -5280,7 +5280,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -5301,7 +5301,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -5328,7 +5328,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -5355,7 +5355,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -5383,7 +5383,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -5411,7 +5411,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "listed",
 					"clients": [
@@ -5461,7 +5461,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "listed",
 					"clients": [
@@ -6038,7 +6038,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "synchronized",
 					"client": {
@@ -6081,7 +6081,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "synchronized",
 					"client": {
@@ -6124,7 +6124,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "synchronized",
 					"client": {
@@ -6167,7 +6167,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "synchronized",
 					"client": {
@@ -6198,7 +6198,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -6240,7 +6240,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -6282,7 +6282,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -6324,7 +6324,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -6366,7 +6366,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -6398,7 +6398,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -6441,7 +6441,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -6484,7 +6484,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -6527,7 +6527,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -6569,7 +6569,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -6612,7 +6612,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -6655,7 +6655,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -6699,7 +6699,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -6741,7 +6741,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -6784,7 +6784,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -6827,7 +6827,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -6871,7 +6871,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -6913,7 +6913,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -6946,7 +6946,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -7081,7 +7081,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -7216,7 +7216,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -7346,7 +7346,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -7476,7 +7476,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -7613,7 +7613,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -7749,7 +7749,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -7885,7 +7885,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -8021,7 +8021,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -8157,7 +8157,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -8293,7 +8293,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -8429,7 +8429,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -8565,7 +8565,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -8701,7 +8701,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -8837,7 +8837,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -8973,7 +8973,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -9109,7 +9109,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -9245,7 +9245,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -9381,7 +9381,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -9517,7 +9517,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -9560,7 +9560,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -9696,7 +9696,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -9832,7 +9832,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -9859,7 +9859,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -9885,7 +9885,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -9913,7 +9913,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -9940,7 +9940,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -9983,7 +9983,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -10027,7 +10027,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -10071,7 +10071,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -10115,7 +10115,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -10159,7 +10159,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -10203,7 +10203,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -10246,7 +10246,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -10289,7 +10289,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -10332,7 +10332,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -10376,7 +10376,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -10420,7 +10420,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -10463,7 +10463,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -10491,7 +10491,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -10519,7 +10519,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -10547,7 +10547,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -10574,7 +10574,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -10601,7 +10601,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -10628,7 +10628,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -10655,7 +10655,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -10682,7 +10682,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -10709,7 +10709,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -10736,7 +10736,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -10763,7 +10763,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -10789,7 +10789,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -10817,7 +10817,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -10876,7 +10876,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -10937,7 +10937,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -10997,7 +10997,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -11056,7 +11056,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -11116,7 +11116,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -11176,7 +11176,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -11236,7 +11236,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -11296,7 +11296,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -11356,7 +11356,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -11416,7 +11416,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -11476,7 +11476,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -11535,7 +11535,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -11587,7 +11587,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -11630,7 +11630,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",
@@ -11679,7 +11679,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -11743,7 +11743,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -11807,7 +11807,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -11871,7 +11871,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -11899,7 +11899,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -11930,7 +11930,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -11962,7 +11962,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -11995,7 +11995,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -12055,7 +12055,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -12115,7 +12115,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -12174,7 +12174,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -12234,7 +12234,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -12258,7 +12258,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -12281,7 +12281,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -12308,7 +12308,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -12461,7 +12461,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -12517,7 +12517,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -12569,7 +12569,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -12625,7 +12625,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -12681,7 +12681,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -12737,7 +12737,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -12793,7 +12793,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -12846,7 +12846,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -12889,7 +12889,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -12957,7 +12957,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -13025,7 +13025,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -13093,7 +13093,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -13161,7 +13161,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -13229,7 +13229,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -13297,7 +13297,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -13365,7 +13365,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -13433,7 +13433,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -13501,7 +13501,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -13569,7 +13569,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -13593,7 +13593,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -13617,7 +13617,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -13659,7 +13659,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -13727,7 +13727,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -13793,7 +13793,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -13871,7 +13871,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -13937,7 +13937,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -14002,7 +14002,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -14064,7 +14064,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -14102,7 +14102,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -14138,7 +14138,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -14173,7 +14173,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -14209,7 +14209,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -14246,7 +14246,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -14293,7 +14293,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -14340,7 +14340,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -14397,7 +14397,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -14454,7 +14454,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -14511,7 +14511,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -14568,7 +14568,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -14625,7 +14625,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -14682,7 +14682,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -14736,7 +14736,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -14794,7 +14794,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -14850,7 +14850,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -14894,7 +14894,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -14951,7 +14951,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -14991,7 +14991,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -15039,7 +15039,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -15087,7 +15087,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -15135,7 +15135,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -15183,7 +15183,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -15231,7 +15231,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -15279,7 +15279,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -15326,7 +15326,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -15373,7 +15373,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -15422,7 +15422,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -15474,7 +15474,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -15523,7 +15523,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -15572,7 +15572,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -15621,7 +15621,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -15679,7 +15679,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -15723,7 +15723,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -15758,7 +15758,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -15791,7 +15791,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -15829,7 +15829,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -15866,7 +15866,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -15903,7 +15903,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -15956,7 +15956,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -16008,7 +16008,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -16077,7 +16077,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -16146,7 +16146,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -16215,7 +16215,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -16284,7 +16284,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -16352,7 +16352,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -16392,7 +16392,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -16426,7 +16426,7 @@
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "submit",
 					"command": {
@@ -16470,7 +16470,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -16530,7 +16530,7 @@
 				"kind": "workbench.client-view.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
 					"kind": "operation",
 					"operation": {
@@ -16587,12 +16587,12 @@
 		{
 			"name": "whitespace",
 			"direction": "request",
-			"json": "{\n  \"kind\": \"workbench.client-view\",\n  \"protocolVersion\": 1,\n  \"requestId\": \"00000000000000000000000000000001\",\n  \"siteId\": \"00000000000000000000000000000002\",\n  \"action\": {\n    \"kind\": \"synchronize\",\n    \"heartbeat\": \"1\",\n    \"viewRevision\": \"2\",\n    \"view\": {\n      \"workbenchRevision\": \"12\",\n      \"phase\": \"ready\",\n      \"selection\": {\n        \"terminalContextId\": \"00000000000000000000000000000004\",\n        \"tabId\": \"00000000000000000000000000000005\",\n        \"panelId\": \"00000000000000000000000000000006\",\n        \"zoomed\": false,\n        \"panelCount\": 2\n      }\n    },\n    \"completion\": null\n  }\n}",
+			"json": "{\n  \"kind\": \"workbench.client-view\",\n  \"protocolVersion\": 1,\n  \"requestId\": \"00000000000000000000000000000001\",\n  \"sessionId\": \"00000000000000000000000000000002\",\n  \"action\": {\n    \"kind\": \"synchronize\",\n    \"heartbeat\": \"1\",\n    \"viewRevision\": \"2\",\n    \"view\": {\n      \"workbenchRevision\": \"12\",\n      \"phase\": \"ready\",\n      \"selection\": {\n        \"terminalContextId\": \"00000000000000000000000000000004\",\n        \"tabId\": \"00000000000000000000000000000005\",\n        \"panelId\": \"00000000000000000000000000000006\",\n        \"zoomed\": false,\n        \"panelCount\": 2\n      }\n    },\n    \"completion\": null\n  }\n}",
 			"canonical": {
 				"kind": "workbench.client-view",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
+				"sessionId": "00000000000000000000000000000002",
 				"action": {
 					"kind": "synchronize",
 					"heartbeat": "1",

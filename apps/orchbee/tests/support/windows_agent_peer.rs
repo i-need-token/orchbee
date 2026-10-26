@@ -167,7 +167,6 @@ impl Fixture {
             .env_remove("ORCHBEE_CONFIG_FILE")
             .env_remove("ORCHBEE_RUNTIME_SCOPE")
             .env_remove("ORCHBEE_SESSION")
-            .env_remove("ORCHBEE_SITE")
             .env_remove("ORCHBEE_TERMINAL_ID")
             .env_remove("ORCHBEE_WORKER_ID");
         if let Some(value) = terminal {
@@ -787,7 +786,7 @@ pub(super) fn bound_snapshot_reply(stream: &mut LocalStream) {
 pub(super) fn bound_snapshot(revision: u64) -> orchbee_workbench_protocol::Snapshot {
     use orchbee_workbench_protocol::parse_snapshot;
     let document = json!({
-        "kind":"workbench.snapshot", "protocolVersion":1, "revision":revision.to_string(), "siteId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "kind":"workbench.snapshot", "protocolVersion":1, "revision":revision.to_string(), "sessionId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "navigation":{"projects":[], "directories":[], "workspaces":[{"workspaceId":"00000000000000000000000000000001","terminalContextId":"00000000000000000000000000000001","projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},
         "terminalContexts":[{"terminalContextId":"00000000000000000000000000000001", "groups":[], "tabs":[{
             "tabId":"00000000000000000000000000000002", "label":"tab", "pinned":false, "groupId":null,

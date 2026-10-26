@@ -8,7 +8,7 @@ fn workspace_names_reject_unicode_whitespace_on_both_wire_directions_without_tri
         assert!(WorkbenchLabel::parse(value).is_err());
         let request = serde_json::json!({
             "kind":"workbench.command", "protocolVersion":1,
-            "requestId":format!("{:032x}",1), "siteId":format!("{:032x}",2),
+            "requestId":format!("{:032x}",1), "sessionId":format!("{:032x}",2),
             "expectedRevision":"1", "action":{"kind":"workspace.rename",
                 "workspaceId":format!("{:032x}",3), "label":value}
         });
@@ -359,7 +359,7 @@ fn launch_selection_wire_shape_is_closed_and_default_omits_the_key() {
         r#"{"exec":"/bin/\u0000","args":[]}"#,
     ] {
         let raw = format!(
-            r#"{{"kind":"workbench.command","protocolVersion":1,"requestId":"11111111111111111111111111111111","siteId":"22222222222222222222222222222222","expectedRevision":"0","action":{{"kind":"tab.create","terminalContextId":"33333333333333333333333333333333","label":"t","geometry":{{"columns":80,"rows":24,"cellPixelWidth":0,"cellPixelHeight":0}},"launch":{launch_json}}}}}"#
+            r#"{{"kind":"workbench.command","protocolVersion":1,"requestId":"11111111111111111111111111111111","sessionId":"22222222222222222222222222222222","expectedRevision":"0","action":{{"kind":"tab.create","terminalContextId":"33333333333333333333333333333333","label":"t","geometry":{{"columns":80,"rows":24,"cellPixelWidth":0,"cellPixelHeight":0}},"launch":{launch_json}}}}}"#
         );
         assert!(
             parse_workbench_request(raw.as_bytes()).is_err(),
@@ -378,7 +378,7 @@ fn layout_command_has_a_bounded_large_carrier_without_widening_ordinary_commands
         root = serde_json::json!({"kind":"split","orientation":"horizontal","children":[root.clone(),root]});
     }
     let value = serde_json::json!({"kind":"workbench.command","protocolVersion":1,
-        "requestId":"00000000000000000000000000000001","siteId":"00000000000000000000000000000002",
+        "requestId":"00000000000000000000000000000001","sessionId":"00000000000000000000000000000002",
         "expectedRevision":"0","action":{"kind":"tab.create-layout","terminalContextId":"00000000000000000000000000000003",
         "label":"Layout","automaticLabel":false,"layout":root}});
     let request = parse_workbench_request(&serde_json::to_vec(&value).unwrap()).unwrap();
@@ -394,7 +394,7 @@ fn layout_command_has_a_bounded_large_carrier_without_widening_ordinary_commands
     oversized.resize(crate::MAXIMUM_ENCODED_LAYOUT_COMMAND_BYTES + 1, b' ');
     assert!(parse_workbench_request(&oversized).is_err());
     let ordinary = serde_json::json!({"kind":"workbench.command","protocolVersion":1,
-        "requestId":"00000000000000000000000000000001","siteId":"00000000000000000000000000000002",
+        "requestId":"00000000000000000000000000000001","sessionId":"00000000000000000000000000000002",
         "expectedRevision":"0","action":{"kind":"project.create","label":"Project"}});
     let mut padded = serde_json::to_vec(&ordinary).unwrap();
     padded.resize(MAXIMUM_ENCODED_INTENT_BYTES + 1, b' ');

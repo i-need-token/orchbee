@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	WorkbenchRequestIdSchema,
 	WorkbenchTabIdSchema,
 	WorkbenchTerminalContextIdSchema,
@@ -15,7 +15,7 @@ import {
 const correlation = {
 	protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 	requestId: WorkbenchRequestIdSchema,
-	siteId: SiteIdSchema,
+	sessionId: SessionIdSchema,
 	operationId: WorkbenchRequestIdSchema,
 };
 const target = z.discriminatedUnion('kind', [

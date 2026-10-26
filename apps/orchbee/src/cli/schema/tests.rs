@@ -253,7 +253,7 @@ fn current_canonical_terminal() -> Value {
     let id = "11111111111111111111111111111111";
     json!({
         "terminalId": id,
-        "source": {"kind":"workbench-snapshot","siteId":id,"revision":"7"},
+        "source": {"kind":"workbench-snapshot","sessionId":id,"revision":"7"},
         "cwd": null,
         "cwdSource": null,
         "foregroundCwd": null,
@@ -261,7 +261,7 @@ fn current_canonical_terminal() -> Value {
         "terminalTitleStripped": null,
         "terminalObservation": {"state":"unavailable","reason":"terminal-unavailable"},
         "metadata": {
-            "source":{"siteId":id,"workbenchRevision":"7","metadataRevision":"2","requestIds":["22222222222222222222222222222222","33333333333333333333333333333333"]},
+            "source":{"sessionId":id,"workbenchRevision":"7","metadataRevision":"2","requestIds":["22222222222222222222222222222222","33333333333333333333333333333333"]},
             "binding":null,
             "tokens":{},
             "presentations":[],
@@ -269,7 +269,7 @@ fn current_canonical_terminal() -> Value {
             "presentation":{"title":null,"displayAgent":null,"stateLabels":{}}
         },
         "reportedAgent": {
-            "source":{"siteId":id,"workbenchRevision":"7","reportRevision":"8","requestIds":["44444444444444444444444444444444","55555555555555555555555555555555"]},
+            "source":{"sessionId":id,"workbenchRevision":"7","reportRevision":"8","requestIds":["44444444444444444444444444444444","55555555555555555555555555555555"]},
             "binding":null,
             "view":null
         }
@@ -516,7 +516,7 @@ fn unified_agent_get_physical_inspection_requires_current_semantics() {
             binding,
             terminal,
             semantic: crate::cli::query::terminal_agent::TerminalAgentRead {
-                source: json!({"siteId":id,"workbenchRevision":"12","reportRevision":"7","requestId":"22222222222222222222222222222222"}),
+                source: json!({"sessionId":id,"workbenchRevision":"12","reportRevision":"7","requestId":"22222222222222222222222222222222"}),
                 report_revision: WorkbenchRevision::new(7),
                 observation: Box::new(observation),
             },
@@ -683,7 +683,7 @@ fn popup_receipts_and_client_control_keep_closed_shapes() {
         .clone();
     reply.as_object_mut().unwrap().remove("kind");
     let mut document = json!({"schema":"orchbee.client.control","version":1,
-        "siteId": reply["siteId"],"operationId":reply["outcome"]["operation"]["command"]["operationId"],
+        "sessionId": reply["sessionId"],"operationId":reply["outcome"]["operation"]["command"]["operationId"],
         "observation":{"kind":"server","reply":reply},"wait":null});
     let schema: Value =
         serde_json::from_str(super::document("orchbee.client.control").unwrap()).unwrap();

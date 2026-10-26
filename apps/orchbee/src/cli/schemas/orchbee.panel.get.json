@@ -74,13 +74,13 @@
 		},
 		"snapshotSource": {
 			"type": "object",
-			"required": ["kind", "siteId", "revision"],
+			"required": ["kind", "sessionId", "revision"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
 					"const": "workbench-snapshot"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/id"
 				},
 				"revision": {
@@ -740,7 +740,7 @@
 			"type": "object",
 			"required": [
 				"kind",
-				"siteId",
+				"sessionId",
 				"snapshotRevision",
 				"requestId",
 				"hostRequestId",
@@ -753,7 +753,7 @@
 				"kind": {
 					"const": "terminal-process-query"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/terminalProcessId"
 				},
 				"snapshotRevision": {
@@ -1440,9 +1440,9 @@
 				"source": {
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["siteId", "workbenchRevision", "metadataRevision", "requestIds"],
+					"required": ["sessionId", "workbenchRevision", "metadataRevision", "requestIds"],
 					"properties": {
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/metadataIdentity"
 						},
 						"workbenchRevision": {
@@ -1575,9 +1575,9 @@
 				"source": {
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["siteId", "workbenchRevision", "reportRevision", "requestIds"],
+					"required": ["sessionId", "workbenchRevision", "reportRevision", "requestIds"],
 					"properties": {
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/metadataIdentity"
 						},
 						"workbenchRevision": {

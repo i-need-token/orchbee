@@ -258,7 +258,7 @@ fn fixture_document() -> &'static [u8] {
   "kind": "workbench.snapshot",
   "protocolVersion": 1,
   "revision": "7",
-  "siteId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "sessionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "navigation": {"projects":[{"projectId":"00000000000000000000000000000010", "label":"web"}], "directories":[], "workspaces":[{"workspaceId":"00000000000000000000000000000001","terminalContextId":"00000000000000000000000000000001","projectId":null,"primaryDirectoryId":null,"label":"Workspace"},{"workspaceId":"00000000000000000000000000000011", "label":"main", "primaryDirectoryId":null, "terminalContextId":"00000000000000000000000000000020", "projectId":"00000000000000000000000000000010"}]},
   "terminalContexts": [
     {
@@ -336,7 +336,7 @@ fn assert_send_base(
     assert_eq!(
         request.site_id().as_str(),
         SITE,
-        "Site identity from snapshot"
+        "Session identity from snapshot"
     );
     assert_eq!(
         request.worker_id().as_str(),
@@ -417,7 +417,7 @@ fn terminal_send_text_with_enter_lands_one_record() -> TestResult {
     assert_eq!(document["schema"], "orchbee.terminal.send");
     assert_eq!(document["version"], 1);
     assert_eq!(document["source"]["kind"], "terminal.send");
-    assert_eq!(document["source"]["siteId"], SITE);
+    assert_eq!(document["source"]["sessionId"], SITE);
     assert_eq!(document["source"]["snapshotRevision"], "7");
     assert_eq!(
         document["source"]["requestId"].as_str().unwrap(),
@@ -425,7 +425,7 @@ fn terminal_send_text_with_enter_lands_one_record() -> TestResult {
     );
     let result = &document["result"];
     assert_eq!(result["action"], "terminal.send");
-    assert_eq!(result["siteId"], SITE);
+    assert_eq!(result["sessionId"], SITE);
     assert_eq!(result["workerId"], WORKER);
     assert_eq!(result["terminalId"], TERMINAL);
     assert_eq!(result["payloadKind"], "text");
@@ -754,7 +754,7 @@ fn terminal_send_text_format_renders_result_fields() -> TestResult {
     for field in [
         "action",
         "requestId",
-        "siteId",
+        "sessionId",
         "workerId",
         "terminalId",
         "payloadKind",

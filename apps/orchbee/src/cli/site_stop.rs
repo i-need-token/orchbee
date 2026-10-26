@@ -70,7 +70,7 @@ fn emit(
 ) -> Output {
     let encoded = match format {
         OutputFormat::Json => output::encode_document(
-            &json!({"schema":"orchbee.site.stop","version":1,"source":super::config::local_runtime_source(),"result":result}),
+            &json!({"schema":"orchbee.server.stop","version":1,"source":super::config::local_runtime_source(),"result":result}),
         ),
         OutputFormat::Text => output::encode_text(&locale.cli_site_stop_result(
             result["outcome"].as_str().expect("outcome"),

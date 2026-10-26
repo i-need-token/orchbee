@@ -63,7 +63,7 @@ fn snapshot(created: bool, split: bool) -> Snapshot {
             json!({"tabId":id(19),"label":"2","pinned":false,"groupId":null,"root":panel(20)}),
         );
     }
-    serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":if created {"13"} else {"12"},"navigation":{"projects":[], "directories":[], "workspaces":[{"workspaceId":id(4),"terminalContextId":id(4),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},"terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":tabs}]})).unwrap()
+    serde_json::from_value(json!({"protocolVersion":1,"sessionId":id(2),"revision":if created {"13"} else {"12"},"navigation":{"projects":[], "directories":[], "workspaces":[{"workspaceId":id(4),"terminalContextId":id(4),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},"terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":tabs}]})).unwrap()
 }
 fn record(created: bool, split: bool, focused: bool) -> Value {
     json!({"clientId":id(7),"heartbeat":"1","viewRevision":if created {"3"} else {"2"},"availability":"current","view":{"workbenchRevision":if created {"13"} else {"12"},"phase":"ready","selection":{"terminalContextId":id(4),"tabId":id(if focused && !split {19} else {5}),"panelId":id(if focused {20} else {6}),"zoomed":false,"panelCount":if focused && !split {1} else if created && split {3} else {2}}}})

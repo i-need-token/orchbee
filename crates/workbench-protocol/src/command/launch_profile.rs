@@ -206,11 +206,13 @@ pub struct WorkbenchLaunchProfileCatalogRead {
 )]
 pub enum LaunchProfileCatalogOutcome {
     Catalog {
+        #[serde(rename = "sessionId")]
         site_id: SiteId,
         catalog_revision: LaunchProfileCatalogRevision,
         entries: Vec<LaunchProfileEntry>,
     },
     Profile {
+        #[serde(rename = "sessionId")]
         site_id: SiteId,
         catalog_revision: LaunchProfileCatalogRevision,
         profile: LaunchProfileEntry,

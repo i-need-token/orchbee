@@ -3,7 +3,7 @@
 This contract owns common device preferences for the Desktop GUI and native TUI.
 Rust `user_preferences` and TypeScript `user-preferences-contract` share the
 [JSON schema and conformance corpus](../../../schemas/workbench/README.md#shared-user-preferences).
-The native persistence owner is [Local Site Runtime](../../local-site-runtime/README.md#shared-user-preference-storage).
+The native persistence owner is [Local Session Runtime](../../local-site-runtime/README.md#shared-user-preference-storage).
 Client presentation, transport, and host capabilities do not create additional authorities.
 
 ## Inventory and effect
@@ -51,7 +51,7 @@ executable or rewriting the catalog. Existing terminals retain their launch.
 
 ## Scope and persistence
 
-The configuration identity is frozen at process/Site startup. Explicit
+The configuration identity is frozen at process/Session startup. Explicit
 `ORCHBEE_CONFIG_FILE` isolates that absolute configuration path. Otherwise the
 native platform configuration location selects the record. Clients using the
 same identity share one private record beside that configuration. Different
@@ -106,7 +106,7 @@ the window; automatic following never moves an active selection.
 ## Verification ownership
 
 The schema corpus checks Rust/TypeScript vocabulary, bounds and invalid input.
-Local Site Runtime checks source conflicts, claims, private storage and
+Local Session Runtime checks source conflicts, claims, private storage and
 commit failures; the matched helper tests the real bounded process exchange.
 Desktop and native tests check draft/source ownership, publication, disposal,
 launch capture, and existing-terminal presentation. The

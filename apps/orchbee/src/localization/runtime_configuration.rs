@@ -28,7 +28,7 @@ impl Locale {
             }
             (Self::ZhCn, "restart") => "配置已发布；部分设置需要重新启动会话。",
             (Self::EnUs, _) => "Configuration published for connected Clients.",
-            (Self::ZhCn, _) => "配置已发布，连接中的 Client 将接收更新。",
+            (Self::ZhCn, _) => "配置已发布，连接中的客户端将接收更新。",
         };
         format!(
             "{text}\nrevision={} restartRequired={restart}\n",
@@ -64,7 +64,7 @@ impl Locale {
     pub(crate) fn cli_configuration_sidebar(self, escaped_profile: &str) -> String {
         match self {
             Self::EnUs => format!("Agent sidebar layout: \"{escaped_profile}\"\n"),
-            Self::ZhCn => format!("Agent 侧栏布局：\"{escaped_profile}\"\n"),
+            Self::ZhCn => format!("智能体侧栏布局：\"{escaped_profile}\"\n"),
         }
     }
     pub(crate) fn cli_configuration_diagnostics(self, visible: usize, omitted: u32) -> String {
@@ -102,7 +102,7 @@ impl Locale {
             C::SiteReloadConfig => (
                 "orchbee server reload-config [--format text|json]",
                 "Reload the configuration path selected when the session started. Updates shortcuts, window titles, Agent sidebar layouts, notification policy and manifest checks. Shell defaults affect new terminals; startup restore settings require a restart.\n\nFile or TOML errors preserve the previous configuration. Individual field warnings use safe defaults. Requires an existing session; a lost reply is never retried automatically.",
-                "重新加载会话启动时选定的配置路径。更新快捷键、窗口标题、Agent 侧边栏布局、通知策略和清单检查。Shell 默认值影响新终端；启动恢复设置需要重启。\n\n文件或 TOML 错误会保留原配置；单字段警告使用安全默认值。需要已运行的会话；应答丢失时不自动重试。",
+                "重新加载会话启动时选定的配置路径。更新快捷键、窗口标题、智能体侧边栏布局、通知策略和清单检查。Shell 默认值影响新终端；启动恢复设置需要重启。\n\n文件或 TOML 错误会保留原配置；单字段警告使用安全默认值。需要已运行的会话；应答丢失时不自动重试。",
             ),
             _ => unreachable!("command help ownership"),
         };

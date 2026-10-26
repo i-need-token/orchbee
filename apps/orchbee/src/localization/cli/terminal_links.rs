@@ -86,5 +86,5 @@ pub(super) const ACTIVATE_EN: crate::localization::HelpDetails =
 pub(super) const ACTIVATE_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal link-activate <terminal> --cursor ROW:COL [--offset-from-bottom N] [--content-revision N] [--generation N] [--format text|json]",
-        "Windows：解析精确完整单元格，再调用匹配的已启用插件处理器。与 link-resolve 相同的显式原生 viewport／u16 光标／u64 offset（默认零）／修订／generation 和 OSC8／普通 URL 规则。按插件 ID 和 manifest 处理器顺序，处理器与动作都须支持 Windows；无匹配 handled=false。匹配 URL 至多4096 UTF-8\n字节，遵循既有插件显示上下文限制；上下文来自精确点击主／子终端 Panel，不是无关 Client 焦点。一个既有五秒 viewer，单次 invoke 前最终内容／清单预检。\nServer 解析 argv／插件根／保护环境，Worker 拥有 Job／日志；不打开浏览器、不输入／导航／改剪贴板／启动会话，读取后总是 Detach／EOF 释放。\nJSON：orchbee.terminal.link-activate v1。handled=true 表示已知 Job 准入，不代表命令成功；拒绝退出3，丢失／未知结果退出8并保留操作ID，不重试未知投递。\nCtrl+C 退出130，不取消已准入的 Job。",
+        "Windows：解析精确完整单元格，再调用匹配的已启用插件处理器。与 link-resolve 相同的显式原生 viewport／u16 光标／u64 offset（默认零）／修订／generation 和 OSC8／普通 URL 规则。按插件 ID 和 manifest 处理器顺序，处理器与动作都须支持 Windows；无匹配 handled=false。匹配 URL 至多4096 UTF-8\n字节，遵循既有插件显示上下文限制；上下文来自精确点击主／子终端面板，不是无关客户端焦点。一个既有五秒 viewer，单次 invoke 前最终内容／清单预检。\nServer 解析 argv／插件根／保护环境，Worker 拥有 Job／日志；不打开浏览器、不输入／导航／改剪贴板／启动会话，读取后总是 Detach／EOF 释放。\nJSON：orchbee.terminal.link-activate v1。handled=true 表示已知 Job 准入，不代表命令成功；拒绝退出3，丢失／未知结果退出8并保留操作ID，不重试未知投递。\nCtrl+C 退出130，不取消已准入的 Job。",
     );

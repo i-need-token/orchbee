@@ -1,6 +1,6 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
-	"$id": "orchbee.site.agent-manifests",
+	"$id": "orchbee.server.agent-manifests",
 	"title": "Detection manifests, reload and remote update receipts",
 	"$defs": {
 		"identity": {
@@ -132,7 +132,7 @@
 			"enum": [
 				"denied",
 				"unavailable",
-				"site-mismatch",
+				"session-mismatch",
 				"busy",
 				"resource-limit",
 				"not-found",
@@ -385,7 +385,7 @@
 		},
 		"result": {
 			"type": "object",
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"],
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "outcome"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
@@ -397,7 +397,7 @@
 				"requestId": {
 					"$ref": "#/$defs/identity"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/identity"
 				},
 				"outcome": {
@@ -671,7 +671,7 @@
 		"schema",
 		"version",
 		"requestId",
-		"siteId",
+		"sessionId",
 		"action",
 		"observation",
 		"interrupted",
@@ -680,7 +680,7 @@
 	"additionalProperties": false,
 	"properties": {
 		"schema": {
-			"const": "orchbee.site.agent-manifests"
+			"const": "orchbee.server.agent-manifests"
 		},
 		"version": {
 			"const": 1
@@ -688,7 +688,7 @@
 		"requestId": {
 			"$ref": "#/$defs/identity"
 		},
-		"siteId": {
+		"sessionId": {
 			"$ref": "#/$defs/identity"
 		},
 		"action": {

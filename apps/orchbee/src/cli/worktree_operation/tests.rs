@@ -30,7 +30,7 @@ fn start(words: &[&str]) -> Box<WorktreeStartCommand> {
     command
 }
 fn snapshot() -> Snapshot {
-    parse_snapshot(&serde_json::to_vec(&json!({"kind":"workbench.snapshot","protocolVersion":1,"siteId":id(1),"revision":"2",
+    parse_snapshot(&serde_json::to_vec(&json!({"kind":"workbench.snapshot","protocolVersion":1,"sessionId":id(1),"revision":"2",
         "navigation":{ "projects":[{"projectId":id(3), "label":"project"}], "directories":[], "workspaces":[{"workspaceId":id(2),"terminalContextId":id(2),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"},{"workspaceId":id(4), "label":"work", "primaryDirectoryId":null, "terminalContextId":id(5), "projectId":id(3)}]},
         "terminalContexts":[{"terminalContextId":id(2),"groups":[],"tabs":[]},{"terminalContextId":id(5),"groups":[],"tabs":[{
             "tabId":id(6),"label":"shell","groupId":null,"pinned":false,"root":{"kind":"panel","panelId":id(7),

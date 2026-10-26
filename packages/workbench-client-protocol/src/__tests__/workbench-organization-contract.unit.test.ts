@@ -93,7 +93,7 @@ it('admits the worst escaped Workspace launch under the dedicated 96 KiB class',
 		kind: 'workbench.command',
 		protocolVersion: 1,
 		requestId: id(1),
-		siteId: id(2),
+		sessionId: id(2),
 		expectedRevision: '18446744073709551615',
 		action,
 	};

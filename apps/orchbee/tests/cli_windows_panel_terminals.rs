@@ -11,7 +11,7 @@ fn id(n: u64) -> String {
     format!("{n:032x}")
 }
 fn snapshot(children: usize, bound: bool) -> Snapshot {
-    serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":"12",
+    serde_json::from_value(json!({"protocolVersion":1,"sessionId":id(2),"revision":"12",
     "navigation":{"projects":[], "directories":[], "workspaces":[{"workspaceId":id(4),"terminalContextId":id(4),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},"terminalContexts":[{"terminalContextId":id(4),"groups":[],
     "tabs":[{"tabId":id(5),"label":"Existing","pinned":false,"groupId":null,"root":{"kind":"panel","panelId":id(6),"rightClick":"panel",
       "primaryPresentation":{"customLabel":null,"presentationId":id(8),"label":"Empty","binding":if bound { json!({"workerId":id(80),"terminalId":id(81)}) } else { Value::Null }},

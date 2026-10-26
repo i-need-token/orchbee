@@ -127,7 +127,7 @@
 					"required": [
 						"action",
 						"requestId",
-						"siteId",
+						"sessionId",
 						"workerId",
 						"terminalId",
 						"inputStatus",
@@ -146,7 +146,7 @@
 						"requestId": {
 							"$ref": "#/$defs/sendReceipt/$defs/id"
 						},
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/sendReceipt/$defs/id"
 						},
 						"workerId": {
@@ -341,13 +341,13 @@
 				},
 				"sendSource": {
 					"type": "object",
-					"required": ["kind", "siteId", "requestId", "snapshotRevision"],
+					"required": ["kind", "sessionId", "requestId", "snapshotRevision"],
 					"additionalProperties": false,
 					"properties": {
 						"kind": {
 							"const": "terminal.send"
 						},
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/sendReceipt/$defs/id"
 						},
 						"requestId": {
@@ -367,13 +367,13 @@
 		},
 		"snapshotSource": {
 			"type": "object",
-			"required": ["kind", "siteId", "revision"],
+			"required": ["kind", "sessionId", "revision"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
 					"const": "workbench-snapshot"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/id"
 				},
 				"revision": {

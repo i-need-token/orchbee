@@ -13,13 +13,13 @@
 		},
 		"snapshotSource": {
 			"type": "object",
-			"required": ["kind", "siteId", "revision"],
+			"required": ["kind", "sessionId", "revision"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
 					"const": "workbench-snapshot"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/id"
 				},
 				"revision": {
@@ -141,7 +141,7 @@
 				"navigation",
 				"protocolVersion",
 				"revision",
-				"siteId",
+				"sessionId",
 				"terminalContexts"
 			],
 			"additionalProperties": false,
@@ -250,7 +250,7 @@
 				"revision": {
 					"$ref": "#/$defs/revision"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/id"
 				},
 				"terminalContexts": {

@@ -16,7 +16,7 @@
 				"kind": {
 					"const": "local-workspace-group"
 				},
-				"siteId": {
+				"sessionId": {
 					"anyOf": [
 						{
 							"type": "string",
@@ -31,7 +31,7 @@
 					]
 				}
 			},
-			"required": ["kind", "siteId"],
+			"required": ["kind", "sessionId"],
 			"additionalProperties": false
 		},
 		"result": {
@@ -183,7 +183,7 @@
 																				"child-blocked",
 																				"outcome-unknown",
 																				"deadline",
-																				"site-stopping",
+																				"session-stopping",
 																				"internal"
 																			]
 																		},

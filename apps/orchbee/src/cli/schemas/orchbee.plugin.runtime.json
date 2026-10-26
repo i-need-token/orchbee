@@ -50,7 +50,7 @@
 					"items": {
 						"type": "object",
 						"additionalProperties": false,
-						"required": ["protocolVersion", "requestId", "siteId", "outcome"],
+						"required": ["protocolVersion", "requestId", "sessionId", "outcome"],
 						"properties": {
 							"protocolVersion": {
 								"const": 1
@@ -62,7 +62,7 @@
 									"const": "00000000000000000000000000000000"
 								}
 							},
-							"siteId": {
+							"sessionId": {
 								"type": "string",
 								"pattern": "^[0-9a-f]{32}$",
 								"not": {
@@ -155,7 +155,7 @@
 												"enum": [
 													"denied",
 													"unavailable",
-													"site-mismatch",
+													"session-mismatch",
 													"worker-changed",
 													"invalid-intent",
 													"not-found",

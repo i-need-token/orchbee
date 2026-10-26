@@ -85,7 +85,7 @@ Resume 语法。[Close 线协议契约](#已接受的-tab-close-线协议契约)
 
 ## Projection
 
-`workbench.snapshot` 是一个 Site revision 的完整 authorized product projection。它包含：
+`workbench.snapshot` 是一个 会话 revision 的完整 authorized product projection。它包含：
 
 - 有序 Project、全局 Directory，以及 Project 归属可为空的独立 Workspace；
 - 每个 Workspace 恰好一个 Terminal Context，允许零 Workspace／零 Context；
@@ -108,7 +108,7 @@ identity；Client 不能据此推断 lifecycle reason。可选的 `launchFailure
 进入其中。它只属于运行时：重新绑定或捕获 checkpoint 会移除它，Client 据此显示失败而非 attach。
 
 Project、Directory、Workspace 与 Terminal Context array 使用 identity 升序。Directory identity
-在整个 Site projection 中唯一，Workspace 的非空 reference 必须在全局 Directory 池中解析。Tab group 与 Tab 保留显式产品
+在整个 会话 projection 中唯一，Workspace 的非空 reference 必须在全局 Directory 池中解析。Tab group 与 Tab 保留显式产品
 顺序。Pinned Tab 构成一个前置且不分组的 prefix，每个 Tab group 的 member 都连续。每个被引用
 context 恰好存在一次，每个 context 也恰好被引用一次。除 JSON Schema validation 外，identity
 uniqueness、tree depth、node quantity、membership 与 reference invariant 还作用于完整 snapshot。
@@ -122,8 +122,7 @@ Navigation 可选携带 `workspaceOrder`，上限 1024 个 Workspace 身份。�
 完整 Navigation 替换与快照都检查该不变量。Project、Directory 与 Workspace 成员数组仍按身份排序；
 显示顺序不改变归属、Directory 引用或终端绑定。筛选视图保持对应子序列，Client 本地选中身份仍由 Client 拥有。
 
-原生排序权威在显式顺序末尾添加新建 Workspace，关闭时移除对应身份。第 6 版私有检查点要求完整显式顺序；
-从第 1–5 版迁移时，若未记录顺序，则保留原来的 Project 优先遍历。所有参与者使用同一兼容 cohort；
+原生排序权威在显式顺序末尾添加新建 Workspace，关闭时移除对应身份。第 1 版私有检查点要求完整显式顺序。所有参与者使用同一兼容 cohort；
 不兼容的严格解码器绝不能通过丢弃字段来修复。
 
 ## Intent 与 delta
@@ -131,15 +130,15 @@ Navigation 可选携带 `workspaceOrder`，上限 1024 个 Workspace 身份。�
 `workbench.snapshot.read` 请求完整 authorized projection。原始 projection document union 仍然只
 准入该 intent、snapshot 和 delta。Workbench command 请求/结果 envelope 是独立增量契约；两份契约均不定义命令行语法。
 
-`workbench.delta` 命名一个确切 Site、base revision、更大的 result revision，以及一组无序且原子
+`workbench.delta` 命名一个确切 会话、base revision、更大的 result revision，以及一组无序且原子
 的 aggregate change。一个 change 可以替换完整 navigation、upsert 一个完整 Terminal Context，
 或移除一个完整 Terminal Context。至多允许一次 navigation replacement，且每个 Terminal Context
-identity 至多一个 change。当 authorized Site fact 的变化位于本 projection 外时，空 change set
+identity 至多一个 change。当 authorized 会话 fact 的变化位于本 projection 外时，空 change set
 可以推进 projection revision。
 
 `applyWorkbenchDelta` 无副作用地执行以下步骤：
 
-1. 拒绝 Site mismatch、base-revision mismatch 或 non-increasing result revision；
+1. 拒绝 会话 mismatch、base-revision mismatch 或 non-increasing result revision；
 2. 拒绝重复 navigation 或 Terminal Context target；
 3. 暂存每个 aggregate replacement，并按 identity 排序 Terminal Context；
 4. 校验完整 candidate snapshot；以及
@@ -155,7 +154,7 @@ buffer、retry、persistence 或 transport request。
 Rust/TypeScript oracle；原始 duplicate-key case 另行验证 Rust wire parser。TypeScript 验证已解码值；
 它的 transport 必须在解码前拒绝重复 key。
 
-`workbench.command` 携带 protocolVersion、requestId、siteId、expectedRevision 及一项 action：
+`workbench.command` 携带 protocolVersion、requestId、sessionId、expectedRevision 及一项 action：
 project.create、project.rename、workspace.create、workspace.rename、
 workspace.primary-directory.accept、tab.rename、tab.create、panel.split、tab.move、tabs.configure、tab.close、
 panel.close 或 panel.move。Label 在既有上限内保留包括
@@ -207,10 +206,10 @@ OBLC 准入位于两种 application carrier 之前。
 Client 不提供 Directory 或 Worker identity。成功的 `workspace-primary-directory-accepted`
 outcome 携带已提交的 `revision`、Server 分配的 `directoryId` 与选定的 `workerId`。
 
-Projection 通过向 Site 池追加一项有序的
+Projection 通过向 会话 池追加一项有序的
 `Directory { directoryId, workerId, path }`，并由 Workspace 必填且可为空的
-`primaryDirectoryId` 选择它，来表示原子结果。Site 池的容量限制独立于 Project 归属。
-Directory identity 在整个 Site projection 中唯一；Workspace reference 必须在该池中解析。
+`primaryDirectoryId` 选择它，来表示原子结果。会话 池的容量限制独立于 Project 归属。
+Directory identity 在整个 会话 projection 中唯一；Workspace reference 必须在该池中解析。
 缺失必填可空字段、悬空 reference、重复或无序 Directory identity、非法 path、
 未知字段及 collection overflow 均为无效输入。
 
@@ -242,7 +241,7 @@ completion 只结算该保留 create 结果，不改变 projection 或任一 lab
 | 字段         | 契约                                                                                                                                                                                                        |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 问题与范围   | 独立实现的边界需要一种不会改变终端 identity 或 presentation 来源的规范语义重命名。本记录准入未发布 wire 含义；Server 权威拥有授权、重放、容量与提交。                                                       |
-| 输入与信任   | 不可信的有界 JSON，携带确切 Site、request identity、expected revision、Terminal Context、Tab 和 label。解码值在校验和 Server 准入前不具有权威。                                                             |
+| 输入与信任   | 不可信的有界 JSON，携带确切 会话、request identity、expected revision、Terminal Context、Tab 和 label。解码值在校验和 Server 准入前不具有权威。                                                             |
 | 数据与所有权 | Schema 拥有封闭字段和 `tab-unavailable`；Server 拥有规范 projection、revision 和 ledger。目标 `Tab.label` 是唯一可变产品事实。                                                                              |
 | 输出与决策   | `renamed`、`unchanged` 或既有 typed denied/rejected/unavailable 结果。Context 解析先于 Tab 解析；任何结果均不提供新 identity 或 terminal outcome。                                                          |
 | 模型与转换   | 一次同步纯 projection 转换或 no-op。精确重放使用保留的 fingerprint/result revision。Pending create settlement 相互独立，不能回写 projection。                                                               |
@@ -332,7 +331,7 @@ first/last 将完整 Tab 移到该边界。单成员或目标已在请求边界�
 现有 `TabUnavailable` / `tab-unavailable` 仅在精确 Workspace 上下文及完整支持布局
 通过后表示目标缺失。Workspace Move 不要求 Directory 或在线 Worker。
 schema 有效但原生不支持的布局属于内部权威分歧，不是产品拒绝。完整已验证命令
-相等性，包括 Site、预期修订、上下文、Tab 和方向，是重放指纹。保留的精确重放返回固定原结果/
+相等性，包括 会话、预期修订、上下文、Tab 和方向，是重放指纹。保留的精确重放返回固定原结果/
 修订；同 ID 内容改变则冲突。
 [Server 优先级及提交](../../apps/orchbee-server/docs/workbench-authority.zh-CN.md#已接受的规范-tab-移动模型)
 拥有授权、退役、容量和发布。严格语料在两个语言 binding 中覆盖每个方向及错误/额外字段。
@@ -486,7 +485,7 @@ Panel swap 使用共享结构 placement 权威，在同一 Tab 中原子交换�
 
 ## 自动 Tab 命名
 
-[Tab 标签契约](../../apps/orchbee/docs/native-tab-labels.zh-CN.md) 拥有可选 `automaticLabel` 元数据。省略标签的新建 Tab 按当前上下文位置编号；显式数字名称及旧 Tab 保留固定名称。移动或关闭后 CLI 查询、标签选择器和 TUI 显示保持一致，重命名切换为固定名称。原生 `api snapshot` v4 暴露规范元数据；目录 v34 包含 68 份 schema。共享协议需要匹配 cohort。
+[Tab 标签契约](../../apps/orchbee/docs/native-tab-labels.zh-CN.md) 拥有可选 `automaticLabel` 元数据。省略标签的新建 Tab 按当前上下文位置编号；显式数字名称及旧 Tab 保留固定名称。移动或关闭后 CLI 查询、标签选择器和 TUI 显示保持一致，重命名切换为固定名称。当前版本 1 的 `api snapshot` 暴露规范元数据；离线 API 目录列出其 schema。共享协议需要匹配 cohort。
 
 Client 所有的 Agent 提示状态读取指定 1–100 个唯一规范 Agent 会话 ID。`agent-attention` 提交及 `attention-read` 完成使用类型 29，分配前限制为 64 KiB；响应仍使用类型 26。条目保留请求顺序、可空的不存在会话状态、观察 generation/sequence、语义变化版本及 seen，同时包含可认证启动周期的 changes 游标和可空宿主焦点。Workbench 绑定轻量 Agent 协议 DTO，不拥有 Agent 状态。[Client 提示状态所有者](../../apps/orchbee/docs/native-client-attention.zh-CN.md) 定义读取可用性、不改变确认、有界回执存储及 CLI 游标认证。
 
@@ -533,7 +532,7 @@ Panel 报告准入 idle、working、blocked、done、error 和 unknown。Done �
 生效规则来源为物理 Explain 增加可选 `manifest` 对象：来源（`bundled`、`local-override`、
 `remote-cache`）、必填且可空的实际路径／缓存版本、遮蔽情况及有界类型化告警。
 省略信息保留旧形状，显式 null 拒绝。两个 binding 都校验远程来源／版本及告警来源唯一性。
-CLI 携带来源信息时输出 v3，并保留封闭的 v1/v2 封套。
+CLI 在唯一的版本 1 封套中携带这些来源信息。
 
 精简物理 `states` 读取接受 0–64 个唯一展示 ID，按请求顺序返回条目、Workbench／报告修订，
 以及必填可空的完整绑定／序号／Agent／状态快照。成员不存在则拒绝整批；没有当前物理观察
@@ -549,7 +548,7 @@ CLI 携带来源信息时输出 v3，并保留封闭的 v1/v2 封套。
 
 `workbench.agent-manifests` / `.result` 使用 OBWP 37/38，结果上限 512 KiB。
 严格的 Rust、TypeScript 和 JSON 契约覆盖已安装快照及 pending/applied/failed 重载回执。
-当前快照及操作查询只读；重载使用明确的 Site 生命周期操作 ID。
+当前快照及操作查询只读；重载使用明确的 会话 生命周期操作 ID。
 共享 `workbench-agent-manifests-conformance-v1.json` 语料覆盖接纳与拒绝的形状、可空字段、
 数字版本、来源、修订及重复项。语义字节／版本及跨字段校验补充 JSON Schema。
 这些 DTO 描述实际已安装状态，不声称支持远程下载／更新。Server 屏幕模型拥有安装和回执上限。
@@ -591,45 +590,45 @@ null 选择器和空 options 规范化为省略字段。Launch 最多 128 个参
 Server 负责原子分配和发布；物理成员创建仍是独立的保留命令。
 此私有契约本身不代表公共 CLI 导出与应用往返流程已完成。
 
-## Site 配置发布
+## 会话 配置发布
 
-`workbench.configuration`（OBWP 类型 39）携带 `current` 或 `reload`；`workbench.configuration.result`（类型 40）携带封闭的 current/reloaded/failed 结果。每帧上限 256 KiB。[配置 schema](v1/workbench-configuration.schema.json) 负责封闭的结构形状与码点数量上限；共享语料检查结构边界与 UTF-8 语义边界，独立 Rust/TypeScript 绑定另行执行所述 UTF-8 字节上限。快照版本 0 表示启动基线，正版本表示显式发布。每个成功快照都包含必需且封闭的 `diagnostics` 记录；它至多含 128 个条目，按 Unicode 标量值将 `(field, reason)` 严格升序排列且二元组不重复，`omittedCount` 范围为 0–65536。每个非空 field 不含控制字符且至多 256 个 UTF-8 字节；每个 reason 是至多 64 字节的小写 ASCII kebab token；disposition 只能是 `defaulted`、`disabled` 或 `ignored`。仅含键位的规范配置上限 64 KiB；重启字段不可重复；可选失败诊断为必需但可空的成对字段（128 个 UTF-8 字节、无控制字符，仅载入失败允许）。请求和 Site 标识必须匹配，成功结果必须对应请求动作。
+`workbench.configuration`（OBWP 类型 39）携带 `current` 或 `reload`；`workbench.configuration.result`（类型 40）携带封闭的 current/reloaded/failed 结果。每帧上限 256 KiB。[配置 schema](v1/workbench-configuration.schema.json) 负责封闭的结构形状与码点数量上限；共享语料检查结构边界与 UTF-8 语义边界，独立 Rust/TypeScript 绑定另行执行所述 UTF-8 字节上限。快照版本 0 表示启动基线，正版本表示显式发布。每个成功快照都包含必需且封闭的 `diagnostics` 记录；它至多含 128 个条目，按 Unicode 标量值将 `(field, reason)` 严格升序排列且二元组不重复，`omittedCount` 范围为 0–65536。每个非空 field 不含控制字符且至多 256 个 UTF-8 字节；每个 reason 是至多 64 字节的小写 ASCII kebab token；disposition 只能是 `defaulted`、`disabled` 或 `ignored`。仅含键位的规范配置上限 64 KiB；重启字段不可重复；可选失败诊断为必需但可空的成对字段（128 个 UTF-8 字节、无控制字符，仅载入失败允许）。请求和 会话 标识必须匹配，成功结果必须对应请求动作。
 
 [Windows 配置归属契约](../../apps/orchbee/docs/windows-cli-configuration.zh-CN.md#在线配置重载) 负责授权、冻结路径、候选校验、发布、Client 应用和关闭。发布不表示所有 Client 已确认。已提交重载丢失响应仍为未知，不自动重试。不新增 Desktop 命令；匹配的私有版本整套交付，不迁移持久化格式。
 
-必需 `defaultShell` 和 `shellMode` 暴露后续终端准备所用的已接纳默认值，不是 Worker 解析后的事实。可执行文件为空表示平台默认，否则为最多 4096 UTF-8 字节、无控制字符的字面量；模式为 `auto`、`login` 或 `non_login`。匹配的私有 cohort 一同升级。公开 CLI configuration v2 映射这两个字段，历史 v1 schema 保持封闭。
+必需 `defaultShell` 和 `shellMode` 暴露后续终端准备所用的已接纳默认值，不是 Worker 解析后的事实。可执行文件为空表示平台默认，否则为最多 4096 UTF-8 字节、无控制字符的字面量；模式为 `auto`、`login` 或 `non_login`。匹配的私有 cohort 一同升级。唯一的版本 1 公开 CLI configuration 文档映射这两个字段。
 
 ## Client 临时通知
 
 `workbench.notification`（OBWP kind 41）承载 show/listen；`workbench.notification.result`（kind 42）承载 show/listening/failed。帧保留 16 KiB intent 上限。[通知 schema](v1/workbench-notification.schema.json) 及共享语料约束 Rust 与 TypeScript 的封闭结构、必需可空的 body/pending 值、四角位置和 none/done/request 声音。规范化标题/正文至多包含 80/240 个 Unicode 标量，只保留合并后的 ASCII 空格且无控制字符。关联必须匹配两个身份及请求动作；shown 仅在 shown 原因时为 true。
 
-[Windows 通知归属](../../apps/orchbee/docs/windows-notifications.zh-CN.md) 定义授权、连接拥有的有界收件箱、过期、重放与 UI 交接。这是临时、匹配 cohort 的传输，不新增持久化迁移或 Desktop 命令。公开的 `orchbee.notification.show` v2 保留 v1 并暴露提交事实，包括不确定提交后的 null 回应；不保证显示确认。
+[Windows 通知归属](../../apps/orchbee/docs/windows-notifications.zh-CN.md) 定义授权、连接拥有的有界收件箱、过期、重放与 UI 交接。这是临时、匹配 cohort 的传输，不新增持久化迁移或 Desktop 命令。唯一的版本 1 公开 `orchbee.notification.show` 文档暴露提交事实，包括不确定提交后的 null 回应；不保证显示确认。
 
 ## 外层 Client 标题发布
 
-`workbench.window-title`（OBWP 43）承载 set/clear/listen；`workbench.window-title.result`（44）承载 published/listening/failed，保持 16 KiB intent 上限。[封闭 schema](v1/workbench-window-title.schema.json) 及共享语料约束 Rust 和 TypeScript：必需可空标题、正十进制 u64 revision、无控制字符且 trim 后至多 200 个标量的标题，以及 reason/changed/title 一致性。请求与回应的身份、Site、动作必须匹配。
+`workbench.window-title`（OBWP 43）承载 set/clear/listen；`workbench.window-title.result`（44）承载 published/listening/failed，保持 16 KiB intent 上限。[封闭 schema](v1/workbench-window-title.schema.json) 及共享语料约束 Rust 和 TypeScript：必需可空标题、正十进制 u64 revision、无控制字符且 trim 后至多 200 个标量的标题，以及 reason/changed/title 一致性。请求与回应的身份、会话、动作必须匹配。
 
 [Windows 标题归属](../../apps/orchbee/docs/windows-terminal-title.zh-CN.md) 定义有界重放、连接焦点路由及恢复。公开的 `orchbee.terminal.title` v1 回执区分发布和实际显示。这项私有 cohort 增量不改变持久化文档。
 
 ## 窗口标题模板输入
 
-匹配 cohort 的 `workbench.window-title` listen 动作要求 `context`，包含 workspace/tab/pane/terminalTitle；每项为无控制字符且至多 200 个 Unicode 标量的字符串，允许为空。仅前台渲染使用这些展示值，不授予选择权限。`ConfigurationSnapshot.windowTitle` 是必需原始字符串，限制为 4096 个 UTF-8 字节，按文档中的建议性策略允许空值和无效模板。Rust/TypeScript 绑定执行字节/标量上限；schema 与语料保证字段存在及封闭结构。公开配置回执升级为 v3、检查为 v7、配置失败为 v4、目录为 v107；旧版本继续保持封闭。
+匹配 cohort 的 `workbench.window-title` listen 动作要求 `context`，包含 workspace/tab/pane/terminalTitle；每项为无控制字符且至多 200 个 Unicode 标量的字符串，允许为空。仅前台渲染使用这些展示值，不授予选择权限。`ConfigurationSnapshot.windowTitle` 是必需原始字符串，限制为 4096 个 UTF-8 字节，按文档中的建议性策略允许空值和无效模板。Rust/TypeScript 绑定执行字节/标量上限；schema 与语料保证字段存在及封闭结构。公开配置、检查、失败和 API 目录文档使用各自唯一的版本 1 契约。
 
 ## 自定义通知策略投影
 
-匹配的私有通知消息要求可空 `position`，null 表示由接收 Client 策略决定。Show 结果新增 `disabled`，用于 Server 关闭且没有 Client 的情况；连接中的 Client 可以独立关闭视觉显示。配置快照要求非空且最多 16 KiB UTF-8 的 `notificationProfile`；Client 仅在通知配置和键位均有效时共同应用。公开通知回执升至 v2，Site 配置 v4，检查 v8，配置失败 v5，目录 v108。旧公开版本保持封闭。既有原生 Windows [通知归属](../../apps/orchbee/docs/windows-notifications.zh-CN.md) 管理效果与关闭。
+匹配的私有通知消息要求可空 `position`，null 表示由接收 Client 策略决定。Show 结果新增 `disabled`，用于 Server 关闭且没有 Client 的情况；连接中的 Client 可以独立关闭视觉显示。配置快照要求非空且最多 16 KiB UTF-8 的 `notificationProfile`；Client 仅在通知配置和键位均有效时共同应用。公开通知、会话配置、检查、失败和目录文档使用版本 1。既有原生 Windows [通知归属](../../apps/orchbee/docs/windows-notifications.zh-CN.md) 管理效果与关闭。
 
 命令启动选项 schema 仅在 `tab.create` 和 `panel.split` 上受理有界 `pluginPane` 选择器，与显式程序／profile 字段互斥。Rust 与 TypeScript 通过命令一致性语料共享选择器及冲突案例。这是匹配 cohort 的扩展，不增加线协议种类，也不受理子终端／Workspace 插件启动。
 
 插件 PaneGet／PaneFound 复用 OBWP 45／46，承载封闭成员事实，不新增修改权限。Rust 额外校验响应 Panel 与请求的关联；Pane 选择器沿用启动选项的标识规则。
 
-Agent 侧栏发布增加必需的非空 `agentSidebarProfile`，上限为 32 KiB UTF-8。它是共享 Windows 配置所有者接纳的封闭规范 JSON；传输绑定约束字符串和整帧边界，Client 安装时验证 token/布局/规则语义。键位、通知、侧栏原子安装；无效侧栏 profile 保留全部原 Client 设置。匹配 cohort 一起更新。公开 `config check` v10、配置失败 v7、Site 配置回执 v5 保持旧版本封闭；目录 v122 仍含 105 个 schema 和 141 条命令路径。
+Agent 侧栏发布增加必需的非空 `agentSidebarProfile`，上限为 32 KiB UTF-8。它是共享 Windows 配置所有者接纳的封闭规范 JSON；传输绑定约束字符串和整帧边界，Client 安装时验证 token/布局/规则语义。键位、通知、侧栏原子安装；无效侧栏 profile 保留全部原 Client 设置。匹配 cohort 一起更新。公开配置检查、失败、会话配置和目录文档使用版本 1。
 
 物理标题读取以 `titles` 扩展封闭 Panel Agent 契约：至多四个精确物理
 绑定，每个绑定对应一个有序观察。观察为不可用，或携带正元数据版本及
 必需可空标题的已观察值，标题最多 64 KiB UTF-8。
 除 JSON Schema 外，Rust 和 TypeScript 校验展示 ID 唯一性及字节上限。
-Site 在 Worker 读取前后保护保留的物理身份。标题不改变报告版本、
+会话 在 Worker 读取前后保护保留的物理身份。标题不改变报告版本、
 Agent 序号、源过滤或 Client 已读状态；公开 CLI 输出版本不变。
 匹配的私有 cohort 一起更新。共享一致性案例覆盖原始 Unicode、清除、
 缺失、可空、版本、封闭字段及上限。
@@ -648,12 +647,11 @@ Agent 序号、源过滤或 Client 已读状态；公开 CLI 输出版本不变�
 
 Workspace 侧栏发布增加必需非空 `spacesSidebarProfile`，独立于 `agentSidebarProfile` 限制 32 KiB。
 配置帧包含 JSON 转义限制 256 KiB；Client 安装前先验证全部四个 profile。
-公开 config check v11、配置失败 v8 和 Site 配置回执 v6 保持所有旧变体封闭。
-目录 v123 仍有 105 个 schema／141 条路径。
+公开配置检查、失败、会话配置和目录文档使用版本 1。
 
 ## 配置命令线协议契约
 
-[配置命令](v1/workbench-configured-command.schema.json)封闭原生已安装命令目录、调用及私有独立popup生命周期。原生CLI的 `orchbee.command` 内嵌同一组嵌套回执，Client popup后续操作使用control v11。ID标识规范化已安装配置，不授权调用者提供可执行文本。必须出现的可空source与selection字段区分全局shell／plugin动作及当前呈现绑定调用；plugin选区文本从准确终端版本捕获。除JSON形状外，Rust和TypeScript检查ID／来源／上下文关联、行跨度、共享字节上限及嵌套回执身份。[原生模型](../../apps/orchbee/docs/windows-custom-commands.zh-CN.md)拥有执行、不确定副作用、进程保留与回收语义。
+[配置命令](v1/workbench-configured-command.schema.json)封闭原生已安装命令目录、调用及私有独立popup生命周期。原生CLI的 `orchbee.command` 内嵌同一组嵌套回执，Client popup后续操作使用版本1控制契约。ID标识规范化已安装配置，不授权调用者提供可执行文本。必须出现的可空source与selection字段区分全局shell／plugin动作及当前呈现绑定调用；plugin选区文本从准确终端版本捕获。除JSON形状外，Rust和TypeScript检查ID／来源／上下文关联、行跨度、共享字节上限及嵌套回执身份。[原生模型](../../apps/orchbee/docs/windows-custom-commands.zh-CN.md)拥有执行、不确定副作用、进程保留与回收语义。
 
 嵌套 Pane 拒绝保留完整的规范命令拒绝词汇，包括 `confirmation-required`；本 schema 与内嵌 CLI
 回执保持同一个封闭枚举。共享语料接受该回执，并拒绝未知原因或额外的拒绝字段。这不会向配置输入
@@ -668,10 +666,10 @@ Rust、TypeScript 和 JSON Schema 在缺失、类型错误或未知值时拒绝�
 Client 先准入全部四个 profile 及命名选择再安装任何字段；重复、过期或错误快照保留已安装调色板。
 仅主题变化沿用完整设置发布的既有修订。[原生主题所有者](../../apps/orchbee/docs/native-themes.zh-CN.md)
 定义启动投影、颜色能力、整帧应用及回退。此匹配 cohort 线协议增量不迁移 checkpoint。
-公开 Site 配置 v9 和 Windows config check v14 保持所有旧版封闭；目录 v142 保持既有 schema 和命令清单。
+公开会话配置、配置检查和目录文档使用版本 1。
 
 ## 原生设置协议契约
 
 [设置](v1/workbench-settings.schema.json) 定义匹配 Windows cohort 的闭合 Open/Save 请求及结果。三个必需但可空的字段区分未修改设置与明确的主题／提醒／声音修改；全部为空的补丁非法。来源令牌区分文件不存在与规范 SHA-256 内容摘要。Save 同时约束发布 revision；结果区分磁盘持久化、在线应用与写入前拒绝。共享语料在 Rust、TypeScript 和 JSON Schema 中检查额外字段拒绝、全宽 revision、完整快照及独立的 4 KiB 请求／256 KiB 结果限制。[原生设置所有者](../../apps/orchbee/docs/native-settings.zh-CN.md) 负责写入、输入捕获、不确定结果和恢复。
 
-<!-- documentation-pairing: english-sha256=f9601683ef62072a52405797079f77ad198c0e4b3fef31f7cbd08a96e5d9647b zh-cn-sha256=320538909d5d0561ac44958a94931731a0315404a5fa99579c7e8bcdea0653a9 -->
+<!-- documentation-pairing: english-sha256=acf3b8f81ed47facdf0f998c93bd7a7805f3ccdb8bc1e661e0a5ad21c992db9b zh-cn-sha256=738331296f4eef7ca2c251c78f6a410eb25d7b9ecbca4b4e2782d4486b5b63d4 -->

@@ -1689,7 +1689,7 @@ It requires a command result with the original request identity: `Renamed` must 
 `checked(expectedRevision + 1)` and `Unchanged` exactly `expectedRevision`, including the maximum
 revision. `Renamed` carries only revision; there is no target or label echo to validate.
 
-Compatible precommit rejections are exactly `site-mismatch`, `revision-mismatch`,
+Compatible precommit rejections are exactly `session-mismatch`, `revision-mismatch`,
 `terminal-context-unavailable`, `tab-unavailable`, `resource-limit`, `revision-exhausted`, and
 `request-identity-conflict`; preserve their reported revision. `denied`, `request-ledger-full`, and
 `service-unavailable` are also compatible. Other outcomes or reasons, wrong correlation, malformed
@@ -1869,7 +1869,7 @@ handoff the method encodes the validated request. After handoff it requires
 `workbench.command.result`, exact request ID, and an action-compatible outcome. For `tab.create`,
 `denied` and every closed
 `WorkbenchCommandUnavailableReason` are compatible. Its compatible `rejected` reasons are exactly
-`site-mismatch`, `revision-mismatch`, `terminal-context-unavailable`, `resource-limit`,
+`session-mismatch`, `revision-mismatch`, `terminal-context-unavailable`, `resource-limit`,
 `identity-exhausted`, `revision-exhausted`, and `request-identity-conflict`;
 `project-unavailable` and `workspace-unavailable` are action-incompatible. Project/workspace result
 variants and `unchanged` are also incompatible; only TabCreatePending/TabCreated committed variants
@@ -2127,7 +2127,7 @@ commit, setup, cleanup handoff, retired attempt, in-flight Create/Close or live
 Read/Poll/Move ownership. Only `Removed` mints a
 `ContextRemovalPermit{generation, removed, landing, revision}`; it lives as a bounded private
 field inside the prepared candidate, never on ambient Client state, and is spent exactly once
-by the install it authorizes. `Divergent` — wrong site, regressed revision, malformed navigation
+by the install it authorizes. `Divergent` — wrong session, regressed revision, malformed navigation
 or the old context id still present elsewhere — and every guard failure retire truthfully
 without touching canonical state.
 

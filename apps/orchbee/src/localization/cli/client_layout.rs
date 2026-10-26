@@ -168,7 +168,7 @@ pub(super) const HELP_LAYOUT_EN: crate::localization::HelpDetails =
 pub(super) const HELP_LAYOUT_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee panel layout [<panel>] [--current] [--client <client-id>] [--timeout <ms>] [--format text|json]",
-        "显式指定 Panel 且省略 --client 时，无头读取共享拓扑和标称比例。JSON 使用 orchbee.panel.structure v1，scope 为 shared，不包含视口几何。添加 --client 可读取该 Windows TUI 的单元格几何、焦点及缩放，支持非活动 Tab。省略目标使用调用者／当前 Client。读取不改变选择、终端尺寸或控制权。只读命令不接受 --request-id 和 --detach。",
+        "显式指定面板且省略 --client 时，无头读取共享拓扑和标称比例。JSON 使用 orchbee.panel.structure v1，scope 为 shared，不包含视口几何。添加 --client 可读取该 Windows TUI 的单元格几何、焦点及缩放，支持非活动标签页。省略目标使用调用者／当前客户端。读取不改变选择、终端尺寸或控制权。只读命令不接受 --request-id 和 --detach。",
     );
 pub(super) const HELP_NEIGHBOR_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(

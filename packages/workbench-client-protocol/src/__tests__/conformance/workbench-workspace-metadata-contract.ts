@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	WORKBENCH_PROTOCOL_VERSION,
 	WorkbenchRequestIdSchema,
 	WorkbenchRevisionSchema,
@@ -79,7 +79,7 @@ const WorkspaceMetadataActionSchema = z.discriminatedUnion('kind', [
 ]);
 const WorkspaceMetadataFailureSchema = z.enum([
 	'invalid-request',
-	'site-mismatch',
+	'session-mismatch',
 	'not-found',
 	'denied',
 	'unavailable',
@@ -123,7 +123,7 @@ export const WorkspaceMetadataRequestSchema = z
 		kind: z.literal('workbench.workspace-metadata'),
 		protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 		requestId: WorkbenchRequestIdSchema,
-		siteId: SiteIdSchema,
+		sessionId: SessionIdSchema,
 		action: WorkspaceMetadataActionSchema,
 	})
 	.readonly();
@@ -132,7 +132,7 @@ export const WorkspaceMetadataResultSchema = z
 		kind: z.literal('workbench.workspace-metadata.result'),
 		protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 		requestId: WorkbenchRequestIdSchema,
-		siteId: SiteIdSchema,
+		sessionId: SessionIdSchema,
 		outcome: WorkspaceMetadataOutcomeSchema,
 	})
 	.readonly();

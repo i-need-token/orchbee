@@ -232,7 +232,7 @@ Windows `agent doctor --provider codex --format json` 现在可以检查本地�
 和胶囊完整性，不启动 Session，也不改变 provider 接入配置。版本 3 文档报告 Windows 端点投递
 尚未检查；已安装配置不证明 Agent 已接通。
 
-Windows `agent integration list/explain/enable/disable --provider <id>` 可管理 Claude Code、Codex、Grok、GitHub Copilot、OpenCode、Kilo、Pi、OMP、Gemini 和 Qwen Code。详见 [Windows 集成契约](docs/windows-agent-integrations.zh-CN.md)。Windows `server diagnose` 使用 `orchbee.site.diagnose.windows` v2 报告只读运行时、锁和管道名称事实。Capsule 0.4.16 提供 Claude Code、Codex、Grok 和 GitHub Copilot hook 与 JavaScript 模块，
+Windows `agent integration list/explain/enable/disable --provider <id>` 可管理 Claude Code、Codex、Grok、GitHub Copilot、OpenCode、Kilo、Pi、OMP、Gemini 和 Qwen Code。详见 [Windows 集成契约](docs/windows-agent-integrations.zh-CN.md)。Windows `server diagnose` 使用 `orchbee.server.diagnose.windows` v2 报告只读运行时、锁和管道名称事实。Capsule 0.4.16 提供 Claude Code、Codex、Grok 和 GitHub Copilot hook 与 JavaScript 模块，
 通过原生 observation 管道与 Console 关联投递。Windows x64 cohort 包含保留关联信息所需的
 固定 ConPTY 运行时。其他 provider 保留既有平台限制。
 `terminal send --stdin` 接受重定向普通文件和 Windows 管道；所属隐藏 Windows PowerShell
@@ -745,7 +745,7 @@ ORCHBEE_TEST_NATIVE_COHORT=/tmp/orchbee-native-dev cargo test -p orchbee --test 
 
 无身份的 `NoWorkspace` 仅是 Client 的空落点：不拥有上下文、不创建终端、不出现导航行，也不保存为 Workspace 位置。Workspace 的 Project 成员关系仍可为 null。空 Workspace 保留身份并支持显式配置／创建。
 
-Client 只通过 `attach-binding` 附着快照中的准确 Site／Worker／Terminal 绑定。已知待完成、失败、不可用或结果未知的创建来源不能被替换为附着许可。只读、控制者、Resize 与首帧就绪沿用既有授权和期限。Client 退出保留共享成员与运行终端；关闭最后一个 Tab 留下空 Workspace，之后启动不会重新创建它。[上下文选择](docs/native-context-selection.zh-CN.md)及[终端创建](docs/native-terminal-creation.zh-CN.md)拥有详细规则。
+Client 只通过 `attach-binding` 附着快照中的准确 会话／Worker／Terminal 绑定。已知待完成、失败、不可用或结果未知的创建来源不能被替换为附着许可。只读、控制者、Resize 与首帧就绪沿用既有授权和期限。Client 退出保留共享成员与运行终端；关闭最后一个 Tab 留下空 Workspace，之后启动不会重新创建它。[上下文选择](docs/native-context-selection.zh-CN.md)及[终端创建](docs/native-terminal-creation.zh-CN.md)拥有详细规则。
 
 ## Windows 显式 Session 停止
 
@@ -888,4 +888,4 @@ Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin acti
 
 Windows 首次运行引导在终端可继续输入时提供 Workspace 创建、Agent 选择、操作与帮助入口，关闭状态按原生配置档案保存。参见[原生首次运行引导](docs/native-onboarding.zh-CN.md)。
 
-<!-- documentation-pairing: english-sha256=b977a7febb23f0e3b0fd90856507ba79140fda89ea6eabf8a92f175a008c590c zh-cn-sha256=ebf690a8bbf326066089b7c8696e165486af590d80bda1b5f530b1e23358b0ef -->
+<!-- documentation-pairing: english-sha256=6dc347e005ee2fba57975b680d197b4a124aa7f4f939c273ed9cc5e7889cf3ef zh-cn-sha256=9345cf5142ce09fee274982d030f026b0febb7b128127f6b8c925e56ccf1e4b2 -->

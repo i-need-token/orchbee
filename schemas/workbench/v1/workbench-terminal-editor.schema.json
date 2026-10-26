@@ -5,7 +5,7 @@
 	"oneOf": [
 		{
 			"type": "object",
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "action"],
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "action"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
@@ -17,8 +17,8 @@
 				"requestId": {
 					"$ref": "#/$defs/requestId"
 				},
-				"siteId": {
-					"$ref": "#/$defs/siteId"
+				"sessionId": {
+					"$ref": "#/$defs/sessionId"
 				},
 				"action": {
 					"oneOf": [
@@ -76,7 +76,7 @@
 		},
 		{
 			"type": "object",
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"],
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "outcome"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
@@ -88,8 +88,8 @@
 				"requestId": {
 					"$ref": "#/$defs/requestId"
 				},
-				"siteId": {
-					"$ref": "#/$defs/siteId"
+				"sessionId": {
+					"$ref": "#/$defs/sessionId"
 				},
 				"outcome": {
 					"oneOf": [
@@ -179,7 +179,7 @@
 									"enum": [
 										"denied",
 										"invalid-intent",
-										"site-mismatch",
+										"session-mismatch",
 										"unavailable",
 										"busy",
 										"conflict",
@@ -206,8 +206,8 @@
 		"terminalContextId": {
 			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
 		},
-		"siteId": {
-			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/siteId"
+		"sessionId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/sessionId"
 		},
 		"requestId": {
 			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"

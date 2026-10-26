@@ -119,7 +119,7 @@ pub(super) fn read_attached(
     let (info, host_request_id) = decode(record, attachment, epoch)?;
     let source = json!({
         "kind": "terminal-process-query",
-        "siteId": snapshot.site_id.as_str(),
+        "sessionId": snapshot.site_id.as_str(),
         "snapshotRevision": snapshot.revision,
         "requestId": request_id.as_str(),
         "hostRequestId": host_request_id,

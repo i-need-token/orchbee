@@ -17,7 +17,7 @@ impl Locale {
             (Self::EnUs, TerminalStatus::ReadOnly) => {
                 "Viewing only · another Client controls this terminal"
             }
-            (Self::ZhCn, TerminalStatus::ReadOnly) => "仅查看 · 其他 Client 正在控制此终端",
+            (Self::ZhCn, TerminalStatus::ReadOnly) => "仅查看 · 其他客户端正在控制此终端",
             (Self::EnUs, TerminalStatus::Blocked) => {
                 "Terminal display paused · waiting for a fresh frame"
             }
@@ -401,13 +401,13 @@ impl Locale {
                 use orchbee_workbench_protocol::ConfiguredCommandFailure as F;
                 match (self, reason) {
                     (Self::EnUs, F::Denied) => "Denied by Session permissions",
-                    (Self::ZhCn, F::Denied) => "Session 权限拒绝；请检查权限",
+                    (Self::ZhCn, F::Denied) => "会话权限拒绝；请检查权限",
                     (Self::EnUs, F::InvalidIntent) => "Invalid request; reload configuration",
                     (Self::ZhCn, F::InvalidIntent) => "请求无效；请重载配置",
                     (Self::EnUs, F::SiteMismatch) => "Session changed; reconnect",
-                    (Self::ZhCn, F::SiteMismatch) => "Session 已变化；请重新连接",
+                    (Self::ZhCn, F::SiteMismatch) => "会话已变化；请重新连接",
                     (Self::EnUs, F::Unavailable) => "Unavailable; check Session and retry",
-                    (Self::ZhCn, F::Unavailable) => "服务不可用；请检查 Session 后重试",
+                    (Self::ZhCn, F::Unavailable) => "服务不可用；请检查会话后重试",
                     (Self::EnUs, F::Busy) => "Busy; wait and retry",
                     (Self::ZhCn, F::Busy) => "正在忙；请稍后重试",
                     (Self::EnUs, F::Conflict) => "Configuration changed; reload",
@@ -614,7 +614,7 @@ impl Locale {
     const fn native_creating(self) -> &'static str {
         match self {
             Self::EnUs => "Creating Tab…",
-            Self::ZhCn => "正在创建 Tab…",
+            Self::ZhCn => "正在创建标签页…",
         }
     }
 
@@ -622,7 +622,7 @@ impl Locale {
     const fn native_create_not_created(self) -> &'static str {
         match self {
             Self::EnUs => "Tab not created · previous Tab unchanged",
-            Self::ZhCn => "未创建 Tab · 原 Tab 未更改",
+            Self::ZhCn => "未创建标签页 · 原标签页未更改",
         }
     }
 
@@ -630,7 +630,7 @@ impl Locale {
     const fn native_refreshing(self) -> &'static str {
         match self {
             Self::EnUs => "Refreshing Tabs…",
-            Self::ZhCn => "正在刷新 Tab…",
+            Self::ZhCn => "正在刷新标签页…",
         }
     }
 
@@ -638,7 +638,7 @@ impl Locale {
     fn native_refresh_success(self, revision: u64) -> String {
         match self {
             Self::EnUs => format!("Tabs refreshed · revision {revision}"),
-            Self::ZhCn => format!("Tab 已刷新 · 修订 {revision}"),
+            Self::ZhCn => format!("标签页已刷新 · 修订 {revision}"),
         }
     }
 
@@ -646,7 +646,7 @@ impl Locale {
     fn native_refresh_failure(self, revision: u64) -> String {
         match self {
             Self::EnUs => format!("Tab refresh failed · showing revision {revision}"),
-            Self::ZhCn => format!("Tab 刷新失败 · 正在显示修订 {revision}"),
+            Self::ZhCn => format!("标签页刷新失败 · 正在显示修订 {revision}"),
         }
     }
 
@@ -654,7 +654,7 @@ impl Locale {
     const fn native_local_busy(self) -> &'static str {
         match self {
             Self::EnUs => "Client busy · no command sent",
-            Self::ZhCn => "Client 正忙 · 未发送命令",
+            Self::ZhCn => "客户端正忙 · 未发送命令",
         }
     }
 
@@ -662,7 +662,7 @@ impl Locale {
     fn native_no_tab(self, position: u8) -> String {
         match self {
             Self::EnUs => format!("No Tab at position {position}"),
-            Self::ZhCn => format!("第 {position} 个 Tab 不存在"),
+            Self::ZhCn => format!("第 {position} 个标签页不存在"),
         }
     }
 
@@ -728,7 +728,7 @@ impl Locale {
     const fn native_committed_refresh_required(self) -> &'static str {
         match self {
             Self::EnUs => "Created Tab committed · refresh required",
-            Self::ZhCn => "已提交创建的 Tab · 需要刷新",
+            Self::ZhCn => "已提交创建的标签页 · 需要刷新",
         }
     }
 

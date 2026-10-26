@@ -2,7 +2,7 @@
 
 ## 临时终端清空
 
-同 cohort 新增的 `terminal-control` 动作 `{kind:"clear", attachmentId}` 通过已准入 viewer 绑定执行一次保留提示行的终端变异，独立于会话控制权获取。`cleared` 报告规范正数十进制代次／修订和布尔清理确认。Server 核对当前 Site 暴露、精确物理绑定以及 Worker 标识；Worker 打开新的仅输入 Host attachment，不调整尺寸或转移控制权。已知清空在清理不明时保留，缺失效果确认则保持未知且不重试。[原生清空](../../apps/orchbee/docs/native-cli-query.zh-CN.md#清空终端输出) 拥有命令和资源预算。
+同 cohort 新增的 `terminal-control` 动作 `{kind:"clear", attachmentId}` 通过已准入 viewer 绑定执行一次保留提示行的终端变异，独立于会话控制权获取。`cleared` 报告规范正数十进制代次／修订和布尔清理确认。Server 核对当前 会话 暴露、精确物理绑定以及 Worker 标识；Worker 打开新的仅输入 Host attachment，不调整尺寸或转移控制权。已知清空在清理不明时保留，缺失效果确认则保持未知且不重试。[原生清空](../../apps/orchbee/docs/native-cli-query.zh-CN.md#清空终端输出) 拥有命令和资源预算。
 
 ## 权威与边界
 
@@ -51,8 +51,8 @@ Canonical encoding 是确定性的 compact JSON，并使用普通 integer token�
 
 ## Identity、path 与 geometry
 
-`requestId`、`terminalCreateRequestId`、`siteId`、`workerId` 与 `terminalId` 是 opaque、nonzero
-128-bit value，编码为恰好 32 个小写十六进制字符。Site、Worker、Terminal 与 request identity
+`requestId`、`terminalCreateRequestId`、`sessionId`、`workerId` 与 `terminalId` 是 opaque、nonzero
+128-bit value，编码为恰好 32 个小写十六进制字符。会话、Worker、Terminal 与 request identity
 属于不同语义域，但其编码 byte 无需彼此不同；每个 field 都独立校验。`requestId` 用于关联一次
 已提交 request 及其 result；它不是 replay 或 Server-ledger identity。Client 为每次 submitted
 request 生成新的 `requestId`，且不会在同一个 active Server authority 与 authenticated subject
@@ -121,19 +121,19 @@ Create/Start result 不暴露内部 Terminal、Worker、operation、lease、fenc
 `terminal.viewer` 包含 `protocolVersion`、新的 `requestId` 和一个封闭 `action`。每个已准入
 Client Session 可以在既有有序 carrier 上拥有多个只读查看附件。`attach` 只提供 `terminalCreateRequestId`；Server
 解析同一 authority 与主体下已接受的终端，固定其既有 Worker 代次和 Host epoch，并签发新的
-附件身份。`attach-binding` 则仅提供从 canonical Workbench snapshot 获得的 `siteId`、`workerId`
+附件身份。`attach-binding` 则仅提供从 canonical Workbench snapshot 获得的 `sessionId`、`workerId`
 与逻辑 `terminalId`。它不携带 Workbench revision、Worker generation、Host identity、operation、
 lease 或 Create reference。
 
-Binding triple 选择既有 terminal，且不授予 authorization。Server 必须先确认当前 active Site，
+Binding triple 选择既有 terminal，且不授予 authorization。Server 必须先确认当前 active 会话，
 且 canonical Workbench presentation 仍暴露精确 Worker/Terminal pair，之后才解析精确保留终端
 及其固定的 Worker generation。Selection 不产生 Create、Start、launch、membership、rebind、
 navigation、input、resize 或 controller effect。经过 Server 拥有的 Session capacity guard 后，target validation
 遵循以下优先级：
 
-1. registry 或 Site ownership poisoned 返回 `server-busy`；
+1. registry 或 会话 ownership poisoned 返回 `server-busy`；
 2. Workbench 缺失或已 retired 返回 `workbench-unavailable`；
-3. Site 错误或精确 pair 未暴露返回 `terminal-unavailable`；
+3. 会话 错误或精确 pair 未暴露返回 `terminal-unavailable`；
 4. current Worker 缺失或 logical Worker 不同返回 `terminal-runtime-unavailable`；
 5. 精确保留记录缺失返回 `terminal-unavailable`；
 6. 保留的 Worker generation 不同返回 `terminal-runtime-unavailable`；
@@ -336,7 +336,7 @@ Found launch read 还可携带非 null 的 `launchSelection:{exec,args}`，复�
 
 Send result 以 `progress` 替代 `acceptedBytes`：数值 `recordsAccepted`、`firstStoppedRecord`（0–64）和 `acceptedEncodedBytes`（0–67,108,864）。Accepted records 不超过 stopped index。成功 outcome 要求非零且相等的 count/index，以及非 not-needed 的 cleanup；任何非零 accepted count 都禁止 not-needed。Unknown outcome 禁止 confirmed cleanup。Accepted/unknown 或任何非 not-needed cleanup 都要求 physical target。跨字段关系是独立测试的 binding 细化。Unknown frontier 不授权重发。`input-budget-exhausted` 是新增 unavailable reason。仍须按精确 cohort 发布和回滚；不意味着持久化迁移、Desktop 支持或 Workbench schema 等价。
 
-OBSN header 为 magic `OBSN`、big-endian u16 encoding version `1`、零 u16 reserved field 和 u32 body length。Body 依次为 request/Site/Worker/Terminal identity（各 16 bytes）、u8 count（1–64）及有序 record。Body 上限为 `64 + 1 + 64 * 7 + 1,048,576` bytes；分配前拒绝错误 header。每个 record 以 u8 kind 开始：
+OBSN header 为 magic `OBSN`、big-endian u16 encoding version `1`、零 u16 reserved field 和 u32 body length。Body 依次为 request/会话/Worker/Terminal identity（各 16 bytes）、u8 count（1–64）及有序 record。Body 上限为 `64 + 1 + 64 * 7 + 1,048,576` bytes；分配前拒绝错误 header。每个 record 以 u8 kind 开始：
 
 | Kind     | 剩余 record bytes                                                                      |
 | -------- | -------------------------------------------------------------------------------------- |
@@ -370,4 +370,4 @@ viewport 读取仍为 text。
 
 显式终端启动可携带独立的 `PluginTerminalEnvironment`（OBCS 字段为 `pluginEnvironment`）。只允许插件 ID/root/entrypoint/config/state/context、原生二进制路径及可选 Workspace/Tab/Pane 展示 ID：十个唯一名称，七项必填，合计最多 24 KiB UTF-8。这些是展示数据，不是权限或插件登记。普通调用者环境保持原有上限及保留名称拒绝规则。runtime base/scope 和 Worker/终端身份仍由 Worker 适配器负责。插件环境必须配合显式可执行文件。OBCN 启动种类 3 在 40 KiB 帧上限内传递显式启动选择、普通环境和插件环境。Server 在预留物理操作前校验完整插件启动编码。Worker 先清除继承的已知插件展示字段，再应用本次值。Workbench 插件解析、Pane 归属和 Client 布局仍是独立的集成职责。定向边界及启动事实测试覆盖此载荷，不代表插件 Pane 已完整接通。
 
-<!-- documentation-pairing: english-sha256=a4d02f00501926790a05c6022e95232bfbf55a5c18c464f1f40834876ba138fb zh-cn-sha256=f598860176f16a19a60d818b4f690e76e02176e53f6be911f4ac13c6bb8e3636 -->
+<!-- documentation-pairing: english-sha256=6b1c9664d39741d1eb48740bf2673175beb65651f29e35290956c24cbf83d45d zh-cn-sha256=5e17b678373bf8a7b6124554b646591bcbd07d6845ec60a7034ee96cf043521c -->

@@ -9,7 +9,7 @@ pub(super) const HELP_PROJECT_LIST_EN: crate::localization::HelpDetails =
 pub(super) const HELP_PROJECT_LIST_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee project list [--format text|json]",
-        "列出本地会话中所有 Project：ID、label、目录与工作区计数。空会话仅输出表头。",
+        "列出本地会话中所有项目：ID、label、目录与工作区计数。空会话仅输出表头。",
     );
 
 pub(super) const HELP_PROJECT_GET_EN: crate::localization::HelpDetails =
@@ -21,7 +21,7 @@ pub(super) const HELP_PROJECT_GET_EN: crate::localization::HelpDetails =
 pub(super) const HELP_PROJECT_GET_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee project get <target> [--format text|json]",
-        "显示一个 Project：其目录（含 worker id 与路径）与工作区。target 为精确\n32 位十六进制 ID、@project:0x<hex> 选择器或精确区分大小写的 label；歧义 label 报告候选而非猜测。",
+        "显示一个项目：其目录（含 worker id 与路径）与工作区。target 为精确\n32 位十六进制 ID、@project:0x<hex> 选择器或精确区分大小写的 label；歧义 label 报告候选而非猜测。",
     );
 
 pub(super) const HELP_PROJECT_CREATE_EN: crate::localization::HelpDetails =
@@ -33,7 +33,7 @@ pub(super) const HELP_PROJECT_CREATE_EN: crate::localization::HelpDetails =
 pub(super) const HELP_PROJECT_CREATE_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee project create --label <label> [--format text|json]",
-        "以给定 label 创建一个 Project。命令先读取一次快照，然后以全新请求 ID\n只提交一个命令。结果携带已提交修订与 Server 分配的 project id。新 Project 无目录、无 Workspace，创建不触碰任何文件系统路径。\nlabel 允许跨 Project 重复；请按返回的 ID 寻址新 Project。",
+        "以给定 label 创建一个项目。命令先读取一次快照，然后以全新请求 ID\n只提交一个命令。结果携带已提交修订与 Server 分配的 project id。新项目无目录、无工作区，创建不触碰任何文件系统路径。\nlabel 允许跨项目重复；请按返回的 ID 寻址新项目。",
     );
 
 pub(super) const HELP_PROJECT_RENAME_EN: crate::localization::HelpDetails =
@@ -45,5 +45,5 @@ pub(super) const HELP_PROJECT_RENAME_EN: crate::localization::HelpDetails =
 pub(super) const HELP_PROJECT_RENAME_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee project rename <target> --label <label> [--format text|json]",
-        "重命名一个由精确 ID、@project:0x<hex> 或精确 label 选择的 Project。命令先读取一次快照，然后只提交一个命令。committed 结果携带新修订；unchanged 表示\nlabel 本已相同。",
+        "重命名一个由精确 ID、@project:0x<hex> 或精确 label 选择的项目。命令先读取一次快照，然后只提交一个命令。committed 结果携带新修订；unchanged 表示\nlabel 本已相同。",
     );

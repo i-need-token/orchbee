@@ -39,7 +39,7 @@ pub(crate) struct ShellText<'a> {
     pub(crate) shell_only_detail: &'static str,
     pub(crate) shortcut_title: &'static str,
     pub(crate) sidebar_hint: &'a str,
-    pub(crate) site_section: &'static str,
+    pub(crate) session_section: &'static str,
     pub(crate) no_workspace: &'static str,
     pub(crate) tabs_unavailable: &'static str,
     pub(crate) terminal_unavailable: &'static str,
@@ -76,7 +76,7 @@ const EN_US_SHELL: ShellText<'static> = ShellText {
     shell_only_detail: "Connect to a session to use terminals and agents.",
     shortcut_title: "Keyboard shortcuts",
     sidebar_hint: "Ctrl+B b · sidebar",
-    site_section: "SITE",
+    session_section: "SESSION",
     no_workspace: "No workspace",
     tabs_unavailable: "No shared Tabs · session unavailable",
     terminal_unavailable: "Terminal unavailable",
@@ -113,9 +113,9 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
     shell_only_detail: "连接会话后即可使用终端和智能体。",
     shortcut_title: "键盘快捷键",
     sidebar_hint: "Ctrl+B b · 侧边栏",
-    site_section: "站点",
+    session_section: "会话",
     no_workspace: "未打开工作区",
-    tabs_unavailable: "无共享 Tab · 会话不可用",
+    tabs_unavailable: "无共享标签页 · 会话不可用",
     terminal_unavailable: "终端不可用",
     too_small_notice: "窗口太小 · 请调整大小后继续",
     workbench_title: "WORKBENCH",
@@ -244,7 +244,7 @@ impl Locale {
     pub(crate) const fn navigator_columns(self) -> (&'static str, &'static str) {
         match self {
             Self::EnUs => ("Workspaces / terminals", "Tabs in this location"),
-            Self::ZhCn => ("工作区 / 终端", "当前位置的 Tab"),
+            Self::ZhCn => ("工作区 / 终端", "当前位置的标签页"),
         }
     }
 
@@ -442,7 +442,7 @@ impl Locale {
                 "Tab creation unavailable · no command was sent"
             }
             (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::CreateTab))) => {
-                "无法创建 Tab · 未发送命令"
+                "无法创建标签页 · 未发送命令"
             }
             (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::SplitPanel))) => {
                 "Panel split unavailable · no command was sent"
@@ -473,7 +473,7 @@ impl Locale {
                 Some(Notice::BackendUnavailable(
                     BackendAction::MovePreviousTab | BackendAction::MoveNextTab,
                 )),
-            ) => "无法移动 Tab · 未发送命令",
+            ) => "无法移动标签页 · 未发送命令",
             (
                 Self::EnUs,
                 Some(Notice::BackendUnavailable(
@@ -489,7 +489,7 @@ impl Locale {
                     | BackendAction::SelectPreviousTab
                     | BackendAction::SelectTab(_),
                 )),
-            ) => "Tab 导航不可用 · 未发送命令",
+            ) => "标签页导航不可用 · 未发送命令",
             (
                 Self::EnUs,
                 Some(Notice::BackendUnavailable(

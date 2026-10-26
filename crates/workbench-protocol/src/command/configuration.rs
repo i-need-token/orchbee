@@ -20,6 +20,7 @@ pub enum ConfigurationAction {
 pub struct ConfigurationRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub action: ConfigurationAction,
 }
@@ -151,6 +152,7 @@ impl ConfigurationShellMode {
 pub enum ConfigurationFailure {
     Denied,
     Unavailable,
+    #[serde(rename = "session-mismatch")]
     SiteMismatch,
     Busy,
     LoadFailed,
@@ -195,6 +197,7 @@ impl ConfigurationOutcome {
 pub struct ConfigurationResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub outcome: ConfigurationOutcome,
 }

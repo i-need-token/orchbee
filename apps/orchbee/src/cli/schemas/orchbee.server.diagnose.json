@@ -1,13 +1,13 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
-	"$id": "orchbee.site.diagnose",
-	"title": "orchbee site diagnose envelope",
+	"$id": "orchbee.server.diagnose",
+	"title": "orchbee server diagnose envelope",
 	"type": "object",
 	"required": ["schema", "version", "source", "result"],
 	"additionalProperties": false,
 	"properties": {
 		"schema": {
-			"const": "orchbee.site.diagnose"
+			"const": "orchbee.server.diagnose"
 		},
 		"version": {
 			"const": 1
@@ -63,13 +63,13 @@
 				},
 				"locks": {
 					"type": "object",
-					"required": ["activation", "siteLifetime"],
+					"required": ["activation", "sessionLifetime"],
 					"additionalProperties": false,
 					"properties": {
 						"activation": {
 							"$ref": "#/$defs/row"
 						},
-						"siteLifetime": {
+						"sessionLifetime": {
 							"$ref": "#/$defs/row"
 						}
 					}

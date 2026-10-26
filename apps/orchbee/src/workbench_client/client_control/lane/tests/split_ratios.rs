@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 #[test]
 fn divider_submission_atomically_distinguishes_a_dead_lane_from_transient_backlog() {
     let command: WorkbenchCommand = serde_json::from_value(serde_json::json!({
-        "protocolVersion":1, "requestId":format!("{:032x}",1), "siteId":format!("{:032x}",2),
+        "protocolVersion":1, "requestId":format!("{:032x}",1), "sessionId":format!("{:032x}",2),
         "expectedRevision":"0", "action":{"kind":"layout.set-split-ratio", "terminalContextId":format!("{:032x}",3),
         "tabId":format!("{:032x}",4), "split":{"splitId":format!("{:032x}",5),
         "firstSlotId":format!("{:032x}",6), "secondSlotId":format!("{:032x}",7)}, "previousRatio":0.5, "ratio":0.7}
@@ -204,7 +204,7 @@ fn stalled_mutation_preserves_heartbeats_and_lane_shutdown_joins_its_connection(
         );
         let command: WorkbenchCommand =
             serde_json::from_value(serde_json::json!({"protocolVersion":1,
-            "requestId":format!("{:032x}",1),"siteId":format!("{:032x}",2),"expectedRevision":"0",
+            "requestId":format!("{:032x}",1),"sessionId":format!("{:032x}",2),"expectedRevision":"0",
             "action":{"kind":"layout.set-split-ratio","terminalContextId":format!("{:032x}",3),
                 "tabId":format!("{:032x}",4),"split":{"splitId":format!("{:032x}",5),
                 "firstSlotId":format!("{:032x}",6),"secondSlotId":format!("{:032x}",7)},

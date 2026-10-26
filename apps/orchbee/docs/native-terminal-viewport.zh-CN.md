@@ -220,7 +220,7 @@ help 打开时 `PageUp` 仍归 help。
 ## 导航间的阅读连续性
 
 Windows 上，`ui/history_positions.rs` 在同一 Client 的标签／viewer 替换和上下文交接之间，
-保留各 canonical presentation 明确的 Live 或手动历史选择。身份包含 Site、上下文、标签、
+保留各 canonical presentation 明确的 Live 或手动历史选择。身份包含 会话、上下文、标签、
 窗格、presentation、Worker 和终端。成员移除或重新绑定时清理；退休时丢弃整个库。
 不持久化，也不与其他 Client 共享。自动尾部和复制 episode 不形成手动历史书签。
 
@@ -251,13 +251,13 @@ Machines/Workspaces/Agents 选择器保持关闭。独立的选择 generation �
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 接受可见 Agent       | `machine_picker/sidebar.rs` 重新验证准确机器和物理目标，创建 Sidebar 选择 generation；输入分派器捕获输入包。                                                                                             |
 | 验证与等待           | `tui_shell/machines.rs` 使用可取消的只读连接，在原始 60 秒选择预算内验证当前成员关系和物理 Agent 身份。目标在当前机器时复用活动 Session。Session 忙碌时只保留最新等待目标；Busy 判断先于准确当前项判断。 |
-| 选择准确成员         | `ui/direct_navigation.rs` 再次解析 Site、上下文、Tab、Panel、Presentation 和绑定。同上下文选择复用切换事务；跨上下文选择将准确成员传过快照验证和清理，不先访问默认成员。                                 |
+| 选择准确成员         | `ui/direct_navigation.rs` 再次解析 会话、上下文、Tab、Panel、Presentation 和绑定。同上下文选择复用切换事务；跨上下文选择将准确成员传过快照验证和清理，不先访问默认成员。                                 |
 | 保持当前项或移动焦点 | 两条快路径都要求准确窗格 incarnation 仍存活，其附着的 Host epoch 和终端与已验证目标一致。物理身份缺失或不同时走带围栏的切换路径。                                                                        |
 | 附着与绘制           | 选择的成员及物理 Host 围栏在成员清理后保持有效。附着返回意外 Host 时，在轮询、获取控制权或接收帧之前分离它。输入和反馈继续等待已有首帧契约准入。                                                         |
 | 取消或失败           | Escape、更新的选择或显式 Search 结束尚未准入的工作；过期验证不能安装或重新打开界面。已接受的 Session 工作保留自身结算契约。直接选择失败通过本地化重试提示反馈，不打开选择器。                            |
 
 `ui/retained_frames.rs` 拥有只用于绘制的图像库：最多八个窗格、16 MiB。复用要求
-Site／上下文／Tab／Panel／Presentation／绑定和几何完全一致。Agent 选择还会淘汰
+会话／上下文／Tab／Panel／Presentation／绑定和几何完全一致。Agent 选择还会淘汰
 Host 终端或 epoch 不同、或终端身份未知的图像。保留图像不授予光标、选区、图形、输入
 或帧确认权威；新验证的帧通过既有投影路径接管。跨机器和显式选择器选择保留
 [机器候选交接](machines.zh-CN.md#跨机器工作区导航)。
@@ -379,4 +379,4 @@ read/ACK 权威与取消策略仍由 Orchbee 拥有。
 
 TUI 将阅读锚点失效表述为正在显示最新输出。这条一次性提示四秒后过期，焦点窗格完成返回实时后立即清除。状态行位于终端几何之外，恢复协议和保留的操作事实保持不变。
 
-<!-- documentation-pairing: english-sha256=51c2884a1c8d2f9c99bda0c41f104d5c54ecb872d1a3ed66db0e55b5f3657c65 zh-cn-sha256=820845507be12a958c40f35c480e5e3de627887cd15e013e8640923ed9d9490d -->
+<!-- documentation-pairing: english-sha256=f5ab451ef8729b5533d0a5e758ae11bea52ca67ab172a7f40205e4b54e33ee1f zh-cn-sha256=7a72fdafd19472c8364311aa2bb89852a178d109c9e9126a54983314dd4fae4e -->

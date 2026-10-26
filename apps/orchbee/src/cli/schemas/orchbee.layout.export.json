@@ -15,12 +15,12 @@
 		"source": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["kind", "siteId", "revision", "clientId", "viewRevision", "scope"],
+			"required": ["kind", "sessionId", "revision", "clientId", "viewRevision", "scope"],
 			"properties": {
 				"kind": {
 					"const": "layout-observation"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/id"
 				},
 				"revision": {

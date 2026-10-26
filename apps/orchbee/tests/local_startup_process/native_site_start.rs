@@ -80,7 +80,7 @@ fn site_start_cold_then_warm_reports_the_actual_branch() -> TestResult {
         "stderr={}",
         String::from_utf8_lossy(&output.stderr)
     );
-    validate(&validators, "orchbee.site.start", &output);
+    validate(&validators, "orchbee.server.start", &output);
     assert_eq!(document["result"]["outcome"], "started");
     assert_eq!(
         document["result"]["scope"],
@@ -161,7 +161,7 @@ fn site_start_overlapping_invocations_spawn_exactly_one_server() -> TestResult {
         }
     }
     assert_eq!(started, 1, "exactly one invocation performs the spawn");
-    assert_eq!(already_running, 2, "the rest observe the running Site");
+    assert_eq!(already_running, 2, "the rest observe the running Session");
     assert_server_running(&fixture);
     Ok(())
 }

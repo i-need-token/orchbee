@@ -395,7 +395,7 @@
 						"kind": {
 							"const": "found"
 						},
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/identity"
 						},
 						"workbenchRevision": {
@@ -415,7 +415,7 @@
 							}
 						}
 					},
-					"required": ["kind", "siteId", "workbenchRevision", "workerId", "source", "entries"],
+					"required": ["kind", "sessionId", "workbenchRevision", "workerId", "source", "entries"],
 					"additionalProperties": false
 				},
 				{

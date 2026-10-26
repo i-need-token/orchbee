@@ -1130,7 +1130,7 @@
 							"enum": [
 								"denied",
 								"invalid-intent",
-								"site-mismatch",
+								"session-mismatch",
 								"unavailable",
 								"busy",
 								"not-found",
@@ -1168,14 +1168,14 @@
 				"requestId": {
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
 				},
-				"siteId": {
-					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/siteId"
+				"sessionId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/sessionId"
 				},
 				"action": {
 					"$ref": "#/$defs/action"
 				}
 			},
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "action"]
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "action"]
 		},
 		"result": {
 			"type": "object",
@@ -1190,14 +1190,14 @@
 				"requestId": {
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
 				},
-				"siteId": {
-					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/siteId"
+				"sessionId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/sessionId"
 				},
 				"outcome": {
 					"$ref": "#/$defs/outcome"
 				}
 			},
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"]
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "outcome"]
 		},
 		"clientPane": {
 			"type": "object",

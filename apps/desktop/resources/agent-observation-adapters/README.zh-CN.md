@@ -21,7 +21,7 @@ Windows 原生 cohort 复用 v1 rich envelope／私有 APC 关联。当前 Capsu
 | 端点策略       | 只接纳精确本地管道拼写 `\\.\pipe\orchbee-<32-lowercase-hex>-observation`。缺失、畸形、远程 UNC 或非 observation 目标均不投递。Windows 不扫描管道、文件或 Unix SSH 转发。注入端点和原生 Server ACL 提供路由；适配器不声称检查了管道所有者。                                                     |
 | 关联目标       | 只使用字面设备 `\\.\CONOUT$`，以读写方式打开，并在写入前验证为字符设备。不使用相对 `CONOUT$`、环境指定设备、stdout 或 stderr。直接可见性保持 unknown。缺少 Console 时不发 hint，不得回退到文件。                                                                                               |
 | 流程与转换     | 验证 observation → 解析精确端点和固定 Console 目标 → 发送有界无内容 envelope → 等待精确有界 ACK → 写入匹配私有 APC → 关闭 Console handle。缺少端点、无效输入、超时、ACK 被拒和打开／写入失败终止相应投递。仅 rich half 的事件按既有入口规则过期。                                              |
-| 不变量与副作用 | prompt／输出／路径内容不进入 envelope；接受前不写 APC；任何单半消息不能绑定 Agent；hook 不安装配置或启动 Site。Windows 不 unlink 管道。缺少 Node／runtime 或传输失败时 provider hook 成功退出。Socket 与 Console handle 在本地拥有，并在完成／失败后关闭。                                     |
+| 不变量与副作用 | prompt／输出／路径内容不进入 envelope；接受前不写 APC；任何单半消息不能绑定 Agent；hook 不安装配置或启动 会话。Windows 不 unlink 管道。缺少 Node／runtime 或传输失败时 provider hook 成功退出。Socket 与 Console handle 在本地拥有，并在完成／失败后关闭。                                     |
 | 发布与恢复     | 发布新的不可变 Capsule 版本，同步资源和消费者版本。Git 在 Windows 检出中保留受摘要校验载荷的 LF 字节。显式托管操作替换之前保留旧 Capsule 和 provider 声明。Unix command 字段及既有 Unix 传输行为继续保留。适配器不引入依赖或 wire 版本；Windows cohort 投递另外需要固定的 Host ConPTY 运行时。 |
 | 证据与限制     | 确定性准入／ACK 顺序用例、真实 Windows 命名管道 ACK 用例、静默有界命令 hook 进程用例，以及隔离原生 Server／ConPTY 投递见证。传输证据不证明托管安装、真实 Agent 任务完成、物理 TUI 交互或所有 provider 的 Windows 支持。仅同作者质疑复查；按用户指令继续暂停 TLA 执行。                         |
 
@@ -298,4 +298,4 @@ Doctor 先核对安装字节与清单是否一致，再将已校验的身份与�
 诊断为过期。这一只读诊断不将非当前来源准入为就绪，也不允许替换不明文件。
 不执行自动迁移或后台清理。
 
-<!-- documentation-pairing: english-sha256=9de886d2df77377e6103bcb666a5dce8097e187e1dda9ce039671eb86777c7b9 zh-cn-sha256=f5234e8fb4e9c2436f430667dea9e8ff98768b42545c3f88568955d198a7a4f2 -->
+<!-- documentation-pairing: english-sha256=02ee580b62852ebb92ff1b7cdd11fd420c042780492f84dc6cf2bb5390be7c7c zh-cn-sha256=7558623e1064ecc1f4c2478ebaf6e883d6ca815cae27402e38b84d16f7bfdbe8 -->

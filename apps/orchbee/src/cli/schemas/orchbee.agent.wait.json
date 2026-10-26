@@ -700,9 +700,9 @@
 				"source": {
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["siteId", "workbenchRevision", "reportRevision", "requestId"],
+					"required": ["sessionId", "workbenchRevision", "reportRevision", "requestId"],
 					"properties": {
-						"siteId": {
+						"sessionId": {
 							"$ref": "#/$defs/physical_identity"
 						},
 						"workbenchRevision": {
@@ -800,9 +800,9 @@
 		"terminalSource": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["siteId", "workbenchRevision", "reportRevision", "requestId"],
+			"required": ["sessionId", "workbenchRevision", "reportRevision", "requestId"],
 			"properties": {
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/physical_identity"
 				},
 				"workbenchRevision": {

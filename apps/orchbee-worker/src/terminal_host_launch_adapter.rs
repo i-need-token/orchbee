@@ -109,8 +109,9 @@ impl fmt::Display for HostLaunchAdapterError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             #[cfg(windows)]
-            Self::InvalidSiteRoute => formatter
-                .write_str("managed Site route cannot be represented in the terminal environment"),
+            Self::InvalidSiteRoute => formatter.write_str(
+                "managed Session route cannot be represented in the terminal environment",
+            ),
             Self::OperationKindMismatch => {
                 formatter.write_str("authorized Host dispatch has the wrong operation kind")
             }

@@ -81,7 +81,7 @@ const AgentManifestUpdateReportSchema = z
 export const AgentManifestsFailureSchema = z.enum([
 	'denied',
 	'unavailable',
-	'site-mismatch',
+	'session-mismatch',
 	'busy',
 	'resource-limit',
 	'not-found',

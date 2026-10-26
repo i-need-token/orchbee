@@ -136,7 +136,7 @@ fn selection_read_schema_is_closed_and_requires_physical_content_identity() {
     .unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
     let doc = json!({"schema":"orchbee.terminal.selection","version":1,
-        "source":{"kind":"workbench-snapshot","siteId":"11111111111111111111111111111111","revision":"1"},
+        "source":{"kind":"workbench-snapshot","sessionId":"11111111111111111111111111111111","revision":"1"},
         "result":{"terminal":{"terminalId":"11111111111111111111111111111111","workerId":"11111111111111111111111111111111","boundTo":{"presentationId":"11111111111111111111111111111111","panelId":"11111111111111111111111111111111","tabId":"11111111111111111111111111111111","terminalContextId":"11111111111111111111111111111111"}},
             "anchor":{"row":0,"col":0},"cursor":{"row":0,"col":1},"contentRevision":"18446744073709551615",
             "contentGeneration":"1","hostEpoch":"22222222222222222222222222222222","text":"中文"}});

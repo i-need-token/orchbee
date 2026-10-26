@@ -23,7 +23,7 @@ pub(super) const HELP_TERMINAL_LIST_EN: crate::localization::HelpDetails =
 pub(super) const HELP_TERMINAL_LIST_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal list [--workspace <t> | --tab <t> | --panel <t>] [--format text|json]",
-        "列出所有被 Presentation 绑定的终端，或仅列出某个 Workspace、Tab 或 Panel 内的终端（精确 ID、选择器，或资源支持时的 label）。未绑定终端不可见；绑定是结构证据，不是进程存活的证明。文本显示每个终端所在的 Workspace 与 Panel 句柄及完整工作目录。",
+        "列出所有被 Presentation 绑定的终端，或仅列出某个工作区、标签页或面板内的终端（精确 ID、选择器，或资源支持时的 label）。未绑定终端不可见；绑定是结构证据，不是进程存活的证明。文本显示每个终端所在的工作区与面板句柄及完整工作目录。",
     );
 
 pub(super) const HELP_TERMINAL_GET_EN: crate::localization::HelpDetails =
@@ -111,7 +111,7 @@ pub(super) const HELP_TERMINAL_ATTACH_EN: crate::localization::HelpDetails =
 pub(super) const HELP_TERMINAL_ATTACH_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal attach <terminal> [--takeover] [--timeout ms] [--mouse on|off] [--format text|json]",
-        "Windows 交互终端附着，需要终端 stdin/stdout。使用既有终端 ID 或\n@terminal:0x<hex>，不启动会话，也不聚焦 Workbench Panel。采用控制台尺寸，取得独占输入/尺寸控制权。--takeover 撤销旧控制者；失败也可能撤销旧权限。\nCtrl+B 后按 q 脱离；连续两次 Ctrl+B 发送字面 Ctrl+B。Ctrl+C 交付应用。粘贴使用语义操作；普通翻页键和滚轮使用历史或应用鼠标/光标模式。默认启用鼠标。--timeout 为 1..3600000 毫秒，默认不限总时长；单次交换最多 5 秒、清理最多 2 秒。不重连或重放输入。输出诊断前恢复终端模式。两种 --format 均显示交互画面；NDJSON 请使用 terminal session observe/control。",
+        "Windows 交互终端附着，需要终端 stdin/stdout。使用既有终端 ID 或\n@terminal:0x<hex>，不启动会话，也不聚焦 Workbench 面板。采用控制台尺寸，取得独占输入/尺寸控制权。--takeover 撤销旧控制者；失败也可能撤销旧权限。\nCtrl+B 后按 q 脱离；连续两次 Ctrl+B 发送字面 Ctrl+B。Ctrl+C 交付应用。粘贴使用语义操作；普通翻页键和滚轮使用历史或应用鼠标/光标模式。默认启用鼠标。--timeout 为 1..3600000 毫秒，默认不限总时长；单次交换最多 5 秒、清理最多 2 秒。不重连或重放输入。输出诊断前恢复终端模式。两种 --format 均显示交互画面；NDJSON 请使用 terminal session observe/control。",
     );
 
 #[cfg(windows)]
@@ -153,7 +153,7 @@ pub(super) const HELP_TERMINAL_SELECTION_EN: crate::localization::HelpDetails =
 pub(super) const HELP_TERMINAL_SELECTION_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal selection-read <terminal> --anchor ROW:COL --cursor ROW:COL [--content-revision N] [--generation N] [--format text|json]",
-        "Windows：读取包含两个端点的屏幕缓冲区选区，与 Client 视口无关。使用完整终端 ID 或 @terminal:0x<hex>。坐标以零开始；行 0..4294967295、列 0..65535，最多选 4096 行及一个 8 MiB 行窗口。反向端点先排序；保留完整宽字／组合字形，连接已验证软换行并移除硬行尾填充。可选内容修订为完整 u64，generation 为正 u64；先检查预期内容，变化或已回收内容整体失败。一次可取消的五秒既有会话读取；不发送输入、不改用户选区／剪贴板。JSON 为 orchbee.terminal.selection v1，文本转义控制字符。",
+        "Windows：读取包含两个端点的屏幕缓冲区选区，与客户端视口无关。使用完整终端 ID 或 @terminal:0x<hex>。坐标以零开始；行 0..4294967295、列 0..65535，最多选 4096 行及一个 8 MiB 行窗口。反向端点先排序；保留完整宽字／组合字形，连接已验证软换行并移除硬行尾填充。可选内容修订为完整 u64，generation 为正 u64；先检查预期内容，变化或已回收内容整体失败。一次可取消的五秒既有会话读取；不发送输入、不改用户选区／剪贴板。JSON 为 orchbee.terminal.selection v1，文本转义控制字符。",
     );
 
 impl Locale {
@@ -296,7 +296,7 @@ impl Locale {
         let seen = self.cli_agent_seen(seen);
         match self {
             Self::EnUs => format!("Client {client}: status {status}; seen {seen}\n"),
-            Self::ZhCn => format!("Client {client}：状态 {status}；已看见 {seen}\n"),
+            Self::ZhCn => format!("客户端 {client}：状态 {status}；已看见 {seen}\n"),
         }
     }
 

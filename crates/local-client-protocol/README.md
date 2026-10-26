@@ -20,9 +20,9 @@ This observation grants no operation capability, creates no Client Connection an
 No Linux/macOS runtime adapter is added. The [CLI status contract](../../apps/orchbee/docs/native-runtime-status.md)
 owns public comparison/output semantics and evidence, including old-Server incompatibility.
 
-## Managed Site stop control
+## Managed Session stop control
 
-Private OBLC v1 additionally carries kinds 4/5 for same-user, exact-cohort Site stop requests and
+Private OBLC v1 additionally carries kinds 4/5 for same-user, exact-cohort Session stop requests and
 status responses, within the existing 256-byte bound. A request contains a validated cohort, nonzero
 128-bit stop identity and closed start/status/explicit-retry action. Responses echo that identity and
 distinguish not-recorded, pending, failed, another active identity and unmanaged mode. Pending/failed
@@ -87,7 +87,7 @@ The accepted lazy-activation workflow needs a caller-owned deadline across conne
 handshake. POSIX ClientConnection::connect_before(endpoint, cohort, deadline) supplies that
 boundary on Linux and macOS; apps/orchbee consumes it through private LocalClient::connect_before.
 Existing `connect` retains its separate two-second handshake timeouts. Neither entry discovers or
-activates a Site. Native macOS verification exercises the same descriptor, poll, peer-proof, and
+activates a Session. Native macOS verification exercises the same descriptor, poll, peer-proof, and
 handshake path; the legacy `connect` entry remains unchanged.
 
 Only `ConnectFailed` reports failure before connection completion, preserving dial-error provenance.
@@ -99,7 +99,7 @@ and protocol failures never become absence. Neither variant permits this adapter
 
 | Field        | Contract                                                                                                                                                                                                                                                                                                                     |
 | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem      | A silent or incrementally responding local Server must not renew the Client bootstrap admission budget. This is one connection attempt, not complete Site activation.                                                                                                                                                        |
+| Problem      | A silent or incrementally responding local Server must not renew the Client bootstrap admission budget. This is one connection attempt, not complete Session activation.                                                                                                                                                     |
 | Inputs       | Caller-selected endpoint and absolute monotonic Instant; cohort validated before effects; untrusted kernel connect/readiness/peer observations and one OBLC response.                                                                                                                                                        |
 | Data         | One owned nonblocking socket, one unchanged deadline, one hello, decoder progress and typed result. No socket clone, process, lock, retry ledger or product state.                                                                                                                                                           |
 | Outputs      | Exact accepted generation and the same blocking, unbuffered stream; existing typed IO/protocol/rejection error. Expiry carries TimedOut. Failure drops only the candidate connection.                                                                                                                                        |
@@ -174,7 +174,7 @@ pnpm verify
 
 ## Windows admission
 
-On Windows, the same OBLC messages run over `orchbee-local-ipc` local named pipes. The adapter proves the peer token user before sending the hello, retains the caller's absolute deadline across connect/read/write, and observes cancellation through a borrowed readiness source. It never starts or retries a Site. Pipe names and permissions belong to the runtime and transport owners; OBCS/OBWP framing is unchanged.
+On Windows, the same OBLC messages run over `orchbee-local-ipc` local named pipes. The adapter proves the peer token user before sending the hello, retains the caller's absolute deadline across connect/read/write, and observes cancellation through a borrowed readiness source. It never starts or retries a Session. Pipe names and permissions belong to the runtime and transport owners; OBCS/OBWP framing is unchanged.
 
 The 10 ms cancellation cadence limits only a pending kernel connection wait. It is not
 the authenticated connection's deadline: a pipe that opens and completes peer proof
@@ -183,7 +183,7 @@ Only the transport's typed preconnection pending result permits another wait. Di
 errors remain `ConnectFailed`; errors after opening a pipe remain `Io`, so neither
 authentication failure nor connected EOF can be reinterpreted as preconnect absence.
 Cancellation and total expiry after authentication release the candidate before hello,
-without another dial or any renewal of the total budget. Metadata and Site-stop use the
+without another dial or any renewal of the total budget. Metadata and Session-stop use the
 same connection boundary. No request or effect is retried.
 
 `src/connection/windows_admission/tests.rs` controls completion order and clock progress

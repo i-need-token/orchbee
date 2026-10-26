@@ -97,7 +97,7 @@ failures rather than truncating or continuing unbounded work. Deterministic test
 boundaries, name matching, expansion dependencies,
 User `%PATH%` phase semantics, unresolved names, cycles, unnamed values, missing and unreadable
 scopes, `PATH` order and deduplication, inherited admission, launch priority and separate-launch
-refresh. A controlled native Windows witness must additionally keep the Site alive, change a
+refresh. A controlled native Windows witness must additionally keep the Session alive, change a
 reversible User `PATH` entry, and prove only a subsequently created terminal resolves the new command
 before restoring that entry.
 

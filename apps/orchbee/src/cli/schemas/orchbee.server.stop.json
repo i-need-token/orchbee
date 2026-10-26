@@ -1,13 +1,13 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
-	"$id": "orchbee.site.stop",
-	"title": "Windows Site stop receipt or observed attempt",
+	"$id": "orchbee.server.stop",
+	"title": "orchbee server stop receipt or observed attempt",
 	"type": "object",
 	"required": ["schema", "version", "source", "result"],
 	"additionalProperties": false,
 	"properties": {
 		"schema": {
-			"const": "orchbee.site.stop"
+			"const": "orchbee.server.stop"
 		},
 		"version": {
 			"const": 1

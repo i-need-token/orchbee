@@ -192,7 +192,7 @@ fn observe(
         .find(|workspace| workspace.terminal_context_id == context.terminal_context_id)
         .ok_or_else(|| failure(FailureKind::ProtocolInvalid, "workspace-unavailable"))?;
     let document = json!({"schema":"orchbee.layout.export","version":1,
-        "source":{"kind":"layout-observation","scope":if selected.is_some() {"client"} else {"shared"},"siteId":snapshot.site_id,"revision":snapshot.revision,
+        "source":{"kind":"layout-observation","scope":if selected.is_some() {"client"} else {"shared"},"sessionId":snapshot.site_id,"revision":snapshot.revision,
             "clientId":selected.as_ref().map(|client| &client.client_id),"viewRevision":selected.as_ref().map(|client| client.view_revision)},
         "result":{"layout":{"workspaceId":&workspace.workspace_id,
             "terminalContextId":context.terminal_context_id,"tabId":tab.tab_id,

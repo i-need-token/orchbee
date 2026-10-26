@@ -2,7 +2,7 @@
 
 ## 临时终端清空
 
-新增的 `clear` 控制动作仅携带已有 viewer 的 `attachmentId`，不获取或转移控制权。`cleared` 结果携带正数十进制 `generation` 和 `revision`，以及 `cleanupConfirmed`；投递未知使用已有 `outcome-unknown` 类别。其他结果保留封闭含义。Server 拥有 Site 暴露、物理绑定和 Worker 代次隔离和新临时 attachment 标识；Worker 拥有仅输入附加 → Host 保留提示行的清空 → 分离。[原生清空](../../apps/orchbee/docs/native-cli-query.zh-CN.md#清空终端输出) 拥有公开命令、预算和回执。需要匹配的开发 cohort。
+新增的 `clear` 控制动作仅携带已有 viewer 的 `attachmentId`，不获取或转移控制权。`cleared` 结果携带正数十进制 `generation` 和 `revision`，以及 `cleanupConfirmed`；投递未知使用已有 `outcome-unknown` 类别。其他结果保留封闭含义。Server 拥有 会话 暴露、物理绑定和 Worker 代次隔离和新临时 attachment 标识；Worker 拥有仅输入附加 → Host 保留提示行的清空 → 分离。[原生清空](../../apps/orchbee/docs/native-cli-query.zh-CN.md#清空终端输出) 拥有公开命令、预算和回执。需要匹配的开发 cohort。
 
 ## 范围
 
@@ -136,7 +136,7 @@ Schema owner 的 corpus 检查每个 action/outcome/reason
 
 `TerminalSendRequest`、`SendRecords`、`TerminalSendResult` 与 `TerminalSendOutcome`
 承载一次经 Server 授权、面向已暴露 Workbench 终端的非交互 input 提交。request 是扁平的
-`requestId` + `siteId`/`workerId`/`terminalId` 绑定三元组 + 闭合记录序列；三元组是
+`requestId` + `sessionId`/`workerId`/`terminalId` 绑定三元组 + 闭合记录序列；三元组是
 Server 在准入时解析的声明目标，不是化身锁。本 binding 不授予 controller、viewer、resize
 或 lease 权限，不占 attachment 槽位，且绝不跨 restart 重绑：准入后 worker 或 Host 化身已
 变化的目标只能失败或报告 unknown，绝不改向。
@@ -163,12 +163,12 @@ viewer、不持有 grant、绝不变更——Server 在 coordinator 锁内按其
 membership 解析目标，并一趟返回。
 
 `found` outcome 携带当前路由行（`terminalId`、`workerId`、`boundTo` 的
-presentation/panel/tab/context identity）、`siteId`、join 观测到的 decimal-string
+presentation/panel/tab/context identity）、`sessionId`、join 观测到的 decimal-string
 `workbenchRevision` 以及一个 `launch` fact 对象。若终端经具名 Launch Profile 启动，
 `found` 还携带可选成员 `launchProfile` `{profileId, catalogRevision}`——在 launch
 prepare 时冻结的 provenance；其他方式启动的终端该成员整体缺席，且即便 profile 在其
 选择被捕获后遭删除，该成员仍保持准确。其余 outcome 只有 `not-found` 与
-`unavailable{reason:"server-busy"}`；无 Workbench 的 Site 一律回答 `not-found`，包括
+`unavailable{reason:"server-busy"}`；无 Workbench 的 会话 一律回答 `not-found`，包括
 仅存的 orphan retained 记录。
 
 显式程序还会在 `found` 中提供可选的 `launchSelection:{exec,args}`。这是创建时捕获且已校验的
@@ -255,4 +255,4 @@ v1 schema/corpus 覆盖 launch selection、environment、profile provenance、se
 
 显式终端启动可携带独立的 `PluginTerminalEnvironment`（OBCS 字段为 `pluginEnvironment`）。只允许插件 ID/root/entrypoint/config/state/context、原生二进制路径及可选 Workspace/Tab/Pane 展示 ID：十个唯一名称，七项必填，合计最多 24 KiB UTF-8。这些是展示数据，不是权限或插件登记。普通调用者环境保持原有上限及保留名称拒绝规则。runtime base/scope 和 Worker/终端身份仍由 Worker 适配器负责。插件环境必须配合显式可执行文件。OBCN 启动种类 3 在 40 KiB 帧上限内传递显式启动选择、普通环境和插件环境。Server 在预留物理操作前校验完整插件启动编码。Worker 先清除继承的已知插件展示字段，再应用本次值。Workbench 插件解析、Pane 归属和 Client 布局仍是独立的集成职责。定向边界及启动事实测试覆盖此载荷，不代表插件 Pane 已完整接通。
 
-<!-- documentation-pairing: english-sha256=d9976ff5b7d65f897d2d53d1709ea09c3245396b0512ac62ed5623bf28700695 zh-cn-sha256=5e2e31c1eedcb93ce4b92da52aef06a52389a92790c707444eddfa52efb2fb89 -->
+<!-- documentation-pairing: english-sha256=084fe232b07dd5bfc5294d15a6ae6a244e306a7e9e3fe8859af3a6fcbe1982a4 zh-cn-sha256=837ba10f04f38c357c068f665ab036bce7609ef581c97e3a44ab073690c6728f -->

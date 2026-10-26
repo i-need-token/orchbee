@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	WorkbenchRequestIdSchema,
 	WorkbenchRevisionSchema,
 	WORKBENCH_PROTOCOL_VERSION,
@@ -37,7 +37,7 @@ const snapshot = z.strictObject({
 const correlation = {
 	protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 	requestId: WorkbenchRequestIdSchema,
-	siteId: SiteIdSchema,
+	sessionId: SessionIdSchema,
 };
 export const WindowTitleRequestSchema = z
 	.strictObject({
@@ -70,7 +70,7 @@ export const WindowTitleResultSchema = z
 			z.strictObject({ kind: z.literal('listening'), snapshot: snapshot.nullable() }),
 			z.strictObject({
 				kind: z.literal('failed'),
-				reason: z.enum(['denied', 'unavailable', 'site-mismatch', 'conflict', 'busy']),
+				reason: z.enum(['denied', 'unavailable', 'session-mismatch', 'conflict', 'busy']),
 			}),
 		]),
 	})

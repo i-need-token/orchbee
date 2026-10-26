@@ -452,7 +452,7 @@
 							"enum": [
 								"denied",
 								"unavailable",
-								"site-mismatch",
+								"session-mismatch",
 								"invalid-request",
 								"not-found",
 								"unbound",
@@ -633,14 +633,14 @@
 				"requestId": {
 					"$ref": "#/$defs/identity"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/identity"
 				},
 				"action": {
 					"$ref": "#/$defs/action"
 				}
 			},
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "action"]
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "action"]
 		},
 		"result": {
 			"type": "object",
@@ -655,14 +655,14 @@
 				"requestId": {
 					"$ref": "#/$defs/identity"
 				},
-				"siteId": {
+				"sessionId": {
 					"$ref": "#/$defs/identity"
 				},
 				"outcome": {
 					"$ref": "#/$defs/outcome"
 				}
 			},
-			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"]
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "outcome"]
 		},
 		"terminalBinding": {
 			"type": "object",

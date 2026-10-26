@@ -442,7 +442,9 @@ fn run(steps: &[Step]) -> Result<(), String> {
                 | WorkbenchAction::PanelMove { .. }
                 | WorkbenchAction::PanelSwap { .. }
                 | WorkbenchAction::PanelRelocate { .. } => {
-                    return Err("direct navigation trace generated Site-composed move".to_owned());
+                    return Err(
+                        "direct navigation trace generated Session-composed move".to_owned()
+                    );
                 }
                 WorkbenchAction::TabsConfigure { .. } => {
                     return Err(

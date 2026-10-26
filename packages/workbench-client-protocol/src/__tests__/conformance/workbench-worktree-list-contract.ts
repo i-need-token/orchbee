@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-	SiteIdSchema,
+	SessionIdSchema,
 	WORKBENCH_PROTOCOL_VERSION,
 	WorkbenchDirectoryIdSchema,
 	WorkbenchDirectoryPathSchema,
@@ -79,7 +79,7 @@ const WorkbenchWorktreeListOutcomeSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('found'),
-			siteId: SiteIdSchema,
+			sessionId: SessionIdSchema,
 			workbenchRevision: WorkbenchRevisionSchema,
 			directoryId: WorkbenchDirectoryIdSchema,
 			path: WorkbenchDirectoryPathSchema,

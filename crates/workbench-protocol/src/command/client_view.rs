@@ -943,6 +943,7 @@ pub enum ClientViewAction {
 pub struct WorkbenchClientViewRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub action: ClientViewAction,
 }
@@ -1067,6 +1068,7 @@ pub enum ClientViewOutcome {
 pub struct WorkbenchClientViewResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
+    #[serde(rename = "sessionId")]
     pub site_id: SiteId,
     pub outcome: ClientViewOutcome,
 }
