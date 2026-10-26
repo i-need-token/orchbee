@@ -285,3 +285,67 @@ pub struct TerminalViewerResult {
     pub attachment_id: OperationId,
     pub outcome: TerminalViewerOutcome,
 }
+
+impl TerminalViewerAction {
+    /// Admits this action's response class; consumers validate record payloads and target echoes.
+    #[must_use]
+    pub fn admits(&self, outcome: &TerminalViewerOutcome) -> bool {
+        let failed = matches!(outcome, TerminalViewerOutcome::Rejected(_));
+        match self {
+            Self::Attach { .. } => matches!(outcome, TerminalViewerOutcome::Attached) || failed,
+            Self::Poll => {
+                matches!(
+                    outcome,
+                    TerminalViewerOutcome::Empty | TerminalViewerOutcome::Record(_)
+                ) || failed
+            }
+            Self::ReadProcessInfo => matches!(outcome, TerminalViewerOutcome::Record(_)) || failed,
+            Self::ReadLifecycle { .. } => {
+                matches!(outcome, TerminalViewerOutcome::LifecycleObserved { .. }) || failed
+            }
+            Self::FrameApplied { .. } => {
+                matches!(outcome, TerminalViewerOutcome::FeedbackAccepted) || failed
+            }
+            Self::NeedSnapshot { .. } => {
+                matches!(outcome, TerminalViewerOutcome::FeedbackAccepted) || failed
+            }
+            Self::SetProjectionDemand { .. } => {
+                matches!(outcome, TerminalViewerOutcome::FeedbackAccepted) || failed
+            }
+            Self::SetHistoryDemand { .. } => {
+                matches!(outcome, TerminalViewerOutcome::FeedbackAccepted) || failed
+            }
+            Self::RowsApplied { .. } => {
+                matches!(outcome, TerminalViewerOutcome::FeedbackAccepted) || failed
+            }
+            Self::HistoryObserved { .. } => {
+                matches!(outcome, TerminalViewerOutcome::FeedbackAccepted) || failed
+            }
+            Self::SelectionGesture { .. } => {
+                matches!(outcome, TerminalViewerOutcome::Record(_)) || failed
+            }
+            Self::SelectionExport { .. } => {
+                matches!(outcome, TerminalViewerOutcome::Record(_)) || failed
+            }
+            Self::SelectionExportCancel { .. } => {
+                matches!(outcome, TerminalViewerOutcome::Record(_)) || failed
+            }
+            Self::SelectionExportChunkApplied { .. } => {
+                matches!(outcome, TerminalViewerOutcome::FeedbackAccepted) || failed
+            }
+            Self::ReadRows { .. } => {
+                matches!(
+                    outcome,
+                    TerminalViewerOutcome::Record(_) | TerminalViewerOutcome::RowsRejected(_)
+                ) || failed
+            }
+            Self::ReadViewportRows { .. } => {
+                matches!(
+                    outcome,
+                    TerminalViewerOutcome::Record(_) | TerminalViewerOutcome::RowsRejected(_)
+                ) || failed
+            }
+            Self::Detach => matches!(outcome, TerminalViewerOutcome::Detached) || failed,
+        }
+    }
+}

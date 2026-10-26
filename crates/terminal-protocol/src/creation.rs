@@ -142,6 +142,7 @@ pub fn decode_terminal_creation_control(
                 .and_then(identity_from_wire)
                 .map(TerminalCreationControl::TerminalCreated)
         }
+        // This codec accepts only its declared message family and request/response roles.
         _ => Err(invalid_field(
             "message kind and role do not select a terminal-creation control payload",
         )),

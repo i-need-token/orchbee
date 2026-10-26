@@ -253,7 +253,12 @@ fn classify(outcome: Outcome) -> Failure {
     match outcome {
         Outcome::Rejected { reason } => query::classify_viewer_rejected(reason),
         Outcome::Unavailable { .. } => Failure::new(FailureKind::ServiceUnavailable),
-        _ => Failure::new(FailureKind::ProtocolInvalid),
+        Outcome::Attached { .. }
+        | Outcome::Empty { .. }
+        | Outcome::FeedbackAccepted { .. }
+        | Outcome::Detached { .. }
+        | Outcome::RowsRejected { .. }
+        | Outcome::Record(..) => Failure::new(FailureKind::ProtocolInvalid),
     }
 }
 fn emit(

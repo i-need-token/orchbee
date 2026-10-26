@@ -1,10 +1,8 @@
 //! Send-once transport for unbound layout structure and terminal member creation.
 use crate::local_client::{ExchangeAttempt, LocalClient, exchange_once};
 use orchbee_workbench_protocol::{
-    WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome as Outcome,
-    WorkbenchCommandUnavailableReason as Unavailable, WorkbenchPanelTerminalTarget,
-    WorkbenchRejectionReason as Rejection, WorkbenchRequest, WorkbenchResponse,
-    WorkbenchTerminalOutcome, read_workbench_response, write_workbench_request,
+    WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome as Outcome, WorkbenchRequest,
+    WorkbenchResponse, read_workbench_response, write_workbench_request,
 };
 use std::{io, time::Instant};
 
@@ -74,121 +72,16 @@ impl LocalClient {
             ExchangeAttempt::ReadDeadline(_) => "response-deadline",
             ExchangeAttempt::Result(response) => match response {
                 WorkbenchResponse::Command(result) if result.request_id == command.request_id => {
-                    if compatible(&command, &result.outcome) {
+                    if command.admits_creation_outcome(&result.outcome) {
                         return CreationSubmission::Outcome(Box::new(result.outcome));
                     }
                     "outcome-mismatch"
                 }
+                // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
                 _ => "response-mismatch",
             },
         };
         self.connection.take();
         CreationSubmission::Unknown { reason }
-    }
-}
-fn compatible(command: &WorkbenchCommand, outcome: &Outcome) -> bool {
-    let structure = matches!(command.action, WorkbenchAction::TabCreateLayout { .. });
-    match outcome {
-        Outcome::Denied {} => return true,
-        Outcome::LaunchProfileUnavailable {} | Outcome::LaunchProfileAmbiguous { .. } => {
-            return matches!(
-                command.action,
-                WorkbenchAction::PanelCreateTerminal {
-                    profile: Some(_),
-                    ..
-                }
-            );
-        }
-        Outcome::Rejected { reason, .. } => {
-            return match reason {
-                Rejection::SiteMismatch
-                | Rejection::RevisionMismatch
-                | Rejection::TerminalContextUnavailable
-                | Rejection::ResourceLimit
-                | Rejection::RevisionExhausted
-                | Rejection::RequestIdentityConflict => true,
-                Rejection::IdentityExhausted => {
-                    structure
-                        || matches!(
-                            command.action,
-                            WorkbenchAction::PanelCreateTerminal {
-                                target: WorkbenchPanelTerminalTarget::Child { .. },
-                                ..
-                            }
-                        )
-                }
-                Rejection::TabUnavailable
-                | Rejection::PanelUnavailable
-                | Rejection::WorkspaceDirectoryUnavailable => !structure,
-                _ => false,
-            };
-        }
-        Outcome::Unavailable { reason } => {
-            return match reason {
-                Unavailable::RequestLedgerFull
-                | Unavailable::ServiceUnavailable
-                | Unavailable::TerminalBusy => true,
-                Unavailable::NoCompatibleWorker
-                | Unavailable::ServerBusy
-                | Unavailable::TerminalRuntimeUnavailable
-                | Unavailable::DirectoryUnavailable => !structure,
-            };
-        }
-        _ => {}
-    }
-    let Some(next) = command.expected_revision.value().checked_add(1) else {
-        return false;
-    };
-    match (&command.action, outcome) {
-        (
-            WorkbenchAction::TabCreateLayout {
-                terminal_context_id: expected,
-                ..
-            },
-            Outcome::TabLayoutCreated {
-                revision,
-                terminal_context_id,
-                ..
-            },
-        ) => revision.value() == next && terminal_context_id == expected,
-        (
-            WorkbenchAction::PanelCreateTerminal {
-                terminal_context_id: context,
-                tab_id: tab,
-                panel_id: panel,
-                target,
-                geometry,
-                ..
-            },
-            Outcome::PanelTerminalPending {
-                revision,
-                terminal_context_id,
-                tab_id,
-                panel_id,
-                presentation_id,
-            }
-            | Outcome::PanelTerminalCreated {
-                revision,
-                terminal_context_id,
-                tab_id,
-                panel_id,
-                presentation_id,
-                ..
-            },
-        ) => {
-            revision.value() == next
-                && terminal_context_id == context
-                && tab_id == tab
-                && panel_id == panel
-                && match target {
-                    WorkbenchPanelTerminalTarget::Unbound {
-                        presentation_id: expected,
-                    } => presentation_id == expected,
-                    WorkbenchPanelTerminalTarget::Child { .. } => true,
-                }
-                && !matches!(outcome,
-                    Outcome::PanelTerminalCreated { terminal_outcome: WorkbenchTerminalOutcome::Started { geometry: actual }, .. } if actual != geometry)
-        }
-        _ => false,
     }
 }

@@ -58,6 +58,7 @@ impl ViewerProjection {
                 attachment_id.as_str() == self.attachment_id.to_text()
                     && *sequence == flight.sequence
             }
+            // Only the selected viewer actions produce the specialized record or feedback checked here.
             _ => false,
         }
     }
@@ -121,6 +122,7 @@ impl ViewerProjection {
                 self.needs_snapshot = true;
                 self.content_version = None;
             }
+            // Projection routing accepts only admitted frame kinds with their required payload encodings.
             _ => return Err(()),
         }
         Ok(())

@@ -19,6 +19,12 @@ at most twice its content length plus 12 encoded bytes. The action match is exha
 an action requires declaring its admissible outcomes. The carrier separately validates request,
 viewer, and controller identities.
 
+## Job result pairing
+
+`WorktreeJobAction::admits` and `WorktreeMutationJobAction::admits` enumerate Start, Poll and
+Cancel response classes. The carrier separately validates operation and job identities,
+including the operation-owned job identity minted by Start.
+
 ## Windows Worker handoff
 
 Frame version 1 adds fixed-size kinds 26 Request, 27 Result, 28 Hello, 29 Ready and 30 Owned.
@@ -255,6 +261,10 @@ Every launch carries one required u8 kind immediately after the launch mode: 0 u
 An explicit selection contains a `u16` executable length, executable bytes, a `u16` argument count and `u16`-length-prefixed argument strings. The executable is a nonempty absolute UTF-8 path without NUL; arguments are NUL-free UTF-8 strings (empty and dash-leading values allowed), at most 128 entries and at most 30,720 UTF-8 bytes across executable and arguments. The selection carries `argv[1..]`; Host synthesizes `argv[0]` from the executable. Kind 0 remains distinct from kind 1 with an empty argument list.
 
 ## Read-only viewer messages
+
+`TerminalViewerAction::admits` exhaustively pairs each viewer action with its response class.
+The carrier separately checks request/attachment correlation and lifecycle target echoes;
+record consumers validate the opaque Host payloads.
 
 The Worker now consumes OBCN kind 5 `TerminalViewerRequest` and emits kind 6
 `TerminalViewerResult`. Server now submits these messages for its admitted Client Sessions alongside Launch/Start. These additive messages remain private and unshipped.

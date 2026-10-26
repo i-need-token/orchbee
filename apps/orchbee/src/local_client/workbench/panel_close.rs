@@ -250,6 +250,7 @@ fn classify_command_result(
                 WorkbenchPanelClosePrecommit::Unavailable { reason },
             ))
         }
+        // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
         _ => Err(WorkbenchPanelCloseFailure::ActionIncompatible),
     }
 }

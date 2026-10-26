@@ -107,6 +107,7 @@ pub fn decode_connection_control(
         (TYPED_FAILURE_KIND, MessageRole::Response) => {
             decode_wire::<TypedFailureWire>(payload).and_then(typed_failure_from_wire)
         }
+        // This codec accepts only its declared message family and request/response roles.
         _ => Err(error(
             ProtocolErrorCode::InvalidField,
             "message kind and role do not select a connection-control payload",

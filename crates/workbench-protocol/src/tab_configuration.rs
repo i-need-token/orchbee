@@ -154,6 +154,7 @@ pub fn configure_tabs(
             let ids = match operation {
                 CreateGroup { tab_id, .. } => std::slice::from_ref(tab_id),
                 CreateGroupForTabs { tab_ids, .. } => tab_ids.as_slice(),
+                // The enclosing branch already selected group creation; other operations carry no initial tab set.
                 _ => unreachable!(),
             };
             assign_group(&mut candidate, ids, Some(id))?;
@@ -430,7 +431,7 @@ fn move_tab(
             (First, true) => 0,
             (First, false) => boundary,
             (Last, true) => boundary - 1,
-            _ => context.tabs.len() - 1,
+            (Last, false) | (Previous | Next, _) => context.tabs.len() - 1,
         };
         let mut tab = context.tabs.remove(start);
         tab.group_id = None;

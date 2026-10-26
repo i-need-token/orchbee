@@ -26,6 +26,7 @@ pub(super) fn record(kind: &str, outcome: &Outcome, clock: &str, locale: Locale)
         Outcome::Matched { event, .. } => event_line(event),
         Outcome::Gap { gap, .. } => locale.events_gap(gap.after.value(), gap.through.value()),
         _ if kind == "opened" => locale.events_listening().to_owned(),
+        // This command consumes its own observation or terminal receipt; unrelated control results have no projection in this phase.
         _ => kind.to_owned(),
     };
     format!("{clock}  {body}\n")

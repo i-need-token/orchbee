@@ -60,6 +60,7 @@ pub(super) fn read(
             decode_connection_control(envelope.kind, envelope.role, envelope.payload),
             Ok(ConnectionControl::TypedFailure(_))
         ) => {}
+        // Only the requested Host acknowledgment can confirm this attachment/process operation.
         _ => return Err(invalid("process read response has the wrong target or payload").into()),
     }
     Ok(TerminalViewerOutcome::Record(record))

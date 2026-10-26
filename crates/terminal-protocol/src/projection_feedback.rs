@@ -72,6 +72,7 @@ pub fn decode_projection_feedback_control(
         (NEED_SNAPSHOT_KIND, MessageRole::Response) => {
             decode_need_snapshot(payload).map(ProjectionFeedbackControl::NeedSnapshotResponse)
         }
+        // This codec accepts only its declared message family and request/response roles.
         _ => Err(invalid_field(
             "message kind and role do not select a projection-feedback payload",
         )),

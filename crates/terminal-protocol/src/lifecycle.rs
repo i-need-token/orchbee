@@ -150,6 +150,7 @@ pub fn decode_lifecycle_control(
         (TERMINAL_FAILED_KIND, MessageRole::Event) => decode_wire::<TerminalFailedWire>(payload)
             .and_then(terminal_failed_from_wire)
             .map(LifecycleControl::TerminalFailed),
+        // This codec accepts only its declared message family and request/response roles.
         _ => Err(invalid_field(
             "message kind and role do not select a terminal-lifecycle payload",
         )),

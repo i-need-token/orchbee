@@ -91,7 +91,13 @@ fn collect(
             ClientViewOutcome::Unavailable { .. } => {
                 return Err(failure(FailureKind::ServiceUnavailable));
             }
-            _ => return Err(failure(FailureKind::ProtocolInvalid)),
+            ClientViewOutcome::Synchronized { .. }
+            | ClientViewOutcome::Found { .. }
+            | ClientViewOutcome::Operation { .. }
+            | ClientViewOutcome::NotFound { .. }
+            | ClientViewOutcome::Conflict { .. } => {
+                return Err(failure(FailureKind::ProtocolInvalid));
+            }
         };
         let explicit = match target {
             PanelQueryTarget::Client(id) => Some(id),

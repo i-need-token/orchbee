@@ -145,7 +145,9 @@ impl<'a> WorkbenchTabMoveAdmission<'a> {
                 ContractError::EncodedValueTooLarge { .. } => {
                     PlanFailure::Rejected(WorkbenchRejectionReason::ResourceLimit)
                 }
-                _ => PlanFailure::Internal,
+                ContractError::InvalidDocument | ContractError::WrongDocumentKind => {
+                    PlanFailure::Internal
+                }
             },
         )?;
         let projection = self
@@ -230,6 +232,7 @@ impl WorkbenchAuthority {
                 tab_id,
                 TabPlacement::InsertIndex(insert_index),
             ),
+            // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
             _ => {
                 return WorkbenchTabMoveBegin::Ready(result(
                     &command,

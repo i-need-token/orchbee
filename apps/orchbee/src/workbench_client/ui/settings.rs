@@ -296,7 +296,13 @@ impl NativeUi {
                     match reason {
                         NativeSettingsFailure::SourceChanged => Notice::SourceChanged,
                         NativeSettingsFailure::Busy => Notice::Busy,
-                        _ => Notice::Failed,
+                        NativeSettingsFailure::Denied
+                        | NativeSettingsFailure::Unavailable
+                        | NativeSettingsFailure::SiteMismatch
+                        | NativeSettingsFailure::InvalidSource
+                        | NativeSettingsFailure::InvalidChanges
+                        | NativeSettingsFailure::WriteFailed
+                        | NativeSettingsFailure::ResponseTooLarge => Notice::Failed,
                     },
                 ),
             },

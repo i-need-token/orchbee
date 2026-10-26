@@ -342,6 +342,7 @@ fn abort_startup(mut owners: Owners, startup: io::Error) -> io::Error {
                     result.outcome,
                     WorkerShutdownOutcome::NoHost | WorkerShutdownOutcome::Stopped { .. }
                 ) => {}
+            // Startup cleanup requires a complete shutdown receipt from this Worker; other responses do not prove it stopped.
             _ => return Err(io::Error::other("startup Worker shutdown unconfirmed")),
         }
         while owners.worker.try_wait()?.is_none() || !owners.carrier.is_finished() {

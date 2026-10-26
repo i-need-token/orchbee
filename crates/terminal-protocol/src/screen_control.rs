@@ -87,6 +87,7 @@ pub fn decode_screen_control(
                 operation: wire.operation,
             })
         }
+        // This codec accepts only its declared message family and request/response roles.
         _ => return Err(invalid("kind/role do not select screen control")),
     })
 }

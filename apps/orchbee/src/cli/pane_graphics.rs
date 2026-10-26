@@ -218,6 +218,7 @@ fn status(outcome: &Outcome) -> u8 {
                 | Reason::SiteMismatch,
         } => 4,
         Outcome::Failed { .. } => 3,
+        // This command consumes its own observation or terminal receipt; unrelated control results have no projection in this phase.
         _ => 0,
     }
 }

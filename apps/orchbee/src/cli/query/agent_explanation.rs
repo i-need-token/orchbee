@@ -74,9 +74,11 @@ impl AgentReadExchange for ExplainRead {
                                 .details(agent_unavailable_details(operation))
                                 .source(source))
                         }
-                        _ => Err(agent_protocol_invalid(operation)),
+                        AgentExplainOutcome::Found { .. } => Err(agent_protocol_invalid(operation)),
                     },
-                    _ => Err(agent_protocol_invalid(operation)),
+                    AgentReadResult::List { .. } | AgentReadResult::Get { .. } => {
+                        Err(agent_protocol_invalid(operation))
+                    }
                 })
             }
             AgentNameTarget::Terminal { binding } => Ok((|| {
@@ -135,16 +137,36 @@ impl AgentReadExchange for ExplainRead {
                             | PanelAgentFailure::Unbound
                             | PanelAgentFailure::BindingChanged => FailureKind::NotFound,
                             PanelAgentFailure::ResultTooLarge => FailureKind::OutputTooLarge,
-                            _ => FailureKind::ProtocolInvalid,
+                            PanelAgentFailure::SiteMismatch
+                            | PanelAgentFailure::InvalidRequest
+                            | PanelAgentFailure::SourceLimit
+                            | PanelAgentFailure::HistoryLimit
+                            | PanelAgentFailure::RevisionExhausted
+                            | PanelAgentFailure::ClockOverflow => FailureKind::ProtocolInvalid,
                         },
                         match reason {
                             PanelAgentFailure::NotFound
                             | PanelAgentFailure::Unbound
                             | PanelAgentFailure::BindingChanged => "binding-changed",
-                            _ => "read-failed",
+                            PanelAgentFailure::Denied
+                            | PanelAgentFailure::Unavailable
+                            | PanelAgentFailure::SiteMismatch
+                            | PanelAgentFailure::InvalidRequest
+                            | PanelAgentFailure::SourceLimit
+                            | PanelAgentFailure::HistoryLimit
+                            | PanelAgentFailure::ResourceLimit
+                            | PanelAgentFailure::RevisionExhausted
+                            | PanelAgentFailure::ClockOverflow
+                            | PanelAgentFailure::ResultTooLarge => "read-failed",
                         },
                     )),
-                    _ => Err(terminal_agent::failure(
+                    PanelAgentOutcome::Titles { .. }
+                    | PanelAgentOutcome::PresentationsRead { .. }
+                    | PanelAgentOutcome::States { .. }
+                    | PanelAgentOutcome::Observed { .. }
+                    | PanelAgentOutcome::Read { .. }
+                    | PanelAgentOutcome::PresentationReported { .. }
+                    | PanelAgentOutcome::Reported { .. } => Err(terminal_agent::failure(
                         FailureKind::ProtocolInvalid,
                         "read-failed",
                     )),

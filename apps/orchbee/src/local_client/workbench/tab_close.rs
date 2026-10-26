@@ -242,6 +242,7 @@ fn classify_command_result(
                 WorkbenchTabClosePrecommit::Unavailable { reason },
             ))
         }
+        // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
         _ => Err(WorkbenchTabCloseFailure::ActionIncompatible),
     }
 }

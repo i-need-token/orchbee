@@ -47,6 +47,9 @@ Canonical encoding uses compact deterministic JSON with ordinary integer tokens.
 
 ## Viewer binding
 
+`TerminalViewerAction::admits` exhaustively pairs each viewer action with its response class.
+Record payload and target validation remain with the consumer that owns their interpretation.
+
 `TerminalViewerRequest`, `TerminalViewerAction`, `TerminalViewerResult`, and `TerminalViewerOutcome`
 provide session-scoped read-only Attach, AttachBinding, Poll, FrameApplied, NeedSnapshot, and Detach
 values. AttachBinding carries separately typed OBCS `SiteId`, `WorkerId`, and `TerminalId` values;

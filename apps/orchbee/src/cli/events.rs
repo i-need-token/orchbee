@@ -171,6 +171,7 @@ fn execute(
                     std::thread::sleep(Duration::from_millis(20));
                 }
                 Outcome::Failed { .. } => break Ok(reply),
+                // This command consumes its own observation or terminal receipt; unrelated control results have no projection in this phase.
                 _ => break Err(Failure::new(FailureKind::ProtocolInvalid)),
             }
         }
@@ -186,6 +187,7 @@ fn execute(
             outcome: Outcome::Closed { .. },
             ..
         }) => "closed",
+        // This command consumes its own observation or terminal receipt; unrelated control results have no projection in this phase.
         _ => "session-released",
     };
     drop(client);
@@ -271,6 +273,7 @@ fn status(outcome: &Outcome) -> u8 {
             reason: Reason::Unavailable | Reason::SourceUnavailable | Reason::RevisionExhausted,
         } => 4,
         Outcome::Failed { .. } => 3,
+        // This command consumes its own observation or terminal receipt; unrelated control results have no projection in this phase.
         _ => 5,
     }
 }
@@ -282,6 +285,7 @@ fn reason(outcome: &Outcome) -> &'static str {
             reason: Reason::PhysicalUnknown,
         } => "physical-unknown",
         Outcome::Failed { .. } => "refused",
+        // This command consumes its own observation or terminal receipt; unrelated control results have no projection in this phase.
         _ => "completed",
     }
 }
@@ -357,7 +361,9 @@ impl Tracker {
             | Outcome::TimedOut { cursor, .. }
             | Outcome::Gap { cursor, .. } => cursor,
             Outcome::Failed { .. } => return Ok(()),
-            _ => return Err(Failure::new(FailureKind::ProtocolInvalid)),
+            Outcome::Opened { .. } | Outcome::Events { .. } | Outcome::Closed { .. } => {
+                return Err(Failure::new(FailureKind::ProtocolInvalid));
+            }
         };
         if cursor.epoch != self.cursor.epoch || cursor.sequence < self.cursor.sequence {
             return Err(Failure::new(FailureKind::ProtocolInvalid));
@@ -380,7 +386,7 @@ impl Tracker {
                     }
                     self.probe_sequence = *sequence;
                 }
-                _ => {}
+                SemanticEventPosition::Journal { .. } => {}
             }
         }
         self.cursor = cursor.clone();

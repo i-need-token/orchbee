@@ -162,6 +162,7 @@ impl Exchange<'_> {
             (true, LifecycleControl::DisposeTerminalAccepted(actual))
             | (false, LifecycleControl::ForceTerminateTerminalAccepted(actual))
                 if actual == target => {}
+            // This lifecycle exchange requires its exact target-bearing acknowledgment; other control records cannot confirm it.
             _ => return Err(invalid()),
         }
         if let Some(cleanup) = cleanup {

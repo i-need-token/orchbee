@@ -115,6 +115,7 @@ impl Reader<'_> {
                 PanelAgentOutcome::Failed {
                     reason: orchbee_workbench_protocol::PanelAgentFailure::Denied,
                 } => return Err(LaneFailure::Denied),
+                // This query consumes only its requested metadata/report payload; other receipt classes cannot answer that query.
                 _ => return Err(LaneFailure::Unavailable),
             }
         }

@@ -116,6 +116,7 @@ pub fn decode_attachment_control(
                 .and_then(attachment_target_from_wire)
                 .map(AttachmentControl::ClaimResizeLease)
         }
+        // This codec accepts only its declared message family and request/response roles.
         _ => Err(invalid_field(
             "message kind and role do not select an attachment-control payload",
         )),

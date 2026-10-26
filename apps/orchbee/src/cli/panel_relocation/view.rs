@@ -43,7 +43,12 @@ pub(super) fn observe(
             ClientViewOutcome::NotFound {} | ClientViewOutcome::Unavailable { .. } => {
                 return Err(Failure::new(FailureKind::ServiceUnavailable));
             }
-            _ => return Err(Failure::new(FailureKind::ProtocolInvalid)),
+            ClientViewOutcome::Synchronized { .. }
+            | ClientViewOutcome::Listed { .. }
+            | ClientViewOutcome::Operation { .. }
+            | ClientViewOutcome::Conflict { .. } => {
+                return Err(Failure::new(FailureKind::ProtocolInvalid));
+            }
         };
         if current.availability != ClientViewAvailability::Current
             || current.view.phase == ClientViewPhase::Unavailable
@@ -121,9 +126,31 @@ pub(super) fn layout(
         .and_then(|reply| match &reply.outcome {
             ClientViewOutcome::Operation { operation } => match &operation.status {
                 ClientViewControlStatus::LayoutRead { layout, .. } => Some(layout),
-                _ => None,
+                ClientViewControlStatus::PopupOpened { .. }
+                | ClientViewControlStatus::PopupClosed { .. }
+                | ClientViewControlStatus::PresentationRead { .. }
+                | ClientViewControlStatus::ViewportRead { .. }
+                | ClientViewControlStatus::NavigationRead { .. }
+                | ClientViewControlStatus::TerminalAttentionRead { .. }
+                | ClientViewControlStatus::AttentionRead { .. }
+                | ClientViewControlStatus::LayoutAdjusted { .. }
+                | ClientViewControlStatus::DirectionFocused { .. }
+                | ClientViewControlStatus::DirectionUnchanged { .. }
+                | ClientViewControlStatus::Queued { .. }
+                | ClientViewControlStatus::Delivered { .. }
+                | ClientViewControlStatus::Applied { .. }
+                | ClientViewControlStatus::ZoomUnchanged { .. }
+                | ClientViewControlStatus::ZoomToggled { .. }
+                | ClientViewControlStatus::Rejected { .. }
+                | ClientViewControlStatus::Incomplete { .. } => None,
             },
-            _ => None,
+            ClientViewOutcome::Synchronized { .. }
+            | ClientViewOutcome::Listed { .. }
+            | ClientViewOutcome::Found { .. }
+            | ClientViewOutcome::NotFound { .. }
+            | ClientViewOutcome::Conflict { .. }
+            | ClientViewOutcome::Denied { .. }
+            | ClientViewOutcome::Unavailable { .. } => None,
         });
     if let Some(layout) = layout.filter(|_| answer.exit_code() == 0) {
         if layout.workbench_revision == snapshot.revision

@@ -303,7 +303,11 @@ impl BufferReader<'_> {
             TerminalViewerOutcome::Detached {} => Ok(()),
             TerminalViewerOutcome::Rejected { reason } => Err(classify_viewer_rejected(*reason)),
             TerminalViewerOutcome::Unavailable { .. } => Err(viewer_unavailable()),
-            _ => Err(viewer_protocol_invalid()),
+            TerminalViewerOutcome::Attached { .. }
+            | TerminalViewerOutcome::Empty { .. }
+            | TerminalViewerOutcome::FeedbackAccepted { .. }
+            | TerminalViewerOutcome::RowsRejected { .. }
+            | TerminalViewerOutcome::Record(..) => Err(viewer_protocol_invalid()),
         }
     }
 
@@ -345,6 +349,7 @@ impl BufferReader<'_> {
                     orchbee_client_server_protocol::ViewerUnavailableReason::TerminalRuntimeUnavailable,
             } => Ok(None),
             TerminalViewerOutcome::Unavailable { .. } => Err(viewer_unavailable()),
+            // Action/result admission belongs to the protocol; this step consumes only its requested viewer record or acknowledgment.
             _ => Err(viewer_protocol_invalid()),
         }
     }
@@ -445,7 +450,11 @@ impl BufferReader<'_> {
                     return Err(classify_viewer_rejected(*reason));
                 }
                 TerminalViewerOutcome::Unavailable { .. } => return Err(viewer_unavailable()),
-                _ => return Err(viewer_protocol_invalid()),
+                TerminalViewerOutcome::Attached { .. }
+                | TerminalViewerOutcome::Empty { .. }
+                | TerminalViewerOutcome::Detached { .. }
+                | TerminalViewerOutcome::RowsRejected { .. }
+                | TerminalViewerOutcome::Record(..) => return Err(viewer_protocol_invalid()),
             }
         }
         self.sequence = self
@@ -490,7 +499,10 @@ impl BufferReader<'_> {
             }
             TerminalViewerOutcome::Rejected { reason } => Err(classify_viewer_rejected(*reason)),
             TerminalViewerOutcome::Unavailable { .. } => Err(viewer_unavailable()),
-            _ => Err(viewer_protocol_invalid()),
+            TerminalViewerOutcome::Attached { .. }
+            | TerminalViewerOutcome::Empty { .. }
+            | TerminalViewerOutcome::FeedbackAccepted { .. }
+            | TerminalViewerOutcome::Detached { .. } => Err(viewer_protocol_invalid()),
         }
     }
     pub(super) fn rows(

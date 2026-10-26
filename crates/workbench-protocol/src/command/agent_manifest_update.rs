@@ -103,7 +103,8 @@ impl AgentManifestUpdateReport {
                         })
                     || match row.result {
                         AgentManifestUpdateDisposition::Failed => row.error.is_none(),
-                        _ => {
+                        AgentManifestUpdateDisposition::Updated
+                        | AgentManifestUpdateDisposition::Current => {
                             row.error.is_some()
                                 || row.cached_version.is_none()
                                 || row.attempted_version != row.cached_version

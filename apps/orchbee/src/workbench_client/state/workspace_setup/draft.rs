@@ -400,7 +400,16 @@ impl WorkbenchClientState {
                     | orchbee_workbench_protocol::TabConfiguration::UpdateGroup { label, .. } => {
                         label.as_str().to_owned()
                     }
-                    _ => return None,
+                    orchbee_workbench_protocol::TabConfiguration::SetGroup { .. }
+                    | orchbee_workbench_protocol::TabConfiguration::Ungroup { .. }
+                    | orchbee_workbench_protocol::TabConfiguration::SetPinned { .. }
+                    | orchbee_workbench_protocol::TabConfiguration::SetTabsGroup { .. }
+                    | orchbee_workbench_protocol::TabConfiguration::SetTabsPinned { .. }
+                    | orchbee_workbench_protocol::TabConfiguration::MoveTab { .. }
+                    | orchbee_workbench_protocol::TabConfiguration::MoveGroup { .. }
+                    | orchbee_workbench_protocol::TabConfiguration::MoveTabsByDrag { .. } => {
+                        return None;
+                    }
                 };
                 tab_configuration = Some(*operation);
                 (

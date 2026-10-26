@@ -139,7 +139,13 @@ fn execute(
             ClientViewOutcome::Unavailable { .. } => {
                 return Err(Failure::new(FailureKind::ServiceUnavailable));
             }
-            _ => return Err(Failure::new(FailureKind::ProtocolInvalid)),
+            ClientViewOutcome::Synchronized { .. }
+            | ClientViewOutcome::Found { .. }
+            | ClientViewOutcome::Operation { .. }
+            | ClientViewOutcome::NotFound { .. }
+            | ClientViewOutcome::Conflict { .. } => {
+                return Err(Failure::new(FailureKind::ProtocolInvalid));
+            }
         };
         selection::current_panel(
             selection::select(&clients, command.client.as_ref(), None)?,
@@ -189,6 +195,7 @@ fn execute(
                     | WorkbenchCommandOutcome::PanelTerminalCreated {
                         presentation_id, ..
                     } => targeting::presentation_exists(&snapshot, presentation_id),
+                    // This step consumes its specific mutation receipt; other command results cannot confirm the requested postcondition.
                     _ => false,
                 };
             if reused {

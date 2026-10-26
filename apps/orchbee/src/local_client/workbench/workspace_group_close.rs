@@ -54,7 +54,7 @@ impl LocalClient {
             ExchangeAttempt::Result(WorkbenchResponse::WorkspaceGroupClose(result))
                 if result.request_id == request_id
                     && result.operation_id == operation_id
-                    && matches_action(&request.action, &result.outcome) =>
+                    && request.action.admits(&result.outcome) =>
             {
                 return Ok(result);
             }
@@ -69,30 +69,5 @@ impl LocalClient {
             submitted: true,
             reason,
         })
-    }
-}
-
-fn matches_action(
-    action: &orchbee_workbench_protocol::WorkspaceGroupCloseAction,
-    outcome: &orchbee_workbench_protocol::WorkspaceGroupCloseOutcome,
-) -> bool {
-    use orchbee_workbench_protocol::{
-        WorkspaceGroupCloseAction as A, WorkspaceGroupCloseOutcome as O,
-    };
-    match (action, outcome) {
-        (
-            A::Start { project_id, .. },
-            O::Available {
-                project_id: actual_project,
-                ..
-            },
-        ) => project_id == actual_project,
-        (
-            A::Resume {
-                expected_attempt, ..
-            },
-            O::Available { attempt, .. },
-        ) => expected_attempt.checked_add(1) == Some(*attempt),
-        _ => true,
     }
 }

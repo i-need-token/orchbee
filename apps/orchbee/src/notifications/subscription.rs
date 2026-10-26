@@ -116,7 +116,7 @@ fn run(
         let message = match result {
             Some(Ok(reply)) => match reply.outcome {
                 NotificationOutcome::Listening { notification } => notification,
-                _ => None,
+                NotificationOutcome::Show { .. } | NotificationOutcome::Failed { .. } => None,
             },
             Some(Err(_)) => {
                 client = None;

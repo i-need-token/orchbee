@@ -277,7 +277,11 @@ impl SiteCoordinator {
                 .retained_authorization(request.terminal_create_request_id())
                 .and_then(presentation_binding)
                 .is_some_and(|binding| self.binding_has_close(&binding)),
-            _ => false,
+            ClientMessage::TerminalControl(..)
+            | ClientMessage::TerminalCreate(..)
+            | ClientMessage::TerminalViewer(..)
+            | ClientMessage::TerminalSend(..)
+            | ClientMessage::TerminalLaunchRead(..) => false,
         };
         self.terminals
             .prepare(start_fenced, request, worker, expiry)

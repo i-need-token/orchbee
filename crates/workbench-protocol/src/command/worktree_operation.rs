@@ -132,6 +132,43 @@ pub enum WorkbenchWorktreeAction {
     },
 }
 impl WorkbenchWorktreeAction {
+    /// Admits the action's receipt, echoed Project, resume attempt and intent-specific progress.
+    #[must_use]
+    pub fn admits(&self, outcome: &WorkbenchWorktreeOutcome) -> bool {
+        use WorkbenchWorktreeOutcome as O;
+        use WorktreeOperationPhase as P;
+        use WorktreeOperationStatus as S;
+        let failed = matches!(
+            outcome,
+            O::Conflict {} | O::Denied {} | O::Unavailable { .. }
+        );
+        match self {
+            Self::Start {
+                project_id, intent, ..
+            } => {
+                matches!(outcome, O::Available { project_id: actual, status, .. }
+                if actual == project_id && match intent {
+                    WorktreeIntent::Remove { .. } => matches!(status.as_ref(),
+                        S::Removed { .. } | S::Failed { .. })
+                        || matches!(status.as_ref(), S::Pending { phase, .. }
+                            if matches!(phase, P::InspectingRemove | P::Closing | P::Removing)),
+                    WorktreeIntent::Create { .. } | WorktreeIntent::Open { .. } => matches!(status.as_ref(),
+                        S::Opened { .. } | S::Failed { .. })
+                        || matches!(status.as_ref(), S::Pending { phase, .. }
+                            if matches!(phase, P::ObservingSource | P::Creating | P::Opening | P::Attaching)),
+                }) || failed
+            }
+            Self::Read { .. } => matches!(outcome, O::Available { .. } | O::NotFound {}) || failed,
+            Self::Resume {
+                expected_attempt, ..
+            } => {
+                matches!(outcome, O::Available { attempt, .. } if expected_attempt.checked_add(1) == Some(*attempt))
+                    || matches!(outcome, O::NotFound {})
+                    || failed
+            }
+        }
+    }
+
     #[must_use]
     pub const fn operation_id(&self) -> &WorkbenchRequestId {
         match self {

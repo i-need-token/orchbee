@@ -73,7 +73,7 @@ impl LocalTerminalService {
                 Action::PopupClose { popup_id } => {
                     self.popup_close(owner, popup_id, PopupKind::Configured)
                 }
-                _ => Err(Failure::InvalidIntent),
+                Action::List { .. } | Action::Invoke { .. } => Err(Failure::InvalidIntent),
             }
         })()
         .unwrap_or_else(|reason| {
@@ -241,6 +241,7 @@ impl LocalTerminalService {
                 owners.remove(&owner);
                 Err(Failure::Unavailable)
             }
+            // This exchange accepts only the result family selected by its submitted request.
             _ => {
                 popup.phase = Phase::Unknown;
                 Ok(Outcome::PopupUnknown {

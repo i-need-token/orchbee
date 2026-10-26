@@ -125,40 +125,36 @@ pub struct AgentManifestsResult {
 }
 impl AgentManifestsResult {
     pub fn answers(&self, request: &AgentManifestsRequest) -> bool {
+        let failed = matches!(&self.outcome, AgentManifestsOutcome::Failed { .. });
         self.request_id == request.request_id
             && self.site_id == request.site_id
-            && match (&request.action, &self.outcome) {
-                (_, AgentManifestsOutcome::Failed { .. }) => true,
-                (AgentManifestsAction::Current {}, AgentManifestsOutcome::Current { .. }) => true,
-                (
-                    AgentManifestsAction::Reload {
-                        operation_id: expected,
-                    }
-                    | AgentManifestsAction::Update {
-                        operation_id: expected,
-                    }
-                    | AgentManifestsAction::Operation {
-                        operation_id: expected,
-                    },
-                    AgentManifestsOutcome::Operation {
-                        operation_id,
-                        status,
-                    },
-                ) => {
-                    expected == operation_id
-                        && !matches!(
-                            (&request.action, status),
-                            (
-                                AgentManifestsAction::Reload { .. },
-                                AgentManifestsOperation::Updated { .. }
-                                    | AgentManifestsOperation::Unknown { .. }
-                            ) | (
-                                AgentManifestsAction::Update { .. },
-                                AgentManifestsOperation::Applied { .. }
-                            )
-                        )
+            && match &request.action {
+                AgentManifestsAction::Current {} => {
+                    matches!(&self.outcome, AgentManifestsOutcome::Current { .. }) || failed
                 }
-                _ => false,
+                AgentManifestsAction::Reload {
+                    operation_id: expected,
+                } => {
+                    matches!(&self.outcome,
+                    AgentManifestsOutcome::Operation { operation_id, status: AgentManifestsOperation::Pending {} | AgentManifestsOperation::Applied { .. } | AgentManifestsOperation::Failed { .. } }
+                    if expected == operation_id)
+                        || failed
+                }
+                AgentManifestsAction::Update {
+                    operation_id: expected,
+                } => {
+                    matches!(&self.outcome,
+                    AgentManifestsOutcome::Operation { operation_id, status: AgentManifestsOperation::Pending {} | AgentManifestsOperation::Updated { .. } | AgentManifestsOperation::Unknown { .. } | AgentManifestsOperation::Failed { .. } }
+                    if expected == operation_id)
+                        || failed
+                }
+                AgentManifestsAction::Operation {
+                    operation_id: expected,
+                } => {
+                    matches!(&self.outcome,
+                    AgentManifestsOutcome::Operation { operation_id, .. } if expected == operation_id)
+                        || failed
+                }
             }
     }
     pub fn validate(&self) -> Result<(), ContractError> {

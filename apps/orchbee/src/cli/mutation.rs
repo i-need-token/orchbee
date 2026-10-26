@@ -491,6 +491,7 @@ mod linux {
                         Self::Response(_) | Self::UnexpectedResponse => "response-invalid",
                         Self::CorrelationMismatch { .. } => "correlation-mismatch",
                         Self::ActionIncompatible => "action-incompatible",
+                        // Only the explicitly recognized protocol failures have a more specific transport classification here.
                         _ => "validation-failed",
                     }
                 }
@@ -535,6 +536,7 @@ mod linux {
                         Self::Response(_) | Self::UnexpectedResponse => "response-invalid",
                         Self::CorrelationMismatch { .. } => "correlation-mismatch",
                         Self::ActionIncompatible => "action-incompatible",
+                        // Only the explicitly recognized protocol failures have a more specific transport classification here.
                         _ => "validation-failed",
                     }
                 }
@@ -710,6 +712,7 @@ mod linux {
                     finished: false,
                 })
             }
+            // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
             _ => None,
         }
     }
@@ -1461,6 +1464,7 @@ mod linux {
                         let action = match &resolved.action {
                             WorkbenchAction::WorkspaceMove { .. } => "workspace.move",
                             WorkbenchAction::WorkspaceMoveBlock { .. } => "workspace.move-block",
+                            // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
                             _ => return Err(internal()),
                         };
                         let mut result = receipt(
@@ -1488,6 +1492,7 @@ mod linux {
                                     result = result.id("beforeWorkspaceId", before.as_str());
                                 }
                             }
+                            // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
                             _ => return Err(internal()),
                         }
                         Ok(result)
@@ -1678,6 +1683,7 @@ mod linux {
                         base.custom_label = Some(label.clone());
                         base
                     }
+                    // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
                     _ => return Err(internal()),
                 };
                 match client.submit_workbench_label_rename(request, deadline) {
@@ -1722,6 +1728,7 @@ mod linux {
                         base = base.schema(super::super::schema::TAB_MOVE_RESULT_ID);
                         base.insert_index = Some(*insert_index);
                     }
+                    // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
                     _ => unreachable!("Tab move dispatch"),
                 }
                 match client.submit_workbench_tab_move(request, deadline) {
@@ -2097,6 +2104,7 @@ mod linux {
             WorkbenchAction::WorkspaceCreate { project_id, .. } => {
                 project_id.as_ref().map(WorkbenchProjectId::as_str)
             }
+            // Only actions carrying this operand expose it to the CLI result projection.
             _ => None,
         }
     }
@@ -2106,6 +2114,7 @@ mod linux {
             WorkbenchAction::WorkspacePrimaryDirectoryAccept { workspace_id, .. } => {
                 workspace_id.as_str()
             }
+            // Only actions carrying this operand expose it to the CLI result projection.
             _ => "",
         }
     }
@@ -2115,6 +2124,7 @@ mod linux {
     fn resolved_path(action: &WorkbenchAction) -> &str {
         match action {
             WorkbenchAction::WorkspacePrimaryDirectoryAccept { path, .. } => path.as_str(),
+            // Only actions carrying this operand expose it to the CLI result projection.
             _ => "",
         }
     }
@@ -2129,6 +2139,7 @@ mod linux {
             | WorkbenchAction::TabCreate { label, .. }
             | WorkbenchAction::TabRename { label, .. }
             | WorkbenchAction::PanelSplit { label, .. } => label.as_str(),
+            // Only actions carrying this operand expose it to the CLI result projection.
             _ => "",
         }
     }
@@ -2351,6 +2362,7 @@ mod linux {
                 ..
             } => selector.as_str(),
             WorkbenchAction::LaunchProfileDelete { selector } => selector.as_str(),
+            // Only actions carrying this operand expose it to the CLI result projection.
             _ => "",
         }
     }
@@ -2360,6 +2372,7 @@ mod linux {
     fn resolved_profile_name(action: &WorkbenchAction) -> &str {
         match action {
             WorkbenchAction::LaunchProfileCreate { name, .. } => name.as_str(),
+            // Only actions carrying this operand expose it to the CLI result projection.
             _ => "",
         }
     }

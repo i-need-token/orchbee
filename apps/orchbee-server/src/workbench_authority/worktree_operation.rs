@@ -158,7 +158,9 @@ impl WorkbenchAuthority {
                                 workspace_id: workspace_id.clone(),
                             }
                         }
-                        _ => WorktreeWorkspaceDisposition::Unassociated {},
+                        WorktreeIntent::Create { .. } | WorktreeIntent::Open { .. } => {
+                            WorktreeWorkspaceDisposition::Unassociated {}
+                        }
                     },
                     git_effect: WorktreeGitEffect::None,
                     restoration: None,
@@ -226,6 +228,7 @@ impl WorkbenchAuthority {
                         {
                             WorktreeOperationPhase::Opening
                         }
+                        // This observer is scoped to one Worktree intent and its corresponding progress or retained receipt.
                         _ => initial_phase(&record.plan.intent),
                     }
                 };
@@ -385,6 +388,7 @@ impl WorkbenchAuthority {
                 orchbee_workbench_protocol::SemanticEventKind::WorktreeRemoved,
                 Some(workspace_id.clone()),
             )),
+            // This observer is scoped to one Worktree intent and its corresponding progress or retained receipt.
             _ => None,
         };
         if let Some((kind, workspace)) = event {

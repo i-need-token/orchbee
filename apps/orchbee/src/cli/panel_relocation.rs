@@ -101,7 +101,13 @@ fn select_client(
         ClientViewOutcome::Unavailable { .. } => {
             return Err(Failure::new(FailureKind::ServiceUnavailable));
         }
-        _ => return Err(Failure::new(FailureKind::ProtocolInvalid)),
+        ClientViewOutcome::Synchronized { .. }
+        | ClientViewOutcome::Found { .. }
+        | ClientViewOutcome::Operation { .. }
+        | ClientViewOutcome::NotFound { .. }
+        | ClientViewOutcome::Conflict { .. } => {
+            return Err(Failure::new(FailureKind::ProtocolInvalid));
+        }
     };
     if clients.is_empty() && command.client.is_none() && !command.focus && command.ratio().is_none()
     {

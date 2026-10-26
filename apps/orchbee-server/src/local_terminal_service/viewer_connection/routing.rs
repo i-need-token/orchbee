@@ -296,6 +296,7 @@ impl LocalTerminalConnection<'_> {
                             &record,
                         ),
                         Action::Poll { .. } => valid_poll_record(viewer, &record),
+                        // Only the selected viewer actions produce the specialized record or feedback checked here.
                         _ => viewer.projection.receive(&record).is_ok(),
                     };
                     if accepted {
@@ -509,6 +510,7 @@ fn valid_selection_action_record(
                     && finished.export_sequence == *export_sequence
                     && finished.status == SelectionExportStatus::Cancelled
         ),
+        // Only the selected viewer actions produce the specialized record or feedback checked here.
         _ => false,
     }
 }
@@ -616,6 +618,7 @@ pub(super) fn valid_poll_record(viewer: &mut ViewerAttachment, record: &[u8]) ->
                 Ok(orchbee_terminal_protocol::LifecycleControl::TerminalFailed(event)) => {
                     event.identity
                 }
+                // This lifecycle exchange requires its exact target-bearing acknowledgment; other control records cannot confirm it.
                 _ => return false,
             };
             identity.terminal_id.as_bytes() == &viewer.target.identity.terminal_id().as_bytes()
@@ -635,6 +638,7 @@ pub(super) fn valid_poll_record(viewer: &mut ViewerAttachment, record: &[u8]) ->
                     Ok(TerminalEffectEvent::ClipboardWriteRequest(event)) => {
                         event.attachment_id == viewer.projection.attachment_id
                     }
+                    // This event stream observes only its declared lifecycle/effect records; unrelated records cannot advance it.
                     _ => false,
                 }
         }

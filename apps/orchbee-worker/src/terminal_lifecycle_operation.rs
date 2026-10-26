@@ -192,7 +192,12 @@ fn response_outcome(
             TerminalLifecycleAction::TerminateIfIdle if failure.code == "confirmation-required" => {
                 TerminalLifecycleOutcome::HostFailure(LifecycleHostFailure::ConfirmationRequired)
             }
-            _ => TerminalLifecycleOutcome::HostFailure(LifecycleHostFailure::HostRefused),
+            TerminalLifecycleAction::Terminate
+            | TerminalLifecycleAction::TerminateIfIdle
+            | TerminalLifecycleAction::Force
+            | TerminalLifecycleAction::Dispose => {
+                TerminalLifecycleOutcome::HostFailure(LifecycleHostFailure::HostRefused)
+            }
         });
     }
     if matches!(
@@ -213,25 +218,27 @@ fn response_outcome(
             request.target.terminal_id().as_bytes(),
         )?,
     };
-    let outcome = match (request.action, accepted) {
-        (
-            TerminalLifecycleAction::TerminateIfIdle,
-            LifecycleControl::TerminateTerminalIfIdleAccepted(observed),
-        ) if observed == target => TerminalLifecycleOutcome::TerminateAccepted,
-        (
-            TerminalLifecycleAction::Terminate,
-            LifecycleControl::TerminateTerminalAccepted(observed),
-        ) if observed == target => TerminalLifecycleOutcome::TerminateAccepted,
-        (
-            TerminalLifecycleAction::Force,
-            LifecycleControl::ForceTerminateTerminalAccepted(observed),
-        ) if observed == target => TerminalLifecycleOutcome::ForceAccepted,
-        (TerminalLifecycleAction::Dispose, LifecycleControl::DisposeTerminalAccepted(observed))
-            if observed == target =>
-        {
+    let outcome = match request.action {
+        TerminalLifecycleAction::TerminateIfIdle if matches!(&accepted, LifecycleControl::TerminateTerminalIfIdleAccepted(observed) if observed == &target) => {
+            TerminalLifecycleOutcome::TerminateAccepted
+        }
+        TerminalLifecycleAction::Terminate if matches!(&accepted, LifecycleControl::TerminateTerminalAccepted(observed) if observed == &target) => {
+            TerminalLifecycleOutcome::TerminateAccepted
+        }
+        TerminalLifecycleAction::Force if matches!(&accepted, LifecycleControl::ForceTerminateTerminalAccepted(observed) if observed == &target) => {
+            TerminalLifecycleOutcome::ForceAccepted
+        }
+        TerminalLifecycleAction::Dispose if matches!(&accepted, LifecycleControl::DisposeTerminalAccepted(observed) if observed == &target) => {
             TerminalLifecycleOutcome::Disposed
         }
-        _ => return Err(io::Error::other("unexpected lifecycle ACK target or action").into()),
+        TerminalLifecycleAction::Terminate
+        | TerminalLifecycleAction::TerminateIfIdle
+        | TerminalLifecycleAction::Force
+        | TerminalLifecycleAction::Dispose
+        | TerminalLifecycleAction::InventoryPage { .. }
+        | TerminalLifecycleAction::InspectInventoryPage { .. } => {
+            return Err(io::Error::other("unexpected lifecycle ACK target or action").into());
+        }
     };
     Ok(outcome)
 }

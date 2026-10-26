@@ -139,7 +139,9 @@ impl WorkbenchAuthority {
                 ContractError::EncodedValueTooLarge { .. } => {
                     PlanFailure::Rejected(WorkbenchRejectionReason::ResourceLimit)
                 }
-                _ => PlanFailure::Internal,
+                ContractError::InvalidDocument | ContractError::WrongDocumentKind => {
+                    PlanFailure::Internal
+                }
             },
         )?;
         let projection = self

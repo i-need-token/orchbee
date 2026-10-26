@@ -109,6 +109,7 @@ impl UserLaunchProfiles {
     pub fn invalid_field(&self) -> Option<(usize, UserLaunchField)> {
         match self.validation() {
             Err(ValidationFailure::Field(index, field)) => Some((index, field)),
+            // Structural catalog failures have no single profile field to focus.
             _ => None,
         }
     }

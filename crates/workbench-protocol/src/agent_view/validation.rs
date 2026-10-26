@@ -38,24 +38,22 @@ fn value(field_value: &AgentViewField, value: &AgentViewValue) -> Result<(), Con
     field(field_value)?;
     use AgentViewBuiltinField as B;
     use AgentViewField::Builtin;
-    let valid = match (field_value, value) {
-        (Builtin(B::WorkspaceId), AgentViewValue::Context(c)) => {
-            c.context == AgentViewContextOperand::CurrentWorkspaceId
+    let valid = match field_value {
+        Builtin(B::WorkspaceId) => {
+            matches!(value, AgentViewValue::Context(c) if c.context == AgentViewContextOperand::CurrentWorkspaceId)
+                || matches!(value, AgentViewValue::String(_))
         }
-        (Builtin(B::TabId), AgentViewValue::Context(c)) => {
-            c.context == AgentViewContextOperand::CurrentTabId
+        Builtin(B::TabId) => {
+            matches!(value, AgentViewValue::Context(c) if c.context == AgentViewContextOperand::CurrentTabId)
+                || matches!(value, AgentViewValue::String(_))
         }
-        (Builtin(B::Seen), AgentViewValue::Bool(_)) => true,
-        (Builtin(B::StateChangeSeq), AgentViewValue::Number(_)) => true,
-        (Builtin(B::Status), AgentViewValue::String(s)) => matches!(
-            s.as_str(),
-            "idle" | "working" | "blocked" | "done" | "error" | "unknown"
-        ),
-        (
-            Builtin(B::WorkspaceId | B::TabId | B::PaneId | B::Agent) | AgentViewField::Token(_),
-            AgentViewValue::String(_),
-        ) => true,
-        _ => false,
+        Builtin(B::Seen) => matches!(value, AgentViewValue::Bool(_)),
+        Builtin(B::StateChangeSeq) => matches!(value, AgentViewValue::Number(_)),
+        Builtin(B::Status) => matches!(value, AgentViewValue::String(s)
+            if matches!(s.as_str(), "idle" | "working" | "blocked" | "done" | "error" | "unknown")),
+        Builtin(B::PaneId | B::Agent) | AgentViewField::Token(_) => {
+            matches!(value, AgentViewValue::String(_))
+        }
     };
     if valid {
         Ok(())

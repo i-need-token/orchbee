@@ -174,6 +174,7 @@ impl WorkspaceCloseResult {
                         reason: orchbee_workbench_protocol::WorkspaceGroupCloseFailure::OutcomeUnknown, ..
                     }, ..
                 }) => WorkspaceCloseStatus::Unknown,
+            // This Close continuation requires the corresponding published receipt; other child states cannot prove final disposal.
             _ => WorkspaceCloseStatus::Failed,
         }
     }

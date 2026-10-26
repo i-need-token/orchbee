@@ -92,7 +92,18 @@ fn execute(
                         serde_json::json!(id),
                     )]))
             })?,
-        _ => return emit(Some(catalog), None, true, "invoke", format, locale),
+        Outcome::ShellStarted { .. }
+        | Outcome::Pane { .. }
+        | Outcome::Plugin { .. }
+        | Outcome::PopupControl { .. }
+        | Outcome::PopupOpened { .. }
+        | Outcome::PopupState { .. }
+        | Outcome::PopupClosing { .. }
+        | Outcome::PopupClosed { .. }
+        | Outcome::PopupUnknown { .. }
+        | Outcome::Failed { .. } => {
+            return emit(Some(catalog), None, true, "invoke", format, locale);
+        }
     };
     let caller = if explicit.is_none() {
         PanelTarget::prepare_optional(|name| std::env::var_os(name))?
@@ -180,7 +191,15 @@ fn execute(
             )?;
             selected = match reply.outcome {
                 ClientViewOutcome::Found { client } => Some(*client),
-                _ => return Err(Failure::new(FailureKind::ServiceUnavailable)),
+                ClientViewOutcome::Synchronized { .. }
+                | ClientViewOutcome::Listed { .. }
+                | ClientViewOutcome::Operation { .. }
+                | ClientViewOutcome::NotFound { .. }
+                | ClientViewOutcome::Conflict { .. }
+                | ClientViewOutcome::Denied { .. }
+                | ClientViewOutcome::Unavailable { .. } => {
+                    return Err(Failure::new(FailureKind::ServiceUnavailable));
+                }
             };
         }
     }
@@ -346,6 +365,7 @@ fn target_intent(
             tab_id,
             ..
         } => Some((terminal_context_id.clone(), Some(tab_id.clone()))),
+        // This handler implements its own ClientView intent subset; other intents belong to their feature handlers.
         _ => None,
     };
     if let (Some(workspace), Some(child)) = (&workspace, panel.as_ref().or(tab.as_ref()))
@@ -423,8 +443,10 @@ fn emit(
                         orchbee_workbench_protocol::WorkbenchTerminalOutcome::OutcomeUnknown {},
                     ..
                 } => 8,
+                // This step consumes its specific mutation receipt; other command results cannot confirm the requested postcondition.
                 _ => 3,
             },
+            // This step consumes its specific mutation receipt; other command results cannot confirm the requested postcondition.
             _ => status,
         };
     }

@@ -137,7 +137,7 @@ impl AgentViewAction {
             Self::Clear {
                 source: Some(source),
             } => validation::source(source).map(|_| ()),
-            _ => Ok(()),
+            Self::Read {} | Self::Clear { source: None } => Ok(()),
         }
     }
     #[must_use]

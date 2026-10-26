@@ -170,7 +170,13 @@ fn observe(
                 ClientViewOutcome::Unavailable { .. } => {
                     return Err(Failure::new(FailureKind::ServiceUnavailable));
                 }
-                _ => return Err(Failure::new(FailureKind::ProtocolInvalid)),
+                ClientViewOutcome::Synchronized { .. }
+                | ClientViewOutcome::Found { .. }
+                | ClientViewOutcome::Operation { .. }
+                | ClientViewOutcome::NotFound { .. }
+                | ClientViewOutcome::Conflict { .. } => {
+                    return Err(Failure::new(FailureKind::ProtocolInvalid));
+                }
             };
             let selected = selection::select(&clients, explicit.as_ref(), caller.as_ref())?;
             let intent = if let ClientNavigationTarget::Agent(agent) = target {
@@ -448,7 +454,22 @@ fn monotonic(previous: &WorkbenchClientViewResult, next: &WorkbenchClientViewRes
             ClientViewControlStatus::Delivered {} => {
                 !matches!(next.status, ClientViewControlStatus::Queued {})
             }
-            _ => previous.status == next.status,
+            ClientViewControlStatus::PopupOpened { .. }
+            | ClientViewControlStatus::PopupClosed { .. }
+            | ClientViewControlStatus::PresentationRead { .. }
+            | ClientViewControlStatus::ViewportRead { .. }
+            | ClientViewControlStatus::NavigationRead { .. }
+            | ClientViewControlStatus::TerminalAttentionRead { .. }
+            | ClientViewControlStatus::AttentionRead { .. }
+            | ClientViewControlStatus::LayoutAdjusted { .. }
+            | ClientViewControlStatus::DirectionFocused { .. }
+            | ClientViewControlStatus::DirectionUnchanged { .. }
+            | ClientViewControlStatus::LayoutRead { .. }
+            | ClientViewControlStatus::Applied { .. }
+            | ClientViewControlStatus::ZoomUnchanged { .. }
+            | ClientViewControlStatus::ZoomToggled { .. }
+            | ClientViewControlStatus::Rejected { .. }
+            | ClientViewControlStatus::Incomplete { .. } => previous.status == next.status,
         }
 }
 pub(in crate::cli) fn exchange(

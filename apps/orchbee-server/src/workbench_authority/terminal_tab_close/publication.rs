@@ -360,7 +360,7 @@ pub(super) fn leaf_presentation<'a>(
         PanelNode::Split { children, .. } => children
             .iter()
             .find_map(|slot| leaf_presentation(&slot.node, panel_id)),
-        _ => None,
+        PanelNode::Panel { .. } => None,
     }
 }
 

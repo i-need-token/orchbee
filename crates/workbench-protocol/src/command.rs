@@ -1,4 +1,5 @@
 mod close_operation;
+mod creation;
 pub use close_operation::{
     CloseOperationOutcome, CloseOperationRead, CloseOperationResult, CloseOperationTarget,
 };
@@ -1607,6 +1608,7 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
                 || options.plugin_context.is_some()
                 || (launch.is_some() && profile.is_some())
         }
+        // Only launch-bearing actions expose mutually exclusive program/profile/plugin selectors.
         _ => false,
     };
     if conflicting {
@@ -1886,7 +1888,9 @@ mod snapshot_document {
     ) -> Result<Snapshot, D::Error> {
         match WorkbenchProtocolDocument::deserialize(deserializer)? {
             WorkbenchProtocolDocument::Snapshot(snapshot) => Ok(snapshot),
-            _ => Err(de::Error::custom("expected a complete Workbench snapshot")),
+            WorkbenchProtocolDocument::SnapshotRead(..) | WorkbenchProtocolDocument::Delta(..) => {
+                Err(de::Error::custom("expected a complete Workbench snapshot"))
+            }
         }
     }
 }

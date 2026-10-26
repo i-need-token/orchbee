@@ -100,7 +100,13 @@ pub fn validate_tab_creation(
         {
             Err(R::ResourceLimit)
         }
-        _ => Ok(()),
+        Some(
+            TabCreationPlacement::InGroup { .. }
+            | TabCreationPlacement::Duplicate { .. }
+            | TabCreationPlacement::AfterTab { .. }
+            | TabCreationPlacement::NewGroup {},
+        )
+        | None => Ok(()),
     }
 }
 

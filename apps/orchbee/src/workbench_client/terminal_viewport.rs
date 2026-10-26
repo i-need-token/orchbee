@@ -51,6 +51,7 @@ pub(crate) fn decode_history_changed(
         Ok(HistoryControl::HistoryChanged(changed)) if changed.attachment_id == *attachment => {
             Ok(Some(changed))
         }
+        // This observer accepts only history-change events; demand acknowledgments belong to their request exchanges.
         _ => Err(()),
     }
 }

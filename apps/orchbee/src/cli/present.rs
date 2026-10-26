@@ -1797,7 +1797,9 @@ fn agent_changes(
             ))?;
             cursor
         }
-        _ => unreachable!("refusals do not reach successful change projection"),
+        AgentChangesOutcome::Rejected { .. } | AgentChangesOutcome::Unavailable { .. } => {
+            unreachable!("refusals do not reach successful change projection")
+        }
     };
     out.push(&locale.cli_agent_next_cursor(cursor.as_str()))
 }

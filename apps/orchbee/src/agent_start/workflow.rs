@@ -232,6 +232,7 @@ impl Workflow<'_> {
                 self.state = ReservationState::None;
                 return Err(refusal(outcome));
             }
+            // This Agent launch phase consumes its corresponding receipt; other outcomes cannot establish that phase.
             _ => return Err(error(FailureKind::OutcomeUnknown, "reply-not-confirmed")),
         };
         self.state = ReservationState::Pending;
@@ -446,6 +447,7 @@ impl Workflow<'_> {
                             self.state = ReservationState::Pending;
                             return Err(refusal(other));
                         }
+                        // This Agent launch phase consumes its corresponding receipt; other outcomes cannot establish that phase.
                         _ => return Err(error(FailureKind::OutcomeUnknown, "reply-not-confirmed")),
                     }
                 }
@@ -488,6 +490,7 @@ impl Workflow<'_> {
                 reason:
                     orchbee_agent_observation_protocol::AgentLaunchRejectionReason::ReservationNotFound,
             }) => self.state = ReservationState::Released,
+            // This Agent launch phase consumes its corresponding receipt; other outcomes cannot establish that phase.
             _ => {}
         }
     }
@@ -747,7 +750,11 @@ fn refusal(outcome: AgentLaunchOutcome) -> Failure {
         AgentLaunchOutcome::Unavailable { .. } => {
             error(FailureKind::ServiceUnavailable, "runtime-unavailable")
         }
-        _ => invalid(),
+        AgentLaunchOutcome::Status { .. }
+        | AgentLaunchOutcome::Reserved { .. }
+        | AgentLaunchOutcome::Pending { .. }
+        | AgentLaunchOutcome::Completed { .. }
+        | AgentLaunchOutcome::Released { .. } => invalid(),
     }
 }
 fn exchange(
@@ -782,6 +789,7 @@ fn exchange(
                 "launch-exchange-failed",
             ),
             AgentExchangeError::Failed { .. } => invalid(),
+            // Only the explicitly recognized protocol failures have a more specific transport classification here.
             _ => error(FailureKind::InternalFailure, "launch-exchange-failed"),
         })
 }

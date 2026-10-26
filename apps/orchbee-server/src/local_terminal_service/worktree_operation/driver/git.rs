@@ -94,6 +94,7 @@ impl Driver<'_> {
             WorktreeMutationOutcome::Start(WorktreeMutationStartOutcome::PhysicalUnknown) => {
                 return Err(Failure::PhysicalUnknown {});
             }
+            // This step consumes its own physical Worktree job receipt; other job states cannot confirm that effect.
             _ => return Err(Failure::WorkerUnavailable {}),
         }
         let deadline = (Instant::now() + Duration::from_secs(40)).min(self.deadline);
@@ -140,6 +141,7 @@ impl Driver<'_> {
                     }
                     return Err(Failure::PhysicalUnknown {});
                 }
+                // This step consumes its own physical Worktree job receipt; other job states cannot confirm that effect.
                 _ => {
                     if mutating {
                         self.plan.progress.git_effect = WorktreeGitEffect::MayHaveChanged;

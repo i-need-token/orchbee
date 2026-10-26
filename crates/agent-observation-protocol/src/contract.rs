@@ -337,7 +337,9 @@ fn validate_snapshot(snapshot: &AgentSessionSnapshot) -> Result<(), AgentContrac
                 AgentTurnState::Active {
                     turn_id: active, ..
                 } if active == turn_id => {}
-                _ => return Err(AgentContractError::InvalidDocument),
+                AgentTurnState::Active { .. }
+                | AgentTurnState::Idle {}
+                | AgentTurnState::Unknown {} => return Err(AgentContractError::InvalidDocument),
             }
         }
     }
@@ -436,7 +438,9 @@ fn validate_launch_result(result: &AgentLaunchResult) -> Result<(), AgentContrac
             Ok(())
         }
         AgentLaunchOutcome::Rejected { .. } | AgentLaunchOutcome::Unavailable { .. } => Ok(()),
-        _ => Err(AgentContractError::InvalidDocument),
+        AgentLaunchOutcome::Completed { .. } | AgentLaunchOutcome::Released { .. } => {
+            Err(AgentContractError::InvalidDocument)
+        }
     }
 }
 

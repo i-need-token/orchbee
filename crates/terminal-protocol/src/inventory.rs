@@ -167,6 +167,7 @@ pub fn decode_inventory_control(
         (LIST_TERMINALS_KIND, MessageRole::Response) => {
             decode_wire::<TerminalListWire>(payload).and_then(terminal_list_from_wire)
         }
+        // This codec accepts only its declared message family and request/response roles.
         _ => Err(invalid_field(
             "message kind and role do not select a terminal-inventory payload",
         )),
@@ -661,7 +662,21 @@ fn terminal_summary_from_wire(wire: TerminalSummaryWire) -> Result<TerminalSumma
             geometry: TerminalGeometry { columns, rows },
             process,
         }),
-        _ => Err(invalid_field(
+        (
+            TerminalPhaseWire::AwaitingStart
+            | TerminalPhaseWire::ContainingFailure
+            | TerminalPhaseWire::Exited
+            | TerminalPhaseWire::Failed
+            | TerminalPhaseWire::Finishing
+            | TerminalPhaseWire::Running,
+            _,
+            _,
+            _,
+            _,
+            _,
+            _,
+            _,
+        ) => Err(invalid_field(
             "terminal summary fields do not match its lifecycle phase",
         )),
     }

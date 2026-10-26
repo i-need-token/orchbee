@@ -95,6 +95,7 @@ pub(super) fn discover(
             ) => {
                 return Err(WorktreeNotice::SourceUnavailable);
             }
+            // Action/result admission belongs to the protocol; this step consumes only its requested viewer record or acknowledgment.
             _ => {
                 slot.take();
                 return Err(WorktreeNotice::SourceUnavailable);

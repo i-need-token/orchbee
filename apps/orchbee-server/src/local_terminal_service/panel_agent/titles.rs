@@ -58,7 +58,14 @@ fn state_context(
             Ok((workbench_revision, report_revision, presentations))
         }
         PanelAgentOutcome::Failed { reason } => Err(reason),
-        _ => Err(PanelAgentFailure::BindingChanged),
+        PanelAgentOutcome::Titles { .. }
+        | PanelAgentOutcome::PresentationsRead { .. }
+        | PanelAgentOutcome::Explained { .. }
+        | PanelAgentOutcome::States { .. }
+        | PanelAgentOutcome::Observed { .. }
+        | PanelAgentOutcome::Read { .. }
+        | PanelAgentOutcome::PresentationReported { .. }
+        | PanelAgentOutcome::Reported { .. } => Err(PanelAgentFailure::BindingChanged),
     }
 }
 fn project_titles(

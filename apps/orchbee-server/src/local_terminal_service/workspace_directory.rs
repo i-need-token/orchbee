@@ -79,6 +79,7 @@ impl LocalTerminalService {
                         },
                     ..
                 } => primary_directory_path.as_ref(),
+                // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
                 _ => None,
             };
             let Some(path) = path else {

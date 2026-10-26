@@ -358,6 +358,7 @@ impl WorkbenchClientState {
                         orchbee_workbench_protocol::WorkspacePlacement::Project { project_id },
                     ..
                 } => Some(project_id.as_str()),
+                // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
                 _ => None,
             };
             return Some(QuickRecovery {

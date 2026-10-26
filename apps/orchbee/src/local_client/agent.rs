@@ -102,7 +102,9 @@ impl LocalClient {
                         !checkpoint && changes.len() as u64 <= limit
                     }
                     AgentChangesOutcome::ResetRequired { .. } => !checkpoint,
-                    _ => true,
+                    AgentChangesOutcome::Current { .. }
+                    | AgentChangesOutcome::Rejected { .. }
+                    | AgentChangesOutcome::Unavailable { .. } => true,
                 };
                 if valid {
                     Ok(result)
@@ -113,7 +115,7 @@ impl LocalClient {
                     )
                 }
             }
-            _ => {
+            AgentResult::Read(..) | AgentResult::Names(..) | AgentResult::Launch(..) => {
                 self.retire_with_agent_failure(request_id, AgentExchangeFailure::UnexpectedResponse)
             }
         }

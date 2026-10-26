@@ -101,7 +101,10 @@ impl Driver<'_> {
                     WorkbenchTabCloseStatus::OutcomeUnknown { .. } => {
                         return Err(Failure::OutcomeUnknown);
                     }
-                    _ => return Err(Failure::ChildBlocked),
+                    WorkbenchTabCloseStatus::CleanupBlocked { .. }
+                    | WorkbenchTabCloseStatus::DisposedAwaitingPublication { .. } => {
+                        return Err(Failure::ChildBlocked);
+                    }
                 }
             }
         }
@@ -160,6 +163,7 @@ impl Driver<'_> {
                         | orchbee_workbench_protocol::WorkbenchRejectionReason::SiteMismatch,
                     ..
                 } => return Err(Failure::SourceChanged),
+                // This step consumes its specific mutation receipt; other command results cannot confirm the requested postcondition.
                 _ => return Err(Failure::ChildAdmission),
             };
             self.plan.members[index].member.close = Some(WorkspaceGroupCloseChild {
@@ -287,7 +291,9 @@ impl Driver<'_> {
         match result.outcome {
             WorkbenchWorkspaceCloseResumeOutcome::Resumed { .. }
             | WorkbenchWorkspaceCloseResumeOutcome::Stale { .. } => Ok(()),
-            _ => Err(Failure::ChildBlocked),
+            WorkbenchWorkspaceCloseResumeOutcome::Denied { .. }
+            | WorkbenchWorkspaceCloseResumeOutcome::Unavailable { .. }
+            | WorkbenchWorkspaceCloseResumeOutcome::Rejected { .. } => Err(Failure::ChildBlocked),
         }
     }
 }

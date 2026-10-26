@@ -89,8 +89,16 @@ fn observe(
                 FailureKind::InternalFailure
             }
             PanelAgentFailure::ResultTooLarge => FailureKind::OutputTooLarge,
-            _ => FailureKind::ProtocolInvalid,
+            PanelAgentFailure::SiteMismatch
+            | PanelAgentFailure::InvalidRequest
+            | PanelAgentFailure::NotFound
+            | PanelAgentFailure::Unbound
+            | PanelAgentFailure::BindingChanged
+            | PanelAgentFailure::SourceLimit
+            | PanelAgentFailure::HistoryLimit
+            | PanelAgentFailure::ResourceLimit => FailureKind::ProtocolInvalid,
         })),
+        // This query consumes only its requested metadata/report payload; other receipt classes cannot answer that query.
         _ => Err(Failure::new(FailureKind::ProtocolInvalid)),
     }
 }

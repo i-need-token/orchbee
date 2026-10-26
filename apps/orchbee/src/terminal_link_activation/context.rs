@@ -163,7 +163,14 @@ fn read_presentation_agent<G: Guard>(
             })
         }
         PanelAgentOutcome::Failed { .. } => Err(Error::SourceChanged),
-        _ => Err(Error::ProtocolInvalid),
+        PanelAgentOutcome::Titles { .. }
+        | PanelAgentOutcome::PresentationsRead { .. }
+        | PanelAgentOutcome::Explained { .. }
+        | PanelAgentOutcome::States { .. }
+        | PanelAgentOutcome::Observed { .. }
+        | PanelAgentOutcome::Read { .. }
+        | PanelAgentOutcome::PresentationReported { .. }
+        | PanelAgentOutcome::Reported { .. } => Err(Error::ProtocolInvalid),
     }
 }
 
@@ -199,7 +206,14 @@ fn fence_presentation_agent<G: Guard>(
             Ok(())
         }
         PanelAgentOutcome::Failed { .. } => Err(Error::SourceChanged),
-        _ => Err(Error::ProtocolInvalid),
+        PanelAgentOutcome::Titles { .. }
+        | PanelAgentOutcome::PresentationsRead { .. }
+        | PanelAgentOutcome::Explained { .. }
+        | PanelAgentOutcome::States { .. }
+        | PanelAgentOutcome::Observed { .. }
+        | PanelAgentOutcome::Read { .. }
+        | PanelAgentOutcome::PresentationReported { .. }
+        | PanelAgentOutcome::Reported { .. } => Err(Error::ProtocolInvalid),
     }
 }
 
@@ -310,7 +324,7 @@ fn session_status(session: &AgentSessionSummary) -> Option<&'static str> {
         | AgentSemanticStatus::Canceled {}
         | AgentSemanticStatus::Interrupted {} => Some("error"),
         AgentSemanticStatus::Idle {} => Some("idle"),
-        _ => None,
+        AgentSemanticStatus::Unknown { .. } | AgentSemanticStatus::Ended { .. } => None,
     }
 }
 
@@ -405,7 +419,13 @@ fn worktree<G: Guard>(
             | WorktreeQueryFailure::Timeout {}
             | WorktreeQueryFailure::TransportLoss {} => Err(Error::TransportUnavailable),
             WorktreeQueryFailure::MalformedListing {} => Err(Error::ProtocolInvalid),
-            _ => Ok(None),
+            WorktreeQueryFailure::Unsupported { .. }
+            | WorktreeQueryFailure::Unavailable { .. }
+            | WorktreeQueryFailure::GitFailed { .. }
+            | WorktreeQueryFailure::SpawnUnavailable { .. }
+            | WorktreeQueryFailure::SpawnFailed { .. }
+            | WorktreeQueryFailure::TooLarge { .. }
+            | WorktreeQueryFailure::OwnerIo { .. } => Ok(None),
         };
     };
     if site_id != snapshot.site_id
@@ -465,7 +485,9 @@ fn fresh_snapshot<G: Guard>(
     guard.check(deadline).map_err(Error::Gate)?;
     match result.outcome {
         WorkbenchSnapshotOutcome::Available { snapshot } => Ok(snapshot),
-        _ => Err(Error::SourceChanged),
+        WorkbenchSnapshotOutcome::Denied { .. } | WorkbenchSnapshotOutcome::Unavailable { .. } => {
+            Err(Error::SourceChanged)
+        }
     }
 }
 

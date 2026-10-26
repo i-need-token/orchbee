@@ -79,7 +79,24 @@ impl LocalClient {
                             WorkbenchRejectionReason::ResourceLimit
                             | WorkbenchRejectionReason::RevisionExhausted
                             | WorkbenchRejectionReason::IdentityExhausted => Reason::Busy,
-                            _ => Reason::TargetUnavailable,
+                            WorkbenchRejectionReason::ProjectUnavailable
+                            | WorkbenchRejectionReason::WorkspaceUnavailable
+                            | WorkbenchRejectionReason::WorkspaceMoveIndexOutOfBounds
+                            | WorkbenchRejectionReason::WorkspaceMoveTargetInBlock
+                            | WorkbenchRejectionReason::InvalidNavigationConfiguration
+                            | WorkbenchRejectionReason::WorkspaceGroupCloseRequired
+                            | WorkbenchRejectionReason::WorkspaceDirectoryUnavailable
+                            | WorkbenchRejectionReason::WorkspaceDirectoryConflict
+                            | WorkbenchRejectionReason::TerminalContextUnavailable
+                            | WorkbenchRejectionReason::TabUnavailable
+                            | WorkbenchRejectionReason::TabGroupUnavailable
+                            | WorkbenchRejectionReason::TabMoveIndexOutOfBounds
+                            | WorkbenchRejectionReason::TabMoveOrderConflict
+                            | WorkbenchRejectionReason::PanelUnavailable
+                            | WorkbenchRejectionReason::SplitUnavailable
+                            | WorkbenchRejectionReason::RequestIdentityConflict
+                            | WorkbenchRejectionReason::ConfirmationRequired
+                            | WorkbenchRejectionReason::SameTab => Reason::TargetUnavailable,
                         };
                         return Err(before(reason));
                     }
@@ -87,10 +104,12 @@ impl LocalClient {
                     WorkbenchCommandOutcome::Unavailable { .. } => {
                         return Err(before(Reason::Busy));
                     }
+                    // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
                     _ => {}
                 }
             }
             ExchangeAttempt::NotSubmitted(_) => return Err(before(Reason::ClientDisconnected)),
+            // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
             _ => {}
         }
         self.connection = None;

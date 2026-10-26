@@ -177,7 +177,8 @@ fn run(
                 | NativeSettingsOutcome::Saved { snapshot, .. } => {
                     state.observation = Some(snapshot.clone())
                 }
-                _ => {}
+                NativeSettingsOutcome::OutcomeUnknown { .. }
+                | NativeSettingsOutcome::Refused { .. } => {}
             }
         }
         if let Some(token) = token {

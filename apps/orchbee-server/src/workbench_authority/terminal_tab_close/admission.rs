@@ -246,6 +246,7 @@ impl<'a> WorkbenchWorkspaceCloseAdmission<'a> {
         let workspace_id = match &self.command.action {
             WorkbenchAction::WorkspaceClose { workspace_id }
             | WorkbenchAction::WorkspaceCloseIfIdle { workspace_id } => workspace_id.clone(),
+            // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
             _ => return WorkbenchTabCloseResolution::Ready(self.authority.retire(&self.command)),
         };
         let members: Vec<_> = self.membership.members().to_vec();
@@ -508,6 +509,7 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
                     accepted_revision: self.command.expected_revision,
                 }
             }
+            // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
             _ => return WorkbenchTabClosePreparation::Ready(self.authority.retire(&self.command)),
         };
         let response = result(&self.command, outcome);
@@ -667,6 +669,7 @@ impl WorkbenchAuthority {
                 tab_id,
                 panel_id,
             } => (terminal_context_id, tab_id, Some(panel_id)),
+            // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
             _ => return WorkbenchTabCloseBegin::Ready(self.retire(&command)),
         };
         let snapshot = self.projection.snapshot();
@@ -766,6 +769,7 @@ impl WorkbenchAuthority {
         let workspace_id = match &command.action {
             WorkbenchAction::WorkspaceClose { workspace_id }
             | WorkbenchAction::WorkspaceCloseIfIdle { workspace_id } => workspace_id.clone(),
+            // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
             _ => return WorkbenchWorkspaceCloseBegin::Ready(self.retire(&command)),
         };
         let snapshot = self.projection.snapshot();

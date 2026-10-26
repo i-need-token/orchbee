@@ -396,6 +396,7 @@ impl<'a> WorktreeView<'a> {
                 .strip_prefix("refs/heads/")
                 .unwrap_or(branch)
                 .to_owned(),
+            // This operation needs UTF-8 text operands; opaque path bytes cannot supply them.
             _ => String::new(),
         };
         Some((label, path))
@@ -433,10 +434,12 @@ impl<'a> WorktreeView<'a> {
                         workspace_id,
                         ..
                     } => Some(workspace_id.as_str()),
-                    _ => None,
+                    orchbee_workbench_protocol::WorktreeWorkspaceDisposition::Unassociated {
+                        ..
+                    } => None,
                 }
             }
-            _ => None,
+            orchbee_workbench_protocol::WorktreeOperationStatus::Removed { .. } => None,
         }
     }
 }

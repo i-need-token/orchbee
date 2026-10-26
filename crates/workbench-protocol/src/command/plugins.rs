@@ -564,101 +564,84 @@ impl PluginResult {
         self.request_id == request.request_id
             && self.site_id == request.site_id
             && self.validate().is_ok()
-            && match (&request.action, &self.outcome) {
-                (
-                    PluginAction::PopupOpen { popup_id, .. },
-                    PluginOutcome::PopupOpened {
+            && {
+                let shared_failure = matches!(&self.outcome, PluginOutcome::Failed { .. });
+                match &request.action {
+                    PluginAction::PopupOpen { popup_id, .. } => {
+                        matches!(&self.outcome, PluginOutcome::PopupOpened {
                         popup_id: actual, ..
-                    },
-                )
-                | (
-                    PluginAction::PopupRead { popup_id },
-                    PluginOutcome::PopupState {
+                    } if popup_id == actual)
+                            || matches!(&self.outcome, PluginOutcome::PopupUnknown { popup_id: actual } if popup_id == actual)
+                            || shared_failure
+                    }
+                    PluginAction::PopupRead { popup_id } => {
+                        matches!(&self.outcome, PluginOutcome::PopupState {
                         popup_id: actual, ..
-                    },
-                )
-                | (
-                    PluginAction::PopupClose { popup_id },
-                    PluginOutcome::PopupClosing { popup_id: actual },
-                )
-                | (
-                    PluginAction::PopupRead { popup_id },
-                    PluginOutcome::PopupClosed { popup_id: actual },
-                )
-                | (
-                    PluginAction::PopupClose { popup_id },
-                    PluginOutcome::PopupClosed { popup_id: actual },
-                )
-                | (
-                    PluginAction::PopupOpen { popup_id, .. }
-                    | PluginAction::PopupClose { popup_id }
-                    | PluginAction::PopupRead { popup_id },
-                    PluginOutcome::PopupUnknown { popup_id: actual },
-                ) => popup_id == actual,
-                (
-                    PluginAction::PaneObserve { pane },
-                    PluginOutcome::PaneObserved { pane: actual, .. },
-                ) => pane == actual,
-                (PluginAction::PaneGet { panel_id }, PluginOutcome::PaneFound { pane, .. }) => {
-                    *panel_id == pane.panel_id
-                }
-                (_, PluginOutcome::Failed { .. }) => true,
-                (PluginAction::Invoke { .. }, PluginOutcome::Unknown { .. }) => true,
-                (
-                    PluginAction::Cancel { worker, .. },
-                    PluginOutcome::Unknown { worker: actual },
-                ) => worker == actual,
-                (
+                    } if popup_id == actual)
+                            || matches!(&self.outcome, PluginOutcome::PopupClosed { popup_id: actual } if popup_id == actual)
+                            || matches!(&self.outcome, PluginOutcome::PopupUnknown { popup_id: actual } if popup_id == actual)
+                            || shared_failure
+                    }
+                    PluginAction::PopupClose { popup_id } => {
+                        matches!(&self.outcome, PluginOutcome::PopupClosing { popup_id: actual } if popup_id == actual)
+                            || matches!(&self.outcome, PluginOutcome::PopupClosed { popup_id: actual } if popup_id == actual)
+                            || matches!(&self.outcome, PluginOutcome::PopupUnknown { popup_id: actual } if popup_id == actual)
+                            || shared_failure
+                    }
+                    PluginAction::PaneObserve { pane } => {
+                        matches!(&self.outcome, PluginOutcome::PaneObserved { pane: actual, .. } if pane == actual)
+                            || shared_failure
+                    }
+                    PluginAction::PaneGet { panel_id } => {
+                        matches!(&self.outcome, PluginOutcome::PaneFound { pane, .. } if *panel_id == pane.panel_id)
+                            || shared_failure
+                    }
                     PluginAction::Invoke {
                         operation_id,
                         plugin_id,
                         action_id,
                         ..
-                    },
-                    PluginOutcome::Started { log, .. },
-                ) => {
-                    log.job_id == *operation_id
-                        && plugin_id.as_ref().is_none_or(|id| *id == log.plugin_id)
-                        && (*action_id == log.command_id
-                            || *action_id == format!("{}.{}", log.plugin_id, log.command_id))
-                }
-                (
+                    } => {
+                        matches!(&self.outcome, PluginOutcome::Unknown { .. })
+                            || matches!(&self.outcome, PluginOutcome::Started { log, .. } if log.job_id == *operation_id
+                                    && plugin_id.as_ref().is_none_or(|id| *id == log.plugin_id)
+                                    && (*action_id == log.command_id
+                                        || *action_id == format!("{}.{}", log.plugin_id, log.command_id)))
+                            || shared_failure
+                    }
+                    PluginAction::Cancel { worker, job_id } => {
+                        matches!(&self.outcome, PluginOutcome::Unknown { worker: actual } if worker == actual)
+                            || matches!(&self.outcome, PluginOutcome::Cancellation {
+                        worker: actual,
+                        job_id: actual_id,
+                        ..
+                    } if worker == actual && job_id == actual_id)
+                            || shared_failure
+                    }
                     PluginAction::Logs {
                         plugin_id,
                         cursor,
                         limit,
-                    },
-                    PluginOutcome::Logs { worker, logs, .. },
-                ) => {
-                    cursor.as_ref().is_none_or(|c| c.worker == *worker)
+                    } => {
+                        matches!(&self.outcome, PluginOutcome::Logs { worker, logs, .. } if cursor.as_ref().is_none_or(|c| c.worker == *worker)
                         && logs.len() <= usize::from(*limit)
                         && logs.iter().all(|log| {
                             plugin_id.as_ref().is_none_or(|id| *id == log.plugin_id)
                                 && cursor.as_ref().is_none_or(|c| log.sequence < c.before)
-                        })
+                        })) || shared_failure
+                    }
+                    PluginAction::Get { worker, job_id } => {
+                        matches!(&self.outcome, PluginOutcome::Logs {
+                                worker: actual,
+                                logs,
+                                next,
+                            } if worker == actual
+                                && logs.len() <= 1
+                                && next.is_none()
+                                && logs.iter().all(|log| log.job_id == *job_id))
+                            || shared_failure
+                    }
                 }
-                (
-                    PluginAction::Get { worker, job_id },
-                    PluginOutcome::Logs {
-                        worker: actual,
-                        logs,
-                        next,
-                    },
-                ) => {
-                    worker == actual
-                        && logs.len() <= 1
-                        && next.is_none()
-                        && logs.iter().all(|log| log.job_id == *job_id)
-                }
-                (
-                    PluginAction::Cancel { worker, job_id },
-                    PluginOutcome::Cancellation {
-                        worker: actual,
-                        job_id: actual_id,
-                        ..
-                    },
-                ) => worker == actual && job_id == actual_id,
-                _ => false,
             }
     }
 }

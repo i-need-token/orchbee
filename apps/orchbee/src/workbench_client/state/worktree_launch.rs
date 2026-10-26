@@ -654,7 +654,7 @@ impl Launcher {
                                 WorktreeNotice::SourceChanged
                             };
                         }
-                        _ => {
+                        WorktreeOperationStatus::Failed { .. } => {
                             terminal = true;
                             self.notice = WorktreeNotice::Failed;
                         }

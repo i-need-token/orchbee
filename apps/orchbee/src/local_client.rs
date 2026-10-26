@@ -15,9 +15,8 @@ use std::os::fd::AsFd;
 use orchbee_client_server_protocol::{
     ClientMessage, ProtocolError, ReadMessageError, RequestId, ServerMessage,
     TerminalControlRequest, TerminalControlResult, TerminalLaunchReadRequest,
-    TerminalLaunchReadResult, TerminalSendRequest, TerminalSendResult, TerminalViewerAction,
-    TerminalViewerOutcome, TerminalViewerRequest, TerminalViewerResult, encode_client_frame,
-    read_server_message,
+    TerminalLaunchReadResult, TerminalSendRequest, TerminalSendResult, TerminalViewerRequest,
+    TerminalViewerResult, encode_client_frame, read_server_message,
 };
 use orchbee_local_client_protocol::{ClientConnection, ConnectClientError};
 
@@ -243,48 +242,8 @@ impl LocalClient {
                 },
             );
         }
-        let compatible = matches!(
-            (&action, result.outcome()),
-            (
-                _,
-                TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. }
-            ) | (
-                TerminalViewerAction::Attach { .. } | TerminalViewerAction::AttachBinding { .. },
-                TerminalViewerOutcome::Attached { .. }
-            ) | (
-                TerminalViewerAction::Poll { .. },
-                TerminalViewerOutcome::Empty {} | TerminalViewerOutcome::Record(_)
-            ) | (
-                TerminalViewerAction::FrameApplied { .. }
-                    | TerminalViewerAction::NeedSnapshot { .. },
-                TerminalViewerOutcome::FeedbackAccepted {}
-            ) | (
-                TerminalViewerAction::ReadProcessInfo { .. },
-                TerminalViewerOutcome::Record(_)
-            ) | (
-                TerminalViewerAction::ReadRows { .. }
-                    | TerminalViewerAction::ReadViewportRows { .. },
-                TerminalViewerOutcome::Record(_) | TerminalViewerOutcome::RowsRejected { .. }
-            ) | (
-                TerminalViewerAction::SetProjectionDemand { .. }
-                    | TerminalViewerAction::SetHistoryDemand { .. }
-                    | TerminalViewerAction::RowsApplied { .. }
-                    | TerminalViewerAction::HistoryObserved { .. },
-                TerminalViewerOutcome::FeedbackAccepted {}
-            ) | (
-                TerminalViewerAction::SelectionGesture { .. }
-                    | TerminalViewerAction::SelectionExport { .. }
-                    | TerminalViewerAction::SelectionExportCancel { .. },
-                TerminalViewerOutcome::Record(_)
-            ) | (
-                TerminalViewerAction::SelectionExportChunkApplied { .. },
-                TerminalViewerOutcome::FeedbackAccepted {} | TerminalViewerOutcome::Record(_)
-            ) | (
-                TerminalViewerAction::Detach { .. },
-                TerminalViewerOutcome::Detached {}
-            )
-        );
-        if !compatible {
+
+        if !action.admits(result.outcome()) {
             return self.retire_with_unknown(
                 request_id,
                 OutcomeUnknownReason::InvalidResult(ProtocolError::InvalidPayload),

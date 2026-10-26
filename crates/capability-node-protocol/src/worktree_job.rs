@@ -52,6 +52,18 @@ pub enum WorktreeJobAction {
 }
 
 impl WorktreeJobAction {
+    /// Admits this job action's response class; callers validate operation and job identities.
+    #[must_use]
+    pub fn admits(&self, outcome: &WorktreeJobOutcome) -> bool {
+        match self {
+            Self::Start { .. } | Self::StartStatus { .. } => {
+                matches!(outcome, WorktreeJobOutcome::Start(_))
+            }
+            Self::Poll { .. } => matches!(outcome, WorktreeJobOutcome::Poll(_)),
+            Self::Cancel { .. } => matches!(outcome, WorktreeJobOutcome::Cancel(_)),
+        }
+    }
+
     pub fn start_status(directory: Vec<u8>) -> Result<Self, ProtocolError> {
         Self::start(directory.clone(), None)?;
         Ok(Self::StartStatus { directory })

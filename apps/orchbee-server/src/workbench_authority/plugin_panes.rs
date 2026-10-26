@@ -55,6 +55,7 @@ fn resolve_from(
             panel_id,
             ..
         } => (terminal_context_id, Some(tab_id), Some(panel_id)),
+        // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
         _ => return Err(unavailable),
     };
     let mut context = PluginInvocationContext {

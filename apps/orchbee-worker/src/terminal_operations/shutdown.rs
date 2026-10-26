@@ -184,6 +184,7 @@ pub(super) fn run(
         }
         match server_transport::receive(server, None)? {
             CapabilityNodeMessage::WorkerShutdownRequest(next) => request = next,
+            // After shutdown admission, only shutdown continuation traffic can advance this exchange.
             _ => {
                 return Err(
                     io::Error::new(io::ErrorKind::InvalidData, "Worker is stopping").into(),

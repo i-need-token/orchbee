@@ -106,7 +106,7 @@ fn observe_close(
     let O::Available { target, .. } = &reply.outcome else {
         let status = match reply.outcome {
             O::Unavailable {} => 4,
-            _ => 3,
+            O::NotFound { .. } | O::Denied { .. } | O::Available { .. } => 3,
         };
         return Ok((result, status));
     };

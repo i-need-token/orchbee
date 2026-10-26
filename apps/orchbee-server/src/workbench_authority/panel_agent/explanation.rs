@@ -38,7 +38,13 @@ impl WorkbenchAuthority {
                 observation,
             } => (workbench_revision, report_revision, observation.view),
             Outcome::Failed { reason } => return Err(reason),
-            _ => return Err(Failure::Unavailable),
+            Outcome::Titles { .. }
+            | Outcome::PresentationsRead { .. }
+            | Outcome::Explained { .. }
+            | Outcome::States { .. }
+            | Outcome::Read { .. }
+            | Outcome::PresentationReported { .. }
+            | Outcome::Reported { .. } => return Err(Failure::Unavailable),
         };
         let membership = ReportMembership::read(self.snapshot());
         let logical = membership

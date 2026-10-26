@@ -274,6 +274,7 @@ impl LocalTerminalService {
                             node::PluginJobOutcome::Refused(
                                 node::PluginJobRefusal::PhysicalUnknown,
                             ) => Err(Failure::PhysicalUnknown),
+                            // Only the configured-start receipt confirms this command; plugin/query receipts cannot prove it started.
                             _ => Err(Failure::Unavailable),
                         }
                     }
@@ -316,6 +317,7 @@ impl LocalTerminalService {
                     }) => {
                         WorkbenchTerminalGeometry::new(source.columns, scroll.viewport_rows, 0, 0)
                     }
+                    // Only comparable ready viewport observations can prove the scroll change or enrich this view.
                     _ => WorkbenchTerminalGeometry::new(80, 24, 0, 0),
                 }
                 .map_err(|_| Failure::InvalidIntent)?;

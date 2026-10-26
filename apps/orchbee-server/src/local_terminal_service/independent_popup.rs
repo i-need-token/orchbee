@@ -51,7 +51,13 @@ impl From<PluginFailure> for Failure {
             PluginFailure::Busy => Self::Busy,
             PluginFailure::Conflict => Self::Conflict,
             PluginFailure::NotFound => Self::NotFound,
-            _ => Self::Unavailable,
+            PluginFailure::Denied
+            | PluginFailure::Unavailable
+            | PluginFailure::WorkerChanged
+            | PluginFailure::Disabled
+            | PluginFailure::Unsupported
+            | PluginFailure::SourceUnavailable
+            | PluginFailure::Ambiguous => Self::Unavailable,
         }
     }
 }
@@ -312,6 +318,7 @@ impl LocalTerminalService {
                         owners.remove(&owner);
                         Err(Failure::Unavailable)
                     }
+                    // This exchange accepts only the result family selected by its submitted request.
                     _ => {
                         popup.phase = Phase::Unknown;
                         Ok(Outcome::PopupUnknown {
@@ -328,7 +335,12 @@ impl LocalTerminalService {
                 self.popup_read(owner, popup_id, &request.site_id, PopupKind::Plugin)
             }
 
-            _ => Err(Failure::InvalidIntent),
+            PluginAction::PaneObserve { .. }
+            | PluginAction::PaneGet { .. }
+            | PluginAction::Invoke { .. }
+            | PluginAction::Logs { .. }
+            | PluginAction::Get { .. }
+            | PluginAction::Cancel { .. } => Err(Failure::InvalidIntent),
         }
     }
     fn popup_close(
@@ -556,6 +568,7 @@ impl LocalTerminalService {
                     }
                 }
                 (Phase::Dispose, Some(node::TerminalLifecycleOutcome::Disposed)) => Phase::Closed,
+                // Only the retained lifecycle step can advance a popup; mismatched receipts leave its physical state unknown.
                 _ => Phase::Unknown,
             };
             if popup.ordinal > 32 && popup.phase != Phase::Closed {

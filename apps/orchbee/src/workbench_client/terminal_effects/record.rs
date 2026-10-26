@@ -65,7 +65,8 @@ impl Stream {
                         Payload::Clipboard(event.text),
                     )
                 }
-                _ => return Err(Invalid),
+                TerminalEffectEvent::MetadataChanged(..)
+                | TerminalEffectEvent::ApplicationSignal(..) => return Err(Invalid),
             };
         if attachment != self.attachment || sequence.get() <= *cursor {
             return Err(Invalid);

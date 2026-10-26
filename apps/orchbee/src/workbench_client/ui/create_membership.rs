@@ -119,7 +119,8 @@ impl NativeUi {
             orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Available { snapshot } => {
                 Some(snapshot.clone())
             }
-            _ => None,
+            orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Denied { .. }
+            | orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Unavailable { .. } => None,
         };
         let prepared = state.prepare_create_snapshot(&operation, outcome);
         if let super::super::state::PreparedCreateSnapshot::Available {

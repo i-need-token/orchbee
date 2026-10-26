@@ -94,6 +94,7 @@ pub(in crate::workbench_client) fn validate_created_tab(
                 .find(|tab| tab.tab_id() == tab_id)
                 .ok_or(NativeProjectionDivergence)?
                 .tab_label(),
+            // Only explicit relative placements require the anchor postcondition checked here.
             _ => &expected.requested_label,
         };
         if created.panel_id != expected.panel_id

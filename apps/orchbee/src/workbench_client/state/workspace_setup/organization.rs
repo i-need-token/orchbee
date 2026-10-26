@@ -196,6 +196,7 @@ impl SetupOperation {
                 navigation.project(project_id)?;
                 (project_id == project).then_some(false)
             }
+            // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
             _ => None,
         }
     }

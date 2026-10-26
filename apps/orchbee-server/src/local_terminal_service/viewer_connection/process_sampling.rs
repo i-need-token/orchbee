@@ -174,6 +174,7 @@ impl LocalTerminalService {
                 issued.viewer.cleanup = None;
                 return None;
             }
+            // Action/result admission belongs to the protocol; this step consumes only its requested viewer record or acknowledgment.
             _ => false,
         };
         if attached

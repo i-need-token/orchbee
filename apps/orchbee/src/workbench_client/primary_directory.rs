@@ -29,7 +29,12 @@ pub(super) fn decode_root(
             TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. } => {
                 Ok(RootDirectory::Unavailable)
             }
-            _ => Err(InvalidRootSample),
+            TerminalViewerOutcome::Attached { .. }
+            | TerminalViewerOutcome::Empty { .. }
+            | TerminalViewerOutcome::FeedbackAccepted { .. }
+            | TerminalViewerOutcome::Detached { .. }
+            | TerminalViewerOutcome::RowsRejected { .. }
+            | TerminalViewerOutcome::Record(..) => Err(InvalidRootSample),
         };
     };
     if record.len() > 64 + orchbee_terminal_protocol::MAXIMUM_CONTROL_JSON_BYTES {

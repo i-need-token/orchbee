@@ -27,8 +27,10 @@ pub(crate) fn validate_event(record: &[u8], epoch: HostEpoch) -> io::Result<()> 
         Ok(LifecycleControl::TerminalStarted(identity)) => identity,
         Ok(LifecycleControl::TerminalExited(event)) => event.identity,
         Ok(LifecycleControl::TerminalFailed(event)) => event.identity,
+        // This lifecycle exchange requires its exact target-bearing acknowledgment; other control records cannot confirm it.
         _ => match decode_terminal_effect_event(envelope.kind, envelope.role, envelope.payload) {
             Ok(TerminalEffectEvent::MetadataChanged(event)) => event.identity,
+            // This event stream observes only its declared lifecycle/effect records; unrelated records cannot advance it.
             _ => return Err(invalid("unexpected Host event payload")),
         },
     };

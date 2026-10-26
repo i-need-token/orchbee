@@ -292,6 +292,7 @@ fn classify_outcome(
             validate_revision(WorkbenchRevision::new(successor), revision)?;
             Ok(WorkbenchPanelInputSubmission::Committed { revision })
         }
+        // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
         _ => Err(WorkbenchPanelInputOutcomeUnknownReason::ActionIncompatible),
     }
 }

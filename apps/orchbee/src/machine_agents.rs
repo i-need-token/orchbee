@@ -104,7 +104,7 @@ fn source_view(
         .outcome
     {
         AgentViewOutcome::Available { snapshot } => Ok(snapshot),
-        _ => Err(()),
+        AgentViewOutcome::Failed { .. } => Err(()),
     }
 }
 fn states(
@@ -147,7 +147,15 @@ fn states(
         {
             Ok((report_revision, presentations))
         }
-        _ => Err(()),
+        PanelAgentOutcome::Titles { .. }
+        | PanelAgentOutcome::PresentationsRead { .. }
+        | PanelAgentOutcome::Explained { .. }
+        | PanelAgentOutcome::States { .. }
+        | PanelAgentOutcome::Observed { .. }
+        | PanelAgentOutcome::Read { .. }
+        | PanelAgentOutcome::PresentationReported { .. }
+        | PanelAgentOutcome::Reported { .. }
+        | PanelAgentOutcome::Failed { .. } => Err(()),
     }
 }
 #[derive(Clone, Debug)]
@@ -330,7 +338,8 @@ pub(crate) fn read_at(
                     {
                         Some(named.name.as_str().to_owned())
                     }
-                    _ => None,
+                    orchbee_agent_observation_protocol::AgentNameTarget::Session { .. }
+                    | orchbee_agent_observation_protocol::AgentNameTarget::Terminal { .. } => None,
                 }),
                 order: placement.order,
                 metadata: effective,

@@ -205,6 +205,7 @@ impl RetiredTargets {
                 Ok(TerminalEffectEvent::ClipboardWriteRequest(event)) => {
                     self.viewer(*event.attachment_id.as_bytes())
                 }
+                // This event stream observes only its declared lifecycle/effect records; unrelated records cannot advance it.
                 _ => false,
             },
         )

@@ -54,7 +54,7 @@ impl LocalClient {
             ExchangeAttempt::Result(WorkbenchResponse::WorktreeOperation(result))
                 if result.request_id == request_id
                     && result.operation_id == operation_id
-                    && matches_action(&request.action, &result.outcome) =>
+                    && request.action.admits(&result.outcome) =>
             {
                 return Ok(result);
             }
@@ -69,51 +69,5 @@ impl LocalClient {
             submitted: true,
             reason,
         })
-    }
-}
-
-fn matches_action(
-    action: &orchbee_workbench_protocol::WorkbenchWorktreeAction,
-    outcome: &orchbee_workbench_protocol::WorkbenchWorktreeOutcome,
-) -> bool {
-    use orchbee_workbench_protocol::{
-        WorkbenchWorktreeAction as A, WorkbenchWorktreeOutcome as O, WorktreeIntent as I,
-        WorktreeOperationPhase as P, WorktreeOperationStatus as S,
-    };
-    match (action, outcome) {
-        (
-            A::Start {
-                project_id, intent, ..
-            },
-            O::Available {
-                project_id: actual,
-                status,
-                ..
-            },
-        ) => {
-            if actual != project_id {
-                return false;
-            }
-            match (intent, status.as_ref()) {
-                (I::Remove { .. }, S::Opened { .. })
-                | (I::Create { .. } | I::Open { .. }, S::Removed { .. }) => false,
-                (I::Remove { .. }, S::Pending { phase, .. }) => {
-                    matches!(phase, P::InspectingRemove | P::Closing | P::Removing)
-                }
-                (I::Create { .. } | I::Open { .. }, S::Pending { phase, .. }) => matches!(
-                    phase,
-                    P::ObservingSource | P::Creating | P::Opening | P::Attaching
-                ),
-                _ => true,
-            }
-        }
-        (A::Start { .. } | A::Resume { .. }, O::NotFound {}) => matches!(action, A::Resume { .. }),
-        (
-            A::Resume {
-                expected_attempt, ..
-            },
-            O::Available { attempt, .. },
-        ) => expected_attempt.checked_add(1) == Some(*attempt),
-        _ => true,
     }
 }

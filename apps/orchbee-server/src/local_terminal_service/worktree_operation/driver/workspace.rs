@@ -228,6 +228,7 @@ impl Driver<'_> {
                 WorkbenchCommandOutcome::WorkspaceLaunched {
                     terminal_outcome, ..
                 } => terminal_outcome,
+                // This step consumes its specific mutation receipt; other command results cannot confirm the requested postcondition.
                 _ => WorkbenchTerminalOutcome::OutcomeUnknown {},
             },
             Err(_) => WorkbenchTerminalOutcome::OutcomeUnknown {},
@@ -438,6 +439,7 @@ impl Driver<'_> {
                                 expected_attempt_generation: attempt_generation,
                             });
                 }
+                // This Close continuation requires the corresponding published receipt; other child states cannot prove final disposal.
                 _ => return Err(Failure::CloseIncomplete {}),
             }
         }

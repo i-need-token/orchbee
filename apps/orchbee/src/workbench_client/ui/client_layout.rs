@@ -92,6 +92,7 @@ impl NativeUi {
                 panel_id,
                 ..
             } => (terminal_context_id, tab_id, panel_id),
+            // This handler implements its own ClientView intent subset; other intents belong to their feature handlers.
             _ => return Err(Reason::Unsupported),
         };
         let state = self.state.as_ref().ok_or(Reason::ProjectionUnavailable)?;

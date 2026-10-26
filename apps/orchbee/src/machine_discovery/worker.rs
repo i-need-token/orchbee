@@ -183,6 +183,7 @@ fn snapshot_error(error: SnapshotReadError) -> io::Error {
                 | SnapshotReadFailure::Response(WorkbenchWireError::Io(error)),
             ..
         } => error,
+        // Only the explicitly recognized protocol failures have a more specific transport classification here.
         _ => io::ErrorKind::InvalidData.into(),
     }
 }

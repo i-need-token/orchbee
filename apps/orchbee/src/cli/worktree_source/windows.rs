@@ -61,7 +61,13 @@ pub(in crate::cli) fn prepare(
             ClientViewOutcome::Unavailable { .. } => {
                 return Err(Failure::new(FailureKind::ServiceUnavailable));
             }
-            _ => return Err(Failure::new(FailureKind::ProtocolInvalid)),
+            ClientViewOutcome::Synchronized { .. }
+            | ClientViewOutcome::Found { .. }
+            | ClientViewOutcome::Operation { .. }
+            | ClientViewOutcome::NotFound { .. }
+            | ClientViewOutcome::Conflict { .. } => {
+                return Err(Failure::new(FailureKind::ProtocolInvalid));
+            }
         };
         if clients.is_empty() && request.client.is_none() && !request.focus && caller.is_none() {
             None

@@ -67,7 +67,9 @@ impl Node {
                 orientation: match direction {
                     WorkbenchPanelSplitDirection::Right => PanelOrientation::Horizontal,
                     WorkbenchPanelSplitDirection::Below => PanelOrientation::Vertical,
-                    _ => unreachable!("admitted portable direction"),
+                    WorkbenchPanelSplitDirection::Above | WorkbenchPanelSplitDirection::Left => {
+                        unreachable!("admitted portable direction")
+                    }
                 },
                 children: Box::new([first.structural(), second.structural()]),
             },

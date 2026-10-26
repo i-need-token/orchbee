@@ -75,6 +75,7 @@ impl Locale {
                 (Self::EnUs, Failure::ResultTooLarge) => "Metadata response exceeds its limit",
                 (Self::ZhCn, Failure::ResultTooLarge) => "元数据应答超出上限",
             },
+            // This query consumes only its requested metadata/report payload; other receipt classes cannot answer that query.
             _ => match self {
                 Self::EnUs => "Report outcome unknown; do not retry automatically",
                 Self::ZhCn => "上报结果未知，请勿自动重试",

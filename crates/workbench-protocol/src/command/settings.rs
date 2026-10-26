@@ -148,23 +148,22 @@ impl NativeSettingsResult {
     pub fn answers(&self, request: &NativeSettingsRequest) -> bool {
         self.request_id == request.request_id
             && self.site_id == request.site_id
-            && match (&request.operation, &self.outcome) {
-                (_, NativeSettingsOutcome::Refused { .. }) => true,
-                (NativeSettingsOperation::Open {}, NativeSettingsOutcome::Opened { .. }) => true,
-                (
-                    NativeSettingsOperation::Save { changes, .. },
-                    NativeSettingsOutcome::Saved { snapshot, .. },
-                ) => {
-                    changes.keys().all(|key| snapshot.claimed.contains(&key))
-                        && changes
-                            .apply(&snapshot.values)
-                            .is_ok_and(|values| values == snapshot.values)
+            && {
+                let shared_failure = matches!(&self.outcome, NativeSettingsOutcome::Refused { .. });
+                match &request.operation {
+                    NativeSettingsOperation::Open {} => {
+                        matches!(&self.outcome, NativeSettingsOutcome::Opened { .. })
+                            || shared_failure
+                    }
+                    NativeSettingsOperation::Save { changes, .. } => {
+                        matches!(&self.outcome, NativeSettingsOutcome::Saved { snapshot, .. } if changes.keys().all(|key| snapshot.claimed.contains(&key))
+                            && changes
+                                .apply(&snapshot.values)
+                                .is_ok_and(|values| values == snapshot.values))
+                            || matches!(&self.outcome, NativeSettingsOutcome::OutcomeUnknown {})
+                            || shared_failure
+                    }
                 }
-                (
-                    NativeSettingsOperation::Save { .. },
-                    NativeSettingsOutcome::OutcomeUnknown {},
-                ) => true,
-                _ => false,
             }
     }
     pub fn validate(&self) -> Result<(), ContractError> {
@@ -177,7 +176,9 @@ impl NativeSettingsResult {
                     .validate()
                     .map_err(|_| ContractError::InvalidDocument)
             }
-            _ => Ok(()),
+            NativeSettingsOutcome::OutcomeUnknown {} | NativeSettingsOutcome::Refused { .. } => {
+                Ok(())
+            }
         }
     }
 }

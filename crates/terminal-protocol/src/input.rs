@@ -96,6 +96,7 @@ pub fn decode_input_message(
         (PASTE_AUTO_INPUT_KIND, MessageRole::Request) => {
             decode_paste_auto_input(payload).map(InputMessage::PasteAutoInput)
         }
+        // This codec accepts only its declared message family and request/response roles.
         _ => Err(invalid_field(
             "message kind and role do not select an input payload",
         )),

@@ -115,7 +115,7 @@ impl WindowTitleRequest {
         match &self.action {
             WindowTitleAction::Set { title } => title.validate(),
             WindowTitleAction::Listen { context, .. } => context.validate(),
-            _ => Ok(()),
+            WindowTitleAction::Clear {} => Ok(()),
         }
     }
 }
@@ -170,17 +170,22 @@ impl WindowTitleResult {
     pub fn answers(&self, request: &WindowTitleRequest) -> bool {
         self.request_id == request.request_id
             && self.site_id == request.site_id
-            && match (&request.action, &self.outcome) {
-                (_, WindowTitleOutcome::Failed { .. }) => true,
-                (WindowTitleAction::Listen { .. }, WindowTitleOutcome::Listening { .. }) => true,
-                (
-                    WindowTitleAction::Set { title },
-                    WindowTitleOutcome::Published { snapshot, .. },
-                ) => snapshot.title.as_ref() == Some(title),
-                (WindowTitleAction::Clear {}, WindowTitleOutcome::Published { snapshot, .. }) => {
-                    snapshot.title.is_none()
+            && {
+                let shared_failure = matches!(&self.outcome, WindowTitleOutcome::Failed { .. });
+                match &request.action {
+                    WindowTitleAction::Listen { .. } => {
+                        matches!(&self.outcome, WindowTitleOutcome::Listening { .. })
+                            || shared_failure
+                    }
+                    WindowTitleAction::Set { title } => {
+                        matches!(&self.outcome, WindowTitleOutcome::Published { snapshot, .. } if snapshot.title.as_ref() == Some(title))
+                            || shared_failure
+                    }
+                    WindowTitleAction::Clear {} => {
+                        matches!(&self.outcome, WindowTitleOutcome::Published { snapshot, .. } if snapshot.title.is_none())
+                            || shared_failure
+                    }
                 }
-                _ => false,
             }
     }
     pub fn validate(&self) -> Result<(), ContractError> {
@@ -207,7 +212,8 @@ impl WindowTitleResult {
             WindowTitleOutcome::Listening {
                 snapshot: Some(snapshot),
             } => snapshot.validate(),
-            _ => Ok(()),
+            WindowTitleOutcome::Listening { snapshot: None }
+            | WindowTitleOutcome::Failed { .. } => Ok(()),
         }
     }
 }

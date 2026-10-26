@@ -205,18 +205,16 @@ impl ConfigurationResult {
     pub fn answers(&self, request: &ConfigurationRequest) -> bool {
         self.request_id == request.request_id
             && self.site_id == request.site_id
-            && matches!(
-                (&request.action, &self.outcome),
-                (_, ConfigurationOutcome::Failed { .. })
-                    | (
-                        ConfigurationAction::Current,
-                        ConfigurationOutcome::Current { .. }
-                    )
-                    | (
-                        ConfigurationAction::Reload,
-                        ConfigurationOutcome::Reloaded { .. }
-                    )
-            )
+            && match request.action {
+                ConfigurationAction::Current => matches!(
+                    &self.outcome,
+                    ConfigurationOutcome::Current { .. } | ConfigurationOutcome::Failed { .. }
+                ),
+                ConfigurationAction::Reload => matches!(
+                    &self.outcome,
+                    ConfigurationOutcome::Reloaded { .. } | ConfigurationOutcome::Failed { .. }
+                ),
+            }
     }
     pub fn validate(&self) -> Result<(), ContractError> {
         let valid = match &self.outcome {

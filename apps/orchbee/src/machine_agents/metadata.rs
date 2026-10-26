@@ -85,7 +85,11 @@ impl Reader<'_> {
                 }
                 Ok((metadata_revision, presentations))
             }
-            _ => Err(()),
+            PanelMetadataOutcome::PresentationsRead { .. }
+            | PanelMetadataOutcome::Read { .. }
+            | PanelMetadataOutcome::PresentationReported { .. }
+            | PanelMetadataOutcome::Reported { .. }
+            | PanelMetadataOutcome::Failed { .. } => Err(()),
         }
     }
     fn reports(
@@ -129,7 +133,15 @@ impl Reader<'_> {
                 }
                 Ok((report_revision, presentations))
             }
-            _ => Err(()),
+            PanelAgentOutcome::Titles { .. }
+            | PanelAgentOutcome::PresentationsRead { .. }
+            | PanelAgentOutcome::Explained { .. }
+            | PanelAgentOutcome::States { .. }
+            | PanelAgentOutcome::Observed { .. }
+            | PanelAgentOutcome::Read { .. }
+            | PanelAgentOutcome::PresentationReported { .. }
+            | PanelAgentOutcome::Reported { .. }
+            | PanelAgentOutcome::Failed { .. } => Err(()),
         }
     }
     fn read(&mut self) -> Result<BTreeMap<TerminalPresentationId, Extra>, ()> {

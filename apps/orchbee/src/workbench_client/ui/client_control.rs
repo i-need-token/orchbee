@@ -49,12 +49,24 @@ impl NativeUi {
                         terminal_outcome: T::OutcomeUnknown {},
                         ..
                     } => N::CommandUnknown,
+                    // This step consumes its specific mutation receipt; other command results cannot confirm the requested postcondition.
                     _ => N::CommandFailed,
                 },
                 O::Plugin { result, .. } => match result.outcome {
                     orchbee_workbench_protocol::PluginOutcome::Failed { .. } => N::CommandFailed,
                     orchbee_workbench_protocol::PluginOutcome::Unknown { .. } => N::CommandUnknown,
-                    _ => N::CommandAccepted,
+                    orchbee_workbench_protocol::PluginOutcome::PopupOpened { .. }
+                    | orchbee_workbench_protocol::PluginOutcome::PopupState { .. }
+                    | orchbee_workbench_protocol::PluginOutcome::PopupClosed { .. }
+                    | orchbee_workbench_protocol::PluginOutcome::PopupClosing { .. }
+                    | orchbee_workbench_protocol::PluginOutcome::PopupUnknown { .. }
+                    | orchbee_workbench_protocol::PluginOutcome::PaneObserved { .. }
+                    | orchbee_workbench_protocol::PluginOutcome::PaneFound { .. }
+                    | orchbee_workbench_protocol::PluginOutcome::Started { .. }
+                    | orchbee_workbench_protocol::PluginOutcome::Logs { .. }
+                    | orchbee_workbench_protocol::PluginOutcome::Cancellation { .. } => {
+                        N::CommandAccepted
+                    }
                 },
                 O::PopupControl { result, .. } => {
                     if matches!(
@@ -67,7 +79,13 @@ impl NativeUi {
                     }
                 }
                 O::ShellStarted { .. } => N::CommandAccepted,
-                _ => N::CommandFailed,
+                O::Catalog { .. }
+                | O::PopupOpened { .. }
+                | O::PopupState { .. }
+                | O::PopupClosing { .. }
+                | O::PopupClosed { .. }
+                | O::PopupUnknown { .. }
+                | O::Failed { .. } => N::CommandFailed,
             },
         };
         let notice = match completion.focus {
@@ -81,6 +99,7 @@ impl NativeUi {
             {
                 N::CommandFailed
             }
+            // Only the completion for this requested Client operation can supply the observation consumed here.
             _ => notice,
         };
         self.command_notice = Some((notice, self.clock.now() + std::time::Duration::from_secs(5)));
@@ -214,6 +233,7 @@ impl NativeUi {
             ClientViewIntent::Tab { tab_id, .. }
             | ClientViewIntent::Panel { tab_id, .. }
             | ClientViewIntent::AgentFocus { tab_id, .. } => tab_id,
+            // This handler implements its own ClientView intent subset; other intents belong to their feature handlers.
             _ => return Err(Reason::Unsupported),
         };
         let state = self.state.as_ref().ok_or(Reason::ProjectionUnavailable)?;
@@ -554,6 +574,7 @@ impl NativeUi {
             ClientViewIntent::Overlay { .. } => Some(true),
             ClientViewIntent::Zoom { enabled, .. } => Some(enabled),
             ClientViewIntent::ToggleZoom { .. } => progress.toggle_origin.map(|previous| !previous),
+            // This handler implements its own ClientView intent subset; other intents belong to their feature handlers.
             _ => None,
         };
         if let Some(enabled) = enabled {

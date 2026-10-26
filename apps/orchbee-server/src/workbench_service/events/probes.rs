@@ -305,6 +305,7 @@ impl Probe {
                         }),
                         ClientViewportObservation::Observed { mode, scroll, .. },
                     ) => old_mode == mode && old_scroll == scroll,
+                    // Only comparable ready viewport observations can prove the scroll change or enrich this view.
                     _ => false,
                 };
                 let observed = if same || scroll.last.is_none() {
@@ -442,7 +443,15 @@ fn event(
         Data::Agent { pane, .. } | Data::Output { pane, .. } | Data::Scroll { pane, .. } => {
             &pane.terminal_context_id
         }
-        _ => return Err(Failure::InvalidIntent),
+        Data::Workspace { .. }
+        | Data::WorkspaceOrder { .. }
+        | Data::WorkspaceMetadata { .. }
+        | Data::Tab { .. }
+        | Data::Pane { .. }
+        | Data::Layout { .. }
+        | Data::Worktree { .. }
+        | Data::Client { .. }
+        | Data::Exited { .. } => return Err(Failure::InvalidIntent),
     };
     let journal = session
         .service
@@ -555,7 +564,20 @@ fn viewport(
                 *pending = None;
                 return Ok(None);
             }
-            _ => return Err(Failure::SourceUnavailable),
+            ClientViewControlStatus::PopupOpened { .. }
+            | ClientViewControlStatus::PopupClosed { .. }
+            | ClientViewControlStatus::PresentationRead { .. }
+            | ClientViewControlStatus::NavigationRead { .. }
+            | ClientViewControlStatus::TerminalAttentionRead { .. }
+            | ClientViewControlStatus::AttentionRead { .. }
+            | ClientViewControlStatus::LayoutAdjusted { .. }
+            | ClientViewControlStatus::DirectionFocused { .. }
+            | ClientViewControlStatus::DirectionUnchanged { .. }
+            | ClientViewControlStatus::LayoutRead { .. }
+            | ClientViewControlStatus::Applied { .. }
+            | ClientViewControlStatus::ZoomUnchanged { .. }
+            | ClientViewControlStatus::ZoomToggled { .. }
+            | ClientViewControlStatus::Incomplete { .. } => return Err(Failure::SourceUnavailable),
         }
     }
     if clients.observation_busy(client_id) {

@@ -529,6 +529,7 @@ fn detach(
         Ok(AttachmentControl::DetachTerminalAccepted(accepted)) if accepted == target => {
             DetachOutcome::Released
         }
+        // Only the requested Host acknowledgment can confirm this attachment/process operation.
         _ => DetachOutcome::Unreachable,
     }
 }

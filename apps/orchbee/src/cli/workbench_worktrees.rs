@@ -59,7 +59,13 @@ fn classify(
             WorktreeQueryFailure::MalformedListing {} => Some(FailureKind::ProtocolInvalid),
             WorktreeQueryFailure::TransportLoss {} => Some(FailureKind::TransportLoss),
             WorktreeQueryFailure::Timeout {} => Some(FailureKind::Timeout),
-            _ => None,
+            WorktreeQueryFailure::Unsupported { .. }
+            | WorktreeQueryFailure::Unavailable { .. }
+            | WorktreeQueryFailure::GitFailed { .. }
+            | WorktreeQueryFailure::SpawnUnavailable { .. }
+            | WorktreeQueryFailure::SpawnFailed { .. }
+            | WorktreeQueryFailure::TooLarge { .. }
+            | WorktreeQueryFailure::OwnerIo { .. } => None,
         };
         return match kind {
             Some(kind) => Err(Failure::new(kind)),

@@ -249,7 +249,27 @@ pub(crate) fn runtime_failure_from_wire(
         (RuntimeFailureKindWire::PtyWrite, RuntimeFailureStageWire::WriteInput) => {
             Ok(RuntimeFailure::WriteInput)
         }
-        _ => Err(invalid_field("runtime failure kind and stage do not match")),
+        (
+            RuntimeFailureKindWire::EditorDocument
+            | RuntimeFailureKindWire::ProcessControl
+            | RuntimeFailureKindWire::ProcessObservation
+            | RuntimeFailureKindWire::PtyRead
+            | RuntimeFailureKindWire::PtyWrite
+            | RuntimeFailureKindWire::Resize
+            | RuntimeFailureKindWire::TerminalReply
+            | RuntimeFailureKindWire::WorkerIntegrity,
+            RuntimeFailureStageWire::AdmitTerminalReply
+            | RuntimeFailureStageWire::ApplyResize
+            | RuntimeFailureStageWire::ContainProcess
+            | RuntimeFailureStageWire::DispatchTermination
+            | RuntimeFailureStageWire::ObserveProcess
+            | RuntimeFailureStageWire::ReadOutput
+            | RuntimeFailureStageWire::ReleaseOutput
+            | RuntimeFailureStageWire::ReleaseProcessIdentity
+            | RuntimeFailureStageWire::ReleaseEditorDocument
+            | RuntimeFailureStageWire::SynchronizeWorker
+            | RuntimeFailureStageWire::WriteInput,
+        ) => Err(invalid_field("runtime failure kind and stage do not match")),
     }
 }
 
@@ -305,7 +325,27 @@ pub(crate) fn cleanup_failure_from_wire(
             RuntimeFailureKindWire::EditorDocument,
             RuntimeFailureStageWire::ReleaseEditorDocument,
         ) => Ok(RuntimeCleanupFailure::ReleaseEditorDocument),
-        _ => Err(invalid_field(
+        (
+            RuntimeFailureKindWire::EditorDocument
+            | RuntimeFailureKindWire::ProcessControl
+            | RuntimeFailureKindWire::ProcessObservation
+            | RuntimeFailureKindWire::PtyRead
+            | RuntimeFailureKindWire::PtyWrite
+            | RuntimeFailureKindWire::Resize
+            | RuntimeFailureKindWire::TerminalReply
+            | RuntimeFailureKindWire::WorkerIntegrity,
+            RuntimeFailureStageWire::AdmitTerminalReply
+            | RuntimeFailureStageWire::ApplyResize
+            | RuntimeFailureStageWire::ContainProcess
+            | RuntimeFailureStageWire::DispatchTermination
+            | RuntimeFailureStageWire::ObserveProcess
+            | RuntimeFailureStageWire::ReadOutput
+            | RuntimeFailureStageWire::ReleaseOutput
+            | RuntimeFailureStageWire::ReleaseProcessIdentity
+            | RuntimeFailureStageWire::ReleaseEditorDocument
+            | RuntimeFailureStageWire::SynchronizeWorker
+            | RuntimeFailureStageWire::WriteInput,
+        ) => Err(invalid_field(
             "runtime cleanup failure kind and stage do not match",
         )),
     }

@@ -149,38 +149,34 @@ impl SemanticEvent {
     pub fn validate(&self) -> Result<(), ContractError> {
         use SemanticEventData as D;
         use SemanticEventKind as K;
-        let compatible = match (&self.data, self.event) {
-            (
-                D::Workspace { workspace, .. },
-                K::WorkspaceCreated
+        let compatible = match &self.data {
+            D::Workspace { workspace, .. } => matches!(self.event, K::WorkspaceCreated
                 | K::WorkspaceUpdated
                 | K::WorkspaceRenamed
                 | K::WorkspaceMoved
-                | K::WorkspaceClosed,
-            ) => WorkbenchLabel::parse(&workspace.label).is_ok(),
-            (D::WorkspaceOrder { workspace_ids }, K::WorkspaceReordered) => {
-                workspace_ids.len() <= 4096
+                | K::WorkspaceClosed if WorkbenchLabel::parse(&workspace.label).is_ok()),
+            D::WorkspaceOrder { workspace_ids } => {
+                matches!(self.event, K::WorkspaceReordered if workspace_ids.len() <= 4096
                     && workspace_ids
                         .iter()
                         .collect::<std::collections::BTreeSet<_>>()
                         .len()
-                        == workspace_ids.len()
+                        == workspace_ids.len())
             }
-            (D::WorkspaceMetadata { .. }, K::WorkspaceMetadataUpdated) => true,
-            (D::Tab { label, .. }, K::TabCreated | K::TabClosed | K::TabRenamed | K::TabMoved) => {
-                WorkbenchLabel::parse(label).is_ok()
+            D::WorkspaceMetadata { .. } => {
+                matches!(self.event, K::WorkspaceMetadataUpdated if true)
             }
-            (D::Pane { pane }, K::PaneCreated | K::PaneClosed | K::PaneUpdated | K::PaneMoved) => {
-                WorkbenchLabel::parse(&pane.label).is_ok()
+            D::Tab { label, .. } => {
+                matches!(self.event, K::TabCreated | K::TabClosed | K::TabRenamed | K::TabMoved if WorkbenchLabel::parse(label).is_ok())
             }
-            (
-                D::Layout {
-                    terminal_context_id,
-                    tab_id,
-                    root,
-                },
-                K::LayoutUpdated,
-            ) => {
+            D::Pane { pane } => {
+                matches!(self.event, K::PaneCreated | K::PaneClosed | K::PaneUpdated | K::PaneMoved if WorkbenchLabel::parse(&pane.label).is_ok())
+            }
+            D::Layout {
+                terminal_context_id,
+                tab_id,
+                root,
+            } => matches!(self.event, K::LayoutUpdated if {
                 let snapshot = crate::Snapshot {
                     protocol_version: ProtocolVersion,
                     site_id: SiteId::parse(&format!("{:032x}", 1))
@@ -216,56 +212,46 @@ impl SemanticEvent {
                     }],
                 };
                 crate::validation::validate_snapshot(&snapshot).is_ok()
+            }),
+            D::Worktree { result } => {
+                matches!(self.event, K::WorktreeCreated | K::WorktreeOpened | K::WorktreeRemoved if result.validate().is_ok()
+                        && matches!(&result.outcome, crate::WorkbenchWorktreeOutcome::Available {status,..}
+                        if matches!((&**status,self.event),
+                            (crate::WorktreeOperationStatus::Opened {..},K::WorktreeCreated | K::WorktreeOpened)
+                            | (crate::WorktreeOperationStatus::Removed {..},K::WorktreeRemoved))))
             }
-            (
-                D::Worktree { result },
-                K::WorktreeCreated | K::WorktreeOpened | K::WorktreeRemoved,
-            ) => {
-                result.validate().is_ok()
-                    && matches!(&result.outcome, crate::WorkbenchWorktreeOutcome::Available {status,..}
-                    if matches!((&**status,self.event),
-                        (crate::WorktreeOperationStatus::Opened {..},K::WorktreeCreated | K::WorktreeOpened)
-                        | (crate::WorktreeOperationStatus::Removed {..},K::WorktreeRemoved)))
+            D::Client { view, .. } => {
+                matches!(self.event, K::WorkspaceFocused | K::TabFocused | K::PaneFocused | K::LayoutUpdated if view.validate().is_ok())
             }
-            (
-                D::Client { view, .. },
-                K::WorkspaceFocused | K::TabFocused | K::PaneFocused | K::LayoutUpdated,
-            ) => view.validate().is_ok(),
-            (
-                D::Agent {
-                    pane,
-                    report,
-                    exited,
-                },
-                K::PaneAgentDetected | K::PaneAgentStatusChanged | K::PaneUpdated,
-            ) => WorkbenchLabel::parse(&pane.label).is_ok() && report.valid() && !exited,
-            (
-                D::Output {
-                    pane,
-                    content_generation,
-                    matched_line,
-                    ..
-                },
-                K::PaneOutputChanged | K::PaneOutputMatched | K::PaneUpdated,
-            ) => {
-                WorkbenchLabel::parse(&pane.label).is_ok()
-                    && pane.binding.is_some()
-                    && content_generation.value() > 0
-                    && matched_line
-                        .as_ref()
-                        .is_none_or(|line| line.len() <= 64 * 1024 && !line.contains('\0'))
-                    && (self.event != K::PaneOutputMatched || matched_line.is_some())
+            D::Agent {
+                pane,
+                report,
+                exited,
+            } => {
+                matches!(self.event, K::PaneAgentDetected | K::PaneAgentStatusChanged | K::PaneUpdated if WorkbenchLabel::parse(&pane.label).is_ok() && report.valid() && !exited)
             }
-            (D::Exited { pane, .. }, K::PaneExited) => {
-                WorkbenchLabel::parse(&pane.label).is_ok() && pane.binding.is_some()
+            D::Output {
+                pane,
+                content_generation,
+                matched_line,
+                ..
+            } => {
+                matches!(self.event, K::PaneOutputChanged | K::PaneOutputMatched | K::PaneUpdated if WorkbenchLabel::parse(&pane.label).is_ok()
+                        && pane.binding.is_some()
+                        && content_generation.value() > 0
+                        && matched_line
+                            .as_ref()
+                            .is_none_or(|line| line.len() <= 64 * 1024 && !line.contains('\0'))
+                        && (self.event != K::PaneOutputMatched || matched_line.is_some()))
             }
-            (
-                D::Scroll {
-                    pane, observation, ..
-                },
-                K::PaneScrollChanged,
-            ) => WorkbenchLabel::parse(&pane.label).is_ok() && observation.validate().is_ok(),
-            _ => false,
+            D::Exited { pane, .. } => {
+                matches!(self.event, K::PaneExited if WorkbenchLabel::parse(&pane.label).is_ok() && pane.binding.is_some())
+            }
+            D::Scroll {
+                pane, observation, ..
+            } => {
+                matches!(self.event, K::PaneScrollChanged if WorkbenchLabel::parse(&pane.label).is_ok() && observation.validate().is_ok())
+            }
         };
         let correlated = match &self.data {
             D::Workspace { workspace, .. } => {
@@ -276,7 +262,15 @@ impl SemanticEvent {
             }
             D::WorkspaceOrder { .. } => self.workspace_id.is_none(),
             D::Client { workspace_id, .. } => &self.workspace_id == workspace_id,
-            _ => true,
+            // Only these payloads echo a Workspace identity separately from their event envelope.
+            D::Tab { .. }
+            | D::Pane { .. }
+            | D::Layout { .. }
+            | D::Worktree { .. }
+            | D::Agent { .. }
+            | D::Output { .. }
+            | D::Exited { .. }
+            | D::Scroll { .. } => true,
         };
         if !compatible
             || !correlated
@@ -421,7 +415,7 @@ impl SemanticEventFilter {
                     && !value.contains('\0')
                     && (*source != SemanticOutputSource::Viewport || client_id.is_some())
             }
-            _ => true,
+            Self::AgentStatusChanged { .. } | Self::ScrollChanged { .. } => true,
         };
         if valid {
             Ok(())
@@ -502,7 +496,9 @@ impl SemanticEventsRequest {
                 timeout_milliseconds,
                 ..
             } if *timeout_milliseconds > 1000 => return Err(ContractError::InvalidDocument),
-            _ => {}
+            SemanticEventsAction::Read { .. }
+            | SemanticEventsAction::Wait { .. }
+            | SemanticEventsAction::Close { .. } => {}
         }
         Ok(())
     }
@@ -645,7 +641,8 @@ impl SemanticEventsResult {
                         subscription_id: actual,
                         ..
                     } if actual != subscription_id => return Err(ContractError::InvalidDocument),
-                    _ => {}
+                    SemanticEventPosition::Journal { .. } | SemanticEventPosition::Probe { .. } => {
+                    }
                 }
             }
             SemanticEventsOutcome::Gap { cursor, gap, .. }
@@ -653,7 +650,11 @@ impl SemanticEventsResult {
             {
                 return Err(ContractError::InvalidDocument);
             }
-            _ => {}
+            SemanticEventsOutcome::Opened { .. }
+            | SemanticEventsOutcome::TimedOut { .. }
+            | SemanticEventsOutcome::Gap { .. }
+            | SemanticEventsOutcome::Closed { .. }
+            | SemanticEventsOutcome::Failed { .. } => {}
         }
         Ok(())
     }
@@ -664,31 +665,31 @@ impl SemanticEventsResult {
         self.request_id == request.request_id
             && self.site_id == request.site_id
             && self.validate().is_ok()
-            && match (&request.action, &self.outcome) {
-                (_, O::Failed { .. }) => true,
-                (
+            && {
+                let shared_failure = matches!(&self.outcome, O::Failed { .. });
+                match &request.action {
                     A::Subscribe {
                         subscription_id, ..
-                    },
-                    O::Opened {
+                    } => {
+                        matches!(&self.outcome, O::Opened {
                         subscription_id: actual,
                         ..
-                    },
-                )
-                | (
+                    } if subscription_id == actual)
+                            || shared_failure
+                    }
                     A::Read {
                         subscription_id, ..
-                    },
-                    O::Events {
+                    } => {
+                        matches!(&self.outcome, O::Events {
                         subscription_id: actual,
                         ..
-                    },
-                )
-                | (
+                    } if subscription_id == actual)
+                            || shared_failure
+                    }
                     A::Wait {
                         subscription_id, ..
-                    },
-                    O::Matched {
+                    } => {
+                        matches!(&self.outcome, O::Matched {
                         subscription_id: actual,
                         ..
                     }
@@ -699,15 +700,16 @@ impl SemanticEventsResult {
                     | O::Gap {
                         subscription_id: actual,
                         ..
-                    },
-                )
-                | (
-                    A::Close { subscription_id },
-                    O::Closed {
+                    } if subscription_id == actual)
+                            || shared_failure
+                    }
+                    A::Close { subscription_id } => {
+                        matches!(&self.outcome, O::Closed {
                         subscription_id: actual,
-                    },
-                ) => subscription_id == actual,
-                _ => false,
+                    } if subscription_id == actual)
+                            || shared_failure
+                    }
+                }
             }
     }
 }

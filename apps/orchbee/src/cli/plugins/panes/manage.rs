@@ -86,6 +86,7 @@ fn execute(
             reason: PluginFailure::Denied,
         } => return Err(Failure::new(FailureKind::Denied)),
         PluginOutcome::Failed { .. } => return Err(super::Reason::PluginUnavailable.failure()),
+        // This phase consumes its requested plugin/popup receipt; other receipt kinds cannot confirm that operation.
         _ => return Err(super::Reason::InvalidReply.failure()),
     };
     if revision != snapshot.revision {
@@ -132,7 +133,14 @@ fn execute(
     let clients = match reply.outcome {
         ClientViewOutcome::Listed { clients } => clients,
         ClientViewOutcome::Denied {} => return Err(Failure::new(FailureKind::Denied)),
-        _ => return Err(super::Reason::ClientListingUnavailable.failure()),
+        ClientViewOutcome::Synchronized { .. }
+        | ClientViewOutcome::Found { .. }
+        | ClientViewOutcome::Operation { .. }
+        | ClientViewOutcome::NotFound { .. }
+        | ClientViewOutcome::Conflict { .. }
+        | ClientViewOutcome::Unavailable { .. } => {
+            return Err(super::Reason::ClientListingUnavailable.failure());
+        }
     };
     let selected =
         client_control::selection::select(&clients, command.client.as_ref(), caller.as_ref())?;

@@ -53,6 +53,7 @@ pub(super) fn maximum_wire_charge(
             tab_id,
             ..
         } => (terminal_context_id, tab_id),
+        // Close retention accounting applies only to admitted Close commands and their acceptance receipts.
         _ => return None,
     };
     let maximum_revision = WorkbenchRevision::new(u64::MAX);
@@ -67,6 +68,7 @@ pub(super) fn maximum_wire_charge(
         | WorkbenchCommandOutcome::PanelCloseAccepted {
             accepted_revision, ..
         } => *accepted_revision = maximum_revision,
+        // Close retention accounting applies only to admitted Close commands and their acceptance receipts.
         _ => return None,
     }
     let command_charge = ledger_size(&maximum_command, &maximum_acknowledgment)?;
@@ -362,6 +364,7 @@ fn maximum_workspace_charge(
     let workspace_id = match &command.action {
         WorkbenchAction::WorkspaceClose { workspace_id }
         | WorkbenchAction::WorkspaceCloseIfIdle { workspace_id } => workspace_id,
+        // Close retention accounting applies only to admitted Close commands and their acceptance receipts.
         _ => return None,
     };
     let maximum_revision = WorkbenchRevision::new(u64::MAX);
@@ -373,6 +376,7 @@ fn maximum_workspace_charge(
         WorkbenchCommandOutcome::WorkspaceCloseAccepted {
             accepted_revision, ..
         } => *accepted_revision = maximum_revision,
+        // Close retention accounting applies only to admitted Close commands and their acceptance receipts.
         _ => return None,
     }
     let command_charge = ledger_size(&maximum_command, &maximum_acknowledgment)?;
@@ -381,6 +385,7 @@ fn maximum_workspace_charge(
             terminal_context_id,
             ..
         } => terminal_context_id.clone(),
+        // Close retention accounting applies only to admitted Close commands and their acceptance receipts.
         _ => return None,
     };
     let maximum_counts = WorkbenchWorkspaceCloseCounts {

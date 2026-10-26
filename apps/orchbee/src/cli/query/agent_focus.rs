@@ -218,7 +218,9 @@ pub(crate) fn attention_changed_sessions(
                 return Err(Failure::new(FailureKind::ServiceUnavailable)
                     .details(agent_unavailable_details(AgentReadOperation::Changes)));
             }
-            _ => return Err(agent_protocol_invalid(AgentReadOperation::Changes)),
+            AgentChangesOutcome::Current { .. } | AgentChangesOutcome::ResetRequired { .. } => {
+                return Err(agent_protocol_invalid(AgentReadOperation::Changes));
+            }
         }
     }
     Ok(Some(changed))

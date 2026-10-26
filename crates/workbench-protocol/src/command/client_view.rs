@@ -231,6 +231,7 @@ impl ClientViewIntent {
             Self::CommandPopupOpen { spec } => Some(&spec.source),
             Self::EditorOpen { spec } => Some(&spec.source),
             Self::PopupOpen { spec } => Some(&spec.source),
+            // Only popup/editor intents capture a source presentation.
             _ => None,
         }
     }
@@ -247,7 +248,7 @@ impl ClientViewIntent {
                         | Self::FocusDirection { .. }
                         | Self::PopupClose {}
                 ),
-                _ => false,
+                ClientViewPhase::Ready | ClientViewPhase::Unavailable => false,
             }
     }
     #[must_use]
@@ -303,6 +304,7 @@ impl ClientViewIntent {
                 tab_id,
                 panel_id,
             } => (terminal_context_id, tab_id, panel_id),
+            // Only zoom intents admit the single-Panel no-op observation.
             _ => return false,
         };
         view.selection
@@ -782,6 +784,7 @@ impl ClientViewOperation {
                             }
                         },
                     ),
+                    // Only split-ratio/resize intents can carry layout-adjustment receipts.
                     _ => return Err(ContractError::InvalidDocument),
                 };
                 let selected = view.selection.as_ref().is_some_and(|selection| {
@@ -906,7 +909,10 @@ impl ClientViewOperation {
             ClientViewControlStatus::Incomplete {
                 view: Some(view), ..
             } => view.validate()?,
-            _ => {}
+            ClientViewControlStatus::Queued {}
+            | ClientViewControlStatus::Delivered {}
+            | ClientViewControlStatus::Rejected { .. }
+            | ClientViewControlStatus::Incomplete { view: None, .. } => {}
         }
         Ok(())
     }
@@ -937,6 +943,47 @@ pub enum ClientViewAction {
     Read {
         operation_id: WorkbenchRequestId,
     },
+}
+impl ClientViewAction {
+    /// Admits this action's result and echoed payload; connection identity is checked separately.
+    #[must_use]
+    pub fn admits(&self, outcome: &ClientViewOutcome) -> bool {
+        let failed = matches!(
+            outcome,
+            ClientViewOutcome::Denied {}
+                | ClientViewOutcome::Conflict {}
+                | ClientViewOutcome::Unavailable { .. }
+        );
+        match self {
+            Self::Synchronize {
+                heartbeat,
+                view_revision,
+                view,
+                ..
+            } => {
+                matches!(outcome, ClientViewOutcome::Synchronized { client, .. }
+                if client.heartbeat == *heartbeat
+                    && client.view_revision == *view_revision
+                    && client.view == **view)
+                    || failed
+            }
+            Self::List {} => matches!(outcome, ClientViewOutcome::Listed { .. }) || failed,
+            Self::Get { client_id } => {
+                matches!(outcome, ClientViewOutcome::Found { client } if *client_id == client.client_id)
+                    || matches!(outcome, ClientViewOutcome::NotFound {})
+                    || failed
+            }
+            Self::Submit { command } => {
+                matches!(outcome, ClientViewOutcome::Operation { operation } if **command == operation.command)
+                    || failed
+            }
+            Self::Read { operation_id } => {
+                matches!(outcome, ClientViewOutcome::Operation { operation } if *operation_id == operation.command.operation_id)
+                    || matches!(outcome, ClientViewOutcome::NotFound {})
+                    || failed
+            }
+        }
+    }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -1102,7 +1149,10 @@ impl WorkbenchClientViewResult {
                 }
             }
             ClientViewOutcome::Operation { operation } => operation.validate()?,
-            _ => {}
+            ClientViewOutcome::NotFound {}
+            | ClientViewOutcome::Conflict {}
+            | ClientViewOutcome::Denied {}
+            | ClientViewOutcome::Unavailable { .. } => {}
         }
         Ok(())
     }

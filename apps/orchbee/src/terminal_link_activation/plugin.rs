@@ -412,6 +412,7 @@ pub(crate) fn submit<G: Guard>(
             action_id,
             worker: match other {
                 Some(PluginOutcome::Unknown { worker }) => Some(worker),
+                // This phase consumes its requested plugin/popup receipt; other receipt kinds cannot confirm that operation.
                 _ => None,
             },
         },

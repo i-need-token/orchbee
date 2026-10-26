@@ -158,6 +158,7 @@ pub(in crate::cli) fn intent(
                     tab_id,
                     ..
                 } => (terminal_context_id, tab_id),
+                // This handler implements its own ClientView intent subset; other intents belong to their feature handlers.
                 _ => unreachable!("resolved exact Tab or Panel"),
             };
             Ok(ClientViewIntent::SetSplitRatio {

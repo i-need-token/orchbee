@@ -404,6 +404,7 @@ fn connect(
                 LocalClientConnectError::Admission(
                     ConnectClientError::ConnectFailed(source) | ConnectClientError::Io(source),
                 ) => failure(source.kind(), StartupFailure::Admission),
+                // Only the explicitly recognized protocol failures have a more specific transport classification here.
                 _ => StartupFailure::Admission,
             };
             Err(ActivationFailure::caused(

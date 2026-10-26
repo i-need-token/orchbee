@@ -36,6 +36,33 @@ pub enum WorkspaceGroupCloseAction {
     },
 }
 impl WorkspaceGroupCloseAction {
+    /// Admits the operation receipt while preserving the frozen Project and next resume attempt.
+    #[must_use]
+    pub fn admits(&self, outcome: &WorkspaceGroupCloseOutcome) -> bool {
+        let failed = matches!(
+            outcome,
+            WorkspaceGroupCloseOutcome::NotFound {}
+                | WorkspaceGroupCloseOutcome::Conflict {}
+                | WorkspaceGroupCloseOutcome::Denied {}
+                | WorkspaceGroupCloseOutcome::Unavailable { .. }
+        );
+        match self {
+            Self::Start { project_id, .. } => {
+                matches!(outcome, WorkspaceGroupCloseOutcome::Available { project_id: actual, .. } if project_id == actual)
+                    || failed
+            }
+            Self::Read { .. } => {
+                matches!(outcome, WorkspaceGroupCloseOutcome::Available { .. }) || failed
+            }
+            Self::Resume {
+                expected_attempt, ..
+            } => {
+                matches!(outcome, WorkspaceGroupCloseOutcome::Available { attempt, .. } if expected_attempt.checked_add(1) == Some(*attempt))
+                    || failed
+            }
+        }
+    }
+
     /// Stable operation identity, independent of this exchange.
     pub fn operation_id(&self) -> &WorkbenchRequestId {
         match self {

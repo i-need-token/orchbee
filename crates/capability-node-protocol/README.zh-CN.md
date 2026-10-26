@@ -17,6 +17,11 @@ Create/Start 与绑定代次的 cwd validation。它不是 public API 或 compat
 编码字节数最多为内容长度的两倍加 12。动作匹配必须穷举，因此新增动作时必须声明允许的
 结果。carrier 另外校验请求、viewer 与 controller 标识。
 
+## 任务结果配对
+
+`WorktreeJobAction::admits` 和 `WorktreeMutationJobAction::admits` 穷举 Start、Poll 和 Cancel
+的响应类别。carrier 另外校验操作与任务标识，包括 Start 使用操作自身标识新建的任务标识。
+
 ## Windows Worker 交接
 
 帧版本 1 新增定长 kind 26 Request、27 Result、28 Hello、29 Ready 与 30 Owned。
@@ -227,6 +232,9 @@ adapter 必须显式转换并保留 validation。
 显式启动选择包含 `u16` 程序长度、程序字节、`u16` 参数数量及带 `u16` 长度前缀的参数字符串。程序是无 NUL 的非空绝对 UTF-8 路径；参数是无 NUL 的 UTF-8 字符串（允许空值及 dash 前导值），至多 128 项，程序和参数合计至多 30,720 UTF-8 字节。选择携带 `argv[1..]`；Host 从程序路径合成 `argv[0]`。种类 0 与参数列表为空的种类 1 仍有区别。
 
 ## 只读查看附件消息
+
+`TerminalViewerAction::admits` 穷举每个 viewer 动作并定义允许的响应类别。
+carrier 另外校验请求／attachment 关联和生命周期目标回显；记录消费方校验不透明的 Host 载荷。
 
 Worker 现在消费 OBCN kind 5 `TerminalViewerRequest` 并发出 kind 6 `TerminalViewerResult`。
 Server 现在为已准入 Client Session 提交这些消息，与 Launch/Start 共用载体。
@@ -676,4 +684,4 @@ Worker 将缺失的 Host 元数据映射为 unknown；保留的启动、终端�
 空闲证据。独立字节 golden、Worker 回执测试及 Server 条件关闭见证覆盖这些细化。配套原生
 cohort 一同升级／回滚；不支持混用版本绕过安全门禁。
 
-<!-- documentation-pairing: english-sha256=03e536c9ee3a5e074e1476658edb8c44c2cc82544507c374a2f99c491675c409 zh-cn-sha256=7ae2f7ec155c795725bb6b0ee432f8e295143309bd16145aca032d9fb06af567 -->
+<!-- documentation-pairing: english-sha256=9164ca75203c2c9c4936cffac7ca2fadef1680add3a333da6e10d678261aadca zh-cn-sha256=2eed704df4f6d2dca81a9cbbd614c3db1f914a0beb69f12bb25ba9bf65e8c75e -->

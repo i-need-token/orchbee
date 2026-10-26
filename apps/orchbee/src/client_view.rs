@@ -651,7 +651,7 @@ impl ClientView {
         match preview.or_else(|| self.user_preferences.as_ref().map(|values| values.locale)) {
             Some(PreferencesLocale::EnUs) => crate::localization::Locale::EnUs,
             Some(PreferencesLocale::ZhCn) => crate::localization::Locale::ZhCn,
-            _ => fallback,
+            Some(PreferencesLocale::System) | None => fallback,
         }
     }
 

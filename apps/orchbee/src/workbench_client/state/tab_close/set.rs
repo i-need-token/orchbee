@@ -225,9 +225,11 @@ impl CloseState {
                             revision: *revision,
                         };
                     }
+                    // This Close continuation requires the corresponding published receipt; other child states cannot prove final disposal.
                     _ => set.halt(),
                 }
             }
+            // This Close continuation requires the corresponding published receipt; other child states cannot prove final disposal.
             _ => set.halt(),
         }
     }

@@ -1407,43 +1407,7 @@ fn validate_response(
             if actual.attachment_id != expected.attachment_id {
                 return Err(WorkerResponseFailure::MismatchedTarget);
             }
-            if !matches!(
-                (&expected.action, &actual.outcome),
-                (Action::Attach { .. }, Outcome::Attached)
-                    | (Action::Poll, Outcome::Empty | Outcome::Record(_))
-                    | (Action::ReadProcessInfo, Outcome::Record(_))
-                    | (
-                        Action::ReadLifecycle { .. },
-                        Outcome::LifecycleObserved { .. }
-                    )
-                    | (
-                        Action::FrameApplied { .. } | Action::NeedSnapshot { .. },
-                        Outcome::FeedbackAccepted
-                    )
-                    | (
-                        Action::SetProjectionDemand { .. }
-                            | Action::SetHistoryDemand { .. }
-                            | Action::RowsApplied { .. }
-                            | Action::HistoryObserved { .. },
-                        Outcome::FeedbackAccepted
-                    )
-                    | (
-                        Action::SelectionGesture { .. }
-                            | Action::SelectionExport { .. }
-                            | Action::SelectionExportCancel { .. },
-                        Outcome::Record(_)
-                    )
-                    | (
-                        Action::SelectionExportChunkApplied { .. },
-                        Outcome::FeedbackAccepted
-                    )
-                    | (
-                        Action::ReadRows { .. } | Action::ReadViewportRows { .. },
-                        Outcome::Record(_) | Outcome::RowsRejected(_)
-                    )
-                    | (Action::Detach, Outcome::Detached)
-                    | (_, Outcome::Rejected(_))
-            ) {
+            if !expected.action.admits(&actual.outcome) {
                 return Err(WorkerResponseFailure::WrongResultKind);
             }
             Ok(WorkerOperationResult::Viewer(actual))
@@ -1521,9 +1485,7 @@ fn validate_response(
             WorkerOperationRequest::WorktreeMutation(expected),
             CapabilityNodeMessage::WorktreeMutationResult(actual),
         ) => {
-            use orchbee_capability_node_protocol::{
-                WorktreeMutationJobAction, WorktreeMutationOutcome,
-            };
+            use orchbee_capability_node_protocol::WorktreeMutationJobAction;
             if actual.operation_id != expected.operation_id {
                 return Err(WorkerResponseFailure::MismatchedCorrelation);
             }
@@ -1537,19 +1499,7 @@ fn validate_response(
             if actual.job_id != expected_job {
                 return Err(WorkerResponseFailure::MismatchedCorrelation);
             }
-            if !matches!(
-                (&expected.action, &actual.outcome),
-                (
-                    WorktreeMutationJobAction::Start(_),
-                    WorktreeMutationOutcome::Start(_)
-                ) | (
-                    WorktreeMutationJobAction::Poll { .. },
-                    WorktreeMutationOutcome::Poll(_)
-                ) | (
-                    WorktreeMutationJobAction::Cancel { .. },
-                    WorktreeMutationOutcome::Cancel(_)
-                )
-            ) {
+            if !expected.action.admits(&actual.outcome) {
                 return Err(WorkerResponseFailure::WrongResultKind);
             }
             Ok(WorkerOperationResult::WorktreeMutation(actual))
@@ -1592,7 +1542,7 @@ fn validate_response(
             WorkerOperationRequest::WorktreeJob(expected),
             CapabilityNodeMessage::WorktreeJobResult(actual),
         ) => {
-            use orchbee_capability_node_protocol::{WorktreeJobAction, WorktreeJobOutcome};
+            use orchbee_capability_node_protocol::WorktreeJobAction;
             if actual.operation_id != expected.operation_id {
                 return Err(WorkerResponseFailure::MismatchedCorrelation);
             }
@@ -1609,17 +1559,7 @@ fn validate_response(
             if actual.job_id != expected_job {
                 return Err(WorkerResponseFailure::MismatchedCorrelation);
             }
-            if !matches!(
-                (&expected.action, &actual.outcome),
-                (
-                    WorktreeJobAction::Start { .. } | WorktreeJobAction::StartStatus { .. },
-                    WorktreeJobOutcome::Start(_)
-                ) | (WorktreeJobAction::Poll { .. }, WorktreeJobOutcome::Poll(_))
-                    | (
-                        WorktreeJobAction::Cancel { .. },
-                        WorktreeJobOutcome::Cancel(_)
-                    )
-            ) {
+            if !expected.action.admits(&actual.outcome) {
                 return Err(WorkerResponseFailure::WrongResultKind);
             }
             Ok(WorkerOperationResult::WorktreeJob(actual))

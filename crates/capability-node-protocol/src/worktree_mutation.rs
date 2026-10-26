@@ -257,6 +257,17 @@ pub enum WorktreeMutationJobAction {
     Poll { job_id: OperationId },
     Cancel { job_id: OperationId },
 }
+impl WorktreeMutationJobAction {
+    /// Admits this mutation action's response class; callers validate operation and job identities.
+    #[must_use]
+    pub fn admits(&self, outcome: &WorktreeMutationOutcome) -> bool {
+        match self {
+            Self::Start(_) => matches!(outcome, WorktreeMutationOutcome::Start(_)),
+            Self::Poll { .. } => matches!(outcome, WorktreeMutationOutcome::Poll(_)),
+            Self::Cancel { .. } => matches!(outcome, WorktreeMutationOutcome::Cancel(_)),
+        }
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WorktreeMutationRequest {

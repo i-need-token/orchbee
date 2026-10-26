@@ -31,6 +31,7 @@ pub(super) fn failure(outcome: &Outcome) -> Option<FailureKind> {
         Outcome::Denied {} => Some(FailureKind::Denied),
         Outcome::LaunchProfileUnavailable {} => Some(FailureKind::NotFound),
         Outcome::LaunchProfileAmbiguous { .. } => Some(FailureKind::Ambiguous),
+        // This step consumes its specific mutation receipt; other command results cannot confirm the requested postcondition.
         _ => Some(FailureKind::ProtocolInvalid),
     }
 }

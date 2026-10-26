@@ -43,6 +43,7 @@ impl Removal {
         let branch = match &entry.checkout.branch {
             Some(WorktreeEntryText::Utf8(branch)) => Some(branch.clone()),
             None => None,
+            // This operation needs UTF-8 text operands; opaque path bytes cannot supply them.
             _ => return None,
         };
         let terminals = cache
@@ -201,7 +202,9 @@ impl<'a> WorktreeView<'a> {
         }
         match status.as_ref() {
             WorktreeOperationStatus::Failed { reason, .. } => Some(reason),
-            _ => None,
+            WorktreeOperationStatus::Pending { .. }
+            | WorktreeOperationStatus::Opened { .. }
+            | WorktreeOperationStatus::Removed { .. } => None,
         }
     }
     /// Retained Workspace and shell-restoration facts for this exact Remove attempt.
@@ -220,7 +223,9 @@ impl<'a> WorktreeView<'a> {
         match status.as_ref() {
             WorktreeOperationStatus::Pending { progress, .. }
             | WorktreeOperationStatus::Failed { progress, .. } => Some(progress),
-            _ => None,
+            WorktreeOperationStatus::Opened { .. } | WorktreeOperationStatus::Removed { .. } => {
+                None
+            }
         }
     }
 }

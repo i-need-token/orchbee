@@ -72,7 +72,11 @@ impl TerminalAuthorizationBinding {
                     orchbee_capability_node_protocol::TerminalLaunchOutcome::HostAccepted(
                         accepted,
                     ) => Some(accepted.identity()),
-                    _ => None,
+                    orchbee_capability_node_protocol::TerminalLaunchOutcome::Rejected(..)
+                    | orchbee_capability_node_protocol::TerminalLaunchOutcome::Failed(..)
+                    | orchbee_capability_node_protocol::TerminalLaunchOutcome::OutcomeUnknown {
+                        ..
+                    } => None,
                 },
                 AuthorizedHostOperationResult::Start(_) => None,
             },

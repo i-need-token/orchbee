@@ -131,46 +131,35 @@ pub(super) fn materialized(
             && actual.custom_label == expected.custom_label
     }
     fn matches(expected: &WorkbenchLayoutNode, actual: &PanelNode) -> bool {
-        match (expected, actual) {
-            (
-                WorkbenchLayoutNode::Panel {
-                    primary,
-                    children,
-                    right_click,
-                },
-                PanelNode::Panel {
+        match expected {
+            WorkbenchLayoutNode::Panel {
+                primary,
+                children,
+                right_click,
+            } => matches!(actual, PanelNode::Panel {
                     primary_presentation,
                     child_presentations,
                     right_click: actual_policy,
                     ..
-                },
-            ) => {
-                right_click == actual_policy
+                } if right_click == actual_policy
                     && presentation(primary, primary_presentation)
                     && children.len() == child_presentations.len()
                     && children
                         .iter()
                         .zip(child_presentations)
-                        .all(|(e, a)| presentation(e, a))
-            }
-            (
-                WorkbenchLayoutNode::Split {
-                    orientation,
-                    children,
-                },
-                PanelNode::Split {
+                        .all(|(e, a)| presentation(e, a))),
+            WorkbenchLayoutNode::Split {
+                orientation,
+                children,
+            } => matches!(actual, PanelNode::Split {
                     orientation: actual_orientation,
                     children: actual_children,
                     ..
-                },
-            ) => {
-                orientation == actual_orientation
+                } if orientation == actual_orientation
                     && children
                         .iter()
                         .zip(actual_children.iter())
-                        .all(|(e, a)| matches(e, &a.node))
-            }
-            _ => false,
+                        .all(|(e, a)| matches(e, &a.node))),
         }
     }
     fn first(node: &PanelNode) -> &WorkbenchPanelId {
@@ -260,7 +249,7 @@ pub(super) fn bind(
                     .ok_or_else(changed)?;
                 update(&mut child.node, fresh, panel, id)
             }
-            _ => Err(changed()),
+            PanelNode::Panel { .. } => Err(changed()),
         }
     }
     let mut candidate = expected.clone();
@@ -287,7 +276,9 @@ pub(super) fn matches_template(
                 != match split.direction {
                     WorkbenchPanelSplitDirection::Right => "right",
                     WorkbenchPanelSplitDirection::Below => "down",
-                    _ => return false,
+                    WorkbenchPanelSplitDirection::Above | WorkbenchPanelSplitDirection::Left => {
+                        return false;
+                    }
                 }
         {
             return false;

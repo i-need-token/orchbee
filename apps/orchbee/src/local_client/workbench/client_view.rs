@@ -84,41 +84,13 @@ fn correlated(
     {
         return false;
     }
-    match (&request.action, &result.outcome) {
-        (
-            _,
-            ClientViewOutcome::Denied {}
-            | ClientViewOutcome::Conflict {}
-            | ClientViewOutcome::Unavailable { .. },
-        ) => true,
-        (
-            ClientViewAction::Synchronize {
-                heartbeat,
-                view_revision,
-                view,
-                ..
-            },
-            ClientViewOutcome::Synchronized { client, .. },
-        ) => {
-            client.client_id.as_str() == format!("{:032x}", generation.get())
-                && client.heartbeat == *heartbeat
-                && client.view_revision == *view_revision
-                && client.view == **view
+    request.action.admits(&result.outcome)
+        && match (&request.action, &result.outcome) {
+            (
+                ClientViewAction::Synchronize { .. },
+                ClientViewOutcome::Synchronized { client, .. },
+            ) => client.client_id.as_str() == format!("{:032x}", generation.get()),
+            // Connection generation is echoed only by Synchronize; pairing belongs to the protocol.
+            _ => true,
         }
-        (ClientViewAction::List {}, ClientViewOutcome::Listed { .. }) => true,
-        (ClientViewAction::Get { client_id }, ClientViewOutcome::Found { client }) => {
-            *client_id == client.client_id
-        }
-        (
-            ClientViewAction::Get { .. } | ClientViewAction::Read { .. },
-            ClientViewOutcome::NotFound {},
-        ) => true,
-        (ClientViewAction::Submit { command }, ClientViewOutcome::Operation { operation }) => {
-            **command == operation.command
-        }
-        (ClientViewAction::Read { operation_id }, ClientViewOutcome::Operation { operation }) => {
-            *operation_id == operation.command.operation_id
-        }
-        _ => false,
-    }
 }

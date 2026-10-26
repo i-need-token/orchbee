@@ -422,7 +422,7 @@ impl DraftView<'_> {
         let profile = &catalog.profiles[self.profile];
         let arguments = match &profile.command {
             UserLaunchCommand::CustomExecutable { arguments, .. } => Some(arguments),
-            _ => None,
+            UserLaunchCommand::SystemShell { .. } => None,
         };
         match row {
             Row::Save => self.dirty && !self.conflict && self.reconciliation.is_none(),
@@ -1170,7 +1170,7 @@ impl Editor {
                     draft.profile = index;
                     draft.argument = match field {
                         UserLaunchField::Argument(index) => index,
-                        _ => 0,
+                        UserLaunchField::Name | UserLaunchField::Executable => 0,
                     };
                     draft.row = row;
                     draft.follow_selection = true;

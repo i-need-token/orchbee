@@ -85,6 +85,7 @@ impl NativeExecutor {
             Some(WorkbenchTerminalOutcome::OutcomeUnknown {}) => {
                 return Err(CarrierFailure::OutcomeUnknown);
             }
+            // Only a confirmed started terminal can receive this follow-up; other launch facts leave it unresolved.
             _ => return Err(CarrierFailure::Transport),
         }
         let fresh = self.directory_snapshot(deadline)?;
@@ -100,7 +101,8 @@ impl NativeExecutor {
             .map_err(super::closed)?;
         match self.read_workbench_before(request, deadline)? {
             WorkbenchSnapshotOutcome::Available { snapshot } => Ok(snapshot),
-            _ => Err(CarrierFailure::Transport),
+            WorkbenchSnapshotOutcome::Denied { .. }
+            | WorkbenchSnapshotOutcome::Unavailable { .. } => Err(CarrierFailure::Transport),
         }
     }
 }

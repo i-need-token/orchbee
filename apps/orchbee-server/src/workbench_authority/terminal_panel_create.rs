@@ -633,6 +633,7 @@ impl WorkbenchAuthority {
                     profile,
                     ..
                 } => (terminal_context_id, tab_id, panel_id, geometry, profile),
+                // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
                 _ => return WorkbenchPanelCreateBegin::Ready(retire(self, &command)),
             };
         let snapshot = self.projection.snapshot();
@@ -752,6 +753,7 @@ impl WorkbenchAuthority {
                     }
                 }
             }
+            // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
             _ => None,
         };
         let profile_use = match &profile {

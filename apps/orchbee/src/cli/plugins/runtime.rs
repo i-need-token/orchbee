@@ -98,6 +98,7 @@ pub(super) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) 
                             limit: remaining.min(4) as u8,
                         })
                 }
+                // This phase consumes its requested plugin/popup receipt; other receipt kinds cannot confirm that operation.
                 _ => None,
             };
             let value = serde_json::to_value(&reply)
@@ -208,7 +209,16 @@ fn render(
                     let logs: &[orchbee_workbench_protocol::PluginCommandLog] = match outcome {
                         PluginOutcome::Started { log, .. } => std::slice::from_ref(log),
                         PluginOutcome::Logs { logs, .. } => logs,
-                        _ => &[],
+                        PluginOutcome::PopupOpened { .. }
+                        | PluginOutcome::PopupState { .. }
+                        | PluginOutcome::PopupClosed { .. }
+                        | PluginOutcome::PopupClosing { .. }
+                        | PluginOutcome::PopupUnknown { .. }
+                        | PluginOutcome::PaneObserved { .. }
+                        | PluginOutcome::PaneFound { .. }
+                        | PluginOutcome::Cancellation { .. }
+                        | PluginOutcome::Failed { .. }
+                        | PluginOutcome::Unknown { .. } => &[],
                     };
                     for log in logs.iter().rev() {
                         if let Some(code) = log.exit_code {
@@ -260,17 +270,47 @@ fn history_document(
 ) -> serde_json::Value {
     let worker = replies.iter().find_map(|r| match &r.outcome {
         PluginOutcome::Logs { worker, .. } => Some(worker),
-        _ => None,
+        PluginOutcome::PopupOpened { .. }
+        | PluginOutcome::PopupState { .. }
+        | PluginOutcome::PopupClosed { .. }
+        | PluginOutcome::PopupClosing { .. }
+        | PluginOutcome::PopupUnknown { .. }
+        | PluginOutcome::PaneObserved { .. }
+        | PluginOutcome::PaneFound { .. }
+        | PluginOutcome::Started { .. }
+        | PluginOutcome::Cancellation { .. }
+        | PluginOutcome::Failed { .. }
+        | PluginOutcome::Unknown { .. } => None,
     });
     let failure = replies.iter().find_map(|r| match r.outcome {
         PluginOutcome::Failed { reason } => Some(reason),
-        _ => None,
+        PluginOutcome::PopupOpened { .. }
+        | PluginOutcome::PopupState { .. }
+        | PluginOutcome::PopupClosed { .. }
+        | PluginOutcome::PopupClosing { .. }
+        | PluginOutcome::PopupUnknown { .. }
+        | PluginOutcome::PaneObserved { .. }
+        | PluginOutcome::PaneFound { .. }
+        | PluginOutcome::Started { .. }
+        | PluginOutcome::Logs { .. }
+        | PluginOutcome::Cancellation { .. }
+        | PluginOutcome::Unknown { .. } => None,
     });
     let mut logs: Vec<_> = replies
         .iter()
         .flat_map(|r| match &r.outcome {
             PluginOutcome::Logs { logs, .. } => logs.as_slice(),
-            _ => &[],
+            PluginOutcome::PopupOpened { .. }
+            | PluginOutcome::PopupState { .. }
+            | PluginOutcome::PopupClosed { .. }
+            | PluginOutcome::PopupClosing { .. }
+            | PluginOutcome::PopupUnknown { .. }
+            | PluginOutcome::PaneObserved { .. }
+            | PluginOutcome::PaneFound { .. }
+            | PluginOutcome::Started { .. }
+            | PluginOutcome::Cancellation { .. }
+            | PluginOutcome::Failed { .. }
+            | PluginOutcome::Unknown { .. } => &[],
         })
         .collect();
     // Internal cursor pages are descending and nonoverlapping; presentation is chronological.

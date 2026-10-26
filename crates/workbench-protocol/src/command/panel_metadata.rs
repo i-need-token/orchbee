@@ -397,49 +397,48 @@ impl PanelMetadataResult {
         self.protocol_version == request.protocol_version
             && self.request_id == request.request_id
             && self.site_id == request.site_id
-            && match (&request.action, &self.outcome) {
-                (_, PanelMetadataOutcome::Failed { .. }) => true,
-                (
-                    PanelMetadataAction::ReadPresentations { presentation_ids },
-                    PanelMetadataOutcome::PresentationsRead { presentations, .. },
-                ) => presentation_ids
+            && {
+                let shared_failure = matches!(&self.outcome, PanelMetadataOutcome::Failed { .. });
+                match &request.action {
+                    PanelMetadataAction::ReadPresentations { presentation_ids } => {
+                        matches!(&self.outcome, PanelMetadataOutcome::PresentationsRead { presentations, .. } if presentation_ids
                     .iter()
-                    .eq(presentations.iter().map(|row| &row.presentation_id)),
-                (
-                    PanelMetadataAction::Read { panel_ids },
-                    PanelMetadataOutcome::Read { panels, .. },
-                ) => panel_ids.iter().eq(panels.iter().map(|p| &p.panel_id)),
-                (
+                    .eq(presentations.iter().map(|row| &row.presentation_id)))
+                            || shared_failure
+                    }
+                    PanelMetadataAction::Read { panel_ids } => {
+                        matches!(&self.outcome, PanelMetadataOutcome::Read { panels, .. } if panel_ids.iter().eq(panels.iter().map(|p| &p.panel_id)))
+                            || shared_failure
+                    }
                     PanelMetadataAction::ReportPresentation {
                         panel_id,
                         presentation_id,
                         expected_binding,
                         ..
-                    },
-                    PanelMetadataOutcome::PresentationReported {
-                        panel_id: actual,
-                        presentation_id: actual_presentation,
-                        binding,
-                        ..
-                    },
-                ) => {
-                    panel_id == actual
-                        && presentation_id == actual_presentation
-                        && expected_binding == binding
-                }
-                (
+                    } => {
+                        matches!(&self.outcome, PanelMetadataOutcome::PresentationReported {
+                                panel_id: actual,
+                                presentation_id: actual_presentation,
+                                binding,
+                                ..
+                            } if panel_id == actual
+                                && presentation_id == actual_presentation
+                                && expected_binding == binding)
+                            || shared_failure
+                    }
                     PanelMetadataAction::Report {
                         panel_id,
                         expected_binding,
                         ..
-                    },
-                    PanelMetadataOutcome::Reported {
+                    } => {
+                        matches!(&self.outcome, PanelMetadataOutcome::Reported {
                         panel_id: actual,
                         binding,
                         ..
-                    },
-                ) => panel_id == actual && expected_binding == binding,
-                _ => false,
+                    } if panel_id == actual && expected_binding == binding)
+                            || shared_failure
+                    }
+                }
             }
     }
 }

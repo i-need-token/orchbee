@@ -102,7 +102,10 @@ impl Names {
             {
                 Some(target.as_str())
             }
-            _ => None,
+            AgentSessionSelector::Session { .. }
+            | AgentSessionSelector::Auto { .. }
+            | AgentSessionSelector::Terminal { .. }
+            | AgentSessionSelector::Presentation { .. } => None,
         };
         let named = by_name.and_then(|name| {
             self.terminals
@@ -127,7 +130,9 @@ impl Names {
                     Some(binding.clone()),
                     AgentResolvedBy::Presentation,
                 ),
-                _ => (None, None, AgentResolvedBy::Name),
+                AgentSessionSelector::Session { .. }
+                | AgentSessionSelector::Name { .. }
+                | AgentSessionSelector::Auto { .. } => (None, None, AgentResolvedBy::Name),
             }
         };
         // Once named as a terminal, a later hook does not silently move its alias to a different identity domain.

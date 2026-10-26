@@ -292,6 +292,7 @@ fn run(
                     },
                 });
             }
+            // This command consumes its own observation or terminal receipt; unrelated control results have no projection in this phase.
             _ => {}
         }
         if !state.reload

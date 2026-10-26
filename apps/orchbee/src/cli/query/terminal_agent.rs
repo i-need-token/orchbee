@@ -88,7 +88,12 @@ pub(in crate::cli) fn read(
                 | PanelAgentFailure::BindingChanged => FailureKind::NotFound,
                 PanelAgentFailure::HistoryLimit => FailureKind::Rejected,
                 PanelAgentFailure::ResultTooLarge => FailureKind::OutputTooLarge,
-                _ => FailureKind::ProtocolInvalid,
+                PanelAgentFailure::SiteMismatch
+                | PanelAgentFailure::InvalidRequest
+                | PanelAgentFailure::SourceLimit
+                | PanelAgentFailure::ResourceLimit
+                | PanelAgentFailure::RevisionExhausted
+                | PanelAgentFailure::ClockOverflow => FailureKind::ProtocolInvalid,
             },
             match reason {
                 PanelAgentFailure::HistoryLimit => "history-lost",
@@ -96,10 +101,25 @@ pub(in crate::cli) fn read(
                 PanelAgentFailure::BindingChanged
                 | PanelAgentFailure::NotFound
                 | PanelAgentFailure::Unbound => "binding-changed",
-                _ => "read-failed",
+                PanelAgentFailure::Denied
+                | PanelAgentFailure::Unavailable
+                | PanelAgentFailure::SiteMismatch
+                | PanelAgentFailure::SourceLimit
+                | PanelAgentFailure::ResourceLimit
+                | PanelAgentFailure::RevisionExhausted
+                | PanelAgentFailure::ClockOverflow
+                | PanelAgentFailure::ResultTooLarge => "read-failed",
             },
         )),
-        _ => Err(failure(FailureKind::ProtocolInvalid, "read-failed")),
+        PanelAgentOutcome::Titles { .. }
+        | PanelAgentOutcome::PresentationsRead { .. }
+        | PanelAgentOutcome::Explained { .. }
+        | PanelAgentOutcome::States { .. }
+        | PanelAgentOutcome::Read { .. }
+        | PanelAgentOutcome::PresentationReported { .. }
+        | PanelAgentOutcome::Reported { .. } => {
+            Err(failure(FailureKind::ProtocolInvalid, "read-failed"))
+        }
     }
 }
 

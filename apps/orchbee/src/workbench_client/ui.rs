@@ -4004,7 +4004,8 @@ impl NativeUi {
             orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Available { snapshot } => {
                 Some(snapshot.clone())
             }
-            _ => None,
+            orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Denied { .. }
+            | orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Unavailable { .. } => None,
         };
         // Projection and append-only validation are bounded but intentionally run outside the
         // mailbox mutex. Only the prepared value is committed in the exact reply transaction.

@@ -69,6 +69,7 @@ impl TerminalProjection {
                     (event.identity, TerminalEnd::Exited(event.exit))
                 }
                 LifecycleControl::TerminalFailed(event) => (event.identity, TerminalEnd::Failed),
+                // This lifecycle exchange requires its exact target-bearing acknowledgment; other control records cannot confirm it.
                 _ => return Err(()),
             };
         if identity.host_epoch != self.epoch

@@ -92,7 +92,11 @@ fn validate_resume_result(
                 received: *attempt_generation,
             });
         }
-        _ => {}
+        WorkbenchWorkspaceCloseResumeOutcome::Resumed { .. }
+        | WorkbenchWorkspaceCloseResumeOutcome::Stale { .. }
+        | WorkbenchWorkspaceCloseResumeOutcome::Denied { .. }
+        | WorkbenchWorkspaceCloseResumeOutcome::Unavailable { .. }
+        | WorkbenchWorkspaceCloseResumeOutcome::Rejected { .. } => {}
     }
     // A fixed Resumed receipt describes its submitted attempt, not the operation's current generation.
     Ok(result.outcome)

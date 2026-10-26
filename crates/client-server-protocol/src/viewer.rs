@@ -223,7 +223,10 @@ where
             select_output: Missing,
         } => Ok(ViewerSelectionGestureAction::Cancel),
         // Any missing or extra discriminant-specific field is an invalid wire shape.
-        _ => Err(<D::Error as serde::de::Error>::custom(
+        ViewerSelectionGestureWire {
+            action: Action::Start | Action::Update | Action::End | Action::Cancel,
+            ..
+        } => Err(<D::Error as serde::de::Error>::custom(
             "selection gesture fields do not match its action",
         )),
     }
@@ -584,5 +587,79 @@ impl TerminalViewerResult {
     #[must_use]
     pub fn into_outcome(self) -> TerminalViewerOutcome {
         self.outcome
+    }
+}
+
+impl TerminalViewerAction {
+    /// Admits this action's response class; consumers validate record payloads and target echoes.
+    #[must_use]
+    pub fn admits(&self, outcome: &TerminalViewerOutcome) -> bool {
+        let failed = matches!(
+            outcome,
+            TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. }
+        );
+        match self {
+            Self::Attach { .. } => {
+                matches!(outcome, TerminalViewerOutcome::Attached { .. }) || failed
+            }
+            Self::AttachBinding { .. } => {
+                matches!(outcome, TerminalViewerOutcome::Attached { .. }) || failed
+            }
+            Self::Poll { .. } => {
+                matches!(
+                    outcome,
+                    TerminalViewerOutcome::Empty {} | TerminalViewerOutcome::Record(_)
+                ) || failed
+            }
+            Self::FrameApplied { .. } => {
+                matches!(outcome, TerminalViewerOutcome::FeedbackAccepted {}) || failed
+            }
+            Self::NeedSnapshot { .. } => {
+                matches!(outcome, TerminalViewerOutcome::FeedbackAccepted {}) || failed
+            }
+            Self::ReadProcessInfo { .. } => {
+                matches!(outcome, TerminalViewerOutcome::Record(_)) || failed
+            }
+            Self::ReadRows { .. } => {
+                matches!(
+                    outcome,
+                    TerminalViewerOutcome::Record(_) | TerminalViewerOutcome::RowsRejected { .. }
+                ) || failed
+            }
+            Self::ReadViewportRows { .. } => {
+                matches!(
+                    outcome,
+                    TerminalViewerOutcome::Record(_) | TerminalViewerOutcome::RowsRejected { .. }
+                ) || failed
+            }
+            Self::SetProjectionDemand { .. } => {
+                matches!(outcome, TerminalViewerOutcome::FeedbackAccepted {}) || failed
+            }
+            Self::SetHistoryDemand { .. } => {
+                matches!(outcome, TerminalViewerOutcome::FeedbackAccepted {}) || failed
+            }
+            Self::RowsApplied { .. } => {
+                matches!(outcome, TerminalViewerOutcome::FeedbackAccepted {}) || failed
+            }
+            Self::HistoryObserved { .. } => {
+                matches!(outcome, TerminalViewerOutcome::FeedbackAccepted {}) || failed
+            }
+            Self::SelectionGesture { .. } => {
+                matches!(outcome, TerminalViewerOutcome::Record(_)) || failed
+            }
+            Self::SelectionExport { .. } => {
+                matches!(outcome, TerminalViewerOutcome::Record(_)) || failed
+            }
+            Self::SelectionExportCancel { .. } => {
+                matches!(outcome, TerminalViewerOutcome::Record(_)) || failed
+            }
+            Self::SelectionExportChunkApplied { .. } => {
+                matches!(
+                    outcome,
+                    TerminalViewerOutcome::FeedbackAccepted {} | TerminalViewerOutcome::Record(_)
+                ) || failed
+            }
+            Self::Detach { .. } => matches!(outcome, TerminalViewerOutcome::Detached {}) || failed,
+        }
     }
 }

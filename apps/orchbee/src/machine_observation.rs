@@ -63,7 +63,9 @@ pub(crate) fn snapshot(
         .outcome
     {
         WorkbenchSnapshotOutcome::Available { snapshot } => Ok(snapshot),
-        _ => Err(()),
+        WorkbenchSnapshotOutcome::Denied { .. } | WorkbenchSnapshotOutcome::Unavailable { .. } => {
+            Err(())
+        }
     }
 }
 struct Completed<T> {
@@ -215,6 +217,7 @@ fn watch(
             SemanticEventsOutcome::Failed {
                 reason: SemanticEventsFailure::Busy,
             } => thread::sleep(Duration::from_millis(20)),
+            // This command consumes its own observation or terminal receipt; unrelated control results have no projection in this phase.
             _ => return Err(()),
         }
     }

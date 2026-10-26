@@ -428,7 +428,11 @@ impl Theme {
                 0.5 + 0.5 * (1.0 + phase.cos()) / 2.0
             }
             Blocked if !(frame / 5).is_multiple_of(2) => 0.5,
-            _ => return style,
+            Blocked
+            | orchbee_workbench_protocol::MetadataState::Idle
+            | orchbee_workbench_protocol::MetadataState::Done
+            | orchbee_workbench_protocol::MetadataState::Error
+            | orchbee_workbench_protocol::MetadataState::Unknown => return style,
         };
         let colors = match (style.fg, self.styles.surface_canvas.bg) {
             (Some(Color::Rgb(r, g, b)), Some(Color::Rgb(br, bg, bb))) => {

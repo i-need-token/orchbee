@@ -230,13 +230,13 @@ pub(super) fn text(draft: &Draft) -> Option<String> {
         ),
         Row::Executable => match &values.launch_profiles.profiles[draft.profile].command {
             UserLaunchCommand::CustomExecutable { executable, .. } => Some(executable.clone()),
-            _ => None,
+            UserLaunchCommand::SystemShell { .. } => None,
         },
         Row::ArgumentValue => match &values.launch_profiles.profiles[draft.profile].command {
             UserLaunchCommand::CustomExecutable { arguments, .. } => {
                 arguments.get(draft.argument).cloned()
             }
-            _ => None,
+            UserLaunchCommand::SystemShell { .. } => None,
         },
         _ => None,
     }

@@ -520,7 +520,14 @@ impl CloseContinuation {
                     LifecycleRejection::LeaseExpired | LifecycleRejection::BindingUnavailable => {
                         (BlockedReason::WorkerUnavailable, true)
                     }
-                    _ => (BlockedReason::IdentityConflict, false),
+                    LifecycleRejection::WrongWorker
+                    | LifecycleRejection::StaleWorkerGeneration
+                    | LifecycleRejection::UnsupportedCapability
+                    | LifecycleRejection::BindingFenceMismatch
+                    | LifecycleRejection::HostIdentityMismatch
+                    | LifecycleRejection::LifecycleConflict => {
+                        (BlockedReason::IdentityConflict, false)
+                    }
                 };
                 self.park_lifecycle(blocked, resumable);
             }
@@ -541,7 +548,9 @@ impl CloseContinuation {
             TerminalLifecycleOutcome::InventoryFailure(reason) => self.park_lifecycle(
                 match reason {
                     LifecycleInventoryFailure::IdentityConflict => BlockedReason::IdentityConflict,
-                    _ => BlockedReason::InventoryIncomplete,
+                    LifecycleInventoryFailure::StaleCursor
+                    | LifecycleInventoryFailure::PageRejected
+                    | LifecycleInventoryFailure::InvalidPage => BlockedReason::InventoryIncomplete,
                 },
                 !matches!(reason, LifecycleInventoryFailure::IdentityConflict),
             ),

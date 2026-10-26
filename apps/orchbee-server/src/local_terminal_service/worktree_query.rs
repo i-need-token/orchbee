@@ -103,6 +103,7 @@ impl LocalTerminalService {
             Some(WorktreeEntryText::Utf8(path)) => {
                 WorkbenchDirectoryPath::parse(path).map_err(|_| Failure::MalformedListing {})?
             }
+            // This operation needs UTF-8 text operands; opaque path bytes cannot supply them.
             _ => return Err(Failure::MalformedListing {}),
         };
         let workers = self.workers.lock().map_err(|_| busy())?;

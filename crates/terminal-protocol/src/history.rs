@@ -102,6 +102,7 @@ pub fn decode_history_control(
                 .and_then(history_observed_from_wire)
                 .map(HistoryControl::HistoryObservedResponse)
         }
+        // This codec accepts only its declared message family and request/response roles.
         _ => Err(invalid_field(
             "message kind and role do not select a history-control payload",
         )),

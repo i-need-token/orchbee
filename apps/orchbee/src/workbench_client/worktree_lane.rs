@@ -209,7 +209,9 @@ fn snapshot(
         .ok()?;
     match result.outcome {
         WorkbenchSnapshotOutcome::Available { snapshot } => Some(snapshot),
-        _ => None,
+        WorkbenchSnapshotOutcome::Denied { .. } | WorkbenchSnapshotOutcome::Unavailable { .. } => {
+            None
+        }
     }
 }
 fn settings() -> Result<Option<WorkbenchDirectoryPath>, WorktreeNotice> {

@@ -280,6 +280,7 @@ impl Locale {
                     let branch = match &checkout.branch {
                         Some(WorktreeEntryText::Utf8(branch)) => branch.as_str(),
                         _ if checkout.bare => word("bare", "裸仓库"),
+                        // This operation needs UTF-8 text operands; opaque path bytes cannot supply them.
                         _ => word("detached HEAD", "分离 HEAD"),
                     };
                     let kind = if entry.linked {

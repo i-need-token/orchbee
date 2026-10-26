@@ -179,6 +179,7 @@ impl Driver {
                     self.job = None;
                     return Err(Failure::Unavailable);
                 }
+                // This observer is scoped to one Worktree intent and its corresponding progress or retained receipt.
                 _ => return Err(Failure::Unavailable),
             }
         }

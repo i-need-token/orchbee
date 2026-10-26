@@ -181,7 +181,10 @@ fn read_rows(
         TerminalViewerOutcome::RowsRejected { reason } => aged_pin(*reason),
         TerminalViewerOutcome::Rejected { reason } => Err(classify_viewer_rejected(*reason)),
         TerminalViewerOutcome::Unavailable { .. } => Err(viewer_unavailable()),
-        _ => Err(viewer_protocol_invalid()),
+        TerminalViewerOutcome::Attached { .. }
+        | TerminalViewerOutcome::Empty { .. }
+        | TerminalViewerOutcome::FeedbackAccepted { .. }
+        | TerminalViewerOutcome::Detached { .. } => Err(viewer_protocol_invalid()),
     }
 }
 
@@ -294,7 +297,10 @@ pub(super) fn wait_sample(
                 return Err(classify_viewer_rejected(*reason));
             }
             TerminalViewerOutcome::Unavailable { .. } => return Err(viewer_unavailable()),
-            _ => return Err(viewer_protocol_invalid()),
+            TerminalViewerOutcome::Attached { .. }
+            | TerminalViewerOutcome::Empty { .. }
+            | TerminalViewerOutcome::FeedbackAccepted { .. }
+            | TerminalViewerOutcome::Detached { .. } => return Err(viewer_protocol_invalid()),
         }
     };
     if let Some(boundary) = boundary {

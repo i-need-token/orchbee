@@ -141,6 +141,7 @@ pub(super) fn exchange_failure(error: AgentExchangeError) -> Failure {
             | AgentExchangeFailure::Response(
                 orchbee_agent_observation_protocol::AgentWireError::Io(error),
             ) => io_failure_kind(&error),
+            // Only the explicitly recognized protocol failures have a more specific transport classification here.
             _ => FailureKind::ProtocolInvalid,
         },
     };

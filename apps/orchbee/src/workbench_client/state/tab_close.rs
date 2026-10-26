@@ -712,7 +712,10 @@ impl CloseState {
         }
         let closed = match &status {
             WorkbenchTabCloseStatus::Closed { revision } => Some(*revision),
-            _ => None,
+            WorkbenchTabCloseStatus::Closing { .. }
+            | WorkbenchTabCloseStatus::CleanupBlocked { .. }
+            | WorkbenchTabCloseStatus::OutcomeUnknown { .. }
+            | WorkbenchTabCloseStatus::DisposedAwaitingPublication { .. } => None,
         };
         if record
             .closed_revision

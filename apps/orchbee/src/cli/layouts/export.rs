@@ -75,7 +75,13 @@ fn observe(
             ClientViewOutcome::Unavailable { .. } => {
                 return Err(Failure::new(FailureKind::ServiceUnavailable));
             }
-            _ => return Err(Failure::new(FailureKind::ProtocolInvalid)),
+            ClientViewOutcome::Synchronized { .. }
+            | ClientViewOutcome::Found { .. }
+            | ClientViewOutcome::Operation { .. }
+            | ClientViewOutcome::NotFound { .. }
+            | ClientViewOutcome::Conflict { .. } => {
+                return Err(Failure::new(FailureKind::ProtocolInvalid));
+            }
         };
         let selected = selection::select(&clients, command.client.as_ref(), caller.as_ref())?;
         if selected.view.phase != ClientViewPhase::Ready {

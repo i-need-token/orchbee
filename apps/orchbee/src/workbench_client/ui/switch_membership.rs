@@ -76,7 +76,9 @@ impl NativeUi {
             {
                 Some(snapshot.clone())
             }
-            _ => None,
+            WorkbenchSnapshotOutcome::Available { .. }
+            | WorkbenchSnapshotOutcome::Denied { .. }
+            | WorkbenchSnapshotOutcome::Unavailable { .. } => None,
         };
         // Canonical validation and all bounded candidate allocations precede the reply mutex.
         let prepared = if state.switch_marker_is_current(&marker)

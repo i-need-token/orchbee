@@ -161,6 +161,7 @@ fn classify_command_result(
     let expected_workspace = match &command.action {
         WorkbenchAction::WorkspaceClose { workspace_id }
         | WorkbenchAction::WorkspaceCloseIfIdle { workspace_id } => workspace_id,
+        // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
         _ => unreachable!("opaque request admits only Workspace Close actions"),
     };
     match result.outcome {
@@ -229,6 +230,7 @@ fn classify_command_result(
                 WorkbenchWorkspaceClosePrecommit::Unavailable { reason },
             ))
         }
+        // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
         _ => Err(WorkbenchWorkspaceCloseFailure::ActionIncompatible),
     }
 }

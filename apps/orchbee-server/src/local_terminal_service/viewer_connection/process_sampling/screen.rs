@@ -93,7 +93,12 @@ fn frame(
                 }
                 return decode_terminal_text_frame(envelope.payload).ok();
             }
-            _ => return None,
+            WorkerOutcome::Attached
+            | WorkerOutcome::FeedbackAccepted
+            | WorkerOutcome::LifecycleObserved { .. }
+            | WorkerOutcome::Detached
+            | WorkerOutcome::Rejected(..)
+            | WorkerOutcome::RowsRejected(..) => return None,
         }
     }
     None
@@ -451,7 +456,14 @@ pub(super) fn observe(
             revision,
             settled,
         } if target == viewer.target.identity => Some((revision, settled)),
-        _ => None,
+        WorkerOutcome::Attached
+        | WorkerOutcome::Empty
+        | WorkerOutcome::Record(..)
+        | WorkerOutcome::FeedbackAccepted
+        | WorkerOutcome::LifecycleObserved { .. }
+        | WorkerOutcome::Detached
+        | WorkerOutcome::Rejected(..)
+        | WorkerOutcome::RowsRejected(..) => None,
     });
     let projection = fresh_frame(viewer, template, stop);
     let version = projection

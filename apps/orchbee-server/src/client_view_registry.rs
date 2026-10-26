@@ -67,7 +67,21 @@ impl Receipt {
             }
             ClientViewControlStatus::LayoutRead { layout, .. } => serde_json::to_vec(layout)
                 .map_or(MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES, |encoded| encoded.len()),
-            _ => 0,
+            ClientViewControlStatus::PopupOpened { .. }
+            | ClientViewControlStatus::PopupClosed { .. }
+            | ClientViewControlStatus::PresentationRead { .. }
+            | ClientViewControlStatus::ViewportRead { .. }
+            | ClientViewControlStatus::NavigationRead { .. }
+            | ClientViewControlStatus::LayoutAdjusted { .. }
+            | ClientViewControlStatus::DirectionFocused { .. }
+            | ClientViewControlStatus::DirectionUnchanged { .. }
+            | ClientViewControlStatus::Queued { .. }
+            | ClientViewControlStatus::Delivered { .. }
+            | ClientViewControlStatus::Applied { .. }
+            | ClientViewControlStatus::ZoomUnchanged { .. }
+            | ClientViewControlStatus::ZoomToggled { .. }
+            | ClientViewControlStatus::Rejected { .. }
+            | ClientViewControlStatus::Incomplete { .. } => 0,
         };
         self.operation.status = status;
         self.completed_at = Some(now);
@@ -299,7 +313,22 @@ impl ClientViewRegistry {
                     reason: ClientViewControlReason::ClientDisconnected,
                     view: None,
                 },
-                _ => continue,
+                ClientViewControlStatus::PopupOpened { .. }
+                | ClientViewControlStatus::PopupClosed { .. }
+                | ClientViewControlStatus::PresentationRead { .. }
+                | ClientViewControlStatus::ViewportRead { .. }
+                | ClientViewControlStatus::NavigationRead { .. }
+                | ClientViewControlStatus::TerminalAttentionRead { .. }
+                | ClientViewControlStatus::AttentionRead { .. }
+                | ClientViewControlStatus::LayoutAdjusted { .. }
+                | ClientViewControlStatus::DirectionFocused { .. }
+                | ClientViewControlStatus::DirectionUnchanged { .. }
+                | ClientViewControlStatus::LayoutRead { .. }
+                | ClientViewControlStatus::Applied { .. }
+                | ClientViewControlStatus::ZoomUnchanged { .. }
+                | ClientViewControlStatus::ZoomToggled { .. }
+                | ClientViewControlStatus::Rejected { .. }
+                | ClientViewControlStatus::Incomplete { .. } => continue,
             };
             receipt.settle(status, now);
         }

@@ -184,7 +184,10 @@ fn neighbor(
                     to.right(),
                     u32::from(to.y) - from.bottom(),
                 ),
-                _ => return None,
+                ClientPanelDirection::Left
+                | ClientPanelDirection::Right
+                | ClientPanelDirection::Up
+                | ClientPanelDirection::Down => return None,
             };
             let overlap = f_end.min(t_end).saturating_sub(f_start.max(t_start));
             if overlap == 0 {

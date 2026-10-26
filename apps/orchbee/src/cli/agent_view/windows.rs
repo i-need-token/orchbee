@@ -231,7 +231,13 @@ pub(in crate::cli) fn current_client(
         ClientViewOutcome::Unavailable { .. } => {
             return Err(view_failure(FailureKind::ServiceUnavailable));
         }
-        _ => return Err(view_failure(FailureKind::ProtocolInvalid)),
+        ClientViewOutcome::Synchronized { .. }
+        | ClientViewOutcome::Listed { .. }
+        | ClientViewOutcome::Found { .. }
+        | ClientViewOutcome::Operation { .. }
+        | ClientViewOutcome::Conflict { .. } => {
+            return Err(view_failure(FailureKind::ProtocolInvalid));
+        }
     };
     if record.availability != ClientViewAvailability::Current {
         return Err(crate::cli::client_control::selection::failure(
@@ -267,7 +273,25 @@ pub(in crate::cli) fn read_many(
             view,
             attention: *attention,
         }),
-        _ => Err(view_failure(FailureKind::ProtocolInvalid)),
+        ClientViewControlStatus::PopupOpened { .. }
+        | ClientViewControlStatus::PopupClosed { .. }
+        | ClientViewControlStatus::PresentationRead { .. }
+        | ClientViewControlStatus::ViewportRead { .. }
+        | ClientViewControlStatus::NavigationRead { .. }
+        | ClientViewControlStatus::TerminalAttentionRead { .. }
+        | ClientViewControlStatus::LayoutAdjusted { .. }
+        | ClientViewControlStatus::DirectionFocused { .. }
+        | ClientViewControlStatus::DirectionUnchanged { .. }
+        | ClientViewControlStatus::LayoutRead { .. }
+        | ClientViewControlStatus::Queued { .. }
+        | ClientViewControlStatus::Delivered { .. }
+        | ClientViewControlStatus::Applied { .. }
+        | ClientViewControlStatus::ZoomUnchanged { .. }
+        | ClientViewControlStatus::ZoomToggled { .. }
+        | ClientViewControlStatus::Rejected { .. }
+        | ClientViewControlStatus::Incomplete { .. } => {
+            Err(view_failure(FailureKind::ProtocolInvalid))
+        }
     }
 }
 
@@ -303,7 +327,12 @@ fn read_control(
             match reply.outcome {
                 ClientViewOutcome::Denied {} => return Err(view_failure(FailureKind::Denied)),
                 ClientViewOutcome::NotFound {} => return Err(view_failure(FailureKind::NotFound)),
-                _ => {}
+                ClientViewOutcome::Synchronized { .. }
+                | ClientViewOutcome::Listed { .. }
+                | ClientViewOutcome::Found { .. }
+                | ClientViewOutcome::Operation { .. }
+                | ClientViewOutcome::Conflict { .. }
+                | ClientViewOutcome::Unavailable { .. } => {}
             }
         }
         return Err(view_failure(match answer.exit_code() {

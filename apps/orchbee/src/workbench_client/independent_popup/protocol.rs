@@ -28,7 +28,13 @@ impl PopupOutcome {
             PluginOutcome::PopupClosing { .. } => Ok(Self::Closing),
             PluginOutcome::PopupClosed { .. } => Ok(Self::Closed),
             PluginOutcome::Failed { .. } => Ok(Self::Refused(Reason::TargetUnavailable)),
-            _ => Err(Reason::Interrupted),
+            PluginOutcome::PopupUnknown { .. }
+            | PluginOutcome::PaneObserved { .. }
+            | PluginOutcome::PaneFound { .. }
+            | PluginOutcome::Started { .. }
+            | PluginOutcome::Logs { .. }
+            | PluginOutcome::Cancellation { .. }
+            | PluginOutcome::Unknown { .. } => Err(Reason::Interrupted),
         }
     }
     fn editor(outcome: TerminalEditorOutcome) -> Result<Self, Reason> {
@@ -44,7 +50,14 @@ impl PopupOutcome {
             TerminalEditorOutcome::Failed { reason } => Ok(Self::Refused(match reason {
                 TerminalEditorFailure::StaleSource => Reason::StaleView,
                 TerminalEditorFailure::Busy => Reason::Busy,
-                _ => Reason::TargetUnavailable,
+                TerminalEditorFailure::Denied
+                | TerminalEditorFailure::InvalidIntent
+                | TerminalEditorFailure::SiteMismatch
+                | TerminalEditorFailure::Unavailable
+                | TerminalEditorFailure::Conflict
+                | TerminalEditorFailure::NotFound
+                | TerminalEditorFailure::EditorUnavailable
+                | TerminalEditorFailure::PhysicalUnknown => Reason::TargetUnavailable,
             })),
         }
     }
@@ -91,8 +104,15 @@ impl PopupRunner {
             O::Failed { reason } => Ok(PopupOutcome::Refused(match reason {
                 F::StaleSource => Reason::StaleView,
                 F::Busy => Reason::Busy,
-                _ => Reason::TargetUnavailable,
+                F::Denied
+                | F::InvalidIntent
+                | F::SiteMismatch
+                | F::Unavailable
+                | F::Conflict
+                | F::NotFound
+                | F::PhysicalUnknown => Reason::TargetUnavailable,
             })),
+            // This phase consumes its requested plugin/popup receipt; other receipt kinds cannot confirm that operation.
             _ => Err(Reason::Interrupted),
         }
     }

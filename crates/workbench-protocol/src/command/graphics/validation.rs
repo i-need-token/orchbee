@@ -297,111 +297,112 @@ pub(super) fn answers(reply: &PaneGraphicsResult, request: &PaneGraphicsRequest)
     }
     use PaneGraphicsAction as A;
     use PaneGraphicsOutcome as O;
-    match (&request.action, &reply.outcome) {
-        (_, O::Failed { .. }) => true,
-        (
+    {
+        let shared_failure = matches!(&reply.outcome, O::Failed { .. });
+        match &request.action {
             A::Observe {
                 client_id,
                 heartbeat,
                 ..
-            },
-            O::Observed {
+            } => {
+                matches!(&reply.outcome, O::Observed {
                 client_id: actual,
                 heartbeat: seen,
-            },
-        ) => actual == client_id && seen == heartbeat,
-        (
-            A::Info { target, client_id },
-            O::Info {
-                target: actual,
-                client_id: actual_client,
-                ..
-            },
-        ) => {
-            target_matches(actual, target)
-                && client_id
-                    .as_ref()
-                    .is_none_or(|id| Some(id) == actual_client.as_ref())
-        }
-        (A::Catalog { target }, O::Catalog { target: actual, .. }) => {
-            target_matches(actual, target)
-        }
-        (
+            } if actual == client_id && seen == heartbeat)
+                    || shared_failure
+            }
+            A::Info { target, client_id } => {
+                matches!(&reply.outcome, O::Info {
+                        target: actual,
+                        client_id: actual_client,
+                        ..
+                    } if target_matches(actual, target)
+                        && client_id
+                            .as_ref()
+                            .is_none_or(|id| Some(id) == actual_client.as_ref()))
+                    || shared_failure
+            }
+            A::Catalog { target } => {
+                matches!(&reply.outcome, O::Catalog { target: actual, .. } if target_matches(actual, target))
+                    || shared_failure
+            }
             A::Pixels {
                 target,
                 layer_id,
                 resource_revision,
                 offset,
                 maximum_bytes,
-            },
-            O::Pixels {
-                target: actual,
-                layer_id: layer,
-                resource_revision: revision,
-                offset: start,
-                data_base64,
-                ..
-            },
-        ) => {
-            target_matches(actual, target)
-                && layer == layer_id
-                && revision == resource_revision
-                && start == offset
-                && base64_bytes(data_base64).is_ok_and(|bytes| bytes <= *maximum_bytes as usize)
-        }
-        (
+            } => {
+                matches!(&reply.outcome, O::Pixels {
+                        target: actual,
+                        layer_id: layer,
+                        resource_revision: revision,
+                        offset: start,
+                        data_base64,
+                        ..
+                    } if target_matches(actual, target)
+                        && layer == layer_id
+                        && revision == resource_revision
+                        && start == offset
+                        && base64_bytes(data_base64).is_ok_and(|bytes| bytes <= *maximum_bytes as usize))
+                    || shared_failure
+            }
             A::Set {
                 target, layer_id, ..
-            }
-            | A::Clear { target, layer_id },
-            O::Applied {
+            } => {
+                matches!(&reply.outcome, O::Applied {
                 target: actual,
                 layer_id: layer,
                 ..
-            },
-        ) => target_matches(actual, target) && layer == layer_id,
-        (
+            } if target_matches(actual, target) && layer == layer_id)
+                    || shared_failure
+            }
+            A::Clear { target, layer_id } => {
+                matches!(&reply.outcome, O::Applied {
+                target: actual,
+                layer_id: layer,
+                ..
+            } if target_matches(actual, target) && layer == layer_id)
+                    || shared_failure
+            }
             A::StreamOpen {
                 stream_id,
                 target,
                 layer_id,
                 z_index,
-            },
-            O::StreamOpened {
-                stream_id: actual_stream,
-                target: actual,
-                layer_id: layer,
-                z_index: z,
-                ..
-            },
-        ) => {
-            actual_stream == stream_id
-                && target_matches(actual, target)
-                && layer == layer_id
-                && z == z_index
-        }
-        (
+            } => {
+                matches!(&reply.outcome, O::StreamOpened {
+                        stream_id: actual_stream,
+                        target: actual,
+                        layer_id: layer,
+                        z_index: z,
+                        ..
+                    } if actual_stream == stream_id
+                        && target_matches(actual, target)
+                        && layer == layer_id
+                        && z == z_index)
+                    || shared_failure
+            }
             A::StreamFrame {
                 stream_id,
                 sequence,
                 revision,
                 ..
-            },
-            O::FrameApplied {
-                stream_id: actual_stream,
-                sequence: actual_sequence,
-                frame_revision,
-                ..
-            },
-        ) => {
-            actual_stream == stream_id && sequence == actual_sequence && revision == frame_revision
-        }
-        (
-            A::StreamClose { stream_id },
-            O::Closed {
+            } => {
+                matches!(&reply.outcome, O::FrameApplied {
+                        stream_id: actual_stream,
+                        sequence: actual_sequence,
+                        frame_revision,
+                        ..
+                    } if actual_stream == stream_id && sequence == actual_sequence && revision == frame_revision)
+                    || shared_failure
+            }
+            A::StreamClose { stream_id } => {
+                matches!(&reply.outcome, O::Closed {
                 stream_id: actual, ..
-            },
-        ) => actual == stream_id,
-        _ => false,
+            } if actual == stream_id)
+                    || shared_failure
+            }
+        }
     }
 }

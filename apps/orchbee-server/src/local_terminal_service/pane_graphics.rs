@@ -411,6 +411,16 @@ fn source_failure(reason: SemanticEventsFailure) -> Failure {
         SemanticEventsFailure::Busy => Failure::Busy,
         SemanticEventsFailure::PhysicalUnknown => Failure::PhysicalUnknown,
         SemanticEventsFailure::SourceChanged => Failure::SourceChanged,
-        _ => Failure::SourceUnavailable,
+        SemanticEventsFailure::Denied
+        | SemanticEventsFailure::InvalidIntent
+        | SemanticEventsFailure::InvalidRegex
+        | SemanticEventsFailure::SiteMismatch
+        | SemanticEventsFailure::Unavailable
+        | SemanticEventsFailure::Conflict
+        | SemanticEventsFailure::NotFound
+        | SemanticEventsFailure::CursorEpoch
+        | SemanticEventsFailure::CursorAhead
+        | SemanticEventsFailure::SourceUnavailable
+        | SemanticEventsFailure::RevisionExhausted => Failure::SourceUnavailable,
     }
 }

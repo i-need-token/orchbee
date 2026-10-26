@@ -247,6 +247,7 @@ impl HostViewers {
             {
                 true
             }
+            // The enclosing path selects a viewer feedback subset; other actions require their own exchanges.
             _ => return Err(ViewerRejection::FeedbackMismatch),
         };
         // Release before the Host exchange: its next event can precede the control reply.
@@ -335,6 +336,7 @@ impl HostViewers {
                 orchbee_terminal_protocol::LifecycleControl::TerminalFailed(event) => {
                     event.identity.terminal_id
                 }
+                // This lifecycle exchange requires its exact target-bearing acknowledgment; other control records cannot confirm it.
                 _ => return Err(invalid("unexpected lifecycle event")),
             };
             for viewer in self.viewers.values_mut().filter(|viewer| {

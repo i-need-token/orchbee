@@ -86,7 +86,11 @@ impl<'a, G: Guard> ReadAttachment<'a, G> {
             TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. } => {
                 return Err(Error::TransportUnavailable);
             }
-            _ => return Err(Error::ProtocolInvalid),
+            TerminalViewerOutcome::Empty { .. }
+            | TerminalViewerOutcome::FeedbackAccepted { .. }
+            | TerminalViewerOutcome::Detached { .. }
+            | TerminalViewerOutcome::RowsRejected { .. }
+            | TerminalViewerOutcome::Record(..) => return Err(Error::ProtocolInvalid),
         };
         if let Err(error) = guard.check(deadline) {
             detach_viewer(client, guard, &viewer, &detach_request, deadline);
@@ -250,6 +254,7 @@ impl<'a, G: Guard> ReadAttachment<'a, G> {
                     orchbee_client_server_protocol::ViewerUnavailableReason::TerminalRuntimeUnavailable,
             } => Ok(None),
             TerminalViewerOutcome::Unavailable { .. } => Err(Error::TransportUnavailable),
+            // Action/result admission belongs to the protocol; this step consumes only its requested viewer record or acknowledgment.
             _ => Err(Error::ProtocolInvalid),
         }
     }
@@ -407,7 +412,10 @@ impl<'a, G: Guard> ReadAttachment<'a, G> {
             TerminalViewerOutcome::RowsRejected { .. }
             | TerminalViewerOutcome::Rejected { .. }
             | TerminalViewerOutcome::Unavailable { .. } => Err(Error::SourceChanged),
-            _ => Err(Error::ProtocolInvalid),
+            TerminalViewerOutcome::Attached { .. }
+            | TerminalViewerOutcome::Empty { .. }
+            | TerminalViewerOutcome::FeedbackAccepted { .. }
+            | TerminalViewerOutcome::Detached { .. } => Err(Error::ProtocolInvalid),
         }
     }
 
@@ -440,7 +448,11 @@ impl<'a, G: Guard> ReadAttachment<'a, G> {
             TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. } => {
                 Err(Error::SourceChanged)
             }
-            _ => Err(Error::ProtocolInvalid),
+            TerminalViewerOutcome::Attached { .. }
+            | TerminalViewerOutcome::Empty { .. }
+            | TerminalViewerOutcome::Detached { .. }
+            | TerminalViewerOutcome::RowsRejected { .. }
+            | TerminalViewerOutcome::Record(..) => Err(Error::ProtocolInvalid),
         }
     }
 }
@@ -516,7 +528,10 @@ fn poll_frame<G: Guard>(
             TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. } => {
                 return Err(Error::TransportUnavailable);
             }
-            _ => return Err(Error::ProtocolInvalid),
+            TerminalViewerOutcome::Attached { .. }
+            | TerminalViewerOutcome::FeedbackAccepted { .. }
+            | TerminalViewerOutcome::Detached { .. }
+            | TerminalViewerOutcome::RowsRejected { .. } => return Err(Error::ProtocolInvalid),
         }
     }
 }

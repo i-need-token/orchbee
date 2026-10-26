@@ -61,7 +61,13 @@ pub(in crate::workbench_client) fn reply(
         SelectionExportControl::FinishedResponse(value) if value.attachment_id == attachment => {
             Ok(Reply::Finished(value))
         }
-        _ => Err(Failure::Invalid),
+        SelectionExportControl::ExportRequest(..)
+        | SelectionExportControl::StartedResponse(..)
+        | SelectionExportControl::ChunkAppliedRequest(..)
+        | SelectionExportControl::ChunkAppliedResponse(..)
+        | SelectionExportControl::FinishedResponse(..)
+        | SelectionExportControl::FinishedEvent(..)
+        | SelectionExportControl::CancelRequest(..) => Err(Failure::Invalid),
     }
 }
 

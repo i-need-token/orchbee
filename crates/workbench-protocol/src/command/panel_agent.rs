@@ -386,69 +386,69 @@ impl PanelAgentResult {
         {
             return false;
         }
-        match (&request.action, &self.outcome) {
-            (
-                PanelAgentAction::Titles { bindings },
-                PanelAgentOutcome::Titles { presentations, .. },
-            ) => bindings.iter().eq(presentations.iter().map(|r| &r.binding)),
-            (
-                PanelAgentAction::Explain { binding },
-                PanelAgentOutcome::Explained { explanation, .. },
-            ) => &explanation.binding == binding,
-            (
-                PanelAgentAction::States { presentation_ids },
-                PanelAgentOutcome::States { presentations, .. },
-            ) => presentation_ids
+        {
+            let shared_failure = matches!(&self.outcome, PanelAgentOutcome::Failed { .. });
+            match &request.action {
+                PanelAgentAction::Titles { bindings } => {
+                    matches!(&self.outcome, PanelAgentOutcome::Titles { presentations, .. } if bindings.iter().eq(presentations.iter().map(|r| &r.binding)))
+                        || shared_failure
+                }
+                PanelAgentAction::Explain { binding } => {
+                    matches!(&self.outcome, PanelAgentOutcome::Explained { explanation, .. } if &explanation.binding == binding)
+                        || shared_failure
+                }
+                PanelAgentAction::States { presentation_ids } => {
+                    matches!(&self.outcome, PanelAgentOutcome::States { presentations, .. } if presentation_ids
                 .iter()
-                .eq(presentations.iter().map(|r| &r.presentation_id)),
-            (
+                .eq(presentations.iter().map(|r| &r.presentation_id)))
+                        || shared_failure
+                }
                 PanelAgentAction::Observe {
                     binding,
                     after_sequence,
-                },
-                PanelAgentOutcome::Observed { observation, .. },
-            ) => &observation.binding == binding && observation.covers(*after_sequence),
-            (_, PanelAgentOutcome::Failed { .. }) => true,
-            (
-                PanelAgentAction::ReadPresentations { presentation_ids },
-                PanelAgentOutcome::PresentationsRead { presentations, .. },
-            ) => presentation_ids
+                } => {
+                    matches!(&self.outcome, PanelAgentOutcome::Observed { observation, .. } if &observation.binding == binding && observation.covers(*after_sequence))
+                        || shared_failure
+                }
+                PanelAgentAction::ReadPresentations { presentation_ids } => {
+                    matches!(&self.outcome, PanelAgentOutcome::PresentationsRead { presentations, .. } if presentation_ids
                 .iter()
-                .eq(presentations.iter().map(|row| &row.presentation_id)),
-            (PanelAgentAction::Read { panel_ids }, PanelAgentOutcome::Read { panels, .. }) => {
-                panel_ids.iter().eq(panels.iter().map(|p| &p.panel_id))
-            }
-            (
+                .eq(presentations.iter().map(|row| &row.presentation_id)))
+                        || shared_failure
+                }
+                PanelAgentAction::Read { panel_ids } => {
+                    matches!(&self.outcome, PanelAgentOutcome::Read { panels, .. } if panel_ids.iter().eq(panels.iter().map(|p| &p.panel_id)))
+                        || shared_failure
+                }
                 PanelAgentAction::ReportPresentation {
                     panel_id,
                     presentation_id,
                     expected_binding,
                     ..
-                },
-                PanelAgentOutcome::PresentationReported {
-                    panel_id: actual,
-                    presentation_id: actual_presentation,
-                    binding,
-                    ..
-                },
-            ) => {
-                panel_id == actual
-                    && presentation_id == actual_presentation
-                    && expected_binding == binding
-            }
-            (
+                } => {
+                    matches!(&self.outcome, PanelAgentOutcome::PresentationReported {
+                            panel_id: actual,
+                            presentation_id: actual_presentation,
+                            binding,
+                            ..
+                        } if panel_id == actual
+                            && presentation_id == actual_presentation
+                            && expected_binding == binding)
+                        || shared_failure
+                }
                 PanelAgentAction::Report {
                     panel_id,
                     expected_binding,
                     ..
-                },
-                PanelAgentOutcome::Reported {
+                } => {
+                    matches!(&self.outcome, PanelAgentOutcome::Reported {
                     panel_id: actual,
                     binding,
                     ..
-                },
-            ) => panel_id == actual && expected_binding == binding,
-            _ => false,
+                } if panel_id == actual && expected_binding == binding)
+                        || shared_failure
+                }
+            }
         }
     }
 }

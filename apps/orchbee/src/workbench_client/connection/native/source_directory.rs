@@ -73,7 +73,12 @@ impl NativeExecutor {
             return match attached {
                 TerminalViewerOutcome::Rejected { .. }
                 | TerminalViewerOutcome::Unavailable { .. } => Ok(RootDirectory::Unavailable),
-                _ => Err(CarrierFailure::Protocol),
+                TerminalViewerOutcome::Attached { .. }
+                | TerminalViewerOutcome::Empty { .. }
+                | TerminalViewerOutcome::FeedbackAccepted { .. }
+                | TerminalViewerOutcome::Detached { .. }
+                | TerminalViewerOutcome::RowsRejected { .. }
+                | TerminalViewerOutcome::Record(..) => Err(CarrierFailure::Protocol),
             };
         };
         // Every fallible read/decode returns through detach; a lost detach retires this Client.

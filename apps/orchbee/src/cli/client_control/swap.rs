@@ -152,7 +152,13 @@ fn execute(
         ClientViewOutcome::Unavailable { .. } => {
             return Err(Failure::new(FailureKind::ServiceUnavailable));
         }
-        _ => return Err(Failure::new(FailureKind::ProtocolInvalid)),
+        ClientViewOutcome::Synchronized { .. }
+        | ClientViewOutcome::Found { .. }
+        | ClientViewOutcome::Operation { .. }
+        | ClientViewOutcome::NotFound { .. }
+        | ClientViewOutcome::Conflict { .. } => {
+            return Err(Failure::new(FailureKind::ProtocolInvalid));
+        }
     };
     let selected = selection::select(&clients, command.client.as_ref(), caller.as_ref())?;
     if selected.view.phase != ClientViewPhase::Ready {
@@ -485,7 +491,12 @@ fn observe_client(
             ClientViewOutcome::NotFound {} | ClientViewOutcome::Unavailable { .. } => {
                 return Err(Failure::new(FailureKind::ServiceUnavailable));
             }
-            _ => return Err(Failure::new(FailureKind::ProtocolInvalid)),
+            ClientViewOutcome::Synchronized { .. }
+            | ClientViewOutcome::Listed { .. }
+            | ClientViewOutcome::Operation { .. }
+            | ClientViewOutcome::Conflict { .. } => {
+                return Err(Failure::new(FailureKind::ProtocolInvalid));
+            }
         };
         if observed.availability != ClientViewAvailability::Current
             || observed.view.phase == ClientViewPhase::Unavailable

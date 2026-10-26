@@ -865,7 +865,14 @@ impl PopupRunner {
                     );
                 }
                 TerminalViewerOutcome::Empty {} => {}
-                _ => return Err(Reason::ProjectionUnavailable),
+                TerminalViewerOutcome::Attached { .. }
+                | TerminalViewerOutcome::FeedbackAccepted { .. }
+                | TerminalViewerOutcome::Detached { .. }
+                | TerminalViewerOutcome::Rejected { .. }
+                | TerminalViewerOutcome::RowsRejected { .. }
+                | TerminalViewerOutcome::Unavailable { .. } => {
+                    return Err(Reason::ProjectionUnavailable);
+                }
             }
             if self.clock.now() >= observe_at {
                 match self.observe_popup(&mut client, kind, false)? {

@@ -91,6 +91,7 @@ pub fn decode_row_access_control(
         (ROWS_APPLIED_KIND, MessageRole::Response) => decode_wire::<RowsAppliedWire>(payload)
             .and_then(rows_applied_from_wire)
             .map(RowAccessControl::RowsAppliedResponse),
+        // This codec accepts only its declared message family and request/response roles.
         _ => Err(invalid_field(
             "message kind and role do not select a row-access-control payload",
         )),

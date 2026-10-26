@@ -24,6 +24,7 @@ impl SetupKnownCommit {
                 workspace_id: workspace_id.clone(),
                 terminal_context_id: terminal_context_id.clone(),
             },
+            // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
             _ => self.operation.baseline.location().clone(),
         }
     }
@@ -252,6 +253,7 @@ impl SetupKnownCommit {
                     .find(|workspace| &workspace.workspace_id == workspace_id)?
                     .label = label.as_str().to_owned();
             }
+            // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
             _ => return None,
         }
         if snapshot.revision == self.commit.revision() && snapshot != &expected {

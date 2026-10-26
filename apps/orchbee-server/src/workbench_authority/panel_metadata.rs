@@ -379,7 +379,9 @@ impl WorkbenchAuthority {
                     Action::ReportPresentation {
                         presentation_id, ..
                     } => Some(presentation_id),
-                    _ => None,
+                    Action::ReadPresentations { .. }
+                    | Action::Read { .. }
+                    | Action::Report { .. } => None,
                 };
                 let binding = if let Some(id) = presentation_id {
                     if owners.get(id) != Some(panel_id) {

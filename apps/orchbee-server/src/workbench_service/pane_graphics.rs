@@ -86,7 +86,13 @@ impl WorkbenchClientConnection<'_> {
                 }
                 Ok(outcome)
             }
-            _ => Ok(self
+            Action::Set { .. }
+            | Action::Clear { .. }
+            | Action::Catalog { .. }
+            | Action::Pixels { .. }
+            | Action::StreamOpen { .. }
+            | Action::StreamFrame { .. }
+            | Action::StreamClose { .. } => Ok(self
                 .service
                 .terminals
                 .execute_graphics(self.generation, request.clone())

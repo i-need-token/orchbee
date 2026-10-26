@@ -84,8 +84,14 @@ fn exchange(
             Reason::Unavailable => FailureKind::ServiceUnavailable,
             Reason::RevisionExhausted | Reason::DeadlineOverflow => FailureKind::InternalFailure,
             Reason::ResultTooLarge => FailureKind::OutputTooLarge,
-            _ => FailureKind::ProtocolInvalid,
+            Reason::InvalidRequest
+            | Reason::SiteMismatch
+            | Reason::NotFound
+            | Reason::TokenLimit
+            | Reason::SequenceSourceLimit
+            | Reason::ResourceLimit => FailureKind::ProtocolInvalid,
         })),
+        // This query consumes only its requested metadata/report payload; other receipt classes cannot answer that query.
         _ => Err(Failure::new(FailureKind::ProtocolInvalid)),
     }
 }

@@ -1323,7 +1323,11 @@ pub(super) fn attach_viewer_cancellable_with_host(
         }
         TerminalViewerOutcome::Rejected { reason } => Err(classify_viewer_rejected(*reason)),
         TerminalViewerOutcome::Unavailable { .. } => Err(viewer_unavailable()),
-        _ => Err(viewer_protocol_invalid()),
+        TerminalViewerOutcome::Empty { .. }
+        | TerminalViewerOutcome::FeedbackAccepted { .. }
+        | TerminalViewerOutcome::Detached { .. }
+        | TerminalViewerOutcome::RowsRejected { .. }
+        | TerminalViewerOutcome::Record(..) => Err(viewer_protocol_invalid()),
     }
 }
 
@@ -1409,7 +1413,10 @@ fn read_history_window(
         TerminalViewerOutcome::RowsRejected { reason } => aged_pin(*reason),
         TerminalViewerOutcome::Rejected { reason } => Err(classify_viewer_rejected(*reason)),
         TerminalViewerOutcome::Unavailable { .. } => Err(viewer_unavailable()),
-        _ => Err(viewer_protocol_invalid()),
+        TerminalViewerOutcome::Attached { .. }
+        | TerminalViewerOutcome::Empty { .. }
+        | TerminalViewerOutcome::FeedbackAccepted { .. }
+        | TerminalViewerOutcome::Detached { .. } => Err(viewer_protocol_invalid()),
     }
 }
 
@@ -1548,7 +1555,11 @@ fn acknowledge_frame(
         TerminalViewerOutcome::FeedbackAccepted {} => Ok(()),
         TerminalViewerOutcome::Rejected { reason } => Err(classify_viewer_rejected(*reason)),
         TerminalViewerOutcome::Unavailable { .. } => Err(viewer_unavailable()),
-        _ => Err(viewer_protocol_invalid()),
+        TerminalViewerOutcome::Attached { .. }
+        | TerminalViewerOutcome::Empty { .. }
+        | TerminalViewerOutcome::Detached { .. }
+        | TerminalViewerOutcome::RowsRejected { .. }
+        | TerminalViewerOutcome::Record(..) => Err(viewer_protocol_invalid()),
     }
 }
 
@@ -1663,7 +1674,13 @@ fn poll_applied_frame(
                             TerminalViewerOutcome::Unavailable { .. } => {
                                 return Err(viewer_unavailable());
                             }
-                            _ => return Err(viewer_protocol_invalid()),
+                            TerminalViewerOutcome::Attached { .. }
+                            | TerminalViewerOutcome::Empty { .. }
+                            | TerminalViewerOutcome::Detached { .. }
+                            | TerminalViewerOutcome::RowsRejected { .. }
+                            | TerminalViewerOutcome::Record(..) => {
+                                return Err(viewer_protocol_invalid());
+                            }
                         }
                     }
                     // A consumed ProjectionBlocked keeps the loop polling for
@@ -1677,7 +1694,10 @@ fn poll_applied_frame(
                 return Err(classify_viewer_rejected(*reason));
             }
             TerminalViewerOutcome::Unavailable { .. } => return Err(viewer_unavailable()),
-            _ => return Err(viewer_protocol_invalid()),
+            TerminalViewerOutcome::Attached { .. }
+            | TerminalViewerOutcome::FeedbackAccepted { .. }
+            | TerminalViewerOutcome::Detached { .. }
+            | TerminalViewerOutcome::RowsRejected { .. } => return Err(viewer_protocol_invalid()),
         }
     }
 }
@@ -2043,7 +2063,13 @@ fn wait_observe(
                             TerminalViewerOutcome::Unavailable { .. } => {
                                 return Err(viewer_unavailable());
                             }
-                            _ => return Err(viewer_protocol_invalid()),
+                            TerminalViewerOutcome::Attached { .. }
+                            | TerminalViewerOutcome::Empty { .. }
+                            | TerminalViewerOutcome::Detached { .. }
+                            | TerminalViewerOutcome::RowsRejected { .. }
+                            | TerminalViewerOutcome::Record(..) => {
+                                return Err(viewer_protocol_invalid());
+                            }
                         }
                         if applied {
                             // The just-applied frame pins this read's exact
@@ -2105,7 +2131,10 @@ fn wait_observe(
                 return Err(classify_viewer_rejected(*reason));
             }
             TerminalViewerOutcome::Unavailable { .. } => return Err(viewer_unavailable()),
-            _ => return Err(viewer_protocol_invalid()),
+            TerminalViewerOutcome::Attached { .. }
+            | TerminalViewerOutcome::FeedbackAccepted { .. }
+            | TerminalViewerOutcome::Detached { .. }
+            | TerminalViewerOutcome::RowsRejected { .. } => return Err(viewer_protocol_invalid()),
         }
     }
 }
@@ -2176,7 +2205,10 @@ fn wait_read_window(
         }
         TerminalViewerOutcome::Rejected { reason } => Err(classify_viewer_rejected(*reason)),
         TerminalViewerOutcome::Unavailable { .. } => Err(viewer_unavailable()),
-        _ => Err(viewer_protocol_invalid()),
+        TerminalViewerOutcome::Attached { .. }
+        | TerminalViewerOutcome::Empty { .. }
+        | TerminalViewerOutcome::FeedbackAccepted { .. }
+        | TerminalViewerOutcome::Detached { .. } => Err(viewer_protocol_invalid()),
     }
 }
 
@@ -2201,7 +2233,11 @@ fn wait_detach(
         TerminalViewerOutcome::Detached {} => Ok(()),
         TerminalViewerOutcome::Rejected { reason } => Err(classify_viewer_rejected(*reason)),
         TerminalViewerOutcome::Unavailable { .. } => Err(viewer_unavailable()),
-        _ => Err(viewer_protocol_invalid()),
+        TerminalViewerOutcome::Attached { .. }
+        | TerminalViewerOutcome::Empty { .. }
+        | TerminalViewerOutcome::FeedbackAccepted { .. }
+        | TerminalViewerOutcome::RowsRejected { .. }
+        | TerminalViewerOutcome::Record(..) => Err(viewer_protocol_invalid()),
     }
 }
 
@@ -2942,6 +2978,7 @@ fn agent_session_read(
                     .source(source),
             )),
         },
+        // This query consumes the requested Agent read result; a different read family cannot answer it.
         _ => Err(AgentQueryError::Read(agent_protocol_invalid(operation))),
     }
 }

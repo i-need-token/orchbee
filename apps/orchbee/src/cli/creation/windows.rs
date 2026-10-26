@@ -132,7 +132,13 @@ fn execute(
             ClientViewOutcome::Unavailable { .. } => {
                 return Err(Failure::new(FailureKind::ServiceUnavailable));
             }
-            _ => return Err(Failure::new(FailureKind::ProtocolInvalid)),
+            ClientViewOutcome::Synchronized { .. }
+            | ClientViewOutcome::Found { .. }
+            | ClientViewOutcome::Operation { .. }
+            | ClientViewOutcome::NotFound { .. }
+            | ClientViewOutcome::Conflict { .. } => {
+                return Err(Failure::new(FailureKind::ProtocolInvalid));
+            }
         };
         let selected =
             selection::select(&clients, command.client.as_ref(), caller.as_ref())?.clone();
@@ -183,8 +189,33 @@ fn execute(
                     .presentation
                     .as_ref()
                     .ok_or_else(|| Failure::new(FailureKind::ServiceUnavailable))?,
-                _ => return Err(Failure::new(FailureKind::ServiceUnavailable)),
+                orchbee_workbench_protocol::ClientViewControlStatus::PopupOpened { .. }
+                | orchbee_workbench_protocol::ClientViewControlStatus::PopupClosed { .. }
+                | orchbee_workbench_protocol::ClientViewControlStatus::ViewportRead { .. }
+                | orchbee_workbench_protocol::ClientViewControlStatus::NavigationRead { .. }
+                | orchbee_workbench_protocol::ClientViewControlStatus::TerminalAttentionRead {
+                    ..
+                }
+                | orchbee_workbench_protocol::ClientViewControlStatus::AttentionRead { .. }
+                | orchbee_workbench_protocol::ClientViewControlStatus::LayoutAdjusted { .. }
+                | orchbee_workbench_protocol::ClientViewControlStatus::DirectionFocused {
+                    ..
+                }
+                | orchbee_workbench_protocol::ClientViewControlStatus::DirectionUnchanged {
+                    ..
+                }
+                | orchbee_workbench_protocol::ClientViewControlStatus::LayoutRead { .. }
+                | orchbee_workbench_protocol::ClientViewControlStatus::Queued { .. }
+                | orchbee_workbench_protocol::ClientViewControlStatus::Delivered { .. }
+                | orchbee_workbench_protocol::ClientViewControlStatus::Applied { .. }
+                | orchbee_workbench_protocol::ClientViewControlStatus::ZoomUnchanged { .. }
+                | orchbee_workbench_protocol::ClientViewControlStatus::ZoomToggled { .. }
+                | orchbee_workbench_protocol::ClientViewControlStatus::Rejected { .. }
+                | orchbee_workbench_protocol::ClientViewControlStatus::Incomplete { .. } => {
+                    return Err(Failure::new(FailureKind::ServiceUnavailable));
+                }
             },
+            // This step consumes its requested ClientView receipt class; other replies cannot confirm that observation.
             _ => return Err(Failure::new(FailureKind::ServiceUnavailable)),
         };
         (
@@ -500,7 +531,12 @@ fn observe(
             ClientViewOutcome::NotFound {} | ClientViewOutcome::Unavailable { .. } => {
                 return Err(Failure::new(FailureKind::ServiceUnavailable));
             }
-            _ => return Err(Failure::new(FailureKind::ProtocolInvalid)),
+            ClientViewOutcome::Synchronized { .. }
+            | ClientViewOutcome::Listed { .. }
+            | ClientViewOutcome::Operation { .. }
+            | ClientViewOutcome::Conflict { .. } => {
+                return Err(Failure::new(FailureKind::ProtocolInvalid));
+            }
         };
         if current.availability != ClientViewAvailability::Current
             || current.view.phase == ClientViewPhase::Unavailable

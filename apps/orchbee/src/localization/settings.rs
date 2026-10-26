@@ -333,32 +333,38 @@ impl Locale {
             Row::Profile | Row::ProfileName => return profile_name(profile),
             Row::CommandType => match &profile.command {
                 UserLaunchCommand::SystemShell { .. } => self.setting("System shell", "系统 Shell"),
-                _ => self.setting("Custom executable", "自定义可执行文件"),
+                UserLaunchCommand::CustomExecutable { .. } => {
+                    self.setting("Custom executable", "自定义可执行文件")
+                }
             },
             Row::Executable => match &profile.command {
                 UserLaunchCommand::CustomExecutable { executable, .. } if executable.is_empty() => {
                     self.setting("Required", "必填")
                 }
                 UserLaunchCommand::CustomExecutable { executable, .. } => executable,
-                _ => "—",
+                UserLaunchCommand::SystemShell { .. } => "—",
             },
             Row::Login => match &profile.command {
                 UserLaunchCommand::SystemShell { login } if !cfg!(windows) => {
                     self.settings_toggle(*login)
                 }
-                _ => self.setting("Unavailable", "不适用"),
+                UserLaunchCommand::SystemShell { .. }
+                | UserLaunchCommand::CustomExecutable { .. } => {
+                    self.setting("Unavailable", "不适用")
+                }
             },
             Row::Argument => match &profile.command {
                 UserLaunchCommand::CustomExecutable { arguments, .. } if !arguments.is_empty() => {
                     return format!("{} / {}", draft.argument + 1, arguments.len());
                 }
-                _ => "—",
+                UserLaunchCommand::SystemShell { .. }
+                | UserLaunchCommand::CustomExecutable { .. } => "—",
             },
             Row::ArgumentValue => match &profile.command {
                 UserLaunchCommand::CustomExecutable { arguments, .. } => {
                     arguments.get(draft.argument).map_or("—", String::as_str)
                 }
-                _ => "—",
+                UserLaunchCommand::SystemShell { .. } => "—",
             },
             Row::SetDefault if profile.id == values.launch_profiles.default_profile_id => {
                 self.setting("Default", "默认")

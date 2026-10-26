@@ -116,6 +116,7 @@ impl SetupOperation {
         ) {
             self.organization_receipt(&commit)?
         } else {
+            // This UI postcondition pins the retained setup action and its own commit kind.
             let compatible = matches!(
                 (&self.command.action, &commit),
                 (
@@ -315,7 +316,16 @@ impl WorkbenchClientState {
                         )
                         .ok()?
                     }
-                    _ => return None,
+                    orchbee_workbench_protocol::TabConfiguration::SetGroup { .. }
+                    | orchbee_workbench_protocol::TabConfiguration::Ungroup { .. }
+                    | orchbee_workbench_protocol::TabConfiguration::SetPinned { .. }
+                    | orchbee_workbench_protocol::TabConfiguration::SetTabsGroup { .. }
+                    | orchbee_workbench_protocol::TabConfiguration::SetTabsPinned { .. }
+                    | orchbee_workbench_protocol::TabConfiguration::MoveTab { .. }
+                    | orchbee_workbench_protocol::TabConfiguration::MoveGroup { .. }
+                    | orchbee_workbench_protocol::TabConfiguration::MoveTabsByDrag { .. } => {
+                        return None;
+                    }
                 }
                 WorkbenchAction::TabsConfigure {
                     terminal_context_id: self.cache.terminal_context_id()?.clone(),

@@ -111,7 +111,8 @@ fn windows(action: ConfigurationAction, format: OutputFormat, locale: Locale) ->
                             | ConfigurationFailure::SiteMismatch
                             | ConfigurationFailure::Busy => 3,
                             ConfigurationFailure::Unavailable => 4,
-                            _ => 1,
+                            ConfigurationFailure::LoadFailed
+                            | ConfigurationFailure::RevisionExhausted => 1,
                         },
                         "failed",
                         None,

@@ -114,7 +114,11 @@ pub(super) fn read_attached(
             return Err(classify_viewer_rejected(*reason));
         }
         TerminalViewerOutcome::Unavailable { .. } => return Err(viewer_unavailable()),
-        _ => return Err(viewer_protocol_invalid()),
+        TerminalViewerOutcome::Attached { .. }
+        | TerminalViewerOutcome::Empty { .. }
+        | TerminalViewerOutcome::FeedbackAccepted { .. }
+        | TerminalViewerOutcome::Detached { .. }
+        | TerminalViewerOutcome::RowsRejected { .. } => return Err(viewer_protocol_invalid()),
     };
     let (info, host_request_id) = decode(record, attachment, epoch)?;
     let source = json!({

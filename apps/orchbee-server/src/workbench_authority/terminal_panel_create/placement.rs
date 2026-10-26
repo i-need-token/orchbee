@@ -135,6 +135,7 @@ impl TerminalPlacement {
                 member.binding = Some(binding);
                 true
             }
+            // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
             _ => false,
         }
     }
@@ -216,6 +217,7 @@ pub(super) fn prepare(
                 last_identity,
             })
         }
+        // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
         _ => Err(PlanFailure::Internal),
     }
 }

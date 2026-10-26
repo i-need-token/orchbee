@@ -61,7 +61,11 @@ pub(super) fn resolve(command: &Command, snapshot: &Snapshot) -> Result<Filters,
                 panel_id: panel_id.clone(),
                 presentation_id: None,
             }),
-            _ => None,
+            Scope::All { .. }
+            | Scope::Workspace { .. }
+            | Scope::TerminalContext { .. }
+            | Scope::Tab { .. }
+            | Scope::Client { .. } => None,
         };
         filters.push(match kind {
             Kind::PaneOutputMatched => Filter::OutputMatched {
@@ -86,6 +90,7 @@ pub(super) fn resolve(command: &Command, snapshot: &Snapshot) -> Result<Filters,
                 target: source.ok_or_else(|| Failure::new(FailureKind::InvalidUsage))?,
                 state: command.state,
             },
+            // This command consumes its own observation or terminal receipt; unrelated control results have no projection in this phase.
             _ => Filter::Event {
                 event: *kind,
                 scope: scope.clone(),
@@ -132,6 +137,8 @@ pub(super) fn matches(event: &SemanticEvent, filter: &Filter, regex: Option<&Reg
             event.event == Kind::PaneScrollChanged
                 && matches!(&event.data, SemanticEventData::Scroll {pane, client_id: actual, ..} if pane.panel_id == target.panel_id && target.presentation_id.as_ref().is_none_or(|id| id == &pane.presentation_id) && client_id == actual)
         }
-        _ => orchbee_workbench_protocol::matches_semantic_filter(event, filter),
+        Filter::Event { .. } | Filter::AgentStatusChanged { .. } => {
+            orchbee_workbench_protocol::matches_semantic_filter(event, filter)
+        }
     }
 }

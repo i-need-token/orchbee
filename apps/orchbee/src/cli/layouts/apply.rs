@@ -119,7 +119,14 @@ fn execute(
             ClientViewOutcome::Denied {} => {
                 return Err(error(FailureKind::Denied, "client-unavailable"));
             }
-            _ => return Err(error(FailureKind::ServiceUnavailable, "client-unavailable")),
+            ClientViewOutcome::Synchronized { .. }
+            | ClientViewOutcome::Found { .. }
+            | ClientViewOutcome::Operation { .. }
+            | ClientViewOutcome::NotFound { .. }
+            | ClientViewOutcome::Conflict { .. }
+            | ClientViewOutcome::Unavailable { .. } => {
+                return Err(error(FailureKind::ServiceUnavailable, "client-unavailable"));
+            }
         };
         let selected =
             selection::select(&clients, command.client.as_ref(), caller.as_ref())?.clone();

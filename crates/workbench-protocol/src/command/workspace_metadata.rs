@@ -266,22 +266,24 @@ impl WorkspaceMetadataResult {
         self.protocol_version == request.protocol_version
             && self.request_id == request.request_id
             && self.site_id == request.site_id
-            && match (&request.action, &self.outcome) {
-                (_, WorkspaceMetadataOutcome::Failed { .. }) => true,
-                (
-                    WorkspaceMetadataAction::Report { workspace_id, .. },
-                    WorkspaceMetadataOutcome::Reported {
+            && {
+                let shared_failure =
+                    matches!(&self.outcome, WorkspaceMetadataOutcome::Failed { .. });
+                match &request.action {
+                    WorkspaceMetadataAction::Report { workspace_id, .. } => {
+                        matches!(&self.outcome, WorkspaceMetadataOutcome::Reported {
                         workspace_id: actual,
                         ..
-                    },
-                ) => workspace_id == actual,
-                (
-                    WorkspaceMetadataAction::Read { workspace_ids },
-                    WorkspaceMetadataOutcome::Read { workspaces, .. },
-                ) => workspace_ids
+                    } if workspace_id == actual)
+                            || shared_failure
+                    }
+                    WorkspaceMetadataAction::Read { workspace_ids } => {
+                        matches!(&self.outcome, WorkspaceMetadataOutcome::Read { workspaces, .. } if workspace_ids
                     .iter()
-                    .eq(workspaces.iter().map(|row| &row.workspace_id)),
-                _ => false,
+                    .eq(workspaces.iter().map(|row| &row.workspace_id)))
+                            || shared_failure
+                    }
+                }
             }
     }
 }

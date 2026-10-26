@@ -256,6 +256,7 @@ fn classify_outcome(
                 Precommit::ProfileAmbiguous { candidate_ids },
             ));
         }
+        // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
         _ => return Err(Unknown::ActionIncompatible),
     };
     let identities = [

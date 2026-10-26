@@ -90,6 +90,7 @@ impl SiteCoordinator {
         let launch = match &command.action {
             WorkbenchAction::PanelSplit { launch, .. }
             | WorkbenchAction::PanelCreateTerminal { launch, .. } => launch.clone(),
+            // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
             _ => None,
         };
         let launch = match launch
@@ -112,6 +113,7 @@ impl SiteCoordinator {
         let options = match &command.action {
             WorkbenchAction::PanelSplit { options, .. }
             | WorkbenchAction::PanelCreateTerminal { options, .. } => options.clone(),
+            // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
             _ => Default::default(),
         };
         let grant =

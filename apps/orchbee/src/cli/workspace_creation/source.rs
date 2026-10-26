@@ -71,7 +71,13 @@ pub(super) fn prepare(
             ClientViewOutcome::Listed { clients } => clients,
             ClientViewOutcome::Denied {} => return Err(Failure::new(FailureKind::Denied)),
             ClientViewOutcome::Unavailable { .. } => return Err(unavailable()),
-            _ => return Err(Failure::new(FailureKind::ProtocolInvalid)),
+            ClientViewOutcome::Synchronized { .. }
+            | ClientViewOutcome::Found { .. }
+            | ClientViewOutcome::Operation { .. }
+            | ClientViewOutcome::NotFound { .. }
+            | ClientViewOutcome::Conflict { .. } => {
+                return Err(Failure::new(FailureKind::ProtocolInvalid));
+            }
         };
         if clients.is_empty() && command.client.is_none() && !command.focus && caller.is_none() {
             None

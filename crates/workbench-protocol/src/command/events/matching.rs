@@ -42,7 +42,7 @@ pub fn matches_semantic_filter(event: &SemanticEvent, filter: &SemanticEventFilt
             .selection
             .as_ref()
             .map(|selection| &selection.terminal_context_id),
-        _ => None,
+        D::WorkspaceOrder { .. } | D::WorkspaceMetadata { .. } | D::Worktree { .. } => None,
     };
     let tab = match &event.data {
         D::Tab { tab_id, .. } | D::Layout { tab_id, .. } => Some(tab_id),
@@ -55,7 +55,10 @@ pub fn matches_semantic_filter(event: &SemanticEvent, filter: &SemanticEventFilt
             .selection
             .as_ref()
             .and_then(|selection| selection.tab_id.as_ref()),
-        _ => None,
+        D::Workspace { .. }
+        | D::WorkspaceOrder { .. }
+        | D::WorkspaceMetadata { .. }
+        | D::Worktree { .. } => None,
     };
     let pane = match &event.data {
         D::Pane { pane }
@@ -67,7 +70,12 @@ pub fn matches_semantic_filter(event: &SemanticEvent, filter: &SemanticEventFilt
             .selection
             .as_ref()
             .and_then(|selection| selection.panel_id.as_ref()),
-        _ => None,
+        D::Workspace { .. }
+        | D::WorkspaceOrder { .. }
+        | D::WorkspaceMetadata { .. }
+        | D::Tab { .. }
+        | D::Layout { .. }
+        | D::Worktree { .. } => None,
     };
     let scoped = match scope {
         SemanticEventScope::All {} => true,
@@ -91,7 +99,16 @@ pub fn matches_semantic_filter(event: &SemanticEvent, filter: &SemanticEventFilt
                 D::Workspace { workspace, .. } => workspace.label == label.as_str(),
                 D::Tab { label: actual, .. } => actual == label.as_str(),
                 D::Pane { pane } => pane.label == label.as_str(),
-                _ => false,
+                // Only these metadata events expose the mutable label queried by this filter.
+                D::WorkspaceOrder { .. }
+                | D::WorkspaceMetadata { .. }
+                | D::Layout { .. }
+                | D::Worktree { .. }
+                | D::Client { .. }
+                | D::Agent { .. }
+                | D::Output { .. }
+                | D::Exited { .. }
+                | D::Scroll { .. } => false,
             },
             SemanticEventMatch::OutputRevision { minimum_revision } => {
                 matches!(&event.data,D::Output {content_revision,..} if content_revision>=minimum_revision)

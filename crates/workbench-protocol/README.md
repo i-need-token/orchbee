@@ -1,5 +1,15 @@
 # Workbench protocol
 
+## Result admission
+
+Action/result pairing belongs to this crate. The result-family `answers` methods enumerate
+their actions and retain the required identity, order, cursor and payload echoes.
+`ClientViewAction::admits`, `WorkbenchWorktreeAction::admits` and
+`WorkspaceGroupCloseAction::admits` share the response rules with Clients, including resume
+attempts and intent-specific progress. `WorkbenchCommand::admits_creation_outcome` admits only
+layout/terminal creation receipts with their revision and target checks. Clients separately
+validate connection generation and operation-specific state postconditions.
+
 ## Shared user preferences
 
 [The common preference contract](docs/user-preferences.md) owns the GUI/TUI inventory,

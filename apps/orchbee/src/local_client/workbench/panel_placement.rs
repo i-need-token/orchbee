@@ -348,16 +348,10 @@ fn classify_outcome(
     kind: PlacementKind,
     outcome: WorkbenchCommandOutcome,
 ) -> Result<WorkbenchPanelPlacementSubmission, WorkbenchPanelPlacementOutcomeUnknownReason> {
-    let compatible_commit = matches!(
-        (&outcome, kind),
-        (
-            WorkbenchCommandOutcome::PanelMoved { .. },
-            PlacementKind::Move
-        ) | (
-            WorkbenchCommandOutcome::PanelSwapped { .. },
-            PlacementKind::Swap
-        )
-    );
+    let compatible_commit = match kind {
+        PlacementKind::Move => matches!(&outcome, WorkbenchCommandOutcome::PanelMoved { .. }),
+        PlacementKind::Swap => matches!(&outcome, WorkbenchCommandOutcome::PanelSwapped { .. }),
+    };
     match outcome {
         WorkbenchCommandOutcome::Rejected { revision, reason }
             if matches!(
@@ -459,6 +453,7 @@ fn classify_outcome(
                 },
             ))
         }
+        // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
         _ => Err(WorkbenchPanelPlacementOutcomeUnknownReason::ActionIncompatible),
     }
 }

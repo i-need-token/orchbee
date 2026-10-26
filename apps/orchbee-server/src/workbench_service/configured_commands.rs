@@ -105,6 +105,7 @@ impl WorkbenchClientConnection<'_> {
                                 result: Box::new(result),
                             })
                         }
+                        // This exchange accepts only the result family selected by its submitted request.
                         _ => Err(Failure::PhysicalUnknown),
                     }
                 } else {
@@ -164,6 +165,7 @@ impl WorkbenchClientConnection<'_> {
             {
                 Ok(())
             }
+            // This step consumes its requested ClientView receipt class; other replies cannot confirm that observation.
             _ => Err(Failure::StaleSource),
         }
     }

@@ -201,7 +201,9 @@ impl ConfiguredCommandRequest {
         match &self.action {
             ConfiguredCommandAction::Invoke { invocation } => invocation.validate(),
             ConfiguredCommandAction::PopupOpen { spec, .. } => spec.validate(),
-            _ => Ok(()),
+            ConfiguredCommandAction::List {}
+            | ConfiguredCommandAction::PopupRead { .. }
+            | ConfiguredCommandAction::PopupClose { .. } => Ok(()),
         }
     }
 }
@@ -362,7 +364,11 @@ impl ConfiguredCommandResult {
                     | crate::ClientViewOutcome::Conflict {}
                     | crate::ClientViewOutcome::Denied {}
                     | crate::ClientViewOutcome::Unavailable { .. } => {}
-                    _ => return Err(ContractError::InvalidDocument),
+                    crate::ClientViewOutcome::Synchronized { .. }
+                    | crate::ClientViewOutcome::Listed { .. }
+                    | crate::ClientViewOutcome::Found { .. } => {
+                        return Err(ContractError::InvalidDocument);
+                    }
                 }
             }
             O::PopupOpened { title, .. }
@@ -370,7 +376,12 @@ impl ConfiguredCommandResult {
             {
                 return Err(ContractError::InvalidDocument);
             }
-            _ => {}
+            O::PopupOpened { .. }
+            | O::PopupState { .. }
+            | O::PopupClosing { .. }
+            | O::PopupClosed { .. }
+            | O::PopupUnknown { .. }
+            | O::Failed { .. } => {}
         }
         Ok(())
     }
@@ -381,56 +392,56 @@ impl ConfiguredCommandResult {
         self.request_id == request.request_id
             && self.site_id == request.site_id
             && self.validate().is_ok()
-            && match (&request.action, &self.outcome) {
-                (_, O::Failed { .. }) => true,
-                (A::List {}, O::Catalog { .. }) => true,
-                (
-                    A::Invoke { invocation },
-                    O::ShellStarted { command_id, .. }
+            && {
+                let shared_failure = matches!(&self.outcome, O::Failed { .. });
+                match &request.action {
+                    A::List {} => matches!(&self.outcome, O::Catalog { .. }) || shared_failure,
+                    A::Invoke { invocation } => {
+                        matches!(&self.outcome, O::ShellStarted { command_id, .. }
                     | O::Pane { command_id, .. }
-                    | O::Plugin { command_id, .. },
-                ) => command_id == &invocation.command_id,
-                (A::Invoke { invocation }, O::PopupControl { command_id, result }) => {
-                    command_id == &invocation.command_id
-                        && match &result.outcome {
-                            crate::ClientViewOutcome::Operation { operation } => {
-                                invocation.source.as_ref().is_some_and(|source| {
-                                    operation.command.client_id == source.client_id
-                                        && operation.command.expected_view_revision
-                                            == source.view_revision
-                                        && operation.command.minimum_workbench_revision
-                                            == invocation.expected_revision
-                                        && matches!(&operation.command.intent,
-                                    crate::ClientViewIntent::CommandPopupOpen { spec }
-                                    if spec.source == source.presentation)
-                                })
-                            }
-                            _ => true,
-                        }
+                    | O::Plugin { command_id, .. } if command_id == &invocation.command_id)
+                            || matches!(&self.outcome, O::PopupControl { command_id, result } if {
+                                command_id == &invocation.command_id
+                                    && match &result.outcome {
+                                        crate::ClientViewOutcome::Operation { operation } => {
+                                            invocation.source.as_ref().is_some_and(|source| {
+                                                operation.command.client_id == source.client_id
+                                                    && operation.command.expected_view_revision
+                                                        == source.view_revision
+                                                    && operation.command.minimum_workbench_revision
+                                                        == invocation.expected_revision
+                                                    && matches!(&operation.command.intent,
+                                                crate::ClientViewIntent::CommandPopupOpen { spec }
+                                                if spec.source == source.presentation)
+                                            })
+                                        }
+                                        // Only an operation receipt echoes the popup source; refusals carry none.
+                                        crate::ClientViewOutcome::Synchronized { .. } | crate::ClientViewOutcome::Listed { .. } | crate::ClientViewOutcome::Found { .. } | crate::ClientViewOutcome::NotFound { .. } | crate::ClientViewOutcome::Conflict { .. } | crate::ClientViewOutcome::Denied { .. } | crate::ClientViewOutcome::Unavailable { .. } => true,
+                                    }
+                            })
+                            || shared_failure
+                    }
+                    A::PopupOpen { popup_id, .. } => {
+                        matches!(&self.outcome, O::PopupOpened {
+                        popup_id: actual, ..
+                    } if popup_id == actual)
+                            || matches!(&self.outcome, O::PopupClosed { popup_id: actual } | O::PopupUnknown { popup_id: actual } if popup_id == actual)
+                            || shared_failure
+                    }
+                    A::PopupRead { popup_id } => {
+                        matches!(&self.outcome, O::PopupState {
+                        popup_id: actual, ..
+                    } if popup_id == actual)
+                            || matches!(&self.outcome, O::PopupClosing { popup_id: actual } if popup_id == actual)
+                            || matches!(&self.outcome, O::PopupClosed { popup_id: actual } | O::PopupUnknown { popup_id: actual } if popup_id == actual)
+                            || shared_failure
+                    }
+                    A::PopupClose { popup_id } => {
+                        matches!(&self.outcome, O::PopupClosing { popup_id: actual } if popup_id == actual)
+                            || matches!(&self.outcome, O::PopupClosed { popup_id: actual } | O::PopupUnknown { popup_id: actual } if popup_id == actual)
+                            || shared_failure
+                    }
                 }
-                (
-                    A::PopupOpen { popup_id, .. },
-                    O::PopupOpened {
-                        popup_id: actual, ..
-                    },
-                )
-                | (
-                    A::PopupRead { popup_id },
-                    O::PopupState {
-                        popup_id: actual, ..
-                    },
-                )
-                | (
-                    A::PopupClose { popup_id } | A::PopupRead { popup_id },
-                    O::PopupClosing { popup_id: actual },
-                ) => popup_id == actual,
-                (
-                    A::PopupOpen { popup_id, .. }
-                    | A::PopupRead { popup_id }
-                    | A::PopupClose { popup_id },
-                    O::PopupClosed { popup_id: actual } | O::PopupUnknown { popup_id: actual },
-                ) => popup_id == actual,
-                _ => false,
             }
     }
 }

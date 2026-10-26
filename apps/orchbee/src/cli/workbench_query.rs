@@ -156,7 +156,11 @@ fn current(
         ClientViewOutcome::NotFound {} => Err(Failure::new(FailureKind::NotFound)),
         ClientViewOutcome::Denied {} => Err(Failure::new(FailureKind::Denied)),
         ClientViewOutcome::Unavailable { .. } => Err(Failure::new(FailureKind::ServiceUnavailable)),
-        _ => Err(Failure::new(FailureKind::ProtocolInvalid)),
+        ClientViewOutcome::Synchronized { .. }
+        | ClientViewOutcome::Listed { .. }
+        | ClientViewOutcome::Found { .. }
+        | ClientViewOutcome::Operation { .. }
+        | ClientViewOutcome::Conflict { .. } => Err(Failure::new(FailureKind::ProtocolInvalid)),
     }
 }
 
@@ -203,6 +207,7 @@ pub(super) fn submission_failure(
         3 => match outcome {
             Some(ClientViewOutcome::Denied {}) => FailureKind::Denied,
             Some(ClientViewOutcome::NotFound {}) => FailureKind::NotFound,
+            // This step consumes its requested ClientView receipt class; other replies cannot confirm that observation.
             _ => FailureKind::Rejected,
         },
         4 => FailureKind::ServiceUnavailable,

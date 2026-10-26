@@ -24,7 +24,13 @@ pub(super) fn server_metadata(
             LocalClientMessage::Rejected { reason } => {
                 return Err(ConnectClientError::Rejected(reason));
             }
-            _ => return Err(ConnectClientError::UnexpectedResponse),
+            LocalClientMessage::ClientHello(..)
+            | LocalClientMessage::ClientAccepted { .. }
+            | LocalClientMessage::SiteStopRequest(..)
+            | LocalClientMessage::SiteStopResult(..)
+            | LocalClientMessage::ServerMetadataRequest => {
+                return Err(ConnectClientError::UnexpectedResponse);
+            }
         };
         check_wake(wake)?;
         if Instant::now() >= deadline {
@@ -161,7 +167,12 @@ pub(super) fn site_stop(
                 LocalClientMessage::Rejected { reason } => {
                     return Err(ConnectClientError::Rejected(reason));
                 }
-                _ => {
+                LocalClientMessage::ClientHello(..)
+                | LocalClientMessage::ClientAccepted { .. }
+                | LocalClientMessage::SiteStopRequest(..)
+                | LocalClientMessage::SiteStopResult(..)
+                | LocalClientMessage::ServerMetadataRequest
+                | LocalClientMessage::ServerMetadata(..) => {
                     return Err(ConnectClientError::UnexpectedResponse);
                 }
             };

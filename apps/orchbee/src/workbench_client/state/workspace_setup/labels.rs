@@ -171,6 +171,7 @@ impl SetupOperation {
                 workspace_id,
                 label,
             } => (LabelOwner::Workspace(workspace_id.clone()), label),
+            // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
             _ => return None,
         };
         Some(RetainedLabel {
@@ -182,6 +183,7 @@ impl SetupOperation {
         match self.command.action {
             WorkbenchAction::ProjectRename { .. } => Some(NativeLocationLabelTarget::Project),
             WorkbenchAction::WorkspaceRename { .. } => Some(NativeLocationLabelTarget::Workspace),
+            // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
             _ => None,
         }
     }
@@ -227,6 +229,7 @@ impl SetupOperation {
             WorkbenchAction::WorkspaceRename { workspace_id, .. } => {
                 workspace_id == expected_workspace
             }
+            // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
             _ => false,
         };
         valid
@@ -255,6 +258,7 @@ impl SetupOperation {
                     ..
                 },
             ) if workspace_id == returned_workspace => (label, *unchanged),
+            // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
             _ => return None,
         };
         (unchanged == (self.original_location_label()? == label.as_str())).then_some(unchanged)

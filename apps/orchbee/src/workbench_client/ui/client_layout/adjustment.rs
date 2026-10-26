@@ -253,6 +253,7 @@ impl NativeUi {
                     },
                 })
             }
+            // This handler implements its own ClientView intent subset; other intents belong to their feature handlers.
             _ => Err(Reason::Unsupported),
         }
     }

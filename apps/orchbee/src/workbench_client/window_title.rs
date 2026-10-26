@@ -133,7 +133,7 @@ fn run(
         let snapshot = match result {
             Some(Ok(reply)) => match reply.outcome {
                 WindowTitleOutcome::Listening { snapshot } => snapshot,
-                _ => None,
+                WindowTitleOutcome::Published { .. } | WindowTitleOutcome::Failed { .. } => None,
             },
             Some(Err(_)) => {
                 client = None;

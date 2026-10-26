@@ -80,6 +80,7 @@ impl LocalTerminalService {
                     settled,
                 })
             }
+            // This phase consumes its requested plugin/popup receipt; other receipt kinds cannot confirm that operation.
             _ => Err(Failure::Conflict),
         }
     }

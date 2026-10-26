@@ -127,7 +127,11 @@ impl Answer {
                             | F::Unsupported {}
                             | F::SiteStopping {} => 4,
                             F::Internal {} => 1,
-                            _ => 3,
+                            F::Git { .. }
+                            | F::SourceChanged { .. }
+                            | F::CheckoutInUse { .. }
+                            | F::AssociationFailed { .. }
+                            | F::CloseIncomplete { .. } => 3,
                         }
                     }
                 },

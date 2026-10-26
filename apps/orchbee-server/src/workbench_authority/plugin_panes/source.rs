@@ -12,6 +12,7 @@ pub(super) fn resolve(
     let options = match &command.action {
         WorkbenchAction::TabCreate { options, .. }
         | WorkbenchAction::PanelSplit { options, .. } => options,
+        // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
         _ => return Err(Failure::ServiceUnavailable),
     };
     let Some(supplied) = &options.plugin_context else {

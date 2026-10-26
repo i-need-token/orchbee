@@ -171,6 +171,7 @@ pub(super) fn enrich(document: Option<&Document>, result: &mut Value) {
         });
         row["scroll"] = match observation {
             Some(ClientViewportObservation::Observed { scroll, .. }) => json!(scroll),
+            // Only comparable ready viewport observations can prove the scroll change or enrich this view.
             _ => Value::Null,
         };
         row["scrollObservation"] =

@@ -107,7 +107,7 @@ impl NotificationRequest {
     pub fn validate(&self) -> Result<(), ContractError> {
         match &self.action {
             NotificationAction::Show { notification } => notification.validate(),
-            _ => Ok(()),
+            NotificationAction::Listen { .. } => Ok(()),
         }
     }
 }
@@ -162,18 +162,16 @@ impl NotificationResult {
     pub fn answers(&self, request: &NotificationRequest) -> bool {
         self.request_id == request.request_id
             && self.site_id == request.site_id
-            && matches!(
-                (&request.action, &self.outcome),
-                (_, NotificationOutcome::Failed { .. })
-                    | (
-                        NotificationAction::Show { .. },
-                        NotificationOutcome::Show { .. }
-                    )
-                    | (
-                        NotificationAction::Listen { .. },
-                        NotificationOutcome::Listening { .. }
-                    )
-            )
+            && match &request.action {
+                NotificationAction::Show { .. } => matches!(
+                    &self.outcome,
+                    NotificationOutcome::Show { .. } | NotificationOutcome::Failed { .. }
+                ),
+                NotificationAction::Listen { .. } => matches!(
+                    &self.outcome,
+                    NotificationOutcome::Listening { .. } | NotificationOutcome::Failed { .. }
+                ),
+            }
     }
     pub fn validate(&self) -> Result<(), ContractError> {
         match &self.outcome {
@@ -185,7 +183,9 @@ impl NotificationResult {
             {
                 Err(ContractError::InvalidDocument)
             }
-            _ => Ok(()),
+            NotificationOutcome::Listening { notification: None }
+            | NotificationOutcome::Show { .. }
+            | NotificationOutcome::Failed { .. } => Ok(()),
         }
     }
 }

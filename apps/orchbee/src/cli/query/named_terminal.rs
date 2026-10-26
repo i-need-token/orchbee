@@ -80,7 +80,9 @@ pub(in crate::cli) fn verify_named_binding(
     )?;
     match agent_target::resolved_target(&result)? {
         AgentNameTarget::Terminal { binding: current } if current == *binding => Ok(()),
-        _ => Err(Failure::new(FailureKind::ProtocolInvalid)
-            .failure_schema(crate::cli::agent_names::FAILURE_SCHEMA)),
+        AgentNameTarget::Session { .. } | AgentNameTarget::Terminal { .. } => {
+            Err(Failure::new(FailureKind::ProtocolInvalid)
+                .failure_schema(crate::cli::agent_names::FAILURE_SCHEMA))
+        }
     }
 }

@@ -31,7 +31,7 @@ impl ClientPresentationSelection {
                 selection_generation,
                 ..
             } if selection_generation.value() == 0 => return Err(ContractError::InvalidDocument),
-            _ => {}
+            Self::Unbound { .. } => {}
         }
         if serde_json::to_vec(self)
             .map_err(|_| ContractError::InvalidDocument)?
@@ -70,39 +70,30 @@ impl ClientPresentationSelection {
     /// Scrolling/frame updates do not change which local member owns this read.
     #[must_use]
     pub fn same_member(&self, other: &Self) -> bool {
-        match (self, other) {
-            (
-                Self::Bound {
-                    presentation_id: left_id,
-                    binding: left_binding,
-                    attachment_generation: left_generation,
-                    incarnation: left_incarnation,
-                    ..
-                },
-                Self::Bound {
+        match self {
+            Self::Bound {
+                presentation_id: left_id,
+                binding: left_binding,
+                attachment_generation: left_generation,
+                incarnation: left_incarnation,
+                ..
+            } => matches!(other, Self::Bound {
                     presentation_id: right_id,
                     binding: right_binding,
                     attachment_generation: right_generation,
                     incarnation: right_incarnation,
                     ..
-                },
-            ) => {
-                left_id == right_id
+                } if left_id == right_id
                     && left_binding == right_binding
                     && left_generation == right_generation
-                    && left_incarnation == right_incarnation
-            }
-            (
-                Self::Unbound {
-                    presentation_id: left_id,
-                    selection_generation: left_generation,
-                },
-                Self::Unbound {
+                    && left_incarnation == right_incarnation),
+            Self::Unbound {
+                presentation_id: left_id,
+                selection_generation: left_generation,
+            } => matches!(other, Self::Unbound {
                     presentation_id: right_id,
                     selection_generation: right_generation,
-                },
-            ) => left_id == right_id && left_generation == right_generation,
-            _ => false,
+                } if left_id == right_id && left_generation == right_generation),
         }
     }
 }
@@ -123,7 +114,7 @@ impl ClientPresentationSnapshot {
                 selection_generation,
                 ..
             }) if selection_generation.value() == 0 => return Err(ContractError::InvalidDocument),
-            _ => {}
+            Some(ClientPresentationSelection::Unbound { .. }) | None => {}
         }
         if serde_json::to_vec(self)
             .map_err(|_| ContractError::InvalidDocument)?

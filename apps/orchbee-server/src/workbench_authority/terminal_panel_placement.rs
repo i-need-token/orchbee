@@ -186,7 +186,9 @@ impl<'a> WorkbenchPanelPlacementAdmission<'a> {
                 ContractError::EncodedValueTooLarge { .. } => {
                     PlanFailure::Rejected(WorkbenchRejectionReason::ResourceLimit)
                 }
-                _ => PlanFailure::Internal,
+                ContractError::InvalidDocument | ContractError::WrongDocumentKind => {
+                    PlanFailure::Internal
+                }
             },
         )?;
         let projection = self
@@ -265,6 +267,7 @@ impl WorkbenchAuthority {
                     target_panel_id,
                     Placement::Swap,
                 ),
+                // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
                 _ => {
                     return WorkbenchPanelPlacementBegin::Ready(result(
                         &command,
@@ -357,7 +360,7 @@ const fn move_inserts_before(direction: WorkbenchPanelSplitDirection) -> bool {
 fn leaf_panel_id(node: &PanelNode) -> Option<&WorkbenchPanelId> {
     match node {
         PanelNode::Panel { panel_id, .. } => Some(panel_id),
-        _ => None,
+        PanelNode::Split { .. } => None,
     }
 }
 

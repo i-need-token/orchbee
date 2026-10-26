@@ -206,6 +206,7 @@ fn read_rows(
                 | orchbee_capability_node_protocol::ViewerRowsRejectedReason::StaleGeneration
                 | orchbee_capability_node_protocol::ViewerRowsRejectedReason::HistoryEvicted,
             ) => return Err(Failure::SourceChanged),
+            // Action/result admission belongs to the protocol; this step consumes only its requested viewer record or acknowledgment.
             _ => return Err(Failure::SourceUnavailable),
         };
         if !routing::valid_rows_record(&action, viewer, operation, &record) {

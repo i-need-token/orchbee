@@ -134,7 +134,26 @@ impl AgentReportProvider {
             Self::Antigravity => "antigravity",
             Self::Copilot => "github-copilot",
             Self::Qwen => "qwen-code",
-            _ => self.report_label(),
+            Self::Pi
+            | Self::Codex
+            | Self::Gemini
+            | Self::Cursor
+            | Self::Devin
+            | Self::Cline
+            | Self::Omp
+            | Self::Mastracode
+            | Self::OpenCode
+            | Self::Kimi
+            | Self::Kiro
+            | Self::Droid
+            | Self::Amp
+            | Self::Grok
+            | Self::Hermes
+            | Self::Kilo
+            | Self::Qoder
+            | Self::Letta
+            | Self::Maki
+            | Self::Muse => self.report_label(),
         }
     }
 }

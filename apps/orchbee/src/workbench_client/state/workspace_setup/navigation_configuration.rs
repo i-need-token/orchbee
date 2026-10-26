@@ -38,6 +38,7 @@ impl super::super::WorkbenchClientView<'_> {
             }
             match &operation.command.action {
                 WorkbenchAction::NavigationConfigure { operation } => Some(operation.clone()),
+                // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
                 _ => None,
             }
         });

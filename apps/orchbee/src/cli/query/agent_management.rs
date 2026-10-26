@@ -63,6 +63,7 @@ pub(in crate::cli) fn read_agent_management(
                     .details(agent_unavailable_details(operation))
                     .source(source))
             }
+            // This Agent launch phase consumes its corresponding receipt; other outcomes cannot establish that phase.
             _ => Err(agent_protocol_invalid(operation)),
         }
     };

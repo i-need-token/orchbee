@@ -253,6 +253,7 @@ impl<'a> WorkbenchTabCreateAdmission<'a> {
         );
         let placement = match &command.action {
             WorkbenchAction::TabCreate { placement, .. } => placement.as_ref(),
+            // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
             _ => None,
         };
         let Ok(label) = orchbee_workbench_protocol::WorkbenchLabel::parse(&label) else {
@@ -613,6 +614,7 @@ impl WorkbenchAuthority {
                     }
                 }
             }
+            // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
             _ => None,
         };
         let profile_use = match &profile {

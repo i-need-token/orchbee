@@ -110,6 +110,7 @@ pub(super) fn encode(message: &CapabilityNodeMessage) -> Result<Vec<u8>, Protoco
                 ]),
             }
         }
+        // This codec selects one OBCN message family; other families use their own codecs.
         _ => return Err(ProtocolError::InvalidPayload),
     }
     if body.len() > MAX_BODY {

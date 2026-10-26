@@ -201,6 +201,7 @@ pub(super) fn classify_outcome(
             revision,
             workspace_order: None,
         },
+        // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
         _ => return Err(WorkbenchSetupOutcomeUnknownReason::ActionIncompatible),
     };
     let unchanged = matches!(
@@ -276,6 +277,7 @@ fn ordering_outcome_matches(
                 None => end == ids.len(),
             }
         }
+        // This postcondition checks only the two Workspace move operations' insertion boundaries.
         _ => false,
     }
 }
@@ -381,6 +383,7 @@ fn rename_revision(outcome: WorkbenchCommandOutcome) -> (WorkbenchRevision, bool
     match outcome {
         WorkbenchCommandOutcome::Renamed { revision } => (revision, false),
         WorkbenchCommandOutcome::Unchanged { revision } => (revision, true),
+        // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
         _ => unreachable!("rename result arm only admits Renamed or Unchanged"),
     }
 }

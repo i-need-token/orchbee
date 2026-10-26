@@ -76,7 +76,14 @@ impl PopupRunner {
                     }
                 }
                 TerminalViewerOutcome::Empty {} => thread::sleep(Duration::from_millis(20)),
-                _ => return Err(Reason::ProjectionUnavailable),
+                TerminalViewerOutcome::Attached { .. }
+                | TerminalViewerOutcome::FeedbackAccepted { .. }
+                | TerminalViewerOutcome::Detached { .. }
+                | TerminalViewerOutcome::Rejected { .. }
+                | TerminalViewerOutcome::RowsRejected { .. }
+                | TerminalViewerOutcome::Unavailable { .. } => {
+                    return Err(Reason::ProjectionUnavailable);
+                }
             }
         };
         let opened = if let Some(capture) = capture

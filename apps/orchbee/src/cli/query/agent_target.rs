@@ -148,6 +148,7 @@ pub(super) fn prepare(
                             reason: AgentResolveRejectionReason::NotFound
                         }
                     ) => {}
+                // This lookup requires a terminal-backed Agent target; other target kinds have no terminal binding.
                 _ => {
                     let selector = match resolved_target(&answer)? {
                         AgentNameTarget::Session { session_id } => {

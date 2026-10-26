@@ -93,6 +93,7 @@ impl Reader<'_> {
             PanelMetadataOutcome::Failed {
                 reason: orchbee_workbench_protocol::PanelMetadataFailure::Denied,
             } => Err(LaneFailure::Denied),
+            // This query consumes only its requested metadata/report payload; other receipt classes cannot answer that query.
             _ => Err(LaneFailure::Unavailable),
         }
     }
@@ -131,6 +132,7 @@ impl Reader<'_> {
             PanelAgentOutcome::Failed {
                 reason: orchbee_workbench_protocol::PanelAgentFailure::Denied,
             } => Err(LaneFailure::Denied),
+            // This query consumes only its requested metadata/report payload; other receipt classes cannot answer that query.
             _ => Err(LaneFailure::Unavailable),
         }
     }

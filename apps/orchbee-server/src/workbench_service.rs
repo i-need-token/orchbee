@@ -92,11 +92,11 @@ impl WorkbenchService {
             WorkbenchRequest::AgentView(request) => if request.action.mutating() { self.policy.manage_navigation } else { self.policy.read },
             WorkbenchRequest::Plugin(request) => self.policy.read && (!request.action.mutating() || (self.policy.create_terminal && self.policy.manage_terminal_lifecycle)),
             WorkbenchRequest::TerminalEditor(_) | WorkbenchRequest::WindowTitle(_) | WorkbenchRequest::Notification(_) => false,
-            WorkbenchRequest::Configuration(request) => match request.action { orchbee_workbench_protocol::ConfigurationAction::Reload => self.policy.manage_navigation, _ => self.policy.read },
-            WorkbenchRequest::Settings(request) => match request.operation { orchbee_workbench_protocol::NativeSettingsOperation::Save { .. } => self.policy.manage_navigation, _ => self.policy.read },
+            WorkbenchRequest::Configuration(request) => match request.action { orchbee_workbench_protocol::ConfigurationAction::Reload => self.policy.manage_navigation, orchbee_workbench_protocol::ConfigurationAction::Current => self.policy.read },
+            WorkbenchRequest::Settings(request) => match request.operation { orchbee_workbench_protocol::NativeSettingsOperation::Save { .. } => self.policy.manage_navigation, orchbee_workbench_protocol::NativeSettingsOperation::Open {} => self.policy.read },
             WorkbenchRequest::AgentManifests(request) => match request.action {
                 orchbee_workbench_protocol::AgentManifestsAction::Reload { .. } | orchbee_workbench_protocol::AgentManifestsAction::Update { .. } => self.policy.manage_navigation,
-                _ => self.policy.read,
+                orchbee_workbench_protocol::AgentManifestsAction::Current {} | orchbee_workbench_protocol::AgentManifestsAction::Operation { .. } => self.policy.read,
             },
             WorkbenchRequest::PanelAgent(request) => match request.action {
                 orchbee_workbench_protocol::PanelAgentAction::Read { .. }
@@ -949,7 +949,13 @@ impl WorkbenchClientConnection<'_> {
                     orchbee_workbench_protocol::PluginAction::PopupClose { .. } => {
                         self.service.policy.manage_terminal_lifecycle
                     }
-                    _ => true,
+                    orchbee_workbench_protocol::PluginAction::PopupRead { .. }
+                    | orchbee_workbench_protocol::PluginAction::PaneObserve { .. }
+                    | orchbee_workbench_protocol::PluginAction::PaneGet { .. }
+                    | orchbee_workbench_protocol::PluginAction::Invoke { .. }
+                    | orchbee_workbench_protocol::PluginAction::Logs { .. }
+                    | orchbee_workbench_protocol::PluginAction::Get { .. }
+                    | orchbee_workbench_protocol::PluginAction::Cancel { .. } => true,
                 };
             if !allowed {
                 return WorkbenchExecution::Response(unavailable_or_denied(request, true));

@@ -631,6 +631,7 @@ impl Driver {
                     && value.export_sequence == sequence
                     && value.status
                         == orchbee_terminal_protocol::SelectionExportStatus::Cancelled => {}
+            // Selection commands are application-owned; only their exact correlated Host reply can advance this driver.
             _ => return Err(Failure::Invalid),
         }
         Ok(true)

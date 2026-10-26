@@ -780,6 +780,7 @@ fn classify_tab_create_outcome(
                 },
             ))
         }
+        // This step consumes its specific mutation receipt; other command results cannot confirm the requested postcondition.
         _ => Err(WorkbenchTabCreateOutcomeUnknownReason::ActionIncompatible),
     }
 }

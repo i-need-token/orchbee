@@ -177,7 +177,14 @@ impl<'service> LocalTerminalConnection<'service> {
                         rejected(Rejected::TerminalUnavailable)
                     }
                 }
-                _ => unavailable(Unavailable::TerminalRuntimeUnavailable),
+                WorkerOutcome::Empty
+                | WorkerOutcome::Record(..)
+                | WorkerOutcome::FeedbackAccepted
+                | WorkerOutcome::LifecycleObserved { .. }
+                | WorkerOutcome::Detached
+                | WorkerOutcome::RowsRejected(..) => {
+                    unavailable(Unavailable::TerminalRuntimeUnavailable)
+                }
             },
             Err(WorkerRequestError::Backpressure) => {
                 viewer.cleanup = None;

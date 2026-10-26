@@ -20,7 +20,7 @@ fn binding<'a>(
         PanelNode::Split { children, .. } => {
             children.iter().find_map(|child| binding(&child.node, id))
         }
-        _ => None,
+        PanelNode::Panel { .. } => None,
     }
 }
 

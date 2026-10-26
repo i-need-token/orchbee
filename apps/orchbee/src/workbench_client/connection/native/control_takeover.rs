@@ -94,7 +94,15 @@ impl NativeExecutor {
                                 cutoff,
                             )? {
                                 TerminalViewerOutcome::FeedbackAccepted {} => {}
-                                _ => return Err(CarrierFailure::Transport),
+                                TerminalViewerOutcome::Attached { .. }
+                                | TerminalViewerOutcome::Empty { .. }
+                                | TerminalViewerOutcome::Detached { .. }
+                                | TerminalViewerOutcome::Rejected { .. }
+                                | TerminalViewerOutcome::RowsRejected { .. }
+                                | TerminalViewerOutcome::Unavailable { .. }
+                                | TerminalViewerOutcome::Record(..) => {
+                                    return Err(CarrierFailure::Transport);
+                                }
                             }
                         }
                         self.retain_takeover_result(

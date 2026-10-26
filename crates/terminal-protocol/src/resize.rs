@@ -52,6 +52,7 @@ pub fn decode_resize_control(
         (RESIZE_ACCEPTED_KIND, MessageRole::Response) => decode_wire::<ResizeAcceptedWire>(payload)
             .and_then(resize_accepted_from_wire)
             .map(ResizeControl::ResizeAccepted),
+        // This codec accepts only its declared message family and request/response roles.
         _ => Err(invalid_field(
             "message kind and role do not select a resize-control payload",
         )),

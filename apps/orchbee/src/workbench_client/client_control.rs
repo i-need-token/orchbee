@@ -86,6 +86,7 @@ impl Execution {
             {
                 Some(target)
             }
+            // This handler implements its own ClientView intent subset; other intents belong to their feature handlers.
             _ => None,
         }
     }
@@ -178,6 +179,7 @@ impl Execution {
                         ) => ClientViewCompletionOutcome::DirectionFocused {
                             panel_id: panel_id.clone(),
                         },
+                        // This handler implements its own ClientView intent subset; other intents belong to their feature handlers.
                         _ => ClientViewCompletionOutcome::Applied {},
                     })
                 } else if let Some(previously_zoomed) = progress.toggle_origin

@@ -654,6 +654,7 @@ fn apply(
                         ProjectionFeedbackControl::NeedSnapshotResponse(feedback),
                     )
                 }
+                // The enclosing path selects a viewer feedback subset; other actions require their own exchanges.
                 _ => unreachable!("feedback action was matched"),
             };
             let command = encode_projection_feedback_control(&command)?;

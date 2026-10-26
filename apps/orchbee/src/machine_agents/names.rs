@@ -50,6 +50,6 @@ pub(super) fn read(
         AgentNamesListOutcome::Listed { .. }
         | AgentNamesListOutcome::Rejected { .. }
         | AgentNamesListOutcome::Unavailable { .. } => Ok(Vec::new()),
-        _ => Err(()),
+        AgentNamesListOutcome::ListedTargets { .. } => Err(()),
     }
 }

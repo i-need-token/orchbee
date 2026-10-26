@@ -300,7 +300,10 @@ impl NativeUi {
                     stale_generation: false,
                 })
             }
-            _ => Err(Failure::Invalid),
+            TerminalViewerOutcome::Attached { .. }
+            | TerminalViewerOutcome::Empty { .. }
+            | TerminalViewerOutcome::Detached { .. }
+            | TerminalViewerOutcome::Unavailable { .. } => Err(Failure::Invalid),
         };
         let result = reply.and_then(|reply| driver.reply(command, reply));
         match result {

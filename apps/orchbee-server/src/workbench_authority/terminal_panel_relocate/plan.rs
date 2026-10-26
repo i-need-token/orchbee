@@ -150,7 +150,8 @@ impl WorkbenchPanelRelocateAdmission<'_> {
                 second_slot_id: WorkbenchPanelSlotId::parse(&identity(last_identity))
                     .map_err(|_| PlanFailure::Internal)?,
             },
-            _ => Minted::Tab {
+            WorkbenchPanelRelocateDestination::NewTab { .. }
+            | WorkbenchPanelRelocateDestination::NewWorkspace { .. } => Minted::Tab {
                 tab_id: WorkbenchTabId::parse(&identity(last_identity))
                     .map_err(|_| PlanFailure::Internal)?,
             },
@@ -333,6 +334,7 @@ impl WorkbenchPanelRelocateAdmission<'_> {
                     transfer,
                 }
             }
+            // Destination planning fixes the minted identity shape; a cross-shape pair cannot form a valid relocation.
             _ => return Err(PlanFailure::Internal),
         };
         // Check the resulting shape, allowing a final-leaf exchange at capacity.
@@ -367,7 +369,9 @@ impl WorkbenchPanelRelocateAdmission<'_> {
                 ContractError::EncodedValueTooLarge { .. } => {
                     PlanFailure::Rejected(WorkbenchRejectionReason::ResourceLimit)
                 }
-                _ => PlanFailure::Internal,
+                ContractError::InvalidDocument | ContractError::WrongDocumentKind => {
+                    PlanFailure::Internal
+                }
             },
         )?;
         let projection = self

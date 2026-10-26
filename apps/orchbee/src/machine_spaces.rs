@@ -170,7 +170,7 @@ impl Reader<'_> {
                     | WorkspaceGitFailure::Timeout
                     | WorkspaceGitFailure::Malformed,
             } => Ok(None),
-            _ => Err(()),
+            WorkspaceGitOutcome::Observed { .. } | WorkspaceGitOutcome::Failed { .. } => Err(()),
         }
     }
     fn read(&mut self, git_requested: bool) -> Result<Arc<Checkpoint>, ()> {

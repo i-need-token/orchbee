@@ -428,6 +428,7 @@ fn classify_outcome(
             None,
             transfer,
         ),
+        // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
         _ => Err(WorkbenchPanelRelocateOutcomeUnknownReason::ActionIncompatible),
     }
 }

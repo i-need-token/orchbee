@@ -36,7 +36,11 @@ pub(super) fn settle(
                                 },
                             )
                         }
-                        _ => {
+                        // Only a matching launch mode, state and geometry can confirm terminal creation.
+                        (
+                            StartMode::Deferred | StartMode::Immediate { .. },
+                            HostLaunchState::AwaitingStart | HostLaunchState::Started(_),
+                        ) => {
                             return (
                                 unknown_result(&pending.request),
                                 TerminalPhase::Unknown(previous.identity()),
@@ -200,6 +204,7 @@ pub(super) fn settle(
                 _ => TerminalPhase::Unavailable(previous.identity()),
             },
         ),
+        // Pending terminal operations contain only Create/Start; unrelated messages cannot confirm their phase or authority.
         _ => (
             unknown_result(&pending.request),
             TerminalPhase::Unknown(previous.identity()),

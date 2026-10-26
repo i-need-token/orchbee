@@ -73,7 +73,12 @@ pub(super) fn execute(
             ClientViewOutcome::NotFound {} | ClientViewOutcome::Unavailable { .. } => {
                 return Err(Failure::new(FailureKind::ServiceUnavailable));
             }
-            _ => return Err(Failure::new(FailureKind::ProtocolInvalid)),
+            ClientViewOutcome::Synchronized { .. }
+            | ClientViewOutcome::Listed { .. }
+            | ClientViewOutcome::Operation { .. }
+            | ClientViewOutcome::Conflict { .. } => {
+                return Err(Failure::new(FailureKind::ProtocolInvalid));
+            }
         };
         if current.client_id != selected.client_id {
             return Err(Failure::new(FailureKind::ProtocolInvalid));

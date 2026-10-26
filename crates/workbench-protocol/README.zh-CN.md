@@ -1,5 +1,13 @@
 # Workbench 协议
 
+## 结果准入
+
+动作与结果的配对规则由本 crate 拥有。各结果族的 `answers` 方法穷举动作，并保留必要的
+标识、顺序、游标与载荷回显校验。`ClientViewAction::admits`、
+`WorkbenchWorktreeAction::admits` 和 `WorkspaceGroupCloseAction::admits` 与 Client
+共享响应规则，包括恢复尝试代次和各意图允许的进度。`WorkbenchCommand::admits_creation_outcome`
+仅接受布局／终端创建回执，并校验修订号与目标。Client 另外校验连接代次和操作对应的状态后置条件。
+
 ## 共享用户偏好
 
 [通用偏好契约](docs/user-preferences.zh-CN.md) 拥有 GUI/TUI 清单、默认值、校验、
@@ -199,4 +207,4 @@ Windows cohort 的整链见证。
 
 `CloseOperationRead` 与 `CloseOperationResult` 在既有 intent 大小上限内使用 OBWP 61/62。它们按原始请求 ID 读取保留 Close，精确关联 会话／request／operation，并使用封闭的 Workspace／Tab／Panel 目标。此读取不创建状态，并保留墓碑。Rust、TypeScript 和 JSON Schema 共享命令语料；[CLI 操作状态](../../apps/orchbee/docs/native-operation-status.zh-CN.md) 负责调用及恢复。
 
-<!-- documentation-pairing: english-sha256=5be6ec4bfc4fdc8240d41569674030d0130b1b1cdb499868a0364262c9a56a61 zh-cn-sha256=0e7f98398958572123717a19ed5af78258a7495988f7f96529632f852cd4d3d5 -->
+<!-- documentation-pairing: english-sha256=ef52dabf79ccaded82dd93632749414ace1fe1b762185079c59b22c73bfeb5dc zh-cn-sha256=5cc6eebe6d606ec51cd4fd2e999b65481662441722ec1da28eae439212c0c8a0 -->

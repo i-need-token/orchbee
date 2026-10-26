@@ -319,6 +319,7 @@ fn submit(handle: &WorkerRequestHandle, message: &CapabilityNodeMessage) -> Comp
         CapabilityNodeMessage::AuthorizedTerminalStart(request) => {
             WorkerOperationRequest::Start(*request)
         }
+        // This coordinator path handles only authorized Create/Start operations; other OBCN families use their dedicated paths.
         _ => return Completion::Unavailable,
     };
     match handle.request(request) {

@@ -243,10 +243,18 @@ impl PluginCommandLog {
                     Ok(())
                 }
                 // A finished log must carry success, an exit failure, or a failure without exit.
-                _ => Err(ProtocolError::InvalidPayload),
+                None
+                | Some(
+                    PluginCommandFailure::ExitFailure
+                    | PluginCommandFailure::SpawnUnavailable
+                    | PluginCommandFailure::SpawnFailed
+                    | PluginCommandFailure::Io
+                    | PluginCommandFailure::Cancelled
+                    | PluginCommandFailure::PhysicalUnknown,
+                ) => Err(ProtocolError::InvalidPayload),
             },
             // An unfinished log cannot carry completion data or captured output.
-            _ => Err(ProtocolError::InvalidPayload),
+            None => Err(ProtocolError::InvalidPayload),
         }
     }
 }

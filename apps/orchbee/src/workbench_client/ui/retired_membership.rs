@@ -102,7 +102,8 @@ impl NativeUi {
         // never feeds it.
         let index_snapshot = match &outcome {
             WorkbenchSnapshotOutcome::Available { snapshot } => Some(snapshot.clone()),
-            _ => None,
+            WorkbenchSnapshotOutcome::Denied { .. }
+            | WorkbenchSnapshotOutcome::Unavailable { .. } => None,
         };
         let prepared = match outcome {
             WorkbenchSnapshotOutcome::Available { snapshot } => {
@@ -121,7 +122,10 @@ impl NativeUi {
                     }
                 })
             }
-            _ => Err(CarrierFailure::AuthorityDivergence),
+            WorkbenchSnapshotOutcome::Denied { .. }
+            | WorkbenchSnapshotOutcome::Unavailable { .. } => {
+                Err(CarrierFailure::AuthorityDivergence)
+            }
         };
         let Some(state) = self.state.as_mut() else {
             self.retire(CarrierFailure::Protocol);

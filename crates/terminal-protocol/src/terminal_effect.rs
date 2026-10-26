@@ -93,6 +93,7 @@ pub fn decode_terminal_effect_event(
                 .and_then(terminal_application_signal_from_wire)
                 .map(TerminalEffectEvent::ApplicationSignal)
         }
+        // This codec accepts only its declared message family and request/response roles.
         _ => Err(invalid_field(
             "message kind and role do not select a terminal-effect event",
         )),

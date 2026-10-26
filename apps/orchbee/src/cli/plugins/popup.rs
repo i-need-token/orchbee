@@ -186,8 +186,24 @@ fn execute(
             ClientViewControlStatus::PopupClosed { had_popup, .. } => {
                 locale.cli_popup_closed(*had_popup).into()
             }
-            _ => locale.cli_client_control(&document),
+            ClientViewControlStatus::PresentationRead { .. }
+            | ClientViewControlStatus::ViewportRead { .. }
+            | ClientViewControlStatus::NavigationRead { .. }
+            | ClientViewControlStatus::TerminalAttentionRead { .. }
+            | ClientViewControlStatus::AttentionRead { .. }
+            | ClientViewControlStatus::LayoutAdjusted { .. }
+            | ClientViewControlStatus::DirectionFocused { .. }
+            | ClientViewControlStatus::DirectionUnchanged { .. }
+            | ClientViewControlStatus::LayoutRead { .. }
+            | ClientViewControlStatus::Queued { .. }
+            | ClientViewControlStatus::Delivered { .. }
+            | ClientViewControlStatus::Applied { .. }
+            | ClientViewControlStatus::ZoomUnchanged { .. }
+            | ClientViewControlStatus::ZoomToggled { .. }
+            | ClientViewControlStatus::Rejected { .. }
+            | ClientViewControlStatus::Incomplete { .. } => locale.cli_client_control(&document),
         },
+        // This step consumes its requested ClientView receipt class; other replies cannot confirm that observation.
         _ => locale.cli_client_control(&document),
     };
     let stdout = match format {

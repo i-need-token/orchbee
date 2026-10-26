@@ -86,6 +86,7 @@ impl PendingOperation {
         match &self.command {
             CapabilityNodeMessage::AuthorizedTerminalLaunch(command) => command.authorization(),
             CapabilityNodeMessage::AuthorizedTerminalStart(command) => command.authorization(),
+            // Pending terminal operations contain only Create/Start; unrelated messages cannot confirm their phase or authority.
             _ => unreachable!("only the coordinator constructs pending commands"),
         }
     }
@@ -102,6 +103,7 @@ impl PendingOperation {
                 CapabilityNodeMessage::AuthorizedTerminalStart(_),
                 TerminalPhase::Starting(_),
             ) => request.terminal_create_request_id() == &self.create_id,
+            // Pending terminal operations contain only Create/Start; unrelated messages cannot confirm their phase or authority.
             _ => false,
         }
     }
@@ -964,7 +966,11 @@ impl TerminalCoordinator {
         let (result, phase) = outcomes::settle(&pending, completion, binding.phase);
         let create_outcome = match &result {
             ServerMessage::TerminalCreateResult(result) => Some(result.outcome()),
-            _ => None,
+            ServerMessage::TerminalControlResult(..)
+            | ServerMessage::TerminalStartResult(..)
+            | ServerMessage::TerminalViewerResult(..)
+            | ServerMessage::TerminalSendResult(..)
+            | ServerMessage::TerminalLaunchReadResult(..) => None,
         };
         Ok(PreparedTerminalCompletion {
             binding,

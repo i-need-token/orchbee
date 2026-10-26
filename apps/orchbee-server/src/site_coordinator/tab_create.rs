@@ -146,6 +146,7 @@ impl SiteCoordinator {
         let explicit_launch = match &command.action {
             WorkbenchAction::TabCreate { launch, .. }
             | WorkbenchAction::WorkspaceLaunch { launch, .. } => launch.clone(),
+            // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
             _ => None,
         };
         let launch = match explicit_launch
@@ -168,6 +169,7 @@ impl SiteCoordinator {
         let options = match &command.action {
             WorkbenchAction::TabCreate { options, .. }
             | WorkbenchAction::WorkspaceLaunch { options, .. } => options.clone(),
+            // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
             _ => Default::default(),
         };
         let grant =
@@ -581,6 +583,7 @@ pub(super) fn pending_environment_matches(
         CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) => {
             launch.environment().entries() == environment.entries()
         }
+        // This coordinator path handles only authorized Create/Start operations; other OBCN families use their dedicated paths.
         _ => false,
     }
 }
@@ -595,6 +598,7 @@ pub(super) fn pending_plugin_environment_matches(
             launch.plugin_environment().map(|value| value.entries())
                 == environment.map(|value| value.entries())
         }
+        // This coordinator path handles only authorized Create/Start operations; other OBCN families use their dedicated paths.
         _ => false,
     }
 }

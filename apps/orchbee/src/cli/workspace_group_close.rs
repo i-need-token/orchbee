@@ -85,7 +85,7 @@ impl Answer {
                         orchbee_workbench_protocol::WorkspaceGroupCloseFailure::OutcomeUnknown => 8,
                         orchbee_workbench_protocol::WorkspaceGroupCloseFailure::WorkerUnavailable | orchbee_workbench_protocol::WorkspaceGroupCloseFailure::SiteStopping => 4,
                         orchbee_workbench_protocol::WorkspaceGroupCloseFailure::Internal => 1,
-                        _ => 3,
+                        orchbee_workbench_protocol::WorkspaceGroupCloseFailure::SourceChanged | orchbee_workbench_protocol::WorkspaceGroupCloseFailure::ChildAdmission | orchbee_workbench_protocol::WorkspaceGroupCloseFailure::ChildBlocked | orchbee_workbench_protocol::WorkspaceGroupCloseFailure::Deadline => 3,
                     },
                 },
                 WorkspaceGroupCloseOutcome::NotFound {}

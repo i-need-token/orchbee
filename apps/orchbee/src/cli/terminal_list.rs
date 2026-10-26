@@ -265,6 +265,7 @@ fn read_reports(
                     return Err(Failure::new(FailureKind::ProtocolInvalid));
                 }
             }
+            // This query consumes only its requested metadata/report payload; other receipt classes cannot answer that query.
             _ => return Err(Failure::new(FailureKind::ProtocolInvalid)),
         }
     }
@@ -308,6 +309,7 @@ fn verify_reports(
             reason: PanelAgentFailure::Unavailable,
         } => Err(Failure::new(FailureKind::ServiceUnavailable)),
         PanelAgentOutcome::Failed { reason } => Err(panel_agent_failure(reason)),
+        // This query consumes only its requested metadata/report payload; other receipt classes cannot answer that query.
         _ => Err(super::workbench_agents::failure("metadata-changed")),
     }
 }

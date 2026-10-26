@@ -131,6 +131,7 @@ pub fn decode_selection_export_control(
                 .and_then(selection_export_cancel_from_wire)
                 .map(SelectionExportControl::CancelRequest)
         }
+        // This codec accepts only its declared message family and request/response roles.
         _ => Err(invalid_field(
             "message kind and role do not select a selection-export control payload",
         )),

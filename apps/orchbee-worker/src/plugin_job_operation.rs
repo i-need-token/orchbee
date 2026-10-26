@@ -47,7 +47,9 @@ fn route(
         orchbee_capability_node_protocol::PluginJobAction::StartConfigured(intent) => {
             Some((&intent.directory, &mut intent.environment))
         }
-        _ => None,
+        orchbee_capability_node_protocol::PluginJobAction::List { .. }
+        | orchbee_capability_node_protocol::PluginJobAction::Get { .. }
+        | orchbee_capability_node_protocol::PluginJobAction::Cancel { .. } => None,
     };
     if let Some((directory, environment)) = fields {
         if !std::path::Path::new(directory).is_absolute() {

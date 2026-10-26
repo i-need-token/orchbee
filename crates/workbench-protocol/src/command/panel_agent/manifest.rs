@@ -48,12 +48,13 @@ pub struct AgentDetectionManifest {
 }
 impl AgentDetectionManifest {
     pub(crate) fn valid(&self) -> bool {
-        (match (&self.path, self.source) {
-            (None, AgentManifestSource::Bundled) => true,
-            (Some(path), AgentManifestSource::LocalOverride | AgentManifestSource::RemoteCache) => {
-                !path.is_empty() && path.len() <= 32768 && !path.chars().any(char::is_control)
+        (match self.source {
+            AgentManifestSource::Bundled => self.path.is_none(),
+            AgentManifestSource::LocalOverride | AgentManifestSource::RemoteCache => {
+                self.path.as_ref().is_some_and(|path| {
+                    !path.is_empty() && path.len() <= 32768 && !path.chars().any(char::is_control)
+                })
             }
-            _ => false,
         }) && self
             .cached_remote_version
             .as_ref()

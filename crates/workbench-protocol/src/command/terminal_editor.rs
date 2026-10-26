@@ -163,28 +163,22 @@ impl TerminalEditorResult {
         {
             return false;
         }
-        let id = match &self.outcome {
-            TerminalEditorOutcome::Opened { popup_id, .. }
-                if matches!(request.action, TerminalEditorAction::Open { .. }) =>
-            {
-                popup_id
+        let failed = matches!(&self.outcome, TerminalEditorOutcome::Failed { .. });
+        let expected = request.action.popup_id();
+        match &request.action {
+            TerminalEditorAction::Open { .. } => {
+                matches!(&self.outcome, TerminalEditorOutcome::Opened { popup_id, .. } | TerminalEditorOutcome::Unknown { popup_id } if popup_id == expected)
+                    || failed
             }
-            TerminalEditorOutcome::State { popup_id, .. }
-                if matches!(request.action, TerminalEditorAction::Read { .. }) =>
-            {
-                popup_id
+            TerminalEditorAction::Read { .. } => {
+                matches!(&self.outcome, TerminalEditorOutcome::State { popup_id, .. } | TerminalEditorOutcome::Closing { popup_id } | TerminalEditorOutcome::Closed { popup_id } | TerminalEditorOutcome::Unknown { popup_id } if popup_id == expected)
+                    || failed
             }
-            TerminalEditorOutcome::Closing { popup_id }
-            | TerminalEditorOutcome::Closed { popup_id }
-                if !matches!(request.action, TerminalEditorAction::Open { .. }) =>
-            {
-                popup_id
+            TerminalEditorAction::Close { .. } => {
+                matches!(&self.outcome, TerminalEditorOutcome::Closing { popup_id } | TerminalEditorOutcome::Closed { popup_id } | TerminalEditorOutcome::Unknown { popup_id } if popup_id == expected)
+                    || failed
             }
-            TerminalEditorOutcome::Unknown { popup_id } => popup_id,
-            TerminalEditorOutcome::Failed { .. } => return true,
-            _ => return false,
-        };
-        id == request.action.popup_id()
+        }
     }
 }
 

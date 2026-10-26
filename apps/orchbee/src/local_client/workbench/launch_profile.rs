@@ -534,6 +534,7 @@ fn classify_mutation_outcome(
         WorkbenchCommandOutcome::LaunchProfileAmbiguous { candidate_ids } => {
             Ok(WorkbenchLaunchProfileMutationSubmission::ProfileAmbiguous { candidate_ids })
         }
+        // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
         _ => Err(LaunchProfileOutcomeUnknownReason::ActionIncompatible),
     }
 }

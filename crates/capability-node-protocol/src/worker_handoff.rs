@@ -83,13 +83,21 @@ impl WorkerHandoffResult {
         request: WorkerHandoffRequest,
         outcome: WorkerHandoffOutcome,
     ) -> Result<Self, ProtocolError> {
-        if !matches!(
-            (request.action, outcome),
-            (_, WorkerHandoffOutcome::Refused(_))
-                | (WorkerHandoffAction::Prepare, WorkerHandoffOutcome::Prepared)
-                | (WorkerHandoffAction::Commit, WorkerHandoffOutcome::Committed)
-                | (WorkerHandoffAction::Abort, WorkerHandoffOutcome::Aborted)
-        ) {
+        let compatible = match request.action {
+            WorkerHandoffAction::Prepare => matches!(
+                outcome,
+                WorkerHandoffOutcome::Prepared | WorkerHandoffOutcome::Refused(_)
+            ),
+            WorkerHandoffAction::Commit => matches!(
+                outcome,
+                WorkerHandoffOutcome::Committed | WorkerHandoffOutcome::Refused(_)
+            ),
+            WorkerHandoffAction::Abort => matches!(
+                outcome,
+                WorkerHandoffOutcome::Aborted | WorkerHandoffOutcome::Refused(_)
+            ),
+        };
+        if !compatible {
             return Err(ProtocolError::InvalidPayload);
         }
         Ok(Self { request, outcome })

@@ -82,9 +82,13 @@ pub(super) fn opened(observation: &Observation) -> Option<&WorkbenchWorkspaceId>
                 terminal_outcome: None | Some(WorkbenchTerminalOutcome::Started { .. }),
                 ..
             } => Some(workspace_id),
+            // Only a confirmed started terminal can receive this follow-up; other launch facts leave it unresolved.
             _ => None,
         },
-        _ => None,
+        WorkbenchWorktreeOutcome::NotFound { .. }
+        | WorkbenchWorktreeOutcome::Conflict { .. }
+        | WorkbenchWorktreeOutcome::Denied { .. }
+        | WorkbenchWorktreeOutcome::Unavailable { .. } => None,
     }
 }
 

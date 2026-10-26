@@ -367,6 +367,7 @@ impl workflow::Port for Engine<'_> {
                     }
                 },
             ),
+            // This step consumes its specific mutation receipt; other command results cannot confirm the requested postcondition.
             _ => return Err(internal()),
         };
         let observation = (|| {
@@ -441,7 +442,9 @@ impl workflow::Port for Engine<'_> {
                 TerminalLaunchState::NotTracked => {
                     return Err(error(FailureKind::ServiceUnavailable, "launch-unavailable"));
                 }
-                _ => self.pause(),
+                TerminalLaunchState::Creating
+                | TerminalLaunchState::AwaitingStart
+                | TerminalLaunchState::Starting => self.pause(),
             }
         }
     }

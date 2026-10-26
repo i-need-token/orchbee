@@ -58,7 +58,8 @@ impl Engine<'_> {
                         WorkbenchTabCloseStatus::OutcomeUnknown { .. } => {
                             return Err(error(FailureKind::OutcomeUnknown, "close-incomplete"));
                         }
-                        _ => {
+                        WorkbenchTabCloseStatus::CleanupBlocked { .. }
+                        | WorkbenchTabCloseStatus::DisposedAwaitingPublication { .. } => {
                             return Err(error(FailureKind::ServiceUnavailable, "close-incomplete"));
                         }
                     }
@@ -144,7 +145,10 @@ impl Engine<'_> {
                 WorkbenchTabCloseStatus::OutcomeUnknown { .. } => {
                     return Err(error(FailureKind::OutcomeUnknown, "close-incomplete"));
                 }
-                _ => return Err(error(FailureKind::ServiceUnavailable, "close-incomplete")),
+                WorkbenchTabCloseStatus::CleanupBlocked { .. }
+                | WorkbenchTabCloseStatus::DisposedAwaitingPublication { .. } => {
+                    return Err(error(FailureKind::ServiceUnavailable, "close-incomplete"));
+                }
             }
         }
     }
@@ -174,6 +178,10 @@ fn read_close(
         .map_err(|_| error(FailureKind::ServiceUnavailable, "close-incomplete"))?;
     match outcome {
         WorkbenchTabCloseReadOutcome::Available { status, .. } => Ok(status),
-        _ => Err(error(FailureKind::ServiceUnavailable, "close-incomplete")),
+        WorkbenchTabCloseReadOutcome::NotClosing { .. }
+        | WorkbenchTabCloseReadOutcome::Denied { .. }
+        | WorkbenchTabCloseReadOutcome::Unavailable { .. } => {
+            Err(error(FailureKind::ServiceUnavailable, "close-incomplete"))
+        }
     }
 }

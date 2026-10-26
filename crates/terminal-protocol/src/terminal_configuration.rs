@@ -88,6 +88,7 @@ pub fn decode_terminal_configuration_control(
                 .and_then(terminal_configuration_accepted_from_wire)
                 .map(TerminalConfigurationControl::ConfigurationAcceptedResponse)
         }
+        // This codec accepts only its declared message family and request/response roles.
         _ => Err(invalid_field(
             "message kind and role do not select a terminal-configuration control payload",
         )),

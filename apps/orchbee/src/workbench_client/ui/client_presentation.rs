@@ -12,7 +12,7 @@ fn panel<'a>(node: &'a PanelNode, id: &WorkbenchPanelId) -> Option<&'a PanelNode
         PanelNode::Split { children, .. } => {
             children.iter().find_map(|child| panel(&child.node, id))
         }
-        _ => None,
+        PanelNode::Panel { .. } => None,
     }
 }
 impl NativeUi {

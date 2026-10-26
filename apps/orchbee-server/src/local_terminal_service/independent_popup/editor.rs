@@ -141,7 +141,9 @@ impl LocalTerminalService {
                 Ok(WorkerOperationResult::EditorCommand(result)) if result.request == query => {
                     match result.outcome {
                         node::TerminalEditorCommandOutcome::Resolved { selection, .. } => selection,
-                        _ => return Err(Failure::EditorUnavailable),
+                        node::TerminalEditorCommandOutcome::Refused(..) => {
+                            return Err(Failure::EditorUnavailable);
+                        }
                     }
                 }
                 _ => return Err(Failure::Unavailable),
@@ -288,6 +290,7 @@ impl LocalTerminalService {
                 self.queue_editor_cleanup(owner, id, Phase::Queued)?;
                 Err(Failure::Unavailable)
             }
+            // This exchange accepts only the result family selected by its submitted request.
             _ => {
                 popup.phase = Phase::Unknown;
                 Ok(Outcome::PopupUnknown {

@@ -61,7 +61,12 @@ impl LocalTerminalService {
         let expected = match &request.action {
             PluginAction::Get { worker, .. } | PluginAction::Cancel { worker, .. } => Some(worker),
             PluginAction::Logs { cursor, .. } => cursor.as_ref().map(|c| &c.worker),
-            _ => None,
+            PluginAction::PopupOpen { .. }
+            | PluginAction::PopupRead { .. }
+            | PluginAction::PopupClose { .. }
+            | PluginAction::PaneObserve { .. }
+            | PluginAction::PaneGet { .. }
+            | PluginAction::Invoke { .. } => None,
         };
         if expected.is_some_and(|expected| *expected != worker) {
             return Err(Failure::WorkerChanged);
@@ -113,7 +118,12 @@ impl LocalTerminalService {
                     PluginAction::Cancel { job_id, .. } => node::PluginJobAction::Cancel {
                         job_id: identity(job_id)?,
                     },
-                    _ => unreachable!(),
+                    PluginAction::PopupOpen { .. }
+                    | PluginAction::PopupRead { .. }
+                    | PluginAction::PopupClose { .. }
+                    | PluginAction::PaneObserve { .. }
+                    | PluginAction::PaneGet { .. }
+                    | PluginAction::Invoke { .. } => unreachable!(),
                 };
                 (id, action)
             }

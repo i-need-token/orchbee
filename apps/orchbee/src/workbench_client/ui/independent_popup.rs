@@ -114,9 +114,11 @@ impl NativeUi {
                         command.operation_id.clone(),
                         spec.as_ref().clone(),
                     ),
+                    // This handler implements its own ClientView intent subset; other intents belong to their feature handlers.
                     _ => Err(Reason::Unsupported),
                 }
             }
+            // This handler implements its own ClientView intent subset; other intents belong to their feature handlers.
             _ => Err(Reason::Unsupported),
         }
     }

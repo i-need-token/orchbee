@@ -73,7 +73,12 @@ impl LocalTerminalService {
                                     && fact.worker_generation() == worker.generation
                             })
                     }
-                    _ => false,
+                    orchbee_workbench_protocol::PanelAgentAction::Titles { .. }
+                    | orchbee_workbench_protocol::PanelAgentAction::ReadPresentations { .. }
+                    | orchbee_workbench_protocol::PanelAgentAction::Explain { .. }
+                    | orchbee_workbench_protocol::PanelAgentAction::Read { .. }
+                    | orchbee_workbench_protocol::PanelAgentAction::ReportPresentation { .. }
+                    | orchbee_workbench_protocol::PanelAgentAction::Report { .. } => false,
                 };
                 if !valid {
                     return unavailable;

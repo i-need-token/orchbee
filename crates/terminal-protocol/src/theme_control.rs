@@ -101,6 +101,7 @@ pub fn decode_theme_control(
             validate_result(&result)?;
             ThemeControl::TerminalThemeResult(result)
         }
+        // This codec accepts only its declared message family and request/response roles.
         _ => return Err(invalid("kind/role do not select terminal theme control")),
     })
 }

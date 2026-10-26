@@ -23,6 +23,7 @@ pub(super) fn submit(
     let kind = match &action {
         WorkbenchAction::TabCreateLayout { .. } => "tab.create-layout",
         WorkbenchAction::PanelCreateTerminal { .. } => "panel.create-terminal",
+        // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
         _ => return Err(error(FailureKind::InternalFailure, "invalid-receipt")),
     };
     let request_id = query::request_id()?;
@@ -44,6 +45,7 @@ pub(super) fn submit(
                 WorkbenchCommandOutcome::Unavailable { .. } => {
                     Some(FailureKind::ServiceUnavailable)
                 }
+                // This step consumes its specific mutation receipt; other command results cannot confirm the requested postcondition.
                 _ => None,
             };
             (

@@ -101,6 +101,6 @@ fn find(
         PanelNode::Split { children, .. } => children
             .iter()
             .find_map(|slot| find(&slot.node, context, tab, source)),
-        _ => None,
+        PanelNode::Panel { .. } => None,
     }
 }

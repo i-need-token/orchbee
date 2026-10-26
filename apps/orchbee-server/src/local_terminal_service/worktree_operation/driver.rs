@@ -258,7 +258,12 @@ impl Driver<'_> {
                             self.wait_close(false)?;
                             return Ok(Status::Removed { path, workspace_id });
                         }
-                        _ => return Err(Failure::Internal {}),
+                        orchbee_capability_node_protocol::WorktreeMutationCompletion::Checkout(
+                            ..,
+                        )
+                        | orchbee_capability_node_protocol::WorktreeMutationCompletion::Failed(
+                            ..,
+                        ) => return Err(Failure::Internal {}),
                     }
                 }
             }

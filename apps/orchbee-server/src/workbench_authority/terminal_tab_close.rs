@@ -232,6 +232,7 @@ impl CloseRecord {
         match &self.command.action {
             WorkbenchAction::TabClose { tab_id, .. }
             | WorkbenchAction::PanelClose { tab_id, .. } => Some(tab_id),
+            // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
             _ => None,
         }
     }
@@ -239,6 +240,7 @@ impl CloseRecord {
     fn panel_id(&self) -> Option<&WorkbenchPanelId> {
         match &self.command.action {
             WorkbenchAction::PanelClose { panel_id, .. } => Some(panel_id),
+            // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
             _ => None,
         }
     }
