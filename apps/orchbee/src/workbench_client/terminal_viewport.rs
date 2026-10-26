@@ -110,8 +110,8 @@ enum InflightNav {
     Refresh,
 }
 
-/// One logical viewport command the worker executes against the stable S1
-/// protocol seam. `Enter` is staged by `enter_history` itself (its admission
+/// One logical viewport command the connection task executes against the typed
+/// protocol boundary. `Enter` is staged by `enter_history` itself (its admission
 /// gates installing the core); the other steps ride `pending_commands`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ViewportStep {

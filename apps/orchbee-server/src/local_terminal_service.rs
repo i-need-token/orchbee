@@ -1,3 +1,7 @@
+//! Bridges admitted Client intents to the Session coordinator and pinned Worker exchanges,
+//! retaining viewer, controller, and close-maintenance ownership. It coordinates logical and
+//! physical outcomes without implementing Host PTY behavior or owning Client presentation.
+
 #[cfg(windows)]
 mod configuration;
 #[cfg(windows)]

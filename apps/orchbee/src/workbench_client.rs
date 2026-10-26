@@ -1,3 +1,8 @@
+//! Owns the interactive Workbench Client's connection-task lifetime and composes feature
+//! lanes, UI state, terminal input, and draw settlement. Server retains canonical membership
+//! and Worker retains physical execution; retiring this Client does not terminate its retained
+//! terminals.
+
 mod client_control;
 mod completion_reminders;
 pub(crate) use completion_reminders::Reminder as CompletionReminder;
@@ -770,9 +775,7 @@ impl WorkbenchClient {
     }
 
     /// Reports every visible leaf's `(panel_id, panel_index, geometry)` so the
-    /// native backend synchronizes its per-pane viewer membership. Only the
-    /// Native backend tracks panes; the test Legacy backend keeps its single
-    /// resize channel through `observe_geometry`.
+    /// Client backend synchronizes its per-pane viewer membership.
     pub(crate) fn observe_panes(
         &mut self,
         panes: &[(

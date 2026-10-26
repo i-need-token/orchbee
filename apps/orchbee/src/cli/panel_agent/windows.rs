@@ -1,3 +1,7 @@
+//! Executes bounded exact-target Panel Agent report requests through the Server and maps
+//! correlated outcomes to CLI observations. It does not interpret terminal output as a report
+//! or manufacture process proof on the Client.
+
 use super::{Answer, Observation};
 use crate::{
     cli::{

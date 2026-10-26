@@ -1,3 +1,7 @@
+//! Submits bounded Workspace report reads or writes through the admitted Server and preserves
+//! exact correlated observations. It does not change canonical Workspace membership or own
+//! report persistence.
+
 use super::{Answer, Observation};
 use crate::{
     cli::{

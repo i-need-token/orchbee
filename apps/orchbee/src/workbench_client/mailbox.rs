@@ -1,3 +1,7 @@
+//! Owns bounded command and event queues, exact execution and UI-reply correlation, causal
+//! handoffs, and atomic admission with Client state. It performs no protocol I/O and does not
+//! let stale replies or expired leases authorize a different attachment or operation.
+
 use super::{
     state::{
         AttachTarget, AttachmentKey, BootstrapTarget, CarrierFailure, CleanupContinuation,
@@ -247,7 +251,7 @@ pub(super) enum QueuedCommand {
     Input(Tagged<ControlInput>),
     Resize(Tagged<Geometry>),
     Poll(Tagged<()>),
-    /// One logical retained-history step for a pane incarnation — the S2
+    /// One logical retained-history step for a pane incarnation — the
     /// viewport's ordered demand legs, reads, acknowledgements, and
     /// recovery rides the ordinary FIFO so recovery always precedes the
     /// input that follows it.
@@ -829,8 +833,8 @@ pub(super) enum WorkerEvent {
         poll_key: PollKey,
         record: Option<Vec<u8>>,
     },
-    /// One `QueuedCommand::Viewport` step resolved — the S2 core's only
-    /// worker→UI channel. Fire-and-forget like `PaneDetached`: the UI's
+    /// One `QueuedCommand::Viewport` step resolved — the viewport core's
+    /// connection-task-to-UI channel. Fire-and-forget like `PaneDetached`: the UI's
     /// incarnation check drops stale outcomes.
     ViewportOutcome {
         key: PaneRef,

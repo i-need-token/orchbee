@@ -1,3 +1,7 @@
+//! Projects canonical Panel-swap and subsequent Client-focus outcomes into one receipt and
+//! exit status while preserving partial success. It executes no swap or focus request and
+//! never treats logical commitment as visible presentation.
+
 use super::{
     Answer, ClientPanelDirection, ClientViewControlStatus, ClientViewIntent, ClientViewOutcome,
     Failure, FailureKind, Locale, Output, OutputFormat, SessionId, WorkbenchClientId,

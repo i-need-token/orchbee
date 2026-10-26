@@ -1,3 +1,7 @@
+//! Adapts an admitted Client byte stream to bounded partial-record reads and writes with
+//! readiness polling and absolute I/O budgets. It interprets no application protocol and does
+//! not admit a peer or authorize an effect.
+
 use orchbee_local_ipc::AsLocalIo;
 use orchbee_local_ipc::LocalStream as UnixStream;
 use orchbee_local_ipc::{PollFd, PollFlags, PollTimeout, poll};

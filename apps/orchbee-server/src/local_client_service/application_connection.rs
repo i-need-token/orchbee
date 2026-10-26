@@ -1,3 +1,7 @@
+//! Dispatches admitted application records to typed terminal, Agent, and Workbench service
+//! handlers and encodes their correlated outcomes. It owns protocol-family dispatch without
+//! authenticating the connection or deciding domain authorization itself.
+
 use std::{
     fmt,
     io::{self, Cursor, Read, Write},

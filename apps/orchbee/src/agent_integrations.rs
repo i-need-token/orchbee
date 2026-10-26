@@ -177,7 +177,7 @@ mod imp {
     }
 
     /// The cohort-declared digest must equal the source capsule's own declared
-    /// payloadSha256 — the binding the schema-2 manifest asserts.
+    /// payloadSha256 — the binding the admitted cohort manifest asserts.
     fn source_binding_ok(source: &AdapterSource) -> bool {
         let Some(declared) = source.declared_payload_sha256() else {
             return true;

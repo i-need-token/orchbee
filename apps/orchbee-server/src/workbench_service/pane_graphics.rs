@@ -1,3 +1,7 @@
+//! Admits connection-scoped Panel graphics requests against the current canonical target and
+//! revision-pinned resource owner. It returns bounded snapshots and chunks without decoding
+//! images, rendering them, or granting terminal input authority.
+
 use super::WorkbenchClientConnection;
 use orchbee_workbench_protocol::{
     PaneGraphicsAction as Action, PaneGraphicsFailure as Failure, PaneGraphicsOutcome as Outcome,

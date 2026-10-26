@@ -1,3 +1,7 @@
+//! Constructs typed named-Session commands with validated names, command-specific scope, and
+//! explicit confirmation operands. It does not inspect a runtime namespace or activate, stop,
+//! or delete a Session.
+
 use super::{
     ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, Request,
     ServerStopCommand, UsageContext, UsageReason, check_scope, missing_command, missing_required,

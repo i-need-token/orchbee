@@ -1,3 +1,7 @@
+//! Constructs typed Worktree start, observation, and query commands with checked selectors,
+//! references, paths, and budgets. It performs no Git or filesystem effect and leaves
+//! host-specific path resolution to its admitted adapter.
+
 use super::{
     ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, Request, Resource, Target,
     UsageContext, UsageReason, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchRequestId,

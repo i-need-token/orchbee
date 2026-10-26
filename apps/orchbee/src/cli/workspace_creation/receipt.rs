@@ -1,3 +1,7 @@
+//! Combines canonical Workspace creation, directory resolution, and independent Client focus
+//! outcomes into a partial-effect receipt and exit status. It does not create membership or
+//! claim successful focus from command admission alone.
+
 use crate::{
     cli::{Failure, FailureKind, Output, client_control::Answer, failure_output, mutation, output},
     invocation::OutputFormat,

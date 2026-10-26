@@ -1,3 +1,8 @@
+//! Owns interactive Client state, admitted terminal projections, local selection, and feature
+//! or draw settlement against exact mailbox events. It prepares presentation and input
+//! decisions without becoming canonical Workbench authority or performing protocol exchanges
+//! on the UI thread.
+
 mod action_menus;
 mod agent_attention;
 mod launch_profiles;
@@ -4088,11 +4093,11 @@ impl WorkbenchClientUi {
             .receive_for_geometry(&record, expected);
         let (settlement, frame, status) = match result {
             Ok(Some(feedback @ TerminalViewerAction::HistoryObserved { .. })) => {
-                // kind-53 intake — the unique S1 sink: the projection owns
+                // The projection owns kind-53 intake,
                 // envelope/attachment validation and mints the single
                 // `HistoryObserved` acknowledgement; every state — Live
                 // included — acks exactly once through the ordinary causal
-                // lane. S2 merges its consumption here: the same validated
+                // lane. The same validated
                 // event feeds the viewport core, strictly in sequence.
                 match decode_history_changed(
                     &record,
@@ -4116,7 +4121,7 @@ impl WorkbenchClientUi {
                             }
                         }
                     }
-                    // The projection already accepted this event, so S2's
+                    // The projection already accepted this event, so the viewport's
                     // identical decode can only succeed; anything else is a
                     // fault, not a silent skip.
                     _ => {

@@ -1,3 +1,7 @@
+//! Constructs typed machine-profile commands from admitted options and validates profile
+//! names, remote targets, Session names, and scope. It performs no profile persistence, SSH
+//! connection, or machine discovery.
+
 use super::{
     ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, Request, UsageContext,
     UsageReason, check_scope, missing_command, missing_required, unexpected_argument, usage_with,

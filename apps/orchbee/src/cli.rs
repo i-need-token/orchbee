@@ -1,3 +1,7 @@
+//! Dispatches admitted CLI requests to their feature owners and assembles stdout, stderr,
+//! structured failures, and process outcomes. It does not own command grammar, canonical
+//! Workbench state, or physical terminal execution.
+
 pub(crate) mod agent_manifests;
 #[cfg(windows)]
 pub(crate) mod agent_view_spec;
@@ -306,7 +310,7 @@ impl SourceFinalization {
     }
 }
 
-/// Legacy process results (TUI launch and version) also finish
+/// Process results for TUI launch and version also finish
 /// through the preparation bound; their static bodies are far under it, so
 /// the overflow arm is unreachable — but if it ever ran it still reports a
 /// localized failure, never a hardcoded English string.

@@ -1,3 +1,7 @@
+//! Owns interruptible connection setup for retained-close observation and transfers it to the
+//! serialized recovery executor with the exact origin and mailbox. It does not resubmit a
+//! close or infer physical disposal when observation fails.
+
 use super::{ClientConnectionExit, ClientExecutor, WorkerExit};
 use crate::{
     local_client::{LocalClientOrigin, LocalClientShutdown, LocalOperationClock},

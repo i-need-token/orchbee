@@ -1,3 +1,7 @@
+//! Submits and observes an exact retained Windows Worktree operation, preserving independent
+//! Git, Workspace, and restoration outcomes in its receipt. It does not execute Git locally or
+//! replay a mutation after unknown delivery.
+
 use super::{Answer, Observation, Wait, emit};
 use crate::{
     cli::{

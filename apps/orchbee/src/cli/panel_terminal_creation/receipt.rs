@@ -1,3 +1,7 @@
+//! Maps an observed Panel terminal-creation outcome to public failure classes, structured
+//! receipt, and exit status. It does not submit the operation or turn a pending or unknown
+//! physical launch into success.
+
 use crate::{
     cli::{Failure, FailureKind, Output, failure_output, output},
     invocation::OutputFormat,

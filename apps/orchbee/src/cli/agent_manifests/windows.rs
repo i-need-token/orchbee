@@ -1,3 +1,7 @@
+//! Executes bounded Windows Agent-manifest reads and explicit operations through the admitted
+//! Server, preserving correlated observations and cancellation outcomes. It does not install
+//! rules locally or treat a stopped wait as reversal of an admitted operation.
+
 use super::{Answer, Observation};
 use crate::{
     cli::{

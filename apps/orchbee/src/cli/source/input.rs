@@ -1,3 +1,7 @@
+//! Acquires one declared send-input source under its exact byte bound, deadline, and signal
+//! watch, preserving typed source failures and provenance. It does not submit input or
+//! reinterpret acquired bytes as executable syntax.
+
 use super::{SignalWatch, acquire_file, acquire_stdin};
 use crate::cli::{Failure, FailureKind};
 use crate::invocation::{SendSourceCause, TerminalSendInput, UsageReason};

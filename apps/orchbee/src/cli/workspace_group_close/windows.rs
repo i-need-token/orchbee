@@ -1,3 +1,7 @@
+//! Submits and observes one retained Windows Workspace-group close with exact attempt identity
+//! under a cancellable total deadline. It does not close member terminals locally or retract
+//! accepted closure when observation stops.
+
 use super::{Answer, Observation, Wait, emit};
 use crate::{
     cli::{

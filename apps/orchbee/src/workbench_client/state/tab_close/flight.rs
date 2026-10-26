@@ -1,3 +1,7 @@
+//! Owns captured close submission, read, and resume flights and retains their exact generation
+//! and result evidence across connection-task retirement. It schedules observations without
+//! issuing Server effects or inferring disposal from a lost response.
+
 use super::{CloseFlightKey, CloseIntent, CloseSelection, CloseState, CloseStateError};
 use crate::local_client::workbench::{WorkbenchTabCloseAccepted, WorkbenchTabClosePrecommit};
 use crate::workbench_client::state::{

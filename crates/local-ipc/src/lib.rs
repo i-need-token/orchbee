@@ -1,4 +1,7 @@
-//! Private same-user Windows byte transport; protocol and process owners remain callers.
+//! Provides local byte-stream and readiness adapters using Unix-domain sockets on Unix and
+//! private named pipes on Windows. It does not select application endpoints, interpret
+//! protocol bytes, or own caller process lifetimes.
+
 #![deny(unsafe_code)]
 
 #[cfg(windows)]

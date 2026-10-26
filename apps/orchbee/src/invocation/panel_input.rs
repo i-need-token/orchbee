@@ -1,3 +1,6 @@
+//! Constructs a typed Panel input-policy mutation with a checked target and closed policy
+//! value. It performs no terminal input, controller acquisition, or canonical mutation.
+
 use super::{
     ExpectedValue, FailureEnvelope, MutationCommand, Options, ParseFailure, Request, Resource,
     UsageContext, UsageReason, check_scope, missing_required, mutation, target,

@@ -1,3 +1,7 @@
+//! Submits bounded Panel metadata reads or writes to the admitted Server with exact
+//! correlation and cancellation handling. It does not own canonical topology or use display
+//! metadata as terminal control authority.
+
 use super::{Answer, Observation};
 use crate::{
     cli::{

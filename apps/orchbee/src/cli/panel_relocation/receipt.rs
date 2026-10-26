@@ -1,3 +1,7 @@
+//! Combines canonical Panel relocation with independent Client focus and layout results into a
+//! receipt that preserves partial success. It performs no relocation and does not equate a
+//! committed move with completed Client presentation.
+
 use super::targeting::Panel;
 use crate::{
     cli::{Failure, FailureKind, Output, client_control::Answer, failure_output, mutation, output},

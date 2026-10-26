@@ -1,3 +1,7 @@
+//! Constructs typed terminal attach, observe, and control intents with validated target,
+//! geometry, timeout, and scope operands. It neither attaches a viewer nor captures the host
+//! terminal or acquires a controller.
+
 use super::{
     AgentTarget, ExpectedValue, FailureEnvelope, Options, ParseFailure, Request, Resource, Target,
     UsageContext, UsageReason, agent_selector, agent_wait_timeout_option, check_scope,

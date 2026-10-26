@@ -1,3 +1,7 @@
+//! Constructs typed domain requests and structured usage failures under the declared command
+//! grammar. It owns operand construction; grammar metadata owns accepted syntax, and application
+//! execution owners retain platform admission, live target resolution, and effects.
+
 mod agent_view_spec;
 pub(crate) mod operation;
 mod panel_agent;
@@ -76,7 +80,7 @@ use orchbee_workbench_protocol::{
     WorkbenchWorkspaceId,
 };
 
-/// Legacy launch/version result consumed by `presentation::present`.
+/// Launch/version result consumed by `presentation::present`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Invocation {
     Tui,

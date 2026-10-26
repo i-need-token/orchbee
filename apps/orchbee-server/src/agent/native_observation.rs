@@ -1,7 +1,9 @@
 //! Folds physical Agent drain events and gaps into bounded held hints, committed bindings, and
-//! contiguous per-carrier sequence state, returning effects to the owning Agent service. It
-//! performs no I/O or runtime dispatch; carrier page, token, and acknowledgement validation
-//! remain with the consumer before this fold.
+//! contiguous per-carrier sequence state: covered sequences deduplicate, the next sequence
+//! commits, holes reject, and gaps clip the covered prefix before contiguous admission. A
+//! missing or retired carrier produces no acknowledgement. It returns effects without I/O or
+//! runtime dispatch; carrier generation, page, token, and acknowledgement-echo validation
+//! remain with the consumer.
 
 #[cfg(test)]
 mod tests;

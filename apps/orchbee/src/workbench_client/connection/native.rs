@@ -1,3 +1,7 @@
+//! Owns the background Client executor's serialized command, attachment, projection, and
+//! cleanup exchanges with correlated UI handoffs and bounded deadlines. It reports exact
+//! evidence without mutating canonical UI state directly or replaying uncertain effects.
+
 use super::{ClientConnectionExit, attach_binding};
 use crate::{
     local_client::{
@@ -1047,7 +1051,7 @@ impl ClientExecutor {
     /// One retained-history step for a pane incarnation. Every leg runs
     /// under the ready-lease fences — the pane must still be the canonical
     /// record with a live attachment — and each step's outcome publishes as
-    /// a fire-and-forget `ViewportOutcome` notice. The S2 core in the UI
+    /// a fire-and-forget `ViewportOutcome` notice. The viewport core in the UI
     /// owns the state machine; this executor only guarantees the action ran
     /// against a still-admitted attachment and reports what the host said.
     fn run_viewport(

@@ -1,4 +1,7 @@
-//! A private, one-exchange adapter. The parent closes stdin, enforces its deadline and reaps us.
+//! Serves one bounded stdio exchange for device preferences or read-only system-shell
+//! discovery through shared runtime capabilities. It starts no Session or shell; the parent
+//! owns executable admission, exchange deadlines, cancellation, and reaping.
+
 use orchbee_local_runtime::{UserPreferencesScope, UserPreferencesStore};
 use orchbee_workbench_protocol::{
     MAXIMUM_USER_PREFERENCES_BYTES, PreferencesFailure, UserPreferencesResponse,

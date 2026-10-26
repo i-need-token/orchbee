@@ -1,3 +1,7 @@
+//! Resolves a Windows Worktree query source and reads the bounded correlated Server result
+//! under one deadline and signal watch. It does not fetch remote Git state or mutate canonical
+//! Workspace associations.
+
 use super::{Failure, FailureKind, Output, emit, failure_output};
 use crate::{
     cli::{

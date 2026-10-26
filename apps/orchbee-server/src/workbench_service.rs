@@ -1,3 +1,7 @@
+//! Admits Workbench requests under service and Client-connection policy and routes canonical
+//! operations or connection-scoped controls to their owners. It does not own canonical
+//! topology itself or treat a Client control's acceptance as completed presentation.
+
 #[cfg(windows)]
 mod agent_view;
 #[cfg(windows)]

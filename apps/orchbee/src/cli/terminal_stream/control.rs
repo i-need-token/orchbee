@@ -1,3 +1,7 @@
+//! Owns one transient CLI controller stream with exact input sequences, bounded polling,
+//! resize and history feedback, and typed delivery outcomes. It does not grant controller
+//! authority locally or equate accepted input with child execution.
+
 use super::display::Display;
 use super::{
     Action, Connection, ControlInterrupt, Duration, Failure, FailureKind, Gate, Instant,

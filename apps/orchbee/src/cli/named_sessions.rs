@@ -1,3 +1,7 @@
+//! Projects named-Session catalog and lifecycle observations and executes explicit guarded
+//! deletion with typed receipts. It does not adopt unregistered processes or infer a running
+//! Session solely from an endpoint pathname.
+
 use super::source::{ArmedSignals, Finish, SignalWatch};
 use super::{Failure, FailureKind, Output, config, failure_output, output};
 use crate::{

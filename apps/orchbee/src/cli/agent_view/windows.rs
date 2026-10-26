@@ -1,3 +1,7 @@
+//! Joins canonical Agent session reads to exact interactive Client observations before
+//! rendering or focusing the selected physical presentation. It does not infer Agent identity
+//! from screen text or change canonical Agent state from a Client view.
+
 mod runtime;
 mod terminal;
 pub(in crate::cli) mod terminal_attention;

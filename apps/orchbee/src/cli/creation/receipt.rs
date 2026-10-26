@@ -1,3 +1,7 @@
+//! Combines canonical creation, directory, focus, and layout outcomes into the public creation
+//! receipt and exit status. It reports acknowledged partial effects without executing creation
+//! or promising that a terminal is already visible.
+
 use crate::{
     cli::{Failure, FailureKind, Output, client_control::Answer, failure_output, mutation, output},
     invocation::OutputFormat,

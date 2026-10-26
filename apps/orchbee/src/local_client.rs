@@ -1,3 +1,8 @@
+//! Owns admitted Client protocol exchanges, request correlation, absolute submission budgets,
+//! and explicit pre-submission versus unknown-delivery failure classification. It does not
+//! activate a Session, authorize Server effects, or treat local cancellation as retraction of
+//! a delivered operation.
+
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 use std::path::PathBuf;
 use std::{
@@ -87,7 +92,7 @@ impl LocalClientOrigin {
 }
 
 impl LocalClient {
-    /// Retains the transport through all future origin-derived lanes.
+    /// Retains the transport owner for lanes derived from this origin.
     #[cfg(windows)]
     pub(crate) fn with_tunnel(mut self, tunnel: Arc<crate::machine_tunnel::Tunnel>) -> Self {
         self.origin.local = false;

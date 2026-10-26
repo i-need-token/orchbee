@@ -1,3 +1,8 @@
+//! Owns bounded local Client connection admission, same-user and cohort checks, connection
+//! registration, and transfer into application service dispatch. It does not own canonical
+//! Workbench transitions or infer product Session identity from a Client connection
+//! generation.
+
 use orchbee_local_ipc::{LocalListener as UnixListener, LocalStream as UnixStream};
 #[cfg(unix)]
 use std::fs;

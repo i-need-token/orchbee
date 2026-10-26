@@ -1,3 +1,7 @@
+//! Submits exact Windows Client controls and observes their correlated monotonic status under
+//! one cancellable deadline. It does not activate an OS window or undo an admitted control
+//! when the caller stops waiting.
+
 use super::{Answer, Wait, emit, selection};
 use crate::{
     cli::{

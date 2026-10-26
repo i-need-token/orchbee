@@ -446,10 +446,7 @@ impl AgentService {
         }
     }
 
-    /// The prepared-read entry — the request-scoped proof shape whose
-    /// future owner is `LocalTerminalService` (holding its outer
-    /// registry/coordinator guards through the provider's own fold).
-    /// Same executor as `execute`: the supplied provider is invoked at
+    /// Test entry to the prepared-read executor: the supplied provider is invoked at
     /// most once and only after policy admission. There is no
     /// seam-absent fallback — a caller without a provider has no read.
     #[cfg(test)]

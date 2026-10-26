@@ -1,3 +1,7 @@
+//! Constructs bounded plugin pane open, manage, and close intents with typed selectors,
+//! placement, geometry, and caller scope. It does not resolve plugin executables or grant
+//! physical launch and close authority.
+
 use super::super::{
     CreationCommand, CreationDirectory, CreationKind, ExpectedValue, FailureEnvelope, Options,
     OutputFormat, ParseFailure, Request, Resource, TabContext, UsageContext, UsageReason,

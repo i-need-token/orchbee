@@ -1,3 +1,7 @@
+//! Executes Windows terminal creation workflows by resolving captured targets, submitting
+//! canonical operations, and observing requested Client presentation under one budget. It does
+//! not invent membership from local state or roll back unknown physical effects.
+
 use super::{
     receipt::{Receipt, applied},
     targeting::{self, Created},
