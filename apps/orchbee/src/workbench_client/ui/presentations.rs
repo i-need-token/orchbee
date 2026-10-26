@@ -1,7 +1,8 @@
 //! Presentation navigation uses the existing switch admission and cleanup transaction.
 use super::{
-    ActionBuildError, Arc, ClientActionDisposition, ClientPhaseKind, WorkbenchClientUi, OperationDeadlines,
-    PaneRef, SelectionPlan, SwitchMarker, WorkbenchClientView, WorkbenchPanelId, finish_action,
+    ActionBuildError, Arc, ClientActionDisposition, ClientPhaseKind, OperationDeadlines, PaneRef,
+    SelectionPlan, SwitchMarker, WorkbenchClientUi, WorkbenchClientView, WorkbenchPanelId,
+    finish_action,
 };
 use crate::terminal_input::PointerUnboundPane;
 use orchbee_workbench_protocol::TerminalPresentationId;

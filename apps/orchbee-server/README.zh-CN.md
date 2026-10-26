@@ -786,4 +786,4 @@ GUI、TUI／模拟器或完整 cohort 验收。Client overlay 和公开 CLI 入�
 
 规范分割比例由原生 Client 共享并保存在 checkpoint v6，catalog v5 负责准入。[检查点契约](docs/workbench-checkpoint.zh-CN.md) 负责版本 1–5 的严格迁移；[共享比例契约](docs/shared-split-ratios.zh-CN.md) 负责比例修改、投影与兼容性。
 
-<!-- documentation-pairing: english-sha256=2e2b6ef7ca06f01fe99169147d92a745ae4b468f3e4ea9693e2dbe2d6970b955 zh-cn-sha256=46d16bbcea392d8c605ddaca5f06789b47e4addfadc5be588900b5ab5d647501 -->
+<!-- documentation-pairing: english-sha256=1f99d5413a634f0236b6d97ee175dd6c59b29521ec4d3e53adf73b00bcf678dd zh-cn-sha256=5ce313a5ec2a789538d5780cddd4e43fda78c849b6d083503dee338eb5a84c4f -->

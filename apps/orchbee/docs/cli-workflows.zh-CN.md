@@ -289,4 +289,4 @@ Worker 从继承环境依次选择非空 VISUAL、EDITOR，否则使用 Windows 
 
 保留编辑器控制操作的已知答复为 `orchbee.client.control` v1，保留准确操作／来源／成员、观察视图和等待状态；文本使用本地化 popup／控制结果。`popup-opened` 要求编辑器帧已安装；保留的 queued／delivered、拒绝、超时、取消和 unknown 结果不宣称编辑器就绪。未知提交绝不自动重放，应保留操作 ID 供 `client control-status` 查询。Ctrl+C 以退出码130停止等待，不撤销已提交请求。通过既有 popup 关闭控制／按钮关闭；恢复普通来源输入要求已知结算或模型规定的连接清理路径。实际编辑器／GUI 验收仍属于最终 Windows 验证。
 
-<!-- documentation-pairing: english-sha256=03810f8f38880928e73df883d785b998141b5e9e684bd5f26a98709324c13d7a zh-cn-sha256=9d937ff37b96c3e987d44197ad02109e08fdefc2883b59815480554e723b9739 -->
+<!-- documentation-pairing: english-sha256=3d6d36840d2ad6873492e7e7c3f1a376bc1fcc1c05cca20fbf2a35fd040e8f48 zh-cn-sha256=6a8bf526d7e9ecd7a7f1e095e3bd495a7dcb46f0a126d1921b6f9e7c7ee341d4 -->

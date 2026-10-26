@@ -343,4 +343,4 @@ Git 在所属 Worker 上读取已提交的 Workspace 目录，显示相对本地
 
 `terminal.focus_new_panel` 接受布尔值，默认为 `true`。原生 Client 分屏选中刚提交的新窗格；`false` 保留原窗格。Client 在启动时读取该偏好，编辑此字段后需重启。类型无效时产生字段级诊断并使用默认值。CLI `panel split --focus` 保留显式命令策略。
 
-<!-- documentation-pairing: english-sha256=0d4ca7075f47850f58111625617ede133a7dc01ab04ae7dff8bb92746ff25c96 zh-cn-sha256=4a8c471f7045da463cf170959ad3f0579edbfdc32b8814d0aa5f6b803a83011e -->
+<!-- documentation-pairing: english-sha256=a9037c6d5defc3462141b645344ab4f2989b1886c2d1c5ee9e27f6a50c0f4e5f zh-cn-sha256=4fa27b9c28f78f9f6813e20baa08f2849c37a1e80d3dfc985680cf2ebcbb7022 -->

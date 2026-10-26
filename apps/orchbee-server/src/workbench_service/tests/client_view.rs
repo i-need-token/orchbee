@@ -187,16 +187,16 @@ fn client_view_sessions_bind_identity_route_exactly_and_settle_disconnect() {
 fn client_view_control_requires_navigation_permission_but_status_is_read_only() {
     let service = service(true, false);
     let snapshot = bootstrap(&service);
-    let session = service.client_connection(NonZeroU64::new(1).unwrap());
+    let connection = service.client_connection(NonZeroU64::new(1).unwrap());
     let ClientViewOutcome::Synchronized { client, .. } =
-        execute(&session, &snapshot.session_id, sample(&snapshot, None))
+        execute(&connection, &snapshot.session_id, sample(&snapshot, None))
     else {
         panic!("read publication");
     };
     let id = WorkbenchRequestId::parse(&format!("{:032x}", 906)).unwrap();
     assert!(matches!(
         execute(
-            &session,
+            &connection,
             &snapshot.session_id,
             ClientViewAction::Submit {
                 command: Box::new(ClientViewControl {
@@ -216,7 +216,7 @@ fn client_view_control_requires_navigation_permission_but_status_is_read_only() 
     ));
     assert!(matches!(
         execute(
-            &session,
+            &connection,
             &snapshot.session_id,
             ClientViewAction::Read { operation_id: id }
         ),

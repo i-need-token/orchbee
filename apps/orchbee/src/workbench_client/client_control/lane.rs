@@ -225,7 +225,14 @@ impl ClientControlLane {
         let task = thread::Builder::new()
             .name("orchbee-client-control".into())
             .spawn(move || {
-                run(&worker_shared, origin, clock, session_id, &wake_read, &changes);
+                run(
+                    &worker_shared,
+                    origin,
+                    clock,
+                    session_id,
+                    &wake_read,
+                    &changes,
+                );
                 let (lock, signal) = &*worker_shared;
                 if let Ok(mut handoff) = lock.lock() {
                     handoff.failed = true;

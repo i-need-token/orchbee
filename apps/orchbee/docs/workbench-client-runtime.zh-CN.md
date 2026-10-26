@@ -1843,4 +1843,4 @@ Client 独立于附着保留精确 Presentation ID。选中的空成员使用 `S
 
 原生分屏默认聚焦已提交的新 Panel。操作冻结此偏好，首次有效快照和后续恢复均按新 Panel ID 通过配对的成员清理／安装流程切换；新 Panel 已消失时执行普通的存续叶子修复。对端分屏保留本地焦点。Windows 启动设置 `terminal.focus_new_panel = false` 保留原选择，修改后需重启 Client。
 
-<!-- documentation-pairing: english-sha256=6b23c85ac716e5427d4ccb6dd9e54f347f81f2c68454f7431b896a25fe257caf zh-cn-sha256=22a355cf3bd5517a961c56f03003c45e9fa952ff9aed53074f8cb41501b0ec78 -->
+<!-- documentation-pairing: english-sha256=463099dd6bbf3896e19ba190e92fde564632f63a7bc7a11a070d459031cc3ff9 zh-cn-sha256=14141c75644dacfd5928126317c8cbbc1fd249466541a14443738906ae6e0ad7 -->

@@ -2,8 +2,8 @@
 //! Multiplex subscription admission separately excludes reads with delivery side effects.
 use orchbee_workbench_protocol::{
     AgentManifestsAction, ClientViewAction, ConfigurationAction, ConfiguredCommandAction,
-    SettingsOperation, NotificationAction, PaneGraphicsAction, PanelAgentAction,
-    PanelMetadataAction, SemanticEventsAction, TerminalEditorAction, WindowTitleAction,
+    NotificationAction, PaneGraphicsAction, PanelAgentAction, PanelMetadataAction,
+    SemanticEventsAction, SettingsOperation, TerminalEditorAction, WindowTitleAction,
     WorkbenchRequest, WorkbenchWorktreeAction, WorkspaceMetadataAction,
 };
 

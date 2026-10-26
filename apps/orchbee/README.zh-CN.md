@@ -921,4 +921,4 @@ Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin acti
 
 Windows 首次运行引导在终端可继续输入时提供 Workspace 创建、Agent 选择、操作与帮助入口，关闭状态按原生配置档案保存。参见[原生首次运行引导](docs/native-onboarding.zh-CN.md)。
 
-<!-- documentation-pairing: english-sha256=11d3829e089342cccfab8db77ca6ea641ed83dda48b977814efd62891c66a0cc zh-cn-sha256=e49997be67736c05cbe1cd7d32bbdd905d5aa7f56e4453ee1cbe0737ad391d12 -->
+<!-- documentation-pairing: english-sha256=97b86b46c5dbcc9b0b4fd1c0143691e8ea91012cc9944d6a08fcc019e1ebf905 zh-cn-sha256=f217785e8a7c33e6e464e766578f678c421a0d3049e330f7aeaa69d14d2895d3 -->

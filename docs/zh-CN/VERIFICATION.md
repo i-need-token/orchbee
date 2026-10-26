@@ -156,7 +156,7 @@ stdout/stderr 证据仍然可用。
 
 `pnpm test:tla` 是完整 TLA 验证门禁：先执行无需 Java 的清单与 runner 测试，再检查全部已注册配置及真实 TLC 缓存/变异证据。模型检查始终从全新状态开始，不复用成功结果。整次调用墙钟耗时超过 60 秒即失败。修改预算或模型集合时，在依赖及固定工具已安装的条件下测量三次完整全新状态运行；另行说明机器/负载和工具准备时间。
 
-`scripts/tla/models.json` 注册 13 个协议模型、15 个配置，记录语义所有者、声明、实现触发路径、所需动作覆盖及每配置 20 秒期限。这就是全部维护中的模型集合，不是隐藏必跑全集前的快速子集。新增模型必须满足完整预算及[建模与正确性](MODELING-AND-CORRECTNESS.md)的准入条件。超时属于失败，不能用于跳过工作。
+`scripts/tla/models.json` 注册 14 个协议模型、16 个配置，记录语义所有者、声明、实现触发路径、所需动作覆盖及每配置 20 秒期限。这就是全部维护中的模型集合，不是隐藏必跑全集前的快速子集。新增模型必须满足完整预算及[建模与正确性](MODELING-AND-CORRECTNESS.md)的准入条件。超时属于失败，不能用于跳过工作。
 
 普通 `pnpm verify` 门禁执行 `test:tla:inventory`，不隐式运行 Java。产品协议状态、转移、假设或细化关系变化时，需要相应已注册模型及实现测试。工作区命令委托共享 runner；仅有本地实现证据的工作区不提供空 TLA 命令。`node scripts/tla/run-models.mjs --all` 仅执行模型基线，不是完整 TLA 门禁。
 
@@ -209,4 +209,4 @@ stdout/stderr 证据仍然可用。
 | 变更前         | 先测量瓶颈。                                                           |
 | 全局策略检查   | 即使包任务改为仅运行受影响项，也保留显式输入。                         |
 
-<!-- documentation-pairing: english-sha256=c4a0831c2ac01e04e33aad490f3b43ea962859eb42da491ca6eb23f63223e502 zh-cn-sha256=95c66dc92f265ef5ceeb169f8e17b7b154e239a7c3aaee5810f9b9db0bce0247 -->
+<!-- documentation-pairing: english-sha256=16774c2de61f2fa2369c10b7d03bc8ff3cc9193736aef8f9224bd50b9a8d0342 zh-cn-sha256=c0a465dba16a5ecc9d038b9a5aef51038620dddf6ac82c126e2ea1b67c6c9495 -->

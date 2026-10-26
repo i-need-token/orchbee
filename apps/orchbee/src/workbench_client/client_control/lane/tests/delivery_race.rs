@@ -174,9 +174,12 @@ fn sample_change_during_control_transfer_preserves_completion_and_next_command()
         view: *view,
         graphics: None,
     };
-    let mut lane =
-        ClientControlLane::spawn(client.origin(), client.operation_clock(), request.session_id)
-            .unwrap();
+    let mut lane = ClientControlLane::spawn(
+        client.origin(),
+        client.operation_clock(),
+        request.session_id,
+    )
+    .unwrap();
     assert!(lane.publish(sample.clone()));
     first_sample.recv_timeout(Duration::from_secs(2)).unwrap();
     pending_reply.recv_timeout(Duration::from_secs(2)).unwrap();

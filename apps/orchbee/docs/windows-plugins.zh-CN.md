@@ -149,4 +149,4 @@ Windows 支持独立插件 popup 终端及原生关闭入口。popup 在当前 P
 
 定向验收覆盖重复准入、来源／目录拒绝时不启动、规范布局不变、丢失启动／关闭答复、完整身份释放、连接退休、尺寸、已解码按键／粘贴／鼠标归属、实际 Ratatui 组合绘制和原生 Windows CLI 传输。测试拥有其根目录、管道、线程和 Job，直到最后消费者结束。定向 fixture 证据不代表已部署 Host／终端模拟器验收；最终集成需通过更广的 Windows 验收流程。
 
-<!-- documentation-pairing: english-sha256=4bb06f58f73ae47c5ef6aad73563fef186aa707f23c47ebf99ed6dab72da6ae9 zh-cn-sha256=f10328a70ddbfc203b4bba99ea42460385ca4e576d0c7b20106738baac68f43d -->
+<!-- documentation-pairing: english-sha256=04be36f01fc90f86a3005a0689dbf4857a0fd908c8fc4030d41f3830fec4635b zh-cn-sha256=d50e2c0682d727696e020e838a4134516588bd991c8edd9c79595a30156e1b47 -->

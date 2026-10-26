@@ -8,9 +8,9 @@ use crate::{
     native_settings::Token,
 };
 use orchbee_workbench_protocol::{
-    SettingsOperation, SettingsOutcome, SettingsRequest, SettingsResult,
-    ProtocolVersion, SessionId, StreamMode, UserPreferencesSnapshot, WorkbenchRequest,
-    WorkbenchRequestId, WorkbenchResponse, read_workbench_response,
+    ProtocolVersion, SessionId, SettingsOperation, SettingsOutcome, SettingsRequest,
+    SettingsResult, StreamMode, UserPreferencesSnapshot, WorkbenchRequest, WorkbenchRequestId,
+    WorkbenchResponse, read_workbench_response,
 };
 use std::{io, sync::Mutex, time::Duration};
 
@@ -178,12 +178,10 @@ impl State {
     }
     fn observe(&mut self, reply: &SettingsResult) {
         match &reply.outcome {
-            SettingsOutcome::Opened { snapshot }
-            | SettingsOutcome::Saved { snapshot, .. } => {
+            SettingsOutcome::Opened { snapshot } | SettingsOutcome::Saved { snapshot, .. } => {
                 self.observation = Some(snapshot.clone());
             }
-            SettingsOutcome::OutcomeUnknown { .. }
-            | SettingsOutcome::Refused { .. } => {}
+            SettingsOutcome::OutcomeUnknown { .. } | SettingsOutcome::Refused { .. } => {}
         }
     }
 }

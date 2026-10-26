@@ -366,7 +366,10 @@ impl AgentService {
         })
     }
 
-    pub(crate) fn watch_changes(&self, signal: &std::sync::Arc<orchbee_server::SessionChangeSignal>) {
+    pub(crate) fn watch_changes(
+        &self,
+        signal: &std::sync::Arc<orchbee_server::SessionChangeSignal>,
+    ) {
         self.changes.watch(signal);
     }
 

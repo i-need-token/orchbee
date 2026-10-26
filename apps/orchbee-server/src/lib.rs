@@ -11,8 +11,8 @@ pub use pane_graphics::{
 mod workbench_authority;
 mod workbench_projection;
 pub use semantic_events::{
-    SessionChangeSignal, SessionChangeSource, SessionEventJournal, SessionEventPage, matches_filter,
-    semantic_pane, semantic_panes_for_binding,
+    SessionChangeSignal, SessionChangeSource, SessionEventJournal, SessionEventPage,
+    matches_filter, semantic_pane, semantic_panes_for_binding,
 };
 
 pub use workbench_authority::{
