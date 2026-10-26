@@ -60,8 +60,6 @@ pub(super) const HELP_PANEL_CLOSE_ZH: crate::localization::HelpDetails =
         "关闭一个由完整类型化 ID 或 @panel:0x<hex> 选择的面板。'--confirm' 为必填。accepted\n结果携带已接受修订与关闭请求 ID；会话异步完成关闭。",
     );
 
-
-
 pub(super) const HELP_PANEL_CURRENT_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee panel current [<panel>] [--current|--client <client-id>] [--format text|json]",

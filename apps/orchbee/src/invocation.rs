@@ -24,7 +24,9 @@ pub(crate) use machines::MachineCommand;
 mod creation;
 pub(crate) mod program;
 mod workspace_creation;
-pub(crate) use workspace_creation::{ParsedWorkspaceCreationCommand, WorkspaceCreationCommand};
+pub(crate) use workspace_creation::{
+    ParsedWorkspaceCreationCommand, ParsedWorkspaceCreationDirectory, WorkspaceCreationCommand,
+};
 mod panel_relocation;
 pub(crate) use panel_relocation::{PanelRelocationCommand, PanelRelocationDestination};
 mod panel_input;
@@ -56,6 +58,7 @@ pub(crate) use terminal_stream::{
 };
 mod workspace_group_close;
 pub(crate) use workspace_group_close::WorkspaceGroupCloseCommand;
+pub(crate) mod user_path;
 pub(crate) mod user_path_windows;
 mod worktree;
 use std::{ffi::OsString, path::PathBuf};
@@ -63,7 +66,6 @@ pub(crate) use worktree::WorktreeQueryCommand;
 pub(crate) use worktree::{ParsedWorktreeCommand, ParsedWorktreeQueryCommand, WorktreeCommand};
 pub(crate) use worktree::{WorktreeOpenSelector, WorktreeStartCommand, WorktreeStartKind};
 
-use crate::agent_projection::cursor::Cursor as AgentListCursor;
 use orchbee_agent_observation_protocol::{
     AgentName, AgentSafeInteger, AgentSessionId, DEFAULT_LIST_LIMIT, MAXIMUM_LIST_LIMIT,
     MAXIMUM_SAFE_INTEGER,
@@ -210,75 +212,14 @@ pub(crate) enum HelpTopic {
 pub(crate) mod grammar;
 pub(crate) use grammar::{CommandPath, Family};
 
+pub(crate) use grammar::values::AgentWaitCondition;
+
+/// Explicit total wait intent; omission is resolved by the execution adapter.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum AgentWaitCondition {
-    Blocked,
-    Done,
-    NeedsAttention,
-    Failed,
-    Succeeded,
-    Canceled,
-    Interrupted,
-    Working,
-    Idle,
-    Unknown,
-    Ended,
-    Fresh,
-    Stale,
-    Disconnected,
+pub(crate) enum AgentWaitTimeout {
+    Milliseconds(u32),
+    Forever,
 }
-
-impl AgentWaitCondition {
-    pub(crate) const fn as_str(self) -> &'static str {
-        match self {
-            Self::Blocked => "blocked",
-            Self::Done => "done",
-            Self::NeedsAttention => "needs-attention",
-            Self::Failed => "failed",
-            Self::Succeeded => "succeeded",
-            Self::Canceled => "canceled",
-            Self::Interrupted => "interrupted",
-            Self::Working => "working",
-            Self::Idle => "idle",
-            Self::Unknown => "unknown",
-            Self::Ended => "ended",
-            Self::Fresh => "fresh",
-            Self::Stale => "stale",
-            Self::Disconnected => "disconnected",
-        }
-    }
-
-    fn parse(value: &str) -> Option<Self> {
-        Some(match value {
-            "blocked" => Self::Blocked,
-            "done" => Self::Done,
-            "needs-attention" => Self::NeedsAttention,
-            "failed" => Self::Failed,
-            "succeeded" => Self::Succeeded,
-            "canceled" => Self::Canceled,
-            "interrupted" => Self::Interrupted,
-            "working" => Self::Working,
-            "idle" => Self::Idle,
-            "unknown" => Self::Unknown,
-            "ended" => Self::Ended,
-            "fresh" => Self::Fresh,
-            "stale" => Self::Stale,
-            "disconnected" => Self::Disconnected,
-            _ => return None,
-        })
-    }
-}
-
-/// The canonical default condition set `agent wait` applies when `--until`
-/// is absent: the seven conditions, verbatim and in canonical order.
-
-pub(crate) const DEFAULT_AGENT_WAIT_CONDITIONS: [AgentWaitCondition; 3] = [
-    AgentWaitCondition::Idle,
-    AgentWaitCondition::Done,
-    AgentWaitCondition::Blocked,
-];
-
-pub(crate) const DEFAULT_AGENT_WAIT_TIMEOUT: Option<u32> = if true { None } else { Some(600_000) };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum PanelQueryTarget {
@@ -316,7 +257,7 @@ pub(crate) enum QueryCommand {
         client: Option<WorkbenchClientId>,
         include_ended: bool,
         limit: u64,
-        cursor: Option<AgentListCursor>,
+        cursor: Option<String>,
     },
     AgentGet(AgentTarget),
     AgentClientGet {
@@ -337,17 +278,12 @@ pub(crate) enum QueryCommand {
     AgentWait {
         session: AgentTarget,
         client: Option<WorkbenchClientId>,
-        /// The effective condition list — `DEFAULT_AGENT_WAIT_CONDITIONS`
-        /// verbatim when `--until` is absent. Requested order is preserved
-        /// for matching and the emitted echo.
-        until: Vec<AgentWaitCondition>,
-        /// The optional global-revision fence (`--after-revision`) — a
-        /// caller-supplied bound, never a turn-scoped causal promise.
+        /// None preserves the execution owner's existing default conditions.
+        until: Option<Vec<AgentWaitCondition>>,
+        /// A global revision fence, never a turn identity.
         after_revision: Option<AgentSafeInteger>,
-        /// The total wait budget in milliseconds measured from command
-        /// start, 1..=3600000, defaulting to 600000 — never `wait-output`'s
-        /// 30000. None is explicit --forever.
-        timeout_ms: Option<u32>,
+        /// None preserves the execution owner's existing total timeout.
+        timeout_ms: Option<AgentWaitTimeout>,
     },
     /// `agent doctor`: the offline provider-diagnostics read — validated
     /// provider selectors in flag order and supplied asset roots in flag
@@ -703,8 +639,8 @@ pub(crate) enum AgentIntegrationCommand {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct AgentPromptWait {
     pub(crate) client: Option<WorkbenchClientId>,
-    pub(crate) until: Vec<AgentWaitCondition>,
-    pub(crate) timeout_ms: Option<u32>,
+    pub(crate) until: Option<Vec<AgentWaitCondition>>,
+    pub(crate) timeout_ms: Option<AgentWaitTimeout>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1011,6 +947,8 @@ pub(crate) enum Request {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct SelectedRequest {
     pub(crate) request: Request,
+    pub(crate) availability: grammar::Availability,
+    pub(crate) format: Option<OutputFormat>,
     pub(crate) site: Option<orchbee_local_site_runtime::WindowsSiteName>,
 }
 
@@ -1046,6 +984,7 @@ pub(crate) enum UsageContext {
 /// expect; rendered per locale, never serialized.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ExpectedValue {
+    DeclaredValue,
     GraphicsSpecification,
     EventsSpecification,
     TerminalViewportPoint,
@@ -1310,6 +1249,7 @@ enum Token {
 #[derive(Default)]
 struct Options {
     seen: Vec<&'static str>,
+    values: Vec<(&'static str, String)>,
     dry_run: bool,
     events: events::Options,
     link_offset: Option<String>,
@@ -1532,7 +1472,7 @@ fn target(
 
 /// An `invalid-usage` failure carrying the concrete reason the original exit
 /// reached; the reason rides the same envelope untouched.
-fn usage_with(reason: UsageReason, envelope: FailureEnvelope) -> ParseFailure {
+pub(crate) fn usage_with(reason: UsageReason, envelope: FailureEnvelope) -> ParseFailure {
     ParseFailure {
         kind: ParseFailureKind::InvalidUsage,
         envelope,
@@ -1548,7 +1488,7 @@ fn identifier(resource: Resource, target: String, envelope: FailureEnvelope) -> 
     }
 }
 
-fn selection_envelope(format: Option<OutputFormat>) -> FailureEnvelope {
+pub(crate) fn selection_envelope(format: Option<OutputFormat>) -> FailureEnvelope {
     match format {
         Some(OutputFormat::Json) => FailureEnvelope::Json,
         Some(OutputFormat::Text) | None => FailureEnvelope::Text,
@@ -1578,7 +1518,7 @@ pub(crate) fn parse_selected_request(
         }
         tokens.push(text.to_owned());
     }
-    { machine_routing::parse(tokens) }
+    machine_routing::parse(tokens)
 }
 
 #[cfg(test)]
@@ -1757,7 +1697,7 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
                     .split_once('=')
                     .map_or((token.as_str(), None), |(flag, value)| (flag, Some(value)));
                 if let Some(spec) = grammar::option(spelling)
-                    .filter(|spec| joined.is_none() || spec.value.is_some())
+                    .filter(|spec| joined.is_none() || (spec.value.is_some() && spec.joined))
                 {
                     let value = if spec.value.is_some() {
                         if let Some(value) = joined {
@@ -1789,6 +1729,9 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
                             },
                             envelope,
                         ));
+                    }
+                    if spec.value.is_some() {
+                        options.values.push((spec.spelling, value.clone()));
                     }
                     (spec.apply)(&mut options, value, envelope)?;
                     options.seen.push(spec.spelling);
@@ -1829,6 +1772,18 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
             })
         })
         .transpose()?;
+    let command_words = positionals
+        .iter()
+        .filter_map(word_literal)
+        .collect::<Vec<_>>();
+    let availability = grammar::COMMANDS
+        .iter()
+        .filter(|command| command_words.starts_with(command.words))
+        .max_by_key(|command| command.words.len())
+        .map_or(grammar::Availability::Portable, |command| {
+            command.availability
+        });
+    let format = options.format;
     let request = resolve(positionals, options)?;
     if matches!(&request, Request::DefaultConfig) && site.is_some() {
         return Err(usage_with(
@@ -1854,7 +1809,12 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
         }
         session = Some(name.clone());
     }
-    Ok(SelectedRequest { request, site })
+    Ok(SelectedRequest {
+        request,
+        site,
+        availability,
+        format,
+    })
 }
 
 fn resolve(positionals: Vec<Token>, options: Options) -> Result<Request, ParseFailure> {
@@ -1914,13 +1874,8 @@ fn resolve(positionals: Vec<Token>, options: Options) -> Result<Request, ParseFa
         .iter()
         .filter(|command| words.starts_with(command.words))
         .max_by_key(|command| command.words.len())
-        && let Some(extra) = words.get(command.words.len() + command.maximum_operands)
     {
-        return Err(unexpected_argument(
-            UsageContext::Path(command.id.as_str()),
-            extra,
-            envelope,
-        ));
+        command.validate(&words, &options, envelope)?;
     }
     Ok(request)
 }
@@ -2105,7 +2060,7 @@ fn resolve_words(
                     client: client_control::client_id(options, context, envelope)?,
                     include_ended: options.include_ended,
                     limit: agent_limit_option(options, context, envelope)?,
-                    cursor: agent_cursor_option(options, context, envelope)?,
+                    cursor: options.cursor.clone(),
                 },
                 options,
             ))
@@ -2578,7 +2533,8 @@ fn resolve_words(
             let context = UsageContext::Path("workspace move-block");
             check_scope(options, context, envelope)?;
             if values.is_empty()
-                || values.len() > grammar::specification(CommandPath::WorkspaceMoveBlock).maximum_operands
+                || values.len()
+                    > grammar::specification(CommandPath::WorkspaceMoveBlock).maximum_operands
             {
                 return Err(usage_with(
                     UsageReason::InvalidValue {
@@ -4728,29 +4684,6 @@ fn agent_limit_option(
     }
 }
 
-/// `agent list --cursor`: the minted `v1.<59>.<43>` page cursor, carried
-/// verbatim — authenticity is verified Server-side, never here.
-fn agent_cursor_option(
-    options: &Options,
-    context: UsageContext,
-    envelope: FailureEnvelope,
-) -> Result<Option<AgentListCursor>, ParseFailure> {
-    match &options.cursor {
-        Some(value) => AgentListCursor::parse(value).map(Some).map_err(|_| {
-            usage_with(
-                UsageReason::InvalidValue {
-                    context,
-                    option: "--cursor",
-                    value: value.clone(),
-                    expected: ExpectedValue::AgentCursor,
-                },
-                envelope,
-            )
-        }),
-        None => Ok(None),
-    }
-}
-
 /// `agent integration --provider <id>`: the closed provider vocabulary —
 /// an unknown spelling is a usage failure, never a fuzzy match. `list`
 /// admits it as an optional filter.
@@ -4853,9 +4786,9 @@ fn agent_until_option(
     options: &Options,
     context: UsageContext,
     envelope: FailureEnvelope,
-) -> Result<Vec<AgentWaitCondition>, ParseFailure> {
+) -> Result<Option<Vec<AgentWaitCondition>>, ParseFailure> {
     if options.until.is_empty() {
-        return Ok(DEFAULT_AGENT_WAIT_CONDITIONS.to_vec());
+        return Ok(None);
     }
     let mut conditions = Vec::with_capacity(options.until.len());
     for value in &options.until {
@@ -4878,7 +4811,7 @@ fn agent_until_option(
         }
         conditions.push(condition);
     }
-    Ok(conditions)
+    Ok(Some(conditions))
 }
 
 /// `agent wait --after-revision <n>`: the optional global-revision fence —
@@ -4914,7 +4847,7 @@ fn agent_wait_timeout_option(
     options: &Options,
     context: UsageContext,
     envelope: FailureEnvelope,
-) -> Result<Option<u32>, ParseFailure> {
+) -> Result<Option<AgentWaitTimeout>, ParseFailure> {
     if options.forever {
         if options.timeout.is_some() {
             return Err(usage_with(
@@ -4926,13 +4859,15 @@ fn agent_wait_timeout_option(
                 envelope,
             ));
         }
-        return Ok(None);
+        return Ok(Some(AgentWaitTimeout::Forever));
     }
     let Some(value) = options.timeout.clone() else {
-        return Ok(DEFAULT_AGENT_WAIT_TIMEOUT);
+        return Ok(None);
     };
     match value.parse::<u32>() {
-        Ok(timeout) if (1..=3_600_000).contains(&timeout) => Ok(Some(timeout)),
+        Ok(timeout) if (1..=3_600_000).contains(&timeout) => {
+            Ok(Some(AgentWaitTimeout::Milliseconds(timeout)))
+        }
         _ => Err(usage_with(
             UsageReason::InvalidValue {
                 context,

@@ -14,10 +14,22 @@ guide; this standard governs their shape.
 ## Grammar authority
 
 Each executable has one grammar authority in source: a declarative description of every command
-path, option, value set, and target rule. Help text, completion scripts, the machine schema
+path, option, value set, operand limit, target rule, conflict, repeatability rule, and platform availability. Help text, completion scripts, the machine schema
 listing, and the application's reference documentation derive from that authority or are tested
 to agree with it. A command that exists in the binary but not in help, completion, or the
 reference is a defect, and so is the reverse.
+
+Pure grammar is platform-independent: every supported host accepts the same syntax and emits
+the same help and completion for a selected locale. Platform compilation gates belong to execution
+adapters. A recognized operation without an implementation returns the typed platform-unavailable
+failure (`stage: "platform"`, `reason: "unsupported-platform"`, exit `4`) before effects. Omitted
+options remain omitted in parsed requests when execution owners have different documented defaults;
+opaque cursors are decoded only by the backend that emits them. Neither boundary introduces aliases
+or silently changes a supported backend's behavior.
+
+A new option is declared once, including its scope and value/multiplicity constraints; the hand-written
+parser and discovery projections consume it. Keep interpreter, effect and regression evidence that
+can detect errors in those projections; remove tests that only compare tables now derived by construction.
 
 ## Command paths
 

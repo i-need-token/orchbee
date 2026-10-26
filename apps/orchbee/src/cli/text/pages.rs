@@ -92,7 +92,7 @@ pub(crate) fn root(locale: Locale) -> String {
         ),
         row("--skill", locale.cli_help_text(HelpText::ShowSkill)),
     ];
-    if true {
+    {
         options.extend([
             row("--session <name>", locale.cli_help_text(HelpText::Session)),
             row(

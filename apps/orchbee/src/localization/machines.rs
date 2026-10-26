@@ -318,7 +318,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn cli_machine_help(
         self,
         path: crate::invocation::CommandPath,

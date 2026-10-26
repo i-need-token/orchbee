@@ -52,7 +52,8 @@ fn every_help_path_parses_and_renders_in_both_languages() {
                 for syntax in locale.cli_command_help(command).usage.lines() {
                     for flag in declared_flag.find_iter(syntax) {
                         assert!(
-                            super::super::completion::help_flags(command).contains(&flag.as_str()),
+                            crate::invocation::grammar::help_flags(command)
+                                .contains(&flag.as_str()),
                             "{command:?}: {} missing from the option list",
                             flag.as_str()
                         );
@@ -162,7 +163,7 @@ fn command_examples_are_admitted_without_executing_them() {
         }
         let with_format = words.iter().copied().chain(["--format", "json"]);
         let accepts_format = parse_request(with_format.map(OsString::from)).is_ok();
-        if accepts_format != super::super::completion::help_flags(command).contains(&"--format") {
+        if accepts_format != crate::invocation::grammar::help_flags(command).contains(&"--format") {
             failures.push(format!(
                 "{command:?}: --format admission disagrees with help"
             ));
@@ -231,14 +232,14 @@ fn command_option_scopes_agree_with_help_and_completion() {
         .collect::<Vec<_>>();
     let mut options = std::collections::BTreeSet::new();
     for command in &commands {
-        options.extend(super::super::completion::help_flags(*command));
+        options.extend(crate::invocation::grammar::help_flags(*command));
     }
     // `--help` turns any path into help, and `--format` has its own check above.
     options.remove("--help");
     options.remove("--format");
     let mut failures = Vec::new();
     for command in commands {
-        let declared = super::super::completion::help_flags(command);
+        let declared = crate::invocation::grammar::help_flags(command);
         let base = command
             .as_str()
             .split(' ')
@@ -308,7 +309,7 @@ fn server_help_exposes_existing_stop_and_its_confirmation_boundary() {
 
 #[test]
 fn example_continuations_preserve_whole_quoted_operands() {
-    let marker = if cfg!(windows) { " `\n" } else { " \\\n" };
+    let marker = " `\n";
     for path in help_paths() {
         let HelpTopic::Command(command) = path.topic() else {
             continue;

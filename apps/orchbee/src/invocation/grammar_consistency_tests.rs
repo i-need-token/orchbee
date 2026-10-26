@@ -48,7 +48,6 @@ fn terminal_agent_targets_are_explicit_and_exclusive() {
     );
 }
 
-#[cfg(windows)]
 #[test]
 fn panel_targets_and_direction_domains_have_one_spelling() {
     for verb in ["layout", "current", "focus", "edges"] {
@@ -64,7 +63,6 @@ fn panel_targets_and_direction_domains_have_one_spelling() {
     assert!(parse(&["tab", "move", "@tab:0x1", "--direction", "next"]).is_err());
 }
 
-#[cfg(windows)]
 #[test]
 fn public_events_use_panel_and_translate_only_at_the_boundary() {
     assert!(parse(&["events", "wait", "--event", "panel.created"]).is_ok());

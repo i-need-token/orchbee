@@ -1,7 +1,7 @@
 //! Submit once to a verified physical Agent; preserve delivery when later observation fails.
 use super::{
-    AgentPromptWait, AgentTarget, ArmedSignals, Completion, Failure, FailureKind, Instant, Locale,
-    Map, Output, OutputFormat, READ_BUDGET, Sent, SignalWatch, Value, WaitDeadline, json, output,
+    AgentTarget, ArmedSignals, Completion, Failure, FailureKind, Instant, Locale, Map, Output,
+    OutputFormat, READ_BUDGET, ResolvedWait, Sent, SignalWatch, Value, WaitDeadline, json, output,
     query, send,
 };
 use crate::cli::processes::{Selection, interpret};
@@ -16,7 +16,7 @@ pub(super) struct Request<'a> {
     pub target: &'a AgentTarget,
     pub binding: AgentLaunchBinding,
     pub text: &'a str,
-    pub wait: Option<&'a AgentPromptWait>,
+    pub wait: Option<&'a ResolvedWait>,
     pub start: Instant,
     pub total: WaitDeadline,
 }

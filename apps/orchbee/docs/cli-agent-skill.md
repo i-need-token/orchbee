@@ -1,6 +1,6 @@
 # Orchbee native CLI Agent guide
 
-This guide describes user workflows for the Windows native CLI. Discover exact syntax and platform support from the installed build before acting.
+This guide describes native CLI workflows. Windows, Linux and macOS expose the same syntax, help and completion; execution availability remains explicit. Discover exact behavior from the installed build before acting.
 
 ## Discover this build
 
@@ -11,6 +11,8 @@ Start with `orchbee --help`, then `orchbee <family> --help` and `orchbee <family
 All CLI JSON documents use version `1` and one current schema. Fields stay present across platforms and options: `{kind:"unsupported"}` means no platform capability, `null` means the source said none, and `"unknown"` means it cannot say. A whole unsupported command returns `stage: "platform"`, `reason: "unsupported-platform"`, exit `4`. `server diagnose` uses `orchbee.server.diagnose` on Linux and Windows.
 
 For PowerShell, `orchbee completion powershell` prints the completion script.
+
+Pass a pagination cursor unchanged to the same command and backend that returned it. List and change cursors have separate owners and are never converted into one another. Omit wait options only when the documented backend defaults are intended.
 
 ## Select and start a Session
 
@@ -73,7 +75,7 @@ On Windows, `@agent:<kind>` selects a unique provider and `@agent:<n>` selects a
 
 `agent rename <target> <name>` assigns a runtime alias; `agent resolve` and `agent names` inspect it, and `agent rename <target> --clear` releases it. Aliases expire with their sessions. Waits remain pinned to their original target despite later alias reuse.
 
-`agent prompt <target> <text> --wait` submits literal input and observes activity before checking a condition. `agent wait` only observes. Windows defaults to no total timeout and idle/done/blocked; specify a finite timeout for automation. Freshness, attention and existing work affect admission. A matched state does not identify a prompt-specific turn. Cancelling a wait does not undo accepted input or stop the Agent.
+`agent prompt <target> <text> --wait` submits literal input and observes activity before checking a condition. `agent wait` only observes. Windows defaults to no total timeout and idle/done/blocked; Unix keeps a 600000 ms total timeout and needs-attention/failed/succeeded/canceled/interrupted/idle/ended; specify a finite timeout for automation. Freshness, attention and existing work affect admission. A matched state does not identify a prompt-specific turn. Cancelling a wait does not undo accepted input or stop the Agent.
 
 Retain observed revisions and inspect `agent wait --help` before using `--after-revision` for later state.
 

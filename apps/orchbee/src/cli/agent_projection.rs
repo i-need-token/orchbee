@@ -265,6 +265,10 @@ pub(super) fn run(command: &QueryCommand, format: OutputFormat, locale: Locale) 
     else {
         return failure_output(classify(Error::Invalid), Some(format), locale);
     };
+    let cursor = match super::agent_request::list_cursor(cursor.as_deref(), format) {
+        Ok(cursor) => cursor,
+        Err(failure) => return super::parse_failure(failure, locale),
+    };
     let deadline = Instant::now() + Duration::from_secs(5);
     let mut signals = match ArmedSignals::arm_interrupts() {
         Ok(s) => s,

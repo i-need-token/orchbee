@@ -8,6 +8,18 @@ pub(super) fn build() -> serde_json::Value {
         "flags": command.flags(),
         "conflicts": command.flags().iter().map(|flag| json!({"flag":flag,"with":command.conflicts(flag)})).collect::<Vec<_>>(),
         "operand": command.maximum_operands,
+        "operandString": string_rule(command.operand_string_rule()),
+        "operandEquals": if command.operand_string_rule().is_some() { "--session" } else { "" },
+        "reductions": command.operands().reductions,
+        "selectors": command.operands().selectors,
+        "operandValues": command.operands().values,
+        "operandValueOffset": command.operands().value_offset,
+        "repeatable": command.flags().iter().filter(|flag| command.repeats(flag)).collect::<Vec<_>>(),
+        "requirements": command.requirements().map(|rule| json!({"flag": rule.flag, "any": rule.any})).collect::<Vec<_>>(),
+        "values": command.flags().iter().copied().chain(super::GLOBAL_FLAGS.iter().copied()).chain(command.format.then_some("--format")).map(|flag| {
+            let (values, closed) = command.values(flag);
+            json!({"flag": flag, "choices": values, "closed": closed, "string": string_rule(command.string_rule(flag))})
+        }).collect::<Vec<_>>(),
         "directions": if command.flags().contains(&"--direction") { authority::CARDINAL_DIRECTIONS } else { &[] },
         "agentTarget": command.target == TargetRule::Agent,
         "machine": command.machine,
@@ -18,6 +30,7 @@ pub(super) fn build() -> serde_json::Value {
     json!({
         "commands": commands,
         "valueFlags": authority::OPTIONS.iter().filter(|option| option.value.is_some()).map(|option| option.spelling).chain(["--format"]).collect::<Vec<_>>(),
+        "joinedFlags": authority::OPTIONS.iter().filter(|option| option.value.is_some() && option.joined).map(|option| option.spelling).chain(["--format"]).collect::<Vec<_>>(),
         "flags": authority::OPTIONS.iter().map(|option| option.spelling).chain(["--format"]).collect::<Vec<_>>(),
         "globalFlags": *super::GLOBAL_FLAGS,
         "prefixFlags": authority::PREFIX_FLAGS,
@@ -49,4 +62,11 @@ pub(super) fn accepts_format(words: &[&str]) -> bool {
         .iter()
         .find(|command| command.words == words)
         .is_some_and(|command| command.format)
+}
+
+fn string_rule(rule: Option<&authority::StringRule>) -> serde_json::Value {
+    rule.map_or(
+        serde_json::Value::Null,
+        |rule| json!({ "pattern": rule.pattern, "excluded": rule.excluded, "trim": rule.trim }),
+    )
 }

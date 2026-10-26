@@ -28,6 +28,7 @@ impl Locale {
     }
     /// `events subscribe` ends normally at its own --timeout; that is not a
     /// failed wait.
+    #[cfg(windows)]
     pub(crate) fn events_subscribe_status(self, status: u8) -> &'static str {
         match (self, status) {
             (Self::EnUs, 7) => "Subscription ended: --timeout elapsed.\n",
@@ -36,6 +37,7 @@ impl Locale {
         }
     }
 
+    #[cfg(windows)]
     pub(crate) const fn events_listening(self) -> &'static str {
         match self {
             Self::EnUs => "Listening for events. Press Ctrl+C to stop.",
@@ -43,6 +45,7 @@ impl Locale {
         }
     }
 
+    #[cfg(windows)]
     pub(crate) fn events_gap(self, after: u64, through: u64) -> String {
         match self {
             Self::EnUs => format!("gap  events after {after} through {through} were lost"),
@@ -50,6 +53,7 @@ impl Locale {
         }
     }
 
+    #[cfg(windows)]
     pub(crate) fn events_status(self, status: u8) -> &'static str {
         match (self, status) {
             (Self::EnUs, 0) => "Event matched.\n",

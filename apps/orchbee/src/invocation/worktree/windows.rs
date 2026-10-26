@@ -6,7 +6,7 @@ use super::{
 };
 use crate::invocation::{
     selection_envelope,
-    user_path_windows::{PathFailure, resolve},
+    user_path_windows::{PathFailure, normalize},
 };
 use std::{ffi::OsString, path::PathBuf};
 
@@ -30,7 +30,7 @@ impl ParsedWorktreeCommand {
                     WorktreeStartKind::Remove { .. } => "worktree remove",
                 });
                 let mut resolve_path = |operand: super::ParsedWorktreePath, option| {
-                    resolve(&operand, &mut environment, &mut cwd).map_err(|failure| {
+                    normalize(operand.as_str(), &mut environment, &mut cwd).map_err(|failure| {
                         path_failure(operand.as_str(), failure, context, option, format)
                     })
                 };
@@ -101,7 +101,7 @@ impl ParsedWorktreeQueryCommand {
         let cwd = self
             .cwd
             .map(|operand| {
-                resolve(&operand, environment, cwd).map_err(|failure| {
+                normalize(operand.as_str(), environment, cwd).map_err(|failure| {
                     path_failure(
                         operand.as_str(),
                         failure,

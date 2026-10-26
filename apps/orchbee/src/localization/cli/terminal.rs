@@ -38,10 +38,6 @@ pub(super) const HELP_TERMINAL_GET_ZH: crate::localization::HelpDetails =
         "按完整类型化 ID 或 @terminal:0x<hex> 显示一个已绑定终端：worker id 及其唯一 boundTo 位置（presentation、panel、tab、context）。",
     );
 
-
-
-
-
 pub(super) const HELP_TERMINAL_RUN_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal run (<target>|--panel <panel>) <command> [--wait] [--timeout <ms>] [--format text|json]",

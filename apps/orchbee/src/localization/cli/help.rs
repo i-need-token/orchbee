@@ -20,6 +20,26 @@ impl HelpDetails {
 }
 
 impl Locale {
+    pub(crate) const fn cli_grammar_availability(
+        self,
+        availability: crate::invocation::grammar::Availability,
+    ) -> &'static str {
+        match (self, availability) {
+            (Self::EnUs, crate::invocation::grammar::Availability::Windows) => {
+                "Execution currently requires Windows. Syntax, help and completion are available on every platform; other hosts return unsupported-platform (exit 4)."
+            }
+            (Self::ZhCn, crate::invocation::grammar::Availability::Windows) => {
+                "执行目前需要 Windows。所有平台均公开相同语法、帮助与补全；其他宿主返回 unsupported-platform（退出码 4）。"
+            }
+            (Self::EnUs, crate::invocation::grammar::Availability::Portable) => {
+                "Syntax, help and completion are identical on every platform. The selected execution adapter retains its documented capabilities and defaults; unavailable operations return unsupported-platform (exit 4)."
+            }
+            (Self::ZhCn, crate::invocation::grammar::Availability::Portable) => {
+                "所有平台的语法、帮助与补全相同。所选执行适配保留文档规定的能力和默认值；未实现的操作返回 unsupported-platform（退出码 4）。"
+            }
+        }
+    }
+
     pub(crate) fn cli_label_target_hint(self, label: &str) -> Option<&'static str> {
         crate::invocation::label_requires_id(label).then_some(match self {
             Self::EnUs => "This display name uses target syntax. Address this resource with its actual ID shown above.\n",

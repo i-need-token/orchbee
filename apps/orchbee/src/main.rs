@@ -97,6 +97,25 @@ fn main() -> ExitCode {
         return emit(cli::default_config(Locale::EnUs), Locale::EnUs);
     }
     let locale = select_locale(|name| env::var_os(name));
+    if let Ok(selected) = &selected
+        && !matches!(
+            selected.request,
+            invocation::Request::RootHelp
+                | invocation::Request::Help(_)
+                | invocation::Request::Version
+                | invocation::Request::Skill
+                | invocation::Request::Completion(_)
+                | invocation::Request::Query {
+                    command: invocation::QueryCommand::ApiSchema { .. },
+                    ..
+                }
+        )
+        && !cfg!(windows)
+        && (selected.availability == invocation::grammar::Availability::Windows
+            || selected.site.is_some())
+    {
+        return emit(cli::unsupported_platform(selected.format, locale), locale);
+    }
     let parsed = selected.map(|selected| {
         #[cfg(windows)]
         local_activation::select_session(selected.session);
@@ -145,6 +164,39 @@ fn main() -> ExitCode {
             #[cfg(windows)]
             Ok(invocation::Request::Machine { command, format }) => {
                 cli::machines::run(&command, format, locale)
+            }
+            #[cfg(not(windows))]
+            Ok(
+                invocation::Request::Machine { format, .. }
+                | invocation::Request::TerminalClear { format, .. }
+                | invocation::Request::TerminalEditor { format, .. }
+                | invocation::Request::TerminalLink { format, .. }
+                | invocation::Request::TerminalCopy { format, .. }
+                | invocation::Request::TerminalSelection { format, .. }
+                | invocation::Request::ClientQuery { format, .. }
+                | invocation::Request::PanelTerminalCreation { format, .. }
+                | invocation::Request::PanelRelocation { format, .. }
+                | invocation::Request::LayoutExport { format, .. }
+                | invocation::Request::LayoutApply { format, .. }
+                | invocation::Request::Plugin { format, .. }
+                | invocation::Request::ConfiguredCommand { format, .. }
+                | invocation::Request::PaneGraphics { format, .. }
+                | invocation::Request::Events { format, .. }
+                | invocation::Request::ChannelShow { format, .. }
+                | invocation::Request::Update { format, .. }
+                | invocation::Request::ConfigResetKeys { format, .. }
+                | invocation::Request::NamedSession { format, .. }
+                | invocation::Request::AgentView { format, .. },
+            ) => cli::unsupported_platform(Some(format), locale),
+            #[cfg(not(windows))]
+            Ok(
+                invocation::Request::DefaultConfig
+                | invocation::Request::MachineRelay
+                | invocation::Request::MachineTunnel { .. },
+            ) => cli::unsupported_platform(None, locale),
+            #[cfg(not(windows))]
+            Ok(invocation::Request::MachineRoute(route)) => {
+                cli::unsupported_platform(Some(route.format), locale)
             }
             Ok(invocation::Request::Version) => {
                 cli::process_result(present(Ok(Invocation::Version), locale), locale)
@@ -220,7 +272,6 @@ fn main() -> ExitCode {
             Ok(invocation::Request::LayoutApply { command, format }) => {
                 cli::layouts::apply(&command, format, locale)
             }
-            #[cfg(windows)]
             Ok(invocation::Request::WorkspaceCreation { command, format }) => {
                 cli::workspace_creation::run(command, format, locale)
             }

@@ -90,6 +90,7 @@ impl Locale {
         }
     }
 
+    #[cfg(windows)]
     pub(crate) fn cli_popup_opened(
         self,
         popup_id: &orchbee_workbench_protocol::WorkbenchRequestId,
@@ -99,6 +100,7 @@ impl Locale {
             Self::ZhCn => format!("popup 已打开：{popup_id}\n"),
         }
     }
+    #[cfg(windows)]
     pub(crate) const fn cli_popup_closed(self, had_popup: bool) -> &'static str {
         match (self, had_popup) {
             (Self::EnUs, true) => "Popup closed.\n",
@@ -107,6 +109,7 @@ impl Locale {
             (Self::ZhCn, false) => "当前没有 popup。\n",
         }
     }
+    #[cfg(windows)]
     pub(crate) const fn plugin_popup_pending(self, closing: bool) -> &'static str {
         match (self, closing) {
             (Self::EnUs, false) => "Opening…",
@@ -115,6 +118,7 @@ impl Locale {
             (Self::ZhCn, true) => "正在关闭…",
         }
     }
+    #[cfg(windows)]
     pub(crate) const fn plugin_popup_resize_recovery(self) -> &'static str {
         match self {
             Self::EnUs => "Enlarge the terminal to restore the popup.",
@@ -212,12 +216,14 @@ impl Locale {
             },
         )
     }
+    #[cfg(windows)]
     pub(crate) const fn plugin_result_heading(self) -> &'static str {
         match self {
             Self::EnUs => "Plugin catalog:",
             Self::ZhCn => "插件目录：",
         }
     }
+    #[cfg(windows)]
     pub(crate) const fn plugin_enabled(self, enabled: bool) -> &'static str {
         match (self, enabled) {
             (Self::EnUs, true) => "enabled",
@@ -226,6 +232,7 @@ impl Locale {
             (Self::ZhCn, false) => "已禁用",
         }
     }
+    #[cfg(windows)]
     pub(crate) const fn plugin_error(self, error: Error) -> &'static str {
         match (self, error) {
             (Self::EnUs, Error::InvalidManifest) => "Invalid plugin manifest.",
@@ -263,6 +270,7 @@ impl Locale {
 }
 
 impl Locale {
+    #[cfg(windows)]
     pub(crate) const fn plugin_runtime_state(self, state: &str) -> &'static str {
         match (self, state.as_bytes()) {
             (Self::EnUs, b"operation-id") => "Operation ID",
@@ -283,6 +291,7 @@ impl Locale {
             (Self::ZhCn, _) => "提交结果未知；请先查询插件日志再进行下一步操作。",
         }
     }
+    #[cfg(windows)]
     pub(crate) const fn plugin_runtime_failure(
         self,
         reason: orchbee_workbench_protocol::PluginFailure,
@@ -323,6 +332,7 @@ impl Locale {
             (Self::ZhCn, F::PhysicalUnknown) => "插件进程清理结果不确定，已阻止新执行。",
         }
     }
+    #[cfg(windows)]
     pub(crate) const fn plugin_command_failure(
         self,
         reason: orchbee_workbench_protocol::PluginCommandFailure,
@@ -346,6 +356,7 @@ impl Locale {
 }
 
 impl Locale {
+    #[cfg(windows)]
     pub(crate) const fn plugin_provision_stage(
         self,
         stage: orchbee_local_runtime::PluginProvisionStage,
@@ -368,18 +379,21 @@ impl Locale {
             (Self::ZhCn, S::Done) => "插件操作已完成。",
         }
     }
+    #[cfg(windows)]
     pub(crate) const fn plugin_provision_committed(self) -> &'static str {
         match self {
             Self::EnUs => "Registration change committed.",
             Self::ZhCn => "登记变更已提交。",
         }
     }
+    #[cfg(windows)]
     pub(crate) const fn plugin_cleanup_pending(self) -> &'static str {
         match self {
             Self::EnUs => "Source cleanup pending",
             Self::ZhCn => "源文件清理未完成",
         }
     }
+    #[cfg(windows)]
     pub(crate) const fn plugin_provision_failure(
         self,
         error: &orchbee_local_runtime::PluginProvisionFailure,

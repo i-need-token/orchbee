@@ -1,4 +1,5 @@
 //! Every Windows Workspace creation uses one launch workflow and explicit focus policy.
+use super::user_path::ParsedUserPath;
 use super::{
     CreationDirectory, ExpectedValue, FailureEnvelope, LaunchOptions, LaunchProfileSelector,
     LaunchSelection, Options, OutputFormat, ParseFailure, Request, Resource, Target, UsageContext,
@@ -6,7 +7,6 @@ use super::{
     geometry_option, label_option, launch_options_with_directory, profile_option,
     reject_launch_profile_conflict, selection_envelope, target, usage_with, wait_timeout_option,
 };
-use orchbee_local_runtime::UserPathOperand;
 use orchbee_workbench_protocol::WorkbenchClientId;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -32,12 +32,13 @@ pub(crate) enum ParsedWorkspaceCreationDirectory {
     Home,
     Current,
     Workspace,
-    Explicit(UserPathOperand),
+    Explicit(ParsedUserPath),
 }
 
 pub(crate) type ParsedWorkspaceCreationCommand =
     WorkspaceCreationCommand<ParsedWorkspaceCreationDirectory, super::program::ParsedLaunch>;
 
+#[cfg(windows)]
 impl ParsedWorkspaceCreationCommand {
     /// Resolves explicit paths in the final process, before configuration or runtime access.
     ///
@@ -60,7 +61,7 @@ impl ParsedWorkspaceCreationCommand {
             ParsedWorkspaceCreationDirectory::Workspace => CreationDirectory::Workspace,
             ParsedWorkspaceCreationDirectory::Explicit(path) => {
                 options.cwd = Some(
-                    super::user_path_windows::resolve(&path, environment, cwd).map_err(
+                    super::user_path_windows::normalize(path.as_str(), environment, cwd).map_err(
                         |failure| {
                             path_failure(path.as_str(), failure, selection_envelope(Some(format)))
                         },
@@ -135,7 +136,7 @@ pub(super) fn parse(options: &Options, envelope: FailureEnvelope) -> Result<Requ
         Some("current") => ParsedWorkspaceCreationDirectory::Current,
         Some("workspace") => ParsedWorkspaceCreationDirectory::Workspace,
         Some(value) => ParsedWorkspaceCreationDirectory::Explicit(
-            UserPathOperand::parse(value)
+            ParsedUserPath::parse(value)
                 .map_err(|failure| path_failure(value, failure, envelope))?,
         ),
     };

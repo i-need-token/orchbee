@@ -3,15 +3,6 @@
   use str
   use re
   var grammar = (print '__ORCHBEE_GRAMMAR__' | from-json)
-  var groups = [
-    [--timeout --forever] [--agent-session --name --panel --terminal] [--panel --current]
-    [--exec --profile] [--arg --profile]
-    [--into-tab --new-tab] [--target-panel --new-tab]
-    [--text --file --stdin --key] [--key --enter] [--key --paste]
-    [--text --paste] [--match --regex]
-  ]
-  var panel-targets = [panel:current panel:process-info panel:focus panel:zoom panel:layout panel:neighbor panel:edges panel:resize panel:swap panel:input panel:split]
-  var agent-targets = [agent:attach agent:get agent:focus agent:read agent:send-keys agent:prompt agent:explain agent:wait agent:resolve agent:rename]
   fn any {|values choices|
     for choice $choices { if (has-value $values $choice) { put $true; return } }
     put $false
@@ -20,32 +11,30 @@
     for pair $command[conflicts] {
       if (and (eq $pair[flag] $flag) (any $seen $pair[with])) { put $true; return }
     }
-    for group $groups {
-      if (has-value $group $flag) {
-        for peer $group {
-          if (and (not-eq $peer $flag) (has-value $seen $peer)) { put $true; return }
-        }
-      }
-    }
-    var path = (str:join : $command[words])
-    if (eq $command[words][0] worktree) {
-      if (or (and (eq $flag --workspace) (has-value $seen --cwd)) (and (eq $flag --cwd) (has-value $seen --workspace))) { put $true; return }
-    }
-    if (eq $path worktree:open) {
-      if (or (and (eq $flag --path) (has-value $seen --branch)) (and (eq $flag --branch) (has-value $seen --path))) { put $true; return }
-    }
-    if (eq $path worktree:list) {
-      if (or (and (has-value [--project --directory] $flag) (any $seen [--workspace --cwd --trust-repository])) (and (has-value [--workspace --cwd --trust-repository] $flag) (any $seen [--project --directory]))) { put $true; return }
-    }
     put $false
   }
   fn complete {|@args|
     if (< (count $args) 2) { return }
     var prefix = $args[-1]
+    var machine = $false
+    var words = $args[1..-1]
+    if (> (count $words) 0) {
+      if (eq $words[0] --machine) {
+        if (< (count $words) 2) { return }
+        if (or (eq $words[1] '') (str:has-prefix $words[1] -)) { return }
+        set machine = $true
+        set words = $words[2..]
+      } elif (str:has-prefix $words[0] --machine=) {
+        var selector = [(str:split &max=2 = $words[0])][1]
+        if (or (eq $selector '') (str:has-prefix $selector -)) { return }
+        set machine = $true
+        set words = $words[1..]
+      }
+    }
     var positionals seen = [] []
     var values = [&]
     var pending = ''
-    for word $args[1..-1] {
+    for word $words {
       if (eq $word --) { return }
       if (not-eq $pending '') { set values[$pending] = $word; set pending = ''; continue }
       if (or (has-value $grammar[rootModeFlags] $word) (eq $word -h)) { return }
@@ -53,19 +42,20 @@
         var pair = [(str:split &max=2 = $word)]
         var flag = $pair[0]
         if (not (has-value $grammar[flags] $flag)) { return }
-        if (and (has-value $seen $flag) (not (has-value $grammar[repeatable] $flag)) (not-eq $flag --provider)) { return }
+        if (and (has-value $seen $flag) (not (has-value $grammar[repeatable] $flag))) { return }
+        if (and (== (count $pair) 2) (not (has-value $grammar[joinedFlags] $flag))) { return }
         set seen = [$@seen $flag]
         if (has-value $grammar[valueFlags] $flag) {
           if (== (count $pair) 2) { set values[$flag] = $pair[1] } else { set pending = $flag }
         } elif (== (count $pair) 2) { return }
       } else { set positionals = [$@positionals $word] }
     }
-    fn valid-name {|name| put (and (re:match '^[A-Za-z0-9._-]{1,64}$' $name) (not (has-value [. ..] $name))) }
-    if (and (has-key $values --session) (not (valid-name $values[--session]))) { return }
-    if (and (> (count $positionals) 2) (eq $positionals[0] session) (has-value [attach stop delete] $positionals[1])) {
-      if (not (valid-name $positionals[2])) { return }
-      if (and (has-key $values --session) (not-eq $values[--session] $positionals[2])) { return }
+    fn valid-string {|value rule|
+      if (eq $rule $nil) { put $true; return }
+      if $rule[trim] { set value = (str:trim-space $value) }
+      put (and (re:match $rule[pattern] $value) (not (has-value $rule[excluded] $value)))
     }
+    if (and $machine (has-value $seen --session)) { return }
     var business-seen = []
     for flag $seen { if (not (has-value $grammar[globalFlags] $flag)) { set business-seen = [$@business-seen $flag] } }
     var candidates = []
@@ -73,7 +63,7 @@
     if (and (> $n 0) (has-value [completion help] $positionals[0])) {
       if (or (> (count $business-seen) 0) (not-eq $pending '')) { return }
       if (eq $positionals[0] completion) {
-        if (!= $n 1) { return }
+        if (or (!= $n 1) $machine) { return }
         var shells = $grammar[shells]
         set candidates = [$@shells --help]
       } elif (== $n 1) { set candidates = $grammar[helpTopics]
@@ -83,11 +73,9 @@
         for entry $grammar[helpLevel3] { if (eq $entry[0] $positionals[1]':'$positionals[2]) { set candidates = $entry[1] } }
       }
     } else {
-      for entry [[--format $grammar[formats]] [--mouse [off on]] [--until $grammar[until]] [--right-click $grammar[rightClick]] [--order $grammar[orders]] [--search-direction $grammar[searchDirections]]] {
-        if (and (has-key $values $entry[0]) (not (has-value $entry[1] $values[$entry[0]]))) { return }
-      }
       var viable = []
       for command $grammar[commands] {
+        if (and $machine (not $command[machine])) { continue }
         # Reject unrelated paths before walking their option/conflict tables.
         var width = (count $command[words])
         var valid = $true
@@ -99,62 +87,52 @@
         var flags = $command[flags]
         var allowed = [$@flags $@global]
         if $command[format] { set allowed = [$@allowed --format] }
-        var path = (str:join : $command[words])
-        if (has-key $values --source) {
-          if (eq $path workspace:report-metadata) {
-            if (not (re:match '^[A-Za-z0-9:._-]{1,80}$' (str:trim-space $values[--source]))) { set valid = $false }
-          } elif (not (has-value $grammar[outputSources] $values[--source])) { set valid = $false }
-        }
-
-        var provider-count = 0
         for flag $seen {
           if (or (not (has-value $allowed $flag)) (conflicts $command $flag $seen)) { set valid = $false }
-          if (eq $flag --provider) { set provider-count = (+ $provider-count 1) }
+          var occurrences = 0
+          for prior $seen { if (eq $prior $flag) { set occurrences = (+ $occurrences 1) } }
+          if (and (> $occurrences 1) (not (has-value $command[repeatable] $flag))) { set valid = $false }
         }
-        if (and (> $provider-count 1) (not-eq $path agent:doctor)) { set valid = $false }
+        for value $command[values] {
+          if (and $value[closed] (has-key $values $value[flag]) (not (has-value $value[choices] $values[$value[flag]]))) { set valid = $false }
+          if (and (has-key $values $value[flag]) (not (valid-string $values[$value[flag]] $value[string]))) { set valid = $false }
+        }
         var limit = $command[operand]
-        if (and (has-value [terminal:read terminal:send terminal:wait-output terminal:run] $path) (has-value $seen --panel)) { set limit = (- $limit 1) }
-        if (and (eq $path panel:process-info) (has-value $seen --client)) { set limit = 0 }
-        if (and (has-value $panel-targets $path) (any $seen [--panel --current])) { set limit = 0 }
-        if (has-value $agent-targets $path) {
-          if (any $seen [--agent-session --name --panel --terminal]) { set limit = (- $limit 1) }
-          if (has-value $seen --clear) { set limit = (- $limit 1) }
-        }
+        for group $command[reductions] { if (any $seen $group) { set limit = (- $limit 1) } }
         if (> $n (+ $width $limit)) { set valid = $false }
-        if (and (has-key $values --motion) (not (has-value $grammar[copyMotions] $values[--motion]))) { set valid = $false }
-        if (and (has-key $values --direction) (not (has-value $command[directions] $values[--direction]))) { set valid = $false }
+        if (and (> $n $width) (not-eq $command[operandString] $nil)) {
+          if (not (valid-string $positionals[$width] $command[operandString])) { set valid = $false }
+          if (and (has-key $values $command[operandEquals]) (not-eq $values[$command[operandEquals]] $positionals[$width])) { set valid = $false }
+        }
         if $valid { set viable = [$@viable $command] }
       }
       if (== (count $viable) 0) { return }
       var offered = []
       for command $viable {
         var width = (count $command[words])
-        var path = (str:join : $command[words])
         if (< $n $width) { set candidates = [$@candidates $command[words][$n]] }
-        if (and $command[agentTarget] (== $n $width) (not (any $seen [--agent-session --name --panel --terminal]))) {
-          set candidates = [$@candidates $@grammar[agentTargets]]
-        }
-        if (eq $path agent:send-keys) {
-          var target = 1
-          if (any $seen [--agent-session --name --panel --terminal]) { set target = 0 }
-          var keys = (- $n $width $target)
-          if (and (>= $keys 0) (< $keys 64)) { var names = $grammar[keys]; set candidates = [$@candidates $@names] }
-        }
+        var selected = (any $seen $command[selectors])
+        if (and $command[agentTarget] (== $n $width) (not $selected)) { set candidates = [$@candidates $@grammar[agentTargets]] }
+        var offset = $command[operandValueOffset]
+        if $selected { set offset = (- $offset 1) }
+        var operands = (- $n $width)
+        var limit = $command[operand]
+        for group $command[reductions] { if (any $seen $group) { set limit = (- $limit 1) } }
+        if (and (>= $operands $offset) (< $operands $limit)) { set candidates = [$@candidates $@command[operandValues]] }
         var global = $command[globalFlags]
         var flags = $command[flags]
         var allowed = [$@flags $@global]
         if $command[format] { set allowed = [$@allowed --format] }
         for flag $allowed {
-          if (and (has-value [terminal:read terminal:send terminal:wait-output] $path) (> $n $width) (eq $flag --panel)) { continue }
-          if (and (eq $path panel:process-info) (> $n $width) (eq $flag --client)) { continue }
-          if (and (has-value $panel-targets $path) (> $n $width) (has-value [--panel --current] $flag)) { continue }
-          if (has-value $agent-targets $path) {
-            var operands = (- $n $width)
-            if (and (> $operands 0) (has-value [--name --agent-session --panel --terminal] $flag)) { continue }
-            if (and (eq $flag --clear) (or (> $operands 1) (and (> $operands 0) (any $seen [--name --agent-session --panel --terminal])))) { continue }
-          }
-          if (and (has-value $seen $flag) (not (has-value $grammar[repeatable] $flag)) (not (and (eq $flag --provider) (eq $path agent:doctor)))) { continue }
-          if (and (eq $flag --arg) (not (has-value $seen --exec)) (not-eq $path agent:start)) { continue }
+          if (and $machine (eq $flag --session)) { continue }
+          if (and (> $operands 0) (has-value $command[selectors] $flag)) { continue }
+          if (and (has-value $seen $flag) (not (has-value $command[repeatable] $flag))) { continue }
+          var proposed = $command[operand]
+          for group $command[reductions] { if (or (has-value $group $flag) (any $seen $group)) { set proposed = (- $proposed 1) } }
+          if (> $operands $proposed) { continue }
+          var missing = $false
+          for rule $command[requirements] { if (and (eq $rule[flag] $flag) (not (any $seen $rule[any]))) { set missing = $true } }
+          if $missing { continue }
           if (not (conflicts $command $flag $seen)) { set offered = [$@offered $flag] }
         }
         set candidates = [$@candidates --help]
@@ -163,29 +141,34 @@
       if (and (eq $pending '') (str:has-prefix $prefix --) (str:contains $prefix =)) {
         var flag = [(str:split &max=2 = $prefix)][0]
         if (not (has-value $offered $flag)) { return }
+        if (not (has-value $grammar[joinedFlags] $flag)) { return }
         set pending = $flag
         set joined = $flag'='
       }
       if (not-eq $pending '') {
         set candidates = []
-        var source-values = []
-        for command $viable { if (not-eq (str:join : $command[words]) workspace:report-metadata) { set source-values = $grammar[outputSources]; break } }
-        var enums = [&--motion=$grammar[copyMotions] &--format=$grammar[formats] &--mouse=[off on] &--right-click=$grammar[rightClick] &--source=$source-values &--key=$grammar[keys] &--until=$grammar[until] &--provider=$grammar[providers] &--order=$grammar[orders] &--search-direction=$grammar[searchDirections]]
-        if (eq $pending --provider) {
-          for command $viable { if (eq (str:join : $command[words]) agent:start) { set enums[--provider] = $grammar[agentKinds] } }
-        }
-        if (has-key $enums $pending) {
-          for value $enums[$pending] { set candidates = [$@candidates $joined$value] }
-        } elif (eq $pending --cwd) {
-          for command $viable { for value $command[cwdValues] { set candidates = [$@candidates $joined$value] } }
-        } elif (eq $pending --direction) {
-          for command $viable { for value $command[directions] { set candidates = [$@candidates $joined$value] } }
+        for command $viable {
+          for entry $command[values] {
+            if (eq $entry[flag] $pending) {
+              for value $entry[choices] { set candidates = [$@candidates $joined$value] }
+            }
+          }
         }
       } else {
         set candidates = [$@candidates $@offered]
-        if (and (== $n 0) (== (count $seen) 0)) { set candidates = [$@candidates help completion $@grammar[rootModeFlags]] }
+        if (and (== $n 0) (== (count $business-seen) 0)) {
+          set candidates = [$@candidates help]
+          if (not $machine) {
+            set candidates = [$@candidates completion]
+            for flag $grammar[rootModeFlags] {
+              if (and (> (count $seen) 0) (has-value $grammar[rootModeFlagsRequireNoSeenFlags] $flag)) { continue }
+              set candidates = [$@candidates $flag]
+            }
+          }
+        }
       }
     }
+    if (and (== (count $words) 0) (not $machine)) { set candidates = [$@candidates $@grammar[prefixFlags]] }
     # The editor owns prefix/fuzzy matching and quoting. Emit each static value once.
     var emitted = [&]
     for candidate $candidates {

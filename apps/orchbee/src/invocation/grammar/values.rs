@@ -56,22 +56,33 @@ pub(crate) const KEY_VALUES: &[&str] = &[
     "super+c",
     "alt+enter",
 ];
-pub(crate) const UNTIL_VALUES: &[&str] = &[
-    "blocked",
-    "done",
-    "needs-attention",
-    "failed",
-    "succeeded",
-    "canceled",
-    "interrupted",
-    "working",
-    "idle",
-    "unknown",
-    "ended",
-    "fresh",
-    "stale",
-    "disconnected",
-];
+macro_rules! wait_conditions {
+    ($($variant:ident => $word:literal),+ $(,)?) => {
+        #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+        pub(crate) enum AgentWaitCondition { $($variant),+ }
+        impl AgentWaitCondition {
+            pub(crate) const fn as_str(self) -> &'static str { match self { $(Self::$variant => $word),+ } }
+            pub(crate) fn parse(value: &str) -> Option<Self> { match value { $($word => Some(Self::$variant),)+ _ => None } }
+        }
+        pub(crate) const UNTIL_VALUES: &[&str] = &[$($word),+];
+    };
+}
+wait_conditions! {
+    Blocked => "blocked",
+    Done => "done",
+    NeedsAttention => "needs-attention",
+    Failed => "failed",
+    Succeeded => "succeeded",
+    Canceled => "canceled",
+    Interrupted => "interrupted",
+    Working => "working",
+    Idle => "idle",
+    Unknown => "unknown",
+    Ended => "ended",
+    Fresh => "fresh",
+    Stale => "stale",
+    Disconnected => "disconnected",
+}
 pub(crate) const PROVIDER_VALUES: &[&str] = &[
     "claude-code",
     "codex",

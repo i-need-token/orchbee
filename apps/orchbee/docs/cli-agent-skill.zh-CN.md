@@ -1,6 +1,6 @@
 # Orchbee 原生 CLI Agent 指南
 
-本指南描述 Windows 原生 CLI 的用户流程。操作前，通过已安装构建确认精确语法与平台支持。
+本指南描述原生 CLI 的用户流程。Windows、Linux 和 macOS 公开相同语法、帮助与补全；执行可用性仍明确区分。操作前，通过已安装构建确认精确行为。
 
 ## 发现当前构建
 
@@ -11,6 +11,8 @@
 所有 CLI JSON 文档均使用版本 `1`，每种只有一个当前 schema。不同平台及参数下字段均保留：`{kind:"unsupported"}` 表示平台无此能力，`null` 表示来源说没有，`"unknown"` 表示来源说不清。整条命令不支持时返回 `stage: "platform"`、`reason: "unsupported-platform"`，退出码为 `4`。Linux 与 Windows 的 `server diagnose` 均使用 `orchbee.server.diagnose`。
 
 PowerShell 用户可用 `orchbee completion powershell` 输出补全脚本。
+
+将分页游标原样传回产出它的同一命令和后端。列表游标与变更游标由不同 owner 管理，绝不相互转换。只有确实需要文档说明的后端默认行为时，才省略等待选项。
 
 ## 选择并启动 Session
 
@@ -73,7 +75,7 @@ Windows 上，`@agent:<kind>` 选择唯一提供方，`@agent:<n>` 选择当前�
 
 `agent rename <target> <name>` 分配运行时别名；`agent resolve` 与 `agent names` 检查绑定，`agent rename <target> --clear` 释放别名。别名随会话结束而失效。之后复用别名不会改变已开始等待的原始目标。
 
-`agent prompt <target> <text> --wait` 提交字面输入，并在检查条件前观察活动。`agent wait` 只观察。Windows 默认没有总时限，条件为 idle/done/blocked；自动化应指定有限时限。新鲜度、待处理关注和已有工作影响准入。匹配状态不证明某条 prompt 的专属回合已完成。取消等待不会撤销已接受的输入，也不会停止 Agent。
+`agent prompt <target> <text> --wait` 提交字面输入，并在检查条件前观察活动。`agent wait` 只观察。Windows 默认没有总时限，条件为 idle/done/blocked；Unix 保留 600000 毫秒总时限，条件为 needs-attention/failed/succeeded/canceled/interrupted/idle/ended；自动化应指定有限时限。新鲜度、待处理关注和已有工作影响准入。匹配状态不证明某条 prompt 的专属回合已完成。取消等待不会撤销已接受的输入，也不会停止 Agent。
 
 保留已观察的 revision；使用 `--after-revision` 等待后续状态前，先查看 `agent wait --help`。
 
@@ -171,4 +173,4 @@ Workspace、Tab、Panel、Project、Worktree、Client 和 Server 操作使用回
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=4ef0d7f645b0dfda111d651ba62add5d75363298c673479ba9af008452e69072 zh-cn-sha256=4f628c683b17ffb1f836e5a777805dcff193dfdd1aad1cf0db85ef48591f8e19 -->
+<!-- documentation-pairing: english-sha256=c60e632ff1c0ccb97c80d3a5c28113c121761c95ced8e5058c4ebde214c7d69b zh-cn-sha256=a199229eeaa4f6f3c9922c73c4a10e2ed87269bfaa3acba427d986469ec9b1fc -->

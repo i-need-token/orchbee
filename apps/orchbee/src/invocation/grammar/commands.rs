@@ -157,9 +157,9 @@ commands! {
     ConfigResetKeys => ["config", "reset-keys"], 0, Operand, Windows, true, false, false;
     SiteStart => ["server", "start"], 0, Operand, Portable, true, false, false;
     SessionList => ["session", "list"], 0, Operand, Windows, true, false, false;
-    SessionAttach => ["session", "attach"], 1, Operand, Windows, false, false, false;
-    SessionStop => ["session", "stop"], 1, Operand, Windows, true, false, false;
-    SessionDelete => ["session", "delete"], 1, Operand, Windows, true, false, false;
+    SessionAttach => ["session", "attach"], 1, Session, Windows, false, false, false;
+    SessionStop => ["session", "stop"], 1, Session, Windows, true, false, false;
+    SessionDelete => ["session", "delete"], 1, Session, Windows, true, false, false;
     SiteDiagnose => ["server", "diagnose"], 0, Operand, Portable, true, false, false;
     SiteUpdateAgentManifests => ["server", "update-agent-manifests"], 0, Operand, Portable, true, true, false;
     SiteConfig => ["server", "config"], 0, Operand, Portable, true, true, false;

@@ -6,6 +6,13 @@ use crate::invocation::AgentTarget;
 use crate::invocation::{AgentPromptWait, OutputFormat};
 use crate::localization::Locale;
 
+#[cfg(any(target_os = "linux", windows))]
+struct ResolvedWait {
+    client: Option<orchbee_workbench_protocol::WorkbenchClientId>,
+    until: Vec<crate::invocation::AgentWaitCondition>,
+    timeout_ms: Option<u32>,
+}
+
 pub(super) fn run(
     target: &AgentTarget,
     text: &str,
@@ -15,7 +22,12 @@ pub(super) fn run(
 ) -> Output {
     #[cfg(any(target_os = "linux", windows))]
     {
-        active::run(target, text, wait, format, locale)
+        let wait = wait.map(|request| ResolvedWait {
+            client: request.client.clone(),
+            until: super::agent_request::wait_conditions(request.until.as_deref()).to_vec(),
+            timeout_ms: super::agent_request::wait_timeout(request.timeout_ms),
+        });
+        active::run(target, text, wait.as_ref(), format, locale)
     }
     #[cfg(not(any(target_os = "linux", windows)))]
     {
@@ -36,7 +48,7 @@ mod active {
     #[cfg(windows)]
     mod terminal;
     use super::{
-        AgentPromptWait, AgentTarget, Failure, FailureKind, Locale, Output, OutputFormat,
+        AgentTarget, Failure, FailureKind, Locale, Output, OutputFormat, ResolvedWait,
         failure_output,
     };
     use crate::cli::source::{ArmedSignals, Finish, SignalWatch};
@@ -93,7 +105,7 @@ mod active {
     pub(super) fn run(
         target: &AgentTarget,
         text: &str,
-        wait: Option<&AgentPromptWait>,
+        wait: Option<&ResolvedWait>,
         format: OutputFormat,
         locale: Locale,
     ) -> Output {
@@ -207,7 +219,7 @@ mod active {
     fn span(
         target: &AgentTarget,
         text: &str,
-        wait: Option<&AgentPromptWait>,
+        wait: Option<&ResolvedWait>,
         start: Instant,
         total: WaitDeadline,
         signals: &mut ArmedSignals,
@@ -376,7 +388,7 @@ mod active {
     fn observe(
         client: &mut crate::local_client::LocalClient,
         before: &AgentSessionDetail,
-        options: &AgentPromptWait,
+        options: &ResolvedWait,
         start: Instant,
         total: WaitDeadline,
         signals: &mut ArmedSignals,

@@ -53,8 +53,24 @@ fn command(path: CommandPath, locale: Locale) -> Document {
         rows: help_options(path)
             .into_iter()
             .map(|flag| {
-                let (value, description) = locale.cli_help_option(path, flag);
-                let value = usage_value(details.usage, flag).unwrap_or_else(|| value.to_owned());
+                let (value, description) = if let Some(spec) =
+                    crate::invocation::grammar::option(flag)
+                    && let Some(copy) = spec.help
+                {
+                    (
+                        spec.value.map_or("", |_| "<value>"),
+                        locale.cli_grammar_option(copy),
+                    )
+                } else {
+                    locale.cli_help_option(path, flag)
+                };
+                let (choices, closed) =
+                    crate::invocation::grammar::specification(path).values(flag);
+                let value = if closed && !choices.is_empty() {
+                    format!("<{}>", choices.join("|"))
+                } else {
+                    usage_value(details.usage, flag).unwrap_or_else(|| value.to_owned())
+                };
                 Row {
                     label: if flag == "--help" {
                         "-h, --help".into()
@@ -72,7 +88,7 @@ fn command(path: CommandPath, locale: Locale) -> Document {
         label: example(path),
         description: String::new(),
     }];
-    if super::completion::help_flags(path).contains(&"--format") {
+    if crate::invocation::grammar::help_flags(path).contains(&"--format") {
         examples.push(Row {
             label: example_with_options(path, &["--format", "json"]),
             description: String::new(),
@@ -84,7 +100,15 @@ fn command(path: CommandPath, locale: Locale) -> Document {
     });
     sections.push(Section::Paragraphs {
         heading: locale.cli_help_text(HelpText::Notes).into(),
-        paragraphs: details.notes.split("\n\n").map(str::to_owned).collect(),
+        paragraphs: std::iter::once(
+            locale
+                .cli_grammar_availability(
+                    crate::invocation::grammar::specification(path).availability,
+                )
+                .to_owned(),
+        )
+        .chain(details.notes.split("\n\n").map(str::to_owned))
+        .collect(),
     });
     Document {
         title: format!("orchbee {}", path.as_str()),
@@ -97,7 +121,7 @@ fn command(path: CommandPath, locale: Locale) -> Document {
 /// The admitted options a command's help lists. Offline commands never
 /// open a session, so the session selector is not offered there.
 pub(super) fn help_options(path: CommandPath) -> Vec<&'static str> {
-    super::completion::help_flags(path)
+    crate::invocation::grammar::help_flags(path)
         .into_iter()
         .filter(|flag| !(*flag == "--session" && path == CommandPath::ApiSchema))
         .collect()

@@ -332,40 +332,16 @@ impl Locale {
                 "orchbee agent start <name> --provider <provider> [--panel <id|@panel:0x<hex>>|--current] [--timeout <ms>] [--format text|json] [--arg <value>]... [-- <args>...]",
                 "Windows：在空闲终端启动交互式智能体，确认就绪后绑定名称。默认目标为调用者面板。超时范围 3001–300000 毫秒，默认 30000。可重复使用 --arg=<value> 代替尾随参数。启动输入只提交一次。取消或超时在确认后释放名称，但不会终止智能体。提供方 hook 必须能报告就绪；可用 agent integration 和 agent doctor 检查配置。\nstart、integration 和 doctor 统一使用 --provider antigravity。",
             ),
-            (Self::EnUs, CommandPath::AgentPrompt) if true => super::agent::HELP_AGENT_PROMPT_WINDOWS_EN,
-            (Self::ZhCn, CommandPath::AgentPrompt) if true => super::agent::HELP_AGENT_PROMPT_WINDOWS_ZH,
-            (Self::EnUs, CommandPath::AgentPrompt) => crate::localization::HelpDetails::new(
-                "orchbee agent prompt (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) <text> [--wait] [--until <condition>]... [--timeout <ms> | --forever] [--format text|json]",
-                "Send a prompt to one running Agent. Use --wait to observe its next state.\nFind targets with orchbee agent list; use --panel to select an Agent by its Panel.\n--until, --timeout and --forever require --wait. Inspect the terminal before retrying uncertain input.",
-            ),
-            (Self::ZhCn, CommandPath::AgentPrompt) => crate::localization::HelpDetails::new(
-                "orchbee agent prompt (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) <text> [--wait] [--until <condition>]... [--timeout <ms> | --forever] [--format text|json]",
-                "向正在运行的智能体发送提示。使用 --wait 观察其后续状态。\n用 orchbee agent list 查找目标，或用 --panel 按面板选择智能体。\n--until、--timeout 和 --forever 要求 --wait。投递结果不确定时，重试前先检查终端。",
-            ),
-            (Self::EnUs, CommandPath::AgentRead) if true => super::agent::HELP_AGENT_OUTPUT_EN,
-            (Self::ZhCn, CommandPath::AgentRead) if true => super::agent::HELP_AGENT_OUTPUT_ZH,
-            (Self::EnUs, CommandPath::AgentRead) => crate::localization::HelpDetails::new(
-                "orchbee agent read (<target>|--agent-session <id>|--name <name>|--panel <panel>|--terminal <terminal>) [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--plain|--ansi] [--format text|json]",
-                "Read a bound terminal through one temporary read-only viewer. Default source: recent, 80 physical rows including history and the live screen. --source visible reads the screen; recent-unwrapped joins verified soft wraps; detection reads a cursor-centered screen-height window. --lines accepts 0..4294967295 and clamps to 1000. No input, focus or resize effect. --plain emits UTF-8 and conflicts with --format json. --ansi emits styled SGR text; JSON always uses orchbee.terminal.output v1 with explicit text/ansi encoding. A nullable output cursor can fence a later --after wait. The cursor is not a command completion marker. Sources never silently widen after a stale sample.",
-            ),
-            (Self::ZhCn, CommandPath::AgentRead) => crate::localization::HelpDetails::new(
-                "orchbee agent read (<target>|--agent-session <id>|--name <name>|--panel <panel>|--terminal <terminal>) [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--plain|--ansi] [--format text|json]",
-                "通过一个临时只读 viewer 读取已绑定终端。默认来源 recent，包含历史及当前屏幕的 80 个物理行。--source visible 读取屏幕；recent-unwrapped 拼接已验证软换行；detection 读取光标附近一个屏幕高度的窗口。--lines 接受 0..4294967295 并钳制到 1000。不输入、不改焦点或尺寸。--plain 输出 UTF-8，与 --format json 互斥。--ansi 输出带 SGR 样式的文本，JSON 均使用 orchbee.terminal.output v1，并明确 text/ansi 编码。可空输出游标可用于后续 --after 等待，但不表示命令完成。样本陈旧时不会悄悄扩大来源范围。",
-            ),
-            (Self::EnUs, CommandPath::AgentSendKeys) if true => {
+            (Self::EnUs, CommandPath::AgentPrompt) => super::agent::HELP_AGENT_PROMPT_WINDOWS_EN,
+            (Self::ZhCn, CommandPath::AgentPrompt) => super::agent::HELP_AGENT_PROMPT_WINDOWS_ZH,
+            (Self::EnUs, CommandPath::AgentRead) => super::agent::HELP_AGENT_OUTPUT_EN,
+            (Self::ZhCn, CommandPath::AgentRead) => super::agent::HELP_AGENT_OUTPUT_ZH,
+            (Self::EnUs, CommandPath::AgentSendKeys) => {
                 super::agent::HELP_AGENT_SEND_KEYS_WINDOWS_EN
             }
-            (Self::ZhCn, CommandPath::AgentSendKeys) if true => {
+            (Self::ZhCn, CommandPath::AgentSendKeys) => {
                 super::agent::HELP_AGENT_SEND_KEYS_WINDOWS_ZH
             }
-            (Self::EnUs, CommandPath::AgentSendKeys) => crate::localization::HelpDetails::new(
-                "orchbee agent send-keys (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) <key>... [--format text|json]",
-                "Send 1..64 semantic keys or combinations (enter, ctrl+c, alt+left, ctrl+shift+a)\nto one live Agent terminal. Target: Session ID/name/Panel ID, --agent-session <id>, --name <alias>,\nor --panel <id|@panel:0x<hex>>. Panel selects its primary terminal.\nUses orchbee.terminal.send receipts. Never replays uncertain input.",
-            ),
-            (Self::ZhCn, CommandPath::AgentSendKeys) => crate::localization::HelpDetails::new(
-                "orchbee agent send-keys (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) <key>... [--format text|json]",
-                "向一个存活智能体终端发送 1..64 个语义按键或组合（enter、ctrl+c、alt+left、ctrl+shift+a）。目标：会话 ID/名称/面板 ID、--agent-session <id>、--name <alias>\n或 --panel <id|@panel:0x<hex>>。面板选择主终端。使用 orchbee.terminal.send 回执。不重放不确定输入。",
-            ),
             (Self::EnUs, CommandPath::AgentAttention) => super::client_control::HELP_AGENT_ATTENTION_EN,
             (Self::ZhCn, CommandPath::AgentAttention) => super::client_control::HELP_AGENT_ATTENTION_ZH,
             (Self::EnUs, CommandPath::AgentFocus) => super::client_control::HELP_AGENT_FOCUS_EN,
@@ -398,20 +374,8 @@ impl Locale {
                 "orchbee agent rename (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) <new-name> [--format text|json]\n      orchbee agent rename (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) --clear",
                 "为存活智能体命名或原子重命名。名称格式为 [a-z][a-z0-9_-]{0,31}，拒绝重名。--clear 只释放名称。可将 <target> 替换成 --agent-session <id> 或 --name <alias>。会话结束或会话停止后名称释放。",
             ),
-            (Self::EnUs, CommandPath::AgentWait) => {
-                if true {
-                    super::agent::HELP_AGENT_WAIT_WINDOWS_EN
-                } else {
-                    super::agent::HELP_AGENT_WAIT_EN
-                }
-            }
-            (Self::ZhCn, CommandPath::AgentWait) => {
-                if true {
-                    super::agent::HELP_AGENT_WAIT_WINDOWS_ZH
-                } else {
-                    super::agent::HELP_AGENT_WAIT_ZH
-                }
-            }
+            (Self::EnUs, CommandPath::AgentWait) => super::agent::HELP_AGENT_WAIT_EN,
+            (Self::ZhCn, CommandPath::AgentWait) => super::agent::HELP_AGENT_WAIT_ZH,
             (Self::EnUs, CommandPath::AgentDoctor) => super::agent::HELP_AGENT_DOCTOR_EN,
             (Self::ZhCn, CommandPath::AgentDoctor) => super::agent::HELP_AGENT_DOCTOR_ZH,
             (Self::EnUs, CommandPath::AgentIntegrationList) => super::integration::HELP_AGENT_INTEGRATION_LIST_EN,

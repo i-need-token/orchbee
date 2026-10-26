@@ -1,9 +1,19 @@
-//! Option value labels and purposes. Membership comes from the completion grammar;
+//! Option value labels and purposes. Membership comes from the invocation grammar;
 //! defaults and interactions that differ by command belong to its detailed copy.
 use super::super::Locale;
 use crate::invocation::CommandPath;
 
 impl Locale {
+    pub(crate) const fn cli_grammar_option(
+        self,
+        copy: (&'static str, &'static str),
+    ) -> &'static str {
+        match self {
+            Self::EnUs => copy.0,
+            Self::ZhCn => copy.1,
+        }
+    }
+
     pub(crate) fn cli_help_option(
         self,
         path: CommandPath,

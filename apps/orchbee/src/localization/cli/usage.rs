@@ -22,6 +22,8 @@ impl Locale {
             UsageContext::Root | UsageContext::Literal(_) => "orchbee --help".to_owned(),
         };
         let expected = |expected: ExpectedValue| match (self, expected) {
+            (Self::EnUs, ExpectedValue::DeclaredValue) => "a value declared in this command's help",
+            (Self::ZhCn, ExpectedValue::DeclaredValue) => "此命令帮助中列出的取值",
             (Self::EnUs, ExpectedValue::TerminalViewportPoint) => {
                 "viewport ROW:COL (row/column 0..65535)"
             }
@@ -383,19 +385,9 @@ impl Locale {
             (Self::EnUs, ExpectedValue::AgentListLimit) => "a decimal integer from 1 to 100",
             (Self::ZhCn, ExpectedValue::AgentListLimit) => "1–100 的十进制整数",
             (Self::EnUs, ExpectedValue::AgentCursor) => {
-                if true {
-                    "a Windows 'u1.<base64url>' Agent list cursor (at most 1024 characters)"
-                } else {
-                    "a 'v1.<payload>.<tag>' list cursor from a previous page"
-                }
+                "the unchanged cursor returned by the same command and backend"
             }
-            (Self::ZhCn, ExpectedValue::AgentCursor) => {
-                if true {
-                    "Windows 智能体列表游标 'u1.<base64url>'（最多 1024 个字符）"
-                } else {
-                    "上一页返回的 'v1.<payload>.<tag>' 列表游标"
-                }
-            }
+            (Self::ZhCn, ExpectedValue::AgentCursor) => "同一命令和后端返回的原样游标",
             (Self::EnUs, ExpectedValue::AgentViewSpec) => "a bounded Agent view JSON specification",
             (Self::ZhCn, ExpectedValue::AgentViewSpec) => "有界的智能体视图 JSON 规格",
             (Self::EnUs, ExpectedValue::AgentViewSource) => {
@@ -488,8 +480,8 @@ impl Locale {
             ),
             UsageReason::UnknownOption { context, option } => (
                 match self {
-                    Self::EnUs if true && (option == "--machine" || option.starts_with("--machine=")) => "The --machine routing option must be first: orchbee --machine <target> <command>.".to_owned(),
-                    Self::ZhCn if true && (option == "--machine" || option.starts_with("--machine=")) => "--machine 路由选项必须放在第一个位置：orchbee --machine <target> <command>。".to_owned(),
+                    Self::EnUs if (option == "--machine" || option.starts_with("--machine=")) => "The --machine routing option must be first: orchbee --machine <target> <command>.".to_owned(),
+                    Self::ZhCn if (option == "--machine" || option.starts_with("--machine=")) => "--machine 路由选项必须放在第一个位置：orchbee --machine <target> <command>。".to_owned(),
                     Self::EnUs => format!("Unknown option {}.", echo(option)),
                     Self::ZhCn => format!("未知选项 {}。", echo(option)),
                 },

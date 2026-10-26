@@ -50,9 +50,13 @@ mod launch_receipt;
 mod source_context;
 #[cfg(windows)]
 pub(crate) mod workspace_creation;
+#[cfg(not(windows))]
+#[path = "cli/workspace_creation_unix.rs"]
+pub(crate) mod workspace_creation;
 #[cfg(windows)]
 mod workspace_focus;
 pub(crate) use creation::run_parsed as run_creation;
+mod agent_request;
 #[cfg(windows)]
 pub(crate) mod channel;
 mod completion;
@@ -771,12 +775,15 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
             limit,
             cursor,
             client: None,
-        } => agent_output(
-            query::agent_list(*include_ended, *limit, cursor.clone()),
-            &command,
-            format,
-            locale,
-        ),
+        } => match agent_request::list_cursor(cursor.as_deref(), format) {
+            Ok(cursor) => agent_output(
+                query::agent_list(*include_ended, *limit, cursor),
+                &command,
+                format,
+                locale,
+            ),
+            Err(failure) => parse_failure(failure, locale),
+        },
         #[cfg(test)]
         QueryCommand::AgentRead {
             target,
@@ -823,9 +830,9 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
         } => agent_output(
             query::agent_wait(
                 session,
-                until,
+                agent_request::wait_conditions(until.as_deref()),
                 *after_revision,
-                *timeout_ms,
+                agent_request::wait_timeout(*timeout_ms),
                 client.as_ref(),
             ),
             &command,
@@ -1065,4 +1072,14 @@ impl SourceFinalization {
         drop(self.interrupt);
         Ok(())
     }
+}
+
+/// A recognized command whose selected execution adapter is not implemented here.
+pub(crate) fn unsupported_platform(format: Option<OutputFormat>, locale: Locale) -> Output {
+    failure_output(
+        Failure::new(FailureKind::ServiceUnavailable)
+            .details(stage_reason_details("platform", "unsupported-platform")),
+        format,
+        locale,
+    )
 }

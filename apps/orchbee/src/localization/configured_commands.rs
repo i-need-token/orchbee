@@ -26,6 +26,7 @@ impl Locale {
             },
         )
     }
+    #[cfg(windows)]
     pub(crate) fn configured_command_status(self, status: u8) -> &'static str {
         match (self, status) {
             (Self::EnUs, 0) => "Command completed its requested action.\n",

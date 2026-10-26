@@ -5,12 +5,15 @@ use super::{CommandPath, OptionRole, OptionSpec};
 pub(crate) const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         spelling: "--dry-run",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::WorkspaceClose, CommandPath::TabClose],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_dry_run",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.dry_run = true;
             Ok(())
@@ -18,12 +21,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--event",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::EventsSubscribe, CommandPath::EventsWait],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: true,
-        seen_bit: "seen_event",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.events.events.push(value);
             Ok(())
@@ -31,12 +37,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--filter",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::EventsSubscribe, CommandPath::EventsWait],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: true,
-        seen_bit: "seen_event_filter",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.events.filters.push(value);
             Ok(())
@@ -44,12 +53,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--after-cursor",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::EventsSubscribe, CommandPath::EventsWait],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_event_cursor",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.events.after = Some(value);
             Ok(())
@@ -57,7 +69,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--offset-from-bottom",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::TerminalLinkResolve,
             CommandPath::TerminalLinkActivate,
@@ -65,7 +79,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_link_offset",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.link_offset = Some(value);
             Ok(())
@@ -73,12 +88,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--motion",
-        values: super::values::COPY_MOTION_VALUES, closed_values: true,
+        values: super::values::COPY_MOTION_VALUES,
+        closed_values: true,
+        string_rule: None,
         commands: &[CommandPath::TerminalCopyMotion],
         role: OptionRole::Business,
         value: Some("copy_motion"),
         repeatable: false,
-        seen_bit: "seen_copy_motion",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.copy_motion = Some(value);
             Ok(())
@@ -86,12 +104,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--query",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::TerminalCopySearch],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_copy_query",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.copy_query = Some(value);
             Ok(())
@@ -99,12 +120,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--previous",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::TerminalCopySearch],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_copy_previous",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.copy_previous = Some(value);
             Ok(())
@@ -112,7 +136,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--anchor",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::CommandInvoke,
             CommandPath::TerminalSelectionRead,
@@ -120,7 +146,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_selection_anchor",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.selection_anchor = Some(value);
             Ok(())
@@ -128,7 +155,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--content-revision",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::CommandInvoke,
             CommandPath::TerminalLinkResolve,
@@ -140,7 +169,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_content_revision",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.content_revision = Some(value);
             Ok(())
@@ -148,7 +178,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--spec",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::PanelGraphicsSet,
             CommandPath::PanelGraphicsClear,
@@ -158,7 +190,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("agent_view_spec"),
         repeatable: false,
-        seen_bit: "seen_agent_view_spec",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.agent_view_spec = Some(value);
             Ok(())
@@ -166,12 +199,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--remote-session",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::MachineAdd],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_remote_session",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.remote_session = Some(value);
             Ok(())
@@ -179,12 +215,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--json",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::MachineList],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_json",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.machine_json = true;
             Ok(())
@@ -192,12 +231,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--yes",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PluginInstall],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_plugin_yes",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.plugin_yes = true;
             Ok(())
@@ -205,12 +247,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--entrypoint",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PluginPaneOpen],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_plugin_entrypoint",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.plugin_entrypoint = Some(value);
             Ok(())
@@ -218,12 +263,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--placement",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PluginPaneOpen],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_plugin_placement",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.plugin_placement = Some(value);
             Ok(())
@@ -231,12 +279,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--width",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PluginPaneOpen],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_popup_width",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.plugin_width = Some(value);
             Ok(())
@@ -244,12 +295,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--height",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PluginPaneOpen],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_popup_height",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.plugin_height = Some(value);
             Ok(())
@@ -257,12 +311,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--target-pane",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PluginPaneOpen],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_plugin_target",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.plugin_target = Some(value);
             Ok(())
@@ -270,12 +327,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--ref",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PluginInstall],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_plugin_ref",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.plugin_ref = Some(value);
             Ok(())
@@ -283,7 +343,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--plugin",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::PluginList,
             CommandPath::PluginActionList,
@@ -294,7 +356,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_plugin_id",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.plugin_id = Some(value);
             Ok(())
@@ -302,12 +365,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--context",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::CommandInvoke, CommandPath::PluginActionInvoke],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_plugin_context",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.plugin_context = Some(value);
             Ok(())
@@ -315,12 +381,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--enabled",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PluginLink],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_plugin_enabled",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.plugin_enabled = true;
             Ok(())
@@ -328,12 +397,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--disabled",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PluginLink],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_plugin_disabled",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.plugin_disabled = true;
             Ok(())
@@ -341,12 +413,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--body",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::NotificationShow],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_notification_body",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.notification_body = Some(value);
             Ok(())
@@ -354,12 +429,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--position",
-        values: &["top-left", "top-right", "bottom-left", "bottom-right"], closed_values: true,
+        values: &["top-left", "top-right", "bottom-left", "bottom-right"],
+        closed_values: true,
+        string_rule: None,
         commands: &[CommandPath::NotificationShow],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_notification_position",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.notification_position = Some(value);
             Ok(())
@@ -367,12 +445,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--sound",
-        values: &["none", "done", "request"], closed_values: true,
+        values: &["none", "done", "request"],
+        closed_values: true,
+        string_rule: None,
         commands: &[CommandPath::NotificationShow],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_notification_sound",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.notification_sound = Some(value);
             Ok(())
@@ -380,12 +461,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--child",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PanelCreateTerminal],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_child",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.child = true;
             Ok(())
@@ -393,7 +477,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--presentation",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::PanelGraphicsSet,
             CommandPath::PanelGraphicsClear,
@@ -408,7 +494,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_report_presentation",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.report_presentation = Some(value);
             Ok(())
@@ -416,7 +503,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--agent",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::PanelReportAgent,
             CommandPath::PanelReleaseAgent,
@@ -425,7 +514,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_panel_metadata_agent",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.panel_metadata.agent = Some(value);
             Ok(())
@@ -433,12 +523,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--state",
-        values: &["idle", "working", "blocked", "unknown"], closed_values: true,
+        values: &["idle", "working", "blocked", "unknown"],
+        closed_values: true,
+        string_rule: None,
         commands: &[CommandPath::PanelReportAgent],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_panel_agent_state",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.panel_agent.state = Some(value);
             Ok(())
@@ -446,12 +539,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--message",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PanelReportAgent],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_panel_agent_message",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.panel_agent.message = Some(value);
             Ok(())
@@ -459,12 +555,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--applies-to-source",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PanelReportMetadata],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_panel_metadata_applies_to_source",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.panel_metadata.applies_to_source = Some(value);
             Ok(())
@@ -472,12 +571,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--title",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PanelReportMetadata],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_panel_metadata_title",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.panel_metadata.title = Some(value);
             Ok(())
@@ -485,12 +587,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--display-agent",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PanelReportMetadata],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_panel_metadata_display_agent",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.panel_metadata.display_agent = Some(value);
             Ok(())
@@ -498,12 +603,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--state-label",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PanelReportMetadata],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: true,
-        seen_bit: "seen_panel_metadata_state_label",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.panel_metadata.state_labels.push(value);
             Ok(())
@@ -511,12 +619,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--clear-title",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PanelReportMetadata],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_panel_metadata_clear_title",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.panel_metadata.clear_title = true;
             Ok(())
@@ -524,12 +635,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--clear-display-agent",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PanelReportMetadata],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_panel_metadata_clear_display_agent",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.panel_metadata.clear_display_agent = true;
             Ok(())
@@ -537,12 +651,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--clear-state-labels",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PanelReportMetadata],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_panel_metadata_clear_state_labels",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.panel_metadata.clear_state_labels = true;
             Ok(())
@@ -550,7 +667,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--token",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::WorkspaceReportMetadata,
             CommandPath::PanelReportMetadata,
@@ -558,7 +677,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: true,
-        seen_bit: "seen_metadata_token",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.metadata.updates.push(("--token", value));
             Ok(())
@@ -566,7 +686,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--clear-token",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::WorkspaceReportMetadata,
             CommandPath::PanelReportMetadata,
@@ -574,7 +696,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: true,
-        seen_bit: "seen_metadata_clear_token",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.metadata.updates.push(("--clear-token", value));
             Ok(())
@@ -582,7 +705,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--seq",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::WorkspaceReportMetadata,
             CommandPath::PanelReportAgent,
@@ -593,7 +718,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_metadata_sequence",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.metadata.sequence = Some(value);
             Ok(())
@@ -601,7 +727,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--ttl-ms",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::WorkspaceReportMetadata,
             CommandPath::PanelReportMetadata,
@@ -609,7 +737,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_metadata_ttl",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.metadata.ttl = Some(value);
             Ok(())
@@ -617,12 +746,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--right-click",
-        values: super::values::RIGHT_CLICK_VALUES, closed_values: true,
+        values: super::values::RIGHT_CLICK_VALUES,
+        closed_values: true,
+        string_rule: None,
         commands: &[CommandPath::PanelInput, CommandPath::PanelSplit],
         role: OptionRole::Business,
         value: Some("right_click"),
         repeatable: false,
-        seen_bit: "seen_right_click",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.right_click = Some(value);
             Ok(())
@@ -630,7 +762,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--focus",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::PluginPaneOpen,
             CommandPath::LayoutApply,
@@ -644,7 +778,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_focus",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.focus = true;
             Ok(())
@@ -652,7 +787,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--no-focus",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::PluginPaneOpen,
             CommandPath::LayoutApply,
@@ -666,7 +803,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_no_focus",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.no_focus = true;
             Ok(())
@@ -674,12 +812,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--amount",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PanelResize],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_amount",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.amount = Some(value);
             Ok(())
@@ -687,7 +828,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--ratio",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::LayoutSetSplitRatio,
             CommandPath::PanelSplit,
@@ -696,7 +839,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_ratio",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.ratio = Some(value);
             Ok(())
@@ -704,12 +848,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--output",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::ApiSchema],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_output",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.output = Some(value);
             Ok(())
@@ -717,7 +864,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--client",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::PanelGraphicsInfo,
             CommandPath::EventsSubscribe,
@@ -766,7 +915,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_client",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.client = Some(value);
             Ok(())
@@ -774,12 +924,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--on",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PanelZoom],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_zoom_on",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.zoom_on = true;
             Ok(())
@@ -787,12 +940,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--off",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PanelZoom],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_zoom_off",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.zoom_off = true;
             Ok(())
@@ -800,12 +956,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--toggle",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PanelZoom],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_zoom_toggle",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.zoom_toggle = true;
             Ok(())
@@ -813,12 +972,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--branch",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::WorktreeCreate, CommandPath::WorktreeOpen],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_branch",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.branch = Some(value);
             Ok(())
@@ -826,12 +988,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--base",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::WorktreeCreate],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_base",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.base = Some(value);
             Ok(())
@@ -839,12 +1004,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--force",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::WorktreeRemove],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_force",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.force = true;
             Ok(())
@@ -852,7 +1020,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--takeover",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::TerminalAttach,
             CommandPath::AgentAttach,
@@ -861,7 +1031,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_takeover",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.takeover = true;
             Ok(())
@@ -869,7 +1040,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--trust-repository",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::WorktreeList,
             CommandPath::WorktreeCreate,
@@ -879,7 +1052,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_trust_repository",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.trust_repository = true;
             Ok(())
@@ -887,7 +1061,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--request-id",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::SessionStop,
             CommandPath::PanelResize,
@@ -909,7 +1085,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_request_id",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.request_id = Some(value);
             Ok(())
@@ -917,12 +1094,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--retry",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::SessionStop, CommandPath::SiteStop],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_retry",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.retry = true;
             Ok(())
@@ -930,7 +1110,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--detach",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::ProjectResume,
             CommandPath::SessionStop,
@@ -954,7 +1136,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_detach",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.detach = true;
             Ok(())
@@ -962,7 +1145,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--project",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::WorkspaceSetProject,
             CommandPath::WorkspaceList,
@@ -974,7 +1159,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_project",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.project = Some(value);
             Ok(())
@@ -982,7 +1168,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--workspace",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::EventsSubscribe,
             CommandPath::EventsWait,
@@ -1005,7 +1193,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_workspace",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.workspace = Some(value);
             Ok(())
@@ -1013,7 +1202,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--tab",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::EventsSubscribe,
             CommandPath::EventsWait,
@@ -1027,7 +1218,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_tab",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.tab = Some(value);
             Ok(())
@@ -1035,7 +1227,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--label",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::MachineAdd,
             CommandPath::MachineRename,
@@ -1057,7 +1251,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_label",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.label = Some(value);
             Ok(())
@@ -1065,7 +1260,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--direction",
-        values: super::CARDINAL_DIRECTIONS, closed_values: true,
+        values: super::CARDINAL_DIRECTIONS,
+        closed_values: true,
+        string_rule: None,
         commands: &[
             CommandPath::PluginPaneOpen,
             CommandPath::PanelResize,
@@ -1078,7 +1275,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("direction"),
         repeatable: false,
-        seen_bit: "seen_direction",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.direction = Some(value);
             Ok(())
@@ -1086,12 +1284,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--order",
-        values: super::values::ORDER_VALUES, closed_values: true,
+        values: super::values::ORDER_VALUES,
+        closed_values: true,
+        string_rule: None,
         commands: &[CommandPath::TabMove],
         role: OptionRole::Business,
         value: Some("order"),
         repeatable: false,
-        seen_bit: "seen_order",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.order = Some(value);
             Ok(())
@@ -1099,12 +1300,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--search-direction",
-        values: super::values::SEARCH_DIRECTION_VALUES, closed_values: true,
+        values: super::values::SEARCH_DIRECTION_VALUES,
+        closed_values: true,
+        string_rule: None,
         commands: &[CommandPath::TerminalCopySearch],
         role: OptionRole::Business,
         value: Some("search_direction"),
         repeatable: false,
-        seen_bit: "seen_search_direction",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.search_direction = Some(value);
             Ok(())
@@ -1112,7 +1316,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--terminal",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::AgentAttach,
             CommandPath::AgentGet,
@@ -1129,7 +1335,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_terminal",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.terminal = Some(value);
             Ok(())
@@ -1137,12 +1344,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--insert-index",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::WorkspaceMove, CommandPath::TabMove],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_insert_index",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.insert_index = Some(value);
             Ok(())
@@ -1150,12 +1360,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--before",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::WorkspaceMoveBlock],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_before",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.before = Some(value);
             Ok(())
@@ -1163,7 +1376,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--cols",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::PluginPaneOpen,
             CommandPath::TerminalObserve,
@@ -1178,7 +1393,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_cols",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.cols = Some(value);
             Ok(())
@@ -1186,7 +1402,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--rows",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::PluginPaneOpen,
             CommandPath::TerminalObserve,
@@ -1201,7 +1419,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_rows",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.rows = Some(value);
             Ok(())
@@ -1209,7 +1428,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--cell-width",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::PluginPaneOpen,
             CommandPath::WorkspaceCreate,
@@ -1222,7 +1443,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_cell_width",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.cell_width = Some(value);
             Ok(())
@@ -1230,7 +1452,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--cell-height",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::PluginPaneOpen,
             CommandPath::WorkspaceCreate,
@@ -1243,7 +1467,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_cell_height",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.cell_height = Some(value);
             Ok(())
@@ -1251,7 +1476,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--confirm",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::WorkspaceResume,
             CommandPath::TabResume,
@@ -1273,7 +1500,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_confirm",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.confirm = true;
             Ok(())
@@ -1281,7 +1509,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--panel",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::EventsSubscribe,
             CommandPath::EventsWait,
@@ -1309,7 +1539,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_panel",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.panel = Some(value);
             Ok(())
@@ -1317,7 +1548,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--current",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::LayoutExport,
             CommandPath::PanelResize,
@@ -1338,7 +1571,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_current",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.current = true;
             Ok(())
@@ -1346,12 +1580,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--with",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PanelSwap],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_with",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.swap_target = Some(value);
             Ok(())
@@ -1359,12 +1596,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--target-panel",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PanelMove],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_target_panel",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.target_panel = Some(value);
             Ok(())
@@ -1372,12 +1612,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--into-tab",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PanelMove],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_into_tab",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.into_tab = Some(value);
             Ok(())
@@ -1385,12 +1628,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--new-tab",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PanelMove],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_new_tab",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.new_tab = true;
             Ok(())
@@ -1398,12 +1644,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--new-workspace",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PanelMove],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_new_workspace",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.new_workspace = true;
             Ok(())
@@ -1411,12 +1660,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--tab-label",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::PanelMove],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_tab_label",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.tab_label = Some(value);
             Ok(())
@@ -1424,7 +1676,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--path",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::LayoutSetSplitRatio,
             CommandPath::WorkspaceAcceptDirectory,
@@ -1434,7 +1688,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_path",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.path = Some(value);
             Ok(())
@@ -1442,7 +1697,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--match",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::EventsSubscribe,
             CommandPath::EventsWait,
@@ -1451,7 +1708,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_match",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.match_text = Some(value);
             Ok(())
@@ -1459,7 +1717,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--regex",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::EventsSubscribe,
             CommandPath::EventsWait,
@@ -1468,7 +1728,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_regex",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.regex = Some(value);
             Ok(())
@@ -1476,7 +1737,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--source",
-        values: super::values::OUTPUT_SOURCES, closed_values: true,
+        values: super::values::OUTPUT_SOURCES,
+        closed_values: true,
+        string_rule: None,
         commands: &[
             CommandPath::EventsSubscribe,
             CommandPath::EventsWait,
@@ -1493,7 +1756,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("output_source"),
         repeatable: false,
-        seen_bit: "seen_output_source",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.output_source = Some(value);
             Ok(())
@@ -1501,7 +1765,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--plain",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::EventsSubscribe,
             CommandPath::EventsWait,
@@ -1511,7 +1777,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_plain",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.plain = true;
             Ok(())
@@ -1519,7 +1786,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--ansi",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::EventsSubscribe,
             CommandPath::EventsWait,
@@ -1529,7 +1798,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_ansi",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.ansi = true;
             Ok(())
@@ -1537,7 +1807,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--lines",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::EventsSubscribe,
             CommandPath::EventsWait,
@@ -1548,7 +1820,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_lines",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.lines = Some(value);
             Ok(())
@@ -1556,7 +1829,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--timeout",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::ProjectResume,
             CommandPath::PanelGraphicsSet,
@@ -1614,7 +1889,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_timeout",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.timeout = Some(value);
             Ok(())
@@ -1622,12 +1898,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--text",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::TerminalSend],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_text",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.text = Some(value);
             Ok(())
@@ -1635,12 +1914,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--enter",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::TerminalSend],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_enter",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.enter = true;
             Ok(())
@@ -1648,12 +1930,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--key",
-        values: super::values::KEY_VALUES, closed_values: false,
+        values: super::values::KEY_VALUES,
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::TerminalSend],
         role: OptionRole::Business,
         value: Some("key"),
         repeatable: true,
-        seen_bit: "seen_key",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.keys.push(value);
             Ok(())
@@ -1661,12 +1946,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--file",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::LayoutApply, CommandPath::TerminalSend],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_file",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.file = Some(value);
             Ok(())
@@ -1674,12 +1962,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--stdin",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::LayoutApply, CommandPath::TerminalSend],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_stdin",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.stdin = true;
             Ok(())
@@ -1687,12 +1978,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--paste",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::TerminalSend],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_paste",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.paste = true;
             Ok(())
@@ -1700,12 +1994,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--directory",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::WorktreeList],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_directory",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.directory = Some(value);
             Ok(())
@@ -1713,7 +2010,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--exec",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::WorkspaceCreate,
             CommandPath::TabCreate,
@@ -1724,7 +2023,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_exec",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.exec = Some(value);
             Ok(())
@@ -1732,7 +2032,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--cwd",
-        values: super::values::CWD_VALUES, closed_values: false,
+        values: super::values::CWD_VALUES,
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::PluginPaneOpen,
             CommandPath::WorkspaceCreate,
@@ -1746,7 +2048,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("cwd"),
         repeatable: false,
-        seen_bit: "seen_cwd",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.cwd = Some(value);
             Ok(())
@@ -1754,7 +2057,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--env",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::PluginPaneOpen,
             CommandPath::WorkspaceCreate,
@@ -1765,7 +2070,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: true,
-        seen_bit: "seen_env",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.environment.push(value);
             Ok(())
@@ -1773,7 +2079,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--arg",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::AgentStart,
             CommandPath::WorkspaceCreate,
@@ -1785,7 +2093,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: true,
-        seen_bit: "seen_arg",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.args.push(value);
             Ok(())
@@ -1793,12 +2102,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--outdated-only",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::AgentIntegrationList],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_outdated_only",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.outdated_only = true;
             Ok(())
@@ -1806,12 +2118,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--include-ended",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::AgentList],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_include_ended",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.include_ended = true;
             Ok(())
@@ -1819,7 +2134,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--limit",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::PluginLogList,
             CommandPath::AgentList,
@@ -1828,7 +2145,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_limit",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.limit = Some(value);
             Ok(())
@@ -1836,7 +2154,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--cursor",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::CommandInvoke,
             CommandPath::TerminalLinkResolve,
@@ -1850,7 +2170,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_cursor",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.cursor = Some(value);
             Ok(())
@@ -1858,7 +2179,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--until",
-        values: super::values::UNTIL_VALUES, closed_values: true,
+        values: super::values::UNTIL_VALUES,
+        closed_values: true,
+        string_rule: None,
         commands: &[
             CommandPath::EventsSubscribe,
             CommandPath::EventsWait,
@@ -1868,7 +2191,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("until"),
         repeatable: true,
-        seen_bit: "seen_until",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.until.push(value);
             Ok(())
@@ -1876,12 +2200,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--after-revision",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::AgentWait],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_after_revision",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.after_revision = Some(value);
             Ok(())
@@ -1889,12 +2216,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--after",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::TerminalWaitOutput],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_output_after",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.output_after = Some(value);
             Ok(())
@@ -1902,7 +2232,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--provider",
-        values: super::values::PROVIDER_VALUES, closed_values: true,
+        values: super::values::PROVIDER_VALUES,
+        closed_values: true,
+        string_rule: None,
         commands: &[
             CommandPath::AgentStart,
             CommandPath::AgentDoctor,
@@ -1914,7 +2246,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("provider"),
         repeatable: true,
-        seen_bit: "seen_provider",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.provider = Some(value.clone());
             options.providers.push(value);
@@ -1923,12 +2256,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--asset-root",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::AgentDoctor],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: true,
-        seen_bit: "seen_asset_root",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.asset_roots.push(value);
             Ok(())
@@ -1936,7 +2272,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--profile",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::WorkspaceCreate,
             CommandPath::TabCreate,
@@ -1946,7 +2284,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_profile",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.profile = Some(value);
             Ok(())
@@ -1954,7 +2293,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--name",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::AgentAttach,
             CommandPath::AgentGet,
@@ -1972,7 +2313,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_name",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.name = Some(value);
             Ok(())
@@ -1980,7 +2322,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--agent-session",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::AgentAttach,
             CommandPath::AgentGet,
@@ -1997,7 +2341,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_session",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.session = Some(value);
             Ok(())
@@ -2005,12 +2350,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--clear",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::AgentRename, CommandPath::PanelRename],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_clear",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.clear = true;
             Ok(())
@@ -2018,12 +2366,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--wait",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[CommandPath::AgentPrompt, CommandPath::TerminalRun],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_prompt_wait",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.prompt_wait = true;
             Ok(())
@@ -2031,7 +2382,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--forever",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::AgentPrompt,
             CommandPath::AgentWait,
@@ -2040,7 +2393,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: None,
         repeatable: false,
-        seen_bit: "seen_forever",
+        joined: true,
+        help: None,
         apply: |options, _, _| {
             options.forever = true;
             Ok(())
@@ -2048,7 +2402,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--adapter-source",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::AgentIntegrationList,
             CommandPath::AgentIntegrationExplain,
@@ -2058,7 +2414,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_adapter_source",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.adapter_source = Some(value);
             Ok(())
@@ -2066,7 +2423,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--request",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::ProjectCloseStatus,
             CommandPath::ProjectCloseResume,
@@ -2075,7 +2434,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_request",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.request = Some(value);
             Ok(())
@@ -2083,7 +2443,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--generation",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: None,
         commands: &[
             CommandPath::WorkspaceResume,
             CommandPath::TabResume,
@@ -2101,7 +2463,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_generation",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.generation = Some(value);
             Ok(())
@@ -2109,7 +2472,9 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--mouse",
-        values: &["off", "on"], closed_values: true,
+        values: &["off", "on"],
+        closed_values: true,
+        string_rule: None,
         commands: &[
             CommandPath::SessionAttach,
             CommandPath::TerminalAttach,
@@ -2119,7 +2484,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("mouse"),
         repeatable: false,
-        seen_bit: "seen_mouse",
+        joined: false,
+        help: None,
         apply: |options, value, envelope| {
             options.mouse = Some(super::super::mouse_option(&value).ok_or_else(|| {
                 super::super::usage_with(
@@ -2137,12 +2503,15 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--session",
-        values: &[], closed_values: false,
+        values: &[],
+        closed_values: false,
+        string_rule: Some(&super::SESSION_NAME_RULE),
         commands: &[],
         role: OptionRole::Global,
         value: Some("filter"),
         repeatable: false,
-        seen_bit: "seen_session_scope",
+        joined: true,
+        help: None,
         apply: |options, value, _| {
             options.site = Some(value);
             Ok(())

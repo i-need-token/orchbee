@@ -4965,10 +4965,9 @@ const AGENT_CURSOR: &str = "u1.eyJzaXRlIjoiMTExMTExMTExMTExMTExMTExMTExMTExMTExM
 /// and the opaque session identity operand.
 #[test]
 fn agent_read_grammar() {
-    use super::AgentListCursor;
     use orchbee_agent_observation_protocol::AgentSessionId;
     let session = || AgentSessionId::parse("sess-alpha").expect("valid session id");
-    let cursor = || AgentListCursor::parse(AGENT_CURSOR).expect("valid cursor");
+    let cursor = || AGENT_CURSOR.to_owned();
 
     // Defaults: first page, live sessions only, page size 50.
     assert_eq!(
@@ -5176,20 +5175,12 @@ fn agent_read_usage_failures() {
             "{value}"
         );
     }
-    for value in [
-        "nope",
-        "v1.short.tag",
-        "v2.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ",
-    ] {
-        assert_eq!(
-            usage_reason(&["agent", "list", "--cursor", value]),
-            UsageReason::InvalidValue {
-                context: path("agent list"),
-                option: "--cursor",
-                value: value.to_owned(),
-                expected: ExpectedValue::AgentCursor,
-            },
-            "{value}"
+    // Cursor encoding belongs to the emitting backend; grammar preserves the opaque input.
+    for value in ["nope", "v1.short.tag"] {
+        assert!(
+            matches!(parse(&["agent", "list", "--cursor", value]), Ok(Request::Query {
+            command: QueryCommand::AgentList { cursor: Some(cursor), .. }, ..
+        }) if cursor == value)
         );
     }
     for (verb, value) in [("get", "bad id!"), ("explain", ""), ("get", "non-ascii-会")] {
@@ -5234,10 +5225,9 @@ fn agent_wait_grammar() {
 
     use orchbee_agent_observation_protocol::AgentSessionId;
     let session = || AgentSessionId::parse("sess-alpha").expect("valid session id");
-    let defaults = crate::invocation::DEFAULT_AGENT_WAIT_CONDITIONS.to_vec();
+    let defaults: Option<Vec<crate::invocation::AgentWaitCondition>> = None;
 
-    // Absent every option: the canonical default seven in canonical order,
-    // no fence, and the wait's own 600000 ms budget — never wait-output's.
+    // Absence remains explicit until the selected backend applies its documented defaults.
     assert_eq!(
         parse(&["agent", "wait", "sess-alpha"]),
         Ok(query(
@@ -5246,7 +5236,7 @@ fn agent_wait_grammar() {
                 session: AgentTarget::Auto { target: session() },
                 until: defaults.clone(),
                 after_revision: None,
-                timeout_ms: crate::invocation::DEFAULT_AGENT_WAIT_TIMEOUT,
+                timeout_ms: None,
             },
             OutputFormat::Text
         ))
@@ -5273,14 +5263,14 @@ fn agent_wait_grammar() {
             QueryCommand::AgentWait {
                 client: None,
                 session: AgentTarget::Auto { target: session() },
-                until: vec![
+                until: Some(vec![
                     crate::invocation::AgentWaitCondition::Stale,
                     crate::invocation::AgentWaitCondition::Failed,
-                ],
+                ]),
                 after_revision: Some(orchbee_agent_observation_protocol::AgentSafeInteger::new(
                     42
                 )),
-                timeout_ms: Some(1_200),
+                timeout_ms: Some(crate::invocation::AgentWaitTimeout::Milliseconds(1_200)),
             },
             OutputFormat::Json
         ))
@@ -5323,9 +5313,9 @@ fn agent_wait_grammar() {
             QueryCommand::AgentWait {
                 client: None,
                 session: AgentTarget::Auto { target: session() },
-                until: vec![condition],
+                until: Some(vec![condition]),
                 after_revision: None,
-                timeout_ms: crate::invocation::DEFAULT_AGENT_WAIT_TIMEOUT,
+                timeout_ms: None,
             },
             "--until {name}"
         );
@@ -5344,7 +5334,7 @@ fn agent_wait_grammar() {
                             value.parse().expect("bound literal")
                         )
                     ),
-                    timeout_ms: crate::invocation::DEFAULT_AGENT_WAIT_TIMEOUT,
+                    timeout_ms: None,
                 },
                 OutputFormat::Text
             )),
@@ -5360,7 +5350,9 @@ fn agent_wait_grammar() {
                     session: AgentTarget::Auto { target: session() },
                     until: defaults.clone(),
                     after_revision: None,
-                    timeout_ms: Some(value.parse().expect("bound literal")),
+                    timeout_ms: Some(crate::invocation::AgentWaitTimeout::Milliseconds(
+                        value.parse().expect("bound literal")
+                    )),
                 },
                 OutputFormat::Text
             )),
@@ -6769,14 +6761,14 @@ fn infinite_agent_wait_is_explicit_and_rejects_conflicting_or_unscoped_flags() {
     use crate::invocation::{AgentPromptWait, AgentWaitCondition};
     assert!(
         matches!(parse(&["agent", "wait", "alpha", "--forever", "--until", "done", "--until", "blocked"]),
-        Ok(Request::Query { command: QueryCommand::AgentWait { timeout_ms: None, until, .. }, .. }) if until == vec![AgentWaitCondition::Done, AgentWaitCondition::Blocked])
+        Ok(Request::Query { command: QueryCommand::AgentWait { timeout_ms: Some(crate::invocation::AgentWaitTimeout::Forever), until, .. }, .. }) if until == Some(vec![AgentWaitCondition::Done, AgentWaitCondition::Blocked]))
     );
     assert!(matches!(
         parse(&["agent", "prompt", "alpha", "task", "--wait", "--forever"]),
         Ok(Request::Mutation {
             command: MutationCommand::AgentPrompt {
                 wait: Some(AgentPromptWait {
-                    timeout_ms: None,
+                    timeout_ms: Some(crate::invocation::AgentWaitTimeout::Forever),
                     ..
                 }),
                 ..

@@ -135,13 +135,7 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         }
         CommandPath::WorkspaceMove => &["work", "--insert-index", "0"],
         CommandPath::WorkspaceMoveBlock => &["work", "review", "--before", "main"],
-        CommandPath::WorkspaceAcceptDirectory => {
-            if true {
-                &["work", "--path", "C:/src/project"]
-            } else {
-                &["work", "--path", "/src/project"]
-            }
-        }
+        CommandPath::WorkspaceAcceptDirectory => &["work", "--path", "C:/src/project"],
         CommandPath::WorkspaceClose => &["work", "--confirm"],
         CommandPath::WorkspaceCloseStatus => &["--workspace", "00000000000000000000000000000001"],
         CommandPath::WorkspaceCloseResume => &[
@@ -169,19 +163,13 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::PanelCreateTerminal => &["--current", "--child", "--label", "review"],
         CommandPath::PanelSplit => &["--current", "--direction", "right"],
         CommandPath::PanelClose => &["@panel:0xabcd", "--confirm"],
-        CommandPath::PanelMove => {
-            if true {
-                &[
-                    "@panel:0xabcd",
-                    "--new-tab",
-                    "--workspace",
-                    "work",
-                    "--no-focus",
-                ]
-            } else {
-                &["@panel:0xabcd", "--new-tab", "--label", "review"]
-            }
-        }
+        CommandPath::PanelMove => &[
+            "@panel:0xabcd",
+            "--new-tab",
+            "--workspace",
+            "work",
+            "--no-focus",
+        ],
         CommandPath::TerminalList => &[],
         CommandPath::TerminalGet => &["@terminal:0xabcd"],
         CommandPath::TerminalRead => &["@terminal:0xabcd", "--source", "recent", "--lines", "40"],
@@ -228,27 +216,14 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         ],
         CommandPath::LaunchProfileList => &[],
         CommandPath::LaunchProfileGet => &["review"],
-        CommandPath::LaunchProfileCreate => {
-            if true {
-                &[
-                    "--name",
-                    "review",
-                    "--exec",
-                    "C:/Tools/agent.exe",
-                    "--arg",
-                    "--version",
-                ]
-            } else {
-                &[
-                    "--name",
-                    "review",
-                    "--exec",
-                    "/usr/bin/env",
-                    "--arg",
-                    "--version",
-                ]
-            }
-        }
+        CommandPath::LaunchProfileCreate => &[
+            "--name",
+            "review",
+            "--exec",
+            "C:/Tools/agent.exe",
+            "--arg",
+            "--version",
+        ],
         CommandPath::LaunchProfileDelete => &["review"],
         CommandPath::ApiSnapshot => &[],
         CommandPath::ApiSchema => &["orchbee.status"],

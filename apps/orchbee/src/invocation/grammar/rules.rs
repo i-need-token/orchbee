@@ -373,62 +373,479 @@ const CONFLICTS: &[Conflict] = &[
         flags: &["--toggle"],
         incompatible: &["--on", "--off"],
     },
-    Conflict { commands: &[CommandPath::AgentPrompt, CommandPath::AgentWait, CommandPath::TerminalWaitOutput], flags: &["--timeout"], incompatible: &["--forever"] },
-    Conflict { commands: &[CommandPath::AgentPrompt, CommandPath::AgentWait, CommandPath::TerminalWaitOutput], flags: &["--forever"], incompatible: &["--timeout"] },
-    Conflict { commands: &[CommandPath::AgentAttach, CommandPath::AgentAttention, CommandPath::AgentExplain, CommandPath::AgentFocus, CommandPath::AgentGet, CommandPath::AgentPrompt, CommandPath::AgentRead, CommandPath::AgentRename, CommandPath::AgentResolve, CommandPath::AgentSendKeys, CommandPath::AgentWait], flags: &["--agent-session"], incompatible: &["--name"] },
-    Conflict { commands: &[CommandPath::AgentAttach, CommandPath::AgentAttention, CommandPath::AgentExplain, CommandPath::AgentFocus, CommandPath::AgentGet, CommandPath::AgentPrompt, CommandPath::AgentRead, CommandPath::AgentRename, CommandPath::AgentResolve, CommandPath::AgentSendKeys, CommandPath::AgentWait], flags: &["--agent-session"], incompatible: &["--panel"] },
-    Conflict { commands: &[CommandPath::AgentAttach, CommandPath::AgentAttention, CommandPath::AgentExplain, CommandPath::AgentFocus, CommandPath::AgentGet, CommandPath::AgentPrompt, CommandPath::AgentRead, CommandPath::AgentRename, CommandPath::AgentResolve, CommandPath::AgentSendKeys, CommandPath::AgentWait], flags: &["--agent-session"], incompatible: &["--terminal"] },
-    Conflict { commands: &[CommandPath::AgentAttach, CommandPath::AgentAttention, CommandPath::AgentExplain, CommandPath::AgentFocus, CommandPath::AgentGet, CommandPath::AgentPrompt, CommandPath::AgentRead, CommandPath::AgentRename, CommandPath::AgentResolve, CommandPath::AgentSendKeys, CommandPath::AgentWait], flags: &["--name"], incompatible: &["--agent-session"] },
-    Conflict { commands: &[CommandPath::AgentAttach, CommandPath::AgentAttention, CommandPath::AgentExplain, CommandPath::AgentFocus, CommandPath::AgentGet, CommandPath::AgentPrompt, CommandPath::AgentRead, CommandPath::AgentRename, CommandPath::AgentResolve, CommandPath::AgentSendKeys, CommandPath::AgentWait], flags: &["--name"], incompatible: &["--panel"] },
-    Conflict { commands: &[CommandPath::AgentAttach, CommandPath::AgentAttention, CommandPath::AgentExplain, CommandPath::AgentFocus, CommandPath::AgentGet, CommandPath::AgentPrompt, CommandPath::AgentRead, CommandPath::AgentRename, CommandPath::AgentResolve, CommandPath::AgentSendKeys, CommandPath::AgentWait], flags: &["--name"], incompatible: &["--terminal"] },
-    Conflict { commands: &[CommandPath::AgentAttach, CommandPath::AgentAttention, CommandPath::AgentExplain, CommandPath::AgentFocus, CommandPath::AgentGet, CommandPath::AgentPrompt, CommandPath::AgentRead, CommandPath::AgentRename, CommandPath::AgentResolve, CommandPath::AgentSendKeys, CommandPath::AgentWait], flags: &["--panel"], incompatible: &["--agent-session"] },
-    Conflict { commands: &[CommandPath::AgentAttach, CommandPath::AgentAttention, CommandPath::AgentExplain, CommandPath::AgentFocus, CommandPath::AgentGet, CommandPath::AgentPrompt, CommandPath::AgentRead, CommandPath::AgentRename, CommandPath::AgentResolve, CommandPath::AgentSendKeys, CommandPath::AgentWait], flags: &["--panel"], incompatible: &["--name"] },
-    Conflict { commands: &[CommandPath::AgentAttach, CommandPath::AgentAttention, CommandPath::AgentExplain, CommandPath::AgentFocus, CommandPath::AgentGet, CommandPath::AgentPrompt, CommandPath::AgentRead, CommandPath::AgentRename, CommandPath::AgentResolve, CommandPath::AgentSendKeys, CommandPath::AgentWait], flags: &["--panel"], incompatible: &["--terminal"] },
-    Conflict { commands: &[CommandPath::AgentAttach, CommandPath::AgentAttention, CommandPath::AgentExplain, CommandPath::AgentFocus, CommandPath::AgentGet, CommandPath::AgentPrompt, CommandPath::AgentRead, CommandPath::AgentRename, CommandPath::AgentResolve, CommandPath::AgentSendKeys, CommandPath::AgentWait], flags: &["--terminal"], incompatible: &["--agent-session"] },
-    Conflict { commands: &[CommandPath::AgentAttach, CommandPath::AgentAttention, CommandPath::AgentExplain, CommandPath::AgentFocus, CommandPath::AgentGet, CommandPath::AgentPrompt, CommandPath::AgentRead, CommandPath::AgentRename, CommandPath::AgentResolve, CommandPath::AgentSendKeys, CommandPath::AgentWait], flags: &["--terminal"], incompatible: &["--name"] },
-    Conflict { commands: &[CommandPath::AgentAttach, CommandPath::AgentAttention, CommandPath::AgentExplain, CommandPath::AgentFocus, CommandPath::AgentGet, CommandPath::AgentPrompt, CommandPath::AgentRead, CommandPath::AgentRename, CommandPath::AgentResolve, CommandPath::AgentSendKeys, CommandPath::AgentWait], flags: &["--terminal"], incompatible: &["--panel"] },
-    Conflict { commands: &[CommandPath::AgentStart, CommandPath::LayoutExport, CommandPath::LayoutSetSplitRatio], flags: &["--panel"], incompatible: &["--current"] },
-    Conflict { commands: &[CommandPath::AgentStart, CommandPath::LayoutExport, CommandPath::LayoutSetSplitRatio], flags: &["--current"], incompatible: &["--panel"] },
-    Conflict { commands: &[CommandPath::PanelCreateTerminal, CommandPath::PanelSplit, CommandPath::TabCreate, CommandPath::WorkspaceCreate], flags: &["--exec"], incompatible: &["--profile"] },
-    Conflict { commands: &[CommandPath::PanelCreateTerminal, CommandPath::PanelSplit, CommandPath::TabCreate, CommandPath::WorkspaceCreate], flags: &["--profile"], incompatible: &["--exec"] },
-    Conflict { commands: &[CommandPath::PanelCreateTerminal, CommandPath::PanelSplit, CommandPath::TabCreate, CommandPath::WorkspaceCreate], flags: &["--arg"], incompatible: &["--profile"] },
-    Conflict { commands: &[CommandPath::PanelCreateTerminal, CommandPath::PanelSplit, CommandPath::TabCreate, CommandPath::WorkspaceCreate], flags: &["--profile"], incompatible: &["--arg"] },
-    Conflict { commands: &[CommandPath::PanelMove], flags: &["--into-tab"], incompatible: &["--new-tab"] },
-    Conflict { commands: &[CommandPath::PanelMove], flags: &["--new-tab"], incompatible: &["--into-tab"] },
-    Conflict { commands: &[CommandPath::PanelMove], flags: &["--target-panel"], incompatible: &["--new-tab"] },
-    Conflict { commands: &[CommandPath::PanelMove], flags: &["--new-tab"], incompatible: &["--target-panel"] },
-    Conflict { commands: &[CommandPath::TerminalSend], flags: &["--text"], incompatible: &["--file"] },
-    Conflict { commands: &[CommandPath::TerminalSend], flags: &["--text"], incompatible: &["--stdin"] },
-    Conflict { commands: &[CommandPath::TerminalSend], flags: &["--text"], incompatible: &["--key"] },
-    Conflict { commands: &[CommandPath::TerminalSend], flags: &["--file"], incompatible: &["--text"] },
-    Conflict { commands: &[CommandPath::LayoutApply, CommandPath::TerminalSend], flags: &["--file"], incompatible: &["--stdin"] },
-    Conflict { commands: &[CommandPath::TerminalSend], flags: &["--file"], incompatible: &["--key"] },
-    Conflict { commands: &[CommandPath::TerminalSend], flags: &["--stdin"], incompatible: &["--text"] },
-    Conflict { commands: &[CommandPath::LayoutApply, CommandPath::TerminalSend], flags: &["--stdin"], incompatible: &["--file"] },
-    Conflict { commands: &[CommandPath::TerminalSend], flags: &["--stdin"], incompatible: &["--key"] },
-    Conflict { commands: &[CommandPath::TerminalSend], flags: &["--key"], incompatible: &["--text"] },
-    Conflict { commands: &[CommandPath::TerminalSend], flags: &["--key"], incompatible: &["--file"] },
-    Conflict { commands: &[CommandPath::TerminalSend], flags: &["--key"], incompatible: &["--stdin"] },
-    Conflict { commands: &[CommandPath::TerminalSend], flags: &["--key"], incompatible: &["--enter"] },
-    Conflict { commands: &[CommandPath::TerminalSend], flags: &["--enter"], incompatible: &["--key"] },
-    Conflict { commands: &[CommandPath::TerminalSend], flags: &["--key"], incompatible: &["--paste"] },
-    Conflict { commands: &[CommandPath::TerminalSend], flags: &["--paste"], incompatible: &["--key"] },
-    Conflict { commands: &[CommandPath::TerminalSend], flags: &["--text"], incompatible: &["--paste"] },
-    Conflict { commands: &[CommandPath::TerminalSend], flags: &["--paste"], incompatible: &["--text"] },
-    Conflict { commands: &[CommandPath::EventsSubscribe, CommandPath::EventsWait, CommandPath::TerminalWaitOutput], flags: &["--match"], incompatible: &["--regex"] },
-    Conflict { commands: &[CommandPath::EventsSubscribe, CommandPath::EventsWait, CommandPath::TerminalWaitOutput], flags: &["--regex"], incompatible: &["--match"] },
+    Conflict {
+        commands: &[
+            CommandPath::AgentPrompt,
+            CommandPath::AgentWait,
+            CommandPath::TerminalWaitOutput,
+        ],
+        flags: &["--timeout"],
+        incompatible: &["--forever"],
+    },
+    Conflict {
+        commands: &[
+            CommandPath::AgentPrompt,
+            CommandPath::AgentWait,
+            CommandPath::TerminalWaitOutput,
+        ],
+        flags: &["--forever"],
+        incompatible: &["--timeout"],
+    },
+    Conflict {
+        commands: &[
+            CommandPath::AgentAttach,
+            CommandPath::AgentAttention,
+            CommandPath::AgentExplain,
+            CommandPath::AgentFocus,
+            CommandPath::AgentGet,
+            CommandPath::AgentPrompt,
+            CommandPath::AgentRead,
+            CommandPath::AgentRename,
+            CommandPath::AgentResolve,
+            CommandPath::AgentSendKeys,
+            CommandPath::AgentWait,
+        ],
+        flags: &["--agent-session"],
+        incompatible: &["--name"],
+    },
+    Conflict {
+        commands: &[
+            CommandPath::AgentAttach,
+            CommandPath::AgentAttention,
+            CommandPath::AgentExplain,
+            CommandPath::AgentFocus,
+            CommandPath::AgentGet,
+            CommandPath::AgentPrompt,
+            CommandPath::AgentRead,
+            CommandPath::AgentRename,
+            CommandPath::AgentResolve,
+            CommandPath::AgentSendKeys,
+            CommandPath::AgentWait,
+        ],
+        flags: &["--agent-session"],
+        incompatible: &["--panel"],
+    },
+    Conflict {
+        commands: &[
+            CommandPath::AgentAttach,
+            CommandPath::AgentAttention,
+            CommandPath::AgentExplain,
+            CommandPath::AgentFocus,
+            CommandPath::AgentGet,
+            CommandPath::AgentPrompt,
+            CommandPath::AgentRead,
+            CommandPath::AgentRename,
+            CommandPath::AgentResolve,
+            CommandPath::AgentSendKeys,
+            CommandPath::AgentWait,
+        ],
+        flags: &["--agent-session"],
+        incompatible: &["--terminal"],
+    },
+    Conflict {
+        commands: &[
+            CommandPath::AgentAttach,
+            CommandPath::AgentAttention,
+            CommandPath::AgentExplain,
+            CommandPath::AgentFocus,
+            CommandPath::AgentGet,
+            CommandPath::AgentPrompt,
+            CommandPath::AgentRead,
+            CommandPath::AgentRename,
+            CommandPath::AgentResolve,
+            CommandPath::AgentSendKeys,
+            CommandPath::AgentWait,
+        ],
+        flags: &["--name"],
+        incompatible: &["--agent-session"],
+    },
+    Conflict {
+        commands: &[
+            CommandPath::AgentAttach,
+            CommandPath::AgentAttention,
+            CommandPath::AgentExplain,
+            CommandPath::AgentFocus,
+            CommandPath::AgentGet,
+            CommandPath::AgentPrompt,
+            CommandPath::AgentRead,
+            CommandPath::AgentRename,
+            CommandPath::AgentResolve,
+            CommandPath::AgentSendKeys,
+            CommandPath::AgentWait,
+        ],
+        flags: &["--name"],
+        incompatible: &["--panel"],
+    },
+    Conflict {
+        commands: &[
+            CommandPath::AgentAttach,
+            CommandPath::AgentAttention,
+            CommandPath::AgentExplain,
+            CommandPath::AgentFocus,
+            CommandPath::AgentGet,
+            CommandPath::AgentPrompt,
+            CommandPath::AgentRead,
+            CommandPath::AgentRename,
+            CommandPath::AgentResolve,
+            CommandPath::AgentSendKeys,
+            CommandPath::AgentWait,
+        ],
+        flags: &["--name"],
+        incompatible: &["--terminal"],
+    },
+    Conflict {
+        commands: &[
+            CommandPath::AgentAttach,
+            CommandPath::AgentAttention,
+            CommandPath::AgentExplain,
+            CommandPath::AgentFocus,
+            CommandPath::AgentGet,
+            CommandPath::AgentPrompt,
+            CommandPath::AgentRead,
+            CommandPath::AgentRename,
+            CommandPath::AgentResolve,
+            CommandPath::AgentSendKeys,
+            CommandPath::AgentWait,
+        ],
+        flags: &["--panel"],
+        incompatible: &["--agent-session"],
+    },
+    Conflict {
+        commands: &[
+            CommandPath::AgentAttach,
+            CommandPath::AgentAttention,
+            CommandPath::AgentExplain,
+            CommandPath::AgentFocus,
+            CommandPath::AgentGet,
+            CommandPath::AgentPrompt,
+            CommandPath::AgentRead,
+            CommandPath::AgentRename,
+            CommandPath::AgentResolve,
+            CommandPath::AgentSendKeys,
+            CommandPath::AgentWait,
+        ],
+        flags: &["--panel"],
+        incompatible: &["--name"],
+    },
+    Conflict {
+        commands: &[
+            CommandPath::AgentAttach,
+            CommandPath::AgentAttention,
+            CommandPath::AgentExplain,
+            CommandPath::AgentFocus,
+            CommandPath::AgentGet,
+            CommandPath::AgentPrompt,
+            CommandPath::AgentRead,
+            CommandPath::AgentRename,
+            CommandPath::AgentResolve,
+            CommandPath::AgentSendKeys,
+            CommandPath::AgentWait,
+        ],
+        flags: &["--panel"],
+        incompatible: &["--terminal"],
+    },
+    Conflict {
+        commands: &[
+            CommandPath::AgentAttach,
+            CommandPath::AgentAttention,
+            CommandPath::AgentExplain,
+            CommandPath::AgentFocus,
+            CommandPath::AgentGet,
+            CommandPath::AgentPrompt,
+            CommandPath::AgentRead,
+            CommandPath::AgentRename,
+            CommandPath::AgentResolve,
+            CommandPath::AgentSendKeys,
+            CommandPath::AgentWait,
+        ],
+        flags: &["--terminal"],
+        incompatible: &["--agent-session"],
+    },
+    Conflict {
+        commands: &[
+            CommandPath::AgentAttach,
+            CommandPath::AgentAttention,
+            CommandPath::AgentExplain,
+            CommandPath::AgentFocus,
+            CommandPath::AgentGet,
+            CommandPath::AgentPrompt,
+            CommandPath::AgentRead,
+            CommandPath::AgentRename,
+            CommandPath::AgentResolve,
+            CommandPath::AgentSendKeys,
+            CommandPath::AgentWait,
+        ],
+        flags: &["--terminal"],
+        incompatible: &["--name"],
+    },
+    Conflict {
+        commands: &[
+            CommandPath::AgentAttach,
+            CommandPath::AgentAttention,
+            CommandPath::AgentExplain,
+            CommandPath::AgentFocus,
+            CommandPath::AgentGet,
+            CommandPath::AgentPrompt,
+            CommandPath::AgentRead,
+            CommandPath::AgentRename,
+            CommandPath::AgentResolve,
+            CommandPath::AgentSendKeys,
+            CommandPath::AgentWait,
+        ],
+        flags: &["--terminal"],
+        incompatible: &["--panel"],
+    },
+    Conflict {
+        commands: &[
+            CommandPath::AgentStart,
+            CommandPath::LayoutExport,
+            CommandPath::LayoutSetSplitRatio,
+        ],
+        flags: &["--panel"],
+        incompatible: &["--current"],
+    },
+    Conflict {
+        commands: &[
+            CommandPath::AgentStart,
+            CommandPath::LayoutExport,
+            CommandPath::LayoutSetSplitRatio,
+        ],
+        flags: &["--current"],
+        incompatible: &["--panel"],
+    },
+    Conflict {
+        commands: &[
+            CommandPath::PanelCreateTerminal,
+            CommandPath::PanelSplit,
+            CommandPath::TabCreate,
+            CommandPath::WorkspaceCreate,
+        ],
+        flags: &["--exec"],
+        incompatible: &["--profile"],
+    },
+    Conflict {
+        commands: &[
+            CommandPath::PanelCreateTerminal,
+            CommandPath::PanelSplit,
+            CommandPath::TabCreate,
+            CommandPath::WorkspaceCreate,
+        ],
+        flags: &["--profile"],
+        incompatible: &["--exec"],
+    },
+    Conflict {
+        commands: &[
+            CommandPath::PanelCreateTerminal,
+            CommandPath::PanelSplit,
+            CommandPath::TabCreate,
+            CommandPath::WorkspaceCreate,
+        ],
+        flags: &["--arg"],
+        incompatible: &["--profile"],
+    },
+    Conflict {
+        commands: &[
+            CommandPath::PanelCreateTerminal,
+            CommandPath::PanelSplit,
+            CommandPath::TabCreate,
+            CommandPath::WorkspaceCreate,
+        ],
+        flags: &["--profile"],
+        incompatible: &["--arg"],
+    },
+    Conflict {
+        commands: &[CommandPath::PanelMove],
+        flags: &["--into-tab"],
+        incompatible: &["--new-tab"],
+    },
+    Conflict {
+        commands: &[CommandPath::PanelMove],
+        flags: &["--new-tab"],
+        incompatible: &["--into-tab"],
+    },
+    Conflict {
+        commands: &[CommandPath::PanelMove],
+        flags: &["--target-panel"],
+        incompatible: &["--new-tab"],
+    },
+    Conflict {
+        commands: &[CommandPath::PanelMove],
+        flags: &["--new-tab"],
+        incompatible: &["--target-panel"],
+    },
+    Conflict {
+        commands: &[CommandPath::TerminalSend],
+        flags: &["--text"],
+        incompatible: &["--file"],
+    },
+    Conflict {
+        commands: &[CommandPath::TerminalSend],
+        flags: &["--text"],
+        incompatible: &["--stdin"],
+    },
+    Conflict {
+        commands: &[CommandPath::TerminalSend],
+        flags: &["--text"],
+        incompatible: &["--key"],
+    },
+    Conflict {
+        commands: &[CommandPath::TerminalSend],
+        flags: &["--file"],
+        incompatible: &["--text"],
+    },
+    Conflict {
+        commands: &[CommandPath::LayoutApply, CommandPath::TerminalSend],
+        flags: &["--file"],
+        incompatible: &["--stdin"],
+    },
+    Conflict {
+        commands: &[CommandPath::TerminalSend],
+        flags: &["--file"],
+        incompatible: &["--key"],
+    },
+    Conflict {
+        commands: &[CommandPath::TerminalSend],
+        flags: &["--stdin"],
+        incompatible: &["--text"],
+    },
+    Conflict {
+        commands: &[CommandPath::LayoutApply, CommandPath::TerminalSend],
+        flags: &["--stdin"],
+        incompatible: &["--file"],
+    },
+    Conflict {
+        commands: &[CommandPath::TerminalSend],
+        flags: &["--stdin"],
+        incompatible: &["--key"],
+    },
+    Conflict {
+        commands: &[CommandPath::TerminalSend],
+        flags: &["--key"],
+        incompatible: &["--text"],
+    },
+    Conflict {
+        commands: &[CommandPath::TerminalSend],
+        flags: &["--key"],
+        incompatible: &["--file"],
+    },
+    Conflict {
+        commands: &[CommandPath::TerminalSend],
+        flags: &["--key"],
+        incompatible: &["--stdin"],
+    },
+    Conflict {
+        commands: &[CommandPath::TerminalSend],
+        flags: &["--key"],
+        incompatible: &["--enter"],
+    },
+    Conflict {
+        commands: &[CommandPath::TerminalSend],
+        flags: &["--enter"],
+        incompatible: &["--key"],
+    },
+    Conflict {
+        commands: &[CommandPath::TerminalSend],
+        flags: &["--key"],
+        incompatible: &["--paste"],
+    },
+    Conflict {
+        commands: &[CommandPath::TerminalSend],
+        flags: &["--paste"],
+        incompatible: &["--key"],
+    },
+    Conflict {
+        commands: &[CommandPath::TerminalSend],
+        flags: &["--text"],
+        incompatible: &["--paste"],
+    },
+    Conflict {
+        commands: &[CommandPath::TerminalSend],
+        flags: &["--paste"],
+        incompatible: &["--text"],
+    },
+    Conflict {
+        commands: &[
+            CommandPath::EventsSubscribe,
+            CommandPath::EventsWait,
+            CommandPath::TerminalWaitOutput,
+        ],
+        flags: &["--match"],
+        incompatible: &["--regex"],
+    },
+    Conflict {
+        commands: &[
+            CommandPath::EventsSubscribe,
+            CommandPath::EventsWait,
+            CommandPath::TerminalWaitOutput,
+        ],
+        flags: &["--regex"],
+        incompatible: &["--match"],
+    },
+    Conflict {
+        commands: &[
+            CommandPath::WorktreeList,
+            CommandPath::WorktreeCreate,
+            CommandPath::WorktreeOpen,
+        ],
+        flags: &["--workspace"],
+        incompatible: &["--cwd"],
+    },
+    Conflict {
+        commands: &[
+            CommandPath::WorktreeList,
+            CommandPath::WorktreeCreate,
+            CommandPath::WorktreeOpen,
+        ],
+        flags: &["--cwd"],
+        incompatible: &["--workspace"],
+    },
+    Conflict {
+        commands: &[CommandPath::WorktreeOpen],
+        flags: &["--path"],
+        incompatible: &["--branch"],
+    },
+    Conflict {
+        commands: &[CommandPath::WorktreeOpen],
+        flags: &["--branch"],
+        incompatible: &["--path"],
+    },
+    Conflict {
+        commands: &[CommandPath::WorktreeList],
+        flags: &["--project", "--directory"],
+        incompatible: &["--workspace", "--cwd", "--trust-repository"],
+    },
+    Conflict {
+        commands: &[CommandPath::WorktreeList],
+        flags: &["--workspace", "--cwd", "--trust-repository"],
+        incompatible: &["--project", "--directory"],
+    },
 ];
 
-static PROJECTED_CONFLICTS: std::sync::LazyLock<Vec<(CommandPath, &'static str, Vec<&'static str>)>> = std::sync::LazyLock::new(|| {
-    super::COMMANDS.iter().flat_map(|command| command.flags().iter().map(move |flag| {
-        let mut conflicts = CONFLICTS.iter().filter(|rule| rule.commands.contains(&command.id) && rule.flags.contains(flag))
-            .flat_map(|rule| rule.incompatible.iter().copied()).collect::<Vec<_>>();
-        conflicts.sort_unstable(); conflicts.dedup(); (command.id, *flag, conflicts)
-    })).collect()
+static PROJECTED_CONFLICTS: std::sync::LazyLock<
+    Vec<(CommandPath, &'static str, Vec<&'static str>)>,
+> = std::sync::LazyLock::new(|| {
+    super::COMMANDS
+        .iter()
+        .flat_map(|command| {
+            command.flags().iter().map(move |flag| {
+                let mut conflicts = CONFLICTS
+                    .iter()
+                    .filter(|rule| rule.commands.contains(&command.id) && rule.flags.contains(flag))
+                    .flat_map(|rule| rule.incompatible.iter().copied())
+                    .collect::<Vec<_>>();
+                conflicts.sort_unstable();
+                conflicts.dedup();
+                (command.id, *flag, conflicts)
+            })
+        })
+        .collect()
 });
 
 pub(super) fn conflicts(command: &CommandSpec, flag: &str) -> &'static [&'static str] {
-    PROJECTED_CONFLICTS.iter().find(|(id, spelling, _)| *id == command.id && *spelling == flag).map_or(&[], |(_, _, values)| values.as_slice())
+    PROJECTED_CONFLICTS
+        .iter()
+        .find(|(id, spelling, _)| *id == command.id && *spelling == flag)
+        .map_or(&[], |(_, _, values)| values.as_slice())
 }
 
 pub(crate) struct OperandRule {
@@ -439,17 +856,93 @@ pub(crate) struct OperandRule {
     pub(crate) value_offset: usize,
 }
 const OPERANDS: &[OperandRule] = &[
-    OperandRule { commands: &[CommandPath::PanelCurrent, CommandPath::PanelFocus, CommandPath::PanelZoom, CommandPath::PanelLayout, CommandPath::PanelNeighbor, CommandPath::PanelEdges, CommandPath::PanelResize, CommandPath::PanelSwap, CommandPath::PanelInput, CommandPath::PanelSplit], reductions: &[&["--panel", "--current"]], selectors: &["--panel", "--current"], values: &[], value_offset: 0 },
-    OperandRule { commands: &[CommandPath::PanelProcessInfo, CommandPath::PanelCreateTerminal], reductions: &[&["--panel", "--current", "--client"]], selectors: &["--panel", "--current", "--client"], values: &[], value_offset: 0 },
-    OperandRule { commands: &[CommandPath::TerminalRead, CommandPath::TerminalSend, CommandPath::TerminalWaitOutput, CommandPath::TerminalRun], reductions: &[&["--panel"]], selectors: &["--panel"], values: &[], value_offset: 0 },
-    OperandRule { commands: &[CommandPath::AgentAttach, CommandPath::AgentGet, CommandPath::AgentFocus, CommandPath::AgentRead, CommandPath::AgentPrompt, CommandPath::AgentExplain, CommandPath::AgentWait, CommandPath::AgentResolve], reductions: &[&["--agent-session", "--name", "--panel", "--terminal"]], selectors: &["--agent-session", "--name", "--panel", "--terminal"], values: &[], value_offset: 0 },
-    OperandRule { commands: &[CommandPath::AgentRename], reductions: &[&["--agent-session", "--name", "--panel", "--terminal"], &["--clear"]], selectors: &["--agent-session", "--name", "--panel", "--terminal"], values: &[], value_offset: 0 },
-    OperandRule { commands: &[CommandPath::AgentSendKeys], reductions: &[&["--agent-session", "--name", "--panel", "--terminal"]], selectors: &["--agent-session", "--name", "--panel", "--terminal"], values: super::values::KEY_VALUES, value_offset: 1 },
- ];
-const ORDINARY_OPERANDS: OperandRule = OperandRule { commands: &[], reductions: &[], selectors: &[], values: &[], value_offset: 0 };
+    OperandRule {
+        commands: &[
+            CommandPath::PanelCurrent,
+            CommandPath::PanelFocus,
+            CommandPath::PanelZoom,
+            CommandPath::PanelLayout,
+            CommandPath::PanelNeighbor,
+            CommandPath::PanelEdges,
+            CommandPath::PanelResize,
+            CommandPath::PanelSwap,
+            CommandPath::PanelInput,
+            CommandPath::PanelSplit,
+        ],
+        reductions: &[&["--panel", "--current"]],
+        selectors: &["--panel", "--current"],
+        values: &[],
+        value_offset: 0,
+    },
+    OperandRule {
+        commands: &[
+            CommandPath::PanelProcessInfo,
+            CommandPath::PanelCreateTerminal,
+        ],
+        reductions: &[&["--panel", "--current", "--client"]],
+        selectors: &["--panel", "--current", "--client"],
+        values: &[],
+        value_offset: 0,
+    },
+    OperandRule {
+        commands: &[
+            CommandPath::TerminalRead,
+            CommandPath::TerminalSend,
+            CommandPath::TerminalWaitOutput,
+            CommandPath::TerminalRun,
+        ],
+        reductions: &[&["--panel"]],
+        selectors: &["--panel"],
+        values: &[],
+        value_offset: 0,
+    },
+    OperandRule {
+        commands: &[
+            CommandPath::AgentAttach,
+            CommandPath::AgentGet,
+            CommandPath::AgentFocus,
+            CommandPath::AgentRead,
+            CommandPath::AgentPrompt,
+            CommandPath::AgentExplain,
+            CommandPath::AgentWait,
+            CommandPath::AgentResolve,
+        ],
+        reductions: &[&["--agent-session", "--name", "--panel", "--terminal"]],
+        selectors: &["--agent-session", "--name", "--panel", "--terminal"],
+        values: &[],
+        value_offset: 0,
+    },
+    OperandRule {
+        commands: &[CommandPath::AgentRename],
+        reductions: &[
+            &["--agent-session", "--name", "--panel", "--terminal"],
+            &["--clear"],
+        ],
+        selectors: &["--agent-session", "--name", "--panel", "--terminal"],
+        values: &[],
+        value_offset: 0,
+    },
+    OperandRule {
+        commands: &[CommandPath::AgentSendKeys],
+        reductions: &[&["--agent-session", "--name", "--panel", "--terminal"]],
+        selectors: &["--agent-session", "--name", "--panel", "--terminal"],
+        values: super::values::KEY_VALUES,
+        value_offset: 1,
+    },
+];
+const ORDINARY_OPERANDS: OperandRule = OperandRule {
+    commands: &[],
+    reductions: &[],
+    selectors: &[],
+    values: &[],
+    value_offset: 0,
+};
 
 pub(super) fn operands(command: &CommandSpec) -> &'static OperandRule {
-    OPERANDS.iter().find(|rule| rule.commands.contains(&command.id)).unwrap_or(&ORDINARY_OPERANDS)
+    OPERANDS
+        .iter()
+        .find(|rule| rule.commands.contains(&command.id))
+        .unwrap_or(&ORDINARY_OPERANDS)
 }
 
 pub(crate) struct Requirement {
@@ -458,9 +951,25 @@ pub(crate) struct Requirement {
     pub(crate) any: &'static [&'static str],
 }
 const REQUIREMENTS: &[Requirement] = &[
-    Requirement { commands: &[CommandPath::LaunchProfileCreate, CommandPath::PanelCreateTerminal, CommandPath::PanelSplit, CommandPath::TabCreate, CommandPath::WorkspaceCreate], flag: "--arg", any: &["--exec"] },
-    Requirement { commands: &[CommandPath::TerminalSend], flag: "--enter", any: &["--text", "--file", "--stdin"] },
- ];
+    Requirement {
+        commands: &[
+            CommandPath::LaunchProfileCreate,
+            CommandPath::PanelCreateTerminal,
+            CommandPath::PanelSplit,
+            CommandPath::TabCreate,
+            CommandPath::WorkspaceCreate,
+        ],
+        flag: "--arg",
+        any: &["--exec"],
+    },
+    Requirement {
+        commands: &[CommandPath::TerminalSend],
+        flag: "--enter",
+        any: &["--text", "--file", "--stdin"],
+    },
+];
 pub(super) fn requirements(command: &CommandSpec) -> impl Iterator<Item = &'static Requirement> {
-    REQUIREMENTS.iter().filter(move |rule| rule.commands.contains(&command.id))
+    REQUIREMENTS
+        .iter()
+        .filter(move |rule| rule.commands.contains(&command.id))
 }

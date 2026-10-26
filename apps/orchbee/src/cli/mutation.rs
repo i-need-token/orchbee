@@ -887,7 +887,6 @@ mod linux {
                     options: Box::new(options.clone()),
                 })
             }
-            #[cfg(not(windows))]
             MutationCommand::WorkspaceCreate { project, label } => {
                 let project = resolve_project(snapshot, project)?;
                 Ok(WorkbenchAction::WorkspaceCreate {

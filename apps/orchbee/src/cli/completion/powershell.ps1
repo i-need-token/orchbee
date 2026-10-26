@@ -64,7 +64,8 @@ __ORCHBEE_GRAMMAR__
             $pair = $word.Split([char[]]@('='), 2, [System.StringSplitOptions]::None)
             $flag = $pair[0]
             if ($grammar.flags -cnotcontains $flag) { return }
-            if ($seen -ccontains $flag -and $grammar.repeatable -cnotcontains $flag -and $flag -cne '--provider') { return }
+            if ($seen -ccontains $flag -and $grammar.repeatable -cnotcontains $flag) { return }
+            if ($pair.Length -eq 2 -and $grammar.joinedFlags -cnotcontains $flag) { return }
             $seen.Add($flag)
             if ($grammar.valueFlags -ccontains $flag) {
                 if ($pair.Length -eq 2) { $values[$flag] = $pair[1] } else { $pending = $flag }
@@ -73,11 +74,10 @@ __ORCHBEE_GRAMMAR__
             $positionals.Add($word)
         }
     }
-    if ($values.ContainsKey('--session') -and ($values['--session'] -cnotmatch '^[A-Za-z0-9._-]{1,64}$' -or $values['--session'] -cin @('.', '..'))) { return }
-    if ($positionals.Count -gt 2 -and $positionals[0] -ceq 'session' -and $positionals[1] -cin @('attach', 'stop', 'delete')) {
-        $name = $positionals[2]
-        if ($name -cnotmatch '^[A-Za-z0-9._-]{1,64}$' -or $name -cin @('.', '..')) { return }
-        if ($values.ContainsKey('--session') -and $values['--session'] -cne $name) { return }
+    function Test-OrchbeeLiteral($value, $rule) {
+        if ($null -eq $rule) { return $true }
+        if ($rule.trim) { $value = $value.Trim() }
+        return ($value -cmatch $rule.pattern -and $rule.excluded -cnotcontains $value)
     }
     if ($machine -and $seen -ccontains '--session') { return }
     $businessSeen = @($seen | Where-Object { $grammar.globalFlags -cnotcontains $_ })
@@ -101,92 +101,71 @@ __ORCHBEE_GRAMMAR__
             }
         }
     } else {
-        foreach ($group in @(@('--json', '--format'), @('--timeout', '--forever'), @('--agent-session', '--name', '--panel', '--terminal'), @('--panel', '--current'), @('--exec', '--profile'), @('--arg', '--profile'), @('--into-tab', '--new-tab'), @('--target-panel', '--new-tab'), @('--text', '--file', '--stdin', '--key'), @('--key', '--enter'), @('--key', '--paste'), @('--text', '--paste'), @('--match', '--regex'))) {
-            if (@($group | Where-Object { $seen -ccontains $_ }).Count -gt 1) { return }
-        }
-        foreach ($entry in @(@('--format', $grammar.formats), @('--mouse', @('off', 'on')), @('--until', $grammar.until), @('--right-click', $grammar.rightClick), @('--position', $grammar.notificationPositions), @('--sound', $grammar.notificationSounds))) {
-            if ($values.ContainsKey($entry[0]) -and $entry[1] -cnotcontains $values[$entry[0]]) { return }
-        }
         $viable = @($grammar.commands | Where-Object {
             $command = $_
             if ($machine -and -not $command.machine) { return $false }
             $allowed = @($command.flags) + @($command.globalFlags)
             if ($command.format) { $allowed += '--format' }
             $valid = $true
-            $commandPath = $command.words -join ':'
-            if ($values.ContainsKey('--state') -and $values['--state'] -cnotin @('idle', 'working', 'blocked', 'unknown')) { $valid = $false }
-            if ($values.ContainsKey('--source')) {
-                if ($commandPath -cin @('workspace:report-metadata', 'panel:report-metadata')) {
-                    if ($values['--source'].Trim() -cnotmatch '^[A-Za-z0-9:._-]{1,80}$') { $valid = $false }
-                } elseif ($commandPath -cin @('panel:report-agent', 'panel:release-agent')) {
-                    if ($values['--source'].Trim().Length -eq 0) { $valid = $false }
-                } elseif ($commandPath -cne 'panel:clear-agent-authority' -and $grammar.outputSources -cnotcontains $values['--source']) { $valid = $false }
+            foreach ($value in $command.values) {
+                if ($value.closed -and $values.ContainsKey($value.flag) -and $value.choices -cnotcontains $values[$value.flag]) { $valid = $false }
+                if ($values.ContainsKey($value.flag) -and -not (Test-OrchbeeLiteral $values[$value.flag] $value.string)) { $valid = $false }
             }
-
-            if ($command.words[0] -ceq 'worktree' -and $seen -ccontains '--workspace' -and $seen -ccontains '--cwd') { $valid = $false }
-            if ($commandPath -ceq 'worktree:open' -and $seen -ccontains '--path' -and $seen -ccontains '--branch') { $valid = $false }
-            if ($commandPath -ceq 'worktree:list' -and ($seen -ccontains '--project' -or $seen -ccontains '--directory') -and ($seen -ccontains '--workspace' -or $seen -ccontains '--cwd' -or $seen -ccontains '--trust-repository')) { $valid = $false }
             foreach ($pair in $command.conflicts) {
                 if ($seen -ccontains $pair.flag -and @($pair.with | Where-Object { $seen -ccontains $_ }).Count -gt 0) { $valid = $false }
             }
             foreach ($flag in $seen) { if ($allowed -cnotcontains $flag) { $valid = $false } }
-            if (@($seen | Where-Object { $_ -ceq '--provider' }).Count -gt 1 -and ($command.words -join ':') -cne 'agent:doctor') { $valid = $false }
+            foreach ($flag in $seen) {
+                if (@($seen | Where-Object { $_ -ceq $flag }).Count -gt 1 -and $command.repeatable -cnotcontains $flag) { $valid = $false }
+            }
             $operandLimit = [int]$command.operand
-            if ($commandPath -cin @('panel:process-info', 'panel:create-terminal') -and $seen -ccontains '--client') { $operandLimit = 0 }
-            if (($command.words -join ':') -cin @('terminal:read','terminal:send','terminal:wait-output','terminal:run') -and $seen -ccontains '--panel') { $operandLimit-- }
-            if (($command.words -join ':') -cin @('panel:current', 'panel:process-info', 'panel:focus', 'panel:zoom', 'panel:layout', 'panel:neighbor', 'panel:edges', 'panel:resize', 'panel:swap', 'panel:input', 'panel:split', 'panel:create-terminal') -and ($seen -ccontains '--panel' -or $seen -ccontains '--current')) { $operandLimit = 0 }
-            if (($command.words -join ':') -cin @('agent:attach', 'agent:get', 'agent:focus', 'agent:read', 'agent:send-keys', 'agent:prompt', 'agent:explain', 'agent:wait', 'agent:resolve', 'agent:rename')) {
-                if ($seen -ccontains '--agent-session' -or $seen -ccontains '--name' -or $seen -ccontains '--panel' -or $seen -ccontains '--terminal') { $operandLimit-- }
-                if ($seen -ccontains '--clear') { $operandLimit-- }
+            foreach ($group in $command.reductions) {
+                if (@($group | Where-Object { $seen -ccontains $_ }).Count -gt 0) { $operandLimit-- }
             }
             if ($positionals.Count -gt $command.words.Count + $operandLimit) { $valid = $false }
+            if ($positionals.Count -gt $command.words.Count -and $null -ne $command.operandString) {
+                $operand = $positionals[$command.words.Count]
+                if (-not (Test-OrchbeeLiteral $operand $command.operandString)) { $valid = $false }
+                if ($values.ContainsKey($command.operandEquals) -and $values[$command.operandEquals] -cne $operand) { $valid = $false }
+            }
             for ($index = 0; $index -lt [Math]::Min($positionals.Count, $command.words.Count); $index++) {
                 if ($positionals[$index] -cne $command.words[$index]) { $valid = $false }
             }
-            if ($values.ContainsKey('--motion') -and $grammar.copyMotions -cnotcontains $values['--motion']) { $valid = $false }
-            if ($values.ContainsKey('--order') -and $grammar.orders -cnotcontains $values['--order']) { $valid = $false }
-            if ($values.ContainsKey('--search-direction') -and $grammar.searchDirections -cnotcontains $values['--search-direction']) { $valid = $false }
-            if ($values.ContainsKey('--direction') -and $command.directions -cnotcontains $values['--direction']) { $valid = $false }
             $valid
         })
         if ($viable.Count -eq 0) { return }
         $offeredFlags = [System.Collections.Generic.List[string]]::new()
         foreach ($command in $viable) {
             if ($positionals.Count -lt $command.words.Count) { $candidates.Add($command.words[$positionals.Count]) }
-            if ($command.agentTarget -and $positionals.Count -eq $command.words.Count -and -not ($seen -ccontains '--agent-session' -or $seen -ccontains '--name' -or $seen -ccontains '--panel' -or $seen -ccontains '--terminal')) {
-                foreach ($target in $grammar.agentTargets) { $candidates.Add($target) }
+            $selected = @($command.selectors | Where-Object { $seen -ccontains $_ }).Count -gt 0
+            if ($command.agentTarget -and $positionals.Count -eq $command.words.Count -and -not $selected) {
+                $candidates.AddRange([string[]]$grammar.agentTargets)
             }
-            if (($command.words -join ':') -ceq 'agent:send-keys') {
-                $targetWords = [int](-not ($seen -ccontains '--agent-session' -or $seen -ccontains '--name' -or $seen -ccontains '--panel' -or $seen -ccontains '--terminal'))
-                $keyCount = $positionals.Count - $command.words.Count - $targetWords
-                if ($keyCount -ge 0 -and $keyCount -lt 64) { foreach ($key in $grammar.keys) { $candidates.Add($key) } }
+            $offset = [int]$command.operandValueOffset - [int]$selected
+            $operands = $positionals.Count - $command.words.Count
+            $limit = [int]$command.operand
+            foreach ($group in $command.reductions) {
+                if (@($group | Where-Object { $seen -ccontains $_ }).Count -gt 0) { $limit-- }
             }
+            if ($operands -ge $offset -and $operands -lt $limit) { $candidates.AddRange([string[]]$command.operandValues) }
             $allowed = @($command.flags) + @($command.globalFlags)
             if ($command.format) { $allowed += '--format' }
             foreach ($flag in $allowed) {
                 if ($machine -and $flag -ceq '--session') { continue }
-                if (($command.words -join ':') -cin @('panel:process-info', 'panel:create-terminal') -and $positionals.Count -gt $command.words.Count -and $flag -ceq '--client') { continue }
-                if (($command.words -join ':') -cin @('terminal:read','terminal:send','terminal:wait-output') -and $positionals.Count -gt $command.words.Count -and $flag -ceq '--panel') { continue }
-                if (($command.words -join ':') -cin @('panel:current', 'panel:process-info', 'panel:focus', 'panel:zoom', 'panel:layout', 'panel:neighbor', 'panel:edges', 'panel:resize', 'panel:swap', 'panel:input', 'panel:split', 'panel:create-terminal') -and $positionals.Count -gt $command.words.Count -and $flag -cin @('--panel', '--current')) { continue }
-                if (($command.words -join ':') -cin @('agent:attach', 'agent:get', 'agent:focus', 'agent:read', 'agent:send-keys', 'agent:prompt', 'agent:explain', 'agent:wait', 'agent:resolve', 'agent:rename')) {
-                    $operands = $positionals.Count - $command.words.Count
-                    if ($operands -gt 0 -and $flag -cin @('--name', '--agent-session', '--panel', '--terminal')) { continue }
-                    if ($flag -ceq '--clear' -and ($operands -gt 1 -or ($operands -gt 0 -and ($seen -ccontains '--name' -or $seen -ccontains '--agent-session' -or $seen -ccontains '--panel' -or $seen -ccontains '--terminal')))) { continue }
+                if ($operands -gt 0 -and $command.selectors -ccontains $flag) { continue }
+                if ($seen -ccontains $flag -and $command.repeatable -cnotcontains $flag) { continue }
+                $proposedLimit = [int]$command.operand
+                foreach ($group in $command.reductions) {
+                    if ($group -ccontains $flag -or @($group | Where-Object { $seen -ccontains $_ }).Count -gt 0) { $proposedLimit-- }
                 }
-                if ($seen -ccontains $flag -and $grammar.repeatable -cnotcontains $flag -and -not ($flag -ceq '--provider' -and ($command.words -join ':') -ceq 'agent:doctor')) { continue }
-                if ($flag -ceq '--arg' -and $seen -cnotcontains '--exec' -and ($command.words -join ':') -cne 'agent:start') { continue }
+                if ($operands -gt $proposedLimit) { continue }
+                $missing = @($command.requirements | Where-Object {
+                    $_.flag -ceq $flag -and @($_.any | Where-Object { $seen -ccontains $_ }).Count -eq 0
+                }).Count -gt 0
+                if ($missing) { continue }
                 $conflict = $false
                 foreach ($pair in $command.conflicts) {
                     if ($pair.flag -ceq $flag -and @($pair.with | Where-Object { $seen -ccontains $_ }).Count -gt 0) { $conflict = $true }
-                }
-                if (($command.words -join ':') -ceq 'worktree:list') {
-                    if (@('--project', '--directory') -ccontains $flag -and ($seen -ccontains '--workspace' -or $seen -ccontains '--cwd' -or $seen -ccontains '--trust-repository')) { $conflict = $true }
-                    if (@('--workspace', '--cwd', '--trust-repository') -ccontains $flag -and ($seen -ccontains '--project' -or $seen -ccontains '--directory')) { $conflict = $true }
-                }
-                if ($command.words[0] -ceq 'worktree' -and (($flag -ceq '--workspace' -and $seen -ccontains '--cwd') -or ($flag -ceq '--cwd' -and $seen -ccontains '--workspace'))) { $conflict = $true }
-                if (($command.words -join ':') -ceq 'worktree:open' -and (($flag -ceq '--path' -and $seen -ccontains '--branch') -or ($flag -ceq '--branch' -and $seen -ccontains '--path'))) { $conflict = $true }
-                foreach ($group in @(@('--json', '--format'), @('--timeout', '--forever'), @('--agent-session', '--name', '--panel', '--terminal'), @('--panel', '--current'), @('--exec', '--profile'), @('--arg', '--profile'), @('--into-tab', '--new-tab'), @('--target-panel', '--new-tab'), @('--text', '--file', '--stdin', '--key'), @('--key', '--enter'), @('--key', '--paste'), @('--text', '--paste'), @('--match', '--regex'))) {
-                    if ($group -ccontains $flag -and @($group | Where-Object { $_ -cne $flag -and $seen -ccontains $_ }).Count -gt 0) { $conflict = $true }
                 }
                 if (-not $conflict) { $offeredFlags.Add($flag) }
             }
@@ -196,27 +175,12 @@ __ORCHBEE_GRAMMAR__
         if ($pending.Length -eq 0 -and $wordToComplete -cmatch '^(--[^=]+)=') {
             $joinedPrefix = $Matches[1] + '='
             if ($offeredFlags -cnotcontains $Matches[1]) { return }
+            if ($grammar.joinedFlags -cnotcontains $Matches[1]) { return }
             $pending = $Matches[1]
         }
         if ($pending.Length -gt 0) {
             $candidates.Clear()
-            $enum = switch -CaseSensitive ($pending) {
-                '--format' { $grammar.formats }
-                '--mouse' { 'off'; 'on' }
-                '--cwd' { $viable | ForEach-Object { $_.cwdValues } }
-                '--direction' { $viable | ForEach-Object { $_.directions } }
-                '--order' { $grammar.orders }
-                '--search-direction' { $grammar.searchDirections }
-                '--motion' { $grammar.copyMotions }
-                '--right-click' { $grammar.rightClick }
-                '--position' { $grammar.notificationPositions }
-                '--sound' { $grammar.notificationSounds }
-                '--source' { if (@($viable | Where-Object { ($_.words -join ':') -cnotin @('workspace:report-metadata', 'panel:report-metadata', 'panel:report-agent', 'panel:release-agent', 'panel:clear-agent-authority') }).Count -gt 0) { $grammar.outputSources } }
-                '--state' { 'idle'; 'working'; 'blocked'; 'unknown' }
-                '--key' { $grammar.keys }
-                '--until' { $grammar.until }
-                '--provider' { if (@($viable | Where-Object { ($_.words -join ':') -ceq 'agent:start' }).Count -gt 0) { $grammar.agentKinds } else { $grammar.providers } }
-            }
+            $enum = $viable | ForEach-Object { $_.values } | Where-Object { $_.flag -ceq $pending } | ForEach-Object { $_.choices }
             foreach ($value in $enum) { $candidates.Add($joinedPrefix + $value) }
         } else {
             $candidates.AddRange($offeredFlags)

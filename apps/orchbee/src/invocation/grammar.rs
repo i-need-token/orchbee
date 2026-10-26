@@ -62,6 +62,7 @@ pub(crate) enum TargetRule {
     Panel,
     TerminalOrPanel,
     Agent,
+    Session,
 }
 
 pub(crate) struct CommandSpec {
@@ -95,9 +96,12 @@ pub(crate) struct OptionSpec {
     /// `None` is a switch; a value name selects a shell's value projection.
     pub(crate) value: Option<&'static str>,
     pub(crate) repeatable: bool,
-    pub(crate) seen_bit: &'static str,
+    pub(crate) joined: bool,
+    /// Optional new-option copy is localized by Locale at the presentation boundary.
+    pub(crate) help: Option<(&'static str, &'static str)>,
     pub(crate) values: &'static [&'static str],
     pub(crate) closed_values: bool,
+    pub(crate) string_rule: Option<&'static StringRule>,
     pub(super) apply: fn(&mut Options, String, FailureEnvelope) -> Result<(), ParseFailure>,
 }
 
@@ -157,10 +161,23 @@ impl CommandSpec {
     }
 
     pub(crate) fn values(&self, spelling: &str) -> (&'static [&'static str], bool) {
+        if spelling == "--cwd" {
+            return (
+                if self.cwd_values {
+                    values::CWD_VALUES
+                } else {
+                    &[]
+                },
+                false,
+            );
+        }
         if spelling == "--format" {
             return (values::FORMAT_VALUES, true);
         }
-        if let Some(value) = VALUE_OVERRIDES.iter().find(|value| value.commands.contains(&self.id) && value.flag == spelling) {
+        if let Some(value) = VALUE_OVERRIDES
+            .iter()
+            .find(|value| value.commands.contains(&self.id) && value.flag == spelling)
+        {
             return (value.values, value.closed);
         }
         option(spelling).map_or((&[], false), |option| (option.values, option.closed_values))
@@ -182,14 +199,34 @@ struct ValueOverride {
 }
 
 const VALUE_OVERRIDES: &[ValueOverride] = &[
-    ValueOverride { commands: &[CommandPath::AgentStart], flag: "--provider", values: crate::agent_provider::CANONICAL_IDS, closed: true },
-    ValueOverride { commands: &[CommandPath::WorkspaceReportMetadata, CommandPath::PanelReportMetadata, CommandPath::PanelReportAgent, CommandPath::PanelReleaseAgent, CommandPath::PanelClearAgentAuthority], flag: "--source", values: &[], closed: false },
+    ValueOverride {
+        commands: &[CommandPath::AgentStart],
+        flag: "--provider",
+        values: crate::agent_provider::CANONICAL_IDS,
+        closed: true,
+    },
+    ValueOverride {
+        commands: &[
+            CommandPath::WorkspaceReportMetadata,
+            CommandPath::PanelReportMetadata,
+            CommandPath::PanelReportAgent,
+            CommandPath::PanelReleaseAgent,
+            CommandPath::PanelClearAgentAuthority,
+        ],
+        flag: "--source",
+        values: &[],
+        closed: false,
+    },
 ];
 
-struct Repetition { flag: &'static str, commands: &'static [CommandPath] }
-const REPETITION: &[Repetition] = &[
-    Repetition { flag: "--provider", commands: &[CommandPath::AgentDoctor] },
-];
+struct Repetition {
+    flag: &'static str,
+    commands: &'static [CommandPath],
+}
+const REPETITION: &[Repetition] = &[Repetition {
+    flag: "--provider",
+    commands: &[CommandPath::AgentDoctor],
+}];
 
 static CHILDREN: LazyLock<Vec<(&'static str, Vec<&'static str>)>> = LazyLock::new(|| {
     FAMILIES
@@ -218,4 +255,174 @@ pub(crate) fn children(key: &str) -> &'static [&'static str] {
         .iter()
         .find(|(path, _)| *path == key)
         .map_or(&[], |(_, words)| words.as_slice())
+}
+
+/// Derived help options, including orthogonal root options.
+pub(crate) fn help_flags(path: CommandPath) -> Vec<&'static str> {
+    let command = specification(path);
+    let mut flags = command.flags().to_vec();
+    flags.extend(
+        OPTIONS
+            .iter()
+            .filter(|option| option.role == OptionRole::Global)
+            .map(|option| option.spelling),
+    );
+    if command.format {
+        flags.push("--format");
+    }
+    flags.push("--help");
+    flags
+}
+
+pub(crate) fn usage_option_candidates(
+    context: crate::invocation::UsageContext,
+) -> Vec<&'static str> {
+    use crate::invocation::{HelpTopic, UsageContext};
+
+    let mut flags = Vec::new();
+    match context {
+        UsageContext::Root => {
+            for path in crate::invocation::help_paths() {
+                if let HelpTopic::Command(command) = path.topic() {
+                    flags.extend(help_flags(command));
+                }
+            }
+            flags.extend(ROOT_MODES.iter().map(|flag| flag.spelling));
+            flags.extend(PREFIX_FLAGS);
+        }
+        UsageContext::Path(path) => {
+            let words = path.split_whitespace().collect::<Vec<_>>();
+            let Some(entry) = crate::invocation::help_paths()
+                .iter()
+                .find(|entry| entry.words() == words.as_slice())
+            else {
+                return flags;
+            };
+            match entry.topic() {
+                HelpTopic::Command(command) => flags.extend(help_flags(command)),
+                HelpTopic::Family(_) => {
+                    for child in crate::invocation::help_paths() {
+                        if child.words().starts_with(&words)
+                            && let HelpTopic::Command(command) = child.topic()
+                        {
+                            flags.extend(help_flags(command));
+                        }
+                    }
+                }
+            }
+        }
+        UsageContext::Literal(_) => return flags,
+    }
+    flags.sort_unstable();
+    flags.dedup();
+    flags
+}
+
+impl CommandSpec {
+    /// Grammar constraints run after typed semantic validation to preserve precise domain errors.
+    pub(super) fn validate(
+        &self,
+        words: &[&str],
+        options: &Options,
+        envelope: FailureEnvelope,
+    ) -> Result<(), ParseFailure> {
+        use super::{ExpectedValue, UsageContext, UsageReason, usage_with};
+        let context = UsageContext::Path(self.id.as_str());
+        for flag in &options.seen {
+            if !self.repeats(flag) && options.seen.iter().filter(|seen| *seen == flag).count() > 1 {
+                return Err(usage_with(
+                    UsageReason::DuplicateOption { option: flag },
+                    envelope,
+                ));
+            }
+            if let Some(second) = self
+                .conflicts(flag)
+                .iter()
+                .find(|peer| options.seen.contains(peer))
+            {
+                return Err(usage_with(
+                    UsageReason::ConflictingOptions {
+                        context,
+                        first: flag,
+                        second,
+                    },
+                    envelope,
+                ));
+            }
+        }
+        for (flag, value) in &options.values {
+            let (choices, closed) = self.values(flag);
+            let valid_string = self.string_rule(flag).is_none_or(|rule| {
+                let value = if rule.trim {
+                    value.trim()
+                } else {
+                    value.as_str()
+                };
+                regex::Regex::new(rule.pattern)
+                    .expect("literal grammar expression")
+                    .is_match(value)
+                    && !rule.excluded.contains(&value)
+            });
+            if !valid_string || (closed && !choices.contains(&value.as_str())) {
+                return Err(usage_with(
+                    UsageReason::InvalidValue {
+                        context,
+                        option: flag,
+                        value: value.clone(),
+                        expected: ExpectedValue::DeclaredValue,
+                    },
+                    envelope,
+                ));
+            }
+        }
+        let limit = self
+            .operands()
+            .reductions
+            .iter()
+            .filter(|group| group.iter().any(|flag| options.seen.contains(flag)))
+            .fold(self.maximum_operands, |limit, _| limit.saturating_sub(1));
+        if let Some(extra) = words.get(self.words.len() + limit) {
+            return Err(super::unexpected_argument(context, extra, envelope));
+        }
+        Ok(())
+    }
+}
+
+/// A bounded literal constraint shared with shell adapters; no host path interpretation.
+pub(crate) struct StringRule {
+    pub(crate) pattern: &'static str,
+    pub(crate) excluded: &'static [&'static str],
+    pub(crate) trim: bool,
+}
+pub(crate) const SESSION_NAME_RULE: StringRule = StringRule {
+    pattern: "^[A-Za-z0-9._-]{1,64}$",
+    excluded: &[".", ".."],
+    trim: false,
+};
+const METADATA_SOURCE_RULE: StringRule = StringRule {
+    pattern: "^[A-Za-z0-9:._-]{1,80}$",
+    excluded: &[],
+    trim: true,
+};
+const AGENT_SOURCE_RULE: StringRule = StringRule {
+    pattern: "^.+$",
+    excluded: &[],
+    trim: true,
+};
+impl CommandSpec {
+    pub(crate) fn string_rule(&self, flag: &str) -> Option<&'static StringRule> {
+        match (self.id, flag) {
+            (
+                CommandPath::WorkspaceReportMetadata | CommandPath::PanelReportMetadata,
+                "--source",
+            ) => Some(&METADATA_SOURCE_RULE),
+            (CommandPath::PanelReportAgent | CommandPath::PanelReleaseAgent, "--source") => {
+                Some(&AGENT_SOURCE_RULE)
+            }
+            _ => option(flag).and_then(|option| option.string_rule),
+        }
+    }
+    pub(crate) fn operand_string_rule(&self) -> Option<&'static StringRule> {
+        (self.target == TargetRule::Session).then_some(&SESSION_NAME_RULE)
+    }
 }

@@ -4,7 +4,9 @@
 
 Panel 命令族使用位置 Panel 或 `--current`。Agent 目标额外接受 `--terminal` 与 `@terminal:`，精确定位子终端或主终端。启动、集成及 doctor 使用 `--provider antigravity`；`antigravity-cli` 保留为私有适配器身份。CLI 事件与过滤器输入及 v1 回执使用 `panel.*`。Terminal 与 Agent 读取使用 `--source`／`--lines`；下方 read/history 投影说明描述内部内容证据。来源等待默认 30000 毫秒，`--forever` 显式选择无限等待。
 
-`src/invocation.rs` 中的解析器是语法权威：它在任何运行时访问之前接纳命令路径、各命令的选项作用域与取值。`src/cli/completion.rs` 声明帮助和各 shell 补全脚本共同消费的投影，包括命令路径、`COMMAND_FLAGS` 选项作用域与取值域。`src/cli/text/examples.rs` 为每条命令提供一个经解析器检查的示例。测试保持三者一致：帮助与补全列出相同的命令路径，每个帮助示例都能解析，`--format` 的接纳与帮助一致；在 Windows 上，每个选项在帮助与补全声明的命令中被接纳，在其他命令中被拒绝。接纳依赖其他选项的选项会连同原因列在该测试中。
+`src/invocation/grammar/` 是唯一的 Rust 声明式语法权威。其 const/static 记录拥有路径、选项存储绑定与作用域、闭合值集、操作数上限、target、冲突、重复性、执行可用性及 schema 字典。`src/invocation.rs` 中的手写解析器、帮助目录／选项和 Bash/Zsh/Fish/PowerShell/Elvish 适配器均消费这些记录。POSIX shell 接收字面元数据投影；PowerShell 与 Elvish 接收 JSON。Shell 适配器只解释语法，不探测运行时状态，也不求值用户输入。没有解析器框架或并行的命令／选项表。本地化描述和示例仍是人工维护的产品文案；经过解析器验证的示例和真实 shell 见证覆盖结构派生无法证明的行为。
+
+Windows、Linux 和 macOS 的语法与可发现性完全一致。不支持的执行在两种语言下均返回 `stage: "platform"`、`reason: "unsupported-platform"`、退出码 `4`。解析请求保留 Agent wait 条件／超时的省略意图及不透明列表游标；现有后端各自保留默认值、游标编码与观察行为。Unix Workspace 创建对已支持请求继续使用原有 Workbench create/launch 适配。不恢复任何已退役参数、后缀选择器、环境变量回退或配置导入。
 
 ## 会话与后台服务
 
@@ -34,7 +36,7 @@ Agent List 的每行分别包含 canonical、terminal、placement 与 Client 分
 
 ## 当前 CLI 发现与平台契约
 
-补全将本地 `--session` 选择与 Agent 会话选择器分开。Windows 上，get/read/prompt/send-keys/wait/focus 在目标前提供静态 `@agent:<kind>` 提供方别名；不会查询运行时状态，也不会编造序号候选项。在 PowerShell 中，提供方别名应从引号开始（例如 `'@agent:c`）；补全会插入完整且安全地用单引号括起的句柄，因为未加引号的 `@agent` 会被解析为 splatting 语法。Windows POSIX Shell 适配器使用与 PowerShell、Elvish 相同的静态语法筛选远端 `--machine` 路径，覆盖嵌套命令族和根级数据命令。输入已知选项与操作数后，仍可发现后缀 `--help`；不支持的路由、重复选项及已终止的选项不会重新获得候选项。
+补全将本地 `--session` 选择与 Agent 会话选择器分开。get/read/prompt/send-keys/wait/focus 在目标前提供静态 `@agent:<kind>` 提供方别名；不会查询运行时状态，也不会编造序号候选项。在 PowerShell 中，提供方别名应从引号开始（例如 `'@agent:c`）；补全会插入完整且安全地用单引号括起的句柄，因为未加引号的 `@agent` 会被解析为 splatting 语法。POSIX Shell 适配器使用与 PowerShell、Elvish 相同的静态语法筛选远端 `--machine` 路径，覆盖嵌套命令族和根级数据命令。输入已知选项与操作数后，仍可发现后缀 `--help`；不支持的路由、重复选项及已终止的选项不会重新获得候选项。
 
 Snapshot v1 与 Tab Get v1 接纳规范的可选分隔比例 `ratio`（0.1–0.9）；省略表示 0.5。Snapshot v1 与 Tab Get v1 保留原来的封闭树。Windows Agent Doctor v1 覆盖全部 20 个提供方。
 
@@ -2480,4 +2482,4 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=498f0cfaad2c640fe5976fa8d34cdb32885b786d1a94cff4845e9f5847d61c82 zh-cn-sha256=4733d0f34b8ec23d307d029772f70984bf6150c42746b564f053965753f18e4a -->
+<!-- documentation-pairing: english-sha256=a18d7011b54237290506e101feb2358a3b28f387fb9e791e6f4ed267464c520b zh-cn-sha256=c670f9daac569112c3e55a07e42dc9b75d60d4f99ef1532f76e0a41114ef7799 -->

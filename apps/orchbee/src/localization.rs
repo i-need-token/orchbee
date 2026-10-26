@@ -2,7 +2,6 @@
 //! Feature modules own human-facing copy; domain and protocol identifiers stay unchanged.
 
 mod action_menu;
-#[cfg(windows)]
 mod agent_projection;
 mod control_takeover;
 mod directory_startup;
@@ -13,7 +12,6 @@ mod operation;
 mod presentation;
 mod tab_menu;
 pub(crate) use presentation::RecoveryVerb;
-#[cfg(windows)]
 mod plugins;
 mod shortcut_help;
 pub(crate) use shortcut_help::{ShortcutHelpEntry, shortcut_filter_matches};
@@ -22,7 +20,6 @@ mod runtime_configuration;
 mod settings;
 mod status;
 mod terminal_feedback;
-#[cfg(windows)]
 mod update;
 mod window_title;
 use std::ffi::OsString;
@@ -30,12 +27,9 @@ use std::ffi::OsString;
 mod agent_manifests;
 mod cli;
 pub(crate) use cli::{HelpDetails, HelpText};
-#[cfg(windows)]
 mod configured_commands;
 mod copy_mode;
-#[cfg(windows)]
 mod events;
-#[cfg(windows)]
 mod pane_graphics;
 mod panel_reports;
 pub(crate) use cli::{CliLabels, DetailLabel};

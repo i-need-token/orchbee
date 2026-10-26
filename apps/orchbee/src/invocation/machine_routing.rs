@@ -23,6 +23,8 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
         && let Ok(session) = orchbee_local_runtime::SessionName::parse(session)
     {
         return Ok(SelectedRequest {
+            availability: super::grammar::Availability::Windows,
+            format: None,
             request: Request::MachineTunnel {
                 cohort: cohort.clone(),
             },
@@ -31,6 +33,8 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
     }
     if tokens == ["--machine-relay-v1"] {
         return Ok(SelectedRequest {
+            availability: super::grammar::Availability::Windows,
+            format: None,
             request: Request::MachineRelay,
             session: None,
         });
@@ -85,7 +89,9 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
         )
     })?;
     Ok(SelectedRequest {
-        session: None,
+        availability: super::grammar::Availability::Windows,
+        format: Some(format),
+        site: None,
         request: Request::MachineRoute(Route {
             selector,
             arguments,
