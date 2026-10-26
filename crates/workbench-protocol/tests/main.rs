@@ -1,0 +1,31 @@
+//! Integration and conformance tests through this crate's public boundaries.
+
+mod agent_manifests;
+mod client_layout;
+mod client_view;
+mod close_operation;
+mod configuration;
+mod configured_commands;
+mod conformance;
+mod events;
+mod notification;
+mod pane_graphics;
+mod panel_agent;
+mod panel_input;
+mod panel_labels;
+mod panel_metadata;
+mod plugins;
+mod presentation_report;
+mod settings;
+mod split_ratios;
+mod tab_configuration;
+mod tab_creation;
+mod tab_labels;
+mod terminal_editor;
+mod user_preferences_conformance;
+mod window_title;
+mod workspace_git;
+mod workspace_group_close;
+mod workspace_metadata;
+mod worktree_operation;
+mod worktree_query;

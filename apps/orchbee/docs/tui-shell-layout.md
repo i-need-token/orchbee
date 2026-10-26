@@ -691,9 +691,9 @@ checks cover maximum exit/signal values, unknown results and runtime failure in 
 These outcomes remain acceptance constraints for later feature changes.
 
 The package-private [completed-frame observer](../tests/support/tui_observer.rs) is shared by the
-Linux PTY process tests and the [portable observer target](../tests/tui_observer.rs). Run
-`cargo test -p orchbee --test tui_observer --locked` when changing its frame grammar. It checks
-completed versus partial or stale draws at the backend's synchronized-update flush boundary,
+Linux PTY process tests and the [portable observer test family](../tests/tui_observer.rs). Run
+`cargo test -p orchbee --test integration --locked tui_observer::` when changing its frame grammar.
+It checks completed versus partial or stale draws at the backend's synchronized-update flush boundary,
 exact top-row locations and a single current Tab token, ordered
 Tab and Navigator tracks, complete modal borders and close controls, and bracketed editor windows.
 This completed-frame claim is limited to healthy renderer output in the controlled Linux fixtures:

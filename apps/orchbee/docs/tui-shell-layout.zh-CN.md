@@ -533,8 +533,8 @@ RGB 主题、空／非空侧栏、导航、隐藏侧栏和分屏／放大场景�
 这些结果持续约束后续功能变更的验收。
 
 包内私有的[完整帧观察器](../tests/support/tui_observer.rs)由 Linux PTY 进程测试与
-[跨平台观察器测试](../tests/tui_observer.rs)共同使用。修改帧语法时运行
-`cargo test -p orchbee --test tui_observer --locked`。它以 backend 的同步更新 flush 边界区分
+[跨平台观察器测试族](../tests/tui_observer.rs)共同使用。修改帧语法时运行
+`cargo test -p orchbee --test integration --locked tui_observer::`。它以 backend 的同步更新 flush 边界区分
 完整绘制与部分或过期绘制，检查顶行位置与唯一当前 Tab token、Tab 顺序与 Navigator 状态轨道、完整模态边框和关闭控件，
 以及带方括号的编辑器窗口。完整帧结论仅适用于受控 Linux 测试中的健康渲染输出：终端恢复也会发送相同的
 同步更新结束序列，因此观察器不证明输出失败时的原子性或恢复成功。紧凑 Tab token 判定只使用自身不会被

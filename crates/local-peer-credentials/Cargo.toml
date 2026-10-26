@@ -1,4 +1,5 @@
 [package]
+autotests = false
 name = "orchbee-local-peer-credentials"
 version = "0.1.0"
 edition.workspace = true
@@ -13,3 +14,7 @@ workspace = true
 
 [target.'cfg(windows)'.dependencies]
 orchbee-local-ipc = { path = "../local-ipc" }
+
+[[test]]
+name = "integration"
+path = "tests/main.rs"

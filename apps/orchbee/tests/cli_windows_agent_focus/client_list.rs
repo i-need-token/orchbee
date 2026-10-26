@@ -204,8 +204,8 @@ fn unified_list_keeps_matched_aliases_and_physical_only_agents_as_distinct_rows(
                 )),
             );
         projection.read(&mut stream, false);
-        crate::metadata_peer::unavailable(&mut stream);
-        crate::metadata_peer::unavailable(&mut stream);
+        super::metadata_peer::unavailable(&mut stream);
+        super::metadata_peer::unavailable(&mut stream);
         projection.confirm(&mut stream, false);
         assert_closed(&mut stream);
     });

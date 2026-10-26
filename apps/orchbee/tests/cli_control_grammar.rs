@@ -26,6 +26,7 @@ use std::{
 
 // The shared support module also carries helpers only other suites use.
 #[allow(dead_code)]
+#[path = "support/mod.rs"]
 mod support;
 
 /// One process-internal guard serializes this pure-grammar suite's stage,

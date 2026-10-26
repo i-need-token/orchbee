@@ -1,0 +1,12 @@
+//! Integration and conformance tests through this crate's public boundaries.
+
+mod control;
+mod cwd_validation;
+mod default_shell;
+mod graphics_decode;
+mod lifecycle;
+mod plugin_terminal_environment;
+mod terminal_titles;
+mod viewer;
+mod worktree_mutation;
+mod worktree_source;

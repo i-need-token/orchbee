@@ -50,6 +50,7 @@ mod startup_wait;
 mod tui_observer;
 // The shared support module also carries helpers only other suites use.
 #[allow(dead_code)]
+#[path = "support/mod.rs"]
 mod support;
 
 use native_cohort::{Fixture, ManagedProcess};

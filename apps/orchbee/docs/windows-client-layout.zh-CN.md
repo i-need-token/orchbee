@@ -76,7 +76,7 @@ UI 根据已绘制缓存及准入的完整 Snapshot 一次性解析调整。显�
 | 精确身份、边界、物理边缘及邻居排序                 | `crates/workbench-protocol/tests/client_layout.rs`、共享 Client 视图语料及独立 TypeScript 校验                                                                                                                                                       |
 | 预留、完成、断连与过期                             | [Server 注册表测试](../../orchbee-server/src/client_view_registry/tests.rs)及[生成交错](../../orchbee-server/src/client_view_registry/tests/traces.rs)：96 个固定种子，每种子六个固定前缀动作及 128 个生成动作，重放及删除缩减；有限轨迹，不穷尽调度 |
 
-以 `src/` 开头的路径相对于本应用，其余路径相对于仓库。运行 `cargo test --locked -p orchbee --bin orchbee`、`cargo test --locked -p orchbee-workbench-protocol --test client_layout --test client_view` 及 `cargo test --locked -p orchbee-server client_view_registry`。仓库门禁负责进程及绑定检查。参考捕获维护使用八个确定性种子，在边界至多为 1,200 单元格的非空矩形上，对比未改动的固定 Herdr 邻居函数与协议投影器，共 65,536 次方向查询；不覆盖参考实现的中心饱和域。维护中的协议向量独立于外部 checkout 保留决策边界。
+以 `src/` 开头的路径相对于本应用，其余路径相对于仓库。运行 `cargo test --locked -p orchbee --bin orchbee`、`cargo test --locked -p orchbee-workbench-protocol --test integration client_layout::`、`cargo test --locked -p orchbee-workbench-protocol --test integration client_view::` 及 `cargo test --locked -p orchbee-server client_view_registry`。仓库门禁负责进程及绑定检查。参考捕获维护使用八个确定性种子，在边界至多为 1,200 单元格的非空矩形上，对比未改动的固定 Herdr 邻居函数与协议投影器，共 65,536 次方向查询；不覆盖参考实现的中心饱和域。维护中的协议向量独立于外部 checkout 保留决策边界。
 
 终端尺寸所有者在未缩放时按精确附着实例放行每个可见且持有控制权的 pane。缩放时仅焦点 pane 调整尺寸；隐藏同级保留查看器和原物理尺寸。只读 pane 不会为布局变化获取控制权。输入仍限于焦点。已绘制布局是 Client 视图结果，Host 尺寸调整另行异步进行。
 

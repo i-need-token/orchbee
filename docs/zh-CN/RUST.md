@@ -10,6 +10,9 @@
 根目录 `rust-toolchain.toml` 固定完全一致的 compiler、Cargo、rustfmt 与 Clippy cohort。根目录
 `Cargo.toml` 是唯一 Cargo workspace root。Rust project 不得选择自己的工具链或创建嵌套 workspace。
 
+根开发 profile 使用 `debug = "line-tables-only"`，test profile 继承该设置。修改此设置时，
+真实 panic 回溯帧必须保留源文件名和行号。保留具有明确用途的 package 级优化覆盖。
+
 ## 放置和工作区所有权
 
 | 产物                        | 放置和契约                                                                                                                |
@@ -302,8 +305,10 @@ Rust、TypeScript 与 Zig binding 绝不能成为同一 serialized contract 的�
 - 挂载的模块命名为 `tests`，位于模块旁的 `tests.rs`，或位于一个 `tests/` 目录中，由其 `tests.rs`
   声明按行为命名的子模块，例如 `mod backpressure;`。不要给生产文件挂载其他名称或缩写的测试
   模块。共享单元测试夹具作为同一个 `tests` 所有者的子模块，只提供测试使用者需要的可见性。
-- 集成与 conformance 测试位于 crate 根的 `tests/` 树中，每个边界或 fixture 族一个文件；共享
-  helper 位于 `tests/support/mod.rs`。
+- 有集成或一致性测试的 crate 设置 `autotests = false`，通过 `tests/main.rs` 声明一个
+  `integration` target。每个边界或夹具族仍是 `tests/` 下的子模块，共享 helper 位于
+  `tests/support/mod.rs`。没有这些测试的 crate 不创建空 target。需要进程隔离的套件保留为
+  显式独立的 `[[test]]` target，并在各 target 旁说明所保护的信号、状态、夹具准入或期限边界。
 - 测试 public behavior、invalid 与 maximum input、partial failure 后的 cleanup、cancellation、
   stale identity、backpressure 和 deterministic shutdown。当 ordering 或 state-space 风险值得时，
   使用 property 或 model-based evidence。

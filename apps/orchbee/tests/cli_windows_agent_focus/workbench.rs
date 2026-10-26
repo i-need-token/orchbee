@@ -274,8 +274,8 @@ fn human_panel_list_uses_stable_handles_and_the_unified_agent_projection() {
                     )),
                 );
             projection.read(&mut stream, false);
-            crate::metadata_peer::unavailable(&mut stream);
-            crate::metadata_peer::unavailable(&mut stream);
+            super::metadata_peer::unavailable(&mut stream);
+            super::metadata_peer::unavailable(&mut stream);
             projection.confirm(&mut stream, false);
             assert_closed(&mut stream);
         });

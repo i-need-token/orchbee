@@ -1,5 +1,5 @@
+use super::super::metadata_peer;
 use super::*;
-use crate::metadata_peer;
 pub(super) use metadata_peer::unavailable;
 
 #[test]

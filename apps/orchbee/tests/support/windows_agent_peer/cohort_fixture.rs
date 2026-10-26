@@ -1,5 +1,5 @@
 //! Bounded process admission for suites with short protocol deadlines.
-use crate::peer_support::Fixture;
+use super::peer_support::Fixture;
 use std::{
     ops::Deref,
     sync::{Condvar, Mutex},

@@ -35,6 +35,7 @@ use orchbee_workbench_protocol::{
 };
 use sha2::{Digest, Sha256};
 
+#[path = "support/mod.rs"]
 mod support;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;

@@ -9,7 +9,7 @@
 //! witnesses below can drive the same `remaining`/pre/post checks with a controllable
 //! monotonic clock. The real `UnixStream` path always uses `Instant::now`.
 
-use crate::TestResult;
+use super::super::TestResult;
 use std::{
     cell::Cell,
     collections::VecDeque,

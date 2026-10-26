@@ -1,4 +1,5 @@
 [package]
+autotests = false
 name = "orchbee"
 version = "0.1.0"
 edition.workspace = true
@@ -83,3 +84,42 @@ orchbee-capability-node-protocol = { path = "../../crates/capability-node-protoc
 orchbee-local-site-protocol = { path = "../../crates/local-site-protocol" }
 rustix = { workspace = true, features = ["process"] }
 serde_json.workspace = true
+
+[[test]]
+name = "integration"
+path = "tests/main.rs"
+
+# Keep the inherited SIGTERM-mask witness in its own process.
+[[test]]
+name = "cli_agent"
+path = "tests/cli_agent.rs"
+
+# Keep STAGE_SERIAL staging/spawn/cleanup isolation from other suites.
+[[test]]
+name = "cli_control_grammar"
+path = "tests/cli_control_grammar.rs"
+
+# Keep this suite's LIVE_FIXTURES admission and exclusive deadlines isolated.
+[[test]]
+name = "cli_windows_agent_focus"
+path = "tests/cli_windows_agent_focus.rs"
+
+# Keep this suite's LIVE_FIXTURES admission and exclusive deadlines isolated.
+[[test]]
+name = "cli_windows_agent_names"
+path = "tests/cli_windows_agent_names.rs"
+
+# Keep this suite's LIVE_FIXTURES admission and exclusive deadlines isolated.
+[[test]]
+name = "cli_windows_creation"
+path = "tests/cli_windows_creation.rs"
+
+# Keep short-deadline PROCESS_WITNESS_LOCK scheduling isolated.
+[[test]]
+name = "local_startup_process"
+path = "tests/local_startup_process.rs"
+
+# Keep its independent short-deadline PROCESS_WITNESS_LOCK isolated.
+[[test]]
+name = "native_publication_refresh"
+path = "tests/native_publication_refresh.rs"

@@ -1,6 +1,6 @@
 //! Canonical details and selected-Client status stay separate across races.
+use super::metadata_peer;
 use super::*;
-use crate::metadata_peer;
 use orchbee_agent_observation_protocol::{AgentResult, write_agent_result};
 
 pub(super) fn selected_reply(stream: &mut LocalStream, busy: bool) -> Value {

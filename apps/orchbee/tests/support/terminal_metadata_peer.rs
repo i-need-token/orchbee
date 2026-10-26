@@ -1,5 +1,5 @@
 //! Shared one-attachment terminal metadata peer for Panel and Agent queries.
-use crate::peer_support;
+use super::peer_support;
 use orchbee_client_server_protocol::{
     ClientMessage, ServerMessage, TerminalViewerAction, TerminalViewerOutcome,
     TerminalViewerResult, ViewerId, ViewerUnavailableReason, read_client_message,

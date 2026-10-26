@@ -13,6 +13,10 @@ The root `rust-toolchain.toml` pins the exact compiler, Cargo, rustfmt, and Clip
 `Cargo.toml` is the only Cargo workspace root. A Rust project never selects its own toolchain or
 creates a nested workspace.
 
+The root development profile uses `debug = "line-tables-only"`; the test profile inherits it.
+Retain source filenames and line numbers in real panic backtrace frames when changing this setting.
+Keep explicitly owned per-package optimization overrides.
+
 ## Placement and workspace ownership
 
 | Artifact                         | Placement and contract                                                                                                                                        |
@@ -357,8 +361,11 @@ contracts that compilation cannot establish.
   directory whose `tests.rs` declares behavior-named children such as `mod backpressure;`. Do not
   attach differently named or abbreviated test modules to production files. Shared unit-test
   fixtures are children of that same `tests` owner, with only the visibility their test consumers need.
-- Integration and conformance tests live in the crate root `tests/` tree, one file per boundary or
-  fixture family; shared helpers live in `tests/support/mod.rs`.
+- Crates with integration or conformance tests use `autotests = false` and one `integration`
+  target at `tests/main.rs`. Each boundary or fixture family remains a child module under `tests/`;
+  shared helpers live in `tests/support/mod.rs`. Do not create an empty target for a crate without
+  these tests. Keep suites that require process isolation as explicit separate `[[test]]` targets
+  and explain the protected signal, state, fixture-admission, or deadline boundary beside each target.
 - Test public behavior, invalid and maximum inputs, cleanup after partial failure, cancellation,
   stale identity, backpressure, and deterministic shutdown. Use property or model-based evidence
   when ordering or state-space risk justifies it.

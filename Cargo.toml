@@ -59,5 +59,8 @@ unsafe_code = "forbid"
 all = { level = "deny", priority = -1 }
 wildcard_imports = "deny"
 
+[profile.dev]
+debug = "line-tables-only"
+
 [profile.dev.package.sha2]
 opt-level = 3

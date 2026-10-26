@@ -1,5 +1,5 @@
+use super::pty_client::{COLUMNS, ROWS};
 use super::*;
-use crate::pty_client::{COLUMNS, ROWS};
 
 const TOO_SMALL_ROWS: u16 = 4;
 

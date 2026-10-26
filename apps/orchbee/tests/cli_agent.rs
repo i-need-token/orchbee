@@ -25,6 +25,7 @@ use orchbee_agent_observation_protocol::{
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use sha2::{Digest, Sha256};
 
+#[path = "support/mod.rs"]
 mod support;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;

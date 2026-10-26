@@ -1,4 +1,5 @@
 [package]
+autotests = false
 name = "orchbee-worker"
 version = "0.1.0"
 edition.workspace = true
@@ -25,3 +26,7 @@ rustix = { workspace = true, features = ["process"] }
 
 [lints]
 workspace = true
+
+[[test]]
+name = "integration"
+path = "tests/main.rs"
