@@ -563,9 +563,14 @@ OS 可执行文件查找是有限本地 job，不是 Server 订阅轮询。UI �
 正确性证据包括取消与迟到回复、事件溢出与 resnapshot、待决 mutation 与另一条 stream，以及
 不重放的配置恢复等真实 carrier 轨迹。性能必须在同一 Windows 主机、私有开发 runtime 上另测：
 一个空闲 Workspace／PowerShell，预热十秒，再取三段各三十秒的 Client／Server／Worker CPU
-时间、线程数、已准入 OBLC 连接及线程上下文切换。冻结可编译基线、候选、工作负载、工具链和
-采样脚本；测量窗口排除构建和其他测量。上下文切换只是调度代理指标，不是硬件唤醒次数。
-这些命令和源码改动本身不能证明 CPU 改善或 macOS／Linux 结果。
+时间、线程数、Server 连接处理线程数及线程上下文切换。全程按 PID 和进程创建时间配对每个
+必需角色，以实际单调时钟采样间隔归一化 CPU，并保留无法配对的线程生命周期数量。采样前清除
+继承的 Session 选择并核实私有 runtime。具名 Server 处理线程只是空闲准入的代理指标，不是
+OBLC 握手计数。冻结可编译基线、候选、工作负载、工具链和采样脚本；测量窗口排除构建和其他
+测量。上下文切换只是调度代理指标，不是硬件唤醒或 ReadyThread 事件。Windows 直接就绪测量
+需要获授权的 ETW 采集，将 [ReadyThread payload 的目标线程身份](https://learn.microsoft.com/en-us/windows/win32/etw/readythread)
+与进程／线程生命周期对应，并保留 trace 丢失计数。若无采集权限，记录具体限制和原生人工交接，
+不能声称已采集该指标。这些命令和源码改动本身不能证明 CPU 改善或 macOS／Linux 结果。
 
 ## 原生终端投影
 
@@ -921,4 +926,4 @@ Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin acti
 
 Windows 首次运行引导在终端可继续输入时提供 Workspace 创建、Agent 选择、操作与帮助入口，关闭状态按原生配置档案保存。参见[原生首次运行引导](docs/native-onboarding.zh-CN.md)。
 
-<!-- documentation-pairing: english-sha256=97b86b46c5dbcc9b0b4fd1c0143691e8ea91012cc9944d6a08fcc019e1ebf905 zh-cn-sha256=f217785e8a7c33e6e464e766578f678c421a0d3049e330f7aeaa69d14d2895d3 -->
+<!-- documentation-pairing: english-sha256=a0d4068b832ab22aa97723dd1af4e6e0e0d53ee925afef1e387960b05a9fafcf zh-cn-sha256=075e69e7daff621001a4ea0b28df3b173a243a63011489fe1af56499b09320de -->

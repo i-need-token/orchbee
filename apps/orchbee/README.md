@@ -638,10 +638,18 @@ Correctness evidence includes actual carrier traces for cancellation versus late
 overflow versus resnapshot, pending mutation versus another stream, and configuration recovery
 without replay. Measure performance separately on the same Windows host and private development
 runtime: one idle Workspace/PowerShell, ten-second warm-up, then three thirty-second samples of
-Client/Server/Worker CPU time, thread count, admitted OBLC connections and thread context switches.
-Freeze a compiling baseline and candidate, workload, toolchain and sampling script; exclude builds
-and other measurements from those windows. Context switches are a scheduling proxy, not hardware
-wakeups. These commands and source changes alone establish no CPU improvement or macOS/Linux result.
+Client/Server/Worker CPU time, thread count, Server connection-handler counts and thread context
+switches. Pair each required role by PID and process creation time throughout the run, normalize
+CPU by the actual monotonic sample interval, and retain unmatched thread-lifetime counts. Clear
+inherited Session selection and verify the private runtime before sampling. Named Server handlers
+are an idle admission proxy, not an OBLC handshake counter. Freeze a compiling baseline and
+candidate, workload, toolchain and sampling script; exclude builds and other measurements from
+those windows. Context switches are a scheduling proxy, not hardware wakeups or ReadyThread
+events. A direct Windows readiness measurement requires an authorized ETW capture and filtering
+the [ReadyThread payload's target thread identity](https://learn.microsoft.com/en-us/windows/win32/etw/readythread)
+against process/thread lifetimes; retain trace-loss counts. If capture permissions are unavailable,
+record the concrete limitation and a native manual handoff without claiming that metric was
+collected. These commands and source changes alone establish no CPU improvement or macOS/Linux result.
 
 ## Native terminal projection
 
