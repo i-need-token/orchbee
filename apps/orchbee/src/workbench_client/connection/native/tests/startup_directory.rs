@@ -106,10 +106,11 @@ fn directory_startup_actual_carrier_creates_in_cwd_before_bootstrap_without_init
     for saved_empty in [false, true] {
         let mut steps = vec![WireKind::Workbench; 3];
         steps.extend([WireKind::Obcs; 5]);
-        let position = saved_empty.then(|| crate::workbench_client::startup_preference::Position {
-            location: crate::workbench_client::ClientContextLocation::NoWorkspace,
-            member: None,
-        });
+        let position =
+            saved_empty.then_some(crate::workbench_client::startup_preference::Position {
+                location: crate::workbench_client::ClientContextLocation::NoWorkspace,
+                member: None,
+            });
         let mut harness = harness_at(steps, fixtures::directory(), position)?;
         let command = launch(&harness)?;
         reply(&harness, &command, workspace(&command, false)?)?;

@@ -269,11 +269,17 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             _ => None,
         });
     }
-    let position_uncovered = matches!(workbench_client.as_ref(), Some(_)
-        if tier != ViewportTier::TooSmall
-            && capture_owner.is_none() && !view.prefix_active() && view.overlay().is_none()
-            && !view.navigator_active() && !view.machines.sidebar_navigation_active() && !view.resize_pending
-            && areas.sidebar.is_none_or(|sidebar| sidebar.layer != SidebarLayer::Overlay));
+    let position_uncovered = workbench_client.is_some()
+        && tier != ViewportTier::TooSmall
+        && capture_owner.is_none()
+        && !view.prefix_active()
+        && view.overlay().is_none()
+        && !view.navigator_active()
+        && !view.machines.sidebar_navigation_active()
+        && !view.resize_pending
+        && areas
+            .sidebar
+            .is_none_or(|sidebar| sidebar.layer != SidebarLayer::Overlay);
     let graphics_uncovered = position_uncovered
         && !status_overlay_visible(view, workbench_client.as_ref(), capture_owner);
     if !graphics_uncovered && let Some(native) = workbench_client.as_ref() {
@@ -1070,12 +1076,11 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
     } else {
         None
     });
-    let receipt = receipt.with_graphics(if graphics_uncovered {
+    receipt.with_graphics(if graphics_uncovered {
         graphics_draws
     } else {
         Vec::new()
-    });
-    receipt
+    })
 }
 
 fn render_popup(
@@ -2219,8 +2224,7 @@ fn status_overlay_visible(
                 || native.close_status().is_some()
                 || native.workspace_close_status().is_some()
                 || native.close_set_status().is_some();
-            let visible = visible || native.duplicate_progress().is_some();
-            visible
+            visible || native.duplicate_progress().is_some()
         })
 }
 

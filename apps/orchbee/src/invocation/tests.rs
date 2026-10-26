@@ -1881,7 +1881,8 @@ fn geometry_bearing_commands_default_the_whole_geometry() {
     // logical grid with the paired-zero (unknown) cell pixel pair.
     let default =
         WorkbenchTerminalGeometry::new(80, 24, 0, 0).expect("default geometry is protocol-valid");
-    for arguments in [vec!["tab", "create", "--workspace", "main", "--label", "t"]] {
+    {
+        let arguments = ["tab", "create", "--workspace", "main", "--label", "t"];
         let context = TabContext::Workspace(Target::Label("main".into()));
         assert_eq!(
             parse(&arguments),
@@ -6408,7 +6409,7 @@ fn workspace_launch_preserves_launch_values_in_the_platform_workflow() {
         &[("DEMO".to_owned(), "a=b $literal".to_owned())]
     );
     assert!(
-        matches!(command.launch, Some(super::program::ParsedLaunch::Absolute(launch)) if launch.arguments() == &["/K"])
+        matches!(command.launch, Some(super::program::ParsedLaunch::Absolute(launch)) if launch.arguments() == ["/K"])
     );
     for tail in [
         vec!["--cols", "80"],

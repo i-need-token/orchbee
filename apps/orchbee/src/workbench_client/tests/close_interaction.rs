@@ -111,10 +111,11 @@ fn draw_close_frame(
             &mut hits,
         );
     })?;
-    if {
+    let has_close_confirmation = {
         let view = workbench_client.view();
         view.close_confirmation().is_some()
-    } {
+    };
+    if has_close_confirmation {
         assert!(
             !terminal.backend().cursor_visible(),
             "Close prompt and fallback must hide the old PTY cursor"

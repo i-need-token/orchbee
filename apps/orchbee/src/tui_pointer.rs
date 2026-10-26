@@ -1466,9 +1466,7 @@ impl PointerState {
             .interactions
             .projection()
             .with_modal(self.modal_projection());
-        let projection =
-            self.sidebar_reorder_projection(projection.with_chrome(self.chrome_projection()));
-        projection
+        self.sidebar_reorder_projection(projection.with_chrome(self.chrome_projection()))
     }
 
     /// Applies the settled outer-transport motion level. Downgrade clears

@@ -816,9 +816,7 @@ fn navigation(surface: &dyn TerminalSurface) -> Vec<Context> {
         .collect()
 }
 fn active_context(surface: &dyn TerminalSurface) -> Option<ClientContextTarget> {
-    let Some(native) = surface.view() else {
-        return None;
-    };
+    let native = surface.view()?;
     let location = native
         .context_at(native.active_context_position()?.checked_sub(1)?)?
         .location()
@@ -832,9 +830,7 @@ fn active_context(surface: &dyn TerminalSurface) -> Option<ClientContextTarget> 
 fn focused_member(
     surface: &dyn TerminalSurface,
 ) -> Option<crate::workbench_client::ClientMemberTarget> {
-    let Some(native) = surface.view() else {
-        return None;
-    };
+    let native = surface.view()?;
     native.focused_member()
 }
 

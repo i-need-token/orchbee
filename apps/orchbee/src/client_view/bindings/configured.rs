@@ -136,7 +136,7 @@ impl Bindings {
                 entry.enabled && entry.prefix == prefix && entry.member.keys.matches(event)
             })
             .map(|entry| &entry.member);
-        let exact = exact.or_else(|| {
+        exact.or_else(|| {
             self.entries
                 .iter()
                 .find(|entry| {
@@ -145,8 +145,7 @@ impl Bindings {
                         && shifted_agent_digit(&entry.member, event)
                 })
                 .map(|entry| &entry.member)
-        });
-        exact
+        })
     }
 
     pub(crate) fn labels(&self, desc: PrefixDesc) -> Vec<String> {

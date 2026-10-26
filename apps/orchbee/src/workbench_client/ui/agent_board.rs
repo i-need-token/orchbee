@@ -237,8 +237,7 @@ impl WorkbenchClientUi {
     pub(super) fn agent_board_view(&self) -> Option<AgentBoardView<'_>> {
         self.board.is_open().then(|| {
             let view = AgentBoardView::new(&self.board, &self.agent_index);
-            let view = view.with_attention(&self.attention);
-            view
+            view.with_attention(&self.attention)
         })
     }
 

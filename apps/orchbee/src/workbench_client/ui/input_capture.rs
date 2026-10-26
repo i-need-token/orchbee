@@ -76,12 +76,11 @@ impl WorkbenchClientView<'_> {
             .with_tab_close(self.close_confirmation().is_some())
             .with_workspace_close(self.workspace_close_confirmation().is_some())
             .with_agent_board(self.agent_board().is_some());
-        let claims = claims
+        claims
             .with_action_menu(self.action_menu_input_context().is_some())
             .with_popup(self.popup_capture_claim())
             .with_worktree(self.worktree_capture_claim())
-            .with_copy(self.copy_mode().is_some());
-        claims
+            .with_copy(self.copy_mode().is_some())
     }
 
     /// Exact current context for the already-selected top owner.

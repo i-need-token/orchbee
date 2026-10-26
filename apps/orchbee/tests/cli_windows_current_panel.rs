@@ -451,7 +451,6 @@ mod enrichment;
 #[path = "cli_windows_current_panel/presentations.rs"]
 mod presentations;
 
-use support as peer_support;
 #[path = "cli_windows_current_panel/current_member.rs"]
 mod current_member;
 use crate::terminal_metadata_peer;

@@ -153,7 +153,8 @@ fn location_rename_prefills_canonical_text_and_cancel_does_not_change_target_or_
 #[test]
 fn ungrouped_workspace_project_rename_refuses_locally_with_the_requested_target_and_busy_does_not_claim_absence()
  {
-    for target in [Target::Project] {
+    {
+        let target = Target::Project;
         let mut state = ready(1);
         assert!(
             state

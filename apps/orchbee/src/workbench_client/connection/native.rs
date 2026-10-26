@@ -117,8 +117,7 @@ pub(super) fn run_at(
     .with_setup(executor.pending_setup.take())
     .with_workspace_close(executor.pending_workspace_close.take())
     .with_takeover(executor.pending_takeover.take());
-    let returned = returned.with_unavailable_poll(executor.unavailable_poll.take());
-    returned
+    returned.with_unavailable_poll(executor.unavailable_poll.take())
 }
 
 struct WorkerExit {

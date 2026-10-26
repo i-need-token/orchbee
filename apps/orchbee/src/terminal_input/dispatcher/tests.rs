@@ -1563,8 +1563,7 @@ impl TerminalInputPort for BoardPort {
     fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
         let claims =
             crate::tui_composition::CaptureClaims::default().with_agent_board(self.owned.get());
-        let claims = claims.with_action_menu(self.action_menu.input_context().is_some());
-        claims
+        claims.with_action_menu(self.action_menu.input_context().is_some())
     }
 
     fn native_capture_context(
