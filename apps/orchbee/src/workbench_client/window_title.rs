@@ -107,7 +107,10 @@ impl Subscription {
                     }
                     match reply.outcome {
                         WindowTitleOutcome::Listening { snapshot } => state.receive(snapshot),
-                        _ => return Err(io::ErrorKind::InvalidData.into()),
+                        WindowTitleOutcome::Published { .. }
+                        | WindowTitleOutcome::Failed { .. } => {
+                            return Err(io::ErrorKind::InvalidData.into());
+                        }
                     }
                 }
                 Some(StreamEvent::Gap | StreamEvent::Disconnected) => {

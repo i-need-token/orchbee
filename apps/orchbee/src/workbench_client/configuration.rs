@@ -308,7 +308,7 @@ fn publish_outcome(
             }
             queue_snapshot(&mut state, snapshot);
         }
-        _ if reload => {
+        Some(ConfigurationOutcome::Failed { .. }) | None if reload => {
             state.notice = Some(PendingNotice {
                 revision: None,
                 needs_application: false,
@@ -319,7 +319,7 @@ fn publish_outcome(
                 },
             });
         }
-        _ => {}
+        Some(ConfigurationOutcome::Failed { .. }) | None => {}
     }
 }
 

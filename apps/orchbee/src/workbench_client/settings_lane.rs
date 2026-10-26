@@ -177,10 +177,13 @@ impl State {
         }
     }
     fn observe(&mut self, reply: &SettingsResult) {
-        if let SettingsOutcome::Opened { snapshot }
-        | SettingsOutcome::Saved { snapshot, .. } = &reply.outcome
-        {
-            self.observation = Some(snapshot.clone());
+        match &reply.outcome {
+            SettingsOutcome::Opened { snapshot }
+            | SettingsOutcome::Saved { snapshot, .. } => {
+                self.observation = Some(snapshot.clone());
+            }
+            SettingsOutcome::OutcomeUnknown { .. }
+            | SettingsOutcome::Refused { .. } => {}
         }
     }
 }
