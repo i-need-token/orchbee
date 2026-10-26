@@ -21,9 +21,13 @@ pub(crate) enum ConfigurationScan {
     Incomplete(PathBuf),
 }
 
+type ConfigurationScanner = dyn Fn(&[u8]) -> ConfigurationScan;
+type ConfigurationTargetFactory =
+    fn(&Provider, &Path) -> Result<Option<Vec<ConfigurationTarget>>, Unsupported>;
+
 pub(crate) struct ConfigurationTarget {
     pub(crate) path: PathBuf,
-    pub(super) scan: Box<dyn Fn(&[u8]) -> ConfigurationScan>,
+    pub(super) scan: Box<ConfigurationScanner>,
 }
 impl ConfigurationTarget {
     pub(crate) fn scan(&self, bytes: &[u8]) -> ConfigurationScan {
@@ -46,8 +50,7 @@ pub(super) struct Native {
     pub(super) codex_target: fn(&Provider, &Path) -> Option<PathBuf>,
     pub(super) guarded_target: fn(&Provider, &Path) -> Option<PathBuf>,
     pub(super) bootstrap_target: fn(&Provider, &Path) -> Option<PathBuf>,
-    pub(super) configuration_targets:
-        fn(&Provider, &Path) -> Result<Option<Vec<ConfigurationTarget>>, Unsupported>,
+    pub(super) configuration_targets: ConfigurationTargetFactory,
 }
 
 #[derive(Clone, Copy)]
