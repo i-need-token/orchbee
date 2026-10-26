@@ -534,16 +534,16 @@ fn terminal_list_shows_location_handles_and_program_names() {
     };
     let placement = |workspace: &str| TerminalListDetails {
         placement: Some(super::results::TerminalPlacement {
-            handle: "@terminal:f".into(),
+            handle: "@terminal:0xf".into(),
             workspace: workspace.to_owned(),
-            panel: "@panel:3".into(),
+            panel: "@panel:0x3".into(),
         }),
         title: Some(r"C:\Program Files\PowerShell\7\pwsh.exe".into()),
         ..TerminalListDetails::default()
     };
     for (locale, workspace) in [
-        (Locale::EnUs, "@workspace:9"),
-        (Locale::ZhCn, "@workspace:9"),
+        (Locale::EnUs, "@workspace:0x9"),
+        (Locale::ZhCn, "@workspace:0x9"),
     ] {
         let output = super::success_output(
             Projection::TerminalListHuman(TerminalListDocument {
@@ -558,9 +558,9 @@ fn terminal_list_shows_location_handles_and_program_names() {
         let text = String::from_utf8(output.stdout).unwrap();
         let line = text.lines().nth(1).unwrap();
         let cells: Vec<_> = line.split_whitespace().collect();
-        assert_eq!(cells[0], "@terminal:f", "{text}");
+        assert_eq!(cells[0], "@terminal:0xf", "{text}");
         assert_eq!(cells[1], "pwsh", "{text}");
-        assert!(line.contains("@panel:3"), "{text}");
+        assert!(line.contains("@panel:0x3"), "{text}");
         assert!(line.contains(workspace), "{text}");
     }
 }
@@ -1889,7 +1889,7 @@ fn config_check_text_leads_with_its_verdict_and_keeps_raw_details_in_json() {
                 ),
                 (
                     "diagnostics".into(),
-                    serde_json::json!([{"field":"theme.name","reason":"unknown","disposition":"default"}]),
+                    serde_json::json!([{"field":"terminal.term_name","reason":"wrong-type","disposition":"defaulted"}]),
                 ),
             ]),
         },
@@ -1905,7 +1905,10 @@ fn config_check_text_leads_with_its_verdict_and_keeps_raw_details_in_json() {
         .unwrap();
         assert!(text.starts_with(verdict), "{text}");
         assert!(text.contains("en-US (environment)"), "{text}");
-        assert!(text.contains("  theme.name: unknown (default)\n"), "{text}");
+        assert!(
+            text.contains("  terminal.term_name: wrong-type (defaulted)\n"),
+            "{text}"
+        );
         assert!(!text.contains("spacesSidebarProfile"), "{text}");
         assert!(text.contains(locale.cli_check_json_hint()), "{text}");
     }

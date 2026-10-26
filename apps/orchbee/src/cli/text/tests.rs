@@ -174,7 +174,7 @@ fn command_examples_are_admitted_without_executing_them() {
 /// Well-formed sample values for value-taking options. Some options validate their value before
 /// the command scope, so an invalid sample would hide whether the scope admits the option.
 #[cfg(windows)]
-const SAMPLE_VALUES: &[&str] = &["1", "on", "left", "text", "@terminal:abcd"];
+const SAMPLE_VALUES: &[&str] = &["1", "on", "left", "text", "@terminal:0xabcd"];
 
 /// Declared options whose admission depends on another option that the help example omits.
 #[cfg(windows)]

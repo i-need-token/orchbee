@@ -28,7 +28,7 @@ A missing runtime base is an environment check failure; inspect `config check` b
 
 A Workspace has a directory and may belong to a Project. Project grouping is optional. A Workspace contains Tabs; Tabs contain Panels; a Panel has a primary terminal and may have child terminals. TUI Clients retain their own selection and view.
 
-Use `api snapshot`, then the relevant `project`, `workspace`, `tab`, `panel`, `terminal`, `launch-profile`, `client` or `agent` list/get command. Reuse returned IDs. Prefer printed stable handles such as `@panel:0x1`: they preserve the exact ID with leading zeros omitted and cannot change when other resources come or go. Quote handles in PowerShell. Legacy suffix selectors still work but are momentary; never save them as identities. IDs and compact handles are scoped to the selected Session and underlying identity lifetime; rediscover runtime terminal IDs after Server restart.
+Use `api snapshot`, then the relevant `project`, `workspace`, `tab`, `panel`, `terminal`, `launch-profile`, `client` or `agent` list/get command. Reuse returned IDs. Prefer printed stable handles such as `@panel:0x1`: they preserve the exact ID with leading zeros omitted and cannot change when other resources come or go. Quote handles in PowerShell. IDs and compact handles are scoped to the selected Session and underlying identity lifetime; rediscover runtime terminal IDs after Server restart.
 
 Inside an Orchbee terminal, caller metadata can select its Panel. Outside, `panel current` can use the unique current TUI Client; pass `--client <id>` when several exist or a positional Panel ID for a headless lookup. `agent start` without `--panel` specifically requires valid caller metadata. Partial or stale caller metadata never authorizes a fallback.
 
@@ -45,7 +45,7 @@ Inspect each creation receipt: committed layout membership does not prove a proc
 
 `tab create`, `panel split` and `panel create-terminal` support the declared launch choices, cwd and literal environment entries. Use `--profile` for a saved Launch Profile or `--exec` with repeatable `--arg` for an explicit program. The directory must already exist. Inspect help for `--cwd home|current|workspace`, absolute overrides, complete terminal geometry and the bounds on `--env NAME=VALUE`. These overrides do not modify a saved profile.
 
-`panel create-terminal --child` creates a child terminal. Use `workspace`/`tab` move commands, `panel move`/`swap`, `layout`, `panel resize`, `panel zoom` and focus commands for arrangement. Client focus controls TUI selection; it does not activate an OS window. Read the command's help before choosing current targets or layout paths.
+`panel create-terminal --child` creates a child terminal. Use `workspace`/`tab` move commands, `panel move --into-tab <tab>`/`swap`, `layout`, `panel resize`, `panel zoom` and focus commands for arrangement. Client focus controls TUI selection; it does not activate an OS window. Read the command's help before choosing current targets or layout paths.
 
 ## Send input and read output
 
@@ -53,7 +53,7 @@ Inspect each creation receipt: committed layout membership does not prove a proc
 
 A receipt proves accepted input records, not Shell readiness, command completion or exit status. Never replay partial or unknown delivery. Inspect the receipt and terminal before deciding what to send next.
 
-`terminal read` and `agent read` default to recent output. Select `visible`, `recent`, `recent-unwrapped` or `detection` with `--source`; `--plain` emits UTF-8 text and excludes JSON. Use `--lines` for the window and `--source recent-unwrapped` to join soft wraps; legacy read flags are refused. Do not mix incompatible output modes; inspect help for limits, wrapping and ANSI.
+`terminal read` and `agent read` default to recent output. Select `visible`, `recent`, `recent-unwrapped` or `detection` with `--source`; `--plain` emits UTF-8 text and excludes JSON. Use `--lines` for the window and `--source recent-unwrapped` to join soft wraps. Do not mix incompatible output modes; inspect help for limits, wrapping and ANSI.
 
 `terminal wait-output` can match output that already exists. The default deadline is 30000 ms; override it with `--timeout` or explicitly use `--forever`. `--timeout` and `--forever` conflict. A matched line alone does not prove a newly submitted command finished.
 
@@ -65,7 +65,7 @@ Windows Codex inspection and installation use the same configuration root: nonem
 
 `agent start review --provider codex --panel <panel-id>` launches in an observed idle cmd, PowerShell or pwsh terminal and waits for verified readiness. Default timeout: 30000 ms; allowed range: 3001–300000. Literal provider arguments follow `--`, or use repeatable `--arg=<value>`. A timeout or cancellation can leave the provider running; inspect the submission and pending reservation with `agent names` before retrying.
 
-`agent list/get/explain` inspect current Agent state. On Windows, `agent list` joins canonical sessions with physical terminal Agents and reports each row's source, semantic status and placement; `--client <id>` adds separate Client observations without changing status. Pages contain 1–100 rows (default 50). Windows JSON uses `orchbee.agent.list` v2 and `orchbee.agent.get` v19. List cursors use `u1.<base64url>` with canonical JSON encoded as base64url, are at most 1024 characters, and bind to the Site, source revisions, filters and Client selection. A recognized legacy-format cursor is rejected before live source reads; determining whether a `u1` cursor is stale requires reading the current sources. Restart from the first page after `cursor-restart`. Optional cwd enrichment is limited to 64 rows per page and may be null.
+`agent list/get/explain` inspect current Agent state. On Windows, `agent list` joins canonical sessions with physical terminal Agents and reports each row's source, semantic status and placement; `--client <id>` adds separate Client observations without changing status. Pages contain 1–100 rows (default 50). Windows JSON uses `orchbee.agent.list` v2 and `orchbee.agent.get` v19. List cursors use `u1.<base64url>` with canonical JSON encoded as base64url, are at most 1024 characters, and bind to the Site, source revisions, filters and Client selection. Malformed cursors are usage failures before live source reads; determining whether a cursor is stale requires reading the current sources. Restart from the first page after `cursor-restart`. Optional cwd enrichment is limited to 64 rows per page and may be null.
 
 On Windows, `@agent:<kind>` selects a unique provider and `@agent:<n>` selects a one-based ordinal in the complete current list, not the current page. Bare names keep Server alias precedence before provider matching. `agent get`, `read`, `prompt`, `send-keys`, `wait` and `focus` use the same resolver; an incomplete projection cannot establish a unique provider match. Version 19 `agent get` keeps ordinary Agent identity and status in `result.agent`, with facet-specific detail in `result.inspection`.
 

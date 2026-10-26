@@ -185,7 +185,7 @@ A replacement Session/editor episode cannot inherit an old completion.
 | Effects      | Confirmed snapshots govern runtime preferences; an independent reversible projection previews only authored copy, chrome and terminal default colors. Launch/default changes affect new terminal creation.    |
 | Refusal      | Invalid or unsafe source, scope mismatch, stale source, unsupported launch choice, busy lane or unavailable persistence preserves existing data and confirmed behavior.                                       |
 
-The Session freezes its native configuration identity at startup. Clients send no paths, raw TOML, alternate device selector or arbitrary file write. Shared values live in a bounded sibling private preference record; native old TOML remains an explicit initial source. Desktop Main and renderer submit only current reads and updates, without old-record import. See [scope and persistence](../../../crates/workbench-protocol/docs/user-preferences.md#scope-persistence-and-migration).
+The Session freezes its native configuration identity at startup. Clients send no paths, raw TOML, alternate device selector or arbitrary file write. Shared values live in a bounded sibling private preference record. An absent record supplies canonical defaults; Clients submit current reads and updates. See [scope and persistence](../../../crates/workbench-protocol/docs/user-preferences.md#scope-and-persistence).
 
 | Transition           | Required behavior                                                                                                                     |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
@@ -253,8 +253,7 @@ Neither publication is an acknowledgment from every connected Client.
 | `keys.prefix`, implemented action overrides, `keys.commands`                                                                   | Complete admitted reload updates dispatch and its help/hints together; clears pending prefix; does not execute configured commands merely by loading them |
 | `ui.sidebar.agents.rows`, `rows_by_agent`, `row_gap`; `ui.sidebar.spaces.rows`, `row_gap` and their admitted token/rule fields | Complete reload changes existing sidebar projections; layout and interaction remain with their sidebar owners                                             |
 | `ui.window_title`                                                                                                              | Live title subscription uses the admitted template after reload; enclosing-host title delivery remains a capability                                       |
-| `ui.toast.delivery`, `agent_delivery`, `delay_seconds`, `overlay.position`; `ui.sound.enabled`, `ui.sound.agents`              | Reload updates manual delivery and later automatic feedback; confirmed shared Agent mode/global sound remain authoritative; per-Agent mute is preserved   |
-| Legacy `theme.name`                                                                                                            | Seeds unclaimed shared appearance once; cannot overwrite confirmed common preferences on later TOML reloads                                               |
+| `ui.toast.delivery`, `delay_seconds`, `overlay.position`; `ui.sound.agents`                                                    | Reload updates manual delivery and later automatic feedback; confirmed shared Agent mode/global sound remain authoritative; per-Agent mute is preserved   |
 | `terminal.default_shell`, `terminal.shell_mode`                                                                                | Reload changes later launch preparation only; confirmed shared launch profiles take precedence; Windows common profiles reject login shells               |
 | `terminal.focus_new_panel`                                                                                                     | Restart the native Client to apply split focus preference; defaults to true                                                                               |
 | `terminal.new_cwd`, `worktrees.directory`                                                                                      | Windows CLI reads them on the next relevant creation invocation; do not move an existing process                                                          |
@@ -298,9 +297,9 @@ notification, sound or physical emulator delivery. The configuration watcher cas
 also retain confirmed shared appearance and pointer-release state while updating
 live bindings, their hints and both sidebar profiles together.
 
-`SettingsCommitPublication.tla/.cfg` bounds two independently prepared OS-process writers, explicit edit/reset values and one noncooperating external edit. `Acquire` obtains the shared lock; `Write` rechecks the source and preserves other keys. Publication carries an immutable committed snapshot; apply failure and lost replies do not roll back or authorize another write. No-op receipts, native initial sources, filesystem primitives, capability discovery and UI geometry remain implementation-test obligations.
+`SettingsCommitPublication.tla/.cfg` bounds two independently prepared OS-process writers, explicit edit/reset values and one noncooperating external edit. `Acquire` obtains the shared lock; `Write` rechecks the source and preserves other keys. Publication carries an immutable committed snapshot; apply failure and lost replies do not roll back or authorize another write. No-op receipts, absent-record defaults, filesystem primitives, capability discovery and UI geometry remain implementation-test obligations.
 
-The model contains no retired Desktop Main/renderer import actors, receipts or scratch state; shared storage implementation and tests still own native initial-value admission.
+Shared storage implementation and tests own absent-record defaults and strict current-record admission.
 
 Checked properties cover single-writer ownership, unrelated-key preservation,
 committed publication, complete values,

@@ -28,7 +28,7 @@ orchbee panel clear-agent-authority <panel> [--source <id>] [--seq <n>]
 orchbee panel release-agent <panel> --source <id> --agent <label> [--seq <n>]
 ```
 
-全部接受 `--format text|json`、完整 Panel ID 或 `@panel:<suffix>`，以及 Windows 全局
+全部接受 `--format text|json`、完整 Panel ID 或 `@panel:0x<hex>`，以及 Windows 全局
 `--session` 选择器。帮助和 PowerShell 补全提供各命令的选项和状态值。
 `clear-agent-authority` 为 Herdr 仅 API 提供的操作增加原生命令。
 

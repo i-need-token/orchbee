@@ -235,7 +235,7 @@ fn relay_refuses_recursion_wrong_cohort_and_local_file_authority() {
         vec!["--machine=x", "status"],
         vec!["--machine-relay-v1"],
         vec!["machine", "remove", "11111111111111111111111111111111"],
-        vec!["terminal", "send", "@terminal:22", "--file=secret"],
+        vec!["terminal", "send", "@terminal:0x22", "--file=secret"],
         vec!["workspace", "create", "--cwd=C:relative"],
         vec!["tui"],
     ] {

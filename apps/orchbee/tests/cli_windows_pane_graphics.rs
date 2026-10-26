@@ -103,7 +103,13 @@ fn graphics_upload_clear_info_and_unknown_submission_keep_closed_receipts_withou
             "info" => "info",
             _ => "set",
         };
-        let mut args = vec!["panel", "graphics", verb, "@panel:22", "--format=json"];
+        let mut args = vec![
+            "panel",
+            "graphics",
+            verb,
+            "@panel:0x22222222222222222222222222222222",
+            "--format=json",
+        ];
         let spec = json!({"zIndex":-1,"image":{"format":"bgra","width":1,"height":1,"dataBase64":"AP//gA==","placement":{"viewportColumn":-1,"viewportRow":0,"gridColumns":1,"gridRows":1}}});
         let encoded = serde_json::to_vec(&spec).unwrap();
         let output = if verb == "set" {
@@ -300,7 +306,13 @@ fn actual_graphics_raw_pipe_frames_keep_owner_sequence_and_cleanup_on_eof_bad_fr
             bytes.push(b'\n');
         }
         let output = fixture.run_process(
-            &["panel", "graphics", "stream", "@panel:22", "--format=json"],
+            &[
+                "panel",
+                "graphics",
+                "stream",
+                "@panel:0x22222222222222222222222222222222",
+                "--format=json",
+            ],
             None,
             None,
             &[],
@@ -354,7 +366,7 @@ fn malformed_input_stays_before_site_discovery() {
             "panel",
             "graphics",
             "set",
-            "@panel:22",
+            "@panel:0x22222222222222222222222222222222",
             "--spec=-",
             "--format=json",
         ],

@@ -12,7 +12,7 @@ fn source_grammar_is_disjoint_from_registered_directory_and_mutation_flags() {
         vec![
             "worktree",
             "list",
-            "--workspace=@workspace:abc",
+            "--workspace=@workspace:0xabc",
             "--format=json",
         ],
     ] {

@@ -1,10 +1,5 @@
 //! Exact named-theme admission, independent of rendering and host capabilities.
-use super::{
-    WindowsSettingsDiagnosticDisposition as Disposition, diagnostics::DiagnosticsCollector,
-    windows_user_config_has_child,
-};
-
-/// A shipped chrome theme admitted from the Windows user configuration.
+/// A shipped chrome theme selected from shared user preferences.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum WindowsThemeName {
     /// Preserve the host terminal's default foreground and background.
@@ -16,7 +11,7 @@ pub enum WindowsThemeName {
     OneDark,
 }
 impl WindowsThemeName {
-    /// The exact configuration spelling; no aliases or normalization are admitted.
+    /// The exact theme spelling; no aliases or normalization are admitted.
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::TerminalNative => "terminal-native",
@@ -33,40 +28,4 @@ impl WindowsThemeName {
             _ => None,
         }
     }
-}
-
-pub(super) fn admit(
-    value: &toml::Value,
-    diagnostics: &mut DiagnosticsCollector,
-) -> WindowsThemeName {
-    let Some(table) = value.as_table() else {
-        diagnostics.push("theme", "wrong-type", Disposition::Defaulted);
-        return WindowsThemeName::default();
-    };
-    for key in table
-        .keys()
-        .filter(|key| !windows_user_config_has_child("theme", key))
-    {
-        diagnostics.push(
-            super::diagnostics::unknown_field("theme", key),
-            "unknown-key",
-            Disposition::Ignored,
-        );
-    }
-    let Some(value) = table.get("name") else {
-        return WindowsThemeName::default();
-    };
-    if let Some(name) = value.as_str().and_then(WindowsThemeName::parse) {
-        return name;
-    }
-    diagnostics.push(
-        "theme.name",
-        if value.is_str() {
-            "invalid-theme"
-        } else {
-            "wrong-type"
-        },
-        Disposition::Defaulted,
-    );
-    WindowsThemeName::default()
 }

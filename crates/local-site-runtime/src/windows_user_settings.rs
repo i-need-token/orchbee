@@ -420,10 +420,6 @@ fn parse(
             settings.keys = WindowsKeySettings::parse_lenient(&value, &mut diagnostics);
             continue;
         }
-        if section == "theme" {
-            settings.theme = theme::admit(&value, &mut diagnostics);
-            continue;
-        }
         let Some(table) = value.as_table() else {
             let field = match section.as_str() {
                 "terminal" => "terminal",

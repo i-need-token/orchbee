@@ -173,14 +173,10 @@ fn invalid_or_mixed_source_forms_fail_before_runtime() {
     let id = "11111111111111111111111111111111";
     for extra in [
         vec!["--ansi", "--plain"],
-        vec!["--ansi", "--history", "--rows", "1"],
-        vec!["--ansi", "--unwrap"],
         vec!["--ansi", "--ansi"],
         vec!["--ansi=yes"],
         vec!["--source", "bad"],
-        vec!["--source", "visible", "--unwrap"],
         vec!["--plain", "--rows", "2"],
-        vec!["--source", "recent", "--history"],
         vec!["--plain", "--format=json"],
         vec!["--plain", "--plain"],
         vec!["--plain", "--lines", "4294967296"],
@@ -269,7 +265,6 @@ fn source_wait_defaults_bounds_and_forever_are_explicit() {
         vec!["--lines=+1"],
         vec!["--lines=4294967296"],
         vec!["--forever", "--forever"],
-        vec!["--source=visible", "--history"],
     ] {
         let mut words = vec!["terminal", "wait-output", id, "--match=x"];
         words.extend(extra);

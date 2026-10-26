@@ -70,7 +70,7 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
 /// `terminal get` v2 added the
 /// `launch` member and a Server-joined source, v3 adds the `launchProfile`
 /// provenance sibling — each a deliberate break older validators reject.
-/// `terminal read`/`--history` and `terminal wait-output` carry a
+/// `terminal read`/`--source recent` and `terminal wait-output` carry a
 /// conditional v2: the envelope only reports `2` when the document actually
 /// bears the new members — `lines`/`lineCount`/`tail` on a read, the regex
 /// match detail on a wait — so flag-free output stays byte-identical.
@@ -415,7 +415,7 @@ pub(crate) struct TerminalContentRow {
     pub(crate) into_next: bool,
 }
 
-/// One logical line presented under `--unwrap`: the joined text of a maximal
+/// One logical line presented under `--source recent-unwrapped`: the joined text of a maximal
 /// verified soft-wrap chain plus the first and last physical rows it spans.
 /// A window opening or ending inside a wrapped line yields a fragment, never
 /// a claimed complete line — `starts_mid_line`/`ends_mid_line` carry that.
@@ -431,7 +431,7 @@ pub(crate) struct LogicalLine {
 
 /// The `--lines <n>` presentation tail accounting: how many entries the
 /// caller asked to keep and how many leading emitted entries the tail
-/// dropped — physical rows, or logical lines under `--unwrap`. This count is
+/// dropped — physical rows, or logical lines under `--source recent-unwrapped`. This count is
 /// deliberately separate from `omitted_rows`, which measures rows lost to
 /// the fetch window or the encoded-text budget.
 #[derive(Clone, Debug)]
@@ -442,7 +442,7 @@ pub(crate) struct ReadTail {
 }
 
 /// The read-only presentation transforms `terminal read` admits:
-/// `--unwrap` joins verified soft-wrap chains into logical lines; `--lines`
+/// `--source recent-unwrapped` joins verified soft-wrap chains into logical lines; `--lines`
 /// tails the emitted entries. Neither changes the fetched window.
 #[derive(Clone, Copy, Debug, Default)]
 #[cfg(test)]
@@ -457,12 +457,12 @@ pub(crate) struct TerminalReadDoc {
     pub(crate) terminal: TerminalRow,
     pub(crate) frame: TerminalFrameDoc,
     /// Emitted rows only; `row_count` counts every row in the applied frame.
-    /// Under `--unwrap` the rows stay the join's source but the document
+    /// Under `--source recent-unwrapped` the rows stay the join's source but the document
     /// emits `lines` instead.
     pub(crate) rows: Vec<TerminalContentRow>,
     pub(crate) row_count: usize,
     pub(crate) omitted_rows: usize,
-    /// `--unwrap` output: logical lines joined over the emitted rows.
+    /// `--source recent-unwrapped` output: logical lines joined over the emitted rows.
     pub(crate) lines: Option<Vec<LogicalLine>>,
     /// Logical lines the emitted rows formed before any tail — observed
     /// fragments only, never the retained-history total.
@@ -483,7 +483,7 @@ pub(crate) struct HistoryContentRow {
     pub(crate) into_next: bool,
 }
 
-/// `terminal read --history`: the validated frame facts and the bounded
+/// `terminal read --source recent`: the validated frame facts and the bounded
 /// scrollback window. `window_rows` is the Host row window's complete row
 /// count; `omitted_rows` counts the gap between `min(requested, scrollback)`
 /// and the rows actually emitted.
@@ -503,7 +503,7 @@ pub(crate) struct TerminalHistoryDoc {
     pub(crate) window_rows: usize,
     pub(crate) rows: Vec<HistoryContentRow>,
     pub(crate) omitted_rows: u64,
-    /// `--unwrap` output: logical lines joined over the emitted window rows.
+    /// `--source recent-unwrapped` output: logical lines joined over the emitted window rows.
     pub(crate) lines: Option<Vec<LogicalLine>>,
     /// Logical lines the emitted rows formed before any tail.
     pub(crate) line_count: Option<usize>,
@@ -572,7 +572,7 @@ fn apply_tail<T>(entries: &mut Vec<T>, requested: u16) -> ReadTail {
 /// Project the applied frame into the bounded answer: rows are emitted in
 /// frame order until the encoded-text budget would overflow, and every
 /// omitted row is counted honestly. The presentation transforms then apply
-/// over the emitted rows only — `--unwrap` re-presents them as joined
+/// over the emitted rows only — `--source recent-unwrapped` re-presents them as joined
 /// logical lines, `--lines` keeps the tail — without touching the bound or
 /// the physical-row facts.
 #[cfg(any(unix, windows))]
@@ -1120,7 +1120,7 @@ pub(crate) fn panel_entries(
     entries
 }
 
-/// One bound terminal row resolved by typed identity or `@terminal:<suffix>`
+/// One bound terminal row resolved by typed identity or `@terminal:0x<hex>`
 /// over the snapshot's complete bound set. Panels and terminals admit no
 /// labels, so a `Label` target is parser-impossible and stays a defensive
 /// internal failure rather than a silent empty match.
@@ -1677,7 +1677,7 @@ impl Projection {
             #[cfg(test)]
             Self::TerminalRead(doc) => {
                 let mut content = Map::new();
-                // `--unwrap` emits joined `lines` in place of `rows`; both
+                // `--source recent-unwrapped` emits joined `lines` in place of `rows`; both
                 // shapes keep the physical `rowCount` and the fetch-bound
                 // `omittedRows` facts, and `--lines` adds its own `tail`
                 // accounting — presentation omission is never folded into
@@ -2105,8 +2105,7 @@ impl<'a> ContextIndex<'a> {
     }
 }
 
-/// Typed and compact targets match exact identity; legacy suffix selectors tail
-/// the member ids; only a non-ID, non-selector token becomes an exact
+/// Typed and compact targets match exact identity; only a non-ID, non-selector token becomes an exact
 /// case-sensitive label search. Multi-match arms share one epilogue: zero is
 /// an empty candidate set, one is the answer, several return every matching
 /// id for the bounded ambiguity envelope.
@@ -2132,18 +2131,11 @@ fn resolve<'a, Item, Label: AsRef<str>>(
                 .collect(),
         ),
         Target::Selector(_) => {
-            if let Some(identity) = target.selector_identity() {
-                return items
-                    .find(|(id, _label, _item)| *id == identity)
-                    .map(|(_id, _label, item)| item)
-                    .ok_or_else(Vec::new);
-            }
-            let suffix = target.suffix().unwrap_or_default();
-            settle(
-                items
-                    .filter(|(id, _label, _item)| id.ends_with(suffix))
-                    .collect(),
-            )
+            let identity = target.selector_identity().ok_or_else(Vec::new)?;
+            items
+                .find(|(id, _label, _item)| *id == identity)
+                .map(|(_id, _label, item)| item)
+                .ok_or_else(Vec::new)
         }
     }
 }

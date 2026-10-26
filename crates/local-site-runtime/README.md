@@ -18,7 +18,7 @@ replacement reports an unknown outcome and never authorizes automatic replay.
 
 Reads preserve validated current values, claims and source without reinterpreting an unclaimed old default or rewriting bytes. Desktop import fields are outside the current strict record.
 
-Explicit legacy Windows TOML values still seed unclaimed preferences without changing that file. The initial observation includes its source fingerprint. Desktop does not submit old-record imports. Applications own UI drafts, polling, publication into running terminals, and process launch. The helper and native Site consume this same storage owner, not separate stores.
+An absent preference record returns canonical defaults, no claimed keys and the `missing` source token. Only the preference record participates in source observation. Applications own UI drafts, polling, publication into running terminals, and process launch. The helper and native Site consume this same storage owner, not separate stores.
 
 ## Shared launch and notification policy
 
@@ -37,9 +37,9 @@ this result with scrollback and launch selection; the resolver performs no termi
 Retained query state and reversible Client appearance follow the [native theme boundary](../../apps/orchbee/docs/native-themes.md).
 
 `NativeNotificationSettings` owns portable bounded delivery/sound policy. Windows configuration
-decoding retains aliases for legacy profile input; TUI observation and card scheduling consume
-the portable type. Common settings override legacy delivery and global sound after confirmation.
-The former three-leaf TOML settings writer is retired; legacy TOML remains read-only migration input.
+decoding accepts the declared current keys; TUI observation and card scheduling consume the
+portable type. Its complete private notification profile carries the current effective delivery
+and global sound policy, including values governed by shared preferences.
 
 ## Windows host appearance fallback
 

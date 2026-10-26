@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn fragmented_binary_frames_pin_full_sequences_and_reject_truncation_without_partial_image() {
     let mut parser = Parser::new();
-    let mut bytes = b"{\"format\":\"rgba\",\"image_width\":1,\"image_height\":1,\"data_length\":4,\"sequence\":\"18446744073709551614\",\"revision\":\"18446744073709551615\",\"placement\":{\"grid_cols\":4294967295,\"grid_rows\":4294967295}}\r\n".to_vec();
+    let mut bytes = b"{\"format\":\"rgba\",\"width\":1,\"height\":1,\"dataLength\":4,\"sequence\":\"18446744073709551614\",\"revision\":\"18446744073709551615\",\"placement\":{\"gridColumns\":4294967295,\"gridRows\":4294967295}}\r\n".to_vec();
     bytes.extend([0, 10, 255, 128]);
     let mut frames = Vec::new();
     for byte in bytes {
@@ -57,7 +57,7 @@ fn header_bounds_and_sizes_are_checked_before_body_allocation() {
 #[test]
 fn reference_browser_file_header_normalizes_damage_without_manufacturing_a_transport() {
     let mut parser = Parser::new();
-    parser.feed(br#"{"format":"rgba","image_width":2,"image_height":3,"sequence":7,"revision":8,"file":{"path":"C:\\private\\frame"},"damage":{"x":1,"y":1,"width":1,"height":1},"transport":"direct-kitty","placement":{"grid_cols":2,"grid_rows":3}}
+    parser.feed(br#"{"format":"rgba","width":2,"height":3,"sequence":7,"revision":8,"file":{"path":"C:\\private\\frame"},"damage":{"x":1,"y":1,"width":1,"height":1},"transport":"direct-kitty","placement":{"gridColumns":2,"gridRows":3}}
 "#).unwrap();
     let frame = parser.next().unwrap().unwrap();
     assert_eq!(frame.sequence.value(), 7);

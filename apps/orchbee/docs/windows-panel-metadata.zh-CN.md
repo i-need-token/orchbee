@@ -19,7 +19,7 @@
 ## 命令与生命周期
 
 `panel report-metadata <panel> --source <id>` 默认向 Panel 当前主终端写入临时展示元数据。
-使用精确 Panel ID 或 `@panel:<suffix>`。选项包括 `--title`、`--display-agent`、可重复的
+使用精确 Panel ID 或 `@panel:0x<hex>`。选项包括 `--title`、`--display-agent`、可重复的
 `--state-label STATE=TEXT`、`--agent`、`--applies-to-source`、`--clear-title`、
 `--clear-display-agent`、`--clear-state-labels`、可重复的 `--token KEY=VALUE` 和
 `--clear-token KEY`、`--seq`、`--ttl-ms`、`--format text|json`。状态为 `idle`、`working`、

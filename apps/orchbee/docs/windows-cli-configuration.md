@@ -30,19 +30,16 @@ Warnings use a bounded canonical reason grammar and a closed disposition vocabul
 
 ### Default configuration output
 
-`orchbee --default-config` is a sole offline invocation. Argument parsing selects it before any environment read or runtime discovery, and it does not activate a Session. It writes deterministic UTF-8 TOML with one trailing newline to stdout. A fixed-English comment reference lists admitted setting defaults, choices and purposes; English keeps this copyable config artifact identical across CLI locales. Registered Client actions appear as commented binding arrays, including `[]` for actions without a default binding, so uncommenting a row opts into an override while leaving the generated file unchanged preserves the Client registry's evolving defaults. The action rows are rendered from the same default binding registry used by the Client. The reference also describes named themes and custom-command rules. The legacy leaves `theme.name`, `ui.toast.agent_delivery`, and `ui.sound.enabled` remain commented; when no shared preference record exists, uncommenting one explicitly migrates its value into shared user preferences. Settings manages current shared preferences. `config check` accepts the generated output without warnings, and Windows CLI parsing produces the same effective settings and bindings as an absent file. Reading the generated file through the native `UserPreferencesStore` also preserves shared preference values at their absent-file defaults.
+`orchbee --default-config` is a sole offline invocation. Argument parsing selects it before any environment read or runtime discovery, and it does not activate a Session. It writes deterministic UTF-8 TOML with one trailing newline to stdout. A fixed-English comment reference lists admitted setting defaults, choices and purposes; English keeps this copyable config artifact identical across CLI locales. Registered Client actions appear as commented binding arrays, including `[]` for actions without a default binding, so uncommenting a row opts into an override while leaving the generated file unchanged preserves the Client registry's evolving defaults. The action rows are rendered from the same default binding registry used by the Client. The reference also describes custom-command rules. Settings manages shared preferences independently of the native configuration file. `config check` accepts the generated output without warnings, and Windows CLI parsing produces the same effective settings and bindings as an absent file. An absent shared preference record returns canonical defaults regardless of the generated configuration file.
 
 ## Named chrome themes
 
 The shared [application appearance preference](../../../crates/workbench-protocol/docs/user-preferences.md)
 supports Light (`light`), Dark (`dark`) and System (`system`); System is the
 common default. In the native TUI, System follows the host-default background and uses
-terminal-native contrast when no host background is observed. Windows TOML `[theme] name` remains a separate legacy
-named-theme migration input: it accepts `terminal-native`, `one-light` or `one-dark`,
-and the offline default TOML keeps the registry default as the commented example
-`# name = "terminal-native"`, which migrates only when explicitly uncommented with no shared preference record. Invalid names or
-types warn and default this field; unknown theme fields warn and are ignored. See [native themes](native-themes.md) for polarity, color capabilities,
-all chrome consumers, shared reload and rollback.
+terminal-native contrast when no host background is observed. Shared preferences own application
+appearance. See [native themes](native-themes.md) for polarity, color capabilities, all chrome
+consumers, shared reload and rollback.
 
 `config check` v14 adds required `themeName` to admitted Windows user-config details;
 its fatal shapes remain unchanged and versions 1–13 stay closed. Session configuration
@@ -241,7 +238,7 @@ Supported action fields are `help`, `menu`, `new_worktree`, `open_worktree`, `ne
 `detach`, `previous_workspace`, `next_workspace`, `previous_agent`, `next_agent`, `focus_agent`, `new_tab`, `rename_tab`, `previous_tab`,
 `next_tab`, `move_tab_previous`, `move_tab_next`, `switch_tab`, `close_tab`,
 `copy_mode`, `resize_mode`, `resize_pane_left/down/up/right`, and `focus_pane_left/down/up/right` (four fields), `split_vertical`, `split_horizontal`,
-`close_pane`, `zoom` (alias `fullscreen`), `toggle_sidebar` and `reload_config`. They invoke existing native actions;
+`close_pane`, `zoom`, `toggle_sidebar` and `reload_config`. They invoke existing native actions;
 Workspace means the native Workbench location, vertical split is rightward and horizontal is downward.
 Agent previous/next defaults to prefix `{`/`}` and uses the same ephemeral filtered/sorted
 [machine Agent list](machines.md#agent-metadata-view-controls-and-navigation), with exact physical
@@ -332,11 +329,10 @@ field/reason/disposition record. Versions 1 through 7 remain closed and do not a
 ## Live defaults for subsequent Windows terminals
 
 Production now reads the [shared device launch profile](../../../crates/workbench-protocol/docs/user-preferences.md)
-and scrollback from one confirmed snapshot before each new Host launch. Explicit legacy TOML
-shell values seed an unclaimed preference only; once persisted or claimed by Desktop/TUI, later
-TOML reloads cannot override that profile. The configuration receipts below describe the admitted
-legacy configuration, not the effective shared catalog. The following request-carried override
-path remains for compatibility adapters without a shared store.
+and scrollback from one confirmed snapshot before each new Host launch. An absent record uses
+canonical launch defaults. The configuration receipts below describe the admitted native
+configuration, not the effective shared catalog. The request-carried override path remains
+for adapters without a shared store.
 
 Reload commits a validated `DefaultShellSelection` into the existing Server TerminalCoordinator. Its creation admission captures that immutable value in each new default `AuthorizedTerminalLaunch`; explicit executable/Profile requests carry no default override. The Worker validates the Windows shell syntax and resolves its own executable/PATH and mode flags before Host handoff. An absent override retains the Worker's startup fallback for unmanaged/legacy private requests. Existing PTYs, prepared launches, exact replay and deferred Start never acquire later defaults. New CLI/TUI/restore creation uses the same coordinator admission.
 
@@ -352,10 +348,10 @@ Launch preparation failure records the existing known pre-handoff failure, retai
 
 ## Custom-notification configuration
 
-`ui.toast.delivery` accepts off (default), orchbee, terminal or system for manual CLI notifications. `ui.toast.overlay.position` selects the four-corner default. Before common preferences are confirmed, automatic physical-Agent notifications use the separate `ui.toast.agent_delivery` (orchbee by default) and `ui.toast.delay_seconds` (one second by default, 0–3600). `[ui.sound] enabled` is false by default and, with `[ui.sound.agents]`, controls only automatic built-in cues; it does not change explicit `notification show` sound. Clipboard policy remains independent. Startup is Client-local; explicit Session reload publishes the complete bounded notification profile alongside keys, and Clients validate both before applying either. `server config`/reload v7 carry the 16 KiB `notificationProfile`, `config check` v12 exposes manual and automatic policy, and configuration failure v9 adds the automatic delay/sound diagnostics. Earlier public versions remain closed. See the complete [automatic notification contract](windows-notifications.md#automatic-physical-agent-notifications).
+`ui.toast.delivery` accepts off (default), orchbee, terminal or system for manual CLI notifications. `ui.toast.overlay.position` selects the four-corner default. Shared `agentNotificationMode` and `soundEnabled` preferences govern automatic Agent notifications and sound. `ui.toast.delay_seconds` supplies their delay (one second by default, 0–3600); `[ui.sound.agents]` supplies per-Agent sound overrides without changing explicit `notification show` sound. Clipboard policy remains independent. Startup is Client-local; explicit Session reload publishes the complete bounded notification profile alongside keys, and Clients validate both before applying either. `server config`/reload v7 carry the 16 KiB `notificationProfile`, `config check` v12 exposes manual and automatic policy, and configuration failure v9 adds the automatic delay/sound diagnostics. Earlier public versions remain closed. See the complete [automatic notification contract](windows-notifications.md#automatic-physical-agent-notifications).
 
-Common Agent reminder mode and sound, once confirmed, override those legacy automatic leaves;
-manual notification delivery and per-Agent sound overrides retain their separate ownership.
+Common Agent reminder mode and global sound remain authoritative; manual notification delivery
+and per-Agent sound overrides retain their separate ownership.
 
 ## Windows release installation
 

@@ -1,4 +1,4 @@
-//! Windows retained-Panel relocation grammar, separate from legacy same-Tab placement.
+//! One retained-Panel placement grammar for existing and new destinations.
 use super::{
     FailureEnvelope, Options, OutputFormat, PANEL_MOVE_SCOPE, ParseFailure, Request, Resource,
     Scope, TabContext, Target, UsageContext, UsageReason, WorkbenchLabel,

@@ -12,12 +12,12 @@ existing Session; they never activate it or change selection, input, geometry, o
 
 The grammar produces exactly one of `Current`, `Panel(target)`, or `Client(id)`:
 
-| Input                                                                | Resolution                                                                                                    |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `--panel <id-or-suffix>`; also a positional Panel for `process-info` | Resolve against the snapshot, ignoring caller environment and without reading Clients.                        |
-| `--client <id>` with omitted target or `--current`                   | Select that current Client, ignoring caller environment.                                                      |
-| Omitted target or `--current`, with both caller variables absent     | Require exactly one current Client.                                                                           |
-| Omitted target or `--current`, with caller metadata present          | Validate both `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID`, then resolve the caller's Panel in the snapshot. |
+| Input                                                            | Resolution                                                                                                    |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `<panel-id-or-handle>`                                           | Resolve against the snapshot, ignoring caller environment and without reading Clients.                        |
+| `--client <id>` with omitted target or `--current`               | Select that current Client, ignoring caller environment.                                                      |
+| Omitted target or `--current`, with both caller variables absent | Require exactly one current Client.                                                                           |
+| Omitted target or `--current`, with caller metadata present      | Validate both `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID`, then resolve the caller's Panel in the snapshot. |
 
 Explicit Panel and Client selectors conflict. Partial, malformed, or stale caller metadata never
 falls back to Client selection. Multiple Clients are ambiguous; a missing or stale explicit Client

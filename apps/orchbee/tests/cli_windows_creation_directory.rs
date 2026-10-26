@@ -269,7 +269,7 @@ fn source_observation_is_exact_bounded_read_only_and_never_replays_creation() {
         let output = fixture.run(&[
             "panel",
             "split",
-            "@panel:06",
+            "@panel:0x6",
             "--direction=right",
             if cut == Cut::Timeout {
                 "--timeout=1500"
@@ -333,7 +333,7 @@ fn explicit_directory_modes_skip_viewer_and_tab_source_respects_the_destination_
         let output = fixture.run(&[
             "panel",
             "split",
-            "@panel:06",
+            "@panel:0x6",
             "--direction=right",
             "--cwd",
             mode,

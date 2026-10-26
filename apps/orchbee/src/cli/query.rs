@@ -289,18 +289,12 @@ pub(crate) fn read_snapshot() -> Result<Snapshot, Failure> {
 pub(crate) fn terminal_get(target: &Target) -> Result<(serde_json::Value, Projection), Failure> {
     let (mut client, deadline, snapshot) = snapshot_session()?;
     // A typed ID passes through to the Server's launch read unchanged — it
-    // answers binding state itself. A `@terminal:` selector resolves against
-    // the snapshot's complete bound set first; the request then carries the
-    // resolved full id.
+    // answers binding state itself. A compact selector expands to the same exact ID.
     let identity = match target {
         Target::Id(identity) => identity.clone(),
-        Target::Selector(_) => match target.selector_identity() {
-            Some(identity) => identity,
-            None => super::results::terminal_select(&snapshot, target)
-                .map_err(|failure| failure.source(super::results::snapshot_source(&snapshot)))?
-                .terminal_id
-                .clone(),
-        },
+        Target::Selector(_) => target
+            .selector_identity()
+            .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?,
         // The parser admits only typed IDs and selectors for terminal targets.
         Target::Label(_) | Target::TerminalOrPanelId(_) => {
             return Err(Failure::new(FailureKind::InternalFailure));
@@ -356,7 +350,7 @@ pub(crate) fn terminal_get(target: &Target) -> Result<(serde_json::Value, Projec
 
 /// `terminal read`: the snapshot resolves the typed binding, then one
 /// read-capability viewer attachment on the same session and deadline
-/// observes the terminal's current projection — or, under `--history`, the
+/// observes the terminal's current projection — or, under `--source recent`, the
 /// retained scrollback window behind it. The attachment is released
 /// (best-effort `Detach` plus the session drop) before any output work.
 #[cfg(any(target_os = "linux", windows))]
@@ -1167,7 +1161,7 @@ fn read_terminal_frame(
     outcome.map(|frame| (row, frame))
 }
 
-/// `--history`: the same attach → poll preamble pins the frame's retained
+/// `--source recent`: the same attach → poll preamble pins the frame's retained
 /// scrollback count, then one `ReadRows` asks for the rows that have
 /// scrolled off the active screen; an aged pin repeats both on the next
 /// applied frame. `K = min(requested, scrollback,

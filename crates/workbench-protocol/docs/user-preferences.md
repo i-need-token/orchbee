@@ -49,7 +49,7 @@ does not depend on automatic shell discovery. System-shell discovery runs for a
 new default launch; failure refuses that creation without inventing another
 executable or rewriting the catalog. Existing terminals retain their launch.
 
-## Scope, persistence, and migration
+## Scope and persistence
 
 The configuration identity is frozen at process/Site startup. Explicit
 `ORCHBEE_CONFIG_FILE` isolates that absolute configuration path. Otherwise the
@@ -63,7 +63,7 @@ no explicit override is present; release uses the native platform location. A TU
 development identity must select the same absolute `ORCHBEE_CONFIG_FILE`. This keeps development
 preferences isolated from the installed release while preserving one authority within each scope.
 
-Read returns a complete validated snapshot, exact source token and claimed keys. Source is `missing` or a lowercase SHA-256 token; before the first persisted record it also covers the explicit legacy native source. Invalid, unreadable, unsafe or oversized sources are refused rather than replaced. The complete record/exchange bound is 2 MiB.
+Read returns a complete validated snapshot, exact source token and claimed keys. An absent record returns canonical defaults, no claimed keys and the `missing` source token; an existing record uses a lowercase SHA-256 token of its bytes. Invalid, unreadable, unsafe or oversized records are refused rather than replaced. The complete record/exchange bound is 2 MiB.
 
 An update contains an expected source and a nonempty typed patch. Omitted keys
 remain unchanged; null resets a key to its canonical default. An OS-held lock
@@ -74,7 +74,7 @@ automatically replayed. A saved snapshot describes that commit, not immunity
 from a later edit. Noncooperating external editors are outside the shared lock's
 transaction boundary.
 
-Explicit native legacy values still seed and claim their own keys. Desktop Main and renderer only read or update the current shared record; old-record imports and import receipts are not admitted. Explicit edits and resets claim keys even when the reset value already equals the default. Native initial-source admission remains separate from Desktop transport ownership.
+Desktop Main, renderer and native Clients read or update the current shared record. Explicit edits and resets claim keys even when the reset value already equals the default. Configuration files select the storage scope without supplying preference values.
 
 ## Client behavior and capability boundaries
 
@@ -106,7 +106,7 @@ the window; automatic following never moves an active selection.
 ## Verification ownership
 
 The schema corpus checks Rust/TypeScript vocabulary, bounds and invalid input.
-Local Site Runtime checks source conflicts, claims, imports, private storage and
+Local Site Runtime checks source conflicts, claims, private storage and
 commit failures; the matched helper tests the real bounded process exchange.
 Desktop and native tests check draft/source ownership, publication, disposal,
 launch capture, and existing-terminal presentation. The

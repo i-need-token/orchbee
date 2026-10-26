@@ -184,3 +184,32 @@ pub(super) fn split_path(
     }
     walk(&tab.root, identity, &mut vec![]).ok_or_else(internal)
 }
+
+pub(super) fn parent_split(
+    snapshot: &Snapshot,
+    target: &Panel,
+) -> Result<ClientSplitIdentity, Failure> {
+    let tab = snapshot
+        .terminal_contexts
+        .iter()
+        .find(|context| context.terminal_context_id == target.terminal_context_id)
+        .and_then(|context| context.tabs.iter().find(|tab| tab.tab_id == target.tab_id))
+        .ok_or_else(|| Failure::new(FailureKind::NotFound))?;
+    fn find(node: &PanelNode, target: &Panel) -> Option<ClientSplitIdentity> {
+        let PanelNode::Split {
+            split_id, children, ..
+        } = node
+        else {
+            return None;
+        };
+        if children.iter().any(|child| matches!(&child.node, PanelNode::Panel { panel_id, .. } if panel_id == &target.panel_id)) {
+            return Some(ClientSplitIdentity {
+                split_id: split_id.clone(),
+                first_slot_id: children[0].slot_id.clone(),
+                second_slot_id: children[1].slot_id.clone(),
+            });
+        }
+        children.iter().find_map(|child| find(&child.node, target))
+    }
+    find(&tab.root, target).ok_or_else(|| Failure::new(FailureKind::Rejected))
+}

@@ -104,13 +104,10 @@
 						},
 						{
 							"properties": {
-								"version": {
-									"const": 5
-								},
 								"result": {
 									"properties": {
 										"action": {
-											"const": "panel.relocate"
+											"enum": ["panel.move", "panel.relocate"]
 										}
 									}
 								}
@@ -192,7 +189,7 @@
 			"enum": ["preflight", "move", "ratio", "focus", "layouts", "complete"]
 		},
 		"reason": {
-			"enum": [null, "same-tab", "zoomed-tab"]
+			"enum": [null, "zoomed-tab"]
 		},
 		"failure": {
 			"anyOf": [
@@ -3276,7 +3273,7 @@
 						"type": "null"
 					},
 					"reason": {
-						"enum": ["same-tab", "zoomed-tab"]
+						"enum": ["zoomed-tab"]
 					}
 				}
 			}

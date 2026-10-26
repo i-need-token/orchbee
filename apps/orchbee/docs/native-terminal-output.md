@@ -4,8 +4,8 @@
 
 This reference owns Linux/Windows `terminal read` and `agent read`. Both default to recent
 output (80 physical rows). `--source visible|recent|recent-unwrapped|detection` selects the
-snapshot; `--lines` accepts an unsigned 32-bit count, clamps to 1000 and permits zero. Read
-and wait commands reject `--history`, `--rows` and `--unwrap`; geometry commands retain `--rows`.
+snapshot; `--lines` accepts an unsigned 32-bit count, clamps to 1000 and permits zero. Geometry
+commands use `--rows` for dimensions.
 `--plain` exports UTF-8 directly and conflicts with JSON. `--ansi` exports styled text and
 conflicts with `--plain`. All grammar resolves before effects. Agent targets can explicitly
 select `--terminal` / `@terminal:` including child terminals, or `--panel` / `@panel:` for a primary.
@@ -113,8 +113,8 @@ source and lifetime rules. This workflow uses implementation tests.
 ## ANSI snapshot export
 
 Linux/Windows `terminal read` and `agent read` accept `--ansi` as a styled data export. It defaults to
-`recent`, accepts the four source selectors and source-mode line limits, and excludes `--plain`,
-`--history`, `--rows` and `--unwrap`. Use `recent-unwrapped` to join soft wraps. Grammar is resolved
+`recent`, accepts the four source selectors and source-mode line limits, and excludes `--plain`.
+Use `recent-unwrapped` to join soft wraps. Grammar is resolved
 before runtime admission. `--format json` remains available; otherwise stdout contains the prepared
 UTF-8 ANSI string directly, without headings. This is the same explicit data-export exception as
 plain output, not a change to ordinary escaped human text.

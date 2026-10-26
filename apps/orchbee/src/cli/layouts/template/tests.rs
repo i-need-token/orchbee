@@ -13,11 +13,11 @@ fn parse_value(value: Value) -> Result<Node, InputError> {
 }
 
 #[test]
-fn export_and_herdr_templates_keep_literal_launch_values_without_reusing_ids() {
-    let root = json!({"type":"pane","pane_id":"old:1:2","label":" 中文 ",
+fn exports_and_templates_keep_literal_launch_values_without_reusing_ids() {
+    let root = json!({"type":"panel","panelId":"5".repeat(32),"label":" 中文 ",
         "cwd":"C:\\含 空格", "command":["pwsh","-Command","$x='literal'",""],
         "env":{"LAYOUT_EMPTY":"","LAYOUT_LITERAL":"$(not executed)"}});
-    let node = parse_value(root.clone()).expect("Herdr pane");
+    let node = parse_value(root.clone()).expect("Panel template");
     let Node::Panel(leaf) = &node else {
         panic!("leaf")
     };
@@ -28,8 +28,8 @@ fn export_and_herdr_templates_keep_literal_launch_values_without_reusing_ids() {
     assert_eq!(leaf.primary.command.as_ref().expect("argv")[3], "");
     assert_eq!(leaf.primary.environment.entries()[1].1, "$(not executed)");
     assert_eq!(
-        parse_value(json!({"workspace_id":"old:1", "tab_id":"old:1:2",
-        "zoomed":true,"focused_pane_id":"ignored","root":root}))
+        parse_value(json!({"workspaceId":"7".repeat(32), "tabId":"4".repeat(32),
+        "zoomed":true,"focusedPanelId":"5".repeat(32),"root":root}))
         .expect("description"),
         node
     );
@@ -133,7 +133,7 @@ fn every_leaf_is_validated_before_a_plan_escapes() {
         json!({"type":"panel","env":{"PATH":"a","path":"b"}}),
         json!({"type":"panel","env":{"ORCHBEE_SESSION":"x"}}),
         json!({"type":"panel","env":null}),
-        json!({"type":"panel","panelId":"one","pane_id":"two"}),
+        json!({"type":"panel","unknown":true}),
         json!({"type":"panel","focus":true}),
         json!({"type":"split","direction":"diagonal","ratio":0.5,"first":leaf("x"),"second":leaf("y")}),
     ] {
@@ -143,7 +143,7 @@ fn every_leaf_is_validated_before_a_plan_escapes() {
         );
     }
     for bytes in [
-        br#"{"type":"panel","type":"pane"}"#.as_slice(),
+        br#"{"type":"panel","type":"split"}"#.as_slice(),
         br#"{"root":{"type":"panel","env":{"X":"first","X":"last"}}}"#,
         br#"{"type":"split","direction":"right","ratio":0.5,"first":{"type":"panel"},"second":{"type":"panel","label":"a","label":"b"}}"#,
         br#"{"type":"panel"} {}"#,

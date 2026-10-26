@@ -596,7 +596,7 @@ fn panel_prompt_submits_to_the_primary_binding() {
         "agent",
         "prompt",
         "--panel",
-        "@panel:222",
+        "@panel:0x22222222222222222222222222222222",
         "panel prompt",
         "--format",
         "json",

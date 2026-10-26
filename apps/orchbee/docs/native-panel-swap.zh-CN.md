@@ -5,7 +5,7 @@
 `panel swap [source] --with <target>` 交换同一 Tab 中两个叶子 Panel。另一种形式
 `panel swap [source] --direction left|right|up|down` 使用 Windows TUI 未缩放的单元格几何解析
 一个邻居。`--with` 与 `--direction` 互斥且必须提供一个。`--panel` 与 `--current` 是另一种来源
-选择形式，彼此及与位置来源互斥。Panel 操作数只接受精确 ID 或 `@panel:<suffix>`，不接受标签。
+选择形式，彼此及与位置来源互斥。Panel 操作数只接受精确 ID 或 `@panel:0x<hex>`，不接受标签。
 显式来源及 `--with` 且省略 `--client` 时使用无头共享路径。省略来源时先使用已验证的调用者上下文，再使用所选 Client 的当前 Panel。显式 `--client` 或
 既有唯一 Client 解析器选择 TUI；Client 不明确时在修改前拒绝。
 

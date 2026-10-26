@@ -8,7 +8,6 @@ use std::{
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UserPreferencesScope {
-    pub(super) configuration: PathBuf,
     pub(super) directory: PathBuf,
 }
 impl UserPreferencesScope {
@@ -30,7 +29,6 @@ impl UserPreferencesScope {
         let name = name.to_lowercase();
         let identity = format!("{:x}", Sha256::digest(name.as_bytes()));
         Ok(Self {
-            configuration: path.to_owned(),
             directory: parent.join(format!("preferences-{identity}")),
         })
     }

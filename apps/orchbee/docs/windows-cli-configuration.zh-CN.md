@@ -30,16 +30,14 @@ manifest_check = true
 
 ### 默认配置输出
 
-`orchbee --default-config` 是独占式离线调用。参数解析会在读取任何环境变量或发现运行时前选中它，且不会激活 Session。它向 stdout 写入确定性的 UTF-8 TOML，并以一个换行结尾。固定英文注释列出已接纳设置的默认值、选项和用途；使用英文可让此可复制配置产物在不同 CLI 语言环境下保持一致。已注册的 Client 动作会以注释按键数组列出，没有默认绑定的动作显示为 `[]`；只有取消注释的行才会成为覆盖，因此不改动生成文件会继续沿用 Client 持续演进的默认值。动作行由 Client 使用的同一默认绑定注册表生成。参考还说明命名主题和自定义命令规则。旧叶字段 `theme.name`、`ui.toast.agent_delivery` 和 `ui.sound.enabled` 保持注释；共享偏好记录不存在时，只有取消注释某一项才会将其显式迁移到共享用户偏好。当前共享偏好由 Settings 管理。`config check` 可无警告地接纳生成结果；Windows CLI 解析后的有效设置和按键绑定与配置文件缺失时相同。原生 `UserPreferencesStore` 读取生成文件时，共享偏好值也保持在文件缺失时的默认状态。
+`orchbee --default-config` 是独占式离线调用。参数解析会在读取任何环境变量或发现运行时前选中它，且不会激活 Session。它向 stdout 写入确定性的 UTF-8 TOML，并以一个换行结尾。固定英文注释列出已接纳设置的默认值、选项和用途；使用英文可让此可复制配置产物在不同 CLI 语言环境下保持一致。已注册的 Client 动作会以注释按键数组列出，没有默认绑定的动作显示为 `[]`；只有取消注释的行才会成为覆盖，因此不改动生成文件会继续沿用 Client 持续演进的默认值。动作行由 Client 使用的同一默认绑定注册表生成。参考还说明自定义命令规则。Settings 独立于原生配置文件管理共享偏好。`config check` 可无警告地接纳生成结果；Windows CLI 解析后的有效设置和按键绑定与配置文件缺失时相同。共享偏好记录不存在时返回规范默认值，与生成配置文件无关。
 
 ## 命名 chrome 主题
 
 共享的[应用外观偏好](../../../crates/workbench-protocol/docs/user-preferences.zh-CN.md)
 支持浅色（`light`）、深色（`dark`）和系统（`system`）；系统是通用默认值。在原生 TUI 中，
-系统模式跟随宿主默认背景，并在缺少宿主背景观测时使用终端原生对比度。Windows TOML `[theme] name` 是单独的旧命名主题
-迁移输入，接受 `terminal-native`、`one-light` 或 `one-dark`；离线默认 TOML 将注册表默认值保留为
-注释示例 `# name = "terminal-native"`，只有在共享偏好记录不存在且显式取消注释后才会迁移。无效名称或类型给出警告并让该字段回退；未知主题字段会警告并忽略。[原生主题](native-themes.zh-CN.md)定义极性、颜色能力、所有 chrome 消费界面、
-共享重载及回退。
+系统模式跟随宿主默认背景，并在缺少宿主背景观测时使用终端原生对比度。共享偏好拥有应用外观。
+[原生主题](native-themes.zh-CN.md)定义极性、颜色能力、所有 chrome 消费界面、共享重载及回退。
 
 `config check` v14 为已准入的 Windows user-config details 增加必需 `themeName`；
 致命错误形状不变，1–13 版保持封闭。Session 配置 v9 为成功快照增加必需 `themeName`，
@@ -179,7 +177,7 @@ ASCII 字母只有在绑定包含 Shift 时才使用大写，其余保持小写�
 `detach`、`previous_workspace`、`next_workspace`、`previous_agent`、`next_agent`、`focus_agent`、`new_tab`、`rename_tab`、`previous_tab`、
 `next_tab`、`move_tab_previous`、`move_tab_next`、`switch_tab`、`close_tab`、
 `copy_mode`, `resize_mode`, `resize_pane_left/down/up/right`，以及 `focus_pane_left/down/up/right`（四个字段）、`split_vertical`、`split_horizontal`、
-`close_pane`、`zoom`（别名 `fullscreen`）、`toggle_sidebar` 和 `reload_config`。它们调用现有原生动作；
+`close_pane`、`zoom`、`toggle_sidebar` 和 `reload_config`。它们调用现有原生动作；
 Workspace 对应原生 Workbench 位置，竖向分屏向右、横向分屏向下。
 Agent 上一个/下一个默认使用前缀 `{`/`}`，使用同一临时筛选/排序后的
 [机器 Agent 列表](machines.zh-CN.md#agent-元数据视图控制与导航)，并重新验证精确物理目标。
@@ -257,9 +255,8 @@ Client 独立配置策略仍待补全。
 
 生产现在在每次新 Host 启动前，从一个确认快照读取
 [共享设备启动配置](../../../crates/workbench-protocol/docs/user-preferences.zh-CN.md)和滚动历史。
-显式旧 TOML Shell 值只为未声明偏好提供初值；Desktop/TUI 持久化或声明后，
-后续 TOML 重载不能覆盖该配置。下文配置回执描述已准入旧配置，不代表有效共享目录。
-请求携带的覆盖路径保留给没有共享存储的兼容适配器。
+记录不存在时使用规范启动默认值。下文配置回执描述已准入原生配置，不代表有效共享目录。
+请求携带的覆盖路径保留给没有共享存储的适配器。
 
 重载把已验证的 `DefaultShellSelection` 提交到 Server 现有 TerminalCoordinator。新建接纳时将不可变值冻结到每个默认 `AuthorizedTerminalLaunch`；显式程序/Profile 请求不携带默认覆盖。Worker 在 Host 交接前校验 Windows Shell 语法，并使用自身的程序/PATH 和模式解析。没有覆盖时，非托管/旧私有请求保留 Worker 的启动回退。现有 PTY、已准备启动、精确重放和延迟 Start 不接收后续默认值。CLI/TUI/恢复新建共用同一 coordinator 接纳。
 
@@ -275,9 +272,9 @@ Client 独立配置策略仍待补全。
 
 ## 自定义通知配置
 
-`ui.toast.delivery` 接受 off（默认）、orchbee、terminal 或 system，用于手动 CLI 通知。`ui.toast.overlay.position` 选择四角默认位置。自动物理 Agent 通知使用独立的 `ui.toast.agent_delivery`（默认 orchbee）和 `ui.toast.delay_seconds`（默认一秒，范围 0–3600）。`[ui.sound] enabled` 默认 false，并与 `[ui.sound.agents]` 一起仅控制自动内置提示音，不改变显式 `notification show` 的声音；剪贴板策略仍然独立。启动配置属于 Client；显式 Session 重载与键位一起发布完整的有界通知 profile，Client 在同时校验两者之后应用。`server config`/重载 v7 携带 16 KiB `notificationProfile`，`config check` v12 暴露手动与自动策略，配置失败 v9 增加自动延迟／声音诊断。旧公开版本保持封闭。详见完整的[自动通知契约](windows-notifications.zh-CN.md#自动物理-agent-通知)。
+`ui.toast.delivery` 接受 off（默认）、orchbee、terminal 或 system，用于手动 CLI 通知。`ui.toast.overlay.position` 选择四角默认位置。共享偏好 `agentNotificationMode` 和 `soundEnabled` 管理自动 Agent 通知及声音。`ui.toast.delay_seconds` 提供延迟（默认一秒，范围 0–3600）；`[ui.sound.agents]` 提供逐 Agent 声音覆盖，不改变显式 `notification show` 的声音；剪贴板策略仍然独立。启动配置属于 Client；显式 Session 重载与键位一起发布完整的有界通知 profile，Client 在同时校验两者之后应用。`server config`/重载 v7 携带 16 KiB `notificationProfile`，`config check` v12 暴露手动与自动策略，配置失败 v9 增加自动延迟／声音诊断。旧公开版本保持封闭。详见完整的[自动通知契约](windows-notifications.zh-CN.md#自动物理-agent-通知)。
 
-通用 Agent 提醒模式与声音确认后覆盖旧自动通知字段；手动通知投递与逐 Agent 声音覆盖保持独立归属。
+通用 Agent 提醒模式和全局声音保持权威；手动通知投递与逐 Agent 声音覆盖保持独立归属。
 
 ## Windows 版本安装
 

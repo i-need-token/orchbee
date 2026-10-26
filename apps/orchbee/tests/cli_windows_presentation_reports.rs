@@ -114,7 +114,7 @@ fn exact_report_cli_preserves_primary_defaults_and_member_identity_through_unkno
             assert_closed(&mut stream);
         });
         let member = id(if case == "missing" { 999 } else { 306 });
-        let mut args = vec!["panel", verb, "@panel:06", "--format=json"];
+        let mut args = vec!["panel", verb, "@panel:0x6", "--format=json"];
         if verb == "report-metadata" {
             args.extend(["--source=custom", "--title=child title"]);
         } else if verb != "clear-agent-authority" {

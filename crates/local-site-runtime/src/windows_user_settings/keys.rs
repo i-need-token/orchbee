@@ -139,22 +139,10 @@ impl WindowsKeySettings {
             );
         }
         for action in ACTIONS {
-            let (field, value) = match (table.get(*action), *action) {
-                (Some(value), _) => (*action, Some(value)),
-                (None, "zoom") => ("fullscreen", table.get("fullscreen")),
-                (None, _) => (*action, None),
-            };
-            let Some(value) = value else {
+            let Some(value) = table.get(*action) else {
                 continue;
             };
-            parse_action_lenient(action, field, value, &mut result, diagnostics, 16);
-        }
-        if table.contains_key("zoom") && table.contains_key("fullscreen") {
-            diagnostics.push(
-                "keys.fullscreen",
-                "duplicate-binding",
-                WindowsSettingsDiagnosticDisposition::Ignored,
-            );
+            parse_action_lenient(action, action, value, &mut result, diagnostics, 16);
         }
         if let Some(commands) = table.get("command") {
             match commands::parse(Some(commands), &result) {
@@ -194,11 +182,7 @@ impl WindowsKeySettings {
             if matches!(field.as_str(), "prefix" | "command") {
                 continue;
             }
-            let field = if field == "fullscreen" {
-                "zoom"
-            } else {
-                field.as_str()
-            };
+            let field = field.as_str();
             let action = ACTIONS
                 .iter()
                 .find(|action| **action == field)

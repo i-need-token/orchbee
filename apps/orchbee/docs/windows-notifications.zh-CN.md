@@ -33,25 +33,21 @@ Windows 主 TUI Client 可以为已检测到的终端 Agent 状态变化发提�
 规范化的已检测 Agent 标签及有界 workspace、Tab、pane 上下文，绝不包含 Agent 提示、
 回复、报告消息或终端内容。
 
-自动策略与通知共用有界配置 profile，但与手动 CLI 投递使用不同设置：
+共享偏好 `agentNotificationMode` 和 `soundEnabled` 管理自动提醒，默认均关闭
+（`never` 和 `false`）。原生配置提供延迟和逐 Agent 声音覆盖，与手动投递独立：
 
 ```toml
 [ui.toast]
 delivery = "off"                 # 手动 `notification show`；保留现有默认值
-agent_delivery = "orchbee"       # 自动 Agent 弹窗；默认值
 delay_seconds = 1                # 0 到 3600
-
-[ui.sound]
-enabled = false                  # 自动 Agent 声音；默认值
 
 [ui.sound.agents]
 codex = "off"                    # default、on 或 off
 ```
 
-`agent_delivery` 接受 `off`、`orchbee`、`terminal` 或 `system`。
-它不会改变既有 `delivery` 默认值，也不改变 `notification show` 的显式声音。
-`[ui.sound]` 只管理自动声音。全局 `enabled = false` 是硬关闭；启用声音后，按 Agent
-配置的 `off` 会静音对应检测标签，`default` 或 `on` 允许内置提示音。没有 Agent 默认静音。
+这些偏好不改变手动 `delivery` 或 `notification show` 的显式声音。
+共享偏好 `soundEnabled = false` 是硬关闭；启用声音后，按 Agent 配置的 `off`
+会静音对应检测标签，`default` 或 `on` 允许内置提示音。没有 Agent 默认静音。
 Agent 键使用小写检测器 ID，最长 64 个 ASCII 字母、数字、点或连字符，首尾必须为字母或数字。
 done 使用 Windows 信息提示音，request 使用 Windows 感叹提示音。本契约不包含自定义
 文件、解码依赖、辅助进程或点击跳转。
@@ -88,9 +84,8 @@ seen。移除、替换、状态变化、确认已读、有效配置替换或 Cli
 Session 将键位、侧栏设置及完整通知 profile 原子发布。启动或 reload 来源不可读、过大、
 非 UTF-8 或 TOML 畸形时保留旧 profile。无效通知叶字段使用安全默认值、产生警告并参与
 完整候选的原子发布；畸形私有线协议 profile 仍在 Client 安装前拒绝。有效且不同的修订会
-取消全部旧自动候选及尚未绘制的通知效果；后续状态转移使用新 profile。自动弹窗默认使用
-应用内投递，自动声音默认关闭。运行时同时关闭两者再 reload 即可立即回滚。回滚旧二进制
-前还必须移除 `agent_delivery`、`delay_seconds` 和 `[ui.sound]`。
+取消全部旧自动候选及尚未绘制的通知效果；后续状态转移使用新 profile。共享偏好启用应用内
+自动弹窗及全局声音，默认均关闭。在 Settings 中关闭两者即可停止自动投递。
 
 ### 正确性声明与证据
 

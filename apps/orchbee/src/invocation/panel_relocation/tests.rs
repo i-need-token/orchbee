@@ -67,7 +67,7 @@ fn panel_relocation_destinations_defaults_and_ratio_follow_reference() {
     }
 }
 #[test]
-fn panel_relocation_rejects_conflicts_before_effects_and_keeps_adjacent() {
+fn panel_relocation_rejects_conflicts_before_effects() {
     for tail in [
         vec!["--new-tab", "--new-workspace"],
         vec!["--new-tab", "--ratio", "0.3"],
@@ -81,17 +81,4 @@ fn panel_relocation_rejects_conflicts_before_effects_and_keeps_adjacent() {
         words.extend(tail);
         assert!(command(&words).is_err(), "{words:?}");
     }
-    assert!(matches!(
-        command(&[
-            "panel",
-            "move",
-            "00000000000000000000000000000001",
-            "--target-panel",
-            "00000000000000000000000000000002",
-            "--direction",
-            "left"
-        ])
-        .unwrap(),
-        Request::Mutation { .. }
-    ));
 }

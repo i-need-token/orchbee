@@ -4489,8 +4489,6 @@ fn command_flag_conflicts(command: &str, flag: &str) -> &'static [&'static str] 
         ("panel:create-terminal", "--child") => &["--presentation"],
         ("panel:create-terminal", "--presentation") => &["--child", "--label"],
         ("panel:create-terminal", "--label") => &["--presentation"],
-        ("panel:create-terminal", "--panel") => &["--current", "--client"],
-        ("panel:create-terminal", "--current" | "--client") => &["--panel"],
         ("panel:create-terminal", "--profile") => &["--exec", "--arg"],
         ("panel:create-terminal", "--exec" | "--arg") => &["--profile"],
         ("panel:report-metadata", "--title") => &["--clear-title"],

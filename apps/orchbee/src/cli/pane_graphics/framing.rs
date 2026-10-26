@@ -13,11 +13,9 @@ fn zero() -> WorkbenchRevision {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Header {
     format: PaneGraphicsFormat,
-    #[serde(alias = "image_width", alias = "imageWidth")]
     width: u32,
-    #[serde(alias = "image_height", alias = "imageHeight")]
     height: u32,
-    #[serde(default, alias = "data_length")]
+    #[serde(default)]
     data_length: Option<usize>,
     #[serde(default)]
     file: Option<File>,
@@ -87,13 +85,13 @@ fn deserialize_damage<'de, D: serde::Deserializer<'de>>(
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Placement {
-    #[serde(default, alias = "viewport_col", alias = "viewportCol")]
+    #[serde(default)]
     viewport_column: i32,
-    #[serde(default, alias = "viewport_row")]
+    #[serde(default)]
     viewport_row: i32,
-    #[serde(default, alias = "grid_cols", alias = "gridCols")]
+    #[serde(default)]
     grid_columns: u32,
-    #[serde(default, alias = "grid_rows")]
+    #[serde(default)]
     grid_rows: u32,
 }
 impl From<Placement> for PaneGraphicsPlacement {

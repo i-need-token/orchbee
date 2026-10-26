@@ -750,7 +750,7 @@ pub(crate) fn render(
             terminal_table(out, text, doc, locale)
         }
         // `terminal read` emits the observed content itself: one output line
-        // per emitted grid row — or, under `--unwrap`, per joined logical
+        // per emitted grid row — or, under `--source recent-unwrapped`, per joined logical
         // line — preserving printable text and escaping controls, followed by
         // the localized markers for tail-omitted entries and
         // budget-omitted rows.
@@ -799,9 +799,9 @@ pub(crate) fn render(
             }
             Ok(())
         }
-        // `terminal read --history` prints the retained rows the same way:
+        // `terminal read --source recent` prints the retained rows the same way:
         // escaped text, one line per emitted row (or joined logical line
-        // under `--unwrap`), then the localized markers.
+        // under `--source recent-unwrapped`), then the localized markers.
         #[cfg(test)]
         Projection::TerminalHistory(doc) => {
             match &doc.lines {

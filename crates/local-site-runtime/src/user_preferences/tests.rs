@@ -1,4 +1,5 @@
 use super::*;
+use orchbee_workbench_protocol::UserPreferencesPatch;
 use serde_json::json;
 use std::{
     fs,
@@ -342,44 +343,7 @@ fn publication_rechecks_the_source_after_candidate_preparation() {
 
 #[cfg(windows)]
 #[test]
-fn native_explicit_leaves_survive_an_unrelated_update_without_rewriting_toml() {
-    use orchbee_workbench_protocol::ApplicationAppearance as Appearance;
-
-    for (legacy_theme, expected_appearance) in [
-        ("terminal-native", Appearance::System),
-        ("one-light", Appearance::Light),
-        ("one-dark", Appearance::Dark),
-    ] {
-        let fixture = Fixture::new();
-        let native = format!(
-            "# keep me\n[theme]\nname='{legacy_theme}'\n[ui.toast]\nagent_delivery='off'\n[ui.sound]\nenabled=true\n"
-        );
-        fs::write(&fixture.store.scope.configuration, &native).unwrap();
-        let read = fixture.store.read().unwrap();
-        assert!(read.values.sound_enabled);
-        assert_eq!(read.values.application_theme, expected_appearance);
-        assert!(read.claimed.contains(&PreferenceKey::ApplicationTheme));
-        let imported = accepted(fixture.store.execute(&UserPreferencesRequest::Update {
-            source: read.source,
-            changes: UserPreferencesPatch::set(PreferenceKey::Locale, json!("zh-CN")).unwrap(),
-        }));
-        assert!(imported.values.sound_enabled);
-        assert_eq!(imported.values.application_theme, expected_appearance);
-        assert!(imported.claimed.contains(&PreferenceKey::ApplicationTheme));
-        assert_eq!(
-            imported.values.locale,
-            orchbee_workbench_protocol::PreferencesLocale::ZhCn
-        );
-        assert_eq!(
-            fs::read_to_string(&fixture.store.scope.configuration).unwrap(),
-            native
-        );
-    }
-}
-
-#[cfg(windows)]
-#[test]
-fn generated_windows_configuration_preserves_missing_file_shared_preferences() {
+fn shared_preferences_ignore_configuration_bytes_before_first_save() {
     let fixture = Fixture::new();
     let configuration = fixture.root.join("generated.toml");
     let store =
@@ -405,32 +369,17 @@ fn generated_windows_configuration_preserves_missing_file_shared_preferences() {
     let with_generated_file = store.read().unwrap();
     assert_eq!(with_generated_file.values, UserPreferencesValues::default());
     assert_eq!(with_generated_file.values, without_file.values);
-}
-
-#[cfg(windows)]
-#[test]
-fn a_legacy_edit_before_first_save_invalidates_the_observed_source() {
-    let fixture = Fixture::new();
-    fs::write(
-        &fixture.store.scope.configuration,
-        "[ui.sound]\nenabled=false\n",
-    )
-    .unwrap();
-    let old = fixture.store.read().unwrap();
-    fs::write(
-        &fixture.store.scope.configuration,
-        "[ui.sound]\nenabled=true\n",
-    )
-    .unwrap();
+    assert_eq!(with_generated_file.source, "missing");
+    fs::write(&configuration, "invalid TOML remains independent").unwrap();
+    let unchanged = store.read().unwrap();
+    assert_eq!(unchanged, without_file);
+    let saved = accepted(store.execute(&UserPreferencesRequest::Update {
+        source: unchanged.source,
+        changes: UserPreferencesPatch::set(PreferenceKey::SoundEnabled, json!(true)).unwrap(),
+    }));
+    assert!(saved.values.sound_enabled);
     assert_eq!(
-        fixture.store.execute(&UserPreferencesRequest::Update {
-            source: old.source,
-            changes: UserPreferencesPatch::set(PreferenceKey::CopyOnSelect, json!(false)).unwrap()
-        }),
-        UserPreferencesResponse::Refused {
-            reason: PreferencesFailure::SourceChanged
-        }
+        fs::read_to_string(&configuration).unwrap(),
+        "invalid TOML remains independent"
     );
-    assert!(fixture.store.read().unwrap().values.sound_enabled);
-    assert!(!fixture.store.scope.directory.join(RECORD_NAME).exists());
 }

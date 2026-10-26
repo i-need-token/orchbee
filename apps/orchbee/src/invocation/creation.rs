@@ -85,7 +85,6 @@ pub(super) fn parse(
         }
         let selectors: Vec<_> = [
             ("panel-id", !operands.is_empty()),
-            ("--panel", options.panel.is_some()),
             ("--current", options.current),
         ]
         .into_iter()
@@ -105,7 +104,6 @@ pub(super) fn parse(
         let target = operands
             .first()
             .map(|value| (*value).to_owned())
-            .or_else(|| options.panel.clone())
             .map(|value| target(value, Resource::Panel, envelope))
             .transpose()?;
         let ratio = options

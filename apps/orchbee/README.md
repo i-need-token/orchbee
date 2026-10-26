@@ -939,7 +939,7 @@ Windows `workspace create` accepts omitted Project, label and cwd, resolves sour
 
 ## Windows CLI configuration
 
-Shared application and terminal themes apply to the native TUI from the same preference authority as Desktop. Legacy Windows theme values are migration inputs. See [native themes](docs/native-themes.md).
+Shared application and terminal themes apply to the native TUI from the same preference authority as Desktop. See [native themes](docs/native-themes.md).
 
 `config check` also validates `APPDATA/Orchbee/config.toml`, with an absolute `ORCHBEE_CONFIG_FILE` override. `[terminal] new_cwd` sets creation cwd defaults; `[worktrees] directory` selects the checkout root. `[session] resume_agents_on_restore` controls Agent resume on the next Session start, default true; the exact true/false environment override wins. `config check` JSON v3 reports its effective value and source. Explicit command arguments override valid settings. See [configuration and precedence](docs/windows-cli-configuration.md). Windows CLI reads each invocation; common TUI/CLI activation reads startup policy before commitment. Direct TUI creation and Server reload are separate capabilities.
 

@@ -4,7 +4,7 @@
 
 `panel rename <panel> --label <text>` 设置精确叶子 Panel 主 Presentation 的标题覆盖项；
 `--clear` 清除覆盖项。空标签或只含 Unicode 空白的标签也执行清除。两个 flag 互斥且必须
-提供其一。目标保留现有 Panel ID 或 `@panel:<suffix>` 语法；标签、隐式选择和当前 Panel
+提供其一。目标保留现有 Panel ID 或 `@panel:0x<hex>` 语法；标签、隐式选择和当前 Panel
 路由不属于此操作的目标形式。运行时验收平台为 Windows。
 
 共享覆盖项归 Server 所有。`Presentation.label` 保持为不可变的创建时回退标签，必填的

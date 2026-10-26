@@ -239,7 +239,7 @@ fn panel_move_scopes_target_panel_to_the_source_tab() {
                     "label": "t",
                     "pinned": false,
                     "groupId": null,
-                    // A panel ending `ff` lives here — outside the
+                    // Panel identity `ff` lives here — outside the
                     // source tab's scope.
                     "root": leaf(&tid(0, 0xff), &tid(0xa, 0x01)),
                 }],
@@ -267,16 +267,17 @@ fn panel_move_scopes_target_panel_to_the_source_tab() {
     });
     let snapshot = parse_snapshot(&serde_json::to_vec(&document).unwrap()).unwrap();
     let move_command = |into: &str| MutationCommand::PanelMove {
-        target: Target::Selector("@panel:0f2".into()),
-        destination: PanelMoveDestination::Adjacent {
-            into: Target::Selector(into.into()),
+        target: Target::Selector("@panel:0xf2".into()),
+        destination: PanelMoveDestination::Tab {
+            tab: Target::Id(tid(0, 0xe1)),
+            panel: Some(Target::Selector(into.into())),
             direction: WorkbenchPanelSplitDirection::Left,
         },
     };
 
-    // Unique in-scope tail: the action carries the resolved full id.
-    let resolved =
-        action(&move_command("@panel:1f2"), &snapshot).expect("in-scope selector resolves");
+    // Exact in-scope identity: the action carries the resolved full id.
+    let resolved = action(&move_command("@panel:0x100000000000001f2"), &snapshot)
+        .expect("in-scope selector resolves");
     let WorkbenchAction::PanelMove {
         panel_id,
         target_panel_id,
@@ -288,13 +289,9 @@ fn panel_move_scopes_target_panel_to_the_source_tab() {
     assert_eq!(panel_id.as_str(), tid(0, 0xf2));
     assert_eq!(target_panel_id.as_str(), tid(1, 0x1f2));
 
-    // In-scope collision: both sibling panels end in `f2`.
-    let failure = action(&move_command("@panel:f2"), &snapshot).expect_err("in-scope collision");
-    assert_eq!(failure.kind, FailureKind::Ambiguous);
-
     // `ff` exists globally (the initial_workspace tab) but not inside the
     // source tab — no global fallback.
-    let failure =
-        action(&move_command("@panel:ff"), &snapshot).expect_err("out-of-scope tail must miss");
+    let failure = action(&move_command("@panel:0xff"), &snapshot)
+        .expect_err("out-of-scope identity must miss");
     assert_eq!(failure.kind, FailureKind::NotFound);
 }

@@ -164,7 +164,7 @@ fn process_info_targets_only_the_primary_binding_without_child_fallback() {
         orchbee_workbench_protocol::parse_snapshot(&serde_json::to_vec(value).unwrap()).unwrap()
     };
     assert_eq!(
-        primary_terminal(&parse(&value), &Target::Selector("@panel:04".into())).unwrap(),
+        primary_terminal(&parse(&value), &Target::Selector("@panel:0x4".into())).unwrap(),
         Target::Id(id(10))
     );
     value["terminalContexts"][0]["tabs"][0]["root"]["primaryPresentation"]["binding"] = Value::Null;

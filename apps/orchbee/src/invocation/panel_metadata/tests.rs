@@ -8,7 +8,7 @@ fn agent_guard_is_normalized_losslessly_or_rejected_before_admission() {
         parse_args(&[
             "panel",
             "report-metadata",
-            "@panel:abc",
+            "@panel:0xabc",
             "--source=hook",
             "--title=x",
             "--agent",
@@ -44,7 +44,7 @@ fn whole_report_normalization_and_conflicts_precede_effects() {
     let Request::PanelMetadata { command, .. } = parse_args(&[
         "panel",
         "report-metadata",
-        "@panel:abc",
+        "@panel:0xabc",
         "--source= hook:agent ",
         "--title=  标题\t ",
         "--display-agent= Agent ",
@@ -91,7 +91,7 @@ fn whole_report_normalization_and_conflicts_precede_effects() {
         vec!["--title=x", "--applies-to-source=bad source"],
     ] {
         let args = [
-            vec!["panel", "report-metadata", "@panel:abc", "--source=hook"],
+            vec!["panel", "report-metadata", "@panel:0xabc", "--source=hook"],
             tail,
         ]
         .concat();
@@ -106,7 +106,7 @@ fn whole_report_normalization_and_conflicts_precede_effects() {
             parse_args(&[
                 "panel",
                 "report-metadata",
-                "@panel:abc",
+                "@panel:0xabc",
                 "--source=hook",
                 flag
             ])
@@ -114,8 +114,8 @@ fn whole_report_normalization_and_conflicts_precede_effects() {
         );
     }
     for args in [
-        vec!["panel", "report-metadata", "@panel:abc", "--title=x"],
-        vec!["panel", "get", "@panel:abc", "--title=x"],
+        vec!["panel", "report-metadata", "@panel:0xabc", "--title=x"],
+        vec!["panel", "get", "@panel:0xabc", "--title=x"],
         vec![
             "workspace",
             "report-metadata",

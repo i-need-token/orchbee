@@ -2043,7 +2043,7 @@ impl Locale {
     }
 
     /// The text-output marker appended when `--lines` tailed emitted entries
-    /// — rows, or logical lines under `--unwrap`. Distinct from the read
+    /// — physical rows or joined logical lines. Distinct from the read
     /// budget's own truncation marker.
     #[cfg(test)]
     pub(crate) fn cli_read_tail_omitted(self, omitted: usize, logical: bool) -> String {
@@ -3509,11 +3509,11 @@ const HELP_PROJECT_LIST_ZH: crate::localization::HelpDetails =
 
 const HELP_PROJECT_GET_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee project get <target> [--format text|json]",
-    "Show one Project: its directories (with worker ids and paths) and its\nworkspaces. The target is an exact 32-hex ID, an @project:0x<hex>\nselector, or an exact case-sensitive label; ambiguous labels or suffixes\nreport candidates instead of guessing.",
+    "Show one Project: its directories (with worker ids and paths) and its\nworkspaces. The target is an exact 32-hex ID, an @project:0x<hex>\nselector, or an exact case-sensitive label; ambiguous labels\nreport candidates instead of guessing.",
 );
 const HELP_PROJECT_GET_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee project get <target> [--format text|json]",
-    "显示一个 Project：其目录（含 worker id 与路径）与工作区。target 为精确\n32 位十六进制 ID、@project:0x<hex> 选择器或精确区分大小写的 label；歧义 label 或后缀报告候选而非猜测。",
+    "显示一个 Project：其目录（含 worker id 与路径）与工作区。target 为精确\n32 位十六进制 ID、@project:0x<hex> 选择器或精确区分大小写的 label；歧义 label 报告候选而非猜测。",
 );
 
 const HELP_PROJECT_CREATE_EN: crate::localization::HelpDetails =
@@ -3726,13 +3726,13 @@ const HELP_PANEL_CLOSE_ZH: crate::localization::HelpDetails = crate::localizatio
 
 #[cfg(not(windows))]
 const HELP_PANEL_MOVE_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
-    "orchbee panel move <panel> (--target-panel <panel> | --into-tab <tab> | --new-tab) [--direction left|right|up|down] [--label <text>] [--format text|json]",
-    "Move a leaf panel within its current Workspace. --target-panel places it beside a sibling in the same tab and requires --direction. --into-tab selects a sibling tab and also requires --direction. --new-tab appends a new tab and requires --label.\n\nStacked panels and the last panel in a source tab are refused; empty tabs are not implicitly removed. Terminal identity, process and working directory remain unchanged. A committed result returns the new revision; unchanged means the layout already matched.",
+    "orchbee panel move <panel> (--into-tab <tab> | --new-tab) [--target-panel <panel>] [--direction left|right|up|down] [--label <text>] [--format text|json]",
+    "Move a leaf panel within its current Workspace. --into-tab selects an existing tab and requires --direction. Add --target-panel to place it beside an exact panel in that tab, including its current tab. --new-tab appends a new tab and requires --label.\n\nTerminal identity, process and working directory remain unchanged. A committed result returns the new revision; unchanged means the layout already matched.",
 );
 #[cfg(not(windows))]
 const HELP_PANEL_MOVE_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
-    "orchbee panel move <panel> (--target-panel <panel> | --into-tab <tab> | --new-tab) [--direction left|right|up|down] [--label <text>] [--format text|json]",
-    "在当前工作区中移动叶子面板。--target-panel 将其放到同标签页的相邻面板旁，并要求 --direction。--into-tab 选择同组标签页，也要求 --direction。--new-tab 追加新标签页，并要求 --label。\n\n拒绝堆叠面板以及来源标签页的最后一个面板，不隐式移除空标签页。终端标识、进程和工作目录保持不变。committed 返回新修订；unchanged 表示布局已符合要求。",
+    "orchbee panel move <panel> (--into-tab <tab> | --new-tab) [--target-panel <panel>] [--direction left|right|up|down] [--label <text>] [--format text|json]",
+    "在当前工作区中移动叶子面板。--into-tab 选择已有标签页，并要求 --direction。添加 --target-panel 可将其放到该标签页中的精确面板旁，也可选择当前标签页。--new-tab 追加新标签页，并要求 --label。\n\n终端标识、进程和工作目录保持不变。committed 返回新修订；unchanged 表示布局已符合要求。",
 );
 
 const HELP_TERMINAL_LIST_EN: crate::localization::HelpDetails =
@@ -4789,13 +4789,13 @@ const HELP_WORKSPACE_MOVE_ZH: crate::localization::HelpDetails =
 
 #[cfg(windows)]
 const HELP_PANEL_MOVE_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
-    "orchbee panel move <panel> --into-tab <tab> --direction left|right|up|down [--target-panel <panel>] [--ratio <n>] [--focus|--no-focus] [--client <id>] [--timeout <ms>] [--format text|json]\norchbee panel move <panel> --new-tab [--workspace <workspace>] [--label <text>] [--focus|--no-focus] [--client <id>] [--timeout <ms>] [--format text|json]\norchbee panel move <panel> --new-workspace [--project <project>] [--label <text>] [--tab-label <text>] [--focus|--no-focus] [--client <id>] [--timeout <ms>] [--format text|json]\norchbee panel move <panel> --target-panel <panel> --direction left|right|up|down [--format text|json]",
-    "Move a panel while keeping its terminal and process running. An existing destination tab can belong to any workspace. Its target defaults to the selected client's focused panel.\n\nFocus is on by default. With no client, use --no-focus and omit --ratio; the first target leaf and default ratio are used. Ratios are finite and clamped to 0.1..0.9. Timeout defaults to 30000 ms. Zoomed or same-tab relocation leaves the layout unchanged.\n\nA new workspace follows the terminal's working directory, falling back to the CLI working directory when unavailable. Moving the last panel removes the empty source tab and, across contexts, its empty workspace.\n\nDirectory, ratio and focus results are recorded separately from the move. Partial failure preserves committed changes; an uncertain submission is never replayed. The final usage form retains the legacy placement within the same tab.",
+    "orchbee panel move <panel> --into-tab <tab> --direction left|right|up|down [--target-panel <panel>] [--ratio <n>] [--focus|--no-focus] [--client <id>] [--timeout <ms>] [--format text|json]\norchbee panel move <panel> --new-tab [--workspace <workspace>] [--label <text>] [--focus|--no-focus] [--client <id>] [--timeout <ms>] [--format text|json]\norchbee panel move <panel> --new-workspace [--project <project>] [--label <text>] [--tab-label <text>] [--focus|--no-focus] [--client <id>] [--timeout <ms>] [--format text|json]",
+    "Move a panel while keeping its terminal and process running. An existing destination tab can belong to any workspace. Its target defaults to the selected client's focused panel.\n\nFocus is on by default. With no client, use --no-focus and omit --ratio; the first target leaf and default ratio are used. Ratios are finite and clamped to 0.1..0.9. Timeout defaults to 30000 ms. Zoomed tabs leave the layout unchanged. Selecting the current tab reorders its panels through the same --into-tab form.\n\nA new workspace follows the terminal's working directory, falling back to the CLI working directory when unavailable. Moving the last panel removes the empty source tab and, across contexts, its empty workspace.\n\nDirectory, ratio and focus results are recorded separately from the move. Partial failure preserves committed changes; an uncertain submission is never replayed.",
 );
 #[cfg(windows)]
 const HELP_PANEL_MOVE_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
-    "orchbee panel move <panel> --into-tab <tab> --direction left|right|up|down [--target-panel <panel>] [--ratio <n>] [--focus|--no-focus] [--client <id>] [--timeout <ms>] [--format text|json]\norchbee panel move <panel> --new-tab [--workspace <workspace>] [--label <text>] [--focus|--no-focus] [--client <id>] [--timeout <ms>] [--format text|json]\norchbee panel move <panel> --new-workspace [--project <project>] [--label <text>] [--tab-label <text>] [--focus|--no-focus] [--client <id>] [--timeout <ms>] [--format text|json]\norchbee panel move <panel> --target-panel <panel> --direction left|right|up|down [--format text|json]",
-    "移动面板并保留其终端和进程。已有目标标签页可以属于任何工作区；目标面板默认取选中客户端的焦点面板。\n\n默认开启聚焦。没有客户端时使用 --no-focus 并省略 --ratio，采用首个目标叶子和默认比例。比例必须是有限值，并限制到 0.1..0.9。默认时限 30000 毫秒。已放大或迁入同一标签页时布局保持不变。\n\n新工作区采用终端工作目录，不可用时回退到 CLI 工作目录。移走最后面板会移除空来源标签页；跨上下文时也移除空来源工作区。\n\n目录、比例和聚焦结果与迁移分别记录。部分失败保留已提交变更，结果不确定时不重放。最后一种用法保留在同一标签页内放置的兼容形式。",
+    "orchbee panel move <panel> --into-tab <tab> --direction left|right|up|down [--target-panel <panel>] [--ratio <n>] [--focus|--no-focus] [--client <id>] [--timeout <ms>] [--format text|json]\norchbee panel move <panel> --new-tab [--workspace <workspace>] [--label <text>] [--focus|--no-focus] [--client <id>] [--timeout <ms>] [--format text|json]\norchbee panel move <panel> --new-workspace [--project <project>] [--label <text>] [--tab-label <text>] [--focus|--no-focus] [--client <id>] [--timeout <ms>] [--format text|json]",
+    "移动面板并保留其终端和进程。已有目标标签页可以属于任何工作区；目标面板默认取选中客户端的焦点面板。\n\n默认开启聚焦。没有客户端时使用 --no-focus 并省略 --ratio，采用首个目标叶子和默认比例。比例必须是有限值，并限制到 0.1..0.9。默认时限 30000 毫秒。已放大时布局保持不变。使用相同的 --into-tab 形式选择当前标签页，可调整其面板排列。\n\n新工作区采用终端工作目录，不可用时回退到 CLI 工作目录。移走最后面板会移除空来源标签页；跨上下文时也移除空来源工作区。\n\n目录、比例和聚焦结果与迁移分别记录。部分失败保留已提交变更，结果不确定时不重放。",
 );
 
 #[cfg(windows)]

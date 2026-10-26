@@ -373,7 +373,7 @@ fn names_sessions_and_explicit_panels_select_one_primary_without_touching_other_
         vec!["alpha"],
         vec!["--name", "alpha"],
         vec!["--agent-session", "sess-alpha"],
-        vec!["--panel", "@panel:08"],
+        vec!["--panel", "@panel:0x8"],
     ] {
         let fixture = FocusFixture::new();
         let rendezvous = fixture.rendezvous();

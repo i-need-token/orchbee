@@ -132,7 +132,6 @@ fn copy_requests_reject_bad_scopes_duplicates_queries_ranges_and_numbers_before_
         vec!["--previous", "0:65536-1:0"],
         vec!["--search-direction", "up"],
         vec!["--motion", "line-end"],
-        vec!["--history"],
     ] {
         let mut words = vec![
             "terminal",

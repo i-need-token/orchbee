@@ -78,7 +78,7 @@ fn display_name_hints_follow_target_syntax_in_both_locales() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for label in [
             "00000000000000000000000000000002",
-            "@workspace:abcd",
+            "@workspace:0xabcd",
             "@tab:invalid",
             "@project:",
         ] {

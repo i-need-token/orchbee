@@ -56,7 +56,7 @@ fn organization_actions_preserve_exact_scope_and_never_submit_terminal_or_filesy
             vec![
                 "workspace",
                 "set-project",
-                "@workspace:04",
+                "@workspace:0x4",
                 "--project=multi-repo",
                 "--format=json",
             ],

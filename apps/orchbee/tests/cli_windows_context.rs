@@ -26,7 +26,7 @@ fn run(arguments: &[&str], terminal: Option<&str>, worker: Option<&str>, locale:
 fn attach_requires_inherited_console_before_runtime_or_agent_resolution() {
     for locale in ["en_US.UTF-8", "zh_CN.UTF-8"] {
         for args in [
-            vec!["terminal", "attach", "@terminal:01"],
+            vec!["terminal", "attach", "@terminal:0x1"],
             vec!["agent", "attach", "--name=alpha", "--format=json"],
         ] {
             let output = run(&args, None, None, locale);
@@ -97,13 +97,13 @@ fn partial_and_invalid_context_fail_before_runtime_without_value_echo() {
 #[test]
 fn explicit_target_bypasses_invalid_caller_context_and_reaches_runtime_validation() {
     let output = run(
-        &["panel", "current", "@panel:01", "--format", "json"],
+        &["panel", "current", "@panel:0x1", "--format", "json"],
         Some("invalid"),
         None,
         "en_US.UTF-8",
     );
     let control = run(
-        &["panel", "get", "@panel:01", "--format", "json"],
+        &["panel", "get", "@panel:0x1", "--format", "json"],
         None,
         None,
         "en_US.UTF-8",
@@ -207,7 +207,13 @@ fn terminal_observe_rejects_invalid_grammar_before_effect_and_closes_missing_run
     assert!(help.status.success());
     assert!(String::from_utf8_lossy(&help.stdout).contains("orchbee.terminal.stream"));
     let invalid = run(
-        &["terminal", "session", "observe", "@terminal:ab", "--cols=0"],
+        &[
+            "terminal",
+            "session",
+            "observe",
+            "@terminal:0xab",
+            "--cols=0",
+        ],
         None,
         None,
         "en_US.UTF-8",
@@ -229,7 +235,7 @@ fn terminal_observe_rejects_invalid_grammar_before_effect_and_closes_missing_run
                 "terminal",
                 "session",
                 "observe",
-                "@terminal:ab",
+                "@terminal:0xab",
                 "--timeout=3000",
             ],
             None,
@@ -257,7 +263,13 @@ fn terminal_control_rejects_invalid_grammar_before_effect_and_closes_missing_run
     assert!(help.status.success());
     assert!(String::from_utf8_lossy(&help.stdout).contains("orchbee.terminal.control.input"));
     let invalid = run(
-        &["terminal", "session", "control", "@terminal:ab", "--cols=0"],
+        &[
+            "terminal",
+            "session",
+            "control",
+            "@terminal:0xab",
+            "--cols=0",
+        ],
         None,
         None,
         "en_US.UTF-8",
@@ -279,7 +291,7 @@ fn terminal_control_rejects_invalid_grammar_before_effect_and_closes_missing_run
                 "terminal",
                 "session",
                 "control",
-                "@terminal:ab",
+                "@terminal:0xab",
                 "--timeout=3000",
             ],
             None,

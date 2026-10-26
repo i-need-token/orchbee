@@ -28,7 +28,7 @@ orchbee --session work tui
 
 Workspace 拥有目录，可属于 Project；Project 分组是可选的。Workspace 包含 Tab，Tab 包含 Panel，Panel 有主终端且可包含子终端。TUI 客户端各自保存选择与视图。
 
-先用 `api snapshot`，再使用相关的 `project`、`workspace`、`tab`、`panel`、`terminal`、`launch-profile`、`client` 或 `agent` list/get 命令。复用返回的 ID。优先使用打印的 `@panel:0x1` 等稳定句柄：它只省略 ID 的前导零，其他资源增删不会改变其含义。PowerShell 中给句柄加引号。旧后缀选择器仍可用，但属于瞬时选择器，不要作为身份保存。ID 和紧凑句柄受所选 Session 及底层身份寿命约束；Server 重启后重新发现运行时终端 ID。
+先用 `api snapshot`，再使用相关的 `project`、`workspace`、`tab`、`panel`、`terminal`、`launch-profile`、`client` 或 `agent` list/get 命令。复用返回的 ID。优先使用打印的 `@panel:0x1` 等稳定句柄：它只省略 ID 的前导零，其他资源增删不会改变其含义。PowerShell 中给句柄加引号。ID 和紧凑句柄受所选 Session 及底层身份寿命约束；Server 重启后重新发现运行时终端 ID。
 
 在 Orchbee 终端内，调用者元数据可以选择其 Panel；在外部，`panel current` 可使用唯一当前 TUI 客户端。存在多个客户端时传入 `--client <id>`；无界面查找可使用位置参数 Panel ID。`agent start` 省略 `--panel` 时明确要求有效调用者元数据。部分或过期元数据不会授权回退。
 
@@ -45,7 +45,7 @@ orchbee panel split <panel-id> --direction right
 
 `tab create`、`panel split` 和 `panel create-terminal` 支持其声明的启动选择、cwd 和字面环境条目。保存的 Launch Profile 使用 `--profile`；显式程序使用 `--exec` 和可重复的 `--arg`。目录必须已存在。查看帮助中的 `--cwd home|current|workspace`、绝对路径覆盖、完整终端几何参数及 `--env NAME=VALUE` 边界。这些覆盖不修改保存的 profile。
 
-`panel create-terminal --child` 创建子终端。使用 `workspace`/`tab` move、`panel move`/`swap`、`layout`、`panel resize`、`panel zoom` 和 focus 命令安排布局。客户端 focus 控制 TUI 选择，不激活操作系统窗口。选择当前目标或布局路径前，先阅读命令帮助。
+`panel create-terminal --child` 创建子终端。使用 `workspace`/`tab` move、`panel move --into-tab <tab>`/`swap`、`layout`、`panel resize`、`panel zoom` 和 focus 命令安排布局。客户端 focus 控制 TUI 选择，不激活操作系统窗口。选择当前目标或布局路径前，先阅读命令帮助。
 
 ## 发送输入并读取输出
 
@@ -53,7 +53,7 @@ orchbee panel split <panel-id> --direction right
 
 回执证明输入记录被接受，不证明 Shell 就绪、命令完成或退出状态。不要重放部分或结果未知的输入。检查回执与终端后，再决定下一步发送内容。
 
-`terminal read` 和 `agent read` 默认读取最近输出。通过 `--source` 选择 `visible`、`recent`、`recent-unwrapped` 或 `detection`；`--plain` 直接输出 UTF-8 文本，排除 JSON。用 `--lines` 控制窗口、`--source recent-unwrapped` 拼接软换行；旧读取选项会被拒绝。不要混用不兼容的输出模式；边界、软换行和 ANSI 规则见帮助。
+`terminal read` 和 `agent read` 默认读取最近输出。通过 `--source` 选择 `visible`、`recent`、`recent-unwrapped` 或 `detection`；`--plain` 直接输出 UTF-8 文本，排除 JSON。用 `--lines` 控制窗口、`--source recent-unwrapped` 拼接软换行。不要混用不兼容的输出模式；边界、软换行和 ANSI 规则见帮助。
 
 `terminal wait-output` 可以匹配已经存在的输出。默认总时限为 30000 毫秒；可用 `--timeout` 覆盖，或显式使用 `--forever`。`--timeout` 与 `--forever` 冲突。匹配到一行不能证明刚提交的命令已完成。
 
@@ -65,7 +65,7 @@ Windows Codex 的检查与安装使用同一配置根：非空 `CODEX_HOME`，�
 
 `agent start review --provider codex --panel <panel-id>` 在已观察到空闲的 cmd、PowerShell 或 pwsh 终端启动，并等待验证后的就绪。默认时限 30000 毫秒，允许范围 3001–300000。字面提供方参数放在 `--` 后，或使用可重复的 `--arg=<value>`。超时或取消后提供方可能仍在运行；重试前检查输入回执，并用 `agent names` 查看待完成预留。
 
-`agent list/get/explain` 检查当前 Agent 状态。Windows 上，`agent list` 会合并规范会话与物理终端 Agent，并为每行报告来源、语义状态和位置；`--client <id>` 添加独立的 Client 观察，不改变状态。每页 1–100 行，默认 50 行。Windows JSON 使用 `orchbee.agent.list` v2 和 `orchbee.agent.get` v19。Windows 列表游标使用 `u1.<base64url>`，载荷为编码成 base64url 的规范 JSON，最多 1024 个字符，并绑定 Site、来源修订、筛选条件和 Client 选择。解析器识别出的旧格式游标会在读取实时来源前拒绝；判断 `u1` 游标是否过期则需要读取当前来源。收到 `cursor-restart` 后应从第一页重新开始。每页最多为 64 行添加可选 cwd 信息；无法获取时为 null。
+`agent list/get/explain` 检查当前 Agent 状态。Windows 上，`agent list` 会合并规范会话与物理终端 Agent，并为每行报告来源、语义状态和位置；`--client <id>` 添加独立的 Client 观察，不改变状态。每页 1–100 行，默认 50 行。Windows JSON 使用 `orchbee.agent.list` v2 和 `orchbee.agent.get` v19。Windows 列表游标使用 `u1.<base64url>`，载荷为编码成 base64url 的规范 JSON，最多 1024 个字符，并绑定 Site、来源修订、筛选条件和 Client 选择。畸形游标在读取实时来源前作为用法错误拒绝；判断游标是否过期需要读取当前来源。收到 `cursor-restart` 后应从第一页重新开始。每页最多为 64 行添加可选 cwd 信息；无法获取时为 null。
 
 Windows 上，`@agent:<kind>` 选择唯一提供方，`@agent:<n>` 选择当前完整列表中的一基序号，而不是当前页的序号。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。`agent get`、`read`、`prompt`、`send-keys`、`wait` 和 `focus` 共用此解析器；不完整投影不能证明提供方匹配唯一。v19 `agent get` 将普通 Agent 身份和状态放在 `result.agent`，将各来源分面的详细信息放在 `result.inspection`。
 

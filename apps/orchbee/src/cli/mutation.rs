@@ -1085,21 +1085,9 @@ mod linux {
             } => {
                 let (context, tab, panel_id) = resolve_panel(snapshot, target)?;
                 match destination {
-                    PanelMoveDestination::Adjacent { into, direction } => {
-                        // The wire shape binds both panels into one tab, so the
-                        // target panel resolves inside the source panel's own
-                        // tab.
-                        let target_panel_id = resolve_panel_in(tab, into)?;
-                        Ok(WorkbenchAction::PanelMove {
-                            terminal_context_id: context.terminal_context_id.clone(),
-                            tab_id: tab.tab_id.clone(),
-                            panel_id,
-                            target_panel_id,
-                            direction: *direction,
-                        })
-                    }
                     PanelMoveDestination::Tab {
                         tab: into_tab,
+                        panel: into_panel,
                         direction,
                     } => {
                         // Relocation is bounded to the source TerminalContext:
@@ -1107,13 +1095,33 @@ mod linux {
                         // same-labelled Tab elsewhere is never a candidate and
                         // ambiguity is decided within the context.
                         let destination_tab = resolve_tab_in(context, into_tab)?;
+                        let target_panel_id = into_panel
+                            .as_ref()
+                            .map(|target| resolve_panel_in(destination_tab, target))
+                            .transpose()?;
+                        if destination_tab.tab_id == tab.tab_id {
+                            let target_panel_id = target_panel_id
+                                .or_else(|| {
+                                    results::panel_ids_in(&tab.root)
+                                        .first()
+                                        .map(|id| (*id).clone())
+                                })
+                                .ok_or_else(internal)?;
+                            return Ok(WorkbenchAction::PanelMove {
+                                terminal_context_id: context.terminal_context_id.clone(),
+                                tab_id: tab.tab_id.clone(),
+                                panel_id,
+                                target_panel_id,
+                                direction: *direction,
+                            });
+                        }
                         Ok(WorkbenchAction::PanelRelocate {
                             terminal_context_id: context.terminal_context_id.clone(),
                             tab_id: tab.tab_id.clone(),
                             panel_id,
                             destination: WorkbenchPanelRelocateDestination::Tab {
                                 terminal_context_id: None,
-                                target_panel_id: None,
+                                target_panel_id,
                                 tab_id: destination_tab.tab_id.clone(),
                                 direction: *direction,
                             },

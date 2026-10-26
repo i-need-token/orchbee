@@ -40,7 +40,6 @@ pub(super) fn parse(
         options,
         Scope {
             panel_terminal: true,
-            panel: true,
             current: true,
             client: true,
             label: true,
@@ -71,7 +70,6 @@ pub(super) fn parse(
     };
     let selectors: Vec<_> = [
         ("panel-id", !operands.is_empty()),
-        ("--panel", options.panel.is_some()),
         ("--current", options.current),
     ]
     .into_iter()
@@ -81,8 +79,8 @@ pub(super) fn parse(
     if selectors.len() > 1 {
         return Err(conflict(selectors[0], selectors[1]));
     }
-    if options.client.is_some() && (!operands.is_empty() || options.panel.is_some()) {
-        return Err(conflict("panel-id/--panel", "--client"));
+    if options.client.is_some() && !operands.is_empty() {
+        return Err(conflict("panel-id", "--client"));
     }
     if options.child && options.report_presentation.is_some() {
         return Err(conflict("--child", "--presentation"));
@@ -113,7 +111,6 @@ pub(super) fn parse(
             panel: operands
                 .first()
                 .map(|s| (*s).to_owned())
-                .or_else(|| options.panel.clone())
                 .map(|value| target(value, Resource::Panel, envelope))
                 .transpose()?,
             client: client_control::client_id(options, context, envelope)?,

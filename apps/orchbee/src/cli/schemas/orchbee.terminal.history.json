@@ -1,7 +1,7 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.terminal.history",
-	"title": "orchbee terminal read --history envelope",
+	"title": "orchbee terminal history rendering envelope",
 	"type": "object",
 	"required": ["schema", "version", "source", "result"],
 	"additionalProperties": false,

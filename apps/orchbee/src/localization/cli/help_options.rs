@@ -98,16 +98,6 @@ impl Locale {
                 "Terminal height in rows; give it with --cols, --cell-width and --cell-height.",
                 "终端行数；须与 --cols、--cell-width 和 --cell-height 一起提供。",
             ),
-            (CommandPath::TerminalRead | CommandPath::AgentRead, "--rows") => (
-                "<n>",
-                "Number of history rows to read with --history.",
-                "配合 --history 读取的历史行数。",
-            ),
-            (CommandPath::TerminalWaitOutput, "--rows") => (
-                "<n>",
-                "Number of recent rows to search.",
-                "要搜索的最近行数。",
-            ),
             (CommandPath::PanelSplit, "--direction") => (
                 "<direction>",
                 "Side of the selected panel where the new panel opens.",
@@ -436,11 +426,6 @@ impl Locale {
                     "Popup height; applies only to popup placement.",
                     "弹出窗口高度；仅适用于 popup 布局。",
                 ),
-                "--history" => (
-                    "",
-                    "Read the legacy history-only output form.",
-                    "读取兼容的纯历史输出格式。",
-                ),
                 "--include-ended" => (
                     "",
                     "Include ended Agent sessions.",
@@ -719,7 +704,6 @@ impl Locale {
                     "Condition that ends the wait.",
                     "结束等待的条件。",
                 ),
-                "--unwrap" => ("", "Join soft-wrapped terminal lines.", "合并终端软换行。"),
                 "--wait" => (
                     "",
                     "Wait for activity and the requested final state.",

@@ -36,13 +36,13 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::ServerStatus => &["00000000000000000000000000000001"],
 
         #[cfg(windows)]
-        CommandPath::PanelGraphicsSet => &["@panel:abcd", "--spec", "@graphics.png"],
+        CommandPath::PanelGraphicsSet => &["@panel:0xabcd", "--spec", "@graphics.png"],
         #[cfg(windows)]
-        CommandPath::PanelGraphicsClear => &["@panel:abcd"],
+        CommandPath::PanelGraphicsClear => &["@panel:0xabcd"],
         #[cfg(windows)]
-        CommandPath::PanelGraphicsInfo => &["@panel:abcd"],
+        CommandPath::PanelGraphicsInfo => &["@panel:0xabcd"],
         #[cfg(windows)]
-        CommandPath::PanelGraphicsStream => &["@panel:abcd"],
+        CommandPath::PanelGraphicsStream => &["@panel:0xabcd"],
         CommandPath::ClientList => &[],
         CommandPath::ClientGet => &["00000000000000000000000000000001"],
         CommandPath::ClientControlStatus => &["00000000000000000000000000000001"],
@@ -91,10 +91,10 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::AgentIntegrationExplain => &["--provider", "codex"],
         CommandPath::AgentIntegrationEnable => &["--provider", "codex"],
         CommandPath::AgentIntegrationDisable => &["--provider", "codex"],
-        CommandPath::TerminalAttach => &["@terminal:abcd"],
+        CommandPath::TerminalAttach => &["@terminal:0xabcd"],
         CommandPath::AgentAttach => &["review"],
-        CommandPath::TerminalObserve => &["@terminal:abcd"],
-        CommandPath::TerminalControl => &["@terminal:abcd"],
+        CommandPath::TerminalObserve => &["@terminal:0xabcd"],
+        CommandPath::TerminalControl => &["@terminal:0xabcd"],
         #[cfg(windows)]
         CommandPath::MachineList => &[],
         #[cfg(windows)]
@@ -135,10 +135,10 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::WorkspaceCreate => &["--cwd", ".", "--label", "work"],
         CommandPath::WorkspaceRename => &["work", "--label", "review"],
         CommandPath::PanelReportMetadata => {
-            &["@panel:abcd", "--source", "cli", "--title", "review"]
+            &["@panel:0xabcd", "--source", "cli", "--title", "review"]
         }
         CommandPath::PanelReportAgent => &[
-            "@panel:abcd",
+            "@panel:0xabcd",
             "--source",
             "cli",
             "--agent",
@@ -147,7 +147,7 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
             "working",
         ],
         CommandPath::PanelReportAgentSession => &[
-            "@panel:abcd",
+            "@panel:0xabcd",
             "--source",
             "cli",
             "--agent",
@@ -155,8 +155,8 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
             "--agent-session-id",
             "session-1",
         ],
-        CommandPath::PanelClearAgentAuthority => &["@panel:abcd", "--source", "cli"],
-        CommandPath::PanelReleaseAgent => &["@panel:abcd", "--source", "cli", "--agent", "codex"],
+        CommandPath::PanelClearAgentAuthority => &["@panel:0xabcd", "--source", "cli"],
+        CommandPath::PanelReleaseAgent => &["@panel:0xabcd", "--source", "cli", "--agent", "codex"],
         CommandPath::WorkspaceReportMetadata => {
             &["work", "--source", "cli", "--token", "task=review"]
         }
@@ -184,46 +184,50 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::TabGet => &["main"],
         CommandPath::TabCreate => &["--workspace", "work", "--label", "main"],
         CommandPath::TabRename => &["main", "--label", "review"],
-        CommandPath::PanelRename => &["@panel:abcd", "--label", "review"],
+        CommandPath::PanelRename => &["@panel:0xabcd", "--label", "review"],
         CommandPath::PanelInput => &["--current", "--right-click", "panel"],
         CommandPath::PanelSwap => &["--current", "--direction", "right"],
         CommandPath::TabMove => &["main", "--order", "next"],
         CommandPath::TabClose => &["main", "--confirm"],
         CommandPath::PanelList => &[],
         CommandPath::PanelCurrent => &[],
-        CommandPath::PanelGet => &["@panel:abcd"],
+        CommandPath::PanelGet => &["@panel:0xabcd"],
         CommandPath::PanelProcessInfo => &["--current"],
         #[cfg(windows)]
         CommandPath::PanelCreateTerminal => &["--current", "--child", "--label", "review"],
         CommandPath::PanelSplit => &["--current", "--direction", "right"],
-        CommandPath::PanelClose => &["@panel:abcd", "--confirm"],
+        CommandPath::PanelClose => &["@panel:0xabcd", "--confirm"],
         CommandPath::PanelMove => {
             if cfg!(windows) {
                 &[
-                    "@panel:abcd",
+                    "@panel:0xabcd",
                     "--new-tab",
                     "--workspace",
                     "work",
                     "--no-focus",
                 ]
             } else {
-                &["@panel:abcd", "--new-tab", "--label", "review"]
+                &["@panel:0xabcd", "--new-tab", "--label", "review"]
             }
         }
         CommandPath::TerminalList => &[],
-        CommandPath::TerminalGet => &["@terminal:abcd"],
-        CommandPath::TerminalRead => &["@terminal:abcd", "--source", "recent", "--lines", "40"],
+        CommandPath::TerminalGet => &["@terminal:0xabcd"],
+        CommandPath::TerminalRead => &["@terminal:0xabcd", "--source", "recent", "--lines", "40"],
         #[cfg(windows)]
         CommandPath::TerminalSelectionRead => {
-            &["@terminal:abcd", "--anchor", "0:0", "--cursor", "0:10"]
+            &["@terminal:0xabcd", "--anchor", "0:0", "--cursor", "0:10"]
         }
         #[cfg(windows)]
-        CommandPath::TerminalCopyMotion => {
-            &["@terminal:abcd", "--cursor", "0:0", "--motion", "line-end"]
-        }
+        CommandPath::TerminalCopyMotion => &[
+            "@terminal:0xabcd",
+            "--cursor",
+            "0:0",
+            "--motion",
+            "line-end",
+        ],
         #[cfg(windows)]
         CommandPath::TerminalCopySearch => &[
-            "@terminal:abcd",
+            "@terminal:0xabcd",
             "--cursor",
             "0:0",
             "--query",
@@ -234,18 +238,18 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
             "1",
         ],
         #[cfg(windows)]
-        CommandPath::TerminalLinkResolve => &["@terminal:abcd", "--cursor", "0:0"],
+        CommandPath::TerminalLinkResolve => &["@terminal:0xabcd", "--cursor", "0:0"],
         #[cfg(windows)]
-        CommandPath::TerminalLinkActivate => &["@terminal:abcd", "--cursor", "0:0"],
+        CommandPath::TerminalLinkActivate => &["@terminal:0xabcd", "--cursor", "0:0"],
         #[cfg(windows)]
-        CommandPath::TerminalClear => &["@terminal:abcd"],
+        CommandPath::TerminalClear => &["@terminal:0xabcd"],
         #[cfg(windows)]
-        CommandPath::TerminalEditScrollback => &["@terminal:abcd"],
+        CommandPath::TerminalEditScrollback => &["@terminal:0xabcd"],
         CommandPath::TerminalWaitOutput => {
-            &["@terminal:abcd", "--match", "ready", "--timeout", "30000"]
+            &["@terminal:0xabcd", "--match", "ready", "--timeout", "30000"]
         }
-        CommandPath::TerminalSend => &["@terminal:abcd", "--text", "git status", "--enter"],
-        CommandPath::TerminalRun => &["@terminal:abcd", "git status"],
+        CommandPath::TerminalSend => &["@terminal:0xabcd", "--text", "git status", "--enter"],
+        CommandPath::TerminalRun => &["@terminal:0xabcd", "git status"],
         CommandPath::WorktreeList => &["--cwd", "."],
         CommandPath::WorktreeCreate => &["--cwd", ".", "--branch", "review"],
         CommandPath::WorktreeOpen => &["--cwd", ".", "--branch", "review"],
@@ -307,7 +311,7 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
             "--event",
             "panel.output_matched",
             "--panel",
-            "@panel:abcd",
+            "@panel:0xabcd",
             "--match",
             "ready",
         ],

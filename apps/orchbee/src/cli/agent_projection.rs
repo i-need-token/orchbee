@@ -269,13 +269,6 @@ pub(super) fn run(command: &QueryCommand, format: OutputFormat, locale: Locale) 
     else {
         return failure_output(classify(Error::Invalid), Some(format), locale);
     };
-    if cursor.as_ref().is_some_and(Cursor::legacy) {
-        return failure_output(
-            failure(FailureKind::Rejected, "cursor-restart"),
-            Some(format),
-            locale,
-        );
-    }
     let deadline = Instant::now() + Duration::from_secs(5);
     let mut signals = match ArmedSignals::arm_interrupts() {
         Ok(s) => s,

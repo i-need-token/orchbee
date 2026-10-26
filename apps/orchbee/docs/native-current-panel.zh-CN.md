@@ -12,12 +12,12 @@
 
 语法恰好生成 `Current`、`Panel(target)`、`Client(id)` 之一：
 
-| 输入                                                           | 解析                                                                                |
-| -------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `--panel <id-or-suffix>`；`process-info` 也接受位置 Panel 参数 | 在快照中解析，忽略调用者环境且不读取 Client。                                       |
-| `--client <id>`，省略目标或配合 `--current`                    | 选择指定 current Client，忽略调用者环境。                                           |
-| 省略目标或 `--current`，两个调用者变量均缺失                   | 要求恰好一个 current Client。                                                       |
-| 省略目标或 `--current`，存在调用者信息                         | 校验 `ORCHBEE_TERMINAL_ID` 与 `ORCHBEE_WORKER_ID`，然后在快照中解析调用者的 Panel。 |
+| 输入                                         | 解析                                                                                |
+| -------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `<panel-id-or-handle>` 位置参数              | 在快照中解析，忽略调用者环境且不读取 Client。                                       |
+| `--client <id>`，省略目标或配合 `--current`  | 选择指定 current Client，忽略调用者环境。                                           |
+| 省略目标或 `--current`，两个调用者变量均缺失 | 要求恰好一个 current Client。                                                       |
+| 省略目标或 `--current`，存在调用者信息       | 校验 `ORCHBEE_TERMINAL_ID` 与 `ORCHBEE_WORKER_ID`，然后在快照中解析调用者的 Panel。 |
 
 显式 Panel 与 Client 选择器互斥。部分缺失、格式错误或过期的调用者信息绝不回退到
 Client 选择。多个 Client 构成歧义；显式 Client 缺失或过期则失败。`panel current` 接受

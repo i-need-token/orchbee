@@ -79,7 +79,7 @@ mod tests {
             items: vec![Item {
                 ordinal: 51,
                 row,
-                panel_handle: Some("@panel:b".into()),
+                panel_handle: Some("@panel:0xb".into()),
                 cwd: Some("C:\\项目\\very-long-directory-which-is-clipped".into()),
                 client: None,
             }],
@@ -97,7 +97,7 @@ mod tests {
                 crate::cli::output::render_text(|out| render_list(out, &list, locale)).unwrap(),
             )
             .unwrap();
-            assert!(text.contains("@panel:b"));
+            assert!(text.contains("@panel:0xb"));
             assert!(text.contains("grok"));
             assert!(text.contains(locale.cli_projection_status("idle")));
             assert!(text.contains(locale.cli_projection_source("terminal")));

@@ -227,7 +227,7 @@ fn caller_explicit_and_client_targets_preserve_precedence_without_mutating_contr
                 "--format=json",
             ];
             if mode == 2 {
-                args.push("@panel:08");
+                args.push("@panel:0x8");
             }
             if mode == 4 {
                 args.extend(["--client", &client, "--current"]);

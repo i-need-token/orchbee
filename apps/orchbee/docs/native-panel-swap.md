@@ -6,7 +6,7 @@
 `panel swap [source] --direction left|right|up|down` resolves one neighbor using a Windows TUI's
 unzoomed cell geometry. `--with` and `--direction` are exclusive; one is required. `--panel`
 and `--current` are alternate source selectors and conflict with a positional source and each
-other. Panel operands use exact IDs or `@panel:<suffix>`, never labels. Explicit source and `--with` without `--client` use the headless shared path. An omitted source uses
+other. Panel operands use exact IDs or `@panel:0x<hex>`, never labels. Explicit source and `--with` without `--client` use the headless shared path. An omitted source uses
 validated caller context, then the selected Client's current Panel. Explicit `--client` or the
 existing unique-Client resolver selects the TUI; ambiguous Clients are refused before mutation.
 

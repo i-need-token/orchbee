@@ -1444,84 +1444,9 @@ fn target_rules_follow_each_resource() {
 }
 
 #[test]
-fn selector_targets_parse_for_their_own_resource() {
-    // Every recognized `@<kind>:<suffix>` operand yields a selector target.
-    let cases: &[(&[&str], QueryCommand)] = &[
-        (
-            &["project", "get", "@project:abc"],
-            QueryCommand::ProjectGet(Target::Selector("@project:abc".into())),
-        ),
-        (
-            &["workspace", "get", "@workspace:def"],
-            QueryCommand::WorkspaceGet(Target::Selector("@workspace:def".into())),
-        ),
-        (
-            &["tab", "get", "@tab:1"],
-            QueryCommand::TabGet(Target::Selector("@tab:1".into())),
-        ),
-        (
-            &["panel", "get", "@panel:face"],
-            QueryCommand::PanelGet(Target::Selector("@panel:face".into())),
-        ),
-        (
-            &["terminal", "get", "@terminal:0"],
-            QueryCommand::TerminalGet(Target::Selector("@terminal:0".into())),
-        ),
-        (
-            &["terminal", "read", "@terminal:beef"],
-            expected_terminal_read(Target::Selector("@terminal:beef".into()), false, None),
-        ),
-    ];
-    for (arguments, command) in cases {
-        assert_eq!(
-            parse(arguments),
-            Ok(query(command.clone(), OutputFormat::Text)),
-            "{arguments:?}"
-        );
-    }
-    // The longest admissible suffix is 31 lowercase hex characters; a
-    // 32-hex tail is the full-id shape and never a selector suffix.
-    let longest = format!("@tab:{}", "f".repeat(31));
-    assert_eq!(
-        parse(&["tab", "get", longest.as_str()]),
-        Ok(query(
-            QueryCommand::TabGet(Target::Selector(longest)),
-            OutputFormat::Text
-        ))
-    );
-    // Filters and mutation operands share the same target grammar.
-    for arguments in [
-        &["workspace", "list", "--project", "@project:aa"][..],
-        &["tab", "list", "--workspace", "@workspace:bb"][..],
-        &["panel", "list", "--tab", "@tab:cc"][..],
-        &[
-            "panel",
-            "move",
-            "@panel:dd",
-            "--target-panel",
-            "@panel:ee",
-            "--direction",
-            "left",
-        ][..],
-        &["tab", "close", "@tab:ff", "--confirm"][..],
-        &["panel", "close", "@panel:11", "--confirm"][..],
-        &["terminal", "send", "@terminal:22", "--key", "enter"][..],
-        &[
-            "workspace",
-            "set-project",
-            "@workspace:44",
-            "--project",
-            "@project:33",
-        ][..],
-    ] {
-        assert!(parse(arguments).is_ok(), "{arguments:?}");
-    }
-}
-
-#[test]
 fn selector_targets_reject_malformed_and_foreign_forms() {
     // A recognized `@<kind>:` prefix with an empty, uppercase, non-hex, or
-    // full-length (32) suffix is an invalid identifier before any runtime
+    // unprefixed hexadecimal payload is an invalid identifier before any runtime
     // access — and so is a selector whose kind is not the operand's
     // resource. Panel and terminal additionally reject every label.
     for (arguments, resource, value) in [
@@ -1550,12 +1475,20 @@ fn selector_targets_reject_malformed_and_foreign_forms() {
             "@project:0123456789abcdef0123456789abcdef",
         ),
         (
-            &["project", "get", "@workspace:a"][..],
+            &["project", "get", "@workspace:0xa"][..],
             Resource::Project,
-            "@workspace:a",
+            "@workspace:0xa",
         ),
-        (&["tab", "get", "@panel:a"][..], Resource::Tab, "@panel:a"),
-        (&["panel", "get", "@tab:a"][..], Resource::Panel, "@tab:a"),
+        (
+            &["tab", "get", "@panel:0xa"][..],
+            Resource::Tab,
+            "@panel:0xa",
+        ),
+        (
+            &["panel", "get", "@tab:0xa"][..],
+            Resource::Panel,
+            "@tab:0xa",
+        ),
         (
             &["terminal", "get", "@terminal:"][..],
             Resource::Terminal,
@@ -1874,11 +1807,14 @@ fn accepts_every_mutation_path() {
                 target: Target::Id(ID.into()),
             },
         ),
+        #[cfg(not(windows))]
         (
             &[
                 "panel",
                 "move",
                 ID,
+                "--into-tab",
+                "target-tab",
                 "--target-panel",
                 ID2,
                 "--direction",
@@ -1886,8 +1822,9 @@ fn accepts_every_mutation_path() {
             ],
             MutationCommand::PanelMove {
                 target: Target::Id(ID.into()),
-                destination: PanelMoveDestination::Adjacent {
-                    into: Target::Id(ID2.into()),
+                destination: PanelMoveDestination::Tab {
+                    tab: Target::Label("target-tab".into()),
+                    panel: Some(Target::Id(ID2.into())),
                     direction: WorkbenchPanelSplitDirection::Left,
                 },
             },
@@ -2360,8 +2297,8 @@ fn joined_value_spelling_is_equivalent() {
             &["terminal", "wait-output", ID, "--match=x", "--timeout=5"][..],
         ),
         (
-            &["terminal", "read", ID, "--history", "--rows", "10"][..],
-            &["terminal", "read", ID, "--history", "--rows=10"][..],
+            &["terminal", "read", ID, "--lines", "10"][..],
+            &["terminal", "read", ID, "--lines=10"][..],
         ),
         // Agent families: paging, wait conditions, doctor selectors,
         // integration flags.
@@ -2995,24 +2932,33 @@ fn mutation_direction_values_follow_the_command_family() {
             "panel",
             "move",
             ID,
+            "--into-tab",
+            "target-tab",
             "--target-panel",
             ID2,
             "--direction",
             word,
         ];
+        #[cfg(not(windows))]
         assert_eq!(
             parse(&arguments),
             Ok(mutation(
                 MutationCommand::PanelMove {
                     target: Target::Id(ID.into()),
-                    destination: PanelMoveDestination::Adjacent {
-                        into: Target::Id(ID2.into()),
+                    destination: PanelMoveDestination::Tab {
+                        tab: Target::Label("target-tab".into()),
+                        panel: Some(Target::Id(ID2.into())),
                         direction,
                     },
                 },
                 OutputFormat::Text
             )),
             "{arguments:?}"
+        );
+        #[cfg(windows)]
+        assert!(
+            matches!(parse(&arguments), Ok(Request::PanelRelocation { command, .. })
+            if matches!(command.destination, PanelRelocationDestination::Tab { direction: actual, .. } if actual == direction))
         );
     }
     // Cross-family direction words are usage, not a nearest match.
@@ -3023,6 +2969,8 @@ fn mutation_direction_values_follow_the_command_family() {
             "panel",
             "move",
             ID,
+            "--into-tab",
+            "target-tab",
             "--target-panel",
             ID2,
             "--direction",
@@ -3032,6 +2980,8 @@ fn mutation_direction_values_follow_the_command_family() {
             "panel",
             "move",
             ID,
+            "--into-tab",
+            "target-tab",
             "--target-panel",
             ID2,
             "--direction",
@@ -3944,9 +3894,9 @@ fn usage_failures_carry_their_concrete_reason() {
         ),
         (
             &["help", "status", "--project", "x"],
-            UsageReason::UnexpectedOption {
+            UsageReason::UnknownOption {
                 context: path("status"),
-                option: "--project",
+                option: "--project".to_owned(),
             },
         ),
         (
@@ -3973,30 +3923,30 @@ fn usage_failures_carry_their_concrete_reason() {
         // Scope failures name the first out-of-scope flag in declaration order.
         (
             &["status", "--workspace", "x"],
-            UsageReason::UnexpectedOption {
+            UsageReason::UnknownOption {
                 context: path("status"),
-                option: "--workspace",
+                option: "--workspace".to_owned(),
             },
         ),
         (
             &["workspace", "list", "--workspace", "x"],
-            UsageReason::UnexpectedOption {
+            UsageReason::UnknownOption {
                 context: path("workspace list"),
-                option: "--workspace",
+                option: "--workspace".to_owned(),
             },
         ),
         (
             &["workspace", "list", "--tab", "x"],
-            UsageReason::UnexpectedOption {
+            UsageReason::UnknownOption {
                 context: path("workspace list"),
-                option: "--tab",
+                option: "--tab".to_owned(),
             },
         ),
         (
             &["tab", "list", "--project", "x"],
-            UsageReason::UnexpectedOption {
+            UsageReason::UnknownOption {
                 context: path("tab list"),
-                option: "--project",
+                option: "--project".to_owned(),
             },
         ),
         (
@@ -4245,28 +4195,9 @@ fn ownership_and_terminator_keep_their_reasons() {
     );
 }
 
-/// `terminal read --history --rows <n>`: the flags admit only as a pair, the
-/// value is the 1..=1000 retained-row count, and `--history` stays illegal on
-/// every other command — including the geometry commands where `--rows`
-/// keeps its dimension meaning.
+/// Current output sources share line bounds; geometry keeps its independent row dimension.
 #[test]
-fn terminal_read_history_grammar() {
-    // Retired aliases cannot silently select a different output window.
-    for family in ["terminal", "agent"] {
-        let target = if family == "terminal" { ID } else { "alpha" };
-        for tail in [
-            vec!["--history"],
-            vec!["--history", "--rows", "20"],
-            vec!["--rows", "20"],
-            vec!["--unwrap"],
-            vec!["--scan", "20"],
-            vec!["--scope", "history"],
-        ] {
-            let mut args = vec![family, "read", target];
-            args.extend(tail);
-            assert!(parse(&args).is_err(), "{args:?}");
-        }
-    }
+fn terminal_read_source_limits() {
     // Geometry retains its independent row dimension.
     assert!(tab_create_with(&["--exec", "/bin/sh"]).is_ok());
     for (source, expected) in [
@@ -4291,7 +4222,7 @@ fn terminal_read_history_grammar() {
     }
 }
 
-/// Output sources and line limits share one grammar; retired flags stay rejected.
+/// Output sources and line limits share one grammar.
 #[test]
 fn terminal_read_presentation_grammar() {
     for (args, unwrap, lines) in [
@@ -4504,9 +4435,9 @@ fn terminal_wait_output_grammar() {
         };
         assert_eq!(
             failure.usage.as_ref(),
-            Some(&UsageReason::UnexpectedOption {
+            Some(&UsageReason::UnknownOption {
                 context: UsageContext::Path(context),
-                option: "--regex",
+                option: "--regex".to_owned(),
             }),
             "{arguments:?}"
         );
@@ -4617,9 +4548,9 @@ fn terminal_wait_output_grammar() {
         };
         assert_eq!(
             failure.usage.as_ref(),
-            Some(&UsageReason::UnexpectedOption {
+            Some(&UsageReason::UnknownOption {
                 context: UsageContext::Path(context),
-                option,
+                option: option.to_owned(),
             }),
             "{arguments:?}"
         );
@@ -4923,13 +4854,13 @@ fn terminal_send_grammar() {
         };
         assert_eq!(
             failure.usage.as_ref(),
-            Some(&UsageReason::UnexpectedOption {
+            Some(&UsageReason::UnknownOption {
                 context: match arguments[1] {
                     "get" => UsageContext::Path("terminal get"),
                     "read" => UsageContext::Path("terminal read"),
                     _ => UsageContext::Path("terminal list"),
                 },
-                option,
+                option: option.to_owned(),
             }),
             "{arguments:?}"
         );
@@ -5011,7 +4942,11 @@ fn worktree_help_paths_resolve() {
     }
 }
 
-const AGENT_CURSOR: &str = "v1.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ";
+const AGENT_PROTOCOL_CURSOR: &str = "v1.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ";
+#[cfg(not(windows))]
+const AGENT_CURSOR: &str = AGENT_PROTOCOL_CURSOR;
+#[cfg(windows)]
+const AGENT_CURSOR: &str = "u1.eyJzaXRlIjoiMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTEiLCJ3b3JrYmVuY2giOiIxIiwiY2Fub25pY2FsIjoxLCJyZXBvcnRzIjoiMSIsImluY2x1ZGVFbmRlZCI6ZmFsc2UsImNsaWVudCI6bnVsbCwib2Zmc2V0IjoxLCJmaW5nZXJwcmludCI6IjAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAifQ";
 
 /// `agent list|get|explain`: the flat read grammar — defaults, option values,
 /// and the opaque session identity operand.
@@ -5207,9 +5142,9 @@ fn agent_read_usage_failures() {
     ] {
         assert_eq!(
             usage_reason(arguments),
-            UsageReason::UnexpectedOption {
+            UsageReason::UnknownOption {
                 context: path(context),
-                option,
+                option: option.to_owned(),
             },
             "{arguments:?}"
         );
@@ -5471,9 +5406,9 @@ fn agent_wait_usage_failures() {
     ] {
         assert_eq!(
             usage_reason(arguments),
-            UsageReason::UnexpectedOption {
+            UsageReason::UnknownOption {
                 context: path("agent wait"),
-                option,
+                option: option.to_owned(),
             },
             "{arguments:?}"
         );
@@ -5785,23 +5720,23 @@ fn agent_doctor_usage_failures() {
     for (arguments, reason) in [
         (
             &["agent", "doctor", "--include-ended"][..],
-            UsageReason::UnexpectedOption {
+            UsageReason::UnknownOption {
                 context: path("agent doctor"),
-                option: "--include-ended",
+                option: "--include-ended".to_owned(),
             },
         ),
         (
             &["agent", "doctor", "--cursor", AGENT_CURSOR][..],
-            UsageReason::UnexpectedOption {
+            UsageReason::UnknownOption {
                 context: path("agent doctor"),
-                option: "--cursor",
+                option: "--cursor".to_owned(),
             },
         ),
         (
             &["agent", "doctor", "--label", "x"][..],
-            UsageReason::UnexpectedOption {
+            UsageReason::UnknownOption {
                 context: path("agent doctor"),
-                option: "--label",
+                option: "--label".to_owned(),
             },
         ),
         (
@@ -6071,8 +6006,8 @@ fn workspace_close_parses_targets_and_requires_confirm() {
         (ID, Target::Id(ID.into())),
         ("main", Target::Label("main".to_owned())),
         (
-            "@workspace:ab",
-            Target::Selector("@workspace:ab".to_owned()),
+            "@workspace:0xab",
+            Target::Selector("@workspace:0xab".to_owned()),
         ),
     ] {
         assert_eq!(
@@ -6155,7 +6090,7 @@ fn workspace_close_status_requires_strict_stable_ids() {
             ))
         );
     }
-    for value in [ZERO, "label", "@workspace:ab", ""] {
+    for value in [ZERO, "label", "@workspace:0xab", ""] {
         let failure = parse(&["workspace", "close-status", "--workspace", value]).unwrap_err();
         assert_eq!(
             failure.usage,
@@ -6396,39 +6331,39 @@ fn current_panel_grammar_has_explicit_or_caller_modes() {
         );
     }
     for words in [
-        vec!["panel", "current", "@panel:abc"],
-        vec!["panel", "current", "--", "@panel:abc"],
+        vec!["panel", "current", "@panel:0xabc"],
+        vec!["panel", "current", "--", "@panel:0xabc"],
     ] {
         assert_eq!(
             parse(&words),
             Ok(Request::Query {
                 command: QueryCommand::PanelCurrent(PanelQueryTarget::Panel(Target::Selector(
-                    "@panel:abc".into()
+                    "@panel:0xabc".into()
                 ))),
                 format: OutputFormat::Text
             })
         );
     }
     for words in [
-        vec!["panel", "current", "--panel", "@panel:abc", "--current"],
+        vec!["panel", "current", "--panel", "@panel:0xabc", "--current"],
         vec!["panel", "current", "--current", "--current"],
         vec![
             "panel",
             "current",
             "--panel",
-            "@panel:abc",
+            "@panel:0xabc",
             "--panel",
-            "@panel:abc",
+            "@panel:0xabc",
         ],
         vec!["panel", "current", "--panel"],
         vec!["panel", "current", "--panel", "label"],
         vec!["panel", "current", "--panel", "--"],
         vec!["panel", "current", "--current=true"],
         vec!["panel", "current", "--workspace", "ws"],
-        vec!["panel", "current", "@panel:abc", "@panel:def"],
+        vec!["panel", "current", "@panel:0xabc", "@panel:0xdef"],
         vec!["panel", "current", "--", "--current"],
         vec!["panel", "list", "--current"],
-        vec!["status", "--panel", "@panel:abc"],
+        vec!["status", "--panel", "@panel:0xabc"],
     ] {
         assert!(parse(&words).is_err(), "{words:?}");
     }
@@ -6459,40 +6394,39 @@ fn panel_process_info_grammar_rejects_conflicting_targets_before_effects() {
         );
     }
     for words in [
-        vec!["panel", "process-info", "@panel:abc"],
-        vec!["panel", "process-info", "--", "@panel:abc"],
+        vec!["panel", "process-info", "@panel:0xabc"],
+        vec!["panel", "process-info", "--", "@panel:0xabc"],
     ] {
         assert_eq!(
             parse(&words),
             Ok(Request::Query {
                 command: QueryCommand::PanelProcessInfo(PanelQueryTarget::Panel(Target::Selector(
-                    "@panel:abc".into()
+                    "@panel:0xabc".into()
                 ))),
                 format: OutputFormat::Text
             })
         );
     }
     for words in [
-        vec!["panel", "process-info", "@panel:abc", "--current"],
+        vec!["panel", "process-info", "@panel:0xabc", "--current"],
         vec![
             "panel",
             "process-info",
-            "@panel:abc",
+            "@panel:0xabc",
             "--panel",
-            "@panel:abc",
+            "@panel:0xabc",
         ],
         vec![
             "panel",
             "process-info",
             "--current",
             "--panel",
-            "@panel:abc",
+            "@panel:0xabc",
         ],
         vec!["panel", "process-info", "--current", "--current"],
         vec!["panel", "process-info", "--current=true"],
-        vec!["panel", "process-info", "@panel:abc", "@panel:def"],
+        vec!["panel", "process-info", "@panel:0xabc", "@panel:0xdef"],
         vec!["panel", "process-info", "--panel"],
-        vec!["panel", "process-info", "--history", "1"],
         vec!["panel", "process-info", "--panel", "label"],
     ] {
         assert!(parse(&words).is_err(), "{words:?}");
@@ -6763,7 +6697,6 @@ fn agent_terminal_grammar_validates_all_keys_and_exclusive_targets_before_effect
             "enter",
         ],
         vec!["agent", "read", "alpha", "--name", "beta"],
-        vec!["agent", "read", "alpha", "--history"],
         vec!["agent", "read", "alpha", "--rows", "20"],
     ] {
         assert!(parse(&words).is_err(), "{words:?}");
@@ -6901,7 +6834,7 @@ fn agent_panel_selectors_are_exclusive_and_preserve_following_operands() {
         );
         assert!(
             parse_request(
-                ["agent", verb, "@panel:222"]
+                ["agent", verb, "@panel:0x222"]
                     .into_iter()
                     .map(OsString::from)
             )
@@ -6926,7 +6859,7 @@ fn panel_rename_admits_exact_targets_and_normalizes_only_its_label() {
         (vec!["--label="], None),
         (vec!["--clear"], None),
     ] {
-        let mut words = vec!["panel", "rename", "@panel:1234"];
+        let mut words = vec!["panel", "rename", "@panel:0x1234"];
         words.extend(flags);
         let Request::Mutation {
             command: MutationCommand::PanelRename { target, label },
@@ -6935,16 +6868,16 @@ fn panel_rename_admits_exact_targets_and_normalizes_only_its_label() {
         else {
             panic!("panel rename")
         };
-        assert_eq!(target.suffix(), Some("1234"));
+        assert_eq!(target.selector_identity(), Some(format!("{:032x}", 0x1234)));
         assert_eq!(label.custom_label().map(|value| value.as_str()), expected);
     }
     for words in [
-        vec!["panel", "rename", "@panel:1234"],
+        vec!["panel", "rename", "@panel:0x1234"],
         vec!["panel", "rename", "label", "--clear"],
         vec!["panel", "rename", "--clear"],
-        vec!["panel", "rename", "@panel:1234", "--clear", "--label=x"],
-        vec!["panel", "rename", "@panel:1234", "--current", "--clear"],
-        vec!["panel", "rename", "@panel:1234", "extra", "--clear"],
+        vec!["panel", "rename", "@panel:0x1234", "--clear", "--label=x"],
+        vec!["panel", "rename", "@panel:0x1234", "--current", "--clear"],
+        vec!["panel", "rename", "@panel:0x1234", "extra", "--clear"],
     ] {
         assert!(parse(&words).is_err(), "{words:?}");
     }
@@ -6952,7 +6885,7 @@ fn panel_rename_admits_exact_targets_and_normalizes_only_its_label() {
         parse(&[
             "panel",
             "rename",
-            "@panel:1234",
+            "@panel:0x1234",
             "--label",
             &"🐝".repeat(513)
         ])
@@ -7025,12 +6958,12 @@ fn panel_input_requires_one_selector_and_closed_policy_without_effect_options() 
     use orchbee_workbench_protocol::PanelRightClickTarget;
     for (words, explicit, policy) in [
         (
-            vec!["panel", "input", "@panel:06", "--right-click=panel"],
+            vec!["panel", "input", "@panel:0x6", "--right-click=panel"],
             true,
             PanelRightClickTarget::Panel,
         ),
         (
-            vec!["panel", "input", "@panel:06", "--right-click", "orchbee"],
+            vec!["panel", "input", "@panel:0x6", "--right-click", "orchbee"],
             true,
             PanelRightClickTarget::Orchbee,
         ),
@@ -7060,22 +6993,22 @@ fn panel_input_requires_one_selector_and_closed_policy_without_effect_options() 
         vec![
             "panel",
             "input",
-            "@panel:06",
+            "@panel:0x6",
             "--current",
             "--right-click=panel",
         ],
         vec![
             "panel",
             "input",
-            "--panel=@panel:06",
+            "--panel=@panel:0x6",
             "--current",
             "--right-click=panel",
         ],
         vec![
             "panel",
             "input",
-            "@panel:06",
-            "@panel:07",
+            "@panel:0x6",
+            "@panel:0x7",
             "--right-click=panel",
         ],
         vec!["panel", "input", "--current", "--right-click=pane"],
@@ -7103,7 +7036,7 @@ fn panel_input_requires_one_selector_and_closed_policy_without_effect_options() 
             "--right-click=panel",
             "--client=00000000000000000000000000000001",
         ],
-        vec!["panel", "get", "@panel:06", "--right-click=panel"],
+        vec!["panel", "get", "@panel:0x6", "--right-click=panel"],
         vec!["tab", "create", "--right-click=panel"],
     ] {
         assert!(parse(&words).is_err(), "{words:?}");
@@ -7115,7 +7048,7 @@ fn panel_input_requires_one_selector_and_closed_policy_without_effect_options() 
         let Request::Creation { command, .. } = parse(&[
             "panel",
             "split",
-            "@panel:06",
+            "@panel:0x6",
             "--direction=right",
             "--right-click",
             value,
@@ -7253,7 +7186,7 @@ fn current_panel_queries_accept_explicit_clients_and_refuse_ignored_selectors() 
             );
         }
         for words in [
-            vec!["panel", verb, "--panel", "@panel:abc", "--client", client],
+            vec!["panel", verb, "--panel", "@panel:0xabc", "--client", client],
             vec!["panel", verb, "--client", client, "--client", client],
             vec!["panel", verb, "--client", "bad"],
             vec!["panel", verb, "--client"],
@@ -7263,7 +7196,7 @@ fn current_panel_queries_accept_explicit_clients_and_refuse_ignored_selectors() 
             assert!(parse(&words).is_err(), "{words:?}");
         }
     }
-    assert!(parse(&["panel", "process-info", "@panel:abc", "--client", client]).is_err());
+    assert!(parse(&["panel", "process-info", "@panel:0xabc", "--client", client]).is_err());
     for topic in [CommandPath::PanelCurrent, CommandPath::PanelProcessInfo] {
         for locale in [
             crate::localization::Locale::EnUs,
@@ -7295,7 +7228,7 @@ fn agent_changes_grammar_requires_bounded_explicit_continuation() {
             "agent",
             "changes",
             "--cursor",
-            AGENT_CURSOR,
+            AGENT_PROTOCOL_CURSOR,
             "--limit=100",
             "--format=json"
         ]),
@@ -7303,8 +7236,10 @@ fn agent_changes_grammar_requires_bounded_explicit_continuation() {
             QueryCommand::AgentChanges {
                 limit: 100,
                 cursor: Some(
-                    orchbee_agent_observation_protocol::AgentChangesCursor::parse(AGENT_CURSOR)
-                        .unwrap()
+                    orchbee_agent_observation_protocol::AgentChangesCursor::parse(
+                        AGENT_PROTOCOL_CURSOR
+                    )
+                    .unwrap()
                 )
             },
             OutputFormat::Json
@@ -7535,7 +7470,7 @@ fn reusable_layout_export_has_closed_targets_options_and_total_deadline() {
             "layout",
             "export",
             "--panel",
-            "@panel:abcd",
+            "@panel:0xabcd",
             "--client",
             "11111111111111111111111111111111",
         ],
@@ -7547,9 +7482,9 @@ fn reusable_layout_export_has_closed_targets_options_and_total_deadline() {
     }
     for suffix in [
         vec!["extra"],
-        vec!["--tab", "a", "--panel", "@panel:abcd"],
+        vec!["--tab", "a", "--panel", "@panel:0xabcd"],
         vec!["--tab", "a", "--current"],
-        vec!["--panel", "@panel:abcd", "--current"],
+        vec!["--panel", "@panel:0xabcd", "--current"],
         vec!["--workspace", "a"],
         vec!["--file", "a"],
         vec!["--confirm"],
@@ -7802,11 +7737,11 @@ fn format_and_agent_target_diagnostics_point_at_the_invoked_command() {
         }
     );
     assert_eq!(
-        reason(&["agent", "explain", "@workspace:91"]),
+        reason(&["agent", "explain", "@workspace:0x91"]),
         UsageReason::InvalidValue {
             context: UsageContext::Path("agent explain"),
             option: "<target>",
-            value: "@workspace:91".to_owned(),
+            value: "@workspace:0x91".to_owned(),
             expected: ExpectedValue::AgentTarget,
         }
     );

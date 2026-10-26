@@ -200,9 +200,9 @@ fn every_exchange_fault_retains_prior_effects_and_never_replays() {
         let output = fixture.run(&[
             "panel",
             "swap",
-            "@panel:06",
+            "@panel:0x6",
             "--with",
-            "@panel:08",
+            "@panel:0x8",
             "--client",
             &id(7),
             if matches!(cut, Cut::WaitTimedOut) {
@@ -251,7 +251,7 @@ fn every_exchange_fault_retains_prior_effects_and_never_replays() {
 
 #[test]
 fn same_panel_and_cross_tab_are_effect_free_receipts() {
-    for (target, reason) in [("@panel:06", "same-panel"), ("@panel:0a", "cross-tab")] {
+    for (target, reason) in [("@panel:0x6", "same-panel"), ("@panel:0xa", "cross-tab")] {
         let fixture = Fixture::new();
         let rendezvous = fixture.rendezvous();
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
@@ -262,7 +262,7 @@ fn same_panel_and_cross_tab_are_effect_free_receipts() {
         let output = fixture.run(&[
             "panel",
             "swap",
-            "@panel:06",
+            "@panel:0x6",
             "--with",
             target,
             "--client",
@@ -350,7 +350,7 @@ fn directional_swap_uses_one_layout_and_refuses_to_retarget_after_revision_chang
         let output = fixture.run(&[
             "panel",
             "swap",
-            "@panel:06",
+            "@panel:0x6",
             "--direction",
             if mode == "no-neighbor" {
                 "left"

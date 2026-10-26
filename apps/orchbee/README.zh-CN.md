@@ -843,7 +843,7 @@ Windows `workspace create` 可省略 Project、名称和目录；按来源终端
 
 ## Windows CLI 配置
 
-共享应用与终端主题通过和 Desktop 相同的偏好权威应用于原生 TUI。旧 Windows 主题值作为迁移输入。参见[原生主题](docs/native-themes.zh-CN.md)。
+共享应用与终端主题通过和 Desktop 相同的偏好权威应用于原生 TUI。参见[原生主题](docs/native-themes.zh-CN.md)。
 
 `config check` 还校验 `APPDATA/Orchbee/config.toml`，可由绝对路径 `ORCHBEE_CONFIG_FILE` 覆盖。`[terminal] new_cwd` 设置创建 cwd 默认值；`[worktrees] directory` 选择检出根目录。`[session] resume_agents_on_restore` 控制下次 Session 启动时恢复 Agent，默认 true，精确 true/false 环境覆盖值优先。`config check` JSON v3 报告有效值和来源。显式命令参数覆盖有效配置。参见[配置与优先级](docs/windows-cli-configuration.zh-CN.md)。Windows CLI 每次调用读取；公共 TUI/CLI 激活在提交前读取启动策略。TUI 直接创建和 Server 热重载仍是独立能力。
 

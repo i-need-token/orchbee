@@ -130,8 +130,8 @@ pub(crate) enum OutputFormat {
 
 /// A `get`/filter target validated at parse time. `Id` carries the canonical
 /// 32-lowercase-hex text; `Label` carries an exact case-sensitive label;
-/// `Selector` carries an exact compact `@<kind>:0x<hex>` identity or a legacy
-/// `@<kind>:<suffix>` token. The parser checks its resource kind before effects.
+/// `Selector` carries an exact compact `@<kind>:0x<hex>` identity.
+/// The parser checks its resource kind before effects.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Target {
     /// Bare ID in the four input/output commands; resolution refuses cross-kind collisions.
@@ -144,7 +144,11 @@ pub(crate) enum Target {
 impl Target {
     /// Expand an exact compact selector, preserving the original token for diagnostics.
     pub(crate) fn selector_identity(&self) -> Option<String> {
-        let hex = self.suffix()?.strip_prefix("0x")?;
+        let Self::Selector(token) = self else {
+            return None;
+        };
+        let (_, payload) = token.split_once(':')?;
+        let hex = payload.strip_prefix("0x")?;
         Some(format!("{hex:0>32}"))
     }
 
@@ -154,14 +158,6 @@ impl Target {
             | Self::TerminalOrPanelId(value)
             | Self::Label(value)
             | Self::Selector(value) => value,
-        }
-    }
-
-    /// The admitted selector payload, including `0x` for an exact identity.
-    pub(crate) fn suffix(&self) -> Option<&str> {
-        match self {
-            Self::Selector(token) => token.split_once(':').map(|(_, suffix)| suffix),
-            _ => None,
         }
     }
 }
@@ -1018,14 +1014,12 @@ pub(crate) enum QueryCommand {
     #[cfg(test)]
     TerminalRead {
         target: Target,
-        /// `Some(n)` selects the `--history --rows n` form: retained
-        /// scrollback rows instead of the visible frame.
+        /// Retained scrollback row count instead of the visible frame.
         history: Option<u16>,
-        /// `--unwrap`: present joined logical lines instead of physical
-        /// rows; a read-only projection of the same emitted rows.
+        /// Present joined logical lines instead of physical rows.
         unwrap: bool,
         /// `--lines <n>`: present only the last n emitted entries — logical
-        /// lines under `--unwrap`, physical rows otherwise.
+        /// lines when joined, physical rows otherwise.
         lines: Option<u16>,
     },
     TerminalOutput {
@@ -1296,18 +1290,12 @@ pub(crate) enum MutationCommand {
     },
 }
 
-/// The three exclusive `panel move` destinations. `Adjacent` keeps the
-/// original same-Tab `--target-panel --direction` grammar; `Tab` and
-/// `NewTab` are the cross-Tab relocation destinations, bounded to the
-/// source TerminalContext.
+/// Panel placement uses one existing-Tab form or a new Tab in the source TerminalContext.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum PanelMoveDestination {
-    Adjacent {
-        into: Target,
-        direction: WorkbenchPanelSplitDirection,
-    },
     Tab {
         tab: Target,
+        panel: Option<Target>,
         direction: WorkbenchPanelSplitDirection,
     },
     NewTab {
@@ -2076,14 +2064,12 @@ struct Options {
     current: bool,
     target_panel: Option<String>,
     swap_target: Option<String>,
-    /// `panel move --into-tab <t>`: the sibling-Tab relocation target.
+    /// `panel move --into-tab <t>`: the existing-Tab placement target.
     into_tab: Option<String>,
     /// `panel move --new-tab`: the new-Tab relocation destination flag.
     new_tab: bool,
     new_workspace: bool,
     tab_label: Option<String>,
-    /// `terminal read --unwrap`: join verified soft-wrap rows into logical
-    /// lines for presentation only.
     /// `terminal read --lines <n>`: presentation tail over emitted entries.
     lines: Option<String>,
     output_source: Option<String>,
@@ -2269,14 +2255,10 @@ pub(crate) fn label_requires_id(value: &str) -> bool {
 }
 
 /// Compact identities have a distinct `0x` marker and all significant digits.
-/// Legacy suffixes remain one to thirty-one lowercase hex characters.
-fn valid_selector_suffix(suffix: &str) -> bool {
-    if let Some(hex) = suffix.strip_prefix("0x") {
-        return (1..=32).contains(&hex.len())
-            && !hex.starts_with('0')
-            && lowercase_hex(hex.as_bytes());
-    }
-    (1..32).contains(&suffix.len()) && lowercase_hex(suffix.as_bytes())
+fn valid_selector_identity(payload: &str) -> bool {
+    payload.strip_prefix("0x").is_some_and(|hex| {
+        (1..=32).contains(&hex.len()) && !hex.starts_with('0') && lowercase_hex(hex.as_bytes())
+    })
 }
 
 fn valid_label(value: &str) -> bool {
@@ -2295,15 +2277,15 @@ fn target(
         usage: None,
     };
     // A recognized `@<kind>:` prefix claims selector syntax wherever it
-    // appears: the kind must equal the operand's resource and the suffix must
-    // be a compact identity or legacy hex tail — both are parse-time `invalid-identifier`
-    // failures. An `@` token without a recognized prefix falls through to the
+    // appears: the kind must equal the operand's resource and the payload must
+    // be an exact compact identity. Both failures are parse-time `invalid-identifier`.
+    // An `@` token without a recognized prefix falls through to the
     // label rule unchanged.
     let selector = value
         .strip_prefix('@')
         .and_then(|rest| rest.split_once(':'))
-        .and_then(|(kind, suffix)| {
-            Resource::selector_token(kind).map(|kind| (kind, valid_selector_suffix(suffix)))
+        .and_then(|(kind, payload)| {
+            Resource::selector_token(kind).map(|kind| (kind, valid_selector_identity(payload)))
         });
     if let Some((kind, admitted)) = selector {
         if !admitted || kind != resource {
@@ -3131,20 +3113,6 @@ fn resolve_words(
     options: &Options,
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
-    if words.first() == Some(&"panel") && options.panel.is_some() {
-        return Err(usage_with(
-            UsageReason::UnexpectedOption {
-                context: command_context(
-                    &words
-                        .iter()
-                        .map(|word| (*word).to_owned())
-                        .collect::<Vec<_>>(),
-                ),
-                option: "--panel",
-            },
-            envelope,
-        ));
-    }
     match words {
         [
             family @ ("workspace" | "tab" | "panel" | "project"),
@@ -4179,22 +4147,12 @@ fn resolve_words(
             if let [_, extra, ..] = operands {
                 return Err(unexpected_argument(context, extra, envelope));
             }
-            if (options.panel.is_some() && options.current)
-                || (!operands.is_empty() && (options.panel.is_some() || options.current))
-            {
+            if !operands.is_empty() && options.current {
                 return Err(usage_with(
                     UsageReason::ConflictingOptions {
                         context,
-                        first: if operands.is_empty() {
-                            "--panel"
-                        } else {
-                            "panel-id"
-                        },
-                        second: if options.current {
-                            "--current"
-                        } else {
-                            "--panel"
-                        },
+                        first: "panel-id",
+                        second: "--current",
                     },
                     envelope,
                 ));
@@ -4202,7 +4160,6 @@ fn resolve_words(
             let panel = operands
                 .first()
                 .map(|value| (*value).to_owned())
-                .or_else(|| options.panel.clone())
                 .map(|value| target(value, Resource::Panel, envelope))
                 .transpose()?;
             let target = panel_query_target(panel, options, context, envelope)?;
@@ -5471,7 +5428,7 @@ struct Scope {
     current: bool,
     target_panel: bool,
     swap_target: bool,
-    /// `panel move --into-tab <t>`: admits the sibling-Tab relocation
+    /// `panel move --into-tab <t>`: admits the existing-Tab placement
     /// destination selector.
     into_tab: bool,
     /// `panel move --new-tab`: admits the new-Tab relocation destination
@@ -5479,9 +5436,6 @@ struct Scope {
     new_tab: bool,
     new_workspace: bool,
     tab_label: bool,
-    /// `terminal read --history --rows <n>`: admits the flag and the
-    /// history-row meaning of the shared `--rows` value option.
-    /// `terminal read --unwrap`: admits the logical-line presentation flag.
     /// `terminal read --lines <n>`: admits the presentation tail option.
     lines: bool,
     output_source: bool,
@@ -5736,7 +5690,6 @@ const TAB_LIST_SCOPE: Scope = Scope {
 };
 
 const PANEL_CURRENT_SCOPE: Scope = Scope {
-    panel: true,
     current: true,
     client: true,
     ..NO_OPTIONS
@@ -5834,7 +5787,6 @@ const WORKSPACE_CLOSE_RESUME_SCOPE: Scope = Scope {
 
 const PANEL_SPLIT_SCOPE: Scope = Scope {
     right_click: true,
-    panel: true,
     current: true,
     ratio: true,
     client: true,
@@ -6234,9 +6186,7 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     if options.cols.is_some() && !scope.geometry {
         return Some("--cols");
     }
-    // `--rows` is a geometry dimension under `geometry` scope, the paired
-    // history row count under `history` scope, and the searched window under
-    // `wait` scope; all three spellings share the flag.
+    // `--rows` belongs only to the geometry option group.
     if options.rows.is_some() && !scope.geometry {
         return Some("--rows");
     }
@@ -6409,7 +6359,10 @@ fn check_scope(
 ) -> Result<(), ParseFailure> {
     match first_out_of_scope(options, scope) {
         Some(option) => Err(usage_with(
-            UsageReason::UnexpectedOption { context, option },
+            UsageReason::UnknownOption {
+                context,
+                option: option.to_owned(),
+            },
             envelope,
         )),
         None => Ok(()),
@@ -7511,19 +7464,13 @@ fn tab_direction(
     }
 }
 
-/// `panel move` admits exactly one destination selector: `--target-panel`
-/// (the original same-Tab adjacent insert), `--into-tab` (an existing
-/// sibling Tab), or `--new-tab` (a fresh Tab appended to the source
-/// TerminalContext). Each form pins its own required and forbidden peers
-/// before any target resolution runs; a stray `--label`/`--order`
-/// outside its owning form is a usage conflict, never silently ignored.
+/// Existing-Tab placement always names `--into-tab`; `--target-panel` refines that destination.
 fn panel_move_destination(
     options: &Options,
     envelope: FailureEnvelope,
 ) -> Result<PanelMoveDestination, ParseFailure> {
     let context = UsageContext::Path("panel move");
     let declared = [
-        options.target_panel.is_some().then_some("--target-panel"),
         options.into_tab.is_some().then_some("--into-tab"),
         options.new_tab.then_some("--new-tab"),
     ]
@@ -7531,26 +7478,6 @@ fn panel_move_destination(
     .flatten()
     .collect::<Vec<_>>();
     match declared[..] {
-        ["--target-panel"] => {
-            if options.label.is_some() {
-                return Err(usage_with(
-                    UsageReason::ConflictingOptions {
-                        context,
-                        first: "--target-panel",
-                        second: "--label",
-                    },
-                    envelope,
-                ));
-            }
-            Ok(PanelMoveDestination::Adjacent {
-                into: target(
-                    required(&options.target_panel, context, "'--target-panel'", envelope)?,
-                    Resource::Panel,
-                    envelope,
-                )?,
-                direction: panel_direction(options, context, envelope)?,
-            })
-        }
         ["--into-tab"] => {
             if options.label.is_some() {
                 return Err(usage_with(
@@ -7568,10 +7495,25 @@ fn panel_move_destination(
                     Resource::Tab,
                     envelope,
                 )?,
+                panel: options
+                    .target_panel
+                    .as_ref()
+                    .map(|value| target(value.clone(), Resource::Panel, envelope))
+                    .transpose()?,
                 direction: panel_direction(options, context, envelope)?,
             })
         }
         ["--new-tab"] => {
+            if options.target_panel.is_some() {
+                return Err(usage_with(
+                    UsageReason::ConflictingOptions {
+                        context,
+                        first: "--new-tab",
+                        second: "--target-panel",
+                    },
+                    envelope,
+                ));
+            }
             if options.direction.is_some() {
                 return Err(usage_with(
                     UsageReason::ConflictingOptions {
@@ -7588,7 +7530,7 @@ fn panel_move_destination(
         }
         [] => Err(missing_required(
             context,
-            "'--target-panel', '--into-tab', or '--new-tab'",
+            "'--into-tab' or '--new-tab'",
             envelope,
         )),
         _ => Err(usage_with(

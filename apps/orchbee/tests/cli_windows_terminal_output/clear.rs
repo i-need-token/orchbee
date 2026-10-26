@@ -3,11 +3,12 @@ use std::num::NonZeroU64;
 const SCHEMA: &str = include_str!("../../src/cli/schemas/orchbee.terminal.clear.json");
 
 #[test]
-fn clear_cli_submits_once_for_primary_child_or_suffix_and_retains_known_or_unknown_effect() {
+fn clear_cli_submits_once_for_primary_child_or_compact_identity_and_retains_known_or_unknown_effect()
+ {
     for (mode, target) in [
         ("cleared", ID),
         ("cleared", "55555555555555555555555555555555"),
-        ("cleared", "@terminal:5555"),
+        ("cleared", "@terminal:0x55555555555555555555555555555555"),
         ("cleanup-lost", ID),
         ("alternate", ID),
         ("unavailable", ID),

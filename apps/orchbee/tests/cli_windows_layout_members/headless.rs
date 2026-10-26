@@ -41,9 +41,9 @@ fn headless_layout_and_export_only_read_canonical_snapshots() {
             assert_closed(&mut stream);
         });
         let args = if export {
-            vec!["layout", "export", "--tab", "@tab:5", "--format=json"]
+            vec!["layout", "export", "--tab", "@tab:0x5", "--format=json"]
         } else {
-            vec!["panel", "layout", "@panel:6", "--format=json"]
+            vec!["panel", "layout", "@panel:0x6", "--format=json"]
         };
         let output = fixture.run(&args);
         handler.join().unwrap();
@@ -126,9 +126,9 @@ fn headless_ratio_and_pair_swap_submit_once_without_client_discovery() {
             vec![
                 "panel",
                 "swap",
-                "@panel:6",
+                "@panel:0x6",
                 "--with",
-                "@panel:8",
+                "@panel:0x8",
                 "--format=json",
             ]
         } else {
@@ -136,7 +136,7 @@ fn headless_ratio_and_pair_swap_submit_once_without_client_discovery() {
                 "layout",
                 "set-split-ratio",
                 "--tab",
-                "@tab:5",
+                "@tab:0x5",
                 "--path",
                 "root",
                 "--ratio",
@@ -166,6 +166,95 @@ fn headless_ratio_and_pair_swap_submit_once_without_client_discovery() {
         } else {
             assert_eq!(document["result"]["effect"]["result"]["revision"], "13");
         }
+    }
+}
+
+#[test]
+fn same_tab_move_uses_one_placement_and_preserves_unchanged_receipts() {
+    for unchanged in [false, true] {
+        let fixture = Fixture::new();
+        let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
+        let handler = peer(&fixture, listener, move |mut stream| {
+            let mut current = split_snapshot();
+            snapshot_reply(&mut stream, current.clone());
+            let WorkbenchRequest::ClientView(request) =
+                read_workbench_request(&mut stream).unwrap()
+            else {
+                panic!("one Client selection read")
+            };
+            assert!(matches!(request.action, ClientViewAction::List {}));
+            view_reply(&mut stream, &request, json!({"kind":"listed","clients":[]}));
+            let WorkbenchRequest::Command(command) = read_workbench_request(&mut stream).unwrap()
+            else {
+                panic!("one same-Tab placement")
+            };
+            let WorkbenchAction::PanelMove {
+                terminal_context_id,
+                tab_id,
+                panel_id,
+                target_panel_id,
+                direction,
+            } = &command.action
+            else {
+                panic!("same-Tab placement retains the current action")
+            };
+            assert_eq!(command.expected_revision.value(), 12);
+            assert_eq!(terminal_context_id.as_str(), id(4));
+            assert_eq!(tab_id.as_str(), id(5));
+            assert_eq!(panel_id.as_str(), id(6));
+            assert_eq!(target_panel_id.as_str(), id(8));
+            assert_eq!(*direction, WorkbenchPanelSplitDirection::Right);
+            let result = if unchanged {
+                WorkbenchCommandOutcome::Unchanged {
+                    revision: current.revision,
+                }
+            } else {
+                current.revision = WorkbenchRevision::new(13);
+                current.terminal_contexts[0].tabs[0].root =
+                    serde_json::from_value(split_root(8, 6, 0.5)).unwrap();
+                WorkbenchCommandOutcome::PanelMoved {
+                    revision: current.revision,
+                    terminal_context_id: terminal_context_id.clone(),
+                    tab_id: tab_id.clone(),
+                    panel_id: panel_id.clone(),
+                    target_panel_id: target_panel_id.clone(),
+                }
+            };
+            outcome(&mut stream, &command, result);
+            snapshot_reply(&mut stream, current);
+            assert_closed(&mut stream);
+        });
+        let output = fixture.run(&[
+            "panel",
+            "move",
+            "@panel:0x6",
+            "--into-tab",
+            "@tab:0x5",
+            "--target-panel",
+            "@panel:0x8",
+            "--direction",
+            "right",
+            "--no-focus",
+            "--format=json",
+        ]);
+        handler.join().unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+        let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+        validate(
+            &document,
+            include_str!("../../src/cli/schemas/orchbee.panel.move.json"),
+        );
+        assert_eq!(document["outcome"], "completed");
+        assert_eq!(document["movement"]["result"]["action"], "panel.move");
+        assert_eq!(
+            document["movement"]["result"]["outcome"],
+            if unchanged { "unchanged" } else { "committed" }
+        );
+        assert!(document["focus"].is_null());
     }
 }
 

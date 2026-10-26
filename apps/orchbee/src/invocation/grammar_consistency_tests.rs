@@ -7,17 +7,8 @@ fn parse(words: &[&str]) -> Result<Request, ParseFailure> {
 }
 
 #[test]
-fn output_legacy_flags_are_rejected_and_waits_are_finite() {
+fn output_waits_are_finite_without_an_explicit_forever() {
     let id = "@terminal:0x1";
-    for extra in [
-        vec!["--history", "--rows", "10"],
-        vec!["--unwrap"],
-        vec!["--rows", "10"],
-    ] {
-        let mut words = vec!["terminal", "read", id];
-        words.extend(extra);
-        assert!(parse(&words).is_err(), "{words:?}");
-    }
     for (extra, expected) in [(vec![], Some(30_000)), (vec!["--forever"], None)] {
         let mut words = vec!["terminal", "wait-output", id, "--match", "ready"];
         words.extend(extra);
@@ -61,7 +52,6 @@ fn terminal_agent_targets_are_explicit_and_exclusive() {
 #[test]
 fn panel_targets_and_direction_domains_have_one_spelling() {
     for verb in ["layout", "current", "focus", "edges"] {
-        assert!(parse(&["panel", verb, "--panel", "@panel:0x1"]).is_err());
         assert!(parse(&["panel", verb, "@panel:0x1"]).is_ok(), "{verb}");
     }
     for direction in ["left", "right", "up", "down"] {

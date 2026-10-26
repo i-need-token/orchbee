@@ -1,7 +1,7 @@
 //! Application cursors carry complete-source revisions and ordering; no retained snapshots.
 use super::read::Checkpoint;
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-use orchbee_agent_observation_protocol::{AgentListCursor, AgentSafeInteger};
+use orchbee_agent_observation_protocol::AgentSafeInteger;
 use orchbee_workbench_protocol::{SiteId, Snapshot, WorkbenchClientId, WorkbenchRevision};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -22,9 +22,6 @@ struct Position {
 }
 impl Cursor {
     pub(crate) fn parse(value: &str) -> Result<Self, ()> {
-        if AgentListCursor::parse(value).is_ok() {
-            return Ok(Self(value.into()));
-        }
         let encoded = value.strip_prefix("u1.").ok_or(())?;
         if value.len() > 1024 {
             return Err(());
@@ -64,9 +61,6 @@ impl Cursor {
             return Err(());
         }
         Ok(p.offset)
-    }
-    pub(crate) fn legacy(&self) -> bool {
-        !self.0.starts_with("u1.")
     }
     pub(crate) fn next(
         snapshot: &Snapshot,

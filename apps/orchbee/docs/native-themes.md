@@ -58,10 +58,9 @@ input-method anchor. Cursor output stays in the same frame and flush, and a fail
 replays a pending cursor. Host cursor color and shape are untouched. The native cursor stays hidden
 while the Client draws; the existing terminal mode guard restores its visibility on exit and failure.
 
-Legacy Windows TOML accepts terminal-native, one-light and one-dark. These are migration inputs:
-explicit legacy values seed unclaimed shared preferences once. Later TOML reloads cannot override
-confirmed common appearance. Shipped theme roles still map chrome, sidebars, menus, notices and
-selection overlays; renderers consume those roles without changing focus, geometry or control.
+Shared appearance preferences select terminal-native, one-light or one-dark rendering roles.
+These roles map chrome, sidebars, menus, notices and selection overlays; renderers consume
+them without changing focus, geometry or control.
 
 The light/dark roles distinguish canvas, chrome and raised overlays. System uses matching Light/Dark
 accents and overlays only with an observed host background; otherwise it uses terminal-native roles.
@@ -229,7 +228,7 @@ final drawing correctness. Never add application-specific text coloring to hide 
 
 ## Publication and reload
 
-The ordered Settings lane reads the shared authority on startup and polls once per second. Only a complete confirmed snapshot updates cached preferences and their resolved theme. Invalid sources and lost replies preserve last confirmed values and expose an issue. GUI edits and TUI saves use this same path without restarting terminals. Renderers read owned state, never files or environment. Legacy configuration reload remains responsible for its unrelated fields and cannot replace confirmed common preferences.
+The ordered Settings lane reads the shared authority on startup and polls once per second. Only a complete confirmed snapshot updates cached preferences and their resolved theme. Invalid sources and lost replies preserve last confirmed values and expose an issue. GUI edits and TUI saves use this same path without restarting terminals. Renderers read owned state, never files or environment. Native configuration reload remains responsible for its own fields and cannot replace confirmed common preferences.
 
 [Settings appearance drafts](native-settings.md#apply-timing-and-capability-boundaries) supply a separate reversible palette and locale to the whole-frame compositor, including background chrome and terminal default markers. This projection never publishes runtime policy or replaces the confirmed cache; closing reveals the newest confirmed appearance, and program colors retain their independent authority.
 
@@ -237,7 +236,6 @@ The ordered Settings lane reads the shared authority on startup and polls once p
 
 | Claim                                                        | Evidence                                                                                                          | Bounds                                                                                                                                        |
 | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Legacy names and migration admission                         | Settings decision cases and CLI warning/schema checks                                                             | Windows TOML owner and existing fatal source boundary                                                                                         |
 | Complete role mapping and capability precedence              | Pure palette/resolver cases, quantized buffers, all consumer render cases                                         | Three themes, canonical palette, sampled environment; program colors excluded                                                                 |
 | Shared Light/Dark interaction palette remains aligned        | CSS source-conformance test and exact foreign-input verification edge                                             | Public design tokens map shared Light/Dark roles; System uses observed-host accents or terminal-native roles with host-relative base surfaces |
 | Dark text priority exceeds a readable near-equal control     | Resolved content separation and independent surface-readability cases                                             | Palette-specific truecolor evidence; reduced-color behavior and actual host appearance are separate                                           |

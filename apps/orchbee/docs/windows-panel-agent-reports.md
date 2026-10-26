@@ -32,7 +32,7 @@ orchbee panel clear-agent-authority <panel> [--source <id>] [--seq <n>]
 orchbee panel release-agent <panel> --source <id> --agent <label> [--seq <n>]
 ```
 
-All accept `--format text|json`, a full Panel ID or `@panel:<suffix>`, and the Windows global
+All accept `--format text|json`, a full Panel ID or `@panel:0x<hex>`, and the Windows global
 `--session` selector. Help and PowerShell completion expose their command-specific options and state
 values. `clear-agent-authority` provides a native command for Herdr's API-only operation.
 

@@ -120,16 +120,6 @@ impl WindowsNotificationSettings {
                 }
             }
         }
-        if let Some(delivery) = table.get("agent_delivery") {
-            match parse_delivery(delivery, toast_error) {
-                Ok(value) => self.agent_delivery = value,
-                Err(error) => diagnostics.push(
-                    "ui.toast.agent_delivery",
-                    error.reason,
-                    WindowsSettingsDiagnosticDisposition::Defaulted,
-                ),
-            }
-        }
         if let Some(delay) = table.get("delay_seconds") {
             match delay.as_integer().and_then(|value| value.try_into().ok()) {
                 Some(value) if value <= MAXIMUM_NOTIFICATION_DELAY_SECONDS => {
@@ -211,16 +201,6 @@ impl WindowsNotificationSettings {
                 WindowsSettingsDiagnosticDisposition::Ignored,
             );
         }
-        if let Some(enabled) = table.get("enabled") {
-            match enabled.as_bool() {
-                Some(value) => self.sound_enabled = value,
-                None => diagnostics.push(
-                    "ui.sound.enabled",
-                    "wrong-type",
-                    WindowsSettingsDiagnosticDisposition::Defaulted,
-                ),
-            }
-        }
         let Some(agents) = table.get("agents") else {
             return;
         };
@@ -277,10 +257,12 @@ impl WindowsNotificationSettings {
 
     fn parse_toast(&mut self, raw: &toml::Value) -> Result<(), WindowsSettingsError> {
         let table = raw.as_table().ok_or(toast_error("wrong-type"))?;
-        if table
-            .keys()
-            .any(|key| !windows_user_config_has_child("ui.toast", key))
-        {
+        if table.keys().any(|key| {
+            !matches!(
+                key.as_str(),
+                "delivery" | "agent_delivery" | "delay_seconds" | "overlay"
+            )
+        }) {
             return Err(toast_error("unknown-key"));
         }
         if let Some(delivery) = table.get("delivery") {
@@ -324,7 +306,7 @@ impl WindowsNotificationSettings {
         let table = raw.as_table().ok_or(sound_error("wrong-type"))?;
         if table
             .keys()
-            .any(|key| !windows_user_config_has_child("ui.sound", key))
+            .any(|key| !matches!(key.as_str(), "enabled" | "agents"))
         {
             return Err(sound_error("unknown-key"));
         }

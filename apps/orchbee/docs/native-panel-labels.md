@@ -5,7 +5,7 @@
 `panel rename <panel> --label <text>` sets the exact leaf Panel's primary Presentation title
 override; `--clear` removes that override. An empty or Unicode whitespace-only label also clears
 it. The two flags are exclusive and one is required. Targets keep the existing Panel ID or
-`@panel:<suffix>` grammar; labels, implicit selection and current-Panel routing are not targets
+`@panel:0x<hex>` grammar; labels, implicit selection and current-Panel routing are not targets
 of this operation. Windows is the runtime acceptance platform.
 
 The Server owns the shared override. `Presentation.label` remains the immutable creation fallback,

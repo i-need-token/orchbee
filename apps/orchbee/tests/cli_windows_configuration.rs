@@ -575,18 +575,6 @@ fn field_errors_warn_default_or_disable_only_the_affected_setting() {
             "ignored",
         ),
         (
-            "[theme]\nname='night'",
-            "theme.name",
-            "invalid-theme",
-            "defaulted",
-        ),
-        (
-            "[theme.custom]\ntext='#ffffff'",
-            "theme.custom",
-            "unknown-key",
-            "ignored",
-        ),
-        (
             "[ui.toast]\nenabled=true",
             "ui.toast.enabled",
             "unknown-key",
@@ -595,12 +583,6 @@ fn field_errors_warn_default_or_disable_only_the_affected_setting() {
         (
             "[ui.toast]\ndelivery='herdr'",
             "ui.toast.delivery",
-            "invalid-mode",
-            "defaulted",
-        ),
-        (
-            "[ui.toast]\nagent_delivery='herdr'",
-            "ui.toast.agent_delivery",
             "invalid-mode",
             "defaulted",
         ),
@@ -1201,7 +1183,7 @@ fn config_check_notification_policy_validates_actual_file_and_closed_versions() 
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     std::fs::write(
         &config,
-        "[ui.toast]\ndelivery='orchbee'\nagent_delivery='terminal'\ndelay_seconds=7\n[ui.toast.overlay]\nposition='top-left'\n[ui.sound]\nenabled=true\n[ui.sound.agents]\ncodex='off'\npi='on'",
+        "[ui.toast]\ndelivery='orchbee'\ndelay_seconds=7\n[ui.toast.overlay]\nposition='top-left'\n[ui.sound.agents]\ncodex='off'\npi='on'",
     )
     .unwrap();
     let doc = document(fixture.run(&["config", "check", "--format=json"]));
@@ -1217,7 +1199,7 @@ fn config_check_notification_policy_validates_actual_file_and_closed_versions() 
     );
     assert_eq!(
         doc["result"]["checks"][5]["details"]["notificationAgentDelivery"],
-        "terminal"
+        "orchbee"
     );
     assert_eq!(
         doc["result"]["checks"][5]["details"]["notificationDelaySeconds"],
@@ -1225,7 +1207,7 @@ fn config_check_notification_policy_validates_actual_file_and_closed_versions() 
     );
     assert_eq!(
         doc["result"]["checks"][5]["details"]["notificationSoundEnabled"],
-        true
+        false
     );
     assert_eq!(
         doc["result"]["checks"][5]["details"]["notificationAgentSounds"],
@@ -1262,13 +1244,6 @@ fn config_check_notification_policy_validates_actual_file_and_closed_versions() 
             "invalid-mode",
             "notificationDelivery",
             json!("off"),
-        ),
-        (
-            "[ui.sound]\nenabled='yes'",
-            "ui.sound.enabled",
-            "wrong-type",
-            "notificationSoundEnabled",
-            json!(false),
         ),
         (
             "[ui.toast]\ndelay_seconds=3601",
@@ -1360,43 +1335,5 @@ fn workspace_sidebar_configuration_has_separate_profiles_and_defaults_invalid_pr
         .unwrap();
         assert_eq!(profile.rows().len(), 2);
         assert_creation_reaches_missing_site(&fixture);
-    }
-}
-
-#[test]
-fn named_themes_check_the_actual_file_and_warn_only_the_invalid_field() {
-    let fixture = Fixture::new();
-    let config = fixture.0.join("appdata/Orchbee/config.toml");
-    std::fs::create_dir_all(config.parent().unwrap()).unwrap();
-    for name in ["terminal-native", "one-light", "one-dark"] {
-        std::fs::write(
-            &config,
-            format!("[theme]\nname='{name}'\n[keys]\nprefix='ctrl+a'"),
-        )
-        .unwrap();
-        let doc = config_check_document(&fixture);
-        let check = &doc["result"]["checks"][5];
-        assert_eq!(doc["version"], 14);
-        assert_eq!(check["status"], "pass");
-        assert_eq!(check["details"]["themeName"], name);
-        assert_eq!(check["details"]["keyPrefix"], "Ctrl+A");
-    }
-    for value in ["'unknown'", "'One-Light'", "7", "false", "[]"] {
-        std::fs::write(
-            &config,
-            format!("[theme]\nname={value}\n[keys]\nprefix='ctrl+a'"),
-        )
-        .unwrap();
-        let doc = config_check_document(&fixture);
-        let check = &doc["result"]["checks"][5];
-        assert_eq!(check["status"], "warning");
-        assert_eq!(check["details"]["themeName"], "terminal-native");
-        assert_eq!(check["details"]["keyPrefix"], "Ctrl+A");
-        let reason = if value.starts_with("'") {
-            "invalid-theme"
-        } else {
-            "wrong-type"
-        };
-        assert_warning_diagnostic(&doc, "theme.name", reason, "defaulted");
     }
 }

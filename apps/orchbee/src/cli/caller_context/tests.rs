@@ -84,7 +84,7 @@ fn current_binding_follows_primary_child_and_moved_workspace_with_one_read() {
 #[test]
 fn explicit_selector_never_reads_environment() {
     let (_, result) = read(
-        Some(&Target::Selector("@panel:04".into())),
+        Some(&Target::Selector("@panel:0x4".into())),
         |_| panic!("explicit target cannot read environment"),
         || Ok(snapshot(false, false)),
     )
@@ -98,7 +98,7 @@ fn invalid_or_absent_context_fails_before_discovery_without_echoing_values() {
         for invalid in [
             None,
             Some(""),
-            Some("@terminal:abc"),
+            Some("@terminal:0xabc"),
             Some("secret-untrusted-value"),
             Some("00000000000000000000000000000000"),
             Some("000000000000000000000000000000AB"),

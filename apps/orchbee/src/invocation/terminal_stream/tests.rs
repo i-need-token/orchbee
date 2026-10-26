@@ -8,7 +8,7 @@ fn attach_targets_are_explicit_and_options_are_scoped_before_effects() {
         "--mouse=off",
         "terminal",
         "attach",
-        "@terminal:ab",
+        "@terminal:0xab",
         "--takeover",
         "--timeout=50",
         "--format=json",
@@ -24,7 +24,7 @@ fn attach_targets_are_explicit_and_options_are_scoped_before_effects() {
         vec!["agent", "attach", "alpha"],
         vec!["agent", "attach", "--name=alpha"],
         vec!["agent", "attach", "--agent-session=session-1"],
-        vec!["agent", "attach", "--panel=@panel:ab"],
+        vec!["agent", "attach", "--panel=@panel:0xab"],
     ] {
         let Request::TerminalAttach { command } = parse(&words).unwrap() else {
             panic!("agent attach")
@@ -36,24 +36,24 @@ fn attach_targets_are_explicit_and_options_are_scoped_before_effects() {
     }
     for words in [
         vec!["terminal", "attach"],
-        vec!["terminal", "attach", "@terminal:ab", "extra"],
-        vec!["terminal", "attach", "@terminal:ab", "--cols=80"],
-        vec!["terminal", "attach", "@terminal:ab", "--mouse=invalid"],
+        vec!["terminal", "attach", "@terminal:0xab", "extra"],
+        vec!["terminal", "attach", "@terminal:0xab", "--cols=80"],
+        vec!["terminal", "attach", "@terminal:0xab", "--mouse=invalid"],
         vec![
             "terminal",
             "attach",
-            "@terminal:ab",
+            "@terminal:0xab",
             "--mouse=on",
             "--mouse=off",
         ],
-        vec!["terminal", "attach", "@terminal:ab", "--timeout=0"],
-        vec!["terminal", "attach", "@terminal:ab", "--name=alpha"],
+        vec!["terminal", "attach", "@terminal:0xab", "--timeout=0"],
+        vec!["terminal", "attach", "@terminal:0xab", "--name=alpha"],
         vec!["agent", "attach"],
         vec!["agent", "attach", "alpha", "--name=alpha"],
         vec![
             "agent",
             "attach",
-            "--panel=@panel:ab",
+            "--panel=@panel:0xab",
             "--agent-session=session-1",
         ],
         vec!["agent", "attach", "--name=alpha", "--stdin"],
@@ -77,7 +77,7 @@ fn terminal_control_scopes_takeover_and_reuses_checked_dimensions() {
         "terminal",
         "session",
         "control",
-        "@terminal:ab",
+        "@terminal:0xab",
         "--takeover",
         "--cols=100",
     ])
@@ -91,26 +91,38 @@ fn terminal_control_scopes_takeover_and_reuses_checked_dimensions() {
             "terminal",
             "session",
             "observe",
-            "@terminal:ab",
+            "@terminal:0xab",
             "--takeover",
         ],
         vec![
             "terminal",
             "session",
             "control",
-            "@terminal:ab",
+            "@terminal:0xab",
             "--takeover",
             "--takeover",
         ],
-        vec!["terminal", "session", "control", "@terminal:ab", "--cols=0"],
-        vec!["terminal", "session", "control", "@terminal:ab", "--stdin"],
+        vec![
+            "terminal",
+            "session",
+            "control",
+            "@terminal:0xab",
+            "--cols=0",
+        ],
+        vec![
+            "terminal",
+            "session",
+            "control",
+            "@terminal:0xab",
+            "--stdin",
+        ],
     ] {
         assert!(parse(&words).is_err());
     }
 }
 #[test]
 fn terminal_observe_defaults_and_scoped_options() {
-    let Request::TerminalObserve { command } = parse(&["@terminal:ab"]).expect("parse") else {
+    let Request::TerminalObserve { command } = parse(&["@terminal:0xab"]).expect("parse") else {
         panic!("stream request")
     };
     assert_eq!(
@@ -118,7 +130,7 @@ fn terminal_observe_defaults_and_scoped_options() {
         (120, 40, None)
     );
     let Request::TerminalObserve { command } = parse(&[
-        "@terminal:ab",
+        "@terminal:0xab",
         "--cols=256",
         "--rows=1024",
         "--timeout=50",
@@ -133,15 +145,14 @@ fn terminal_observe_defaults_and_scoped_options() {
     );
     for extra in [
         vec![],
-        vec!["@terminal:ab", "extra"],
-        vec!["@terminal:ab", "--cols=0"],
-        vec!["@terminal:ab", "--cols=+1"],
-        vec!["@terminal:ab", "--cols=4096", "--rows=4096"],
-        vec!["@terminal:ab", "--timeout=0"],
-        vec!["@terminal:ab", "--cell-width=8"],
-        vec!["@terminal:ab", "--stdin"],
-        vec!["@terminal:ab", "--enter"],
-        vec!["@terminal:ab", "--history"],
+        vec!["@terminal:0xab", "extra"],
+        vec!["@terminal:0xab", "--cols=0"],
+        vec!["@terminal:0xab", "--cols=+1"],
+        vec!["@terminal:0xab", "--cols=4096", "--rows=4096"],
+        vec!["@terminal:0xab", "--timeout=0"],
+        vec!["@terminal:0xab", "--cell-width=8"],
+        vec!["@terminal:0xab", "--stdin"],
+        vec!["@terminal:0xab", "--enter"],
     ] {
         assert!(parse(&extra).is_err(), "{extra:?}");
     }

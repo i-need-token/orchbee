@@ -14,7 +14,7 @@ fn panel_agent_input_preserves_labels_messages_references_and_full_sequences() {
     let value = report(&[
         "panel",
         "report-agent",
-        "@panel:abc",
+        "@panel:0xabc",
         "--source=  custom source  ",
         "--agent=  C:/bin/CLAUDE.EXE  ",
         "--state=blocked",
@@ -37,25 +37,25 @@ fn panel_agent_input_preserves_labels_messages_references_and_full_sequences() {
     );
     let custom = " A custom\tAgent ";
     assert!(
-        matches!(report(&["panel", "release-agent", "@panel:abc", "--source", "source",
+        matches!(report(&["panel", "release-agent", "@panel:0xabc", "--source", "source",
         "--agent", custom, "--seq=+0007"]), PanelAgentReport::Release { agent, sequence: Some(seq), .. }
         if agent == custom.trim() && seq.get() == 7)
     );
     assert!(
-        matches!(report(&["panel", "report-agent-session", "@panel:abc", "--source=herdr:pi",
+        matches!(report(&["panel", "report-agent-session", "@panel:0xabc", "--source=herdr:pi",
         "--agent=pi", "--session-start-source= NEW ", "--agent-session-path=C:/session"]),
         PanelAgentReport::Session { session_start_source: Some(start), agent_session_path: Some(path), .. }
         if start == " NEW " && path == "C:/session")
     );
     assert!(matches!(
-        report(&["panel", "clear-agent-authority", "@panel:abc"]),
+        report(&["panel", "clear-agent-authority", "@panel:0xabc"]),
         PanelAgentReport::Clear {
             source: None,
             sequence: None
         }
     ));
     assert!(
-        matches!(report(&["panel", "clear-agent-authority", "@panel:abc", "--source="]),
+        matches!(report(&["panel", "clear-agent-authority", "@panel:0xabc", "--source="]),
         PanelAgentReport::Clear { source: Some(source), .. } if source.is_empty())
     );
 }
@@ -64,7 +64,7 @@ fn panel_agent_rejects_invalid_and_out_of_scope_flags_before_effect() {
     let base = [
         "panel",
         "report-agent",
-        "@panel:abc",
+        "@panel:0xabc",
         "--source=hook",
         "--agent=codex",
         "--state=working",
@@ -91,51 +91,56 @@ fn panel_agent_rejects_invalid_and_out_of_scope_flags_before_effect() {
         vec![
             "panel",
             "report-agent",
-            "@panel:abc",
+            "@panel:0xabc",
             "--source=hook",
             "--agent=x",
         ],
         vec![
             "panel",
             "report-agent",
-            "@panel:abc",
+            "@panel:0xabc",
             "--source=hook",
             "--state=working",
         ],
         vec![
             "panel",
             "report-agent",
-            "@panel:abc",
+            "@panel:0xabc",
             "--agent=x",
             "--state=working",
         ],
         vec![
             "panel",
             "release-agent",
-            "@panel:abc",
+            "@panel:0xabc",
             "--source= ",
             "--agent=x",
         ],
         vec![
             "panel",
             "release-agent",
-            "@panel:abc",
+            "@panel:0xabc",
             "--source=hook",
             "--agent= ",
         ],
         vec![
             "panel",
             "release-agent",
-            "@panel:abc",
+            "@panel:0xabc",
             "--source=hook",
             "--agent=x",
             "--message=x",
         ],
-        vec!["panel", "clear-agent-authority", "@panel:abc", "--agent=x"],
+        vec![
+            "panel",
+            "clear-agent-authority",
+            "@panel:0xabc",
+            "--agent=x",
+        ],
         vec![
             "panel",
             "report-agent-session",
-            "@panel:abc",
+            "@panel:0xabc",
             "--source=hook",
             "--agent=x",
             "--state=idle",
@@ -143,16 +148,16 @@ fn panel_agent_rejects_invalid_and_out_of_scope_flags_before_effect() {
         vec![
             "panel",
             "report-agent-session",
-            "@panel:abc",
+            "@panel:0xabc",
             "--source=hook",
             "--agent=x",
             "--message=x",
         ],
-        vec!["panel", "get", "@panel:abc", "--state=working"],
+        vec!["panel", "get", "@panel:0xabc", "--state=working"],
         vec![
             "panel",
             "report-metadata",
-            "@panel:abc",
+            "@panel:0xabc",
             "--source=hook",
             "--title=x",
             "--message=x",
@@ -173,7 +178,7 @@ fn panel_agent_rejects_invalid_and_out_of_scope_flags_before_effect() {
             parse(&[
                 "panel",
                 "report-agent",
-                "@panel:abc",
+                "@panel:0xabc",
                 "--source=hook",
                 "--agent=x",
                 &format!("--state={state}")
@@ -190,7 +195,7 @@ fn panel_agent_bounds_the_complete_wire_request_before_runtime_discovery() {
         parse(&[
             "panel",
             "report-agent",
-            "@panel:abc",
+            "@panel:0xabc",
             "--source=hook",
             "--agent",
             &long,
@@ -204,7 +209,7 @@ fn panel_agent_bounds_the_complete_wire_request_before_runtime_discovery() {
     let error = parse(&[
         "panel",
         "report-agent",
-        "@panel:abc",
+        "@panel:0xabc",
         "--source=hook",
         "--agent=x",
         "--state=unknown",

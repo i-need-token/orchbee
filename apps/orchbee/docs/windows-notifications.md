@@ -35,26 +35,22 @@ and canonical plus physical observations are never merged heuristically. A notif
 normalized detected Agent label and bounded workspace, Tab and pane context. It never includes the
 Agent's prompt, response, report message or terminal contents.
 
-The automatic policy shares the bounded notification configuration profile, while retaining a
-separate setting from manual CLI delivery:
+Shared `agentNotificationMode` and `soundEnabled` preferences govern automatic reminders.
+Both default to off (`never` and `false`). Native configuration supplies the delay and per-Agent
+sound overrides independently of manual delivery:
 
 ```toml
 [ui.toast]
 delivery = "off"                 # manual `notification show`; existing default
-agent_delivery = "orchbee"       # automatic Agent popup; default
 delay_seconds = 1                # 0 through 3600
-
-[ui.sound]
-enabled = false                  # automatic Agent sound; default
 
 [ui.sound.agents]
 codex = "off"                    # default, on, or off
 ```
 
-`agent_delivery` accepts `off`, `orchbee`, `terminal` or `system`.
-It does not change the existing `delivery` default or the explicit sound on `notification show`.
-`[ui.sound]` controls automatic sounds only. Global `enabled = false` is a hard stop; with sound
-enabled, a per-Agent `off` mutes that detected label and `default` or `on` permits the built-in cue.
+These preferences do not change manual `delivery` or explicit `notification show` sound.
+Shared `soundEnabled = false` is a hard stop; with sound enabled, a per-Agent `off` mutes
+that detected label and `default` or `on` permits the built-in cue.
 Agent keys are lowercase detector IDs of at most 64 ASCII letters, digits, dots or hyphens, with an
 alphanumeric first and last character. No Agent is muted by default. Done uses the Windows information cue and request uses the Windows
 exclamation cue. Custom files, decoder dependencies, helper processes and click navigation are not
@@ -98,10 +94,8 @@ unreadable, oversized, non-UTF-8 or malformed-TOML startup/reload source retains
 profile. An invalid notification leaf uses its safe default, emits a warning and participates in the
 complete atomic candidate; a malformed private wire profile is still rejected before Client
 installation. A valid changed revision cancels all old automatic candidates and undrawn notification
-effects; later state transitions use the new profile. The default automatic popup is in-app and the
-default automatic sound is off. Disabling both at runtime and reloading is the immediate rollback.
-Rolling back to an older binary also requires removing `agent_delivery`, `delay_seconds` and
-`[ui.sound]`.
+effects; later state transitions use the new profile. Shared preferences enable in-app automatic
+popups and global sound; their default is off. Disable both in Settings to stop automatic delivery.
 
 ### Correctness claims and evidence
 

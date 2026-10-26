@@ -2,65 +2,6 @@ use super::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 #[test]
-fn named_theme_admission_is_exact_and_preserves_other_fields_on_fallback() {
-    for (name, expected) in [
-        ("terminal-native", WindowsThemeName::TerminalNative),
-        ("one-light", WindowsThemeName::OneLight),
-        ("one-dark", WindowsThemeName::OneDark),
-    ] {
-        let settings = parse(
-            &format!("[theme]\nname='{name}'\n[keys]\nprefix='ctrl+a'"),
-            Path::new(r"C:\config.toml"),
-            &|_| None,
-        )
-        .unwrap();
-        assert_eq!(settings.theme, expected);
-        assert_eq!(settings.theme.as_str(), name);
-        assert!(settings.diagnostics.is_empty());
-    }
-    for value in [
-        "''",
-        "'ONE-LIGHT'",
-        "' one-light '",
-        "42",
-        "false",
-        "['one-light']",
-    ] {
-        let load = parse(
-            &format!("[theme]\nname={value}\n[ui.toast]\ndelivery='terminal'"),
-            Path::new(r"C:\config.toml"),
-            &|_| None,
-        )
-        .unwrap();
-        assert_eq!(load.theme, WindowsThemeName::TerminalNative);
-        assert_eq!(load.notifications.delivery.as_str(), "terminal");
-        assert_eq!(load.diagnostics.items()[0].field, "theme.name");
-    }
-    let unknown = parse(
-        "[theme]\nname='one-light'\ncustom={fg='#fff'}",
-        Path::new(r"C:\config.toml"),
-        &|_| None,
-    )
-    .unwrap();
-    assert_eq!(unknown.theme, WindowsThemeName::OneLight);
-    assert_eq!(unknown.diagnostics.items()[0].field, "theme.custom");
-    assert_eq!(unknown.diagnostics.items()[0].reason, "unknown-key");
-    assert_eq!(
-        unknown.diagnostics.items()[0].disposition,
-        WindowsSettingsDiagnosticDisposition::Ignored
-    );
-    let wrong_table = parse(
-        "theme=42\n[ui]\nwindow_title='test'",
-        Path::new(r"C:\config.toml"),
-        &|_| None,
-    )
-    .unwrap();
-    assert_eq!(wrong_table.theme, WindowsThemeName::TerminalNative);
-    assert_eq!(wrong_table.window_title, "test");
-    assert_eq!(wrong_table.diagnostics.items()[0].field, "theme");
-}
-
-#[test]
 fn sidebar_admission_shares_the_whole_file_owner_with_keys_and_notifications() {
     let read = |text: &str| parse(text, Path::new(r"C:\config.toml"), &|_| None);
     let settings = read("[keys]\nprefix='ctrl+a'\n[ui.toast]\ndelivery='off'\n[ui.sidebar.agents]\nrows=[['$summary']]\nrow_gap=1\n").unwrap();
@@ -543,7 +484,7 @@ fn unknown_fields_and_partial_key_failures_are_bounded_warnings() {
         &|_| None,
     )
     .unwrap();
-    assert_eq!(admitted.settings.theme, WindowsThemeName::OneLight);
+    assert_eq!(admitted.settings.theme, WindowsThemeName::TerminalNative);
     assert!(
         admitted
             .diagnostics
@@ -557,7 +498,7 @@ fn unknown_fields_and_partial_key_failures_are_bounded_warnings() {
         "advanced",
         "experimental",
         "remote",
-        "theme.custom",
+        "theme",
         "terminal.kitty_graphics",
         "update.version_check",
         "keys.indexed",
@@ -735,16 +676,6 @@ fn printed_default_configuration_roundtrips_without_freezing_action_defaults() {
     let text = default_windows_user_settings_toml();
     assert!(text.ends_with('\n'));
     assert!(!text.ends_with("\n\n"));
-    for line in [
-        "# Legacy leaves theme.name, ui.toast.agent_delivery, and ui.sound.enabled stay commented below.",
-        "# With no shared preference record, uncommenting one imports its value into shared preferences.",
-        "# Settings manages current shared preferences.",
-        "# name = \"terminal-native\"",
-        "# agent_delivery = \"orchbee\"",
-        "# enabled = false",
-    ] {
-        assert!(text.lines().any(|generated| generated == line));
-    }
     let admitted = parse(&text, Path::new(r"C:\config.toml"), &|_| None).unwrap();
     let defaults = WindowsUserSettings::default();
     assert!(admitted.diagnostics.is_empty());

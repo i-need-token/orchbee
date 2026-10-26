@@ -2,7 +2,7 @@
 
 ## Canonical grammar boundary
 
-Panel-family commands use a positional Panel or `--current`; the former `--panel` alias is rejected. Agent targets additionally accept `--terminal` and `@terminal:` for exact child or primary terminals. Startup, integration and doctor use `--provider antigravity`; `antigravity-cli` stays a private adapter identity. CLI event names use `panel.*` in event/filter input and v4 receipts; historical v2/v3 schemas retain `pane.*`. Terminal and Agent reads use `--source`/`--lines`; retained legacy read/history receipt descriptions below describe historical schemas only. Source waits default to 30000 ms, with `--forever` as the explicit unlimited form.
+Panel-family commands use a positional Panel or `--current`. Agent targets additionally accept `--terminal` and `@terminal:` for exact child or primary terminals. Startup, integration and doctor use `--provider antigravity`; `antigravity-cli` stays a private adapter identity. CLI event names use `panel.*` in event/filter input and v4 receipts; historical v2/v3 schemas retain `pane.*`. Terminal and Agent reads use `--source`/`--lines`; retained legacy read/history receipt descriptions below describe historical schemas only. Source waits default to 30000 ms, with `--forever` as the explicit unlimited form.
 
 The parser in `src/invocation.rs` is the grammar authority: it admits command paths, per-command option scopes and values before any runtime access. `src/cli/completion.rs` declares the projection that help and every completion script consume, including command paths, `COMMAND_FLAGS` option scopes and value domains. `src/cli/text/examples.rs` supplies one parser-checked example per command. Tests keep them in agreement: help and completion list the same command paths, every help example parses, `--format` admission matches help, and on Windows each option is admitted where help and completion declare it and rejected elsewhere. Options whose admission depends on another option are listed with that reason in the test.
 
@@ -92,7 +92,7 @@ Navigation has global `directories` and `workspaces` arrays; `projects` contain 
 
 `workspace set-project <workspace> --project <project>` changes grouping; `workspace create-project <workspace> --label <label>` atomically creates a Project and moves the Workspace; `workspace ungroup <workspace>` removes grouping; `project dissolve <project>` ungroups all members and removes the Project. These change organization metadata only, retaining exact IDs, cwd, PTYs, directories and order. `workspace move`/`move-block` remain separate reorder commands. Projects can organize multiple repositories. Ordinary close affects only the selected Workspace; batch closure uses the explicit Project commands below.
 
-`orchbee terminal run <terminal-id> "Write-Output ready" --format json` pastes one command and sends Enter in one input request. Supply one quoted string; text is preserved, and targets are exact IDs or `@terminal:<suffix>`. The receipt confirms input submission, not Shell readiness, command completion or exit status; never replay partial or unknown delivery. [Command submission contract](native-terminal-run.md).
+`orchbee terminal run <terminal-id> "Write-Output ready" --format json` pastes one command and sends Enter in one input request. Supply one quoted string; text is preserved, and targets are exact IDs or `@terminal:0x<hex>`. The receipt confirms input submission, not Shell readiness, command completion or exit status; never replay partial or unknown delivery. [Command submission contract](native-terminal-run.md).
 
 Status: current implementation and correctness contract for the native `orchbee`
 command line, covering queries, Workbench mutations, terminal observation and input,
@@ -601,7 +601,7 @@ screen contents are excluded. Live Host adoption remains separate work.
 returns a canonical session ID or an exact terminal target, testing exact session ID existence before aliases. `agent rename
 <target> <new-name>` assigns or atomically replaces a name; `agent rename <target>
 --clear` releases it without stopping the session. Replace the target operand with
-`--agent-session <id>`, `--name <alias>` or `--panel <id|@panel:suffix>` for explicit selection; exactly one selector is
+`--agent-session <id>`, `--name <alias>` or `--panel <id|@panel:0x<hex>>` for explicit selection; exactly one selector is
 required. Names match `[a-z][a-z0-9_-]{0,31}` and are case-sensitive. They are unique,
 sharing a 512-entry cap across canonical names, terminal names and pending launches, and released when the session ends, is removed, or the
 Session runtime is disposed. Only admitted completed managed names can return after Session restart.
@@ -944,13 +944,11 @@ close-status` and `workspace close-resume` both flags are strict stable IDs inst
 - `--timeout <ms>`: single-use value flag, optional on `terminal wait-output` (defaults to `30000` on every platform) and on `agent wait` (Windows defaults to no total timeout, Linux to `600000`); one decimal `u32` in `1..=3600000`.
   A repeated, non-numeric, or out-of-range value is `invalid-usage`.
 
-- `--target-panel <target>`: single-use value flag, required on legacy same-Tab `panel move` and optional with `--into-tab`; parsed with
-  the `panel` target rule (a complete typed ID only) and resolved inside the moved panel's
-  own Tab for legacy moves, or the destination Tab with `--into-tab`.
+- `--target-panel <target>`: optional single-use value flag with `panel move --into-tab`;
+  admits a complete Panel ID or exact compact handle and resolves inside the destination Tab.
 - `--source visible|recent|recent-unwrapped|detection` and `--lines <n>` select output on
   terminal/Agent reads and terminal waits. The default is recent, 80 physical rows; line counts
-  are unsigned 32-bit, clamp to 1000 and permit zero. Read/wait rejects legacy `--history`,
-  `--rows` and `--unwrap`. Geometry commands keep `--rows` as a dimension.
+  are unsigned 32-bit, clamp to 1000 and permit zero. Geometry commands use `--rows` as a dimension.
 - `--text <utf8>`, `--key <name>`, `--file <path>`, `--stdin`: the four mutually
   exclusive `terminal send` input sources, valid on no other
   command. `--text` and `--file` consume the next token as their value under the
@@ -978,9 +976,8 @@ close-status` and `workspace close-resume` both flags are strict stable IDs inst
   non-numeric, or out-of-range value is `invalid-usage`.
 - `--cursor <c>`: single-use value flag, admitted only on `agent list`. Windows uses
   a structured `u1.<base64url>` cursor capped at 1024 characters and bound to the Site,
-  source revisions, filters, Client choice and page position/fingerprint. A recognized
-  legacy-format cursor returns `cursor-restart` before live source reads. Determining
-  whether a `u1` cursor is stale requires reading current sources, so stale structured
+  source revisions, filters, Client choice and page position/fingerprint. Malformed cursors
+  fail as invalid input before live source reads. Determining whether a cursor is stale requires reading current sources, so stale structured
   cursors are rejected only after those reads. Other platforms retain their canonical
   Server cursor contract.
 - `--until <condition>`: repeatable value flag, admitted on `agent wait` and `agent prompt --wait`; one
@@ -1050,7 +1047,7 @@ orchbee panel list [--tab <target> | --workspace <target>] | panel get <target>
 orchbee panel rename <target> (--label <text> | --clear)
 orchbee panel split [<target> | --current] --direction left|right|up|down [--label <label>] [--ratio <number>] [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>] [--focus | --no-focus] [--client <id>] [--timeout <ms>]
 orchbee panel close <target> --confirm
-orchbee panel move <target> --target-panel <target> --direction left|right|up|down
+orchbee panel move <target> --into-tab <target> [--target-panel <target>] --direction left|right|up|down
 orchbee terminal list [--workspace <target> | --tab <target> | --panel <target>] | terminal get <target> | terminal read <target> [--source visible|recent|recent-unwrapped|detection] [--lines <n>]
 orchbee terminal wait-output <target> (--match <text> | --regex <pattern>) [--source <source>] [--lines <n>] [--forever] [--timeout <1-3600000>]
 orchbee terminal send <target> (--text <utf8> | --file <path> | --stdin) [--enter] | --key <name>
@@ -1187,22 +1184,17 @@ Lists and text diagnostics print these handles; JSON receipts retain canonical I
 accepts them as opaque operands and does not enumerate runtime identities. In PowerShell, quote
 the handle, for example `panel get '@panel:0x1'`. Their scope and lifetime equal the full ID;
 rediscover runtime terminal IDs after Server restart. Other resource changes cannot retarget them.
-The existing three input forms also remain available. First a complete typed ID (exactly 32 lowercase
-hexadecimal characters, nonzero), which matches by identity only. Second, an explicit selector
-`@<kind>:<suffix>` — `<kind>` one of `project`, `workspace`, `tab`, `panel`, `terminal`, and
-`<suffix>` one to thirty-one lowercase hexadecimal characters — which resolves to the one
-member of that kind in the read snapshot whose identifier ends with the suffix. A recognized
-selector prefix with an empty, uppercase, or 32-digit suffix, or a kind that does not match the
-operand's resource, is `invalid-identifier` (exit 2) before any runtime access; any other `@`
-token keeps the label reading — only the five prefixes are selector syntax. Any other token is
-an exact, case-sensitive label candidate requiring 1–512 Unicode scalars when the resource
+Complete typed IDs contain exactly 32 lowercase hexadecimal characters and are nonzero.
+A recognized selector prefix requires its declared resource kind and an exact compact identity;
+malformed input is `invalid-identifier` (exit 2) before runtime access. Other `@` tokens keep
+label interpretation. Other tokens are an exact, case-sensitive label candidate requiring 1–512 Unicode scalars when the resource
 admits labels; empty or overlong tokens and the all-zero ID shape are `invalid-identifier`
 (exit 2). A label that itself has ID or selector shape can never be reached by label or selector
 matching — the entity remains reachable through its real ID. `panel` and `terminal` accept
 complete typed IDs and their own `@panel:`/`@terminal:` selectors only; anything else is
 `invalid-identifier`. Filters (`--project`, `--workspace`, `--tab`) use the same per-resource
 target rules, and so do every mutation operand and `--target-panel` (the `panel` rule, resolved
-inside the moved panel's own tab). `api schema` takes a nonempty schema ID; an empty one is
+inside the destination tab). `api schema` takes a nonempty schema ID; an empty one is
 `invalid-identifier` with `resource="schema"`, an unmatched one is `not-found`.
 `agent get`, `agent explain`, and `agent wait` take one positional token of 1–128
 characters drawn from `[A-Za-z0-9._:-]` (or an explicit Panel prefix), resolved by the ID-first rules above, or an
@@ -1217,14 +1209,11 @@ name matching more than one entry answers `ambiguous` with at most the first 8 c
 profile IDs plus the true `totalCount` — both under the dedicated launch-profile failure
 envelope.
 
-Resolution after a successful read: zero matches → `not-found` (3); multiple exact label or
-selector-suffix matches → `ambiguous` (3) reporting at most the first 8 candidate typed IDs in
-canonical traversal order plus the true `totalCount`. Selector candidates are the members
-visible in the one snapshot the command already read — complete for every operand's declared
-scope, never an extra fetch — and a legacy suffix is a momentary selector, not a stable handle: deletion
-and recreation can put the same suffix on a different member, so commands needing stable
-identity use the printed compact handle or full typed ID. A filter naming an absent entity is `not-found`; an existing
-entity with an empty result set is a successful empty list.
+Resolution after a successful read: zero matches → `not-found` (3); multiple exact label
+matches → `ambiguous` (3), reporting at most the first 8 candidate typed IDs in canonical
+traversal order plus the true `totalCount`. Resolution uses the command's complete declared
+snapshot scope without an extra fetch. A filter naming an absent entity is `not-found`;
+an existing entity with an empty result set is a successful empty list.
 
 ## Query state machine and budgets
 
@@ -1319,8 +1308,7 @@ describes probe coverage. Windows managed installation is owned by the [Windows 
 `terminal read`, `agent read` and `terminal wait-output` share the current source-selection
 and read-only viewer lifecycle in [native terminal output](native-terminal-output.md). The
 source defaults to recent (80 physical rows); `--lines` controls its bounded range and
-`--source recent-unwrapped` joins verified soft wraps. Legacy history/rows/unwrap flags are
-refused. Historical read/history envelopes remain schema-readable but are not current CLI
+`--source recent-unwrapped` joins verified soft wraps. Historical read/history envelopes remain schema-readable but are not current CLI
 modes. Finite waits default to 30000 ms; `--forever` explicitly removes that deadline. `--after`
 pins fresh-output boundaries and refuses reset/eviction. Interruption, known-effect retention
 and detach evidence retain the [wait contract](native-cli-wait-model.md).
@@ -1860,7 +1848,7 @@ tabId,terminalContextId}}]}`; the JSON rows carry identity only, with no lifecyc
   grid rows as `{index,text,continuation:{fromPrevious,intoNext}}` — `text` joins the row's
   cells, dropping wide-cell spacer tails and trimming grid padding), `rowCount` (every row the
   applied frame held), `truncated`/`omittedRows`, and `limits` `{rows:4096,textBytes:4194304}`.
-  Under `--unwrap` the emitted `rows` member is replaced by `lines` — each
+  Logical-line rendering replaces the emitted `rows` member with `lines` — each
   `{firstRow,lastRow,text,startsMidLine,endsMidLine}` a joined logical line or a flagged
   window-edge fragment — plus `lineCount`; under `--lines` a `tail` member reports
   `{requested,omitted,entries:"rows"|"lines"}`. Emitted rows are bounded by a 4 MiB summed
@@ -1876,7 +1864,7 @@ tabId,terminalContextId}}]}`; the JSON rows carry identity only, with no lifecyc
   Host window's complete row count); `content` carries `rows` (`{index,text,continuation}` with
   `index` the absolute retained-plus-screen row coordinate as a decimal string), `rowCount`
   (emitted rows), `truncated`/`omittedRows`, and `limits` `{rows:1000,textBytes:4194304}` —
-  with the same `--unwrap`/`--lines` substitutions as `terminal read` (`lines` with
+  with the same logical-line and `--lines` substitutions as `terminal read` (`lines` with
   decimal-string `firstRow`/`lastRow`, `lineCount`, `tail`). `omittedRows` honestly counts
   `min(requestedRows,scrollbackRows)` minus emitted rows — rows the
   `MAXIMUM_FRAME_CELLS/columns` cap or the text budget never emitted — while rows older than
@@ -2587,7 +2575,7 @@ Native `workspace.launch` uses tagged placement: `ungrouped`, `project`, `new-pr
 
 ## Agent Panel targeting model
 
-Targeted Agent commands accept `--panel <id|@panel:suffix>` exclusively with positional,
+Targeted Agent commands accept `--panel <id|@panel:0x<hex>>` exclusively with positional,
 `--agent-session` and `--name` selectors. A positional full Panel ID first resolves as an exact
 retained Session ID or runtime name; only a definite not-found permits Panel fallback.
 Explicit Session/name selectors never fall back. A prefixed `@panel:` target selects a Panel
@@ -2672,7 +2660,7 @@ closed result schemas, real CLI/named-pipe preflight ordering and no-input refus
 and a real isolated Windows Job witness. These checks do not prove provider task
 completion, authentication, or atomic foreground ownership.
 
-`panel process-info [<panel-id> | --current] [--client <id>]` reads an exact Terminal's Windows Job. Positional and explicit Panel targets are exclusive; complete IDs and `@panel:<suffix>` use the existing Panel resolver and primary binding. Without an explicit selector, valid `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID` retain the caller's exact primary or child Terminal; partial or stale metadata fails. With absent caller metadata, require one current Client; `--client` selects an exact current Client and ignores caller metadata. Client selection passively resolves its actual member and validates the same binding and local attachment token before publication. The [current Panel contract](native-current-panel.md) owns revision fences, deadline and cancellation. No unavailable member falls back to a primary terminal.
+`panel process-info [<panel-id> | --current] [--client <id>]` reads an exact Terminal's Windows Job. A positional Panel target and `--current` are exclusive; complete IDs and `@panel:0x<hex>` use the existing Panel resolver and primary binding. Without an explicit selector, valid `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID` retain the caller's exact primary or child Terminal; partial or stale metadata fails. With absent caller metadata, require one current Client; `--client` selects an exact current Client and ignores caller metadata. Client selection passively resolves its actual member and validates the same binding and local attachment token before publication. The [current Panel contract](native-current-panel.md) owns revision fences, deadline and cancellation. No unavailable member falls back to a primary terminal.
 
 One existing-only Client Connection and one absolute five-second budget cover snapshot, transient read-only viewer admission, one process read, and best-effort detach. Session drop owns remaining viewer cleanup. The Server revalidates Worker generation and physical terminal binding; Worker and Host retain process authority. Success publishes the exact typed Windows Job sample with Panel/Terminal routing context and correlated read provenance. The sequential snapshot and sample do not claim an atomic cross-owner observation. Host failures remain explicit, are never empty process success, and are not retried. Strings are escaped in text output; machine creation times remain decimal strings. The response describes owned processes, not a Windows foreground process group or Agent interactive readiness.
 
@@ -2736,7 +2724,7 @@ Maintained Windows process checks cover Unicode/space and relative paths, full a
 
 ## Shared Panel titles
 
-`panel rename <panel-id> --label <text>` sets the shared primary Presentation override; `--clear` (or blank text) restores its creation label. It accepts an exact ID or `@panel:<suffix>`, with no focus or terminal effect. The [Panel label contract](native-panel-labels.md) owns normalization, revision/replay rules and coordinated cohort compatibility. `orchbee.panel.rename` v1 distinguishes `renamed` from `unchanged`; its nullable `customLabel` echoes normalized request metadata. `panel get` and `panel current` v3 expose immutable `label`, nullable `customLabel` and effective `displayLabel`. `api snapshot` v6 preserves the canonical optional override. Catalog v69 contains 78 schemas and the native command inventory contains 88 paths.
+`panel rename <panel-id> --label <text>` sets the shared primary Presentation override; `--clear` (or blank text) restores its creation label. It accepts an exact ID or `@panel:0x<hex>`, with no focus or terminal effect. The [Panel label contract](native-panel-labels.md) owns normalization, revision/replay rules and coordinated cohort compatibility. `orchbee.panel.rename` v1 distinguishes `renamed` from `unchanged`; its nullable `customLabel` echoes normalized request metadata. `panel get` and `panel current` v3 expose immutable `label`, nullable `customLabel` and effective `displayLabel`. `api snapshot` v6 preserves the canonical optional override. Catalog v69 contains 78 schemas and the native command inventory contains 88 paths.
 
 Panel swap uses the shared structural placement authority for one atomic same-Tab whole-leaf exchange, preserving Split/slot and terminal identities. The Windows CLI separately acknowledges source focus through the original Client; known canonical commits survive later failure or unknown focus. [Native Panel swap](native-panel-swap.md) owns the workflow, receipt and evidence.
 
@@ -2746,7 +2734,7 @@ Windows `panel input (<panel>|--current) --right-click orchbee|panel` sets the s
 
 ## Tab insertion boundary
 
-On Windows, `tab move <id|@tab:suffix|label> (--order previous|next|first|last | --insert-index N)`
+On Windows, `tab move <id|@tab:0x<hex>|label> (--order previous|next|first|last | --insert-index N)`
 requires exactly one placement flag. `N` is a zero-based boundary in the original context order,
 not a final ordinal: 0 means first, the Tab count means last, and the source boundary or immediately
 following boundary leaves order unchanged. Parse accepts integers 0..256; the Server rejects values
@@ -2776,7 +2764,7 @@ not evaluated or admitted by this repair.
 Linux/Windows reads use `--source` and `--lines`, defaulting to recent80. Plain JSON emits
 `orchbee.terminal.output` v3; ANSI emits v4. `--plain` exports UTF-8 directly and excludes JSON.
 `--ansi` preserves styled blanks and Unicode using SGR, with no PTY-byte or graphics replay.
-Legacy read flags are refused. The [output contract](native-terminal-output.md) owns source
+The [output contract](native-terminal-output.md) owns source
 ranges, joining, output limits, cursor fencing and sample validation.
 
 Source waits default to 30000 ms and recent80, with `--forever` for explicit unbounded waiting.
@@ -2805,7 +2793,7 @@ Windows `agent list` joins canonical Server sessions and physical terminal Agent
 
 With `--client`, the envelope requires `clientId` and every row requires `client`, with canonical and terminal Client facets kept separate. Client unread state never supplies semantic Agent status. Optional cwd enrichment covers at most 64 rows per page and returns null when unavailable. Pages contain 1–100 rows (default 50); the joined output ceiling is 4096 rows and 8 MiB. Source admission can fail earlier: the canonical source is bounded to 512 sessions/six pages of 100, and physical source registration is bounded to 1024 entries. The 4096-row output ceiling does not promise that many physical sources.
 
-Windows cursors use `u1.<base64url>` and are at most 1024 characters. The payload is canonical JSON encoded as base64url. Cursors bind to Site, source revisions, `includeEnded`/Client filters, page offset and fingerprint; they require no retained files. A legacy-format cursor recognized by the parser returns `cursor-restart` before live source reads. The CLI must read current sources to determine whether a `u1` cursor is stale, so it can reject a stale `u1` cursor only after those reads; the caller must restart at the first page.
+Windows cursors use `u1.<base64url>` and are at most 1024 characters. The payload is canonical JSON encoded as base64url. Cursors bind to Site, source revisions, `includeEnded`/Client filters, page offset and fingerprint; they require no retained files. Malformed cursors are rejected as invalid input before live source reads. The CLI must read current sources to determine whether a `u1` cursor is stale, so it can reject a stale `u1` cursor only after those reads; the caller must restart at the first page.
 
 Windows `agent get` emits `orchbee.agent.get` v19 with and without `--client`, using the same projection `source`. `result` is `{kind:"projected",agent,inspection}`. `agent` has the projection row's provider, status, source, canonical/terminal facets, placement and cwd, without `ordinal` or `client`; `inspection` is the existing current canonical or terminal inspection. Detailed process, terminal metadata, management and Client evidence stay in their facet-specific inspection shape.
 
@@ -2856,23 +2844,22 @@ panel move <panel> --new-tab [--workspace <workspace>] [--label <text>]
 panel move <panel> --new-workspace [--project <project>] [--label <text>] [--tab-label <text>]
 ```
 
-All forms accept `--focus|--no-focus`, `--client` and `--timeout`. Focus defaults to true,
-matching pinned Herdr CLI `e0507237`; its JSON method separately defaults to false. The legacy
-same-Tab `--target-panel --direction` form remains a one-effect mutation. Ratios must be finite
+All forms accept `--focus|--no-focus`, `--client` and `--timeout`. Focus defaults to true.
+`--into-tab` also supports placement within the current Tab; `--target-panel` selects its neighbor. Ratios must be finite
 and are clamped to 0.1–0.9. New Tab labels are optional.
 
 Resolve one snapshot and an explicit, caller-associated or sole current Client. Ambiguity fails
 before effects. Without a Client, only `--no-focus` without an explicit ratio may proceed: choose
 the first target leaf and native default ratio, without claiming Client geometry or zoom state.
 With a Client, read-only source/target layouts determine zoom and the default target leaf.
-Zoomed source/target Tabs and same-Tab relocation return unchanged without mutation. An explicit
+Zoomed source/target Tabs return unchanged without mutation. Same-Tab placement submits the existing Panel move effect. An explicit
 target Panel must belong to the target Tab.
 
 A new Workspace joins an existing Project only through explicit `--project`; omission is ungrouped and never inherits the source Project or creates a default Project. Its directory follows observed terminal root cwd, falling back to invoking process cwd only when absent. Invalid observations fail. Validate path and label before effects.
 
 Phases are preflight → canonical transfer with new-Workspace Directory → optional ratio → focus → observed layouts, sharing one absolute deadline and cancellation. Server commits topology atomically without restarting the terminal; Directory joins that commit after Worker validation. `orchbee.panel.move` v2 removes the Project preparation receipt/stage and retains canonical and Client results separately. Never replay after failure, cancellation or uncertainty, or report partial success as complete.
 
-Ratio targets the returned Split/slot identities after snapshot refresh. Client follow-up waits
+Ratio targets the returned Split/slot identities after snapshot refresh; same-Tab placement derives the moved Panel’s parent Split only from the exact movement receipt revision, refusing to follow concurrent rearrangement. Client follow-up waits
 for canonical convergence and preserves an unaffected prior selection; unrelated navigation
 refuses follow-up. Removal of the selected source permits ordinary selection repair. Other
 Clients keep independent navigation. Receipt layouts describe only the selected Client.

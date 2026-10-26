@@ -48,8 +48,8 @@ otherwise the old custom Tab label is retained or numbering remains automatic.
 Acquire the entire file or inherited noninteractive stdin before effects, with optional UTF-8 BOM
 and the export bounds. Accept only current v1 native export envelopes, descriptions containing root or bare
 nodes. Native envelopes require all fields and exact current shapes; other versions/shapes return a
-typed layout-input error with an expected-version-1 diagnostic. No migration occurs. Legacy flat leaves and Herdr `type:pane`/`pane_id` normalize to one starting primary with
-numeric fallback names. Structured members preserve their fallback names, labels and start intent.
+typed layout-input error with an expected-version-1 diagnostic. No migration occurs. Flat `type:panel` templates describe one starting primary with numeric fallback names;
+layout identity fields use camelCase. Structured members preserve their fallback names, labels and start intent.
 Description IDs and focus/zoom remain descriptive; new layouts start unzoomed. Mixing flat launch
 fields with structured members, duplicate/unknown fields and malformed nested children is invalid.
 A non-starting member cannot supply cwd, command or nonempty env. Ratios are finite and clamped

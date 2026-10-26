@@ -171,10 +171,6 @@ fn execute(
             ..
         } => {
             let mut target = targeting::tab(&snapshot, tab)?;
-            if source.same_tab(&target) {
-                receipt.target_layout = receipt.source_layout.clone();
-                return unchanged(receipt, "same-tab");
-            }
             if let Some(selected) = &selected {
                 let current = view::observe(&mut client, selected, &snapshot, deadline, signals)?;
                 let layout =
@@ -288,15 +284,33 @@ fn execute(
     }
     receipt.stage = "move";
     signals.check_before(deadline)?;
-    receipt.movement = Some(mutation::submit_action(
-        &mut client,
-        &snapshot,
-        WorkbenchAction::PanelRelocate {
+    let action = match &destination {
+        WorkbenchPanelRelocateDestination::Tab {
+            terminal_context_id: Some(context),
+            tab_id,
+            target_panel_id: Some(panel),
+            direction,
+        } if context == &source.terminal_context_id && tab_id == &source.tab_id => {
+            WorkbenchAction::PanelMove {
+                terminal_context_id: context.clone(),
+                tab_id: tab_id.clone(),
+                panel_id: source.panel_id.clone(),
+                target_panel_id: panel.clone(),
+                direction: *direction,
+            }
+        }
+        _ => WorkbenchAction::PanelRelocate {
             terminal_context_id: source.terminal_context_id.clone(),
             tab_id: source.tab_id.clone(),
             panel_id: source.panel_id.clone(),
             destination,
         },
+    };
+    let within_tab = matches!(action, WorkbenchAction::PanelMove { .. });
+    receipt.movement = Some(mutation::submit_action(
+        &mut client,
+        &snapshot,
+        action,
         deadline,
         signals.poll_fd(),
     )?);
@@ -307,8 +321,12 @@ fn execute(
             .transfer()
             .map(|transfer| transfer.target_terminal_context_id.clone())
             .unwrap_or_else(|| source.terminal_context_id.clone()),
-        tab_id: WorkbenchTabId::parse(movement.id_value("targetTabId").ok_or_else(internal)?)
-            .map_err(|_| internal())?,
+        tab_id: WorkbenchTabId::parse(
+            movement
+                .id_value(if within_tab { "tabId" } else { "targetTabId" })
+                .ok_or_else(internal)?,
+        )
+        .map_err(|_| internal())?,
         panel_id: source.panel_id.clone(),
     };
     snapshot =
@@ -349,12 +367,21 @@ fn execute(
             receipt.stage = "ratio";
             let movement = receipt.movement.as_ref().ok_or_else(internal)?;
             let get = |name| movement.id_value(name).ok_or_else(internal);
-            let identity = ClientSplitIdentity {
-                split_id: WorkbenchSplitId::parse(get("splitId")?).map_err(|_| internal())?,
-                first_slot_id: WorkbenchPanelSlotId::parse(get("firstSlotId")?)
-                    .map_err(|_| internal())?,
-                second_slot_id: WorkbenchPanelSlotId::parse(get("secondSlotId")?)
-                    .map_err(|_| internal())?,
+            let identity = if within_tab {
+                // Placement receipts do not carry the new split identity. Only the exact
+                // committed snapshot can establish it without following a concurrent move.
+                if snapshot.revision != revision {
+                    return Err(Failure::new(FailureKind::Denied));
+                }
+                view::parent_split(&snapshot, &target)?
+            } else {
+                ClientSplitIdentity {
+                    split_id: WorkbenchSplitId::parse(get("splitId")?).map_err(|_| internal())?,
+                    first_slot_id: WorkbenchPanelSlotId::parse(get("firstSlotId")?)
+                        .map_err(|_| internal())?,
+                    second_slot_id: WorkbenchPanelSlotId::parse(get("secondSlotId")?)
+                        .map_err(|_| internal())?,
+                }
             };
             let path = view::split_path(&snapshot, &target, &identity)?;
             let current = view::observe(&mut client, selected, &snapshot, deadline, signals)?;

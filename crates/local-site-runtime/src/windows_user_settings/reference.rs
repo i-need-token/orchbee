@@ -111,18 +111,6 @@ pub const WINDOWS_USER_CONFIG_OPTIONS: &[WindowsUserConfigOption] = &[
         description: "Popup-only height.",
     },
     WindowsUserConfigOption {
-        path: "keys.fullscreen",
-        default: "legacy alias for keys.zoom",
-        choices: "same as keys.zoom",
-        description: "Compatibility alias; prefer the registered `zoom` action.",
-    },
-    WindowsUserConfigOption {
-        path: "theme.name",
-        default: "terminal-native",
-        choices: "terminal-native, one-light, one-dark",
-        description: "Chrome palette used by the native terminal.",
-    },
-    WindowsUserConfigOption {
         path: "ui.window_title",
         default: "{hostname}: {workspace}",
         choices: "up to 4096 bytes; tokens: hostname, workspace, tab, pane, terminal_title; doubled braces are literal",
@@ -165,12 +153,6 @@ pub const WINDOWS_USER_CONFIG_OPTIONS: &[WindowsUserConfigOption] = &[
         description: "Delivery for explicit CLI notifications.",
     },
     WindowsUserConfigOption {
-        path: "ui.toast.agent_delivery",
-        default: "orchbee",
-        choices: "off, orchbee, terminal, system",
-        description: "Delivery for automatic Agent notifications.",
-    },
-    WindowsUserConfigOption {
         path: "ui.toast.delay_seconds",
         default: "1",
         choices: "an integer from 0 through 3600",
@@ -181,12 +163,6 @@ pub const WINDOWS_USER_CONFIG_OPTIONS: &[WindowsUserConfigOption] = &[
         default: "bottom-right",
         choices: "top-left, top-right, bottom-left, bottom-right",
         description: "Corner used by the compatibility notification surface.",
-    },
-    WindowsUserConfigOption {
-        path: "ui.sound.enabled",
-        default: "false",
-        choices: "true, false",
-        description: "Enable automatic built-in notification sounds.",
     },
     WindowsUserConfigOption {
         path: "ui.sound.agents.*",
@@ -243,25 +219,15 @@ manifest_check = true
 prefix = "ctrl+b"
 # <default-action-bindings>
 
-# Legacy leaves theme.name, ui.toast.agent_delivery, and ui.sound.enabled stay commented below.
-# With no shared preference record, uncommenting one imports its value into shared preferences.
-# Settings manages current shared preferences.
-[theme]
-# name = "terminal-native"
-
 [ui]
 window_title = "{hostname}: {workspace}"
 
 [ui.toast]
 delivery = "off"
-# agent_delivery = "orchbee"
 delay_seconds = 1
 
 [ui.toast.overlay]
 position = "bottom-right"
-
-[ui.sound]
-# enabled = false
 "#;
 
 /// Return the deterministic offline Windows configuration template without Client action rows.

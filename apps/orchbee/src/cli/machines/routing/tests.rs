@@ -47,7 +47,7 @@ fn wire_rejects_extra_authority_and_preserves_binary_input_and_failed_exit() {
         arguments: vec![
             "terminal".into(),
             "send".into(),
-            "@terminal:22".into(),
+            "@terminal:0x22".into(),
             "--stdin".into(),
         ],
         input: Some(STANDARD.encode([0, 255, 13, 10])),
@@ -60,7 +60,7 @@ fn wire_rejects_extra_authority_and_preserves_binary_input_and_failed_exit() {
         vec!["--machine-relay-v1"],
         vec!["--session=x", "workspace", "list"],
         vec!["machine", "list"],
-        vec!["terminal", "send", "@terminal:22", "--file=local-secret"],
+        vec!["terminal", "send", "@terminal:0x22", "--file=local-secret"],
     ] {
         let mut value = serde_json::to_value(&packet).unwrap();
         value["arguments"] = serde_json::json!(args);

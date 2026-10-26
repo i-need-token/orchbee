@@ -228,9 +228,6 @@ fn description(mut fields: Object) -> Result<Box<RawValue>, &'static str> {
         "terminalContextId",
         "tabId",
         "focusedPanelId",
-        "workspace_id",
-        "tab_id",
-        "focused_pane_id",
     ] {
         fields.optional_string(name)?;
     }
@@ -252,25 +249,18 @@ fn node(
     }
     let kind = fields.string("type")?;
     match kind.as_str() {
-        "panel" | "pane" => {
+        "panel" => {
             if current_export {
-                if kind != "panel" {
-                    return Err("invalid-layout");
-                }
                 fields.require(&["panelId", "rightClick", "primary", "children"])?;
             }
             *count += 1;
             if *count > super::model::MAX_PANELS {
                 return Err("layout-too-large");
             }
-            if fields.contains("panelId") && fields.contains("pane_id") {
-                return Err("invalid-layout");
-            }
             if current_export {
                 fields.decode::<orchbee_workbench_protocol::WorkbenchPanelId>("panelId")?;
             } else {
                 fields.optional_string("panelId")?;
-                fields.optional_string("pane_id")?;
             }
             let right_click = if fields.contains("rightClick") {
                 fields.decode("rightClick")?

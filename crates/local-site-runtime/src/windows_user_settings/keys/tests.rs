@@ -38,8 +38,8 @@ fn read(body: &str) -> Result<WindowsKeySettings, WindowsSettingsError> {
 }
 
 #[test]
-fn key_configuration_accepts_alternatives_disabling_ranges_and_aliases() {
-    let keys = read("prefix='ctrl+a'\nhelp=['prefix+?', 'f1']\nnew_tab=[]\nswitch_tab='prefix+alt+1..9'\nfullscreen='alt+z'").unwrap();
+fn key_configuration_accepts_alternatives_disabling_and_ranges() {
+    let keys = read("prefix='ctrl+a'\nhelp=['prefix+?', 'f1']\nnew_tab=[]\nswitch_tab='prefix+alt+1..9'\nzoom='alt+z'").unwrap();
     assert_eq!(keys.prefix, parse_chord("control+a").unwrap());
     assert_eq!(
         keys.overrides
@@ -78,7 +78,6 @@ fn key_configuration_rejects_ambiguous_reserved_unsafe_and_unimplemented_values(
             "duplicate-binding",
         ),
         ("help='f01'\nnew_tab='f1'", "duplicate-binding"),
-        ("zoom='alt+z'\nfullscreen='f4'", "duplicate-binding"),
         (
             "prefix='ctrl+a'\nhelp='prefix+control+a'",
             "reserved-binding",

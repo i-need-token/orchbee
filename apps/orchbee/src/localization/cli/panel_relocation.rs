@@ -13,12 +13,10 @@ impl Locale {
             (Self::ZhCn, _) => "窗格迁移未完整完成",
         };
         let mut text = format!("{outcome}\n");
-        if let Some(reason) = document["reason"].as_str() {
-            text.push_str(match (self, reason) {
-                (Self::EnUs, "same-tab") => "The source already belongs to that Tab.\n",
-                (Self::ZhCn, "same-tab") => "来源已属于目标标签页。\n",
-                (Self::EnUs, _) => "The source or target Tab is zoomed.\n",
-                (Self::ZhCn, _) => "来源或目标标签页处于缩放状态。\n",
+        if document["reason"].as_str().is_some() {
+            text.push_str(match self {
+                Self::EnUs => "The source or target Tab is zoomed.\n",
+                Self::ZhCn => "来源或目标标签页处于缩放状态。\n",
             });
         }
         for phase in ["movement"] {

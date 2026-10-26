@@ -313,7 +313,7 @@ fn run(
     };
     if !implicit {
         if split {
-            args.push("@panel:06");
+            args.push("@panel:0x6");
         } else {
             args.extend(["--workspace", "Workspace"]);
         }

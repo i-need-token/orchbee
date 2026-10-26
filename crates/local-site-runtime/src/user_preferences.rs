@@ -7,8 +7,6 @@ pub use terminal_defaults::UserTerminalLaunchDefaults;
 mod scope;
 pub use scope::UserPreferencesScope;
 #[cfg(windows)]
-mod native_import_windows;
-#[cfg(windows)]
 #[path = "user_preferences/storage_windows.rs"]
 mod storage;
 #[cfg(unix)]
@@ -18,9 +16,8 @@ mod storage;
 mod tests;
 
 use orchbee_workbench_protocol::{
-    MAXIMUM_USER_PREFERENCES_BYTES, PreferenceKey, PreferencesFailure, UserPreferencesPatch,
-    UserPreferencesRequest, UserPreferencesResponse, UserPreferencesSnapshot,
-    UserPreferencesValues,
+    MAXIMUM_USER_PREFERENCES_BYTES, PreferenceKey, PreferencesFailure, UserPreferencesRequest,
+    UserPreferencesResponse, UserPreferencesSnapshot, UserPreferencesValues,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -87,7 +84,7 @@ impl UserPreferencesStore {
         }
     }
 
-    /// Reads never create a record, lock, directory, or migration receipt.
+    /// Reads never create a record, lock, or directory.
     pub fn read(&self) -> Result<UserPreferencesSnapshot, PreferencesFailure> {
         let bytes = storage::read(&self.scope)?;
         let (record, source) = self.decode(bytes.as_deref())?;
@@ -114,31 +111,16 @@ impl UserPreferencesStore {
                 Ok((record, source_token(Some(bytes))))
             }
             None => {
-                let mut record = Record {
+                let record = Record {
                     version: 1,
                     values: UserPreferencesValues::default(),
                     claimed: BTreeSet::new(),
                 };
-                let (imported, source) = self.native_import()?;
-                record.values = imported
-                    .apply(&record.values)
-                    .map_err(|_| PreferencesFailure::InvalidSource)?;
-                record.claimed.extend(imported.keys());
                 launch_admission::validate(&record.values.launch_profiles)
                     .map_err(|_| PreferencesFailure::InvalidSource)?;
-                Ok((record, source))
+                Ok((record, source_token(None)))
             }
         }
-    }
-
-    #[cfg(windows)]
-    fn native_import(&self) -> Result<(UserPreferencesPatch, String), PreferencesFailure> {
-        native_import_windows::read(&self.scope)
-    }
-    #[cfg(unix)]
-    fn native_import(&self) -> Result<(UserPreferencesPatch, String), PreferencesFailure> {
-        // The existing Unix client has no TOML preference source to migrate.
-        Ok((UserPreferencesPatch::default(), "missing".into()))
     }
 
     fn perform(
@@ -181,10 +163,6 @@ impl UserPreferencesStore {
             serde_json::to_vec(&candidate).map_err(|_| PreferencesFailure::InvalidChanges)?;
         if after.len() > MAXIMUM_USER_PREFERENCES_BYTES {
             return Err(PreferencesFailure::InvalidChanges.into());
-        }
-        // Before the first materialization the legacy source also belongs to the observation.
-        if before.is_none() && self.native_import()?.1 != previous_source {
-            return Err(PreferencesFailure::SourceChanged.into());
         }
         writer.commit(before.as_deref(), &after)?;
         Ok((snapshot(&candidate, source_token(Some(&after))), true))

@@ -34,7 +34,6 @@ pub(super) fn parse(
         options,
         Scope {
             right_click: true,
-            panel: true,
             current: true,
             ..NO_OPTIONS
         },
@@ -46,7 +45,6 @@ pub(super) fn parse(
     }
     let selectors: Vec<_> = [
         ("panel-id", !operands.is_empty()),
-        ("--panel", options.panel.is_some()),
         ("--current", options.current),
     ]
     .into_iter()
@@ -66,7 +64,7 @@ pub(super) fn parse(
     if selectors.is_empty() {
         return Err(missing_required(
             context,
-            "'<panel>', '--panel' or '--current'",
+            "'<panel>' or '--current'",
             envelope,
         ));
     }
@@ -77,7 +75,6 @@ pub(super) fn parse(
     let target = operands
         .first()
         .map(|value| (*value).to_owned())
-        .or_else(|| options.panel.clone())
         .map(|value| target(value, Resource::Panel, envelope))
         .transpose()?;
     Ok(mutation(

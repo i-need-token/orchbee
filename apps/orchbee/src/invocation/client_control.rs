@@ -273,7 +273,6 @@ pub(super) fn parse(
                     request_id: !matches!(*verb, "layout" | "neighbor" | "edges"),
                     detach: !matches!(*verb, "layout" | "neighbor" | "edges"),
                     timeout: true,
-                    panel,
                     current: panel,
                     zoom_on: zoom,
                     zoom_off: zoom,
@@ -294,7 +293,6 @@ pub(super) fn parse(
             }
             let sources = [
                 ("<target>", !rest.is_empty()),
-                ("--panel", options.panel.is_some()),
                 ("--current", options.current),
             ];
             let selected: Vec<_> = sources
@@ -312,7 +310,7 @@ pub(super) fn parse(
                     envelope,
                 ));
             }
-            let explicit = rest.first().copied().or(options.panel.as_deref());
+            let explicit = rest.first().copied();
             let target = match *family {
                 "workspace" => ClientNavigationTarget::Workspace(target(
                     explicit
@@ -632,7 +630,6 @@ fn parse_swap(
     check_scope(
         options,
         Scope {
-            panel: true,
             current: true,
             swap_target: true,
             direction: true,
@@ -654,7 +651,6 @@ fn parse_swap(
     }
     let selectors: Vec<_> = [
         ("<source>", !rest.is_empty()),
-        ("--panel", options.panel.is_some()),
         ("--current", options.current),
     ]
     .into_iter()
@@ -673,7 +669,6 @@ fn parse_swap(
     let source = rest
         .first()
         .copied()
-        .or(options.panel.as_deref())
         .map(|value| target(value.into(), Resource::Panel, envelope))
         .transpose()?;
     let destination = match (&options.swap_target, &options.direction) {

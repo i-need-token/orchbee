@@ -4,8 +4,7 @@
 
 本参考负责 Linux／Windows 的 `terminal read` 和 `agent read`，均默认 recent 输出
 （80 个物理行）。`--source visible|recent|recent-unwrapped|detection` 选择快照；
-`--lines` 接受无符号 32 位计数，钳制到 1000，允许零。读取及等待命令拒绝
-`--history`、`--rows` 和 `--unwrap`，几何命令仍保留 `--rows`。
+`--lines` 接受无符号 32 位计数，钳制到 1000，允许零。几何命令使用 `--rows` 表示尺寸。
 `--plain` 直接导出 UTF-8，与 JSON 互斥；`--ansi` 导出带样式文本，与 `--plain` 互斥。
 所有语法在副作用前解析。Agent 目标可显式用 `--terminal`／`@terminal:` 选择包括子终端的
 精确终端，或用 `--panel`／`@panel:` 选择主终端。
@@ -106,8 +105,8 @@ detection 在与读取相同的空白行移除及尾部选择后匹配物理行�
 ## ANSI 快照导出
 
 Linux／Windows `terminal read` 和 `agent read` 接受 `--ansi`，用于导出带样式的数据。默认来源为
-`recent`，接受四种来源及来源模式的行数限制，与 `--plain`、`--history`、`--rows` 和
-`--unwrap` 互斥。合并软换行应使用 `recent-unwrapped`。所有参数在运行时准入之前解析。
+`recent`，接受四种来源及来源模式的行数限制，与 `--plain` 互斥。
+合并软换行应使用 `recent-unwrapped`。所有参数在运行时准入之前解析。
 仍可使用 `--format json`；否则 stdout 直接写出准备完成的 UTF-8 ANSI 字符串，不带标题。
 这是与纯文本导出相同的显式数据导出例外，不改变普通人类可读文本的转义规则。
 

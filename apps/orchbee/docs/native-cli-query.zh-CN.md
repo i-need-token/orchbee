@@ -2,7 +2,7 @@
 
 ## 规范语法边界
 
-Panel 命令族使用位置 Panel 或 `--current`，拒绝旧 `--panel` 别名。Agent 目标额外接受 `--terminal` 与 `@terminal:`，精确定位子终端或主终端。启动、集成及 doctor 使用 `--provider antigravity`；`antigravity-cli` 保留为私有适配器身份。CLI 事件与过滤器输入及 v4 回执使用 `panel.*`；历史 v2/v3 Schema 保留 `pane.*`。Terminal 与 Agent 读取使用 `--source`／`--lines`；下方保留的旧 read/history 回执说明仅描述历史 Schema。来源等待默认 30000 毫秒，`--forever` 显式选择无限等待。
+Panel 命令族使用位置 Panel 或 `--current`。Agent 目标额外接受 `--terminal` 与 `@terminal:`，精确定位子终端或主终端。启动、集成及 doctor 使用 `--provider antigravity`；`antigravity-cli` 保留为私有适配器身份。CLI 事件与过滤器输入及 v4 回执使用 `panel.*`；历史 v2/v3 Schema 保留 `pane.*`。Terminal 与 Agent 读取使用 `--source`／`--lines`；下方保留的旧 read/history 回执说明仅描述历史 Schema。来源等待默认 30000 毫秒，`--forever` 显式选择无限等待。
 
 `src/invocation.rs` 中的解析器是语法权威：它在任何运行时访问之前接纳命令路径、各命令的选项作用域与取值。`src/cli/completion.rs` 声明帮助和各 shell 补全脚本共同消费的投影，包括命令路径、`COMMAND_FLAGS` 选项作用域与取值域。`src/cli/text/examples.rs` 为每条命令提供一个经解析器检查的示例。测试保持三者一致：帮助与补全列出相同的命令路径，每个帮助示例都能解析，`--format` 的接纳与帮助一致；在 Windows 上，每个选项在帮助与补全声明的命令中被接纳，在其他命令中被拒绝。接纳依赖其他选项的选项会连同原因列在该测试中。
 
@@ -84,7 +84,7 @@ Navigation 的 `directories` 和 `workspaces` 为全局数组；`projects` 只�
 
 `workspace set-project <workspace> --project <project>` 移动分组；`workspace create-project <workspace> --label <label>` 原子创建 Project 并移入；`workspace ungroup <workspace>` 取消分组；`project dissolve <project>` 取消全部成员分组并删除 Project。它们只改变组织元数据，保留精确 ID、cwd、PTY、目录和顺序。`workspace move`/`move-block` 继续单独重排。Project 可组织多个仓库。普通关闭只影响选中 Workspace；批量关闭使用下文显式 Project 命令。
 
-`orchbee terminal run <terminal-id> "Write-Output ready" --format json` 在一个输入请求中粘贴命令，再发送 Enter。命令须为一个引号字符串；保持原始文本，目标只接受完整 ID 或 `@terminal:<suffix>`。回执确认输入提交，不保证 Shell 已就绪、命令完成或退出状态；部分或未知结果不得重放。 [命令提交契约](native-terminal-run.zh-CN.md).
+`orchbee terminal run <terminal-id> "Write-Output ready" --format json` 在一个输入请求中粘贴命令，再发送 Enter。命令须为一个引号字符串；保持原始文本，目标只接受完整 ID 或 `@terminal:0x<hex>`。回执确认输入提交，不保证 Shell 已就绪、命令完成或退出状态；部分或未知结果不得重放。 [命令提交契约](native-terminal-run.zh-CN.md).
 
 状态：原生 `orchbee` 命令行的当前实现与正确性契约，覆盖查询、Workbench 修改、
 终端观察与输入、Agent 名称及本地 provider 接入。查询观察已有 Session；Workbench 修改
@@ -481,7 +481,7 @@ scope 传给子终端，使内部 CLI 命令保持所属 Session，即使 Server
 `agent names` 列出运行中 Session 的所有存活别名。`agent resolve <target>` 返回 canonical 会话 ID 或精确终端目标，
 优先检查精确 ID 是否存在，再查别名。`agent rename <target> <new-name>` 赋名或原子替换
 名称；`agent rename <target> --clear` 只释放名称，不停止会话。可把目标位置参数替换成
-`--agent-session <id>`、`--name <alias>` 或 `--panel <id|@panel:suffix>` 明确选择；必须且只能使用一种选择器。
+`--agent-session <id>`、`--name <alias>` 或 `--panel <id|@panel:0x<hex>>` 明确选择；必须且只能使用一种选择器。
 名称格式为 `[a-z][a-z0-9_-]{0,31}`，区分大小写且唯一，canonical 名称、终端名称与待完成启动预留共用 512 条上限。
 会话结束、移除或 Session 运行时 dispose 后释放名称；Session 重启后仅可恢复已接纳的已完成托管名称。
 
@@ -761,11 +761,11 @@ Windows wait 版本 3 新增可空的 `matchedChange`。空表示当前样本命
   `agent wait`（Windows 默认无总超时，Linux 默认 `600000`）上可选；取一个 `1..=3600000` 的十进制 `u32`。
   重复、非数值或越界值均为 `invalid-usage`。
 
-- `--target-panel <target>`：带值 flag，单次使用，既有同 Tab `panel move` 上必填，`--into-tab` 形式可选；按 `panel` 的
-  target 规则解析（仅完整 typed ID）；既有移动在来源 Tab 内解析，`--into-tab` 形式在目标 Tab 内解析。
+- `--target-panel <target>`：`panel move --into-tab` 的可选单次带值 flag；
+  接受完整 Panel ID 或精确紧凑句柄，在目标 Tab 内解析。
 - `--source visible|recent|recent-unwrapped|detection` 与 `--lines <n>` 选择终端／Agent
   读取及终端等待的输出。默认 recent、80 个物理行；行数为无符号 32 位，钳制到 1000，允许零。
-  读取／等待拒绝旧 `--history`、`--rows` 和 `--unwrap`；几何命令的 `--rows` 仍表示尺寸。
+  几何命令使用 `--rows` 表示尺寸。
 - `--text <utf8>`、`--key <name>`、`--file <path>`、`--stdin`：`terminal send`
   四个互斥输入源，在其他命令上均非法。`--text` 与 `--file` 按标准
   取值规则消费下一个 token 作为值（以减号开头的 token 也会被消费，裸 `--`
@@ -789,8 +789,8 @@ Windows wait 版本 3 新增可空的 `matchedChange`。空表示当前样本命
   `invalid-usage`。
 - `--cursor <c>`：带值 flag，单次使用，仅 `agent list` 受理。Windows 使用不超过
   1024 个字符的结构化 `u1.<base64url>` 游标，绑定 Site、来源修订、筛选条件、Client
-  选择和页位置／指纹。解析器识别出的旧格式游标会在读取实时来源前返回
-  `cursor-restart`。判断 `u1` 游标是否过期需要读取当前来源，因此只能在这些读取后
+  选择和页位置／指纹。畸形游标在读取实时来源前作为无效输入拒绝。
+  判断游标是否过期需要读取当前来源，因此只能在这些读取后
   拒绝过期的结构化游标。其他平台保留规范 Server 游标契约。
 - `--until <condition>`：可重复带值 flag，由 `agent wait` 和 `agent prompt --wait` 受理；每次出现取
   十四名条件词表中的一个：`blocked`、`done`、`needs-attention`、`failed`、`succeeded`、
@@ -854,7 +854,7 @@ orchbee panel list [--tab <target> | --workspace <target>] | panel get <target>
 orchbee panel rename <target> (--label <text> | --clear)
 orchbee panel split [<target> | --current] --direction left|right|up|down [--label <label>] [--ratio <number>] [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>] [--focus | --no-focus] [--client <id>] [--timeout <ms>]
 orchbee panel close <target> --confirm
-orchbee panel move <target> --target-panel <target> --direction left|right|up|down
+orchbee panel move <target> --into-tab <target> [--target-panel <target>] --direction left|right|up|down
 orchbee terminal list [--workspace <target> | --tab <target> | --panel <target>] | terminal get <target> | terminal read <target> [--source visible|recent|recent-unwrapped|detection] [--lines <n>]
 orchbee terminal wait-output <target> (--match <text> | --regex <pattern>) [--source <source>] [--lines <n>] [--forever] [--timeout <1-3600000>]
 orchbee terminal send <target> (--text <utf8> | --file <path> | --stdin) [--enter] | --key <name>
@@ -971,20 +971,16 @@ Windows ConPTY 证据单独检查实际交互注册与加载。这证明静态�
 补足前导零后作为精确 32 位类型化身份。列表和文本诊断打印该句柄，JSON 回执保留规范 ID。
 补全把它当作不透明操作数接受，不枚举运行时身份。PowerShell 中给句柄加引号，例如
 `panel get '@panel:0x1'`。其作用域和寿命与完整 ID 相同，Server 重启后重新发现运行时终端 ID。
-其他资源变化不会使它改指对象。既有三种输入形态也继续支持。第一种是完整 typed ID（恰好 32 位小写十六进制、非零），
-只按身份匹配。第二种是显式 selector `@<kind>:<suffix>`——`<kind>` 为 `project`、
-`workspace`、`tab`、`panel`、`terminal` 之一，`<suffix>` 为一至三十一个小写十六进制
-字符——在已读快照上解析到该 kind 中标识符以该后缀结尾的唯一成员。已识别 selector
-前缀但后缀为空、含大写、为 32 位数字，或 kind 与操作数 resource 不符，在任何运行时访问
-之前即 `invalid-identifier`（退出 2）；其余 `@` token 保持 label 解读——只有五个前缀是
-selector 语法。其他 token 在 resource 允许 label 时视为精确、区分大小写的 label 候选，
+其他资源变化不会使它改指对象。完整 typed ID 为恰好 32 位小写十六进制且非零。
+已识别的 selector 前缀要求 kind 与操作数资源相符，并使用精确紧凑身份；
+畸形输入在访问运行时前即 `invalid-identifier`（退出 2）。其余 `@` token 保持 label 解读。
+其他 token 在 resource 允许 label 时视为精确、区分大小写的 label 候选，
 要求 1–512 个 Unicode scalar；空或过长的 token 与全零 ID 形值都是 `invalid-identifier`
 （退出 2）。本身恰为合法 ID 或 selector 形状的 label 永远无法按 label 或 selector
 命中——该实体仍可通过其真实 ID 访问。`panel` 与 `terminal` 只接受完整 typed ID 及各自的
 `@panel:`/`@terminal:` selector，其余一律 `invalid-identifier`。过滤器
 （`--project`、`--workspace`、`--tab`）使用各自资源相同的 target 规则；所有 mutation 位置
-操作数与 `--target-panel` 同样遵守（`panel` 规则，并在被移动 panel 自身所在
-tab 内解析）。`api schema` 接受非空
+操作数与 `--target-panel` 同样遵守（`panel` 规则，在目标 Tab 内解析）。`api schema` 接受非空
 schema ID；空串是 `invalid-identifier`（`resource="schema"`），无匹配是 `not-found`。
 `agent get`、`agent explain` 与 `agent wait` 的位置目标是 `[A-Za-z0-9._:-]` 的
 1–128 字符 token（也支持显式 Panel 前缀）；按上述 ID 优先规则解析，或用 `--agent-session`/`--name`/`--panel` 明确选择。
@@ -997,11 +993,9 @@ profile ID，再按名称、匹配基数必须恰为一。零匹配应答 `not-f
 条目应答 `ambiguous`，报告至多前 8 个候选 profile ID 加真实 `totalCount`——两者均走
 专用 launch-profile 失败 envelope。
 
-读取成功后的解析：零匹配 → `not-found`（3）；多个精确 label 或 selector 后缀匹配 →
-`ambiguous`（3），按 canonical 遍历次序报告至多前 8 个候选 typed ID 与真实 `totalCount`。
-selector 候选是命令本已读取的那份快照中可见的成员——对每个操作数声明的作用域都是完整
-集合，绝不追加抓取——且旧后缀是瞬时选择器而非稳定句柄：删除再创建可能让同一后缀落到
-不同成员上，需要稳定身份的命令使用打印的紧凑句柄或完整 typed ID。命名不存在实体的过滤器是
+读取成功后的解析：零匹配 → `not-found`（3）；多个精确 label 匹配 → `ambiguous`（3），
+按 canonical 遍历次序报告至多前 8 个候选 typed ID 与真实 `totalCount`。
+解析使用命令已读快照中的完整声明作用域，不追加抓取。命名不存在实体的过滤器是
 `not-found`；实体存在但结果为空是成功的空表。
 
 ## 查询状态机与预算
@@ -1534,7 +1528,7 @@ tabId,terminalContextId}}]}`；JSON 行只包含身份，不含 lifecycle、proc
   `{columns,rows}` 与 `cursor` `{row,column,visible}`；`content` 携带 `rows`（发出的网格行，
   形如 `{index,text,continuation:{fromPrevious,intoNext}}`——`text` 拼接该行各 cell，
   丢弃宽字符占位尾并裁剪网格填充）、`rowCount`（已应用帧持有的全部行数）、
-  `truncated`/`omittedRows` 与 `limits` `{rows:4096,textBytes:4194304}`。`--unwrap` 下
+  `truncated`/`omittedRows` 与 `limits` `{rows:4096,textBytes:4194304}`。逻辑行渲染时
   `rows` 成员被 `lines` 替代——每条为 `{firstRow,lastRow,text,startsMidLine,endsMidLine}`
   的拼接逻辑行或带标记的窗口边缘片段——并附 `lineCount`；`--lines` 下附 `tail` 成员报告
   `{requested,omitted,entries:"rows"|"lines"}`。发出的行受累计 4 MiB
@@ -1548,7 +1542,7 @@ tabId,terminalContextId}}]}`；JSON 行只包含身份，不含 lifecycle、proc
   `scrollbackRows`/`totalRows`/`startRow`、`requestedRows` 与 `windowRows`（Host 窗口的完整
   行数）；`content` 携带 `rows`（`{index,text,continuation}`，`index` 为"保留区+屏幕"绝对行
   坐标的十进制字符串）、`rowCount`（发出的行数）、`truncated`/`omittedRows` 与 `limits`
-  `{rows:1000,textBytes:4194304}`——并做与 `terminal read` 相同的 `--unwrap`/`--lines`
+  `{rows:1000,textBytes:4194304}`——并做与 `terminal read` 相同的逻辑行及 `--lines`
   替换（`lines` 的 `firstRow`/`lastRow` 为十进制字符串，附 `lineCount` 与 `tail`）。
   `omittedRows` 诚实计为 `min(requestedRows,scrollbackRows)` 减去已发出行数——即被 `MAXIMUM_FRAME_CELLS/columns` 上限或文本预算截掉的
   行——而早于 `startRow` 的行从未被请求，不算遗漏。text 输出与 `terminal read` 一致：每个
@@ -2176,7 +2170,7 @@ Worker 先探测请求目录，Server 再用一次修订原子登记 Workspace�
 
 ## Agent Panel 目标模型
 
-面向单个 Agent 的命令接受 `--panel <id|@panel:suffix>`，与位置目标、`--agent-session`
+面向单个 Agent 的命令接受 `--panel <id|@panel:0x<hex>>`，与位置目标、`--agent-session`
 和 `--name` 互斥。位置参数中的完整 Panel ID 优先按保留的精确 Session ID 或运行时
 名称解析；只有明确未找到才回退到 Panel。显式 Session／名称不回退。带 `@panel:`
 前缀的目标直接选择 Panel，不查询名称。Workbench 拥有 Panel 身份及其主 presentation；
@@ -2245,7 +2239,7 @@ Agent 状态，也不代表已就绪。
 复用父 PID、封闭结果 schema、真实 CLI／命名管道预检顺序及零输入拒绝，以及真实隔离
 Windows Job。上述检查不证明 provider 任务完成、身份认证或原子前台所有权。
 
-`panel process-info [<panel-id> | --current] [--client <id>]` 读取精确 Terminal 的 Windows Job。位置参数与显式 Panel 目标互斥；完整 ID 和 `@panel:<suffix>` 使用现有 Panel 解析器及主绑定。没有显式选择器时，有效的 `ORCHBEE_TERMINAL_ID` 和 `ORCHBEE_WORKER_ID` 保留调用者的精确主终端或子终端；部分或过期元数据失败。调用者元数据缺席时要求唯一当前 Client；`--client` 指定精确当前 Client 并忽略调用者元数据。Client 选择被动解析实际成员，并在发布前验证同一绑定及本地附着标识。[当前 Panel 契约](native-current-panel.zh-CN.md) 负责修订栅栏、期限和取消。成员不可用时不回退到主终端。
+`panel process-info [<panel-id> | --current] [--client <id>]` 读取精确 Terminal 的 Windows Job。位置 Panel 目标与 `--current` 互斥；完整 ID 和 `@panel:0x<hex>` 使用现有 Panel 解析器及主绑定。没有显式选择器时，有效的 `ORCHBEE_TERMINAL_ID` 和 `ORCHBEE_WORKER_ID` 保留调用者的精确主终端或子终端；部分或过期元数据失败。调用者元数据缺席时要求唯一当前 Client；`--client` 指定精确当前 Client 并忽略调用者元数据。Client 选择被动解析实际成员，并在发布前验证同一绑定及本地附着标识。[当前 Panel 契约](native-current-panel.zh-CN.md) 负责修订栅栏、期限和取消。成员不可用时不回退到主终端。
 
 一次仅接入既有 Session 的 Client Connection 与一个绝对五秒预算覆盖快照、临时只读 viewer 接入、一次进程读取及尽力 detach。会话 drop 回收剩余 viewer。Server 再验证 Worker generation 与物理终端绑定；Worker 和 Host 保留进程事实授权边界。成功时发布确切的类型化 Windows Job 样本、Panel/Terminal 路由上下文和相关联的读取来源。顺序获取的快照与样本不宣称跨所有者原子观察。Host 失败保持明确，不转为空进程成功，也不重试。文本中的字符串经过转义，机器输出的创建时间保留十进制字符串。响应描述归属终端的进程，不代表 Windows 前台进程组或 Agent 的交互就绪状态。
 
@@ -2309,7 +2303,7 @@ Schema 所有者先解析内嵌 ID，并在任何文件操作前准备完整的�
 
 ## 共享窗格标题
 
-`panel rename <panel-id> --label <text>` 设置共享主 Presentation 的自定义标题；`--clear`（或空白文本）恢复创建时的标签。接受精确 ID 或 `@panel:<suffix>`，不改变焦点或终端。[窗格标题契约](native-panel-labels.zh-CN.md) 负责规范化、修订与重放规则以及匹配 cohort 的兼容边界。`orchbee.panel.rename` v1 区分 `renamed` 与 `unchanged`，可空 `customLabel` 回显规范化后的请求元数据。`panel get` 与 `panel current` v3 提供不变的 `label`、可空 `customLabel` 及实际显示的 `displayLabel`。`api snapshot` v6 保留规范的可选自定义标题。目录 v69 包含 76 份 schema，原生命令清单包含 94 条路径。
+`panel rename <panel-id> --label <text>` 设置共享主 Presentation 的自定义标题；`--clear`（或空白文本）恢复创建时的标签。接受精确 ID 或 `@panel:0x<hex>`，不改变焦点或终端。[窗格标题契约](native-panel-labels.zh-CN.md) 负责规范化、修订与重放规则以及匹配 cohort 的兼容边界。`orchbee.panel.rename` v1 区分 `renamed` 与 `unchanged`，可空 `customLabel` 回显规范化后的请求元数据。`panel get` 与 `panel current` v3 提供不变的 `label`、可空 `customLabel` 及实际显示的 `displayLabel`。`api snapshot` v6 保留规范的可选自定义标题。目录 v69 包含 76 份 schema，原生命令清单包含 94 条路径。
 
 Panel swap 使用共享结构 placement 权威，在同一 Tab 中原子交换完整叶子，保留 Split／slot 及终端身份。Windows CLI 通过原 Client 单独确认源聚焦；后续失败或聚焦未知不抹去已知 canonical 提交。[原生 Panel 交换](native-panel-swap.zh-CN.md) 拥有工作流程、回执及证据。
 
@@ -2319,7 +2313,7 @@ Windows `panel input (<panel>|--current) --right-click orchbee|panel` 设置共�
 
 ## Tab 插入边界
 
-Windows 上，`tab move <id|@tab:suffix|label> (--order previous|next|first|last | --insert-index N)`
+Windows 上，`tab move <id|@tab:0x<hex>|label> (--order previous|next|first|last | --insert-index N)`
 要求恰好一个位置选项。`N` 是原始上下文顺序中的零基边界，不是最终序号：0 表示首位，Tab 总数
 表示末尾，源位置边界或紧接其后的边界保持顺序不变。解析接受 0..256 的整数；Server 拒绝超过
 当前数量的值，不作截断。精确目标解析在既有总修改预算内使用一次快照、一个命令，不选择 Client
@@ -2340,7 +2334,7 @@ PowerShell 补全将纯 ASCII 十进制整数 AST 常量按原始文本读取，
 
 Linux／Windows 读取使用 `--source` 和 `--lines`，默认 recent80。纯文本 JSON 为
 `orchbee.terminal.output` v3，ANSI 为 v4。`--plain` 直接导出 UTF-8，与 JSON 互斥。
-`--ansi` 用 SGR 保留带样式空格及 Unicode，不重放 PTY 字节或图形。拒绝旧读取参数。
+`--ansi` 用 SGR 保留带样式空格及 Unicode，不重放 PTY 字节或图形。
 [输出契约](native-terminal-output.zh-CN.md)负责来源范围、拼接、输出限额、游标围栏及样本验证。
 
 来源等待默认 30000 ms 和 recent80，显式 `--forever` 才无限等待。输出 v3，指定 `--after`
@@ -2369,7 +2363,7 @@ Windows `agent list` 将规范 Server 会话和物理终端 Agent 合并为 `orc
 
 使用 `--client` 时，封套要求 `clientId`，每行也要求 `client`；canonical 和 terminal Client 分面保持独立。Client 未读状态不会提供 Agent 语义状态。每页最多为 64 行添加可选 cwd 信息；不可用时为 null。每页 1–100 行，默认 50 行；合并输出上限为 4096 行和 8 MiB。来源准入可能更早失败：canonical 来源限制为 512 个会话／六页各 100 行，物理来源注册上限为 1024 条。因此不能据 4096 行输出上限承诺同等数量的物理来源。
 
-Windows 游标使用 `u1.<base64url>`，最多 1024 个字符。载荷为编码成 base64url 的规范 JSON。游标绑定 Site、来源修订、`includeEnded`／Client 筛选、页偏移和指纹；不保留文件。解析器识别出的旧格式游标会在读取实时来源前返回 `cursor-restart`。CLI 必须读取当前来源才能确定 `u1` 游标是否过期，因此只能在这些读取完成后拒绝过期的 `u1` 游标；调用方应从第一页重新开始。
+Windows 游标使用 `u1.<base64url>`，最多 1024 个字符。载荷为编码成 base64url 的规范 JSON。游标绑定 Site、来源修订、`includeEnded`／Client 筛选、页偏移和指纹；不保留文件。畸形游标在读取实时来源前作为无效输入拒绝。CLI 必须读取当前来源才能确定 `u1` 游标是否过期，因此只能在这些读取完成后拒绝过期的 `u1` 游标；调用方应从第一页重新开始。
 
 Windows `agent get` 无论是否提供 `--client` 都输出 `orchbee.agent.get` v19，并使用相同的投影 `source`。`result` 为 `{kind:"projected",agent,inspection}`。`agent` 包含投影行中的 provider、status、source、canonical／terminal 分面、placement 和 cwd，但不包含 `ordinal` 或 `client`；`inspection` 是当前既有的 canonical 或 terminal inspection。详细进程、终端元数据、管理状态和 Client 证据仍保留在各自分面 inspection 中。
 
@@ -2417,21 +2411,20 @@ panel move <panel> --new-tab [--workspace <workspace>] [--label <text>]
 panel move <panel> --new-workspace [--project <project>] [--label <text>] [--tab-label <text>]
 ```
 
-各形式均接受 `--focus|--no-focus`、`--client` 和 `--timeout`。焦点默认为 true，
-与固定 Herdr CLI `e0507237` 一致；其 JSON 方法另行默认为 false。
-既有同 Tab `--target-panel --direction` 形式仍为单次变更。
+各形式均接受 `--focus|--no-focus`、`--client` 和 `--timeout`。焦点默认为 true。
+`--into-tab` 同样支持在当前 Tab 内放置；`--target-panel` 选择相邻目标。
 比例必须有限并钳制到 0.1–0.9。新 Tab 标签可省略。
 
 解析一次快照，以及显式、关联调用者或唯一当前 Client。歧义在产生效果前拒绝。
 没有 Client 时，仅允许不带显式比例的 `--no-focus`：选择目标首个叶子和原生默认比例，
 不声称已知 Client 几何或缩放状态。有 Client 时，只读来源／目标布局决定缩放状态及默认目标叶子。
-来源／目标 Tab 已缩放及迁入同 Tab 返回未改变，不提交变更。显式目标 Panel 必须属于目标 Tab。
+来源／目标 Tab 已缩放时返回未改变，不提交变更。同 Tab 放置提交既有 Panel 移动效果。显式目标 Panel 必须属于目标 Tab。
 
 新 Workspace 只有显式 `--project` 才加入已有 Project；省略时未分组，不继承来源 Project，也不创建默认 Project。目录跟随已观测终端根 cwd；cwd 缺省时使用调用进程 cwd，非法观测拒绝。副作用前验证路径及名称。
 
 阶段为预检 → canonical transfer（含新 Workspace 目录）→ 可选比例 → 聚焦 → 布局观测，共享绝对截止时间和取消。Server 原子提交拓扑，不重启终端；Worker 验证后 Directory 与拓扑共享提交。`orchbee.panel.move` v2 移除 Project 准备回执/阶段，仍独立保留 canonical 与 Client 结果。失败、取消或未知后不重放，不将部分成功报告为完成。
 
-快照刷新后，比例针对返回的 Split／槽位身份。Client 后续操作等待权威状态收敛，
+快照刷新后，比例针对返回的 Split／槽位身份；同 Tab 放置仅从精确移动回执修订的快照解析已移动 Panel 的父 Split，拒绝跟随并发重排。Client 后续操作等待权威状态收敛，
 并保留未受影响的原选择；无关导航拒绝后续操作。所选来源被移除时允许普通选择修复。
 其他 Client 保留独立导航。回执布局仅描述所选 Client。
 未改变的空 Ready 视图可直接进入既有最低修订约束的控制，不等待无关导航心跳；

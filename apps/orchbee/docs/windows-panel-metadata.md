@@ -22,7 +22,7 @@ matched cohorts roll out together and roll back with source. Final full acceptan
 ## Commands and lifecycle
 
 `panel report-metadata <panel> --source <id>` writes transient presentation metadata for the
-Panel's primary terminal by default. Select an exact Panel ID or `@panel:<suffix>`. Options are
+Panel's primary terminal by default. Select an exact Panel ID or `@panel:0x<hex>`. Options are
 `--title`, `--display-agent`, repeated `--state-label STATE=TEXT`, `--agent`, `--applies-to-source`,
 `--clear-title`, `--clear-display-agent`, `--clear-state-labels`, repeated `--token KEY=VALUE` and
 `--clear-token KEY`, `--seq`, `--ttl-ms`, and `--format text|json`. States are `idle`, `working`,

@@ -178,9 +178,9 @@ orchbee terminal wait-output "$TERM_ID" --match 'READY-MARKER' --timeout 30000
 Independent reads and the remaining send forms:
 
 ```sh
-orchbee terminal read "$TERM_ID"                          # visible frame
-orchbee terminal read "$TERM_ID" --history --rows 50      # retained scrollback
-orchbee terminal read "$TERM_ID" --unwrap --lines 20      # last 20 logical lines
+orchbee terminal read "$TERM_ID" --source visible                    # visible frame
+orchbee terminal read "$TERM_ID" --source recent --lines 50          # recent physical lines
+orchbee terminal read "$TERM_ID" --source recent-unwrapped --lines 20 # last 20 logical lines
 orchbee terminal wait-output "$TERM_ID" --regex 'build (ok|FAILED)'  # alternate search
 orchbee terminal send "$TERM_ID" --key ctrl+c
 printf 'summarize this\n' | orchbee terminal send "$TERM_ID" --stdin --enter

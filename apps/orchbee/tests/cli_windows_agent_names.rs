@@ -1023,7 +1023,7 @@ fn panel_get_and_wait_share_admission_and_pin_the_primary_presentations_session(
             "agent",
             if wait { "wait" } else { "get" },
             "--panel",
-            "@panel:222",
+            "@panel:0x22222222222222222222222222222222",
             "--format",
             "json",
         ];
@@ -1132,7 +1132,7 @@ fn panel_rename_distinguishes_ambiguous_refusal_from_a_pre_mutation_read_loss() 
             "agent",
             "rename",
             "--panel",
-            "@panel:222",
+            "@panel:0x22222222222222222222222222222222",
             "new-name",
             "--format",
             "json",
@@ -1196,7 +1196,7 @@ fn panel_send_keeps_primary_presentation_when_the_agent_also_owns_a_child() {
         "agent",
         "send-keys",
         "--panel",
-        "@panel:222",
+        "@panel:0x22222222222222222222222222222222",
         "enter",
         "--format",
         "json",
@@ -1224,7 +1224,7 @@ fn missing_panel_is_a_snapshot_refusal_without_an_agent_operation() {
         "agent",
         "rename",
         "--panel",
-        "@panel:999",
+        "@panel:0x999",
         "alpha",
         "--format",
         "json",
@@ -1373,7 +1373,14 @@ fn a_panel_get_refuses_a_reply_for_another_session() {
         );
         assert_closed(&mut stream);
     });
-    let output = fixture.run(&["agent", "get", "--panel", "@panel:222", "--format", "json"]);
+    let output = fixture.run(&[
+        "agent",
+        "get",
+        "--panel",
+        "@panel:0x22222222222222222222222222222222",
+        "--format",
+        "json",
+    ]);
     join_peer(handler, &output);
     let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(doc["failure"]["kind"], "protocol-invalid");

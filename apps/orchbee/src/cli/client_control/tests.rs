@@ -177,7 +177,7 @@ fn agent_focus_grammar_requires_one_agent_target_and_reuses_navigation_receipts(
     let id = "00000000000000000000000000000007";
     for selector in [
         vec!["alpha"],
-        vec!["@panel:07"],
+        vec!["@panel:0x7"],
         vec!["--name", "alpha"],
         vec!["--agent-session", "sess-alpha"],
         vec!["--panel", id],
@@ -262,8 +262,8 @@ fn agent_focus_grammar_requires_one_agent_target_and_reuses_navigation_receipts(
 fn panel_swap_grammar_selects_one_source_and_one_destination_with_one_budget() {
     let parse = |words: &[&str]| invocation::parse_request(words.iter().map(OsString::from));
     let id = "00000000000000000000000000000007";
-    for source in [vec![], vec![id], vec!["@panel:07"], vec!["--current"]] {
-        for destination in [vec!["--with", "@panel:08"], vec!["--direction", "up"]] {
+    for source in [vec![], vec![id], vec!["@panel:0x7"], vec!["--current"]] {
+        for destination in [vec!["--with", "@panel:0x8"], vec!["--direction", "up"]] {
             let mut words = vec!["panel", "swap"];
             words.extend(source.clone());
             words.extend(destination);
@@ -792,7 +792,7 @@ fn directional_focus_grammar_resolves_source_and_explicit_success_variants() {
         for args in [
             vec!["panel", "focus", "--direction", word],
             vec!["panel", "focus", "--current", "--direction", word],
-            vec!["--direction", word, "panel", "focus", "@panel:06"],
+            vec!["--direction", word, "panel", "focus", "@panel:0x6"],
         ] {
             let Request::Client {
                 command: ClientCommand::Navigate { target, .. },
@@ -820,7 +820,7 @@ fn directional_focus_grammar_resolves_source_and_explicit_success_variants() {
             "focus",
             "--current",
             "--panel",
-            "@panel:06",
+            "@panel:0x6",
             "--direction",
             "up",
         ],
@@ -902,7 +902,7 @@ fn ratio_and_resize_grammar_normalizes_finite_values_and_resolves_exact_targets(
         for selector in [
             vec![],
             vec!["--current"],
-            vec!["--panel", "@panel:06"],
+            vec!["--panel", "@panel:0x6"],
             vec!["--tab", "shell"],
         ] {
             let mut words = vec![
@@ -1007,7 +1007,7 @@ fn ratio_and_resize_grammar_normalizes_finite_values_and_resolves_exact_targets(
             "--tab",
             "shell",
             "--panel",
-            "@panel:06",
+            "@panel:0x6",
             "--path",
             "root",
             "--ratio",

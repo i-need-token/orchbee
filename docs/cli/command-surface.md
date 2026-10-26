@@ -70,15 +70,11 @@ provider names; capability subsets must be documented. Key modifiers use `ctrl+`
   hex contains every significant digit of that nonzero 128-bit ID, lowercase, without leading
   zeros (1–32 digits). Resolution pads with leading zeros and compares the exact identity.
   Human lists and candidate diagnostics print this stable form; JSON retains canonical IDs.
-- Legacy `@<kind>:<suffix>` selectors remain accepted, with 1–31 lowercase hexadecimal
-  digits. They search the existing snapshot for a unique trailing match. They are momentary
-  selectors and are never printed as saved handles: removal can make a suffix match another
-  resource. The distinct `0x` marker prevents reinterpretation of previously saved suffixes.
 - Recognized selector kinds must match the operand's resource. Empty, uppercase, malformed,
   oversized or zero compact identities fail before runtime access. Other `@` tokens keep
   their label interpretation. Labels are exact and case-sensitive where admitted; no prefix,
   fuzzy or case-insensitive matching occurs. ID-shaped labels require their real identity.
-- Zero matches is not-found. Multiple label or legacy suffix matches are ambiguous, reporting
+- Zero matches is not-found. Multiple label matches are ambiguous, reporting
   a bounded candidate list and true total. A command never picks one or falls back to a label.
 - A printed stable handle does not depend on peers, list filtering or display order. Creating
   or removing other resources cannot change its meaning; deleting its exact identity makes

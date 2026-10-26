@@ -10,7 +10,7 @@ fn report_members_are_exact_and_rejected_outside_the_five_report_commands() {
         "release-agent",
         "report-metadata",
     ] {
-        let mut args = vec!["panel", verb, "@panel:1", "--presentation", id];
+        let mut args = vec!["panel", verb, "@panel:0x1", "--presentation", id];
         if verb == "report-metadata" {
             args.extend(["--source=hook", "--title=x"]);
         } else if verb != "clear-agent-authority" {
@@ -36,7 +36,7 @@ fn report_members_are_exact_and_rejected_outside_the_five_report_commands() {
         }
     }
     for args in [
-        vec!["panel", "get", "@panel:1", "--presentation", id],
+        vec!["panel", "get", "@panel:0x1", "--presentation", id],
         vec!["api", "schema", "--presentation", id],
     ] {
         assert!(parse(&args).is_err());

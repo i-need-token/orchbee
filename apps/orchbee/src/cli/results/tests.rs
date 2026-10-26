@@ -578,78 +578,26 @@ fn selector_snapshot() -> Snapshot {
 }
 
 #[test]
-fn selectors_resolve_unique_tails_to_full_ids() {
-    let snapshot = selector_snapshot();
-    // One unique-tail hit per selector kind; the resolved document carries
-    // the full canonical id, never the selector token.
-    let projection = project(
-        &QueryCommand::ProjectGet(Target::Selector("@project:bb".into())),
-        &snapshot,
-    )
-    .expect("project selector");
-    let Projection::ProjectGet(document) = projection else {
-        panic!("project get projection");
-    };
-    assert_eq!(document.row.project_id, tid(0, 0xbb));
-
-    let projection = project(
-        &QueryCommand::WorkspaceGet(Target::Selector("@workspace:dd".into())),
-        &snapshot,
-    )
-    .expect("workspace selector");
-    let Projection::WorkspaceGet(document) = projection else {
-        panic!("workspace get projection");
-    };
-    assert_eq!(document.row.workspace_id, tid(0, 0xdd));
-
-    let projection = project(
-        &QueryCommand::TabGet(Target::Selector("@tab:e1".into())),
-        &snapshot,
-    )
-    .expect("tab selector");
-    let Projection::TabGet(document) = projection else {
-        panic!("tab get projection");
-    };
-    assert_eq!(document.row.tab_id, tid(0, 0xe1));
-
-    let projection = project(
-        &QueryCommand::PanelGet(Target::Selector("@panel:f4".into())),
-        &snapshot,
-    )
-    .expect("panel selector");
-    let Projection::PanelGet(document) = projection else {
-        panic!("panel get projection");
-    };
-    assert_eq!(document.row.panel_id, tid(0, 0xf4));
-
-    // Terminals resolve over the snapshot's complete bound set.
-    let row = terminal_select(&snapshot, &Target::Selector("@terminal:00210".into()))
-        .expect("terminal selector");
-    assert_eq!(row.terminal_id, tid(0, 0x210));
-}
-
-#[test]
 fn selectors_match_inside_their_own_kind_only() {
     let snapshot = selector_snapshot();
-    // Tail `aa` exists on two projects but no workspace — a foreign-kind
-    // selector is a miss, never a cross-kind hit.
+    // Identity `aa` exists on a project but no workspace; resource kinds stay separate.
     let failure = project(
-        &QueryCommand::WorkspaceGet(Target::Selector("@workspace:aa".into())),
+        &QueryCommand::WorkspaceGet(Target::Selector("@workspace:0xaa".into())),
         &snapshot,
     )
-    .expect_err("cross-kind tail must not resolve");
+    .expect_err("cross-kind identity must not resolve");
     assert_eq!(failure.kind, FailureKind::NotFound);
     assert_eq!(details(&failure)["resource"], json!("workspace"));
-    assert_eq!(details(&failure)["target"], json!("@workspace:aa"));
-    // The same tail the terminals carry (`210`) is not a panel tail.
+    assert_eq!(details(&failure)["target"], json!("@workspace:0xaa"));
+    // Terminal identity `210` is not a panel identity.
     let failure = project(
-        &QueryCommand::PanelGet(Target::Selector("@panel:210".into())),
+        &QueryCommand::PanelGet(Target::Selector("@panel:0x210".into())),
         &snapshot,
     )
-    .expect_err("terminal tails are not panel candidates");
+    .expect_err("terminal identities are not panel candidates");
     assert_eq!(failure.kind, FailureKind::NotFound);
     // A hex-shaped label still resolves as a label; a selector with the
-    // same spelling only looks at identifier tails.
+    // same spelling only compares exact identifiers.
     let projection = project(
         &QueryCommand::ProjectGet(Target::Label("face".into())),
         &snapshot,
@@ -660,15 +608,15 @@ fn selectors_match_inside_their_own_kind_only() {
     };
     assert_eq!(document.row.project_id, tid(0, 0xbb));
     let failure = project(
-        &QueryCommand::ProjectGet(Target::Selector("@project:face".into())),
+        &QueryCommand::ProjectGet(Target::Selector("@project:0xface".into())),
         &snapshot,
     )
-    .expect_err("no project id ends in `face`");
+    .expect_err("no project has identity `face`");
     assert_eq!(failure.kind, FailureKind::NotFound);
 }
 
 #[test]
-fn terminal_io_panel_targets_resolve_primary_and_preserve_missing_or_ambiguous_results() {
+fn terminal_io_panel_targets_resolve_primary_and_preserve_missing_results() {
     let snapshot = selector_snapshot();
     let primary = terminal_rows(&snapshot).into_iter().find(|row| {
         matches!(project(&QueryCommand::PanelGet(Target::Id(row.panel_id.clone())), &snapshot),
@@ -687,7 +635,7 @@ fn terminal_io_panel_targets_resolve_primary_and_preserve_missing_or_ambiguous_r
         );
     }
     for (target, kind) in [
-        ("@panel:ff", FailureKind::Ambiguous),
+        ("@panel:0xff", FailureKind::NotFound),
         ("@panel:0xfedc", FailureKind::NotFound),
     ] {
         assert_eq!(
@@ -761,73 +709,18 @@ fn bound_children_do_not_replace_the_panel_primary_and_id_collisions_refuse() {
 }
 
 #[test]
-fn selector_ambiguity_reports_bounded_candidates_and_the_true_total() {
-    let snapshot = selector_snapshot();
-    // Two-member collisions per kind, in canonical traversal order.
-    for (command, resource, expected) in [
-        (
-            QueryCommand::ProjectGet(Target::Selector("@project:aa".into())),
-            "project",
-            vec![tid(0, 0xaa), tid(1, 0xaa)],
-        ),
-        (
-            QueryCommand::WorkspaceGet(Target::Selector("@workspace:cc".into())),
-            "workspace",
-            vec![tid(0, 0xcc), tid(1, 0xcc)],
-        ),
-        (
-            QueryCommand::TabGet(Target::Selector("@tab:ee".into())),
-            "tab",
-            vec![tid(0, 0xee), tid(1, 0xee)],
-        ),
-        (
-            QueryCommand::PanelGet(Target::Selector("@panel:ff".into())),
-            "panel",
-            vec![tid(0, 0xff), tid(1, 0xff)],
-        ),
-    ] {
-        let failure = project(&command, &snapshot).expect_err("colliding selector tail");
-        assert_eq!(failure.kind, FailureKind::Ambiguous, "{resource}");
-        assert_eq!(details(&failure)["resource"], json!(resource));
-        assert_eq!(details(&failure)["totalCount"], json!(2));
-        assert_eq!(candidates(&failure), expected, "{resource}");
-    }
-    // Terminals share the same rule over bound rows.
-    let failure = terminal_select(&snapshot, &Target::Selector("@terminal:210".into()))
-        .expect_err("colliding terminal tail");
-    assert_eq!(failure.kind, FailureKind::Ambiguous);
-    assert_eq!(candidates(&failure), vec![tid(0, 0x210), tid(1, 0x1210)],);
-    // Nine panels end in `42`: the envelope caps the candidate list at
-    // eight while the total stays truthful.
-    let failure = project(
-        &QueryCommand::PanelGet(Target::Selector("@panel:42".into())),
-        &snapshot,
-    )
-    .expect_err("nine-way tail collision");
-    assert_eq!(failure.kind, FailureKind::Ambiguous);
-    assert_eq!(details(&failure)["totalCount"], json!(9));
-    assert_eq!(
-        candidates(&failure),
-        [0x42, 0x142, 0x242, 0x342, 0x442, 0x542, 0x642, 0x742]
-            .iter()
-            .map(|&tail| tid(0, tail))
-            .collect::<Vec<_>>(),
-    );
-}
-
-#[test]
 fn selector_misses_are_not_found_without_candidates() {
     let snapshot = selector_snapshot();
     for (command, resource, target) in [
         (
-            QueryCommand::TabGet(Target::Selector("@tab:999".into())),
+            QueryCommand::TabGet(Target::Selector("@tab:0x999".into())),
             "tab",
-            "@tab:999",
+            "@tab:0x999",
         ),
         (
-            QueryCommand::PanelGet(Target::Selector("@panel:999".into())),
+            QueryCommand::PanelGet(Target::Selector("@panel:0x999".into())),
             "panel",
-            "@panel:999",
+            "@panel:0x999",
         ),
     ] {
         let failure = project(&command, &snapshot).expect_err("selector miss");
@@ -836,7 +729,7 @@ fn selector_misses_are_not_found_without_candidates() {
         assert_eq!(details(&failure)["target"], json!(target));
         assert!(details(&failure).get("candidates").is_none());
     }
-    let failure = terminal_select(&snapshot, &Target::Selector("@terminal:999".into()))
+    let failure = terminal_select(&snapshot, &Target::Selector("@terminal:0x999".into()))
         .expect_err("terminal selector miss");
     assert_eq!(failure.kind, FailureKind::NotFound);
     // A full 32-hex id is still an exact identity lookup, unchanged.
@@ -851,10 +744,10 @@ fn selector_misses_are_not_found_without_candidates() {
 #[test]
 fn selector_filters_share_operand_semantics() {
     let snapshot = selector_snapshot();
-    // `--project` on `workspace list` resolves the same suffix grammar.
+    // `--project` on `workspace list` resolves the same compact identity grammar.
     let projection = project(
         &QueryCommand::WorkspaceList {
-            project: Some(Target::Selector("@project:bb".into())),
+            project: Some(Target::Selector("@project:0xbb".into())),
         },
         &snapshot,
     )
@@ -871,7 +764,7 @@ fn selector_filters_share_operand_semantics() {
     // `--workspace` on `tab list` and `--tab` on `panel list` likewise.
     let projection = project(
         &QueryCommand::TabList {
-            workspace: Some(Target::Selector("@workspace:dd".into())),
+            workspace: Some(Target::Selector("@workspace:0xdd".into())),
         },
         &snapshot,
     )
@@ -887,7 +780,7 @@ fn selector_filters_share_operand_semantics() {
     );
     let projection = project(
         &QueryCommand::PanelList {
-            tab: Some(Target::Selector("@tab:e1".into())),
+            tab: Some(Target::Selector("@tab:0xe1".into())),
             workspace: None,
         },
         &snapshot,
@@ -1444,7 +1337,7 @@ mod terminal_read {
         )
     }
 
-    /// `--unwrap`: only verified soft-wrap chains join — hard breaks and
+    /// `--source recent-unwrapped`: only verified soft-wrap chains join — hard breaks and
     /// empty rows stay their own logical lines, physical row indexes
     /// span the join, and a window opening or ending inside a wrap marks
     /// the fragment instead of claiming a complete line.
@@ -1502,7 +1395,7 @@ mod terminal_read {
         assert_eq!(emitted[4]["endsMidLine"], true);
     }
 
-    /// `--lines` without `--unwrap` tails physical rows and reports the
+    /// `--lines` without `--source recent-unwrapped` tails physical rows and reports the
     /// presentation omission separately from the budget's `omittedRows`.
     #[test]
     fn lines_tails_physical_rows() {
@@ -1543,7 +1436,7 @@ mod terminal_read {
         assert_eq!(doc.tail.expect("tail").omitted, 0);
     }
 
-    /// `--unwrap --lines`: the tail counts logical lines, including the
+    /// `--source recent-unwrapped --lines`: the tail counts logical lines, including the
     /// observed edge fragments, never the retained-history total.
     #[test]
     fn lines_tails_logical_lines() {
@@ -2080,7 +1973,7 @@ fn terminal_list_filters_by_workspace_tab_and_panel() {
     );
     for details in &initial_workspace_tab.details {
         let placement = details.placement.as_ref().unwrap();
-        assert_eq!(placement.workspace, "@workspace:1");
+        assert_eq!(placement.workspace, "@workspace:0x1");
         assert!(placement.handle.starts_with("@terminal:"));
         assert!(placement.panel.starts_with("@panel:"));
     }
@@ -2130,7 +2023,7 @@ fn terminal_list_filters_by_workspace_tab_and_panel() {
 #[test]
 fn workspace_get_text_leads_with_the_workspace_and_its_directory_path() {
     let snapshot = selector_snapshot();
-    let command = QueryCommand::WorkspaceGet(Target::Selector("@workspace:dd".into()));
+    let command = QueryCommand::WorkspaceGet(Target::Selector("@workspace:0xdd".into()));
     for locale in [
         crate::localization::Locale::EnUs,
         crate::localization::Locale::ZhCn,

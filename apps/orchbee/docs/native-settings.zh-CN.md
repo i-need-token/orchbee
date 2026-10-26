@@ -136,7 +136,7 @@ Esc／Enter 绑定放在取消／确认按钮内，使用次要颜色和常规�
 | 效果     | 已确认快照控制运行偏好；独立的可撤销投影仅预览产品文案、界面和终端默认颜色。启动／默认值更改作用于新终端创建。                  |
 | 拒绝     | 无效或不安全来源、作用域不匹配、源过期、不支持的启动选项、通道繁忙或存储不可用，均保留现有数据和已确认行为。                    |
 
-Session 在启动时冻结原生配置身份。客户端不提交路径、原始 TOML、其他设备选择器或任意文件写入。共享值位于有界的同级私有偏好记录；原生旧 TOML 仍是显式初始来源。Desktop Main 与 renderer 只提交当前读取和更新，不导入旧记录。见[作用域与持久化](../../../crates/workbench-protocol/docs/user-preferences.zh-CN.md#作用域持久化与迁移)。
+Session 在启动时冻结原生配置身份。客户端不提交路径、原始 TOML、其他设备选择器或任意文件写入。共享值位于有界的同级私有偏好记录。记录不存在时提供规范默认值；Client 提交当前读取和更新。见[作用域与持久化](../../../crates/workbench-protocol/docs/user-preferences.zh-CN.md#作用域与持久化)。
 
 | 转移             | 必需行为                                                                         |
 | ---------------- | -------------------------------------------------------------------------------- |
@@ -197,8 +197,7 @@ Agent 尾部折叠共用保留历史的读取/确认/恢复权威。它仅用精
 | `keys.prefix`、已实现动作的覆盖、`keys.commands`                                                                       | 完整准入的重载同时更新派发和对应帮助／提示，清除待处理前缀；仅加载配置不执行其中命令         |
 | `ui.sidebar.agents.rows`、`rows_by_agent`、`row_gap`；`ui.sidebar.spaces.rows`、`row_gap` 及其已准入的 token／规则字段 | 完整重载改变现有侧栏投影；布局和交互仍由侧栏所有者负责                                       |
 | `ui.window_title`                                                                                                      | 重载后实时标题订阅使用已准入模板；外层宿主标题交付仍是一项能力                               |
-| `ui.toast.delivery`、`agent_delivery`、`delay_seconds`、`overlay.position`；`ui.sound.enabled`、`ui.sound.agents`      | 重载更新手动交付和后续自动反馈；已确认的共享 Agent 模式／全局声音仍具权威，保留各 Agent 静音 |
-| 旧 `theme.name`                                                                                                        | 仅一次填充尚未声明的共享外观；后续 TOML 重载不能覆盖已确认的通用偏好                         |
+| `ui.toast.delivery`、`delay_seconds`、`overlay.position`；`ui.sound.agents`                                            | 重载更新手动交付和后续自动反馈；已确认的共享 Agent 模式／全局声音仍具权威，保留各 Agent 静音 |
 | `terminal.default_shell`、`terminal.shell_mode`                                                                        | 重载仅改变后续启动准备；已确认的共享启动配置优先，Windows 通用配置拒绝登录 Shell             |
 | `terminal.focus_new_panel`                                                                                             | 重启原生 Client 后应用分屏焦点偏好，默认为 true                                              |
 | `terminal.new_cwd`、`worktrees.directory`                                                                              | Windows CLI 在下一次相关创建调用中读取；不移动现有进程                                       |
@@ -236,9 +235,9 @@ Agent 尾部折叠共用保留历史的读取/确认/恢复权威。它仅用精
 物理模拟器交付。配置观察器用例还会在同时更新实时绑定、对应提示和两类侧栏
 配置时，保留已确认的共享外观和指针释放状态。
 
-`SettingsCommitPublication.tla/.cfg` 有界建模两个独立准备的操作系统进程写入者、明确编辑/重置值，以及一次不协作外部编辑。`Acquire` 取得共享锁；`Write` 再次检查源并保留其他键。发布携带不可变的已提交快照；应用失败和响应丢失不会回滚，也不授权再次写入。无更改回执、原生初始来源、文件系统原语、能力发现和界面几何仍由实现测试负责。
+`SettingsCommitPublication.tla/.cfg` 有界建模两个独立准备的操作系统进程写入者、明确编辑/重置值，以及一次不协作外部编辑。`Acquire` 取得共享锁；`Write` 再次检查源并保留其他键。发布携带不可变的已提交快照；应用失败和响应丢失不会回滚，也不授权再次写入。无更改回执、缺失记录默认值、文件系统原语、能力发现和界面几何仍由实现测试负责。
 
-模型不再包含已退役的 Desktop Main/renderer 导入参与者、导入回执或导入临时状态；原生初始值准入仍由共享存储实现及其测试负责。
+缺失记录默认值和当前记录的严格准入由共享存储实现及其测试负责。
 
 检查性质包括单写入者归属、无关键保留、提交后发布、
 完整值、不可变发布身份，以及不重放结果不明操作。负向对照移除最终源比较
