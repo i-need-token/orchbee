@@ -2,7 +2,7 @@
 
 ## Outcome and owners
 
-The native TUI consumes the existing Session-owned Panel/Presentation image layers. A dedicated instance of the existing cancellable read lane owns graphics queries; it never borrows the UI's terminal/control connection, sends PTY input or changes focus. The main UI owns visible target selection, cache publication, clipping and successful draw receipts. The existing Client control publisher owns capability/draw observation on its already authenticated connection.
+The native TUI consumes the existing Session-owned Panel/Presentation image layers. An independent instance of the existing cancellable logical read lane owns graphics queries on the shared Client carrier; it sends no PTY input and changes no focus. The main UI owns visible target selection, cache publication, clipping and successful draw receipts. The existing Client control publisher owns capability/draw observation on its already authenticated connection.
 
 Only surfaces included in a successful shell draw enter the read scope. Selected primary/child identity and optional terminal binding are captured exactly; removed, rebound, hidden or switched targets leave the scope immediately. Session identity fences reconnect and cold restore. Stable labels and identity-preserving moves do not invalidate pixel resources. Source membership is checked before reads, after complete resources, and at UI publication. A maximum of 64 surfaces are queried in each bounded batch, rotating over the existing 4096-Panel context bound.
 

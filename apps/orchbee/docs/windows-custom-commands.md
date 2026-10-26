@@ -14,10 +14,10 @@ Shell executes the configured Windows command shell through a Worker-owned proce
 
 Worker waits up to five seconds for physical shell-start confirmation, within the carrier's twenty-second response budget. Slow process creation inside that window can still produce a confirmed receipt. A missing or uncertain confirmation retains the process owner and reports physical uncertainty; a late result never authorizes replay or silently clears that uncertainty. Focused tests cover delayed confirmation, duplicate admission, timeout, late completion and joined shutdown.
 
-The TUI command exchange has a separate cancellable connection and joined thread, so waiting for a command cannot pause Client heartbeats or popup delivery. Only one command may be queued or awaiting its receipt. Empty Workspaces may invoke global shell/plugin actions; Pane/popup actions still require the exact bound source. Shortcut discovery sanitizes display text while preserving the literal command in configuration. Nested receipts must describe the declared action and match its request, Session and popup selector; an unrelated valid protocol result is refused.
+The TUI command exchange has a separate cancellable logical lane and joined domain thread on the shared carrier. It does not own physical admission, reconnect or a heartbeat timer; UI processing and popup owners remain independent. Only one command may be queued or awaiting its receipt. Empty Workspaces may invoke global shell/plugin actions; Pane/popup actions still require the exact bound source. Shortcut discovery sanitizes display text while preserving the literal command in configuration. Nested receipts must describe the declared action and match its request, Session and popup selector; an unrelated valid protocol result is refused.
 
 A shortcut queues its opaque installed command ID and exact Ready source observation, then publishes
-that observation through the normal Client heartbeat lane before binding the invocation to the
+that observation through the normal Client view-publication lane before binding the invocation to the
 acknowledged Client/view revision. An older in-flight Busy observation from the armed prefix cannot
 reject or authorize that invocation. A newer or different source refuses without retargeting. This
 same path applies to initial and reloaded bindings and needs no prior CLI catalog or invocation.

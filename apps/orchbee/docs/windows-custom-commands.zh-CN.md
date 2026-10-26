@@ -14,9 +14,9 @@ Shell通过Worker拥有的进程执行配置的Windows命令解释器，不向�
 
 Worker在carrier二十秒答复预算内，最多等待五秒确认shell物理启动。窗口内较慢的进程创建仍可产生确认回执。确认缺失或不确定时，保留进程所有者并报告物理结果不确定；迟到结果不允许重放，也不会悄悄清除不确定状态。定向测试覆盖延迟确认、重复准入、超时、迟到完成及join后的关闭。
 
-TUI命令交换使用独立可取消连接和负责join的线程，等待命令时不暂停Client心跳或popup交付。至多一个命令处于排队或等待回执状态。空Workspace可以调用全局shell／plugin动作；Pane／popup仍要求准确已绑定来源。快捷键发现净化展示文本，配置中保留字面命令。嵌套回执必须对应声明动作，并匹配请求、Session及popup选择器；即使其他协议结果本身有效，也拒绝与当前动作无关的结果。
+TUI 命令交换使用共享 carrier 上独立可取消的逻辑 lane 和负责 join 的 domain 线程。它不拥有物理准入、重连或 heartbeat timer；UI 处理及 popup owner 保持独立。至多一个命令处于排队或等待回执状态。空Workspace可以调用全局shell／plugin动作；Pane／popup仍要求准确已绑定来源。快捷键发现净化展示文本，配置中保留字面命令。嵌套回执必须对应声明动作，并匹配请求、Session及popup选择器；即使其他协议结果本身有效，也拒绝与当前动作无关的结果。
 
-快捷键排入不透明的已安装命令 ID 与准确 Ready 来源观察，先通过常规 Client 心跳 lane 发布
+快捷键排入不透明的已安装命令 ID 与准确 Ready 来源观察，先通过常规 Client 视图发布 lane 发布
 该观察，再把调用绑定到已确认的 Client／视图版本。前缀处于激活状态时较早发出的 Busy 观察
 不能拒绝或授权这次调用。更新或不同的来源会拒绝，不重新选择目标。启动和重载后的绑定都走
 相同路径，无需先经 CLI 列出目录或调用命令。Server 的命令、来源与权限检查保持不变。
@@ -33,4 +33,4 @@ TUI命令交换使用独立可取消连接和负责join的线程，等待命令�
 
 配置shell见证在原有三秒预算内等待完整的command-ID回执；文件创建本身不能证明写入完成。夹具在成功路径显式检查清理。panic展开期间，清理失败报告准确保留目录，不替换原始panic。反例覆盖初始空回执，以及暂不允许删除目录的消费者：原始panic保持可观察，消费者释放句柄后再回收目录。
 
-<!-- documentation-pairing: english-sha256=35cf404a57940824cdf172749670f21b4138f0739e23d6c28ace1fedb506ba64 zh-cn-sha256=08a7c02fba6caf0c52ef48a9349ba198cce2ab038a0b33bf579accecfb5c2831 -->
+<!-- documentation-pairing: english-sha256=61fab1803cbc90a7aaad03cf80dd234fd2de82811818e196ce7f3d19cd89466e zh-cn-sha256=0ea05c9f4882e70bb7d85b54208fe8124f2fb8f0b9a64283d73a1d6a8195eddb -->

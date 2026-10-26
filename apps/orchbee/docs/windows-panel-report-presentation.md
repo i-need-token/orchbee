@@ -4,7 +4,7 @@
 
 The native Windows TUI reads terminal Agent reports and Panel metadata for the current Tab's selected Presentation in each Panel. These observations supplement Panel chrome; they do not create canonical Agent sessions, change the Agent board, acknowledge attention, or authorize terminal input. Server report and metadata owners remain authoritative. A child presentation never inherits its primary presentation's report.
 
-The UI owns one read lane with its own Client connection, using the existing Agent read lane cancellation and join infrastructure. No network I/O runs in drawing or keyboard handling, and report failures cannot retire the terminal input connection. One round has a five-second absolute deadline and a one-second cooldown; an attached-machine Agent change hint starts the next round immediately, or right after the outstanding one. At most one round is outstanding; scopes are bounded by the Workbench context node limit and encoded rows by 8 MiB.
+The UI owns one logical read lane on the shared Client carrier, using the existing Agent read lane cancellation and join infrastructure. No network I/O runs in drawing or keyboard handling, and report failures cannot retire the terminal input connection. One round has a five-second absolute deadline. Commit invalidations trigger canonical report reads; the remaining one-second sample observes Host titles/process diagnostics that expose no event source. An attached-machine change hint starts the next round immediately, or right after the outstanding one. At most one round is outstanding; scopes are bounded by the Workbench context node limit and encoded rows by 8 MiB.
 
 ## Coherent observation model
 

@@ -129,7 +129,7 @@ Client 拥有记住的 Tab／焦点；Session 拥有规范成员和标签；已�
 
 Windows 支持独立插件 popup 终端及原生关闭入口。popup 在当前 Pane 区域上方创建一个独立终端，不改变规范 Tab／分屏成员；外框宽高默认各占可用区域的一半，支持单元格数和 1–100 百分比，并在终端结束后关闭。popup 的按键和粘贴先于普通绑定处理：Escape 和配置的前缀键属于其中的程序。区域外鼠标事件不能激活底下布局。原生标题栏关闭按钮是额外的明确关闭入口。它使用共享的三单元格 `[x]` 操作，只有普通主键按下与匹配释放都解析到同一个已绘制 popup 请求时才会激活；过期或已替换目标不会产生效果，关闭开始后该操作会禁用。在周围空白背景上普通左键按下并匹配释放，会调用精确 popup 的同一个已绘制关闭目标。带修饰键的点击和滚轮不会关闭；移入 popup、失焦或几何变化会取消手势。
 
-既有终端协调器负责身份分配和独立 Terminal Create；popup 不预留隐藏 Tab、Panel 或 Presentation。一个独立且已认证的 Client 连接最多持有一个 popup；Session 最多保留 32 个 popup 所有者，含清理不确定项。Server 在预留之前解析已启用的 Windows 目录入口，冻结 argv、插件根 cwd、受保护环境及已验证的来源展示上下文。调用输入只有选择器、有界上下文、可选 cwd 和普通启动环境，不能提供受保护环境或物理身份。UI 另按精确 Client／视图版本和来源成员准入一个 popup。来源身份复用完整 Client Presentation selection：已绑定 attachment generation／incarnation，或未绑定 selection generation；帧和滚动更新不改变成员身份。尺寸是有类型的单元格数或百分比；省略时先采用清单值，再采用半区域默认值。外框居中并限制在至少 6×4 单元格，原生边框内容宽高各减两个单元格。视口过小时暂停 popup 输入和尺寸调整，不把终端缩成零。
+既有终端协调器负责身份分配和独立 Terminal Create；popup 不预留隐藏 Tab、Panel 或 Presentation。一个已认证 Client 的逻辑 lane 最多持有一个 popup，以连接 generation 及 lane ID 为作用域；Session 最多保留 32 个 popup 所有者，含清理不确定项。Server 在预留之前解析已启用的 Windows 目录入口，冻结 argv、插件根 cwd、受保护环境及已验证的来源展示上下文。调用输入只有选择器、有界上下文、可选 cwd 和普通启动环境，不能提供受保护环境或物理身份。UI 另按精确 Client／视图版本和来源成员准入一个 popup。来源身份复用完整 Client Presentation selection：已绑定 attachment generation／incarnation，或未绑定 selection generation；帧和滚动更新不改变成员身份。尺寸是有类型的单元格数或百分比；省略时先采用清单值，再采用半区域默认值。外框居中并限制在至少 6×4 单元格，原生边框内容宽高各减两个单元格。视口过小时暂停 popup 输入和尺寸调整，不把终端缩成零。
 
 | 状态／转换         | 归属与守卫                                                                                              |
 | ------------------ | ------------------------------------------------------------------------------------------------------- |
@@ -140,12 +140,12 @@ Windows 支持独立插件 popup 终端及原生关闭入口。popup 在当前 P
 | 显式关闭／断连     | 先撤销输入；Server 将关闭责任交给既有 Session 维护通道                                                  |
 | 已知释放           | 完整 Worker 代际、binding fence 和 Host 身份；已知物理释放后才删除 popup binding 和所有者               |
 | 启动或关闭不确定   | 保留有界 Server 所有者并停止重放变更；不宣称清理成功，也不在同一连接启动替代 popup                      |
-| Client 退出        | 取消并回收独立通道；连接析构把已接纳的终端交给 Session 清理                                             |
+| Client 退出        | 取消并回收独立通道；准确 lane 关闭把自身已接纳的终端交给 Session 清理，不释放兄弟 owner                 |
 | Session 退出       | 既有物理 Session／Worker 关闭收尾保留的不确定所有者；状态不持久化，也不伪造恢复                         |
 
 `plugin pane open --placement popup [--width CELLS|PERCENT%] [--height CELLS|PERCENT%]` 使用清单尺寸默认值，可由参数覆盖。popup 布局在产生效果前拒绝规范几何、target、Workspace 和 direction 覆盖。`popup close [--client ID] [--timeout MS]` 即使从无规范 Pane 的终端调用，也按 Client 定位。两者使用 `orchbee.popup.result` v1；通用 Client control 使用 v1。打开完成要求已接纳帧及完成绘制；关闭完成等待已知物理释放。没有 popup 时关闭返回 `hadPopup=false`，保留其他对话框。
 
-私有 Workbench 插件协议提供连接归属的 popup 打开、生命周期读取和关闭动作及封闭的有类型结果。Open 需要 read、create 和 lifecycle 权限；Read 需要 read；Close 需要 read 和 lifecycle 权限。自然结束观察按精确独立创建引用附着，不占用独占生命周期关闭所有者。显式关闭先撤销输入并围栏 binding，Session 维护再提交 Force，通过有界 inventory 观察精确目标 exited／failed，最后提交 Dispose。Inventory 观察采用协作式五秒窗口，每次遍历最多八页、最多 32 个生命周期步骤；进行中的 Worker 交换仍有独立传输界限。只有已知 Dispose 才释放保留的 binding。启动或关闭回执丢失时保留不确定状态，不重放变更；UI 显示重启 Session 提示并阻止替代 popup。启动前已知拒绝允许重试。Rust／TypeScript 对端需一起部署；Desktop 功能支持属于独立范围。不引入新 Host 能力、依赖、进程框架或持久化存储。
+私有 Workbench 插件协议提供逻辑 lane 归属的 popup 打开、生命周期读取和关闭动作及封闭的有类型结果。Open 需要 read、create 和 lifecycle 权限；Read 需要 read；Close 需要 read 和 lifecycle 权限。自然结束观察按精确独立创建引用附着，不占用独占生命周期关闭所有者。显式关闭先撤销输入并围栏 binding，Session 维护再提交 Force，通过有界 inventory 观察精确目标 exited／failed，最后提交 Dispose。Inventory 观察采用协作式五秒窗口，每次遍历最多八页、最多 32 个生命周期步骤；进行中的 Worker 交换仍有独立传输界限。只有已知 Dispose 才释放保留的 binding。启动或关闭回执丢失时保留不确定状态，不重放变更；UI 显示重启 Session 提示并阻止替代 popup。启动前已知拒绝允许重试。Rust／TypeScript 对端需一起部署；Desktop 功能支持属于独立范围。不引入新 Host 能力、依赖、进程框架或持久化存储。
 
 定向验收覆盖重复准入、来源／目录拒绝时不启动、规范布局不变、丢失启动／关闭答复、完整身份释放、连接退休、尺寸、已解码按键／粘贴／鼠标归属、实际 Ratatui 组合绘制和原生 Windows CLI 传输。测试拥有其根目录、管道、线程和 Job，直到最后消费者结束。定向 fixture 证据不代表已部署 Host／终端模拟器验收；最终集成需通过更广的 Windows 验收流程。
 

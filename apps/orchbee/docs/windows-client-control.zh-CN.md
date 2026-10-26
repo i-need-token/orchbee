@@ -10,7 +10,7 @@
 
 视图报告已观测 Workbench 修订、阶段（`starting`、`ready`、`busy`、`unavailable`）及必填可空的选择。选择包含 TerminalContext 身份、必填可空的 Tab／Panel 身份、显式缩放标记和活动 Tab 的 Panel 数（没有 Tab 时为零，有 Tab 时为正）。有 Panel 必须有 Tab；缩放必须有 Panel。就绪的空 Workbench 报告 `selection: null`；空 Workspace 报告其真实 Context，Tab／Panel 为 null。两种状态都不虚构 Context 身份。这些是 Client 观测，不是新增的规范 Workbench 字段。
 
-每个 UI 样本携带非零规范 u64 文本 heartbeat 和视图修订。heartbeat 随 UI 采样推进；报告的视图改变时视图修订推进。合并样本可以跳号。相同修订要求视图内容相同；更旧的修订或 heartbeat 冲突。没有新 UI heartbeat 的重复网络同步不延长新鲜期。新 UI 样本到达 Server 后五秒内视图为 current，之后为 stale，直到新样本到达。
+每个 UI 样本携带非零规范 u64 文本 heartbeat 和视图修订。heartbeat 随 UI 采样推进；报告的视图改变时视图修订推进。合并样本可以跳号。相同修订要求视图内容相同；更旧的修订或 heartbeat 冲突。认证连接及其发布 lane 拥有视图生命周期；空闲且未变化的 UI 不发送定时 heartbeat。精确视图修订仍为控制操作提供栅栏。关闭该 lane 或连接会退休视图并结算未完成投递。
 
 ## 控制与确认
 
@@ -40,13 +40,13 @@ toggle 由 TUI 解析，并为这次已投递操作保留解析结果。相同�
 
 ## TUI 执行
 
-一条 Windows 控制通道拥有独立的已接纳连接及有界最新样本交接。它不阻塞终端载体，也不在自身线程修改 UI。UI 在本地输入之后、绘制之前消费语义命令，检查已发布视图前置条件，将规范成员关系刷新至命令最低修订，再使用既有 context、Tab、Panel 选择所有者。异步附件及刷新沿用原有所有者和 deadline。
+一条 Windows 控制通道拥有共享已接纳 carrier 上的逻辑资源作用域及有界最新样本交接。首次成功 Synchronize 将该 lane 绑定为此物理 Client 的唯一视图发布者；失败同步不能取得所有权，兄弟 lane 不能代其发布或确认。首次 Synchronize 前注册稳定的提交失效提示订阅。Synchronize 可能转移排队控制，因此始终是一次性交换；domain owner 消费答复后才推进样本。替换 UI 样本不会替换含有已投递控制的邮箱。它不阻塞终端载体，也不在自身线程修改 UI。UI 在本地输入之后、绘制之前消费语义命令，检查已发布视图前置条件，将规范成员关系刷新至命令最低修订，再使用既有 context、Tab、Panel 选择所有者。异步附件及刷新沿用原有所有者和 deadline。
 
 本地导航或模态意图中断后续远程步骤。已接纳的原生工作不描述为已撤销；此类步骤之后的中断为 incomplete。目标缺失、视图过期、不支持状态及模态／忙碌接纳均有明确结果。几何变化在绘制前重新观测 viewport 尺寸并使指针命中图失效。Applied 确认要求已观测到目标选择／缩放且成功绘制。绘制失败或连接丢失不能伪造 applied 成功。viewport 小到无法显示内容时视为 busy。对单 Panel Tab 开启或切换缩放，在选中并绘制目标 Panel 后返回 `zoom-unchanged`，不伪造 zoom 标记；该结果要求已观测单 Panel 目标、`zoomed: false` 及请求的最低修订。成功绘制的观测固定保留到确认，后续本地导航不能改写回执。
 
 TUI 退出时控制通道停止、唤醒阻塞 I/O 并 join。Server Session 清理移除发布并结算保留请求；受管 Session 停止会 join 这些 handler。Client 视图／控制状态易失，不跨 Server 重启保留。
 
-在发送第一条 Synchronize 前，通道准入共用一个两秒总预算。临时本地传输故障——端点尚不存在或拒绝连接、连接被中断／重置／终止、管道断开、would-block、超时或握手 EOF——最多允许一次重试，重试沿用原截止时间并使用 Server 新分配的 Client Connection generation。权限、配置、协议、拒绝、意外响应、取消及请求 I/O 配置失败立即停止。一旦发出任何 Synchronize 请求，该通道之后的任意失败均为终止状态：不转移 Client 身份，不重放 control、completion 或 mutation，也不续期截止时间。该重试只改变发布前准入，不削弱 registry 对已接纳 Connection 的终止性 Disconnect 语义。
+共享连接 actor 拥有物理准入及重连；控制 lane 没有独立重试循环。每次 Synchronize 保留两秒截止时间。离线时排队的请求关联实际开始写入的 generation，而不是入队前采样到的旧代次。一旦可能开始写入，答复丢失仍为 outcome-unknown，绝不重放。只重建失效提示订阅；新的同步可发布新连接身份，不重放旧 completion。交换失败会终止控制 owner。准确的 LaneClose 退休其视图，将未确认投递结算为 incomplete；关闭兄弟 lane 不能退休它。已关闭 lane 的请求在执行前拒绝。
 
 ## CLI 路由与线上边界
 
@@ -193,10 +193,10 @@ Workspace／Tab 聚焦不继承 Panel 的模式取消行为。不新增协议字
 
 Client 拥有一个独立 popup lane，由明确类型的插件和编辑器变体共用。编辑器几何填满已准入内容区域，保留既有边框；插件尺寸与默认值不变。准入要求 Ready、足够大的 Client，没有竞争 modal／popup，且准确成员新鲜。它不改变规范 Pane 拓扑／选择，也不控制或缩放来源终端。Opening 隐藏来源光标并捕获输入；只有匹配的编辑器帧已安装并绘制后才准入输入。既有 popup 键盘、粘贴、鼠标、缩放和关闭路径负责编辑器交互，结算后恢复普通来源输入。
 
-编辑器 lane 只重连一次，为来源 binding 附着只读 viewer，解码并确认完整来源帧，再在同一连接上提交一次私有编辑器 Open，携带该 attachment 与准确 generation／revision。来源捕获共用二十秒预算，拒绝受阻／非法投影；不提交可执行文件、环境、文件路径或正文。明确 Open 答复先于来源 Detach 和目的终端 attachment／controller 获取。投递后答复丢失或畸形为 unknown，绝不重放。来源 viewer 保留所有权直到明确 detach 或连接 EOF；Server／Host 负责不确定创建和文档清理。
+编辑器 lane 在共享 carrier 上取得一个逻辑作用域，为来源 binding 附着只读 viewer，解码并确认完整来源帧，再在同一作用域内提交一次私有编辑器 Open，携带该 attachment 与准确 generation／revision。来源捕获共用二十秒预算，拒绝受阻／非法投影；不提交可执行文件、环境、文件路径或正文。明确 Open 答复先于来源 Detach 和目的终端 attachment／controller 获取。投递后答复丢失或畸形为 unknown，绝不重放。来源 viewer 保留所有权直到明确 detach、准确 lane 关闭或连接 EOF；Server／Host 负责不确定创建和文档清理。
 
 状态转换为 Opening -> Active -> Closing -> Closed。已知拒绝允许新的显式意图；传输不确定为 Failed，并关闭 lane 连接交由 Server 所有者恢复。编辑器提交前观察到 Close，只 detach 来源并关闭，不创建编辑器。Open 已提交时收到 Close，等待唯一答复后退役该准确 popup。Shutdown 中断正在进行的 I/O、加入 actor，依赖既有 EOF 清理所有者，不能靠时间经过宣布处置成功。Active 完成要求匹配的目的帧已安装，而非仅进程创建；自然退出使用同一处置确认路径。
 
 证据使用原生 Windows 管道，覆盖 Rust／TypeScript／JSON 意图和回执封闭、准确来源准入、同连接先来源帧确认后 Open、无来源控制／缩放、一次提交、投影／输入／缩放／关闭、拒绝、畸形／丢失答复和加入式 shutdown。这些定向夹具不证明实际 GUI／编辑器可用或部署后 TUI 验收；后者保留为最终 Windows 用户流程义务。
 
-<!-- documentation-pairing: english-sha256=fefc5a308f8f497d3b2034692818a734b0ef2e171176381f9f6f09732b3a8690 zh-cn-sha256=3d324d3a5c6906986b6bcf1427290be451b9c4bfc192149e32c62a565f45e3c6 -->
+<!-- documentation-pairing: english-sha256=7820219b3c23b7e7a37d58870bb861cb9ae179c887de5c514dd8b175f817a930 zh-cn-sha256=8a08822c7d79a526dfbe341c0a039eee77f579fb893c92318522dfdb0fa94e8b -->

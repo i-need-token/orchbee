@@ -652,6 +652,9 @@ Clients. Terminal viewers and popup owners use the same `(connection generation,
 closing one lane releases only its attachments/popups. The final lane owner and explicit
 cancellation use the same cleanup. A completion already executing may finish before cancellation,
 but queued lane closure then reclaims that exact owner; it cannot reclaim a sibling lane.
+The first successful ClientView Synchronize binds its publishing lane. Only that lane may
+synchronize, and its closure retires the view and settles pending control receipts. Synchronize
+is never a reconstructable subscription; stable invalidations wake one-shot domain-owned exchanges.
 
 Each carrier has one standard-library reader and one writer/dispatcher. The reader admits at
 most 64 queued records; the dispatcher executes finite requests and writes outside mailbox and
@@ -671,7 +674,9 @@ retain their Subscribe definition separately from the Read continuation, immedia
 whose `more` flag is set, and use the existing journal epoch/cursor. A live stream exclusively
 owns that semantic cursor; competing streams or one-shot Read/Close cannot consume it. Physical
 Host probes share one connection-wide capture permit, retained through cancellation and join;
-adding subscriptions does not add simultaneous Host reader jobs. Journal loss or Client inbox
+adding subscriptions does not add simultaneous Host reader jobs. Every failed subscription read,
+including source resolution before capture sampling, cancels and joins the retained job before
+returning so a sibling can acquire the permit. Journal loss or Client inbox
 overflow sends Gap before a fresh snapshot; lost events are never presented as complete history.
 The third consumer resnapshot within a rolling 30-second sequence terminates that connection as
 SlowConsumer. Each output record has a two-second write bound. An unresponsive socket is closed;
@@ -682,7 +687,8 @@ unsupported on the multiplexed dispatcher; direct CLI Wait retains its existing 
 The Client actor polls its carrier and a local command wake stream together. It owns physical
 reconnect, cancellation, IDs and subscription reconstruction. A request cancelled before handoff
 is not submitted. Once its write may have begun, transport loss is OutcomeUnknown and the request
-is never replayed. Reconnect discards the old decoder/queues and recreates only subscriptions;
+is never replayed. Reply correlation uses the generation at actual write handoff, including
+requests first queued offline. Reconnect discards the old decoder/queues and recreates only subscriptions;
 stream cancellation fences queued and in-flight delivery. Typed overload disconnects are terminal,
 so reconnect cannot evade the limit. Logical terminal attachments are not reconstructed by replaying
 Attach. One-shot CLI connections keep their direct protocol path.
@@ -703,7 +709,11 @@ capture, an undrained peer alongside a progressing peer, exclusive event cursors
 cleanup preserving a sibling.
 Client transport traces check cancelled late replies, actual event overflow/gap/snapshot delivery
 and aggregate reservation refusal; configuration recovery checks that an uncertain reload is not
-replayed. The protocol codec tests reject untrusted lengths, versions, identifiers and tags.
+replayed. Control traces race a changed UI sample with delivery, consume its exact completion,
+and admit the next command. A source-loss trace holds a completed capture through the real
+subscription read failure and verifies that a sibling can start; it uses a controlled job, not
+an OS Host integration witness. View lifecycle traces distinguish sibling and publisher cleanup.
+The protocol codec tests reject untrusted lengths, versions, identifiers and tags.
 Run `node scripts/tla/run-models.mjs --models client-subscription-delivery --jobs 1`, the two
 `client-subscription-delivery` mutation cases, and the affected Rust host gate when these claims change.
 

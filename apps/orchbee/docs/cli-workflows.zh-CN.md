@@ -283,7 +283,7 @@ orchbee workspace close-resume --workspace <workspace-id> \
 
 `orchbee terminal edit-scrollback <terminal> [--client <id>] [--timeout <ms>] [--format json|text]` 请求一个当前 Windows TUI，在所选编辑器中打开其聚焦的已绑定主终端或子终端完整保留纯 UTF-8 滚动记录。终端目标使用常规完整 ID、带类型后缀选择器或精确标签解析。需要已有 Session 和 Ready TUI；CLI 不启动两者，也不通过切换焦点让目标变成可用。显式 `--client` 只选择该 Client，否则采用既有调用者上下文／唯一当前 Client 规则。目标与当前选择的原生成员不同时，在提交编辑器前失败。
 
-一次调用期限覆盖快照、准确目标／Client 选择、被动当前 Presentation 读取、Client 视图不变检查、一次编辑器控制提交及保留状态读取。`--timeout` 默认 30000 毫秒，接受 1–3600000 毫秒。不接受 stdin、可执行文件、cwd、环境、尺寸或 controller 参数。CLI 不附着、控制或缩放来源终端，TUI 拥有独立只读捕获连接；不向来源发送按键或确认焦点已读。
+一次调用期限覆盖快照、准确目标／Client 选择、被动当前 Presentation 读取、Client 视图不变检查、一次编辑器控制提交及保留状态读取。`--timeout` 默认 30000 毫秒，接受 1–3600000 毫秒。不接受 stdin、可执行文件、cwd、环境、尺寸或 controller 参数。CLI 不附着、控制或缩放来源终端，TUI 在共享 carrier 上拥有独立逻辑只读捕获 lane；不向来源发送按键或确认焦点已读。
 
 Worker 从继承环境依次选择非空 VISUAL、EDITOR，否则使用 Windows 系统目录 notepad.exe。修改 CLI 进程环境不会改变已运行 Worker 的偏好。参数保持字面值，Host 追加独占临时文档路径。捕获使用当前主／备用屏幕，解开软换行，超过 32 MiB 时整项拒绝。配置的编辑器可以是 popup 中的控制台编辑器，也可以是拥有独立窗口的 GUI 编辑器。
 

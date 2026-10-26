@@ -568,6 +568,8 @@ TUI 将已准入的 OBLC v1 连接升级为一条 OBWP v1 carrier。请求和订
 不是另一个已认证 Client。终端 viewer 与 popup owner 共用 `(connection generation, lane ID)`；
 关闭 lane 只释放其 attachment／popup。最后一个 lane owner 释放与显式取消使用同一清理路径。
 已执行的完成可能先于取消返回，但排队的 lane 关闭随后回收准确 owner，不能回收兄弟 lane。
+首次成功 ClientView Synchronize 绑定发布 lane。只有该 lane 可以同步，关闭时退休视图并结算
+待完成控制回执。Synchronize 不能作为可重建订阅；稳定失效提示唤醒 domain 拥有的一次性交换。
 
 每条 carrier 有一个标准库 reader 和一个 writer／dispatcher。reader 最多接纳 64 条排队记录；
 dispatcher 执行有限请求，并在 mailbox 和业务锁外写入。最多 64 条活跃 stream 和 64 个显式
@@ -582,7 +584,8 @@ reservation 计数不是精确进程堆上限。Client 命令队列和输出队�
 最多保留 32 条待消费记录。语义 journal 订阅分别保留 Subscribe 定义与 Read continuation，
 立即续读 `more` 页，并使用既有 journal epoch／cursor。活跃 stream 独占该语义 cursor；
 竞争 stream 或一次性 Read／Close 不能消费它。物理 Host 探测共用每连接唯一 capture permit，
-并保留到取消及 join 完成；增加订阅不会增加并发 Host reader job。journal 丢失或 Client inbox 溢出
+并保留到取消及 join 完成；增加订阅不会增加并发 Host reader job。每个订阅读取失败出口
+（包括 capture 采样前的来源解析）均在返回前取消及 join 保留任务，使兄弟订阅可以取得 permit。journal 丢失或 Client inbox 溢出
 都会先发送 Gap，再捕获新快照；不把丢失事件冒充为完整历史。连续超限之间间隔小于 30 秒时，
 第三次消费者 resnapshot 以 SlowConsumer 终止该连接。每条输出记录写入上限为两秒。
 无响应 socket 会关闭；仅在 socket 还能接收完整 frame 时才能交付类型化 disconnect。
@@ -591,7 +594,7 @@ reservation 计数不是精确进程堆上限。Client 命令队列和输出队�
 
 Client actor 同时 poll carrier 与本地命令唤醒 stream，拥有物理重连、取消、ID 和订阅重建。
 交接前取消的请求为未提交；一旦写入可能开始，传输丢失即为 OutcomeUnknown，绝不重放请求。
-重连丢弃旧 decoder／队列，只重建订阅；stream 取消会隔离排队和在途交付。
+回执按实际开始写入时的代次关联，包含首次离线排队的请求。重连丢弃旧 decoder／队列，只重建订阅；stream 取消会隔离排队和在途交付。
 类型化超限断连为终态，不能通过重连规避上限。逻辑终端 attachment 不通过重放 Attach 重建。
 一次性 CLI 连接继续使用直接协议路径。
 
@@ -606,7 +609,9 @@ Client actor 同时 poll carrier 与本地命令唤醒 stream，拥有物理重�
 `local_client_service/multiplex/tests.rs` 的受控实现轨迹检查捕获期间提交、不读取的 peer 与
 仍进展的 peer 并存、事件 cursor 排他，以及迟到 lane 清理保留兄弟 owner。Client 传输轨迹检查取消后的迟到
 回复、真实事件溢出／gap／快照交付和总 reservation 拒绝；配置恢复检查不重放结果未知的
-reload。协议 codec 测试拒绝不可信长度、版本、身份和 tag。修改这些声明时运行
+reload。控制轨迹让 UI 样本变化与投递竞态，消费准确 completion 后接纳下一命令。
+来源丢失轨迹让已完成 capture 经真实订阅读取失败出口回收，再验证兄弟任务可以启动；
+它使用受控 job，不是 OS Host 集成见证。视图生命周期轨迹区分兄弟与发布者清理。协议 codec 测试拒绝不可信长度、版本、身份和 tag。修改这些声明时运行
 `node scripts/tla/run-models.mjs --models client-subscription-delivery --jobs 1`、两个
 `client-subscription-delivery` 变异用例及受影响的 Rust host gate。
 

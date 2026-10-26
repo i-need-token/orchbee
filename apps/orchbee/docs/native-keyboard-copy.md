@@ -17,8 +17,8 @@ only projects whether that owner is active. `TerminalViewport` retains its exist
 ownership; the Terminal Host remains the authority for selection endpoints and exported text.
 The existing effect queue and clipboard writer own system submission. Nothing is checkpointed.
 
-`terminal_content` owns exact content provenance and bounded reads on an independent read-only
-connection. Both link activation and `terminal_copy_query` consume it; URL/plugin/browser routing
+`terminal_content` owns exact content provenance and bounded reads in an independent logical
+read-only lane on the shared Client carrier. Both link activation and `terminal_copy_query` consume it; URL/plugin/browser routing
 remains link-owned. Copy queries have no terminal input, controller or mutation capability.
 No new dependency or public protocol is introduced.
 
@@ -198,9 +198,9 @@ truncation. Query reads keep one exact revision; continuously changing content c
 query, which remains a visible failure rather than a mixed-revision snapshot.
 
 The query lane admits one job, owns its wake stream and thread, stops admission, wakes waits,
-joins and closes its independent connection. A temporary viewer preallocates Detach identity,
+joins and releases its logical lane and exact attachments. A temporary viewer preallocates Detach identity,
 attempts disposal once, and requires known disposal plus a final canonical member fence before
-publishing success. Unknown disposal drops the independent connection and cannot yield success.
+publishing success. Unknown disposal cancels that logical owner and cannot yield success; sibling lanes keep their attachments.
 The existing clipboard writer retains its own shutdown contract; there is no claim that an
 arbitrary Win32 call finishes within a deadline.
 

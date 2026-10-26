@@ -2,7 +2,7 @@
 
 ## 目标与归属
 
-原生 TUI 消费已有 Session 拥有的 Panel/Presentation 图层。图形查询使用现有可取消读取通道的独立实例，不借用 UI 的终端/控制连接、不发送 PTY 输入、不改变焦点。主 UI 拥有可见目标选择、缓存发布、裁剪和成功绘制回执。现有 Client 控制发布者在已认证连接上拥有能力/绘制观察。
+原生 TUI 消费已有 Session 拥有的 Panel/Presentation 图层。图形查询使用共享 Client carrier 上现有可取消逻辑读取通道的独立实例，不发送 PTY 输入、不改变焦点。主 UI 拥有可见目标选择、缓存发布、裁剪和成功绘制回执。现有 Client 控制发布者在已认证连接上拥有能力/绘制观察。
 
 只有成功 shell 绘制中包含的表面进入读取范围。准确记录所选主/子项身份及可空终端绑定；删除、重新绑定、隐藏或切换后立即退出范围。Session 身份对重连和冷恢复提供栅栏。稳定标签和保持身份的移动不使像素资源失效。读取前、完整资源读取后和 UI 发布时均核对来源归属。每次有界批次最多查询 64 个表面，在已有 4096-Panel 上下文界限内轮转。
 
@@ -46,4 +46,4 @@ Windows shell 的固定后端拥有一个 UI 线程图像界面，并与终端�
 
 回退路径不声称已协商 Kitty/Sixel 或像素鼠标。托管私有生产者文件租约和完整文件帧 CLI 输入已由 [Session 图形所有者](../../orchbee-server/docs/windows-graphics.zh-CN.md) 实现。物理 Kitty 路径已集成有界探测、上传、放置和恢复；不宣告像素鼠标能力。定向证据覆盖真实原生渲染输出、alpha/z/裁剪、完整块/资源栅栏及 Client 归属。判定对齐或合入 main 前仍需真实 Windows 图形组合流程和最终全量回归。不运行 TLA、WSL、新增 macOS/Linux 运行时或手动抢焦点 Desktop 测试。
 
-<!-- documentation-pairing: english-sha256=cf1dd7ca36a924b644d56240e1e7357eae78f16d7cc057098954623aec935afe zh-cn-sha256=ce003feedc329b02e18f45b0fbd0940872f9b0a065d7888195615fa6b24bd9a4 -->
+<!-- documentation-pairing: english-sha256=ecf199513dbf21cf0e265c7fae04f03ca5152d5dc8fa2c7bf75707b288a38c6d zh-cn-sha256=2da85bf6a35db0432a20976d9c4fa7b76407057fe4ecec14ef9e5cd460b35eef -->

@@ -14,7 +14,7 @@
 `TerminalViewport` 保持历史所有权；Terminal Host 仍是选区端点与导出文本权威。
 现有效果队列和剪贴板 writer 拥有系统提交。这些内容均不存入 checkpoint。
 
-`terminal_content` 拥有独立只读连接上的准确内容来源与有界读取。链接接管和
+`terminal_content` 在共享 Client carrier 的独立逻辑只读 lane 内拥有准确内容来源与有界读取。链接接管和
 `terminal_copy_query` 都消费它；URL／插件／浏览器路由仍由链接 owner 管理。
 复制查询没有终端输入、控制者或变更能力。不新增依赖或公开协议。
 
@@ -162,9 +162,9 @@ Buffer point 保留现有 `u32` 行表示。total 超过 `u32::MAX + 1`、route�
 identity 耗尽或预算超限都明确拒绝，不截断。query 保持一个准确 revision；
 持续变化的内容可能使查询失败，明确提示，不拼接混合 revision 快照。
 
-query lane 只接纳一个 job，拥有 wake stream 与线程；停止接纳、唤醒等待、join 并关闭独立连接。
+query lane 只接纳一个 job，拥有 wake stream 与线程；停止接纳、唤醒等待、join 并释放逻辑 lane 及准确 attachment。
 临时 viewer 预分配 Detach identity，只尝试释放一次；只有确定释放与最终 canonical member fence
-后才能发布成功。未知释放会丢弃独立连接，不能产生成功。
+后才能发布成功。未知释放取消该逻辑 owner，不能产生成功；兄弟 lane 保留各自 attachment。
 现有剪贴板 writer 保留自身 shutdown 契约，不声称任意 Win32 调用都在截止时间内完成。
 
 标签、上下文或创建流程替换投影时，取消旧 episode 并 join 其 query lane，同时保留

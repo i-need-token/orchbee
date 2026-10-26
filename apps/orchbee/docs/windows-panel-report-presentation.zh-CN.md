@@ -4,7 +4,7 @@
 
 原生 Windows TUI 读取当前 Tab 各 Panel 已选 Presentation 的终端 Agent 上报和 Panel 元数据。这些观察补充面板展示，不创建规范 Agent 会话、不改变 Agent 面板、不确认关注状态，也不授权终端输入。Server 的上报和元数据负责人仍是权威。子 presentation 不继承主 presentation 的上报。
 
-UI 拥有一条独立 Client 连接的读取通路，复用既有 Agent 读取通路的取消和汇合设施。绘制和键盘处理不执行网络 I/O，上报读取失败不能使终端输入连接退役。每轮绝对期限五秒，冷却一秒；已附着机器的 Agent 变化提示会立即启动下一轮，若已有一轮在途则在其完成后立即启动。最多一轮在途。范围受 Workbench 上下文节点上限约束，编码行总量上限 8 MiB。
+UI 拥有共享 Client carrier 上的一条逻辑读取通路，复用既有 Agent 读取通路的取消和汇合设施。绘制和键盘处理不执行网络 I/O，上报读取失败不能使终端输入连接退役。每轮绝对期限五秒。提交失效提示触发规范上报读取；剩余一秒采样用于没有事件源的 Host 标题／进程诊断。已附着机器的变化提示会立即启动下一轮，若已有一轮在途则在其完成后立即启动。最多一轮在途。范围受 Workbench 上下文节点上限约束，编码行总量上限 8 MiB。
 
 ## 一致观察模型
 
@@ -35,4 +35,4 @@ UI 拥有一条独立 Client 连接的读取通路，复用既有 Agent 读取�
 
 选中子项立即使先前主项观察失效。新精确范围加载期间，叶标题保留该成员自身标签与序号；无边框 Panel 的标签栏选择器保留成员计数。仅完整关联轮次可提供该成员的上报、受守卫约束的标题及 tokens；读取期间切换不能发布旧成员的结果。子项报告写入仍属独立集成；选择器箭头使用既有精确成员选择所有者。
 
-<!-- documentation-pairing: english-sha256=a7d58f303ed30979952f8d63b17d55b0e20ae1f76a43fa5b4fff5860db3c16e5 zh-cn-sha256=bbeb31bfbf4d0ca66bb6c741c4ee3407c8c44d7ba8c1ebfdd4abe9ad8efc6707 -->
+<!-- documentation-pairing: english-sha256=f17c6cea930b1b91b8a11537aec98b2ce269e8e501cdc6307bcd976fb15d85df zh-cn-sha256=3044d2f07a7d3d170645dec4ea26506fefc1e58b5d8c55424b0ec3f148ae7f4a -->

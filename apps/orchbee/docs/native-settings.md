@@ -170,8 +170,9 @@ remain for the next successful frame. A missing receipt caused by another owner
 covering the surface revokes exact draw authority but is not a geometry refusal;
 that covering owner alone holds top capture while Settings remains retained.
 Pending feedback begins after 200 ms. The ordered settings
-lane has a two-second exchange deadline, serializes foreground requests with its
-one-second observation poll, and interrupts/joins its owned connection on close.
+lane has a two-second exchange deadline and a state subscription on the shared carrier.
+A save remains a one-shot request; after settlement, a fresh subscription fences out an older
+queued source token. Closing cancels its requests and subscription without a forwarding thread.
 A replacement Session/editor episode cannot inherit an old completion.
 
 ## Domain and ownership

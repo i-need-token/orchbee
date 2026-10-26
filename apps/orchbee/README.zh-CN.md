@@ -547,13 +547,13 @@ interleaving、post-read viewport/resize failure 与 lifecycle fault injection�
 的 timer 交付。[Server 交付契约](../orchbee-server/README.zh-CN.md#client-多路复用交付)
 负责 frame、上限、gap 恢复和有限模型的准确声明与排除范围。
 
-| 消费者                                                                             | 共享 carrier 行为                                                                                                            |
-| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| 窗口标题、配置、Settings                                                           | UI 拥有状态订阅；配置 reload 和偏好写入是异步一次性请求，没有转发线程。                                                      |
-| 通知                                                                               | UI 拥有有界事件订阅；取消只结束该 listener。                                                                                 |
-| Client control                                                                     | 事件订阅加显式 completion、配置命令和布局请求。domain worker 协调快照／控制顺序，不拥有 socket、准入重试或 heartbeat timer。 |
-| Workbench 成员、Worktree 操作、Agent registry／保留的物理 report、graphics catalog | 提交失效提示调度既有有界读取。空／无 attachment 视图不再周期读取成员。                                                       |
-| Worktree 发现、popup、Plugin、copy、link 和 Agent read job                         | 既有有界 domain job 使用同一 carrier 的逻辑作用域。取消只释放其自身终端资源。                                                |
+| 消费者                                                                             | 共享 carrier 行为                                                                                                                                   |
+| ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 窗口标题、配置、Settings                                                           | UI 拥有状态订阅；配置 reload 和偏好写入是异步一次性请求，没有转发线程。                                                                             |
+| 通知                                                                               | UI 拥有有界事件订阅；取消只结束该 listener。                                                                                                        |
+| Client control                                                                     | 稳定提交失效提示加一次性 Synchronize／completion、配置命令和布局请求。domain worker 协调快照／控制顺序，不拥有 socket、准入重试或 heartbeat timer。 |
+| Workbench 成员、Worktree 操作、Agent registry／保留的物理 report、graphics catalog | 提交失效提示调度既有有界读取。空／无 attachment 视图不再周期读取成员。                                                                              |
+| Worktree 发现、popup、Plugin、copy、link 和 Agent read job                         | 既有有界 domain job 使用同一 carrier 的逻辑作用域。取消只释放其自身终端资源。                                                                       |
 
 Host 终端输出、标题／进程诊断、Plugin／Popup 进程退出、close disposal 和外部 Git／文件系统
 状态没有事件源时仍需既有有界采样，原因在采样位置说明。启动偏好锁竞争和拥有明确生命周期的

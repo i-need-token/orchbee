@@ -657,8 +657,7 @@ projection, local active Tab ID, attachment generation, navigator state, geometr
 terminal projection, and transient statuses. Local selection never writes or advances a Workbench
 revision.
 
-Pin/group mutation and child Presentation creation, persistence, push/delta subscriptions, remote transport, reconnect, hidden carriers,
-carrier multiplexing, and multi-viewer composition inside one Client remain excluded.
+Transport delivery uses the shared multiplexed Client carrier and subscription reconstruction described in the [application owner](../README.md). This projection boundary does not itself own pin/group mutation, child Presentation creation, persistence, remote transport, terminal attachment reconstruction, hidden carriers or multi-viewer composition.
 
 ## Pure strict projection
 
