@@ -15,7 +15,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-const INTERVAL: Duration = Duration::from_millis(100);
+const RETRY_DELAY: Duration = Duration::from_millis(100);
 const DEADLINE: Duration = Duration::from_secs(5);
 pub(super) const BATCH: usize = 64;
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -439,7 +439,7 @@ impl Driver {
                 continue;
             }
             self.inflight = None;
-            self.next = now.checked_add(INTERVAL);
+            self.next = None;
             if let Ok(round) = result
                 && now < deadline
                 && self.scope.as_ref().is_some_and(|scope| {
@@ -475,18 +475,25 @@ impl Driver {
                             .any(|(id, row)| self.rows.get(id).is_none_or(|old| !old.same(row)));
                     self.rows = candidate;
                 }
+            } else {
+                // A failed final batch still owes its snapshot; wait for the error backoff,
+                // then retry the visible scope without requiring another semantic commit.
+                self.pending_sources = usize::MAX;
+                self.next = now.checked_add(RETRY_DELAY);
             }
         }
         if self.lane.as_ref().is_some_and(AgentReadLane::finished) {
             self.lane.take();
             self.stopping = false;
             if self.inflight.take().is_some() {
-                self.next = now.checked_add(INTERVAL);
+                self.pending_sources = usize::MAX;
+                self.next = now.checked_add(RETRY_DELAY);
             }
         }
         if self.inflight.is_some_and(|(_, deadline)| now >= deadline) {
             self.interrupt();
-            self.next = now.checked_add(INTERVAL);
+            self.pending_sources = usize::MAX;
+            self.next = now.checked_add(RETRY_DELAY);
         }
         if self.pending_sources == 0
             || self.stopping
@@ -531,7 +538,8 @@ impl Driver {
             match AgentReadLane::spawn(origin, self.clock.clone()) {
                 Ok(lane) => self.lane = Some(lane),
                 Err(_) => {
-                    self.next = now.checked_add(INTERVAL);
+                    self.pending_sources = usize::MAX;
+                    self.next = now.checked_add(RETRY_DELAY);
                     return changed;
                 }
             }
@@ -552,7 +560,8 @@ impl Driver {
             self.inflight = Some((epoch, deadline));
         } else {
             self.interrupt();
-            self.next = now.checked_add(INTERVAL);
+            self.pending_sources = usize::MAX;
+            self.next = now.checked_add(RETRY_DELAY);
         }
         changed
     }

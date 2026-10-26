@@ -200,3 +200,83 @@ fn sustained_event_overrun_disconnects_only_its_carrier_with_a_typed_reason() {
     ));
     let _closed = task.join().unwrap();
 }
+
+#[test]
+fn an_active_event_cursor_rejects_competing_streams_and_one_shot_reads() {
+    use orchbee_workbench_protocol::{
+        SemanticEventFilter, SemanticEventKind, SemanticEventMatch, SemanticEventScope,
+        SemanticEventsAction, SemanticEventsRequest, SessionId,
+    };
+    let definition = WorkbenchRequestId::parse("00000000000000000000000000000007").unwrap();
+    let encode = |id, mode, action| {
+        let mut request = Vec::new();
+        write_workbench_request(
+            &mut request,
+            &WorkbenchRequest::Events(SemanticEventsRequest {
+                protocol_version: ProtocolVersion,
+                request_id: WorkbenchRequestId::parse(&format!("{id:032x}")).unwrap(),
+                session_id: SessionId::parse("00000000000000000000000000000001").unwrap(),
+                action,
+            }),
+        )
+        .unwrap();
+        MultiplexMessage::StreamOpen {
+            stream_id: MultiplexStreamId::new(id).unwrap(),
+            lane_id: MultiplexLaneId::ROOT,
+            mode,
+            request,
+        }
+    };
+    let subscribe = SemanticEventsAction::Subscribe {
+        subscription_id: definition.clone(),
+        filters: vec![SemanticEventFilter::Event {
+            event: SemanticEventKind::WorkspaceCreated,
+            scope: SemanticEventScope::All {},
+            condition: SemanticEventMatch::Any {},
+        }],
+        after: None,
+    };
+    let first = encode(1, StreamMode::Events, subscribe.clone());
+    let (mut peer, server) = bounded_pair();
+    let executions = Arc::new(AtomicUsize::new(0));
+    let executed = Arc::clone(&executions);
+    let task = thread::spawn(move || {
+        run(
+            &server,
+            first,
+            Arc::default(),
+            |_, _| {
+                executed.fetch_add(1, Ordering::AcqRel);
+                Ok(vec![1])
+            },
+            |_| {},
+            |_| {},
+        )
+    });
+    assert!(matches!(
+        read_multiplex_message(&mut peer).unwrap(),
+        MultiplexMessage::StreamFrame {
+            kind: StreamFrameKind::Snapshot,
+            ..
+        }
+    ));
+    for (id, mode, action) in [
+        (2, StreamMode::Events, subscribe),
+        (
+            3,
+            StreamMode::Request,
+            SemanticEventsAction::Read {
+                subscription_id: definition,
+                limit: 1,
+            },
+        ),
+    ] {
+        write_multiplex_message(&mut peer, &encode(id, mode, action)).unwrap();
+        assert!(matches!(read_multiplex_message(&mut peer).unwrap(),
+            MultiplexMessage::StreamClose { stream_id, reason: StreamCloseReason::InvalidRequest }
+                if stream_id.value() == id));
+    }
+    assert_eq!(executions.load(Ordering::Acquire), 1);
+    peer.shutdown(std::net::Shutdown::Both).unwrap();
+    let _closed = task.join().unwrap();
+}

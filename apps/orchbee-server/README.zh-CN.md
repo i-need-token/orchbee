@@ -580,7 +580,9 @@ reservation 计数不是精确进程堆上限。Client 命令队列和输出队�
 前再次求值。状态 stream 先发快照，再发送变化后的完整值；Client 将待消费状态合并为一个值。
 失效提示 stream 先发语义快照，再发送合并后的八字节提交提示。事件 stream 在 Client 每条
 最多保留 32 条待消费记录。语义 journal 订阅分别保留 Subscribe 定义与 Read continuation，
-立即续读 `more` 页，并使用既有 journal epoch／cursor。journal 丢失或 Client inbox 溢出
+立即续读 `more` 页，并使用既有 journal epoch／cursor。活跃 stream 独占该语义 cursor；
+竞争 stream 或一次性 Read／Close 不能消费它。物理 Host 探测共用每连接唯一 capture permit，
+并保留到取消及 join 完成；增加订阅不会增加并发 Host reader job。journal 丢失或 Client inbox 溢出
 都会先发送 Gap，再捕获新快照；不把丢失事件冒充为完整历史。连续超限之间间隔小于 30 秒时，
 第三次消费者 resnapshot 以 SlowConsumer 终止该连接。每条输出记录写入上限为两秒。
 无响应 socket 会关闭；仅在 socket 还能接收完整 frame 时才能交付类型化 disconnect。
@@ -602,7 +604,7 @@ Client actor 同时 poll carrier 与本地命令唤醒 stream，拥有物理重�
 既有 relay／所有权模型没有覆盖这个连接／订阅新边界。
 
 `local_client_service/multiplex/tests.rs` 的受控实现轨迹检查捕获期间提交、不读取的 peer 与
-仍进展的 peer 并存，以及迟到 lane 清理保留兄弟 owner。Client 传输轨迹检查取消后的迟到
+仍进展的 peer 并存、事件 cursor 排他，以及迟到 lane 清理保留兄弟 owner。Client 传输轨迹检查取消后的迟到
 回复、真实事件溢出／gap／快照交付和总 reservation 拒绝；配置恢复检查不重放结果未知的
 reload。协议 codec 测试拒绝不可信长度、版本、身份和 tag。修改这些声明时运行
 `node scripts/tla/run-models.mjs --models client-subscription-delivery --jobs 1`、两个

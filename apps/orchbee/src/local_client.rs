@@ -516,23 +516,6 @@ impl LocalClient {
         Ok(result)
     }
 
-    fn exchange(
-        &mut self,
-        request: ClientMessage,
-        request_id: &RequestId,
-    ) -> Result<ServerMessage, SubmissionError> {
-        self.exchange_with_deadline(request, request_id, None)
-    }
-
-    fn exchange_with_deadline(
-        &mut self,
-        request: ClientMessage,
-        request_id: &RequestId,
-        caller_deadline: Option<Instant>,
-    ) -> Result<ServerMessage, SubmissionError> {
-        self.exchange_with_wake(request, request_id, caller_deadline, None)
-    }
-
     fn exchange_with_wake(
         &mut self,
         request: ClientMessage,

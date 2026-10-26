@@ -668,7 +668,10 @@ snapshot followed by changed full values; the Client coalesces pending state to 
 Invalidation streams send the initial semantic snapshot then coalesced eight-byte commit hints.
 Event streams retain at most 32 pending records per Client stream. Semantic journal subscriptions
 retain their Subscribe definition separately from the Read continuation, immediately drain pages
-whose `more` flag is set, and use the existing journal epoch/cursor. Journal loss or Client inbox
+whose `more` flag is set, and use the existing journal epoch/cursor. A live stream exclusively
+owns that semantic cursor; competing streams or one-shot Read/Close cannot consume it. Physical
+Host probes share one connection-wide capture permit, retained through cancellation and join;
+adding subscriptions does not add simultaneous Host reader jobs. Journal loss or Client inbox
 overflow sends Gap before a fresh snapshot; lost events are never presented as complete history.
 The third consumer resnapshot within a rolling 30-second sequence terminates that connection as
 SlowConsumer. Each output record has a two-second write bound. An unresponsive socket is closed;
@@ -696,7 +699,8 @@ corresponding invariant counterexample. Existing relay/ownership models do not c
 connection/subscription boundary.
 
 Controlled implementation traces in `local_client_service/multiplex/tests.rs` check a commit during
-capture, an undrained peer alongside a progressing peer, and late lane cleanup preserving a sibling.
+capture, an undrained peer alongside a progressing peer, exclusive event cursors, and late lane
+cleanup preserving a sibling.
 Client transport traces check cancelled late replies, actual event overflow/gap/snapshot delivery
 and aggregate reservation refusal; configuration recovery checks that an uncertain reload is not
 replayed. The protocol codec tests reject untrusted lengths, versions, identifiers and tags.

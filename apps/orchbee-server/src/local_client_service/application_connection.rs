@@ -49,6 +49,11 @@ impl ApplicationRequest {
             _ => false,
         }
     }
+    pub(super) fn shares_event_cursor(&self, other: &Self) -> bool {
+        matches!((self.workbench(), other.workbench()),
+            (Some(WorkbenchRequest::Events(left)), Some(WorkbenchRequest::Events(right)))
+                if left.action.subscription_id() == right.action.subscription_id())
+    }
     pub(super) fn decode(bytes: &[u8]) -> Result<Self, ApplicationConnectionError> {
         let prefix = bytes
             .get(..4)

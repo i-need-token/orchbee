@@ -1814,7 +1814,12 @@ impl LocalClient {
         request: TerminalCreateRequest,
     ) -> Result<TerminalCreateResult, SubmissionError> {
         let request_id = request.request_id().clone();
-        let result = self.exchange(ClientMessage::TerminalCreate(request), &request_id)?;
+        let result = self.exchange_with_wake(
+            ClientMessage::TerminalCreate(request),
+            &request_id,
+            None,
+            None,
+        )?;
         let ServerMessage::TerminalCreateResult(result) = result else {
             return self.retire_with_unknown(
                 request_id,
@@ -1842,7 +1847,12 @@ impl LocalClient {
         request: TerminalStartRequest,
     ) -> Result<TerminalStartResult, SubmissionError> {
         let request_id = request.request_id().clone();
-        let result = self.exchange(ClientMessage::TerminalStart(request), &request_id)?;
+        let result = self.exchange_with_wake(
+            ClientMessage::TerminalStart(request),
+            &request_id,
+            None,
+            None,
+        )?;
         let ServerMessage::TerminalStartResult(result) = result else {
             return self.retire_with_unknown(
                 request_id,

@@ -1,4 +1,4 @@
-//! One immutable subscription and one bounded observation actor belong to the authenticated connection.
+//! Bounded subscriptions share one physical observation slot on the authenticated connection.
 use super::WorkbenchClientConnection;
 use orchbee_server::{SessionEventJournal, SessionEventPage};
 use orchbee_workbench_protocol::{
@@ -99,7 +99,7 @@ impl WorkbenchClientConnection<'_> {
                     probes,
                     next_probe: 0,
                     probe_sequence: 0,
-                    capture: capture::Capture::default(),
+                    capture: capture::Capture::new(std::sync::Arc::clone(&self.event_capture)),
                     pending_failure: None,
                     changed,
                 };

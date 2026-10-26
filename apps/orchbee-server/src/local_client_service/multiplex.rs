@@ -291,6 +291,21 @@ fn dispatch(
                         )?;
                         continue;
                     }
+                    // A stream owns its event cursor until cancellation. Another stream or
+                    // one-shot Read/Close must not advance or destroy that cursor underneath it.
+                    if subscriptions
+                        .values()
+                        .any(|current: &Subscription| current.request.shares_event_cursor(&parsed))
+                    {
+                        write_multiplex_message(
+                            writer,
+                            &MultiplexMessage::StreamClose {
+                                stream_id,
+                                reason: StreamCloseReason::InvalidRequest,
+                            },
+                        )?;
+                        continue;
+                    }
                     // These listeners belong to the authenticated Client, not to independent
                     // foreground identities. Replacement retires the old evaluation first.
                     if mode != StreamMode::Request {

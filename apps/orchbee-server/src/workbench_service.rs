@@ -91,6 +91,8 @@ impl WorkbenchService {
             generation,
             #[cfg(windows)]
             events: std::sync::Mutex::new(std::collections::BTreeMap::new()),
+            #[cfg(windows)]
+            event_capture: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
     }
 
@@ -877,6 +879,8 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
 pub(crate) struct WorkbenchClientConnection<'a> {
     service: &'a WorkbenchService,
     generation: std::num::NonZeroU64,
+    #[cfg(windows)]
+    event_capture: Arc<std::sync::atomic::AtomicBool>,
     #[cfg(windows)]
     events: std::sync::Mutex<
         std::collections::BTreeMap<
