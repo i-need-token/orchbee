@@ -329,7 +329,11 @@ impl WorkbenchClient {
             origin.clone(),
             clock.clone(),
         ));
-        let mut native = ui::NativeUi::new(mailbox, clock);
+        let mut native = ui::NativeUi::with_capabilities(
+            mailbox,
+            clock,
+            crate::tui_capabilities::Capabilities::for_host(),
+        );
         // The Agent board's read lane reconnects on its own admitted
         // session so an OBAP ambiguity retires the lane, never the
         // primary carrier.

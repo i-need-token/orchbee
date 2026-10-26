@@ -109,6 +109,7 @@ struct ProjectContext {
 }
 
 fn action_availability(
+    capabilities: crate::tui_capabilities::Capabilities,
     state: Option<&WorkbenchClientState>,
     target: &Target,
     action: MenuAction,
@@ -120,7 +121,7 @@ fn action_availability(
         .client_action()
         .as_ref()
         .and_then(crate::tui_capabilities::Capability::for_action)
-        .is_some_and(|capability| !capability.available())
+        .is_some_and(|capability| !capabilities.supports(capability))
     {
         return ActionAvailability::Hidden;
     }
@@ -324,6 +325,7 @@ pub(super) enum NavigationKey {
 }
 
 struct Intent {
+    capabilities: crate::tui_capabilities::Capabilities,
     entry: MenuTarget,
     target: Target,
     origin: Origin,
@@ -342,6 +344,7 @@ impl Intent {
         action: MenuAction,
     ) -> ActionAvailability<MenuUnavailable> {
         let availability = action_availability(
+            self.capabilities,
             state,
             &self.target,
             action.clone(),
@@ -859,6 +862,7 @@ impl NativeUi {
         }
         actions.retain(|action| {
             !action_availability(
+                self.capabilities,
                 state,
                 &target,
                 action.clone(),
@@ -885,6 +889,7 @@ impl NativeUi {
             )
             .filter(|action| {
                 !action_availability(
+                    self.capabilities,
                     state,
                     &target,
                     action.clone(),
@@ -913,6 +918,7 @@ impl NativeUi {
             Vec::new()
         };
         let intent = Intent {
+            capabilities: self.capabilities,
             entry,
             target,
             origin: Origin::capture(state),
@@ -1514,6 +1520,7 @@ impl NativeUi {
             || !self.menu_target_selected(&intent.target, action.clone())
             || sidebar::unavailable(&intent.entry, self.menus.sidebar.as_ref(), &action).is_some()
             || !action_availability(
+                self.capabilities,
                 self.state.as_ref(),
                 &intent.target,
                 action.clone(),

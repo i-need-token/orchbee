@@ -84,12 +84,6 @@ impl Bindings {
             .iter()
             .filter(|entry| entry.enabled)
             .filter_map(|entry| {
-                if let super::PrefixAction::Client(action) = &entry.member.action
-                    && crate::tui_capabilities::Capability::for_action(action)
-                        .is_some_and(|capability| !capability.available())
-                {
-                    return None;
-                }
                 let metadata = binding_metadata(&entry.member.action)?;
                 Some(DiscoveryEntry {
                     action: entry.member.action.clone(),

@@ -350,6 +350,7 @@ pub(crate) enum SidebarSurface {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ClientView {
+    pub(crate) capabilities: crate::tui_capabilities::Capabilities,
     pub(crate) onboarding: crate::onboarding::State,
     pub(crate) user_preferences: Option<orchbee_workbench_protocol::UserPreferencesValues>,
     pub(crate) machines: crate::machine_picker::Picker,
@@ -391,7 +392,14 @@ pub(crate) struct ClientView {
 
 impl ClientView {
     pub(crate) fn new(width: u16) -> Self {
+        Self::with_capabilities(width, crate::tui_capabilities::Capabilities::all())
+    }
+    pub(crate) fn with_capabilities(
+        width: u16,
+        capabilities: crate::tui_capabilities::Capabilities,
+    ) -> Self {
         Self {
+            capabilities,
             user_preferences: None,
             machines: crate::machine_picker::Picker::default(),
             bindings: std::sync::Arc::new(Bindings::default()),
@@ -705,6 +713,14 @@ impl ClientView {
 
     pub(crate) fn copy_help_rows(&self) -> Vec<(String, PrefixDesc)> {
         copy::help_rows()
+            .into_iter()
+            .filter(|(_, description)| {
+                *description != PrefixDesc::CopySubmit
+                    || self
+                        .capabilities
+                        .supports(crate::tui_capabilities::Capability::Clipboard)
+            })
+            .collect()
     }
 
     pub(crate) fn copy_help_key(&mut self, key: KeyEvent) -> bool {

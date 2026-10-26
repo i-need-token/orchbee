@@ -1073,6 +1073,7 @@ fn ux_menu_configured_workspace_directory_refuses_before_navigation() {
     );
     assert_eq!(
         action_availability(
+            ui.capabilities,
             ui.state.as_ref(),
             &ui.menus.intent.as_ref().unwrap().target,
             MenuAction::WorkspaceDirectory,

@@ -78,6 +78,12 @@ impl Locale {
     ) -> Vec<ShortcutHelpEntry> {
         let mut entries: Vec<ShortcutHelpEntry> = Vec::new();
         for binding in view.bindings().discovery_entries(glyphs) {
+            if let PrefixAction::Client(action) = &binding.action
+                && crate::tui_capabilities::Capability::for_action(action)
+                    .is_some_and(|capability| !view.capabilities.supports(capability))
+            {
+                continue;
+            }
             if matches!(
                 binding.action,
                 PrefixAction::HelpPagePrevious | PrefixAction::HelpPageNext

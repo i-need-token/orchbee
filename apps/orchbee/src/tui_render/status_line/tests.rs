@@ -153,11 +153,7 @@ fn prefix_mode_status_hints_drop_only_the_lowest_priority_whole_items_by_width()
     expected.push("F2 actions");
     expected.extend(["c create Tab", r"\ / - split", "g Agent board", "q detach"]);
 
-    let width_cases: &[(u16, usize)] = if cfg!(windows) {
-        &[(160, 7), (100, 6), (80, 5), (60, 3)]
-    } else {
-        &[(160, 6), (100, 6), (80, 5), (60, 3)]
-    };
+    let width_cases: &[(u16, usize)] = &[(160, 7), (100, 6), (80, 5), (60, 3)];
 
     for &(width, visible_count) in width_cases {
         let mut view = ClientView::new(width);

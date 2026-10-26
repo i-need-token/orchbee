@@ -1200,6 +1200,7 @@ enum ActionBuildError {
 }
 
 pub(super) struct NativeUi {
+    capabilities: crate::tui_capabilities::Capabilities,
     notice_timer: crate::transient_notice::NoticeTimer<ClientNotice>,
     setup_notice_timer: crate::transient_notice::NoticeTimer<NativeSetupStatus>,
     focus_new_panel: bool,
@@ -1311,16 +1312,25 @@ impl NativeUi {
         self.focus_new_panel = focus_new_panel;
     }
 
+    #[cfg(test)]
     pub(super) fn new(mailbox: Arc<CommandMailbox>, clock: LocalOperationClock) -> Self {
+        Self::with_capabilities(mailbox, clock, crate::tui_capabilities::Capabilities::all())
+    }
+    pub(super) fn with_capabilities(
+        mailbox: Arc<CommandMailbox>,
+        clock: LocalOperationClock,
+        capabilities: crate::tui_capabilities::Capabilities,
+    ) -> Self {
         Self {
+            capabilities,
             mailbox: Some(mailbox),
             board: super::agent_board::AgentBoard::new(
                 clock.clone(),
-                crate::tui_capabilities::Capability::AgentLaunch.available(),
+                capabilities.supports(crate::tui_capabilities::Capability::AgentLaunch),
             ),
             worktrees: worktree_launch::Coordinator::default(),
             menus: action_menus::Coordinator::default(),
-            settings: settings::Coordinator::new(crate::tui_capabilities::login_shell_supported()),
+            settings: settings::Coordinator::new(capabilities.login_shell),
             notice_timer: Default::default(),
             setup_notice_timer: Default::default(),
             focus_new_panel: true,

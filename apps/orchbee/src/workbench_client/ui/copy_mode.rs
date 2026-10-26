@@ -554,6 +554,16 @@ impl NativeUi {
     }
 
     fn apply_copy_action(&mut self, key: CopyModeKey) {
+        if key == CopyModeKey::Copy
+            && !self
+                .capabilities
+                .supports(crate::tui_capabilities::Capability::Clipboard)
+        {
+            self.copy_notice(ClientNotice::Unsupported(
+                crate::tui_capabilities::Capability::Clipboard,
+            ));
+            return;
+        }
         let result = match key {
             CopyModeKey::Left => self.copy_direct_move(-1, 0),
             CopyModeKey::Right => self.copy_direct_move(1, 0),

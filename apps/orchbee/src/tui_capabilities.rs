@@ -63,3 +63,31 @@ impl From<Unsupported> for std::io::Error {
 pub(crate) const fn login_shell_supported() -> bool {
     cfg!(unix)
 }
+
+/// Immutable composition input. Pure UI traces can exercise any capability set on any host.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct Capabilities {
+    effects: u16,
+    pub(crate) login_shell: bool,
+}
+impl Capabilities {
+    pub(crate) const fn all() -> Self {
+        Self {
+            effects: (1 << 10) - 1,
+            login_shell: true,
+        }
+    }
+    pub(crate) const fn for_host() -> Self {
+        Self {
+            effects: if cfg!(windows) {
+                Self::all().effects
+            } else {
+                0
+            },
+            login_shell: login_shell_supported(),
+        }
+    }
+    pub(crate) const fn supports(self, capability: Capability) -> bool {
+        self.effects & (1 << capability as u8) != 0
+    }
+}

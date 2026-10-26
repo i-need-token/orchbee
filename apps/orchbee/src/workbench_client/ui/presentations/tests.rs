@@ -133,11 +133,7 @@ fn tab_strip_uses_the_tab_identity_without_an_additional_location_breadcrumb() {
                 assert!(strip.contains(label), "{strip}");
                 assert_eq!(
                     strip.matches(location).count(),
-                    if cfg!(windows) {
-                        usize::from(repeats_location)
-                    } else {
-                        1
-                    },
+                    usize::from(repeats_location),
                     "{strip}"
                 );
                 assert!(!strip.contains(locale.menu_title()), "{strip}");

@@ -305,7 +305,10 @@ fn run_prepared_surface(
     let measurements = measurement_recorder.measurements();
 
     let mut terminal_input = terminal_input;
-    let mut initial_view = ClientView::new(dimensions.columns);
+    let mut initial_view = ClientView::with_capabilities(
+        dimensions.columns,
+        crate::tui_capabilities::Capabilities::for_host(),
+    );
     if let Some(notice) = notice {
         initial_view.startup_notice(notice);
     }
