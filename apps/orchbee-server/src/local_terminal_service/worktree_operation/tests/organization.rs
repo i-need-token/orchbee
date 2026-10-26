@@ -280,12 +280,12 @@ fn delayed_worktree_result_cannot_resurrect_a_closed_or_closing_source() {
         {
             let mut coordinator = fixture.service.coordinator.lock().unwrap();
             let owner = coordinator.worktree_authority().unwrap();
-            let grant = WorkbenchGrant::manage_navigation(owner.site_id().clone())
+            let grant = WorkbenchGrant::manage_navigation(owner.session_id().clone())
                 .with_terminal_lifecycle();
             let close = WorkbenchCommand {
                 protocol_version: ProtocolVersion,
                 request_id: id(200),
-                site_id: owner.site_id().clone(),
+                session_id: owner.session_id().clone(),
                 expected_revision: owner.snapshot().revision,
                 action: WorkbenchAction::WorkspaceClose {
                     workspace_id: source.clone(),

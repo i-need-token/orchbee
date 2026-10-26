@@ -1,5 +1,5 @@
 use super::{LocalTerminalService, placement, viewer_connection::ViewerAttachment};
-use crate::site_coordinator::{SiteCoordinator, TargetLifecycle};
+use crate::session_coordinator::{SessionCoordinator, TargetLifecycle};
 use crate::terminal_coordinator::BindingViewerTarget;
 use crate::worker_obcn_carrier::{
     WorkerOperationRequest, WorkerOperationResult, WorkerRequestError, WorkerRequestHandle,
@@ -505,10 +505,10 @@ impl LocalTerminalService {
         Some(self.coordinator.lock().ok()?.target_lifecycle(target))
     }
 
-    /// The caller holds Site through this cleanup and the authority's cleanup marker.
+    /// The caller holds Session through this cleanup and the authority's cleanup marker.
     pub(super) fn complete_disposed_target_cleanup(
         &self,
-        coordinator: &SiteCoordinator,
+        coordinator: &SessionCoordinator,
         close_id: &orchbee_workbench_protocol::WorkbenchRequestId,
         runtime: orchbee_server::WorkbenchTabCloseRuntimeTarget,
     ) -> Result<(), TargetCleanupError> {

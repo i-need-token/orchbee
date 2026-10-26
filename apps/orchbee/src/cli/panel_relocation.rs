@@ -90,7 +90,7 @@ fn select_client(
     };
     let reply = control::exchange(
         client,
-        &snapshot.site_id,
+        &snapshot.session_id,
         ClientViewAction::List {},
         deadline,
         signals,
@@ -132,7 +132,7 @@ fn execute(
     let source = targeting::panel(&snapshot, &command.source)?;
     let selected = select_client(&mut client, &snapshot, command, deadline, signals)?;
     *output = Some(Receipt {
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         base_revision: snapshot.revision,
         source: source.clone(),
         client_id: selected.as_ref().map(|client| client.client_id.clone()),
@@ -335,8 +335,13 @@ fn execute(
         .map_err(|_| internal())?,
         panel_id: source.panel_id.clone(),
     };
-    snapshot =
-        query::refresh_snapshot(&mut client, &snapshot.site_id, revision, deadline, signals)?;
+    snapshot = query::refresh_snapshot(
+        &mut client,
+        &snapshot.session_id,
+        revision,
+        deadline,
+        signals,
+    )?;
     if !target.exists(&snapshot) {
         return Err(Failure::new(FailureKind::NotFound));
     }
@@ -543,7 +548,7 @@ fn focused_client(
 ) -> Result<ClientViewRecord, Failure> {
     let reply = control::exchange(
         client,
-        &snapshot.site_id,
+        &snapshot.session_id,
         ClientViewAction::Get {
             client_id: original.client_id.clone(),
         },

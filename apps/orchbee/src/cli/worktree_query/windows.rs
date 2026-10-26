@@ -68,7 +68,7 @@ fn observe(
     let request = WorkbenchWorktreeQuery {
         protocol_version: snapshot.protocol_version,
         request_id: query::request_id()?,
-        site_id: snapshot.site_id,
+        session_id: snapshot.session_id,
         source: prepared.source,
         trust_repository: command.trust_repository,
     };

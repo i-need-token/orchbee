@@ -1,7 +1,7 @@
 //! Optional grouping changes preserve the initiating terminal and its immutable resource identity.
 use super::super::{PaneKey, PaneRef};
 use super::{
-    NativeContextTabs, SetupOperation, WorkbenchAction, WorkbenchClientState, WorkbenchSetupCommit,
+    ClientContextTabs, SetupOperation, WorkbenchAction, WorkbenchClientState, WorkbenchSetupCommit,
 };
 use orchbee_workbench_protocol::{Project, WorkbenchWorkspaceId, Workspace};
 use std::time::Instant;
@@ -28,7 +28,7 @@ pub(in crate::workbench_client) enum OrganizationChoice {
 pub(crate) struct WorkspaceOrganizationRequest {
     pub(super) target: OrganizationTarget,
     pub(super) choice: OrganizationChoice,
-    source: NativeContextTabs,
+    source: ClientContextTabs,
     desired: Option<PaneKey>,
     focus: Option<PaneRef>,
     deadline: Instant,
@@ -236,7 +236,7 @@ impl WorkbenchClientState {
         let command = super::WorkbenchCommand {
             protocol_version: super::ProtocolVersion,
             request_id,
-            site_id: self.cache.site_id().clone(),
+            session_id: self.cache.session_id().clone(),
             expected_revision: self.cache.revision(),
             action,
         };
@@ -254,7 +254,7 @@ impl WorkbenchClientState {
         &mut self,
         operation: &SetupOperation,
         deadline: Instant,
-    ) -> Option<super::NativeSetupToken> {
+    ) -> Option<super::SetupToken> {
         let WorkbenchAction::ProjectDissolveIfIdle { project_id } = &operation.command.action
         else {
             return None;
@@ -269,16 +269,16 @@ impl WorkbenchClientState {
             .project(project_id)?;
         let request = WorkspaceOrganizationRequest::project(self, project, deadline)?
             .with_choice(OrganizationChoice::ReviewDelete)?;
-        self.open_setup_draft(super::NativeSetupIntent::Organize(Box::new(request)))
+        self.open_setup_draft(super::SetupIntent::Organize(Box::new(request)))
     }
 
     pub(in crate::workbench_client) fn arm_project_dissolve(
         &mut self,
-        token: super::NativeSetupToken,
+        token: super::SetupToken,
         deadlines: super::OperationDeadlines,
     ) -> bool {
         let Some(draft) = self.setup.draft.as_mut().filter(|draft| {
-            draft.token == token && draft.stage == super::NativeSetupStage::DissolveProject
+            draft.token == token && draft.stage == super::SetupStage::DissolveProject
         }) else {
             return false;
         };

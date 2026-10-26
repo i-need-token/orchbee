@@ -141,7 +141,7 @@ fn pending_creation_never_forwards_typing_to_the_hidden_source_terminal() {
 #[test]
 fn noncreation_setup_continuation_keeps_its_existing_capture() {
     use crate::workbench_client::{
-        WorkspaceOrganizationRequest, state::workspace_setup::NativeSetupIntent,
+        WorkspaceOrganizationRequest, state::workspace_setup::SetupIntent,
     };
 
     let (mut ui, mailbox, clock, snapshot) = ready(true);
@@ -153,7 +153,7 @@ fn noncreation_setup_continuation_keeps_its_existing_capture() {
     )
     .unwrap();
     let token = ui
-        .request_setup_draft(NativeSetupIntent::Organize(Box::new(request)))
+        .request_setup_draft(SetupIntent::Organize(Box::new(request)))
         .unwrap();
     assert!(
         ui.state
@@ -184,10 +184,7 @@ fn definite_refusal_removes_the_preview_and_unknown_or_failed_commits_keep_recov
             ui.tick();
             assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
             assert!(ui.view().workspace_creation_preview().is_none());
-            assert_eq!(
-                ui.view().setup_status(),
-                Some(NativeSetupStatus::NotApplied)
-            );
+            assert_eq!(ui.view().setup_status(), Some(SetupStatus::NotApplied));
         } else {
             let evidence = if failure == "unknown" {
                 super::super::super::super::state::workspace_setup::SetupWorkerEvidence::Unknown(

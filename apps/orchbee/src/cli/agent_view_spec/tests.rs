@@ -1,19 +1,19 @@
 use super::*;
 use orchbee_workbench_protocol::{
-    AgentViewSnapshot, ProtocolVersion, SiteId, WorkbenchRequestId, WorkbenchRevision,
+    AgentViewSnapshot, ProtocolVersion, SessionId, WorkbenchRequestId, WorkbenchRevision,
 };
 fn answer(outcome: AgentViewOutcome) -> Answer {
     let request = AgentViewRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&"1".repeat(32)).unwrap(),
-        site_id: SiteId::parse(&"2".repeat(32)).unwrap(),
+        session_id: SessionId::parse(&"2".repeat(32)).unwrap(),
         action: AgentViewAction::Clear { source: None },
     };
     Answer {
         observation: Observation::Server(AgentViewResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id.clone(),
-            site_id: request.site_id.clone(),
+            session_id: request.session_id.clone(),
             outcome,
         }),
         request,

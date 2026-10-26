@@ -43,7 +43,7 @@ fn listener_shutdown_cancels_blocked_handshake_or_poll_and_joins() {
         let mut listener = Subscription::spawn(
             client.origin(),
             client.operation_clock(),
-            SiteId::parse(&format!("{:032x}", 2)).unwrap(),
+            SessionId::parse(&format!("{:032x}", 2)).unwrap(),
         )
         .unwrap();
         drop(client);
@@ -98,7 +98,7 @@ fn live_window_title_pipe_hands_off_latest_snapshot_once() {
                 &WorkbenchResponse::WindowTitle(WindowTitleResult {
                     protocol_version: ProtocolVersion,
                     request_id: request.request_id,
-                    site_id: request.site_id,
+                    session_id: request.session_id,
                     outcome: WindowTitleOutcome::Listening {
                         snapshot: deliver.then(|| message.clone()),
                     },
@@ -120,7 +120,7 @@ fn live_window_title_pipe_hands_off_latest_snapshot_once() {
     let mut listener = Subscription::spawn(
         client.origin(),
         client.operation_clock(),
-        SiteId::parse(&format!("{:032x}", 2)).unwrap(),
+        SessionId::parse(&format!("{:032x}", 2)).unwrap(),
     )
     .unwrap();
     assert_eq!(listener.poll(true, Default::default()), None);

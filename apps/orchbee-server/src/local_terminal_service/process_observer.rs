@@ -1,7 +1,9 @@
-//! Windows Site-owned periodic process observations with one retained viewer cleanup responsibility.
+//! Windows Session-owned periodic process observations with one retained viewer cleanup responsibility.
 use super::{LocalTerminalService, viewer_connection::PendingCleanup};
 use crate::agent_screen::ScreenDetector;
-use crate::{site_coordinator::ProcessObservationTarget, worker_obcn_carrier::WorkerRequestHandle};
+use crate::{
+    session_coordinator::ProcessObservationTarget, worker_obcn_carrier::WorkerRequestHandle,
+};
 use std::{
     io,
     sync::{
@@ -40,7 +42,7 @@ pub(super) struct ProcessObserver {
 impl ProcessObserver {
     pub(super) fn apply_configuration(
         &self,
-        settings: &orchbee_local_site_runtime::WindowsUserSettings,
+        settings: &orchbee_local_runtime::UserSettings,
     ) -> bool {
         self.wake.manifests.apply_configuration(settings)
     }
@@ -55,8 +57,8 @@ impl ProcessObserver {
     fn start(
         &self,
         service: &Arc<LocalTerminalService>,
-        startup: orchbee_local_site_runtime::WindowsUserSettings,
-        current: orchbee_local_site_runtime::WindowsUserSettingsLoad,
+        startup: orchbee_local_runtime::UserSettings,
+        current: orchbee_local_runtime::UserSettingsLoad,
         background: bool,
     ) -> io::Result<()> {
         let mut handle = self
@@ -71,8 +73,8 @@ impl ProcessObserver {
         }
         let settings = &current.settings;
         let scope = match startup.path.as_deref() {
-            Some(path) => orchbee_local_site_runtime::UserPreferencesScope::for_configuration(path),
-            None => orchbee_local_site_runtime::UserPreferencesScope::from_environment(|name| {
+            Some(path) => orchbee_local_runtime::UserPreferencesScope::for_configuration(path),
+            None => orchbee_local_runtime::UserPreferencesScope::from_environment(|name| {
                 std::env::var_os(name)
             }),
         }
@@ -189,21 +191,20 @@ impl LocalTerminalService {
     }
     /// Starts the sole periodic sampler; a stopped or already running owner cannot restart.
     pub(crate) fn start_process_observer(self: &Arc<Self>) -> io::Result<()> {
-        let startup =
-            orchbee_local_site_runtime::read_windows_user_settings(|name| std::env::var_os(name))
-                .map_err(io::Error::other)?
-                .settings;
+        let startup = orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name))
+            .map_err(io::Error::other)?
+            .settings;
         self.start_process_observer_with_settings(startup, false)
     }
     pub(crate) fn start_process_observer_with_settings(
         self: &Arc<Self>,
-        startup: orchbee_local_site_runtime::WindowsUserSettings,
+        startup: orchbee_local_runtime::UserSettings,
         background: bool,
     ) -> io::Result<()> {
         // Restore policy was consumed from `startup`; the Server rereads one complete candidate
         // at that frozen location so revision zero, diagnostics and every live profile share one
         // authoritative generation for all Clients.
-        let current = orchbee_local_site_runtime::read_windows_user_settings_at(
+        let current = orchbee_local_runtime::read_user_settings_at(
             startup.path.as_deref(),
             startup.explicit,
             |name| std::env::var_os(name),
@@ -212,11 +213,11 @@ impl LocalTerminalService {
         self.process_observer
             .start(self, startup, current, background)
     }
-    /// Stops new sampling and joins admitted work; unresolved viewer cleanup transfers to Site shutdown.
+    /// Stops new sampling and joins admitted work; unresolved viewer cleanup transfers to Session shutdown.
     pub(crate) fn stop_process_observer_before(&self, deadline: Instant) -> io::Result<()> {
         self.process_observer.stop_before(deadline)
     }
-    /// Only the managed Site owner calls this after matching Worker/Host stop plus actual Worker exit.
+    /// Only the managed Session owner calls this after matching Worker/Host stop plus actual Worker exit.
     pub(crate) fn finish_process_observer_after_worker_exit(
         &self,
         worker: &WorkerRequestHandle,

@@ -1,10 +1,10 @@
 use super::{
-    AttachTarget, AttachmentKey, CarrierFailure, ClientPhase, CreateTerminalProvenance,
-    NativeContextTabs, OperationDeadlines, PaneKey, SelectedTab, SwitchSetup, WorkbenchClientState,
-    WorkbenchTabId, context_removal::ContextRemovalPermit,
+    AttachTarget, AttachmentKey, CarrierFailure, ClientContextTabs, ClientPhase,
+    CreateTerminalProvenance, OperationDeadlines, PaneKey, SelectedTab, SwitchSetup,
+    WorkbenchClientState, WorkbenchTabId, context_removal::ContextRemovalPermit,
 };
 mod close;
-use crate::workbench_client::NativePanel;
+use crate::workbench_client::ClientPanel;
 use orchbee_workbench_protocol::{WorkbenchPanelId, WorkbenchRequestId};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -61,9 +61,9 @@ pub(super) struct PendingMembership {
 /// Prepared outside the reply mutex; this owns all candidate allocations and its exact baseline.
 #[derive(Debug)]
 pub(in crate::workbench_client) struct PreparedMembershipCandidate {
-    baseline: NativeContextTabs,
+    baseline: ClientContextTabs,
     baseline_desired: Option<PaneKey>,
-    candidate: NativeContextTabs,
+    candidate: ClientContextTabs,
     provenance: Vec<CreateTerminalProvenance>,
     selected_index: Option<usize>,
     selected_panel: Option<usize>,
@@ -80,18 +80,18 @@ pub(in crate::workbench_client) struct PreparedMembershipCandidate {
 impl PreparedMembershipCandidate {
     pub(in crate::workbench_client) fn context_location(
         &self,
-    ) -> &crate::workbench_client::NativeContextLocation {
+    ) -> &crate::workbench_client::ClientContextLocation {
         self.candidate.location()
     }
     pub(in crate::workbench_client) fn menu_context_source(
         &self,
-    ) -> Option<crate::workbench_client::workbench_projection::NativeMenuContextSource> {
+    ) -> Option<crate::workbench_client::workbench_projection::MenuContextSource> {
         self.candidate
             .menu_context_source(self.candidate.location())
     }
     pub(in crate::workbench_client) fn menu_selected_tab_matches(
         &self,
-        tab: &super::NativeSimpleTab,
+        tab: &super::ClientTab,
     ) -> bool {
         self.selected_tab() == Some(tab)
     }
@@ -117,8 +117,8 @@ impl PreparedMembershipCandidate {
 
     pub(in crate::workbench_client) fn retarget_selected_member(
         &mut self,
-        location: &crate::workbench_client::NativeContextLocation,
-        member: &crate::workbench_client::NativeMemberTarget,
+        location: &crate::workbench_client::ClientContextLocation,
+        member: &crate::workbench_client::ClientMemberTarget,
     ) -> bool {
         if self.candidate.location() != location {
             return false;
@@ -145,8 +145,8 @@ impl PreparedMembershipCandidate {
     /// An explicit bound target may name a child; absence or rebinding never falls back to memory.
     pub(in crate::workbench_client) fn retarget_selected_bound_member(
         &mut self,
-        location: &crate::workbench_client::NativeContextLocation,
-        selection: &crate::workbench_client::workbench_projection::NativeMemberSelection,
+        location: &crate::workbench_client::ClientContextLocation,
+        selection: &crate::workbench_client::workbench_projection::ClientMemberSelection,
     ) -> bool {
         if self.candidate.location() != location {
             return false;
@@ -187,7 +187,7 @@ impl PreparedMembershipCandidate {
             .map(|index| self.candidate.tabs()[index].tab_id())
     }
 
-    pub(super) fn selected_tab(&self) -> Option<&super::NativeSimpleTab> {
+    pub(super) fn selected_tab(&self) -> Option<&super::ClientTab> {
         self.selected_index
             .map(|index| &self.candidate.tabs()[index])
     }
@@ -202,7 +202,7 @@ impl PreparedMembershipCandidate {
             .tabs()
             .get(index)?
             .panel(self.selected_panel.unwrap_or(0))
-            .map(NativePanel::panel_id)
+            .map(ClientPanel::panel_id)
     }
 }
 
@@ -589,7 +589,7 @@ impl WorkbenchClientState {
 
     pub(in crate::workbench_client) fn prepare_membership_candidate(
         &self,
-        candidate: NativeContextTabs,
+        candidate: ClientContextTabs,
         preferred_tab: Option<&WorkbenchTabId>,
         historical_ordinal: Option<usize>,
         creator: Option<(&WorkbenchTabId, CreateTerminalProvenance)>,
@@ -856,7 +856,7 @@ impl WorkbenchClientState {
                 let target = AttachTarget {
                     presentation_id: Box::new(member.presentation_id().clone()),
                     selected,
-                    site_id: prepared.candidate.site_id().clone(),
+                    session_id: prepared.candidate.session_id().clone(),
                     binding: Some(binding),
                     provenance,
                     deadlines: deadlines.ok_or(CarrierFailure::Deadline)?,

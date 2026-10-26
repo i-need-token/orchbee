@@ -1,14 +1,14 @@
 //! Exact borrowed/temporary primary Viewer sampling; caller policies own all directory fallback.
 use super::{
-    CarrierFailure, Instant, NativeExecutor, OperationDeadlines, PaneRef, Result,
+    CarrierFailure, ClientExecutor, Instant, OperationDeadlines, PaneRef, Result,
     TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, closed, submission,
 };
-use crate::workbench_client::workbench_projection::{NativeContextTabs, NativeTerminalBinding};
+use crate::workbench_client::workbench_projection::{ClientContextTabs, ClientTerminalBinding};
 
 pub(super) use crate::workbench_client::primary_directory::RootDirectory;
 use crate::workbench_client::primary_directory::decode_root;
 
-impl NativeExecutor {
+impl ClientExecutor {
     fn source_viewer(
         &mut self,
         action: TerminalViewerAction,
@@ -24,10 +24,10 @@ impl NativeExecutor {
 
     pub(super) fn read_source_root(
         &mut self,
-        baseline: &NativeContextTabs,
+        baseline: &ClientContextTabs,
         primary_pane: Option<&PaneRef>,
         deadlines: OperationDeadlines,
-        binding: &NativeTerminalBinding,
+        binding: &ClientTerminalBinding,
     ) -> Result<RootDirectory> {
         if let Some(pane) = primary_pane {
             // A Client Connection may attach to a Terminal only once. Borrow its exact live Viewer;
@@ -52,8 +52,10 @@ impl NativeExecutor {
                 .map_err(|_| CarrierFailure::Protocol);
         }
         let action = TerminalViewerAction::AttachBinding {
-            site_id: orchbee_client_server_protocol::SiteId::parse(baseline.site_id().as_str())
-                .map_err(|_| CarrierFailure::Protocol)?,
+            session_id: orchbee_client_server_protocol::SessionId::parse(
+                baseline.session_id().as_str(),
+            )
+            .map_err(|_| CarrierFailure::Protocol)?,
             worker_id: orchbee_client_server_protocol::WorkerId::parse(
                 binding.worker_id().as_str(),
             )

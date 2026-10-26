@@ -1,10 +1,10 @@
 use super::{
-    CarrierFailure, CommandLease, MutationResult, NativeExecutor, RefreshDecision, Result,
+    CarrierFailure, ClientExecutor, CommandLease, MutationResult, RefreshDecision, Result,
     SetupEntryExpiry, SetupOwner, SetupTarget, UiReply, closed, event,
 };
 use crate::workbench_client::state::CloseReconciliationMarker;
 
-impl NativeExecutor {
+impl ClientExecutor {
     pub(super) fn run_close_reconciliation(
         &mut self,
         lease: &CommandLease,

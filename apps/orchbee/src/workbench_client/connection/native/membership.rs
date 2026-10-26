@@ -1,11 +1,11 @@
 use super::{
-    CarrierFailure, CommandLease, EventDeadline, Instant, NativeExecutor, PaneKey, RefreshDecision,
+    CarrierFailure, ClientExecutor, CommandLease, EventDeadline, Instant, PaneKey, RefreshDecision,
     Result, SetupEntryExpiry, SetupOwner, SetupTarget, TerminalViewerAction, TerminalViewerOutcome,
     UiReply, WorkerEvent,
 };
 use crate::workbench_client::state::MembershipCleanup;
 
-impl NativeExecutor {
+impl ClientExecutor {
     pub(super) fn run_membership_cleanup(
         &mut self,
         lease: &CommandLease,

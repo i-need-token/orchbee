@@ -1,7 +1,8 @@
 //! Exact logical/physical sources, bounded match edges, and correlated read-only Client queries.
 use super::{WorkbenchClientConnection, capture::Capture};
 use crate::{
-    local_terminal_service::semantic_events::OutputRead, site_coordinator::ProcessObservationTarget,
+    local_terminal_service::semantic_events::OutputRead,
+    session_coordinator::ProcessObservationTarget,
 };
 use orchbee_workbench_protocol::{
     ClientViewAction, ClientViewAvailability, ClientViewControl, ClientViewControlStatus,
@@ -10,7 +11,7 @@ use orchbee_workbench_protocol::{
     SemanticEvent, SemanticEventData as Data, SemanticEventFilter as Filter,
     SemanticEventKind as Kind, SemanticEventPosition, SemanticEventSource,
     SemanticEventsFailure as Failure, SemanticOutputMatch, SemanticOutputSource, SemanticPane,
-    SiteId, TerminalPresentationId, WorkbenchClientId, WorkbenchRequestId, WorkbenchRevision,
+    SessionId, TerminalPresentationId, WorkbenchClientId, WorkbenchRequestId, WorkbenchRevision,
 };
 use regex::{Regex, RegexBuilder};
 use std::time::Instant;
@@ -24,10 +25,10 @@ struct Source {
 impl Source {
     fn prepare(
         session: &WorkbenchClientConnection<'_>,
-        site: &SiteId,
+        session: &SessionId,
         selector: &SemanticEventSource,
     ) -> Result<Self, Failure> {
-        let (pane, _, expected) = session.service.terminals.event_source(site, selector)?;
+        let (pane, _, expected) = session.service.terminals.event_source(session, selector)?;
         Ok(Self {
             selector: selector.clone(),
             presentation_id: pane.presentation_id,
@@ -37,12 +38,12 @@ impl Source {
     fn current(
         &self,
         session: &WorkbenchClientConnection<'_>,
-        site: &SiteId,
+        session: &SessionId,
     ) -> Result<(SemanticPane, WorkbenchRevision, ProcessObservationTarget), Failure> {
         let current = session
             .service
             .terminals
-            .event_source(site, &self.selector)?;
+            .event_source(session, &self.selector)?;
         if current.2 != self.expected || current.0.presentation_id != self.presentation_id {
             return Err(Failure::SourceChanged);
         }
@@ -103,7 +104,7 @@ pub(super) enum Probe {
 
 pub(super) fn prepare(
     session: &WorkbenchClientConnection<'_>,
-    site: &SiteId,
+    session: &SessionId,
     filters: &[Filter],
 ) -> Result<Vec<Probe>, Failure> {
     let mut probes = Vec::new();
@@ -119,9 +120,9 @@ pub(super) fn prepare(
             } => {
                 // Compile before admitting any connection-owned state or physical effect.
                 let matcher = Matcher::prepare(matcher)?;
-                let source_admission = Source::prepare(session, site, target)?;
+                let source_admission = Source::prepare(session, session, target)?;
                 if *source == SemanticOutputSource::Viewport {
-                    check_primary(session, site, &source_admission)?;
+                    check_primary(session, session, &source_admission)?;
                 }
                 probes.push(Probe::Output(Box::new(Output {
                     source: source_admission,
@@ -136,9 +137,9 @@ pub(super) fn prepare(
                 })));
             }
             Filter::AgentStatusChanged { target, state } => {
-                let source = Source::prepare(session, site, target)?;
-                let (pane, revision, _) = source.current(session, site)?;
-                let report = agent_report(session, site, &pane, &fresh_id()?)?;
+                let source = Source::prepare(session, session, target)?;
+                let (pane, revision, _) = source.current(session, session)?;
+                let report = agent_report(session, session, &pane, &fresh_id()?)?;
                 let initial = state
                     .is_some_and(|state| state == report.state)
                     .then(|| (pane, revision, report.clone()));
@@ -150,8 +151,8 @@ pub(super) fn prepare(
                 })));
             }
             Filter::ScrollChanged { target, client_id } => {
-                let source = Source::prepare(session, site, target)?;
-                check_primary(session, site, &source)?;
+                let source = Source::prepare(session, session, target)?;
+                check_primary(session, session, &source)?;
                 probes.push(Probe::Scroll(Box::new(Scroll {
                     source,
                     client: client_id.clone(),
@@ -166,11 +167,11 @@ pub(super) fn prepare(
 }
 fn check_primary(
     session: &WorkbenchClientConnection<'_>,
-    site: &SiteId,
+    session: &SessionId,
     source: &Source,
 ) -> Result<(), Failure> {
     let primary = session.service.terminals.event_source(
-        site,
+        session,
         &SemanticEventSource {
             panel_id: source.selector.panel_id.clone(),
             presentation_id: None,
@@ -255,7 +256,7 @@ impl Probe {
     pub(super) fn observe(
         &mut self,
         session: &WorkbenchClientConnection<'_>,
-        site: &SiteId,
+        session: &SessionId,
         subscription: &WorkbenchRequestId,
         sequence: u64,
         index: usize,
@@ -263,8 +264,8 @@ impl Probe {
     ) -> Result<Option<SemanticEvent>, Failure> {
         match self {
             Self::Agent(agent) => {
-                let (pane, revision, _) = agent.source.current(session, site)?;
-                let report = agent_report(session, site, &pane, subscription)?;
+                let (pane, revision, _) = agent.source.current(session, session)?;
+                let report = agent_report(session, session, &pane, subscription)?;
                 let changed = agent
                     .last
                     .as_ref()
@@ -290,7 +291,7 @@ impl Probe {
                 Ok(event)
             }
             Self::Scroll(scroll) => {
-                let (pane, revision, _) = scroll.source.current(session, site)?;
+                let (pane, revision, _) = scroll.source.current(session, session)?;
                 let Some(observation) =
                     viewport(session, &scroll.client, &pane, &mut scroll.query)?
                 else {
@@ -331,7 +332,7 @@ impl Probe {
                 if capture.busy_for_another(index) {
                     return Ok(None);
                 }
-                let (pane, revision, target) = output.source.current(session, site)?;
+                let (pane, revision, target) = output.source.current(session, session)?;
                 let selected_viewport = if output.kind == SemanticOutputSource::Viewport
                     && !capture.pending_for(index)
                 {
@@ -360,7 +361,7 @@ impl Probe {
                 else {
                     return Ok(None);
                 };
-                output.source.current(session, site)?;
+                output.source.current(session, session)?;
                 output.observed = true;
                 let matched = sample
                     .lines
@@ -391,14 +392,14 @@ impl Probe {
 }
 fn agent_report(
     session: &WorkbenchClientConnection<'_>,
-    site: &SiteId,
+    session: &SessionId,
     pane: &SemanticPane,
     request_id: &WorkbenchRequestId,
 ) -> Result<PanelAgentView, Failure> {
     let request = PanelAgentRequest {
         protocol_version: orchbee_workbench_protocol::ProtocolVersion,
         request_id: request_id.clone(),
-        site_id: site.clone(),
+        session_id: session.clone(),
         action: PanelAgentAction::ReadPresentations {
             presentation_ids: vec![pane.presentation_id.clone()],
         },
@@ -408,7 +409,7 @@ fn agent_report(
         .terminals
         .execute_panel_agent(request.clone());
     if result.request_id != request.request_id
-        || result.site_id != request.site_id
+        || result.session_id != request.session_id
         || result.validate().is_err()
     {
         return Err(Failure::Unavailable);

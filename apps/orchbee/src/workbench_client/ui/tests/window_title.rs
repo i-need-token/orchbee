@@ -28,9 +28,9 @@ fn window_title_context_uses_current_view_manual_name_and_exact_live_frame() {
     ui.projections.push(KeyedProjection::for_test(
         key,
         projection,
-        NativeProjectionStatus::FrameAvailable,
+        ClientProjectionStatus::FrameAvailable,
     ));
     assert_eq!(ui.view().window_title_context().terminal_title, "building");
-    ui.projections[0].status = NativeProjectionStatus::Blocked;
+    ui.projections[0].status = ClientProjectionStatus::Blocked;
     assert_eq!(ui.view().window_title_context().terminal_title, "");
 }

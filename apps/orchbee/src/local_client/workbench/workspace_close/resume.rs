@@ -61,10 +61,10 @@ fn validate_resume_result(
         return Err(WorkbenchWorkspaceCloseFailure::UnexpectedResponse);
     };
     validate_correlation(&request.request_id, &result.request_id)?;
-    if request.site_id != result.site_id {
-        return Err(WorkbenchWorkspaceCloseFailure::SiteMismatch {
-            expected: request.site_id.clone(),
-            received: result.site_id,
+    if request.session_id != result.session_id {
+        return Err(WorkbenchWorkspaceCloseFailure::SessionMismatch {
+            expected: request.session_id.clone(),
+            received: result.session_id,
         });
     }
     validate_scope(&request.workspace_id, &result.workspace_id)?;

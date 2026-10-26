@@ -14,7 +14,7 @@ fn reply(stream: &mut LocalStream, request: &WorkbenchClientViewRequest, outcome
         &WorkbenchResponse::ClientView(WorkbenchClientViewResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id.clone(),
-            site_id: request.site_id.clone(),
+            session_id: request.session_id.clone(),
             outcome: serde_json::from_value(outcome).unwrap(),
         }),
     )

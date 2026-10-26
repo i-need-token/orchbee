@@ -10,7 +10,7 @@ fn request(action: A) -> R {
     R {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(FIRST_REQUEST_ID).unwrap(),
-        site_id: SiteId::parse(&id(1)).unwrap(),
+        session_id: SessionId::parse(&id(1)).unwrap(),
         action,
     }
 }

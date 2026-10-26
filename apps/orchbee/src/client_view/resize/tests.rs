@@ -92,7 +92,7 @@ fn reloading_or_forced_focus_clears_mode_but_does_not_retract_submission() {
         enter(&mut view);
         view.resize_pending = true;
         if reload {
-            view.configure_keys(&orchbee_local_site_runtime::WindowsKeySettings::default());
+            view.configure_keys(&orchbee_local_runtime::KeySettings::default());
         } else {
             view.dismiss_focus_modes();
         }
@@ -199,7 +199,7 @@ fn help_scroll_requests_accept_configured_actions_until_a_draw_settles_them() {
     let body = (0..64)
         .map(|i| format!("[[keys.command]]\ncommand='echo {i}'\n"))
         .collect::<String>();
-    let keys = orchbee_local_site_runtime::WindowsKeySettings::from_profile(&body).unwrap();
+    let keys = orchbee_local_runtime::KeySettings::from_profile(&body).unwrap();
     let mut view = ClientView::new(120);
     view.configure_keys(&keys);
     apply(

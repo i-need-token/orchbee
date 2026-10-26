@@ -1,5 +1,5 @@
 //! Ephemeral notification delivery. Accepted delivery does not acknowledge physical presentation.
-use crate::{ContractError, ProtocolVersion, SiteId, WorkbenchRequestId};
+use crate::{ContractError, ProtocolVersion, SessionId, WorkbenchRequestId};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -100,7 +100,7 @@ pub struct NotificationRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub action: NotificationAction,
 }
 impl NotificationRequest {
@@ -126,7 +126,7 @@ pub enum NotificationFailure {
     Denied,
     Unavailable,
     #[serde(rename = "session-mismatch")]
-    SiteMismatch,
+    SessionMismatch,
     Conflict,
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -155,13 +155,13 @@ pub struct NotificationResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub outcome: NotificationOutcome,
 }
 impl NotificationResult {
     pub fn answers(&self, request: &NotificationRequest) -> bool {
         self.request_id == request.request_id
-            && self.site_id == request.site_id
+            && self.session_id == request.session_id
             && match &request.action {
                 NotificationAction::Show { .. } => matches!(
                     &self.outcome,

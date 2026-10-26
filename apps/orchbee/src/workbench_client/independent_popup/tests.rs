@@ -75,7 +75,7 @@ fn plugin_reply(
         &WorkbenchResponse::Plugin(PluginResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
-            site_id: request.site_id,
+            session_id: request.session_id,
             outcome,
         }),
     )
@@ -347,14 +347,14 @@ fn popup_lane_trace(editor: bool) -> TestResult {
     spec.height = Some(PluginPopupSize::Cells(geometry.rows() + 2));
     let operation = WorkbenchRequestId::parse(&id(10))?;
     let opened = if editor {
-        driver.begin_editor(SiteId::parse(&id(2))?, operation.clone(), editor::spec())
+        driver.begin_editor(SessionId::parse(&id(2))?, operation.clone(), editor::spec())
     } else {
-        driver.begin_open(SiteId::parse(&id(2))?, operation.clone(), spec.clone())
+        driver.begin_open(SessionId::parse(&id(2))?, operation.clone(), spec.clone())
     };
     opened.map_err(|r| io::Error::other(format!("{r:?}")))?;
     assert_eq!(
         driver.begin_open(
-            SiteId::parse(&id(2))?,
+            SessionId::parse(&id(2))?,
             WorkbenchRequestId::parse(&id(11))?,
             spec
         ),
@@ -477,7 +477,7 @@ fn popup_shutdown_interrupts_open_without_replay_and_known_refusal_allows_retry(
         driver.observe_surface(Rect::new(0, 0, 80, 24), (0, 0));
         driver
             .begin_open(
-                SiteId::parse(&id(2))?,
+                SessionId::parse(&id(2))?,
                 WorkbenchRequestId::parse(&id(10))?,
                 spec(),
             )

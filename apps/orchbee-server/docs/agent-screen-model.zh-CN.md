@@ -145,4 +145,4 @@ Client 激活传递不可变、已校验的设置快照（检查值及来源、�
 
 自动启用遵循缓存重载条件：provider 有新提交，或成功检查的当前缓存版本与已加载缓存版本不同，才需要启用。无变化的当前检查记录 NotAttempted，保留检测器修订和稳定状态。显式 Update 保持其请求启用的行为。
 
-<!-- documentation-pairing: english-sha256=eafc7e9bf410c8171e1a25768aa5526db8a0ba45b2865f1487f81d5ca8530270 zh-cn-sha256=d3171af4f98eb417e2ee32e267046857b618bf7fceda2a2c4c453d5904812a8a -->
+<!-- documentation-pairing: english-sha256=4ececa1fa0bf3b3a047d4236625543854e2b65390a78db2a43aeb140491acf83 zh-cn-sha256=d3171af4f98eb417e2ee32e267046857b618bf7fceda2a2c4c453d5904812a8a -->

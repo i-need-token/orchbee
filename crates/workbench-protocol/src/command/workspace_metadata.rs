@@ -1,6 +1,6 @@
 //! Transient Workspace reports have their own revision and never enter the topology ledger.
 use crate::{
-    ContractError, ProtocolVersion, SiteId, WorkbenchRequestId, WorkbenchRevision,
+    ContractError, ProtocolVersion, SessionId, WorkbenchRequestId, WorkbenchRevision,
     WorkbenchWorkspaceId,
 };
 use serde::{
@@ -165,7 +165,7 @@ pub struct WorkspaceMetadataRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub action: WorkspaceMetadataAction,
 }
 impl WorkspaceMetadataRequest {
@@ -204,7 +204,7 @@ pub enum MetadataReportDisposition {
 pub enum WorkspaceMetadataFailure {
     InvalidRequest,
     #[serde(rename = "session-mismatch")]
-    SiteMismatch,
+    SessionMismatch,
     NotFound,
     Denied,
     Unavailable,
@@ -244,7 +244,7 @@ pub struct WorkspaceMetadataResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub outcome: WorkspaceMetadataOutcome,
 }
 impl WorkspaceMetadataResult {
@@ -265,7 +265,7 @@ impl WorkspaceMetadataResult {
     pub fn answers(&self, request: &WorkspaceMetadataRequest) -> bool {
         self.protocol_version == request.protocol_version
             && self.request_id == request.request_id
-            && self.site_id == request.site_id
+            && self.session_id == request.session_id
             && {
                 let shared_failure =
                     matches!(&self.outcome, WorkspaceMetadataOutcome::Failed { .. });

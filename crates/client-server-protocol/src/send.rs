@@ -1,4 +1,4 @@
-use crate::{HostEpoch, HostTerminalId, ProtocolError, RequestId, SiteId, TerminalId, WorkerId};
+use crate::{HostEpoch, HostTerminalId, ProtocolError, RequestId, SessionId, TerminalId, WorkerId};
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use std::num::NonZeroU64;
 
@@ -535,7 +535,7 @@ impl TerminalSendOutcome {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TerminalSendRequest {
     pub(crate) request_id: RequestId,
-    pub(crate) site_id: SiteId,
+    pub(crate) session_id: SessionId,
     pub(crate) worker_id: WorkerId,
     pub(crate) terminal_id: TerminalId,
     pub(crate) records: SendRecords,
@@ -544,14 +544,14 @@ impl TerminalSendRequest {
     #[must_use]
     pub const fn new(
         request_id: RequestId,
-        site_id: SiteId,
+        session_id: SessionId,
         worker_id: WorkerId,
         terminal_id: TerminalId,
         records: SendRecords,
     ) -> Self {
         Self {
             request_id,
-            site_id,
+            session_id,
             worker_id,
             terminal_id,
             records,
@@ -562,8 +562,8 @@ impl TerminalSendRequest {
         &self.request_id
     }
     #[must_use]
-    pub const fn site_id(&self) -> &SiteId {
-        &self.site_id
+    pub const fn session_id(&self) -> &SessionId {
+        &self.session_id
     }
     #[must_use]
     pub const fn worker_id(&self) -> &WorkerId {

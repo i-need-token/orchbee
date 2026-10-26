@@ -1,4 +1,4 @@
-//! Actual PowerShell completion exercises grammar scope without a Site.
+//! Actual PowerShell completion exercises grammar scope without a Session.
 use super::render;
 use std::{
     io::Write,
@@ -200,8 +200,8 @@ fn real_powershell_completes_scoped_grammar_without_runtime() {
         ),
         ("orchbee --session work server st", "start", true),
         ("orchbee help ser", "server", true),
-        ("orchbee si", "site", false),
-        ("orchbee --site work status --f", "--format", false),
+        ("orchbee si", "session", false),
+        ("orchbee --session work status --f", "--format", false),
         (
             "orchbee tab move alpha --insert-index 2 --f",
             "--format",

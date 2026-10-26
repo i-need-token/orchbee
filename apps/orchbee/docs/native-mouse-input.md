@@ -243,7 +243,7 @@ movement retain bracketed actions and keyboard navigation without a hover claim.
 
 The renderer records each interactive region it paints into a staged `HitMapBuilder`; the shell
 publishes the map only after the frame's draw completes. Regions carry stable identities —
-`WorkbenchTabId`, `NativeContextLocation`, `WorkbenchPanelId` — resolved to positions against a
+`WorkbenchTabId`, `ClientContextLocation`, `WorkbenchPanelId` — resolved to positions against a
 fresh probe at click time, so a reorder between paint and click cannot misroute. Layers resolve
 front to back; within a layer, the first matching region wins. Specific controls are recorded
 before any containing surface region:
@@ -522,7 +522,7 @@ use the [retained viewport](native-terminal-viewport.md) owner.
   labels, colors, region variants, and coordinates never invent a contract.
 - `ReleaseFingerprint`: generic activation requires the same target, painted rectangle, contract,
   availability, and authoritative hit. Frame sequence alone neither cancels nor re-arms it.
-- `StableIdentity`: regions carry `WorkbenchTabId`/`NativeContextLocation`/`WorkbenchPanelId`
+- `StableIdentity`: regions carry `WorkbenchTabId`/`ClientContextLocation`/`WorkbenchPanelId`
   re-resolved at click time; no cached index survives a reorder.
 - `OneGestureOwner`: press, drag, and release resolve against the press's region; capture
   release, modal capture, or an external layout change cancels the whole gesture.

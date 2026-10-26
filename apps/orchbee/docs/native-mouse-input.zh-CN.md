@@ -196,7 +196,7 @@ Windows 下，捕获已启用时收到的实际无修饰、无按钮控制台移
 ## 区域映射
 
 渲染器把绘制的每个交互区域记入暂存的 `HitMapBuilder`；shell 只在该帧绘制完成后发布
-map。区域携带稳定身份——`WorkbenchTabId`、`NativeContextLocation`、`WorkbenchPanelId`——
+map。区域携带稳定身份——`WorkbenchTabId`、`ClientContextLocation`、`WorkbenchPanelId`——
 点击时按新探测解析为位置，因此绘制与点击之间的重排不会误路由。层从前到后解析；同层内
 第一个匹配区域优先。具体控件先于包含它的表面区域记录：
 
@@ -424,7 +424,7 @@ Shift 始终属于宿主。进入、合并导航与恢复沿用[保留视口](na
   region variant 与坐标都不能发明契约。
 - `ReleaseFingerprint`：通用激活要求同一目标、绘制矩形、契约、availability 及权威命中；
   frame 序号本身既不会取消，也不会重新 arm。
-- `StableIdentity`：区域携带 `WorkbenchTabId`/`NativeContextLocation`/`WorkbenchPanelId`
+- `StableIdentity`：区域携带 `WorkbenchTabId`/`ClientContextLocation`/`WorkbenchPanelId`
   并在点击时重新解析；重排之后不残留缓存下标。
 - `OneGestureOwner`：press、drag、release 按 press 命中的区域解析；捕获释放、modal 捕获
   或外部布局变化整体取消手势。
@@ -499,4 +499,4 @@ control/attach 字节实测覆盖。
 
 证据覆盖按钮边界、不响应的数量／空格、不重叠的分屏矩形、单面板／分屏／放大渲染、窄窗口及 Minimal 降级、修饰键／非左键报告、捕获／overlay／模态守卫、旧实例／anchor、成员移除及实际 UI 准入精确子项 Switch。组合 TestBackend 截图证明 cell composition；物理宿主配色、字体、鼠标硬件、延迟及多 Client 视觉行为需要各自的原生证据。
 
-<!-- documentation-pairing: english-sha256=604485664c1462a50bbd14430086e3791795030ee30615b0314e742bc41a5f19 zh-cn-sha256=52da5297caa108324b522077147ed0a4757ed720df581ab2f9548e7dbab9f24f -->
+<!-- documentation-pairing: english-sha256=d441a383315fc1ae0b5a6a91e14dd0099fa2b45d6a77de34816d135fea5aa79d zh-cn-sha256=3a8b6e755291e931b29913bb08502c061cdfce91e060bdda19739f6df2c92480 -->

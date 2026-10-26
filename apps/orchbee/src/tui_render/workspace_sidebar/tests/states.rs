@@ -41,7 +41,7 @@ fn current_agent_view() -> (ClientView, SidebarTarget, SidebarTarget) {
     view.machines.observe_focus(
         Choice::Local,
         Some(target.clone()),
-        Some(crate::workbench_client::NativeMemberTarget {
+        Some(crate::workbench_client::ClientMemberTarget {
             tab: member.tab.clone(),
             panel: member.panel.clone(),
             presentation: member.member.clone(),
@@ -289,7 +289,7 @@ fn hover_press_and_navigation_compose_one_full_row_without_bolding_supporting_li
 
 #[test]
 fn explicit_identity_color_and_plain_override_survive_row_composition_without_promoting_metadata() {
-    use orchbee_local_site_runtime::WindowsSidebarTokenStyle;
+    use orchbee_local_runtime::SidebarTokenStyle;
     for base in [
         Theme::terminal_native(),
         Theme::one_light(),
@@ -307,7 +307,7 @@ fn explicit_identity_color_and_plain_override_survive_row_composition_without_pr
             for bold in [None, Some(false), Some(true)] {
                 let identity = theme.sidebar_token_style(
                     Role::TextPrimary,
-                    WindowsSidebarTokenStyle {
+                    SidebarTokenStyle {
                         fg: Some([16, 32, 48]),
                         bold,
                         dim: Some(false),
@@ -319,7 +319,7 @@ fn explicit_identity_color_and_plain_override_survive_row_composition_without_pr
                 let supporting_token = |bold| {
                     theme.sidebar_token_style(
                         Role::TextSecondary,
-                        WindowsSidebarTokenStyle {
+                        SidebarTokenStyle {
                             bold,
                             ..Default::default()
                         },

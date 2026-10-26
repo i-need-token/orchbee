@@ -5,9 +5,7 @@ use crate::{
     terminal_input::{InputDispatcher, TerminalInputPort, TerminalInputUnavailable},
     tui_pointer::{FrameHitMap, HitMapBuilder, HitTarget, ModalControl, MotionObservability},
     tui_theme::{Role, Theme},
-    workbench_client::{
-        NativeCaptureContext, NativeSetupStage, NativeSetupToken, WorkspaceCloseToken,
-    },
+    workbench_client::{CaptureContext, SetupStage, SetupToken, WorkspaceCloseToken},
 };
 use ratatui::{
     Terminal,
@@ -22,21 +20,21 @@ use std::{
 };
 
 /// A narrow production adapter: every ownership and effect decision remains
-/// inside `NativeUi`, just as it does behind `WorkbenchClient`.
-struct NativePort<'a> {
-    ui: &'a mut NativeUi,
+/// inside `WorkbenchClientUi`, just as it does behind `WorkbenchClient`.
+struct ClientInputPort<'a> {
+    ui: &'a mut WorkbenchClientUi,
     forwarded: &'a mut Vec<u8>,
 }
 
-impl TerminalInputPort for NativePort<'_> {
-    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+impl TerminalInputPort for ClientInputPort<'_> {
+    fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
         self.ui.capture_claims()
     }
 
     fn native_capture_context(
         &self,
-        owner: crate::tui_composition::NativeCaptureOwner,
-    ) -> Option<NativeCaptureContext> {
+        owner: crate::tui_composition::CaptureOwner,
+    ) -> Option<CaptureContext> {
         self.ui.capture_context(owner)
     }
 
@@ -49,7 +47,7 @@ impl TerminalInputPort for NativePort<'_> {
         self.ui.click_workspace_close(token, confirm);
     }
 
-    fn choose_setup_project(&mut self, token: NativeSetupToken, index: usize) {
+    fn choose_setup_project(&mut self, token: SetupToken, index: usize) {
         self.ui.choose_setup_project(token, index);
     }
 }
@@ -89,10 +87,10 @@ impl Harness {
         self.now
     }
 
-    fn enable_pointer(&mut self, ui: &mut NativeUi) {
+    fn enable_pointer(&mut self, ui: &mut WorkbenchClientUi) {
         self.dispatcher.set_pointer_capture(
             &mut self.view,
-            &mut NativePort {
+            &mut ClientInputPort {
                 ui,
                 forwarded: &mut self.forwarded,
             },
@@ -103,12 +101,12 @@ impl Harness {
         self.synchronize(ui);
     }
 
-    fn synchronize(&mut self, ui: &mut NativeUi) {
+    fn synchronize(&mut self, ui: &mut WorkbenchClientUi) {
         let now = self.next_instant();
         self.dispatcher
             .synchronize(
                 &mut self.view,
-                &mut NativePort {
+                &mut ClientInputPort {
                     ui,
                     forwarded: &mut self.forwarded,
                 },
@@ -118,13 +116,13 @@ impl Harness {
             .unwrap();
     }
 
-    fn dispatch(&mut self, ui: &mut NativeUi, input: &[u8]) {
+    fn dispatch(&mut self, ui: &mut WorkbenchClientUi, input: &[u8]) {
         let now = self.next_instant();
         self.dispatcher
             .dispatch(
                 &mut self.view,
                 input,
-                &mut NativePort {
+                &mut ClientInputPort {
                     ui,
                     forwarded: &mut self.forwarded,
                 },
@@ -137,7 +135,7 @@ impl Harness {
 
     fn render(
         &mut self,
-        ui: &mut NativeUi,
+        ui: &mut WorkbenchClientUi,
         width: u16,
         height: u16,
         theme: &Theme,
@@ -148,7 +146,7 @@ impl Harness {
 
     fn render_locale(
         &mut self,
-        ui: &mut NativeUi,
+        ui: &mut WorkbenchClientUi,
         size: (u16, u16),
         locale: Locale,
         theme: &Theme,
@@ -226,7 +224,7 @@ fn workspace_close_cell(
 
 fn setup_choice_cell(
     frame: &RenderedFrame,
-    token: NativeSetupToken,
+    token: SetupToken,
     index: usize,
     height: u16,
 ) -> (u16, u16) {
@@ -335,7 +333,7 @@ fn setup_project_row_roundtrips_hover_press_and_release_through_native_ui() {
         ClientActionDisposition::KeepNavigator
     );
     let draft = ui.view().setup_draft().unwrap();
-    assert_eq!(draft.stage(), NativeSetupStage::ChooseWorkspaceProject);
+    assert_eq!(draft.stage(), SetupStage::ChooseWorkspaceProject);
     let token = draft.token();
     let choice = draft.project_count() - 1;
     assert_ne!(draft.selected_project(), choice);
@@ -362,10 +360,7 @@ fn setup_project_row_roundtrips_hover_press_and_release_through_native_ui() {
     harness.dispatch(&mut ui, &sgr_press(x, y));
     let still_picker = ui.view().setup_draft().unwrap();
     assert_eq!(still_picker.token(), token);
-    assert_eq!(
-        still_picker.stage(),
-        NativeSetupStage::ChooseWorkspaceProject
-    );
+    assert_eq!(still_picker.stage(), SetupStage::ChooseWorkspaceProject);
     assert!(mailbox.try_recv().unwrap().is_none(), "press cannot choose");
     let pressed = harness.render(&mut ui, 120, 40, &theme, Some("p3-setup-projects-pressed"));
     assert_eq!(pressed.background(x, y), theme.color(Role::SurfacePressed));
@@ -373,7 +368,7 @@ fn setup_project_row_roundtrips_hover_press_and_release_through_native_ui() {
     harness.dispatch(&mut ui, &sgr_release(x, y));
     let advanced = ui.view().setup_draft().unwrap();
     assert_ne!(advanced.token(), token);
-    assert_eq!(advanced.stage(), NativeSetupStage::WorkspaceProjectName);
+    assert_eq!(advanced.stage(), SetupStage::WorkspaceProjectName);
     assert!(mailbox.try_recv().unwrap().is_none());
     assert!(harness.forwarded.is_empty());
 }
@@ -461,7 +456,7 @@ fn text_position(buffer: &Buffer, area: Rect, text: &str) -> (u16, u16) {
 
 #[test]
 fn project_name_popup_keeps_task_field_feedback_and_complete_actions_in_one_hierarchy() {
-    use crate::{tui_theme::ColorLevel, workbench_client::NativeSetupEdit};
+    use crate::{tui_theme::ColorLevel, workbench_client::SetupEdit};
     use ratatui::style::Modifier;
 
     for locale in [Locale::EnUs, Locale::ZhCn] {
@@ -485,9 +480,9 @@ fn project_name_popup_keeps_task_field_feedback_and_complete_actions_in_one_hier
                     ui.choose_setup_project(picker_token, choice);
                     let token = ui.view().setup_draft().unwrap().token();
                     harness.render(&mut ui, 120, 40, &theme, None);
-                    ui.edit_setup_draft(token, NativeSetupEdit::Paste("p1界"));
+                    ui.edit_setup_draft(token, SetupEdit::Paste("p1界"));
                     if fault {
-                        ui.edit_setup_draft(token, NativeSetupEdit::Fault);
+                        ui.edit_setup_draft(token, SetupEdit::Fault);
                     }
                     let capture = format!(
                         "popup-project-name-{locale:?}-{profile}-{width}x{height}-fault-{fault}"
@@ -500,7 +495,7 @@ fn project_name_popup_keeps_task_field_feedback_and_complete_actions_in_one_hier
                         Some(&capture),
                     );
                     let draft = ui.view().setup_draft().unwrap();
-                    assert_eq!(draft.stage(), NativeSetupStage::WorkspaceProjectName);
+                    assert_eq!(draft.stage(), SetupStage::WorkspaceProjectName);
                     assert_eq!(draft.text(), "p1界");
                     assert!(mailbox.try_recv().unwrap().is_none());
                     if width < 60 || !draft.interactive() {

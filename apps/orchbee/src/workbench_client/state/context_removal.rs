@@ -1,9 +1,9 @@
 use super::recovery_fence::RecoveryFence;
 use super::{
-    ClientPhase, CreateTerminalProvenance, NativeContextTabs, PreparedRefresh, WorkbenchClientState,
+    ClientContextTabs, ClientPhase, CreateTerminalProvenance, PreparedRefresh, WorkbenchClientState,
 };
 use crate::workbench_client::workbench_projection::{
-    NativeContextLocation, preferred_workspace_location, project_native_context_tabs,
+    ClientContextLocation, preferred_workspace_location, project_native_context_tabs,
 };
 use orchbee_workbench_protocol::{Snapshot, WorkbenchRevision};
 
@@ -16,8 +16,8 @@ use orchbee_workbench_protocol::{Snapshot, WorkbenchRevision};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::workbench_client) struct ContextRemovalPermit {
     generation: u64,
-    removed: NativeContextLocation,
-    landing: NativeContextLocation,
+    removed: ClientContextLocation,
+    landing: ClientContextLocation,
     revision: WorkbenchRevision,
 }
 
@@ -25,7 +25,7 @@ impl ContextRemovalPermit {
     pub(in crate::workbench_client) const fn generation(&self) -> u64 {
         self.generation
     }
-    pub(in crate::workbench_client) const fn removed(&self) -> &NativeContextLocation {
+    pub(in crate::workbench_client) const fn removed(&self) -> &ClientContextLocation {
         &self.removed
     }
     /// The candidate location and revision the permit was minted for — the
@@ -33,8 +33,8 @@ impl ContextRemovalPermit {
     /// pair against the removed baseline.
     pub(in crate::workbench_client) fn authorizes(
         &self,
-        baseline: &NativeContextTabs,
-        candidate: &NativeContextTabs,
+        baseline: &ClientContextTabs,
+        candidate: &ClientContextTabs,
     ) -> bool {
         baseline.location() == &self.removed
             && candidate.location() == &self.landing
@@ -72,8 +72,10 @@ impl WorkbenchClientState {
     /// Shared evidence core for both entries: envelope checks, the current
     /// context's id absent from every canonical navigation owner, and the preferred
     /// surviving Workspace projecting cleanly. No remaining Workspace yields an identity-free landing.
-    pub(super) fn removed_context_landing(&self, snapshot: &Snapshot) -> Option<NativeContextTabs> {
-        if &snapshot.site_id != self.cache.site_id() || snapshot.revision < self.cache.revision() {
+    pub(super) fn removed_context_landing(&self, snapshot: &Snapshot) -> Option<ClientContextTabs> {
+        if &snapshot.session_id != self.cache.session_id()
+            || snapshot.revision < self.cache.revision()
+        {
             return None;
         }
         if self.cache.terminal_context_id().is_some_and(|removed_id| {
@@ -130,7 +132,7 @@ impl WorkbenchClientState {
     pub(super) fn mint_context_removal_permit(
         &self,
         generation: u64,
-        candidate: &NativeContextTabs,
+        candidate: &ClientContextTabs,
     ) -> ContextRemovalPermit {
         ContextRemovalPermit {
             generation,

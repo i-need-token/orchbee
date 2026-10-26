@@ -479,7 +479,7 @@ fn classify_outcome(
 fn panel_split_rejection_is_compatible(reason: WorkbenchRejectionReason) -> bool {
     matches!(
         reason,
-        WorkbenchRejectionReason::SiteMismatch
+        WorkbenchRejectionReason::SessionMismatch
             | WorkbenchRejectionReason::RevisionMismatch
             | WorkbenchRejectionReason::TerminalContextUnavailable
             | WorkbenchRejectionReason::TabUnavailable

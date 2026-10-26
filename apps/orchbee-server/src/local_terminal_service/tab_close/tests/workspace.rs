@@ -1,5 +1,5 @@
 use super::*;
-use crate::site_coordinator::PendingTerminalTabCreate;
+use crate::session_coordinator::PendingTerminalTabCreate;
 use orchbee_client_server_protocol::RequestId;
 use orchbee_server::WorkbenchGrant;
 use orchbee_workbench_protocol::{
@@ -23,7 +23,7 @@ fn command(
     WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: id(request),
-        site_id: snapshot.site_id,
+        session_id: snapshot.session_id,
         expected_revision: snapshot.revision,
         action,
     }
@@ -80,10 +80,10 @@ fn workspace(service: &LocalTerminalService) -> WorkbenchTerminalContextId {
             path: WorkbenchDirectoryPath::parse("/tmp").unwrap(),
         },
     );
-    let mut site = service.coordinator.lock().unwrap();
-    let authority = site.close_authority().unwrap();
-    let grant =
-        WorkbenchGrant::manage_navigation(directory.site_id.clone()).with_directory_association();
+    let mut session = service.coordinator.lock().unwrap();
+    let authority = session.close_authority().unwrap();
+    let grant = WorkbenchGrant::manage_navigation(directory.session_id.clone())
+        .with_directory_association();
     assert!(matches!(
         authority
             .accept_workspace_directory(
@@ -209,7 +209,7 @@ fn accept(service: &LocalTerminalService, close: &WorkbenchCommand) -> Workbench
     result
 }
 
-// These exact replies prove Site/carrier refinement, not real Worker or Host disposal.
+// These exact replies prove Session/carrier refinement, not real Worker or Host disposal.
 fn dispose(service: &LocalTerminalService, peer: &mut UnixStream, close: &WorkbenchCommand) {
     let handle = service.workers.lock().unwrap().request_handle().unwrap();
     for outcome in [settled_page(), TerminalLifecycleOutcome::Disposed] {
@@ -258,8 +258,8 @@ fn dispose(service: &LocalTerminalService, peer: &mut UnixStream, close: &Workbe
 }
 
 fn publish(service: &LocalTerminalService, close: &WorkbenchCommand) {
-    let mut site = service.coordinator.lock().unwrap();
-    let runtime = site
+    let mut session = service.coordinator.lock().unwrap();
+    let runtime = session
         .close_authority()
         .unwrap()
         .terminal_tab_close_target(&close.request_id)
@@ -267,13 +267,15 @@ fn publish(service: &LocalTerminalService, close: &WorkbenchCommand) {
         .runtime()
         .expect("created Host runtime");
     service
-        .complete_disposed_target_cleanup(&site, &close.request_id, runtime)
+        .complete_disposed_target_cleanup(&session, &close.request_id, runtime)
         .unwrap();
-    site.close_authority()
+    session
+        .close_authority()
         .unwrap()
         .complete_terminal_tab_close_target_cleanup(&close.request_id, runtime)
         .unwrap();
-    site.publish_terminal_tab_close(&close.request_id, Instant::now())
+    session
+        .publish_terminal_tab_close(&close.request_id, Instant::now())
         .unwrap()
 }
 

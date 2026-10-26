@@ -130,7 +130,10 @@ fn indexed_move_known_refused_and_unknown_outcomes_never_replay_or_focus() {
                 panic!("one mutation")
             };
             assert_eq!(command.expected_revision, WorkbenchRevision::new(9));
-            assert_eq!(command.site_id.as_str(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+            assert_eq!(
+                command.session_id.as_str(),
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            );
             assert_eq!(
                 json!(command.action),
                 json!({"kind":"tab.move-index","terminalContextId":CONTEXT,"tabId":TAB,"insertIndex":boundary.parse::<usize>().unwrap()})

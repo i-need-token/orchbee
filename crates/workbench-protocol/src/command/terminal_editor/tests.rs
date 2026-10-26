@@ -28,7 +28,7 @@ fn editor_intent_and_action_correlated_results_are_closed_and_preserve_full_u64(
     let mut result = TerminalEditorResult {
         protocol_version: ProtocolVersion,
         request_id: request.request_id.clone(),
-        site_id: request.site_id.clone(),
+        session_id: request.session_id.clone(),
         outcome: TerminalEditorOutcome::Opened {
             popup_id: request.action.popup_id().clone(),
             title: "editor.exe".into(),
@@ -58,9 +58,9 @@ fn editor_intent_and_action_correlated_results_are_closed_and_preserve_full_u64(
         crate::read_workbench_response(&mut frame.as_slice()).unwrap(),
         wire
     );
-    result.site_id = SiteId::parse("000000000000000000000000000000ff").unwrap();
+    result.session_id = SessionId::parse("000000000000000000000000000000ff").unwrap();
     assert!(!result.answers(&request));
-    result.site_id = request.site_id.clone();
+    result.session_id = request.session_id.clone();
     result.outcome = TerminalEditorOutcome::Closed {
         popup_id: request.action.popup_id().clone(),
     };

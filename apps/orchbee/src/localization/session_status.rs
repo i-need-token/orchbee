@@ -45,15 +45,14 @@ impl Locale {
             return self.workspace_close_status(status);
         }
         if view.retirement().is_none()
-            && (view.phase() == crate::workbench_client::NativeDisplayPhase::Ready
+            && (view.phase() == crate::workbench_client::DisplayPhase::Ready
                 && view
                     .focus_panel_id()
                     .and_then(|panel| view.terminal_end(panel))
                     .is_some()
-                || view.phase()
-                    == crate::workbench_client::NativeDisplayPhase::SelectedWithoutAttachment
+                || view.phase() == crate::workbench_client::DisplayPhase::SelectedWithoutAttachment
                     && view.selected_provenance()
-                        == Some(crate::workbench_client::NativeDisplayProvenance::Failed))
+                        == Some(crate::workbench_client::DisplayProvenance::Failed))
         {
             let status = self.native_phase_status(view);
             if crate::terminal_text::display_width(&status) > usize::from(columns)
@@ -113,7 +112,7 @@ impl Locale {
             view.retirement().is_some(),
             view.notice(),
             view.setup_status(),
-            view.phase() == crate::workbench_client::NativeDisplayPhase::Empty
+            view.phase() == crate::workbench_client::DisplayPhase::Empty
                 && view.workspace_directory_unconfigured(),
         )
     }
@@ -123,7 +122,7 @@ impl Locale {
         view: &crate::workbench_client::WorkbenchClientView<'_>,
     ) -> String {
         if view.retirement().is_none()
-            && view.phase() == crate::workbench_client::NativeDisplayPhase::Ready
+            && view.phase() == crate::workbench_client::DisplayPhase::Ready
             && let Some(end) = view
                 .focus_panel_id()
                 .and_then(|panel| view.terminal_end(panel))
@@ -137,7 +136,7 @@ impl Locale {
                 recovery.unknown,
             );
         }
-        if view.phase() == crate::workbench_client::NativeDisplayPhase::SelectedWithoutAttachment
+        if view.phase() == crate::workbench_client::DisplayPhase::SelectedWithoutAttachment
             && view.selected_is_unbound()
             && view.retirement().is_none()
         {
@@ -169,16 +168,16 @@ impl Locale {
 
     fn native_phase_status_values(
         self,
-        phase: crate::workbench_client::NativeDisplayPhase,
+        phase: crate::workbench_client::DisplayPhase,
         label: Option<&str>,
-        controller: Option<crate::workbench_client::NativeDisplayController>,
-        provenance: Option<crate::workbench_client::NativeDisplayProvenance>,
-        projection: crate::workbench_client::NativeProjectionStatus,
-        retirement: Option<crate::workbench_client::NativeDisplayRetirement>,
+        controller: Option<crate::workbench_client::DisplayController>,
+        provenance: Option<crate::workbench_client::DisplayProvenance>,
+        projection: crate::workbench_client::ClientProjectionStatus,
+        retirement: Option<crate::workbench_client::DisplayRetirement>,
     ) -> String {
         use crate::workbench_client::{
-            NativeDisplayController as Controller, NativeDisplayPhase as Phase,
-            NativeDisplayProvenance as Provenance, NativeDisplayRetirement as Retirement,
+            DisplayController as Controller, DisplayPhase as Phase,
+            DisplayProvenance as Provenance, DisplayRetirement as Retirement,
         };
 
         if let Some(retirement) = retirement {
@@ -257,13 +256,13 @@ impl Locale {
 
     pub(crate) fn native_refresh_status(
         self,
-        status: crate::workbench_client::NativeRefreshStatus,
+        status: crate::workbench_client::RefreshStatus,
     ) -> String {
-        use crate::workbench_client::NativeRefreshStatus;
+        use crate::workbench_client::RefreshStatus;
         match status {
-            NativeRefreshStatus::Refreshing => self.native_refreshing().to_owned(),
-            NativeRefreshStatus::Success(revision) => self.native_refresh_success(revision),
-            NativeRefreshStatus::Failure(revision) => self.native_refresh_failure(revision),
+            RefreshStatus::Refreshing => self.native_refreshing().to_owned(),
+            RefreshStatus::Success(revision) => self.native_refresh_success(revision),
+            RefreshStatus::Failure(revision) => self.native_refresh_failure(revision),
         }
     }
 
@@ -275,12 +274,12 @@ impl Locale {
     ) -> String {
         let message = self.native_notice(notice);
         if let Some(context) = native.notice_context() {
-            use crate::workbench_client::NativeNoticeContext;
+            use crate::workbench_client::NoticeContext;
             return match context {
-                NativeNoticeContext::LaunchProfile(name) => {
+                NoticeContext::LaunchProfile(name) => {
                     format!("{message} · {}", self.launch_profile_label(name.as_deref()))
                 }
-                NativeNoticeContext::ConfiguredCommand(id) => format!(
+                NoticeContext::ConfiguredCommand(id) => format!(
                     "{} · {message}",
                     crate::terminal_text::sanitize_terminal_text(id)
                 ),
@@ -386,8 +385,8 @@ impl Locale {
                     (Self::ZhCn, F::Denied) => "会话权限拒绝；请检查权限",
                     (Self::EnUs, F::InvalidIntent) => "Invalid request; reload configuration",
                     (Self::ZhCn, F::InvalidIntent) => "请求无效；请重载配置",
-                    (Self::EnUs, F::SiteMismatch) => "Session changed; reconnect",
-                    (Self::ZhCn, F::SiteMismatch) => "会话已变化；请重新连接",
+                    (Self::EnUs, F::SessionMismatch) => "Session changed; reconnect",
+                    (Self::ZhCn, F::SessionMismatch) => "会话已变化；请重新连接",
                     (Self::EnUs, F::Unavailable) => "Unavailable; check Session and retry",
                     (Self::ZhCn, F::Unavailable) => "服务不可用；请检查会话后重试",
                     (Self::EnUs, F::Busy) => "Busy; wait and retry",
@@ -534,7 +533,7 @@ impl Locale {
     fn native_starting_status(
         self,
         label: Option<&str>,
-        projection: crate::workbench_client::NativeProjectionStatus,
+        projection: crate::workbench_client::ClientProjectionStatus,
     ) -> String {
         self.native_connection_status(
             label,
@@ -546,7 +545,7 @@ impl Locale {
     fn native_switching_status(
         self,
         label: Option<&str>,
-        projection: crate::workbench_client::NativeProjectionStatus,
+        projection: crate::workbench_client::ClientProjectionStatus,
     ) -> String {
         self.native_connection_status(
             label,
@@ -558,18 +557,18 @@ impl Locale {
     fn native_connection_status(
         self,
         label: Option<&str>,
-        projection: crate::workbench_client::NativeProjectionStatus,
+        projection: crate::workbench_client::ClientProjectionStatus,
         missing_position: crate::workbench_client::TerminalStatus,
     ) -> String {
-        use crate::workbench_client::NativeProjectionStatus;
+        use crate::workbench_client::ClientProjectionStatus;
 
         let Some(label) = label else {
             return self.terminal_status(missing_position).to_owned();
         };
         match projection {
-            NativeProjectionStatus::WaitingForFullFrame => self.native_waiting_for_frame(label),
-            NativeProjectionStatus::Blocked => self.native_display_blocked(label),
-            NativeProjectionStatus::Empty | NativeProjectionStatus::FrameAvailable => {
+            ClientProjectionStatus::WaitingForFullFrame => self.native_waiting_for_frame(label),
+            ClientProjectionStatus::Blocked => self.native_display_blocked(label),
+            ClientProjectionStatus::Empty | ClientProjectionStatus::FrameAvailable => {
                 self.native_connecting(label)
             }
         }

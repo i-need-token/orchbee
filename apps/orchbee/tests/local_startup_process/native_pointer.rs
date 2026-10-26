@@ -37,9 +37,9 @@ struct WorkbenchPeer {
 
 impl WorkbenchPeer {
     fn connect(fixture: &Fixture, deadline: Instant) -> Result<Self, Box<dyn Error>> {
-        let cohort = NativeCohort::load(&fixture.cohort, deadline)?;
+        let cohort = Cohort::load(&fixture.cohort, deadline)?;
         let admitted = ClientConnection::connect_before(
-            fixture.site().client_socket_path(),
+            fixture.session().client_socket_path(),
             cohort.identity(),
             deadline,
         )?;
@@ -96,7 +96,7 @@ impl WorkbenchPeer {
         let request = WorkbenchRequest::Command(WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id: request_id.clone(),
-            site_id: snapshot.site_id,
+            session_id: snapshot.session_id,
             expected_revision: snapshot.revision,
             action,
         });
@@ -578,7 +578,7 @@ fn native_pointer_reports_reach_tracking_panes_and_follow_unfocused_focus() -> T
         "unfocused-pane click must not leak into pane 1"
     );
 
-    // A second Client on the same site cannot take pane 2's controller
+    // A second Client on the same session cannot take pane 2's controller
     // lease while this client holds it — the controller lease is per
     // terminal. Whichever pane it lands on, its click on pane 2 is
     // adjudicated negatively: a localized drop notice, never bytes

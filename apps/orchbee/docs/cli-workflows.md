@@ -80,7 +80,7 @@ does not establish Agent-board readiness. Managed enable/disable and `agent star
   root — see [macOS and Linux local startup contract](../README.md#macos-and-linux-local-startup):
 
   ```sh
-  node scripts/stage-native-site.mjs --output /tmp/orchbee-native-dev
+  node scripts/stage-local-runtime.mjs --output /tmp/orchbee-native-dev
   ```
 
   Then run `/tmp/orchbee-native-dev/orchbee`. The staged cohort is four

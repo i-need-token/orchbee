@@ -1068,7 +1068,7 @@ fn sidebar_status_truncates_with_ellipsis_on_grapheme_boundaries() {
             frame,
             sidebar,
             text,
-            super::SiteStatus {
+            super::SessionStatus {
                 text: "Tab 1 · Ready · controlling",
                 role: crate::tui_theme::Role::StatusSuccess,
             },
@@ -1139,7 +1139,7 @@ use orchbee_terminal_protocol::{
 };
 use ratatui::layout::Rect;
 
-use crate::workbench_client::NativeViewportSurface;
+use crate::workbench_client::ViewportSurface;
 
 #[test]
 fn keyboard_copy_preserves_first_and_last_served_rows_without_history_chrome() {
@@ -1159,7 +1159,7 @@ fn keyboard_copy_preserves_first_and_last_served_rows_without_history_chrome() {
                     super::viewport::render_selected(
                         frame,
                         Rect::new(0, 0, width, 3),
-                        NativeViewportSurface::Window {
+                        ViewportSurface::Window {
                             window: &window,
                             position: Some((42, 200)),
                         },
@@ -1230,7 +1230,7 @@ fn history_window(
 fn render_viewport(
     width: u16,
     height: u16,
-    surface: NativeViewportSurface<'_>,
+    surface: ViewportSurface<'_>,
     live_frame: Option<&TerminalTextFrame>,
     locale: Locale,
 ) -> Vec<String> {
@@ -1258,7 +1258,7 @@ fn history_window_paints_rows_position_and_hint() {
     let rows = render_viewport(
         40,
         8,
-        NativeViewportSurface::Window {
+        ViewportSurface::Window {
             window: &window,
             position: Some((42, 200)),
         },
@@ -1282,7 +1282,7 @@ fn history_window_bottom_line_localizes() {
     let rows = render_viewport(
         40,
         8,
-        NativeViewportSurface::Window {
+        ViewportSurface::Window {
             window: &window,
             position: Some((42, 200)),
         },
@@ -1303,7 +1303,7 @@ fn history_bottom_line_hint_keeps_priority_when_narrow() {
     let rows = render_viewport(
         18,
         6,
-        NativeViewportSurface::Window {
+        ViewportSurface::Window {
             window: &window,
             position: Some((42, 200)),
         },
@@ -1325,10 +1325,7 @@ fn history_bottom_line_hint_keeps_priority_when_narrow() {
 #[test]
 fn history_indicators_clear_and_show_without_position() {
     let theme = crate::tui_theme::Theme::rgb_test_dark();
-    for surface in [
-        NativeViewportSurface::AwaitingWindow,
-        NativeViewportSurface::Recovering,
-    ] {
+    for surface in [ViewportSurface::AwaitingWindow, ViewportSurface::Recovering] {
         let mut terminal = infallible(Terminal::new(TestBackend::new(40, 8)));
         // Stale content under the leaf: the surface must clear it.
         infallible(terminal.draw(|frame| {
@@ -1360,8 +1357,8 @@ fn history_indicators_clear_and_show_without_position() {
         assert!(rows[7].contains("Esc back to live"), "{rows:?}");
         assert!(!joined.contains("Row"), "no position shown: {rows:?}");
         let badge = match surface {
-            NativeViewportSurface::AwaitingWindow => "Loading history…",
-            NativeViewportSurface::Recovering => "Returning to live…",
+            ViewportSurface::AwaitingWindow => "Loading history…",
+            ViewportSurface::Recovering => "Returning to live…",
             _ => unreachable!(),
         };
         assert!(joined.contains(badge), "{rows:?}");
@@ -1423,13 +1420,7 @@ fn history_entering_keeps_the_live_frame() {
                 .collect(),
         }],
     };
-    let rows = render_viewport(
-        40,
-        8,
-        NativeViewportSurface::Entering,
-        Some(&live),
-        Locale::EnUs,
-    );
+    let rows = render_viewport(40, 8, ViewportSurface::Entering, Some(&live), Locale::EnUs);
     let joined = rows.concat();
     assert!(
         joined.contains("live-tail"),
@@ -1462,7 +1453,7 @@ fn history_chrome_clears_child_styles_text_and_crossing_wide_cells() {
         super::viewport::render(
             frame,
             Rect::new(0, 0, 40, 3),
-            NativeViewportSurface::Window {
+            ViewportSurface::Window {
                 window: &window,
                 position: Some((42, 200)),
             },
@@ -1521,7 +1512,7 @@ fn history_preserves_styles_defaults_wide_cells_and_sanitization() {
         super::viewport::render(
             frame,
             Rect::new(0, 0, 40, 8),
-            NativeViewportSurface::Window {
+            ViewportSurface::Window {
                 window: &window,
                 position: None,
             },
@@ -1552,7 +1543,7 @@ fn history_preserves_styles_defaults_wide_cells_and_sanitization() {
     let clipped = render_viewport(
         2,
         4,
-        NativeViewportSurface::Window {
+        ViewportSurface::Window {
             window: &window,
             position: None,
         },
@@ -1935,7 +1926,7 @@ fn divider_hover_and_press_style_every_exact_target_cell_without_leaking_to_the_
         tui_theme::{Role, Theme},
     };
     use orchbee_workbench_protocol::{
-        ClientSplitRatio, PanelOrientation, SiteId, WorkbenchPanelId, WorkbenchPanelSlotId,
+        ClientSplitRatio, PanelOrientation, SessionId, WorkbenchPanelId, WorkbenchPanelSlotId,
         WorkbenchRevision, WorkbenchSplitId, WorkbenchTabId, WorkbenchTerminalContextId,
     };
     use ratatui::{layout::Rect, style::Modifier, widgets::Paragraph};
@@ -1957,7 +1948,7 @@ fn divider_hover_and_press_style_every_exact_target_cell_without_leaking_to_the_
     let divider = divide_panes(panel, orientation, ratio).unwrap().divider;
     let target = DrawnDivider {
         source: DividerSource {
-            site: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
+            session: SessionId::parse(&format!("{:032x}", 1)).unwrap(),
             context: WorkbenchTerminalContextId::parse(&format!("{:032x}", 2)).unwrap(),
             tab: WorkbenchTabId::parse(&format!("{:032x}", 3)).unwrap(),
             focus: WorkbenchPanelId::parse(&format!("{:032x}", 4)).unwrap(),

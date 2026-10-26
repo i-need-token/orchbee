@@ -1,8 +1,8 @@
-//! Real-Site witnesses for the CLI query surface: every invocation runs the
+//! Real-Session witnesses for the CLI query surface: every invocation runs the
 //! source-pinned staged `orchbee` binary against a real `orchbee-server`
 //! (and, where content matters, a real Worker/Host behind a live TUI client).
 //! The query path must read shared state without creating, mutating, or
-//! leaking anything on the Site.
+//! leaking anything on the Session.
 
 use super::*;
 use nix::poll::{PollFd, PollFlags, PollTimeout, poll};
@@ -141,15 +141,15 @@ pub(super) fn spawn_real_server(fixture: &Fixture) -> Reap {
 /// environment). Used to point the Worker's default-shell admission at a
 /// fixture-private executable; nothing process-global is mutated.
 pub(super) fn spawn_real_server_env(fixture: &Fixture, env: &[(&str, &Path)]) -> Reap {
-    let site = fixture.site();
-    site.commit_activation().expect("fixture activation");
+    let session = fixture.session();
+    session.commit_activation().expect("fixture activation");
     let mut command = Command::new(fixture.cohort.join("orchbee-server"));
     for (name, value) in env {
         command.env(name, value);
     }
     let mut server = Reap(
         command
-            .arg("--local-site")
+            .arg("--runtime-directory")
             .arg(fixture.runtime())
             .stdin(Stdio::null())
             .stdout(Stdio::null())
@@ -159,7 +159,7 @@ pub(super) fn spawn_real_server_env(fixture: &Fixture, env: &[(&str, &Path)]) ->
     );
     let deadline = Instant::now() + Duration::from_secs(20);
     loop {
-        if site.client_socket_exists().unwrap_or(false) {
+        if session.client_socket_exists().unwrap_or(false) {
             break;
         }
         assert!(server.try_wait().unwrap().is_none(), "server exited early");
@@ -174,15 +174,15 @@ pub(super) fn spawn_real_server_env(fixture: &Fixture, env: &[(&str, &Path)]) ->
 /// cohort is verified once and lent to every admission instead of re-hashing
 /// the same immutable artifacts per session.
 pub(super) fn hold_session(fixture: &Fixture, cohort: &str, deadline: Instant) -> ClientConnection {
-    ClientConnection::connect_before(fixture.site().client_socket_path(), cohort, deadline)
+    ClientConnection::connect_before(fixture.session().client_socket_path(), cohort, deadline)
         .unwrap_or_else(|error| panic!("admit held session: {error}"))
 }
 
-/// The Site query surface coexists with a live controlling TUI and reports
+/// The Session query surface coexists with a live controlling TUI and reports
 /// real state: reads, empty and filtered results, label resolution, local
 /// commands, failure envelopes, and schema-validated documents.
 #[test]
-fn cli_query_reads_real_state_while_a_tui_keeps_the_site() -> TestResult {
+fn cli_query_reads_real_state_while_a_tui_keeps_the_session() -> TestResult {
     let _process_witness = process_witness_guard();
     let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
@@ -241,7 +241,7 @@ fn cli_query_reads_real_state_while_a_tui_keeps_the_site() -> TestResult {
         assert_eq!(row["context"]["kind"], "workspace", "{row}");
     }
 
-    // Empty result: no projects exist on a fresh Site.
+    // Empty result: no projects exist on a fresh Session.
     let (output, projects) = run_json(&fixture, &["project", "list", "--format=json"]);
     assert_eq!(output.status.code(), Some(0));
     assert_eq!(projects["result"]["projects"].as_array().unwrap().len(), 0);
@@ -333,7 +333,7 @@ fn cli_query_reads_real_state_while_a_tui_keeps_the_site() -> TestResult {
     assert_eq!(failure["failure"]["kind"], "not-found");
     validate(&validators, "orchbee.cli.failure", &output);
 
-    // An absent typed id is not-found even while the Site is live.
+    // An absent typed id is not-found even while the Session is live.
     let (output, failure) = run_json(
         &fixture,
         &[
@@ -399,7 +399,7 @@ fn cli_query_session_capacity_and_release_on_a_real_server() -> TestResult {
     let fixture = Fixture::new();
     let _server = spawn_real_server(&fixture);
     let admission_deadline = Instant::now() + Duration::from_secs(40);
-    let cohort = NativeCohort::load(&fixture.cohort, admission_deadline)
+    let cohort = Cohort::load(&fixture.cohort, admission_deadline)
         .unwrap_or_else(|error| panic!("cohort identity: {error}"));
     let mut held = Vec::new();
     for index in 0..32 {

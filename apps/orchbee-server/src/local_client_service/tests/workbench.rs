@@ -69,7 +69,7 @@ fn an_oblc_admitted_connection_with_read_only_policy_cannot_mutate_or_discover_l
     };
     let json = format!(
         r#"{{"kind":"workbench.command","protocolVersion":1,"requestId":"22222222222222222222222222222222","sessionId":"{}","expectedRevision":"0","action":{{"kind":"project.create","label":"Forbidden"}}}}"#,
-        snapshot.site_id
+        snapshot.session_id
     );
     let command = parse_workbench_request(json.as_bytes()).unwrap();
     for _replay in 0..2 {
@@ -90,7 +90,7 @@ fn an_oblc_admitted_connection_with_read_only_policy_cannot_mutate_or_discover_l
     let close_read = WorkbenchTabCloseRead {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse("33333333333333333333333333333333").unwrap(),
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         terminal_context_id: snapshot.navigation.workspaces[0]
             .terminal_context_id
             .clone(),
@@ -99,7 +99,7 @@ fn an_oblc_admitted_connection_with_read_only_policy_cannot_mutate_or_discover_l
     let close = WorkbenchRequest::Command(WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: close_read.request_id.clone(),
-        site_id: close_read.site_id.clone(),
+        session_id: close_read.session_id.clone(),
         expected_revision: snapshot.revision,
         action: WorkbenchAction::TabClose {
             terminal_context_id: close_read.terminal_context_id.clone(),
@@ -132,7 +132,7 @@ fn an_oblc_admitted_connection_with_read_only_policy_cannot_mutate_or_discover_l
     let resume = WorkbenchTabCloseResume {
         protocol_version: ProtocolVersion,
         request_id: close_read.request_id.clone(),
-        site_id: close_read.site_id,
+        session_id: close_read.session_id,
         terminal_context_id: close_read.terminal_context_id,
         tab_id: close_read.tab_id,
         close_request_id: WorkbenchRequestId::parse("55555555555555555555555555555555").unwrap(),
@@ -148,7 +148,7 @@ fn an_oblc_admitted_connection_with_read_only_policy_cannot_mutate_or_discover_l
         panic!("Resume result expected")
     };
     assert_eq!(resumed.request_id, resume.request_id);
-    assert_eq!(resumed.site_id, resume.site_id);
+    assert_eq!(resumed.session_id, resume.session_id);
     assert_eq!(resumed.terminal_context_id, resume.terminal_context_id);
     assert_eq!(resumed.tab_id, resume.tab_id);
     assert_eq!(resumed.close_request_id, resume.close_request_id);

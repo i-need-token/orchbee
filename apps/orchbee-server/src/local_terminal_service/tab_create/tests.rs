@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    site_coordinator::PreparedTerminalTabCreate,
+    session_coordinator::PreparedTerminalTabCreate,
     terminal_coordinator::{Completion, WorkerPlacement},
     worker_obcn_carrier::{WorkerWireExit, create_worker_carrier},
     worker_registry::{WorkerAdmission, WorkerRegistry},
@@ -30,7 +30,7 @@ fn command(service: &LocalTerminalService, request: u128, revision: u64) -> Work
     WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{request:032x}")).unwrap(),
-        site_id: snapshot.site_id,
+        session_id: snapshot.session_id,
         expected_revision: WorkbenchRevision::new(revision),
         action: WorkbenchAction::TabCreate {
             placement: None,
@@ -117,7 +117,7 @@ fn service_replays_new_group_pending_and_final_before_missing_entropy_clock_or_w
 }
 
 #[test]
-fn registry_and_site_gate_failures_before_commit_return_server_busy() {
+fn registry_and_session_gate_failures_before_commit_return_server_busy() {
     let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
     let service = LocalTerminalService::workspace_fixture(Arc::clone(&registry));
     let registry_command = command(&service, 1_051, 0);
@@ -142,7 +142,7 @@ fn registry_and_site_gate_failures_before_commit_return_server_busy() {
 
     let service =
         LocalTerminalService::workspace_fixture(Arc::new(Mutex::new(WorkerRegistry::new())));
-    let site_command = command(&service, 1_052, 0);
+    let session_command = command(&service, 1_052, 0);
     assert!(
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let _guard = service.coordinator.lock().unwrap();
@@ -152,7 +152,7 @@ fn registry_and_site_gate_failures_before_commit_return_server_busy() {
     );
     assert!(matches!(
         service
-            .execute_terminal_tab_create_with_candidates(site_command, None, None)
+            .execute_terminal_tab_create_with_candidates(session_command, None, None)
             .unwrap()
             .outcome,
         WorkbenchCommandOutcome::Unavailable {
@@ -162,7 +162,7 @@ fn registry_and_site_gate_failures_before_commit_return_server_busy() {
 }
 
 #[test]
-fn site_gate_loss_after_commit_returns_only_the_close_outcome_unknown_signal() -> TestResult {
+fn session_gate_loss_after_commit_returns_only_the_close_outcome_unknown_signal() -> TestResult {
     let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
     let worker_id = LocalWorkerId::from_bytes([9; 16]);
     let generation = {

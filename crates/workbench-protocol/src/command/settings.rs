@@ -1,18 +1,18 @@
-//! Site-scoped access to the same durable preference authority used by Desktop.
+//! Session-scoped access to the same durable preference authority used by Desktop.
 use crate::{
-    ContractError, MAXIMUM_USER_PREFERENCES_BYTES, PreferencesFailure, ProtocolVersion, SiteId,
+    ContractError, MAXIMUM_USER_PREFERENCES_BYTES, PreferencesFailure, ProtocolVersion, SessionId,
     UserPreferencesPatch, UserPreferencesRequest, UserPreferencesSnapshot, WorkbenchRequestId,
     parse_user_preferences_request,
 };
 use serde::{Deserialize, Serialize};
 
-pub const MAXIMUM_NATIVE_SETTINGS_REQUEST_BYTES: usize = MAXIMUM_USER_PREFERENCES_BYTES;
+pub const MAXIMUM_SETTINGS_REQUEST_BYTES: usize = MAXIMUM_USER_PREFERENCES_BYTES;
 
 /// No paths or arbitrary configuration documents cross the settings boundary.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
-pub struct NativeSettingsSource(String);
-impl NativeSettingsSource {
+pub struct SettingsSource(String);
+impl SettingsSource {
     pub fn parse(value: &str) -> Result<Self, ContractError> {
         if value == "missing"
             || value.len() == 64
@@ -29,18 +29,18 @@ impl NativeSettingsSource {
         &self.0
     }
 }
-impl TryFrom<String> for NativeSettingsSource {
+impl TryFrom<String> for SettingsSource {
     type Error = ContractError;
     fn try_from(value: String) -> Result<Self, Self::Error> {
         Self::parse(&value)
     }
 }
-impl From<NativeSettingsSource> for String {
-    fn from(value: NativeSettingsSource) -> Self {
+impl From<SettingsSource> for String {
+    fn from(value: SettingsSource) -> Self {
         value.0
     }
 }
-pub type NativeSettingsChanges = UserPreferencesPatch;
+pub type SettingsChanges = UserPreferencesPatch;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(
@@ -49,14 +49,14 @@ pub type NativeSettingsChanges = UserPreferencesPatch;
     rename_all_fields = "camelCase",
     deny_unknown_fields
 )]
-pub enum NativeSettingsOperation {
+pub enum SettingsOperation {
     Open {},
     Save {
-        source: NativeSettingsSource,
-        changes: NativeSettingsChanges,
+        source: SettingsSource,
+        changes: SettingsChanges,
     },
 }
-impl NativeSettingsOperation {
+impl SettingsOperation {
     pub fn preferences_request(&self) -> UserPreferencesRequest {
         match self {
             Self::Open {} => UserPreferencesRequest::Read {},
@@ -69,14 +69,14 @@ impl NativeSettingsOperation {
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct NativeSettingsRequest {
+pub struct SettingsRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
-    pub operation: NativeSettingsOperation,
+    pub session_id: SessionId,
+    pub operation: SettingsOperation,
 }
-impl NativeSettingsRequest {
+impl SettingsRequest {
     pub fn validate(&self) -> Result<(), ContractError> {
         let bytes = serde_json::to_vec(&self.operation.preferences_request())
             .map_err(|_| ContractError::InvalidDocument)?;
@@ -88,11 +88,11 @@ impl NativeSettingsRequest {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum NativeSettingsFailure {
+pub enum SettingsFailure {
     Denied,
     Unavailable,
     #[serde(rename = "session-mismatch")]
-    SiteMismatch,
+    SessionMismatch,
     Busy,
     SourceChanged,
     InvalidSource,
@@ -100,7 +100,7 @@ pub enum NativeSettingsFailure {
     WriteFailed,
     ResponseTooLarge,
 }
-impl From<PreferencesFailure> for NativeSettingsFailure {
+impl From<PreferencesFailure> for SettingsFailure {
     fn from(reason: PreferencesFailure) -> Self {
         match reason {
             PreferencesFailure::InvalidRequest | PreferencesFailure::InvalidChanges => {
@@ -122,7 +122,7 @@ impl From<PreferencesFailure> for NativeSettingsFailure {
     rename_all_fields = "camelCase",
     deny_unknown_fields
 )]
-pub enum NativeSettingsOutcome {
+pub enum SettingsOutcome {
     Opened {
         snapshot: UserPreferencesSnapshot,
     },
@@ -132,35 +132,34 @@ pub enum NativeSettingsOutcome {
     },
     OutcomeUnknown {},
     Refused {
-        reason: NativeSettingsFailure,
+        reason: SettingsFailure,
     },
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct NativeSettingsResult {
+pub struct SettingsResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
-    pub outcome: NativeSettingsOutcome,
+    pub session_id: SessionId,
+    pub outcome: SettingsOutcome,
 }
-impl NativeSettingsResult {
-    pub fn answers(&self, request: &NativeSettingsRequest) -> bool {
+impl SettingsResult {
+    pub fn answers(&self, request: &SettingsRequest) -> bool {
         self.request_id == request.request_id
-            && self.site_id == request.site_id
+            && self.session_id == request.session_id
             && {
-                let shared_failure = matches!(&self.outcome, NativeSettingsOutcome::Refused { .. });
+                let shared_failure = matches!(&self.outcome, SettingsOutcome::Refused { .. });
                 match &request.operation {
-                    NativeSettingsOperation::Open {} => {
-                        matches!(&self.outcome, NativeSettingsOutcome::Opened { .. })
-                            || shared_failure
+                    SettingsOperation::Open {} => {
+                        matches!(&self.outcome, SettingsOutcome::Opened { .. }) || shared_failure
                     }
-                    NativeSettingsOperation::Save { changes, .. } => {
-                        matches!(&self.outcome, NativeSettingsOutcome::Saved { snapshot, .. } if changes.keys().all(|key| snapshot.claimed.contains(&key))
+                    SettingsOperation::Save { changes, .. } => {
+                        matches!(&self.outcome, SettingsOutcome::Saved { snapshot, .. } if changes.keys().all(|key| snapshot.claimed.contains(&key))
                             && changes
                                 .apply(&snapshot.values)
                                 .is_ok_and(|values| values == snapshot.values))
-                            || matches!(&self.outcome, NativeSettingsOutcome::OutcomeUnknown {})
+                            || matches!(&self.outcome, SettingsOutcome::OutcomeUnknown {})
                             || shared_failure
                     }
                 }
@@ -168,17 +167,14 @@ impl NativeSettingsResult {
     }
     pub fn validate(&self) -> Result<(), ContractError> {
         match &self.outcome {
-            NativeSettingsOutcome::Opened { snapshot }
-            | NativeSettingsOutcome::Saved { snapshot, .. } => {
-                NativeSettingsSource::parse(&snapshot.source)?;
+            SettingsOutcome::Opened { snapshot } | SettingsOutcome::Saved { snapshot, .. } => {
+                SettingsSource::parse(&snapshot.source)?;
                 snapshot
                     .values
                     .validate()
                     .map_err(|_| ContractError::InvalidDocument)
             }
-            NativeSettingsOutcome::OutcomeUnknown {} | NativeSettingsOutcome::Refused { .. } => {
-                Ok(())
-            }
+            SettingsOutcome::OutcomeUnknown {} | SettingsOutcome::Refused { .. } => Ok(()),
         }
     }
 }

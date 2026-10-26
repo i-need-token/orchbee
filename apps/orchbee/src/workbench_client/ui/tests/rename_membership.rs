@@ -41,7 +41,7 @@ fn rename_modal_localizes_automatic_names_as_empty_field_placeholders_and_keeps_
 }
 
 fn render_rename_draft(
-    draft: &crate::workbench_client::NativeRenameDraftView<'_>,
+    draft: &crate::workbench_client::RenameDraftView<'_>,
     locale: Locale,
 ) -> String {
     let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
@@ -79,7 +79,7 @@ fn rename_removed_candidate_samples_one_posttransport_pair_and_never_renews_at_c
         let old = ui.state.as_ref().unwrap().desired().unwrap().clone();
         let token = ui.request_rename_draft().unwrap();
         ui.after_rename_draw(Some(ModalPresentation::Presented(token)));
-        ui.edit_rename_draft(token, NativeRenameEdit::Append("changed"));
+        ui.edit_rename_draft(token, RenameEdit::Append("changed"));
         assert_eq!(
             ui.submit_rename_draft(token),
             ClientActionDisposition::DismissNavigator
@@ -151,7 +151,7 @@ fn rename_removed_candidate_samples_one_posttransport_pair_and_never_renews_at_c
         );
         if millis < 45_000 && !wrong_key {
             assert!(!ui.retirement_requested());
-            assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
+            assert_eq!(ui.view().phase(), DisplayPhase::Empty);
             assert!(state.pending_rename().is_none());
             assert!(
                 matches!(mailbox.take_deposited_reply(&wait).unwrap(), Some(UiReply::Rename(reply)) if reply.request_id() == operation.request_id() && reply.desired().is_none())
@@ -170,8 +170,8 @@ fn rename_retained_key_consumes_timely_result_after_original_cutoff_without_memb
     let old = ui.state.as_ref().unwrap().desired().unwrap().clone();
     let token = ui.request_rename_draft().unwrap();
     ui.after_rename_draw(Some(ModalPresentation::Presented(token)));
-    ui.edit_rename_draft(token, NativeRenameEdit::Clear);
-    ui.edit_rename_draft(token, NativeRenameEdit::Append("new"));
+    ui.edit_rename_draft(token, RenameEdit::Clear);
+    ui.edit_rename_draft(token, RenameEdit::Append("new"));
     ui.submit_rename_draft(token);
     let lease = mailbox.try_recv().unwrap().unwrap();
     let QueuedCommand::Rename(marker) = lease.record() else {

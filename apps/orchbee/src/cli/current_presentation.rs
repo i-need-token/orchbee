@@ -47,7 +47,7 @@ pub(super) fn read_with_receipt(
     };
     let answer = client_control::windows::submit_control(
         client,
-        &snapshot.site_id,
+        &snapshot.session_id,
         command.clone(),
         deadline,
         signals,

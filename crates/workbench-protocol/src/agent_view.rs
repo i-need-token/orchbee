@@ -1,5 +1,5 @@
 //! Source-owned, bounded Agent view specifications shared by Server and native Client.
-use crate::{ContractError, ProtocolVersion, SiteId, WorkbenchRequestId, WorkbenchRevision};
+use crate::{ContractError, ProtocolVersion, SessionId, WorkbenchRequestId, WorkbenchRevision};
 use serde::{Deserialize, Serialize};
 
 pub mod evaluation;
@@ -151,7 +151,7 @@ pub struct AgentViewRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub action: AgentViewAction,
 }
 impl AgentViewRequest {
@@ -175,7 +175,7 @@ pub enum AgentViewFailure {
     Denied,
     Unavailable,
     #[serde(rename = "sessionMismatch")]
-    SiteMismatch,
+    SessionMismatch,
     InvalidRequest,
     PluginNotFound,
     PluginDisabled,
@@ -194,7 +194,7 @@ pub struct AgentViewResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub outcome: AgentViewOutcome,
 }
 impl AgentViewResult {
@@ -212,7 +212,7 @@ impl AgentViewResult {
     #[must_use]
     pub fn answers(&self, request: &AgentViewRequest) -> bool {
         self.request_id == request.request_id
-            && self.site_id == request.site_id
+            && self.session_id == request.session_id
             && self.validate().is_ok()
             && match &self.outcome {
                 AgentViewOutcome::Available { snapshot } => match &request.action {

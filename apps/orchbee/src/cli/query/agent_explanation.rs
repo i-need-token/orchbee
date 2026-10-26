@@ -91,7 +91,7 @@ impl AgentReadExchange for ExplainRead {
                         PanelAgentRequest {
                             protocol_version: ProtocolVersion,
                             request_id: id.clone(),
-                            site_id: snapshot.site_id.clone(),
+                            session_id: snapshot.session_id.clone(),
                             action: PanelAgentAction::Explain { binding },
                         },
                         total,
@@ -123,7 +123,7 @@ impl AgentReadExchange for ExplainRead {
                             return Err(crate::cli::workbench_agents::failure("workbench-changed"));
                         }
                         Ok((
-                            serde_json::json!({"kind":"panel-agent-explain","sessionId":snapshot.site_id,"workbenchRevision":workbench_revision,"reportRevision":report_revision,"requestId":id}),
+                            serde_json::json!({"kind":"panel-agent-explain","sessionId":snapshot.session_id,"workbenchRevision":workbench_revision,"reportRevision":report_revision,"requestId":id}),
                             Projection::AgentTerminalExplanation(explanation),
                         ))
                     }
@@ -137,7 +137,7 @@ impl AgentReadExchange for ExplainRead {
                             | PanelAgentFailure::Unbound
                             | PanelAgentFailure::BindingChanged => FailureKind::NotFound,
                             PanelAgentFailure::ResultTooLarge => FailureKind::OutputTooLarge,
-                            PanelAgentFailure::SiteMismatch
+                            PanelAgentFailure::SessionMismatch
                             | PanelAgentFailure::InvalidRequest
                             | PanelAgentFailure::SourceLimit
                             | PanelAgentFailure::HistoryLimit
@@ -150,7 +150,7 @@ impl AgentReadExchange for ExplainRead {
                             | PanelAgentFailure::BindingChanged => "binding-changed",
                             PanelAgentFailure::Denied
                             | PanelAgentFailure::Unavailable
-                            | PanelAgentFailure::SiteMismatch
+                            | PanelAgentFailure::SessionMismatch
                             | PanelAgentFailure::InvalidRequest
                             | PanelAgentFailure::SourceLimit
                             | PanelAgentFailure::HistoryLimit

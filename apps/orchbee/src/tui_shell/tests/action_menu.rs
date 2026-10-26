@@ -45,9 +45,9 @@ fn navigation_view(columns: u16) -> (ClientView, crate::machine_picker::SidebarT
     let contexts: Vec<_> = [1, 2]
         .into_iter()
         .map(|id| crate::machine_discovery::Context {
-            target: crate::workbench_client::NativeContextTarget {
-                site_id: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
-                location: crate::workbench_client::NativeContextLocation::Workspace {
+            target: crate::workbench_client::ClientContextTarget {
+                session_id: SessionId::parse(&format!("{:032x}", 1)).unwrap(),
+                location: crate::workbench_client::ClientContextLocation::Workspace {
                     workspace_id: WorkbenchWorkspaceId::parse(&format!("{id:032x}")).unwrap(),
                     terminal_context_id: WorkbenchTerminalContextId::parse(&format!("{id:032x}"))
                         .unwrap(),

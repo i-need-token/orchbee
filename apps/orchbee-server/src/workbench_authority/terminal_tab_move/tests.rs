@@ -10,14 +10,14 @@ use crate::workbench_authority::{
 };
 use crate::workbench_projection::WorkbenchProjectionStore;
 use orchbee_workbench_protocol::{
-    PresentationBinding, SiteId, TerminalId, WorkbenchRequest, WorkbenchRequestId,
+    PresentationBinding, SessionId, TerminalId, WorkbenchRequest, WorkbenchRequestId,
     WorkbenchRevision, WorkerId,
 };
 
 fn authority(count: usize) -> (WorkbenchAuthority, WorkbenchGrant) {
     let mut authority =
-        WorkbenchAuthority::workspace_fixture(SiteId::parse(&identity(100)).unwrap()).unwrap();
-    let grant = WorkbenchGrant::manage_navigation(authority.site_id().clone());
+        WorkbenchAuthority::workspace_fixture(SessionId::parse(&identity(100)).unwrap()).unwrap();
+    let grant = WorkbenchGrant::manage_navigation(authority.session_id().clone());
     let mut snapshot = authority.projection.snapshot().clone();
     for index in 0..count {
         append_simple_tab(
@@ -49,7 +49,7 @@ fn command(
     WorkbenchCommand {
         protocol_version: orchbee_workbench_protocol::ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&identity(request)).unwrap(),
-        site_id: authority.site_id().clone(),
+        session_id: authority.session_id().clone(),
         expected_revision: authority.projection.snapshot().revision,
         action: WorkbenchAction::TabMove {
             terminal_context_id: authority.projection.snapshot().navigation.workspaces[0]
@@ -202,7 +202,7 @@ fn exact_move_replay_keeps_its_revision_and_all_fingerprint_fields_conflict_afte
         };
         match field {
             0 => changed.expected_revision = WorkbenchRevision::new(99),
-            1 => changed.site_id = SiteId::parse(&identity(99)).unwrap(),
+            1 => changed.session_id = SessionId::parse(&identity(99)).unwrap(),
             2 => {
                 *terminal_context_id =
                     orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(&identity(99))
@@ -508,7 +508,7 @@ fn move_revision_growth_at_the_exact_projection_byte_bound_refuses_before_public
 fn move_admission_cannot_use_its_navigation_grant_to_replay_a_terminal_create() {
     let (mut authority, move_grant) = authority(0);
     let create_grant =
-        WorkbenchGrant::manage_navigation_and_terminal_create(authority.site_id().clone());
+        WorkbenchGrant::manage_navigation_and_terminal_create(authority.session_id().clone());
     let mut create = command(&authority, 10, 0, WorkbenchTabMoveDirection::First);
     create.action = WorkbenchAction::TabCreate {
         placement: None,

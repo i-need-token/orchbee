@@ -25,7 +25,7 @@ fn scopes_snapshot() -> Snapshot {
     snapshot
 }
 
-fn row_scope(ui: &NativeUi, action: MenuAction) -> TabMenuScope {
+fn row_scope(ui: &WorkbenchClientUi, action: MenuAction) -> TabMenuScope {
     let view = ui.view();
     let menu = view.action_menu().unwrap();
     let row = menu
@@ -180,7 +180,7 @@ fn direct_group_menu_and_saved_color_are_independent_of_cross_group_marks_and_ca
         TabMenuScope::Group(NonZeroUsize::new(2).unwrap())
     );
     choose(&mut ui, MenuAction::ChooseGroupColor);
-    let color_facts = |ui: &NativeUi| {
+    let color_facts = |ui: &WorkbenchClientUi| {
         let view = ui.view();
         let menu = view.action_menu().unwrap();
         let checked: Vec<_> = menu

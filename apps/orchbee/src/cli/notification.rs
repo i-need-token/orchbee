@@ -47,7 +47,7 @@ fn windows(message: Notification, format: OutputFormat, locale: Locale) -> Outpu
         let request = NotificationRequest {
             protocol_version: snapshot.protocol_version,
             request_id: query::request_id()?,
-            site_id: snapshot.site_id,
+            session_id: snapshot.session_id,
             action: orchbee_workbench_protocol::NotificationAction::Show {
                 notification: message,
             },

@@ -5,7 +5,7 @@ use crate::{
     local_client::LocalClient,
 };
 use orchbee_workbench_protocol::{
-    ProtocolVersion, SiteId, WorkbenchAction, WorkbenchRequestId, WorkbenchTabCloseRead,
+    ProtocolVersion, SessionId, WorkbenchAction, WorkbenchRequestId, WorkbenchTabCloseRead,
     WorkbenchTabCloseReadOutcome, WorkbenchTabCloseStatus, WorkbenchTabId,
     WorkbenchTerminalContextId,
 };
@@ -33,7 +33,7 @@ impl Engine<'_> {
             self.check()?;
             let result = read_close(
                 &mut self.client,
-                &self.snapshot.site_id,
+                &self.snapshot.session_id,
                 &self.destination.context,
                 &old.tab_id,
                 &close,
@@ -92,7 +92,7 @@ impl Engine<'_> {
         // A latched user cancellation cannot interrupt the bounded compensating Close itself.
         // A fresh admission avoids replaying on a retired or uncertain original connection.
         let (mut client, snapshot) = query::stream_snapshot(self.total_deadline, None)?;
-        if snapshot.site_id != self.snapshot.site_id {
+        if snapshot.session_id != self.snapshot.session_id {
             return Err(error(FailureKind::Denied, "ownership-unverified"));
         }
         ownership::unchanged(&snapshot, &self.destination.context, expected)?;
@@ -122,7 +122,7 @@ impl Engine<'_> {
             }
             let status = read_close(
                 &mut client,
-                &snapshot.site_id,
+                &snapshot.session_id,
                 &self.destination.context,
                 &expected.tab_id,
                 &close,
@@ -155,7 +155,7 @@ impl Engine<'_> {
 }
 fn read_close(
     client: &mut LocalClient,
-    site: &SiteId,
+    session: &SessionId,
     context: &WorkbenchTerminalContextId,
     tab: &WorkbenchTabId,
     close: &WorkbenchRequestId,
@@ -167,7 +167,7 @@ fn read_close(
             WorkbenchTabCloseRead {
                 protocol_version: ProtocolVersion,
                 request_id: query::request_id()?,
-                site_id: site.clone(),
+                session_id: session.clone(),
                 terminal_context_id: context.clone(),
                 tab_id: tab.clone(),
             },

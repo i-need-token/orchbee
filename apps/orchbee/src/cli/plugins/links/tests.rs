@@ -1,5 +1,5 @@
 use super::*;
-use orchbee_local_site_runtime::{PluginManifest, PluginPlatform, PluginRegistryError};
+use orchbee_local_runtime::{PluginManifest, PluginPlatform, PluginRegistryError};
 fn entry(id: &str) -> PluginRegistryEntry {
     PluginRegistryEntry {
         manifest_path: format!("C:/plugins/{id}/orchbee-plugin.toml"),

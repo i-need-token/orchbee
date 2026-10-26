@@ -66,7 +66,7 @@ impl Drop for CloseMaintenance {
             state.stop = true;
             self.wake.changed.notify_one();
         }
-        // Existing Site ownership is process-lifetime. Dropping the handle never joins.
+        // Existing Session ownership is process-lifetime. Dropping the handle never joins.
     }
 }
 
@@ -78,7 +78,7 @@ impl Drop for RunningOwner {
 }
 
 impl LocalTerminalService {
-    /// Stops the maintenance submitter and joins it within the Site owner's deadline.
+    /// Stops the maintenance submitter and joins it within the Session owner's deadline.
     #[cfg(windows)]
     pub(crate) fn stop_close_before(&self, deadline: Instant) -> io::Result<()> {
         self.close_maintenance

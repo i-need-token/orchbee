@@ -5,14 +5,14 @@ use crate::workbench_client::state::{
     CleanupContinuation, ClientNotice, ControllerMode, FrameIdentity, PaneKey, SelectedTab,
     SetupEventDisposition,
 };
-use crate::workbench_client::workbench_projection::NativeContextLocation;
+use crate::workbench_client::workbench_projection::ClientContextLocation;
 use orchbee_workbench_protocol::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 fn close_snapshot_waiting_ui(
     elapsed: Arc<AtomicU64>,
 ) -> (
-    NativeUi,
+    WorkbenchClientUi,
     Arc<CommandMailbox>,
     LocalOperationClock,
     super::super::super::mailbox::CommandLease,
@@ -25,7 +25,7 @@ fn close_snapshot_waiting_ui(
         10,
         Geometry::new(80, 24, 8, 16).unwrap(),
     ));
-    let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    let mut ui = WorkbenchClientUi::new(Arc::clone(&mailbox), clock.clone());
     let deadline = clock.now() + super::super::super::state::OPERATION_TOTAL;
     let wait = mailbox
         .publish_event_before(
@@ -142,7 +142,7 @@ fn close_acknowledgement_after_empty_install_requests_the_status_removal_redraw(
     assert!(ui.tick());
     drop(reply);
     mailbox.take_deposited_reply(&wait).unwrap().unwrap();
-    assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
+    assert_eq!(ui.view().phase(), DisplayPhase::Empty);
     assert!(
         ui.view().close_status().is_some(),
         "the worker still retains its exact marker"
@@ -194,7 +194,7 @@ fn close_snapshot_late_ui_starts_one_budget_and_gone_never_installs_after_forwar
         elapsed.store(75_000 + offset, Ordering::SeqCst);
         assert!(ui.tick());
         if offset < 45_000 {
-            assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
+            assert_eq!(ui.view().phase(), DisplayPhase::Empty);
             mailbox.take_deposited_reply(&wait).unwrap().unwrap();
             mailbox.finish_lease(lease).unwrap();
         } else {
@@ -225,7 +225,7 @@ fn actual_attached_refresh_freezes_until_exact_cleanup_and_never_installs_after_
         let clock = adjustable_operation_clock(Arc::clone(&elapsed));
         let geometry = Geometry::new(80, 24, 8, 16).unwrap();
         let mailbox = Arc::new(CommandMailbox::new(10, geometry));
-        let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+        let mut ui = WorkbenchClientUi::new(Arc::clone(&mailbox), clock.clone());
         let wait = mailbox
             .publish_event_before(
                 WorkerEvent::Bootstrap {
@@ -285,7 +285,7 @@ fn actual_attached_refresh_freezes_until_exact_cleanup_and_never_installs_after_
         elapsed.store(millis, Ordering::SeqCst);
         ui.tick();
         if millis < 45_000 && !wrong_generation {
-            assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
+            assert_eq!(ui.view().phase(), DisplayPhase::Empty);
             assert!(ui.state.as_ref().unwrap().cache().tabs().is_empty());
             assert!(
                 matches!(mailbox.take_deposited_reply(&wait).unwrap(), Some(UiReply::Membership(settlement)) if settlement.desired().is_none())
@@ -305,7 +305,7 @@ fn actual_refresh_reply_installs_empty_and_later_peer_membership_with_one_shared
     let clock = adjustable_operation_clock(Arc::clone(&elapsed));
     let geometry = Geometry::new(80, 24, 8, 16).unwrap();
     let mailbox = Arc::new(CommandMailbox::new(10, geometry));
-    let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    let mut ui = WorkbenchClientUi::new(Arc::clone(&mailbox), clock.clone());
     let bootstrap = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {
@@ -422,7 +422,7 @@ fn actual_refresh_reply_installs_empty_and_later_peer_membership_with_one_shared
     // Timely placement owns transport completion; this later UI tick starts the one fresh reconciliation budget.
     elapsed.store(75_000, Ordering::SeqCst);
     ui.tick();
-    assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
+    assert_eq!(ui.view().phase(), DisplayPhase::Empty);
     assert_eq!(ui.view().active_position(), None);
     assert!(ui.view().projection().is_none());
     assert!(!ui.retirement_requested());
@@ -435,7 +435,7 @@ fn actual_refresh_reply_installs_empty_and_later_peer_membership_with_one_shared
 
     let (lease, wait) = place_refresh(&mut ui, &mailbox, &clock, canonical_snapshot(0, 2));
     ui.tick();
-    assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
+    assert_eq!(ui.view().phase(), DisplayPhase::Empty);
     assert!(
         matches!(mailbox.take_deposited_reply(&wait).unwrap(), Some(UiReply::Refresh(settlement))
         if settlement.desired().is_none() && *settlement.decision() == RefreshDecision::Continue)
@@ -453,11 +453,8 @@ fn actual_refresh_reply_installs_empty_and_later_peer_membership_with_one_shared
     );
     elapsed.store(150_000, Ordering::SeqCst);
     ui.tick();
-    assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
-    assert_eq!(
-        ui.view().refresh_status(),
-        Some(NativeRefreshStatus::Failure(2))
-    );
+    assert_eq!(ui.view().phase(), DisplayPhase::Empty);
+    assert_eq!(ui.view().refresh_status(), Some(RefreshStatus::Failure(2)));
     assert!(
         matches!(mailbox.take_deposited_reply(&wait).unwrap(), Some(UiReply::Refresh(settlement)) if settlement.desired().is_none())
     );
@@ -485,7 +482,7 @@ fn actual_refresh_reply_installs_empty_and_later_peer_membership_with_one_shared
         )
         .unwrap();
     ui.tick();
-    assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
+    assert_eq!(ui.view().phase(), DisplayPhase::Empty);
     assert!(matches!(
         mailbox.take_deposited_reply(&wait).unwrap(),
         Some(UiReply::PrecommitRestored)
@@ -537,7 +534,7 @@ fn removed_context_refresh_cleans_every_pending_viewer_then_lands_on_initial_wor
         10,
         Geometry::new(80, 24, 8, 16).unwrap(),
     ));
-    let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    let mut ui = WorkbenchClientUi::new(Arc::clone(&mailbox), clock.clone());
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {
@@ -593,7 +590,7 @@ fn removed_context_refresh_cleans_every_pending_viewer_then_lands_on_initial_wor
     let state = ui.state.as_ref().unwrap();
     assert_eq!(state.cache(), &baseline);
     assert_eq!(state.desired(), Some(&old));
-    assert_eq!(ui.view().phase(), NativeDisplayPhase::Switching);
+    assert_eq!(ui.view().phase(), DisplayPhase::Switching);
 
     // ReconcilingMembership freezes Ready-based admission: fresh input is
     // refused as busy, never queued, and never retiring.
@@ -625,7 +622,7 @@ fn removed_context_refresh_cleans_every_pending_viewer_then_lands_on_initial_wor
     let state = ui.state.as_ref().unwrap();
     assert_eq!(state.cache().location(), &{
         let fixture_context_id = removal_context();
-        NativeContextLocation::Workspace {
+        ClientContextLocation::Workspace {
             workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(&format!(
                 "{:032x}",
                 2
@@ -647,7 +644,7 @@ fn removed_context_refresh_cleans_every_pending_viewer_then_lands_on_initial_wor
     assert_eq!(ui.view().context_count(), 1);
     assert_eq!(ui.view().context_at(0).unwrap().location(), &{
         let fixture_context_id = removal_context();
-        NativeContextLocation::Workspace {
+        ClientContextLocation::Workspace {
             workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(&format!(
                 "{:032x}",
                 2
@@ -717,7 +714,7 @@ fn split_snapshot() -> Snapshot {
 }
 
 pub(in crate::workbench_client::ui) fn place_refresh(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
     snapshot: Snapshot,
@@ -734,7 +731,7 @@ pub(in crate::workbench_client::ui) fn place_refresh(
 }
 
 fn place_refresh_outcome(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
     outcome: WorkbenchSnapshotOutcome,
@@ -796,7 +793,7 @@ pub(in crate::workbench_client) fn snapshot(count: usize, revision: u64) -> Snap
         },
         protocol_version: ProtocolVersion,
         revision: WorkbenchRevision::new(revision),
-        site_id: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
+        session_id: SessionId::parse(&format!("{:032x}", 1)).unwrap(),
         terminal_contexts: vec![TerminalContext {
             groups: Vec::new(),
             terminal_context_id: context,

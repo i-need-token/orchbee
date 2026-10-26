@@ -8,7 +8,7 @@ use orchbee_workbench_protocol::{
     MAXIMUM_GRAPHICS_SET_BYTES, MAXIMUM_GRAPHICS_STREAM_BYTES, PaneGraphicsAction as Action,
     PaneGraphicsFailure as Failure, PaneGraphicsOutcome as Outcome, PaneGraphicsRequest,
     PaneGraphicsResult, PaneGraphicsStreamImage, SemanticEventSource, SemanticEventsFailure,
-    SemanticPane, SiteId, Snapshot,
+    SemanticPane, SessionId, Snapshot,
 };
 use std::{
     collections::BTreeSet,
@@ -25,11 +25,11 @@ pub(super) use files_windows::GraphicsFiles;
 impl LocalTerminalService {
     fn graphics_snapshot<T>(
         &self,
-        site: &SiteId,
+        session: &SessionId,
         use_snapshot: impl FnOnce(&Snapshot, &mut PaneGraphicsAuthority) -> Result<T, Failure>,
     ) -> Result<T, Failure> {
         let coordinator = self.coordinator.lock().map_err(|_| Failure::Unavailable)?;
-        let snapshot = coordinator.graphics_snapshot(site)?;
+        let snapshot = coordinator.graphics_snapshot(session)?;
         let owner = coordinator.graphics_owner().ok_or(Failure::Unavailable)?;
         let mut layers = owner.lock().map_err(|_| Failure::Unavailable)?;
         use_snapshot(&snapshot, &mut layers)
@@ -48,7 +48,7 @@ impl LocalTerminalService {
         PaneGraphicsResult {
             protocol_version: request.protocol_version,
             request_id: request.request_id,
-            site_id: request.site_id,
+            session_id: request.session_id,
             outcome,
         }
     }
@@ -58,8 +58,8 @@ impl LocalTerminalService {
         request: &PaneGraphicsRequest,
     ) -> Result<Outcome, Failure> {
         request.validate().map_err(|_| Failure::InvalidIntent)?;
-        if self.workbench_site_matches(&request.site_id) != Some(true) {
-            return Err(Failure::SiteMismatch);
+        if self.workbench_session_matches(&request.session_id) != Some(true) {
+            return Err(Failure::SessionMismatch);
         }
         let _preparation = if request.action.writes() {
             if self.graphics_stopping.load(Ordering::Acquire) {
@@ -76,12 +76,12 @@ impl LocalTerminalService {
         if request.action.writes() && self.graphics_stopping.load(Ordering::Acquire) {
             return Err(Failure::Unavailable);
         }
-        let site = &request.site_id;
+        let session = &request.session_id;
         match &request.action {
             Action::Observe { .. } => Err(Failure::InvalidIntent),
             Action::Info { target, .. } => {
                 let (catalog, file_frame_directory) =
-                    self.graphics_snapshot(site, |snapshot, layers| {
+                    self.graphics_snapshot(session, |snapshot, layers| {
                         let catalog = layers.catalog(snapshot, target)?;
                         let directory =
                             layers.connection_file_directory(snapshot, target, connection)?;
@@ -108,7 +108,7 @@ impl LocalTerminalService {
                 })
             }
             Action::Catalog { target } => {
-                self.graphics_snapshot(site, |snapshot, layers| layers.catalog(snapshot, target))
+                self.graphics_snapshot(session, |snapshot, layers| layers.catalog(snapshot, target))
             }
             Action::Pixels {
                 target,
@@ -116,7 +116,7 @@ impl LocalTerminalService {
                 resource_revision,
                 offset,
                 maximum_bytes,
-            } => self.graphics_snapshot(site, |snapshot, layers| {
+            } => self.graphics_snapshot(session, |snapshot, layers| {
                 layers.pixels(
                     snapshot,
                     target,
@@ -132,17 +132,17 @@ impl LocalTerminalService {
                 z_index,
                 image,
             } => {
-                let source = self.graphics_snapshot(site, |snapshot, _layers| {
+                let source = self.graphics_snapshot(session, |snapshot, _layers| {
                     PaneGraphicsAuthority::resolve(snapshot, target)
                 })?;
                 let decoded = DecodedGraphicsImage::decode(
                     image,
                     MAXIMUM_GRAPHICS_SET_BYTES,
                     |png, width, height| {
-                        self.decode_graphics_png(site, &source, png, width, height)
+                        self.decode_graphics_png(session, &source, png, width, height)
                     },
                 )?;
-                self.graphics_snapshot(site, |snapshot, layers| {
+                self.graphics_snapshot(session, |snapshot, layers| {
                     let current = PaneGraphicsAuthority::resolve(snapshot, target)?;
                     if current.presentation_id != source.presentation_id
                         || current.binding != source.binding
@@ -153,7 +153,7 @@ impl LocalTerminalService {
                 })
             }
             Action::Clear { target, layer_id } => self
-                .graphics_snapshot(site, |snapshot, layers| {
+                .graphics_snapshot(session, |snapshot, layers| {
                     layers.clear(snapshot, target, layer_id)
                 }),
             Action::StreamOpen {
@@ -169,7 +169,7 @@ impl LocalTerminalService {
                     layer_id,
                     z_index: *z_index,
                 };
-                let source = match self.graphics_snapshot(site, |snapshot, layers| {
+                let source = match self.graphics_snapshot(session, |snapshot, layers| {
                     layers.prepare_open(snapshot, &intent)
                 })? {
                     PaneGraphicsOpenPreparation::Existing(outcome) => return Ok(outcome),
@@ -178,7 +178,7 @@ impl LocalTerminalService {
                 let lease = self
                     .graphics_files
                     .as_ref()
-                    .map(|files| files.create(site, &source, connection, stream_id))
+                    .map(|files| files.create(session, &source, connection, stream_id))
                     .transpose()?;
                 let directory = lease
                     .as_ref()
@@ -188,7 +188,7 @@ impl LocalTerminalService {
                             .map(|path| path.to_string_lossy().into_owned())
                     })
                     .transpose()?;
-                self.graphics_snapshot(site, |snapshot, layers| {
+                self.graphics_snapshot(session, |snapshot, layers| {
                     layers.commit_open(snapshot, &intent, &source, directory)
                 })
             }
@@ -199,7 +199,7 @@ impl LocalTerminalService {
                 image,
                 ..
             } => {
-                let (source, directory) = self.graphics_snapshot(site, |snapshot, layers| {
+                let (source, directory) = self.graphics_snapshot(session, |snapshot, layers| {
                     let source =
                         layers.producer_source(snapshot, connection, stream_id, *sequence)?;
                     Ok((
@@ -212,7 +212,7 @@ impl LocalTerminalService {
                         image,
                         MAXIMUM_GRAPHICS_STREAM_BYTES,
                         |png, width, height| {
-                            self.decode_graphics_png(site, &source, png, width, height)
+                            self.decode_graphics_png(session, &source, png, width, height)
                         },
                     )?,
                     PaneGraphicsStreamImage::File {
@@ -234,7 +234,7 @@ impl LocalTerminalService {
                         )?
                     }
                 };
-                self.graphics_snapshot(site, |snapshot, layers| {
+                self.graphics_snapshot(session, |snapshot, layers| {
                     layers.frame(
                         snapshot,
                         PaneGraphicsFrameCommit {
@@ -249,17 +249,17 @@ impl LocalTerminalService {
                 })
             }
             Action::StreamClose { stream_id } => self
-                .graphics_snapshot(site, |_snapshot, layers| {
+                .graphics_snapshot(session, |_snapshot, layers| {
                     layers.close(connection, stream_id)
                 }),
         }
     }
     pub(crate) fn validate_graphics_observation(
         &self,
-        site: &SiteId,
+        session: &SessionId,
         observation: &orchbee_workbench_protocol::PaneGraphicsClientObservation,
     ) -> Result<(), Failure> {
-        self.graphics_snapshot(site, |snapshot, layers| {
+        self.graphics_snapshot(session, |snapshot, layers| {
             if observation.workbench_revision > snapshot.revision {
                 return Err(Failure::SourceChanged);
             }
@@ -277,10 +277,10 @@ impl LocalTerminalService {
     }
     pub(crate) fn graphics_source(
         &self,
-        site: &SiteId,
+        session: &SessionId,
         target: &orchbee_workbench_protocol::PaneGraphicsTarget,
     ) -> Result<SemanticPane, Failure> {
-        self.graphics_snapshot(site, |snapshot, _| {
+        self.graphics_snapshot(session, |snapshot, _| {
             PaneGraphicsAuthority::resolve(snapshot, target)
         })
     }
@@ -373,7 +373,7 @@ impl LocalTerminalService {
     }
     fn decode_graphics_png(
         &self,
-        site: &SiteId,
+        session: &SessionId,
         source: &SemanticPane,
         png: &[u8],
         width: u32,
@@ -383,7 +383,9 @@ impl LocalTerminalService {
             panel_id: source.panel_id.clone(),
             presentation_id: Some(source.presentation_id.clone()),
         };
-        let before = self.event_source(site, &selector).map_err(source_failure)?;
+        let before = self
+            .event_source(session, &selector)
+            .map_err(source_failure)?;
         if before.0.binding != source.binding {
             return Err(Failure::SourceChanged);
         }
@@ -399,7 +401,9 @@ impl LocalTerminalService {
         if pending.is_some() {
             return Err(Failure::PhysicalUnknown);
         }
-        let after = self.event_source(site, &selector).map_err(source_failure)?;
+        let after = self
+            .event_source(session, &selector)
+            .map_err(source_failure)?;
         if before.2 != after.2 || after.0.binding != source.binding {
             return Err(Failure::SourceChanged);
         }
@@ -414,7 +418,7 @@ fn source_failure(reason: SemanticEventsFailure) -> Failure {
         SemanticEventsFailure::Denied
         | SemanticEventsFailure::InvalidIntent
         | SemanticEventsFailure::InvalidRegex
-        | SemanticEventsFailure::SiteMismatch
+        | SemanticEventsFailure::SessionMismatch
         | SemanticEventsFailure::Unavailable
         | SemanticEventsFailure::Conflict
         | SemanticEventsFailure::NotFound

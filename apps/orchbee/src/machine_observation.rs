@@ -6,7 +6,7 @@ use crate::{
 use orchbee_workbench_protocol::{
     ProtocolVersion, SemanticEventFilter, SemanticEventKind, SemanticEventMatch,
     SemanticEventScope, SemanticEventsAction, SemanticEventsFailure, SemanticEventsOutcome,
-    SemanticEventsRequest, SiteId, Snapshot, SnapshotReadIntent, WorkbenchRequestId,
+    SemanticEventsRequest, SessionId, Snapshot, SnapshotReadIntent, WorkbenchRequestId,
     WorkbenchSnapshotOutcome,
 };
 use std::{
@@ -169,7 +169,7 @@ fn watch(
 ) -> Result<(), ()> {
     let deadline = Instant::now() + Duration::from_secs(5);
     let mut client = source.reconnect(deadline, cancel).map_err(|_| ())?;
-    let site_id = snapshot(&mut client, deadline, cancel)?.site_id;
+    let session_id = snapshot(&mut client, deadline, cancel)?.session_id;
     let subscription_id = request_id()?;
     let filters = kinds
         .iter()
@@ -181,7 +181,7 @@ fn watch(
         .collect();
     let opened = events(
         &mut client,
-        &site_id,
+        &session_id,
         SemanticEventsAction::Subscribe {
             subscription_id: subscription_id.clone(),
             filters,
@@ -200,7 +200,7 @@ fn watch(
     while cancel.load(Ordering::Acquire) == 0 {
         match events(
             &mut client,
-            &site_id,
+            &session_id,
             SemanticEventsAction::Wait {
                 subscription_id: subscription_id.clone(),
                 timeout_milliseconds: WATCH_WAIT_MILLISECONDS,
@@ -226,7 +226,7 @@ fn watch(
 }
 fn events(
     client: &mut LocalClient,
-    site_id: &SiteId,
+    session_id: &SessionId,
     action: SemanticEventsAction,
     cancel: &AtomicU8,
 ) -> Result<SemanticEventsOutcome, ()> {
@@ -238,7 +238,7 @@ fn events(
             SemanticEventsRequest {
                 protocol_version: ProtocolVersion,
                 request_id: request_id()?,
-                site_id: site_id.clone(),
+                session_id: session_id.clone(),
                 action,
             },
             Instant::now() + Duration::from_secs(3),

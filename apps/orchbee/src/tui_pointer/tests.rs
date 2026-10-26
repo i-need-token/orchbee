@@ -7,7 +7,7 @@ use super::*;
 fn covered_sidebar_retains_menu_placement_geometry_without_input_authority() {
     let target = crate::machine_picker::SidebarTarget::Project {
         machine: crate::machine_picker::Choice::Local,
-        site_id: orchbee_workbench_protocol::SiteId::parse(&format!("{:032x}", 1)).unwrap(),
+        session_id: orchbee_workbench_protocol::SessionId::parse(&format!("{:032x}", 1)).unwrap(),
         project_id: orchbee_workbench_protocol::WorkbenchProjectId::parse(&format!("{:032x}", 2))
             .unwrap(),
     };
@@ -105,7 +105,7 @@ fn render_sidebar_map(view: &ClientView) -> FrameHitMap {
 #[test]
 fn sidebar_gestures_require_exact_plain_release_and_obey_capture_and_modals() {
     use crate::machine_picker::{SidebarPart, SidebarTarget};
-    use crate::workbench_client::NativeStartupTarget;
+    use crate::workbench_client::ClientStartupTarget;
 
     for (action, button, mods) in [
         (MouseAction::Press, MouseButton::Middle, Modifiers::NONE),
@@ -158,7 +158,7 @@ fn sidebar_gestures_require_exact_plain_release_and_obey_capture_and_modals() {
     let HitTarget::MachineAgentRow { selected, window } = &region.target else {
         unreachable!()
     };
-    let Some(NativeStartupTarget::Agent(agent)) = &selected.context else {
+    let Some(ClientStartupTarget::Agent(agent)) = &selected.context else {
         unreachable!()
     };
     let drawn = view
@@ -532,7 +532,7 @@ fn painted_link_source(
         host_terminal: orchbee_client_server_protocol::HostTerminalId::parse(&id(27)).unwrap(),
         screen: crate::terminal_content::TerminalScreen::Primary,
         member: crate::terminal_link_activation::SnapshotMember {
-            site: orchbee_workbench_protocol::SiteId::parse(&id(20)).unwrap(),
+            session: orchbee_workbench_protocol::SessionId::parse(&id(20)).unwrap(),
             context: orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(&id(21))
                 .unwrap(),
             tab,
@@ -2873,15 +2873,15 @@ fn workspace_fixture(count: u64) -> (ClientView, FrameHitMap) {
 fn workspace_fixture_with_legacy(count: u64, legacy: bool) -> (ClientView, FrameHitMap) {
     use crate::{
         machine_discovery::Context,
-        workbench_client::{NativeContextLocation, NativeContextTarget},
+        workbench_client::{ClientContextLocation, ClientContextTarget},
     };
     use orchbee_workbench_protocol::*;
     let (mut view, _) = sidebar_fixture(10);
     let mut contexts = (0..count)
         .map(|n| Context {
-            target: NativeContextTarget {
-                site_id: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
-                location: NativeContextLocation::Workspace {
+            target: ClientContextTarget {
+                session_id: SessionId::parse(&format!("{:032x}", 1)).unwrap(),
+                location: ClientContextLocation::Workspace {
                     workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 100 + n))
                         .unwrap(),
                     terminal_context_id: WorkbenchTerminalContextId::parse(&format!(
@@ -2901,7 +2901,7 @@ fn workspace_fixture_with_legacy(count: u64, legacy: bool) -> (ClientView, Frame
         context.target.location = {
             let fixture_context_id =
                 WorkbenchTerminalContextId::parse(&format!("{:032x}", 900)).unwrap();
-            NativeContextLocation::Workspace {
+            ClientContextLocation::Workspace {
                 workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                     fixture_context_id.as_str(),
                 )
@@ -2937,8 +2937,8 @@ fn workspace_fixture_with_legacy(count: u64, legacy: bool) -> (ClientView, Frame
 #[test]
 fn ux_menu_workspace_sidebar_right_click_requires_the_exact_current_endpoint() {
     use crate::action_menu::{DrawnMenuSource, MenuTarget};
-    use crate::workbench_client::NativeStartupTarget;
-    use orchbee_workbench_protocol::{SiteId, WorkbenchRevision};
+    use crate::workbench_client::ClientStartupTarget;
+    use orchbee_workbench_protocol::{SessionId, WorkbenchRevision};
     for (invalid, legacy) in
         (0..4).flat_map(|invalid| [false, true].map(|legacy| (invalid, legacy)))
     {
@@ -2949,8 +2949,8 @@ fn ux_menu_workspace_sidebar_right_click_requires_the_exact_current_endpoint() {
             .find(|r| match &r.target {
                 HitTarget::MachineWorkspaceRow { selected, .. } => matches!(
                     &selected.context,
-                    Some(NativeStartupTarget::Context(context))
-                        if matches!(&context.location, crate::workbench_client::NativeContextLocation::Workspace { workspace_id, .. } if workspace_id.as_str() == format!("{:032x}", 900)) == legacy
+                    Some(ClientStartupTarget::Context(context))
+                        if matches!(&context.location, crate::workbench_client::ClientContextLocation::Workspace { workspace_id, .. } if workspace_id.as_str() == format!("{:032x}", 900)) == legacy
                 ),
                 _ => false,
             })
@@ -2958,7 +2958,7 @@ fn ux_menu_workspace_sidebar_right_click_requires_the_exact_current_endpoint() {
         let HitTarget::MachineWorkspaceRow { selected, .. } = &region.target else {
             unreachable!()
         };
-        let Some(NativeStartupTarget::Context(context)) = &selected.context else {
+        let Some(ClientStartupTarget::Context(context)) = &selected.context else {
             unreachable!()
         };
         let context = context.clone();
@@ -2969,7 +2969,7 @@ fn ux_menu_workspace_sidebar_right_click_requires_the_exact_current_endpoint() {
             region.rect.y,
         );
         let source = DrawnMenuSource {
-            site: context.site_id.clone(),
+            session: context.session_id.clone(),
             revision: WorkbenchRevision::new(1),
         };
         map.menu_source = Some(source.clone());
@@ -2980,8 +2980,8 @@ fn ux_menu_workspace_sidebar_right_click_requires_the_exact_current_endpoint() {
                 )
             }
             2 => {
-                map.menu_source.as_mut().unwrap().site =
-                    SiteId::parse("00000000000000000000000000000002").unwrap()
+                map.menu_source.as_mut().unwrap().session =
+                    SessionId::parse("00000000000000000000000000000002").unwrap()
             }
             3 => {
                 view.machines.observe_local(Vec::new());
@@ -3016,7 +3016,7 @@ fn ux_menu_workspace_sidebar_right_click_requires_the_exact_current_endpoint() {
 #[test]
 fn workspace_sidebar_release_emits_the_exact_drawn_target_without_mutating_navigation() {
     use crate::machine_picker::{SidebarPart, SidebarTarget};
-    use crate::workbench_client::NativeStartupTarget;
+    use crate::workbench_client::ClientStartupTarget;
 
     let (mut view, map) = workspace_fixture(2);
     let region = map
@@ -3027,7 +3027,7 @@ fn workspace_sidebar_release_emits_the_exact_drawn_target_without_mutating_navig
     let HitTarget::MachineWorkspaceRow { selected, window } = &region.target else {
         unreachable!()
     };
-    let Some(NativeStartupTarget::Context(context)) = &selected.context else {
+    let Some(ClientStartupTarget::Context(context)) = &selected.context else {
         unreachable!()
     };
     let target = SidebarTarget::Context {

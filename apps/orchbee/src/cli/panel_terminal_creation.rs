@@ -128,7 +128,7 @@ fn execute(
     } else {
         let reply = exchange(
             &mut client,
-            &snapshot.site_id,
+            &snapshot.session_id,
             ClientViewAction::List {},
             deadline,
             signals,
@@ -178,7 +178,7 @@ fn execute(
     let request = CreationRequest::try_from(WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: request_id.clone(),
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         expected_revision: snapshot.revision,
         action,
     })
@@ -223,7 +223,7 @@ fn execute(
         ),
     };
     *document = Some(json!({"schema":"orchbee.panel.terminal-create","version":1,
-        "resolvedLaunch":null,"source":{"sessionId":snapshot.site_id,"requestId":request_id,"baseRevision":snapshot.revision},
+        "resolvedLaunch":null,"source":{"sessionId":snapshot.session_id,"requestId":request_id,"baseRevision":snapshot.revision},
         "target":{"terminalContextId":resolved.context,"tabId":resolved.tab,"panelId":resolved.panel,"member":resolved.target},
         "directory":directory.document(),"result":outcome,"failure":failure.map(FailureKind::as_str)}));
     if let Some(kind) = failure {

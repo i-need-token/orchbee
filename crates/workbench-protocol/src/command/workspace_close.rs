@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ContractError, ProtocolVersion, SiteId, TerminalPresentationId, WorkbenchPanelId,
+    ContractError, ProtocolVersion, SessionId, TerminalPresentationId, WorkbenchPanelId,
     WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason,
     WorkbenchTabClosePhase, WorkbenchTabClosePublicationReason,
     WorkbenchTabCloseResumeRejectionReason, WorkbenchTabCloseStatus,
@@ -72,7 +72,7 @@ pub struct WorkbenchWorkspaceCloseRead {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub workspace_id: WorkbenchWorkspaceId,
 }
 
@@ -133,7 +133,7 @@ pub struct WorkbenchWorkspaceCloseResume {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub workspace_id: WorkbenchWorkspaceId,
     pub close_request_id: WorkbenchRequestId,
     pub expected_attempt_generation: WorkbenchTabCloseAttemptGeneration,
@@ -168,7 +168,7 @@ pub struct WorkbenchWorkspaceCloseResumeResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub workspace_id: WorkbenchWorkspaceId,
     pub close_request_id: WorkbenchRequestId,
     pub outcome: WorkbenchWorkspaceCloseResumeOutcome,

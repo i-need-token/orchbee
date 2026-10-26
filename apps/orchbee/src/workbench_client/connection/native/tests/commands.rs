@@ -713,7 +713,7 @@ fn historical_ready_allows_create_after_blocked_frame_and_drains_a_second_blocke
     assert_eq!(create.reserved_generation(), 2);
     assert_eq!(create.request_id().as_str(), identity(0x109));
     assert_eq!(harness.ui.state().phase_kind(), ClientPhaseKind::Creating);
-    // NativeUi forwards Input only through `state.ready()`. The marker atomically moved the
+    // WorkbenchClientUi forwards Input only through `state.ready()`. The marker atomically moved the
     // canonical state to Creating, so the production admission guard now refuses later Input.
     assert!(harness.ui.state().ready().is_none());
     assert_eq!(harness.mailbox.is_closed(), None);
@@ -2228,7 +2228,7 @@ fn refresh_folds_a_multi_revision_publication_batch_into_one_validated_snapshot(
             }],
             protocol_version: ProtocolVersion,
             revision: WorkbenchRevision::new(revision),
-            site_id: initial.site_id.clone(),
+            session_id: initial.session_id.clone(),
         })
     };
     harness

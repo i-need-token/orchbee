@@ -94,7 +94,7 @@ mod linux {
     use orchbee_client_server_protocol::{
         SendBytes, SendCleanupStatus, SendKey, SendKeyStroke, SendPasteContent, SendRecord,
         SendRecords, SendRejectedReason, SendStrokeKey, SendText, SendTextInput,
-        SendUnavailableReason, SiteId as ObcsSiteId, TerminalId as ObcsTerminalId,
+        SendUnavailableReason, SessionId as ObcsSessionId, TerminalId as ObcsTerminalId,
         TerminalSendOutcome, TerminalSendRequest, TerminalSendResult, WorkerId as ObcsWorkerId,
     };
     use orchbee_workbench_protocol::Snapshot;
@@ -197,7 +197,7 @@ mod linux {
     /// The resolved request facts the answer document echoes; collected
     /// before submission consumes the request handle.
     struct RequestFacts {
-        site_id: String,
+        session_id: String,
         worker_id: String,
         terminal_id: String,
     }
@@ -469,7 +469,7 @@ mod linux {
                 record_bytes: None,
             },
             facts: RequestFacts {
-                site_id: "44444444444444444444444444444444".to_owned(),
+                session_id: "44444444444444444444444444444444".to_owned(),
                 worker_id: "55555555555555555555555555555555".to_owned(),
                 terminal_id: "66666666666666666666666666666666".to_owned(),
             },
@@ -482,7 +482,7 @@ mod linux {
     }
 
     /// Resolve the binding and build the single request. Every wire identity
-    /// — site, worker, terminal — comes from the just-read snapshot; the
+    /// — session, worker, terminal — comes from the just-read snapshot; the
     /// payload constructor re-checks the byte bound the parser already
     /// enforced, so impossible argv cannot produce a malformed record.
     fn prepare(
@@ -507,14 +507,14 @@ mod linux {
             record_bytes,
         };
         let facts = RequestFacts {
-            site_id: snapshot.site_id.as_str().to_owned(),
+            session_id: snapshot.session_id.as_str().to_owned(),
             worker_id: row.worker_id.clone(),
             terminal_id: row.terminal_id.clone(),
         };
         Ok((
             TerminalSendRequest::new(
                 obcs_request_id()?,
-                ObcsSiteId::parse(snapshot.site_id.as_str())
+                ObcsSessionId::parse(snapshot.session_id.as_str())
                     .map_err(|_| Failure::new(FailureKind::InternalFailure))?,
                 ObcsWorkerId::parse(row.worker_id.as_str())
                     .map_err(|_| Failure::new(FailureKind::InternalFailure))?,
@@ -614,7 +614,7 @@ mod linux {
         let mut document = Map::from_iter([
             ("action".to_owned(), json!("terminal.send")),
             ("requestId".to_owned(), json!(result.request_id().as_str())),
-            ("sessionId".to_owned(), json!(facts.site_id)),
+            ("sessionId".to_owned(), json!(facts.session_id)),
             ("workerId".to_owned(), json!(facts.worker_id)),
             ("terminalId".to_owned(), json!(facts.terminal_id)),
         ]);
@@ -788,7 +788,7 @@ mod linux {
     fn send_source(snapshot: &Snapshot, request_id: &str) -> Value {
         json!({
             "kind": "terminal.send",
-            "sessionId": snapshot.site_id.as_str(),
+            "sessionId": snapshot.session_id.as_str(),
             "requestId": request_id,
             "snapshotRevision": snapshot.revision,
         })

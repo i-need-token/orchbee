@@ -131,7 +131,7 @@ impl AgentHookObservationIngress {
     /// `environmentOverlayFor` — registers the presentation generation and
     /// returns the socket env overlay; empty when no socket path exists.
     /// Test-only: the production overlay is generated worker-side from the
-    /// validated site runtime (see terminal_host_launch_adapter), not here.
+    /// validated session runtime (see terminal_host_launch_adapter), not here.
     #[cfg(test)]
     pub fn environment_overlay_for(
         &mut self,

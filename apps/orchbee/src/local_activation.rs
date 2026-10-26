@@ -1,4 +1,4 @@
-//! The one app-private local-Site activation algorithm, shared by the TUI
+//! The one app-private local-Session activation algorithm, shared by the TUI
 //! startup path and the headless `server start` command. Cohort validation
 //! precedes runtime-directory preparation; one absolute caller-supplied
 //! deadline bounds the whole attempt and is never reset per phase. The
@@ -7,8 +7,8 @@
 
 use crate::local_client::{LocalClient, LocalClientConnectError};
 use orchbee_local_client_protocol::{ConnectClientError, RejectionReason, unix_socket_path_fits};
-use orchbee_local_site_runtime::{
-    LockAttempt, ModeCheckedLocalSiteRendezvous, NativeArtifact, NativeCohort, SiteScope,
+use orchbee_local_runtime::{
+    Cohort, CohortArtifact, LockAttempt, ModeCheckedLocalSessionRendezvous, SessionScope,
 };
 use std::{io, path::PathBuf, thread, time::Instant};
 
@@ -17,7 +17,7 @@ mod windows_selection;
 #[cfg(windows)]
 pub(crate) use windows_selection::inside_selected_session;
 #[cfg(windows)]
-pub(crate) use windows_selection::{select_site, selected_session_name};
+pub(crate) use windows_selection::{select_session, selected_session_name};
 #[cfg(not(windows))]
 pub(crate) fn selected_session_name() -> Option<&'static str> {
     None
@@ -62,19 +62,19 @@ pub(crate) struct ActivationFailure {
 /// classification only — the TUI adapter never reads it.
 pub(crate) enum ActivationCause {
     #[cfg(windows)]
-    Configuration(orchbee_local_site_runtime::WindowsSettingsError),
-    /// `NativeCohort::current_with_diagnostic` failure: its I/O kind selects
+    Configuration(orchbee_local_runtime::SettingsError),
+    /// `Cohort::current_with_diagnostic` failure: its I/O kind selects
     /// the CLI exit class and its artifact-open evidence can identify one
     /// exact missing sibling.
-    Cohort(orchbee_local_site_runtime::NativeCohortError),
+    Cohort(orchbee_local_runtime::CohortError),
     /// Runtime-directory preparation failure: the rendezvous error plus the
     /// scope directory the typed path split classifies against.
-    Rendezvous(orchbee_local_site_runtime::RendezvousError, PathBuf),
+    Rendezvous(orchbee_local_runtime::RendezvousError, PathBuf),
     /// An admission/connect failure in its full wire form.
     Connect(LocalClientConnectError),
     /// Activation-lifetime lock acquisition failure — the rendezvous error
     /// a `try_acquire_*_lock` call carries.
-    LockFailure(orchbee_local_site_runtime::RendezvousError),
+    LockFailure(orchbee_local_runtime::RendezvousError),
     /// Selection or initial catalog preparation failed before activation effects.
     RuntimeLocation(io::Error),
     /// Marker, socket-presence probe, or marker-commit I/O.
@@ -105,7 +105,7 @@ impl ActivationFailure {
 /// The result of a successful activation attempt: an admitted client plus
 /// whether THIS invocation spawned the Server child — an actual branch
 /// fact, never inferred from marker state.
-pub(crate) struct StartedSite {
+pub(crate) struct StartedSession {
     pub(crate) client: LocalClient,
     pub(crate) spawned: bool,
     /// The scope string parsed for this attempt (`orchbee-native-<euid>`).
@@ -113,19 +113,21 @@ pub(crate) struct StartedSite {
     /// The resolved runtime base (`ORCHBEE_RUNTIME_BASE` or `/tmp`), for
     /// machine-readable output.
     pub(crate) runtime_base: PathBuf,
-    /// The admitted canonical runtime, used for per-Site Client preferences.
+    /// The admitted canonical runtime, used for per-Session Client preferences.
     #[cfg(windows)]
     pub(crate) runtime_directory: PathBuf,
     #[cfg(windows)]
-    pub(crate) restore_notice: Option<orchbee_local_site_runtime::WindowsCheckpointRestoreNotice>,
+    pub(crate) restore_notice: Option<orchbee_local_runtime::CheckpointRestoreNotice>,
 }
 
 /// Connect-or-activate under one absolute deadline. The sequence is the
 /// existing TUI order, unchanged: cohort validation first, then
 /// runtime-base/scope resolution, `prepare_mode_checked`, the derived
 /// socket-path budget check, then the activation loop.
-pub(crate) fn activate_local_site(deadline: Instant) -> Result<StartedSite, ActivationFailure> {
-    let cohort = NativeCohort::current_with_diagnostic(deadline).map_err(|error| {
+pub(crate) fn activate_local_session(
+    deadline: Instant,
+) -> Result<StartedSession, ActivationFailure> {
+    let cohort = Cohort::current_with_diagnostic(deadline).map_err(|error| {
         ActivationFailure::caused(
             failure(error.kind(), StartupFailure::Cohort),
             ActivationCause::Cohort(error),
@@ -137,45 +139,44 @@ pub(crate) fn activate_local_site(deadline: Instant) -> Result<StartedSite, Acti
     let (base, scope_text) = (selection.base.clone(), selection.scope.clone());
     #[cfg(not(windows))]
     let (base, scope_text) = runtime_location().map_err(runtime_location_failure)?;
-    let scope = SiteScope::parse(&scope_text)
+    let scope = SessionScope::parse(&scope_text)
         .map_err(|_| ActivationFailure::bare(StartupFailure::Runtime))?;
     let scope_directory = base.join(&scope_text);
     #[cfg(windows)]
-    let _named_catalog =
-        if orchbee_local_site_runtime::WindowsNamedSiteCatalog::supports_scope(&scope_text)
-            .map_err(runtime_location_failure)?
-        {
-            let local = std::env::var_os("LOCALAPPDATA")
-                .map(PathBuf::from)
-                .ok_or_else(|| runtime_location_failure(io::ErrorKind::NotFound.into()))?;
-            loop {
-                check_deadline(deadline)?;
-                match orchbee_local_site_runtime::WindowsNamedSiteCatalog::try_lock(&base, &local) {
-                    Ok(owner) => break Some(owner),
-                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => pause(deadline)?,
-                    Err(error) => return Err(runtime_location_failure(error)),
-                }
+    let _named_catalog = if orchbee_local_runtime::SessionCatalog::supports_scope(&scope_text)
+        .map_err(runtime_location_failure)?
+    {
+        let local = std::env::var_os("LOCALAPPDATA")
+            .map(PathBuf::from)
+            .ok_or_else(|| runtime_location_failure(io::ErrorKind::NotFound.into()))?;
+        loop {
+            check_deadline(deadline)?;
+            match orchbee_local_runtime::SessionCatalog::try_lock(&base, &local) {
+                Ok(owner) => break Some(owner),
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => pause(deadline)?,
+                Err(error) => return Err(runtime_location_failure(error)),
             }
-        } else {
-            None
-        };
+        }
+    } else {
+        None
+    };
     #[cfg(windows)]
     if let Some(catalog) = &_named_catalog {
         selection.name = catalog
-            .prepare_activation(&scope_text, selection.name.as_ref())
+            .prepare_activation(&scope_text, selection.name.as_ref(), deadline)
             .map_err(recovery_failure)?;
     }
-    let site =
-        ModeCheckedLocalSiteRendezvous::prepare_mode_checked(&base, scope).map_err(|error| {
+    let session =
+        ModeCheckedLocalSessionRendezvous::prepare_mode_checked(&base, scope).map_err(|error| {
             ActivationFailure::caused(
                 StartupFailure::Runtime,
                 ActivationCause::Rendezvous(error, scope_directory),
             )
         })?;
-    // Every endpoint a Site derives that cannot fit this platform's socket
+    // Every endpoint a Session derives that cannot fit this platform's socket
     // address ABI can never bind or connect; report the derived-path budget
     // before any admission attempt collapses it into a generic refusal.
-    if !ModeCheckedLocalSiteRendezvous::socket_budget_paths(site.runtime_directory())
+    if !ModeCheckedLocalSessionRendezvous::socket_budget_paths(session.runtime_directory())
         .iter()
         .all(|path| unix_socket_path_fits(path))
     {
@@ -185,9 +186,13 @@ pub(crate) fn activate_local_site(deadline: Instant) -> Result<StartedSite, Acti
     if let Some(name) = selection.name {
         loop {
             check_deadline(deadline)?;
-            match site.try_acquire_activation_lock().map_err(lock_failure)? {
+            match session
+                .try_acquire_activation_lock()
+                .map_err(lock_failure)?
+            {
                 LockAttempt::Acquired(lock) => {
-                    site.register_session_name(&lock, &name)
+                    session
+                        .register_session_name(&lock, &name)
                         .map_err(runtime_failure)?;
                     break;
                 }
@@ -196,25 +201,25 @@ pub(crate) fn activate_local_site(deadline: Instant) -> Result<StartedSite, Acti
         }
     } else {
         // An inherited route names an already registered runtime, never an implicit new name.
-        ModeCheckedLocalSiteRendezvous::from_runtime_directory(site.runtime_directory())
+        ModeCheckedLocalSessionRendezvous::from_runtime_directory(session.runtime_directory())
             .map_err(lock_failure)?;
     }
     let (client, spawned) = connect_or_activate(
-        &site,
+        &session,
         &cohort,
         deadline,
         #[cfg(windows)]
         _named_catalog.as_ref(),
     )?;
-    Ok(StartedSite {
+    Ok(StartedSession {
         client,
         spawned,
         scope: scope_text,
         runtime_base: base,
         #[cfg(windows)]
-        runtime_directory: site.runtime_directory().to_owned(),
+        runtime_directory: session.runtime_directory().to_owned(),
         #[cfg(windows)]
-        restore_notice: site
+        restore_notice: session
             .checkpoint_restore_notice(
                 &std::env::var_os("LOCALAPPDATA")
                     .map(PathBuf::from)
@@ -225,71 +230,73 @@ pub(crate) fn activate_local_site(deadline: Instant) -> Result<StartedSite, Acti
 }
 
 fn connect_or_activate(
-    site: &ModeCheckedLocalSiteRendezvous,
-    cohort: &NativeCohort,
+    session: &ModeCheckedLocalSessionRendezvous,
+    cohort: &Cohort,
     deadline: Instant,
-    #[cfg(windows)] catalog: Option<&orchbee_local_site_runtime::WindowsNamedSiteCatalog>,
+    #[cfg(windows)] catalog: Option<&orchbee_local_runtime::SessionCatalog>,
 ) -> Result<(LocalClient, bool), ActivationFailure> {
     loop {
         check_deadline(deadline)?;
-        if let Some(client) = connect(site, cohort, deadline)? {
+        if let Some(client) = connect(session, cohort, deadline)? {
             return Ok((client, false));
         }
-        let _activation = match site.try_acquire_activation_lock().map_err(lock_failure)? {
+        let _activation = match session
+            .try_acquire_activation_lock()
+            .map_err(lock_failure)?
+        {
             LockAttempt::Acquired(lock) => lock,
             LockAttempt::Contended => {
                 pause(deadline)?;
                 continue;
             }
         };
-        if let Some(client) = connect(site, cohort, deadline)? {
+        if let Some(client) = connect(session, cohort, deadline)? {
             return Ok((client, false));
         }
-        let mut child = match site
-            .try_acquire_site_lifetime_lock()
+        let mut child = match session
+            .try_acquire_session_lifetime_lock()
             .map_err(lock_failure)?
         {
             LockAttempt::Acquired(lifetime) => {
                 #[cfg(windows)]
                 if let Some(catalog) = catalog {
                     catalog
-                        .recover_inactive(site, &_activation, &lifetime)
+                        .recover_inactive(session, &_activation, &lifetime)
                         .map_err(recovery_failure)?;
                 }
-                let marker = site.activation_started().map_err(runtime_failure)?;
+                let marker = session.activation_started().map_err(runtime_failure)?;
                 if marker
-                    || site.client_socket_exists().map_err(runtime_failure)?
-                    || site.worker_socket_exists().map_err(runtime_failure)?
+                    || session.client_socket_exists().map_err(runtime_failure)?
+                    || session.worker_socket_exists().map_err(runtime_failure)?
                 {
                     return Err(ActivationFailure::bare(StartupFailure::RecoveryRequired));
                 }
                 #[cfg(windows)]
-                let settings = orchbee_local_site_runtime::read_windows_user_settings(|name| {
-                    std::env::var_os(name)
-                })
-                .map_err(|error| {
-                    ActivationFailure::caused(
-                        StartupFailure::Configuration,
-                        ActivationCause::Configuration(error),
-                    )
-                })?;
+                let settings =
+                    orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name))
+                        .map_err(|error| {
+                            ActivationFailure::caused(
+                                StartupFailure::Configuration,
+                                ActivationCause::Configuration(error),
+                            )
+                        })?;
                 #[cfg(windows)]
                 if let Some(catalog) = catalog {
                     let mut activation_id = [0; 16];
                     getrandom::fill(&mut activation_id)
                         .map_err(|error| runtime_failure(io::Error::other(error.to_string())))?;
                     catalog
-                        .begin_activation(site, activation_id)
+                        .begin_activation(session, activation_id)
                         .map_err(runtime_failure)?;
                 }
                 drop(lifetime);
                 check_deadline(deadline)?;
-                site.commit_activation().map_err(runtime_failure)?;
+                session.commit_activation().map_err(runtime_failure)?;
                 check_deadline(deadline)?;
-                let executable = cohort.executable(NativeArtifact::Server);
+                let executable = cohort.executable(CohortArtifact::Server);
                 let arguments = [
-                    std::ffi::OsStr::new("--local-site"),
-                    site.runtime_directory().as_os_str(),
+                    std::ffi::OsStr::new("--runtime-directory"),
+                    session.runtime_directory().as_os_str(),
                     #[cfg(windows)]
                     std::ffi::OsStr::new("--manifest-check"),
                     #[cfg(windows)]
@@ -325,13 +332,17 @@ fn connect_or_activate(
                 ];
                 #[cfg(windows)]
                 let child = match catalog {
-                    Some(catalog) => {
-                        catalog.spawn_server(site, &_activation, &executable, &arguments, deadline)
-                    }
-                    None => orchbee_local_site_runtime::spawn_retained(&executable, &arguments),
+                    Some(catalog) => catalog.spawn_server(
+                        session,
+                        &_activation,
+                        &executable,
+                        &arguments,
+                        deadline,
+                    ),
+                    None => orchbee_local_runtime::spawn_retained(&executable, &arguments),
                 };
                 #[cfg(not(windows))]
-                let child = orchbee_local_site_runtime::spawn_retained(&executable, &arguments);
+                let child = orchbee_local_runtime::spawn_retained(&executable, &arguments);
                 Some(child.map_err(|_| {
                     ActivationFailure::caused(
                         StartupFailure::RecoveryRequired,
@@ -340,7 +351,7 @@ fn connect_or_activate(
                 })?)
             }
             LockAttempt::Contended => {
-                if site.activation_started().map_err(runtime_failure)? {
+                if session.activation_started().map_err(runtime_failure)? {
                     None
                 } else {
                     return Err(ActivationFailure::bare(StartupFailure::RecoveryRequired));
@@ -349,7 +360,7 @@ fn connect_or_activate(
         };
         loop {
             check_deadline(deadline)?;
-            if let Some(client) = connect(site, cohort, deadline)? {
+            if let Some(client) = connect(session, cohort, deadline)? {
                 return Ok((client, child.is_some()));
             }
             if let Some(child) = child.as_mut() {
@@ -366,7 +377,8 @@ fn connect_or_activate(
                     return Err(ActivationFailure::bare(StartupFailure::RecoveryRequired));
                 }
             } else if matches!(
-                site.try_acquire_site_lifetime_lock()
+                session
+                    .try_acquire_session_lifetime_lock()
                     .map_err(lock_failure)?,
                 LockAttempt::Acquired(_)
             ) {
@@ -378,12 +390,12 @@ fn connect_or_activate(
 }
 
 fn connect(
-    site: &ModeCheckedLocalSiteRendezvous,
-    cohort: &NativeCohort,
+    session: &ModeCheckedLocalSessionRendezvous,
+    cohort: &Cohort,
     deadline: Instant,
 ) -> Result<Option<LocalClient>, ActivationFailure> {
-    site.client_socket_exists().map_err(runtime_failure)?;
-    match LocalClient::connect_before(site.client_socket_path(), cohort.identity(), deadline) {
+    session.client_socket_exists().map_err(runtime_failure)?;
+    match LocalClient::connect_before(session.client_socket_path(), cohort.identity(), deadline) {
         Ok(client) => Ok(Some(client)),
         Err(error) => {
             // An absent or refusing socket inside the activation loop is
@@ -440,7 +452,7 @@ fn recovery_failure(error: io::Error) -> ActivationFailure {
 
 /// A lock acquisition keeps the existing `Runtime` verdict; the raw
 /// rendezvous error rides along for CLI kind classification.
-fn lock_failure(error: orchbee_local_site_runtime::RendezvousError) -> ActivationFailure {
+fn lock_failure(error: orchbee_local_runtime::RendezvousError) -> ActivationFailure {
     ActivationFailure::caused(StartupFailure::Runtime, ActivationCause::LockFailure(error))
 }
 

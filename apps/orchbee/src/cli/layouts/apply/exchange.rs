@@ -30,7 +30,7 @@ pub(super) fn submit(
     let request = CreationRequest::try_from(WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: request_id.clone(),
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         expected_revision: snapshot.revision,
         action,
     })
@@ -71,7 +71,7 @@ pub(super) fn submit(
         ),
     };
     Ok((
-        json!({"action":kind,"sessionId":snapshot.site_id,"requestId":request_id,"baseRevision":snapshot.revision,"result":result}),
+        json!({"action":kind,"sessionId":snapshot.session_id,"requestId":request_id,"baseRevision":snapshot.revision,"result":result}),
         outcome,
     ))
 }

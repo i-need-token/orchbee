@@ -74,7 +74,7 @@ fn window_title_pipe_set_clear_absent_failure_and_lost_reply() {
                 &WorkbenchResponse::WindowTitle(WindowTitleResult {
                     protocol_version: ProtocolVersion,
                     request_id: request.request_id,
-                    site_id: request.site_id,
+                    session_id: request.session_id,
                     outcome,
                 }),
             )
@@ -126,7 +126,7 @@ fn window_title_pipe_set_clear_absent_failure_and_lost_reply() {
     }
 }
 #[test]
-fn window_title_bad_arguments_never_admit_or_start_a_site() {
+fn window_title_bad_arguments_never_admit_or_start_a_session() {
     let fixture = Fixture::new();
     let _rendezvous = fixture.rendezvous();
     assert_eq!(

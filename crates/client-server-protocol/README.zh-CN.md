@@ -23,17 +23,17 @@ Workbench state。
 
 ## Public API
 
-| API                                                                                                                                                 | Contract                                                                                                                                                   |
-| --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `RequestId`、`SiteId`、`WorkerId`、`TerminalId`、`ViewerId`、`HostEpoch`、`ControllerId`、`PresentationId`、`PanelId`、`TabId`、`TerminalContextId` | 解析独立 typed、nonzero opaque 128-bit 小写十六进制 identity。                                                                                             |
-| `WorkingDirectory`                                                                                                                                  | 校验最多 4,096 个 encoded byte、无 NUL 的 absolute local-platform UTF-8 path。                                                                             |
-| `Geometry`                                                                                                                                          | 仅当所有 scalar 与 product bound 都成立时构造 complete geometry。cell-pixel width 与 height 必须同正（pixel 已知）或同零（pixel 未知）；混合成对值被拒绝。 |
-| `TerminalCreateRequest`、`TerminalStartRequest`                                                                                                     | 构造 validated Client request；start 拒绝相同的 start/create request identity。                                                                            |
-| `CreateOutcome`、`StartOutcome` 与 result type                                                                                                      | 只表示 OBCS v1 准入的稳定 Client-visible result combination。                                                                                              |
-| `encode_client_frame`、`decode_client_frame`                                                                                                        | Encode 或 decode 恰好一个完整 in-memory Client-to-Server frame。                                                                                           |
-| `encode_server_frame`、`decode_server_frame`                                                                                                        | Encode 或 decode 恰好一个完整 in-memory Server-to-Client frame。                                                                                           |
-| `read_client_message`、`read_server_message`                                                                                                        | 从支持 partial read 的有序 stream 中精确读取一个 frame，并保留后续 frame 未读。                                                                            |
-| `write_client_message`、`write_server_message`                                                                                                      | 通过 partial write 写出完整 frame，且不 flush caller。                                                                                                     |
+| API                                                                                                                                                    | Contract                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RequestId`、`SessionId`、`WorkerId`、`TerminalId`、`ViewerId`、`HostEpoch`、`ControllerId`、`PresentationId`、`PanelId`、`TabId`、`TerminalContextId` | 解析独立 typed、nonzero opaque 128-bit 小写十六进制 identity。                                                                                             |
+| `WorkingDirectory`                                                                                                                                     | 校验最多 4,096 个 encoded byte、无 NUL 的 absolute local-platform UTF-8 path。                                                                             |
+| `Geometry`                                                                                                                                             | 仅当所有 scalar 与 product bound 都成立时构造 complete geometry。cell-pixel width 与 height 必须同正（pixel 已知）或同零（pixel 未知）；混合成对值被拒绝。 |
+| `TerminalCreateRequest`、`TerminalStartRequest`                                                                                                        | 构造 validated Client request；start 拒绝相同的 start/create request identity。                                                                            |
+| `CreateOutcome`、`StartOutcome` 与 result type                                                                                                         | 只表示 OBCS v1 准入的稳定 Client-visible result combination。                                                                                              |
+| `encode_client_frame`、`decode_client_frame`                                                                                                           | Encode 或 decode 恰好一个完整 in-memory Client-to-Server frame。                                                                                           |
+| `encode_server_frame`、`decode_server_frame`                                                                                                           | Encode 或 decode 恰好一个完整 in-memory Server-to-Client frame。                                                                                           |
+| `read_client_message`、`read_server_message`                                                                                                           | 从支持 partial read 的有序 stream 中精确读取一个 frame，并保留后续 frame 未读。                                                                            |
+| `write_client_message`、`write_server_message`                                                                                                         | 通过 partial write 写出完整 frame，且不 flush caller。                                                                                                     |
 
 所有 decoded object 与 enum 都是 closed。缺失显式 nullable create field、未知 field 或 tag、重复
 key、BOM、无效 UTF-8、尾随 JSON value、direction mismatch、无效 identity、path 或 geometry，以及
@@ -49,7 +49,7 @@ deterministic JSON。
 
 `TerminalViewerRequest`、`TerminalViewerAction`、`TerminalViewerResult` 和 `TerminalViewerOutcome`
 提供 Session scope 内只读 Attach、AttachBinding、Poll、FrameApplied、NeedSnapshot 和 Detach value。
-AttachBinding 携带独立 typed 的 OBCS `SiteId`、`WorkerId` 与 `TerminalId` value；这些 domain 之间
+AttachBinding 携带独立 typed 的 OBCS `SessionId`、`WorkerId` 与 `TerminalId` value；这些 domain 之间
 相同的 encoded byte 仍然有效。本 crate 校验其 lexical contract，但既不导入 Workbench type，也
 不判断 tuple 当前是否已暴露。该 semantic resolution 由 Server 负责。
 `ViewerUnavailableReason::WorkbenchUnavailable` 仅用于 viewer result。
@@ -264,4 +264,4 @@ v1 schema/corpus 覆盖 launch selection、environment、profile provenance、se
 
 显式终端启动可携带独立的 `PluginTerminalEnvironment`（OBCS 字段为 `pluginEnvironment`）。只允许插件 ID/root/entrypoint/config/state/context、原生二进制路径及可选 Workspace/Tab/Pane 展示 ID：十个唯一名称，七项必填，合计最多 24 KiB UTF-8。这些是展示数据，不是权限或插件登记。普通调用者环境保持原有上限及保留名称拒绝规则。runtime base/scope 和 Worker/终端身份仍由 Worker 适配器负责。插件环境必须配合显式可执行文件。OBCN 启动种类 3 在 40 KiB 帧上限内传递显式启动选择、普通环境和插件环境。Server 在预留物理操作前校验完整插件启动编码。Worker 先清除继承的已知插件展示字段，再应用本次值。Workbench 插件解析、Pane 归属和 Client 布局仍是独立的集成职责。定向边界及启动事实测试覆盖此载荷，不代表插件 Pane 已完整接通。
 
-<!-- documentation-pairing: english-sha256=f22525f408dc005af69a5902f8cdccb18fb5bbaac20bc2c81441a3a4be05c4d3 zh-cn-sha256=0972804d8692c86d1c0614ca32c0748d565d46fc9e18bc0c65d2060779b907d1 -->
+<!-- documentation-pairing: english-sha256=f5fe9dde0b03998e1faa3d27918d7cb35b5ccfe662d5092c6cd7822d1a5049c6 zh-cn-sha256=2325b4a84527f2d30b85197bd6405743135a0eca122f8919e08b793aa980b41c -->

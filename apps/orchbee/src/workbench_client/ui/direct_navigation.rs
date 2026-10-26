@@ -1,11 +1,11 @@
 //! Admit verified sidebar Agent targets into the existing Client selection and cleanup owners.
-use super::{Arc, NativeUi, OperationDeadlines, finish_action};
+use super::{Arc, OperationDeadlines, WorkbenchClientUi, finish_action};
 use crate::workbench_client::{
-    ContextNavigationAdmission as Admission, NativeMemberTarget,
-    workbench_projection::{NativeMemberSelection, project_native_context_tabs},
+    ClientMemberTarget, ContextNavigationAdmission as Admission,
+    workbench_projection::{ClientMemberSelection, project_native_context_tabs},
 };
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn navigate_agent(
         &mut self,
         target: &crate::machine_agents::Target,
@@ -16,7 +16,7 @@ impl NativeUi {
         let Some(state) = self.state.as_ref() else {
             return Admission::Unavailable;
         };
-        if state.cache().site_id() != &target.context.site_id {
+        if state.cache().session_id() != &target.context.session_id {
             return Admission::Unavailable;
         }
         // The displayed selection may still be A during A -> B. It cannot consume a new A intent.
@@ -48,8 +48,8 @@ impl NativeUi {
         {
             return Admission::Unavailable;
         }
-        let selection = NativeMemberSelection {
-            member: NativeMemberTarget {
+        let selection = ClientMemberSelection {
+            member: ClientMemberTarget {
                 tab: target.tab.clone(),
                 panel: target.panel.clone(),
                 presentation: target.member.clone(),

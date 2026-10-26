@@ -44,7 +44,7 @@ fn created(baseline: &Snapshot, placement: Option<&TabCreationPlacement>) -> (Sn
 }
 
 fn commit(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
     candidate: &Snapshot,

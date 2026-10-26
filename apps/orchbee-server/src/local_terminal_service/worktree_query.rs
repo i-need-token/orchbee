@@ -1,4 +1,4 @@
-//! Source discovery holds no Site/registry gate across the read-only Worker job.
+//! Source discovery holds no Session/registry gate across the read-only Worker job.
 use super::{
     LocalTerminalService,
     worktree_list::{discover_source, parse_worktree_listing},
@@ -60,7 +60,7 @@ impl LocalTerminalService {
             let workers = self.workers.lock().map_err(|_| busy())?;
             let mut coordinator = self.coordinator.lock().map_err(|_| busy())?;
             let authority = coordinator.worktree_authority().ok_or_else(busy)?;
-            if authority.site_id() != &request.site_id {
+            if authority.session_id() != &request.session_id {
                 return Err(Failure::Denied {});
             }
             let handle = workers.request_handle().ok_or_else(worker_unavailable)?;
@@ -113,7 +113,7 @@ impl LocalTerminalService {
             return Err(worker_unavailable());
         }
         let authority = coordinator.worktree_authority().ok_or_else(busy)?;
-        if authority.site_id() != &request.site_id
+        if authority.session_id() != &request.session_id
             || authority
                 .worktree_query_target(&request.source, &target.worker_id)
                 .as_ref()
@@ -131,7 +131,7 @@ impl LocalTerminalService {
             return Err(Failure::Timeout {});
         }
         Ok(Outcome::Found {
-            site_id: request.site_id.clone(),
+            session_id: request.session_id.clone(),
             workbench_revision: authority.snapshot().revision,
             worker_id: target.worker_id,
             source: WorktreeQuerySource {

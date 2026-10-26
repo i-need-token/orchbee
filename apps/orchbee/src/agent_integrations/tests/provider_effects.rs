@@ -1267,7 +1267,7 @@ fn scan_residues(dirs: &Dirs) -> Vec<PathBuf> {
     found
 }
 
-/// `cohort-admit`: the real `NativeCohort::load` against a materialized
+/// `cohort-admit`: the real `Cohort::load` against a materialized
 /// `cohort.json` — incompatible versions and unknown shapes stay typed.
 fn drive_cohort(case: &Case, dirs: &Dirs) -> Outcome {
     inject::boundary("cohort-admit", &dirs.cohort_dir);
@@ -1297,7 +1297,7 @@ fn drive_cohort(case: &Case, dirs: &Dirs) -> Outcome {
         // permissive umask would otherwise mask this run's verdict.
         fs::set_permissions(&manifest_path, fs::Permissions::from_mode(0o600)).unwrap();
     }
-    let loaded = orchbee_local_site_runtime::NativeCohort::load(
+    let loaded = orchbee_local_runtime::Cohort::load(
         &dirs.cohort_dir,
         Instant::now() + Duration::from_secs(5),
     );

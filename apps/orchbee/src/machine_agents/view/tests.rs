@@ -87,7 +87,7 @@ fn source_view_uses_canonical_agent_exact_member_and_raw_multikey_ties() {
         1
     );
     let spec=parse_agent_view_spec(br#"{"source":"x","filter":{"op":"eq","field":"tab_id","value":{"context":"current_tab_id"}}}"#).unwrap();
-    let current = crate::workbench_client::NativeMemberTarget {
+    let current = crate::workbench_client::ClientMemberTarget {
         tab: first.target.tab.clone(),
         panel: first.target.panel.clone(),
         presentation: first.target.member.clone(),
@@ -106,7 +106,7 @@ fn project<'a>(
     view: &View,
     rows: &'a [(Choice, Row)],
     current: &Choice,
-    context: Option<&NativeContextTarget>,
+    context: Option<&ClientContextTarget>,
 ) -> Vec<Entry<'a>> {
     view.project(
         rows.iter().map(|(machine, row)| Entry {
@@ -119,7 +119,7 @@ fn project<'a>(
     )
 }
 #[test]
-fn view_scope_qualifies_equal_site_context_and_member_ids_by_machine() {
+fn view_scope_qualifies_equal_session_context_and_member_ids_by_machine() {
     let remote = Choice::Remote(ProfileId::parse(&format!("{:032x}", 7)).unwrap());
     let rows = vec![(Choice::Local, row()), (remote.clone(), row())];
     let mut view = View {

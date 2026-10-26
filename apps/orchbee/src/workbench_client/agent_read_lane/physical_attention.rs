@@ -1,4 +1,4 @@
-//! One complete all-Site physical checkpoint, fenced by Workbench and report revisions.
+//! One complete all-Session physical checkpoint, fenced by Workbench and report revisions.
 use super::{LaneFailure, LocalClient, LocalClientOrigin, LocalOperationClock, mint_request_id};
 use crate::workbench_client::agent_attention::{
     MAXIMUM_PHYSICAL_BYTES, MAXIMUM_PHYSICAL_ENTRIES, PhysicalRound,
@@ -86,7 +86,7 @@ impl Reader<'_> {
             }
         }
         let mut round = RoundBuilder::default();
-        // The empty final request fences even an empty Site and rejects a revision splice.
+        // The empty final request fences even an empty Session and rejects a revision splice.
         for chunk in ids
             .chunks(MAXIMUM_TERMINAL_AGENT_STATE_ROWS)
             .chain(std::iter::once([].as_slice()))
@@ -94,7 +94,7 @@ impl Reader<'_> {
             let request = PanelAgentRequest {
                 protocol_version: ProtocolVersion,
                 request_id: self.id()?,
-                site_id: snapshot.site_id.clone(),
+                session_id: snapshot.session_id.clone(),
                 action: PanelAgentAction::States {
                     presentation_ids: chunk.to_vec(),
                 },

@@ -57,7 +57,7 @@ impl WorkbenchCommand {
             }
             Outcome::Rejected { reason, .. } => {
                 return match reason {
-                    Rejection::SiteMismatch
+                    Rejection::SessionMismatch
                     | Rejection::RevisionMismatch
                     | Rejection::TerminalContextUnavailable
                     | Rejection::ResourceLimit

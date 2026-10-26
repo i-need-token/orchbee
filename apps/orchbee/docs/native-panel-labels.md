@@ -53,7 +53,7 @@ and one mutation; it does not wait for a Client or submit a separate focus opera
 
 ## Client projection
 
-`NativePanel` keeps its immutable creation label and optional custom label separately. Display uses
+`ClientPanel` keeps its immutable creation label and optional custom label separately. Display uses
 the override when present and the fallback otherwise. Panel chrome, the Agent board and confirmation
 copy apply existing terminal-text sanitization and width bounds to that display label. Canonical
 Panel reads expose the override and effective display text. Creation defaults continue to use the

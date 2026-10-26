@@ -53,10 +53,10 @@ fn decode(encoded: &str) -> Vec<Action> {
         .collect()
 }
 
-fn ids(tree: &NativePanelTree, leaves: &mut Vec<usize>, splits: &mut Vec<String>) {
+fn ids(tree: &ClientPanelTree, leaves: &mut Vec<usize>, splits: &mut Vec<String>) {
     match tree {
-        NativePanelTree::Panel { panel_index } => leaves.push(*panel_index),
-        NativePanelTree::Split {
+        ClientPanelTree::Panel { panel_index } => leaves.push(*panel_index),
+        ClientPanelTree::Split {
             first,
             second,
             split_id,
@@ -69,9 +69,9 @@ fn ids(tree: &NativePanelTree, leaves: &mut Vec<usize>, splits: &mut Vec<String>
     }
 }
 
-fn insert(tree: &mut NativePanelTree, target: usize, next: usize, vertical: bool) {
+fn insert(tree: &mut ClientPanelTree, target: usize, next: usize, vertical: bool) {
     match tree {
-        NativePanelTree::Panel { panel_index } if *panel_index == target => {
+        ClientPanelTree::Panel { panel_index } if *panel_index == target => {
             *tree = split(
                 panel(target),
                 panel(next),
@@ -83,18 +83,18 @@ fn insert(tree: &mut NativePanelTree, target: usize, next: usize, vertical: bool
                 100 + u128::try_from(next).unwrap() * 3,
             );
         }
-        NativePanelTree::Split { first, second, .. } => {
+        ClientPanelTree::Split { first, second, .. } => {
             insert(first, target, next, vertical);
             insert(second, target, next, vertical);
         }
-        NativePanelTree::Panel { .. } => {}
+        ClientPanelTree::Panel { .. } => {}
     }
 }
 
-fn collapse(tree: &mut NativePanelTree, target: usize) -> bool {
+fn collapse(tree: &mut ClientPanelTree, target: usize) -> bool {
     match tree {
-        NativePanelTree::Panel { panel_index } => *panel_index == target,
-        NativePanelTree::Split { first, second, .. } => {
+        ClientPanelTree::Panel { panel_index } => *panel_index == target,
+        ClientPanelTree::Split { first, second, .. } => {
             if collapse(first, target) {
                 *tree = (**second).clone();
             } else if collapse(second, target) {

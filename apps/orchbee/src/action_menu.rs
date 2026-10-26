@@ -1,5 +1,5 @@
 //! Deterministic menu capture, selection and successful-draw authority.
-//! NativeUi alone owns target validation and navigation; this unit cannot execute actions.
+//! WorkbenchClientUi alone owns target validation and navigation; this unit cannot execute actions.
 use crate::client_view::{
     Binding, ClientAction, KeyCode, KeyEvent, KeyKind, Modifiers, PanelDirection,
 };
@@ -25,10 +25,10 @@ pub(crate) enum MenuTarget {
     Tab(orchbee_workbench_protocol::WorkbenchTabId),
     /// Organization actions address the Project directly; terminal actions require a member.
     Project(orchbee_workbench_protocol::WorkbenchProjectId),
-    Workspace(crate::workbench_client::NativeContextLocation),
-    WorkspaceProjects(crate::workbench_client::NativeContextLocation),
+    Workspace(crate::workbench_client::ClientContextLocation),
+    WorkspaceProjects(crate::workbench_client::ClientContextLocation),
     Worktrees(crate::workbench_client::SidebarWorktreeTarget),
-    /// An object entry must still belong to the exact Site snapshot that painted it.
+    /// An object entry must still belong to the exact Session snapshot that painted it.
     Drawn {
         source: DrawnMenuSource,
         target: Box<Self>,
@@ -48,7 +48,7 @@ impl MenuTarget {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct DrawnMenuSource {
-    pub(crate) site: orchbee_workbench_protocol::SiteId,
+    pub(crate) session: orchbee_workbench_protocol::SessionId,
     pub(crate) revision: orchbee_workbench_protocol::WorkbenchRevision,
 }
 
@@ -56,7 +56,7 @@ pub(crate) struct DrawnMenuSource {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct DrawnTabCreate {
     pub(crate) source: DrawnMenuSource,
-    pub(crate) location: crate::workbench_client::NativeContextLocation,
+    pub(crate) location: crate::workbench_client::ClientContextLocation,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

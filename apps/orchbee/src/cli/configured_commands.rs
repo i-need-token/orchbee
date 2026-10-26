@@ -60,7 +60,7 @@ fn execute(
     let catalog_request = ConfiguredCommandRequest {
         protocol_version: ProtocolVersion,
         request_id: query::request_id()?,
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         action: Action::List {},
     };
     let catalog = client
@@ -114,7 +114,7 @@ fn execute(
     };
     let listed = exchange(
         &mut client,
-        &snapshot.site_id,
+        &snapshot.session_id,
         ClientViewAction::List {},
         deadline,
         signals,
@@ -149,7 +149,7 @@ fn execute(
         if let Some(intent) = intent {
             let answer = client_control::windows::submit_control(
                 &mut client,
-                &snapshot.site_id,
+                &snapshot.session_id,
                 ClientViewControl {
                     operation_id: query::request_id()?,
                     client_id: record.client_id.clone(),
@@ -175,14 +175,14 @@ fn execute(
             }
             snapshot = query::refresh_snapshot(
                 &mut client,
-                &snapshot.site_id,
+                &snapshot.session_id,
                 snapshot.revision,
                 deadline,
                 signals,
             )?;
             let reply = exchange(
                 &mut client,
-                &snapshot.site_id,
+                &snapshot.session_id,
                 ClientViewAction::Get {
                     client_id: record.client_id.clone(),
                 },
@@ -234,7 +234,7 @@ fn execute(
     let request = ConfiguredCommandRequest {
         protocol_version: ProtocolVersion,
         request_id: operation_id,
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         action: Action::Invoke {
             invocation: Box::new(ConfiguredCommandInvocation {
                 command_id: id.clone(),
@@ -286,7 +286,7 @@ fn execute(
     {
         let answer = client_control::windows::submit_control(
             &mut client,
-            &snapshot.site_id,
+            &snapshot.session_id,
             ClientViewControl {
                 operation_id: query::request_id()?,
                 client_id: selected.client_id,

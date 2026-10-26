@@ -1,6 +1,6 @@
 use super::{
-    CarrierFailure, ClientPhase, CommittedTabCreate, CreateOperationKey, CreateProjectionDecision,
-    NativeContextTabs, ReadyAttachment, SelectedTab, WorkbenchClientState,
+    CarrierFailure, ClientContextTabs, ClientPhase, CommittedTabCreate, CreateOperationKey,
+    CreateProjectionDecision, ReadyAttachment, SelectedTab, WorkbenchClientState,
     WorkbenchSnapshotOutcome, validate_created_tab,
 };
 use crate::workbench_client::workbench_projection::ValidatedCreatedProjection;
@@ -16,11 +16,11 @@ pub(in crate::workbench_client) struct LaunchDescription {
 pub(in crate::workbench_client) enum PreparedCreateSnapshot {
     Invalid,
     Unavailable {
-        baseline: NativeContextTabs,
+        baseline: ClientContextTabs,
         committed: CommittedTabCreate,
     },
     Available {
-        baseline: NativeContextTabs,
+        baseline: ClientContextTabs,
         committed: CommittedTabCreate,
         projection: ValidatedCreatedProjection,
     },
@@ -45,7 +45,7 @@ impl WorkbenchClientState {
 
     pub(in crate::workbench_client) fn prepare_create_membership_candidate(
         &self,
-        baseline: &NativeContextTabs,
+        baseline: &ClientContextTabs,
         committed: &CommittedTabCreate,
         projection: ValidatedCreatedProjection,
     ) -> Result<super::PreparedMembershipCandidate, CarrierFailure> {

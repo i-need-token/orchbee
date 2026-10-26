@@ -4,7 +4,7 @@ use super::{
 };
 use super::{ClientAction, Modifiers, PanelDirection, PrefixAction, ShellCommand};
 use crate::action_projection::{ActionMetadata, binding_metadata};
-use orchbee_local_site_runtime::WindowsDefaultActionBindings;
+use orchbee_local_runtime::DefaultActionBindings;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct DiscoveryEntry<'a> {
@@ -24,7 +24,7 @@ pub(crate) struct Entry {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Bindings {
-    commands: Vec<orchbee_local_site_runtime::WindowsCustomCommandEntry>,
+    commands: Vec<orchbee_local_runtime::CustomCommandEntry>,
     pub(crate) prefix: Binding,
     pub(crate) entries: Vec<Entry>,
 }
@@ -95,9 +95,9 @@ impl Bindings {
             .collect()
     }
 
-    pub(crate) fn default_windows_key_action_bindings() -> Vec<WindowsDefaultActionBindings> {
+    pub(crate) fn default_windows_key_action_bindings() -> Vec<DefaultActionBindings> {
         let defaults = Self::default();
-        orchbee_local_site_runtime::WindowsKeySettings::registered_actions()
+        orchbee_local_runtime::KeySettings::registered_actions()
             .iter()
             .map(|&name| {
                 let (action, _, _) = action(name);
@@ -107,7 +107,7 @@ impl Bindings {
                     .filter(|entry| entry.enabled && entry.member.action == action)
                     .map(configuration_trigger)
                     .collect();
-                WindowsDefaultActionBindings {
+                DefaultActionBindings {
                     action: name,
                     bindings,
                 }
@@ -191,7 +191,7 @@ impl Bindings {
         }
     }
 
-    pub(crate) fn configured(settings: &orchbee_local_site_runtime::WindowsKeySettings) -> Self {
+    pub(crate) fn configured(settings: &orchbee_local_runtime::KeySettings) -> Self {
         let prefix = chord(&settings.prefix);
         let mut user = Vec::new();
         let mut replaced = Vec::new();
@@ -402,7 +402,7 @@ fn shifted_agent_digit(member: &PrefixMember, event: KeyEvent) -> bool {
     })
 }
 
-fn chord(value: &orchbee_local_site_runtime::WindowsKeyChord) -> Binding {
+fn chord(value: &orchbee_local_runtime::KeyChord) -> Binding {
     let code = match value.key.as_str() {
         "esc" => KeyCode::Esc,
         "backspace" => KeyCode::Backspace,

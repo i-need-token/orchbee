@@ -1,6 +1,6 @@
 use super::*;
 mod idle;
-use crate::site_coordinator::PendingTerminalTabCreate;
+use crate::session_coordinator::PendingTerminalTabCreate;
 use orchbee_client_server_protocol::RequestId;
 use orchbee_server::WorkbenchGrant;
 use orchbee_workbench_protocol::{
@@ -25,7 +25,7 @@ fn command(
     WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: id(request),
-        site_id: snapshot.site_id,
+        session_id: snapshot.session_id,
         expected_revision: snapshot.revision,
         action,
     }
@@ -82,10 +82,10 @@ fn workspace(service: &LocalTerminalService) -> WorkbenchTerminalContextId {
             path: WorkbenchDirectoryPath::parse("/tmp").unwrap(),
         },
     );
-    let mut site = service.coordinator.lock().unwrap();
-    let authority = site.close_authority().unwrap();
-    let grant =
-        WorkbenchGrant::manage_navigation(directory.site_id.clone()).with_directory_association();
+    let mut session = service.coordinator.lock().unwrap();
+    let authority = session.close_authority().unwrap();
+    let grant = WorkbenchGrant::manage_navigation(directory.session_id.clone())
+        .with_directory_association();
     assert!(matches!(
         authority
             .accept_workspace_directory(
@@ -225,14 +225,14 @@ fn read(
         .read_workspace_close(WorkbenchWorkspaceCloseRead {
             protocol_version: ProtocolVersion,
             request_id: id(40),
-            site_id: close.site_id.clone(),
+            session_id: close.session_id.clone(),
             workspace_id: workspace_id.clone(),
         })
         .unwrap()
         .outcome
 }
 
-// These exact replies prove Site/carrier refinement, not real Worker or Host disposal.
+// These exact replies prove Session/carrier refinement, not real Worker or Host disposal.
 fn dispose_all(service: &LocalTerminalService, peer: &mut UnixStream, close: &WorkbenchCommand) {
     let handle = service.workers.lock().unwrap().request_handle().unwrap();
     loop {
@@ -288,9 +288,9 @@ fn dispose_all(service: &LocalTerminalService, peer: &mut UnixStream, close: &Wo
 }
 
 fn publish(service: &LocalTerminalService, close: &WorkbenchCommand) {
-    let mut site = service.coordinator.lock().unwrap();
+    let mut session = service.coordinator.lock().unwrap();
     loop {
-        let step = site
+        let step = session
             .close_authority()
             .unwrap()
             .next_terminal_tab_close_step_target(&close.request_id, Instant::now())
@@ -303,15 +303,16 @@ fn publish(service: &LocalTerminalService, close: &WorkbenchCommand) {
                     .runtime()
                     .expect("created Host runtime");
                 service
-                    .complete_disposed_target_cleanup(&site, &close.request_id, runtime)
+                    .complete_disposed_target_cleanup(&session, &close.request_id, runtime)
                     .unwrap();
-                site.close_authority()
+                session
+                    .close_authority()
                     .unwrap()
                     .complete_terminal_tab_close_target_cleanup(&close.request_id, runtime)
                     .unwrap();
             }
             CloseContinuationNext::Publication => {
-                return site
+                return session
                     .publish_terminal_tab_close(&close.request_id, Instant::now())
                     .unwrap();
             }
@@ -478,8 +479,8 @@ fn workspace_close_read_reports_members_and_service_resume_recovers_parked_publi
     // A failed target cleanup parks the member resumably — the same
     // `disposed-awaiting-publication` truth the Workspace read reports.
     {
-        let mut site = service.coordinator.lock().unwrap();
-        let step = site
+        let mut session = service.coordinator.lock().unwrap();
+        let step = session
             .close_authority()
             .unwrap()
             .next_terminal_tab_close_step_target(&close.request_id, Instant::now())
@@ -490,7 +491,8 @@ fn workspace_close_read_reports_members_and_service_resume_recovers_parked_publi
             .unwrap()
             .runtime()
             .expect("created Host runtime");
-        site.close_authority()
+        session
+            .close_authority()
             .unwrap()
             .park_terminal_tab_close_target_cleanup(&close.request_id, runtime)
             .unwrap();
@@ -510,7 +512,7 @@ fn workspace_close_read_reports_members_and_service_resume_recovers_parked_publi
     let resume = WorkbenchWorkspaceCloseResume {
         protocol_version: ProtocolVersion,
         request_id: id(60),
-        site_id: close.site_id.clone(),
+        session_id: close.session_id.clone(),
         workspace_id: workspace_id.clone(),
         close_request_id: close.request_id.clone(),
         expected_attempt_generation: WorkbenchTabCloseAttemptGeneration::new(1).unwrap(),

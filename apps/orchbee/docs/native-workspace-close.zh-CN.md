@@ -62,7 +62,7 @@ Workspace 升级状态说明需要确认，不会在新决策下方显示普通�
 
 | 事实                                         | 所有者与校验                                                                                                                                                        |
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Session、Workspace 身份和可选 Project 元数据 | 已验证的 Workbench snapshot 投影为 `NativeContextTabs`；分组变化不改变 Context 身份                                                                                 |
+| Session、Workspace 身份和可选 Project 元数据 | 已验证的 Workbench snapshot 投影为 `ClientContextTabs`；分组变化不改变 Context 身份                                                                                 |
 | 确认                                         | `WorkspaceCloseState`：带类型的 Workspace/Context 或 Project 目标、包含来源 Context 和 desired pane 的冻结完整 snapshot、名称、Project 成员数量和递增 display token |
 | 完整绘制与几何                               | 纯 renderer 返回 `ModalPresentation`；`tui_presentation` 与 `WorkspaceCloseState` 区分首次绘制阻塞和准入后的挂起，确切 shown-token 证明仍单独保留                   |
 | 请求身份、队列、lease 和期限                 | Command mailbox；单个有界 Refresh flight 将关闭与结构工作串行化                                                                                                     |
@@ -146,4 +146,4 @@ Minimal 和被拒绝的几何。适用的仓库 gate 仍是权威；定向开发
 这些受控实现轨迹不证明全部交错、物理终端外观或未测试的平台。共享身份与提交协议仍由
 已注册模型负责。
 
-<!-- documentation-pairing: english-sha256=eeff2598405c4c8fa3384f0940e7ef5aec74710fc31a87ce06157fc10a09c29d zh-cn-sha256=d311639855e7784456892361680c126afd9e50cf7b03f250edd39b369cd6b934 -->
+<!-- documentation-pairing: english-sha256=8fd9899b125c5c179cca3885a259b6bba4b113e2491b5c868b8528deb60afcb5 zh-cn-sha256=f0bc55a2e4e1cbf64155db82657a356d915b25a814d9e64595307ad1fdb384f0 -->

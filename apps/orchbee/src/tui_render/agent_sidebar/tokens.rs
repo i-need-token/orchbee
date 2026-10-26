@@ -2,9 +2,7 @@
 use super::super::workspace_sidebar::{CurrentIdentityEmphasis, ProjectedSidebarLines};
 use super::{ClientView, Line, Locale, Role, Span, Theme, display_label, machine_label};
 use crate::machine_picker::Row;
-use orchbee_local_site_runtime::{
-    WindowsAgentSidebarToken, WindowsAgentSidebarTokenKind as Kind, WindowsSidebarTokenStyle,
-};
+use orchbee_local_runtime::{AgentSidebarToken, AgentSidebarTokenKind as Kind, SidebarTokenStyle};
 
 struct Context<'a> {
     agent: &'a crate::machine_agents::Row,
@@ -55,10 +53,7 @@ impl<'a> Context<'a> {
                 .map(|(_, v)| v.as_str()),
         }
     }
-    fn resolved(
-        &self,
-        token: &WindowsAgentSidebarToken,
-    ) -> Option<(String, WindowsSidebarTokenStyle)> {
+    fn resolved(&self, token: &AgentSidebarToken) -> Option<(String, SidebarTokenStyle)> {
         let value = self.value(token.kind());
         let style = token.style_for_value(value)?;
         let text = if token.kind() == Kind::StateIcon {
@@ -72,7 +67,7 @@ impl<'a> Context<'a> {
 fn configured<'a>(
     view: &'a ClientView,
     agent: &crate::machine_agents::Row,
-) -> Option<&'a [Vec<WindowsAgentSidebarToken>]> {
+) -> Option<&'a [Vec<AgentSidebarToken>]> {
     let canonical =
         orchbee_agent_observation_protocol::AgentReportProvider::lookup(&agent.target.agent)
             .map(|p| p.report_label());

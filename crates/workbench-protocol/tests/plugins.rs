@@ -68,7 +68,7 @@ fn plugin_large_log_frames_and_query_correlation_are_bounded() {
             log
         })
         .collect::<Vec<_>>();
-    let mut result:PluginResult=serde_json::from_value(json!({"protocolVersion":1,"requestId":request.request_id,"sessionId":request.site_id,"outcome":{"kind":"logs","worker":{"workerId":"33333333333333333333333333333333","generation":"1"},"logs":logs,"next":null}})).unwrap();
+    let mut result:PluginResult=serde_json::from_value(json!({"protocolVersion":1,"requestId":request.request_id,"sessionId":request.session_id,"outcome":{"kind":"logs","worker":{"workerId":"33333333333333333333333333333333","generation":"1"},"logs":logs,"next":null}})).unwrap();
     assert!(result.answers(&request));
     let message = WorkbenchResponse::Plugin(result.clone());
     let mut wire = Vec::new();
@@ -100,7 +100,7 @@ fn plugin_wire_rejects_unpaired_surrogate_context() {
 #[test]
 fn plugin_uncertain_cancellation_still_pins_worker_generation() {
     let request: PluginRequest = serde_json::from_value(json!({"protocolVersion":1,"requestId":"11111111111111111111111111111111","sessionId":"22222222222222222222222222222222","action":{"kind":"cancel","worker":{"workerId":"33333333333333333333333333333333","generation":"1"},"jobId":"44444444444444444444444444444444"}})).unwrap();
-    let mut result: PluginResult = serde_json::from_value(json!({"protocolVersion":1,"requestId":request.request_id,"sessionId":request.site_id,"outcome":{"kind":"unknown","worker":{"workerId":"33333333333333333333333333333333","generation":"1"}}})).unwrap();
+    let mut result: PluginResult = serde_json::from_value(json!({"protocolVersion":1,"requestId":request.request_id,"sessionId":request.session_id,"outcome":{"kind":"unknown","worker":{"workerId":"33333333333333333333333333333333","generation":"1"}}})).unwrap();
     assert!(result.answers(&request));
     if let PluginOutcome::Unknown { worker } = &mut result.outcome {
         worker.generation = WorkbenchRevision::new(2);

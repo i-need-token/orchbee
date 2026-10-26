@@ -69,7 +69,7 @@ fn physical_explanation_pins_binding_preserves_evidence_and_escapes_both_locales
                 &WorkbenchResponse::PanelAgent(PanelAgentResult {
                     protocol_version: ProtocolVersion,
                     request_id: request.request_id,
-                    site_id: request.site_id,
+                    session_id: request.session_id,
                     outcome: PanelAgentOutcome::Explained {
                         workbench_revision: WorkbenchRevision::new(
                             if case == "changed-workbench" { 10 } else { 9 },

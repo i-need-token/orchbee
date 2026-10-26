@@ -44,7 +44,7 @@ pub(crate) fn run(
     cohort: &str,
 ) -> Result<(), Box<dyn Error>> {
     let mut arguments = arguments.peekable();
-    let scope = orchbee_local_site_runtime::UserPreferencesScope::from_environment(|name| {
+    let scope = orchbee_local_runtime::UserPreferencesScope::from_environment(|name| {
         std::env::var_os(name)
     })
     .map_err(|_| {
@@ -53,11 +53,11 @@ pub(crate) fn run(
             "Shared terminal preferences scope is unavailable",
         )
     })?;
-    let preferences = orchbee_local_site_runtime::UserPreferencesStore::new(scope);
+    let preferences = orchbee_local_runtime::UserPreferencesStore::new(scope);
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     if arguments
         .peek()
-        .is_some_and(|argument| argument == "--local-site")
+        .is_some_and(|argument| argument == "--runtime-directory")
     {
         arguments.next();
         let runtime = arguments
@@ -67,22 +67,20 @@ pub(crate) fn run(
                 io::Error::new(io::ErrorKind::InvalidInput, "missing Session runtime")
             })?;
         #[cfg(windows)]
-        let shell = orchbee_local_site_runtime::WindowsShellSettings::from_private_arguments(
-            &mut arguments,
-        )?;
+        let shell = orchbee_local_runtime::ShellSettings::from_private_arguments(&mut arguments)?;
         if arguments.next().is_some() {
             return Err(io::Error::from(io::ErrorKind::InvalidInput).into());
         }
         let deadline = std::time::Instant::now() + Duration::from_secs(20);
-        let cohort = orchbee_local_site_runtime::NativeCohort::current(deadline)?;
-        let site =
-            orchbee_local_site_runtime::ModeCheckedLocalSiteRendezvous::from_runtime_directory(
+        let cohort = orchbee_local_runtime::Cohort::current(deadline)?;
+        let session =
+            orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::from_runtime_directory(
                 &runtime,
             )?;
-        if !site.activation_started()? || !site.worker_socket_exists()? {
+        if !session.activation_started()? || !session.worker_socket_exists()? {
             return Err(io::Error::other("Session startup is unavailable").into());
         }
-        let server = connect_to_server(site.worker_socket_path(), cohort.identity())?;
+        let server = connect_to_server(session.worker_socket_path(), cohort.identity())?;
         let generation = server.generation();
         return terminal_operations::run_lazy(
             server.stream,
@@ -97,10 +95,9 @@ pub(crate) fn run(
     }
     let options = WorkerOptions::parse(arguments)?;
     #[cfg(windows)]
-    let shell =
-        orchbee_local_site_runtime::read_windows_user_settings(|name| std::env::var_os(name))?
-            .settings
-            .shell;
+    let shell = orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name))?
+        .settings
+        .shell;
     let server = connect_to_server(&options.server_endpoint, cohort)?;
     // The Agent Drain queue belongs to this admitted Server connection and is
     // created before the Host broker so both paths share one owner.
@@ -125,7 +122,7 @@ fn connect_to_server(
     cohort: &str,
 ) -> Result<ServerConnection, Box<dyn Error>> {
     // A local Worker has no restart/adoption contract. A fresh Windows
-    // identity prevents another Site's reused terminal counter from matching
+    // identity prevents another Session's reused terminal counter from matching
     // an old child caller. Mint once and retain the admitted value below.
     #[cfg(windows)]
     let worker_id = WorkerId::from_bytes(crate::worker_identity::fresh_identity()?);

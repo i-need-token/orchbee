@@ -1064,11 +1064,9 @@ mod tests {
 
     #[test]
     fn multiple_bindings_merge_when_their_semantic_identity_matches() {
-        use orchbee_local_site_runtime::{
-            WindowsKeyChord, WindowsKeyOverride, WindowsKeySettings, WindowsKeyTrigger,
-        };
+        use orchbee_local_runtime::{KeyChord, KeyOverride, KeySettings, KeyTrigger};
 
-        let chord = |key: &str| WindowsKeyChord {
+        let chord = |key: &str| KeyChord {
             key: key.into(),
             ctrl: false,
             alt: false,
@@ -1076,22 +1074,22 @@ mod tests {
             super_key: false,
         };
         let mut view = ClientView::new(100);
-        view.configure_keys(&WindowsKeySettings {
-            prefix: WindowsKeyChord {
+        view.configure_keys(&KeySettings {
+            prefix: KeyChord {
                 key: "b".into(),
                 ctrl: true,
                 alt: false,
                 shift: false,
                 super_key: false,
             },
-            overrides: vec![WindowsKeyOverride {
+            overrides: vec![KeyOverride {
                 action: "new_workspace",
                 triggers: vec![
-                    WindowsKeyTrigger {
+                    KeyTrigger {
                         prefix: true,
                         chord: chord("x"),
                     },
-                    WindowsKeyTrigger {
+                    KeyTrigger {
                         prefix: true,
                         chord: chord("z"),
                     },

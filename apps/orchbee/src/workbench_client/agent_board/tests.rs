@@ -8,13 +8,13 @@ use super::*;
 mod mouse;
 use crate::client_view::{KeyCode, KeyEvent, Modifiers};
 use crate::local_client::tests::server::adjustable_operation_clock;
-use crate::workbench_client::workbench_projection::NativeContextLocation;
+use crate::workbench_client::workbench_projection::ClientContextLocation;
 use orchbee_agent_observation_protocol::{
     AgentAttachmentGeneration, AgentExecutionLocation, AgentExecutionLocationId, AgentObservation,
     AgentObservationFidelity, AgentObservationSource, AgentPresentationId, AgentSafeInteger,
 };
 use orchbee_workbench_protocol::{
-    Navigation, PanelNode, Presentation, PresentationBinding, ProtocolVersion, SiteId, Snapshot,
+    Navigation, PanelNode, Presentation, PresentationBinding, ProtocolVersion, SessionId, Snapshot,
     Tab, TerminalContext, TerminalId, TerminalPresentationId, WorkbenchPanelId, WorkbenchProjectId,
     WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId, WorkbenchWorkspaceId, WorkerId,
 };
@@ -176,14 +176,14 @@ fn context_id(seed: u64) -> WorkbenchTerminalContextId {
     WorkbenchTerminalContextId::parse(&hex(seed)).unwrap()
 }
 
-fn workspace_location(seed: u64) -> NativeContextLocation {
-    NativeContextLocation::Workspace {
+fn workspace_location(seed: u64) -> ClientContextLocation {
+    ClientContextLocation::Workspace {
         workspace_id: WorkbenchWorkspaceId::parse(&hex(seed + 200)).unwrap(),
         terminal_context_id: context_id(seed),
     }
 }
 
-fn placement(location: NativeContextLocation, tab: u64, panel: u64) -> PresentationPlacement {
+fn placement(location: ClientContextLocation, tab: u64, panel: u64) -> PresentationPlacement {
     PresentationPlacement {
         location,
         tab_id: tab_id(tab),
@@ -465,7 +465,7 @@ fn expire_jump_reports_budget_exhaustion() {
 fn jump_plan_walks_context_then_tab_then_panel() {
     let initial_workspace = {
         let fixture_context_id = context_id(1);
-        NativeContextLocation::Workspace {
+        ClientContextLocation::Workspace {
             workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                 fixture_context_id.as_str(),
             )
@@ -804,7 +804,7 @@ fn presentation_snapshot() -> Snapshot {
         },
         protocol_version: ProtocolVersion,
         revision: WorkbenchRevision::new(1),
-        site_id: SiteId::parse(&hex(1)).unwrap(),
+        session_id: SessionId::parse(&hex(1)).unwrap(),
         terminal_contexts: vec![TerminalContext {
             groups: Vec::new(),
             terminal_context_id: context,
@@ -848,7 +848,7 @@ fn presentation_index_resolves_only_live_panel_identities() {
     assert_eq!(hit.panel_id, panel_id(6));
     assert_eq!(hit.location, {
         let fixture_context_id = context_id(2);
-        NativeContextLocation::Workspace {
+        ClientContextLocation::Workspace {
             workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                 fixture_context_id.as_str(),
             )

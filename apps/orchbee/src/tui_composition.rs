@@ -6,7 +6,7 @@
 //! remain with the selected owner and are sampled separately for each item.
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum NativeCaptureOwner {
+pub(crate) enum CaptureOwner {
     Settings,
     ActionMenu,
     Popup,
@@ -22,7 +22,7 @@ pub(crate) enum NativeCaptureOwner {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum CaptureOwner {
     Machine,
-    Native(NativeCaptureOwner),
+    Native(CaptureOwner),
     Copy,
     Resize,
 }
@@ -33,7 +33,7 @@ pub(crate) enum CaptureOwner {
 /// An admitted surface can remain the top recovery capture while its current
 /// presentation proof is pending, covered, or suspended.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub(crate) struct NativeCaptureClaims {
+pub(crate) struct CaptureClaims {
     settings: bool,
     action_menu: bool,
     popup: bool,
@@ -47,7 +47,7 @@ pub(crate) struct NativeCaptureClaims {
     copy: bool,
 }
 
-impl NativeCaptureClaims {
+impl CaptureClaims {
     pub(crate) const fn with_settings(mut self, captured: bool) -> Self {
         self.settings = captured;
         self
@@ -103,18 +103,18 @@ impl NativeCaptureClaims {
         self
     }
 
-    pub(crate) const fn contains(self, owner: NativeCaptureOwner) -> bool {
+    pub(crate) const fn contains(self, owner: CaptureOwner) -> bool {
         match owner {
-            NativeCaptureOwner::Settings => self.settings,
-            NativeCaptureOwner::ActionMenu => self.action_menu,
-            NativeCaptureOwner::Popup => self.popup,
-            NativeCaptureOwner::Worktree => self.worktree,
-            NativeCaptureOwner::Setup => self.setup,
-            NativeCaptureOwner::Rename => self.rename,
-            NativeCaptureOwner::PanelClose => self.panel_close,
-            NativeCaptureOwner::TabClose => self.tab_close,
-            NativeCaptureOwner::WorkspaceClose => self.workspace_close,
-            NativeCaptureOwner::AgentBoard => self.agent_board,
+            CaptureOwner::Settings => self.settings,
+            CaptureOwner::ActionMenu => self.action_menu,
+            CaptureOwner::Popup => self.popup,
+            CaptureOwner::Worktree => self.worktree,
+            CaptureOwner::Setup => self.setup,
+            CaptureOwner::Rename => self.rename,
+            CaptureOwner::PanelClose => self.panel_close,
+            CaptureOwner::TabClose => self.tab_close,
+            CaptureOwner::WorkspaceClose => self.workspace_close,
+            CaptureOwner::AgentBoard => self.agent_board,
         }
     }
 
@@ -146,33 +146,31 @@ impl ClientCaptureClaims {
 ///
 /// This function is the sole native z-order authority. Callers must not rank
 /// or combine owner claims independently.
-pub(crate) const fn project_native_capture(
-    claims: NativeCaptureClaims,
-) -> Option<NativeCaptureOwner> {
+pub(crate) const fn project_native_capture(claims: CaptureClaims) -> Option<CaptureOwner> {
     if claims.settings {
-        Some(NativeCaptureOwner::Settings)
+        Some(CaptureOwner::Settings)
     } else {
         if claims.action_menu {
-            return Some(NativeCaptureOwner::ActionMenu);
+            return Some(CaptureOwner::ActionMenu);
         }
         if claims.popup {
-            return Some(NativeCaptureOwner::Popup);
+            return Some(CaptureOwner::Popup);
         }
         if claims.worktree {
-            return Some(NativeCaptureOwner::Worktree);
+            return Some(CaptureOwner::Worktree);
         }
         if claims.setup {
-            Some(NativeCaptureOwner::Setup)
+            Some(CaptureOwner::Setup)
         } else if claims.rename {
-            Some(NativeCaptureOwner::Rename)
+            Some(CaptureOwner::Rename)
         } else if claims.panel_close {
-            Some(NativeCaptureOwner::PanelClose)
+            Some(CaptureOwner::PanelClose)
         } else if claims.tab_close {
-            Some(NativeCaptureOwner::TabClose)
+            Some(CaptureOwner::TabClose)
         } else if claims.workspace_close {
-            Some(NativeCaptureOwner::WorkspaceClose)
+            Some(CaptureOwner::WorkspaceClose)
         } else if claims.agent_board {
-            Some(NativeCaptureOwner::AgentBoard)
+            Some(CaptureOwner::AgentBoard)
         } else {
             None
         }
@@ -183,7 +181,7 @@ pub(crate) const fn project_native_capture(
 /// retained native owner as a conflict.
 pub(crate) const fn project_capture(
     client: ClientCaptureClaims,
-    native: NativeCaptureClaims,
+    native: CaptureClaims,
 ) -> Option<CaptureOwner> {
     if client.machine {
         return Some(CaptureOwner::Machine);
@@ -218,7 +216,7 @@ mod tests {
 
     #[test]
     fn native_projection_uses_the_single_surface_composition_order() {
-        let claims = NativeCaptureClaims::default()
+        let claims = CaptureClaims::default()
             .with_agent_board(true)
             .with_workspace_close(true)
             .with_tab_close(true)
@@ -226,17 +224,14 @@ mod tests {
             .with_rename(true)
             .with_setup(true)
             .with_settings(true);
-        assert_eq!(
-            project_native_capture(claims),
-            Some(NativeCaptureOwner::Settings)
-        );
+        assert_eq!(project_native_capture(claims), Some(CaptureOwner::Settings));
 
-        let claims = NativeCaptureClaims::default()
+        let claims = CaptureClaims::default()
             .with_agent_board(true)
             .with_workspace_close(true);
         assert_eq!(
             project_native_capture(claims),
-            Some(NativeCaptureOwner::WorkspaceClose)
+            Some(CaptureOwner::WorkspaceClose)
         );
     }
 
@@ -244,7 +239,7 @@ mod tests {
     fn client_chrome_overlay_never_covers_an_exclusive_owner() {
         assert!(client_chrome_overlay_allowed(None));
         assert!(!client_chrome_overlay_allowed(Some(CaptureOwner::Native(
-            NativeCaptureOwner::Settings
+            CaptureOwner::Settings
         ))));
         {
             assert!(client_chrome_overlay_allowed(Some(CaptureOwner::Copy)));
@@ -256,19 +251,19 @@ mod tests {
     #[test]
     fn machine_legitimately_covers_a_retained_native_capture() {
         let client = ClientCaptureClaims::default().with_machine(true);
-        let native = NativeCaptureClaims::default()
+        let native = CaptureClaims::default()
             .with_settings(true)
             .with_worktree(true);
         assert_eq!(project_capture(client, native), Some(CaptureOwner::Machine));
         assert_eq!(
             project_capture(ClientCaptureClaims::default(), native),
-            Some(CaptureOwner::Native(NativeCaptureOwner::Settings))
+            Some(CaptureOwner::Native(CaptureOwner::Settings))
         );
     }
 
     #[test]
     fn windows_native_order_matches_the_compositor() {
-        let claims = NativeCaptureClaims::default()
+        let claims = CaptureClaims::default()
             .with_agent_board(true)
             .with_workspace_close(true)
             .with_tab_close(true)
@@ -280,13 +275,13 @@ mod tests {
             .with_action_menu(true);
         assert_eq!(
             project_native_capture(claims),
-            Some(NativeCaptureOwner::ActionMenu)
+            Some(CaptureOwner::ActionMenu)
         );
     }
 
     #[test]
     fn lower_client_modes_follow_native_exclusives_in_one_total_order() {
-        let copy = NativeCaptureClaims::default().with_copy(true);
+        let copy = CaptureClaims::default().with_copy(true);
         let resize = ClientCaptureClaims::default().with_resize(true);
         assert!(!copy.exclusive_any(), "Copy is below native exclusives");
         assert_eq!(project_native_capture(copy), None);
@@ -295,7 +290,7 @@ mod tests {
             Some(CaptureOwner::Copy)
         );
         assert_eq!(
-            project_capture(resize, NativeCaptureClaims::default()),
+            project_capture(resize, CaptureClaims::default()),
             Some(CaptureOwner::Resize)
         );
         assert_eq!(project_capture(resize, copy), Some(CaptureOwner::Copy));
@@ -303,7 +298,7 @@ mod tests {
         let native = copy.with_agent_board(true);
         assert_eq!(
             project_capture(resize, native),
-            Some(CaptureOwner::Native(NativeCaptureOwner::AgentBoard))
+            Some(CaptureOwner::Native(CaptureOwner::AgentBoard))
         );
         assert_eq!(
             project_capture(resize.with_machine(true), native),

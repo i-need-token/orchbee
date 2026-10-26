@@ -132,7 +132,7 @@ pub(crate) struct GlyphSet {
     pub ellipsis: &'static str,
     /// Separator inside frame titles and list rows.
     pub middle_dot: &'static str,
-    /// Status glyph used in the sidebar site section.
+    /// Status glyph used in the sidebar session section.
     pub status_bullet: &'static str,
     /// Workspace identity when no Agent state is available; never an activity status.
     pub workspace: &'static str,
@@ -776,7 +776,7 @@ impl Theme {
     pub(crate) fn sidebar_token_style(
         &self,
         role: Role,
-        token: orchbee_local_site_runtime::WindowsSidebarTokenStyle,
+        token: orchbee_local_runtime::SidebarTokenStyle,
         current: bool,
         focused: bool,
     ) -> Style {
@@ -825,7 +825,7 @@ impl Theme {
     pub(crate) fn workspace_token_style(
         &self,
         role: Role,
-        token: orchbee_local_site_runtime::WindowsSidebarTokenStyle,
+        token: orchbee_local_runtime::SidebarTokenStyle,
         current: bool,
         focused: bool,
     ) -> Style {
@@ -918,7 +918,7 @@ impl Theme {
         custom_foreground: &str,
         custom_background: &str,
     ) -> Self {
-        let colors = orchbee_local_site_runtime::UserTerminalColors::resolve(
+        let colors = orchbee_local_runtime::UserTerminalColors::resolve(
             application,
             appearance,
             custom_foreground,

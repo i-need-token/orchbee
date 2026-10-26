@@ -135,7 +135,7 @@ fn panel_labels_refuse_scope_authorization_and_capacity_before_any_change() {
     let before = snapshot(&mut authority, &grant);
     let cursor = authority.last_identity;
     let request = command(1, 2, rename(&before, 0, Some("x")));
-    let reader = WorkbenchGrant::read_only(grant.site_id.clone());
+    let reader = WorkbenchGrant::read_only(grant.session_id.clone());
     assert!(matches!(
         submit(&mut authority, &reader, request.clone()).outcome,
         WorkbenchCommandOutcome::Denied {}

@@ -306,7 +306,7 @@ fn machine_overview_keeps_status_visible_and_localizes_without_claiming_stale_on
     picker.show();
     picker.selected = 1;
     let overview = crate::machine_discovery::Overview {
-        site: orchbee_workbench_protocol::SiteId::parse(p.id.as_str()).unwrap(),
+        session: orchbee_workbench_protocol::SessionId::parse(p.id.as_str()).unwrap(),
         revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
         projects: 2,
         workspaces: 3,
@@ -340,15 +340,16 @@ fn machine_overview_keeps_status_visible_and_localizes_without_claiming_stale_on
 }
 fn context(n: u8) -> Context {
     Context {
-        target: NativeContextTarget {
-            site_id: orchbee_workbench_protocol::SiteId::parse(&format!("{:032x}", 9)).unwrap(),
+        target: ClientContextTarget {
+            session_id: orchbee_workbench_protocol::SessionId::parse(&format!("{:032x}", 9))
+                .unwrap(),
             location: {
                 let fixture_context_id =
                     orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(&format!(
                         "{n:032x}"
                     ))
                     .unwrap();
-                crate::workbench_client::NativeContextLocation::Workspace {
+                crate::workbench_client::ClientContextLocation::Workspace {
                     workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                         fixture_context_id.as_str(),
                     )
@@ -373,7 +374,7 @@ fn workspace_mode_routes_full_local_remote_identity_and_preserves_selection_on_r
     picker.replace(&[a.clone(), b.clone()]);
     picker.observe_local(vec![context(11)]);
     let overview = crate::machine_discovery::Overview {
-        site: context(11).target.site_id,
+        session: context(11).target.session_id,
         revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
         projects: 1,
         workspaces: 2,
@@ -458,9 +459,10 @@ fn workspace_mode_scrolls_and_refuses_stale_hits_after_small_resize() {
 #[test]
 fn workspace_search_names_same_labelled_workspaces_by_identity_and_grouping() {
     let workspace = |n: u8, label: &str| Context {
-        target: NativeContextTarget {
-            site_id: orchbee_workbench_protocol::SiteId::parse(&format!("{:032x}", 9)).unwrap(),
-            location: crate::workbench_client::NativeContextLocation::Workspace {
+        target: ClientContextTarget {
+            session_id: orchbee_workbench_protocol::SessionId::parse(&format!("{:032x}", 9))
+                .unwrap(),
+            location: crate::workbench_client::ClientContextLocation::Workspace {
                 workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(&format!(
                     "{n:032x}"
                 ))
@@ -547,7 +549,7 @@ fn agent_mode_routes_duplicate_local_and_remote_identities_and_invalidates_stale
     assert!(picker.activate_drawn_picker(&remote_b));
     let expected = Selection {
         machine: Choice::Remote(b.id.clone()),
-        context: Some(NativeStartupTarget::Agent(Box::new(agent_row().target))),
+        context: Some(ClientStartupTarget::Agent(Box::new(agent_row().target))),
     };
     assert_eq!(picker.request.take(), Some(expected.clone()));
     picker.replace(&[b.clone(), a.clone()]);

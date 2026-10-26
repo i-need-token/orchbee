@@ -36,8 +36,13 @@ pub(super) fn execute(
     deadline: Instant,
     signals: &mut ArmedSignals,
 ) -> Result<client_control::Answer, Failure> {
-    let fresh =
-        query::refresh_snapshot(client, &original.site_id, target.minimum, deadline, signals)?;
+    let fresh = query::refresh_snapshot(
+        client,
+        &original.session_id,
+        target.minimum,
+        deadline,
+        signals,
+    )?;
     let workspace = fresh
         .navigation
         .workspace(target.workspace)
@@ -59,7 +64,7 @@ pub(super) fn execute(
         signals.check_before(deadline)?;
         let reply = control::exchange(
             client,
-            &fresh.site_id,
+            &fresh.session_id,
             ClientViewAction::Get {
                 client_id: selected.client_id.clone(),
             },
@@ -105,7 +110,7 @@ pub(super) fn execute(
     signals.check_before(deadline)?;
     control::submit_control(
         client,
-        &fresh.site_id,
+        &fresh.session_id,
         ClientViewControl {
             operation_id: query::request_id()?,
             client_id: selected.client_id.clone(),

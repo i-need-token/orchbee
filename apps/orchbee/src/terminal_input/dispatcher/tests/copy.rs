@@ -356,9 +356,7 @@ fn configured_entry_and_disabled_default_share_dispatch_and_discovery() {
         ("[keys]\ncopy_mode=[]", b"\x02U".as_slice(), false),
     ] {
         let mut view = ClientView::new(100);
-        view.configure_keys(
-            &orchbee_local_site_runtime::WindowsKeySettings::from_profile(profile).unwrap(),
-        );
+        view.configure_keys(&orchbee_local_runtime::KeySettings::from_profile(profile).unwrap());
         let mut port = CopyPort::default();
         let mut dispatcher = InputDispatcher::default();
         dispatch_all(&mut dispatcher, &mut view, &mut port, input);

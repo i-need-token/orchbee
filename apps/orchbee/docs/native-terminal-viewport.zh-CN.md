@@ -93,7 +93,7 @@ Live 滚动条观察已验证帧的 `scrollback_rows + geometry.rows`，并检�
 
 可读且未启用 tracking 的 primary 屏幕内容区内，非 Shift 滚轮从尾部向前回看三行，
 键盘入口仍回看一页。鼠标下的精确窗格拥有该只读操作，包括未聚焦的 ReadOnly 窗格；
-键盘焦点和控制权保持不变。NativeUi 在受理 Enter 前复核窗格 incarnation、当前帧及保留行或被裁切的当前网格。
+键盘焦点和控制权保持不变。WorkbenchClientUi 在受理 Enter 前复核窗格 incarnation、当前帧及保留行或被裁切的当前网格。
 未聚焦应用的鼠标上报与备用屏幕滚轮输入保持无效果。Live 状态
 向下滚动、没有保留行且网格未裁切、帧缺失或备用屏幕均无效果，不显示不可用提示。后续 notch
 沿用核心的带符号三行导航，包括进入尚未完成时的意图合并及到达实时尾部时的恢复。
@@ -327,7 +327,7 @@ Tab 或 Workspace 导航期间，`ui/navigation_draw.rs` 会在新选中的 Tab 
 | 总行数、generation、attachment 或几何变化                                                      | 新鲜来源检查或绘制时取消后续拖动意图。输出增长要求重新按下；旧抓取不映射到新滑块。已接纳工作保留原窗格和普通完成规则。 |
 | resize、窗格切换／关闭／重建身份、区域被覆盖、释放捕获、宿主失焦、键盘输入或带修饰键的指针事件 | 取消捕获；迟到的移动／释放不能启动另一窗格的手势，也不能到达应用鼠标上报。                                             |
 
-指针只拥有捕获。NativeUi 在每个意图前重新检查准确焦点、读取就绪、选择准入、复制模式排除
+指针只拥有捕获。WorkbenchClientUi 在每个意图前重新检查准确焦点、读取就绪、选择准入、复制模式排除
 和来源范围。待定窗口可保留已有捕获，但不能授权新捕获。facts 总量变化在替代窗口绘制前就
 拒绝后续请求。历史中的实时输出刷新已提交锚点，不发出滚动条跳转。取消捕获不撤销先前
 已接纳的导航；该意图仍通过 core 的验证和 ACK 完成。选择／复制归属和应用
@@ -379,4 +379,4 @@ read/ACK 权威与取消策略仍由 Orchbee 拥有。
 
 TUI 将阅读锚点失效表述为正在显示最新输出。这条一次性提示四秒后过期，焦点窗格完成返回实时后立即清除。状态行位于终端几何之外，恢复协议和保留的操作事实保持不变。
 
-<!-- documentation-pairing: english-sha256=bc67ec344ced6e80a7be7eea21fcab52525c90502efcec6fcce7882d12176626 zh-cn-sha256=30e0c50cd4fe70aa781e8f2fcc07b9012f9a002064c2fd5cca6360bc16ee6a13 -->
+<!-- documentation-pairing: english-sha256=b6159ea5db1f30c7c540d2e76ce75cf7897d774bf344300a81be514e2c5dcb27 zh-cn-sha256=dd87722813b3dc734bd1080087051094aeb68c75ae820dffe127ce0a69bb2440 -->

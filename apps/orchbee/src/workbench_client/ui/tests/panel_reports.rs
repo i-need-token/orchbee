@@ -76,8 +76,8 @@ fn single_terminal_chrome_keeps_settings_in_the_sidebar_and_matches_the_live_geo
                 shell
                     .machines
                     .observe_agent_sidebar(areas.sidebar.is_some());
-                let target = crate::workbench_client::NativeContextTarget {
-                    site_id: ui.state.as_ref().unwrap().cache().site_id().clone(),
+                let target = crate::workbench_client::ClientContextTarget {
+                    session_id: ui.state.as_ref().unwrap().cache().session_id().clone(),
                     location: ui.view().context_at(0).unwrap().location().clone(),
                 };
                 shell
@@ -189,7 +189,7 @@ fn single_terminal_chrome_keeps_settings_in_the_sidebar_and_matches_the_live_geo
 }
 
 fn paint(
-    ui: &NativeUi,
+    ui: &WorkbenchClientUi,
     width: u16,
     height: u16,
     locale: Locale,

@@ -3,7 +3,7 @@ use crate::test_support::WorkbenchFixture;
 mod members;
 use crate::WorkbenchReadOrNavigationRequest;
 use orchbee_workbench_protocol::{
-    PanelNode, PanelOrientation, PresentationBinding, ProtocolVersion, SiteId, TerminalId,
+    PanelNode, PanelOrientation, PresentationBinding, ProtocolVersion, SessionId, TerminalId,
     WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchLabel,
     WorkbenchPanelSplitDirection, WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse,
     WorkbenchRevision, WorkbenchTerminalContextId, WorkbenchTerminalGeometry, WorkerId,
@@ -28,7 +28,7 @@ fn split_command(
     WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&identity(900)).unwrap(),
-        site_id: authority.site_id().clone(),
+        session_id: authority.session_id().clone(),
         expected_revision: WorkbenchRevision::new(1),
         action: WorkbenchAction::PanelSplit {
             right_click: Default::default(),
@@ -47,13 +47,14 @@ fn split_command(
 
 #[test]
 fn panel_split_commits_one_new_leaf_and_retains_the_source_terminal() {
-    let site = SiteId::parse(&identity(700)).unwrap();
-    let mut authority = WorkbenchAuthority::workspace_fixture(site).unwrap();
+    let session = SessionId::parse(&identity(700)).unwrap();
+    let mut authority = WorkbenchAuthority::workspace_fixture(session).unwrap();
     authority.append_fixture_tab(binding(1)).unwrap();
     let baseline = authority.fixture_tree_membership().unwrap();
     let source = baseline.members().first().unwrap().clone();
 
-    let grant = WorkbenchGrant::manage_navigation_and_terminal_create(authority.site_id().clone());
+    let grant =
+        WorkbenchGrant::manage_navigation_and_terminal_create(authority.session_id().clone());
     let mut request = split_command(
         &authority,
         source.tab_id().clone(),
@@ -109,7 +110,7 @@ fn panel_split_commits_one_new_leaf_and_retains_the_source_terminal() {
     );
 
     let snapshot = authority.execute(
-        Some(&WorkbenchGrant::read_only(authority.site_id().clone())),
+        Some(&WorkbenchGrant::read_only(authority.session_id().clone())),
         WorkbenchReadOrNavigationRequest::try_from(WorkbenchRequest::SnapshotRead(
             orchbee_workbench_protocol::SnapshotReadIntent {
                 protocol_version: ProtocolVersion,

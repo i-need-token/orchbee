@@ -1,7 +1,7 @@
 //! One local resize acknowledgement for keys and divider releases; no remote receipts or backlog.
 use super::{
     ClientControl, ClientControlLane, ClientLayoutAdjustment, ClientViewObservation, ControlStep,
-    Instant, NativeUi, Reason, SharedAdjustment,
+    Instant, Reason, SharedAdjustment, WorkbenchClientUi,
 };
 use crate::client_view::{Notice, PanelDirection};
 use orchbee_workbench_protocol::{ClientLayoutChange, ClientPanelDirection, WorkbenchRequestId};
@@ -28,7 +28,7 @@ pub(in crate::workbench_client) enum LocalResizeFeedback {
 impl ClientControl {
     pub(in crate::workbench_client) fn resize_drawn(
         &mut self,
-        native: &NativeUi,
+        native: &WorkbenchClientUi,
         target: &crate::tui_layout::DrawnResize,
         direction: PanelDirection,
         fine: bool,
@@ -43,7 +43,7 @@ impl ClientControl {
     }
     pub(in crate::workbench_client) fn resize(
         &mut self,
-        native: &NativeUi,
+        native: &WorkbenchClientUi,
         direction: PanelDirection,
         fine: bool,
     ) {
@@ -61,7 +61,7 @@ impl ClientControl {
 
     pub(in crate::workbench_client) fn divider_ready(
         &mut self,
-        native: &NativeUi,
+        native: &WorkbenchClientUi,
         target: &crate::tui_layout::DrawnDivider,
     ) -> Result<(), Notice> {
         let result = if self.stopped {
@@ -95,7 +95,7 @@ impl ClientControl {
 
     pub(in crate::workbench_client) fn resize_divider(
         &mut self,
-        native: &NativeUi,
+        native: &WorkbenchClientUi,
         target: &crate::tui_layout::DrawnDivider,
         ratio: orchbee_workbench_protocol::ClientSplitRatio,
     ) {
@@ -113,10 +113,10 @@ impl ClientControl {
 
     fn submit_local(
         &mut self,
-        native: &NativeUi,
+        native: &WorkbenchClientUi,
         prepared: Result<
             (
-                orchbee_workbench_protocol::SiteId,
+                orchbee_workbench_protocol::SessionId,
                 ClientLayoutAdjustment,
                 ClientViewObservation,
             ),
@@ -131,7 +131,7 @@ impl ClientControl {
             self.local_resize_feedback = Some(LocalResizeFeedback::Notice(Notice::ResizeBusy));
             return false;
         }
-        let result = prepared.and_then(|(site, adjustment, before)| {
+        let result = prepared.and_then(|(session, adjustment, before)| {
             if !adjustment.change.changed() {
                 let notice = match adjustment.change {
                     ClientLayoutChange::NoSplit {} => Notice::ResizeNoSplit,
@@ -142,7 +142,7 @@ impl ClientControl {
             }
             let request_id = native.local_adjustment_request_id()?;
             let (flow, mutation) =
-                SharedAdjustment::prepare(site, request_id.clone(), adjustment, before)?;
+                SharedAdjustment::prepare(session, request_id.clone(), adjustment, before)?;
             self.lane
                 .as_ref()
                 .ok_or(Reason::ProjectionUnavailable)?
@@ -178,7 +178,7 @@ impl ClientControl {
 
     pub(in crate::workbench_client) fn resize_projection(
         &mut self,
-        native: &NativeUi,
+        native: &WorkbenchClientUi,
         viewport: ratatui::layout::Rect,
         sidebar: crate::client_view::SidebarSurface,
         presentation_allowed: bool,
@@ -214,7 +214,11 @@ impl ClientControl {
         self.local_resize_feedback.take()
     }
 
-    pub(super) fn advance_local_resize(&mut self, native: &mut NativeUi, too_small: bool) -> bool {
+    pub(super) fn advance_local_resize(
+        &mut self,
+        native: &mut WorkbenchClientUi,
+        too_small: bool,
+    ) -> bool {
         let Some(pending) = &mut self.local_resize else {
             return false;
         };
@@ -252,7 +256,7 @@ impl ClientControl {
         }
     }
 
-    pub(super) fn local_resize_after_draw(&mut self, native: &NativeUi) {
+    pub(super) fn local_resize_after_draw(&mut self, native: &WorkbenchClientUi) {
         if self.local_resize.as_ref().is_some_and(|pending| {
             pending.awaiting_draw
                 && !pending.interrupted

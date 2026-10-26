@@ -157,7 +157,10 @@ fn slow_duplicate_and_invalid_clients_do_not_consume_other_sessions() -> TestRes
     let mut worker_on_client = connect_candidate(server.client_endpoint())?;
     write_worker_message(
         &mut worker_on_client,
-        &LocalWorkerMessage::WorkerHello(WorkerHello::new(env!("CARGO_PKG_VERSION"), FIRST_WORKER)?),
+        &LocalWorkerMessage::WorkerHello(WorkerHello::new(
+            env!("CARGO_PKG_VERSION"),
+            FIRST_WORKER,
+        )?),
     )?;
     assert_eq!(
         read_client_message(&mut worker_on_client)?,

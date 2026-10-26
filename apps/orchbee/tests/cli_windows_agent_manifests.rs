@@ -85,7 +85,7 @@ fn cli_manifest_query_reload_status_and_lost_receipts_are_not_replayed() {
                 &WorkbenchResponse::AgentManifests(AgentManifestsResult {
                     protocol_version: ProtocolVersion,
                     request_id: request.request_id,
-                    site_id: request.site_id,
+                    session_id: request.session_id,
                     outcome,
                 }),
             )
@@ -105,7 +105,7 @@ fn cli_manifest_query_reload_status_and_lost_receipts_are_not_replayed() {
                     &WorkbenchResponse::AgentManifests(AgentManifestsResult {
                         protocol_version: ProtocolVersion,
                         request_id: request.request_id,
-                        site_id: request.site_id,
+                        session_id: request.session_id,
                         outcome: AgentManifestsOutcome::Operation {
                             operation_id,
                             status: AgentManifestsOperation::Applied {
@@ -212,7 +212,7 @@ fn cli_update_polls_only_status_and_reports_partial_or_unknown_effects() {
                 &WorkbenchResponse::AgentManifests(AgentManifestsResult {
                     protocol_version: ProtocolVersion,
                     request_id: request.request_id,
-                    site_id: request.site_id,
+                    session_id: request.session_id,
                     outcome: AgentManifestsOutcome::Operation {
                         operation_id: operation_id.clone(),
                         status: AgentManifestsOperation::Pending {},
@@ -253,7 +253,7 @@ fn cli_update_polls_only_status_and_reports_partial_or_unknown_effects() {
                 &WorkbenchResponse::AgentManifests(AgentManifestsResult {
                     protocol_version: ProtocolVersion,
                     request_id: request.request_id,
-                    site_id: request.site_id,
+                    session_id: request.session_id,
                     outcome: AgentManifestsOutcome::Operation {
                         operation_id,
                         status,

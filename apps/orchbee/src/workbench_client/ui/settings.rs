@@ -1,5 +1,5 @@
 //! The UI owns drafts and confirmed observations; the ordered lane never replays a save.
-use super::{ClientActionDisposition, ModalPresentation, NativeUi, WorkbenchClientView};
+use super::{ClientActionDisposition, ModalPresentation, WorkbenchClientUi, WorkbenchClientView};
 use crate::{
     client_view::KeyEvent,
     native_settings::{
@@ -10,8 +10,8 @@ use crate::{
     workbench_client::settings_lane::{Job, Lane},
 };
 use orchbee_workbench_protocol::{
-    NativeSettingsFailure, NativeSettingsOperation, NativeSettingsOutcome, NativeSettingsRequest,
-    ProtocolVersion, SiteId, UserPreferencesSnapshot, WorkbenchRequestId,
+    ProtocolVersion, SessionId, SettingsFailure, SettingsOperation, SettingsOutcome,
+    SettingsRequest, UserPreferencesSnapshot, WorkbenchRequestId,
 };
 use std::time::{Duration, Instant};
 #[cfg(test)]
@@ -39,7 +39,7 @@ pub(super) struct Coordinator {
     pub(super) editor: Editor,
     origin: Option<crate::local_client::LocalClientOrigin>,
     lane: Option<Lane>,
-    site: Option<SiteId>,
+    session: Option<SessionId>,
     serial: u64,
     saving: bool,
     snapshot: Option<UserPreferencesSnapshot>,
@@ -124,7 +124,7 @@ impl<'a> WorkbenchClientView<'a> {
         }
     }
 }
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn scroll_settings(
         &mut self,
         token: Token,
@@ -166,19 +166,24 @@ impl NativeUi {
         };
         self.submit_settings(Submission {
             token,
-            operation: NativeSettingsOperation::Open {},
+            operation: SettingsOperation::Open {},
         });
         ClientActionDisposition::DismissNavigator
     }
     fn ensure_settings_lane(&mut self) -> bool {
-        let Some(site) = self
+        let Some(session) = self
             .state
             .as_ref()
-            .map(|state| state.cache().site_id().clone())
+            .map(|state| state.cache().session_id().clone())
         else {
             return false;
         };
-        if self.settings.site.as_ref().is_some_and(|old| old != &site) {
+        if self
+            .settings
+            .session
+            .as_ref()
+            .is_some_and(|old| old != &session)
+        {
             let saving = self.settings.editor.saving();
             self.settings.close();
             self.settings.editor.retire();
@@ -191,17 +196,16 @@ impl NativeUi {
             }
         }
         if self.settings.lane.is_none() {
-            self.settings.lane = self
-                .settings
-                .origin
-                .clone()
-                .and_then(|origin| Lane::spawn(origin, self.clock.clone(), site.clone()).ok());
-            self.settings.site = Some(site);
+            self.settings.lane =
+                self.settings.origin.clone().and_then(|origin| {
+                    Lane::spawn(origin, self.clock.clone(), session.clone()).ok()
+                });
+            self.settings.session = Some(session);
         }
         self.settings.lane.is_some()
     }
     fn submit_settings(&mut self, submission: Submission) {
-        if matches!(submission.operation, NativeSettingsOperation::Open {}) {
+        if matches!(submission.operation, SettingsOperation::Open {}) {
             self.settings.clear_notice();
         }
         let token = submission.token;
@@ -209,23 +213,23 @@ impl NativeUi {
             self.fail_settings(token, Notice::Failed);
             return;
         };
-        let Some(site) = self.settings.site.clone().filter(|site| {
+        let Some(session) = self.settings.session.clone().filter(|session| {
             self.state
                 .as_ref()
-                .is_some_and(|state| state.cache().site_id() == site)
+                .is_some_and(|state| state.cache().session_id() == session)
         }) else {
             self.fail_settings(token, Notice::Failed);
             return;
         };
         self.settings.serial = serial;
-        self.settings.saving = matches!(submission.operation, NativeSettingsOperation::Save { .. });
+        self.settings.saving = matches!(submission.operation, SettingsOperation::Save { .. });
         self.settings.started = Some(self.clock.now());
         self.settings.pending = false;
-        let request = NativeSettingsRequest {
+        let request = SettingsRequest {
             protocol_version: ProtocolVersion,
             request_id: WorkbenchRequestId::parse(&format!("{serial:032x}"))
                 .expect("bounded Settings serial"),
-            site_id: site,
+            session_id: session,
             operation: submission.operation,
         };
         if !self
@@ -276,12 +280,13 @@ impl NativeUi {
         self.settings.pending = false;
         self.settings.started = None;
         match reply.result {
-            Ok(reply) if self.settings.site.as_ref() == Some(&reply.site_id) => match reply.outcome
+            Ok(reply) if self.settings.session.as_ref() == Some(&reply.session_id) => match reply
+                .outcome
             {
-                NativeSettingsOutcome::Opened { snapshot } => {
+                SettingsOutcome::Opened { snapshot } => {
                     self.settings.editor.loaded(token, snapshot);
                 }
-                NativeSettingsOutcome::Saved { changed, .. } => {
+                SettingsOutcome::Saved { changed, .. } => {
                     if self.settings.editor.complete(token) {
                         self.settings.note(
                             if changed {
@@ -293,21 +298,19 @@ impl NativeUi {
                         );
                     }
                 }
-                NativeSettingsOutcome::OutcomeUnknown {} => {
-                    self.fail_settings(token, Notice::Unknown)
-                }
-                NativeSettingsOutcome::Refused { reason } => self.fail_settings(
+                SettingsOutcome::OutcomeUnknown {} => self.fail_settings(token, Notice::Unknown),
+                SettingsOutcome::Refused { reason } => self.fail_settings(
                     token,
                     match reason {
-                        NativeSettingsFailure::SourceChanged => Notice::SourceChanged,
-                        NativeSettingsFailure::Busy => Notice::Busy,
-                        NativeSettingsFailure::Denied
-                        | NativeSettingsFailure::Unavailable
-                        | NativeSettingsFailure::SiteMismatch
-                        | NativeSettingsFailure::InvalidSource
-                        | NativeSettingsFailure::InvalidChanges
-                        | NativeSettingsFailure::WriteFailed
-                        | NativeSettingsFailure::ResponseTooLarge => Notice::Failed,
+                        SettingsFailure::SourceChanged => Notice::SourceChanged,
+                        SettingsFailure::Busy => Notice::Busy,
+                        SettingsFailure::Denied
+                        | SettingsFailure::Unavailable
+                        | SettingsFailure::SessionMismatch
+                        | SettingsFailure::InvalidSource
+                        | SettingsFailure::InvalidChanges
+                        | SettingsFailure::WriteFailed
+                        | SettingsFailure::ResponseTooLarge => Notice::Failed,
                     },
                 ),
             },

@@ -92,7 +92,7 @@ fn observe_close(
     let read = CloseOperationRead {
         protocol_version: ProtocolVersion,
         request_id: super::query::request_id()?,
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         operation_id: operation_id.clone(),
     };
     let reply = client.close_operation(read, deadline, None).map_err(|e| {
@@ -139,7 +139,7 @@ fn observe_close(
             let request = WorkbenchWorkspaceCloseResume {
                 protocol_version: ProtocolVersion,
                 request_id: resume_id.clone(),
-                site_id: snapshot.site_id,
+                session_id: snapshot.session_id,
                 workspace_id: workspace_id.clone(),
                 close_request_id: operation_id.clone(),
                 expected_attempt_generation: generation,
@@ -171,7 +171,7 @@ fn observe_close(
             let request = WorkbenchTabCloseResume {
                 protocol_version: ProtocolVersion,
                 request_id: resume_id.clone(),
-                site_id: snapshot.site_id,
+                session_id: snapshot.session_id,
                 terminal_context_id: terminal_context_id.clone(),
                 tab_id: tab_id.clone(),
                 close_request_id: operation_id.clone(),
@@ -201,17 +201,17 @@ fn observe_close(
 
 /// Stop receipts survive Server exit. Inspect them first; only a definite miss routes to manifests.
 pub(crate) fn run_server(id: &WorkbenchRequestId, format: OutputFormat, locale: Locale) -> Output {
-    use crate::invocation::{ManifestCommand, SiteStopCommand};
+    use crate::invocation::{ManifestCommand, ServerStopCommand};
     let raw = id.as_str();
     let mut bytes = [0_u8; 16];
     for (index, slot) in bytes.iter_mut().enumerate() {
         *slot =
             u8::from_str_radix(&raw[index * 2..index * 2 + 2], 16).expect("validated request ID");
     }
-    let stop = SiteStopCommand::Status {
+    let stop = ServerStopCommand::Status {
         id: orchbee_local_client_protocol::StopId::new(bytes).expect("nonzero request ID"),
     };
-    let answer = super::site_stop::run(&stop, OutputFormat::Json, locale);
+    let answer = super::server_stop::run(&stop, OutputFormat::Json, locale);
     let doc = serde_json::from_slice::<Value>(&answer.stdout).ok();
     if doc
         .as_ref()
@@ -234,7 +234,7 @@ pub(crate) fn run_server(id: &WorkbenchRequestId, format: OutputFormat, locale: 
         .as_ref()
         .and_then(|v| v["result"].as_object())
         .and_then(|r| {
-            output::encode_text(&locale.cli_site_stop_result(
+            output::encode_text(&locale.cli_server_stop_result(
                 r.get("outcome")?.as_str()?,
                 raw,
                 r.get("wait").and_then(Value::as_str),

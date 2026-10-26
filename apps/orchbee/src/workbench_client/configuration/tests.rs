@@ -19,8 +19,7 @@ fn snapshot(revision: u64, profile: &str) -> ConfigurationSnapshot {
         theme_name: orchbee_workbench_protocol::ConfigurationThemeName::TerminalNative,
         notification_profile: "[ui.toast]\ndelivery='off'\n".into(),
         agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
-        spaces_sidebar_profile: orchbee_local_site_runtime::WindowsSpaceSidebarSettings::default()
-            .profile(),
+        spaces_sidebar_profile: orchbee_local_runtime::SpaceSidebarSettings::default().profile(),
         window_title: "{hostname}: {workspace}".into(),
         restart_required: Vec::new(),
         default_shell: String::new(),
@@ -161,7 +160,7 @@ fn authoritative_server_baseline_applies_once_then_revision_order_is_strict() {
         notification_update: None,
     };
     let mut view = ClientView::new(120);
-    view.configure_keys(&WindowsKeySettings::from_profile("[keys]\nprefix='ctrl+a'").unwrap());
+    view.configure_keys(&KeySettings::from_profile("[keys]\nprefix='ctrl+a'").unwrap());
     view.settle_pointer_released(true);
     let prefix = view.decide(PrefixInput::Key(KeyEvent::press(
         KeyCode::Char('a'),
@@ -318,7 +317,7 @@ fn warning_reload_keeps_the_agent_notification_surface_available() {
             &WorkbenchResponse::Configuration(ConfigurationResult {
                 protocol_version: ProtocolVersion,
                 request_id: current.request_id,
-                site_id: current.site_id,
+                session_id: current.session_id,
                 outcome: ConfigurationOutcome::Current {
                     snapshot: snapshot(0, "[keys]\nprefix='ctrl+b'"),
                 },
@@ -345,7 +344,7 @@ fn warning_reload_keeps_the_agent_notification_surface_available() {
             &WorkbenchResponse::Configuration(ConfigurationResult {
                 protocol_version: ProtocolVersion,
                 request_id: reload.request_id,
-                site_id: reload.site_id,
+                session_id: reload.session_id,
                 outcome: ConfigurationOutcome::Reloaded {
                     snapshot: warning,
                     changed: true,
@@ -361,7 +360,7 @@ fn warning_reload_keeps_the_agent_notification_surface_available() {
     let mut watcher = Watcher::spawn(
         client.origin(),
         client.operation_clock(),
-        SiteId::parse(&format!("{:032x}", 2)).unwrap(),
+        SessionId::parse(&format!("{:032x}", 2)).unwrap(),
     )
     .unwrap();
     drop(client);
@@ -426,7 +425,7 @@ fn warning_reload_reports_restart_then_restores_warning_and_notification_availab
             &WorkbenchResponse::Configuration(ConfigurationResult {
                 protocol_version: ProtocolVersion,
                 request_id: current.request_id,
-                site_id: current.site_id,
+                session_id: current.session_id,
                 outcome: ConfigurationOutcome::Current {
                     snapshot: snapshot(0, "[keys]\nprefix='ctrl+b'"),
                 },
@@ -454,7 +453,7 @@ fn warning_reload_reports_restart_then_restores_warning_and_notification_availab
             &WorkbenchResponse::Configuration(ConfigurationResult {
                 protocol_version: ProtocolVersion,
                 request_id: reload.request_id,
-                site_id: reload.site_id,
+                session_id: reload.session_id,
                 outcome: ConfigurationOutcome::Reloaded {
                     snapshot: warning,
                     changed: true,
@@ -470,7 +469,7 @@ fn warning_reload_reports_restart_then_restores_warning_and_notification_availab
     let mut watcher = Watcher::spawn(
         client.origin(),
         client.operation_clock(),
-        SiteId::parse(&format!("{:032x}", 2)).unwrap(),
+        SessionId::parse(&format!("{:032x}", 2)).unwrap(),
     )
     .unwrap();
     drop(client);
@@ -552,7 +551,7 @@ fn unchanged_reload_reports_restart_without_reapplying_the_existing_snapshot() {
             &WorkbenchResponse::Configuration(ConfigurationResult {
                 protocol_version: ProtocolVersion,
                 request_id: current.request_id,
-                site_id: current.site_id,
+                session_id: current.session_id,
                 outcome: ConfigurationOutcome::Current {
                     snapshot: baseline.clone(),
                 },
@@ -570,7 +569,7 @@ fn unchanged_reload_reports_restart_without_reapplying_the_existing_snapshot() {
             &WorkbenchResponse::Configuration(ConfigurationResult {
                 protocol_version: ProtocolVersion,
                 request_id: reload.request_id,
-                site_id: reload.site_id,
+                session_id: reload.session_id,
                 outcome: ConfigurationOutcome::Reloaded {
                     snapshot: baseline,
                     changed: false,
@@ -586,7 +585,7 @@ fn unchanged_reload_reports_restart_without_reapplying_the_existing_snapshot() {
     let mut watcher = Watcher::spawn(
         client.origin(),
         client.operation_clock(),
-        SiteId::parse(&format!("{:032x}", 2)).unwrap(),
+        SessionId::parse(&format!("{:032x}", 2)).unwrap(),
     )
     .unwrap();
     drop(client);
@@ -657,7 +656,7 @@ fn unchanged_reload_catches_up_a_lagging_client_once_before_reporting_success() 
             &WorkbenchResponse::Configuration(ConfigurationResult {
                 protocol_version: ProtocolVersion,
                 request_id: current.request_id,
-                site_id: current.site_id,
+                session_id: current.session_id,
                 outcome: ConfigurationOutcome::Current {
                     snapshot: snapshot(1, "[keys]\nprefix='ctrl+b'"),
                 },
@@ -675,7 +674,7 @@ fn unchanged_reload_catches_up_a_lagging_client_once_before_reporting_success() 
             &WorkbenchResponse::Configuration(ConfigurationResult {
                 protocol_version: ProtocolVersion,
                 request_id: reload.request_id,
-                site_id: reload.site_id,
+                session_id: reload.session_id,
                 outcome: ConfigurationOutcome::Reloaded {
                     snapshot: snapshot(2, "[keys]\nprefix='ctrl+x'"),
                     changed: false,
@@ -691,7 +690,7 @@ fn unchanged_reload_catches_up_a_lagging_client_once_before_reporting_success() 
     let mut watcher = Watcher::spawn(
         client.origin(),
         client.operation_clock(),
-        SiteId::parse(&format!("{:032x}", 2)).unwrap(),
+        SessionId::parse(&format!("{:032x}", 2)).unwrap(),
     )
     .unwrap();
     drop(client);
@@ -770,7 +769,7 @@ fn closing_watcher_wakes_and_joins_blocked_admission_or_configuration_read() {
         let mut watcher = Watcher::spawn(
             client.origin(),
             client.operation_clock(),
-            SiteId::parse(&format!("{:032x}", 2)).unwrap(),
+            SessionId::parse(&format!("{:032x}", 2)).unwrap(),
         )
         .unwrap();
         drop(client);
@@ -825,7 +824,7 @@ fn submitted_reload_loss_recovers_by_read_only_and_installs_the_observed_publica
             &WorkbenchResponse::Configuration(ConfigurationResult {
                 protocol_version: ProtocolVersion,
                 request_id: request.request_id,
-                site_id: request.site_id,
+                session_id: request.session_id,
                 outcome: ConfigurationOutcome::Current {
                     snapshot: snapshot(if index == 1 { 0 } else { 2 }, "[keys]\nprefix='ctrl+a'"),
                 },
@@ -859,7 +858,7 @@ fn submitted_reload_loss_recovers_by_read_only_and_installs_the_observed_publica
     let mut watcher = Watcher::spawn(
         client.origin(),
         client.operation_clock(),
-        SiteId::parse(&format!("{:032x}", 2)).unwrap(),
+        SessionId::parse(&format!("{:032x}", 2)).unwrap(),
     )
     .unwrap();
     drop(client);

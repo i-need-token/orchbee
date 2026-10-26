@@ -5,7 +5,7 @@
 [`v1/user-preferences.schema.json`](v1/user-preferences.schema.json) 拥有封闭的通用偏好值、补丁和
 桥接回执。独立的 Rust 与 TypeScript 绑定共同消费其一致性语料。Schema 的默认值为权威；任何
 UI 都不得另行定义默认值、重置语义或第二个持久化写入者。运行时所有者是
-[`UserPreferencesStore`](../../crates/local-site-runtime/README.zh-CN.md#共享用户偏好存储)。
+[`UserPreferencesStore`](../../crates/local-runtime/README.zh-CN.md#共享用户偏好存储)。
 
 | 键                                 | 可选值与默认值                                              | 生效边界                                                                  |
 | ---------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------- |
@@ -672,4 +672,4 @@ Client 先准入全部四个 profile 及命名选择再安装任何字段；重�
 
 [设置](v1/workbench-settings.schema.json) 定义匹配 Windows cohort 的闭合 Open/Save 请求及结果。三个必需但可空的字段区分未修改设置与明确的主题／提醒／声音修改；全部为空的补丁非法。来源令牌区分文件不存在与规范 SHA-256 内容摘要。Save 同时约束发布 revision；结果区分磁盘持久化、在线应用与写入前拒绝。共享语料在 Rust、TypeScript 和 JSON Schema 中检查额外字段拒绝、全宽 revision、完整快照及独立的 4 KiB 请求／256 KiB 结果限制。[原生设置所有者](../../apps/orchbee/docs/native-settings.zh-CN.md) 负责写入、输入捕获、不确定结果和恢复。
 
-<!-- documentation-pairing: english-sha256=acf3b8f81ed47facdf0f998c93bd7a7805f3ccdb8bc1e661e0a5ad21c992db9b zh-cn-sha256=738331296f4eef7ca2c251c78f6a410eb25d7b9ecbca4b4e2782d4486b5b63d4 -->
+<!-- documentation-pairing: english-sha256=86a8f3464df944eb922f848065dbfb8c44ef97718d72db427f1d774897185fff zh-cn-sha256=8e44d24512bdec578e12a6f22e6f4ac5a7b7639420ee8888234bc8dee6100759 -->

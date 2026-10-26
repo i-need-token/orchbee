@@ -57,7 +57,7 @@ fn graphics_draw_publication_uses_the_registered_connection_and_shutdown_interru
                 &WorkbenchResponse::ClientView(WorkbenchClientViewResult {
                     protocol_version: ProtocolVersion,
                     request_id: request.request_id.clone(),
-                    site_id: request.site_id.clone(),
+                    session_id: request.session_id.clone(),
                     outcome: ClientViewOutcome::Synchronized {
                         client: Box::new(ClientViewRecord {
                             client_id: client_id.clone(),
@@ -77,7 +77,7 @@ fn graphics_draw_publication_uses_the_registered_connection_and_shutdown_interru
                 panic!("graphics publication");
             };
             assert_ne!(graphics.request_id, request.request_id);
-            assert_eq!(graphics.site_id, request.site_id);
+            assert_eq!(graphics.session_id, request.session_id);
             let PaneGraphicsAction::Observe {
                 client_id: owner,
                 heartbeat: seen,
@@ -101,7 +101,7 @@ fn graphics_draw_publication_uses_the_registered_connection_and_shutdown_interru
                     &WorkbenchResponse::PaneGraphics(PaneGraphicsResult {
                         protocol_version: ProtocolVersion,
                         request_id: graphics.request_id,
-                        site_id: graphics.site_id,
+                        session_id: graphics.session_id,
                         outcome: PaneGraphicsOutcome::Observed {
                             client_id,
                             heartbeat,
@@ -148,7 +148,7 @@ fn graphics_draw_publication_uses_the_registered_connection_and_shutdown_interru
             complete: true,
             panes: vec![],
         };
-        let mut lane = ClientControlLane::spawn(origin, clock, request.site_id).unwrap();
+        let mut lane = ClientControlLane::spawn(origin, clock, request.session_id).unwrap();
         assert!(lane.publish(Sample {
             heartbeat,
             revision: view_revision,
@@ -221,7 +221,7 @@ fn closing_the_lane_wakes_and_joins_blocked_admission_and_exchange() {
         else {
             panic!("sample");
         };
-        let mut lane = ClientControlLane::spawn(origin, clock, request.site_id).unwrap();
+        let mut lane = ClientControlLane::spawn(origin, clock, request.session_id).unwrap();
         assert!(lane.publish(Sample {
             graphics: None,
             heartbeat,
@@ -277,7 +277,7 @@ fn transient_startup_admission_failure_retries_before_first_synchronize() {
                 &WorkbenchResponse::ClientView(WorkbenchClientViewResult {
                     protocol_version: ProtocolVersion,
                     request_id: request.request_id,
-                    site_id: request.site_id,
+                    session_id: request.session_id,
                     outcome: ClientViewOutcome::Synchronized {
                         client: Box::new(ClientViewRecord {
                             client_id: WorkbenchClientId::parse(&format!("{:032x}", 3)).unwrap(),
@@ -332,7 +332,7 @@ fn transient_startup_admission_failure_retries_before_first_synchronize() {
     else {
         panic!("sample");
     };
-    let mut lane = ClientControlLane::spawn(origin, clock, request.site_id).unwrap();
+    let mut lane = ClientControlLane::spawn(origin, clock, request.session_id).unwrap();
     assert!(lane.publish(Sample {
         graphics: None,
         heartbeat,
@@ -396,7 +396,7 @@ fn closing_the_lane_wakes_and_joins_a_blocked_retry_admission() {
     let mut lane = ClientControlLane::spawn(
         client.origin(),
         client.operation_clock(),
-        SiteId::parse("00000000000000000000000000000001").unwrap(),
+        SessionId::parse("00000000000000000000000000000001").unwrap(),
     )
     .unwrap();
     drop(client);
@@ -604,7 +604,7 @@ fn closing_during_the_one_workbench_snapshot_read_wakes_and_joins_without_delive
         else {
             panic!("sample");
         };
-        let mut lane = ClientControlLane::spawn(origin, clock, request.site_id).unwrap();
+        let mut lane = ClientControlLane::spawn(origin, clock, request.session_id).unwrap();
         assert!(lane.publish(Sample {
             graphics: None,
             heartbeat,
@@ -682,7 +682,7 @@ fn configured_command_actor_cancels_and_joins_with_truthful_delivery_receipt() {
             Arc::clone(&shared),
             client.origin(),
             client.operation_clock(),
-            reply.site_id.clone(),
+            reply.session_id.clone(),
             (*registered).clone(),
             orchbee_workbench_protocol::ConfiguredCommandInvocation {
                 command_id: "cmd_tools".into(),

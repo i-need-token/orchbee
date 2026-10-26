@@ -19,7 +19,12 @@ fn project() -> Project {
 }
 pub(in crate::workbench_client::ui) fn ready(
     with_project: bool,
-) -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
+) -> (
+    WorkbenchClientUi,
+    Arc<CommandMailbox>,
+    LocalOperationClock,
+    Snapshot,
+) {
     let mut snapshot = super::super::tests::membership::snapshot(1, 1);
     if with_project {
         snapshot.navigation.projects.push(project());
@@ -28,13 +33,18 @@ pub(in crate::workbench_client::ui) fn ready(
 }
 pub(in crate::workbench_client::ui) fn ready_snapshot(
     snapshot: Snapshot,
-) -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
+) -> (
+    WorkbenchClientUi,
+    Arc<CommandMailbox>,
+    LocalOperationClock,
+    Snapshot,
+) {
     let clock = adjustable_operation_clock(Arc::new(AtomicU64::new(0)));
     let mailbox = Arc::new(CommandMailbox::new(
         10,
         Geometry::new(80, 24, 8, 16).unwrap(),
     ));
-    let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    let mut ui = WorkbenchClientUi::new(Arc::clone(&mailbox), clock.clone());
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {
@@ -60,7 +70,7 @@ pub(in crate::workbench_client::ui) fn ready_snapshot(
     (ui, mailbox, clock, snapshot)
 }
 pub(in crate::workbench_client::ui) fn finish_preparation(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
     snapshot: &Snapshot,
@@ -77,7 +87,7 @@ pub(in crate::workbench_client::ui) fn finish_preparation(
 }
 
 pub(in crate::workbench_client::ui) fn finish_preparation_with_directory(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
     snapshot: &Snapshot,
@@ -87,7 +97,7 @@ pub(in crate::workbench_client::ui) fn finish_preparation_with_directory(
     let token = ui.view().setup_draft().unwrap().token();
     assert_eq!(
         ui.view().setup_draft().unwrap().stage(),
-        NativeSetupStage::PreparingWorkspace
+        SetupStage::PreparingWorkspace
     );
     let lease = mailbox.try_recv().unwrap().unwrap();
     let QueuedCommand::Refresh(marker) = lease.record() else {
@@ -126,7 +136,7 @@ pub(in crate::workbench_client::ui) fn finish_preparation_with_directory(
 }
 
 fn submit_launch(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
     snapshot: &Snapshot,
@@ -280,7 +290,7 @@ fn workspace_ui_result_does_not_publish_new_location_until_exact_old_viewer_is_d
     assert_eq!(ui.view().active_context_position(), Some(1));
     assert_eq!(
         ui.view().setup_status(),
-        Some(NativeSetupStatus::CommittedNeedRefresh)
+        Some(SetupStatus::CommittedNeedRefresh)
     );
     let wait = mailbox
         .publish_event_before(
@@ -301,7 +311,7 @@ fn workspace_ui_result_does_not_publish_new_location_until_exact_old_viewer_is_d
         RefreshDecision::AttachRecovered(_)
     ));
     assert_eq!(ui.view().active_context_position(), Some(2));
-    assert_ne!(ui.view().phase(), NativeDisplayPhase::Ready);
+    assert_ne!(ui.view().phase(), DisplayPhase::Ready);
     assert!(!ui.view().workspace_directory_unconfigured());
     assert!(ui.view().setup_draft().is_none());
     mailbox.finish_lease(lease).unwrap();
@@ -332,7 +342,7 @@ fn newer_refused_focus_intent_keeps_current_context_when_a_launch_result_arrives
     assert_eq!(ui.state.as_ref().unwrap().focus_pane_ref(), focus);
     assert_eq!(
         ui.view().setup_status(),
-        Some(NativeSetupStatus::WorkspaceCreated)
+        Some(SetupStatus::WorkspaceCreated)
     );
     assert!(ui.view().setup_draft().is_none());
     assert!(!ui.take_project_quick_terminal_entry());
@@ -347,7 +357,7 @@ fn suspended_setup_submit_is_consumed_until_the_same_surface_is_drawn_again() {
     let (mut ui, mailbox, _clock, _snapshot) = ready(false);
     let intent = {
         let state = ui.state.as_ref().unwrap();
-        crate::workbench_client::state::workspace_setup::NativeSetupIntent::TabGroupName(Box::new(
+        crate::workbench_client::state::workspace_setup::SetupIntent::TabGroupName(Box::new(
             TabConfiguration::CreateGroup {
                 tab_id: state.cache().tabs()[0].tab_id().clone(),
                 label: WorkbenchTabGroupLabel::parse("Preserved").unwrap(),
@@ -357,7 +367,7 @@ fn suspended_setup_submit_is_consumed_until_the_same_surface_is_drawn_again() {
     };
     let token = ui.state.as_mut().unwrap().open_setup_draft(intent).unwrap();
     ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
-    assert!(ui.edit_setup_draft(token, NativeSetupEdit::Append(" value")));
+    assert!(ui.edit_setup_draft(token, SetupEdit::Append(" value")));
     let before = ui.view().setup_draft().unwrap().text().to_owned();
 
     ui.after_setup_draw(Some(ModalPresentation::NotPresented));
@@ -367,7 +377,7 @@ fn suspended_setup_submit_is_consumed_until_the_same_surface_is_drawn_again() {
         suspended.presentation(),
         crate::tui_presentation::PresentationPhase::Suspended
     );
-    assert!(ui.edit_setup_draft(token, NativeSetupEdit::Append(" hidden")));
+    assert!(ui.edit_setup_draft(token, SetupEdit::Append(" hidden")));
     assert_eq!(
         ui.submit_setup_draft(token),
         ClientActionDisposition::KeepNavigator
@@ -376,7 +386,7 @@ fn suspended_setup_submit_is_consumed_until_the_same_surface_is_drawn_again() {
     assert!(mailbox.try_recv().unwrap().is_none());
 
     ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
-    assert!(ui.edit_setup_draft(token, NativeSetupEdit::Append(" resumed")));
+    assert!(ui.edit_setup_draft(token, SetupEdit::Append(" resumed")));
     assert_eq!(
         ui.view().setup_draft().unwrap().text(),
         "Preserved value resumed"
@@ -387,9 +397,9 @@ fn suspended_setup_submit_is_consumed_until_the_same_surface_is_drawn_again() {
 fn setup_capture_claim_tracks_presence_while_context_requires_a_live_frame() {
     use orchbee_workbench_protocol::{TabConfiguration, TabGroupColor, WorkbenchTabGroupLabel};
 
-    let intent = |ui: &NativeUi| {
+    let intent = |ui: &WorkbenchClientUi| {
         let state = ui.state.as_ref().unwrap();
-        crate::workbench_client::state::workspace_setup::NativeSetupIntent::TabGroupName(Box::new(
+        crate::workbench_client::state::workspace_setup::SetupIntent::TabGroupName(Box::new(
             TabConfiguration::CreateGroup {
                 tab_id: state.cache().tabs()[0].tab_id().clone(),
                 label: WorkbenchTabGroupLabel::parse("Capture").unwrap(),
@@ -565,10 +575,7 @@ fn shell_control_tick_lands_all_launch_entries_unless_newer_focus_revokes_them()
                     assert_eq!(state.cache().location(), &source);
                     assert_eq!(state.desired(), Some(&old));
                     assert_eq!(state.cache().canonical_snapshot(), &committed);
-                    assert_eq!(
-                        state.setup_status(),
-                        Some(NativeSetupStatus::WorkspaceCreated)
-                    );
+                    assert_eq!(state.setup_status(), Some(SetupStatus::WorkspaceCreated));
                 } else {
                     let RefreshDecision::Cleanup(cleanup) = settlement.decision() else {
                         panic!("{entry} must enter its receipt")
@@ -602,7 +609,7 @@ fn shell_control_tick_lands_all_launch_entries_unless_newer_focus_revokes_them()
                         .as_ref()
                         .unwrap();
                     assert!(
-                        matches!(state.cache().location(), crate::workbench_client::NativeContextLocation::Workspace { workspace_id, terminal_context_id }
+                        matches!(state.cache().location(), crate::workbench_client::ClientContextLocation::Workspace { workspace_id, terminal_context_id }
                         if workspace_id == &expected.workspace_id && terminal_context_id == &expected.terminal_context_id)
                     );
                     assert_eq!(state.desired().unwrap().anchor().tab_id(), &expected.tab_id);

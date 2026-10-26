@@ -1,12 +1,12 @@
 use super::*;
-use crate::site_coordinator::ProcessObservationTarget;
+use crate::session_coordinator::ProcessObservationTarget;
 use crate::terminal_coordinator::{BindingViewerTarget, WorkerPlacement};
 use crate::worker_registry::WorkerRegistry;
 use orchbee_capability_node_protocol::{
     HostCreationId, HostEpoch, HostTerminalId, HostTerminalIdentity, TerminalId, WorkerGeneration,
     WorkerId,
 };
-use orchbee_workbench_protocol::{PresentationBinding, SiteId};
+use orchbee_workbench_protocol::{PresentationBinding, SessionId};
 use std::{
     num::NonZeroU64,
     path::PathBuf,
@@ -47,7 +47,7 @@ impl Drop for SettingsFixture {
 }
 fn target(n: u128) -> ProcessObservationTarget {
     ProcessObservationTarget {
-        site_id: SiteId::parse(&format!("{:032x}", 99)).unwrap(),
+        session_id: SessionId::parse(&format!("{:032x}", 99)).unwrap(),
         binding: PresentationBinding {
             worker_id: orchbee_workbench_protocol::WorkerId::parse(&format!("{:032x}", 1)).unwrap(),
             terminal_id: orchbee_workbench_protocol::TerminalId::parse(&format!("{n:032x}"))
@@ -113,12 +113,9 @@ fn oversized_initial_publication_does_not_install_manifest_policy_or_schedule() 
         super::super::configuration::tests::maximum_accepted_source_with_escaped_profiles(),
     )
     .unwrap();
-    let current = orchbee_local_site_runtime::read_windows_user_settings_at(
-        Some(&fixture.file()),
-        true,
-        |_| None,
-    )
-    .unwrap();
+    let current =
+        orchbee_local_runtime::read_user_settings_at(Some(&fixture.file()), true, |_| None)
+            .unwrap();
     let startup = current.settings.clone();
     let service = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
         WorkerRegistry::new(),

@@ -1,5 +1,5 @@
 //! Offline help-path grammar shared by recognition and help navigation. The catalog
-//! declares only accepted paths; it does not inspect configuration or a running Site.
+//! declares only accepted paths; it does not inspect configuration or a running Session.
 
 use super::{CommandPath, Family, HelpTopic};
 
@@ -658,7 +658,7 @@ const HELP_PATHS: &[HelpPath] = &[
     ),
     HelpPath::new(
         &["server", "start"],
-        HelpTopic::Command(CommandPath::SiteStart),
+        HelpTopic::Command(CommandPath::ServerStart),
     ),
     #[cfg(windows)]
     HelpPath::new(&["session"], HelpTopic::Family(Family::Session)),
@@ -684,19 +684,19 @@ const HELP_PATHS: &[HelpPath] = &[
     ),
     HelpPath::new(
         &["server", "diagnose"],
-        HelpTopic::Command(CommandPath::SiteDiagnose),
+        HelpTopic::Command(CommandPath::ServerDiagnose),
     ),
     HelpPath::new(
         &["server", "update-agent-manifests"],
-        HelpTopic::Command(CommandPath::SiteUpdateAgentManifests),
+        HelpTopic::Command(CommandPath::ServerUpdateAgentManifests),
     ),
     HelpPath::new(
         &["server", "config"],
-        HelpTopic::Command(CommandPath::SiteConfig),
+        HelpTopic::Command(CommandPath::ServerConfig),
     ),
     HelpPath::new(
         &["server", "reload-config"],
-        HelpTopic::Command(CommandPath::SiteReloadConfig),
+        HelpTopic::Command(CommandPath::ServerReloadConfig),
     ),
     HelpPath::new(
         &["terminal", "title"],
@@ -829,22 +829,22 @@ const HELP_PATHS: &[HelpPath] = &[
     ),
     HelpPath::new(
         &["server", "agent-manifests"],
-        HelpTopic::Command(CommandPath::SiteAgentManifests),
+        HelpTopic::Command(CommandPath::ServerAgentManifests),
     ),
     HelpPath::new(
         &["server", "reload-agent-manifests"],
-        HelpTopic::Command(CommandPath::SiteReloadAgentManifests),
+        HelpTopic::Command(CommandPath::ServerReloadAgentManifests),
     ),
     HelpPath::new(
         &["server", "agent-manifests-status"],
-        HelpTopic::Command(CommandPath::SiteAgentManifestsStatus),
+        HelpTopic::Command(CommandPath::ServerAgentManifestsStatus),
     ),
     HelpPath::new(
         &["server", "stop"],
-        HelpTopic::Command(CommandPath::SiteStop),
+        HelpTopic::Command(CommandPath::ServerStop),
     ),
     HelpPath::new(
         &["server", "stop-status"],
-        HelpTopic::Command(CommandPath::SiteStopStatus),
+        HelpTopic::Command(CommandPath::ServerStopStatus),
     ),
 ];

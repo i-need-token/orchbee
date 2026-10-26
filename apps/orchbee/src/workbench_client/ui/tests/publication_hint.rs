@@ -25,7 +25,7 @@ fn pane_ref(mailbox: &CommandMailbox, anchor: &AttachmentKey) -> PaneRef {
 }
 
 fn run_poll(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
     key: &AttachmentKey,
@@ -56,7 +56,7 @@ fn run_poll(
 /// Receives the queued Refresh the debt drain admitted, publishes its snapshot
 /// outcome, and lets the UI settle the event and release the lease.
 pub(in crate::workbench_client) fn settle_queued_refresh(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
     outcome: orchbee_workbench_protocol::WorkbenchSnapshotOutcome,
@@ -706,7 +706,7 @@ pub(in crate::workbench_client) fn split_snapshot(revision: u64) -> Snapshot {
 /// after the Bootstrap reply: the session is still in its first `Starting`
 /// phase and the focus leaf's own setup pipeline has not converged yet.
 pub(in crate::workbench_client::ui) fn starting_split_ui() -> (
-    NativeUi,
+    WorkbenchClientUi,
     Arc<CommandMailbox>,
     LocalOperationClock,
     Arc<AtomicU64>,
@@ -718,7 +718,7 @@ pub(in crate::workbench_client::ui) fn starting_split_ui() -> (
         10,
         Geometry::new(80, 24, 8, 16).unwrap(),
     ));
-    let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    let mut ui = WorkbenchClientUi::new(Arc::clone(&mailbox), clock.clone());
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {
@@ -738,7 +738,7 @@ pub(in crate::workbench_client::ui) fn starting_split_ui() -> (
 /// focus has a real target: the MovePanelFocus switch moves `desired` to a fresh
 /// generation key without clearing the UI's observed Poll serial.
 pub(in crate::workbench_client) fn ready_split_ui() -> (
-    NativeUi,
+    WorkbenchClientUi,
     Arc<CommandMailbox>,
     LocalOperationClock,
     Arc<AtomicU64>,
@@ -749,7 +749,7 @@ pub(in crate::workbench_client) fn ready_split_ui() -> (
 pub(in crate::workbench_client) fn ready_split_ui_with_mode(
     mode: ControllerMode,
 ) -> (
-    NativeUi,
+    WorkbenchClientUi,
     Arc<CommandMailbox>,
     LocalOperationClock,
     Arc<AtomicU64>,
@@ -762,7 +762,7 @@ pub(in crate::workbench_client) fn ready_split_ui_with_mode(
     // Drive the real setup event chain so `ui.projection` is genuinely installed:
     // `schedule_poll` only admits an ordinary Poll while a projection for the
     // desired attachment is live, and only the `Attached` event installs it.
-    let publish = |ui: &mut NativeUi, event: WorkerEvent| {
+    let publish = |ui: &mut WorkbenchClientUi, event: WorkerEvent| {
         let wait = mailbox
             .publish_event_before(
                 event,
@@ -915,7 +915,7 @@ fn explicit_refresh_install_uses_transaction_clock_and_publication_does_not_reop
 /// The exact stall chain: a queued pre-entry Poll on K1, a tab-select switch to
 /// K2 that abandons nothing queued but leaves the old Poll to finish silently
 /// against the moved `desired`, a scripted non-installing Denied outcome that
-/// legally restores the K1 anchor and Ready, then a fair NativeUi tick that
+/// legally restores the K1 anchor and Ready, then a fair WorkbenchClientUi tick that
 /// reconciles the stale observation and admits exactly one fresh Poll under a
 /// serial the abandoned one never owned.
 ///
@@ -1127,7 +1127,7 @@ fn departed_pane_pending_draw_settles_no_feedback_not_frame_applied() {
 
 /// Extend the ready split fixture through the peer's actual attachment/setup intake.
 pub(in crate::workbench_client) fn attach_split_peer(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
 ) {

@@ -62,7 +62,7 @@ use crate::agent::{
     native_observation::{Binding, CarrierIdentity},
 };
 use crate::agent_service::{AgentService, DrainExpectation, DrainPageOutcome, PreparedUnavailable};
-use crate::site_coordinator::SiteCoordinator;
+use crate::session_coordinator::SessionCoordinator;
 use crate::worker_obcn_carrier::{
     ExchangeWait, PendingExchange, WorkerOperationResult, WorkerRequestError,
 };
@@ -86,7 +86,7 @@ enum Provenance {
 /// — the executor maps it to the existing `RuntimeUnavailable` wire arm.
 pub(crate) fn agent_drain_prepare(
     workers: &Mutex<WorkerRegistry>,
-    coordinator: &Mutex<SiteCoordinator>,
+    coordinator: &Mutex<SessionCoordinator>,
     agents: &AgentService,
     deadline: Instant,
     retry: Duration,
@@ -103,11 +103,11 @@ pub(crate) fn agent_drain_prepare(
 
 pub(super) fn agent_drain_finish<R>(
     workers: &Mutex<WorkerRegistry>,
-    coordinator: &Mutex<SiteCoordinator>,
+    coordinator: &Mutex<SessionCoordinator>,
     agents: &AgentService,
     deadline: Instant,
     retry: Duration,
-    finish: impl FnOnce(&mut SiteCoordinator, AgentRuntimeSnapshot) -> Result<R, PreparedUnavailable>,
+    finish: impl FnOnce(&mut SessionCoordinator, AgentRuntimeSnapshot) -> Result<R, PreparedUnavailable>,
 ) -> Result<R, PreparedUnavailable> {
     // STEP 0 — eligible preparation. The registry guard is scoped to the
     // typed accessor and released before any mint/admit/wait work.

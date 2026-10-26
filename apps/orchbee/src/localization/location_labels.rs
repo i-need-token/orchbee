@@ -1,5 +1,5 @@
 use super::Locale;
-use crate::workbench_client::{NativeLocationLabelStatus, NativeLocationLabelTarget};
+use crate::workbench_client::{LocationLabelStatus, LocationLabelTarget};
 
 impl Locale {
     pub(crate) const fn workspace_name_required(self) -> &'static str {
@@ -26,11 +26,11 @@ impl Locale {
 
     pub(crate) const fn location_label_status(
         self,
-        target: NativeLocationLabelTarget,
-        status: NativeLocationLabelStatus,
+        target: LocationLabelTarget,
+        status: LocationLabelStatus,
     ) -> &'static str {
-        use NativeLocationLabelStatus as Status;
-        use NativeLocationLabelTarget as Target;
+        use LocationLabelStatus as Status;
+        use LocationLabelTarget as Target;
         match (self, target, status) {
             (Self::EnUs, Target::Project, Status::Unavailable) => {
                 "No current Project to rename · no command was sent"
@@ -95,21 +95,17 @@ impl Locale {
 
     pub(super) const fn location_rename_committed_fact(
         self,
-        target: NativeLocationLabelTarget,
+        target: LocationLabelTarget,
     ) -> &'static str {
         match (self, target) {
-            (Self::EnUs, NativeLocationLabelTarget::Project) => {
+            (Self::EnUs, LocationLabelTarget::Project) => {
                 "Project rename result retained · do not resubmit"
             }
-            (Self::ZhCn, NativeLocationLabelTarget::Project) => {
-                "项目重命名结果已保留 · 请勿重复提交"
-            }
-            (Self::EnUs, NativeLocationLabelTarget::Workspace) => {
+            (Self::ZhCn, LocationLabelTarget::Project) => "项目重命名结果已保留 · 请勿重复提交",
+            (Self::EnUs, LocationLabelTarget::Workspace) => {
                 "Workspace rename result retained · do not resubmit"
             }
-            (Self::ZhCn, NativeLocationLabelTarget::Workspace) => {
-                "工作区重命名结果已保留 · 请勿重复提交"
-            }
+            (Self::ZhCn, LocationLabelTarget::Workspace) => "工作区重命名结果已保留 · 请勿重复提交",
         }
     }
 

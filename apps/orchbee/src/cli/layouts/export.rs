@@ -64,7 +64,7 @@ fn observe(
     let selected = if command.client.is_some() || implicit {
         let observed = control::exchange(
             client,
-            &snapshot.site_id,
+            &snapshot.session_id,
             ClientViewAction::List {},
             deadline,
             signals,
@@ -121,7 +121,7 @@ fn observe(
         signals.check_before(deadline)?;
         let result = read.map_err(query::classify_launch_read)?;
         let TerminalLaunchReadOutcome::Found {
-            site_id,
+            session_id,
             workbench_revision,
             terminal,
             launch,
@@ -135,7 +135,7 @@ fn observe(
             ));
         };
         let route = terminal.bound_to();
-        if site_id.as_str() != snapshot.site_id.as_str()
+        if session_id.as_str() != snapshot.session_id.as_str()
             || *workbench_revision != snapshot.revision.value()
             || terminal.terminal_id().as_str() != binding.terminal_id.as_str()
             || terminal.worker_id().as_str() != binding.worker_id.as_str()
@@ -183,7 +183,7 @@ fn observe(
     .map_err(|reason| failure(FailureKind::Denied, reason))?;
     let after = query::refresh_snapshot(
         client,
-        &snapshot.site_id,
+        &snapshot.session_id,
         snapshot.revision,
         deadline,
         signals,
@@ -198,7 +198,7 @@ fn observe(
         .find(|workspace| workspace.terminal_context_id == context.terminal_context_id)
         .ok_or_else(|| failure(FailureKind::ProtocolInvalid, "workspace-unavailable"))?;
     let document = json!({"schema":"orchbee.layout.export","version":1,
-        "source":{"kind":"layout-observation","scope":if selected.is_some() {"client"} else {"shared"},"sessionId":snapshot.site_id,"revision":snapshot.revision,
+        "source":{"kind":"layout-observation","scope":if selected.is_some() {"client"} else {"shared"},"sessionId":snapshot.session_id,"revision":snapshot.revision,
             "clientId":selected.as_ref().map(|client| &client.client_id),"viewRevision":selected.as_ref().map(|client| client.view_revision)},
         "result":{"layout":{"workspaceId":&workspace.workspace_id,
             "terminalContextId":context.terminal_context_id,"tabId":tab.tab_id,
@@ -245,7 +245,7 @@ fn read_layout(
     let panel = &target.panel;
     let answer = control::submit_control(
         client,
-        &snapshot.site_id,
+        &snapshot.session_id,
         ClientViewControl {
             operation_id: query::request_id()?,
             client_id: selected.client_id.clone(),

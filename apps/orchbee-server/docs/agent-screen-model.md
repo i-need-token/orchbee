@@ -157,7 +157,7 @@ ownership are specified below.
 
 ## Automatic checks and configuration snapshots
 
-Windows `update.manifest_check` is a strict boolean, default true. Only persistent managed Sites in
+Windows `update.manifest_check` is a strict boolean, default true. Only persistent managed Sessions in
 release, non-test builds allow background checks. Standalone, debug and test execution do not
 schedule network work. An enabled owner schedules once at startup, then every thirty minutes by
 monotonic time. Busy maintenance defers the due check until the shared slot is free. Automatic work

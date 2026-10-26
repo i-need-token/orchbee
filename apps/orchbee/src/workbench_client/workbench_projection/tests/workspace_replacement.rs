@@ -21,11 +21,11 @@ fn workspace_snapshot(revision: u64) -> Snapshot {
     });
     snapshot
 }
-fn projected(snapshot: &Snapshot) -> NativeContextTabs {
+fn projected(snapshot: &Snapshot) -> ClientContextTabs {
     let workspace = &snapshot.navigation.workspaces[1];
     project_native_context_tabs(
         snapshot,
-        &NativeContextLocation::Workspace {
+        &ClientContextLocation::Workspace {
             workspace_id: workspace.workspace_id.clone(),
             terminal_context_id: workspace.terminal_context_id.clone(),
         },

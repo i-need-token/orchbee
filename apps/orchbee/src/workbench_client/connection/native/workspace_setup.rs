@@ -1,4 +1,4 @@
-use super::{NativeExecutor, Result, SetupEntryExpiry, SetupOwner, SetupTarget, closed, event};
+use super::{ClientExecutor, Result, SetupEntryExpiry, SetupOwner, SetupTarget, closed, event};
 use crate::local_client::workbench::workspace_setup::{
     WorkbenchSetupNotSubmitted, WorkbenchSetupPrecommit, WorkbenchSetupSubmission,
 };
@@ -10,7 +10,7 @@ use crate::workbench_client::{
     state::{CarrierFailure, RefreshDecision},
 };
 
-impl NativeExecutor {
+impl ClientExecutor {
     pub(super) fn run_workspace_setup(
         &mut self,
         lease: &CommandLease,

@@ -1,4 +1,4 @@
-//! Running-Site configuration control. A submitted reload is never automatically retried.
+//! Running-Session configuration control. A submitted reload is never automatically retried.
 use super::{Failure, FailureKind, Output, failure_output};
 use crate::{invocation::OutputFormat, localization::Locale};
 use orchbee_workbench_protocol::ConfigurationAction;
@@ -47,7 +47,7 @@ fn windows(action: ConfigurationAction, format: OutputFormat, locale: Locale) ->
         let request = ConfigurationRequest {
             protocol_version: snapshot.protocol_version,
             request_id: query::request_id()?,
-            site_id: snapshot.site_id,
+            session_id: snapshot.session_id,
             action,
         };
         signals.check_before(deadline)?;
@@ -108,7 +108,7 @@ fn windows(action: ConfigurationAction, format: OutputFormat, locale: Locale) ->
                     Some(ConfigurationOutcome::Failed { reason, .. }) => (
                         match reason {
                             ConfigurationFailure::Denied
-                            | ConfigurationFailure::SiteMismatch
+                            | ConfigurationFailure::SessionMismatch
                             | ConfigurationFailure::Busy => 3,
                             ConfigurationFailure::Unavailable => 4,
                             ConfigurationFailure::LoadFailed

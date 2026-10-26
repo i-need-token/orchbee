@@ -3,7 +3,7 @@ use crate::{
     local_client::LocalClient,
     machine_discovery::display_label,
     machine_picker::Choice,
-    workbench_client::{NativeContextLocation, NativeContextTarget},
+    workbench_client::{ClientContextLocation, ClientContextTarget},
 };
 use orchbee_agent_observation_protocol::AgentLaunchBinding;
 use orchbee_workbench_protocol::{
@@ -14,7 +14,7 @@ use orchbee_workbench_protocol::{
     PanelAgentOutcome, PanelAgentRequest, PanelAgentState, PanelAgentView, PanelMetadataAction,
     PanelMetadataEffective, PanelMetadataOutcome, PanelMetadataRequest, PanelMetadataRow,
     PanelNode, PresentationAgentRow, PresentationBinding, PresentationMetadataRow, ProtocolVersion,
-    SiteId, Snapshot, TerminalAgentStateRow, TerminalAgentStateSnapshot, TerminalPresentationId,
+    SessionId, Snapshot, TerminalAgentStateRow, TerminalAgentStateSnapshot, TerminalPresentationId,
     TerminalTitleObservation, WorkbenchPanelId, WorkbenchRevision, WorkbenchTabId,
 };
 use std::{
@@ -34,7 +34,7 @@ const MAXIMUM_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Target {
-    pub(crate) context: NativeContextTarget,
+    pub(crate) context: ClientContextTarget,
     pub(crate) tab: WorkbenchTabId,
     pub(crate) panel: WorkbenchPanelId,
     pub(crate) member: TerminalPresentationId,
@@ -65,9 +65,9 @@ pub(crate) struct PlacementOrder {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Checkpoint {
-    pub(crate) site_id: SiteId,
+    pub(crate) session_id: SessionId,
     pub(crate) report_revision: WorkbenchRevision,
-    pub(crate) contexts: Arc<[NativeContextTarget]>,
+    pub(crate) contexts: Arc<[ClientContextTarget]>,
     pub(crate) view: AgentViewSnapshot,
     pub(crate) rows: Arc<[Row]>,
 }
@@ -94,7 +94,7 @@ fn source_view(
             AgentViewRequest {
                 protocol_version: ProtocolVersion,
                 request_id: request_id()?,
-                site_id: snapshot.site_id.clone(),
+                session_id: snapshot.session_id.clone(),
                 action: AgentViewAction::Read {},
             },
             deadline,
@@ -120,7 +120,7 @@ fn states(
             PanelAgentRequest {
                 protocol_version: ProtocolVersion,
                 request_id: request_id()?,
-                site_id: snapshot.site_id.clone(),
+                session_id: snapshot.session_id.clone(),
                 action: PanelAgentAction::States {
                     presentation_ids: ids.to_vec(),
                 },
@@ -161,7 +161,7 @@ fn states(
 #[derive(Clone, Debug)]
 pub(crate) struct Placement {
     pub(crate) order: PlacementOrder,
-    pub(crate) context: NativeContextTarget,
+    pub(crate) context: ClientContextTarget,
     pub(crate) tab: WorkbenchTabId,
     pub(crate) panel: WorkbenchPanelId,
     pub(crate) member: TerminalPresentationId,
@@ -180,7 +180,7 @@ pub(crate) fn placements(snapshot: &Snapshot) -> Result<Vec<Placement>, ()> {
             .into_iter()
             .map(|(p, w)| {
                 (
-                    NativeContextLocation::Workspace {
+                    ClientContextLocation::Workspace {
                         workspace_id: w.workspace_id.clone(),
                         terminal_context_id: w.terminal_context_id.clone(),
                     },
@@ -200,8 +200,8 @@ pub(crate) fn placements(snapshot: &Snapshot) -> Result<Vec<Placement>, ()> {
     let mut result = Vec::new();
     for (workspace_order, (location, workspace)) in locations.into_iter().enumerate() {
         let id = match &location {
-            NativeContextLocation::NoWorkspace => return Err(()),
-            NativeContextLocation::Workspace {
+            ClientContextLocation::NoWorkspace => return Err(()),
+            ClientContextLocation::Workspace {
                 terminal_context_id,
                 ..
             } => terminal_context_id,
@@ -211,8 +211,8 @@ pub(crate) fn placements(snapshot: &Snapshot) -> Result<Vec<Placement>, ()> {
             .iter()
             .find(|c| &c.terminal_context_id == id)
             .ok_or(())?;
-        let target = NativeContextTarget {
-            site_id: snapshot.site_id.clone(),
+        let target = ClientContextTarget {
+            session_id: snapshot.session_id.clone(),
             location,
         };
         for (tab_order, tab) in context.tabs.iter().enumerate() {
@@ -233,7 +233,7 @@ pub(crate) fn placements(snapshot: &Snapshot) -> Result<Vec<Placement>, ()> {
 }
 fn collect(
     node: &PanelNode,
-    context: &NativeContextTarget,
+    context: &ClientContextTarget,
     tab: &WorkbenchTabId,
     workspace: &str,
     rows: &mut Vec<Placement>,
@@ -369,9 +369,9 @@ pub(crate) fn read_at(
             .ordered_workspaces()
             .map_err(|_| ())?
             .into_iter()
-            .map(|(_, w)| NativeContextTarget {
-                site_id: snapshot.site_id.clone(),
-                location: NativeContextLocation::Workspace {
+            .map(|(_, w)| ClientContextTarget {
+                session_id: snapshot.session_id.clone(),
+                location: ClientContextLocation::Workspace {
                     workspace_id: w.workspace_id.clone(),
                     terminal_context_id: w.terminal_context_id.clone(),
                 },
@@ -379,7 +379,7 @@ pub(crate) fn read_at(
     );
     Ok(Arc::new(Checkpoint {
         contexts: contexts.into(),
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         report_revision: head,
         view: initial_view,
         rows: rows.into(),

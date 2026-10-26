@@ -135,7 +135,7 @@ fn current(
     signals.check_before(deadline)?;
     let result = control::exchange(
         client,
-        &snapshot.site_id,
+        &snapshot.session_id,
         ClientViewAction::Get {
             client_id: selected.clone(),
         },
@@ -348,7 +348,7 @@ pub(super) fn collect(
         };
         let answer = control::submit_control(
             client,
-            &snapshot.site_id,
+            &snapshot.session_id,
             request.clone(),
             deadline,
             signals,
@@ -454,7 +454,7 @@ pub(super) fn collect(
     }
     let final_snapshot = query::refresh_snapshot(
         client,
-        &snapshot.site_id,
+        &snapshot.session_id,
         snapshot.revision,
         deadline,
         signals,

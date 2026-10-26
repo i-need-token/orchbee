@@ -48,7 +48,7 @@ fn alternating_carriers_preserve_each_response_and_exact_record_boundaries() {
     );
 }
 use orchbee_workbench_protocol::{
-    ProtocolVersion, SiteId, SnapshotReadIntent, WorkbenchAction, WorkbenchCommand,
+    ProtocolVersion, SessionId, SnapshotReadIntent, WorkbenchAction, WorkbenchCommand,
     WorkbenchCommandOutcome, WorkbenchLabel, WorkbenchRequest, WorkbenchRequestId,
     WorkbenchResponse, WorkbenchRevision, WorkbenchSnapshotOutcome, read_workbench_response,
     write_workbench_request,
@@ -97,7 +97,7 @@ fn a_stalled_large_snapshot_writer_releases_the_gate_before_another_connection_r
                 label: WorkbenchLabel::parse(&label).unwrap(),
             }
         };
-        let command = command(id, &snapshot.site_id, revision, action);
+        let command = command(id, &snapshot.session_id, revision, action);
         let WorkbenchResponse::Command(result) = response(service.execute(command)) else {
             panic!("expected command")
         };
@@ -148,8 +148,12 @@ fn a_stalled_large_snapshot_writer_releases_the_gate_before_another_connection_r
             .unwrap(),
             label: WorkbenchLabel::parse("Shortened").unwrap(),
         };
-        let changed =
-            response(active_service.execute(command(10000, &snapshot.site_id, revision, rename)));
+        let changed = response(active_service.execute(command(
+            10000,
+            &snapshot.session_id,
+            revision,
+            rename,
+        )));
         completed_tx.send((read, changed)).unwrap();
     });
     let completed = completed_rx.recv_timeout(Duration::from_secs(3));
@@ -172,11 +176,16 @@ fn a_stalled_large_snapshot_writer_releases_the_gate_before_another_connection_r
     );
 }
 
-fn command(id: u128, site: &SiteId, revision: u64, action: WorkbenchAction) -> WorkbenchRequest {
+fn command(
+    id: u128,
+    session: &SessionId,
+    revision: u64,
+    action: WorkbenchAction,
+) -> WorkbenchRequest {
     WorkbenchRequest::Command(WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{id:032x}")).unwrap(),
-        site_id: site.clone(),
+        session_id: session.clone(),
         expected_revision: WorkbenchRevision::new(revision),
         action,
     })

@@ -3,7 +3,7 @@ use super::*;
 use crate::workbench_client::ui::{
     CarrierFailure, QueuedCommand, RefreshDecision, UiReply, WorkerEvent,
 };
-use crate::workbench_client::{ClientActionDisposition, NativeDisplayPhase, NativeDrawReceipt};
+use crate::workbench_client::{ClientActionDisposition, DisplayPhase, DrawReceipt};
 use crate::{
     client_view::ClientView, localization::Locale, tui_pointer::HitMapBuilder, tui_theme::Theme,
 };
@@ -138,7 +138,7 @@ fn global_search_routes_nested_profile_hits_through_the_existing_tab_creation_me
     assert_eq!(parent.actions[parent.selected], MenuAction::TabCreation);
 }
 
-fn arm(ui: &mut NativeUi) -> MenuToken {
+fn arm(ui: &mut WorkbenchClientUi) -> MenuToken {
     let (token, selected, visible_rows, result_actions) = {
         let view = ui.view();
         let menu = view.action_menu().unwrap();
@@ -159,7 +159,7 @@ fn arm(ui: &mut NativeUi) -> MenuToken {
     token
 }
 
-fn action_row(ui: &NativeUi, action: MenuAction) -> usize {
+fn action_row(ui: &WorkbenchClientUi, action: MenuAction) -> usize {
     ui.view()
         .action_menu()
         .unwrap()
@@ -169,14 +169,14 @@ fn action_row(ui: &NativeUi, action: MenuAction) -> usize {
         .unwrap()
 }
 
-fn empty_ui_without_focused_panel() -> NativeUi {
+fn empty_ui_without_focused_panel() -> WorkbenchClientUi {
     let elapsed = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
     let clock = crate::local_client::tests::server::adjustable_operation_clock(elapsed);
     let mailbox = std::sync::Arc::new(crate::workbench_client::mailbox::CommandMailbox::new(
         10,
         Geometry::new(120, 40, 8, 16).unwrap(),
     ));
-    let mut ui = NativeUi::new(std::sync::Arc::clone(&mailbox), clock.clone());
+    let mut ui = WorkbenchClientUi::new(std::sync::Arc::clone(&mailbox), clock.clone());
     let cache = crate::workbench_client::workbench_projection::project_preferred_workspace(
         &super::super::tests::membership::snapshot(0, 1),
     )
@@ -204,7 +204,7 @@ fn empty_ui_without_focused_panel() -> NativeUi {
     ui
 }
 
-fn activate_row(ui: &mut NativeUi, token: MenuToken, row: usize) {
+fn activate_row(ui: &mut WorkbenchClientUi, token: MenuToken, row: usize) {
     ui.drive_action_menu();
     let Some(source) = ui.view().action_menu().map(|menu| menu.source.clone()) else {
         return;
@@ -583,7 +583,8 @@ fn notifications_follow_the_real_pending_admitted_and_released_menu_capture() {
 
     let (mut ui, _, _, _) = tests::move_membership::ready_ui();
     let shell = ClientView::new(80);
-    let available = |ui: &NativeUi| crate::notifications::available(&shell, Some(ui.view()));
+    let available =
+        |ui: &WorkbenchClientUi| crate::notifications::available(&shell, Some(ui.view()));
 
     assert!(available(&ui));
     assert!(ui.open_action_menu(MenuTarget::Global, None, false));
@@ -614,11 +615,9 @@ fn global_menu_renders_the_resolved_configured_binding_with_ascii_fallback() {
         tui_pointer::HitTarget,
         tui_theme::GlyphSet,
     };
-    use orchbee_local_site_runtime::{
-        WindowsKeyChord, WindowsKeyOverride, WindowsKeySettings, WindowsKeyTrigger,
-    };
+    use orchbee_local_runtime::{KeyChord, KeyOverride, KeySettings, KeyTrigger};
 
-    let chord = |key: &str, ctrl| WindowsKeyChord {
+    let chord = |key: &str, ctrl| KeyChord {
         key: key.into(),
         ctrl,
         alt: false,
@@ -631,11 +630,11 @@ fn global_menu_renders_the_resolved_configured_binding_with_ascii_fallback() {
     ui.menus.menu.select_action(MenuAction::Help);
     let help_row = action_row(&ui, MenuAction::Help);
     let mut view = ClientView::new(120);
-    view.configure_keys(&WindowsKeySettings {
+    view.configure_keys(&KeySettings {
         prefix: chord("a", true),
-        overrides: vec![WindowsKeyOverride {
+        overrides: vec![KeyOverride {
             action: "help",
-            triggers: vec![WindowsKeyTrigger {
+            triggers: vec![KeyTrigger {
                 prefix: true,
                 chord: chord("left", false),
             }],
@@ -653,7 +652,7 @@ fn global_menu_renders_the_resolved_configured_binding_with_ascii_fallback() {
     let theme = Theme::terminal_native().with_glyphs(GlyphSet::ASCII);
     let mut terminal = Terminal::new(TestBackend::new(120, 30)).unwrap();
     let mut hits = HitMapBuilder::new();
-    let mut receipt = NativeDrawReceipt::default();
+    let mut receipt = DrawReceipt::default();
     terminal
         .draw(|frame| {
             receipt = crate::tui_render::render_terminal_shell(
@@ -708,7 +707,7 @@ fn pointer_menu_uses_the_full_viewport_while_keyboard_keeps_content_centering() 
                     view.machines.available = true;
                     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
                     let mut hits = HitMapBuilder::new();
-                    let mut receipt = crate::workbench_client::NativeDrawReceipt::default();
+                    let mut receipt = crate::workbench_client::DrawReceipt::default();
                     terminal
                         .draw(|frame| {
                             receipt = crate::tui_render::render_terminal_shell(
@@ -858,7 +857,7 @@ fn ux_menu_disabled_reason_and_exit_survive_short_geometry_in_both_locales() {
                             ));
                         }
                     }
-                    let mut receipt = crate::workbench_client::NativeDrawReceipt::default();
+                    let mut receipt = crate::workbench_client::DrawReceipt::default();
                     terminal
                         .draw(|frame| {
                             receipt = crate::tui_render::render_terminal_shell(
@@ -958,13 +957,13 @@ fn ux_menu_disabled_reason_and_exit_survive_short_geometry_in_both_locales() {
 #[test]
 fn ux_menu_projection_keeps_selection_and_hit_indices_in_the_first_resized_paint() {
     fn paint(
-        ui: &mut NativeUi,
+        ui: &mut WorkbenchClientUi,
         terminal: &mut Terminal<TestBackend>,
         width: u16,
         locale: Locale,
     ) -> crate::tui_pointer::FrameHitMap {
         let mut hits = HitMapBuilder::new();
-        let mut receipt = crate::workbench_client::NativeDrawReceipt::default();
+        let mut receipt = crate::workbench_client::DrawReceipt::default();
         terminal
             .draw(|frame| {
                 receipt = crate::tui_render::render_terminal_shell(
@@ -1242,7 +1241,7 @@ fn ux_status_short_menu_exposes_its_selection_position() {
             let count = ui.view().action_menu().unwrap().actions.len();
             let mut terminal = Terminal::new(TestBackend::new(width, 8)).unwrap();
             for selected in [1, count] {
-                let mut receipt = crate::workbench_client::NativeDrawReceipt::default();
+                let mut receipt = crate::workbench_client::DrawReceipt::default();
                 terminal
                     .draw(|frame| {
                         receipt = crate::tui_render::render_terminal_shell(
@@ -1522,7 +1521,7 @@ fn empty_workspace_navigation_uses_owned_refresh_and_exact_cleanup_then_original
     mailbox.take_deposited_reply(&wait).unwrap().unwrap();
     mailbox.finish_lease(lease).unwrap();
     assert_eq!(ui.state.as_ref().unwrap().cache().location(), &location);
-    assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
+    assert_eq!(ui.view().phase(), DisplayPhase::Empty);
     let action = ui
         .take_action_menu_action(false)
         .expect("original action does not require Ready");
@@ -1590,7 +1589,7 @@ fn action_menu_renders_and_hits_only_presented_rows_in_both_locales_themes_and_s
                 ui.menus.menu.select_action(MenuAction::RenameWorkspace);
                 let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
                 let mut hits = HitMapBuilder::new();
-                let mut receipt = NativeDrawReceipt::default();
+                let mut receipt = DrawReceipt::default();
                 let mut view = crate::client_view::ClientView::new(width);
                 view.commit(
                     view.decide_action(ClientAction::OpenShortcutHelp),

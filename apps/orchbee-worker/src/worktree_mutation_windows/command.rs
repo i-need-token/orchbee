@@ -2,7 +2,7 @@
 use super::{Abort, Context, failed};
 use orchbee_capability_node_protocol::{WorktreeMutationError as Error, WorktreeMutationStage};
 use orchbee_local_ipc::ChildOutputReader;
-use orchbee_local_site_runtime::WindowsCommandChild;
+use orchbee_local_runtime::CommandChild;
 use std::{
     io::{self, Read},
     path::Path,
@@ -47,7 +47,7 @@ impl Context<'_> {
         // The wrapper may fail after suspended creation or Job assignment.
         // Retire on post-creation failure; an observed no-child failure preserves
         // normal error reporting and does not poison the owner.
-        let mut child = WindowsCommandChild::spawn(command).map_err(|failure| {
+        let mut child = CommandChild::spawn(command).map_err(|failure| {
             if failure.created {
                 Abort::PhysicalUnknown
             } else {

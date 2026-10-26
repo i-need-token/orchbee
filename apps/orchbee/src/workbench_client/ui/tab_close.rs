@@ -1,4 +1,4 @@
-use super::{NativePanelCloseConfirmationToken, NativeUi, WorkbenchClientView};
+use super::{PanelCloseConfirmationToken, WorkbenchClientUi, WorkbenchClientView};
 use crate::workbench_client::state::TabCloseResumePermit;
 use crate::workbench_client::state::{CloseConfirmationView, CloseStatusView};
 use crate::{
@@ -13,9 +13,7 @@ use crate::{
 use std::sync::Arc;
 
 pub(crate) use crate::workbench_client::state::{
-    CloseConfirmationKind as NativeCloseConfirmationKind,
-    CloseConfirmationToken as NativeCloseConfirmationToken,
-    CloseStatusKind as NativeCloseStatusKind, CloseStatusToken as NativeCloseStatusToken,
+    CloseConfirmationKind, CloseConfirmationToken, CloseStatusKind, CloseStatusToken,
 };
 
 /// The renderer's geometry verdict for one modal surface in a completed draw.
@@ -41,26 +39,26 @@ impl<T> ModalPresentation<T> {
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub(crate) struct NativeDrawReceipt {
+pub(crate) struct DrawReceipt {
     settings: Option<ModalPresentation<crate::native_settings::SettingsDraw>>,
     menu: Option<ModalPresentation<crate::action_menu::MenuDraw>>,
     position: Option<crate::workbench_client::startup_preference::Draw>,
-    prompt: Option<ModalPresentation<NativeCloseConfirmationToken>>,
-    status: Option<NativeCloseStatusToken>,
-    rename: Option<ModalPresentation<super::NativeRenameDraftToken>>,
-    setup: Option<ModalPresentation<super::NativeSetupToken>>,
+    prompt: Option<ModalPresentation<CloseConfirmationToken>>,
+    status: Option<CloseStatusToken>,
+    rename: Option<ModalPresentation<super::RenameDraftToken>>,
+    setup: Option<ModalPresentation<super::SetupToken>>,
     worktree: Option<ModalPresentation<super::WorktreeToken>>,
-    panel_prompt: Option<ModalPresentation<NativePanelCloseConfirmationToken>>,
+    panel_prompt: Option<ModalPresentation<PanelCloseConfirmationToken>>,
     workspace_prompt: Option<ModalPresentation<super::WorkspaceCloseToken>>,
     /// The Agent board's exact-episode draw verdict. `Presented` carries the
     /// successful viewport proof; `NotPresented` reports evaluated geometry.
     /// `None` revokes current proof because the board was absent or covered.
     agent_board: Option<super::AgentBoardDraw>,
-    attention: Option<crate::workbench_client::agent_attention::NativeAgentAttentionDraw>,
+    attention: Option<crate::workbench_client::agent_attention::AgentAttentionDraw>,
     graphics: Vec<crate::workbench_client::PaneGraphicsDraw>,
 }
 
-impl NativeDrawReceipt {
+impl DrawReceipt {
     pub(crate) fn with_settings(
         mut self,
         draw: Option<ModalPresentation<crate::native_settings::SettingsDraw>>,
@@ -97,7 +95,7 @@ impl NativeDrawReceipt {
     }
     pub(crate) fn with_attention(
         mut self,
-        attention: Option<crate::workbench_client::agent_attention::NativeAgentAttentionDraw>,
+        attention: Option<crate::workbench_client::agent_attention::AgentAttentionDraw>,
     ) -> Self {
         self.attention = attention;
         self
@@ -116,14 +114,14 @@ impl NativeDrawReceipt {
 
     pub(crate) const fn with_setup(
         mut self,
-        setup: Option<ModalPresentation<super::NativeSetupToken>>,
+        setup: Option<ModalPresentation<super::SetupToken>>,
     ) -> Self {
         self.setup = setup;
         self
     }
     pub(crate) const fn new(
-        prompt: Option<ModalPresentation<NativeCloseConfirmationToken>>,
-        status: Option<NativeCloseStatusToken>,
+        prompt: Option<ModalPresentation<CloseConfirmationToken>>,
+        status: Option<CloseStatusToken>,
     ) -> Self {
         Self {
             position: None,
@@ -143,14 +141,14 @@ impl NativeDrawReceipt {
     }
     pub(crate) const fn with_rename(
         mut self,
-        rename: Option<ModalPresentation<super::NativeRenameDraftToken>>,
+        rename: Option<ModalPresentation<super::RenameDraftToken>>,
     ) -> Self {
         self.rename = rename;
         self
     }
     pub(crate) const fn with_panel_close(
         mut self,
-        panel_prompt: Option<ModalPresentation<NativePanelCloseConfirmationToken>>,
+        panel_prompt: Option<ModalPresentation<PanelCloseConfirmationToken>>,
     ) -> Self {
         self.panel_prompt = panel_prompt;
         self
@@ -172,11 +170,11 @@ impl NativeDrawReceipt {
     }
 }
 
-pub(crate) struct NativeCloseConfirmationView<'a> {
+pub(crate) struct CloseConfirmationView<'a> {
     inner: CloseConfirmationView<'a>,
 }
 
-impl<'a> NativeCloseConfirmationView<'a> {
+impl<'a> CloseConfirmationView<'a> {
     pub(crate) fn set_count(&self) -> Option<usize> {
         self.inner.set().map(|set| set.count())
     }
@@ -186,13 +184,13 @@ impl<'a> NativeCloseConfirmationView<'a> {
     pub(crate) fn set_labels(&self) -> Option<&'a [(usize, String)]> {
         self.inner.set().map(|set| set.labels())
     }
-    pub(crate) const fn token(&self) -> NativeCloseConfirmationToken {
+    pub(crate) const fn token(&self) -> CloseConfirmationToken {
         self.inner.token()
     }
     pub(crate) fn target_label(&self) -> &'a str {
         self.inner.target_label()
     }
-    pub(crate) const fn kind(&self) -> NativeCloseConfirmationKind {
+    pub(crate) const fn kind(&self) -> CloseConfirmationKind {
         self.inner.kind()
     }
     pub(crate) const fn interactive(&self) -> bool {
@@ -201,10 +199,10 @@ impl<'a> NativeCloseConfirmationView<'a> {
     pub(crate) const fn presentation(&self) -> crate::tui_presentation::PresentationPhase {
         self.inner.presentation()
     }
-    pub(crate) fn resume_status(&self) -> Option<NativeCloseStatusView<'a>> {
+    pub(crate) fn resume_status(&self) -> Option<CloseStatusView<'a>> {
         self.inner
             .resume_status()
-            .map(|inner| NativeCloseStatusView { inner })
+            .map(|inner| CloseStatusView { inner })
     }
     pub(crate) fn resume_set_status(
         &self,
@@ -214,18 +212,18 @@ impl<'a> NativeCloseConfirmationView<'a> {
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct NativeCloseStatusView<'a> {
+pub(crate) struct CloseStatusView<'a> {
     inner: CloseStatusView<'a>,
 }
 
-impl<'a> NativeCloseStatusView<'a> {
-    pub(crate) const fn token(&self) -> NativeCloseStatusToken {
+impl<'a> CloseStatusView<'a> {
+    pub(crate) const fn token(&self) -> CloseStatusToken {
         self.inner.token()
     }
     pub(crate) fn target_label(&self) -> &'a str {
         self.inner.target_label()
     }
-    pub(crate) fn status(&self) -> NativeCloseStatusKind {
+    pub(crate) fn status(&self) -> CloseStatusKind {
         self.inner.status()
     }
     pub(crate) fn resumable(&self) -> bool {
@@ -245,21 +243,21 @@ impl<'a> WorkbenchClientView<'a> {
     ) -> Option<crate::workbench_client::state::CloseSetStatus> {
         self.state.as_ref()?.close_set_status()
     }
-    pub(crate) fn close_confirmation(&self) -> Option<NativeCloseConfirmationView<'a>> {
+    pub(crate) fn close_confirmation(&self) -> Option<CloseConfirmationView<'a>> {
         self.state
             .as_ref()?
             .close_confirmation()
-            .map(|inner| NativeCloseConfirmationView { inner })
+            .map(|inner| CloseConfirmationView { inner })
     }
-    pub(crate) fn close_status(&self) -> Option<NativeCloseStatusView<'a>> {
+    pub(crate) fn close_status(&self) -> Option<CloseStatusView<'a>> {
         self.state
             .as_ref()?
             .close_status()
-            .map(|inner| NativeCloseStatusView { inner })
+            .map(|inner| CloseStatusView { inner })
     }
 }
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(super) fn request_close_set(
         &mut self,
         ids: &[orchbee_workbench_protocol::WorkbenchTabId],
@@ -359,7 +357,7 @@ impl NativeUi {
 
     pub(in crate::workbench_client) fn click_tab_close(
         &mut self,
-        token: NativeCloseConfirmationToken,
+        token: CloseConfirmationToken,
         confirm: bool,
     ) {
         if self
@@ -412,7 +410,7 @@ impl NativeUi {
 
     pub(in crate::workbench_client) fn capture_tab_confirmation_key(
         &mut self,
-        expected: NativeCloseConfirmationToken,
+        expected: CloseConfirmationToken,
         key: ClientKey,
     ) -> bool {
         let Some((actual, interactive)) = self
@@ -587,7 +585,7 @@ impl NativeUi {
         }
     }
 
-    pub(in crate::workbench_client) fn after_close_draw(&mut self, receipt: NativeDrawReceipt) {
+    pub(in crate::workbench_client) fn after_close_draw(&mut self, receipt: DrawReceipt) {
         self.after_action_menu_draw(receipt.menu);
         self.after_settings_draw(receipt.settings);
         self.attention.after_draw();

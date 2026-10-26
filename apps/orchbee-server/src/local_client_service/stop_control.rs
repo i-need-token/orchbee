@@ -1,16 +1,16 @@
 //! Client admission adapter: only the managed Windows composition supplies a stop owner.
 use crate::agent_service::AgentService;
-use orchbee_local_client_protocol::{SiteStopRequest, SiteStopResult, SiteStopStatus};
+use orchbee_local_client_protocol::{SessionStopRequest, SessionStopResult, SessionStopStatus};
 
 pub(super) struct StopControl<'a> {
     pub(super) agents: &'a AgentService,
     #[cfg(windows)]
-    pub(super) shutdown: Option<&'a crate::site_shutdown::SiteShutdown>,
+    pub(super) shutdown: Option<&'a crate::session_shutdown::SessionShutdown>,
 }
 
 pub(super) struct Lease<'a> {
     #[cfg(windows)]
-    _record: Option<crate::site_shutdown::RecordLease<'a>>,
+    _record: Option<crate::session_shutdown::RecordLease<'a>>,
     _control: &'a StopControl<'a>,
 }
 
@@ -41,14 +41,14 @@ impl<'a> StopControl<'a> {
         }
     }
 
-    pub(super) fn request(&self, request: &SiteStopRequest) -> SiteStopResult {
+    pub(super) fn request(&self, request: &SessionStopRequest) -> SessionStopResult {
         #[cfg(windows)]
         if let Some(owner) = self.shutdown {
             return owner.request(request);
         }
-        SiteStopResult {
+        SessionStopResult {
             id: request.id,
-            status: SiteStopStatus::Unmanaged,
+            status: SessionStopStatus::Unmanaged,
         }
     }
 

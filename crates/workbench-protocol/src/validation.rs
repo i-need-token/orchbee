@@ -20,7 +20,7 @@ pub const MAXIMUM_ENCODED_PROJECTION_BYTES: usize = 1024 * 1024;
 pub const MAXIMUM_LABEL_LENGTH: usize = 512;
 pub const MAXIMUM_PROJECTS: usize = 256;
 pub const MAXIMUM_DIRECTORIES_PER_PROJECT: usize = 256;
-/// Site capacity preserves the aggregate admitted by historical Project-owned directories.
+/// Session capacity preserves the aggregate admitted by historical Project-owned directories.
 pub const MAXIMUM_DIRECTORIES: usize = MAXIMUM_PROJECTS * MAXIMUM_DIRECTORIES_PER_PROJECT;
 pub const MAXIMUM_WORKSPACES_PER_PROJECT: usize = 256;
 pub const MAXIMUM_TERMINAL_CONTEXTS: usize = 1024;
@@ -112,8 +112,8 @@ pub fn apply_workbench_delta(
     snapshot: &Snapshot,
     delta: &Delta,
 ) -> Result<Snapshot, DeltaRejectionReason> {
-    if snapshot.site_id != delta.site_id {
-        return Err(DeltaRejectionReason::SiteMismatch);
+    if snapshot.session_id != delta.session_id {
+        return Err(DeltaRejectionReason::SessionMismatch);
     }
     if snapshot.revision != delta.base_revision {
         return Err(DeltaRejectionReason::BaseRevisionMismatch);
@@ -173,7 +173,7 @@ pub fn apply_workbench_delta(
         navigation,
         protocol_version: delta.protocol_version,
         revision: delta.revision,
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         terminal_contexts: terminal_contexts.into_values().collect(),
     };
     validate_snapshot(&candidate).map_err(|_error| DeltaRejectionReason::InvalidProjection)?;
@@ -191,8 +191,8 @@ pub fn apply_workbench_publication(
     for publication in publications {
         current = match publication {
             WorkbenchPublicationDocument::Snapshot(snapshot) => {
-                if snapshot.site_id != current.site_id {
-                    return Err(DeltaRejectionReason::SiteMismatch);
+                if snapshot.session_id != current.session_id {
+                    return Err(DeltaRejectionReason::SessionMismatch);
                 }
                 if snapshot.revision <= current.revision {
                     return Err(DeltaRejectionReason::NonIncreasingRevision);

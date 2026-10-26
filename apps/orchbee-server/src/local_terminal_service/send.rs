@@ -11,7 +11,7 @@ use orchbee_client_server_protocol::{
     TerminalSendOutcome as Outcome, TerminalSendRequest, TerminalSendResult,
 };
 
-use crate::site_coordinator::{BindingViewerPreparationError, PreparedSendTarget};
+use crate::session_coordinator::{BindingViewerPreparationError, PreparedSendTarget};
 use crate::terminal_coordinator::BindingViewerTarget;
 use crate::worker_obcn_carrier::{
     WorkerOperationRequest, WorkerOperationResult, WorkerRequestError,
@@ -44,7 +44,7 @@ impl LocalTerminalService {
             };
             // Resolve samples the carrier only after both admission locks are held.
             let prepared = coordinator.prepare_send_target(
-                request.site_id(),
+                request.session_id(),
                 request.worker_id(),
                 request.terminal_id(),
                 placement(handle.as_ref()),

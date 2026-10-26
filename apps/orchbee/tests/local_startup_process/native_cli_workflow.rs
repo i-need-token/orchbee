@@ -1,5 +1,5 @@
 //! Public end-to-end CLI workflow witness: the fixture only starts the
-//! isolated Site's Server — no TUI is spawned anywhere in the scenario — and
+//! isolated Session's Server — no TUI is spawned anywhere in the scenario — and
 //! every business step is one invocation of the real staged `orchbee` binary:
 //! project create → workspace create → workspace accept-directory → tab
 //! create → terminal list → terminal send → terminal wait-output → terminal
@@ -90,7 +90,7 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
     let _process_witness = process_witness_guard();
     let fixture = Fixture::new();
     // Server-only startup — the same fixture surface A4's pure-CLI evidence
-    // uses; no TUI ever joins this Site.
+    // uses; no TUI ever joins this Session.
     let _server = spawn_real_server(&fixture);
     let validators = validators(&fixture);
 
@@ -275,7 +275,7 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
         assert_eq!(
             result["sessionId"],
             binding.2.as_str(),
-            "receipt site matches the list envelope source"
+            "receipt session matches the list envelope source"
         );
         assert_eq!(result["inputStatus"], "accepted");
         assert_eq!(result["cleanupStatus"], "confirmed");
@@ -335,7 +335,7 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
         );
         // The frozen `orchbee.terminal.wait-output` receipt, cross-checked
         // against the send receipt saved above: the observed source is the
-        // same terminal/worker/site the send receipt recorded, hostEpoch is
+        // same terminal/worker/session the send receipt recorded, hostEpoch is
         // the send's actual target epoch (one same-source scenario), the
         // match excerpt carries this run's marker, and at least one
         // observation completed. Row-window offsets stay unasserted — they
@@ -357,7 +357,7 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
         );
         assert_eq!(
             matched["source"]["sessionId"], sent_result["sessionId"],
-            "wait source site matches the send receipt's site"
+            "wait source session matches the send receipt's session"
         );
         assert_eq!(
             result["observed"]["hostEpoch"], sent_result["target"]["hostEpoch"],
@@ -423,10 +423,9 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
             // describes only the fixture directory's LATER state; the
             // child's original io error kind is not recoverable from the
             // mapped failure.
-            let recheck =
-                NativeCohort::load(&fixture.cohort, Instant::now() + Duration::from_secs(20))
-                    .map(|_| "ok".to_owned())
-                    .unwrap_or_else(|error| format!("{error:?}"));
+            let recheck = Cohort::load(&fixture.cohort, Instant::now() + Duration::from_secs(20))
+                .map(|_| "ok".to_owned())
+                .unwrap_or_else(|error| format!("{error:?}"));
             panic!(
                 "terminal read: {} failure document: {frame} \
                  fixture cohort state after the failure: {recheck}",
@@ -475,7 +474,7 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
     assert_eq!(
         got["source"]["sessionId"],
         binding_a.2.as_str(),
-        "get source site matches the list envelope source"
+        "get source session matches the list envelope source"
     );
     let get_revision = got["source"]["revision"]
         .as_str()
@@ -884,7 +883,7 @@ fn cli_get_reads_the_retained_failed_launch_without_tui() -> TestResult {
 
     // The failed launch's binding was committed with the tab; discover the
     // terminal through the public list surface (no receipt id, no seeding).
-    let (terminal_id, worker_id, site_id) = bind_terminal(&fixture, &tab_id);
+    let (terminal_id, worker_id, session_id) = bind_terminal(&fixture, &tab_id);
 
     // `terminal get` answers the failed retained fact through the real Server
     // read: v1 envelope, Server-joined source, nested launch, unavailable
@@ -902,7 +901,7 @@ fn cli_get_reads_the_retained_failed_launch_without_tui() -> TestResult {
     validate(&validators, "orchbee.terminal.get", &output);
     assert_eq!(got["version"], 1);
     assert_eq!(got["source"]["kind"], "terminal-launch-read");
-    assert_eq!(got["source"]["sessionId"], site_id.as_str());
+    assert_eq!(got["source"]["sessionId"], session_id.as_str());
     let terminal = &got["result"]["terminal"];
     assert_eq!(terminal["terminalId"], terminal_id.as_str());
     assert_eq!(terminal["workerId"], worker_id.as_str());

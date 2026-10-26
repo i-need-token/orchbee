@@ -49,7 +49,7 @@ fn add_shell(fixture: &mut Fixture, index: u8) {
     let command = WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: id(10000 + u128::from(index)),
-        site_id: state.site_id,
+        session_id: state.session_id,
         expected_revision: state.revision,
         action: WorkbenchAction::TabCreate {
             placement: None,

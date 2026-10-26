@@ -8,7 +8,7 @@ use crate::{
     localization::Locale,
 };
 use orchbee_workbench_protocol::{
-    SiteId, WorkbenchRequestId, WorkbenchWorkspaceGroupCloseRequest, WorkspaceGroupCloseAction,
+    SessionId, WorkbenchRequestId, WorkbenchWorkspaceGroupCloseRequest, WorkspaceGroupCloseAction,
 };
 use std::{
     thread,
@@ -38,8 +38,8 @@ pub(super) fn run(
         },
         wait: None,
     };
-    let mut site_id = None;
-    let result = observe(command, &mut answer, &mut site_id, &mut signals);
+    let mut session_id = None;
+    let result = observe(command, &mut answer, &mut session_id, &mut signals);
     let mut finalization = None;
     let result = match signals.finish() {
         Ok(Finish::Clear) => result,
@@ -71,7 +71,7 @@ pub(super) fn run(
         result
     };
     let mut output = match result {
-        Ok(()) => emit(site_id.as_ref(), answer, format, locale),
+        Ok(()) => emit(session_id.as_ref(), answer, format, locale),
         Err(error) => failure_output(error, Some(format), locale),
     };
     output.finalization = finalization;
@@ -81,7 +81,7 @@ pub(super) fn run(
 fn observe(
     command: &WorkspaceGroupCloseCommand,
     answer: &mut Answer,
-    site_id: &mut Option<SiteId>,
+    session_id: &mut Option<SessionId>,
     signals: &mut ArmedSignals,
 ) -> Result<(), Failure> {
     let (detached, timeout, read) = match command {
@@ -98,7 +98,7 @@ fn observe(
         return Ok(());
     }
     let (mut client, _, snapshot) = query::snapshot_session_until(deadline)?;
-    *site_id = Some(snapshot.site_id.clone());
+    *session_id = Some(snapshot.session_id.clone());
     if interrupted(answer, signals, deadline)? {
         return Ok(());
     }
@@ -123,7 +123,7 @@ fn observe(
     let request = WorkbenchWorkspaceGroupCloseRequest {
         protocol_version: snapshot.protocol_version,
         request_id: query::request_id()?,
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         action,
     };
     if interrupted(answer, signals, deadline)? {
@@ -169,7 +169,7 @@ fn observe(
         let request = WorkbenchWorkspaceGroupCloseRequest {
             protocol_version: snapshot.protocol_version,
             request_id: query::request_id()?,
-            site_id: snapshot.site_id.clone(),
+            session_id: snapshot.session_id.clone(),
             action: WorkspaceGroupCloseAction::Read {
                 operation_id: answer.operation_id.clone(),
             },

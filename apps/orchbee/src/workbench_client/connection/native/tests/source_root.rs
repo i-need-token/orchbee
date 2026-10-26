@@ -1,13 +1,13 @@
 //! Primary-root sampling borrows the live primary Viewer or releases its own temporary Viewer.
 use super::super::AttachedTerminal;
-use super::super::NativeExecutor;
+use super::super::ClientExecutor;
 use super::setup::{TestResult, admit, fixture_geometry, snapshot};
 use crate::local_client::LocalClient;
 use crate::local_client::tests::server::FakeServer;
 use crate::workbench_client::primary_directory::tests::process_record;
 use crate::workbench_client::state::{AttachmentKey, ControllerMode, PaneKey, PaneRef};
 use crate::workbench_client::workbench_projection::{
-    NativeContextTabs, NativeTerminalBinding, project_preferred_workspace,
+    ClientContextTabs, ClientTerminalBinding, project_preferred_workspace,
 };
 use crate::workbench_client::{
     mailbox::CommandMailbox,
@@ -24,8 +24,8 @@ use std::{sync::Arc, time::Instant};
 /// The source facts a primary-root carrier samples from one initial_workspace snapshot.
 pub(in crate::workbench_client::connection::native) struct SourceFixture {
     pub(in crate::workbench_client::connection::native) generation: u64,
-    pub(in crate::workbench_client::connection::native) baseline: NativeContextTabs,
-    pub(in crate::workbench_client::connection::native) primary: Option<NativeTerminalBinding>,
+    pub(in crate::workbench_client::connection::native) baseline: ClientContextTabs,
+    pub(in crate::workbench_client::connection::native) primary: Option<ClientTerminalBinding>,
     pub(in crate::workbench_client::connection::native) primary_pane: Option<PaneRef>,
     pub(in crate::workbench_client::connection::native) deadlines: OperationDeadlines,
 }
@@ -53,7 +53,7 @@ fn preparation() -> TestResult<(SourceFixture, WorkbenchSnapshotOutcome)> {
 
 pub(in crate::workbench_client::connection::native) fn sample(
     mut prepare: impl FnMut(
-        &mut NativeExecutor,
+        &mut ClientExecutor,
         &SourceFixture,
         &WorkbenchSnapshotOutcome,
     ) -> Result<Option<WorkbenchDirectoryPath>, CarrierFailure>,
@@ -67,12 +67,12 @@ pub(in crate::workbench_client::connection::native) fn sample(
         let record = process_record(cwd, wrong_identity)?;
         let (preparation, outcome) = preparation()?;
         let binding = preparation.primary.clone().unwrap();
-        let site = preparation.baseline.site_id().clone();
+        let session = preparation.baseline.session_id().clone();
         let server = FakeServer::start(move |mut stream| {
             admit(&mut stream)?;
             let expected = [
                 TerminalViewerAction::AttachBinding {
-                    site_id: orchbee_client_server_protocol::SiteId::parse(site.as_str())
+                    session_id: orchbee_client_server_protocol::SessionId::parse(session.as_str())
                         .map_err(io::Error::other)?,
                     worker_id: orchbee_client_server_protocol::WorkerId::parse(
                         binding.worker_id().as_str(),
@@ -135,7 +135,7 @@ pub(in crate::workbench_client::connection::native) fn sample(
         })?;
         let client = LocalClient::connect(server.endpoint(), "native-source-root-test")?;
         let mailbox = Arc::new(CommandMailbox::new(10, fixture_geometry()?));
-        let mut executor = NativeExecutor::new(client, mailbox);
+        let mut executor = ClientExecutor::new(client, mailbox);
         let result = prepare(&mut executor, &preparation, &outcome);
         if wrong_identity {
             assert_eq!(result, Err(CarrierFailure::Protocol));
@@ -156,7 +156,7 @@ pub(in crate::workbench_client::connection::native) fn sample(
 
 pub(in crate::workbench_client::connection::native) fn borrow(
     mut prepare: impl FnMut(
-        &mut NativeExecutor,
+        &mut ClientExecutor,
         &SourceFixture,
         &WorkbenchSnapshotOutcome,
     ) -> Result<Option<WorkbenchDirectoryPath>, CarrierFailure>,
@@ -206,7 +206,7 @@ pub(in crate::workbench_client::connection::native) fn borrow(
             Ok(())
         })?;
         let client = LocalClient::connect(server.endpoint(), "native-source-root-test")?;
-        let mut executor = NativeExecutor::new(
+        let mut executor = ClientExecutor::new(
             client,
             Arc::new(CommandMailbox::new(10, fixture_geometry()?)),
         );

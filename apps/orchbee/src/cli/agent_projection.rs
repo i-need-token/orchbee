@@ -137,7 +137,7 @@ pub(super) fn confirm(
     .map_err(classify)
 }
 pub(super) fn source(snapshot: &Snapshot, read: &Checkpoint) -> Value {
-    json!({"kind":"agent-projection","sessionId":snapshot.site_id,"workbenchRevision":snapshot.revision,
+    json!({"kind":"agent-projection","sessionId":snapshot.session_id,"workbenchRevision":snapshot.revision,
         "reportRevision":read.report_revision,"canonicalRevision":read.canonical_revision})
 }
 

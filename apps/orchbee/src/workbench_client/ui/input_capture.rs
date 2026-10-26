@@ -1,12 +1,12 @@
 //! Read-only native input composition projected from the feature owners.
 
-use super::{NativeUi, WorkbenchClientView};
+use super::{WorkbenchClientUi, WorkbenchClientView};
 use crate::{
-    tui_composition::{NativeCaptureClaims, NativeCaptureOwner},
+    tui_composition::{CaptureClaims, CaptureOwner},
     tui_presentation::PresentationPhase,
     workbench_client::{
-        NativeCloseConfirmationToken, NativePanelCloseConfirmationToken, NativeRenameDraftToken,
-        NativeSetupStage, NativeSetupToken, WorkspaceCloseToken,
+        CloseConfirmationToken, PanelCloseConfirmationToken, RenameDraftToken, SetupStage,
+        SetupToken, WorkspaceCloseToken,
     },
 };
 
@@ -18,7 +18,7 @@ pub(crate) enum CaptureReadiness {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct RenameCaptureContext {
-    pub(crate) token: NativeRenameDraftToken,
+    pub(crate) token: RenameDraftToken,
     pub(crate) phase: PresentationPhase,
     pub(crate) readiness: CaptureReadiness,
     pub(crate) remaining_scalars: usize,
@@ -26,10 +26,10 @@ pub(crate) struct RenameCaptureContext {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct SetupCaptureContext {
-    pub(crate) token: NativeSetupToken,
+    pub(crate) token: SetupToken,
     pub(crate) phase: PresentationPhase,
     pub(crate) readiness: CaptureReadiness,
-    pub(crate) stage: NativeSetupStage,
+    pub(crate) stage: SetupStage,
     pub(crate) remaining_scalars: usize,
     pub(crate) remaining_bytes: usize,
 }
@@ -50,15 +50,15 @@ pub(crate) struct ConfirmationCaptureContext<Token> {
 }
 
 #[derive(Clone)]
-pub(crate) enum NativeCaptureContext {
+pub(crate) enum CaptureContext {
     Settings(crate::native_settings::SettingsInputContext),
     ActionMenu(crate::action_menu::MenuInputContext),
     Popup(super::super::independent_popup::PopupInputContext),
     Worktree(WorktreeCaptureContext),
     Setup(SetupCaptureContext),
     Rename(RenameCaptureContext),
-    PanelClose(ConfirmationCaptureContext<NativePanelCloseConfirmationToken>),
-    TabClose(ConfirmationCaptureContext<NativeCloseConfirmationToken>),
+    PanelClose(ConfirmationCaptureContext<PanelCloseConfirmationToken>),
+    TabClose(ConfirmationCaptureContext<CloseConfirmationToken>),
     WorkspaceClose(ConfirmationCaptureContext<WorkspaceCloseToken>),
     AgentBoard(super::super::agent_board::AgentBoardInputContext),
 }
@@ -67,8 +67,8 @@ impl WorkbenchClientView<'_> {
     /// All native capture intents, without assigning priority or inferring
     /// presentation readiness from render visibility. Copy mode is included
     /// as a lower owner beneath the exclusive native surfaces.
-    pub(crate) fn capture_claims(&self) -> NativeCaptureClaims {
-        let claims = NativeCaptureClaims::default()
+    pub(crate) fn capture_claims(&self) -> CaptureClaims {
+        let claims = CaptureClaims::default()
             .with_settings(self.settings_input_context().is_some())
             .with_setup(self.setup_capture_claim())
             .with_rename(self.rename_draft().is_some())
@@ -88,27 +88,20 @@ impl WorkbenchClientView<'_> {
     ///
     /// `None` is a stale/incomplete owner snapshot and must be consumed by
     /// the caller. It never authorizes falling through to a lower surface.
-    pub(crate) fn capture_context(
-        &self,
-        owner: NativeCaptureOwner,
-    ) -> Option<NativeCaptureContext> {
+    pub(crate) fn capture_context(&self, owner: CaptureOwner) -> Option<CaptureContext> {
         match owner {
-            NativeCaptureOwner::Settings => self
-                .settings_input_context()
-                .map(NativeCaptureContext::Settings),
-            NativeCaptureOwner::ActionMenu => self
+            CaptureOwner::Settings => self.settings_input_context().map(CaptureContext::Settings),
+            CaptureOwner::ActionMenu => self
                 .action_menu_input_context()
-                .map(NativeCaptureContext::ActionMenu),
-            NativeCaptureOwner::Popup => {
-                self.popup_input_context().map(NativeCaptureContext::Popup)
-            }
-            NativeCaptureOwner::Worktree => {
+                .map(CaptureContext::ActionMenu),
+            CaptureOwner::Popup => self.popup_input_context().map(CaptureContext::Popup),
+            CaptureOwner::Worktree => {
                 let view = self.worktree()?;
                 let token = view.token();
                 let input = self
                     .worktree_input_context()
                     .filter(|input| input.token == token);
-                Some(NativeCaptureContext::Worktree(WorktreeCaptureContext {
+                Some(CaptureContext::Worktree(WorktreeCaptureContext {
                     token,
                     readiness: if input.is_some() {
                         CaptureReadiness::Interactive
@@ -119,13 +112,13 @@ impl WorkbenchClientView<'_> {
                     remaining_bytes: input.map_or(0, |input| input.remaining_bytes),
                 }))
             }
-            NativeCaptureOwner::Setup => {
+            CaptureOwner::Setup => {
                 let view = self.setup_draft()?;
                 let token = view.token();
                 let input = self
                     .setup_input_context()
                     .filter(|input| input.token() == token);
-                Some(NativeCaptureContext::Setup(SetupCaptureContext {
+                Some(CaptureContext::Setup(SetupCaptureContext {
                     token,
                     phase: view.presentation(),
                     readiness: if input.is_some() {
@@ -138,9 +131,9 @@ impl WorkbenchClientView<'_> {
                     remaining_bytes: input.map_or(0, |input| input.remaining_bytes()),
                 }))
             }
-            NativeCaptureOwner::Rename => {
+            CaptureOwner::Rename => {
                 let view = self.rename_draft()?;
-                Some(NativeCaptureContext::Rename(RenameCaptureContext {
+                Some(CaptureContext::Rename(RenameCaptureContext {
                     token: view.token(),
                     phase: view.presentation(),
                     readiness: if view.interactive() {
@@ -151,23 +144,9 @@ impl WorkbenchClientView<'_> {
                     remaining_scalars: view.remaining_scalar_capacity(),
                 }))
             }
-            NativeCaptureOwner::PanelClose => {
+            CaptureOwner::PanelClose => {
                 let view = self.panel_close_confirmation()?;
-                Some(NativeCaptureContext::PanelClose(
-                    ConfirmationCaptureContext {
-                        token: view.token(),
-                        phase: view.presentation(),
-                        readiness: if view.interactive() {
-                            CaptureReadiness::Interactive
-                        } else {
-                            CaptureReadiness::Recovery
-                        },
-                    },
-                ))
-            }
-            NativeCaptureOwner::TabClose => {
-                let view = self.close_confirmation()?;
-                Some(NativeCaptureContext::TabClose(ConfirmationCaptureContext {
+                Some(CaptureContext::PanelClose(ConfirmationCaptureContext {
                     token: view.token(),
                     phase: view.presentation(),
                     readiness: if view.interactive() {
@@ -177,36 +156,46 @@ impl WorkbenchClientView<'_> {
                     },
                 }))
             }
-            NativeCaptureOwner::WorkspaceClose => {
-                let view = self.workspace_close_confirmation()?;
-                Some(NativeCaptureContext::WorkspaceClose(
-                    ConfirmationCaptureContext {
-                        token: view.token(),
-                        phase: view.presentation(),
-                        readiness: if view.interactive() {
-                            CaptureReadiness::Interactive
-                        } else {
-                            CaptureReadiness::Recovery
-                        },
+            CaptureOwner::TabClose => {
+                let view = self.close_confirmation()?;
+                Some(CaptureContext::TabClose(ConfirmationCaptureContext {
+                    token: view.token(),
+                    phase: view.presentation(),
+                    readiness: if view.interactive() {
+                        CaptureReadiness::Interactive
+                    } else {
+                        CaptureReadiness::Recovery
                     },
-                ))
+                }))
             }
-            NativeCaptureOwner::AgentBoard => Some(NativeCaptureContext::AgentBoard(
+            CaptureOwner::WorkspaceClose => {
+                let view = self.workspace_close_confirmation()?;
+                Some(CaptureContext::WorkspaceClose(ConfirmationCaptureContext {
+                    token: view.token(),
+                    phase: view.presentation(),
+                    readiness: if view.interactive() {
+                        CaptureReadiness::Interactive
+                    } else {
+                        CaptureReadiness::Recovery
+                    },
+                }))
+            }
+            CaptureOwner::AgentBoard => Some(CaptureContext::AgentBoard(
                 self.agent_board()?.input_context(),
             )),
         }
     }
 }
 
-impl NativeUi {
-    pub(in crate::workbench_client) fn capture_claims(&self) -> NativeCaptureClaims {
+impl WorkbenchClientUi {
+    pub(in crate::workbench_client) fn capture_claims(&self) -> CaptureClaims {
         self.view().capture_claims()
     }
 
     pub(in crate::workbench_client) fn capture_context(
         &self,
-        owner: NativeCaptureOwner,
-    ) -> Option<NativeCaptureContext> {
+        owner: CaptureOwner,
+    ) -> Option<CaptureContext> {
         self.view().capture_context(owner)
     }
 }

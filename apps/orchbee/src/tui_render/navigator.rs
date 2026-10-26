@@ -1,7 +1,7 @@
 //! Capturing navigator paint; stable rows and their proofs publish in one frame.
 use super::{
     Clear, ClientView, Constraint, Frame, HitLayer, HitMapBuilder, HitTarget, Layout, Line, Locale,
-    NativeRefreshStatus, Paragraph, Rect, Role, ShellText, Theme, WorkbenchClientView, contexts,
+    Paragraph, Rect, RefreshStatus, Role, ShellText, Theme, WorkbenchClientView, contexts,
     native_tab, overlay_block, place_overlay, tabs,
 };
 use crate::{
@@ -277,9 +277,9 @@ pub(super) fn render(
     );
     if let Some(refresh) = native.refresh_status() {
         let role = match refresh {
-            NativeRefreshStatus::Refreshing => Role::StatusWorking,
-            NativeRefreshStatus::Success(_) => Role::StatusSuccess,
-            NativeRefreshStatus::Failure(_) => Role::StatusError,
+            RefreshStatus::Refreshing => Role::StatusWorking,
+            RefreshStatus::Success(_) => Role::StatusSuccess,
+            RefreshStatus::Failure(_) => Role::StatusError,
         };
         frame.render_widget(
             Paragraph::new(Line::from(vec![

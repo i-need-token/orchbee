@@ -1,4 +1,4 @@
-//! Whole-spec validation precedes Site discovery or any view mutation.
+//! Whole-spec validation precedes Session discovery or any view mutation.
 use super::{
     ExpectedValue, FailureEnvelope, NO_OPTIONS, Options, OutputFormat, ParseFailure, Request,
     Scope, UsageContext, UsageReason, check_scope, missing_required, usage_with,

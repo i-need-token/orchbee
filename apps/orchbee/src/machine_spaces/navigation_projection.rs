@@ -1,7 +1,7 @@
 //! Active-Client topology bridges slow metadata reads without promoting a pending move to authority.
 use super::{Checkpoint, ProjectSummary, Row};
 use crate::workbench_client::{
-    NativeContextLocation, NativeContextTarget, SidebarNavigationProjection,
+    ClientContextLocation, ClientContextTarget, SidebarNavigationProjection,
 };
 use orchbee_workbench_protocol::{MetadataTokens, WorkbenchRevision, configure_navigation};
 use std::collections::HashMap;
@@ -14,7 +14,7 @@ impl Checkpoint {
         observed: Option<&Self>,
     ) -> Option<Self> {
         let snapshot = &source.snapshot;
-        let observed = observed.filter(|known| known.site_id == snapshot.site_id);
+        let observed = observed.filter(|known| known.session_id == snapshot.session_id);
         if let Some(known) = observed
             && (known.revision > snapshot.revision
                 || (known.revision == snapshot.revision && source.pending.is_none()))
@@ -35,15 +35,15 @@ impl Checkpoint {
             .into_iter()
             .flat_map(|checkpoint| checkpoint.rows.iter())
             .filter_map(|row| match &row.target.location {
-                NativeContextLocation::Workspace { workspace_id, .. } => Some((workspace_id, row)),
-                NativeContextLocation::NoWorkspace => None,
+                ClientContextLocation::Workspace { workspace_id, .. } => Some((workspace_id, row)),
+                ClientContextLocation::NoWorkspace => None,
             })
             .collect();
         let mut rows = Vec::new();
         for (_, workspace) in navigation.ordered_workspaces().ok()? {
-            let target = NativeContextTarget {
-                site_id: snapshot.site_id.clone(),
-                location: NativeContextLocation::Workspace {
+            let target = ClientContextTarget {
+                session_id: snapshot.session_id.clone(),
+                location: ClientContextLocation::Workspace {
                     workspace_id: workspace.workspace_id.clone(),
                     terminal_context_id: workspace.terminal_context_id.clone(),
                 },
@@ -74,7 +74,7 @@ impl Checkpoint {
             });
         }
         Some(Self {
-            site_id: snapshot.site_id.clone(),
+            session_id: snapshot.session_id.clone(),
             revision: snapshot.revision,
             metadata_revision: observed.map_or(WorkbenchRevision::new(0), |checkpoint| {
                 checkpoint.metadata_revision

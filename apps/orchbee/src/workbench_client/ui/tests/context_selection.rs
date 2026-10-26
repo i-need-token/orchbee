@@ -34,7 +34,7 @@ pub(in crate::workbench_client::ui) fn snapshot(empty: bool) -> Snapshot {
 pub(in crate::workbench_client::ui) fn ready(
     empty: bool,
 ) -> (
-    NativeUi,
+    WorkbenchClientUi,
     Arc<CommandMailbox>,
     LocalOperationClock,
     Arc<AtomicU64>,
@@ -45,7 +45,7 @@ pub(in crate::workbench_client::ui) fn ready(
         10,
         Geometry::new(80, 24, 8, 16).unwrap(),
     ));
-    let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    let mut ui = WorkbenchClientUi::new(Arc::clone(&mailbox), clock.clone());
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {
@@ -72,7 +72,7 @@ pub(in crate::workbench_client::ui) fn ready(
 }
 
 fn place_selection(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
     next: bool,
@@ -114,7 +114,7 @@ fn publish_accepted_selection(
 }
 
 pub(in crate::workbench_client::ui) fn settle_nonempty_context_selection(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
     next: bool,
@@ -125,7 +125,7 @@ pub(in crate::workbench_client::ui) fn settle_nonempty_context_selection(
 }
 
 fn settle_accepted_selection(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
     lease: CommandLease,
@@ -161,16 +161,16 @@ fn settle_accepted_selection(
 
 #[test]
 fn direct_context_admission_guards_exact_identity_and_busy_current_before_round_trip() {
-    use crate::workbench_client::{ContextNavigationAdmission as Admission, NativeContextTarget};
+    use crate::workbench_client::{ClientContextTarget, ContextNavigationAdmission as Admission};
     let (mut ui, mailbox, clock, _) = ready(false);
-    let target = |ui: &NativeUi, index| NativeContextTarget {
-        site_id: ui.view().navigation_site().unwrap().clone(),
+    let target = |ui: &WorkbenchClientUi, index| ClientContextTarget {
+        session_id: ui.view().navigation_session().unwrap().clone(),
         location: ui.view().context_at(index).unwrap().location().clone(),
     };
     let original = target(&ui, 0);
     let workspace = target(&ui, 1);
     let mut foreign = workspace.clone();
-    foreign.site_id = SiteId::parse(&format!("{:032x}", 999)).unwrap();
+    foreign.session_id = SessionId::parse(&format!("{:032x}", 999)).unwrap();
     assert_eq!(ui.navigate_context(&foreign), Admission::Unavailable);
     assert_eq!(ui.navigate_context(&original), Admission::Current);
     assert!(mailbox.try_recv().unwrap().is_none());
@@ -191,7 +191,7 @@ fn direct_context_admission_guards_exact_identity_and_busy_current_before_round_
     }
 }
 
-pub(in crate::workbench_client::ui) fn make_desired_ready(ui: &mut NativeUi, frame: u64) {
+pub(in crate::workbench_client::ui) fn make_desired_ready(ui: &mut WorkbenchClientUi, frame: u64) {
     let state = ui.state.as_mut().unwrap();
     let key = state.desired().unwrap().clone();
     let frame = FrameIdentity::new(frame);
@@ -219,7 +219,7 @@ fn context_ui_requires_exact_cleanup_and_installs_empty_without_burning_a_tab_ge
         };
         assert_eq!(cleanup.old(), &old);
         assert_eq!(ui.view().active_context_position(), Some(1));
-        assert_eq!(ui.view().phase(), NativeDisplayPhase::Switching);
+        assert_eq!(ui.view().phase(), DisplayPhase::Switching);
         assert_eq!(mailbox.cursors().0, cursors.0);
         let detached = if wrong_key {
             AttachmentKey::new(old.anchor().generation() + 1, old.tab_id().clone())
@@ -254,7 +254,7 @@ fn context_ui_requires_exact_cleanup_and_installs_empty_without_burning_a_tab_ge
             panic!("atomic installation");
         };
         if empty {
-            assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
+            assert_eq!(ui.view().phase(), DisplayPhase::Empty);
             assert_eq!(settlement.desired(), None);
         } else {
             let RefreshDecision::AttachRecovered(target) = settlement.decision() else {
@@ -297,7 +297,7 @@ fn workspace_round_trip_keeps_exact_pixels_through_waiting_for_full_frame() {
 
     settle_nonempty_context_selection(&mut ui, mailbox.as_ref(), &clock, false, candidate);
     assert_eq!(ui.view().active_context_position(), Some(1));
-    assert_eq!(ui.view().phase(), NativeDisplayPhase::Switching);
+    assert_eq!(ui.view().phase(), DisplayPhase::Switching);
     assert_eq!(
         ui.view().retained_pane_frame(&panel, 80, 24).unwrap().rows[0].cells[0]
             .text
@@ -306,7 +306,7 @@ fn workspace_round_trip_keeps_exact_pixels_through_waiting_for_full_frame() {
     );
 
     super::super::tests::viewport::install_projection(&mut ui, None, 0);
-    ui.projections[0].status = NativeProjectionStatus::WaitingForFullFrame;
+    ui.projections[0].status = ClientProjectionStatus::WaitingForFullFrame;
     ui.after_draw();
     assert!(
         ui.view().retained_pane_frame(&panel, 80, 24).is_some(),
@@ -315,7 +315,7 @@ fn workspace_round_trip_keeps_exact_pixels_through_waiting_for_full_frame() {
 
     let frame = super::super::tests::viewport::frame(&ui.projections[0].value, 0, false, 24);
     ui.projections[0].value.install_frame_for_test(frame);
-    ui.projections[0].status = NativeProjectionStatus::FrameAvailable;
+    ui.projections[0].status = ClientProjectionStatus::FrameAvailable;
     assert!(
         ui.view().retained_pane_frame(&panel, 80, 24).is_none(),
         "a complete live frame takes over immediately"

@@ -15,7 +15,7 @@ use super::{
     *,
 };
 use orchbee_workbench_protocol::{
-    LaunchSelection, ProtocolVersion, SiteId, WorkbenchAction, WorkbenchCommand,
+    LaunchSelection, ProtocolVersion, SessionId, WorkbenchAction, WorkbenchCommand,
     WorkbenchCommandOutcome, WorkbenchLabel, WorkbenchRejectionReason, WorkbenchRequest,
     WorkbenchRequestId, WorkbenchResponse, WorkbenchRevision, WorkbenchTerminalContextId,
     WorkbenchTerminalGeometry, read_workbench_response, write_workbench_request,
@@ -59,9 +59,9 @@ fn replay_command(
     command: &WorkbenchCommand,
 ) -> Result<WorkbenchCommandOutcome, Box<dyn Error>> {
     let deadline = Instant::now() + SPAWN_DEADLINE;
-    let cohort = NativeCohort::load(&fixture.cohort, deadline)?;
+    let cohort = Cohort::load(&fixture.cohort, deadline)?;
     let admitted = ClientConnection::connect_before(
-        fixture.site().client_socket_path(),
+        fixture.session().client_socket_path(),
         cohort.identity(),
         deadline,
     )?;
@@ -195,7 +195,7 @@ fn cli_tab_create_launch_selection_runs_verbatim_and_replays_by_identity() -> Te
         .as_str()
         .expect("receipt requestId")
         .to_owned();
-    let site_id = receipt["source"]["sessionId"].as_str().expect("sessionId");
+    let session_id = receipt["source"]["sessionId"].as_str().expect("sessionId");
     let expected_revision = receipt["source"]["expectedRevision"]
         .as_str()
         .expect("expectedRevision");
@@ -215,7 +215,7 @@ fn cli_tab_create_launch_selection_runs_verbatim_and_replays_by_identity() -> Te
     let command = WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&request_id)?,
-        site_id: SiteId::parse(site_id)?,
+        session_id: SessionId::parse(session_id)?,
         expected_revision: WorkbenchRevision::parse(expected_revision)?,
         action: WorkbenchAction::TabCreate {
             automatic_label: false,

@@ -10,7 +10,7 @@ use crate::{
 mod windows;
 #[cfg(any(windows, test))]
 use orchbee_workbench_protocol::{
-    PanelMetadataFailure, PanelMetadataOutcome, PanelMetadataResult, SiteId, WorkbenchPanelId,
+    PanelMetadataFailure, PanelMetadataOutcome, PanelMetadataResult, SessionId, WorkbenchPanelId,
     WorkbenchRequestId, WorkbenchResponse,
 };
 #[cfg(any(windows, test))]
@@ -23,7 +23,7 @@ enum Observation {
 #[derive(Debug)]
 struct Answer {
     request_id: WorkbenchRequestId,
-    site_id: SiteId,
+    session_id: SessionId,
     panel_id: WorkbenchPanelId,
     presentation_id: Option<orchbee_workbench_protocol::TerminalPresentationId>,
     observation: Observation,
@@ -40,7 +40,7 @@ impl Answer {
             Observation::Unknown(reason) => serde_json::json!({"kind":"unknown", "reason":reason}),
         };
         let value = serde_json::json!({"schema":"orchbee.panel.metadata", "version":1,
-            "requestId":self.request_id,"sessionId":self.site_id,"panelId":self.panel_id,"presentationId":self.presentation_id,
+            "requestId":self.request_id,"sessionId":self.session_id,"panelId":self.panel_id,"presentationId":self.presentation_id,
             "observation":observation,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed});
         value
     }
@@ -63,7 +63,7 @@ impl Answer {
                     | PanelMetadataFailure::NotFound
                     | PanelMetadataFailure::Unbound
                     | PanelMetadataFailure::BindingChanged
-                    | PanelMetadataFailure::SiteMismatch
+                    | PanelMetadataFailure::SessionMismatch
                     | PanelMetadataFailure::TokenLimit
                     | PanelMetadataFailure::SourceLimit
                     | PanelMetadataFailure::ResourceLimit => 3,

@@ -100,8 +100,8 @@ impl ClientViewportObservation {
             let maximum = source
                 .total_rows
                 .saturating_sub(u64::from(scroll.viewport_rows));
-            if crate::SiteId::parse(&source.host_epoch).is_err()
-                || crate::SiteId::parse(&source.attachment_id).is_err()
+            if crate::SessionId::parse(&source.host_epoch).is_err()
+                || crate::SessionId::parse(&source.attachment_id).is_err()
                 || source.generation == 0
                 || !(1..=4096).contains(&source.columns)
                 || !(1..=4096).contains(&scroll.viewport_rows)

@@ -49,7 +49,7 @@ fn execute(session: &WorkbenchClientConnection<'_>, action: Action) -> Outcome {
     let request = SemanticEventsRequest {
         protocol_version: ProtocolVersion,
         request_id: id(91),
-        site_id: snapshot(session.service).site_id,
+        session_id: snapshot(session.service).session_id,
         action,
     };
     let WorkbenchExecution::Response(WorkbenchResponse::Events(result)) =
@@ -252,7 +252,7 @@ fn command(
         service.execute(WorkbenchRequest::Command(WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id: id(n),
-            site_id: before.site_id,
+            session_id: before.session_id,
             expected_revision: before.revision,
             action,
         }))
@@ -336,11 +336,11 @@ fn semantic_events_real_workspace_commits_arrive_without_a_snapshot_poll() {
 fn semantic_events_denied_invalid_regex_and_foreign_cursor_leave_owner_vacant() {
     let denied = service(false, false);
     let denied_session = denied.client_connection(NonZeroU64::new(1).unwrap());
-    // Policy refusal precedes Site or source inspection.
+    // Policy refusal precedes Session or source inspection.
     let request = SemanticEventsRequest {
         protocol_version: ProtocolVersion,
         request_id: id(91),
-        site_id: orchbee_workbench_protocol::SiteId::parse(&format!("{:032x}", 9)).unwrap(),
+        session_id: orchbee_workbench_protocol::SessionId::parse(&format!("{:032x}", 9)).unwrap(),
         action: Action::Subscribe {
             subscription_id: id(100),
             filters: vec![filter(SemanticEventKind::TabRenamed)],

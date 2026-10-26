@@ -1,6 +1,6 @@
 use super::{RunningServer, TestResult, connect_bounded_client};
 use orchbee_workbench_protocol::{
-    ProtocolVersion, SiteId, Snapshot, SnapshotReadIntent, WorkbenchAction, WorkbenchCommand,
+    ProtocolVersion, SessionId, Snapshot, SnapshotReadIntent, WorkbenchAction, WorkbenchCommand,
     WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchLabel, WorkbenchRejectionReason,
     WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse, WorkbenchRevision,
     WorkbenchSnapshotOutcome, read_workbench_response, serialize_workbench_response,
@@ -27,11 +27,16 @@ fn read(stream: &mut UnixStream) -> TestResult<Snapshot> {
         response => Err(io::Error::other(format!("wrong response: {response:?}")).into()),
     }
 }
-fn command(id: u128, site: &SiteId, revision: u64, action: WorkbenchAction) -> WorkbenchRequest {
+fn command(
+    id: u128,
+    session: &SessionId,
+    revision: u64,
+    action: WorkbenchAction,
+) -> WorkbenchRequest {
     WorkbenchRequest::Command(WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{id:032x}")).unwrap(),
-        site_id: site.clone(),
+        session_id: session.clone(),
         expected_revision: WorkbenchRevision::new(revision),
         action,
     })
@@ -51,7 +56,7 @@ fn an_unread_committed_response_is_reconciled_after_the_original_client_disconne
     let initial = read(&mut original)?;
     let request = command(
         1,
-        &initial.site_id,
+        &initial.session_id,
         0,
         create("Committed before response loss"),
     );
@@ -100,7 +105,7 @@ fn two_clients_modify_the_same_navigation_without_a_worker_and_reconcile_after_d
     let (mut second, _) = connect_bounded_client(server.client_endpoint())?;
     let initial = read(&mut first)?;
     assert_eq!(read(&mut second)?, initial);
-    let request = command(1, &initial.site_id, 0, create("Shared"));
+    let request = command(1, &initial.session_id, 0, create("Shared"));
     let created = exchange(&mut first, &request)?;
     let WorkbenchCommandOutcome::ProjectCreated { project_id, .. } = &created.outcome else {
         panic!("expected project")
@@ -109,7 +114,7 @@ fn two_clients_modify_the_same_navigation_without_a_worker_and_reconcile_after_d
     assert_eq!(after.navigation.projects[0].project_id, *project_id);
     let workspace = command(
         2,
-        &initial.site_id,
+        &initial.session_id,
         1,
         WorkbenchAction::WorkspaceCreate {
             project_id: Some(project_id.clone()),
@@ -136,10 +141,10 @@ fn competing_sessions_commit_one_revision_and_same_identity_races_settle_once() 
         let (mut first, _) = connect_bounded_client(server.client_endpoint())?;
         let (mut second, _) = connect_bounded_client(server.client_endpoint())?;
         let initial = read(&mut first)?;
-        let first_request = command(1, &initial.site_id, 0, create("A"));
+        let first_request = command(1, &initial.session_id, 0, create("A"));
         let second_request = command(
             if race == 0 { 2 } else { 1 },
-            &initial.site_id,
+            &initial.session_id,
             0,
             create(if race == 1 { "A" } else { "B" }),
         );
@@ -195,7 +200,7 @@ fn snapshots_larger_than_the_terminal_carrier_limit_cross_the_admitted_stream() 
                 &mut writer,
                 &command(
                     u128::from(index) + 1,
-                    &initial.site_id,
+                    &initial.session_id,
                     index,
                     create(&label)
                 )
@@ -242,7 +247,7 @@ fn terminal_and_workbench_records_alternate_on_one_admitted_connection() -> Test
     assert_eq!(result.request_id(), &request_id);
     let created = exchange(
         &mut client,
-        &command(1, &initial.site_id, 0, create("Mixed carriers")),
+        &command(1, &initial.session_id, 0, create("Mixed carriers")),
     )?;
     assert!(matches!(
         created.outcome,

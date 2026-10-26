@@ -5,8 +5,8 @@ use crate::{
 };
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
 use orchbee_workbench_protocol::{
-    NativeSettingsOperation, NativeSettingsOutcome, NativeSettingsRequest, NativeSettingsResult,
-    ProtocolVersion, SiteId, UserPreferencesSnapshot, WorkbenchRequestId,
+    ProtocolVersion, SessionId, SettingsOperation, SettingsOutcome, SettingsRequest,
+    SettingsResult, UserPreferencesSnapshot, WorkbenchRequestId,
 };
 use std::{
     sync::{Arc, Condvar, Mutex},
@@ -15,11 +15,11 @@ use std::{
 };
 pub(super) struct Job {
     pub(super) token: Token,
-    pub(super) request: NativeSettingsRequest,
+    pub(super) request: SettingsRequest,
 }
 pub(super) struct Reply {
     pub(super) token: Token,
-    pub(super) result: Result<NativeSettingsResult, bool>,
+    pub(super) result: Result<SettingsResult, bool>,
 }
 #[derive(Default)]
 struct Handoff {
@@ -39,14 +39,14 @@ impl Lane {
     pub(super) fn spawn(
         origin: LocalClientOrigin,
         clock: LocalOperationClock,
-        site: SiteId,
+        session: SessionId,
     ) -> std::io::Result<Self> {
         let shared = Arc::new((Mutex::new(Handoff::default()), Condvar::new()));
         let (reader, wake) = LocalStream::pair()?;
         let state = Arc::clone(&shared);
         let task = thread::Builder::new()
             .name("orchbee-client-settings".into())
-            .spawn(move || run(state, origin, clock, site, reader))?;
+            .spawn(move || run(state, origin, clock, session, reader))?;
         Ok(Self {
             shared,
             wake,
@@ -95,7 +95,7 @@ fn run(
     shared: Shared,
     origin: LocalClientOrigin,
     clock: LocalOperationClock,
-    site: SiteId,
+    session: SessionId,
     wake: LocalStream,
 ) {
     let mut client = None;
@@ -139,12 +139,12 @@ fn run(
                 serial = next;
                 (
                     None,
-                    NativeSettingsRequest {
+                    SettingsRequest {
                         protocol_version: ProtocolVersion,
                         request_id: WorkbenchRequestId::parse(&format!("ffff{serial:028x}"))
                             .expect("bounded read serial"),
-                        site_id: site.clone(),
-                        operation: NativeSettingsOperation::Open {},
+                        session_id: session.clone(),
+                        operation: SettingsOperation::Open {},
                     },
                 )
             }
@@ -173,12 +173,10 @@ fn run(
         }
         if let Ok(result) = &result {
             match &result.outcome {
-                NativeSettingsOutcome::Opened { snapshot }
-                | NativeSettingsOutcome::Saved { snapshot, .. } => {
+                SettingsOutcome::Opened { snapshot } | SettingsOutcome::Saved { snapshot, .. } => {
                     state.observation = Some(snapshot.clone())
                 }
-                NativeSettingsOutcome::OutcomeUnknown { .. }
-                | NativeSettingsOutcome::Refused { .. } => {}
+                SettingsOutcome::OutcomeUnknown { .. } | SettingsOutcome::Refused { .. } => {}
             }
         }
         if let Some(token) = token {

@@ -3,7 +3,7 @@ use orchbee_capability_node_protocol::{PluginCommandIntent, PluginJobAction};
 use std::path::Path;
 
 #[test]
-fn plugin_route_uses_owned_site_and_rejects_invalid_paths_before_execution() {
+fn plugin_route_uses_owned_session_and_rejects_invalid_paths_before_execution() {
     let intent = PluginCommandIntent {
         plugin_id: "tools".into(),
         command_id: "hello".into(),

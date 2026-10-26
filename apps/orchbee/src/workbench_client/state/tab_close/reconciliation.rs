@@ -1,7 +1,7 @@
 use super::{
-    AttachmentKey, CloseCarrier, CloseFlightKey, CloseOperation, CloseOperationKind, CloseResult,
-    CloseSelection, CloseState, CloseStateError, NativeTerminalBinding, WorkbenchRequestId,
-    WorkbenchTabCloseAttemptGeneration,
+    AttachmentKey, ClientTerminalBinding, CloseCarrier, CloseFlightKey, CloseOperation,
+    CloseOperationKind, CloseResult, CloseSelection, CloseState, CloseStateError,
+    WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration,
 };
 use crate::workbench_client::{
     state::WorkbenchClientState, workbench_projection::ClosedTabExpectation,
@@ -176,7 +176,7 @@ impl CloseState {
                     operation: close_request_id.clone(),
                     attempt_generation: *attempt_generation,
                     expectation: ClosedTabExpectation::new(
-                        target.site_id().clone(),
+                        target.session_id().clone(),
                         target.terminal_context_id().clone(),
                         target.tab_id().clone(),
                         *revision,
@@ -478,7 +478,7 @@ impl WorkbenchClientState {
         &self,
         origin: &CloseReconciliationOrigin,
         attachment: &AttachmentKey,
-        binding: Option<&NativeTerminalBinding>,
+        binding: Option<&ClientTerminalBinding>,
     ) -> Option<DefinitiveClosedAttachment> {
         let retained = self.close_reconciliation_origin(origin.key())?;
         if retained != origin
@@ -498,7 +498,7 @@ impl WorkbenchClientState {
     pub(in crate::workbench_client) fn definitive_closed_attachment_for(
         &self,
         attachment: &AttachmentKey,
-        binding: Option<&NativeTerminalBinding>,
+        binding: Option<&ClientTerminalBinding>,
     ) -> Option<DefinitiveClosedAttachment> {
         self.close
             .records

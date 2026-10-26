@@ -4,7 +4,7 @@ use super::{
     unexpected_argument, usage_with,
 };
 use crate::machines::{Draft, ProfileId, valid_label, valid_target};
-use orchbee_local_site_runtime::WindowsSiteName;
+use orchbee_local_runtime::SessionName;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum MachineCommand {
@@ -109,8 +109,8 @@ pub(super) fn parse(
                 return Err(invalid("<ssh-target>", arg, ExpectedValue::SshTarget));
             }
             let session = options.remote_session.as_deref().unwrap_or("default");
-            WindowsSiteName::parse(session)
-                .map_err(|_| invalid("--remote-session", session, ExpectedValue::SiteName))?;
+            SessionName::parse(session)
+                .map_err(|_| invalid("--remote-session", session, ExpectedValue::SessionName))?;
             let draft = Draft::parse(label, arg, session)
                 .ok_or_else(|| invalid("<ssh-target>", arg, ExpectedValue::SshTarget))?;
             MachineCommand::Add(draft)

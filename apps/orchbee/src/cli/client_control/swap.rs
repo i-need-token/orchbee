@@ -22,7 +22,7 @@ use crate::{
 use orchbee_workbench_protocol::{
     ClientPanelDirection, ClientViewAction, ClientViewAvailability, ClientViewControl,
     ClientViewControlStatus, ClientViewIntent, ClientViewOutcome, ClientViewPhase,
-    ClientViewRecord, ClientViewSelection, ProtocolVersion, SiteId, Snapshot, WorkbenchAction,
+    ClientViewRecord, ClientViewSelection, ProtocolVersion, SessionId, Snapshot, WorkbenchAction,
     WorkbenchClientId, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchPanelId,
     WorkbenchRequestId, WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId,
 };
@@ -141,7 +141,7 @@ fn execute(
     check_wait(signals, deadline)?;
     let reply = windows::exchange(
         &mut client,
-        &snapshot.site_id,
+        &snapshot.session_id,
         ClientViewAction::List {},
         deadline,
         signals,
@@ -166,7 +166,7 @@ fn execute(
     }
     let source = panel(&command.source, selected, caller.as_ref(), &snapshot)?;
     *output = Some(Receipt {
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         client_id: Some(selected.client_id.clone()),
         base_revision: snapshot.revision,
         source,
@@ -244,7 +244,7 @@ fn execute(
     };
     receipt.focus = Some(windows::submit_control(
         &mut client,
-        &receipt.site_id,
+        &receipt.session_id,
         control,
         deadline,
         signals,
@@ -287,7 +287,7 @@ fn execute_shared(
     let source = resolve(source)?;
     let target = resolve(target)?;
     *output = Some(Receipt {
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         client_id: None,
         base_revision: snapshot.revision,
         source,
@@ -344,7 +344,7 @@ fn resolve_neighbor(
             panel_id: receipt.source.panel_id.clone(),
         },
     };
-    let answer = windows::submit_control(client, &receipt.site_id, control, deadline, signals)?;
+    let answer = windows::submit_control(client, &receipt.session_id, control, deadline, signals)?;
     let layout = answer.reply.as_ref().and_then(|reply| {
         let ClientViewOutcome::Operation { operation } = &reply.outcome else {
             return None;
@@ -400,7 +400,7 @@ fn exchange(
     let command = WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id,
-        site_id: receipt.site_id.clone(),
+        session_id: receipt.session_id.clone(),
         expected_revision: receipt.base_revision,
         action: WorkbenchAction::PanelSwap {
             terminal_context_id: receipt.source.terminal_context_id.clone(),
@@ -475,7 +475,7 @@ fn observe_client(
         check_wait(signals, deadline)?;
         let reply = windows::exchange(
             client,
-            &receipt.site_id,
+            &receipt.session_id,
             ClientViewAction::Get {
                 client_id: receipt
                     .client_id

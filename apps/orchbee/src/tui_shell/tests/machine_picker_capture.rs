@@ -10,7 +10,7 @@ use crate::{
     machine_picker::{Choice, Control, Mode, PickerAction},
     terminal_input::InputDispatcher,
     tui_theme::Theme,
-    workbench_client::NativeMemberTarget,
+    workbench_client::ClientMemberTarget,
 };
 
 #[derive(Default)]
@@ -160,7 +160,7 @@ fn machine_picker_root_frame_captures_real_agents_and_activates_search_on_exact_
     assert!(shell.machines.observe_focus(
         Choice::Local,
         Some(focus.context.clone()),
-        Some(NativeMemberTarget {
+        Some(ClientMemberTarget {
             tab: focus.tab.clone(),
             panel: focus.panel.clone(),
             presentation: focus.member.clone(),
@@ -303,7 +303,7 @@ fn too_small_machine_frames_preserve_the_root_notice_and_only_keyboard_escape_cl
             assert!(shell.machines.observe_focus(
                 Choice::Local,
                 Some(focus.context.clone()),
-                Some(NativeMemberTarget {
+                Some(ClientMemberTarget {
                     tab: focus.tab.clone(),
                     panel: focus.panel.clone(),
                     presentation: focus.member.clone(),

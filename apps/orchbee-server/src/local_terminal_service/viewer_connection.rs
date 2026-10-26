@@ -1,5 +1,5 @@
 use super::{LocalTerminalService, placement, projection::ViewerProjection};
-use crate::site_coordinator::{
+use crate::session_coordinator::{
     BindingViewerPreparationError, PreparedBindingViewer, TargetLifecycle,
 };
 use crate::terminal_coordinator::{BindingViewerTarget, ViewerOperationIdentities};
@@ -11,7 +11,7 @@ use orchbee_capability_node_protocol::{
     TerminalViewerRequest as WorkerRequest, ViewerRejection,
 };
 use orchbee_client_server_protocol::{
-    ClientMessage, HostEpoch, RequestId, ServerMessage, SiteId as ClientSiteId,
+    ClientMessage, HostEpoch, RequestId, ServerMessage, SessionId as ObcsSessionId,
     TerminalId as ClientTerminalId, TerminalViewerAction as Action,
     TerminalViewerOutcome as Outcome, TerminalViewerRequest, TerminalViewerResult, ViewerId,
     ViewerRejectedReason as Rejected, ViewerUnavailableReason as Unavailable,
@@ -304,7 +304,7 @@ impl LocalTerminalService {
 
     fn issue_binding_viewer(
         &self,
-        site_id: &ClientSiteId,
+        session_id: &ObcsSessionId,
         worker_id: &ClientWorkerId,
         terminal_id: &ClientTerminalId,
     ) -> Result<IssuedViewer<'_>, Outcome> {
@@ -319,7 +319,12 @@ impl LocalTerminalService {
         // Resolve samples the carrier only after both admission locks are held.
         let handle = workers.request_handle();
         let prepared = coordinator
-            .prepare_binding_viewer(site_id, worker_id, terminal_id, placement(handle.as_ref()))
+            .prepare_binding_viewer(
+                session_id,
+                worker_id,
+                terminal_id,
+                placement(handle.as_ref()),
+            )
             .map_err(binding_preparation_outcome)?;
         let handle = handle.ok_or_else(|| unavailable(Unavailable::TerminalRuntimeUnavailable))?;
         drop(coordinator);

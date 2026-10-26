@@ -1,13 +1,13 @@
-use super::{NativeExecutor, Result};
+use super::{ClientExecutor, Result};
 use crate::{
     local_client::workbench::workspace_launch::{
         WorkspaceLaunchRequest, WorkspaceLaunchSubmission,
     },
     workbench_client::{
-        NativeMemberTarget, NativeStartupTarget,
+        ClientMemberTarget, ClientStartupTarget,
         startup_directory::{Progress, validate_workspace},
         state::CarrierFailure,
-        workbench_projection::{NativeContextTabs, project_preferred_workspace},
+        workbench_projection::{ClientContextTabs, project_preferred_workspace},
     },
 };
 use orchbee_client_server_protocol::Geometry;
@@ -18,14 +18,14 @@ use orchbee_workbench_protocol::{
 };
 use std::{sync::Arc, time::Instant};
 
-impl NativeExecutor {
+impl ClientExecutor {
     pub(super) fn directory_startup(
         &mut self,
         snapshot: Snapshot,
         geometry: Geometry,
         deadline: Instant,
-    ) -> Result<(Snapshot, Option<(NativeContextTabs, NativeMemberTarget)>)> {
-        let Some(NativeStartupTarget::LocalDirectory { directory, .. }) = &self.initial_context
+    ) -> Result<(Snapshot, Option<(ClientContextTabs, ClientMemberTarget)>)> {
+        let Some(ClientStartupTarget::LocalDirectory { directory, .. }) = &self.initial_context
         else {
             return Ok((snapshot, None));
         };
@@ -50,7 +50,7 @@ impl NativeExecutor {
         .map_err(|_| CarrierFailure::Protocol)?;
         let command = WorkbenchCommand {
             protocol_version: ProtocolVersion,
-            site_id: snapshot.site_id.clone(),
+            session_id: snapshot.session_id.clone(),
             request_id: workspace_request.clone(),
             expected_revision: snapshot.revision,
             action: WorkbenchAction::WorkspaceLaunch {
@@ -89,7 +89,7 @@ impl NativeExecutor {
             _ => return Err(CarrierFailure::Transport),
         }
         let fresh = self.directory_snapshot(deadline)?;
-        let created = validate_workspace(&fresh, &snapshot.site_id, &commit, &parameters)?;
+        let created = validate_workspace(&fresh, &snapshot.session_id, &commit, &parameters)?;
         Ok((fresh, Some(created)))
     }
 

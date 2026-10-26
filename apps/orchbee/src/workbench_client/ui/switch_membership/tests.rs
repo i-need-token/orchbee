@@ -11,7 +11,7 @@ use crate::workbench_client::{
 use std::sync::atomic::AtomicU64;
 
 fn ready() -> (
-    NativeUi,
+    WorkbenchClientUi,
     Arc<CommandMailbox>,
     LocalOperationClock,
     Arc<AtomicU64>,
@@ -22,7 +22,7 @@ fn ready() -> (
         100,
         Geometry::new(80, 24, 8, 16).unwrap(),
     ));
-    let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    let mut ui = WorkbenchClientUi::new(Arc::clone(&mailbox), clock.clone());
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {
@@ -49,7 +49,7 @@ fn ready() -> (
 }
 
 fn stage(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &Arc<CommandMailbox>,
     clock: &LocalOperationClock,
 ) -> (CommandLease, MembershipCleanup) {

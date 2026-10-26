@@ -181,7 +181,7 @@ fn start_request(plan: &Plan) -> orchbee_workbench_protocol::WorkbenchWorktreeRe
     orchbee_workbench_protocol::WorkbenchWorktreeRequest {
         protocol_version: orchbee_workbench_protocol::ProtocolVersion,
         request_id: request(901),
-        site_id: plan.origin.cache.site_id().clone(),
+        session_id: plan.origin.cache.session_id().clone(),
         action: orchbee_workbench_protocol::WorkbenchWorktreeAction::Start {
             operation_id: plan.operation_id.clone(),
             project_id: plan.project.clone(),

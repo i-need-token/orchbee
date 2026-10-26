@@ -4,7 +4,7 @@ fn close_read() -> WorkbenchTabCloseRead {
     WorkbenchTabCloseRead {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse("11111111111111111111111111111111").unwrap(),
-        site_id: SiteId::parse("22222222222222222222222222222222").unwrap(),
+        session_id: SessionId::parse("22222222222222222222222222222222").unwrap(),
         terminal_context_id: WorkbenchTerminalContextId::parse("33333333333333333333333333333333")
             .unwrap(),
         tab_id: WorkbenchTabId::parse("44444444444444444444444444444444").unwrap(),
@@ -52,7 +52,7 @@ fn typed_close_controls_keep_exact_obwp_kinds_targets_and_small_bounds() {
     let resume = WorkbenchTabCloseResume {
         protocol_version: ProtocolVersion,
         request_id: read.request_id.clone(),
-        site_id: read.site_id.clone(),
+        session_id: read.session_id.clone(),
         terminal_context_id: read.terminal_context_id.clone(),
         tab_id: read.tab_id.clone(),
         close_request_id: close_request_id.clone(),
@@ -121,7 +121,7 @@ fn typed_close_controls_keep_exact_obwp_kinds_targets_and_small_bounds() {
             WorkbenchResponse::TabCloseResume(WorkbenchTabCloseResumeResult {
                 protocol_version: ProtocolVersion,
                 request_id: read.request_id,
-                site_id: read.site_id,
+                session_id: read.session_id,
                 terminal_context_id: read.terminal_context_id,
                 tab_id: read.tab_id,
                 close_request_id,

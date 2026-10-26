@@ -604,7 +604,7 @@ fn two_by_two_witness(zero_pixels: bool) -> TestResult {
     );
 
     // Exit and re-entry: the running shells and the 2x2 layout are retained by
-    // the site, and a fresh Client reattaches all four leaves.
+    // the session, and a fresh Client reattaches all four leaves.
     client.close_before(Instant::now() + EXIT_TIMEOUT);
     let mut client = if zero_pixels {
         Client::spawn_zeropixel(&fixture, "en_US.UTF-8")

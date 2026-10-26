@@ -4,7 +4,7 @@ use crate::{
     localization::Locale,
     tui_pointer::HitMapBuilder,
     tui_theme::Theme,
-    workbench_client::{ModalPresentation, NativePanelCloseConfirmationToken},
+    workbench_client::{ModalPresentation, PanelCloseConfirmationToken},
 };
 use ratatui::{
     Terminal,
@@ -232,7 +232,7 @@ fn assert_atomic_refusal(content: Rect, text: Text<'_>, confirm: &str) {
             let hints = modal_hints(Locale::EnUs);
             result = Some(render_prepared(
                 frame,
-                NativePanelCloseConfirmationToken::for_test(41),
+                PanelCloseConfirmationToken::for_test(41),
                 content,
                 PreparedContent {
                     title: Locale::EnUs.panel_close_title(),

@@ -75,7 +75,7 @@ fn reply_view(stream: &mut LocalStream, request: WorkbenchClientViewRequest, out
         &WorkbenchResponse::ClientView(WorkbenchClientViewResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
-            site_id: request.site_id,
+            session_id: request.session_id,
             outcome: serde_json::from_value(outcome).unwrap(),
         }),
     )

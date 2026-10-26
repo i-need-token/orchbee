@@ -288,7 +288,7 @@ fn target_matches(actual: &PaneGraphicsTarget, requested: &PaneGraphicsTarget) -
             .is_none_or(|id| Some(id) == actual.presentation_id.as_ref())
 }
 pub(super) fn answers(reply: &PaneGraphicsResult, request: &PaneGraphicsRequest) -> bool {
-    if reply.site_id != request.site_id
+    if reply.session_id != request.session_id
         || reply.request_id != request.request_id
         || reply.validate().is_err()
         || request.validate().is_err()

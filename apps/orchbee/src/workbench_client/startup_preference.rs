@@ -1,6 +1,6 @@
 //! Client-owned last displayed position; canonical membership remains authoritative.
 use super::workbench_projection::{
-    NativeContextLocation, NativeContextTabs, NativeMemberTarget, NativeProjectionError,
+    ClientContextLocation, ClientContextTabs, ClientMemberTarget, ClientProjectionError,
     preferred_workspace_location, project_native_context_tabs,
 };
 use orchbee_workbench_protocol::Snapshot;
@@ -8,9 +8,9 @@ use orchbee_workbench_protocol::Snapshot;
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Position {
-    pub(super) location: NativeContextLocation,
+    pub(super) location: ClientContextLocation,
     #[serde(deserialize_with = "serde::Deserialize::deserialize")]
-    pub(super) member: Option<NativeMemberTarget>,
+    pub(super) member: Option<ClientMemberTarget>,
 }
 
 /// Startup advice and the resolver's result retained until the initial view settles.
@@ -23,14 +23,14 @@ pub(super) struct Startup {
 pub(super) fn resolve(
     snapshot: &Snapshot,
     position: &Position,
-) -> Result<(NativeContextTabs, Option<NativeMemberTarget>, bool), NativeProjectionError> {
+) -> Result<(ClientContextTabs, Option<ClientMemberTarget>, bool), ClientProjectionError> {
     let mut locations = Vec::new();
     for (_, workspace) in snapshot
         .navigation
         .ordered_workspaces()
-        .map_err(|_| NativeProjectionError)?
+        .map_err(|_| ClientProjectionError)?
     {
-        locations.push(NativeContextLocation::Workspace {
+        locations.push(ClientContextLocation::Workspace {
             workspace_id: workspace.workspace_id.clone(),
             terminal_context_id: workspace.terminal_context_id.clone(),
         });
@@ -53,7 +53,7 @@ pub(super) fn resolve(
     }
     let first = cache.tabs().first().and_then(|tab| {
         let panel = tab.panel(0)?;
-        Some(NativeMemberTarget {
+        Some(ClientMemberTarget {
             tab: tab.tab_id().clone(),
             panel: panel.panel_id().clone(),
             presentation: panel.presentation_id().clone(),
@@ -63,7 +63,7 @@ pub(super) fn resolve(
     Ok((cache, first, fallback))
 }
 
-fn member_exists(cache: &NativeContextTabs, member: &NativeMemberTarget) -> bool {
+fn member_exists(cache: &ClientContextTabs, member: &ClientMemberTarget) -> bool {
     cache
         .tabs()
         .iter()
@@ -126,7 +126,7 @@ impl Preferences {
             .map(std::path::PathBuf::from)
             .map(|root| {
                 root.join("Orchbee").join("tui-position").join(
-                    orchbee_local_site_runtime::ModeCheckedLocalSiteRendezvous::host_endpoint_id(
+                    orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::host_endpoint_id(
                         runtime,
                     ),
                 )
@@ -138,12 +138,8 @@ impl Preferences {
                 failed: true,
             };
         };
-        let result = orchbee_local_site_runtime::WindowsPrivateCache::read_existing(
-            &path,
-            FILE,
-            MAXIMUM_BYTES,
-        )
-        .and_then(|bytes| bytes.map(|bytes| decode(&bytes)).transpose());
+        let result = orchbee_local_runtime::PrivateCache::read_existing(&path, FILE, MAXIMUM_BYTES)
+            .and_then(|bytes| bytes.map(|bytes| decode(&bytes)).transpose());
         match result {
             Ok(position) => Self {
                 path,
@@ -243,7 +239,7 @@ fn write(path: &std::path::Path, position: Position) -> std::io::Result<()> {
     .map_err(std::io::Error::other)?;
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(1);
     loop {
-        match orchbee_local_site_runtime::WindowsPrivateCache::acquire(path) {
+        match orchbee_local_runtime::PrivateCache::acquire(path) {
             Ok(mut cache) => return cache.replace(FILE, &bytes),
             Err(error)
                 if error.kind() == std::io::ErrorKind::WouldBlock

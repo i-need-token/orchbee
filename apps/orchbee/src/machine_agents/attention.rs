@@ -1,7 +1,7 @@
 //! Endpoint-qualified Client acknowledgements; complete reads never mark changed versions seen.
 use super::{
     AgentLaunchBinding, Arc, Checkpoint, Choice, ClientTerminalAgentAttentionSnapshot,
-    MAXIMUM_ROWS, PanelAgentState, SiteId, TerminalPresentationId, WorkbenchRevision,
+    MAXIMUM_ROWS, PanelAgentState, SessionId, TerminalPresentationId, WorkbenchRevision,
 };
 use std::collections::BTreeMap;
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -16,7 +16,7 @@ struct Version {
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct Endpoint {
     choice: Choice,
-    site: SiteId,
+    session: SessionId,
     report: WorkbenchRevision,
     versions: BTreeMap<TerminalPresentationId, Version>,
 }
@@ -36,7 +36,7 @@ impl Attention {
         let previous = self
             .endpoints
             .iter()
-            .find(|e| &e.choice == choice && e.site == round.site_id);
+            .find(|e| &e.choice == choice && e.session == round.session_id);
         if previous.is_some_and(|e| e.report > round.report_revision)
             || round.rows.len() > MAXIMUM_ROWS
         {
@@ -46,7 +46,7 @@ impl Attention {
         let mut rows = Vec::with_capacity(round.rows.len());
         for row in round.rows.iter() {
             if row.target.physical.presentation_id.as_str() != row.target.member.as_str()
-                || row.target.context.site_id != round.site_id
+                || row.target.context.session_id != round.session_id
             {
                 return Err(());
             }
@@ -90,7 +90,7 @@ impl Attention {
         }
         let next = Endpoint {
             choice: choice.clone(),
-            site: round.site_id.clone(),
+            session: round.session_id.clone(),
             report: round.report_revision,
             versions,
         };

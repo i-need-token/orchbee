@@ -1,6 +1,6 @@
-//! Existing-only Site admission and bounded query exchanges. Snapshot queries
+//! Existing-only Session admission and bounded query exchanges. Snapshot queries
 //! are read-only; the names child owns one explicit Agent alias exchange.
-//! No path activates a Site. Selection/copy/link reads do not start processes;
+//! No path activates a Session. Selection/copy/link reads do not start processes;
 //! explicit link activation delegates one plugin Job to the existing execution owner.
 
 #[cfg(windows)]
@@ -194,7 +194,7 @@ use orchbee_agent_observation_protocol::{
 use orchbee_agent_observation_protocol::{AgentListOutcome, AgentWireError, ObapRequestId};
 #[cfg(any(target_os = "linux", windows))]
 use orchbee_client_server_protocol::{
-    RequestId as ObcsRequestId, SiteId as ObcsSiteId, TerminalId as ObcsTerminalId,
+    RequestId as ObcsRequestId, SessionId as ObcsSessionId, TerminalId as ObcsTerminalId,
     TerminalLaunchReadOutcome, TerminalLaunchReadRequest, TerminalViewerAction,
     TerminalViewerOutcome, TerminalViewerRequest, ViewerId, ViewerRejectedReason,
     WorkerId as ObcsWorkerId,
@@ -204,13 +204,13 @@ use orchbee_local_client_protocol::ConnectClientError;
 #[cfg(target_os = "macos")]
 use orchbee_local_client_protocol::ConnectClientError;
 #[cfg(target_os = "macos")]
-use orchbee_local_site_runtime::RendezvousError;
+use orchbee_local_runtime::RendezvousError;
 #[cfg(any(target_os = "linux", windows))]
-use orchbee_local_site_runtime::{
-    ModeCheckedLocalSiteRendezvous, NativeCohort, RendezvousError, SiteScope,
+use orchbee_local_runtime::{
+    Cohort, ModeCheckedLocalSessionRendezvous, RendezvousError, SessionScope,
 };
 #[cfg(target_os = "macos")]
-use orchbee_local_site_runtime::{ModeCheckedLocalSiteRendezvous, SiteScope};
+use orchbee_local_runtime::{ModeCheckedLocalSessionRendezvous, SessionScope};
 #[cfg(any(target_os = "linux", windows))]
 use orchbee_terminal_protocol::{
     AttachmentId, HostEpoch, TerminalId as HostTerminalId, TerminalTextFrame,
@@ -327,7 +327,7 @@ pub(crate) fn terminal_get(target: &Target) -> Result<(serde_json::Value, Projec
     let result = outcome?;
     match result.outcome() {
         TerminalLaunchReadOutcome::Found {
-            site_id,
+            session_id,
             workbench_revision,
             terminal,
             launch,
@@ -344,7 +344,7 @@ pub(crate) fn terminal_get(target: &Target) -> Result<(serde_json::Value, Projec
                 terminal_context_id: bound_to.terminal_context_id().as_str().to_owned(),
             };
             Ok((
-                super::results::launch_read_source(site_id.as_str(), *workbench_revision),
+                super::results::launch_read_source(session_id.as_str(), *workbench_revision),
                 Projection::TerminalGet(super::results::TerminalGetDoc {
                     terminal: row,
                     launch: (**launch).clone(),
@@ -474,7 +474,7 @@ fn worktree_list_exchange(
         .map_err(classify_worktree_read)?;
     match result.outcome {
         WorkbenchWorktreeListOutcome::Found {
-            site_id,
+            session_id,
             workbench_revision,
             directory_id,
             path,
@@ -482,7 +482,7 @@ fn worktree_list_exchange(
         } => Ok((
             serde_json::json!({
                 "kind": "worktree-list",
-                "sessionId": site_id.as_str(),
+                "sessionId": session_id.as_str(),
                 "revision": workbench_revision,
             }),
             super::results::WorktreeListDoc {
@@ -581,7 +581,7 @@ const fn worktree_git_stage(stage: WorktreeListStage) -> &'static str {
 /// `workspace close-status`: one typed retained-record read on the admitted
 /// session, keyed by the stable `(project, workspace)` pair. The record
 /// outlives the Workspace's active projection, so the snapshot supplies only
-/// the session's site — membership is never re-resolved locally. Every
+/// the session's session — membership is never re-resolved locally. Every
 /// failure past the session boundary carries the dedicated close envelope.
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) fn workspace_close_status(
@@ -593,7 +593,7 @@ pub(crate) fn workspace_close_status(
     let request = WorkbenchWorkspaceCloseRead {
         protocol_version: ProtocolVersion,
         request_id: request_id()?,
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         workspace_id: workspace.clone(),
     };
     let outcome = client
@@ -682,7 +682,7 @@ fn classify_close_status_read(error: WorkbenchWorkspaceCloseReadError) -> Failur
                 failure(FailureKind::ProtocolInvalid)
                     .details(stage_reason_details("close-status", "correlation-mismatch"))
             }
-            WorkbenchWorkspaceCloseFailure::SiteMismatch { .. }
+            WorkbenchWorkspaceCloseFailure::SessionMismatch { .. }
             | WorkbenchWorkspaceCloseFailure::WorkspaceMismatch { .. }
             | WorkbenchWorkspaceCloseFailure::OperationMismatch { .. }
             | WorkbenchWorkspaceCloseFailure::AcceptedRevisionMismatch { .. }
@@ -734,7 +734,7 @@ fn classify_worktree_read(error: WorktreeListReadError) -> Failure {
 }
 
 /// `launch-profile list`/`get`: one typed catalog read on the admitted
-/// session. `selector` absent lists the whole per-Site catalog; present
+/// session. `selector` absent lists the whole per-Session catalog; present
 /// resolves exactly one entry under the Server's coordinator lock — the
 /// CLI never pre-reads the catalog or resolves a selector locally. Every
 /// failure past the session boundary carries the dedicated launch-profile
@@ -761,22 +761,22 @@ pub(crate) fn launch_profile_catalog(
     let result = outcome?;
     match result.outcome {
         LaunchProfileCatalogOutcome::Catalog {
-            site_id,
+            session_id,
             catalog_revision,
             entries,
         } => Ok((
-            launch_profile_catalog_source(site_id.as_str(), catalog_revision),
+            launch_profile_catalog_source(session_id.as_str(), catalog_revision),
             Projection::LaunchProfileCatalog(super::results::LaunchProfileCatalogDoc {
                 catalog_revision,
                 selection: super::results::LaunchProfileCatalogSelection::List(entries),
             }),
         )),
         LaunchProfileCatalogOutcome::Profile {
-            site_id,
+            session_id,
             catalog_revision,
             profile,
         } => Ok((
-            launch_profile_catalog_source(site_id.as_str(), catalog_revision),
+            launch_profile_catalog_source(session_id.as_str(), catalog_revision),
             Projection::LaunchProfileCatalog(super::results::LaunchProfileCatalogDoc {
                 catalog_revision,
                 selection: super::results::LaunchProfileCatalogSelection::Profile(profile),
@@ -790,12 +790,12 @@ pub(crate) fn launch_profile_catalog(
 /// resolution the answer came from.
 #[cfg(any(target_os = "linux", windows))]
 fn launch_profile_catalog_source(
-    site_id: &str,
+    session_id: &str,
     catalog_revision: orchbee_workbench_protocol::LaunchProfileCatalogRevision,
 ) -> serde_json::Value {
     serde_json::json!({
         "kind": "launch-profile-catalog",
-        "sessionId": site_id,
+        "sessionId": session_id,
         "catalogRevision": catalog_revision.to_string(),
     })
 }
@@ -901,11 +901,11 @@ fn classify_launch_profile_catalog_read(error: LaunchProfileCatalogReadError) ->
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) fn snapshot_session() -> Result<(LocalClient, Instant, Snapshot), Failure> {
     let cohort_deadline = deadline_after(COHORT_BUDGET)?;
-    let (cohort, site) = session_preamble(cohort_deadline, None)?;
+    let (cohort, session) = session_preamble(cohort_deadline, None)?;
     // Query and read callers keep their accepted budget: a fresh network
     // deadline sampled only after the preamble completes.
     let deadline = deadline_after(NETWORK_BUDGET)?;
-    admit_snapshot(&cohort, &site, deadline, None)
+    admit_snapshot(&cohort, &session, deadline, None)
 }
 
 /// Existing-only stream admission and Snapshot read under one cancellable budget.
@@ -914,9 +914,9 @@ pub(crate) fn stream_snapshot(
     deadline: Instant,
     wake: Option<BorrowedFd<'_>>,
 ) -> Result<(LocalClient, Snapshot), Failure> {
-    let (cohort, site) = session_preamble(deadline.min(Instant::now() + COHORT_BUDGET), None)?;
+    let (cohort, session) = session_preamble(deadline.min(Instant::now() + COHORT_BUDGET), None)?;
     let mut client = LocalClient::connect_before_cancellable(
-        site.client_socket_path(),
+        session.client_socket_path(),
         cohort.identity(),
         deadline,
         wake,
@@ -944,7 +944,7 @@ pub(crate) fn stream_snapshot(
 /// Reconnect through an already-admitted Workbench Client origin and read one
 /// fresh Snapshot under the caller's absolute deadline and cancellation wake.
 /// This is the TUI counterpart of `stream_snapshot`: it preserves tunnel and
-/// cohort identity instead of rediscovering the process-local Site.
+/// cohort identity instead of rediscovering the process-local Session.
 #[cfg(windows)]
 pub(crate) fn snapshot_from_origin(
     origin: &crate::local_client::LocalClientOrigin,
@@ -969,8 +969,8 @@ pub(crate) fn snapshot_session_until(
     deadline: Instant,
 ) -> Result<(LocalClient, Instant, Snapshot), Failure> {
     let cohort_deadline = bounded_deadline(Instant::now(), COHORT_BUDGET, deadline)?;
-    let (cohort, site) = session_preamble(cohort_deadline, None)?;
-    admit_snapshot(&cohort, &site, deadline, None)
+    let (cohort, session) = session_preamble(cohort_deadline, None)?;
+    admit_snapshot(&cohort, &session, deadline, None)
 }
 
 /// The same preamble gated by the wait command's clock/cancel control:
@@ -986,10 +986,10 @@ pub(crate) fn snapshot_session_until(
 fn snapshot_session_before(
     gate: &WaitGate<'_>,
 ) -> Result<(LocalClient, Instant, Snapshot), Failure> {
-    let (cohort, site) = session_preamble(gate.budget(COHORT_BUDGET)?, Some(gate))?;
+    let (cohort, session) = session_preamble(gate.budget(COHORT_BUDGET)?, Some(gate))?;
     // A slow filesystem step may already have spent the whole wait budget;
     // the network deadline is priced only from what remains.
-    admit_snapshot(&cohort, &site, gate.budget(NETWORK_BUDGET)?, Some(gate))
+    admit_snapshot(&cohort, &session, gate.budget(NETWORK_BUDGET)?, Some(gate))
 }
 
 /// The wait gate's post-step settlement, a no-op for ungated callers.
@@ -1009,21 +1009,21 @@ fn settle(gate: Option<&WaitGate<'_>>) -> Result<(), Failure> {
 fn session_preamble(
     cohort_deadline: Instant,
     gate: Option<&WaitGate<'_>>,
-) -> Result<(NativeCohort, ModeCheckedLocalSiteRendezvous), Failure> {
-    let cohort = NativeCohort::current_with_diagnostic(cohort_deadline);
+) -> Result<(Cohort, ModeCheckedLocalSessionRendezvous), Failure> {
+    let cohort = Cohort::current_with_diagnostic(cohort_deadline);
     settle(gate)?;
     let cohort = cohort.map_err(|error| {
         Failure::new(FailureKind::CheckFailed)
             .details(stage_details("cohort"))
             .io_diagnostic(&error)
     })?;
-    let site = rendezvous();
+    let session = rendezvous();
     settle(gate)?;
-    let site = site?;
-    let socket_exists = site.client_socket_exists();
+    let session = session?;
+    let socket_exists = session.client_socket_exists();
     settle(gate)?;
     match socket_exists {
-        Ok(true) => Ok((cohort, site)),
+        Ok(true) => Ok((cohort, session)),
         Ok(false) => {
             Err(Failure::new(FailureKind::ServiceUnavailable).details(stage_details("discovery")))
         }
@@ -1036,13 +1036,13 @@ fn session_preamble(
 /// already dropped.
 #[cfg(any(target_os = "linux", windows))]
 fn admit_snapshot(
-    cohort: &NativeCohort,
-    site: &ModeCheckedLocalSiteRendezvous,
+    cohort: &Cohort,
+    session: &ModeCheckedLocalSessionRendezvous,
     deadline: Instant,
     gate: Option<&WaitGate<'_>>,
 ) -> Result<(LocalClient, Instant, Snapshot), Failure> {
     let connected =
-        LocalClient::connect_before(site.client_socket_path(), cohort.identity(), deadline);
+        LocalClient::connect_before(session.client_socket_path(), cohort.identity(), deadline);
     if let Err(failure) = settle(gate) {
         drop(connected);
         return Err(failure);
@@ -1083,11 +1083,11 @@ fn admit_snapshot(
     }
 }
 
-/// Refresh an existing admitted session without rebinding its Site or replaying a read.
+/// Refresh an existing admitted session without rebinding its Session or replaying a read.
 #[cfg(windows)]
 pub(in crate::cli) fn refresh_snapshot(
     client: &mut LocalClient,
-    site: &orchbee_workbench_protocol::SiteId,
+    session: &orchbee_workbench_protocol::SessionId,
     minimum: orchbee_workbench_protocol::WorkbenchRevision,
     deadline: Instant,
     signals: &mut super::source::ArmedSignals,
@@ -1103,7 +1103,7 @@ pub(in crate::cli) fn refresh_snapshot(
     signals.check_before(deadline)?;
     match result.map_err(classify_read)?.outcome {
         WorkbenchSnapshotOutcome::Available { snapshot }
-            if &snapshot.site_id == site && snapshot.revision >= minimum =>
+            if &snapshot.session_id == session && snapshot.revision >= minimum =>
         {
             Ok(snapshot)
         }
@@ -1288,7 +1288,7 @@ pub(super) fn attach_viewer_cancellable_with_host(
     let attach = TerminalViewerRequest::new(
         obcs_request_id()?,
         TerminalViewerAction::AttachBinding {
-            site_id: ObcsSiteId::parse(snapshot.site_id.as_str())
+            session_id: ObcsSessionId::parse(snapshot.session_id.as_str())
                 .map_err(|_| Failure::new(FailureKind::InternalFailure))?,
             worker_id: ObcsWorkerId::parse(row.worker_id.as_str())
                 .map_err(|_| Failure::new(FailureKind::InternalFailure))?,
@@ -2359,18 +2359,18 @@ fn viewer_protocol_invalid() -> Failure {
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
-fn rendezvous() -> Result<ModeCheckedLocalSiteRendezvous, Failure> {
+fn rendezvous() -> Result<ModeCheckedLocalSessionRendezvous, Failure> {
     let (base, scope_text) = crate::local_activation::runtime_location()
         .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
     let scope =
-        SiteScope::parse(&scope_text).map_err(|_| Failure::new(FailureKind::InternalFailure))?;
+        SessionScope::parse(&scope_text).map_err(|_| Failure::new(FailureKind::InternalFailure))?;
     let scope_directory = base.join(&scope_text);
-    ModeCheckedLocalSiteRendezvous::validate_mode_checked(&base, scope)
+    ModeCheckedLocalSessionRendezvous::validate_mode_checked(&base, scope)
         .map_err(|error| classify_rendezvous(error, &scope_directory))
 }
 
 /// Split rendezvous failures by the typed path they carried: an absent or
-/// unsafe Site scope belongs to `runtime-directory`, while anything rooted
+/// unsafe Session scope belongs to `runtime-directory`, while anything rooted
 /// above it belongs to `runtime-base`. A scope ENOENT is service-unavailable
 /// discovery, never a configuration failure.
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
@@ -2396,7 +2396,7 @@ pub(crate) fn classify_rendezvous(
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn rendezvous_path(error: &RendezvousError) -> Option<&std::path::Path> {
     match error {
-        RendezvousError::InvalidSiteScope => None,
+        RendezvousError::InvalidSessionScope => None,
         RendezvousError::RuntimeBaseNotAbsolute { path }
         | RendezvousError::RuntimeBaseNotNormalized { path }
         | RendezvousError::DirectorySymlink { path }
@@ -2740,10 +2740,10 @@ fn agent_session_until(
 ) -> Result<LocalClient, AgentAdmissionError> {
     let cohort_deadline = bounded_deadline(Instant::now(), COHORT_BUDGET, total)
         .map_err(AgentAdmissionError::Preamble)?;
-    let (cohort, site) =
+    let (cohort, session) =
         session_preamble(cohort_deadline, None).map_err(AgentAdmissionError::Preamble)?;
     LocalClient::connect_before_cancellable(
-        site.client_socket_path(),
+        session.client_socket_path(),
         cohort.identity(),
         total,
         wake,

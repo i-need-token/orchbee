@@ -1,6 +1,6 @@
 use super::{
-    Arc, CarrierFailure, CommandMailbox, MutationResult, NativeUi, PaneKey, RefreshDecision,
-    RefreshSettlement, UiReply,
+    Arc, CarrierFailure, CommandMailbox, MutationResult, PaneKey, RefreshDecision,
+    RefreshSettlement, UiReply, WorkbenchClientUi,
 };
 use crate::workbench_client::{
     mailbox::DesiredInstall,
@@ -11,7 +11,7 @@ use orchbee_workbench_protocol::WorkbenchSnapshotOutcome;
 #[cfg(test)]
 mod tests;
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(super) fn apply_switch_forward_expired(
         &mut self,
         mailbox: &Arc<CommandMailbox>,

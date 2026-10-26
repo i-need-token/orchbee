@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::directory::WorkbenchDirectoryPath;
 use crate::identity::{
-    ProtocolVersion, SiteId, TerminalId, TerminalPresentationId, WorkbenchDirectoryId,
+    ProtocolVersion, SessionId, TerminalId, TerminalPresentationId, WorkbenchDirectoryId,
     WorkbenchPanelId, WorkbenchPanelSlotId, WorkbenchProjectId, WorkbenchRequestId,
     WorkbenchRevision, WorkbenchSplitId, WorkbenchTabGroupId, WorkbenchTabId,
     WorkbenchTerminalContextId, WorkbenchWorkspaceId, WorkerId,
@@ -233,7 +233,7 @@ pub struct Snapshot {
     pub protocol_version: ProtocolVersion,
     pub revision: WorkbenchRevision,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub terminal_contexts: Vec<TerminalContext>,
 }
 
@@ -264,7 +264,7 @@ pub struct Delta {
     pub protocol_version: ProtocolVersion,
     pub revision: WorkbenchRevision,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -296,7 +296,7 @@ pub enum DeltaRejectionReason {
     InvalidProjection,
     NonIncreasingRevision,
     #[serde(rename = "session-mismatch")]
-    SiteMismatch,
+    SessionMismatch,
 }
 
 fn deserialize_required_nullable<'de, D, Value>(deserializer: D) -> Result<Option<Value>, D::Error>

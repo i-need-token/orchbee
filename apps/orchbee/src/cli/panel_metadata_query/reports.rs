@@ -34,7 +34,7 @@ fn send(
         PanelAgentRequest {
             protocol_version: snapshot.protocol_version,
             request_id: request_id.clone(),
-            site_id: snapshot.site_id.clone(),
+            session_id: snapshot.session_id.clone(),
             action,
         },
         deadline,
@@ -79,7 +79,7 @@ fn observe(
         PanelAgentOutcome::Failed {
             reason:
                 PanelAgentFailure::NotFound
-                | PanelAgentFailure::SiteMismatch
+                | PanelAgentFailure::SessionMismatch
                 | PanelAgentFailure::BindingChanged,
         } => Err(crate::cli::workbench_agents::failure("workbench-changed")),
         PanelAgentOutcome::Failed { reason } => Err(Failure::new(match reason {
@@ -89,7 +89,7 @@ fn observe(
                 FailureKind::InternalFailure
             }
             PanelAgentFailure::ResultTooLarge => FailureKind::OutputTooLarge,
-            PanelAgentFailure::SiteMismatch
+            PanelAgentFailure::SessionMismatch
             | PanelAgentFailure::InvalidRequest
             | PanelAgentFailure::NotFound
             | PanelAgentFailure::Unbound
@@ -250,11 +250,11 @@ impl Document {
     pub(super) fn value(
         &self,
         id: &WorkbenchPanelId,
-        site: &orchbee_workbench_protocol::SiteId,
+        session: &orchbee_workbench_protocol::SessionId,
         workbench_revision: WorkbenchRevision,
     ) -> Value {
         let row = self.rows.get(id).expect("complete correlated report rows");
-        json!({"source":{"sessionId":site,"workbenchRevision":workbench_revision,
+        json!({"source":{"sessionId":session,"workbenchRevision":workbench_revision,
             "reportRevision":self.revision,"requestIds":self.request_ids},"binding":row.binding,"view":row.report})
     }
 }

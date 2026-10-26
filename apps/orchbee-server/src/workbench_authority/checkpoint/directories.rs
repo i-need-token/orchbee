@@ -1,4 +1,4 @@
-//! Retained per-Presentation directory intent; physical observation admission belongs to the Site.
+//! Retained per-Presentation directory intent; physical observation admission belongs to the Session.
 use super::super::terminal_membership::visit_panel_presentations;
 use super::{WorkbenchAuthority, WorkbenchCheckpointError as Error};
 use orchbee_workbench_protocol::{

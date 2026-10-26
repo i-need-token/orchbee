@@ -64,8 +64,8 @@ impl WorkbenchAuthority {
     ) -> WorkbenchWorktreeResult {
         let id = request.action.operation_id().clone();
         let permitted = grant.is_some_and(|grant| {
-            grant.site_id == *self.site_id()
-                && request.site_id == *self.site_id()
+            grant.session_id == *self.session_id()
+                && request.session_id == *self.session_id()
                 && (matches!(request.action, WorkbenchWorktreeAction::Read { .. })
                     || (grant.mutate_navigation
                         && grant.associate_directory
@@ -404,7 +404,7 @@ impl WorkbenchAuthority {
         true
     }
 
-    /// Called before releasing the same Site guard that admitted this exact Close.
+    /// Called before releasing the same Session guard that admitted this exact Close.
     pub fn hold_worktree_close(
         &mut self,
         plan: &WorktreeOperationPlan,

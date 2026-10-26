@@ -1,7 +1,7 @@
 //! Client-local group disclosure; canonical metadata remains in the projection.
-use super::{NativeContextTabs, WorkbenchClientState, WorkbenchClientView};
+use super::{ClientContextTabs, WorkbenchClientState, WorkbenchClientView};
 use orchbee_workbench_protocol::{
-    SiteId, WorkbenchTabGroupId, WorkbenchTabId, WorkbenchTerminalContextId,
+    SessionId, WorkbenchTabGroupId, WorkbenchTabId, WorkbenchTerminalContextId,
 };
 
 pub(in crate::workbench_client) enum TabSelectionChange {
@@ -13,7 +13,7 @@ pub(in crate::workbench_client) enum TabSelectionChange {
 
 #[derive(Default)]
 pub(super) struct GroupView {
-    context: Option<(SiteId, WorkbenchTerminalContextId)>,
+    context: Option<(SessionId, WorkbenchTerminalContextId)>,
     collapsed: Vec<WorkbenchTabGroupId>,
     selected: Vec<WorkbenchTabId>,
     anchor: Option<WorkbenchTabId>,
@@ -21,18 +21,18 @@ pub(super) struct GroupView {
 }
 
 impl GroupView {
-    fn matches(&self, cache: &NativeContextTabs) -> bool {
-        self.context.as_ref().is_some_and(|(site, context)| {
-            site == cache.site_id() && Some(context) == cache.terminal_context_id()
+    fn matches(&self, cache: &ClientContextTabs) -> bool {
+        self.context.as_ref().is_some_and(|(session, context)| {
+            session == cache.session_id() && Some(context) == cache.terminal_context_id()
         })
     }
 
-    fn prepare(&mut self, cache: &NativeContextTabs) {
+    fn prepare(&mut self, cache: &ClientContextTabs) {
         if !self.matches(cache) {
             *self = Self {
                 context: cache
                     .terminal_context_id()
-                    .map(|context| (cache.site_id().clone(), context.clone())),
+                    .map(|context| (cache.session_id().clone(), context.clone())),
                 ..Self::default()
             };
         }
@@ -47,7 +47,7 @@ impl GroupView {
             self.anchor = None;
         }
     }
-    pub(super) fn collapsed<'a>(&'a self, cache: &NativeContextTabs) -> &'a [WorkbenchTabGroupId] {
+    pub(super) fn collapsed<'a>(&'a self, cache: &ClientContextTabs) -> &'a [WorkbenchTabGroupId] {
         if self.matches(cache) {
             &self.collapsed
         } else {
@@ -55,7 +55,7 @@ impl GroupView {
         }
     }
 
-    fn toggle(&mut self, cache: &NativeContextTabs, group: &WorkbenchTabGroupId) {
+    fn toggle(&mut self, cache: &ClientContextTabs, group: &WorkbenchTabGroupId) {
         if !cache
             .groups()
             .iter()

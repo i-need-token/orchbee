@@ -34,7 +34,7 @@ pub(in crate::cli) fn read(
             PanelAgentRequest {
                 protocol_version: ProtocolVersion,
                 request_id: id.clone(),
-                site_id: snapshot.site_id.clone(),
+                session_id: snapshot.session_id.clone(),
                 action: PanelAgentAction::Observe {
                     binding: binding.clone(),
                     after_sequence: after,
@@ -75,7 +75,7 @@ pub(in crate::cli) fn read(
             }
             Ok(TerminalAgentRead {
                 report_revision,
-                source: serde_json::json!({"sessionId":snapshot.site_id,"workbenchRevision":workbench_revision,"reportRevision":report_revision,"requestId":id}),
+                source: serde_json::json!({"sessionId":snapshot.session_id,"workbenchRevision":workbench_revision,"reportRevision":report_revision,"requestId":id}),
                 observation,
             })
         }
@@ -88,7 +88,7 @@ pub(in crate::cli) fn read(
                 | PanelAgentFailure::BindingChanged => FailureKind::NotFound,
                 PanelAgentFailure::HistoryLimit => FailureKind::Rejected,
                 PanelAgentFailure::ResultTooLarge => FailureKind::OutputTooLarge,
-                PanelAgentFailure::SiteMismatch
+                PanelAgentFailure::SessionMismatch
                 | PanelAgentFailure::InvalidRequest
                 | PanelAgentFailure::SourceLimit
                 | PanelAgentFailure::ResourceLimit
@@ -103,7 +103,7 @@ pub(in crate::cli) fn read(
                 | PanelAgentFailure::Unbound => "binding-changed",
                 PanelAgentFailure::Denied
                 | PanelAgentFailure::Unavailable
-                | PanelAgentFailure::SiteMismatch
+                | PanelAgentFailure::SessionMismatch
                 | PanelAgentFailure::SourceLimit
                 | PanelAgentFailure::ResourceLimit
                 | PanelAgentFailure::RevisionExhausted

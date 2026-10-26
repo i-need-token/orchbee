@@ -174,7 +174,7 @@ fn partial_frame_retires_old_press_authority_without_receipt_effect_or_replay() 
     lease.block_frame_output();
 }
 impl super::super::TerminalSurface for Surface {
-    fn after_close_draw(&mut self, _receipt: crate::workbench_client::NativeDrawReceipt) {
+    fn after_close_draw(&mut self, _receipt: crate::workbench_client::DrawReceipt) {
         self.receipts.set(self.receipts.get() + 1);
     }
     fn after_draw(&mut self) {

@@ -6,11 +6,11 @@ use crate::{
     },
     local_client_service::{ConnectionSlots, handle_candidate_control, stop_control::StopControl},
     local_terminal_service::LocalTerminalService,
-    site_shutdown::SiteShutdown,
+    session_shutdown::SessionShutdown,
     workbench_service::{WorkbenchPolicy, WorkbenchService},
     worker_registry::WorkerRegistry,
 };
-use orchbee_local_client_protocol::{SiteStopRequest, StopAction, StopId, read_message};
+use orchbee_local_client_protocol::{SessionStopRequest, StopAction, StopId, read_message};
 use std::{
     io::Read,
     sync::{Arc, Mutex},
@@ -57,9 +57,9 @@ fn metadata_bypasses_full_connection_admission_without_allocating_a_generation_o
                 },
                 Arc::clone(&terminals),
             );
-            let shutdown = SiteShutdown::default();
+            let shutdown = SessionShutdown::default();
             if mode == ServerMode::ManagedStopping {
-                shutdown.request(&SiteStopRequest {
+                shutdown.request(&SessionStopRequest {
                     hello: ClientHello::new("server-cohort").unwrap(),
                     id: StopId::new([1; 16]).unwrap(),
                     action: StopAction::Start,

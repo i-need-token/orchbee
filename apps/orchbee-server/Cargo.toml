@@ -10,7 +10,7 @@ publish = false
 getrandom.workspace = true
 orchbee-local-ipc = { path = "../../crates/local-ipc" }
 orchbee-agent-observation-protocol = { path = "../../crates/agent-observation-protocol" }
-orchbee-local-site-runtime = { path = "../../crates/local-site-runtime" }
+orchbee-local-runtime = { path = "../../crates/local-runtime" }
 base64.workspace = true
 hmac = { version = "0.12.1", default-features = false }
 # Production observation envelopes reuse the workspace JSON parser.

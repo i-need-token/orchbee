@@ -123,7 +123,7 @@ C1 ST、ESC `\\`、无输入 50 ms 或总计一秒。超过这些边界的迟到
 首个有效 RGB 值，用于局部显示解析。有效背景之后收到的前景可以在期限内补齐同一次观测，
 但不会改变已确定的深浅极性。
 
-若到期限时没有有效 OSC `11` 背景，Windows 就使用回退：Client 请求 `local-site-runtime` 读取当前用户的
+若到期限时没有有效 OSC `11` 背景，Windows 就使用回退：Client 请求 `local-runtime` 读取当前用户的
 `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\AppsUseLightTheme`。
 DWORD `1` 表示浅色，`0` 表示深色。缺失、不可读或非布尔值保持未知。只有前景应答、畸形、部分
 或完全缺失的背景都会触发此回退。没有有效背景时，其他
@@ -298,4 +298,4 @@ Windows 控制台记录不提供到达时间戳。这些样本不测量操作系
 
 用户成功离开（包括配置的 d/q 退出别名）后，先恢复终端模式、光标和备用屏幕，再向标准错误写入一行本地化提示。提示说明离开界面会让终端程序继续运行，并给出返回命令；远程机器的命令包含其稳定配置选择器。文案使用退出时已保存的实际语言。信号退出及运行或恢复失败时不打印成功离开提示。标准输出与机器文档不增加文本。
 
-<!-- documentation-pairing: english-sha256=15da4d61785c677d18b8bd6688c03ee1ca795d919a761498cc54aca3ecdb5ca1 zh-cn-sha256=e2742a0647777466d95cfad231323edafc65951cd276ee08ba5f6e5ec96caa0b -->
+<!-- documentation-pairing: english-sha256=4e6df47dc064e050027e350e0e504d1dc807064368638cc10c8e2056085820ed zh-cn-sha256=e5d8cd8bd3600e70d6413e7a8cdcfa6efd14eda5a45adca70254771099086663 -->

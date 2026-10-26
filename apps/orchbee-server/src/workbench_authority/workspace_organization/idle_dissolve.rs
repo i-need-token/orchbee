@@ -18,7 +18,7 @@ pub enum WorkbenchProjectDissolveBegin<'a> {
 
 /// Holds the exact complete member set and unpublished organization plan. Its
 /// exclusive authority borrow prevents membership or pending-create drift while
-/// the Site resolves each binding through its terminal coordinator.
+/// the Session resolves each binding through its terminal coordinator.
 pub struct WorkbenchProjectDissolveAdmission<'a> {
     prepared: PreparedCommandCommit<'a>,
     members: Vec<WorkbenchTerminalTab>,
@@ -82,7 +82,7 @@ impl WorkbenchAuthority {
             &command.action,
             WorkbenchAction::ProjectDissolveIfIdle { .. }
         ) && grant
-            .is_some_and(|grant| grant.site_id == *self.site_id() && grant.mutate_navigation);
+            .is_some_and(|grant| grant.session_id == *self.session_id() && grant.mutate_navigation);
         if !authorized {
             return WorkbenchProjectDissolveBegin::Ready(result(
                 &command,

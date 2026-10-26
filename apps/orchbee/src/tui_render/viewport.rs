@@ -8,7 +8,7 @@ use crate::{
     terminal_live_view::LiveView,
     terminal_text::{display_width, truncate_display},
     tui_theme::{Role, Theme},
-    workbench_client::NativeViewportSurface,
+    workbench_client::ViewportSurface,
 };
 
 use super::{
@@ -96,7 +96,7 @@ pub(super) fn render_live(
 pub(super) fn render(
     frame: &mut Frame<'_>,
     area: Rect,
-    surface: NativeViewportSurface<'_>,
+    surface: ViewportSurface<'_>,
     live_frame: Option<&TerminalTextFrame>,
     show_cursor: bool,
     locale: Locale,
@@ -119,7 +119,7 @@ pub(super) fn render(
 pub(super) fn render_selected(
     frame: &mut Frame<'_>,
     area: Rect,
-    surface: NativeViewportSurface<'_>,
+    surface: ViewportSurface<'_>,
     live_frame: Option<&TerminalTextFrame>,
     show_cursor: bool,
     locale: Locale,
@@ -146,7 +146,7 @@ pub(super) fn render_selected(
 fn render_content(
     frame: &mut Frame<'_>,
     area: Rect,
-    surface: NativeViewportSurface<'_>,
+    surface: ViewportSurface<'_>,
     live_frame: Option<&TerminalTextFrame>,
     show_cursor: bool,
     locale: Locale,
@@ -155,7 +155,7 @@ fn render_content(
     chrome: bool,
 ) {
     match surface {
-        NativeViewportSurface::Window { window, position } => {
+        ViewportSurface::Window { window, position } => {
             frame.render_widget(Clear, area);
             let terminal_theme =
                 theme.with_host_terminal_colors(window.foreground, window.background);
@@ -172,7 +172,7 @@ fn render_content(
                 bottom_line(frame, area, position, locale, theme);
             }
         }
-        NativeViewportSurface::Entering => {
+        ViewportSurface::Entering => {
             if let Some(terminal) = live_frame {
                 terminal_cells::render(frame, area, terminal, show_cursor, theme);
             } else {
@@ -183,14 +183,14 @@ fn render_content(
                 bottom_line(frame, area, None, locale, theme);
             }
         }
-        NativeViewportSurface::AwaitingWindow => {
+        ViewportSurface::AwaitingWindow => {
             frame.render_widget(Clear, area);
             if chrome {
                 badge(frame, area, locale.terminal_history_loading(), theme);
                 bottom_line(frame, area, None, locale, theme);
             }
         }
-        NativeViewportSurface::Recovering => {
+        ViewportSurface::Recovering => {
             frame.render_widget(Clear, area);
             if chrome {
                 badge(frame, area, locale.terminal_history_recovering(), theme);

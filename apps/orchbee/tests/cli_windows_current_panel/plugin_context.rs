@@ -66,7 +66,7 @@ fn plugin_context_preflight_uses_exact_caller_or_client_and_refuses_selection_ra
                     &WorkbenchResponse::Plugin(PluginResult {
                         protocol_version: ProtocolVersion,
                         request_id: request.request_id,
-                        site_id: request.site_id,
+                        session_id: request.session_id,
                         outcome: PluginOutcome::Failed {
                             reason: PluginFailure::Disabled,
                         },

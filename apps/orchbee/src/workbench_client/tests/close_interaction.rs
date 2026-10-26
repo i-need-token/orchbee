@@ -99,7 +99,7 @@ fn draw_close_frame(
     height: u16,
 ) -> Result<(Buffer, FrameHitMap), Box<dyn std::error::Error>> {
     let mut terminal = Terminal::new(TestBackend::new(width, height))?;
-    let mut receipt = NativeDrawReceipt::default();
+    let mut receipt = DrawReceipt::default();
     let mut hits = HitMapBuilder::new();
     terminal.draw(|frame| {
         receipt = render_terminal_shell(
@@ -208,7 +208,7 @@ fn assert_modal_contains_text(
 fn assert_complete_close_frame(
     buffer: &Buffer,
     hits: &FrameHitMap,
-    token: NativeCloseConfirmationToken,
+    token: CloseConfirmationToken,
     locale: Locale,
     view: &ClientView,
 ) {
@@ -219,7 +219,7 @@ fn assert_complete_close_frame(
     let right = outer.right();
     let top = outer.y;
     let bottom = outer.bottom();
-    let title = locale.close_title(NativeCloseConfirmationKind::Close);
+    let title = locale.close_title(CloseConfirmationKind::Close);
     let theme = crate::tui_theme::Theme::terminal_native();
     let mut border = Buffer::empty(outer);
     crate::tui_render::overlay_surface(&theme, ratatui::widgets::Padding::ZERO)
@@ -387,7 +387,7 @@ fn status_close_server(
                                 &WorkbenchResponse::TabCloseResume(WorkbenchTabCloseResumeResult {
                                     protocol_version: ProtocolVersion,
                                     request_id: request.request_id,
-                                    site_id: request.site_id,
+                                    session_id: request.session_id,
                                     terminal_context_id: request.terminal_context_id,
                                     tab_id: request.tab_id,
                                     close_request_id: request.close_request_id,
@@ -798,7 +798,7 @@ fn resume_requires_visible_status_and_the_complete_modal_returns_both_current_to
     spin(&mut workbench_client, |workbench_client| {
         let view = workbench_client.view();
         view.close_status()
-            .is_some_and(|status| status.status() == NativeCloseStatusKind::CleanupBlocked)
+            .is_some_and(|status| status.status() == CloseStatusKind::CleanupBlocked)
     });
     let _ = draw_close(&mut workbench_client, &view, Locale::EnUs, 30, 12)?;
     dispatch_close_input(&mut workbench_client, &mut view, b"\x02x");
@@ -819,7 +819,7 @@ fn resume_requires_visible_status_and_the_complete_modal_returns_both_current_to
     assert!({
         let view = workbench_client.view();
         view.close_confirmation()
-            .is_some_and(|prompt| prompt.kind() == NativeCloseConfirmationKind::Resume)
+            .is_some_and(|prompt| prompt.kind() == CloseConfirmationKind::Resume)
     });
     // The notice replaces the footer. Only the exact status inside the modal can qualify this draw.
     view.report_backend_unavailable(crate::client_view::BackendAction::CreateTab);
@@ -844,7 +844,7 @@ fn resume_requires_visible_status_and_the_complete_modal_returns_both_current_to
         let status = native
             .close_status()
             .expect("Resume refusal retains the known status");
-        assert_eq!(status.status(), NativeCloseStatusKind::CleanupBlocked);
+        assert_eq!(status.status(), CloseStatusKind::CleanupBlocked);
         assert!(status.unavailable());
         assert!(!status.resumable());
         assert!(

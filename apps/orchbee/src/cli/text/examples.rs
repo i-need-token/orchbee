@@ -280,7 +280,7 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::ApiSchema => &["orchbee.status"],
         CommandPath::ConfigCheck => &[],
         CommandPath::ConfigResetKeys => &[],
-        CommandPath::SiteStart => &[],
+        CommandPath::ServerStart => &[],
         #[cfg(windows)]
         CommandPath::SessionList => &[],
         #[cfg(windows)]
@@ -289,10 +289,10 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::SessionStop => &["work", "--confirm"],
         #[cfg(windows)]
         CommandPath::SessionDelete => &["work", "--confirm"],
-        CommandPath::SiteDiagnose => &[],
-        CommandPath::SiteUpdateAgentManifests => &[],
-        CommandPath::SiteConfig => &[],
-        CommandPath::SiteReloadConfig => &[],
+        CommandPath::ServerDiagnose => &[],
+        CommandPath::ServerUpdateAgentManifests => &[],
+        CommandPath::ServerConfig => &[],
+        CommandPath::ServerReloadConfig => &[],
         CommandPath::TerminalTitleSet => &["Review"],
         CommandPath::TerminalTitleClear => &[],
         #[cfg(windows)]
@@ -345,10 +345,10 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         #[cfg(windows)]
         CommandPath::PluginActionList => &["--plugin", "example.plugin"],
         CommandPath::NotificationShow => &["Ready", "--body", "Review is complete"],
-        CommandPath::SiteAgentManifests => &[],
-        CommandPath::SiteReloadAgentManifests => &[],
-        CommandPath::SiteAgentManifestsStatus => &["00000000000000000000000000000001"],
-        CommandPath::SiteStop => &["--confirm"],
-        CommandPath::SiteStopStatus => &["00000000000000000000000000000001"],
+        CommandPath::ServerAgentManifests => &[],
+        CommandPath::ServerReloadAgentManifests => &[],
+        CommandPath::ServerAgentManifestsStatus => &["00000000000000000000000000000001"],
+        CommandPath::ServerStop => &["--confirm"],
+        CommandPath::ServerStopStatus => &["00000000000000000000000000000001"],
     }
 }

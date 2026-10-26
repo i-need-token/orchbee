@@ -115,7 +115,7 @@ target 可在退役后继续存活，但只伴随死身份——mint 不是存�
 叶：叶的全等身份检查与 registry 的 generation 检查双重拒绝。没有任何互斥锁跨越
 socket I/O 持有；非托管 `register_carrier()` 行为保持不变——它是同一个
 `register_carrier_impl`，仅不带 service 实参。托管 listener 路径在生产中接线
-该缝：共享 `AgentService` 存在时 `LocalSiteService` 调用
+该缝：共享 `AgentService` 存在时 `local_worker_service` 调用
 `register_carrier_with_agents`，否则调用普通 `register_carrier`；生命周期权威
 留在 session 组合根。
 
@@ -151,4 +151,4 @@ Owned 后准入新 carrier；Worker 代际保持原值。
 不能续租或推断 Worker 租约。原生命名管道及确定性调度见证覆盖在飞顺序、阻塞清理释放、
 精确回显、回滚准入及提交后退休。规范导入与公开在线交接结果仍需队列边界之外的 Server 集成。
 
-<!-- documentation-pairing: english-sha256=d3ef63c6832a27234bdafc85a96315b236c838cbaee95e0039b418b73a6f0463 zh-cn-sha256=40fea9becc724259c251f227ce2d287ac7c81ad5baaa399bc6eb5c713450fdc4 -->
+<!-- documentation-pairing: english-sha256=a8e946c611a7126fd0b3cd83379f2fd3c982846587040bee5bfeb4d7c8d955c6 zh-cn-sha256=7693656503c064a43c79b3c1ef7e63c36f257c4781b0790e4f118183649acaa6 -->

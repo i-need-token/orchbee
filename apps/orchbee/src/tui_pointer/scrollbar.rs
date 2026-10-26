@@ -1,5 +1,5 @@
 //! Press-owned scrollbar dragging. A changed history range cancels capture;
-//! every effect rechecks the exact pane and source in NativeUi.
+//! every effect rechecks the exact pane and source in WorkbenchClientUi.
 
 use super::{
     FrameHitMap, Gesture, HitResolution, HitTarget, PointerOutcome, PointerState, contains,

@@ -328,11 +328,11 @@ width admits a separate control. Disclosure, content, create and menu cells are 
 glyphs are locale-neutral; full action labels and unavailable reasons use
 the existing English and Chinese catalogs.
 
-| Entry             | Existing action and authority                                                                                                                                                                                                                                                                                                                       |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tab-strip `+`     | `DrawnTabCreate` freezes the Session, snapshot revision and context. An unmodified left press arms a local pointer gesture; matching release inside the same still-exposed rectangle asks `NativeUi` to revalidate that proof, then hands `ClientAction::CreateTab` to the ordinary dispatcher and membership admission. No effect occurs on press. |
-| New workspace row | An unmodified left press arms the exact painted action; a matching release inside the still-exposed extent delegates `ClientAction::RequestQuickWorkspace` to the existing creation owner. It submits one independent Workspace and first shell without opening a form. No effect occurs on press.                                                  |
-| Project-row `+`   | Opens the same creation subset over the exact painted Project, with targeted quick Workspace first. Existing capability checks and disabled reasons remain; no child Workspace is selected implicitly.                                                                                                                                              |
+| Entry             | Existing action and authority                                                                                                                                                                                                                                                                                                                                |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Tab-strip `+`     | `DrawnTabCreate` freezes the Session, snapshot revision and context. An unmodified left press arms a local pointer gesture; matching release inside the same still-exposed rectangle asks `WorkbenchClientUi` to revalidate that proof, then hands `ClientAction::CreateTab` to the ordinary dispatcher and membership admission. No effect occurs on press. |
+| New workspace row | An unmodified left press arms the exact painted action; a matching release inside the still-exposed extent delegates `ClientAction::RequestQuickWorkspace` to the existing creation owner. It submits one independent Workspace and first shell without opening a form. No effect occurs on press.                                                           |
+| Project-row `+`   | Opens the same creation subset over the exact painted Project, with targeted quick Workspace first. Existing capability checks and disabled reasons remain; no child Workspace is selected implicitly.                                                                                                                                                       |
 
 Right-clicking the Tab-strip `+` opens the separate new-Tab menu (plain Tab, recent group,
 or new group); the global menu provides its keyboard entry. It retains the same exact
@@ -347,7 +347,7 @@ menus. These controls own no new business state, terminal identity or persistenc
 
 Render and hit-region cases cover both locales and default/RGB themes, empty and populated
 lists, every viewport tier and long labels. Pointer traces cover complete clicks and invalidation;
-NativeUi tests check stale context/snapshot refusal and delegation to the original command/draft
+WorkbenchClientUi tests check stale context/snapshot refusal and delegation to the original command/draft
 owners. These deterministic tests and composed buffer previews do not establish physical-host
 palette or font behavior.
 
@@ -443,7 +443,7 @@ waits for a metadata read. Other Machines retain their observation lifecycle.
 `machine_picker::Picker` owns Project expansion, independent Agent-list collapse
 preferences per Context, keyboard row focus and one shared window. `SidebarTarget::Project`
 carries Machine/Session/Project identity; `SidebarTarget::Context` carries Machine
-and the full `NativeContextTarget`; `SidebarTarget::Agent` also retains exact
+and the full `ClientContextTarget`; `SidebarTarget::Agent` also retains exact
 member and physical binding identity. Optional Project membership is Context metadata,
 resolved by `Picker::sidebar_parent` from the current projection. Moving a Workspace or
 dissolving its Project never changes its terminal identity, Tab or Panel target. Agent

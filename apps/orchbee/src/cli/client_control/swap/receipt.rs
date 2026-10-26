@@ -1,6 +1,6 @@
 use super::{
     Answer, ClientPanelDirection, ClientViewControlStatus, ClientViewIntent, ClientViewOutcome,
-    Failure, FailureKind, Locale, Output, OutputFormat, SiteId, WorkbenchClientId,
+    Failure, FailureKind, Locale, Output, OutputFormat, SessionId, WorkbenchClientId,
     WorkbenchCommandOutcome, WorkbenchPanelId, WorkbenchRequestId, WorkbenchRevision,
     WorkbenchTabId, WorkbenchTerminalContextId, failure_output,
 };
@@ -74,7 +74,7 @@ fn focus_document(answer: &Answer) -> Value {
 }
 
 pub(super) struct Receipt {
-    pub(super) site_id: SiteId,
+    pub(super) session_id: SessionId,
     pub(super) client_id: Option<WorkbenchClientId>,
     pub(super) base_revision: WorkbenchRevision,
     pub(super) source: Panel,
@@ -128,7 +128,7 @@ impl Receipt {
         }
     }
     pub(super) fn document(&self) -> Value {
-        let document = json!({"schema":"orchbee.panel.swap","version":1,"sessionId":self.site_id,
+        let document = json!({"schema":"orchbee.panel.swap","version":1,"sessionId":self.session_id,
             "clientId":self.client_id,"baseRevision":self.base_revision,
             "scope":if self.client_id.is_some() {"client"} else {"shared"},
             "source":self.source.document(),"target":self.target.as_ref().map(Panel::document),"direction":self.direction,

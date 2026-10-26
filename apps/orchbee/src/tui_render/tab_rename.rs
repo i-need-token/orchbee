@@ -8,7 +8,7 @@ use crate::{
     terminal_text::{sanitize_terminal_text, truncate_display},
     tui_pointer::{HitLayer, HitMapBuilder, HitTarget},
     tui_theme::{Role, Theme},
-    workbench_client::{ModalPresentation, NativeRenameDraftToken, NativeRenameDraftView},
+    workbench_client::{ModalPresentation, RenameDraftToken, RenameDraftView},
 };
 use ratatui::{
     Frame,
@@ -23,11 +23,11 @@ const FIELD: usize = 4;
 pub(super) fn render(
     frame: &mut Frame<'_>,
     locale: Locale,
-    draft: &NativeRenameDraftView<'_>,
+    draft: &RenameDraftView<'_>,
     content_area: Rect,
     theme: &Theme,
     hits: &mut HitMapBuilder,
-) -> (Rect, ModalPresentation<NativeRenameDraftToken>) {
+) -> (Rect, ModalPresentation<RenameDraftToken>) {
     let placeholder_visible = draft.automatic_label() && draft.text().is_empty();
     let title = locale.rename_title();
     let mut lines = vec![
@@ -185,11 +185,11 @@ pub(super) fn render(
 pub(super) fn render_inline(
     frame: &mut Frame<'_>,
     locale: Locale,
-    draft: &NativeRenameDraftView<'_>,
+    draft: &RenameDraftView<'_>,
     area: Rect,
     theme: &Theme,
     hits: &mut HitMapBuilder,
-) -> (Rect, ModalPresentation<NativeRenameDraftToken>) {
+) -> (Rect, ModalPresentation<RenameDraftToken>) {
     let width = usize::from(area.width.saturating_sub(4));
     let Some(window) = draft
         .field_window(width)

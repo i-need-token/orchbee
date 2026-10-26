@@ -6,7 +6,7 @@ use super::{
     client_control, geometry_option, label_option, launch_options_with_directory, profile_option,
     reject_launch_profile_conflict, selection_envelope, target, usage_with, wait_timeout_option,
 };
-use orchbee_local_site_runtime::WindowsUserPathOperand;
+use orchbee_local_runtime::UserPathOperand;
 use orchbee_workbench_protocol::WorkbenchClientId;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -32,7 +32,7 @@ pub(crate) enum ParsedWorkspaceCreationDirectory {
     Home,
     Current,
     Workspace,
-    Explicit(WindowsUserPathOperand),
+    Explicit(UserPathOperand),
 }
 
 pub(crate) type ParsedWorkspaceCreationCommand =
@@ -155,7 +155,7 @@ pub(super) fn parse(options: &Options, envelope: FailureEnvelope) -> Result<Requ
         Some("current") => ParsedWorkspaceCreationDirectory::Current,
         Some("workspace") => ParsedWorkspaceCreationDirectory::Workspace,
         Some(value) => ParsedWorkspaceCreationDirectory::Explicit(
-            WindowsUserPathOperand::parse(value)
+            UserPathOperand::parse(value)
                 .map_err(|failure| path_failure(value, failure, envelope))?,
         ),
     };

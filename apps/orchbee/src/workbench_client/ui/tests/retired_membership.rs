@@ -14,7 +14,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 fn ready(
     elapsed: Arc<AtomicU64>,
-) -> (NativeUi, Arc<CommandMailbox>, CommandLease, UnavailablePoll) {
+) -> (
+    WorkbenchClientUi,
+    Arc<CommandMailbox>,
+    CommandLease,
+    UnavailablePoll,
+) {
     ready_with_cache(
         elapsed,
         project_preferred_workspace(&snapshot(3, 1)).unwrap(),
@@ -23,14 +28,19 @@ fn ready(
 
 fn ready_with_cache(
     elapsed: Arc<AtomicU64>,
-    cache: crate::workbench_client::workbench_projection::NativeContextTabs,
-) -> (NativeUi, Arc<CommandMailbox>, CommandLease, UnavailablePoll) {
+    cache: crate::workbench_client::workbench_projection::ClientContextTabs,
+) -> (
+    WorkbenchClientUi,
+    Arc<CommandMailbox>,
+    CommandLease,
+    UnavailablePoll,
+) {
     let clock = adjustable_operation_clock(elapsed);
     let mailbox = Arc::new(CommandMailbox::new(
         800,
         Geometry::new(80, 24, 8, 16).unwrap(),
     ));
-    let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    let mut ui = WorkbenchClientUi::new(Arc::clone(&mailbox), clock.clone());
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {
@@ -64,7 +74,7 @@ fn ready_with_cache(
     (ui, mailbox, lease, evidence)
 }
 
-fn retire(ui: &mut NativeUi, evidence: Option<UnavailablePoll>, clean: bool) {
+fn retire(ui: &mut WorkbenchClientUi, evidence: Option<UnavailablePoll>, clean: bool) {
     ui.retire(CarrierFailure::Protocol);
     ui.finish_retired_peer_join(evidence, clean);
     ui.finalize_retirement(None, None, None, CloseWorkerReturn::Returned(None));
@@ -109,7 +119,7 @@ fn removed_origin_context_lands_on_the_surviving_context_and_consumes_the_permit
             let workspace = &source.navigation.workspaces[1];
             let cache = crate::workbench_client::workbench_projection::project_native_context_tabs(
                 &source,
-                &crate::workbench_client::NativeContextLocation::Workspace {
+                &crate::workbench_client::ClientContextLocation::Workspace {
                     workspace_id: workspace.workspace_id.clone(),
                     terminal_context_id: workspace.terminal_context_id.clone(),
                 },
@@ -166,7 +176,7 @@ fn removed_origin_context_lands_on_the_surviving_context_and_consumes_the_permit
                 .unwrap()
         );
         if count == 0 {
-            assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
+            assert_eq!(ui.view().phase(), DisplayPhase::Empty);
             assert!(state.desired().is_none());
         } else {
             let RefreshDecision::AttachRecovered(target) = reply.decision() else {
@@ -329,7 +339,7 @@ fn recovery_checks_original_forward_deadline_and_installs_empty_or_one_successor
                     orchbee_workbench_protocol::WorkbenchRevision::new(2)
                 );
                 if count == 0 {
-                    assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
+                    assert_eq!(ui.view().phase(), DisplayPhase::Empty);
                     assert!(reply.desired().is_none());
                     assert!(state.desired().is_none());
                 } else {
@@ -384,8 +394,8 @@ fn unavailable_present_and_invalid_candidates_preserve_origin_for_fresh_explicit
             },
             2 => {
                 let mut value = removed(3);
-                value.site_id =
-                    orchbee_workbench_protocol::SiteId::parse(&format!("{:032x}", 99)).unwrap();
+                value.session_id =
+                    orchbee_workbench_protocol::SessionId::parse(&format!("{:032x}", 99)).unwrap();
                 WorkbenchSnapshotOutcome::Available { snapshot: value }
             }
             _ => {
@@ -422,7 +432,7 @@ fn unavailable_present_and_invalid_candidates_preserve_origin_for_fresh_explicit
             )
             .unwrap();
         ui.tick();
-        assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
+        assert_eq!(ui.view().phase(), DisplayPhase::Empty);
         retry.take_deposited_reply(&wait).unwrap().unwrap();
         retry.finish_lease(retry_lease).unwrap();
     }
@@ -465,13 +475,18 @@ fn cancelled_old_reply_cannot_install_into_a_later_explicit_attempt() {
 
 fn ready_controlling(
     elapsed: Arc<AtomicU64>,
-) -> (NativeUi, Arc<CommandMailbox>, CommandLease, UnavailablePoll) {
+) -> (
+    WorkbenchClientUi,
+    Arc<CommandMailbox>,
+    CommandLease,
+    UnavailablePoll,
+) {
     let clock = adjustable_operation_clock(elapsed);
     let mailbox = Arc::new(CommandMailbox::new(
         800,
         Geometry::new(80, 24, 8, 16).unwrap(),
     ));
-    let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    let mut ui = WorkbenchClientUi::new(Arc::clone(&mailbox), clock.clone());
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {
@@ -999,7 +1014,7 @@ fn status_only_carrier_suppresses_ordinary_reconcile_until_install() {
 #[test]
 fn retired_workspace_replacement_attaches_same_panel_only_with_fresh_physical_identity() {
     use crate::workbench_client::workbench_projection::{
-        NativeContextLocation, project_native_context_tabs,
+        ClientContextLocation, project_native_context_tabs,
     };
     use orchbee_workbench_protocol::{
         Project, TerminalContext, TerminalId, TerminalPresentationId, WorkbenchProjectId,
@@ -1030,7 +1045,7 @@ fn retired_workspace_replacement_attaches_same_panel_only_with_fresh_physical_id
             project_id: project_id.clone(),
             label: "project".into(),
         });
-        let location = NativeContextLocation::Workspace {
+        let location = ClientContextLocation::Workspace {
             workspace_id,
             terminal_context_id: workspace_context,
         };

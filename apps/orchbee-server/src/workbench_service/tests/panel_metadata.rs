@@ -1,7 +1,7 @@
 use super::*;
 use orchbee_workbench_protocol::{
     PanelMetadataAction as Action, PanelMetadataFailure as Failure,
-    PanelMetadataOutcome as Outcome, PanelMetadataRequest, SiteId, Snapshot,
+    PanelMetadataOutcome as Outcome, PanelMetadataRequest, SessionId, Snapshot,
 };
 fn service(terminals: &Arc<LocalTerminalService>, grants: u8) -> WorkbenchService {
     WorkbenchService::new(
@@ -37,7 +37,7 @@ fn panel_metadata_permissions_are_independent_and_refusals_leave_topology_unchan
     ))));
     let admin = service(&terminals, 31);
     let before = snapshot(&admin);
-    let mut request:PanelMetadataRequest=serde_json::from_value(serde_json::json!({"protocolVersion":1,"requestId":"1".repeat(32),"sessionId":before.site_id,"action":{"kind":"read","panelIds":[]}})).unwrap();
+    let mut request:PanelMetadataRequest=serde_json::from_value(serde_json::json!({"protocolVersion":1,"requestId":"1".repeat(32),"sessionId":before.session_id,"action":{"kind":"read","panelIds":[]}})).unwrap();
     let execute = |grants, request: &PanelMetadataRequest| {
         let WorkbenchResponse::PanelMetadata(reply) = response(
             service(&terminals, grants).execute(WorkbenchRequest::PanelMetadata(request.clone())),
@@ -105,14 +105,14 @@ fn panel_metadata_permissions_are_independent_and_refusals_leave_topology_unchan
             }
         );
     }
-    request.site_id = SiteId::parse(&"f".repeat(32)).unwrap();
+    request.session_id = SessionId::parse(&"f".repeat(32)).unwrap();
     assert_eq!(
         execute(31, &request),
         Outcome::Failed {
-            reason: Failure::SiteMismatch
+            reason: Failure::SessionMismatch
         }
     );
-    request.site_id = before.site_id.clone();
+    request.session_id = before.session_id.clone();
     if let Action::Report { patch, .. } = &mut request.action {
         patch.clear_title = true;
     }

@@ -213,8 +213,8 @@ fn exact_disposed_viewer_reuses_either_attach_form_without_old_host_cleanup() {
             panic!("initial_workspace panel")
         };
         let binding = primary_presentation.binding.as_ref().unwrap();
-        let site_id =
-            orchbee_client_server_protocol::SiteId::parse(snapshot.site_id.as_str()).unwrap();
+        let session_id =
+            orchbee_client_server_protocol::SessionId::parse(snapshot.session_id.as_str()).unwrap();
         let worker_id =
             orchbee_client_server_protocol::WorkerId::parse(binding.worker_id.as_str()).unwrap();
         let terminal_id =
@@ -224,7 +224,7 @@ fn exact_disposed_viewer_reuses_either_attach_form_without_old_host_cleanup() {
             viewer(
                 &mut session,
                 ViewerAction::AttachBinding {
-                    site_id: orchbee_client_server_protocol::SiteId::parse(&format!(
+                    session_id: orchbee_client_server_protocol::SessionId::parse(&format!(
                         "{:032x}",
                         999
                     ))
@@ -263,7 +263,7 @@ fn exact_disposed_viewer_reuses_either_attach_form_without_old_host_cleanup() {
         );
         let action = if by_binding {
             ViewerAction::AttachBinding {
-                site_id,
+                session_id,
                 worker_id,
                 terminal_id,
             }

@@ -122,7 +122,7 @@ fn panel_move_preserves_exact_commit_noop_and_compatible_precommit() -> TestResu
         WorkbenchCommandOutcome::Denied {},
     ];
     for reason in [
-        WorkbenchRejectionReason::SiteMismatch,
+        WorkbenchRejectionReason::SessionMismatch,
         WorkbenchRejectionReason::RevisionMismatch,
         WorkbenchRejectionReason::TerminalContextUnavailable,
         WorkbenchRejectionReason::TabUnavailable,

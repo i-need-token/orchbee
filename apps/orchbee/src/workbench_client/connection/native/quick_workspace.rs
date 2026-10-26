@@ -1,9 +1,9 @@
 //! Quick Workspace directory defaults under the ordinary bounded refresh lease.
-use super::{NativeExecutor, Result, WorkbenchSnapshotOutcome};
+use super::{ClientExecutor, Result, WorkbenchSnapshotOutcome};
 use crate::workbench_client::state::workspace_setup::quick::QuickPreparation;
 use orchbee_workbench_protocol::WorkbenchDirectoryPath;
 
-impl NativeExecutor {
+impl ClientExecutor {
     /// The focused Workspace's own directory, otherwise the directory this Client was
     /// launched from. A terminal's later working directory never moves the default.
     pub(super) fn prepare_quick_cwd(
@@ -33,7 +33,7 @@ impl NativeExecutor {
 #[cfg(windows)]
 fn launch_directory() -> std::io::Result<Option<WorkbenchDirectoryPath>> {
     // The Client never changes its process directory, so it remains the launch directory.
-    Ok(orchbee_local_site_runtime::normalize_windows_user_path(
+    Ok(orchbee_local_runtime::normalize_user_path(
         ".",
         |name| std::env::var_os(name),
         std::env::current_dir,

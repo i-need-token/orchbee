@@ -66,7 +66,7 @@ impl WorkbenchClientState {
         let command = WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id,
-            site_id: self.cache.site_id().clone(),
+            session_id: self.cache.session_id().clone(),
             expected_revision: self.cache.revision(),
             action: WorkbenchAction::NavigationConfigure { operation },
         };

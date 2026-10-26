@@ -109,7 +109,7 @@ impl Driver<'_> {
                     self.plan.progress.git_effect = WorktreeGitEffect::MayHaveChanged;
                 }
                 return Err(if self.stop.load(Ordering::Acquire) {
-                    Failure::SiteStopping {}
+                    Failure::SessionStopping {}
                 } else {
                     Failure::TransportUnknown {}
                 });

@@ -8,7 +8,7 @@ use std::time::Instant;
 use orchbee_agent_observation_protocol::{
     AgentListCursor, AgentReadRequest, AgentReadResult, AgentSafeInteger,
 };
-use orchbee_local_site_runtime::NativeCohort;
+use orchbee_local_runtime::Cohort;
 
 use crate::{
     cli::{Failure, FailureKind, query::AgentQueryError, results::Projection},
@@ -30,14 +30,14 @@ pub(super) fn run(
         .checked_add(super::COHORT_BUDGET)
         .ok_or_else(|| AgentQueryError::Admission(Failure::new(FailureKind::InternalFailure)))?
         .min(total);
-    let cohort = NativeCohort::current(cohort_deadline).map_err(|_| {
+    let cohort = Cohort::current(cohort_deadline).map_err(|_| {
         AgentQueryError::Admission(
             Failure::new(FailureKind::CheckFailed).details(super::stage_details("cohort")),
         )
     })?;
 
-    let site = super::rendezvous().map_err(AgentQueryError::Admission)?;
-    match site.client_socket_exists() {
+    let session = super::rendezvous().map_err(AgentQueryError::Admission)?;
+    match session.client_socket_exists() {
         Ok(true) => {}
         Ok(false) => {
             return Err(AgentQueryError::Admission(
@@ -53,7 +53,7 @@ pub(super) fn run(
     }
 
     let mut client =
-        LocalClient::connect_before(site.client_socket_path(), cohort.identity(), total)
+        LocalClient::connect_before(session.client_socket_path(), cohort.identity(), total)
             .map_err(|error| AgentQueryError::Admission(super::classify_connect(error)))?;
     if Instant::now() >= total {
         drop(client);

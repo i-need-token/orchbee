@@ -103,11 +103,11 @@ impl PreparedHostOperation {
         dispatch: &AuthorizedHostDispatch,
         facts: ResolvedTerminalLaunchFacts,
         correlation: CorrelationId,
-        site_runtime: Option<&std::path::Path>,
+        session_runtime: Option<&std::path::Path>,
         follows_host: bool,
     ) -> Result<Self, HostOperationError> {
         let host_theme = follows_host.then(|| facts.terminal_theme());
-        let creation = map_launch_creation(dispatch, facts, site_runtime)?;
+        let creation = map_launch_creation(dispatch, facts, session_runtime)?;
         let expected = ExpectedResponse::Created(match &creation {
             TerminalCreationControl::CreateTerminal(request) => request.creation_id,
             TerminalCreationControl::CreateScrollbackEditor(editor) => editor.creation.creation_id,

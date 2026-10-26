@@ -130,9 +130,9 @@ fn unknown_reason_tokens_cover_every_classification_arm() {
     let close_cases: Vec<(WorkbenchTabCloseFailure, &str)> = vec![
         (WorkbenchTabCloseFailure::Write(io_error()), "write-failure"),
         (
-            WorkbenchTabCloseFailure::SiteMismatch {
-                expected: SiteId::parse(&id32(5)).unwrap(),
-                received: SiteId::parse(&id32(6)).unwrap(),
+            WorkbenchTabCloseFailure::SessionMismatch {
+                expected: SessionId::parse(&id32(5)).unwrap(),
+                received: SessionId::parse(&id32(6)).unwrap(),
             },
             "validation-failed",
         ),

@@ -355,7 +355,7 @@ pub(crate) struct ClientView {
     pub(crate) user_preferences: Option<orchbee_workbench_protocol::UserPreferencesValues>,
     pub(crate) machines: crate::machine_picker::Picker,
     bindings: std::sync::Arc<Bindings>,
-    theme_name: Option<orchbee_local_site_runtime::WindowsThemeName>,
+    theme_name: Option<orchbee_local_runtime::ThemeName>,
     theme: Option<crate::tui_theme::Theme>,
     host_appearance: crate::terminal_host_appearance::HostAppearance,
     host_colors: crate::terminal_host_appearance::HostColors,
@@ -479,7 +479,7 @@ impl ClientView {
     }
 
     /// Resolve once from the original palette so reload cannot accumulate quantization loss.
-    pub(crate) fn configure_theme(&mut self, name: orchbee_local_site_runtime::WindowsThemeName) {
+    pub(crate) fn configure_theme(&mut self, name: orchbee_local_runtime::ThemeName) {
         self.theme_name = Some(name);
         if self.user_preferences.is_none() {
             self.theme = Some(crate::tui_theme::Theme::selected(name, self.color_level));
@@ -1047,7 +1047,7 @@ impl ClientView {
         &self.bindings
     }
 
-    pub(crate) fn configure_keys(&mut self, keys: &orchbee_local_site_runtime::WindowsKeySettings) {
+    pub(crate) fn configure_keys(&mut self, keys: &orchbee_local_runtime::KeySettings) {
         self.exit_resize_mode();
         self.bindings = std::sync::Arc::new(Bindings::configured(keys));
         self.prefix_active = false;

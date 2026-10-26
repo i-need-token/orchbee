@@ -4,10 +4,10 @@ use crate::workbench_client::state::workspace_setup::quick::{
     ProjectQuickWorkspaceRequest, QuickPreparation, QuickProject, QuickWorkspaceFields,
 };
 use crate::workbench_client::state::workspace_setup::{
-    NativeSetupStatus, SetupOperation, SetupWorkerEvidence,
+    SetupOperation, SetupStatus, SetupWorkerEvidence,
 };
 use crate::workbench_client::workbench_projection::{
-    NativeContextLocation, project_native_context_tabs,
+    ClientContextLocation, project_native_context_tabs,
 };
 use orchbee_workbench_protocol::{
     Project, WorkbenchAction, WorkbenchDirectoryPath, WorkbenchProjectId,
@@ -70,7 +70,7 @@ fn refused_quick_preparation_cannot_auto_open_when_its_read_finishes() {
     assert!(state.setup_draft().is_none());
     assert_eq!(
         state.setup_status(),
-        Some(NativeSetupStatus::PresentationUnavailable)
+        Some(SetupStatus::PresentationUnavailable)
     );
     assert_eq!(state.take_quick_preparation(&preparation), Some(false));
 }
@@ -134,7 +134,7 @@ fn targeted_source() -> (WorkbenchClientState, Snapshot, Project, PaneRef) {
     let mut target = snapshot.navigation.projects[0].clone();
     target.project_id = WorkbenchProjectId::parse(&id(79)).unwrap();
     snapshot.navigation.projects.push(target.clone());
-    let location = NativeContextLocation::Workspace {
+    let location = ClientContextLocation::Workspace {
         workspace_id: snapshot.navigation.workspaces[1].workspace_id.clone(),
         terminal_context_id: snapshot.terminal_contexts[1].terminal_context_id.clone(),
     };
@@ -227,7 +227,7 @@ fn project_quick_rejects_changed_focus_with_identical_context_before_prepare_or_
             assert!(state.settle_stale_quick_workspace());
         }
         assert!(state.setup_draft().is_none());
-        assert_eq!(state.setup_status(), Some(NativeSetupStatus::NotApplied));
+        assert_eq!(state.setup_status(), Some(SetupStatus::NotApplied));
         assert!(!state.setup_blocks_structure());
         assert!(state.invariant_holds());
     }
@@ -276,7 +276,7 @@ fn project_quick_never_substitutes_a_removed_or_same_id_replaced_target() {
             assert!(state.setup_draft().is_none());
             assert!(!state.setup_blocks_structure());
             assert!(
-                matches!(state.cache().location(), NativeContextLocation::Workspace { workspace_id, .. }
+                matches!(state.cache().location(), ClientContextLocation::Workspace { workspace_id, .. }
                 if workspace_id == &snapshot.navigation.workspaces[1].workspace_id)
             );
         }
@@ -436,7 +436,7 @@ fn project_quick_entering(
     assert_eq!(key.anchor().tab_id(), &commit.tab_id);
     assert_eq!(key.panel(), &commit.panel_id);
     assert!(
-        matches!(state.cache().location(), NativeContextLocation::Workspace { workspace_id, terminal_context_id }
+        matches!(state.cache().location(), ClientContextLocation::Workspace { workspace_id, terminal_context_id }
         if workspace_id == &commit.workspace_id && terminal_context_id == &commit.terminal_context_id)
     );
     assert_eq!(state.active().unwrap().index(), 1);
@@ -555,19 +555,19 @@ fn project_row_and_disclosure_focus_retires_submitted_entering_and_queued_ready_
     }
 
     fn press_project(view: &mut ClientView, state: &mut WorkbenchClientState, leave: bool) {
-        let NativeContextLocation::Workspace { .. } = state.cache().location() else {
+        let ClientContextLocation::Workspace { .. } = state.cache().location() else {
             panic!("Workspace source or entered receipt");
         };
         let project_id = state.cache().project_id().unwrap();
         let target = SidebarTarget::Project {
             machine: Choice::Local,
-            site_id: state.cache().site_id().clone(),
+            session_id: state.cache().session_id().clone(),
             project_id: project_id.clone(),
         };
         view.machines
             .observe_local(vec![crate::machine_discovery::Context {
-                target: crate::workbench_client::NativeContextTarget {
-                    site_id: state.cache().site_id().clone(),
+                target: crate::workbench_client::ClientContextTarget {
+                    session_id: state.cache().session_id().clone(),
                     location: state.cache().location().clone(),
                 },
                 project_id: Some(project_id.clone()),
@@ -791,7 +791,7 @@ fn revoked_launch_landing_keeps_current_focus_and_still_validates_the_known_reso
                 assert_eq!(state.focus_pane_ref(), focus);
                 assert_eq!(
                     state.setup_status(),
-                    Some(NativeSetupStatus::CommittedNeedRefresh)
+                    Some(SetupStatus::CommittedNeedRefresh)
                 );
             }
             assert_eq!(
@@ -802,10 +802,7 @@ fn revoked_launch_landing_keeps_current_focus_and_still_validates_the_known_reso
             assert_eq!(state.cache().canonical_snapshot(), &committed);
             assert_eq!(state.desired(), desired.as_ref());
             assert_eq!(state.focus_pane_ref(), focus);
-            assert_eq!(
-                state.setup_status(),
-                Some(NativeSetupStatus::WorkspaceCreated)
-            );
+            assert_eq!(state.setup_status(), Some(SetupStatus::WorkspaceCreated));
             assert!(!state.setup_blocks_structure());
             assert!(!state.take_project_quick_terminal_entry());
             assert!(state.retain_setup_worker(SetupWorkerEvidence::Known(known)));

@@ -5,9 +5,9 @@ use std::sync::atomic::Ordering;
 pub(super) fn enter_isolated_catalog() -> bool {
     const KEY: &str = "ORCHBEE_OVERLAY_SERVER_FIXTURE";
     if let Some(root) = std::env::var_os(KEY) {
-        orchbee_local_site_runtime::PluginRegistry::from_environment(|name| std::env::var_os(name))
+        orchbee_local_runtime::PluginRegistry::from_environment(|name| std::env::var_os(name))
             .unwrap()
-            .mutate(orchbee_local_site_runtime::PluginRegistryMutation::Link {
+            .mutate(orchbee_local_runtime::PluginRegistryMutation::Link {
                 path: std::path::PathBuf::from(root).join("orchbee-plugin.toml"),
                 enabled: true,
             })
@@ -49,12 +49,12 @@ pub(super) fn enter_isolated_catalog() -> bool {
         .env(KEY, &root.0)
         .env("APPDATA", root.0.join("appdata"))
         .env_remove("ORCHBEE_CONFIG_FILE");
-    let result = orchbee_local_site_runtime::run_windows_command(
+    let result = orchbee_local_runtime::run_windows_command(
         command,
         Some(std::time::Instant::now() + std::time::Duration::from_secs(30)),
         || Ok(false),
     );
-    if result.failure == Some(orchbee_local_site_runtime::WindowsCommandFailure::PhysicalUnknown) {
+    if result.failure == Some(orchbee_local_runtime::CommandFailure::PhysicalUnknown) {
         eprintln!(
             "Codex owns unresolved overlay child fixture: {}",
             root.0.display()
@@ -107,7 +107,7 @@ fn observation(fixture: &Fixture) -> PluginRequest {
     PluginRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 90_001)).unwrap(),
-        site_id: target.site_id,
+        session_id: target.session_id,
         action: PluginAction::PaneObserve { pane },
     }
 }
@@ -179,7 +179,7 @@ fn plugin_overlay_uncertain_cleanup_blocks_settlement_and_is_released_before_rep
 }
 
 #[test]
-fn plugin_overlay_stale_membership_and_site_are_refused_before_any_worker_effect() {
+fn plugin_overlay_stale_membership_and_session_are_refused_before_any_worker_effect() {
     if !enter_isolated_catalog() {
         return;
     }
@@ -195,11 +195,11 @@ fn plugin_overlay_stale_membership_and_site_are_refused_before_any_worker_effect
             reason: PluginFailure::Conflict
         }
     ));
-    request.site_id = SiteId::parse(&format!("{:032x}", 99_002)).unwrap();
+    request.session_id = SessionId::parse(&format!("{:032x}", 99_002)).unwrap();
     assert!(matches!(
         fixture.service.execute_plugin(request).outcome,
         PluginOutcome::Failed {
-            reason: PluginFailure::SiteMismatch
+            reason: PluginFailure::SessionMismatch
         }
     ));
     assert!(fixture.barrier().unwrap().is_empty());

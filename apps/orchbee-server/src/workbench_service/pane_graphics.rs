@@ -12,7 +12,7 @@ impl WorkbenchClientConnection<'_> {
         PaneGraphicsResult {
             protocol_version: request.protocol_version,
             request_id: request.request_id,
-            site_id: request.site_id,
+            session_id: request.session_id,
             outcome,
         }
     }
@@ -26,7 +26,7 @@ impl WorkbenchClientConnection<'_> {
             } => {
                 self.service
                     .terminals
-                    .validate_graphics_observation(&request.site_id, observation)?;
+                    .validate_graphics_observation(&request.session_id, observation)?;
                 self.service
                     .client_views
                     .lock()
@@ -65,7 +65,7 @@ impl WorkbenchClientConnection<'_> {
                     let source = self
                         .service
                         .terminals
-                        .graphics_source(&request.site_id, target)?;
+                        .graphics_source(&request.session_id, target)?;
                     let info = self
                         .service
                         .client_views

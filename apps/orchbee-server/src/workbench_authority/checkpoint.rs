@@ -5,7 +5,7 @@ use std::{collections::BTreeSet, fmt};
 use orchbee_workbench_protocol::{
     ContractError, LaunchProfileEntry, LaunchProfileId, LaunchProfileName, LaunchSelection,
     MAXIMUM_LAUNCH_PROFILE_CATALOG_BYTES, MAXIMUM_LAUNCH_PROFILE_ENTRIES, PanelNode, Presentation,
-    ProtocolVersion, SiteId, Snapshot, TerminalContext, WorkbenchDirectoryPath,
+    ProtocolVersion, SessionId, Snapshot, TerminalContext, WorkbenchDirectoryPath,
     WorkbenchProtocolDocument, WorkbenchRevision, WorkerId, serialize_document,
 };
 use serde::{Deserialize, Serialize};
@@ -174,7 +174,7 @@ impl WorkbenchAuthority {
                 let counter = entry
                     .profile_id
                     .as_str()
-                    .strip_prefix(self.site_id().as_str())
+                    .strip_prefix(self.session_id().as_str())
                     .and_then(|suffix| suffix.strip_prefix(':'))
                     .ok_or(WorkbenchCheckpointError::InvalidIdentity)?;
                 Ok(StoredProfile {
@@ -206,18 +206,18 @@ impl WorkbenchAuthority {
         Ok(encoded)
     }
 
-    /// The caller supplies a fresh boot Site and its admitted local Worker.
+    /// The caller supplies a fresh boot Session and its admitted local Worker.
     pub fn from_checkpoint(
         encoded: &[u8],
-        site_id: SiteId,
+        session_id: SessionId,
         local_worker: &WorkerId,
     ) -> Result<Self, WorkbenchCheckpointError> {
-        WorkbenchCheckpoint::parse(encoded)?.reconstruct(site_id, local_worker)
+        WorkbenchCheckpoint::parse(encoded)?.reconstruct(session_id, local_worker)
     }
 }
 
 /// Fully validated retained configuration, admitted before creating runtime processes.
-/// Its private records contain no live Site, Worker, terminal or controller authority.
+/// Its private records contain no live Session, Worker, terminal or controller authority.
 pub struct WorkbenchCheckpoint {
     checkpoint: Checkpoint,
 }
@@ -234,21 +234,21 @@ impl WorkbenchCheckpoint {
         }
         // These values only validate the shared graph shape. No authority is constructed,
         // retained or published; actual boot identities arrive during reconstruction.
-        let validation_site = SiteId::parse("00000000000000000000000000000001")
+        let validation_session = SessionId::parse("00000000000000000000000000000001")
             .expect("canonical nonzero validation identity");
         let validation_worker = WorkerId::parse("00000000000000000000000000000001")
             .expect("canonical nonzero validation identity");
-        let _validated = checkpoint_parts(&checkpoint, &validation_site, &validation_worker)?;
+        let _validated = checkpoint_parts(&checkpoint, &validation_session, &validation_worker)?;
         Ok(Self { checkpoint })
     }
 
     pub fn reconstruct(
         self,
-        site_id: SiteId,
+        session_id: SessionId,
         local_worker: &WorkerId,
     ) -> Result<WorkbenchAuthority, WorkbenchCheckpointError> {
-        let parts = checkpoint_parts(&self.checkpoint, &site_id, local_worker)?;
-        let mut authority = WorkbenchAuthority::new(site_id)
+        let parts = checkpoint_parts(&self.checkpoint, &session_id, local_worker)?;
+        let mut authority = WorkbenchAuthority::new(session_id)
             .map_err(WorkbenchCheckpointError::InvalidProjection)?;
         authority.projection = parts.projection;
         authority.last_identity = self.checkpoint.last_identity.0;
@@ -270,7 +270,7 @@ struct CheckpointParts {
 
 fn checkpoint_parts(
     checkpoint: &Checkpoint,
-    site_id: &SiteId,
+    session_id: &SessionId,
     local_worker: &WorkerId,
 ) -> Result<CheckpointParts, WorkbenchCheckpointError> {
     if checkpoint.profiles.len() > MAXIMUM_LAUNCH_PROFILE_ENTRIES {
@@ -283,7 +283,7 @@ fn checkpoint_parts(
             Ok(LaunchProfileEntry {
                 profile_id: LaunchProfileId::parse(&format!(
                     "{}:{}",
-                    site_id.as_str(),
+                    session_id.as_str(),
                     identity(profile.counter.0)
                 ))
                 .map_err(|_error| WorkbenchCheckpointError::InvalidIdentity)?,
@@ -296,7 +296,7 @@ fn checkpoint_parts(
     let snapshot = Snapshot {
         protocol_version: ProtocolVersion,
         revision: WorkbenchRevision::new(0),
-        site_id: site_id.clone(),
+        session_id: session_id.clone(),
         navigation: checkpoint.navigation.restore(local_worker)?,
         terminal_contexts: checkpoint
             .terminal_contexts

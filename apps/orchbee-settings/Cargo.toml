@@ -7,7 +7,7 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
-orchbee-local-site-runtime = { path = "../../crates/local-site-runtime" }
+orchbee-local-runtime = { path = "../../crates/local-runtime" }
 orchbee-workbench-protocol = { path = "../../crates/workbench-protocol" }
 serde_json.workspace = true
 

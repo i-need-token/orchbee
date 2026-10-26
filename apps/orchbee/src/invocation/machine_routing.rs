@@ -14,25 +14,25 @@ pub(crate) struct Route {
 }
 
 pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
-    if let [mode, site, cohort] = tokens.as_slice()
+    if let [mode, session, cohort] = tokens.as_slice()
         && mode == "--machine-tunnel-v1"
         && cohort.len() == 64
         && cohort
             .bytes()
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-        && let Ok(site) = orchbee_local_site_runtime::WindowsSiteName::parse(site)
+        && let Ok(session) = orchbee_local_runtime::SessionName::parse(session)
     {
         return Ok(SelectedRequest {
             request: Request::MachineTunnel {
                 cohort: cohort.clone(),
             },
-            site: Some(site),
+            session: Some(session),
         });
     }
     if tokens == ["--machine-relay-v1"] {
         return Ok(SelectedRequest {
             request: Request::MachineRelay,
-            site: None,
+            session: None,
         });
     }
     let Some(first) = tokens.first() else {
@@ -62,7 +62,7 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
     }
     let selected = scan(arguments.clone())?;
     let envelope = selection_envelope(format_envelope(&arguments)?);
-    if selected.site.is_some() {
+    if selected.session.is_some() {
         return Err(usage_with(
             UsageReason::ConflictingOptions {
                 context: UsageContext::Root,
@@ -85,7 +85,7 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
         )
     })?;
     Ok(SelectedRequest {
-        site: None,
+        session: None,
         request: Request::MachineRoute(Route {
             selector,
             arguments,
@@ -126,7 +126,7 @@ pub(crate) fn admit(request: &Request) -> Option<(OutputFormat, Option<TerminalS
         | Request::WorkspaceGroupClose { format, .. }
         | Request::WorktreeQuery { format, .. }
         | Request::Worktree { format, .. }
-        | Request::SiteStop { format, .. }
+        | Request::ServerStop { format, .. }
         | Request::WindowTitle { format, .. }
         | Request::Notification { format, .. }
         | Request::RuntimeConfiguration { format, .. }

@@ -1,5 +1,5 @@
 use super::{
-    NativeContextTabs, NativeProjectionDivergence, WorkbenchLabel, WorkbenchRevision,
+    ClientContextTabs, ClientProjectionDivergence, WorkbenchLabel, WorkbenchRevision,
     WorkbenchTabId, WorkbenchTerminalContextId, validate_canonical_candidate,
 };
 
@@ -30,37 +30,37 @@ impl RenamedTabExpectation {
 
 #[derive(Debug, Eq, PartialEq)]
 pub(in crate::workbench_client) struct ValidatedRenamedProjection {
-    pub(in crate::workbench_client) candidate: NativeContextTabs,
+    pub(in crate::workbench_client) candidate: ClientContextTabs,
     pub(in crate::workbench_client) renamed_index: Option<usize>,
 }
 
 pub(in crate::workbench_client) fn validate_renamed_tab(
-    baseline: &NativeContextTabs,
+    baseline: &ClientContextTabs,
     expected: &RenamedTabExpectation,
-    candidate: NativeContextTabs,
-) -> Result<ValidatedRenamedProjection, NativeProjectionDivergence> {
+    candidate: ClientContextTabs,
+) -> Result<ValidatedRenamedProjection, ClientProjectionDivergence> {
     validate_canonical_candidate(baseline, &candidate)?;
     super::tab_metadata::validate_receipt(baseline, &candidate, expected.committed_revision)?;
     if baseline.revision.value().checked_add(1) != Some(expected.committed_revision.value())
         || Some(&expected.terminal_context_id) != baseline.terminal_context_id()
         || candidate.revision < expected.committed_revision
     {
-        return Err(NativeProjectionDivergence);
+        return Err(ClientProjectionDivergence);
     }
     let target = baseline
         .tab_index(&expected.tab_id)
-        .ok_or(NativeProjectionDivergence)?;
+        .ok_or(ClientProjectionDivergence)?;
     if !baseline.tabs[target].automatic_label
         && baseline.tabs[target].tab_label == expected.requested_label
     {
-        return Err(NativeProjectionDivergence);
+        return Err(ClientProjectionDivergence);
     }
     if candidate.revision == expected.committed_revision {
         let mut expected_tabs = baseline.tabs.clone();
         expected_tabs[target].tab_label = expected.requested_label.clone();
         expected_tabs[target].automatic_label = false;
         if candidate.tabs != expected_tabs {
-            return Err(NativeProjectionDivergence);
+            return Err(ClientProjectionDivergence);
         }
     }
     let renamed_index = candidate.tab_index(&expected.tab_id);

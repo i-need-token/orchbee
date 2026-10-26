@@ -1,13 +1,13 @@
 //! Quick Workspace defaults come from canonical directories or the Client launch directory.
-use super::super::NativeExecutor;
+use super::super::ClientExecutor;
 use super::setup::{TestResult, admit, fixture_geometry, snapshot};
 use crate::local_client::LocalClient;
 use crate::local_client::tests::server::FakeServer;
 use crate::workbench_client::mailbox::CommandMailbox;
 use crate::workbench_client::state::OperationDeadlines;
-use crate::workbench_client::state::workspace_setup::{NativeSetupToken, quick::QuickPreparation};
+use crate::workbench_client::state::workspace_setup::{SetupToken, quick::QuickPreparation};
 use crate::workbench_client::workbench_projection::{
-    NativeContextLocation, NativeContextTabs, project_native_context_tabs,
+    ClientContextLocation, ClientContextTabs, project_native_context_tabs,
     project_preferred_workspace,
 };
 use orchbee_workbench_protocol::{
@@ -18,12 +18,12 @@ use orchbee_workbench_protocol::{
 use std::io::{self, Read};
 use std::{sync::Arc, time::Instant};
 
-fn quick(baseline: NativeContextTabs) -> QuickPreparation {
+fn quick(baseline: ClientContextTabs) -> QuickPreparation {
     QuickPreparation {
         review_directory: false,
         target: None,
         generation: 1,
-        token: NativeSetupToken::for_test(1),
+        token: SetupToken::for_test(1),
         baseline,
         deadlines: OperationDeadlines::from_sample(Instant::now()).unwrap(),
     }
@@ -62,11 +62,11 @@ fn quick_workspace_uses_the_focused_workspace_directory_then_the_launch_director
         tabs: initial_workspace.terminal_contexts[0].tabs.clone(),
         terminal_context_id: context_id.clone(),
     });
-    let location = NativeContextLocation::Workspace {
+    let location = ClientContextLocation::Workspace {
         workspace_id,
         terminal_context_id: context_id,
     };
-    let launch = orchbee_local_site_runtime::normalize_windows_user_path(
+    let launch = orchbee_local_runtime::normalize_user_path(
         ".",
         |name| std::env::var_os(name),
         std::env::current_dir,
@@ -93,7 +93,7 @@ fn quick_workspace_uses_the_focused_workspace_directory_then_the_launch_director
             Ok(())
         })?;
         let client = LocalClient::connect(server.endpoint(), "native-quick-test")?;
-        let mut executor = NativeExecutor::new(
+        let mut executor = ClientExecutor::new(
             client,
             Arc::new(CommandMailbox::new(10, fixture_geometry()?)),
         );

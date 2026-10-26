@@ -3,8 +3,8 @@ mod navigation_configuration;
 mod tab_configuration;
 use crate::local_client::workbench::workspace_setup::WorkbenchSetupCommit;
 use crate::workbench_client::state::workspace_setup::{
-    NativeSetupEdit as Edit, NativeSetupStage as Stage, NativeSetupStatus as Status,
-    SetupOperation, SetupWorkerEvidence,
+    SetupEdit as Edit, SetupOperation, SetupStage as Stage, SetupStatus as Status,
+    SetupWorkerEvidence,
 };
 use orchbee_workbench_protocol::{
     Directory, Project, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchProjectId,
@@ -14,9 +14,9 @@ use orchbee_workbench_protocol::{
 pub(super) fn group_intent(
     state: &WorkbenchClientState,
     label: &str,
-) -> crate::workbench_client::state::workspace_setup::NativeSetupIntent {
+) -> crate::workbench_client::state::workspace_setup::SetupIntent {
     use orchbee_workbench_protocol::{TabConfiguration, TabGroupColor, WorkbenchTabGroupLabel};
-    crate::workbench_client::state::workspace_setup::NativeSetupIntent::TabGroupName(Box::new(
+    crate::workbench_client::state::workspace_setup::SetupIntent::TabGroupName(Box::new(
         TabConfiguration::CreateGroup {
             tab_id: state.cache().tabs()[0].tab_id().clone(),
             label: WorkbenchTabGroupLabel::parse(label).unwrap(),
@@ -27,11 +27,11 @@ pub(super) fn group_intent(
 
 fn organization_intent(
     state: &WorkbenchClientState,
-) -> crate::workbench_client::state::workspace_setup::NativeSetupIntent {
+) -> crate::workbench_client::state::workspace_setup::SetupIntent {
     let workspace = state.cache().canonical_snapshot().navigation.workspaces[1]
         .workspace_id
         .clone();
-    crate::workbench_client::state::workspace_setup::NativeSetupIntent::Organize(Box::new(
+    crate::workbench_client::state::workspace_setup::SetupIntent::Organize(Box::new(
         crate::workbench_client::WorkspaceOrganizationRequest::workspace(
             state,
             &workspace,
@@ -95,14 +95,14 @@ pub(super) fn workspace_state() -> WorkbenchClientState {
 
 #[test]
 fn ux_menu_directory_refusal_query_preserves_original_draft_admission() {
-    use crate::workbench_client::NativeContextLocation;
+    use crate::workbench_client::ClientContextLocation;
     use crate::workbench_client::state::workspace_setup::{
-        DirectoryConfigurationUnavailable, NativeSetupIntent,
+        DirectoryConfigurationUnavailable, SetupIntent,
     };
     let mut empty = workspace_state();
     assert_eq!(empty.directory_configuration_unavailable(), None);
     let token = empty
-        .open_setup_draft(NativeSetupIntent::ConfigureDirectory)
+        .open_setup_draft(SetupIntent::ConfigureDirectory)
         .unwrap();
     assert_eq!(
         empty.directory_configuration_unavailable(),
@@ -110,14 +110,14 @@ fn ux_menu_directory_refusal_query_preserves_original_draft_admission() {
     );
     assert!(
         empty
-            .open_setup_draft(NativeSetupIntent::ConfigureDirectory)
+            .open_setup_draft(SetupIntent::ConfigureDirectory)
             .is_none()
     );
     empty.cancel_setup_draft(token);
     assert_eq!(empty.directory_configuration_unavailable(), None);
 
     let snapshot = workspace_snapshot(1, 1);
-    let location = NativeContextLocation::Workspace {
+    let location = ClientContextLocation::Workspace {
         workspace_id: snapshot.navigation.workspaces[1].workspace_id.clone(),
         terminal_context_id: snapshot.navigation.workspaces[1]
             .terminal_context_id
@@ -134,7 +134,7 @@ fn ux_menu_directory_refusal_query_preserves_original_draft_admission() {
     );
     assert!(
         nonempty
-            .open_setup_draft(NativeSetupIntent::ConfigureDirectory)
+            .open_setup_draft(SetupIntent::ConfigureDirectory)
             .is_none()
     );
 
@@ -155,7 +155,7 @@ fn ux_menu_directory_refusal_query_preserves_original_draft_admission() {
     );
     assert!(
         no_workspace
-            .open_setup_draft(NativeSetupIntent::ConfigureDirectory)
+            .open_setup_draft(SetupIntent::ConfigureDirectory)
             .is_none()
     );
 }
@@ -335,7 +335,7 @@ fn directory_literal_byte_limit_completeness_and_exact_owner_receipt() {
     let mut state = workspace_state();
     let token = state
         .open_setup_draft(
-            crate::workbench_client::state::workspace_setup::NativeSetupIntent::ConfigureDirectory,
+            crate::workbench_client::state::workspace_setup::SetupIntent::ConfigureDirectory,
         )
         .unwrap();
     state.acknowledge_setup_draw(Some(token));
@@ -380,7 +380,13 @@ fn directory_literal_byte_limit_completeness_and_exact_owner_receipt() {
     assert_eq!(state.phase_kind(), ClientPhaseKind::Empty);
     assert!(state.desired().is_none());
     assert_eq!(state.workspace_directory_path(), Some(path));
-    assert!(state.open_setup_draft(crate::workbench_client::state::workspace_setup::NativeSetupIntent::ConfigureDirectory).is_none());
+    assert!(
+        state
+            .open_setup_draft(
+                crate::workbench_client::state::workspace_setup::SetupIntent::ConfigureDirectory
+            )
+            .is_none()
+    );
 }
 #[test]
 fn setup_draft_and_known_recovery_exclude_existing_structural_actions() {
@@ -394,7 +400,13 @@ fn setup_draft_and_known_recovery_exclude_existing_structural_actions() {
     );
     assert!(state.open_rename_draft().is_none());
     assert!(!state.phase_allows_refresh());
-    assert!(state.open_setup_draft(crate::workbench_client::state::workspace_setup::NativeSetupIntent::ConfigureDirectory).is_none());
+    assert!(
+        state
+            .open_setup_draft(
+                crate::workbench_client::state::workspace_setup::SetupIntent::ConfigureDirectory
+            )
+            .is_none()
+    );
     state.cancel_setup_draft(token);
     assert!(!state.setup_blocks_structure());
     assert!(state.open_rename_draft().is_some());
@@ -409,7 +421,7 @@ fn known_and_definite_worker_returns_survive_retirement_without_becoming_unknown
     let mut state = workspace_state();
     let token = state
         .open_setup_draft(
-            crate::workbench_client::state::workspace_setup::NativeSetupIntent::ConfigureDirectory,
+            crate::workbench_client::state::workspace_setup::SetupIntent::ConfigureDirectory,
         )
         .unwrap();
     state.acknowledge_setup_draw(Some(token));
@@ -454,7 +466,7 @@ fn directory_commit_cannot_claim_an_existing_directory_identity_at_a_later_revis
         .commit();
     let token = state
         .open_setup_draft(
-            crate::workbench_client::state::workspace_setup::NativeSetupIntent::ConfigureDirectory,
+            crate::workbench_client::state::workspace_setup::SetupIntent::ConfigureDirectory,
         )
         .unwrap();
     state.acknowledge_setup_draw(Some(token));
@@ -491,7 +503,7 @@ fn directory_commit_cannot_claim_an_existing_directory_identity_at_a_later_revis
 
 #[test]
 fn setup_draft_edits_graphemes_and_the_picker_stays_inert_to_text() {
-    use crate::workbench_client::state::workspace_setup::NativeSetupIntent;
+    use crate::workbench_client::state::workspace_setup::SetupIntent;
     let mut state = workspace_state();
     // The picker stage owns no text field: text/paste/nav edits are inert and
     // project selection only moves through the selection edits.
@@ -510,7 +522,7 @@ fn setup_draft_edits_graphemes_and_the_picker_stays_inert_to_text() {
 
     // DirectoryPath: byte budget, empty prefill, full editing vocabulary.
     let token = state
-        .open_setup_draft(NativeSetupIntent::ConfigureDirectory)
+        .open_setup_draft(SetupIntent::ConfigureDirectory)
         .unwrap();
     state.acknowledge_setup_draw(Some(token));
     assert!(state.edit_setup_draft(token, Edit::Append("/var/tmp")));
@@ -537,8 +549,8 @@ fn setup_draft_edits_graphemes_and_the_picker_stays_inert_to_text() {
 
     // A rename stage prefills the exact label with the cursor at its end.
     let rename = state
-        .open_setup_draft(NativeSetupIntent::RenameLocation(
-            crate::workbench_client::state::workspace_setup::NativeLocationLabelTarget::Workspace,
+        .open_setup_draft(SetupIntent::RenameLocation(
+            crate::workbench_client::state::workspace_setup::LocationLabelTarget::Workspace,
         ))
         .unwrap();
     state.acknowledge_setup_draw(Some(rename));
@@ -553,7 +565,7 @@ fn setup_first_geometry_block_refuses_the_open_attempt_without_a_hidden_owner() 
     let mut state = workspace_state();
     let token = state
         .open_setup_draft(
-            crate::workbench_client::state::workspace_setup::NativeSetupIntent::ConfigureDirectory,
+            crate::workbench_client::state::workspace_setup::SetupIntent::ConfigureDirectory,
         )
         .unwrap();
     assert_eq!(
@@ -580,7 +592,7 @@ fn setup_geometry_suspension_preserves_the_exact_draft_and_requires_a_fresh_draw
     let mut state = workspace_state();
     let token = state
         .open_setup_draft(
-            crate::workbench_client::state::workspace_setup::NativeSetupIntent::ConfigureDirectory,
+            crate::workbench_client::state::workspace_setup::SetupIntent::ConfigureDirectory,
         )
         .unwrap();
     state.acknowledge_setup_draw(Some(token));

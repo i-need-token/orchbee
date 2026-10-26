@@ -5,20 +5,20 @@ use crate::{
     localization::Locale,
     tui_pointer::HitMapBuilder,
     tui_theme::Theme,
-    workbench_client::{Geometry, NativeDrawReceipt, pane_graphics::Layer},
+    workbench_client::{DrawReceipt, Geometry, pane_graphics::Layer},
 };
 use orchbee_workbench_protocol::{PaneGraphicsLayer, PaneGraphicsPlacement, WorkbenchRevision};
 use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, style::Color};
 
 fn draw(
-    ui: &NativeUi,
+    ui: &WorkbenchClientUi,
     width: u16,
     height: u16,
     locale: Locale,
     theme: &Theme,
-) -> (NativeDrawReceipt, Buffer) {
+) -> (DrawReceipt, Buffer) {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-    let mut receipt = NativeDrawReceipt::default();
+    let mut receipt = DrawReceipt::default();
     terminal
         .draw(|frame| {
             receipt = crate::tui_render::render_terminal_shell(
@@ -250,8 +250,9 @@ fn actual_native_shell_places_confirmed_pixels_inside_one_frame_and_clears_under
         let (replies, overflow) = dispatcher.take_graphics_replies();
         graphics.update(facts, now, replies, overflow);
     };
-    let paint = |ui: &mut NativeUi, terminal: &mut Terminal<FixedViewportBackend<HostWire>>| {
-        let mut receipt = NativeDrawReceipt::default();
+    let paint = |ui: &mut WorkbenchClientUi,
+                 terminal: &mut Terminal<FixedViewportBackend<HostWire>>| {
+        let mut receipt = DrawReceipt::default();
         graphics.begin_frame(false);
         let buffer = terminal
             .draw(|frame| {

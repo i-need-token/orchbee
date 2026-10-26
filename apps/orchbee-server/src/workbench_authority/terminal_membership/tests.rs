@@ -2,13 +2,13 @@ use super::*;
 use crate::test_support::WorkbenchFixture;
 use crate::workbench_projection::WorkbenchProjectionStore;
 use orchbee_workbench_protocol::{
-    PanelOrientation, PanelSlot, Presentation, SiteId, TerminalId, TerminalPresentationId,
+    PanelOrientation, PanelSlot, Presentation, SessionId, TerminalId, TerminalPresentationId,
     WorkbenchPanelId, WorkbenchPanelSlotId, WorkbenchProtocolDocument, WorkbenchRevision,
     WorkbenchSplitId, WorkerId, serialize_document,
 };
 
 fn authority() -> WorkbenchAuthority {
-    WorkbenchAuthority::workspace_fixture(SiteId::parse(&identity(91)).unwrap()).unwrap()
+    WorkbenchAuthority::workspace_fixture(SessionId::parse(&identity(91)).unwrap()).unwrap()
 }
 fn binding() -> PresentationBinding {
     PresentationBinding {

@@ -644,7 +644,7 @@ fn idle_shell(sample: &TerminalProcessInfo) -> Result<&TerminalProcess, Failure>
     // command bodies and noninteractive launches still cannot establish an idle shell.
     let runtime_initialization = shell != "cmd"
         && switches.last().is_some_and(|script| {
-            script == &orchbee_local_site_runtime::windows_interactive_powershell_initialization()
+            script == &orchbee_local_runtime::windows_interactive_powershell_initialization()
         });
     let flags = if switches.len() >= 3
         && runtime_initialization

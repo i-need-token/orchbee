@@ -66,7 +66,7 @@ struct Standby {
 impl Standby {
     fn new(runtime: &Path, request: WorkerHandoffRequest, ready: Ready) -> Self {
         let endpoint =
-            orchbee_local_site_runtime::ModeCheckedLocalSiteRendezvous::handoff_endpoint_path(
+            orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::handoff_endpoint_path(
                 runtime,
                 request.target.handoff_id.as_bytes(),
             );
@@ -396,11 +396,10 @@ fn handoff_actual_admitted_loop_preserves_host_and_cached_terminal_binding_on_ne
     use std::{cell::RefCell, rc::Rc};
     let runtime = runtime();
     let prepare = request(Action::Prepare, 4);
-    let endpoint =
-        orchbee_local_site_runtime::ModeCheckedLocalSiteRendezvous::handoff_endpoint_path(
-            &runtime,
-            prepare.target.handoff_id.as_bytes(),
-        );
+    let endpoint = orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::handoff_endpoint_path(
+        &runtime,
+        prepare.target.handoff_id.as_bytes(),
+    );
     let listener = LocalListener::bind(endpoint).unwrap();
     let (worker, mut old) = pair();
     let (mut host, mut host_peer) = connected_host();
@@ -493,7 +492,7 @@ fn handoff_actual_admitted_loop_preserves_host_and_cached_terminal_binding_on_ne
                 worktree_slot: &jobs,
                 mutation_slot: &mutations,
                 plugin_jobs: &plugins,
-                site_runtime: Some(&runtime),
+                session_runtime: Some(&runtime),
                 managed_host: None,
             }
         )

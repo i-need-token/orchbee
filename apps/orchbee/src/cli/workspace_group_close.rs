@@ -8,7 +8,7 @@ use crate::{
 };
 #[cfg(any(windows, test))]
 use orchbee_workbench_protocol::{
-    SiteId, WorkbenchRequestId, WorkbenchWorkspaceGroupCloseResult, WorkspaceGroupCloseOutcome,
+    SessionId, WorkbenchRequestId, WorkbenchWorkspaceGroupCloseResult, WorkspaceGroupCloseOutcome,
     WorkspaceGroupCloseStatus,
 };
 #[cfg(any(windows, test))]
@@ -83,7 +83,7 @@ impl Answer {
                     WorkspaceGroupCloseStatus::Pending {} | WorkspaceGroupCloseStatus::Closed {} => 0,
                     WorkspaceGroupCloseStatus::Failed { reason, .. } => match reason {
                         orchbee_workbench_protocol::WorkspaceGroupCloseFailure::OutcomeUnknown => 8,
-                        orchbee_workbench_protocol::WorkspaceGroupCloseFailure::WorkerUnavailable | orchbee_workbench_protocol::WorkspaceGroupCloseFailure::SiteStopping => 4,
+                        orchbee_workbench_protocol::WorkspaceGroupCloseFailure::WorkerUnavailable | orchbee_workbench_protocol::WorkspaceGroupCloseFailure::SessionStopping => 4,
                         orchbee_workbench_protocol::WorkspaceGroupCloseFailure::Internal => 1,
                         orchbee_workbench_protocol::WorkspaceGroupCloseFailure::SourceChanged | orchbee_workbench_protocol::WorkspaceGroupCloseFailure::ChildAdmission | orchbee_workbench_protocol::WorkspaceGroupCloseFailure::ChildBlocked | orchbee_workbench_protocol::WorkspaceGroupCloseFailure::Deadline => 3,
                     },
@@ -136,13 +136,18 @@ pub(crate) fn run(
 }
 
 #[cfg(any(windows, test))]
-fn emit(site_id: Option<&SiteId>, answer: Answer, format: OutputFormat, locale: Locale) -> Output {
+fn emit(
+    session_id: Option<&SessionId>,
+    answer: Answer,
+    format: OutputFormat,
+    locale: Locale,
+) -> Output {
     let status = answer.exit_code();
     let result = answer.document();
     let encoded = match format {
         OutputFormat::Json => {
             output::encode_document(&json!({"schema":"orchbee.project.close-all","version":1,
-            "source":{"kind":"local-workspace-group","sessionId":site_id},"result":result}))
+            "source":{"kind":"local-workspace-group","sessionId":session_id},"result":result}))
         }
         OutputFormat::Text => {
             output::encode_text(&locale.cli_workspace_group_close_result(&result))

@@ -3,7 +3,7 @@
 use std::{num::NonZeroU64, ops::Range, time::Instant};
 
 use orchbee_client_server_protocol::{
-    RequestId, SiteId, TerminalId, TerminalViewerAction, TerminalViewerOutcome,
+    RequestId, SessionId, TerminalId, TerminalViewerAction, TerminalViewerOutcome,
     TerminalViewerRequest, ViewerId, ViewerRowDetail, WorkerId,
 };
 use orchbee_terminal_protocol::{
@@ -62,7 +62,7 @@ impl<'a, G: Guard> ReadAttachment<'a, G> {
         let request = TerminalViewerRequest::new(
             attach_request,
             TerminalViewerAction::AttachBinding {
-                site_id: SiteId::parse(source.member.site.as_str())
+                session_id: SessionId::parse(source.member.session.as_str())
                     .map_err(|_| Error::ProtocolInvalid)?,
                 worker_id: WorkerId::parse(source.member.worker.as_str())
                     .map_err(|_| Error::ProtocolInvalid)?,
@@ -220,7 +220,7 @@ impl<'a, G: Guard> ReadAttachment<'a, G> {
             .frame
             .current_directory
             .as_deref()
-            .and_then(orchbee_local_site_runtime::windows_reported_directory)
+            .and_then(orchbee_local_runtime::windows_reported_directory)
         {
             return Ok(Some(directory));
         }
@@ -600,7 +600,7 @@ pub(crate) fn process_directory(
             .iter()
             .find(|process| process.pid == info.root_pid)
             .and_then(|process| process.current_directory.as_deref())
-            .and_then(orchbee_local_site_runtime::windows_reported_directory));
+            .and_then(orchbee_local_runtime::windows_reported_directory));
     }
     if let Ok(ConnectionControl::TypedFailure(failure)) =
         decode_connection_control(envelope.kind, envelope.role, envelope.payload)

@@ -388,7 +388,7 @@ fn only_a_dirty_successfully_drawn_draft_can_submit_once() {
     assert!(editor.edit(Edit::Activate).is_none());
     draw(&mut editor);
     let submission = editor.edit(Edit::Activate).unwrap();
-    let NativeSettingsOperation::Save { changes, .. } = &submission.operation else {
+    let SettingsOperation::Save { changes, .. } = &submission.operation else {
         panic!("save");
     };
     assert_eq!(
@@ -643,7 +643,7 @@ fn definite_failures_preserve_the_original_cas_basis_and_allow_an_explicit_retry
         "a prior frame cannot authorize the restored draft"
     );
     let retry = submit(&mut editor);
-    let NativeSettingsOperation::Save { source, .. } = retry.operation else {
+    let SettingsOperation::Save { source, .. } = retry.operation else {
         panic!("save");
     };
     assert_eq!(
@@ -721,7 +721,7 @@ fn unknown_save_requires_a_matched_explicit_read_before_another_save() {
     editor.edit(Edit::Activate);
     draw(&mut editor);
     let reload = editor.edit(Edit::Activate).expect("explicit fresh read");
-    assert!(matches!(reload.operation, NativeSettingsOperation::Open {}));
+    assert!(matches!(reload.operation, SettingsOperation::Open {}));
     assert!(!editor.loaded(submission.token, passive.clone()));
     assert!(editor.loaded(reload.token, passive));
     assert!(matches!(
@@ -755,7 +755,7 @@ fn external_observation_refreshes_clean_views_and_disarms_old_pointer_frames() {
     assert_ne!(draft.token, old);
     assert!(editor.click(old, Row::Sound).is_none());
     editor.edit(Edit::Adjust(true));
-    let NativeSettingsOperation::Save { source, changes } = submit(&mut editor).operation else {
+    let SettingsOperation::Save { source, changes } = submit(&mut editor).operation else {
         panic!("save")
     };
     assert_eq!(source.as_str(), latest.source);
@@ -857,7 +857,7 @@ fn profile_reset_claims_only_catalog_and_preserves_other_edits_and_valid_selecti
     assert!(draft.values.sound_enabled);
     assert!(draft.dirty, "reset claims an already-default catalog");
     editor.edit(Edit::Cancel);
-    let NativeSettingsOperation::Save { changes, .. } = submit(&mut editor).operation else {
+    let SettingsOperation::Save { changes, .. } = submit(&mut editor).operation else {
         panic!("save")
     };
     assert_eq!(changes.keys().count(), 2);
@@ -897,7 +897,7 @@ fn explicit_reset_claims_even_default_leaves_and_later_edits_override_only_their
     editor.edit(Edit::Activate);
     editor.edit(Edit::Select(Row::Sound));
     editor.edit(Edit::Activate);
-    let NativeSettingsOperation::Save { changes, .. } = submit(&mut editor).operation else {
+    let SettingsOperation::Save { changes, .. } = submit(&mut editor).operation else {
         panic!("save");
     };
     assert_eq!(changes.keys().count(), PreferenceKey::ALL.len());
@@ -1064,7 +1064,7 @@ fn save_locates_the_nondefault_executable_and_correction_preserves_the_complete_
     let submission = editor
         .edit(Edit::Activate)
         .expect("corrected draft saves directly");
-    let NativeSettingsOperation::Save { changes, .. } = submission.operation else {
+    let SettingsOperation::Save { changes, .. } = submission.operation else {
         panic!("save")
     };
     let saved = changes.apply(&basis().values).unwrap();
@@ -1128,7 +1128,7 @@ fn removing_resetting_or_reloading_an_invalid_profile_retires_its_diagnostic() {
             }
             assert!(matches!(
                 submit(&mut editor).operation,
-                NativeSettingsOperation::Save { .. }
+                SettingsOperation::Save { .. }
             ));
         }
     }
@@ -1249,7 +1249,7 @@ fn replay(trace: &[Trace]) -> Result<(), String> {
                     saves.push(submission.token);
                     pending = Some(submission.token);
                     phase = 3;
-                    let NativeSettingsOperation::Save { changes, .. } = submission.operation else {
+                    let SettingsOperation::Save { changes, .. } = submission.operation else {
                         return Err("wrong operation".into());
                     };
                     let expected = UserPreferencesValues {

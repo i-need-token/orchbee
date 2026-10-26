@@ -11,7 +11,7 @@ fn identity(value: u128) -> String {
 }
 
 pub(crate) trait WorkbenchFixture {
-    fn workspace_fixture(site: SiteId) -> Result<WorkbenchAuthority, ContractError>;
+    fn workspace_fixture(session: SessionId) -> Result<WorkbenchAuthority, ContractError>;
     fn seed_fixture_workspace(&mut self, worker: WorkerId);
     fn fixture_context_id(&self) -> &WorkbenchTerminalContextId;
     fn fixture_membership(
@@ -34,8 +34,8 @@ pub(crate) trait WorkbenchFixture {
 }
 
 impl WorkbenchFixture for WorkbenchAuthority {
-    fn workspace_fixture(site: SiteId) -> Result<Self, ContractError> {
-        let mut authority = Self::new(site)?;
+    fn workspace_fixture(session: SessionId) -> Result<Self, ContractError> {
+        let mut authority = Self::new(session)?;
         authority
             .seed_fixture_workspace(WorkerId::parse("0909090909090909090909090909090909").unwrap());
         Ok(authority)
@@ -43,12 +43,12 @@ impl WorkbenchFixture for WorkbenchAuthority {
 
     fn seed_fixture_workspace(&mut self, worker: WorkerId) {
         assert!(self.snapshot().navigation.workspaces.is_empty());
-        let site = self.site_id().clone();
-        let grant = WorkbenchGrant::manage_navigation(site.clone()).with_directory_association();
+        let session = self.session_id().clone();
+        let grant = WorkbenchGrant::manage_navigation(session.clone()).with_directory_association();
         let command = WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id: WorkbenchRequestId::parse(&identity(100_001)).unwrap(),
-            site_id: site.clone(),
+            session_id: session.clone(),
             expected_revision: self.snapshot().revision,
             action: WorkbenchAction::WorkspaceCreate {
                 project_id: None,
@@ -67,7 +67,7 @@ impl WorkbenchFixture for WorkbenchAuthority {
         let command = WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id: WorkbenchRequestId::parse(&identity(100_002)).unwrap(),
-            site_id: site.clone(),
+            session_id: session.clone(),
             expected_revision: self.snapshot().revision,
             action: WorkbenchAction::WorkspacePrimaryDirectoryAccept {
                 workspace_id,
@@ -82,7 +82,7 @@ impl WorkbenchFixture for WorkbenchAuthority {
         // A fresh restored authority provides revision zero and an empty command ledger.
         // This is fixture setup, using the current strict checkpoint shape.
         let checkpoint = self.checkpoint(&worker).unwrap();
-        *self = Self::from_checkpoint(&checkpoint, site, &worker).unwrap();
+        *self = Self::from_checkpoint(&checkpoint, session, &worker).unwrap();
     }
 
     fn fixture_context_id(&self) -> &WorkbenchTerminalContextId {
@@ -124,7 +124,7 @@ impl WorkbenchFixture for WorkbenchAuthority {
                 100_000 + u128::from(self.snapshot().revision.value()),
             ))
             .unwrap(),
-            site_id: self.site_id().clone(),
+            session_id: self.session_id().clone(),
             expected_revision: self.snapshot().revision,
             action: WorkbenchAction::TabCreate {
                 placement: None,
@@ -137,7 +137,8 @@ impl WorkbenchFixture for WorkbenchAuthority {
                 options: Default::default(),
             },
         };
-        let grant = WorkbenchGrant::manage_navigation_and_terminal_create(self.site_id().clone());
+        let grant =
+            WorkbenchGrant::manage_navigation_and_terminal_create(self.session_id().clone());
         let admission = match self.begin_terminal_tab_create(Some(&grant), command) {
             WorkbenchTabCreateBegin::Admitted(admission) => admission,
             WorkbenchTabCreateBegin::Ready(result) => return Err(result),

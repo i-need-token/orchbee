@@ -102,15 +102,15 @@ Preparation creates no process and replays no command. The managed coordinator p
 
 ## Managed Windows startup and clean stop
 
-Managed startup opens the exclusive `WindowsSessionStore` below `LOCALAPPDATA` and parses its
+Managed startup opens the exclusive `SessionStore` below `LOCALAPPDATA` and parses its
 committed copies before spawning a Worker. The storage owner selects the latest completely validated
 payload from three slots. Invalid copies are retained and produce a visible restore notice; if all
 copies are invalid, startup explicitly reports an empty restoration. Missing data means a new Workbench.
 Private-path or filesystem admission failure still aborts startup. See the
-[Windows checkpoint storage contract](../../../crates/local-site-runtime/docs/windows-checkpoint-storage.md).
+[Windows checkpoint storage contract](../../../crates/local-runtime/docs/windows-checkpoint-storage.md).
 Default and named activation publish the current version 1 durable record before storage use.
 The Server admits the exact durable shape before opening the store, including pending-file cleanup.
-`WindowsSessionStore::read_validated` treats every invalid payload as an unreadable copy: select a
+`SessionStore::read_validated` treats every invalid payload as an unreadable copy: select a
 valid slot or report an empty restoration, preserving invalid bytes until they are archived before
 replacement. No domain parsing failure is a special fatal migration error; filesystem admission
 errors still abort. Uncommitted pending-file cleanup remains unchanged.

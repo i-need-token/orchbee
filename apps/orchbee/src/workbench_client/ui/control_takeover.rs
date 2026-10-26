@@ -1,4 +1,4 @@
-use super::{NativeUi, WorkbenchClientView};
+use super::{WorkbenchClientUi, WorkbenchClientView};
 use crate::{
     client_view::ClientActionDisposition,
     workbench_client::{
@@ -17,7 +17,7 @@ impl WorkbenchClientView<'_> {
         self.state.as_ref()?.takeover_status()
     }
 }
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(super) fn request_takeover(&mut self) -> ClientActionDisposition {
         // An ended terminal accepts no controller; its retained exit fact stays visible
         // instead of a refusal the Server would certainly return.

@@ -1,5 +1,5 @@
 //! One-effect Workbench mutation commands. Every invocation admits one
-//! Client Connection, performs one bounded snapshot read that fixes the Site
+//! Client Connection, performs one bounded snapshot read that fixes the Session
 //! identity, the expected revision, and every resolved target identity, then
 //! submits exactly one `workbench.command` under a fresh request identity.
 //! Nothing is retried or replayed: an ambiguous post-submission outcome
@@ -20,7 +20,7 @@ use crate::localization::Locale;
 /// (label, direction, resolved identities) are echoed for correlation and
 /// every server-carried field is preserved — nothing is invented.
 pub(super) struct Receipt {
-    site_id: String,
+    session_id: String,
     request_id: String,
     base_revision: WorkbenchRevision,
     /// `close-resume` answers under the resume request's own source echo —
@@ -105,7 +105,7 @@ impl Receipt {
     fn source(&self) -> Value {
         self.source_override.clone().unwrap_or_else(|| {
             command_source(
-                self.site_id.as_str(),
+                self.session_id.as_str(),
                 self.request_id.as_str(),
                 self.base_revision,
             )
@@ -303,10 +303,10 @@ impl TerminalFact {
     }
 }
 
-fn command_source(site_id: &str, request_id: &str, base: WorkbenchRevision) -> Value {
+fn command_source(session_id: &str, request_id: &str, base: WorkbenchRevision) -> Value {
     json!({
         "kind": "workbench-command",
-        "sessionId": site_id,
+        "sessionId": session_id,
         "requestId": request_id,
         "expectedRevision": base,
     })
@@ -336,7 +336,7 @@ mod linux {
     use std::time::Instant;
 
     use orchbee_workbench_protocol::{
-        LaunchProfileId, Project, ProtocolVersion, SiteId, Snapshot, Tab, TerminalContext,
+        LaunchProfileId, Project, ProtocolVersion, SessionId, Snapshot, Tab, TerminalContext,
         WorkbenchAction, WorkbenchCommand, WorkbenchCommandUnavailableReason, WorkbenchPanelId,
         WorkbenchPanelRelocateDestination, WorkbenchPanelSplitDirection, WorkbenchProjectId,
         WorkbenchRejectionReason, WorkbenchRequestId, WorkbenchRevision,
@@ -413,11 +413,11 @@ mod linux {
     };
     use crate::localization::Locale;
 
-    /// The resolved command base: site and expected revision come from the
+    /// The resolved command base: session and expected revision come from the
     /// just-read snapshot, the action carries every resolved identity, and the
     /// request identity is fresh.
     struct Resolved {
-        site_id: SiteId,
+        session_id: SessionId,
         expected_revision: WorkbenchRevision,
         request_id: WorkbenchRequestId,
         action: WorkbenchAction,
@@ -658,7 +658,7 @@ mod linux {
         let resolved = resolve(&exact, &snapshot)
             .map_err(|failure| failure.source(results::snapshot_source(&snapshot)))?;
         let source = command_source(
-            resolved.site_id.as_str(),
+            resolved.session_id.as_str(),
             resolved.request_id.as_str(),
             resolved.expected_revision,
         );
@@ -817,7 +817,7 @@ mod linux {
     fn resolve(command: &MutationCommand, snapshot: &Snapshot) -> Result<Resolved, Failure> {
         let action = action(command, snapshot)?;
         Ok(Resolved {
-            site_id: snapshot.site_id.clone(),
+            session_id: snapshot.session_id.clone(),
             expected_revision: snapshot.revision,
             request_id: request_id()?,
             action,
@@ -1280,7 +1280,7 @@ mod linux {
         let resolved = resolve(command, snapshot)
             .map_err(|failure| failure.source(results::snapshot_source(snapshot)))?;
         let source = command_source(
-            resolved.site_id.as_str(),
+            resolved.session_id.as_str(),
             resolved.request_id.as_str(),
             resolved.expected_revision,
         );
@@ -1297,13 +1297,13 @@ mod linux {
         wake: Option<orchbee_local_ipc::LocalIo<'_>>,
     ) -> Result<Receipt, Failure> {
         let resolved = Resolved {
-            site_id: snapshot.site_id.clone(),
+            session_id: snapshot.session_id.clone(),
             expected_revision: snapshot.revision,
             request_id: crate::cli::query::request_id()?,
             action,
         };
         let source = command_source(
-            resolved.site_id.as_str(),
+            resolved.session_id.as_str(),
             resolved.request_id.as_str(),
             resolved.expected_revision,
         );
@@ -1327,7 +1327,7 @@ mod linux {
         let command = WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id: resolved.request_id.clone(),
-            site_id: resolved.site_id.clone(),
+            session_id: resolved.session_id.clone(),
             expected_revision: resolved.expected_revision,
             action: resolved.action.clone(),
         };
@@ -2157,7 +2157,7 @@ mod linux {
         let resume = WorkbenchWorkspaceCloseResume {
             protocol_version: ProtocolVersion,
             request_id: request_id()?,
-            site_id: snapshot.site_id.clone(),
+            session_id: snapshot.session_id.clone(),
             workspace_id: workspace_id.clone(),
             close_request_id: close_request_id.clone(),
             expected_attempt_generation: generation,
@@ -2165,7 +2165,7 @@ mod linux {
         let resume_request_id = resume.request_id.clone();
         let source = json!({
             "kind": "workspace-close-resume",
-            "sessionId": snapshot.site_id.as_str(),
+            "sessionId": snapshot.session_id.as_str(),
             "requestId": resume_request_id.as_str(),
             "closeRequestId": close_request_id.as_str(),
             "expectedAttemptGeneration": generation.value().to_string(),
@@ -2180,7 +2180,7 @@ mod linux {
             WorkbenchWorkspaceCloseResumeSubmission::Returned(
                 WorkbenchWorkspaceCloseResumeOutcome::Resumed { attempt_generation },
             ) => Ok(Receipt {
-                site_id: snapshot.site_id.as_str().to_owned(),
+                session_id: snapshot.session_id.as_str().to_owned(),
                 request_id: resume_request_id.as_str().to_owned(),
                 base_revision: snapshot.revision,
                 source_override: Some(source.clone()),
@@ -2271,7 +2271,7 @@ mod linux {
 
     fn receipt(resolved: &Resolved, action: &'static str, outcome: &'static str) -> Receipt {
         Receipt {
-            site_id: resolved.site_id.as_str().to_owned(),
+            session_id: resolved.session_id.as_str().to_owned(),
             request_id: resolved.request_id.as_str().to_owned(),
             base_revision: resolved.expected_revision,
             source_override: None,
@@ -2446,7 +2446,7 @@ mod linux {
                 "invalid-navigation-configuration"
             }
 
-            WorkbenchRejectionReason::SiteMismatch => "session-mismatch",
+            WorkbenchRejectionReason::SessionMismatch => "session-mismatch",
             WorkbenchRejectionReason::RevisionMismatch => "revision-mismatch",
             WorkbenchRejectionReason::ProjectUnavailable => "project-unavailable",
             WorkbenchRejectionReason::WorkspaceUnavailable => "workspace-unavailable",

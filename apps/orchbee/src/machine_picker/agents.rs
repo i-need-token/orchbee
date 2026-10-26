@@ -1,6 +1,6 @@
 //! Ephemeral Agent view controls and a bounded global-navigation intent.
 use super::{
-    Choice, Frame, KeyCode, Locale, Mode, Modifiers, NativeContextTarget, NativeMemberTarget,
+    Choice, ClientContextTarget, ClientMemberTarget, Frame, KeyCode, Locale, Mode, Modifiers,
     Paragraph, Picker, PickerAction, PickerSource, Rect, Role, Row, Theme, component_state,
     picker_interaction, pointer_presentation,
 };
@@ -160,8 +160,8 @@ impl Picker {
     pub(crate) fn observe_focus(
         &mut self,
         machine: Choice,
-        context: Option<NativeContextTarget>,
-        member: Option<NativeMemberTarget>,
+        context: Option<ClientContextTarget>,
+        member: Option<ClientMemberTarget>,
     ) -> bool {
         if self.current == machine
             && self.current_context == context

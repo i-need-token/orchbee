@@ -10,7 +10,7 @@ fn title_reads_are_bounded_exact_and_do_not_answer_state_requests() {
     let mut request = PanelAgentRequest {
         protocol_version: crate::ProtocolVersion,
         request_id: crate::WorkbenchRequestId::parse(&format!("{:032x}", 5)).unwrap(),
-        site_id: crate::SiteId::parse(&format!("{:032x}", 6)).unwrap(),
+        session_id: crate::SessionId::parse(&format!("{:032x}", 6)).unwrap(),
         action: PanelAgentAction::Titles {
             bindings: vec![binding(1)],
         },
@@ -18,7 +18,7 @@ fn title_reads_are_bounded_exact_and_do_not_answer_state_requests() {
     let mut result = PanelAgentResult {
         protocol_version: crate::ProtocolVersion,
         request_id: request.request_id.clone(),
-        site_id: request.site_id.clone(),
+        session_id: request.session_id.clone(),
         outcome: PanelAgentOutcome::Titles {
             workbench_revision: WorkbenchRevision::new(1),
             presentations: vec![TerminalTitleRow {

@@ -1,5 +1,5 @@
 //! Painted position proofs feed only the owning Client's startup preference.
-use super::{ClientNotice, NativeDisplayPhase, NativeUi, PaneRef, WorkbenchClientView};
+use super::{ClientNotice, DisplayPhase, PaneRef, WorkbenchClientUi, WorkbenchClientView};
 use crate::workbench_client::startup_preference::{Draw, Position};
 
 impl WorkbenchClientView<'_> {
@@ -23,7 +23,7 @@ impl WorkbenchClientView<'_> {
             .context_at(self.active_context_position()?.checked_sub(1)?)?
             .location()
             .clone();
-        if self.phase() == NativeDisplayPhase::Empty {
+        if self.phase() == DisplayPhase::Empty {
             return Some(Draw {
                 position: Position {
                     location,
@@ -32,12 +32,12 @@ impl WorkbenchClientView<'_> {
                 focus: None,
             });
         }
-        if self.phase() != NativeDisplayPhase::Ready {
+        if self.phase() != DisplayPhase::Ready {
             return None;
         }
         let member = self.focused_member()?;
         if self.pane_projection_status(&member.panel)
-            != super::NativeProjectionStatus::FrameAvailable
+            != super::ClientProjectionStatus::FrameAvailable
             || self.pane_projection(&member.panel)?.frame().is_none()
         {
             return None;
@@ -59,7 +59,7 @@ impl WorkbenchClientView<'_> {
     }
 }
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn report_position_fallback(
         &mut self,
         saved: Option<&Position>,

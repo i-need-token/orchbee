@@ -21,7 +21,7 @@ fn default_config_uses_the_setting_and_client_action_registries() {
     assert_eq!(keys.len(), 1, "default action rows must remain comments");
     assert_eq!(keys["prefix"].as_str(), Some("ctrl+b"));
 
-    for option in orchbee_local_site_runtime::WINDOWS_USER_CONFIG_OPTIONS {
+    for option in orchbee_local_runtime::USER_CONFIG_OPTIONS {
         let path_line = format!("# {}", option.path);
         assert!(
             text.lines().any(|line| line == path_line.as_str()),
@@ -34,7 +34,7 @@ fn default_config_uses_the_setting_and_client_action_registries() {
     let registered_actions = actions.iter().map(|entry| entry.action).collect::<Vec<_>>();
     assert_eq!(
         registered_actions.as_slice(),
-        orchbee_local_site_runtime::WindowsKeySettings::registered_actions()
+        orchbee_local_runtime::KeySettings::registered_actions()
     );
     for action in actions {
         let value = if action.bindings.is_empty() {
@@ -599,7 +599,7 @@ fn terminal_list_human_enrichment_does_not_change_json_bytes() {
 
 fn oversized_terminals() -> Projection {
     // ~42k rows × six full identity fields exceeds the 8 MiB JSON preparation
-    // bound without any Site or wire involvement.
+    // bound without any Session or wire involvement.
     let row = || TerminalRow {
         terminal_id: ID.to_owned(),
         worker_id: "6f7263686265652d6c6f63616c2d7631".to_owned(),
@@ -1061,9 +1061,9 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::ProjectGet,
         CommandPath::ProjectList,
         CommandPath::ProjectRename,
-        CommandPath::SiteAgentManifests,
-        CommandPath::SiteConfig,
-        CommandPath::SiteReloadConfig,
+        CommandPath::ServerAgentManifests,
+        CommandPath::ServerConfig,
+        CommandPath::ServerReloadConfig,
         CommandPath::NotificationShow,
         #[cfg(windows)]
         CommandPath::CommandList,
@@ -1097,13 +1097,13 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::PluginUninstall,
         CommandPath::TerminalTitleSet,
         CommandPath::TerminalTitleClear,
-        CommandPath::SiteReloadAgentManifests,
-        CommandPath::SiteUpdateAgentManifests,
-        CommandPath::SiteAgentManifestsStatus,
-        CommandPath::SiteDiagnose,
-        CommandPath::SiteStart,
-        CommandPath::SiteStop,
-        CommandPath::SiteStopStatus,
+        CommandPath::ServerReloadAgentManifests,
+        CommandPath::ServerUpdateAgentManifests,
+        CommandPath::ServerAgentManifestsStatus,
+        CommandPath::ServerDiagnose,
+        CommandPath::ServerStart,
+        CommandPath::ServerStop,
+        CommandPath::ServerStopStatus,
         CommandPath::Status,
         CommandPath::TabClose,
         CommandPath::TabCreate,
@@ -1932,7 +1932,7 @@ fn empty_lists_say_how_to_create_their_first_entry() {
 #[test]
 fn unsupported_commands_share_the_platform_failure_contract() {
     use crate::invocation::{
-        ClientCommand, ManifestCommand, SiteStopCommand, WorkspaceGroupCloseCommand,
+        ClientCommand, ManifestCommand, ServerStopCommand, WorkspaceGroupCloseCommand,
         WorktreeCommand,
     };
     use orchbee_workbench_protocol::WorkbenchRequestId;
@@ -1943,8 +1943,8 @@ fn unsupported_commands_share_the_platform_failure_contract() {
         for format in [OutputFormat::Json, OutputFormat::Text] {
             let operation_id = WorkbenchRequestId::parse(ID).unwrap();
             for output in [
-                super::site_stop::run(
-                    &SiteStopCommand::Stop {
+                super::server_stop::run(
+                    &ServerStopCommand::Stop {
                         id: None,
                         retry: false,
                         detach: false,

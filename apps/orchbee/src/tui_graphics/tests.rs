@@ -52,7 +52,7 @@ fn facts(now: Instant, pixels: (u16, u16)) -> Facts {
 fn stage(surface: &Surface, canvas: &PaneGraphicsCanvas, body: Rect) -> Option<WorkbenchRevision> {
     surface.begin_frame(false);
     let choice = surface.select(
-        &SiteId::parse("11111111111111111111111111111111").unwrap(),
+        &SessionId::parse("11111111111111111111111111111111").unwrap(),
         canvas,
         body,
     );
@@ -121,7 +121,7 @@ fn upload_and_placement_have_distinct_scoped_receipts_and_preserve_rgba() {
     assert!(
         surface
             .select(
-                &SiteId::parse("11111111111111111111111111111111").unwrap(),
+                &SessionId::parse("11111111111111111111111111111111").unwrap(),
                 &canvas,
                 body
             )
@@ -258,7 +258,7 @@ fn missing_late_failed_and_overflowed_replies_select_session_fallback() {
         assert!(
             surface
                 .select(
-                    &SiteId::parse("11111111111111111111111111111111").unwrap(),
+                    &SessionId::parse("11111111111111111111111111111111").unwrap(),
                     &canvas,
                     body
                 )
@@ -272,7 +272,7 @@ fn missing_late_failed_and_overflowed_replies_select_session_fallback() {
 }
 
 #[test]
-fn equivalent_site_revision_reuses_pixels_but_a_new_site_cannot_reuse_the_same_ids() {
+fn equivalent_session_revision_reuses_pixels_but_a_new_session_cannot_reuse_the_same_ids() {
     let now = Instant::now();
     let surface = Surface::new(99, Arc::new(SynchronizedUpdateLease::new()));
     let host = facts(now, (1, 2));
@@ -304,7 +304,7 @@ fn equivalent_site_revision_reuses_pixels_but_a_new_site_cannot_reuse_the_same_i
     assert!(
         surface
             .select(
-                &SiteId::parse("44444444444444444444444444444444").unwrap(),
+                &SessionId::parse("44444444444444444444444444444444").unwrap(),
                 &revised,
                 body
             )
@@ -326,7 +326,7 @@ fn maximum_derived_axes_and_cell_pixels_do_not_overflow_sampling() {
     };
     let canvas = canvas(1, placement, 4096, 1, [1, 2, 3, 4].repeat(4096));
     let scene = geometry::Scene::new(
-        &SiteId::parse("11111111111111111111111111111111").unwrap(),
+        &SessionId::parse("11111111111111111111111111111111").unwrap(),
         &canvas,
         Rect::new(0, 0, 1, 1),
         orchbee_workbench_protocol::PaneGraphicsCellPixels {
@@ -350,7 +350,7 @@ fn maximum_derived_axes_and_cell_pixels_do_not_overflow_sampling() {
         [5, 6, 7, 8].repeat(4096),
     );
     let scene = geometry::Scene::new(
-        &SiteId::parse("11111111111111111111111111111111").unwrap(),
+        &SessionId::parse("11111111111111111111111111111111").unwrap(),
         &canvas,
         Rect::new(0, 0, 1, 1),
         orchbee_workbench_protocol::PaneGraphicsCellPixels {

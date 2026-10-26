@@ -46,7 +46,7 @@ fn destinations_reject_option_shell_password_and_port_confusion() {
     assert!(Draft::parse(" ", "host", "default").is_none());
     assert!(Draft::parse("a\nb", "host", "default").is_none());
     assert!(Draft::parse(&"中".repeat(43), "host", "default").is_none());
-    assert!(Draft::parse("name", "host", "../site").is_none());
+    assert!(Draft::parse("name", "host", "../session").is_none());
 }
 #[test]
 fn catalog_trace_retains_opaque_identity_noop_revision_and_duplicate_endpoints() {

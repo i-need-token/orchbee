@@ -70,7 +70,7 @@ impl Fixture {
         WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id: id(value),
-            site_id: snapshot.site_id,
+            session_id: snapshot.session_id,
             expected_revision: snapshot.revision,
             action,
         }
@@ -135,7 +135,7 @@ impl Fixture {
         WorkbenchWorktreeQuery {
             protocol_version: ProtocolVersion,
             request_id: id(1000),
-            site_id: self.snapshot().site_id,
+            session_id: self.snapshot().session_id,
             source,
             trust_repository: true,
         }
@@ -303,13 +303,13 @@ fn closed_source_cannot_publish_the_stale_git_observation() {
 }
 
 #[test]
-fn wrong_site_malformed_result_and_lost_worker_never_report_found() {
+fn wrong_session_malformed_result_and_lost_worker_never_report_found() {
     let mut fixture = Fixture::new();
     let source = WorktreeSource::Directory {
         path: WorkbenchDirectoryPath::parse("C:/w").unwrap(),
     };
     let mut denied = fixture.request(source.clone());
-    denied.site_id = orchbee_workbench_protocol::SiteId::parse(&"aa".repeat(16)).unwrap();
+    denied.session_id = orchbee_workbench_protocol::SessionId::parse(&"aa".repeat(16)).unwrap();
     assert_eq!(
         fixture.service.execute_worktree_query(denied).outcome,
         Outcome::Failed {
@@ -351,7 +351,7 @@ fn spawn_workspace_git(
         service.execute_workspace_git(orchbee_workbench_protocol::WorkspaceGitRequest {
             protocol_version: ProtocolVersion,
             request_id: id(900),
-            site_id: snapshot.site_id,
+            session_id: snapshot.session_id,
             workspace_id,
         })
     })
@@ -393,13 +393,13 @@ fn assert_status_is_not_admitted(fixture: &Fixture, workspace: WorkbenchWorkspac
         WorkspaceGitFailure, WorkspaceGitOutcome, WorkspaceGitRequest,
     };
     let service = Arc::clone(&fixture.service);
-    let site_id = fixture.snapshot().site_id;
+    let session_id = fixture.snapshot().session_id;
     let (sent, received) = std::sync::mpsc::sync_channel(1);
     let read = thread::spawn(move || {
         sent.send(service.execute_workspace_git(WorkspaceGitRequest {
             protocol_version: ProtocolVersion,
             request_id: id(960),
-            site_id,
+            session_id,
             workspace_id: workspace,
         }))
         .unwrap();
@@ -531,7 +531,7 @@ fn committed_directory_list_shares_discovery_ownership_with_query_and_status() {
 }
 
 #[test]
-fn foreground_query_waits_for_active_status_without_holding_site_or_registry_gates() {
+fn foreground_query_waits_for_active_status_without_holding_session_or_registry_gates() {
     let mut fixture = Fixture::new();
     let project = fixture.project();
     let workspace = fixture.workspace(&project, 10, "C:/w");
@@ -721,7 +721,7 @@ fn workspace_git_status_is_read_only_and_rejects_topology_changes_after_worker_s
     }
 }
 #[test]
-fn workspace_git_status_denies_wrong_site_and_fences_lost_worker_without_retrying_start() {
+fn workspace_git_status_denies_wrong_session_and_fences_lost_worker_without_retrying_start() {
     use orchbee_workbench_protocol::{
         WorkspaceGitFailure as GitFailure, WorkspaceGitOutcome as GitOutcome, WorkspaceGitRequest,
     };
@@ -731,7 +731,7 @@ fn workspace_git_status_denies_wrong_site_and_fences_lost_worker_without_retryin
     let denied = fixture.service.execute_workspace_git(WorkspaceGitRequest {
         protocol_version: ProtocolVersion,
         request_id: id(910),
-        site_id: orchbee_workbench_protocol::SiteId::parse(&"aa".repeat(16)).unwrap(),
+        session_id: orchbee_workbench_protocol::SessionId::parse(&"aa".repeat(16)).unwrap(),
         workspace_id: workspace.clone(),
     });
     assert_eq!(
@@ -764,7 +764,7 @@ fn workspace_git_deadline_returns_before_start_or_poll_reply_and_late_cleanup_ke
         let request = WorkspaceGitRequest {
             protocol_version: ProtocolVersion,
             request_id: id(950),
-            site_id: fixture.snapshot().site_id,
+            session_id: fixture.snapshot().session_id,
             workspace_id: workspace.clone(),
         };
         let service = fixture.service.clone();

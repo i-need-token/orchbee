@@ -74,7 +74,7 @@ flag. The managed Server admits these private values as its
 startup-policy snapshot, then reads the complete authoritative revision-0 candidate at the
 frozen location. Direct startup establishes both
 roles through the same settings owner. Cohorts must match.
-`read_windows_user_settings_at` supports bounded explicit reload at the frozen location, retaining
+`read_user_settings_at` supports bounded explicit reload at the frozen location, retaining
 missing-default versus missing-explicit semantics. It does not create configuration files.
 
 Persistent managed release Sessions check rules at startup and every thirty minutes. Debug/test builds
@@ -354,6 +354,8 @@ orchbee update --format json
 The packaging tool verifies the existing cohort, adapter capsule and pinned ConPTY bundle, inventories bounded regular files, and exclusively writes `release.json` beside them. It refuses an existing feed. For HTTPS distribution, publish that directory at the feed URL; relative file URLs retain the same directory layout. Version must match the packaged Client's `--version`; buildId distinguishes releases with the same version.
 
 The immutable release also stores the exact admitted `release.json`, reserved outside the inventory. Reuse checks that it has not changed. `status client` v1 binds this manifest to the directory identity and verified cohort before projecting installed release provenance; it never substitutes the current configured preference.
+
+The CLI-private `release_store` module owns immutable publication. `ReleaseStore` acquires the existing private cache writer lock and pins installation ancestors. A stage borrows that lock, creates only validated portable paths and exclusive private files, and publishes by a no-replace directory rename to a lowercase SHA-256 identity. The application owns manifest validation, downloads, cohort admission, smoke checks, user PATH activation and retained versions. Explicit cleanup removes only its unpublished stage; unconfirmed child settlement uses `retain_for_recovery` and reports the retained path. `open_release_file` rejects unsafe ancestors, reparse points, foreign ACLs and hard links. Deterministic Windows tests exercise writer exclusion, immutable publication, rejected aliases and staging cleanup.
 
 ## Windows Agent sidebar layouts
 

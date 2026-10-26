@@ -1,5 +1,5 @@
 //! Exact local membership from a live PaneRecord or a stable unbound selection.
-use super::{ClientPhaseKind, NativeUi, WorkbenchPanelId};
+use super::{ClientPhaseKind, WorkbenchClientUi, WorkbenchPanelId};
 use orchbee_workbench_protocol::{
     ClientPresentationSelection, ClientPresentationSnapshot, ClientViewControl,
     ClientViewControlReason as Reason, ClientViewIntent, ClientViewportObservation,
@@ -15,7 +15,7 @@ fn panel<'a>(node: &'a PanelNode, id: &WorkbenchPanelId) -> Option<&'a PanelNode
         PanelNode::Panel { .. } => None,
     }
 }
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn configured_command_source(
         &self,
     ) -> Option<(
@@ -79,7 +79,7 @@ impl NativeUi {
         };
         command.validate().map_err(|_| Reason::TargetUnavailable)?;
         let state = self.state.as_ref().ok_or(Reason::ProjectionUnavailable)?;
-        if snapshot.site_id != *state.cache().site_id()
+        if snapshot.session_id != *state.cache().session_id()
             || snapshot.revision < command.minimum_workbench_revision
         {
             return Err(Reason::ProjectionUnavailable);

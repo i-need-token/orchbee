@@ -4,13 +4,12 @@ use crate::{
     local_client::{LocalClientOrigin, LocalOperationClock},
 };
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
-use orchbee_local_site_runtime::{
-    WindowsAgentSidebarSettings, WindowsKeySettings, WindowsNotificationSettings,
-    WindowsSpaceSidebarSettings,
+use orchbee_local_runtime::{
+    AgentSidebarSettings, KeySettings, NotificationSettings, SpaceSidebarSettings,
 };
 use orchbee_workbench_protocol::{
     ConfigurationAction, ConfigurationOutcome, ConfigurationRequest, ConfigurationSnapshot,
-    ProtocolVersion, SiteId, WorkbenchRequestId,
+    ProtocolVersion, SessionId, WorkbenchRequestId,
 };
 use std::{
     sync::{Arc, Condvar, Mutex},
@@ -34,18 +33,17 @@ struct PendingNotice {
 type Shared = Arc<(Mutex<Handoff>, Condvar)>;
 /// Complete profile admission shared by draft extraction and the sole live applier.
 pub(super) struct Admitted {
-    keys: WindowsKeySettings,
-    agents: WindowsAgentSidebarSettings,
-    spaces: WindowsSpaceSidebarSettings,
-    pub(super) notifications: WindowsNotificationSettings,
+    keys: KeySettings,
+    agents: AgentSidebarSettings,
+    spaces: SpaceSidebarSettings,
+    pub(super) notifications: NotificationSettings,
 }
 pub(super) fn admit(snapshot: &ConfigurationSnapshot) -> Option<Admitted> {
     Some(Admitted {
-        keys: WindowsKeySettings::from_profile(&snapshot.keys_profile).ok()?,
-        notifications: WindowsNotificationSettings::from_profile(&snapshot.notification_profile)
-            .ok()?,
-        agents: WindowsAgentSidebarSettings::from_profile(&snapshot.agent_sidebar_profile).ok()?,
-        spaces: WindowsSpaceSidebarSettings::from_profile(&snapshot.spaces_sidebar_profile).ok()?,
+        keys: KeySettings::from_profile(&snapshot.keys_profile).ok()?,
+        notifications: NotificationSettings::from_profile(&snapshot.notification_profile).ok()?,
+        agents: AgentSidebarSettings::from_profile(&snapshot.agent_sidebar_profile).ok()?,
+        spaces: SpaceSidebarSettings::from_profile(&snapshot.spaces_sidebar_profile).ok()?,
     })
 }
 fn queue_snapshot(state: &mut Handoff, snapshot: ConfigurationSnapshot) {
@@ -63,20 +61,20 @@ pub(super) struct Watcher {
     task: Option<JoinHandle<()>>,
     revision: Option<u64>,
     applied_snapshot: Option<ConfigurationSnapshot>,
-    notification_update: Option<(u64, WindowsNotificationSettings)>,
+    notification_update: Option<(u64, NotificationSettings)>,
 }
 impl Watcher {
     pub(super) fn spawn(
         origin: LocalClientOrigin,
         clock: LocalOperationClock,
-        site: SiteId,
+        session: SessionId,
     ) -> std::io::Result<Self> {
         let shared = Arc::new((Mutex::new(Handoff::default()), Condvar::new()));
         let (reader, wake) = LocalStream::pair()?;
         let state = Arc::clone(&shared);
         let task = thread::Builder::new()
             .name("orchbee-client-config".into())
-            .spawn(move || run(state, origin, clock, site, reader))?;
+            .spawn(move || run(state, origin, clock, session, reader))?;
         Ok(Self {
             shared,
             wake,
@@ -125,13 +123,13 @@ impl Watcher {
                     }) => {
                         view.configure_theme(match snapshot.theme_name {
                             orchbee_workbench_protocol::ConfigurationThemeName::TerminalNative => {
-                                orchbee_local_site_runtime::WindowsThemeName::TerminalNative
+                                orchbee_local_runtime::ThemeName::TerminalNative
                             }
                             orchbee_workbench_protocol::ConfigurationThemeName::OneLight => {
-                                orchbee_local_site_runtime::WindowsThemeName::OneLight
+                                orchbee_local_runtime::ThemeName::OneLight
                             }
                             orchbee_workbench_protocol::ConfigurationThemeName::OneDark => {
-                                orchbee_local_site_runtime::WindowsThemeName::OneDark
+                                orchbee_local_runtime::ThemeName::OneDark
                             }
                         });
                         view.machines.configure_space_sidebar(spaces);
@@ -169,9 +167,7 @@ impl Watcher {
         }
         changed
     }
-    pub(super) fn take_notification_update(
-        &mut self,
-    ) -> Option<(u64, WindowsNotificationSettings)> {
+    pub(super) fn take_notification_update(&mut self) -> Option<(u64, NotificationSettings)> {
         self.notification_update.take()
     }
     pub(super) fn close(&mut self) {
@@ -198,7 +194,7 @@ fn run(
     shared: Shared,
     origin: LocalClientOrigin,
     clock: LocalOperationClock,
-    site: SiteId,
+    session: SessionId,
     wake: LocalStream,
 ) {
     let mut client = None;
@@ -230,7 +226,7 @@ fn run(
             protocol_version: ProtocolVersion,
             request_id: WorkbenchRequestId::parse(&format!("{serial:032x}"))
                 .expect("bounded request id"),
-            site_id: site.clone(),
+            session_id: session.clone(),
             action: if reload {
                 ConfigurationAction::Reload
             } else {

@@ -1,9 +1,9 @@
 //! Read-only event sources reuse canonical admission and the retained temporary-viewer owner.
 use super::{LocalTerminalService, placement, viewer_connection::process_sampling::screen};
-use crate::site_coordinator::ProcessObservationTarget;
+use crate::session_coordinator::ProcessObservationTarget;
 use orchbee_workbench_protocol::{
     ClientViewportObservation, SemanticEventSource, SemanticEventsFailure as Failure,
-    SemanticOutputSource, SemanticPane, SiteId, WorkbenchRevision,
+    SemanticOutputSource, SemanticPane, SessionId, WorkbenchRevision,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -62,7 +62,7 @@ impl LocalTerminalService {
             panel_id: pane.panel_id.clone(),
             presentation_id: Some(pane.presentation_id.clone()),
         };
-        let before = self.event_source(&target.site_id, &source)?;
+        let before = self.event_source(&target.session_id, &source)?;
         if before.2 != *target || before.1 < revision {
             return Err(Failure::SourceChanged);
         }
@@ -82,7 +82,7 @@ impl LocalTerminalService {
         }
         let (content_generation, content_revision, lines) =
             captured.ok_or(Failure::SourceUnavailable)??;
-        let after = self.event_source(&target.site_id, &source)?;
+        let after = self.event_source(&target.session_id, &source)?;
         if after.2 != *target || after.0.presentation_id != pane.presentation_id {
             return Err(Failure::SourceChanged);
         }
@@ -94,7 +94,7 @@ impl LocalTerminalService {
             lines,
         })
     }
-    pub(crate) fn event_journal(&self) -> Option<orchbee_server::SiteEventJournal> {
+    pub(crate) fn event_journal(&self) -> Option<orchbee_server::SessionEventJournal> {
         self.coordinator.lock().ok()?.event_journal()
     }
     pub(crate) fn maintain_events(&self) -> Result<(), Failure> {
@@ -105,7 +105,7 @@ impl LocalTerminalService {
     }
     pub(crate) fn event_source(
         &self,
-        site: &SiteId,
+        session: &SessionId,
         source: &SemanticEventSource,
     ) -> Result<(SemanticPane, WorkbenchRevision, ProcessObservationTarget), Failure> {
         let workers = self.workers.lock().map_err(|_| Failure::Unavailable)?;
@@ -114,7 +114,7 @@ impl LocalTerminalService {
             .lock()
             .map_err(|_| Failure::Unavailable)?
             .event_source(
-                site,
+                session,
                 source,
                 placement(handle.as_ref().filter(|h| h.is_active())),
             )

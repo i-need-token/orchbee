@@ -87,7 +87,7 @@ fn project_source_is_first_displayed_member_independent_of_current_context_and_l
     let first = AddressedWorktreeSource::capture(current.canonical_snapshot(), &target).unwrap();
     assert_eq!(
         first.cache.location(),
-        &NativeContextLocation::Workspace {
+        &ClientContextLocation::Workspace {
             workspace_id: workspace(80),
             terminal_context_id: WorkbenchTerminalContextId::parse(&id(82)).unwrap(),
         }

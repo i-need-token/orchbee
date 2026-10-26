@@ -21,7 +21,7 @@ use crate::{
     },
     tui_theme::{GlyphMode, Role, Theme},
     workbench_client::{
-        AgentBoardControl, AgentBoardDraw, AgentBoardRead, AgentBoardRow, NativeAgentBoardView,
+        AgentBoardControl, AgentBoardDraw, AgentBoardRead, AgentBoardRow, AgentBoardView,
         PresentationPlacement,
     },
 };
@@ -45,7 +45,7 @@ pub(super) fn render(
     area: Rect,
     text: ShellText,
     locale: Locale,
-    board: &NativeAgentBoardView<'_>,
+    board: &AgentBoardView<'_>,
     (theme, working_frame): (&Theme, usize),
     hits: &mut HitMapBuilder,
 ) -> AgentBoardDraw {
@@ -317,7 +317,7 @@ fn render_rows(
     body: Rect,
     text: ShellText,
     locale: Locale,
-    board: &NativeAgentBoardView<'_>,
+    board: &AgentBoardView<'_>,
     draw: &crate::workbench_client::AgentBoardActualDraw,
     (theme, working_frame): (&Theme, usize),
     hits: &mut HitMapBuilder,
@@ -372,7 +372,7 @@ impl StartFormLayout {
         bounds: Rect,
         body: Rect,
         text: ShellText,
-        board: &NativeAgentBoardView<'_>,
+        board: &AgentBoardView<'_>,
         theme: &Theme,
     ) -> Option<Self> {
         if body.height < 4 {
@@ -445,7 +445,7 @@ fn provider_choice_rect(bounds: Rect, area: Rect, label: &str, theme: &Theme) ->
 fn render_start_form(
     frame: &mut Frame<'_>,
     text: ShellText,
-    board: &NativeAgentBoardView<'_>,
+    board: &AgentBoardView<'_>,
     draw: &crate::workbench_client::AgentBoardActualDraw,
     layout: &StartFormLayout,
     theme: &Theme,
@@ -607,7 +607,7 @@ fn render_start_name(
     frame: &mut Frame<'_>,
     area: Rect,
     text: ShellText,
-    board: &NativeAgentBoardView<'_>,
+    board: &AgentBoardView<'_>,
     theme: &Theme,
 ) {
     let label = sanitize_terminal_text(text.board.start_name);
@@ -646,11 +646,7 @@ fn render_start_name(
     }
 }
 
-fn start_status(
-    text: ShellText,
-    board: &NativeAgentBoardView<'_>,
-    theme: &Theme,
-) -> (String, Role) {
+fn start_status(text: ShellText, board: &AgentBoardView<'_>, theme: &Theme) -> (String, Role) {
     let result = match board.start_phase() {
         Some(AgentStartPhase::WaitingInput) => {
             (text.board.start_waiting_input, Role::StatusWarning)
@@ -687,7 +683,7 @@ fn render_start_footer_actions(
     frame: &mut Frame<'_>,
     row: Rect,
     text: ShellText,
-    board: &NativeAgentBoardView<'_>,
+    board: &AgentBoardView<'_>,
     draw: &crate::workbench_client::AgentBoardActualDraw,
     theme: &Theme,
     hits: &mut HitMapBuilder,
@@ -871,7 +867,7 @@ fn render_footer_actions(
     frame: &mut Frame<'_>,
     row: Rect,
     text: ShellText,
-    board: &NativeAgentBoardView<'_>,
+    board: &AgentBoardView<'_>,
     draw: &crate::workbench_client::AgentBoardActualDraw,
     theme: &Theme,
     hits: &mut HitMapBuilder,
@@ -973,7 +969,7 @@ fn render_row(
     area: Rect,
     text: ShellText,
     locale: Locale,
-    board: &NativeAgentBoardView<'_>,
+    board: &AgentBoardView<'_>,
     row: &AgentBoardRow,
     selected: bool,
     target: crate::workbench_client::AgentBoardRowTarget,

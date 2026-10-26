@@ -11,7 +11,7 @@ use orchbee_workbench_protocol::{
 
 use super::{LocalTerminalService, lease_expiry, placement};
 use crate::{
-    site_coordinator::PostcommitCoordinationError,
+    session_coordinator::PostcommitCoordinationError,
     worker_obcn_carrier::{WorkerRequestError, WorkerResponseFailure},
 };
 
@@ -213,7 +213,7 @@ impl LocalTerminalService {
                         .ok_or(PostcommitCoordinationError)?
                         .runtime()
                         .ok_or(PostcommitCoordinationError)?;
-                    // One Site guard spans exact removal and its retained completion marker.
+                    // One Session guard spans exact removal and its retained completion marker.
                     if self
                         .complete_disposed_target_cleanup(&coordinator, &id, runtime)
                         .is_ok()

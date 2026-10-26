@@ -90,7 +90,7 @@ impl Receipt {
 
 #[derive(Default)]
 pub(crate) struct ClientViewRegistry {
-    events: Option<orchbee_server::SiteEventJournal>,
+    events: Option<orchbee_server::SessionEventJournal>,
     clients: BTreeMap<WorkbenchClientId, PublishedView>,
     receipts: BTreeMap<WorkbenchRequestId, Receipt>,
 }
@@ -170,7 +170,7 @@ impl ClientViewRegistry {
         }
         Ok(Some(info))
     }
-    pub(crate) fn with_events(events: Option<orchbee_server::SiteEventJournal>) -> Self {
+    pub(crate) fn with_events(events: Option<orchbee_server::SessionEventJournal>) -> Self {
         Self {
             events,
             ..Self::default()

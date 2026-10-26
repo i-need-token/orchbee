@@ -5,10 +5,10 @@ fn release_background_and_settings_gates_use_monotonic_intervals() {
     for background in [false, true] {
         for release in [false, true] {
             for check in [false, true] {
-                let settings = WindowsUserSettings {
+                let settings = UserSettings {
                     manifest_check: check,
                     manifest_check_source: "file",
-                    ..WindowsUserSettings::default()
+                    ..UserSettings::default()
                 };
                 let mut schedule = Schedule::new(&settings, background, release, now);
                 assert!(!schedule.admit(now, false));
@@ -18,14 +18,14 @@ fn release_background_and_settings_gates_use_monotonic_intervals() {
                     schedule.admit(now + INTERVAL, true),
                     background && release && check
                 );
-                let off = WindowsUserSettings {
+                let off = UserSettings {
                     manifest_check: false,
                     manifest_check_source: "file",
-                    ..WindowsUserSettings::default()
+                    ..UserSettings::default()
                 };
                 schedule.apply(&off, now);
                 assert!(!schedule.admit(now + INTERVAL * 2, true));
-                let on = WindowsUserSettings::default();
+                let on = UserSettings::default();
                 schedule.apply(&on, now + INTERVAL * 2);
                 assert_eq!(
                     schedule.admit(now + INTERVAL * 2, true),

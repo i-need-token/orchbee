@@ -25,7 +25,7 @@ impl LocalTerminalService {
             operation_id: request.action.operation_id().clone(),
             outcome,
         };
-        match self.workbench_site_matches(&request.site_id) {
+        match self.workbench_session_matches(&request.session_id) {
             Some(true) => {}
             Some(false) => return response(Outcome::Denied {}),
             None => {
@@ -62,7 +62,7 @@ impl LocalTerminalService {
                 });
             };
             let grant =
-                WorkbenchGrant::read_only(authority.site_id().clone()).with_terminal_lifecycle();
+                WorkbenchGrant::read_only(authority.session_id().clone()).with_terminal_lifecycle();
             authority.execute_workspace_group_close(
                 Some(&grant),
                 request,

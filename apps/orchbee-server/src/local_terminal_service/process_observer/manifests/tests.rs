@@ -6,11 +6,11 @@ use super::*;
 #[test]
 fn configuration_apply_changes_live_schedule_but_refuses_active_or_stopped_maintenance() {
     let registry = Registry::default();
-    let startup = WindowsUserSettings::default();
+    let startup = UserSettings::default();
     registry
         .initialize_settings(&startup, &ScreenDetector::bundled().unwrap(), true, true)
         .unwrap();
-    let disabled = WindowsUserSettings {
+    let disabled = UserSettings {
         manifest_check: false,
         manifest_check_source: "file",
         ..startup.clone()

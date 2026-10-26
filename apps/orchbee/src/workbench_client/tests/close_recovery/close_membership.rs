@@ -43,7 +43,7 @@ fn serve_closed(
 fn is_empty(workbench_client: &WorkbenchClient) -> bool {
     {
         let view = workbench_client.view();
-        view.phase() == NativeDisplayPhase::Empty
+        view.phase() == DisplayPhase::Empty
     }
 }
 
@@ -109,7 +109,7 @@ fn status_only_closed_requires_a_new_drawn_manual_membership_transition_before_e
     }));
     workbench_client.apply_client_action(ClientAction::OpenWorkbenchNavigator);
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
-        recovered_status(workbench_client, NativeCloseStatusKind::Closed)
+        recovered_status(workbench_client, CloseStatusKind::Closed)
     }));
     tick_manual_gap(&mut workbench_client);
     gap_rx.recv_timeout(Duration::from_secs(1))?;
@@ -168,7 +168,7 @@ fn failed_close_snapshot_retains_closed_and_manual_retry_uses_a_fresh_snapshot_i
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         let view = workbench_client.view();
         view.close_status().is_some_and(|status| {
-            status.status() == NativeCloseStatusKind::Closed && status.unavailable()
+            status.status() == CloseStatusKind::Closed && status.unavailable()
         })
     }));
     tick_manual_gap(&mut workbench_client);

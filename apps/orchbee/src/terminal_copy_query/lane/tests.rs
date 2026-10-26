@@ -164,7 +164,7 @@ fn source() -> ContentSource {
             0,
         ),
         member: SnapshotMember {
-            site: orchbee_workbench_protocol::SiteId::parse(&id(3)).unwrap(),
+            session: orchbee_workbench_protocol::SessionId::parse(&id(3)).unwrap(),
             context: orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(&id(4)).unwrap(),
             tab,
             panel,

@@ -80,19 +80,19 @@ impl Port {
     }
 }
 impl TerminalInputPort for Port {
-    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
-        crate::tui_composition::NativeCaptureClaims::default()
+    fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
+        crate::tui_composition::CaptureClaims::default()
             .with_settings(self.editor.input_context().is_some())
     }
 
     fn native_capture_context(
         &self,
-        owner: crate::tui_composition::NativeCaptureOwner,
-    ) -> Option<crate::workbench_client::NativeCaptureContext> {
-        (owner == crate::tui_composition::NativeCaptureOwner::Settings)
+        owner: crate::tui_composition::CaptureOwner,
+    ) -> Option<crate::workbench_client::CaptureContext> {
+        (owner == crate::tui_composition::CaptureOwner::Settings)
             .then(|| self.editor.input_context())
             .flatten()
-            .map(crate::workbench_client::NativeCaptureContext::Settings)
+            .map(crate::workbench_client::CaptureContext::Settings)
     }
 
     fn apply_client_action(

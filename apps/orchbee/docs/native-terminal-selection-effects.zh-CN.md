@@ -147,7 +147,7 @@ Client 等待它得到成功、确定失败或结果未知的结算。随后 wri
 ## 兼容性与恢复
 
 维护中的确定性证据包括 `accepted_release_and_complete_host_export_reach_the_copy_queue_once`：
-它运行真实 NativeUi／mailbox 命令与 Host 记录接收边界，不修改共享剪贴板；还有
+它运行真实 WorkbenchClientUi／mailbox 命令与 Host 记录接收边界，不修改共享剪贴板；还有
 `reverse_drag_uses_absolute_rows_and_highlights_a_wide_glyph_as_one_unit`。复制队列测试覆盖
 dispatch 前取消、dispatch 后退役等待、adapter 消失的确定失败与未知结果不重放。原生隐藏 owner
 测试创建并泵送真实 Windows 窗口，注入最终写入，验证 dispatch 和 join；它不证明 OS 剪贴板内容。
@@ -162,4 +162,4 @@ carrier，且不发送另一请求。这些传输测试中继 opaque record；Ho
 契约。它们不产生持久选区或屏幕数据迁移。回退时整体替换该 cohort。旧二进制可以继续原有行为，
 但不能在混合 cohort 中使用新动作。
 
-<!-- documentation-pairing: english-sha256=d4b368e35c358e8b1771d74b34af5c724c04193685a21eee06b4358b8670e160 zh-cn-sha256=2b79ba75b5d5c8139999bdda14568124108842485391502dbdc68ccec8eb0709 -->
+<!-- documentation-pairing: english-sha256=4f8f1a1791111ba35de5d9ed4f5c70dd90982c963c15da48c714f7f7e0859308 zh-cn-sha256=c6145f8b552b0a795d100474dfd57b7386517db17a02205469e3bbbe00b1e441 -->

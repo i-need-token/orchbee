@@ -124,7 +124,7 @@ impl Locale {
                 | CommandPath::PluginUninstall,
             ) => self.plugin_help(path),
             (_, CommandPath::NotificationShow) => self.notification_help(),
-            (_, CommandPath::SiteConfig | CommandPath::SiteReloadConfig) => {
+            (_, CommandPath::ServerConfig | CommandPath::ServerReloadConfig) => {
                 self.runtime_configuration_help(path)
             }
             (Self::EnUs, CommandPath::ClientList) => super::client_control::HELP_CLIENT_LIST_EN,
@@ -505,21 +505,21 @@ impl Locale {
                 | CommandPath::SessionStop
                 | CommandPath::SessionDelete),
             ) => self.cli_session_command_help(path),
-            (Self::EnUs, CommandPath::SiteStart) => super::server::HELP_SITE_START_EN,
-            (Self::ZhCn, CommandPath::SiteStart) => super::server::HELP_SITE_START_ZH,
+            (Self::EnUs, CommandPath::ServerStart) => super::server::HELP_SERVER_START_EN,
+            (Self::ZhCn, CommandPath::ServerStart) => super::server::HELP_SERVER_START_ZH,
             (
                 _,
-                CommandPath::SiteAgentManifests
-                | CommandPath::SiteUpdateAgentManifests
-                | CommandPath::SiteReloadAgentManifests
-                | CommandPath::SiteAgentManifestsStatus,
+                CommandPath::ServerAgentManifests
+                | CommandPath::ServerUpdateAgentManifests
+                | CommandPath::ServerReloadAgentManifests
+                | CommandPath::ServerAgentManifestsStatus,
             ) => self.cli_agent_manifests_help(path),
-            (Self::EnUs, CommandPath::SiteDiagnose) => super::server::HELP_SITE_DIAGNOSE_EN,
-            (Self::ZhCn, CommandPath::SiteDiagnose) => super::server::HELP_SITE_DIAGNOSE_ZH,
-            (Self::EnUs, CommandPath::SiteStop) => super::server::HELP_SITE_STOP_EN,
-            (Self::ZhCn, CommandPath::SiteStop) => super::server::HELP_SITE_STOP_ZH,
-            (Self::EnUs, CommandPath::SiteStopStatus) => super::server::HELP_SITE_STOP_STATUS_EN,
-            (Self::ZhCn, CommandPath::SiteStopStatus) => super::server::HELP_SITE_STOP_STATUS_ZH,
+            (Self::EnUs, CommandPath::ServerDiagnose) => super::server::HELP_SERVER_DIAGNOSE_EN,
+            (Self::ZhCn, CommandPath::ServerDiagnose) => super::server::HELP_SERVER_DIAGNOSE_ZH,
+            (Self::EnUs, CommandPath::ServerStop) => super::server::HELP_SERVER_STOP_EN,
+            (Self::ZhCn, CommandPath::ServerStop) => super::server::HELP_SERVER_STOP_ZH,
+            (Self::EnUs, CommandPath::ServerStopStatus) => super::server::HELP_SERVER_STOP_STATUS_EN,
+            (Self::ZhCn, CommandPath::ServerStopStatus) => super::server::HELP_SERVER_STOP_STATUS_ZH,
         }
     }
 }

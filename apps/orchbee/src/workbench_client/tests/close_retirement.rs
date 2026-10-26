@@ -70,7 +70,7 @@ fn panic_after_close_handoff_preserves_uncertainty_after_exact_join() -> TestRes
         geometry,
     ));
     let worker_mailbox = Arc::clone(&mailbox);
-    let task = thread::spawn(move || -> connection::NativeWorkerExit {
+    let task = thread::spawn(move || -> connection::ClientConnectionExit {
         let _lost_return = connection::run_native(client, geometry, worker_mailbox, None);
         panic!("injected worker panic after transport returned");
     });
@@ -81,7 +81,7 @@ fn panic_after_close_handoff_preserves_uncertainty_after_exact_join() -> TestRes
         notifications: None,
         window_title: None,
         client_control: None,
-        backend: ClientBackend::Native(Box::new(ui::NativeUi::new(mailbox, clock))),
+        backend: ClientBackend::Native(Box::new(ui::WorkbenchClientUi::new(mailbox, clock))),
         task: Some(ClientTask::Native(task)),
         shutdown,
         retirement_redraw_pending: false,
@@ -95,7 +95,7 @@ fn panic_after_close_handoff_preserves_uncertainty_after_exact_join() -> TestRes
     workbench_client.apply_client_action(ClientAction::RequestCloseTab);
     let view = workbench_client.view();
     let token = view.close_confirmation().unwrap().token();
-    workbench_client.after_close_draw(NativeDrawReceipt::new(
+    workbench_client.after_close_draw(DrawReceipt::new(
         Some(ModalPresentation::Presented(token)),
         None,
     ));
@@ -108,7 +108,7 @@ fn panic_after_close_handoff_preserves_uncertainty_after_exact_join() -> TestRes
     let status = view
         .close_status()
         .expect("missing worker return cannot erase the possibly submitted Close");
-    assert_eq!(status.status(), NativeCloseStatusKind::AwaitingStatus);
+    assert_eq!(status.status(), CloseStatusKind::AwaitingStatus);
     assert!(status.unavailable());
     assert!(!status.resumable());
     let submitted = wire_id_receiver.recv_timeout(Duration::from_secs(1))?;

@@ -5,7 +5,7 @@ fn panel_metadata_receipts_survive_late_interrupt_and_validate_the_public_schema
     let mut answer = Answer {
         presentation_id: None,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap(),
-        site_id: SiteId::parse(&format!("{:032x}", 2)).unwrap(),
+        session_id: SessionId::parse(&format!("{:032x}", 2)).unwrap(),
         panel_id: WorkbenchPanelId::parse(&format!("{:032x}", 3)).unwrap(),
         observation: Observation::Unknown("response-deadline"),
         interrupted: true,
@@ -19,7 +19,7 @@ fn panel_metadata_receipts_survive_late_interrupt_and_validate_the_public_schema
     answer.observation = Observation::Server(PanelMetadataResult {
         protocol_version: ProtocolVersion,
         request_id: answer.request_id.clone(),
-        site_id: answer.site_id.clone(),
+        session_id: answer.session_id.clone(),
         outcome: PanelMetadataOutcome::Reported {
             panel_id: answer.panel_id.clone(),
             binding: orchbee_workbench_protocol::PresentationBinding {

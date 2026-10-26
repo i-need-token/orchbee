@@ -1,5 +1,5 @@
 use super::native_workspace_fixture::*;
-use super::tui_observer::{ModalRow, NativeHeader};
+use super::tui_observer::{ModalRow, WorkbenchHeader};
 use super::*;
 use orchbee_workbench_protocol::Snapshot;
 use std::path::Path;
@@ -82,7 +82,7 @@ fn editor(
     modal(
         client,
         checkpoint,
-        NativeHeader::active(&location, 1, "1"),
+        WorkbenchHeader::active(&location, 1, "1"),
         &rows,
     );
 }
@@ -113,7 +113,7 @@ fn wait_workspace(client: &mut Client, checkpoint: usize, header: &str, notice: 
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        NativeHeader::active(header, 1, "1"),
+        WorkbenchHeader::active(header, 1, "1"),
         &required,
         &[
             "Rename Workspace",
@@ -149,7 +149,7 @@ fn observe_peer_refresh(
     peer.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        NativeHeader::active(expected_header, 1, "1"),
+        WorkbenchHeader::active(expected_header, 1, "1"),
         &["Tab 1 · Ready ·", "LOCATION_SHELL_RETAINED"],
         &["Workbench navigator", EMPTY],
         &[],
@@ -195,7 +195,7 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
         client.wait_native_frame_text_after(
             checkpoint,
             Instant::now() + SWITCH_TIMEOUT,
-            NativeHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
+            WorkbenchHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
             &[notice],
             &[target.title()],
             &[],
@@ -220,7 +220,7 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
     );
     finish_modal_handoff(
         &mut client,
-        NativeHeader::empty(WORKSPACE_LOCATION),
+        WorkbenchHeader::empty(WORKSPACE_LOCATION),
         &[EMPTY],
     );
     let checkpoint = client.checkpoint();
@@ -228,7 +228,7 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
-        NativeHeader::active(WORKSPACE_LOCATION, 1, "1"),
+        WorkbenchHeader::active(WORKSPACE_LOCATION, 1, "1"),
         &["Tab 1 · Ready · controlling"],
         &[EMPTY],
         &[],
@@ -266,7 +266,7 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
     peer.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        NativeHeader::active(WORKSPACE_LOCATION, 1, "1"),
+        WorkbenchHeader::active(WORKSPACE_LOCATION, 1, "1"),
         &["Tab 1 · Ready · view only", "LOCATION_SHELL_RETAINED"],
         &[EMPTY],
         &[],
@@ -317,7 +317,7 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
         peer.wait_native_frame_text_after(
             peer_checkpoint,
             Instant::now() + OBSERVATION_TIMEOUT,
-            NativeHeader::active(&renamed_header, 1, "1"),
+            WorkbenchHeader::active(&renamed_header, 1, "1"),
             &[],
             &[],
             &[],
@@ -325,7 +325,7 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
         );
         finish_modal_handoff(
             &mut client,
-            NativeHeader::active(&renamed_header, 1, "1"),
+            WorkbenchHeader::active(&renamed_header, 1, "1"),
             &[],
         );
         assert_shell_survives(&fixture, &mut client, &identity, checkpoint_name);
@@ -353,7 +353,7 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
         );
         finish_modal_handoff(
             &mut client,
-            NativeHeader::active(&current_header, 1, "1"),
+            WorkbenchHeader::active(&current_header, 1, "1"),
             &[],
         );
         assert_shell_survives(&fixture, &mut client, &identity, checkpoint_name);
@@ -376,7 +376,7 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
         );
         finish_modal_handoff(
             &mut client,
-            NativeHeader::active(&current_header, 1, "1"),
+            WorkbenchHeader::active(&current_header, 1, "1"),
             &[],
         );
         assert_shell_survives(

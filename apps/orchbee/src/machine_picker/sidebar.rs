@@ -1,5 +1,5 @@
 //! Client-local window and input decisions for the shared Agent projection.
-use super::{NativeStartupTarget, Picker, Row, Selection, SelectionOrigin, SidebarTarget};
+use super::{ClientStartupTarget, Picker, Row, Selection, SelectionOrigin, SidebarTarget};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct SidebarWindow {
@@ -27,7 +27,7 @@ pub(super) struct Sidebar<S> {
 }
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(super) struct AgentSidebar {
-    pub(super) settings: std::sync::Arc<orchbee_local_site_runtime::WindowsAgentSidebarSettings>,
+    pub(super) settings: std::sync::Arc<orchbee_local_runtime::AgentSidebarSettings>,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) struct Scroll {
@@ -161,16 +161,14 @@ impl Picker {
     }
     pub(crate) fn configure_agent_sidebar(
         &mut self,
-        settings: orchbee_local_site_runtime::WindowsAgentSidebarSettings,
+        settings: orchbee_local_runtime::AgentSidebarSettings,
     ) {
         if self.agent_sidebar.settings.as_ref() != &settings {
             self.agent_sidebar.settings = std::sync::Arc::new(settings);
             self.spaces.reset();
         }
     }
-    pub(crate) fn sidebar_settings(
-        &self,
-    ) -> &orchbee_local_site_runtime::WindowsAgentSidebarSettings {
+    pub(crate) fn sidebar_settings(&self) -> &orchbee_local_runtime::AgentSidebarSettings {
         &self.agent_sidebar.settings
     }
     pub(crate) fn cancel_sidebar_scroll(&mut self) {
@@ -199,7 +197,7 @@ impl Picker {
             return false;
         }
         let target = match &selected.context {
-            Some(NativeStartupTarget::Agent(target)) => SidebarTarget::Agent {
+            Some(ClientStartupTarget::Agent(target)) => SidebarTarget::Agent {
                 machine: selected.machine.clone(),
                 target: target.clone(),
             },
@@ -214,7 +212,7 @@ impl Picker {
         }
         if !self.agent_rows.iter().any(|row| {
             row.enabled && row.choice == selected.machine && row.agent.as_ref().is_some_and(|agent| {
-                matches!(&selected.context, Some(NativeStartupTarget::Agent(target)) if target.as_ref() == &agent.target)
+                matches!(&selected.context, Some(ClientStartupTarget::Agent(target)) if target.as_ref() == &agent.target)
             })
         }) || !self.begin_selection(SelectionOrigin::Sidebar) {
             return false;
@@ -229,7 +227,7 @@ impl Picker {
     }
     pub(crate) fn activate_sidebar_selection(&mut self, selected: &Selection) -> bool {
         match &selected.context {
-            Some(NativeStartupTarget::Agent(_)) => self.activate_sidebar_agent(selected),
+            Some(ClientStartupTarget::Agent(_)) => self.activate_sidebar_agent(selected),
             _ => self.activate_sidebar_workspace(selected),
         }
     }

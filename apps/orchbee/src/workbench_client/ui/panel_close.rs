@@ -1,4 +1,4 @@
-use super::{ActionBuildError, ModalPresentation, NativeUi, WorkbenchClientView};
+use super::{ActionBuildError, ModalPresentation, WorkbenchClientUi, WorkbenchClientView};
 use crate::workbench_client::state::{
     OPERATION_TOTAL, PanelCloseConfirmationView, WorkbenchClientState,
 };
@@ -8,15 +8,15 @@ use crate::{
 };
 use std::sync::Arc;
 
-pub(crate) use crate::workbench_client::state::PanelCloseConfirmationToken as NativePanelCloseConfirmationToken;
+pub(crate) use crate::workbench_client::state::PanelCloseConfirmationToken;
 
 #[derive(Clone, Copy)]
-pub(crate) struct NativePanelCloseConfirmationView<'a> {
+pub(crate) struct PanelCloseConfirmationView<'a> {
     inner: PanelCloseConfirmationView<'a>,
 }
 
-impl<'a> NativePanelCloseConfirmationView<'a> {
-    pub(crate) const fn token(&self) -> NativePanelCloseConfirmationToken {
+impl<'a> PanelCloseConfirmationView<'a> {
+    pub(crate) const fn token(&self) -> PanelCloseConfirmationToken {
         self.inner.token()
     }
     pub(crate) fn panel_label(&self) -> &'a str {
@@ -43,18 +43,18 @@ impl<'a> NativePanelCloseConfirmationView<'a> {
 }
 
 impl<'a> WorkbenchClientView<'a> {
-    pub(crate) fn panel_close_confirmation(&self) -> Option<NativePanelCloseConfirmationView<'a>> {
+    pub(crate) fn panel_close_confirmation(&self) -> Option<PanelCloseConfirmationView<'a>> {
         self.state
             .as_ref()?
             .panel_close_confirmation()
-            .map(|inner| NativePanelCloseConfirmationView { inner })
+            .map(|inner| PanelCloseConfirmationView { inner })
     }
 }
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn click_panel_close(
         &mut self,
-        token: NativePanelCloseConfirmationToken,
+        token: PanelCloseConfirmationToken,
         confirm: bool,
     ) {
         if self
@@ -143,7 +143,7 @@ impl NativeUi {
     /// a notice before any key is decided.
     pub(in crate::workbench_client) fn capture_panel_confirmation_key(
         &mut self,
-        expected: NativePanelCloseConfirmationToken,
+        expected: PanelCloseConfirmationToken,
         key: ClientKey,
     ) -> bool {
         let Some((actual, interactive)) = self
@@ -184,7 +184,7 @@ impl NativeUi {
 
     pub(in crate::workbench_client) fn after_panel_close_draw(
         &mut self,
-        prompt: Option<ModalPresentation<NativePanelCloseConfirmationToken>>,
+        prompt: Option<ModalPresentation<PanelCloseConfirmationToken>>,
     ) {
         let Some(state) = &mut self.state else {
             return;

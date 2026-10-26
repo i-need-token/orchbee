@@ -1,6 +1,6 @@
 use super::*;
 use crate::local_terminal_service::lease_expiry;
-use crate::site_coordinator::PreparedTerminalTabCreate;
+use crate::session_coordinator::PreparedTerminalTabCreate;
 use crate::terminal_coordinator::{Completion, WorkerPlacement};
 use crate::worker_obcn_carrier::create_worker_carrier;
 use crate::worker_registry::{WorkerAdmission, WorkerRegistry};
@@ -16,12 +16,12 @@ use orchbee_capability_node_protocol::{
 };
 use orchbee_client_server_protocol::{
     ClientMessage, RequestId, SendKey, SendProgress, SendRecord, SendRecords, SendText,
-    SendTextInput, ServerMessage, SiteId as ClientSiteId, TerminalId as ClientTerminalId,
+    SendTextInput, ServerMessage, SessionId as ObcsSessionId, TerminalId as ClientTerminalId,
     TerminalSendRequest, WorkerId as ClientWorkerId,
 };
 use orchbee_local_ipc::LocalStream as UnixStream;
 use orchbee_workbench_protocol::{
-    ProtocolVersion, SiteId, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
+    ProtocolVersion, SessionId, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
     WorkbenchLabel, WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse,
     WorkbenchSnapshotOutcome, WorkbenchTerminalGeometry,
 };
@@ -67,8 +67,8 @@ impl Fixture {
         let (worker_replies, replies) = mpsc::channel();
         let owner = thread::spawn(move || owner.run(server));
         let peer = thread::spawn(move || run_worker(peer, requests, replies));
-        let site_id = SiteId::parse(&format!("{:032x}", 1))?;
-        let service = LocalTerminalService::from_identity(registry, Ok(site_id));
+        let session_id = SessionId::parse(&format!("{:032x}", 1))?;
+        let service = LocalTerminalService::from_identity(registry, Ok(session_id));
         Ok(Self {
             service,
             requests: Mutex::new(worker_requests),
@@ -99,7 +99,7 @@ impl Fixture {
         let create = WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id: workbench_id(10 + u128::from(index) * 100),
-            site_id: snapshot.site_id.clone(),
+            session_id: snapshot.session_id.clone(),
             expected_revision: snapshot.revision,
             action: WorkbenchAction::TabCreate {
                 placement: None,
@@ -114,8 +114,8 @@ impl Fixture {
                 options: Default::default(),
             },
         };
-        let mut site = self.service.coordinator.lock().map_err(|_| "poisoned")?;
-        let PreparedTerminalTabCreate::Dispatch(pending) = site.prepare_terminal_tab_create(
+        let mut session = self.service.coordinator.lock().map_err(|_| "poisoned")?;
+        let PreparedTerminalTabCreate::Dispatch(pending) = session.prepare_terminal_tab_create(
             create,
             Some(client_id(11 + u128::from(index) * 100)),
             lease_expiry(),
@@ -143,13 +143,14 @@ impl Fixture {
             launch.authorization(),
             TerminalLaunchOutcome::HostAccepted(HostLaunchAccepted::new(identity, state)),
         )?;
-        site.complete_terminal_tab_create(
-            pending,
-            Completion::Launch(result),
-            Some(placement_value()),
-        )
-        .map_err(|_| "create completion")?;
-        drop(site);
+        session
+            .complete_terminal_tab_create(
+                pending,
+                Completion::Launch(result),
+                Some(placement_value()),
+            )
+            .map_err(|_| "create completion")?;
+        drop(session);
         let snapshot = read_snapshot(&self.service)?;
         let tab_id = snapshot.terminal_contexts[0]
             .tabs
@@ -160,7 +161,7 @@ impl Fixture {
         Ok(WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id: workbench_id(20 + u128::from(index) * 100),
-            site_id: snapshot.site_id,
+            session_id: snapshot.session_id,
             expected_revision: snapshot.revision,
             action: WorkbenchAction::TabClose {
                 terminal_context_id: snapshot.navigation.workspaces[0]
@@ -171,7 +172,7 @@ impl Fixture {
         })
     }
 
-    fn selector(&self, index: u8) -> TestResult<(ClientSiteId, ClientWorkerId, ClientTerminalId)> {
+    fn selector(&self, index: u8) -> TestResult<(ObcsSessionId, ClientWorkerId, ClientTerminalId)> {
         let snapshot = read_snapshot(&self.service)?;
         let binding = snapshot
             .terminal_contexts
@@ -187,7 +188,7 @@ impl Fixture {
             .nth(usize::from(index))
             .ok_or("exposed binding")?;
         Ok((
-            ClientSiteId::parse(snapshot.site_id.as_str())?,
+            ObcsSessionId::parse(snapshot.session_id.as_str())?,
             ClientWorkerId::parse(&format!("{:032x}", u128::from_be_bytes(WORKER_BYTES)))?,
             ClientTerminalId::parse(binding.terminal_id.as_str())?,
         ))
@@ -337,10 +338,10 @@ fn send_request(
     index: u8,
     records: SendRecords,
 ) -> TestResult<TerminalSendRequest> {
-    let (site_id, worker_id, terminal_id) = fixture.selector(index)?;
+    let (session_id, worker_id, terminal_id) = fixture.selector(index)?;
     Ok(TerminalSendRequest::new(
         client_id(30 + u128::from(index) * 100),
-        site_id,
+        session_id,
         worker_id,
         terminal_id,
         records,
@@ -575,7 +576,7 @@ fn send_without_a_matching_binding_is_rejected_before_admission() -> TestResult 
     let fixture = Fixture::new()?;
     let request = TerminalSendRequest::new(
         client_id(30),
-        ClientSiteId::parse(&format!("{:032x}", 1))?,
+        ObcsSessionId::parse(&format!("{:032x}", 1))?,
         ClientWorkerId::parse(&format!("{:032x}", u128::from_be_bytes(WORKER_BYTES)))?,
         ClientTerminalId::parse(&format!("{:032x}", 99))?,
         one_key(SendKey::Enter)?,

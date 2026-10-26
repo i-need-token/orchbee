@@ -11,7 +11,7 @@ use orchbee_capability_node_protocol::{
     TerminalLifecycleResult, TerminalOperationLease,
 };
 use orchbee_workbench_protocol::{
-    PresentationBinding, ProtocolVersion, SiteId, WorkbenchAction, WorkbenchCommandOutcome,
+    PresentationBinding, ProtocolVersion, SessionId, WorkbenchAction, WorkbenchCommandOutcome,
     WorkbenchCommandUnavailableReason, WorkbenchLabel, WorkbenchRejectionReason, WorkbenchRequest,
     WorkbenchResponse, WorkbenchTabCloseRead, WorkbenchTabCloseReadOutcome,
     WorkbenchTabCloseResumeOutcome, WorkbenchTabCloseResumeRejectionReason,
@@ -35,7 +35,7 @@ mod resume;
 mod workspace;
 
 #[test]
-fn receipt_identity_reads_the_exact_retained_close_and_checks_the_site_grant() {
+fn receipt_identity_reads_the_exact_retained_close_and_checks_the_session_grant() {
     use orchbee_workbench_protocol::{
         CloseOperationOutcome, CloseOperationRead, CloseOperationTarget,
     };
@@ -45,7 +45,7 @@ fn receipt_identity_reads_the_exact_retained_close_and_checks_the_site_grant() {
     let read = CloseOperationRead {
         protocol_version: ProtocolVersion,
         request_id: request_id(981),
-        site_id: authority.site_id().clone(),
+        session_id: authority.session_id().clone(),
         operation_id: close.request_id,
     };
     let result = authority.read_close_operation(Some(&grant), read.clone());
@@ -75,9 +75,10 @@ fn receipt_identity_reads_the_exact_retained_close_and_checks_the_site_grant() {
 
 pub(super) fn fixture(count: u128) -> (WorkbenchAuthority, WorkbenchGrant) {
     let mut authority =
-        WorkbenchAuthority::workspace_fixture(SiteId::parse(&identity(100)).unwrap()).unwrap();
-    let grant = WorkbenchGrant::manage_navigation_and_terminal_create(authority.site_id().clone())
-        .with_terminal_lifecycle();
+        WorkbenchAuthority::workspace_fixture(SessionId::parse(&identity(100)).unwrap()).unwrap();
+    let grant =
+        WorkbenchGrant::manage_navigation_and_terminal_create(authority.session_id().clone())
+            .with_terminal_lifecycle();
     if count > 0 {
         authority.append_fixture_tab(binding(700)).unwrap();
     }
@@ -122,7 +123,7 @@ fn command(authority: &WorkbenchAuthority, id: u128, action: WorkbenchAction) ->
     WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: request_id(id),
-        site_id: authority.site_id().clone(),
+        session_id: authority.session_id().clone(),
         expected_revision: authority.projection.snapshot().revision,
         action,
     }
@@ -234,7 +235,7 @@ pub(super) fn status(
             WorkbenchTabCloseRead {
                 protocol_version: ProtocolVersion,
                 request_id: request_id(99000),
-                site_id: close.site_id.clone(),
+                session_id: close.session_id.clone(),
                 terminal_context_id: terminal_context_id.clone(),
                 tab_id: tab_id.clone(),
             },
@@ -358,7 +359,8 @@ fn admission_is_revision_free_drop_is_effect_free_and_lifecycle_authority_is_ind
     let now = Instant::now();
     let close = close_command(&authority, 10000, 0);
     let before = authority.projection.snapshot().clone();
-    let denied = WorkbenchGrant::manage_navigation_and_terminal_create(authority.site_id().clone());
+    let denied =
+        WorkbenchGrant::manage_navigation_and_terminal_create(authority.session_id().clone());
     assert!(matches!(
         authority.begin_terminal_tab_close(Some(&denied), close.clone()),
         WorkbenchTabCloseBegin::Ready(WorkbenchCommandResult {
@@ -367,7 +369,7 @@ fn admission_is_revision_free_drop_is_effect_free_and_lifecycle_authority_is_ind
         })
     ));
     let lifecycle_only =
-        WorkbenchGrant::read_only(authority.site_id().clone()).with_terminal_lifecycle();
+        WorkbenchGrant::read_only(authority.session_id().clone()).with_terminal_lifecycle();
     let primary = primary(&mut authority, &lifecycle_only, close.clone());
     let runtime = runtime(primary.member());
     let WorkbenchTabClosePreparation::Prepared(prepared) =
@@ -478,7 +480,7 @@ fn create_and_move_entrypoints_cannot_replay_close_without_its_lifecycle_grant()
     let close = close_command(&authority, 10000, 0);
     accept(&mut authority, &grant, close.clone(), now);
     let other_grant =
-        WorkbenchGrant::manage_navigation_and_terminal_create(authority.site_id().clone());
+        WorkbenchGrant::manage_navigation_and_terminal_create(authority.session_id().clone());
     assert!(matches!(
         authority.begin_terminal_tab_create(Some(&other_grant), close.clone()),
         WorkbenchTabCreateBegin::Ready(WorkbenchCommandResult {

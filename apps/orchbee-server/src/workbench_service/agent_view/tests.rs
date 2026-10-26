@@ -111,7 +111,7 @@ fn invalid_spec_and_revision_exhaustion_never_commit() {
 
 #[test]
 fn plugin_view_lifecycle_reads_real_private_registry_without_creating_on_read() {
-    use orchbee_local_site_runtime::{PluginRegistry, PluginRegistryMutation};
+    use orchbee_local_runtime::{PluginRegistry, PluginRegistryMutation};
     struct Root(std::path::PathBuf);
     impl Drop for Root {
         fn drop(&mut self) {
@@ -209,7 +209,7 @@ fn plugin_view_lifecycle_reads_real_private_registry_without_creating_on_read() 
 }
 
 #[test]
-fn agent_view_permissions_precede_source_inspection_and_site_mismatch_preserves() {
+fn agent_view_permissions_precede_source_inspection_and_session_mismatch_preserves() {
     use crate::{local_terminal_service::LocalTerminalService, worker_registry::WorkerRegistry};
     use orchbee_workbench_protocol::*;
     use std::sync::{Arc, Mutex};
@@ -243,7 +243,7 @@ fn agent_view_permissions_precede_source_inspection_and_site_mismatch_preserves(
     let request = AgentViewRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&"2".repeat(32)).unwrap(),
-        site_id: snapshot.site_id,
+        session_id: snapshot.session_id,
         action: set("ordinary"),
     };
     for grants in 0..32 {
@@ -301,12 +301,12 @@ fn agent_view_permissions_precede_source_inspection_and_site_mismatch_preserves(
     let prior = admin.agent_view(&request);
     assert!(prior.answers(&request));
     let mut wrong = request.clone();
-    wrong.site_id = SiteId::parse(&"f".repeat(32)).unwrap();
+    wrong.session_id = SessionId::parse(&"f".repeat(32)).unwrap();
     wrong.action = AgentViewAction::Clear { source: None };
     assert_eq!(
         admin.agent_view(&wrong).outcome,
         AgentViewOutcome::Failed {
-            reason: Failure::SiteMismatch
+            reason: Failure::SessionMismatch
         }
     );
     let read = AgentViewRequest {

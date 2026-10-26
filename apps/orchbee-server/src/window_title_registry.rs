@@ -1,5 +1,5 @@
-//! Site title policy rendered for a connection-owned foreground display context.
-use orchbee_local_site_runtime::WindowsWindowTitleTemplate;
+//! Session title policy rendered for a connection-owned foreground display context.
+use orchbee_local_runtime::WindowTitleTemplate;
 use orchbee_workbench_protocol::{WindowTitle, WindowTitleContext};
 use orchbee_workbench_protocol::{
     WindowTitleAction as Action, WindowTitleFailure as Failure, WindowTitleOutcome as Outcome,
@@ -27,7 +27,7 @@ pub(crate) struct Registry {
     snapshot: Option<WindowTitleSnapshot>,
     order: u64,
     profile: Option<String>,
-    template: Option<WindowsWindowTitleTemplate>,
+    template: Option<WindowTitleTemplate>,
     hostname: String,
     delivery: Option<(NonZeroU64, WindowTitleSnapshot)>,
     delivery_revision: u64,
@@ -41,7 +41,7 @@ impl Registry {
         }
         self.profile = Some(profile.into());
         self.clear_delivery = None;
-        self.template = WindowsWindowTitleTemplate::parse(profile).ok().flatten();
+        self.template = WindowTitleTemplate::parse(profile).ok().flatten();
         self.hostname = winsafe::GetComputerName().unwrap_or_default();
     }
     fn rendered(&mut self, generation: NonZeroU64, context: &WindowTitleContext) -> Outcome {

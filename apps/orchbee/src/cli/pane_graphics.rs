@@ -103,7 +103,7 @@ fn execute(
     let request = request(&snapshot, action)?;
     let observation = exchange(&mut client, &request, deadline, signals)?;
     let status = observation.status();
-    let document = json!({"schema":"orchbee.panel.graphics", "version":1, "operation":command.operation(), "requestId":request.request_id, "sessionId":snapshot.site_id, "target":target, "observation":observation.document()});
+    let document = json!({"schema":"orchbee.panel.graphics", "version":1, "operation":command.operation(), "requestId":request.request_id, "sessionId":snapshot.session_id, "target":target, "observation":observation.document()});
     let stdout = match format {
         OutputFormat::Json => output::encode_document(&document),
         OutputFormat::Text => {
@@ -152,7 +152,7 @@ fn request(snapshot: &Snapshot, action: Action) -> Result<PaneGraphicsRequest, F
     let request = PaneGraphicsRequest {
         protocol_version: ProtocolVersion,
         request_id: query::request_id()?,
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         action,
     };
     request
@@ -215,7 +215,7 @@ fn status(outcome: &Outcome) -> u8 {
                 Reason::Unavailable
                 | Reason::SourceUnavailable
                 | Reason::RevisionExhausted
-                | Reason::SiteMismatch,
+                | Reason::SessionMismatch,
         } => 4,
         Outcome::Failed { .. } => 3,
         // This command consumes its own observation or terminal receipt; unrelated control results have no projection in this phase.

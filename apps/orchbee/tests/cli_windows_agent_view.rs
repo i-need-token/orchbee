@@ -32,7 +32,10 @@ fn source_view_cli_returns_correlated_effects_and_never_claims_lost_mutations_su
             else {
                 panic!("one source-view exchange after snapshot")
             };
-            assert_eq!(request.site_id.as_str(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+            assert_eq!(
+                request.session_id.as_str(),
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            );
             match &request.action {
                 AgentViewAction::Read {} => assert_eq!(verb, "get"),
                 AgentViewAction::Set { spec } => {
@@ -72,7 +75,7 @@ fn source_view_cli_returns_correlated_effects_and_never_claims_lost_mutations_su
                 &WorkbenchResponse::AgentView(AgentViewResult {
                     protocol_version: ProtocolVersion,
                     request_id: request.request_id,
-                    site_id: request.site_id,
+                    session_id: request.session_id,
                     outcome,
                 }),
             )

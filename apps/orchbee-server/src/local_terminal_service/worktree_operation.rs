@@ -21,7 +21,7 @@ impl LocalTerminalService {
             operation_id: request.action.operation_id().clone(),
             outcome: WorkbenchWorktreeOutcome::Unavailable { reason },
         };
-        match self.workbench_site_matches(&request.site_id) {
+        match self.workbench_session_matches(&request.session_id) {
             Some(true) => {}
             Some(false) => {
                 return WorkbenchWorktreeResult {
@@ -58,10 +58,11 @@ impl LocalTerminalService {
                 .ok()
                 .map(|id| (id, handle.generation()))
             });
-            let grant =
-                WorkbenchGrant::manage_navigation_and_terminal_create(authority.site_id().clone())
-                    .with_directory_association()
-                    .with_terminal_lifecycle();
+            let grant = WorkbenchGrant::manage_navigation_and_terminal_create(
+                authority.session_id().clone(),
+            )
+            .with_directory_association()
+            .with_terminal_lifecycle();
             authority.execute_worktree_request(
                 Some(&grant),
                 request,

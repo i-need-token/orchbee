@@ -1,7 +1,7 @@
 //! Source-owned Panel presentation reports with strict bounded read and write envelopes.
 use crate::{
     ContractError, MetadataReportDisposition, MetadataSource, MetadataTokenPatch,
-    MetadataTokenValue, MetadataTokens, PresentationBinding, ProtocolVersion, SiteId,
+    MetadataTokenValue, MetadataTokens, PresentationBinding, ProtocolVersion, SessionId,
     TerminalPresentationId, WorkbenchPanelId, WorkbenchRequestId, WorkbenchRevision,
 };
 use serde::{
@@ -144,7 +144,7 @@ pub struct PanelMetadataRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub action: PanelMetadataAction,
 }
 impl PanelMetadataRequest {
@@ -287,7 +287,7 @@ impl PanelMetadataRow {
 pub enum PanelMetadataFailure {
     InvalidRequest,
     #[serde(rename = "session-mismatch")]
-    SiteMismatch,
+    SessionMismatch,
     NotFound,
     Unbound,
     BindingChanged,
@@ -343,7 +343,7 @@ pub struct PanelMetadataResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub outcome: PanelMetadataOutcome,
 }
 impl PanelMetadataResult {
@@ -396,7 +396,7 @@ impl PanelMetadataResult {
     pub fn answers(&self, request: &PanelMetadataRequest) -> bool {
         self.protocol_version == request.protocol_version
             && self.request_id == request.request_id
-            && self.site_id == request.site_id
+            && self.session_id == request.session_id
             && {
                 let shared_failure = matches!(&self.outcome, PanelMetadataOutcome::Failed { .. });
                 match &request.action {

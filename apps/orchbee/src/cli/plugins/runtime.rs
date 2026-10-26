@@ -76,7 +76,7 @@ pub(super) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) 
             let request = PluginRequest {
                 protocol_version: snapshot.protocol_version,
                 request_id: query::request_id()?,
-                site_id: snapshot.site_id.clone(),
+                session_id: snapshot.session_id.clone(),
                 action: action.clone(),
             };
             let reply = match client.plugin(request, deadline, signals.poll_fd()) {

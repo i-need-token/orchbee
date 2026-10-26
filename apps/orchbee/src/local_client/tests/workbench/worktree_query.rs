@@ -5,7 +5,7 @@ use orchbee_workbench_protocol::{
 };
 
 #[test]
-fn query_correlates_site_source_and_request_without_replay() -> TestResult {
+fn query_correlates_session_source_and_request_without_replay() -> TestResult {
     let corpus: serde_json::Value = serde_json::from_str(include_str!(
         "../../../../../../schemas/workbench/v1/workbench-worktree-query-conformance-v1.json"
     ))
@@ -26,7 +26,7 @@ fn query_correlates_site_source_and_request_without_replay() -> TestResult {
             panic!("query")
         };
         let O::Found {
-            site_id, source, ..
+            session_id, source, ..
         } = &mut reply.outcome
         else {
             unreachable!()
@@ -35,7 +35,7 @@ fn query_correlates_site_source_and_request_without_replay() -> TestResult {
         let request = WorkbenchWorktreeQuery {
             protocol_version: ProtocolVersion,
             request_id: reply.request_id.clone(),
-            site_id: site_id.clone(),
+            session_id: session_id.clone(),
             source: WorktreeSource::Directory {
                 path: source.requested_path.clone(),
             },
@@ -43,7 +43,7 @@ fn query_correlates_site_source_and_request_without_replay() -> TestResult {
         };
         match case {
             1 => reply.request_id = WorkbenchRequestId::parse(&id(90)).unwrap(),
-            2 => *site_id = SiteId::parse(&id(90)).unwrap(),
+            2 => *session_id = SessionId::parse(&id(90)).unwrap(),
             3 => {
                 source.requested_path =
                     orchbee_workbench_protocol::WorkbenchDirectoryPath::parse("C:/other").unwrap()

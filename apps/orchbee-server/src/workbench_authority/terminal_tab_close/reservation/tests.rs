@@ -27,7 +27,7 @@ fn reservation_covers_simultaneous_maximum_tombstone_status_and_resume_receipt()
     let resume = WorkbenchTabCloseResume {
         protocol_version: ProtocolVersion,
         request_id: request_id(11000),
-        site_id: close.site_id.clone(),
+        session_id: close.session_id.clone(),
         terminal_context_id: terminal_context_id.clone(),
         tab_id: tab_id.clone(),
         close_request_id: close.request_id.clone(),

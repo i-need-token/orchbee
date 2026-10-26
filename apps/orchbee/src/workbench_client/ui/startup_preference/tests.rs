@@ -17,7 +17,7 @@ fn an_empty_workspace_publishes_its_exact_position_even_while_a_status_notice_is
         .map(|workspace| workspace.workspace_id.clone())
         .collect();
     let (mut ui, _, _, snapshot) = super::super::tests::quick_workspace::empty_ui(snapshot);
-    assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
+    assert_eq!(ui.view().phase(), DisplayPhase::Empty);
     let saved = Position {
         location: ui.state.as_ref().unwrap().cache().location().clone(),
         member: None,
@@ -47,11 +47,11 @@ fn an_empty_workspace_publishes_its_exact_position_even_while_a_status_notice_is
 }
 
 fn draw(
-    ui: &NativeUi,
+    ui: &WorkbenchClientUi,
     shell: &ClientView,
     width: u16,
     height: u16,
-) -> crate::workbench_client::NativeDrawReceipt {
+) -> crate::workbench_client::DrawReceipt {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     let mut receipt = Default::default();
     terminal

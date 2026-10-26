@@ -1,5 +1,5 @@
 //! Embedded JSON Schema dictionary. Every document ships inside the binary so
-//! dictionary reads never touch the filesystem, the network, or a Site.
+//! dictionary reads never touch the filesystem, the network, or a Session.
 //! Explicit file publication belongs to the separate schema exporter.
 
 use serde_json::{Map, Value, json};

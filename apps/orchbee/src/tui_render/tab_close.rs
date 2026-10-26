@@ -10,8 +10,7 @@ use crate::{
     tui_pointer::{HitLayer, HitMapBuilder, HitTarget},
     tui_theme::Theme,
     workbench_client::{
-        ModalPresentation, NativeCloseConfirmationToken, NativeCloseConfirmationView,
-        NativeCloseStatusToken,
+        CloseConfirmationToken, CloseConfirmationView, CloseStatusToken, ModalPresentation,
     },
 };
 use ratatui::{
@@ -23,14 +22,14 @@ use ratatui::{
 
 pub(super) struct ModalDraw {
     pub(super) area: Rect,
-    pub(super) prompt: ModalPresentation<NativeCloseConfirmationToken>,
-    pub(super) status: Option<NativeCloseStatusToken>,
+    pub(super) prompt: ModalPresentation<CloseConfirmationToken>,
+    pub(super) status: Option<CloseStatusToken>,
 }
 
 pub(super) fn render(
     frame: &mut Frame<'_>,
     locale: Locale,
-    confirmation: &NativeCloseConfirmationView<'_>,
+    confirmation: &CloseConfirmationView<'_>,
     content_area: Rect,
     theme: &Theme,
     hits: &mut HitMapBuilder,

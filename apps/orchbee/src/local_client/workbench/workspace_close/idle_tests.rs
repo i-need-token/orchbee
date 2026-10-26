@@ -11,7 +11,7 @@ fn confirmation_required_is_definite_only_for_conditional_action_at_its_admitted
             let command = WorkbenchCommand {
                 protocol_version: ProtocolVersion,
                 request_id: WorkbenchRequestId::parse("00000000000000000000000000000003").unwrap(),
-                site_id: SiteId::parse("00000000000000000000000000000001").unwrap(),
+                session_id: SessionId::parse("00000000000000000000000000000001").unwrap(),
                 expected_revision: WorkbenchRevision::new(7),
                 action: if conditional {
                     WorkbenchAction::WorkspaceCloseIfIdle { workspace_id }

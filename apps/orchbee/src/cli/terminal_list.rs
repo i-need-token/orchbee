@@ -88,7 +88,7 @@ fn execute(
     let details = observe_rows(&mut client, &snapshot, &rows, details, deadline, signals)?;
     let refreshed = query::refresh_snapshot(
         &mut client,
-        &snapshot.site_id,
+        &snapshot.session_id,
         snapshot.revision,
         deadline,
         signals,
@@ -206,7 +206,7 @@ fn read_reports(
         let request = PanelAgentRequest {
             protocol_version: snapshot.protocol_version,
             request_id: query::request_id()?,
-            site_id: snapshot.site_id.clone(),
+            session_id: snapshot.session_id.clone(),
             action: PanelAgentAction::ReadPresentations {
                 presentation_ids: presentation_ids.clone(),
             },
@@ -286,7 +286,7 @@ fn verify_reports(
     let request = PanelAgentRequest {
         protocol_version: snapshot.protocol_version,
         request_id: query::request_id()?,
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         action: PanelAgentAction::ReadPresentations {
             presentation_ids: vec![],
         },
@@ -336,7 +336,7 @@ fn panel_agent_failure(reason: PanelAgentFailure) -> Failure {
     Failure::new(match reason {
         PanelAgentFailure::Denied => FailureKind::Denied,
         PanelAgentFailure::NotFound
-        | PanelAgentFailure::SiteMismatch
+        | PanelAgentFailure::SessionMismatch
         | PanelAgentFailure::BindingChanged => FailureKind::Rejected,
         PanelAgentFailure::Unbound
         | PanelAgentFailure::InvalidRequest

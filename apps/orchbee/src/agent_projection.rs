@@ -1,6 +1,6 @@
 //! One complete read model joins canonical sessions to exact physical Agent incarnations.
 //! It owns neither source, Client acknowledgement state, nor any terminal effect.
-use crate::{machine_agents, workbench_client::NativeContextLocation};
+use crate::{machine_agents, workbench_client::ClientContextLocation};
 use orchbee_agent_observation_protocol::{
     AgentLifecycle, AgentNameTarget, AgentObservationFreshness, AgentReportProvider,
     AgentSemanticStatus, AgentSessionSummary,
@@ -176,8 +176,8 @@ pub(crate) fn project(
             .find(|(_, p)| p.member.as_str() == id)
             .and_then(|(order, p)| {
                 let (context, workspace) = match &p.context.location {
-                    NativeContextLocation::NoWorkspace => return None,
-                    NativeContextLocation::Workspace {
+                    ClientContextLocation::NoWorkspace => return None,
+                    ClientContextLocation::Workspace {
                         workspace_id,
                         terminal_context_id,
                     } => (

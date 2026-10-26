@@ -21,7 +21,7 @@ pub struct PreparedWorktreeRebind<'a> {
     progress: orchbee_workbench_protocol::WorktreeProgress,
 }
 impl PreparedWorktreeRebind<'_> {
-    /// Site commits the matching physical Create reservation at the same no-fail cut.
+    /// Session commits the matching physical Create reservation at the same no-fail cut.
     pub fn commit(self) -> orchbee_workbench_protocol::WorktreeProgress {
         self.authority.projection.commit_prepared(self.projection);
         self.authority.last_identity = self.last_identity;

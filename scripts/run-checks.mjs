@@ -94,7 +94,7 @@ export function checkSteps(task, scope, platform = process.platform) {
 						'test:style-contract',
 						'test:storage-contract',
 						'test:experience-contract',
-						'test:stage-native-site',
+						'test:stage-local-runtime',
 					].map((name) => pnpmStep(name)),
 				},
 				// Native process witnesses spend real deadlines on startup and cohort verification.
@@ -141,8 +141,8 @@ export function checkSteps(task, scope, platform = process.platform) {
 			[nodeStep('Ghostty source tests', ['--test', 'scripts/ghostty-source.test.mjs'])],
 		],
 		[
-			'test:stage-native-site',
-			[nodeStep('native-site staging tests', ['--test', 'scripts/stage-native-site.test.mjs'])],
+			'test:stage-local-runtime',
+			[nodeStep('local-runtime staging tests', ['--test', 'scripts/stage-local-runtime.test.mjs'])],
 		],
 		[
 			'test:tla:inventory',

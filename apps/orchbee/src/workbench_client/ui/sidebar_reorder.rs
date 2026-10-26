@@ -1,5 +1,5 @@
 //! Nonmodal navigation organization uses the existing canonical setup mailbox.
-use super::{NativeUi, OperationDeadlines, WorkbenchClientView};
+use super::{OperationDeadlines, WorkbenchClientUi, WorkbenchClientView};
 use crate::tui_pointer::SidebarReorderSource;
 use orchbee_workbench_protocol::{NavigationConfiguration, configure_navigation};
 
@@ -15,7 +15,7 @@ impl WorkbenchClientView<'_> {
     }
 }
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn sidebar_reorder_source(
         &mut self,
     ) -> Option<SidebarReorderSource> {

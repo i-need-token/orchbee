@@ -215,9 +215,8 @@ fn snapshot(
     }
 }
 fn settings() -> Result<Option<WorkbenchDirectoryPath>, WorktreeNotice> {
-    let settings =
-        orchbee_local_site_runtime::read_windows_user_settings(|name| std::env::var_os(name))
-            .map_err(|_| WorktreeNotice::ConfigurationUnavailable)?;
+    let settings = orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name))
+        .map_err(|_| WorktreeNotice::ConfigurationUnavailable)?;
     settings
         .worktree_root
         .as_deref()
@@ -262,7 +261,7 @@ fn execute(
                         WorkbenchWorktreeQuery {
                             protocol_version: ProtocolVersion,
                             request_id: first,
-                            site_id: origin.cache.site_id().clone(),
+                            session_id: origin.cache.session_id().clone(),
                             source: source.clone(),
                             trust_repository: false,
                         },
@@ -271,7 +270,7 @@ fn execute(
                     )
                     .map_err(|_| WorktreeNotice::ListingUnavailable)?;
                 let WorkbenchWorktreeQueryOutcome::Found {
-                    site_id,
+                    session_id,
                     workbench_revision,
                     worker_id,
                     source,
@@ -280,7 +279,7 @@ fn execute(
                 else {
                     return Err(WorktreeNotice::ListingUnavailable);
                 };
-                if site_id != *origin.cache.site_id()
+                if session_id != *origin.cache.session_id()
                     || workbench_revision < origin.cache.revision()
                 {
                     return Err(WorktreeNotice::SourceChanged);
@@ -365,7 +364,7 @@ fn execute(
                             WorkbenchWorktreeQuery {
                                 protocol_version: ProtocolVersion,
                                 request_id: second,
-                                site_id: plan.origin.cache.site_id().clone(),
+                                session_id: plan.origin.cache.session_id().clone(),
                                 source: plan.source.clone(),
                                 trust_repository: false,
                             },
@@ -408,7 +407,7 @@ fn execute(
                             } else {
                                 third
                             },
-                            site_id: plan.origin.cache.site_id().clone(),
+                            session_id: plan.origin.cache.session_id().clone(),
                             action,
                         },
                         job.deadline.min(clock.now() + Duration::from_secs(2)),

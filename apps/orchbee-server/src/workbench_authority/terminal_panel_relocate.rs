@@ -1,5 +1,5 @@
 //! Atomic retained-Panel relocation admission and lifecycle fencing. Candidate
-//! topology planning is independent of Site composition and Client view effects.
+//! topology planning is independent of Session composition and Client view effects.
 
 use super::{
     CommitPlan, PlanFailure, PreparedCommandCommit, RetainedRequest, WorkbenchAuthority,
@@ -201,15 +201,17 @@ impl WorkbenchAuthority {
         command: &WorkbenchCommand,
     ) -> Option<WorkbenchCommandResult> {
         if !grant.is_some_and(|grant| {
-            grant.site_id == *self.site_id() && grant.mutate_navigation && grant.associate_directory
+            grant.session_id == *self.session_id()
+                && grant.mutate_navigation
+                && grant.associate_directory
         }) {
             return Some(result(command, WorkbenchCommandOutcome::Denied {}));
         }
         if let Some(response) = self.command_preflight(command) {
             return Some(response);
         }
-        let reason = if command.site_id != *self.site_id() {
-            Some(WorkbenchRejectionReason::SiteMismatch)
+        let reason = if command.session_id != *self.session_id() {
+            Some(WorkbenchRejectionReason::SessionMismatch)
         } else if command.expected_revision != self.projection.snapshot().revision {
             Some(WorkbenchRejectionReason::RevisionMismatch)
         } else {
@@ -225,7 +227,7 @@ impl WorkbenchAuthority {
     ) -> WorkbenchPanelRelocateBegin<'_> {
         let authorized = matches!(&command.action, WorkbenchAction::PanelRelocate { .. })
             && grant.is_some_and(|grant| {
-                grant.site_id == *self.site_id()
+                grant.session_id == *self.session_id()
                     && grant.mutate_navigation
                     && (!matches!(
                         &command.action,
@@ -260,8 +262,8 @@ impl WorkbenchAuthority {
             ));
         };
         let snapshot = self.projection.snapshot();
-        let rejection = if command.site_id != snapshot.site_id {
-            Some(WorkbenchRejectionReason::SiteMismatch)
+        let rejection = if command.session_id != snapshot.session_id {
+            Some(WorkbenchRejectionReason::SessionMismatch)
         } else if command.expected_revision != snapshot.revision {
             Some(WorkbenchRejectionReason::RevisionMismatch)
         } else if !snapshot

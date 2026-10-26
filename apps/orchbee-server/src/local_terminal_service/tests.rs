@@ -1,7 +1,7 @@
 use super::*;
 mod tab_move;
 use orchbee_client_server_protocol::{
-    RequestId, SiteId, TerminalId, TerminalViewerAction, TerminalViewerOutcome,
+    RequestId, SessionId, TerminalId, TerminalViewerAction, TerminalViewerOutcome,
     TerminalViewerRequest, ViewerUnavailableReason, WorkerId,
 };
 use orchbee_workbench_protocol::parse_workbench_request;
@@ -10,7 +10,7 @@ fn binding_request() -> ClientMessage {
     ClientMessage::TerminalViewer(TerminalViewerRequest::new(
         RequestId::parse("33333333333333333333333333333333").unwrap(),
         TerminalViewerAction::AttachBinding {
-            site_id: SiteId::parse("11111111111111111111111111111111").unwrap(),
+            session_id: SessionId::parse("11111111111111111111111111111111").unwrap(),
             worker_id: WorkerId::parse("22222222222222222222222222222222").unwrap(),
             terminal_id: TerminalId::parse("44444444444444444444444444444444").unwrap(),
         },
@@ -27,7 +27,7 @@ fn binding_outcome(service: &LocalTerminalService) -> TerminalViewerOutcome {
 }
 
 #[test]
-fn failed_site_initialization_preserves_unavailable_workbench_and_direct_terminal_service() {
+fn failed_session_initialization_preserves_unavailable_workbench_and_direct_terminal_service() {
     let service = LocalTerminalService::from_identity(
         Arc::new(Mutex::new(WorkerRegistry::new())),
         Err(std::io::ErrorKind::PermissionDenied.into()),
@@ -72,7 +72,7 @@ fn binding_attach_distinguishes_missing_workbench_before_missing_worker() {
 }
 
 #[test]
-fn binding_attach_reports_registry_and_site_poison_before_workbench_availability() {
+fn binding_attach_reports_registry_and_session_poison_before_workbench_availability() {
     let workers = Arc::new(Mutex::new(WorkerRegistry::new()));
     let poison = Arc::clone(&workers);
     assert!(
@@ -114,7 +114,7 @@ fn binding_attach_reports_registry_and_site_poison_before_workbench_availability
 }
 
 #[test]
-fn close_site_lookup_returns_unavailable_for_missing_or_poisoned_site_owner() {
+fn close_session_lookup_returns_unavailable_for_missing_or_poisoned_session_owner() {
     use crate::workbench_service::{WorkbenchExecution, WorkbenchPolicy, WorkbenchService};
     use orchbee_workbench_protocol::{
         ProtocolVersion, WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse,
@@ -122,18 +122,18 @@ fn close_site_lookup_returns_unavailable_for_missing_or_poisoned_site_owner() {
         WorkbenchTabCloseResume, WorkbenchTabCloseResumeOutcome,
         WorkbenchTabCloseUnavailableReason, WorkbenchTabId, WorkbenchTerminalContextId,
     };
-    let site =
-        orchbee_workbench_protocol::SiteId::parse("11111111111111111111111111111111").unwrap();
+    let session =
+        orchbee_workbench_protocol::SessionId::parse("11111111111111111111111111111111").unwrap();
     let missing = Arc::new(LocalTerminalService::from_identity(
         Arc::new(Mutex::new(WorkerRegistry::new())),
         Err(std::io::ErrorKind::PermissionDenied.into()),
     ));
-    assert_eq!(missing.workbench_site_matches(&site), None);
+    assert_eq!(missing.workbench_session_matches(&session), None);
     let service = Arc::new(LocalTerminalService::from_identity(
         Arc::new(Mutex::new(WorkerRegistry::new())),
-        Ok(site.clone()),
+        Ok(session.clone()),
     ));
-    assert_eq!(service.workbench_site_matches(&site), Some(true));
+    assert_eq!(service.workbench_session_matches(&session), Some(true));
     let poison = Arc::clone(&service);
     assert!(
         std::thread::spawn(move || {
@@ -143,7 +143,7 @@ fn close_site_lookup_returns_unavailable_for_missing_or_poisoned_site_owner() {
         .join()
         .is_err()
     );
-    assert_eq!(service.workbench_site_matches(&site), None);
+    assert_eq!(service.workbench_session_matches(&session), None);
     for unavailable in [missing, service] {
         for allowed in [false, true] {
             let workbench = WorkbenchService::new(
@@ -159,7 +159,7 @@ fn close_site_lookup_returns_unavailable_for_missing_or_poisoned_site_owner() {
             let read = WorkbenchTabCloseRead {
                 protocol_version: ProtocolVersion,
                 request_id: WorkbenchRequestId::parse("22222222222222222222222222222222").unwrap(),
-                site_id: site.clone(),
+                session_id: session.clone(),
                 terminal_context_id: WorkbenchTerminalContextId::parse(
                     "33333333333333333333333333333333",
                 )
@@ -184,7 +184,7 @@ fn close_site_lookup_returns_unavailable_for_missing_or_poisoned_site_owner() {
             let resume = WorkbenchTabCloseResume {
                 protocol_version: ProtocolVersion,
                 request_id: read.request_id,
-                site_id: read.site_id,
+                session_id: read.session_id,
                 terminal_context_id: read.terminal_context_id,
                 tab_id: read.tab_id,
                 close_request_id: WorkbenchRequestId::parse("55555555555555555555555555555555")
@@ -207,7 +207,7 @@ fn close_site_lookup_returns_unavailable_for_missing_or_poisoned_site_owner() {
                 }
             );
             assert_eq!(result.request_id, resume.request_id);
-            assert_eq!(result.site_id, resume.site_id);
+            assert_eq!(result.session_id, resume.session_id);
             assert_eq!(result.terminal_context_id, resume.terminal_context_id);
             assert_eq!(result.tab_id, resume.tab_id);
             assert_eq!(result.close_request_id, resume.close_request_id);
@@ -221,7 +221,7 @@ impl LocalTerminalService {
         Self::from_workbench(
             workers,
             Some(
-                orchbee_server::WorkbenchAuthority::workspace_fixture(random_site_id().unwrap())
+                orchbee_server::WorkbenchAuthority::workspace_fixture(random_session_id().unwrap())
                     .unwrap(),
             ),
         )

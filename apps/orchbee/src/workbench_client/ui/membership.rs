@@ -1,12 +1,12 @@
 use super::{
-    Arc, AttachmentKey, CarrierFailure, CommandMailbox, MutationResult, NativeUi, RefreshDecision,
-    RefreshSettlement, UiReply,
+    Arc, AttachmentKey, CarrierFailure, CommandMailbox, MutationResult, RefreshDecision,
+    RefreshSettlement, UiReply, WorkbenchClientUi,
 };
 use crate::workbench_client::state::{
     MembershipCleanup, MembershipInstallDecision, MembershipResultKey,
 };
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(super) fn apply_membership_detached(
         &mut self,
         mailbox: &Arc<CommandMailbox>,

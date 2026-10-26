@@ -1,6 +1,6 @@
 use super::*;
 use orchbee_workbench_protocol::{
-    SiteId, Snapshot, WorkbenchRejectionReason, WorkbenchRevision,
+    SessionId, Snapshot, WorkbenchRejectionReason, WorkbenchRevision,
     WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseResumeRejectionReason,
     WorkbenchWorkspaceCloseRead, WorkbenchWorkspaceCloseReadOutcome,
     WorkbenchWorkspaceCloseReadResult, WorkbenchWorkspaceCloseResume,
@@ -53,26 +53,26 @@ fn workspace_close_uses_independent_grants_and_authority_preconditions_without_h
             },
             Arc::clone(&terminals),
         );
-        for site in [
-            before.site_id.clone(),
-            SiteId::parse(&format!("{:032x}", 222)).unwrap(),
+        for session in [
+            before.session_id.clone(),
+            SessionId::parse(&format!("{:032x}", 222)).unwrap(),
         ] {
-            let matches_site = site == before.site_id;
+            let matches_session = session == before.session_id;
             let close_request_id = WorkbenchRequestId::parse(&format!(
                 "{:032x}",
-                (permissions + 1) * 1000 + i32::from(matches_site)
+                (permissions + 1) * 1000 + i32::from(matches_session)
             ))
             .unwrap();
             let read = WorkbenchWorkspaceCloseRead {
                 protocol_version: ProtocolVersion,
                 request_id: request_id.clone(),
-                site_id: site.clone(),
+                session_id: session.clone(),
                 workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 21)).unwrap(),
             };
             let close = WorkbenchRequest::Command(WorkbenchCommand {
                 protocol_version: ProtocolVersion,
                 request_id: close_request_id.clone(),
-                site_id: site.clone(),
+                session_id: session.clone(),
                 expected_revision: WorkbenchRevision::new(u64::MAX),
                 action: WorkbenchAction::WorkspaceClose {
                     workspace_id: read.workspace_id.clone(),
@@ -86,10 +86,10 @@ fn workspace_close_uses_independent_grants_and_authority_preconditions_without_h
                     outcome: if lifecycle_grant {
                         WorkbenchCommandOutcome::Rejected {
                             revision: before.revision,
-                            reason: if matches_site {
+                            reason: if matches_session {
                                 WorkbenchRejectionReason::RevisionMismatch
                             } else {
-                                WorkbenchRejectionReason::SiteMismatch
+                                WorkbenchRejectionReason::SessionMismatch
                             },
                         }
                     } else {
@@ -102,7 +102,7 @@ fn workspace_close_uses_independent_grants_and_authority_preconditions_without_h
                 WorkbenchResponse::WorkspaceCloseRead(WorkbenchWorkspaceCloseReadResult {
                     protocol_version: ProtocolVersion,
                     request_id: request_id.clone(),
-                    outcome: if read_grant && matches_site {
+                    outcome: if read_grant && matches_session {
                         WorkbenchWorkspaceCloseReadOutcome::NotClosing {}
                     } else {
                         WorkbenchWorkspaceCloseReadOutcome::Denied {}
@@ -112,7 +112,7 @@ fn workspace_close_uses_independent_grants_and_authority_preconditions_without_h
             let resume = WorkbenchWorkspaceCloseResume {
                 protocol_version: ProtocolVersion,
                 request_id: request_id.clone(),
-                site_id: site.clone(),
+                session_id: session.clone(),
                 workspace_id: read.workspace_id.clone(),
                 close_request_id: WorkbenchRequestId::parse(&format!("{:032x}", 21)).unwrap(),
                 expected_attempt_generation: WorkbenchTabCloseAttemptGeneration::new(1).unwrap(),
@@ -122,10 +122,10 @@ fn workspace_close_uses_independent_grants_and_authority_preconditions_without_h
                 WorkbenchResponse::WorkspaceCloseResume(WorkbenchWorkspaceCloseResumeResult {
                     protocol_version: ProtocolVersion,
                     request_id: request_id.clone(),
-                    site_id: site,
+                    session_id: session,
                     workspace_id: resume.workspace_id,
                     close_request_id: resume.close_request_id,
-                    outcome: if lifecycle_grant && matches_site {
+                    outcome: if lifecycle_grant && matches_session {
                         WorkbenchWorkspaceCloseResumeOutcome::Rejected {
                             reason: WorkbenchTabCloseResumeRejectionReason::OperationUnavailable,
                         }
@@ -141,7 +141,7 @@ fn workspace_close_uses_independent_grants_and_authority_preconditions_without_h
     let command = WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id,
-        site_id: before.site_id,
+        session_id: before.session_id,
         expected_revision: before.revision,
         action: WorkbenchAction::ProjectCreate {
             label: WorkbenchLabel::parse("Still usable").unwrap(),
@@ -161,7 +161,7 @@ fn navigation_wrapper_rejects_workspace_close_controls_without_losing_any_fields
     let read = WorkbenchWorkspaceCloseRead {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap(),
-        site_id: SiteId::parse(&format!("{:032x}", 2)).unwrap(),
+        session_id: SessionId::parse(&format!("{:032x}", 2)).unwrap(),
         workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 4)).unwrap(),
     };
     for request in [
@@ -169,7 +169,7 @@ fn navigation_wrapper_rejects_workspace_close_controls_without_losing_any_fields
         WorkbenchRequest::WorkspaceCloseResume(WorkbenchWorkspaceCloseResume {
             protocol_version: ProtocolVersion,
             request_id: read.request_id.clone(),
-            site_id: read.site_id.clone(),
+            session_id: read.session_id.clone(),
             workspace_id: read.workspace_id.clone(),
             close_request_id: WorkbenchRequestId::parse(&format!("{:032x}", 5)).unwrap(),
             expected_attempt_generation: WorkbenchTabCloseAttemptGeneration::new(u64::MAX).unwrap(),
@@ -177,7 +177,7 @@ fn navigation_wrapper_rejects_workspace_close_controls_without_losing_any_fields
         WorkbenchRequest::Command(WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id: read.request_id,
-            site_id: read.site_id,
+            session_id: read.session_id,
             expected_revision: WorkbenchRevision::new(99),
             action: WorkbenchAction::WorkspaceClose {
                 workspace_id: read.workspace_id,

@@ -1,11 +1,11 @@
 //! Client acknowledgement follows a single Server commit and the shared projection.
 use super::{
     ClientLayoutAdjustment, ClientViewCompletionOutcome, ClientViewObservation, ControlStep,
-    NativeUi, Reason,
+    Reason, WorkbenchClientUi,
 };
 use crate::local_client::workbench::split_ratio::SplitRatioFailure;
 use orchbee_workbench_protocol::{
-    ClientLayoutChange, ClientSplitIdentity, SiteId, WorkbenchAction, WorkbenchCommand,
+    ClientLayoutChange, ClientSplitIdentity, SessionId, WorkbenchAction, WorkbenchCommand,
     WorkbenchRevision,
 };
 
@@ -17,7 +17,7 @@ pub(super) struct SharedAdjustment {
 }
 impl SharedAdjustment {
     pub(super) fn prepare(
-        site: SiteId,
+        session: SessionId,
         operation_id: orchbee_workbench_protocol::WorkbenchRequestId,
         adjustment: ClientLayoutAdjustment,
         before: ClientViewObservation,
@@ -28,7 +28,7 @@ impl SharedAdjustment {
         let mutation = WorkbenchCommand {
             protocol_version: orchbee_workbench_protocol::ProtocolVersion,
             request_id: operation_id,
-            site_id: site,
+            session_id: session,
             expected_revision: adjustment.workbench_revision,
             action: WorkbenchAction::SplitRatioSet {
                 terminal_context_id: adjustment.terminal_context_id.clone(),
@@ -69,7 +69,7 @@ impl SharedAdjustment {
             }))
         )
     }
-    pub(super) fn step(&mut self, native: &mut NativeUi) -> ControlStep {
+    pub(super) fn step(&mut self, native: &mut WorkbenchClientUi) -> ControlStep {
         match self.submission {
             None => ControlStep::Waiting,
             Some(Err(failure)) => ControlStep::Failed(failure.reason),
@@ -99,7 +99,10 @@ impl SharedAdjustment {
             }
         }
     }
-    pub(super) fn outcome(&self, native: &NativeUi) -> Option<ClientViewCompletionOutcome> {
+    pub(super) fn outcome(
+        &self,
+        native: &WorkbenchClientUi,
+    ) -> Option<ClientViewCompletionOutcome> {
         self.submission.as_ref()?.as_ref().ok()?;
         native
             .adjustment_observed(&self.adjustment, &self.before)

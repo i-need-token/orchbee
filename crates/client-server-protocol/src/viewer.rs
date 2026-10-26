@@ -1,5 +1,5 @@
 use crate::{
-    HostEpoch, HostTerminalId, ProtocolError, RequestId, SiteId, TerminalId, ViewerId, WorkerId,
+    HostEpoch, HostTerminalId, ProtocolError, RequestId, SessionId, TerminalId, ViewerId, WorkerId,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 use std::num::NonZeroU64;
@@ -260,7 +260,7 @@ pub enum TerminalViewerAction {
     },
     AttachBinding {
         #[serde(rename = "sessionId")]
-        site_id: SiteId,
+        session_id: SessionId,
         worker_id: WorkerId,
         terminal_id: TerminalId,
     },

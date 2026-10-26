@@ -100,5 +100,5 @@ independent review nor unexecuted formal proof is claimed.
 
 The Server status scope accepts both the default `orchbee-native-` identity
 (32 hex digits) and the named Windows `orchbee-session-` identity (47 hex digits),
-as produced by `WindowsSiteName::scope_for_user`. This observation does not
+as produced by `SessionName::scope_for_user`. This observation does not
 activate a missing named Session. The version-1 schema admits both existing forms.

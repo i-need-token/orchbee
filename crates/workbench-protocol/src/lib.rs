@@ -172,7 +172,7 @@ pub use directory::{
 };
 
 pub use identity::{
-    IdentityError, ProtocolVersion, RevisionError, SiteId, TerminalId, TerminalPresentationId,
+    IdentityError, ProtocolVersion, RevisionError, SessionId, TerminalId, TerminalPresentationId,
     WorkbenchClientId, WorkbenchDirectoryId, WorkbenchPanelId, WorkbenchPanelSlotId,
     WorkbenchProjectId, WorkbenchRequestId, WorkbenchRevision, WorkbenchSplitId,
     WorkbenchTabGroupId, WorkbenchTabId, WorkbenchTerminalContextId, WorkbenchWorkspaceId,
@@ -243,9 +243,8 @@ pub use command::configuration::{
     MAXIMUM_CONFIGURATION_DIAGNOSTICS, MAXIMUM_CONFIGURATION_DIAGNOSTICS_OMITTED,
 };
 pub use command::settings::{
-    MAXIMUM_NATIVE_SETTINGS_REQUEST_BYTES, NativeSettingsChanges, NativeSettingsFailure,
-    NativeSettingsOperation, NativeSettingsOutcome, NativeSettingsRequest, NativeSettingsResult,
-    NativeSettingsSource,
+    MAXIMUM_SETTINGS_REQUEST_BYTES, SettingsChanges, SettingsFailure, SettingsOperation,
+    SettingsOutcome, SettingsRequest, SettingsResult, SettingsSource,
 };
 
 pub use command::notification::{

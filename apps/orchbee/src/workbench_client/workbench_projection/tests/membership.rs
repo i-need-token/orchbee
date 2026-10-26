@@ -22,7 +22,7 @@ fn removed_member_cannot_disguise_retained_structural_identity_as_a_fresh_add() 
         }
         assert_eq!(
             validate_canonical_refresh(&current, candidate),
-            Err(NativeProjectionDivergence)
+            Err(ClientProjectionDivergence)
         );
     }
     let mut fresh = projected(2, 11);
@@ -65,7 +65,7 @@ fn canonical_membership_accepts_higher_revision_removal_at_every_boundary() {
             candidate.revision = current.revision;
             assert_eq!(
                 validate_canonical_refresh(&current, candidate),
-                Err(NativeProjectionDivergence)
+                Err(ClientProjectionDivergence)
             );
         }
     }

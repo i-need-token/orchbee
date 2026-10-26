@@ -1,4 +1,4 @@
-use super::NativeUi;
+use super::WorkbenchClientUi;
 use orchbee_workbench_protocol::{
     ClientViewCompletionOutcome, ClientViewControl, ClientViewControlReason as Reason,
     ClientViewIntent, ClientViewPhase, Snapshot, WorkbenchRequestId,
@@ -18,7 +18,7 @@ impl super::WorkbenchClientView<'_> {
         self.popup?.input_context()
     }
 }
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn popup_capture_claim(&self) -> bool {
         self.view().popup_capture_claim()
     }
@@ -66,7 +66,7 @@ impl NativeUi {
                 if self.popup.busy() || self.control_modal() {
                     return Err(Reason::Busy);
                 }
-                let (site, view) = self
+                let (session, view) = self
                     .control_observation(false)
                     .ok_or(Reason::ProjectionUnavailable)?;
                 if view.phase != ClientViewPhase::Ready
@@ -100,17 +100,17 @@ impl NativeUi {
                 }
                 match &command.intent {
                     ClientViewIntent::CommandPopupOpen { spec } => self.popup.begin_configured(
-                        site,
+                        session,
                         command.operation_id.clone(),
                         spec.as_ref().clone(),
                     ),
                     ClientViewIntent::PopupOpen { spec } => self.popup.begin_open(
-                        site,
+                        session,
                         command.operation_id.clone(),
                         spec.as_ref().clone(),
                     ),
                     ClientViewIntent::EditorOpen { spec } => self.popup.begin_editor(
-                        site,
+                        session,
                         command.operation_id.clone(),
                         spec.as_ref().clone(),
                     ),

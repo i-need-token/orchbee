@@ -30,7 +30,7 @@ use crate::{
 };
 use orchbee_client_server_protocol::{
     ClientMessage, ControlInput, ControllerId, Geometry, HostEpoch as ObcsHostEpoch, ServerMessage,
-    SiteId as ObcsSiteId, TerminalId as ObcsTerminalId, TerminalViewerAction,
+    SessionId as ObcsSessionId, TerminalId as ObcsTerminalId, TerminalViewerAction,
     TerminalViewerOutcome, ViewerId, WorkerId as ObcsWorkerId, read_client_message,
     write_server_message,
 };
@@ -43,7 +43,7 @@ use orchbee_terminal_protocol::{
 };
 use orchbee_workbench_protocol::{
     Navigation, PanelNode, PanelOrientation, PanelSlot, Presentation, PresentationBinding,
-    ProtocolVersion, PublicationReadIntent, SiteId, Snapshot, SnapshotReadIntent, Tab,
+    ProtocolVersion, PublicationReadIntent, SessionId, Snapshot, SnapshotReadIntent, Tab,
     TerminalContext, TerminalId, TerminalPresentationId, WorkbenchAction, WorkbenchCommand,
     WorkbenchLabel, WorkbenchPanelId, WorkbenchPanelSlotId, WorkbenchPublicationDocument,
     WorkbenchPublicationOutcome, WorkbenchPublicationResult, WorkbenchRequest, WorkbenchRequestId,
@@ -384,7 +384,7 @@ pub(super) struct Harness {
     prewrite_gate: Option<Arc<PrewriteGate>>,
     shutdown: LocalClientShutdown,
     worker_done: Receiver<()>,
-    worker: Option<JoinHandle<NativeWorkerExit>>,
+    worker: Option<JoinHandle<ClientConnectionExit>>,
 }
 
 impl Harness {
@@ -431,7 +431,7 @@ impl Harness {
     pub(super) fn start_at(
         steps: Vec<WireKind>,
         initial_geometry: Geometry,
-        target: crate::workbench_client::NativeStartupTarget,
+        target: crate::workbench_client::ClientStartupTarget,
     ) -> TestResult<Self> {
         Self::start_inner(
             steps,
@@ -449,7 +449,7 @@ impl Harness {
         ceiling_clock: Option<Arc<AtomicBool>>,
         prewrite_gate: Option<Arc<PrewriteGate>>,
         identity_seed: u128,
-        target: Option<crate::workbench_client::NativeStartupTarget>,
+        target: Option<crate::workbench_client::ClientStartupTarget>,
     ) -> TestResult<Self> {
         let carrier = ScriptedCarrier::start(steps)?;
         let elapsed_millis = Arc::new(AtomicU64::new(0));
@@ -616,7 +616,7 @@ impl Harness {
         expected: CarrierFailure,
     ) -> TestResult<Option<PendingCreateCommit>> {
         self.finish_after_worker_failure_with_exit(expected)
-            .map(NativeWorkerExit::into_pending_create)
+            .map(ClientConnectionExit::into_pending_create)
     }
 
     pub(super) fn finish_after_worker_failure_with_pending_commits(
@@ -624,13 +624,13 @@ impl Harness {
         expected: CarrierFailure,
     ) -> TestResult<(Option<PendingCreateCommit>, Option<PendingMoveCommit>)> {
         self.finish_after_worker_failure_with_exit(expected)
-            .map(NativeWorkerExit::into_pending_commits)
+            .map(ClientConnectionExit::into_pending_commits)
     }
 
     fn finish_after_worker_failure_with_exit(
         mut self,
         expected: CarrierFailure,
-    ) -> TestResult<NativeWorkerExit> {
+    ) -> TestResult<ClientConnectionExit> {
         self.worker_done.recv_timeout(WALL_GUARD)?;
         let exit = self
             .worker
@@ -785,7 +785,7 @@ pub(super) struct UiDriver {
     clock: LocalOperationClock,
     state: Option<WorkbenchClientState>,
     projection: Option<TerminalProjection>,
-    /// Which live incarnation `projection` belongs to. `NativeUi` keeps one
+    /// Which live incarnation `projection` belongs to. `WorkbenchClientUi` keeps one
     /// projection per pane (`self.projections`, keyed by `PaneRef`), so a
     /// background pane's setup poll draws into its own renderer; the driver
     /// keeps the most recently installed one and routes polls to it by exact
@@ -950,7 +950,7 @@ impl UiDriver {
                 state,
                 |state, generation, request_id| {
                     let cache = state.cache();
-                    let site_id = cache.site_id().clone();
+                    let session_id = cache.session_id().clone();
                     let expected_revision = cache.revision();
                     let terminal_context_id = cache.terminal_context_id().unwrap().clone();
                     let label = WorkbenchLabel::parse(&(cache.tabs().len() + 1).to_string())
@@ -966,7 +966,7 @@ impl UiDriver {
                     let command = WorkbenchCommand {
                         protocol_version: ProtocolVersion,
                         request_id: request_id.clone(),
-                        site_id: site_id.clone(),
+                        session_id: session_id.clone(),
                         expected_revision,
                         action: WorkbenchAction::TabCreate {
                             placement: None,
@@ -983,7 +983,7 @@ impl UiDriver {
                         .map_err(|_command| "opaque Create request rejected tab.create")?;
                     let operation = CreateOperation::new(
                         CreateOperationKey::new(request_id, generation),
-                        site_id,
+                        session_id,
                         expected_revision,
                         terminal_context_id,
                         label,
@@ -1250,7 +1250,7 @@ impl UiDriver {
         Ok((operation, outcome))
     }
 
-    /// Mirrors `NativeUi::observe_panes`: the leaf-geometry report syncs the
+    /// Mirrors `WorkbenchClientUi::observe_panes`: the leaf-geometry report syncs the
     /// pane set, queues visible controlling-pane resizes, and schedules the reconcile
     /// snapshot the executor converges its attachments against.
     pub(super) fn observe_panes(
@@ -1308,7 +1308,7 @@ impl UiDriver {
         }
     }
 
-    /// Mirrors `NativeUi::toggle_zoom`: the mailbox admission serializes the
+    /// Mirrors `WorkbenchClientUi::toggle_zoom`: the mailbox admission serializes the
     /// flag flip against in-flight installs exactly like the production
     /// action, and the same `bool` reports whether the drawn set changed.
     pub(super) fn toggle_zoom(&mut self) -> bool {
@@ -1316,7 +1316,7 @@ impl UiDriver {
         mailbox.apply_local_for(self.state_mut(), WorkbenchClientState::toggle_zoom)
     }
 
-    /// Mirrors `NativeUi::move_panel_focus_to`: a purely local focus move plans
+    /// Mirrors `WorkbenchClientUi::move_panel_focus_to`: a purely local focus move plans
     /// through the live record, installs the same desired/mode swap, and
     /// republishes the mailbox's desired key so focus-scoped admission (and
     /// the executor's focus re-check) follows the move.
@@ -1480,7 +1480,7 @@ impl UiDriver {
                 Ok(UiEvent::PaneFailed)
             }
             WorkerEvent::WorktreePrepared { .. } => {
-                Err(test_error("requires the actual NativeUi consumer"))
+                Err(test_error("requires the actual WorkbenchClientUi consumer"))
             }
             WorkerEvent::QuickWorkspacePrepared { .. }
             | WorkerEvent::WorkspaceCloseResult { .. }
@@ -1489,7 +1489,7 @@ impl UiDriver {
             | WorkerEvent::RenameResult { .. }
             | WorkerEvent::ViewportOutcome { .. }
             | WorkerEvent::SelectionOutcome { .. } => {
-                Err(test_error("requires the actual NativeUi consumer"))
+                Err(test_error("requires the actual WorkbenchClientUi consumer"))
             }
             WorkerEvent::SwitchSnapshotResult { marker, outcome } => self.settle_switch_snapshot(
                 wait_key.ok_or_else(|| test_error("Switch Snapshot wait"))?,
@@ -1593,9 +1593,11 @@ impl UiDriver {
                 self.projection_pane = None;
                 let decision = decision.ok_or_else(|| test_error("membership decision"))?;
                 match result_key {
-                    crate::workbench_client::state::MembershipResultKey::Rename(_) => Err(
-                        test_error("Rename membership requires the actual NativeUi consumer"),
-                    ),
+                    crate::workbench_client::state::MembershipResultKey::Rename(_) => {
+                        Err(test_error(
+                            "Rename membership requires the actual WorkbenchClientUi consumer",
+                        ))
+                    }
                     crate::workbench_client::state::MembershipResultKey::Refresh(generation) => {
                         Ok(UiEvent::Refresh {
                             generation,
@@ -2240,7 +2242,7 @@ impl UiDriver {
                     .state_mut()
                     .stage_drawn_frame_t(poll_key.pane_ref(), frame)
                 {
-                    // Mirrors `NativeUi::after_draw`: a frame that never staged
+                    // Mirrors `WorkbenchClientUi::after_draw`: a frame that never staged
                     // into a live, non-departing leaf settles as `NoFeedback`,
                     // never a draw; a superseded causal slot may already be
                     // stale.
@@ -2312,7 +2314,7 @@ impl UiDriver {
                     feedback: None,
                 })
             }
-            // Mirrors `NativeUi::apply_poll_result`: a history event settles
+            // Mirrors `WorkbenchClientUi::apply_poll_result`: a history event settles
             // its own causal acknowledgement without staging a frame or
             // touching the projection status.
             Some(feedback @ TerminalViewerAction::HistoryObserved { .. }) => {
@@ -2479,7 +2481,7 @@ pub(super) fn snapshot(tab_count: usize, revision: u64) -> Snapshot {
         },
         protocol_version: ProtocolVersion,
         revision: WorkbenchRevision::new(revision),
-        site_id: workbench_site_id(100).unwrap(),
+        session_id: workbench_session_id(100).unwrap(),
         terminal_contexts: vec![TerminalContext {
             groups: Vec::new(),
             tabs: (0..tab_count).map(tab).collect(),
@@ -2553,7 +2555,7 @@ pub(super) fn split_node(
 pub(super) fn attach_action(index: usize) -> TestResult<TerminalViewerAction> {
     let base = 1_000 + u128::try_from(index)? * 10;
     Ok(TerminalViewerAction::AttachBinding {
-        site_id: ObcsSiteId::parse(&id(100))?,
+        session_id: ObcsSessionId::parse(&id(100))?,
         worker_id: ObcsWorkerId::parse(&id(base + 3))?,
         terminal_id: ObcsTerminalId::parse(&id(base + 4))?,
     })
@@ -2591,8 +2593,8 @@ pub(super) fn workbench_tab_id(value: u128) -> TestResult<WorkbenchTabId> {
     Ok(WorkbenchTabId::parse(&id(value))?)
 }
 
-fn workbench_site_id(value: u128) -> TestResult<SiteId> {
-    Ok(SiteId::parse(&id(value))?)
+fn workbench_session_id(value: u128) -> TestResult<SessionId> {
+    Ok(SessionId::parse(&id(value))?)
 }
 
 fn workbench_context_id(value: u128) -> TestResult<WorkbenchTerminalContextId> {

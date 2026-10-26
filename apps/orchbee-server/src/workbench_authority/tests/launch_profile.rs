@@ -49,11 +49,16 @@ fn catalog_outcome(
     outcome
 }
 
-fn command_at(site: &SiteId, id: u128, revision: u64, action: WorkbenchAction) -> WorkbenchCommand {
+fn command_at(
+    session: &SessionId,
+    id: u128,
+    revision: u64,
+    action: WorkbenchAction,
+) -> WorkbenchCommand {
     WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&identity(id)).unwrap(),
-        site_id: site.clone(),
+        session_id: session.clone(),
         expected_revision: WorkbenchRevision::new(revision),
         action,
     }
@@ -82,9 +87,9 @@ fn create_profile(
 }
 
 #[test]
-fn catalog_create_mints_site_scoped_ids_and_advances_both_revisions() {
+fn catalog_create_mints_session_scoped_ids_and_advances_both_revisions() {
     let (mut authority, grant) = authority();
-    let site_hex = authority.site_id().as_str().to_owned();
+    let session_hex = authority.session_id().as_str().to_owned();
 
     let first = create_profile(
         &mut authority,
@@ -108,7 +113,7 @@ fn catalog_create_mints_site_scoped_ids_and_advances_both_revisions() {
     // unable to alias another Session's catalog. The counter shares the
     // authority identity cursor, which starts at 1, so the first profile id
     // mints counter 2.
-    assert_eq!(profile_id.as_str(), format!("{site_hex}:{:032x}", 2));
+    assert_eq!(profile_id.as_str(), format!("{session_hex}:{:032x}", 2));
 
     let second = create_profile(
         &mut authority,
@@ -131,7 +136,7 @@ fn catalog_create_mints_site_scoped_ids_and_advances_both_revisions() {
         *second_catalog_revision,
         LaunchProfileCatalogRevision::new(2)
     );
-    assert_eq!(second_id.as_str(), format!("{site_hex}:{:032x}", 3));
+    assert_eq!(second_id.as_str(), format!("{session_hex}:{:032x}", 3));
 
     // The catalog is private Server state: the public snapshot carries only the
     // advanced revision, never catalog contents.
@@ -162,12 +167,12 @@ fn catalog_create_mints_site_scoped_ids_and_advances_both_revisions() {
 #[test]
 fn catalog_read_lists_gets_and_resolves_id_first_then_name_cardinality() {
     let (mut authority, grant) = authority();
-    let reader = WorkbenchGrant::read_only(grant.site_id.clone());
+    let reader = WorkbenchGrant::read_only(grant.session_id.clone());
 
     assert_eq!(
         catalog_outcome(&mut authority, Some(&reader), catalog_read(100, None)),
         LaunchProfileCatalogOutcome::Catalog {
-            site_id: grant.site_id.clone(),
+            session_id: grant.session_id.clone(),
             catalog_revision: LaunchProfileCatalogRevision::new(0),
             entries: Vec::new(),
         }
@@ -273,7 +278,7 @@ fn catalog_read_lists_gets_and_resolves_id_first_then_name_cardinality() {
 }
 
 #[test]
-fn catalog_reads_deny_without_site_identity_and_never_touch_the_ledger() {
+fn catalog_reads_deny_without_session_identity_and_never_touch_the_ledger() {
     let (mut authority, grant) = authority();
     create_profile(
         &mut authority,
@@ -283,10 +288,11 @@ fn catalog_reads_deny_without_site_identity_and_never_touch_the_ledger() {
         "shell",
         launch("/bin/zsh", &[]),
     );
-    let reader = WorkbenchGrant::read_only(grant.site_id.clone());
-    let wrong_site = WorkbenchGrant::manage_navigation(SiteId::parse(&identity(200)).unwrap());
+    let reader = WorkbenchGrant::read_only(grant.session_id.clone());
+    let wrong_session =
+        WorkbenchGrant::manage_navigation(SessionId::parse(&identity(200)).unwrap());
 
-    for denied in [None, Some(&wrong_site)] {
+    for denied in [None, Some(&wrong_session)] {
         assert_eq!(
             catalog_outcome(&mut authority, denied, catalog_read(200, None)),
             LaunchProfileCatalogOutcome::Denied {}
@@ -488,11 +494,11 @@ fn catalog_mutation_at_revision_ceiling_rejects_with_zero_catalog_mutation() {
 }
 
 #[test]
-fn profile_ids_do_not_alias_across_sites() {
+fn profile_ids_do_not_alias_across_sessions() {
     let (mut first_authority, first_grant) = authority();
     let mut second_authority =
-        WorkbenchAuthority::new(SiteId::parse(&identity(200)).unwrap()).unwrap();
-    let second_grant = WorkbenchGrant::manage_navigation(SiteId::parse(&identity(200)).unwrap());
+        WorkbenchAuthority::new(SessionId::parse(&identity(200)).unwrap()).unwrap();
+    let second_grant = WorkbenchGrant::manage_navigation(SessionId::parse(&identity(200)).unwrap());
 
     let first_id = created_id(&create_profile(
         &mut first_authority,
@@ -506,7 +512,7 @@ fn profile_ids_do_not_alias_across_sites() {
         &mut second_authority,
         &second_grant,
         command_at(
-            &second_grant.site_id,
+            &second_grant.session_id,
             1,
             0,
             create_action("shell", launch("/bin/zsh", &[])),

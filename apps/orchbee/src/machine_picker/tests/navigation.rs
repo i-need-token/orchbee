@@ -1,14 +1,14 @@
 use super::*;
-use crate::workbench_client::NativeContextLocation;
+use crate::workbench_client::ClientContextLocation;
 use orchbee_workbench_protocol::{
-    SiteId, WorkbenchProjectId, WorkbenchTerminalContextId, WorkbenchWorkspaceId,
+    SessionId, WorkbenchProjectId, WorkbenchTerminalContextId, WorkbenchWorkspaceId,
 };
 
 fn workspace(project: u8, number: u8) -> Context {
     Context {
-        target: NativeContextTarget {
-            site_id: SiteId::parse(&format!("{:032x}", 9)).unwrap(),
-            location: NativeContextLocation::Workspace {
+        target: ClientContextTarget {
+            session_id: SessionId::parse(&format!("{:032x}", 9)).unwrap(),
+            location: ClientContextLocation::Workspace {
                 workspace_id: WorkbenchWorkspaceId::parse(&format!("{number:032x}")).unwrap(),
                 terminal_context_id: WorkbenchTerminalContextId::parse(&format!(
                     "{:032x}",
@@ -75,13 +75,13 @@ fn window(picker: &Picker, heights: &[u16], cells: u16, gap: u16) -> SidebarWind
     picker.space_window_for_row_gaps(&rows, heights, &vec![gap; rows.len()], cells)
 }
 
-fn checkpoint(site: u8) -> crate::machine_spaces::Observation {
+fn checkpoint(session: u8) -> crate::machine_spaces::Observation {
     use crate::machine_spaces::{Checkpoint, ProjectSummary, Row as SpaceRow};
-    let site_id = SiteId::parse(&format!("{site:032x}")).unwrap();
+    let session_id = SessionId::parse(&format!("{session:032x}")).unwrap();
     let mut target = workspace(1, 21).target;
-    target.site_id = site_id.clone();
+    target.session_id = session_id.clone();
     crate::machine_spaces::Observation::Ready(std::sync::Arc::new(Checkpoint {
-        site_id,
+        session_id,
         revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
         metadata_revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
         git_requested: false,
@@ -105,7 +105,7 @@ fn checkpoint(site: u8) -> crate::machine_spaces::Observation {
     }))
 }
 
-fn agent(context: NativeContextTarget, number: u64) -> crate::machine_agents::Row {
+fn agent(context: ClientContextTarget, number: u64) -> crate::machine_agents::Row {
     let mut row = crate::machine_agents::tests::row(number);
     row.target.context = context;
     row
@@ -125,7 +125,7 @@ fn observe_agents_at(
         .clone();
     checkpoint.report_revision =
         orchbee_workbench_protocol::WorkbenchRevision::new(report_revision);
-    checkpoint.site_id = SiteId::parse(&format!("{:032x}", 9)).unwrap();
+    checkpoint.session_id = SessionId::parse(&format!("{:032x}", 9)).unwrap();
     checkpoint.contexts = picker
         .local_contexts
         .iter()
@@ -336,7 +336,7 @@ fn sidebar_fixed_actions_revalidate_their_effect_scope_and_availability() {
     assert_eq!(
         picker.sidebar_source(),
         source,
-        "same-site current movement is not a tree-source change"
+        "same-session current movement is not a tree-source change"
     );
     assert!(picker.sidebar_fixed_activation(&new_workspace).is_none());
     assert!(picker.sidebar_fixed_activation(&browse).is_none());
@@ -451,7 +451,7 @@ fn context_keyboard_disclosure_enters_and_leaves_exact_agent_without_activating_
         key(&mut picker, KeyCode::Enter),
         SidebarIntent::Activate(Selection {
             machine: Choice::Local,
-            context: Some(crate::workbench_client::NativeStartupTarget::Agent(
+            context: Some(crate::workbench_client::ClientStartupTarget::Agent(
                 Box::new(agent_target)
             ))
         })
@@ -562,22 +562,22 @@ fn pointer_disclosure_preserves_manual_viewport_and_focus_while_canceling_old_wh
 }
 
 #[test]
-fn agent_join_uses_choice_site_and_full_context_location_across_colliding_ids() {
+fn agent_join_uses_choice_session_and_full_context_location_across_colliding_ids() {
     let mut picker = Picker {
         available: true,
         ..Picker::default()
     };
     picker.observe_agent_sidebar(true);
     let local_workspace = workspace(1, 21).target;
-    let mut remote_site_workspace = local_workspace.clone();
-    remote_site_workspace.site_id = SiteId::parse(&format!("{:032x}", 10)).unwrap();
+    let mut remote_session_workspace = local_workspace.clone();
+    remote_session_workspace.session_id = SessionId::parse(&format!("{:032x}", 10)).unwrap();
     let initial_workspace = Context {
-        target: NativeContextTarget {
-            site_id: local_workspace.site_id.clone(),
+        target: ClientContextTarget {
+            session_id: local_workspace.session_id.clone(),
             location: {
                 let fixture_context_id =
                     WorkbenchTerminalContextId::parse(&format!("{:032x}", 21)).unwrap();
-                NativeContextLocation::Workspace {
+                ClientContextLocation::Workspace {
                     workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                         fixture_context_id.as_str(),
                     )
@@ -609,13 +609,13 @@ fn agent_join_uses_choice_site_and_full_context_location_across_colliding_ids() 
         (choice_b.clone(), checkpoint(10)),
     ]);
 
-    let checkpoint = |site: &SiteId,
-                      contexts: Vec<NativeContextTarget>,
+    let checkpoint = |session: &SessionId,
+                      contexts: Vec<ClientContextTarget>,
                       rows: Vec<crate::machine_agents::Row>| {
         let mut checkpoint = crate::machine_agents::tests::checkpoint(rows)
             .as_ref()
             .clone();
-        checkpoint.site_id = site.clone();
+        checkpoint.session_id = session.clone();
         checkpoint.contexts = contexts.into();
         crate::machine_agents::Observation::Ready(std::sync::Arc::new(checkpoint))
     };
@@ -623,7 +623,7 @@ fn agent_join_uses_choice_site_and_full_context_location_across_colliding_ids() 
         (
             Choice::Local,
             checkpoint(
-                &local_workspace.site_id,
+                &local_workspace.session_id,
                 vec![local_workspace.clone(), initial_workspace.target.clone()],
                 vec![
                     agent(local_workspace.clone(), 23),
@@ -634,7 +634,7 @@ fn agent_join_uses_choice_site_and_full_context_location_across_colliding_ids() 
         (
             choice_a.clone(),
             checkpoint(
-                &local_workspace.site_id,
+                &local_workspace.session_id,
                 vec![local_workspace.clone()],
                 vec![agent(local_workspace.clone(), 25)],
             ),
@@ -642,9 +642,9 @@ fn agent_join_uses_choice_site_and_full_context_location_across_colliding_ids() 
         (
             choice_b.clone(),
             checkpoint(
-                &remote_site_workspace.site_id,
-                vec![remote_site_workspace.clone()],
-                vec![agent(remote_site_workspace.clone(), 26)],
+                &remote_session_workspace.session_id,
+                vec![remote_session_workspace.clone()],
+                vec![agent(remote_session_workspace.clone(), 26)],
             ),
         ),
     ]);
@@ -666,7 +666,7 @@ fn agent_join_uses_choice_site_and_full_context_location_across_colliding_ids() 
         (Choice::Local, local_workspace, 23_u64),
         (Choice::Local, initial_workspace.target, 24),
         (choice_a, workspace(1, 21).target, 25),
-        (choice_b, remote_site_workspace, 26),
+        (choice_b, remote_session_workspace, 26),
     ] {
         let owner = SidebarTarget::Context {
             machine: choice.clone(),
@@ -697,7 +697,7 @@ fn agent_join_uses_choice_site_and_full_context_location_across_colliding_ids() 
 }
 
 #[test]
-fn complete_checkpoints_preserve_empty_projects_and_machine_site_identity() {
+fn complete_checkpoints_preserve_empty_projects_and_machine_session_identity() {
     let mut picker = picker();
     let a = profile(1, "same machine", true);
     let b = profile(2, "same machine", true);
@@ -745,7 +745,7 @@ fn regroup_and_dissolve_preserve_focused_agent_and_exact_activation() {
     let mut picker = picker();
     let active = workspace(1, 21).target;
     let first = agent(active.clone(), 23);
-    let member = NativeMemberTarget {
+    let member = ClientMemberTarget {
         tab: first.target.tab.clone(),
         panel: first.target.panel.clone(),
         presentation: first.target.member.clone(),
@@ -756,7 +756,7 @@ fn regroup_and_dissolve_preserve_focused_agent_and_exact_activation() {
     };
     let expected = Selection {
         machine: Choice::Local,
-        context: Some(NativeStartupTarget::Agent(Box::new(first.target.clone()))),
+        context: Some(ClientStartupTarget::Agent(Box::new(first.target.clone()))),
     };
     observe_agents(&mut picker, vec![first, agent(workspace(2, 23).target, 24)]);
     picker.observe_focus(Choice::Local, Some(active.clone()), Some(member.clone()));
@@ -1157,7 +1157,7 @@ fn replay(events: &[Event]) -> Result<(), &'static str> {
             Event::Regroup(group) => {
                 let mut rows = picker.local_contexts.to_vec();
                 for row in &mut rows {
-                    if !matches!(row.target.location, NativeContextLocation::Workspace { .. }) {
+                    if !matches!(row.target.location, ClientContextLocation::Workspace { .. }) {
                         continue;
                     }
                     row.project_id = (group > 0)

@@ -74,18 +74,18 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
 pub(crate) fn snapshot_source(snapshot: &Snapshot) -> Value {
     json!({
         "kind": "workbench-snapshot",
-        "sessionId": snapshot.site_id.as_str(),
+        "sessionId": snapshot.session_id.as_str(),
         "revision": snapshot.revision,
     })
 }
 
 /// `source` for the one answer the Server itself joined: the launch read's
-/// site and the Workbench revision it observed under the coordinator lock —
+/// session and the Workbench revision it observed under the coordinator lock —
 /// a decimal string like every u64 in a machine document.
-pub(crate) fn launch_read_source(site_id: &str, revision: u64) -> Value {
+pub(crate) fn launch_read_source(session_id: &str, revision: u64) -> Value {
     json!({
         "kind": "terminal-launch-read",
-        "sessionId": site_id,
+        "sessionId": session_id,
         "revision": revision.to_string(),
     })
 }
@@ -103,7 +103,7 @@ pub(crate) fn agent_source(request_id: &ObapRequestId) -> Value {
 
 #[derive(Clone, Debug)]
 pub(crate) struct StatusDoc {
-    pub(crate) site_id: String,
+    pub(crate) session_id: String,
     pub(crate) revision: String,
     pub(crate) session_name: Option<String>,
     pub(crate) client_version: String,
@@ -1437,7 +1437,7 @@ impl Projection {
             Self::Status(doc) => json!({
                 "session": {
                     "reachable": true,
-                    "sessionId": doc.site_id,
+                    "sessionId": doc.session_id,
                     "revision": doc.revision,
                 },
                 "counts": {
@@ -2479,7 +2479,7 @@ fn status(snapshot: &Snapshot) -> StatusDoc {
         }
     }
     StatusDoc {
-        site_id: snapshot.site_id.as_str().to_owned(),
+        session_id: snapshot.session_id.as_str().to_owned(),
         revision: snapshot.revision.to_string(),
         session_name: crate::local_activation::selected_session_name().map(str::to_owned),
         client_version: env!("CARGO_PKG_VERSION").to_owned(),

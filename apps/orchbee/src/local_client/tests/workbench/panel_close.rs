@@ -168,7 +168,7 @@ fn panel_close_accepts_older_alias_at_maximum_admitted_base() -> TestResult {
 fn panel_close_preserves_every_action_compatible_precommit_on_the_same_carrier() -> TestResult {
     let mut outcomes = vec![WorkbenchCommandOutcome::Denied {}];
     for reason in [
-        WorkbenchRejectionReason::SiteMismatch,
+        WorkbenchRejectionReason::SessionMismatch,
         WorkbenchRejectionReason::RevisionMismatch,
         WorkbenchRejectionReason::TerminalContextUnavailable,
         WorkbenchRejectionReason::TabUnavailable,

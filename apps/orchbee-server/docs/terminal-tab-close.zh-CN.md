@@ -207,7 +207,7 @@ Retry Close 要求已显示的可恢复状态及重新确认。接受回复丢�
 
 读取结果精确包含 `kind`、`protocolVersion`、`requestId` 和 `outcome`；只有 Available
 包含上述目标字段。Read 或 Resume 的 会话 不匹配在查询目标前返回 Denied。
-这不改变 Close 命令既有 SiteMismatch 优先级。
+这不改变 Close 命令既有 SessionMismatch 优先级。
 
 ## 使用预留控制存储的 Resume
 
@@ -540,4 +540,4 @@ Panel、Tab 和 Workspace Close 按规范 Tab／树顺序捕获全部已绑定�
 
 OBWP 61/62 在既有 会话 读取权限下，按原始请求 ID 读取精确保留 Close 账本项，包括空范围及已完成范围。它返回原始目标和 generation，不解析当前布局成员。[CLI 状态与恢复](../../orchbee/docs/native-operation-status.zh-CN.md) 复用既有 generation 围栏恢复准入；读取本身不续期尝试，也不调度清理。
 
-<!-- documentation-pairing: english-sha256=dfc87feb5756f462b52b7bff774cdcd4260019aa049643363d80f0dedcd2bbe6 zh-cn-sha256=ba8206e7210b97b7ee345055342cf1ab75788a63df53b949d8bb7b39e8991f39 -->
+<!-- documentation-pairing: english-sha256=8ce56f10301ff9f53f3c9eef5044a924337b8b2af332a4037f9a5e983931fcfb zh-cn-sha256=194319dd67e9cda80eaa54a4b8e8d1ff8a6c537424105dca3b95f41ad82fc131 -->

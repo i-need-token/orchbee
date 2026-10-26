@@ -67,7 +67,7 @@ fn every_admitted_key_edits_only_its_draft_and_submits_one_exact_patch() {
         let edited = draft.values.clone();
         edited.validate().unwrap();
         let submission = submit(&mut editor);
-        let NativeSettingsOperation::Save { source, changes } = submission.operation else {
+        let SettingsOperation::Save { source, changes } = submission.operation else {
             panic!("{key:?}: Save");
         };
         assert_eq!(source.as_str(), basis.source, "{key:?}");
@@ -146,7 +146,7 @@ fn conflicts_merge_only_local_appearance_leaves_and_unknown_withdraws_preview() 
         let mut preview = basis_with_application_theme(ApplicationAppearance::Light).values;
         preview.application_theme = ApplicationAppearance::Dark;
         let submission = submit(&mut editor);
-        let NativeSettingsOperation::Save { source, changes } = &submission.operation else {
+        let SettingsOperation::Save { source, changes } = &submission.operation else {
             panic!("appearance conflict saves the local patch");
         };
         assert_eq!(source.as_str(), basis().source);
@@ -190,10 +190,7 @@ fn conflicts_merge_only_local_appearance_leaves_and_unknown_withdraws_preview() 
         );
         draw(&mut editor);
         let reload = editor.edit(Edit::Activate).expect("explicit fresh read");
-        assert!(matches!(
-            &reload.operation,
-            NativeSettingsOperation::Open {}
-        ));
+        assert!(matches!(&reload.operation, SettingsOperation::Open {}));
         assert!(editor.appearance_preview().is_none());
         assert!(editor.loaded(reload.token, external.clone()));
         assert_eq!(

@@ -59,7 +59,7 @@ fn command(
         &WorkbenchRequest::Command(WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id: request_id.clone(),
-            site_id: snapshot.site_id.clone(),
+            session_id: snapshot.session_id.clone(),
             expected_revision: snapshot.revision,
             action,
         }),
@@ -122,7 +122,9 @@ fn attach(
         &ClientMessage::TerminalViewer(TerminalViewerRequest::new(
             id(value)?,
             TerminalViewerAction::AttachBinding {
-                site_id: orchbee_client_server_protocol::SiteId::parse(snapshot.site_id.as_str())?,
+                session_id: orchbee_client_server_protocol::SessionId::parse(
+                    snapshot.session_id.as_str(),
+                )?,
                 worker_id: orchbee_client_server_protocol::WorkerId::parse(
                     binding.worker_id.as_str(),
                 )?,
@@ -221,7 +223,7 @@ fn close_tab(client: &mut UnixStream, snapshot: &Snapshot, tab: &Tab, value: u12
             &WorkbenchRequest::TabCloseRead(WorkbenchTabCloseRead {
                 protocol_version: ProtocolVersion,
                 request_id: request_id.clone(),
-                site_id: snapshot.site_id.clone(),
+                session_id: snapshot.session_id.clone(),
                 terminal_context_id: snapshot.navigation.workspaces[0]
                     .terminal_context_id
                     .clone(),
@@ -529,7 +531,7 @@ fn real_workbench_panel_split_and_aggregate_close_releases_both_terminals() -> T
                 &WorkbenchRequest::TabCloseRead(WorkbenchTabCloseRead {
                     protocol_version: ProtocolVersion,
                     request_id: request_id.clone(),
-                    site_id: after_split.site_id.clone(),
+                    session_id: after_split.session_id.clone(),
                     terminal_context_id: context_id.clone(),
                     tab_id: tab_id.clone(),
                 }),
@@ -720,7 +722,7 @@ fn real_workbench_aggregate_close_fences_same_tab_split_and_move() -> TestResult
     let fenced_split = WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: workbench_id(9)?,
-        site_id: pending_close.site_id.clone(),
+        session_id: pending_close.session_id.clone(),
         expected_revision: pending_close.revision,
         action: WorkbenchAction::PanelSplit {
             right_click: Default::default(),
@@ -829,7 +831,7 @@ fn real_workbench_aggregate_close_fences_same_tab_split_and_move() -> TestResult
                 &WorkbenchRequest::TabCloseRead(WorkbenchTabCloseRead {
                     protocol_version: ProtocolVersion,
                     request_id: request_id.clone(),
-                    site_id: pending_close.site_id.clone(),
+                    session_id: pending_close.session_id.clone(),
                     terminal_context_id: context_id.clone(),
                     tab_id: tab_id.clone(),
                 }),
@@ -936,7 +938,9 @@ fn attach_binding(
         &ClientMessage::TerminalViewer(TerminalViewerRequest::new(
             id(value)?,
             TerminalViewerAction::AttachBinding {
-                site_id: orchbee_client_server_protocol::SiteId::parse(snapshot.site_id.as_str())?,
+                session_id: orchbee_client_server_protocol::SessionId::parse(
+                    snapshot.session_id.as_str(),
+                )?,
                 worker_id: orchbee_client_server_protocol::WorkerId::parse(
                     binding.worker_id.as_str(),
                 )?,

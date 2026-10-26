@@ -3,7 +3,7 @@ use super::{
     PaneKey, PreparedMembershipCandidate, WorkbenchClientState,
 };
 use crate::workbench_client::workbench_projection::{
-    MovedPanelExpectation, NativeContextTabs, NativeProjectionDivergence, SplitPanelExpectation,
+    ClientContextTabs, ClientProjectionDivergence, MovedPanelExpectation, SplitPanelExpectation,
     validate_canonical_refresh, validate_moved_panel, validate_split_panel,
 };
 use crate::{
@@ -62,7 +62,7 @@ pub(in crate::workbench_client) struct PanelOperation {
     request_id: WorkbenchRequestId,
     target: AttachmentKey,
     panel_id: WorkbenchPanelId,
-    baseline: NativeContextTabs,
+    baseline: ClientContextTabs,
     kind: PanelRequestKind,
     intent: PanelIntent,
     deadline: Instant,
@@ -74,7 +74,7 @@ impl PanelOperation {
         request_id: WorkbenchRequestId,
         target: AttachmentKey,
         panel_id: WorkbenchPanelId,
-        baseline: NativeContextTabs,
+        baseline: ClientContextTabs,
         kind: PanelRequestKind,
         intent: PanelIntent,
         deadline: Instant,
@@ -100,7 +100,7 @@ impl PanelOperation {
     pub(in crate::workbench_client) const fn panel_id(&self) -> &WorkbenchPanelId {
         &self.panel_id
     }
-    pub(in crate::workbench_client) const fn baseline(&self) -> &NativeContextTabs {
+    pub(in crate::workbench_client) const fn baseline(&self) -> &ClientContextTabs {
         &self.baseline
     }
     pub(in crate::workbench_client) const fn intent(&self) -> &PanelIntent {
@@ -185,7 +185,7 @@ impl PendingPanelCommit {
         &self.operation
     }
 
-    pub(super) fn focus_index(&self, candidate: &NativeContextTabs) -> Option<usize> {
+    pub(super) fn focus_index(&self, candidate: &ClientContextTabs) -> Option<usize> {
         if !self.operation.focus_new_panel {
             return None;
         }
@@ -222,8 +222,8 @@ impl PendingPanelCommit {
 
     pub(super) fn validate_projection(
         &self,
-        candidate: NativeContextTabs,
-    ) -> Result<NativeContextTabs, NativeProjectionDivergence> {
+        candidate: ClientContextTabs,
+    ) -> Result<ClientContextTabs, ClientProjectionDivergence> {
         match (&self.operation.intent, &self.commit) {
             (
                 PanelIntent::Split {
@@ -312,7 +312,7 @@ impl PendingPanelCommit {
                 ),
                 candidate,
             ),
-            _ => Err(NativeProjectionDivergence),
+            _ => Err(ClientProjectionDivergence),
         }
     }
 }
@@ -422,9 +422,9 @@ enum PreparedPanelResult {
     CloseAccepted,
     Committed {
         pending: PendingPanelCommit,
-        candidate: Option<NativeContextTabs>,
+        candidate: Option<ClientContextTabs>,
     },
-    RefusedProjection(NativeContextTabs),
+    RefusedProjection(ClientContextTabs),
     Membership {
         pending: Option<PendingPanelCommit>,
         prepared: Box<PreparedMembershipCandidate>,
@@ -637,7 +637,7 @@ impl WorkbenchClientState {
         &self,
         operation: &PanelOperation,
         pending: Option<PendingPanelCommit>,
-        candidate: NativeContextTabs,
+        candidate: ClientContextTabs,
     ) -> PreparedPanelResult {
         let mut leaf_repair = pending
             .as_ref()

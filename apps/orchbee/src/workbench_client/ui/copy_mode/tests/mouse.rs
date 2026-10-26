@@ -15,7 +15,7 @@ use std::io;
 mod visibility;
 
 struct Port {
-    ui: NativeUi,
+    ui: WorkbenchClientUi,
     forwarded: Vec<u8>,
 }
 impl TerminalInputPort for Port {

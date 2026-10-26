@@ -130,8 +130,8 @@ fn exchange_hello(
         LocalClientMessage::ClientAccepted { generation } => Ok(generation),
         LocalClientMessage::Rejected { reason } => Err(ConnectClientError::Rejected(reason)),
         LocalClientMessage::ClientHello(_)
-        | LocalClientMessage::SiteStopRequest(_)
-        | LocalClientMessage::SiteStopResult(_)
+        | LocalClientMessage::SessionStopRequest(_)
+        | LocalClientMessage::SessionStopResult(_)
         | LocalClientMessage::ServerMetadataRequest
         | LocalClientMessage::ServerMetadata(_) => Err(ConnectClientError::UnexpectedResponse),
     }

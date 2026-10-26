@@ -1,11 +1,9 @@
 use super::*;
 use crate::client_view::KeyEvent;
-use orchbee_local_site_runtime::{
-    WindowsKeyChord, WindowsKeyOverride, WindowsKeySettings, WindowsKeyTrigger,
-};
+use orchbee_local_runtime::{KeyChord, KeyOverride, KeySettings, KeyTrigger};
 
-fn chord(key: &str, ctrl: bool) -> WindowsKeyChord {
-    WindowsKeyChord {
+fn chord(key: &str, ctrl: bool) -> KeyChord {
+    KeyChord {
         key: key.into(),
         ctrl,
         alt: false,
@@ -13,10 +11,10 @@ fn chord(key: &str, ctrl: bool) -> WindowsKeyChord {
         super_key: false,
     }
 }
-fn binding(action: &'static str, key: &str, prefix: bool) -> WindowsKeyOverride {
-    WindowsKeyOverride {
+fn binding(action: &'static str, key: &str, prefix: bool) -> KeyOverride {
+    KeyOverride {
         action,
-        triggers: vec![WindowsKeyTrigger {
+        triggers: vec![KeyTrigger {
             prefix,
             chord: chord(key, false),
         }],
@@ -53,7 +51,7 @@ fn run(
 
 #[test]
 fn configured_actions_displace_defaults_and_preserve_passthrough_order() {
-    let keys = WindowsKeySettings {
+    let keys = KeySettings {
         commands: Vec::new(),
         prefix: chord("a", true),
         overrides: vec![binding("new_tab", "n", true), binding("help", "f1", false)],
@@ -90,7 +88,7 @@ fn configured_actions_displace_defaults_and_preserve_passthrough_order() {
 
 #[test]
 fn configured_command_dispatch_and_discovery_share_the_installed_catalog() {
-    let keys = WindowsKeySettings::from_profile(
+    let keys = KeySettings::from_profile(
         "[[keys.command]]\ncommand='echo hello'\nkey='prefix+c'\ndescription=\"Run \\u001b[31mhello\\u001b[0m\"\n[[keys.command]]\ncommand='tools.refresh'\ntype='plugin_action'\ndescription='Refresh tools'",
     ).unwrap();
     let id = keys.command_catalog()[0].id.clone();
@@ -140,10 +138,9 @@ fn configured_command_dispatch_and_discovery_share_the_installed_catalog() {
 
 #[test]
 fn configured_agent_cycle_captures_packet_tail_and_never_acts_inside_picker() {
-    let keys = WindowsKeySettings::from_profile(
-        "[keys]\nprefix='ctrl+a'\nprevious_agent='alt+p'\nnext_agent=[]",
-    )
-    .unwrap();
+    let keys =
+        KeySettings::from_profile("[keys]\nprefix='ctrl+a'\nprevious_agent='alt+p'\nnext_agent=[]")
+            .unwrap();
     let mut view = ClientView::new(100);
     view.configure_keys(&keys);
     view.machines.available = true;
@@ -189,7 +186,7 @@ fn sidebar_pointer_navigation_defers_current_check_without_picker_and_captures_p
         let agent = row(23);
         let selected = crate::machine_picker::Selection {
             machine: Choice::Local,
-            context: Some(crate::workbench_client::NativeStartupTarget::Agent(
+            context: Some(crate::workbench_client::ClientStartupTarget::Agent(
                 Box::new(agent.target.clone()),
             )),
         };
@@ -211,7 +208,7 @@ fn sidebar_pointer_navigation_defers_current_check_without_picker_and_captures_p
             view.machines.observe_focus(
                 Choice::Local,
                 Some(agent.target.context.clone()),
-                Some(crate::workbench_client::NativeMemberTarget {
+                Some(crate::workbench_client::ClientMemberTarget {
                     tab: agent.target.tab.clone(),
                     panel: agent.target.panel.clone(),
                     presentation: agent.target.member.clone(),
@@ -279,8 +276,8 @@ fn sidebar_pointer_navigation_defers_current_check_without_picker_and_captures_p
 
 #[test]
 fn configured_agent_ordinal_uses_binding_digit_captures_tail_and_lists_actual_help() {
-    let keys = WindowsKeySettings::from_profile("[keys]\nprefix='ctrl+a'\nfocus_agent='alt+1..9'")
-        .unwrap();
+    let keys =
+        KeySettings::from_profile("[keys]\nprefix='ctrl+a'\nfocus_agent='alt+1..9'").unwrap();
     let mut view = ClientView::new(100);
     view.configure_keys(&keys);
     view.machines.available = true;
@@ -320,7 +317,7 @@ fn configured_agent_ordinal_uses_binding_digit_captures_tail_and_lists_actual_he
     }
     view.machines
         .key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
-    let shifted = WindowsKeySettings::from_profile("[keys]\nfocus_agent='alt+shift+3'").unwrap();
+    let shifted = KeySettings::from_profile("[keys]\nfocus_agent='alt+shift+3'").unwrap();
     view.configure_keys(&shifted);
     let event = KeyEvent::press(
         KeyCode::Char('3'),
@@ -343,8 +340,7 @@ fn configured_agent_ordinal_uses_binding_digit_captures_tail_and_lists_actual_he
     view.machines
         .key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
     let literal =
-        WindowsKeySettings::from_profile("[keys]\nfocus_agent='alt+shift+3'\nhelp='alt+#'")
-            .unwrap();
+        KeySettings::from_profile("[keys]\nfocus_agent='alt+shift+3'\nhelp='alt+#'").unwrap();
     view.configure_keys(&literal);
     run(&mut view, &mut dispatcher, &mut port, b"\x1b#");
     assert_eq!(
@@ -352,7 +348,7 @@ fn configured_agent_ordinal_uses_binding_digit_captures_tail_and_lists_actual_he
         Some(&Call::Action(ClientAction::OpenShortcutHelp)),
         "exact literal binding wins before shifted-digit compatibility"
     );
-    let disabled = WindowsKeySettings::from_profile("[keys]\nfocus_agent=[]").unwrap();
+    let disabled = KeySettings::from_profile("[keys]\nfocus_agent=[]").unwrap();
     view.configure_keys(&disabled);
     assert!(
         !shortcut_entries(crate::localization::Locale::EnUs, &view)
@@ -363,10 +359,10 @@ fn configured_agent_ordinal_uses_binding_digit_captures_tail_and_lists_actual_he
 
 #[test]
 fn function_prefix_is_atomic_and_literal_forwarding_never_falls_back_to_control_b() {
-    let keys = WindowsKeySettings {
+    let keys = KeySettings {
         commands: Vec::new(),
         prefix: chord("f2", false),
-        ..WindowsKeySettings::default()
+        ..KeySettings::default()
     };
     let mut view = ClientView::new(100);
     view.configure_keys(&keys);
@@ -394,33 +390,33 @@ fn custom_direct_keys_respect_confirmation_board_history_paste_and_releases() {
         forwarded: Vec<u8>,
     }
     impl TerminalInputPort for Port {
-        fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
-            crate::tui_composition::NativeCaptureClaims::default()
+        fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
+            crate::tui_composition::CaptureClaims::default()
                 .with_workspace_close(self.owner == 1)
                 .with_agent_board(self.owner == 2)
         }
         fn native_capture_context(
             &self,
-            owner: crate::tui_composition::NativeCaptureOwner,
-        ) -> Option<crate::workbench_client::NativeCaptureContext> {
+            owner: crate::tui_composition::CaptureOwner,
+        ) -> Option<crate::workbench_client::CaptureContext> {
             use crate::{
-                tui_composition::NativeCaptureOwner,
+                tui_composition::CaptureOwner,
                 tui_presentation::PresentationPhase,
                 workbench_client::{
-                    AgentBoardEpisodeToken, AgentBoardInputContext, CaptureReadiness,
-                    ConfirmationCaptureContext, NativeCaptureContext, WorkspaceCloseToken,
+                    AgentBoardEpisodeToken, AgentBoardInputContext, CaptureContext,
+                    CaptureReadiness, ConfirmationCaptureContext, WorkspaceCloseToken,
                 },
             };
 
             match (self.owner, owner) {
-                (1, NativeCaptureOwner::WorkspaceClose) => Some(
-                    NativeCaptureContext::WorkspaceClose(ConfirmationCaptureContext {
+                (1, CaptureOwner::WorkspaceClose) => {
+                    Some(CaptureContext::WorkspaceClose(ConfirmationCaptureContext {
                         token: WorkspaceCloseToken::for_test(1),
                         phase: PresentationPhase::Admitted,
                         readiness: CaptureReadiness::Interactive,
-                    }),
-                ),
-                (2, NativeCaptureOwner::AgentBoard) => Some(NativeCaptureContext::AgentBoard(
+                    }))
+                }
+                (2, CaptureOwner::AgentBoard) => Some(CaptureContext::AgentBoard(
                     AgentBoardInputContext::for_test(
                         AgentBoardEpisodeToken::for_test(1),
                         PresentationPhase::Admitted,
@@ -456,10 +452,10 @@ fn custom_direct_keys_respect_confirmation_board_history_paste_and_releases() {
             self.owner == 3
         }
     }
-    let keys = WindowsKeySettings {
+    let keys = KeySettings {
         commands: Vec::new(),
         overrides: vec![binding("help", "f1", false)],
-        ..WindowsKeySettings::default()
+        ..KeySettings::default()
     };
     for owner in 1..=3 {
         let mut view = ClientView::new(100);
@@ -495,12 +491,12 @@ fn custom_direct_keys_respect_confirmation_board_history_paste_and_releases() {
 
 #[test]
 fn configured_discovery_and_snapshot_follow_the_dispatch_registry() {
-    let mut keys = WindowsKeySettings {
+    let mut keys = KeySettings {
         commands: Vec::new(),
         prefix: chord("a", true),
         overrides: vec![
             binding("help", "f1", false),
-            WindowsKeyOverride {
+            KeyOverride {
                 action: "new_tab",
                 triggers: vec![],
             },
@@ -531,10 +527,10 @@ fn configured_discovery_and_snapshot_follow_the_dispatch_registry() {
 
 #[test]
 fn indexed_default_conflict_displaces_only_the_occupied_digit() {
-    let keys = WindowsKeySettings {
+    let keys = KeySettings {
         commands: Vec::new(),
         overrides: vec![binding("help", "3", true)],
-        ..WindowsKeySettings::default()
+        ..KeySettings::default()
     };
     let mut view = ClientView::new(100);
     view.configure_keys(&keys);
@@ -558,21 +554,21 @@ fn indexed_default_conflict_displaces_only_the_occupied_digit() {
 
 #[test]
 fn configured_indexed_direct_keys_keep_modifiers_and_all_discovery_chords() {
-    let keys = WindowsKeySettings {
+    let keys = KeySettings {
         commands: Vec::new(),
-        overrides: vec![WindowsKeyOverride {
+        overrides: vec![KeyOverride {
             action: "switch_tab",
             triggers: (1..=9)
-                .map(|digit| WindowsKeyTrigger {
+                .map(|digit| KeyTrigger {
                     prefix: false,
-                    chord: WindowsKeyChord {
+                    chord: KeyChord {
                         alt: true,
                         ..chord(&digit.to_string(), false)
                     },
                 })
                 .collect(),
         }],
-        ..WindowsKeySettings::default()
+        ..KeySettings::default()
     };
     let mut view = ClientView::new(100);
     view.configure_keys(&keys);
@@ -599,10 +595,10 @@ fn configured_indexed_direct_keys_keep_modifiers_and_all_discovery_chords() {
     for digit in 1..=9 {
         assert!(indexed_tabs.key.contains(format!("Alt+{digit}").as_str()));
     }
-    let keys = WindowsKeySettings {
+    let keys = KeySettings {
         commands: Vec::new(),
         overrides: vec![binding("new_tab", "n", true)],
-        ..WindowsKeySettings::default()
+        ..KeySettings::default()
     };
     view.configure_keys(&keys);
     let entries = shortcut_entries(crate::localization::Locale::EnUs, &view);
@@ -670,10 +666,9 @@ fn resize_mode_consumes_keys_prefix_paste_and_complete_sequences_then_escape_res
 
 #[test]
 fn configured_direct_resize_uses_registry_and_never_enters_mode_or_forwards_the_chord() {
-    let keys = WindowsKeySettings::from_profile(
-        "[keys]\nresize_mode='prefix+R'\nresize_pane_left='ctrl+left'",
-    )
-    .unwrap();
+    let keys =
+        KeySettings::from_profile("[keys]\nresize_mode='prefix+R'\nresize_pane_left='ctrl+left'")
+            .unwrap();
     let mut view = ClientView::new(120);
     view.configure_keys(&keys);
     let calls = Rc::new(RefCell::new(Vec::new()));

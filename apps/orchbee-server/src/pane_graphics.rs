@@ -25,7 +25,7 @@ struct Layer {
     resource_revision: WorkbenchRevision,
     producer: Option<Producer>,
 }
-/// The sole Site layer owner; callers serialize preparation and revalidate canonical membership at commit.
+/// The sole Session layer owner; callers serialize preparation and revalidate canonical membership at commit.
 #[derive(Debug, Default)]
 pub struct PaneGraphicsAuthority {
     revision: u64,
@@ -56,7 +56,7 @@ pub enum PaneGraphicsOpenPreparation {
     Ready(SemanticPane),
 }
 impl PaneGraphicsAuthority {
-    /// Installed Site revision; exhausted owners cannot publish renderer facts.
+    /// Installed Session revision; exhausted owners cannot publish renderer facts.
     pub fn revision(&self) -> Result<WorkbenchRevision, Failure> {
         if self.exhausted {
             Err(Failure::RevisionExhausted)
@@ -380,7 +380,7 @@ impl PaneGraphicsAuthority {
             })
             .collect()
     }
-    /// Shutdown retires every producer even after revision exhaustion; static images remain Site-owned.
+    /// Shutdown retires every producer even after revision exhaustion; static images remain Session-owned.
     pub fn retire_streams(&mut self) {
         let keys = self
             .layers

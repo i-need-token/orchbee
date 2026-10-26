@@ -1,12 +1,12 @@
 use super::{
-    NativeContextTabs, NativeProjectionDivergence, SiteId, WorkbenchRevision, WorkbenchTabId,
+    ClientContextTabs, ClientProjectionDivergence, SessionId, WorkbenchRevision, WorkbenchTabId,
     WorkbenchTerminalContextId, validate_canonical_candidate,
 };
 
 /// Canonical membership evidence only; this never proves viewer or controller cleanup.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::workbench_client) struct ClosedTabExpectation {
-    site_id: SiteId,
+    session_id: SessionId,
     terminal_context_id: WorkbenchTerminalContextId,
     tab_id: WorkbenchTabId,
     minimum_revision: WorkbenchRevision,
@@ -14,21 +14,21 @@ pub(in crate::workbench_client) struct ClosedTabExpectation {
 
 impl ClosedTabExpectation {
     pub(in crate::workbench_client) const fn new(
-        site_id: SiteId,
+        session_id: SessionId,
         terminal_context_id: WorkbenchTerminalContextId,
         tab_id: WorkbenchTabId,
         minimum_revision: WorkbenchRevision,
     ) -> Self {
         Self {
-            site_id,
+            session_id,
             terminal_context_id,
             tab_id,
             minimum_revision,
         }
     }
 
-    pub(in crate::workbench_client) const fn site_id(&self) -> &SiteId {
-        &self.site_id
+    pub(in crate::workbench_client) const fn session_id(&self) -> &SessionId {
+        &self.session_id
     }
     pub(in crate::workbench_client) const fn terminal_context_id(
         &self,
@@ -44,17 +44,17 @@ impl ClosedTabExpectation {
 }
 
 pub(in crate::workbench_client) fn validate_closed_tab(
-    current: &NativeContextTabs,
+    current: &ClientContextTabs,
     expected: &ClosedTabExpectation,
-    candidate: NativeContextTabs,
-) -> Result<NativeContextTabs, NativeProjectionDivergence> {
+    candidate: ClientContextTabs,
+) -> Result<ClientContextTabs, ClientProjectionDivergence> {
     validate_canonical_candidate(current, &candidate)?;
-    if candidate.site_id() != expected.site_id()
+    if candidate.session_id() != expected.session_id()
         || candidate.terminal_context_id() != Some(expected.terminal_context_id())
         || candidate.revision() < expected.minimum_revision()
         || candidate.tab_index(expected.tab_id()).is_some()
     {
-        return Err(NativeProjectionDivergence);
+        return Err(ClientProjectionDivergence);
     }
     Ok(candidate)
 }

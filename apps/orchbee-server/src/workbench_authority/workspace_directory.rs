@@ -11,7 +11,7 @@ use orchbee_workbench_protocol::{
 
 impl WorkbenchAuthority {
     /// `None` admits a read-only Worker probe, without retaining a request or consuming IDs.
-    /// The Site must release its owner gates for that probe and repeat admission at commit.
+    /// The Session must release its owner gates for that probe and repeat admission at commit.
     #[must_use]
     pub fn preflight_workspace_directory(
         &self,
@@ -19,7 +19,9 @@ impl WorkbenchAuthority {
         command: &WorkbenchCommand,
     ) -> Option<WorkbenchCommandResult> {
         if !grant.is_some_and(|grant| {
-            grant.site_id == *self.site_id() && grant.mutate_navigation && grant.associate_directory
+            grant.session_id == *self.session_id()
+                && grant.mutate_navigation
+                && grant.associate_directory
         }) {
             return Some(result(command, WorkbenchCommandOutcome::Denied {}));
         }
@@ -45,7 +47,7 @@ impl WorkbenchAuthority {
         })
     }
 
-    /// Commits the pure canonical transition. The Site caller must hold registry then Site
+    /// Commits the pure canonical transition. The Session caller must hold registry then Session
     /// gates and establish that its successful Worker probe belongs to the current generation.
     #[must_use]
     pub fn accept_workspace_directory(
@@ -74,8 +76,8 @@ impl WorkbenchAuthority {
             return Err(PlanFailure::Internal);
         };
         let snapshot = self.projection.snapshot();
-        if command.site_id != snapshot.site_id {
-            return super::reject(WorkbenchRejectionReason::SiteMismatch);
+        if command.session_id != snapshot.session_id {
+            return super::reject(WorkbenchRejectionReason::SessionMismatch);
         }
         if command.expected_revision != snapshot.revision {
             return super::reject(WorkbenchRejectionReason::RevisionMismatch);

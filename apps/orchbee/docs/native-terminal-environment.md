@@ -156,7 +156,7 @@ and background RGB value for local display resolution. A foreground received aft
 can complete that same observation before the deadline; it never changes the settled polarity.
 
 If no valid OSC `11` background arrives by the deadline, Windows uses its fallback: the Client asks
-`local-site-runtime` to read the current user's
+`local-runtime` to read the current user's
 `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\AppsUseLightTheme`.
 DWORD `1` means Light and `0` means Dark. Missing, unreadable, or non-boolean values stay Unknown;
 foreground-only, malformed, partial, or absent background replies all trigger this fallback. Other

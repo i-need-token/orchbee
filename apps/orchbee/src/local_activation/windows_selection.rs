@@ -1,10 +1,10 @@
 //! Immutable invocation selection; environment is consulted only during runtime discovery.
-use orchbee_local_site_runtime::{SiteScope, WindowsSiteName};
+use orchbee_local_runtime::{SessionName, SessionScope};
 use std::{ffi::OsString, io, path::PathBuf, sync::OnceLock};
 
-static SELECTED: OnceLock<Option<WindowsSiteName>> = OnceLock::new();
+static SELECTED: OnceLock<Option<SessionName>> = OnceLock::new();
 
-pub(crate) fn select_site(name: Option<WindowsSiteName>) {
+pub(crate) fn select_session(name: Option<SessionName>) {
     SELECTED
         .set(name)
         .expect("invocation selection is initialized once after parsing");
@@ -17,13 +17,13 @@ pub(crate) fn selected_session_name() -> Option<&'static str> {
     SELECTED
         .get()
         .and_then(Option::as_ref)
-        .map(WindowsSiteName::as_str)
+        .map(SessionName::as_str)
 }
 
 pub(super) struct Location {
     pub(super) base: PathBuf,
     pub(super) scope: String,
-    pub(super) name: Option<WindowsSiteName>,
+    pub(super) name: Option<SessionName>,
 }
 
 pub(super) fn location() -> io::Result<Location> {
@@ -35,8 +35,8 @@ pub(super) fn location() -> io::Result<Location> {
     )
 }
 
-/// Same-Site nested TUIs would be able to select their own hosting terminal.
-/// CLI commands and explicit routes to another Site do not use this guard.
+/// Same-Session nested TUIs would be able to select their own hosting terminal.
+/// CLI commands and explicit routes to another Session do not use this guard.
 pub(crate) fn inside_selected_session() -> io::Result<bool> {
     inside_session(
         SELECTED.get().and_then(Option::as_ref),
@@ -47,7 +47,7 @@ pub(crate) fn inside_selected_session() -> io::Result<bool> {
 }
 
 fn inside_session(
-    selected: Option<&WindowsSiteName>,
+    selected: Option<&SessionName>,
     environment: impl Fn(&str) -> Option<OsString>,
     sid: &str,
     fallback: PathBuf,
@@ -81,7 +81,7 @@ fn inside_session(
 }
 
 fn resolve(
-    selected: Option<&WindowsSiteName>,
+    selected: Option<&SessionName>,
     environment: impl Fn(&str) -> Option<OsString>,
     sid: &str,
     fallback: PathBuf,
@@ -95,7 +95,7 @@ fn resolve(
         let text = scope
             .to_str()
             .ok_or_else(|| invalid("ORCHBEE_RUNTIME_SCOPE"))?;
-        SiteScope::parse(text).map_err(|_| invalid("ORCHBEE_RUNTIME_SCOPE"))?;
+        SessionScope::parse(text).map_err(|_| invalid("ORCHBEE_RUNTIME_SCOPE"))?;
         return Ok(Location {
             base,
             scope: text.to_owned(),
@@ -104,7 +104,7 @@ fn resolve(
     } else {
         let value = environment("ORCHBEE_SESSION").unwrap_or_else(|| OsString::from("default"));
         let text = value.to_str().ok_or_else(|| invalid("ORCHBEE_SESSION"))?;
-        WindowsSiteName::parse(text).map_err(|_| invalid("ORCHBEE_SESSION"))?
+        SessionName::parse(text).map_err(|_| invalid("ORCHBEE_SESSION"))?
     };
     Ok(Location {
         base,

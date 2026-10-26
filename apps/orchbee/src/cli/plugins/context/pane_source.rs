@@ -107,7 +107,7 @@ impl<'a> Source<'a> {
         let selected = if caller.is_none() {
             let response = control::exchange(
                 client,
-                &snapshot.site_id,
+                &snapshot.session_id,
                 ClientViewAction::List {},
                 deadline,
                 signals,
@@ -331,7 +331,7 @@ impl Fence {
         }
         let response = control::exchange(
             client,
-            &snapshot.site_id,
+            &snapshot.session_id,
             ClientViewAction::Get {
                 client_id: self.record.client_id.clone(),
             },
@@ -366,7 +366,7 @@ fn read_status(
     };
     let answer = control::submit_control(
         client,
-        &snapshot.site_id,
+        &snapshot.session_id,
         command.clone(),
         deadline,
         signals,

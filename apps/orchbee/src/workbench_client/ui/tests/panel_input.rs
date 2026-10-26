@@ -13,21 +13,21 @@ use std::{
     time::{Duration, Instant},
 };
 
-/// Delegates `TerminalInputPort` onto `NativeUi` exactly the way the
+/// Delegates `TerminalInputPort` onto `WorkbenchClientUi` exactly the way the
 /// `WorkbenchClient` production impl does, so these witnesses run the real
 /// dispatcher, confirmation capture, modal epoch, and mailbox admission
 /// without spawning a session worker.
-struct NativePort<'a>(&'a mut NativeUi);
+struct ClientInputPort<'a>(&'a mut WorkbenchClientUi);
 
-impl TerminalInputPort for NativePort<'_> {
-    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+impl TerminalInputPort for ClientInputPort<'_> {
+    fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
         self.0.capture_claims()
     }
 
     fn native_capture_context(
         &self,
-        owner: crate::tui_composition::NativeCaptureOwner,
-    ) -> Option<crate::workbench_client::NativeCaptureContext> {
+        owner: crate::tui_composition::CaptureOwner,
+    ) -> Option<crate::workbench_client::CaptureContext> {
         self.0.capture_context(owner)
     }
 
@@ -44,14 +44,14 @@ impl TerminalInputPort for NativePort<'_> {
 
     fn capture_tab_confirmation_key_for(
         &mut self,
-        token: NativeCloseConfirmationToken,
+        token: CloseConfirmationToken,
         key: ClientKey,
     ) -> bool {
         self.0.capture_tab_confirmation_key(token, key)
     }
     fn capture_panel_confirmation_key_for(
         &mut self,
-        token: NativePanelCloseConfirmationToken,
+        token: PanelCloseConfirmationToken,
         key: ClientKey,
     ) -> bool {
         self.0.capture_panel_confirmation_key(token, key)
@@ -63,41 +63,34 @@ impl TerminalInputPort for NativePort<'_> {
     ) -> bool {
         self.0.capture_workspace_close_key(token, key)
     }
-    fn click_tab_close(&mut self, token: NativeCloseConfirmationToken, confirm: bool) {
+    fn click_tab_close(&mut self, token: CloseConfirmationToken, confirm: bool) {
         self.0.click_tab_close(token, confirm);
     }
-    fn click_panel_close(&mut self, token: NativePanelCloseConfirmationToken, confirm: bool) {
+    fn click_panel_close(&mut self, token: PanelCloseConfirmationToken, confirm: bool) {
         self.0.click_panel_close(token, confirm);
     }
 
-    fn edit_rename_draft(
-        &mut self,
-        token: NativeRenameDraftToken,
-        edit: NativeRenameEdit<'_>,
-    ) -> bool {
+    fn edit_rename_draft(&mut self, token: RenameDraftToken, edit: RenameEdit<'_>) -> bool {
         self.0.edit_rename_draft(token, edit)
     }
 
-    fn cancel_rename_draft(&mut self, token: NativeRenameDraftToken) {
+    fn cancel_rename_draft(&mut self, token: RenameDraftToken) {
         self.0.cancel_rename_draft(token);
     }
 
-    fn submit_rename_draft(
-        &mut self,
-        token: NativeRenameDraftToken,
-    ) -> Option<ClientActionDisposition> {
+    fn submit_rename_draft(&mut self, token: RenameDraftToken) -> Option<ClientActionDisposition> {
         Some(self.0.submit_rename_draft(token))
     }
 
-    fn edit_setup_draft(&mut self, token: NativeSetupToken, edit: NativeSetupEdit<'_>) -> bool {
+    fn edit_setup_draft(&mut self, token: SetupToken, edit: SetupEdit<'_>) -> bool {
         self.0.edit_setup_draft(token, edit)
     }
 
-    fn cancel_setup_draft(&mut self, token: NativeSetupToken) {
+    fn cancel_setup_draft(&mut self, token: SetupToken) {
         self.0.cancel_setup_draft(token);
     }
 
-    fn submit_setup_draft(&mut self, token: NativeSetupToken) -> Option<ClientActionDisposition> {
+    fn submit_setup_draft(&mut self, token: SetupToken) -> Option<ClientActionDisposition> {
         Some(self.0.submit_setup_draft(token))
     }
 }
@@ -105,7 +98,7 @@ impl TerminalInputPort for NativePort<'_> {
 fn dispatch(
     dispatcher: &mut InputDispatcher,
     view: &mut ClientView,
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     bytes: &[u8],
 ) -> DispatchOutcome {
     dispatch_at(dispatcher, view, ui, bytes, Instant::now())
@@ -114,11 +107,11 @@ fn dispatch(
 fn dispatch_at(
     dispatcher: &mut InputDispatcher,
     view: &mut ClientView,
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     bytes: &[u8],
     now: Instant,
 ) -> DispatchOutcome {
-    let mut port = NativePort(ui);
+    let mut port = ClientInputPort(ui);
     dispatcher
         .dispatch(
             view,
@@ -137,28 +130,28 @@ fn dispatch_at(
 fn settle(
     dispatcher: &mut InputDispatcher,
     view: &mut ClientView,
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     now: Instant,
 ) {
-    let mut port = NativePort(ui);
+    let mut port = ClientInputPort(ui);
     dispatcher
         .synchronize(view, &mut port, now, &mut |_| Ok::<(), io::Error>(()))
         .unwrap();
 }
 
-fn confirmation_drawn(ui: &NativeUi) -> bool {
+fn confirmation_drawn(ui: &WorkbenchClientUi) -> bool {
     ui.state
         .as_ref()
         .is_some_and(|state| state.view().close_confirmation().is_some())
 }
 
-fn panel_confirmation_drawn(ui: &NativeUi) -> bool {
+fn panel_confirmation_drawn(ui: &WorkbenchClientUi) -> bool {
     ui.state
         .as_ref()
         .is_some_and(|state| state.view().panel_close_confirmation().is_some())
 }
 
-fn panel_token(ui: &NativeUi) -> NativePanelCloseConfirmationToken {
+fn panel_token(ui: &WorkbenchClientUi) -> PanelCloseConfirmationToken {
     ui.state
         .as_ref()
         .unwrap()
@@ -168,10 +161,10 @@ fn panel_token(ui: &NativeUi) -> NativePanelCloseConfirmationToken {
         .token()
 }
 
-fn draw_panel_prompt(ui: &mut NativeUi) {
+fn draw_panel_prompt(ui: &mut WorkbenchClientUi) {
     let token = panel_token(ui);
     ui.after_close_draw(
-        NativeDrawReceipt::default().with_panel_close(Some(ModalPresentation::Presented(token))),
+        DrawReceipt::default().with_panel_close(Some(ModalPresentation::Presented(token))),
     );
 }
 
@@ -191,12 +184,16 @@ fn painted_tab_and_panel_buttons_require_an_uninterrupted_release_and_capture_it
                         let (mut ui, mailbox, _, _) = ready_ui();
                         let mut view = ClientView::new(width);
                         let mut dispatcher = InputDispatcher::default();
-                        dispatcher.set_pointer_capture(&mut view, &mut NativePort(&mut ui), true);
+                        dispatcher.set_pointer_capture(
+                            &mut view,
+                            &mut ClientInputPort(&mut ui),
+                            true,
+                        );
                         ui.apply_client_action(action.clone());
                         dispatcher
                             .synchronize(
                                 &mut view,
-                                &mut NativePort(&mut ui),
+                                &mut ClientInputPort(&mut ui),
                                 Instant::now(),
                                 &mut |_| Ok::<_, io::Error>(()),
                             )
@@ -345,7 +342,7 @@ fn close_panel_request_queues_no_command_before_a_drawn_confirmation() {
     assert!(mailbox.try_recv().unwrap().is_none());
 
     // A receipt that carried no panel prompt token is not a drawn prompt.
-    ui.after_close_draw(NativeDrawReceipt::default());
+    ui.after_close_draw(DrawReceipt::default());
     dispatch(&mut dispatcher, &mut view, &mut ui, b"\r");
     assert!(panel_confirmation_drawn(&ui));
     assert!(mailbox.try_recv().unwrap().is_none());
@@ -368,7 +365,7 @@ fn lowercase_n_does_not_cancel_a_drawn_tab_close_confirmation() {
         .close_confirmation()
         .unwrap()
         .token();
-    ui.after_close_draw(NativeDrawReceipt::new(
+    ui.after_close_draw(DrawReceipt::new(
         Some(ModalPresentation::Presented(token)),
         None,
     ));
@@ -716,7 +713,7 @@ fn first_unpresentable_panel_close_draw_is_refused() {
         ClientActionDisposition::DismissNavigator
     );
     ui.after_close_draw(
-        NativeDrawReceipt::default().with_panel_close(Some(ModalPresentation::NotPresented)),
+        DrawReceipt::default().with_panel_close(Some(ModalPresentation::NotPresented)),
     );
     assert!(
         !panel_confirmation_drawn(&ui),
@@ -739,7 +736,7 @@ fn presented_panel_close_suspends_hidden_input_and_resumes_with_the_same_token()
     let token = panel_token(&ui);
     draw_panel_prompt(&mut ui);
     ui.after_close_draw(
-        NativeDrawReceipt::default().with_panel_close(Some(ModalPresentation::NotPresented)),
+        DrawReceipt::default().with_panel_close(Some(ModalPresentation::NotPresented)),
     );
     let suspended = ui.view().panel_close_confirmation().unwrap();
     assert_eq!(suspended.token(), token);
@@ -749,7 +746,7 @@ fn presented_panel_close_suspends_hidden_input_and_resumes_with_the_same_token()
     assert!(mailbox.try_recv().unwrap().is_none());
 
     ui.after_close_draw(
-        NativeDrawReceipt::default().with_panel_close(Some(ModalPresentation::Presented(token))),
+        DrawReceipt::default().with_panel_close(Some(ModalPresentation::Presented(token))),
     );
     assert!(ui.view().panel_close_confirmation().unwrap().interactive());
     dispatch(&mut dispatcher, &mut view, &mut ui, b"\r");
@@ -808,7 +805,7 @@ fn first_unpresentable_close_draw_is_refused() {
         ui.apply_client_action(ClientAction::RequestCloseTab),
         ClientActionDisposition::DismissNavigator
     );
-    ui.after_close_draw(NativeDrawReceipt::new(
+    ui.after_close_draw(DrawReceipt::new(
         Some(ModalPresentation::NotPresented),
         None,
     ));
@@ -828,11 +825,11 @@ fn presented_tab_close_suspends_hidden_input_and_resumes_with_the_same_token() {
         ClientActionDisposition::DismissNavigator
     );
     let token = ui.view().close_confirmation().unwrap().token();
-    ui.after_close_draw(NativeDrawReceipt::new(
+    ui.after_close_draw(DrawReceipt::new(
         Some(ModalPresentation::Presented(token)),
         None,
     ));
-    ui.after_close_draw(NativeDrawReceipt::new(
+    ui.after_close_draw(DrawReceipt::new(
         Some(ModalPresentation::NotPresented),
         None,
     ));
@@ -843,7 +840,7 @@ fn presented_tab_close_suspends_hidden_input_and_resumes_with_the_same_token() {
     dispatch(&mut dispatcher, &mut view, &mut ui, b"\r");
     assert!(mailbox.try_recv().unwrap().is_none());
 
-    ui.after_close_draw(NativeDrawReceipt::new(
+    ui.after_close_draw(DrawReceipt::new(
         Some(ModalPresentation::Presented(token)),
         None,
     ));
@@ -875,7 +872,7 @@ fn presented_rename_draft_suspends_edits_and_resumes_with_the_same_text() {
     );
     let token = ui.rename_input_context().unwrap().token();
     ui.after_rename_draw(Some(ModalPresentation::Presented(token)));
-    assert!(ui.edit_rename_draft(token, NativeRenameEdit::Append(" preserved")));
+    assert!(ui.edit_rename_draft(token, RenameEdit::Append(" preserved")));
     let text = ui
         .state
         .as_ref()
@@ -887,7 +884,7 @@ fn presented_rename_draft_suspends_edits_and_resumes_with_the_same_text() {
 
     ui.after_rename_draw(Some(ModalPresentation::NotPresented));
     assert_eq!(ui.rename_input_context().unwrap().token(), token);
-    assert!(!ui.edit_rename_draft(token, NativeRenameEdit::Append(" hidden")));
+    assert!(!ui.edit_rename_draft(token, RenameEdit::Append(" hidden")));
     assert_eq!(
         ui.submit_rename_draft(token),
         ClientActionDisposition::KeepNavigator
@@ -899,7 +896,7 @@ fn presented_rename_draft_suspends_edits_and_resumes_with_the_same_text() {
     assert!(mailbox.try_recv().unwrap().is_none());
 
     ui.after_rename_draw(Some(ModalPresentation::Presented(token)));
-    assert!(ui.edit_rename_draft(token, NativeRenameEdit::Append(" resumed")));
+    assert!(ui.edit_rename_draft(token, RenameEdit::Append(" resumed")));
     assert!(
         ui.state
             .as_ref()
@@ -922,7 +919,7 @@ fn first_unpresentable_setup_draft_is_refused_with_notice() {
     assert!(ui.view().setup_draft().is_none());
     assert_eq!(
         ui.view().setup_status(),
-        Some(NativeSetupStatus::PresentationUnavailable)
+        Some(SetupStatus::PresentationUnavailable)
     );
 }
 
@@ -948,7 +945,7 @@ fn open_rename_draft_consumes_editor_keys_and_atomic_paste_without_corruption() 
         &mut ui,
         b"\x1b[D\x1b[C\x1b[H\x1b[F\x1b[3~\x17\x01\x05",
     );
-    let draft_text = |ui: &NativeUi| {
+    let draft_text = |ui: &WorkbenchClientUi| {
         ui.state
             .as_ref()
             .unwrap()

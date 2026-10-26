@@ -51,7 +51,7 @@ fn tab_group_selection_pointer_modifiers_mark_exact_tab_and_never_forward_to_ter
 fn group_header_right_press_opens_group_menu_with_exact_painted_source() {
     use crate::action_menu::{DrawnMenuSource, MenuTarget};
     let source = DrawnMenuSource {
-        site: orchbee_workbench_protocol::SiteId::parse(&format!("{:032x}", 1)).unwrap(),
+        session: orchbee_workbench_protocol::SessionId::parse(&format!("{:032x}", 1)).unwrap(),
         revision: orchbee_workbench_protocol::WorkbenchRevision::new(7),
     };
     let mut hits = HitMapBuilder::new();

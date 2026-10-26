@@ -45,7 +45,7 @@ fn windows(title: Option<WindowTitle>, format: OutputFormat, locale: Locale) -> 
         let request = WindowTitleRequest {
             protocol_version: snapshot.protocol_version,
             request_id: query::request_id()?,
-            site_id: snapshot.site_id,
+            session_id: snapshot.session_id,
             action: match title {
                 Some(title) => orchbee_workbench_protocol::WindowTitleAction::Set { title },
                 None => orchbee_workbench_protocol::WindowTitleAction::Clear {},

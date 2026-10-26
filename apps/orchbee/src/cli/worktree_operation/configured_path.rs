@@ -41,7 +41,7 @@ impl Source<'_> {
             WorkbenchWorktreeQuery {
                 protocol_version: self.snapshot.protocol_version,
                 request_id: query::request_id()?,
-                site_id: self.snapshot.site_id.clone(),
+                session_id: self.snapshot.session_id.clone(),
                 source: source.clone(),
                 trust_repository: command.trust_repository,
             },
@@ -62,7 +62,7 @@ impl Source<'_> {
             )
         })?;
         let WorkbenchWorktreeQueryOutcome::Found {
-            site_id,
+            session_id,
             workbench_revision,
             source,
             ..
@@ -70,7 +70,7 @@ impl Source<'_> {
         else {
             return Err(failure(FailureKind::CheckFailed, "source-query-failed"));
         };
-        if site_id != self.snapshot.site_id
+        if session_id != self.snapshot.session_id
             || workbench_revision.value() < self.snapshot.revision.value()
         {
             return Err(failure(FailureKind::ProtocolInvalid, "source-query-failed"));

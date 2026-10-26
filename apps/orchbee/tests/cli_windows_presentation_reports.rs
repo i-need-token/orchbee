@@ -94,7 +94,7 @@ fn exact_report_cli_preserves_primary_defaults_and_member_identity_through_unkno
                     WorkbenchResponse::PanelAgent(PanelAgentResult {
                         protocol_version: ProtocolVersion,
                         request_id: request.request_id,
-                        site_id: request.site_id,
+                        session_id: request.session_id,
                         outcome: serde_json::from_value(outcome).unwrap(),
                     })
                 }
@@ -103,7 +103,7 @@ fn exact_report_cli_preserves_primary_defaults_and_member_identity_through_unkno
                     WorkbenchResponse::PanelMetadata(PanelMetadataResult {
                         protocol_version: ProtocolVersion,
                         request_id: request.request_id,
-                        site_id: request.site_id,
+                        session_id: request.session_id,
                         outcome: serde_json::from_value(outcome).unwrap(),
                     })
                 }

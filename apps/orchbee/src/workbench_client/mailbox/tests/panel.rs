@@ -83,7 +83,7 @@ fn panel_snapshot(revision: u64, root: PanelNode) -> Snapshot {
         },
         protocol_version: ProtocolVersion,
         revision: WorkbenchRevision::new(revision),
-        site_id: SiteId::parse(&id(2)).unwrap(),
+        session_id: SessionId::parse(&id(2)).unwrap(),
         terminal_contexts: vec![TerminalContext {
             groups: Vec::new(),
             tabs: vec![Tab {

@@ -1,5 +1,5 @@
 //! Stable-identity drop policy; the shared canonical transition validates every candidate.
-use super::{NativeContextLocation, NavigationConfiguration, SidebarReorderSource, SidebarTarget};
+use super::{ClientContextLocation, NavigationConfiguration, SidebarReorderSource, SidebarTarget};
 use orchbee_workbench_protocol::{WorkbenchProjectId, WorkbenchWorkspaceId, configure_navigation};
 use ratatui::layout::Rect;
 
@@ -13,10 +13,10 @@ impl Item {
         Some(match target {
             SidebarTarget::Project { project_id, .. } => Self::Project(project_id.clone()),
             SidebarTarget::Context { target, .. } => match &target.location {
-                NativeContextLocation::Workspace { workspace_id, .. } => {
+                ClientContextLocation::Workspace { workspace_id, .. } => {
                     Self::Workspace(workspace_id.clone())
                 }
-                NativeContextLocation::NoWorkspace => return None,
+                ClientContextLocation::NoWorkspace => return None,
             },
             SidebarTarget::Agent { .. } => return None,
         })
@@ -41,7 +41,7 @@ pub(super) struct Drop {
 impl SidebarReorderSource {
     /// Keyboard sorting has the same destination semantics as a drag release.
     pub(crate) fn step(&self, target: &SidebarTarget, up: bool) -> Option<NavigationConfiguration> {
-        if target.site_id() != self.site_id() {
+        if target.session_id() != self.session_id() {
             return None;
         }
         let item = Item::from_target(target)?;

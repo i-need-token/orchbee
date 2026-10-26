@@ -79,7 +79,7 @@ impl Reader<'_> {
         let WorkbenchSnapshotOutcome::Available { snapshot } = reply.outcome else {
             return Err(LaneFailure::Unavailable);
         };
-        if snapshot.site_id != self.job.scope.site
+        if snapshot.session_id != self.job.scope.session
             || snapshot.revision < self.job.scope.revision
             || !self.job.scope.sources.iter().all(|s| s.matches(&snapshot))
         {
@@ -91,7 +91,7 @@ impl Reader<'_> {
         let request = PaneGraphicsRequest {
             protocol_version: ProtocolVersion,
             request_id: self.id()?,
-            site_id: self.job.scope.site.clone(),
+            session_id: self.job.scope.session.clone(),
             action,
         };
         let reply = self

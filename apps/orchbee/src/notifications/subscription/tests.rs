@@ -44,7 +44,7 @@ fn listener_shutdown_cancels_blocked_handshake_or_poll_and_joins() {
         let mut listener = Subscription::spawn(
             client.origin(),
             client.operation_clock(),
-            SiteId::parse(&format!("{:032x}", 2)).unwrap(),
+            SessionId::parse(&format!("{:032x}", 2)).unwrap(),
         )
         .unwrap();
         drop(client);
@@ -122,7 +122,7 @@ fn live_notification_pipe_hands_off_only_an_accepting_delivery_once() {
                 &WorkbenchResponse::Notification(NotificationResult {
                     protocol_version: ProtocolVersion,
                     request_id: request.request_id,
-                    site_id: request.site_id,
+                    session_id: request.session_id,
                     outcome: NotificationOutcome::Listening {
                         notification: deliver.then(|| message.clone()),
                     },
@@ -144,7 +144,7 @@ fn live_notification_pipe_hands_off_only_an_accepting_delivery_once() {
     let mut listener = Subscription::spawn(
         client.origin(),
         client.operation_clock(),
-        SiteId::parse(&format!("{:032x}", 2)).unwrap(),
+        SessionId::parse(&format!("{:032x}", 2)).unwrap(),
     )
     .unwrap();
     assert_eq!(listener.poll(true), None);

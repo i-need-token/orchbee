@@ -23,7 +23,7 @@ const SNAPSHOT: &[u8] =
     include_bytes!("../../../../../../schemas/terminal/v1/fixtures/ghostty-surface.bin");
 
 fn poll_snapshot(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
     sequence: u64,
@@ -53,7 +53,7 @@ fn poll_snapshot(
     ui.tick();
     assert_eq!(
         ui.view().projection_status(),
-        NativeProjectionStatus::FrameAvailable
+        ClientProjectionStatus::FrameAvailable
     );
     ui.after_draw();
     assert!(matches!(
@@ -95,7 +95,7 @@ fn takeover_rearmed_snapshot_restores_typing_paste_and_control_without_reselecti
     ui.projections.push(KeyedProjection::for_test(
         key.clone(),
         TerminalProjection::new(route.attachment_id, route.host_epoch),
-        NativeProjectionStatus::Empty,
+        ClientProjectionStatus::Empty,
     ));
 
     // Read-only to controlling, then a self-grant on the same idle Viewer and geometry.
@@ -173,7 +173,7 @@ fn former_controller_accepts_host_snapshot_geometry_without_local_resize_or_auth
     ui.projections.push(KeyedProjection::for_test(
         key.clone(),
         TerminalProjection::new(route.attachment_id, route.host_epoch),
-        NativeProjectionStatus::Empty,
+        ClientProjectionStatus::Empty,
     ));
     poll_snapshot(&mut ui, &mailbox, &clock, 1);
     assert_eq!(

@@ -240,7 +240,7 @@ fn publication_rechecks_deadline_and_retirement_preserves_disposal_membership_an
 }
 
 #[test]
-fn prepared_joint_site_failure_retains_disposal_and_never_removes_or_releases_credit() {
+fn prepared_joint_session_failure_retains_disposal_and_never_removes_or_releases_credit() {
     let (mut authority, grant) = fixture(1);
     let now = Instant::now();
     let close = close_command(&authority, 10000, 0);

@@ -3,11 +3,11 @@ use crate::workbench_client::{
     mailbox::{CommandMailbox, EventDeadline, MutationResult, QueuedCommand, UiReply, WorkerEvent},
     state::{ControllerMode, FrameIdentity, RefreshDecision},
     ui::{
-        NativeDisplayPhase,
+        DisplayPhase,
         tests::{context_selection::make_desired_ready, move_membership::ready_ui_with_snapshot},
     },
 };
-use orchbee_workbench_protocol::{SiteId, TerminalId, WorkbenchSnapshotOutcome};
+use orchbee_workbench_protocol::{SessionId, TerminalId, WorkbenchSnapshotOutcome};
 
 fn first() -> crate::machine_agents::Target {
     let mut target = crate::machine_agents::tests::row(12).target;
@@ -22,7 +22,7 @@ fn first() -> crate::machine_agents::Target {
     target
 }
 
-fn install_matching_projection(ui: &mut NativeUi, target: &crate::machine_agents::Target) {
+fn install_matching_projection(ui: &mut WorkbenchClientUi, target: &crate::machine_agents::Target) {
     use orchbee_client_server_protocol::HostTerminalId;
     use orchbee_terminal_protocol::HostEpoch;
     crate::workbench_client::ui::tests::viewport::install_projection(ui, None, 0);
@@ -39,7 +39,7 @@ fn install_matching_projection(ui: &mut NativeUi, target: &crate::machine_agents
 }
 
 fn settle_switch(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &CommandMailbox,
     clock: &crate::local_client::LocalOperationClock,
 ) {
@@ -115,7 +115,7 @@ fn direct_agent_guards_identity_and_busy_before_current_then_selects_exact_child
     for invalid in 0..3 {
         let mut target = destination.clone();
         match invalid {
-            0 => target.context.site_id = SiteId::parse(&format!("{:032x}", 999)).unwrap(),
+            0 => target.context.session_id = SessionId::parse(&format!("{:032x}", 999)).unwrap(),
             1 => target.terminal.terminal_id = TerminalId::parse(&format!("{:032x}", 999)).unwrap(),
             _ => target.member = original.member.clone(),
         }
@@ -128,7 +128,7 @@ fn direct_agent_guards_identity_and_busy_before_current_then_selects_exact_child
     assert!(!ui.forward(b"cannot reach the previous terminal"));
     settle_switch(&mut ui, &mailbox, &clock);
     let view = ui.view();
-    assert_eq!(view.phase(), NativeDisplayPhase::Switching);
+    assert_eq!(view.phase(), DisplayPhase::Switching);
     assert_eq!(
         view.focused_member().unwrap().presentation,
         destination.member
@@ -171,7 +171,7 @@ fn direct_cross_context_agent_installs_exact_child_without_intermediate_default_
     snapshot.terminal_contexts.push(workspace.clone());
     let (mut ui, mailbox, clock, _) = ready_ui_with_snapshot(snapshot.clone());
     let mut target = crate::machine_agents::tests::target();
-    target.context.location = crate::workbench_client::NativeContextLocation::Workspace {
+    target.context.location = crate::workbench_client::ClientContextLocation::Workspace {
         workspace_id,
         terminal_context_id: workspace.terminal_context_id,
     };
@@ -291,8 +291,8 @@ fn same_tab_agent_focus_requires_the_live_peer_host_before_local_focus() {
         let member = state.selected_presentation(panel);
         let binding = member.binding().unwrap();
         let mut target = crate::machine_agents::tests::target();
-        target.context = crate::workbench_client::NativeContextTarget {
-            site_id: state.cache().site_id().clone(),
+        target.context = crate::workbench_client::ClientContextTarget {
+            session_id: state.cache().session_id().clone(),
             location: state.cache().location().clone(),
         };
         target.tab = tab.tab_id().clone();
@@ -380,7 +380,7 @@ fn direct_host_replacement_discards_old_pixels_using_shared_viewport_geometry() 
         projection.value.install_frame_for_test(frame);
         ui.after_draw();
         ui.projections.last_mut().unwrap().status =
-            crate::workbench_client::ui::NativeProjectionStatus::WaitingForFullFrame;
+            crate::workbench_client::ui::ClientProjectionStatus::WaitingForFullFrame;
         assert!(
             ui.view()
                 .retained_pane_frame(&target.panel, area.width, area.height)

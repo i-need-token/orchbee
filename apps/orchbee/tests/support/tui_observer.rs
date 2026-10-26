@@ -20,12 +20,12 @@ const SYNCHRONIZED_UPDATE_BEGIN: &[u8] = b"\x1b[?2026h";
 const SYNCHRONIZED_UPDATE_END: &[u8] = b"\x1b[?2026l";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) struct NativeHeader<'a> {
+pub(super) struct WorkbenchHeader<'a> {
     location: &'a str,
     tab: Option<(usize, &'a str)>,
 }
 
-impl<'a> NativeHeader<'a> {
+impl<'a> WorkbenchHeader<'a> {
     pub(super) const fn empty(location: &'a str) -> Self {
         Self {
             location,
@@ -425,7 +425,7 @@ impl CompletedFrame {
         true
     }
 
-    pub(super) fn has_native_header(&self, expected: NativeHeader<'_>) -> bool {
+    pub(super) fn has_native_header(&self, expected: WorkbenchHeader<'_>) -> bool {
         let Some(row) = self.displayed_rows().into_iter().next() else {
             return false;
         };

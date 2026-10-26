@@ -12,8 +12,8 @@ use crate::cli::{
 use orchbee_local_client_protocol::{
     ConnectClientError, RejectionReason, exchange_server_metadata_before,
 };
-use orchbee_local_site_runtime::{
-    ModeCheckedLocalSiteRendezvous, NativeCohort, RendezvousError, SiteScope,
+use orchbee_local_runtime::{
+    Cohort, ModeCheckedLocalSessionRendezvous, RendezvousError, SessionScope,
 };
 use std::{
     io,
@@ -72,9 +72,9 @@ fn collect(
     })?;
     let runtime = base.join(&scope);
     let selected =
-        SiteScope::parse(&scope).map_err(|_| Failure::new(FailureKind::InternalFailure))?;
-    let site = match ModeCheckedLocalSiteRendezvous::validate_mode_checked(&base, selected) {
-        Ok(site) => Some(site),
+        SessionScope::parse(&scope).map_err(|_| Failure::new(FailureKind::InternalFailure))?;
+    let session = match ModeCheckedLocalSessionRendezvous::validate_mode_checked(&base, selected) {
+        Ok(session) => Some(session),
         Err(RendezvousError::System { source, .. }) if source.kind() == io::ErrorKind::NotFound => {
             None
         }
@@ -83,10 +83,10 @@ fn collect(
     if Instant::now() >= deadline {
         return Err(Failure::new(FailureKind::Timeout));
     }
-    let (runtime, endpoint, server) = match site {
+    let (runtime, endpoint, server) = match session {
         None => (runtime, None, Server::Absent(Absence::Runtime)),
-        Some(site) => {
-            let endpoint = site.client_socket_path();
+        Some(session) => {
+            let endpoint = session.client_socket_path();
             let server =
                 match exchange_server_metadata_before(endpoint, deadline, signals.poll_fd()) {
                     Ok(metadata) => Server::Observed(metadata),
@@ -101,7 +101,7 @@ fn collect(
                     Err(error) => return Err(classify(error)),
                 };
             (
-                site.runtime_directory().to_owned(),
+                session.runtime_directory().to_owned(),
                 Some(endpoint.to_owned()),
                 server,
             )
@@ -120,22 +120,16 @@ fn collect(
 }
 
 fn local_cohort(deadline: Instant) -> Cohort {
-    project_cohort(
-        NativeCohort::current(deadline).map_err(|error| (cohort_issue(error.kind()), None)),
-    )
+    project_cohort(Cohort::current(deadline).map_err(|error| (cohort_issue(error.kind()), None)))
 }
-fn project_cohort(
-    admitted: Result<NativeCohort, (CohortIssue, Option<CohortDiagnostic>)>,
-) -> Cohort {
+fn project_cohort(admitted: Result<Cohort, (CohortIssue, Option<CohortDiagnostic>)>) -> Cohort {
     match admitted {
         Ok(cohort) => Cohort::Available(cohort.identity().to_owned()),
         Err((reason, diagnostic)) => Cohort::Unavailable(reason, diagnostic),
     }
 }
-fn admitted_cohort(
-    deadline: Instant,
-) -> Result<NativeCohort, (CohortIssue, Option<CohortDiagnostic>)> {
-    NativeCohort::current_with_diagnostic(deadline).map_err(|error| {
+fn admitted_cohort(deadline: Instant) -> Result<Cohort, (CohortIssue, Option<CohortDiagnostic>)> {
+    Cohort::current_with_diagnostic(deadline).map_err(|error| {
         let issue = cohort_issue(error.kind());
         let diagnostic = CohortDiagnostic::from_error(&error);
         (issue, Some(diagnostic))

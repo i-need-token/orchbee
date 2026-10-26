@@ -1,11 +1,11 @@
 //! Process-level `terminal send` evidence: the real `orchbee` binary runs
-//! against a scripted local peer bound at the Site's client socket. The peer
+//! against a scripted local peer bound at the Session's client socket. The peer
 //! speaks the genuine OBLC admission, OBWP snapshot read, and OBCS
 //! `terminal.send`/`terminal.send.result` exchange, so every outcome class —
 //! accepted, rejected, unavailable, outcome-unknown — is exercised against
 //! the production code path. Every test asserts the wire shape the CLI
 //! submitted: exactly one snapshot read, then exactly one `terminal.send`
-//! carrying the snapshot's Site/worker/terminal identities under a fresh
+//! carrying the snapshot's Session/worker/terminal identities under a fresh
 //! request identity — never a TUI controller, viewer, or resize message.
 #![cfg(target_os = "linux")]
 
@@ -45,7 +45,7 @@ type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 /// One cohort directory per test process: copies of the four build artifacts
 /// plus a `cohort.json` manifest, so the spawned CLI passes the real
-/// `NativeCohort::current` verification.
+/// `Cohort::current` verification.
 fn cohort() -> &'static Path {
     static COHORT: OnceLock<PathBuf> = OnceLock::new();
     COHORT
@@ -99,7 +99,7 @@ fn cohort() -> &'static Path {
         .as_path()
 }
 
-// ---- Site scope staging ---------------------------------------------------
+// ---- Session scope staging ---------------------------------------------------
 
 fn base_dir(tag: &str) -> PathBuf {
     support::runtime_base(tag)
@@ -312,7 +312,7 @@ fn fixture_document() -> &'static [u8] {
 }"#
 }
 
-const SITE: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const SESSION: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const TERMINAL: &str = "00000000000000000000000000000001";
 const WORKER: &str = "6f7263686265652d6c6f63616c2d7631";
 const GENERATION: u64 = 9;
@@ -334,8 +334,8 @@ fn assert_send_base(
     snapshot_request: &str,
 ) {
     assert_eq!(
-        request.site_id().as_str(),
-        SITE,
+        request.session_id().as_str(),
+        SESSION,
         "Session identity from snapshot"
     );
     assert_eq!(
@@ -417,7 +417,7 @@ fn terminal_send_text_with_enter_lands_one_record() -> TestResult {
     assert_eq!(document["schema"], "orchbee.terminal.send");
     assert_eq!(document["version"], 1);
     assert_eq!(document["source"]["kind"], "terminal.send");
-    assert_eq!(document["source"]["sessionId"], SITE);
+    assert_eq!(document["source"]["sessionId"], SESSION);
     assert_eq!(document["source"]["snapshotRevision"], "7");
     assert_eq!(
         document["source"]["requestId"].as_str().unwrap(),
@@ -425,7 +425,7 @@ fn terminal_send_text_with_enter_lands_one_record() -> TestResult {
     );
     let result = &document["result"];
     assert_eq!(result["action"], "terminal.send");
-    assert_eq!(result["sessionId"], SITE);
+    assert_eq!(result["sessionId"], SESSION);
     assert_eq!(result["workerId"], WORKER);
     assert_eq!(result["terminalId"], TERMINAL);
     assert_eq!(result["payloadKind"], "text");

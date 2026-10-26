@@ -3,7 +3,7 @@
 本契约拥有 Desktop GUI 与原生 TUI 的设备通用偏好。
 Rust `user_preferences` 与 TypeScript `user-preferences-contract` 共用
 [JSON Schema 与一致性语料](../../../schemas/workbench/README.zh-CN.md#共享用户偏好)。
-原生持久化归 [Local 会话 Runtime](../../local-site-runtime/README.zh-CN.md#共享用户偏好存储) 所有。
+原生持久化归 [本地运行时](../../local-runtime/README.zh-CN.md#共享用户偏好存储) 所有。
 客户端呈现、传输和宿主能力不会产生新的权威来源。
 
 ## 清单与生效时机
@@ -90,11 +90,11 @@ Desktop 会报告此状态，并提供显式重试宿主应用。显示/输入/�
 
 ## 验证归属
 
-Schema 语料检查 Rust/TypeScript 词汇、边界和非法输入。Local 会话 Runtime
+Schema 语料检查 Rust/TypeScript 词汇、边界和非法输入。本地运行时
 检查源冲突、声明、私有存储和提交失败；匹配的辅助程序测试真实有界
 进程交换。Desktop 与原生测试检查草稿/源归属、发布、释放、启动捕获和已有
 终端呈现。[原生设置模型](../../../apps/orchbee/docs/native-settings.zh-CN.md#正确性与证据)
 检查两个写入者、重置、不确定回执和发布。可见同步及宿主特有
 效果仍要求真实 GUI/TUI 验收；交叉编译不能替代运行时验收。
 
-<!-- documentation-pairing: english-sha256=d37078c5ccd227bada8ab97eacbe88b22d39c2168e52a16c9453862f2a2dbd66 zh-cn-sha256=fcf3e0ecbc2d4004f5f638e0ef8044007a14e7272a151437f632e49ccea7856d -->
+<!-- documentation-pairing: english-sha256=febc120776a833dc4a8bade9fa0f12ece9d705bb4d24e1b3fcdac212892f1b56 zh-cn-sha256=892e270f92fa4b784f3d97406eb827bd6647a934e05f85996a3921d110e1a77d -->

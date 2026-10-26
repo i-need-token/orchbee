@@ -2,10 +2,10 @@ use std::io::{self, Cursor, Read, Write};
 
 use crate::{
     CreateAcceptedState, CreateOutcome, Geometry, LaunchProfileProvenance, PanelId, PresentationId,
-    RequestId, ServerMessage, SiteId, StartMode, TabId, TerminalContextId, TerminalCreateRequest,
-    TerminalCreateResult, TerminalId, TerminalLaunchBoundTo, TerminalLaunchFact,
-    TerminalLaunchReadOutcome, TerminalLaunchReadResult, TerminalLaunchRoute, TerminalLaunchState,
-    WorkerId, WorkingDirectory,
+    RequestId, ServerMessage, SessionId, StartMode, TabId, TerminalContextId,
+    TerminalCreateRequest, TerminalCreateResult, TerminalId, TerminalLaunchBoundTo,
+    TerminalLaunchFact, TerminalLaunchReadOutcome, TerminalLaunchReadResult, TerminalLaunchRoute,
+    TerminalLaunchState, WorkerId, WorkingDirectory,
 };
 use std::num::NonZeroU64;
 
@@ -224,7 +224,7 @@ fn maximum_launch_read_result_stays_inside_the_frame_bound()
     let mut message = ServerMessage::TerminalLaunchReadResult(TerminalLaunchReadResult::new(
         RequestId::parse("ffffffffffffffffffffffffffffffff")?,
         TerminalLaunchReadOutcome::Found {
-            site_id: SiteId::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")?,
+            session_id: SessionId::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")?,
             workbench_revision: u64::MAX,
             terminal: Box::new(TerminalLaunchRoute::new(
                 TerminalId::parse("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")?,

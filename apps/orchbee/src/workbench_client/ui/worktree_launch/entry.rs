@@ -1,16 +1,16 @@
 //! Local entry after a known canonical Opened receipt, using existing native membership and attachment owners.
-use super::{NativeUi, WorktreeNotice};
+use super::{WorkbenchClientUi, WorktreeNotice};
 use crate::workbench_client::{
     state::{ClientPhaseKind, OperationDeadlines},
-    ui::{ActionBuildError, NativeProjectionStatus, finish_action},
+    ui::{ActionBuildError, ClientProjectionStatus, finish_action},
 };
 use orchbee_workbench_protocol::{Snapshot, WorkbenchWorktreeOutcome, WorktreeOperationStatus};
 use std::time::{Duration, Instant};
 pub(super) struct Entry {
-    member: crate::workbench_client::NativeMemberTarget,
-    binding: crate::workbench_client::workbench_projection::NativeTerminalBinding,
+    member: crate::workbench_client::ClientMemberTarget,
+    binding: crate::workbench_client::workbench_projection::ClientTerminalBinding,
     directory: orchbee_workbench_protocol::WorkbenchDirectoryId,
-    location: crate::workbench_client::NativeContextLocation,
+    location: crate::workbench_client::ClientContextLocation,
     minimum_revision: orchbee_workbench_protocol::WorkbenchRevision,
     stage: EntryStage,
     deadline: Instant,
@@ -25,7 +25,7 @@ enum EntryStage {
 }
 mod membership;
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(super) fn begin_worktree_entry(&mut self, snapshot: Option<Snapshot>) {
         let Some(op) = self.worktrees.launcher.operation() else {
             return;
@@ -246,7 +246,7 @@ impl NativeUi {
                 if phase == ClientPhaseKind::Ready
                     && self.view().focused_member().as_ref() == Some(&entry.member)
                     && self.view().pane_projection_status(&entry.member.panel)
-                        == NativeProjectionStatus::FrameAvailable
+                        == ClientProjectionStatus::FrameAvailable
                 {
                     self.worktrees.launcher.entry_notice(WorktreeNotice::Opened);
                     return true;
@@ -280,7 +280,7 @@ fn entry(
     let panel = tab.panel(0)?;
     let binding = panel.primary().binding()?.clone();
     Some(Entry {
-        member: crate::workbench_client::NativeMemberTarget {
+        member: crate::workbench_client::ClientMemberTarget {
             tab: tab.tab_id().clone(),
             panel: panel.panel_id().clone(),
             presentation: panel.primary().presentation_id().clone(),
@@ -298,7 +298,7 @@ fn target_context(
     op: &crate::workbench_client::state::worktree_launch::Operation,
     snapshot: &Snapshot,
 ) -> Option<(
-    crate::workbench_client::workbench_projection::NativeContextTabs,
+    crate::workbench_client::workbench_projection::ClientContextTabs,
     orchbee_workbench_protocol::WorkbenchDirectoryId,
 )> {
     let WorkbenchWorktreeOutcome::Available { status, .. } = op.outcome.as_ref()? else {
@@ -321,7 +321,7 @@ fn target_context(
     {
         return None;
     }
-    if snapshot.site_id != *op.plan.origin.cache.site_id() {
+    if snapshot.session_id != *op.plan.origin.cache.session_id() {
         return None;
     }
     let workspace = snapshot.navigation.workspace(workspace_id)?;
@@ -333,7 +333,7 @@ fn target_context(
     {
         return None;
     }
-    let location = crate::workbench_client::NativeContextLocation::Workspace {
+    let location = crate::workbench_client::ClientContextLocation::Workspace {
         workspace_id: workspace_id.clone(),
         terminal_context_id: workspace.terminal_context_id.clone(),
     };

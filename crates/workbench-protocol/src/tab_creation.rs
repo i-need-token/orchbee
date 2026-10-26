@@ -111,7 +111,7 @@ pub fn validate_tab_creation(
 }
 
 /// Returns the complete candidate without modifying the input. `created_group` is required exactly
-/// for NewGroup and must be fresh Site-wide (the caller checks other contexts).
+/// for NewGroup and must be fresh Session-wide (the caller checks other contexts).
 /// # Errors
 /// Rejects invalid placement, capacity or a reused allocated Tab/group identity.
 pub fn create_terminal_tab(

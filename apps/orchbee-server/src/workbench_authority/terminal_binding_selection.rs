@@ -1,4 +1,4 @@
-use orchbee_workbench_protocol::{PanelNode, PresentationBinding, SiteId};
+use orchbee_workbench_protocol::{PanelNode, PresentationBinding, SessionId};
 
 use super::{WorkbenchAuthority, terminal_membership::visit_panel_presentations};
 
@@ -13,14 +13,14 @@ impl WorkbenchAuthority {
     #[must_use]
     pub fn terminal_binding_exposure(
         &self,
-        site_id: &SiteId,
+        session_id: &SessionId,
         binding: &PresentationBinding,
     ) -> WorkbenchBindingExposure {
         if self.retired {
             return WorkbenchBindingExposure::Unavailable;
         }
         let snapshot = self.projection.snapshot();
-        if &snapshot.site_id != site_id {
+        if &snapshot.session_id != session_id {
             return WorkbenchBindingExposure::NotExposed;
         }
         if snapshot.terminal_contexts.iter().any(|context| {

@@ -165,8 +165,8 @@
 				"apps/orchbee-settings/**",
 				"apps/desktop/src/main/user-preferences/**",
 				"apps/web/src/user-preferences/**",
-				"crates/local-site-runtime/src/user_preferences*",
-				"crates/local-site-runtime/src/user_preferences/**",
+				"crates/local-runtime/src/user_preferences*",
+				"crates/local-runtime/src/user_preferences/**",
 				"crates/workbench-protocol/src/user_preferences*",
 				"crates/workbench-protocol/src/user_preferences/**",
 				"packages/workbench-client-protocol/src/user-preferences-contract.ts",
@@ -174,9 +174,10 @@
 				"apps/orchbee/src/workbench_client/configuration*",
 				"apps/orchbee-server/src/local_terminal_service/configuration*",
 				"apps/orchbee-server/src/local_terminal_service/configuration/**",
-				"crates/local-site-runtime/src/windows_user_settings/settings*",
-				"crates/local-site-runtime/src/windows_user_settings/settings/**",
-				"crates/local-site-runtime/src/private_cache_windows.rs",
+				"crates/local-runtime/src/user_settings/settings*",
+				"crates/local-runtime/src/user_settings/settings/**",
+				"crates/local-runtime/src/private_cache.rs",
+				"crates/local-runtime/src/private_cache/**",
 				"crates/workbench-protocol/src/command/settings.rs",
 				"packages/workbench-client-protocol/src/workbench-settings-contract.ts",
 				"schemas/workbench/v1/workbench-settings*",
@@ -224,6 +225,39 @@
 				"Consume",
 				"CorruptWindow",
 				"Detach"
+			]
+		},
+		{
+			"id": "connection-viewer-routing",
+			"owner": "orchbee-server",
+			"workspace": "apps/orchbee-server",
+			"module": "apps/orchbee-server/formal/tla/ConnectionViewerOwnership.tla",
+			"config": "apps/orchbee-server/formal/tla/ConnectionViewerOwnership.cfg",
+			"claims": ["apps/orchbee-server/README.md"],
+			"triggers": [
+				"apps/orchbee-server/src/local_terminal_service.rs",
+				"apps/orchbee-server/src/local_terminal_service/viewer*",
+				"apps/orchbee-server/src/local_terminal_service/viewer*/**",
+				"apps/orchbee-server/src/local_terminal_service/controller*",
+				"apps/orchbee-server/src/local_terminal_service/controller*/**",
+				"apps/orchbee-server/src/local_client_service*",
+				"apps/orchbee-server/src/local_client_service/**",
+				"apps/orchbee-server/src/worker_obcn_carrier*",
+				"apps/orchbee-server/src/worker_obcn_carrier/**",
+				"crates/client-server-protocol/src/**",
+				"schemas/client-server/**",
+				"apps/orchbee-server/README.zh-CN.md"
+			],
+			"requiredCoverage": [
+				"Attach",
+				"Acquire",
+				"Control",
+				"Close",
+				"ReleaseController",
+				"ReleaseViewer",
+				"LateCleanup",
+				"Dispose",
+				"ReplaceWorker"
 			]
 		},
 		{
@@ -294,39 +328,6 @@
 				"HistoryObserved",
 				"Close",
 				"WorkerProgress"
-			]
-		},
-		{
-			"id": "connection-viewer-routing",
-			"owner": "orchbee-server",
-			"workspace": "apps/orchbee-server",
-			"module": "apps/orchbee-server/formal/tla/ConnectionViewerOwnership.tla",
-			"config": "apps/orchbee-server/formal/tla/ConnectionViewerOwnership.cfg",
-			"claims": ["apps/orchbee-server/README.md"],
-			"triggers": [
-				"apps/orchbee-server/src/local_terminal_service.rs",
-				"apps/orchbee-server/src/local_terminal_service/viewer*",
-				"apps/orchbee-server/src/local_terminal_service/viewer*/**",
-				"apps/orchbee-server/src/local_terminal_service/controller*",
-				"apps/orchbee-server/src/local_terminal_service/controller*/**",
-				"apps/orchbee-server/src/local_client_service*",
-				"apps/orchbee-server/src/local_client_service/**",
-				"apps/orchbee-server/src/worker_obcn_carrier*",
-				"apps/orchbee-server/src/worker_obcn_carrier/**",
-				"crates/client-server-protocol/src/**",
-				"schemas/client-server/**",
-				"apps/orchbee-server/README.zh-CN.md"
-			],
-			"requiredCoverage": [
-				"Attach",
-				"Acquire",
-				"Control",
-				"Close",
-				"ReleaseController",
-				"ReleaseViewer",
-				"LateCleanup",
-				"Dispose",
-				"ReplaceWorker"
 			]
 		},
 		{
@@ -452,27 +453,27 @@
 			]
 		},
 		{
-			"id": "local-site-startup",
-			"owner": "orchbee-local-site-runtime",
-			"workspace": "crates/local-site-runtime",
-			"module": "crates/local-site-runtime/formal/tla/LocalSiteStartup.tla",
-			"config": "crates/local-site-runtime/formal/tla/LocalSiteStartup.cfg",
-			"claims": ["crates/local-site-runtime/README.md"],
+			"id": "local-session-startup",
+			"owner": "orchbee-local-runtime",
+			"workspace": "crates/local-runtime",
+			"module": "crates/local-runtime/formal/tla/LocalSessionStartup.tla",
+			"config": "crates/local-runtime/formal/tla/LocalSessionStartup.cfg",
+			"claims": ["crates/local-runtime/README.md"],
 			"triggers": [
-				"crates/local-site-runtime/src/**",
+				"crates/local-runtime/src/**",
 				"apps/orchbee/src/local_startup*",
 				"apps/orchbee/src/local_startup/**",
 				"apps/orchbee/src/local_activation*",
 				"apps/orchbee/tests/local_startup*",
-				"apps/orchbee-server/src/local_site_service*",
-				"apps/orchbee-server/src/local_site_service/**",
+				"apps/orchbee-server/src/local_worker_service*",
+				"apps/orchbee-server/src/local_worker_service/**",
 				"apps/orchbee-worker/src/worker_connection*",
 				"apps/orchbee-worker/src/terminal_operations/lazy*",
 				"apps/orchbee-worker/src/host_connection*",
 				"apps/orchbee-worker/src/host_connection/**",
-				"scripts/stage-native-site.mjs",
+				"scripts/stage-local-runtime.mjs",
 				"apps/orchbee-server/src/local_client_service*",
-				"crates/local-site-runtime/README.zh-CN.md"
+				"crates/local-runtime/README.zh-CN.md"
 			],
 			"requiredCoverage": [
 				"Acquire",
@@ -500,54 +501,22 @@
 			]
 		},
 		{
-			"id": "windows-checkpoint-storage",
-			"owner": "orchbee-local-site-runtime",
-			"workspace": "crates/local-site-runtime",
-			"module": "crates/local-site-runtime/formal/tla/WindowsCheckpointStorage.tla",
-			"config": "crates/local-site-runtime/formal/tla/WindowsCheckpointStorage.cfg",
-			"claims": ["crates/local-site-runtime/docs/windows-checkpoint-storage.md"],
+			"id": "session-crash-recovery",
+			"owner": "orchbee-local-runtime",
+			"workspace": "crates/local-runtime",
+			"module": "crates/local-runtime/formal/tla/SessionCrashRecovery.tla",
+			"config": "crates/local-runtime/formal/tla/SessionCrashRecovery.cfg",
+			"claims": ["crates/local-runtime/docs/windows-crash-recovery.md"],
 			"triggers": [
-				"crates/local-site-runtime/src/session_store_windows.rs",
-				"crates/local-site-runtime/src/session_store_windows/**",
-				"crates/local-site-runtime/src/checkpoint_rotation.rs",
-				"crates/local-site-runtime/src/checkpoint_rotation/**",
-				"crates/local-site-runtime/src/durable_sessions_windows.rs",
-				"crates/local-site-runtime/src/named_site_catalog_windows.rs",
-				"crates/local-site-runtime/src/tests.rs",
-				"crates/local-site-runtime/src/tests/**",
-				"crates/local-site-runtime/docs/windows-checkpoint-storage*",
-				"crates/local-site-runtime/formal/tla/WindowsCheckpointStorage.*",
-				"apps/orchbee-server/src/local_site_service/managed/**",
-				"crates/local-site-runtime/docs/windows-checkpoint-storage.zh-CN.md"
-			],
-			"requiredCoverage": [
-				"Prepare",
-				"Flush",
-				"PreserveInvalid",
-				"Commit",
-				"WriteFailure",
-				"Interrupt",
-				"CorruptSlot",
-				"Load"
-			]
-		},
-		{
-			"id": "windows-site-crash-recovery",
-			"owner": "orchbee-local-site-runtime",
-			"workspace": "crates/local-site-runtime",
-			"module": "crates/local-site-runtime/formal/tla/WindowsSiteCrashRecovery.tla",
-			"config": "crates/local-site-runtime/formal/tla/WindowsSiteCrashRecovery.cfg",
-			"claims": ["crates/local-site-runtime/docs/windows-crash-recovery.md"],
-			"triggers": [
-				"crates/local-site-runtime/**",
+				"crates/local-runtime/**",
 				"apps/orchbee/src/local_activation.rs",
-				"apps/orchbee/src/cli/site.rs",
+				"apps/orchbee/src/cli/server.rs",
 				"apps/orchbee/src/cli/named_sessions.rs",
 				"apps/orchbee/src/cli/schemas/orchbee.session.list.json",
-				"apps/orchbee-server/src/local_site_service/managed/**",
-				"apps/orchbee-server/src/local_site_service/managed.rs",
+				"apps/orchbee-server/src/local_worker_service/managed/**",
+				"apps/orchbee-server/src/local_worker_service/managed.rs",
 				"apps/orchbee-worker/src/terminal_operations/lazy.rs",
-				"crates/local-site-runtime/docs/windows-crash-recovery.zh-CN.md"
+				"crates/local-runtime/docs/windows-crash-recovery.zh-CN.md"
 			],
 			"requiredCoverage": [
 				"Acquire",
@@ -567,6 +536,40 @@
 				"Ready",
 				"Abort",
 				"Retry"
+			]
+		},
+		{
+			"id": "windows-checkpoint-storage",
+			"owner": "orchbee-local-runtime",
+			"workspace": "crates/local-runtime",
+			"module": "crates/local-runtime/formal/tla/WindowsCheckpointStorage.tla",
+			"config": "crates/local-runtime/formal/tla/WindowsCheckpointStorage.cfg",
+			"claims": ["crates/local-runtime/docs/windows-checkpoint-storage.md"],
+			"triggers": [
+				"crates/local-runtime/src/session_store.rs",
+				"crates/local-runtime/src/session_store/**",
+				"crates/local-runtime/src/checkpoint_rotation.rs",
+				"crates/local-runtime/src/checkpoint_rotation/**",
+				"crates/local-runtime/src/durable_sessions.rs",
+				"crates/local-runtime/src/durable_sessions/**",
+				"crates/local-runtime/src/session_catalog.rs",
+				"crates/local-runtime/src/session_catalog/**",
+				"crates/local-runtime/src/tests.rs",
+				"crates/local-runtime/src/tests/**",
+				"crates/local-runtime/docs/windows-checkpoint-storage*",
+				"crates/local-runtime/formal/tla/WindowsCheckpointStorage.*",
+				"apps/orchbee-server/src/local_worker_service/managed/**",
+				"crates/local-runtime/docs/windows-checkpoint-storage.zh-CN.md"
+			],
+			"requiredCoverage": [
+				"Prepare",
+				"Flush",
+				"PreserveInvalid",
+				"Commit",
+				"WriteFailure",
+				"Interrupt",
+				"CorruptSlot",
+				"Load"
 			]
 		}
 	]

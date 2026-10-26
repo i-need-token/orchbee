@@ -1,8 +1,8 @@
 //! Presentation navigation uses the existing switch admission and cleanup transaction.
 use super::{
-    ActionBuildError, Arc, ClientActionDisposition, ClientPhaseKind, CommandMailbox, NativeUi,
-    OperationDeadlines, PaneRef, SelectionPlan, SwitchMarker, WorkbenchClientView,
-    WorkbenchPanelId, finish_action,
+    ActionBuildError, Arc, ClientActionDisposition, ClientPhaseKind, CommandMailbox,
+    OperationDeadlines, PaneRef, SelectionPlan, SwitchMarker, WorkbenchClientUi,
+    WorkbenchClientView, WorkbenchPanelId, finish_action,
 };
 use crate::terminal_input::PointerUnboundPane;
 use orchbee_workbench_protocol::TerminalPresentationId;
@@ -42,7 +42,7 @@ impl DrawnPresentationTarget {
     }
 }
 
-impl NativeUi {
+impl WorkbenchClientUi {
     /// Empty sessions and a lost focused viewer cannot rely on their own Poll
     /// to discover canonical membership changes.
     pub(super) fn schedule_unbound_refresh(&mut self, mailbox: &Arc<CommandMailbox>) -> bool {
@@ -275,7 +275,7 @@ impl NativeUi {
 impl<'a> WorkbenchClientView<'a> {
     pub(crate) fn drawn_presentation_target(
         &self,
-        panel: &super::super::NativePanel,
+        panel: &super::super::ClientPanel,
         index: usize,
     ) -> Option<DrawnPresentationTarget> {
         let presentation = panel.presentation(index)?.presentation_id().clone();
@@ -293,7 +293,7 @@ impl<'a> WorkbenchClientView<'a> {
 
     pub(crate) fn unbound_pane(
         &self,
-        panel: &super::super::NativePanel,
+        panel: &super::super::ClientPanel,
     ) -> Option<crate::terminal_input::PointerUnboundPane> {
         let state = self.state.as_ref()?;
         Some(crate::terminal_input::PointerUnboundPane {
@@ -313,8 +313,8 @@ impl<'a> WorkbenchClientView<'a> {
     }
     pub(crate) fn selected_presentation(
         &self,
-        panel: &'a super::super::NativePanel,
-    ) -> &'a super::super::NativePresentation {
+        panel: &'a super::super::ClientPanel,
+    ) -> &'a super::super::ClientPresentation {
         self.state.as_ref().map_or_else(
             || panel.primary(),
             |state| state.selected_presentation(panel),

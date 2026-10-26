@@ -1,4 +1,4 @@
-use super::{NativeExecutor, Result, SetupEntryExpiry, SetupOwner, SetupTarget, closed, event};
+use super::{ClientExecutor, Result, SetupEntryExpiry, SetupOwner, SetupTarget, closed, event};
 use crate::{
     local_client::workbench::{
         WorkbenchTabMoveNotSubmitted, WorkbenchTabMoveOutcomeUnknownReason,
@@ -16,7 +16,7 @@ use orchbee_workbench_protocol::{
     WorkbenchSnapshotOutcome,
 };
 
-impl NativeExecutor {
+impl ClientExecutor {
     pub(super) fn run_move(
         &mut self,
         lease: &CommandLease,
@@ -35,7 +35,7 @@ impl NativeExecutor {
         let request = WorkbenchTabMoveRequest::try_from(WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id: operation.request_id().clone(),
-            site_id: baseline.site_id().clone(),
+            session_id: baseline.session_id().clone(),
             expected_revision: baseline.revision(),
             action: WorkbenchAction::TabMove {
                 terminal_context_id: baseline

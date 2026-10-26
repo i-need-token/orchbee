@@ -15,7 +15,7 @@ use std::{
 use orchbee_local_ipc::ChildOutputReader;
 use orchbee_local_ipc::{AsLocalIo, PollFd, PollFlags, PollTimeout, poll};
 #[cfg(windows)]
-use orchbee_local_site_runtime::WindowsCommandChild as Child;
+use orchbee_local_runtime::CommandChild as Child;
 #[cfg(unix)]
 use std::process::Child;
 #[cfg(unix)]

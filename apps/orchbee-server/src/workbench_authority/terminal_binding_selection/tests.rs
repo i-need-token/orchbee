@@ -11,8 +11,8 @@ fn identity(value: u128) -> String {
     format!("{value:032x}")
 }
 
-fn site(value: u128) -> SiteId {
-    SiteId::parse(&identity(value)).unwrap()
+fn session(value: u128) -> SessionId {
+    SessionId::parse(&identity(value)).unwrap()
 }
 
 fn binding(terminal: u128, worker: u128) -> PresentationBinding {
@@ -23,15 +23,15 @@ fn binding(terminal: u128, worker: u128) -> PresentationBinding {
 }
 
 fn authority() -> WorkbenchAuthority {
-    WorkbenchAuthority::workspace_fixture(site(91)).unwrap()
+    WorkbenchAuthority::workspace_fixture(session(91)).unwrap()
 }
 
 #[test]
-fn active_exposure_requires_the_exact_current_site_worker_and_terminal_without_mutation() {
+fn active_exposure_requires_the_exact_current_session_worker_and_terminal_without_mutation() {
     let mut authority = authority();
     let selected = binding(81, 71);
     assert_eq!(
-        authority.terminal_binding_exposure(&site(91), &selected),
+        authority.terminal_binding_exposure(&session(91), &selected),
         WorkbenchBindingExposure::NotExposed
     );
     authority.append_fixture_tab(selected.clone()).unwrap();
@@ -39,30 +39,30 @@ fn active_exposure_requires_the_exact_current_site_worker_and_terminal_without_m
     let cursor = authority.last_identity;
     let ledger_bytes = authority.ledger_bytes;
 
-    for (selected_site, candidate, expected) in [
+    for (selected_session, candidate, expected) in [
         (
-            site(91),
+            session(91),
             selected.clone(),
             WorkbenchBindingExposure::Exposed,
         ),
         (
-            site(92),
+            session(92),
             selected.clone(),
             WorkbenchBindingExposure::NotExposed,
         ),
         (
-            site(91),
+            session(91),
             binding(82, 71),
             WorkbenchBindingExposure::NotExposed,
         ),
         (
-            site(91),
+            session(91),
             binding(81, 72),
             WorkbenchBindingExposure::NotExposed,
         ),
     ] {
         assert_eq!(
-            authority.terminal_binding_exposure(&selected_site, &candidate),
+            authority.terminal_binding_exposure(&selected_session, &candidate),
             expected
         );
     }
@@ -73,13 +73,16 @@ fn active_exposure_requires_the_exact_current_site_worker_and_terminal_without_m
 }
 
 #[test]
-fn retired_authority_is_unavailable_before_site_or_tuple_interpretation() {
+fn retired_authority_is_unavailable_before_session_or_tuple_interpretation() {
     let mut authority = authority();
     authority.retired = true;
     let before = authority.projection.snapshot().clone();
-    for (selected_site, candidate) in [(site(91), binding(81, 71)), (site(92), binding(82, 72))] {
+    for (selected_session, candidate) in [
+        (session(91), binding(81, 71)),
+        (session(92), binding(82, 72)),
+    ] {
         assert_eq!(
-            authority.terminal_binding_exposure(&selected_site, &candidate),
+            authority.terminal_binding_exposure(&selected_session, &candidate),
             WorkbenchBindingExposure::Unavailable
         );
     }
@@ -185,12 +188,12 @@ fn exposure_walks_nested_panels_and_checks_primary_and_child_presentations() {
 
     for selected in [child_binding, nested_primary_binding] {
         assert_eq!(
-            authority.terminal_binding_exposure(&site(91), &selected),
+            authority.terminal_binding_exposure(&session(91), &selected),
             WorkbenchBindingExposure::Exposed
         );
     }
     assert_eq!(
-        authority.terminal_binding_exposure(&site(91), &binding(83, 73)),
+        authority.terminal_binding_exposure(&session(91), &binding(83, 73)),
         WorkbenchBindingExposure::NotExposed
     );
     assert_eq!(authority.projection.snapshot(), &before);

@@ -7,9 +7,9 @@ use crate::{
     local_client::{LocalClient, LocalClientOrigin, LocalOperationClock},
     machines::{Profile, ProfileId},
     terminal_text::sanitize_terminal_text,
-    workbench_client::{NativeContextLocation, NativeContextTarget},
+    workbench_client::{ClientContextLocation, ClientContextTarget},
 };
-use orchbee_workbench_protocol::{SiteId, Snapshot, WorkbenchProjectId, WorkbenchRevision};
+use orchbee_workbench_protocol::{SessionId, Snapshot, WorkbenchProjectId, WorkbenchRevision};
 use policy::{Phase, Policy};
 use std::{
     io,
@@ -24,7 +24,7 @@ const FRESH_FOR: Duration = Duration::from_secs(10);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Overview {
-    pub(crate) site: SiteId,
+    pub(crate) session: SessionId,
     pub(crate) revision: WorkbenchRevision,
     pub(crate) projects: usize,
     pub(crate) workspaces: usize,
@@ -34,7 +34,7 @@ pub(crate) struct Overview {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Context {
-    pub(crate) target: NativeContextTarget,
+    pub(crate) target: ClientContextTarget,
     /// Organizational metadata; changing it must not change the terminal target.
     pub(crate) project_id: Option<WorkbenchProjectId>,
     pub(crate) project: Option<String>,
@@ -58,9 +58,9 @@ impl Overview {
         {
             let ordered = snapshot.navigation.ordered_workspaces().map_err(|_| ())?;
             contexts.extend(ordered.into_iter().map(|(project, workspace)| Context {
-                target: NativeContextTarget {
-                    site_id: snapshot.site_id.clone(),
-                    location: NativeContextLocation::Workspace {
+                target: ClientContextTarget {
+                    session_id: snapshot.session_id.clone(),
+                    location: ClientContextLocation::Workspace {
                         workspace_id: workspace.workspace_id.clone(),
                         terminal_context_id: workspace.terminal_context_id.clone(),
                     },
@@ -71,7 +71,7 @@ impl Overview {
             }));
         }
         Ok(Self {
-            site: snapshot.site_id.clone(),
+            session: snapshot.session_id.clone(),
             revision: snapshot.revision,
             projects: snapshot.navigation.projects.len(),
             workspaces: contexts.len(),

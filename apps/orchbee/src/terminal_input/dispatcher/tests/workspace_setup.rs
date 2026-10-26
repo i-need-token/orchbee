@@ -4,11 +4,11 @@ use std::time::Duration;
 struct SetupPort {
     active: bool,
     token: u64,
-    stage: NativeSetupStage,
+    stage: SetupStage,
     text: String,
     shown: bool,
     complete: bool,
-    submissions: Vec<NativeSetupStage>,
+    submissions: Vec<SetupStage>,
     forwarded: Vec<u8>,
     selections: i32,
     choice_count: usize,
@@ -18,7 +18,7 @@ struct SetupPort {
 }
 
 impl SetupPort {
-    fn new(stage: NativeSetupStage) -> Self {
+    fn new(stage: SetupStage) -> Self {
         Self {
             active: true,
             token: 1,
@@ -36,11 +36,11 @@ impl SetupPort {
         }
     }
 
-    fn token(&self) -> NativeSetupToken {
-        NativeSetupToken::for_test(self.token)
+    fn token(&self) -> SetupToken {
+        SetupToken::for_test(self.token)
     }
 
-    fn next_step(&mut self, stage: NativeSetupStage) {
+    fn next_step(&mut self, stage: SetupStage) {
         self.token += 1;
         self.stage = stage;
         self.text.clear();
@@ -53,7 +53,7 @@ impl SetupPort {
 #[test]
 fn project_delete_decision_accepts_only_drawn_plain_enter_and_never_editor_or_paste_input() {
     let now = Instant::now();
-    let mut port = SetupPort::new(NativeSetupStage::ProjectDeleteConfirm);
+    let mut port = SetupPort::new(SetupStage::ProjectDeleteConfirm);
     port.shown = true;
     let mut dispatcher = InputDispatcher::default();
     dispatch(
@@ -68,11 +68,11 @@ fn project_delete_decision_accepts_only_drawn_plain_enter_and_never_editor_or_pa
     assert!(!port.fault);
     assert!(port.forwarded.is_empty());
     dispatch(&mut dispatcher, &mut port, b"\rTAIL", now);
-    assert_eq!(port.submissions, [NativeSetupStage::ProjectDeleteConfirm]);
+    assert_eq!(port.submissions, [SetupStage::ProjectDeleteConfirm]);
     assert!(!port.active);
     assert!(port.forwarded.is_empty());
 
-    let mut port = SetupPort::new(NativeSetupStage::ProjectDeleteConfirm);
+    let mut port = SetupPort::new(SetupStage::ProjectDeleteConfirm);
     let mut dispatcher = InputDispatcher::default();
     dispatch(&mut dispatcher, &mut port, b"\r", now);
     assert!(
@@ -83,18 +83,18 @@ fn project_delete_decision_accepts_only_drawn_plain_enter_and_never_editor_or_pa
 }
 
 impl TerminalInputPort for SetupPort {
-    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
-        crate::tui_composition::NativeCaptureClaims::default().with_setup(self.active)
+    fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
+        crate::tui_composition::CaptureClaims::default().with_setup(self.active)
     }
 
     fn native_capture_context(
         &self,
-        owner: crate::tui_composition::NativeCaptureOwner,
-    ) -> Option<crate::workbench_client::NativeCaptureContext> {
-        if owner != crate::tui_composition::NativeCaptureOwner::Setup || !self.active {
+        owner: crate::tui_composition::CaptureOwner,
+    ) -> Option<crate::workbench_client::CaptureContext> {
+        if owner != crate::tui_composition::CaptureOwner::Setup || !self.active {
             return None;
         }
-        Some(crate::workbench_client::NativeCaptureContext::Setup(
+        Some(crate::workbench_client::CaptureContext::Setup(
             crate::workbench_client::SetupCaptureContext {
                 token: self.token(),
                 phase: crate::tui_presentation::PresentationPhase::Admitted,
@@ -106,7 +106,7 @@ impl TerminalInputPort for SetupPort {
         ))
     }
 
-    fn choose_setup_project(&mut self, token: NativeSetupToken, index: usize) {
+    fn choose_setup_project(&mut self, token: SetupToken, index: usize) {
         if token != self.token() || !self.shown || !self.complete || index >= self.choice_count {
             return;
         }
@@ -116,10 +116,10 @@ impl TerminalInputPort for SetupPort {
 
     fn scroll_setup_projects(
         &mut self,
-        token: NativeSetupToken,
+        token: SetupToken,
         up: bool,
         lines: usize,
-    ) -> Option<NativeSetupToken> {
+    ) -> Option<SetupToken> {
         if token == self.token() && self.shown {
             let lines = i32::try_from(lines).unwrap();
             self.selections = if up {
@@ -144,8 +144,8 @@ impl TerminalInputPort for SetupPort {
 
     fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
         self.stage = match action {
-            ClientAction::RequestProjectRename => NativeSetupStage::ProjectRename,
-            ClientAction::RequestWorkspaceRename => NativeSetupStage::WorkspaceRename,
+            ClientAction::RequestProjectRename => SetupStage::ProjectRename,
+            ClientAction::RequestWorkspaceRename => SetupStage::WorkspaceRename,
             _ => return None,
         };
         self.active = true;
@@ -154,7 +154,7 @@ impl TerminalInputPort for SetupPort {
         Some(ClientActionDisposition::KeepNavigator)
     }
 
-    fn cancel_setup_draft(&mut self, token: NativeSetupToken) {
+    fn cancel_setup_draft(&mut self, token: SetupToken) {
         assert_eq!(token, self.token());
         self.active = false;
     }
@@ -167,74 +167,74 @@ impl TerminalInputPort for SetupPort {
         Ok(())
     }
 
-    fn edit_setup_draft(&mut self, token: NativeSetupToken, edit: NativeSetupEdit<'_>) -> bool {
+    fn edit_setup_draft(&mut self, token: SetupToken, edit: SetupEdit<'_>) -> bool {
         assert_eq!(token, self.token());
         match edit {
-            NativeSetupEdit::NextField => {
+            SetupEdit::NextField => {
                 if !matches!(
                     self.stage,
-                    NativeSetupStage::QuickName | NativeSetupStage::QuickDirectory
+                    SetupStage::QuickName | SetupStage::QuickDirectory
                 ) {
                     return false;
                 }
-                self.stage = if self.stage == NativeSetupStage::QuickName {
-                    NativeSetupStage::QuickDirectory
+                self.stage = if self.stage == SetupStage::QuickName {
+                    SetupStage::QuickDirectory
                 } else {
-                    NativeSetupStage::QuickName
+                    SetupStage::QuickName
                 };
                 self.token += 1;
                 self.shown = false;
             }
-            NativeSetupEdit::Append(text) => self.text.push_str(text),
-            NativeSetupEdit::Paste(text) => {
+            SetupEdit::Append(text) => self.text.push_str(text),
+            SetupEdit::Paste(text) => {
                 self.edits.push("paste");
                 self.text.push_str(text);
             }
-            NativeSetupEdit::Backspace => {
+            SetupEdit::Backspace => {
                 let _removed = self.text.pop();
                 self.fault = false;
             }
-            NativeSetupEdit::Clear => {
+            SetupEdit::Clear => {
                 self.text.clear();
                 self.fault = false;
             }
-            NativeSetupEdit::Left => self.edits.push("left"),
-            NativeSetupEdit::Right => self.edits.push("right"),
-            NativeSetupEdit::Home => self.edits.push("home"),
-            NativeSetupEdit::End => self.edits.push("end"),
-            NativeSetupEdit::Delete => self.edits.push("delete"),
-            NativeSetupEdit::WordBackspace => self.edits.push("word_backspace"),
-            NativeSetupEdit::Fault => self.fault = true,
-            NativeSetupEdit::Completeness(complete) => self.complete = complete,
-            NativeSetupEdit::SelectPreviousProject => {
+            SetupEdit::Left => self.edits.push("left"),
+            SetupEdit::Right => self.edits.push("right"),
+            SetupEdit::Home => self.edits.push("home"),
+            SetupEdit::End => self.edits.push("end"),
+            SetupEdit::Delete => self.edits.push("delete"),
+            SetupEdit::WordBackspace => self.edits.push("word_backspace"),
+            SetupEdit::Fault => self.fault = true,
+            SetupEdit::Completeness(complete) => self.complete = complete,
+            SetupEdit::SelectPreviousProject => {
                 self.selections -= 1;
                 self.shown = false;
                 self.token += 1;
             }
-            NativeSetupEdit::SelectNextProject => {
+            SetupEdit::SelectNextProject => {
                 self.selections += 1;
                 self.shown = false;
                 self.token += 1;
             }
-            NativeSetupEdit::SelectDirectory(_) => self.edits.push("select_directory"),
-            NativeSetupEdit::ScrollProjects { .. } => {
+            SetupEdit::SelectDirectory(_) => self.edits.push("select_directory"),
+            SetupEdit::ScrollProjects { .. } => {
                 unreachable!("scrolling has its own port method")
             }
         }
         true
     }
 
-    fn submit_setup_draft(&mut self, token: NativeSetupToken) -> Option<ClientActionDisposition> {
+    fn submit_setup_draft(&mut self, token: SetupToken) -> Option<ClientActionDisposition> {
         assert_eq!(token, self.token());
         if self.shown && self.complete && !self.fault {
             self.submissions.push(self.stage);
             match self.stage {
-                NativeSetupStage::ChooseWorkspaceProject
+                SetupStage::ChooseWorkspaceProject
                     if self.selections == i32::try_from(self.choice_count - 1).unwrap() =>
                 {
-                    self.next_step(NativeSetupStage::WorkspaceProjectName);
+                    self.next_step(SetupStage::WorkspaceProjectName);
                 }
-                NativeSetupStage::QuickProject => self.next_step(NativeSetupStage::QuickName),
+                SetupStage::QuickProject => self.next_step(SetupStage::QuickName),
                 _ => self.active = false,
             }
         }
@@ -276,7 +276,7 @@ fn organization_click_submits_existing_or_no_project_and_new_only_opens_one_name
     use crate::tui_pointer::ModalControl;
     for index in 0..4 {
         let now = Instant::now();
-        let mut port = SetupPort::new(NativeSetupStage::ChooseWorkspaceProject);
+        let mut port = SetupPort::new(SetupStage::ChooseWorkspaceProject);
         port.choice_count = 4;
         port.shown = true;
         let mut dispatcher = InputDispatcher::default();
@@ -287,12 +287,12 @@ fn organization_click_submits_existing_or_no_project_and_new_only_opens_one_name
             b"\x1b[<0;6;6M\x1b[<0;6;6mterminal\r",
             now,
         );
-        assert_eq!(port.submissions, [NativeSetupStage::ChooseWorkspaceProject]);
+        assert_eq!(port.submissions, [SetupStage::ChooseWorkspaceProject]);
         assert!(port.forwarded.is_empty());
         assert!(port.text.is_empty());
         if index == 3 {
             assert!(port.active);
-            assert_eq!(port.stage, NativeSetupStage::WorkspaceProjectName);
+            assert_eq!(port.stage, SetupStage::WorkspaceProjectName);
             port.shown = true;
             dispatch(
                 &mut dispatcher,
@@ -310,8 +310,8 @@ fn organization_click_submits_existing_or_no_project_and_new_only_opens_one_name
             assert_eq!(
                 port.submissions,
                 [
-                    NativeSetupStage::ChooseWorkspaceProject,
-                    NativeSetupStage::WorkspaceProjectName
+                    SetupStage::ChooseWorkspaceProject,
+                    SetupStage::WorkspaceProjectName
                 ]
             );
             assert_eq!(port.text, "项目");
@@ -332,7 +332,7 @@ fn organization_click_submits_existing_or_no_project_and_new_only_opens_one_name
 fn organization_press_waits_for_release_and_intervening_input_or_resize_cancels_it() {
     use crate::tui_pointer::ModalControl;
     for change in 0..5 {
-        let mut port = SetupPort::new(NativeSetupStage::ChooseWorkspaceProject);
+        let mut port = SetupPort::new(SetupStage::ChooseWorkspaceProject);
         port.choice_count = 4;
         port.shown = true;
         let mut dispatcher = InputDispatcher::default();
@@ -365,7 +365,7 @@ fn organization_press_waits_for_release_and_intervening_input_or_resize_cancels_
 fn project_arrows_and_wheel_replace_selection_without_arming_an_unpainted_submit() {
     use crate::tui_pointer::ModalControl;
     let now = Instant::now();
-    let mut port = SetupPort::new(NativeSetupStage::ChooseWorkspaceProject);
+    let mut port = SetupPort::new(SetupStage::ChooseWorkspaceProject);
     port.shown = true;
     let mut dispatcher = InputDispatcher::default();
     painted_setup_control(&mut dispatcher, &mut port, ModalControl::Choice(0));
@@ -399,7 +399,7 @@ fn project_arrows_and_wheel_replace_selection_without_arming_an_unpainted_submit
         b"\rterminal",
         now + Duration::from_millis(3),
     );
-    assert_eq!(port.submissions, [NativeSetupStage::ChooseWorkspaceProject]);
+    assert_eq!(port.submissions, [SetupStage::ChooseWorkspaceProject]);
     assert!(port.forwarded.is_empty());
 }
 
@@ -412,7 +412,7 @@ fn project_mouse_reports_respect_split_frames_modifiers_bounds_and_invalidated_g
         b"\x1b[<0;6;7M\x1b[<0;6;7m",
         b"\x1b[<32;6;6M\x1b[<0;6;6m",
     ] {
-        let mut port = SetupPort::new(NativeSetupStage::ChooseWorkspaceProject);
+        let mut port = SetupPort::new(SetupStage::ChooseWorkspaceProject);
         port.shown = true;
         let mut dispatcher = InputDispatcher::default();
         painted_setup_control(&mut dispatcher, &mut port, ModalControl::Choice(0));
@@ -422,7 +422,7 @@ fn project_mouse_reports_respect_split_frames_modifiers_bounds_and_invalidated_g
     }
     let report = b"\x1b[<0;6;6M\x1b[<0;6;6m";
     for split in 0..=report.len() {
-        let mut port = SetupPort::new(NativeSetupStage::ChooseWorkspaceProject);
+        let mut port = SetupPort::new(SetupStage::ChooseWorkspaceProject);
         port.shown = true;
         let mut dispatcher = InputDispatcher::default();
         painted_setup_control(&mut dispatcher, &mut port, ModalControl::Choice(0));
@@ -437,7 +437,7 @@ fn project_mouse_reports_respect_split_frames_modifiers_bounds_and_invalidated_g
         assert_eq!(port.submissions.len(), 1, "split {split}");
     }
     for reason in 0..3 {
-        let mut port = SetupPort::new(NativeSetupStage::ChooseWorkspaceProject);
+        let mut port = SetupPort::new(SetupStage::ChooseWorkspaceProject);
         port.shown = true;
         let mut dispatcher = InputDispatcher::default();
         painted_setup_control(
@@ -459,7 +459,7 @@ fn project_mouse_reports_respect_split_frames_modifiers_bounds_and_invalidated_g
 #[test]
 fn visible_setup_cancel_owns_its_packet_and_a_split_release() {
     let now = Instant::now();
-    let mut port = SetupPort::new(NativeSetupStage::WorkspaceProjectName);
+    let mut port = SetupPort::new(SetupStage::WorkspaceProjectName);
     let mut dispatcher = InputDispatcher::default();
     painted_setup_control(
         &mut dispatcher,
@@ -494,12 +494,12 @@ fn visible_setup_cancel_owns_its_packet_and_a_split_release() {
 
 #[test]
 fn quick_workspace_tab_changes_capacity_and_requires_a_fresh_draw_before_submit() {
-    let mut port = SetupPort::new(NativeSetupStage::QuickName);
+    let mut port = SetupPort::new(SetupStage::QuickName);
     port.shown = true;
     let mut dispatcher = InputDispatcher::default();
     let now = Instant::now();
     dispatch(&mut dispatcher, &mut port, b"\t\r", now);
-    assert_eq!(port.stage, NativeSetupStage::QuickDirectory);
+    assert_eq!(port.stage, SetupStage::QuickDirectory);
     assert!(port.submissions.is_empty());
     assert!(!port.shown);
     port.shown = true;
@@ -508,27 +508,27 @@ fn quick_workspace_tab_changes_capacity_and_requires_a_fresh_draw_before_submit(
     dispatch(&mut dispatcher, &mut port, input.as_bytes(), now);
     assert_eq!(port.text, path);
     assert!(!port.fault);
-    assert_eq!(port.submissions, [NativeSetupStage::QuickDirectory]);
+    assert_eq!(port.submissions, [SetupStage::QuickDirectory]);
     assert!(port.forwarded.is_empty());
 }
 
 #[test]
 fn quick_workspace_tab_remains_inert_in_the_project_name_prompt() {
-    let mut port = SetupPort::new(NativeSetupStage::WorkspaceProjectName);
+    let mut port = SetupPort::new(SetupStage::WorkspaceProjectName);
     port.shown = true;
     let token = port.token();
     let mut dispatcher = InputDispatcher::default();
     dispatch(&mut dispatcher, &mut port, b"\t", Instant::now());
     assert_eq!(port.token(), token);
-    assert_eq!(port.stage, NativeSetupStage::WorkspaceProjectName);
+    assert_eq!(port.stage, SetupStage::WorkspaceProjectName);
     assert!(port.forwarded.is_empty());
 }
 
 #[test]
 fn location_rename_prefill_requires_first_draw_and_submits_exact_unicode_paste_once() {
     for (stage, key) in [
-        (NativeSetupStage::WorkspaceRename, b'r'),
-        (NativeSetupStage::ProjectRename, b'R'),
+        (SetupStage::WorkspaceRename, b'r'),
+        (SetupStage::ProjectRename, b'R'),
     ] {
         let now = Instant::now();
         let mut port = SetupPort::new(stage);
@@ -562,10 +562,7 @@ fn location_rename_prefill_requires_first_draw_and_submits_exact_unicode_paste_o
 
 #[test]
 fn location_rename_preserves_prefilled_label_on_submit_and_cancels_without_submission() {
-    for stage in [
-        NativeSetupStage::ProjectRename,
-        NativeSetupStage::WorkspaceRename,
-    ] {
+    for stage in [SetupStage::ProjectRename, SetupStage::WorkspaceRename] {
         let now = Instant::now();
         let mut port = SetupPort::new(stage);
         port.text = "原名".to_owned();
@@ -606,10 +603,7 @@ fn location_rename_preserves_prefilled_label_on_submit_and_cancels_without_submi
 #[test]
 fn location_rename_paste_retains_the_512_scalar_limit_instead_of_the_directory_byte_limit() {
     let now = Instant::now();
-    for stage in [
-        NativeSetupStage::ProjectRename,
-        NativeSetupStage::WorkspaceRename,
-    ] {
+    for stage in [SetupStage::ProjectRename, SetupStage::WorkspaceRename] {
         let mut port = SetupPort::new(stage);
         port.text = "界".repeat(511);
         let mut dispatcher = InputDispatcher::default();
@@ -632,11 +626,11 @@ fn location_rename_paste_retains_the_512_scalar_limit_instead_of_the_directory_b
 #[test]
 fn the_packet_after_a_completed_decision_forwards_in_order() {
     let now = Instant::now();
-    let mut port = SetupPort::new(NativeSetupStage::WorkspaceRename);
+    let mut port = SetupPort::new(SetupStage::WorkspaceRename);
     port.shown = true;
     let mut dispatcher = InputDispatcher::default();
     dispatch(&mut dispatcher, &mut port, b"\r", now);
-    assert_eq!(port.submissions, [NativeSetupStage::WorkspaceRename]);
+    assert_eq!(port.submissions, [SetupStage::WorkspaceRename]);
     assert!(!port.active);
     dispatch(
         &mut dispatcher,
@@ -650,18 +644,18 @@ fn the_packet_after_a_completed_decision_forwards_in_order() {
 #[test]
 fn the_decision_packet_tail_stays_owned() {
     let now = Instant::now();
-    let mut port = SetupPort::new(NativeSetupStage::WorkspaceRename);
+    let mut port = SetupPort::new(SetupStage::WorkspaceRename);
     port.shown = true;
     let mut dispatcher = InputDispatcher::default();
     dispatch(&mut dispatcher, &mut port, b"\rxy", now);
-    assert_eq!(port.submissions, [NativeSetupStage::WorkspaceRename]);
+    assert_eq!(port.submissions, [SetupStage::WorkspaceRename]);
     assert!(port.forwarded.is_empty());
 }
 
 #[test]
 fn a_csi_tail_started_in_the_released_packet_keeps_frame_ownership() {
     let now = Instant::now();
-    let mut port = SetupPort::new(NativeSetupStage::WorkspaceRename);
+    let mut port = SetupPort::new(SetupStage::WorkspaceRename);
     port.shown = true;
     let mut dispatcher = InputDispatcher::default();
     dispatch(&mut dispatcher, &mut port, b"\r\x1b", now);
@@ -683,7 +677,7 @@ fn a_csi_tail_started_in_the_released_packet_keeps_frame_ownership() {
 #[test]
 fn an_unterminated_paste_tail_keeps_frame_ownership_across_reads() {
     let now = Instant::now();
-    let mut port = SetupPort::new(NativeSetupStage::WorkspaceRename);
+    let mut port = SetupPort::new(SetupStage::WorkspaceRename);
     port.shown = true;
     let mut dispatcher = InputDispatcher::default();
     dispatch(&mut dispatcher, &mut port, b"\r\x1b[200~ab", now);
@@ -706,7 +700,7 @@ fn an_unterminated_paste_tail_keeps_frame_ownership_across_reads() {
 fn a_utf8_tail_started_in_the_released_packet_keeps_continuations_owned() {
     for gap in [10, 60] {
         let now = Instant::now();
-        let mut port = SetupPort::new(NativeSetupStage::WorkspaceRename);
+        let mut port = SetupPort::new(SetupStage::WorkspaceRename);
         port.shown = true;
         let mut dispatcher = InputDispatcher::default();
         dispatch(&mut dispatcher, &mut port, b"\r\xe4", now);
@@ -729,7 +723,7 @@ fn a_utf8_tail_started_in_the_released_packet_keeps_continuations_owned() {
 #[test]
 fn an_unexpired_escape_resolver_stays_owned_but_the_next_packet_is_free() {
     let now = Instant::now();
-    let mut port = SetupPort::new(NativeSetupStage::WorkspaceRename);
+    let mut port = SetupPort::new(SetupStage::WorkspaceRename);
     port.shown = true;
     let mut dispatcher = InputDispatcher::default();
     dispatch(&mut dispatcher, &mut port, b"\r\x1b", now);
@@ -753,7 +747,7 @@ fn ready_mouse_fragments_do_not_cancel_or_type_into_a_form_after_a_busy_frame() 
     let now = Instant::now();
     let report = b"\x1b[<0;66;8M";
     for split in 1..report.len() {
-        let mut port = SetupPort::new(NativeSetupStage::WorkspaceRename);
+        let mut port = SetupPort::new(SetupStage::WorkspaceRename);
         let mut dispatcher = InputDispatcher::default();
         dispatch(&mut dispatcher, &mut port, &report[..split], now);
         dispatch(
@@ -779,7 +773,7 @@ fn ready_mouse_fragments_do_not_cancel_or_type_into_a_form_after_a_busy_frame() 
 #[test]
 fn an_expired_escape_releases_before_the_next_packet() {
     let now = Instant::now();
-    let mut port = SetupPort::new(NativeSetupStage::WorkspaceRename);
+    let mut port = SetupPort::new(SetupStage::WorkspaceRename);
     port.shown = true;
     let mut dispatcher = InputDispatcher::default();
     dispatch(&mut dispatcher, &mut port, b"\r\x1b", now);
@@ -803,7 +797,7 @@ fn an_expired_escape_releases_before_the_next_packet() {
 #[test]
 fn a_c1_sequence_tail_started_in_the_released_packet_keeps_ownership() {
     let now = Instant::now();
-    let mut port = SetupPort::new(NativeSetupStage::WorkspaceRename);
+    let mut port = SetupPort::new(SetupStage::WorkspaceRename);
     port.shown = true;
     let mut dispatcher = InputDispatcher::default();
     dispatch(&mut dispatcher, &mut port, b"\r\x9b", now);
@@ -838,7 +832,7 @@ fn dispatch(dispatcher: &mut InputDispatcher, port: &mut SetupPort, bytes: &[u8]
 #[test]
 fn picker_owns_brackets_and_packet_tail_cannot_edit_or_submit_the_next_step() {
     let now = Instant::now();
-    let mut port = SetupPort::new(NativeSetupStage::ChooseWorkspaceProject);
+    let mut port = SetupPort::new(SetupStage::ChooseWorkspaceProject);
     let mut dispatcher = InputDispatcher::default();
     dispatch(&mut dispatcher, &mut port, b"[ignored]]\r", now);
     assert_eq!(port.selections, 1);
@@ -848,7 +842,7 @@ fn picker_owns_brackets_and_packet_tail_cannot_edit_or_submit_the_next_step() {
     assert!(port.submissions.is_empty());
     port.shown = true;
     dispatch(&mut dispatcher, &mut port, b"\rproject\rworkspace\r", now);
-    assert_eq!(port.submissions, [NativeSetupStage::ChooseWorkspaceProject]);
+    assert_eq!(port.submissions, [SetupStage::ChooseWorkspaceProject]);
     assert!(port.text.is_empty());
     assert!(port.forwarded.is_empty());
 
@@ -861,8 +855,8 @@ fn picker_owns_brackets_and_packet_tail_cannot_edit_or_submit_the_next_step() {
     assert_eq!(
         port.submissions,
         [
-            NativeSetupStage::ChooseWorkspaceProject,
-            NativeSetupStage::WorkspaceProjectName
+            SetupStage::ChooseWorkspaceProject,
+            SetupStage::WorkspaceProjectName
         ]
     );
     assert_eq!(port.text, "项目");
@@ -873,11 +867,11 @@ fn picker_owns_brackets_and_packet_tail_cannot_edit_or_submit_the_next_step() {
 #[test]
 fn replacement_token_drains_a_partial_paste_without_retargeting_or_forwarding_it() {
     let now = Instant::now();
-    let mut port = SetupPort::new(NativeSetupStage::DirectoryPath);
+    let mut port = SetupPort::new(SetupStage::DirectoryPath);
     let mut dispatcher = InputDispatcher::default();
     dispatch(&mut dispatcher, &mut port, b"\x1b[200~/old/\xe9", now);
     let old = port.token();
-    port.next_step(NativeSetupStage::WorkspaceProjectName);
+    port.next_step(SetupStage::WorkspaceProjectName);
     dispatcher.apply_setup_event(&mut port, old, ModalInputEvent::Append("stale".to_owned()));
     let later = now + Duration::from_secs(1);
     dispatch(&mut dispatcher, &mut port, b"\x9b\xaa\x1b[201~\r", later);
@@ -896,7 +890,7 @@ fn replacement_token_drains_a_partial_paste_without_retargeting_or_forwarding_it
 #[test]
 fn directory_paste_uses_remaining_bytes_and_does_not_append_an_overflow_prefix() {
     let now = Instant::now();
-    let mut port = SetupPort::new(NativeSetupStage::DirectoryPath);
+    let mut port = SetupPort::new(SetupStage::DirectoryPath);
     port.text = format!("/{}", "x".repeat(4092));
     let original = port.text.clone();
     let mut dispatcher = InputDispatcher::default();
@@ -911,7 +905,7 @@ fn directory_paste_uses_remaining_bytes_and_does_not_append_an_overflow_prefix()
 #[test]
 fn an_asynchronous_step_reacquires_bracketed_paste_after_the_packet_boundary() {
     let now = Instant::now();
-    let mut port = SetupPort::new(NativeSetupStage::WorkspaceProjectName);
+    let mut port = SetupPort::new(SetupStage::WorkspaceProjectName);
     let mut dispatcher = InputDispatcher::default();
     let mut modes = Vec::new();
     dispatcher
@@ -950,7 +944,7 @@ fn an_asynchronous_step_reacquires_bracketed_paste_after_the_packet_boundary() {
             },
         )
         .unwrap();
-    port.next_step(NativeSetupStage::WorkspaceProjectName);
+    port.next_step(SetupStage::WorkspaceProjectName);
     port.active = true;
     dispatcher
         .synchronize(
@@ -977,7 +971,7 @@ fn an_asynchronous_step_reacquires_bracketed_paste_after_the_packet_boundary() {
 #[test]
 fn navigation_delete_and_word_keys_reach_the_draft_as_semantic_edits() {
     let now = Instant::now();
-    let mut port = SetupPort::new(NativeSetupStage::WorkspaceProjectName);
+    let mut port = SetupPort::new(SetupStage::WorkspaceProjectName);
     let mut dispatcher = InputDispatcher::default();
     dispatch(
         &mut dispatcher,
@@ -1014,7 +1008,7 @@ fn navigation_delete_and_word_keys_reach_the_draft_as_semantic_edits() {
 #[test]
 fn modified_and_unbound_sequences_reach_no_draft_and_do_not_cancel_or_leak() {
     let now = Instant::now();
-    let mut port = SetupPort::new(NativeSetupStage::WorkspaceProjectName);
+    let mut port = SetupPort::new(SetupStage::WorkspaceProjectName);
     let mut dispatcher = InputDispatcher::default();
     dispatch(
         &mut dispatcher,
@@ -1036,7 +1030,7 @@ fn modified_and_unbound_sequences_reach_no_draft_and_do_not_cancel_or_leak() {
 fn a_paste_is_atomic_to_the_draft_and_cannot_escalate_picker_or_commands() {
     let now = Instant::now();
     // A bracket inside a paste payload never selects a project.
-    let mut port = SetupPort::new(NativeSetupStage::ChooseWorkspaceProject);
+    let mut port = SetupPort::new(SetupStage::ChooseWorkspaceProject);
     let mut dispatcher = InputDispatcher::default();
     dispatch(&mut dispatcher, &mut port, b"\x1b[200~[\x1b[201~", now);
     assert_eq!(port.edits, ["paste"]);
@@ -1046,7 +1040,7 @@ fn a_paste_is_atomic_to_the_draft_and_cannot_escalate_picker_or_commands() {
     assert!(port.forwarded.is_empty());
 
     // Prefix, selection brackets, and newline bytes stay inside the payload.
-    let mut port = SetupPort::new(NativeSetupStage::WorkspaceProjectName);
+    let mut port = SetupPort::new(SetupStage::WorkspaceProjectName);
     let mut dispatcher = InputDispatcher::default();
     dispatch(
         &mut dispatcher,
@@ -1068,7 +1062,7 @@ fn paste_framing_cannot_turn_c1_payload_controls_into_setup_commands() {
     let now = Instant::now();
     let bytes = b"\x9b200~\xc2\x9b201~\r\x9b201~";
     for split in 0..=bytes.len() {
-        let mut port = SetupPort::new(NativeSetupStage::WorkspaceProjectName);
+        let mut port = SetupPort::new(SetupStage::WorkspaceProjectName);
         let mut dispatcher = InputDispatcher::default();
         dispatch(&mut dispatcher, &mut port, &bytes[..split], now);
         dispatch(&mut dispatcher, &mut port, &bytes[split..], now);
@@ -1085,7 +1079,7 @@ fn paste_framing_cannot_turn_c1_payload_controls_into_setup_commands() {
 
 #[test]
 fn focused_host_metadata_reaches_the_client_during_setup_editing() {
-    let mut port = SetupPort::new(NativeSetupStage::ProjectRename);
+    let mut port = SetupPort::new(SetupStage::ProjectRename);
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(100);
     dispatcher

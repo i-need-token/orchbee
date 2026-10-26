@@ -49,7 +49,7 @@ pub(in crate::cli) fn prepare(
     let selected = if request.client.is_some() || request.focus || (implicit && caller.is_none()) {
         let reply = control::exchange(
             client,
-            &snapshot.site_id,
+            &snapshot.session_id,
             ClientViewAction::List {},
             deadline,
             signals,

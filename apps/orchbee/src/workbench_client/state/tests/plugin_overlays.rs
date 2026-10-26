@@ -1,6 +1,6 @@
 //! Overlay return and close ownership use canonical membership, never stream loss.
 use super::*;
-use crate::workbench_client::NativeContextLocation;
+use crate::workbench_client::ClientContextLocation;
 use orchbee_workbench_protocol::{ClientOverlayMember, ClientViewIntent};
 
 fn add_leaf(root: &mut PanelNode, seed: u128) {
@@ -272,7 +272,7 @@ fn overlay_background_context_removal_restores_its_memory_without_switching_cont
                 let fixture_context_id = snapshot.navigation.workspaces[0]
                     .terminal_context_id
                     .clone();
-                NativeContextLocation::Workspace {
+                ClientContextLocation::Workspace {
                     workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                         fixture_context_id.as_str(),
                     )
@@ -412,7 +412,7 @@ fn overlay_parent_rebinding_preserves_the_child_return_chain_and_fences_stale_jo
                 let fixture_context_id = baseline.navigation.workspaces[0]
                     .terminal_context_id
                     .clone();
-                NativeContextLocation::Workspace {
+                ClientContextLocation::Workspace {
                     workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                         fixture_context_id.as_str(),
                     )
@@ -498,7 +498,7 @@ fn overlay_render_draws_and_hit_tests_only_the_focused_overlay_incarnation() {
     use crate::client_view::ClientView;
     use crate::tui_pointer::{HitMapBuilder, HitTarget};
     use crate::workbench_client::{
-        NativeProjectionStatus, WorkbenchClientView, ui::KeyedProjection,
+        ClientProjectionStatus, WorkbenchClientView, ui::KeyedProjection,
     };
     use ratatui::{Terminal, backend::TestBackend};
     let baseline = baseline();
@@ -509,13 +509,13 @@ fn overlay_render_draws_and_hit_tests_only_the_focused_overlay_incarnation() {
         KeyedProjection::for_test(
             pane,
             super::zoom::framed_projection(),
-            NativeProjectionStatus::FrameAvailable,
+            ClientProjectionStatus::FrameAvailable,
         )
     });
     let view = WorkbenchClientView::test_view(
         &state,
         &projections,
-        NativeProjectionStatus::FrameAvailable,
+        ClientProjectionStatus::FrameAvailable,
     );
     let mut terminal = Terminal::new(TestBackend::new(120, 34)).unwrap();
     let mut hits = HitMapBuilder::new();

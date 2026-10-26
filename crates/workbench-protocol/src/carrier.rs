@@ -254,7 +254,7 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
     let length = u32::from_be_bytes([header[8], header[9], header[10], header[11]]);
     let actual = usize::try_from(length).map_err(|_error| WorkbenchWireError::InvalidHeader)?;
     let maximum = if kind == 59 {
-        crate::MAXIMUM_NATIVE_SETTINGS_REQUEST_BYTES
+        crate::MAXIMUM_SETTINGS_REQUEST_BYTES
     } else if kind == 60 {
         crate::MAXIMUM_USER_PREFERENCES_BYTES
     } else if kind == 57 {

@@ -30,7 +30,7 @@ crate** 内部，绝不进入库。一致性测试在同一二进制目标中只
 - `project_agent_session`、`project_agent_session_summary` 与
   `explain_agent_session`——OBAP `list`/`get`/`explain` 操作消费的状态/摘要/
   详情/解释投影；
-- `local_site_service/agent_observation_endpoint.rs`——在 会话 就绪之前绑定的
+- `local_worker_service/agent_observation_endpoint.rs`——在 会话 就绪之前绑定的
   托管私有 Unix 端点；
 - `local_terminal_service/agent_drain_read.rs`——作为 `execute_prepared`
   provider 接线的生产 drain 读泵。
@@ -120,8 +120,8 @@ applied 剩余成本是一次会话向量复制，在 512 会话上限时低于 
 | `local_client_service/application_connection/tests/agent.rs`    | OBAP 解复用覆盖：路由、与 OBCS 交错的顺序、畸形记录、执行器故障、结果写失败                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `local_terminal_service/agent_drain_read.rs`                    | 生产 Agent drain 读泵——每读恰好调用一次的 `execute_prepared` provider：typed 载体三态（`NoCarrier` 是唯一真无值读）、准备锁定前一次性铸造的私有四秒窗口下至多一个在飞 exchange、仅 Backpressure 的 25 ms 准入重试、整页一次 fold、屏障由首个载体匹配回复钉住一次、终态栅栏快照在按序持有的 registry -> coordinator 双守卫内完成                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `local_terminal_service/agent_drain_read/tests.rs`              | 真实线路组合证据：canonical hint + 富观察经真实 registry/`UnixStream`/coordinator 投影、`NoCarrier`/pending/`Unavailable` 区分、载体轮换与页栅栏、deadline 拒绝、poison/销毁、以及保留快照的 `NoCarrier` 读                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `local_site_service/agent_observation_endpoint.rs`              | 托管观察端点——hook ingress 的私有 Unix socket 传输，在 会话 就绪前绑定于 会话 运行时目录内：每会话一个绑定路径、单 poll 线程上的 nonblocking 监听器与停止管道、有界 accept 排空、共享 500 ms deadline 下的逐连接读取/admission/ACK 状态机、drop 时身份门控解除链接                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `local_site_service/agent_observation_endpoint/tests.rs`        | 真实 socket 端点证据：即时与结算应用、未关联/零关联拒绝、deadline 清扫、连接上限与交错连接、poison/销毁 cell、脚本化写者缝、身份失配、活连接 drop 回收与有界 accept 批                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `local_worker_service/agent_observation_endpoint.rs`            | 托管观察端点——hook ingress 的私有 Unix socket 传输，在 会话 就绪前绑定于 会话 运行时目录内：每会话一个绑定路径、单 poll 线程上的 nonblocking 监听器与停止管道、有界 accept 排空、共享 500 ms deadline 下的逐连接读取/admission/ACK 状态机、drop 时身份门控解除链接                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `local_worker_service/agent_observation_endpoint/tests.rs`      | 真实 socket 端点证据：即时与结算应用、未关联/零关联拒绝、deadline 清扫、连接上限与交错连接、poison/销毁 cell、脚本化写者缝、身份失配、活连接 drop 回收与有界 accept 批                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 读投影绝不改变规范状态：每个请求都经过同一个共享执行器——先应用不可变的策略门，
 然后恰好调用一次该请求的必需快照 provider（在任何 `AgentState` 锁之外、panic
@@ -437,8 +437,8 @@ drain 页应用/终态栅栏服务缝与只读叶子访问器 `NativeObservation
 
 ## 托管观察端点
 
-`local_site_service/agent_observation_endpoint.rs` 是为
-托管 hook 观察 ingress 供给的生产私有 Unix 传输。`local_site_service::managed`
+`local_worker_service/agent_observation_endpoint.rs` 是为
+托管 hook 观察 ingress 供给的生产私有 Unix 传输。`local_worker_service::managed`
 在会话运行时目录内绑定每会话一个
 socket（`agent-observation-v1.sock`，模式 `0600`），在绑定时记录该路径的文件系统身份，
 并运行单个 poll 线程，多路复用监听器、停止管道与至多 `MAX_ACTIVE_CONNECTIONS` 条已
@@ -467,13 +467,13 @@ deadline，`tick` 错误跳过，admission 错误关闭当前流）；non-`Would
 身份武装；`AgentObservationEndpoint::drop` 写停止字节、无条件 join 线程，随后仅在其
 当前元数据仍匹配绑定时记录的身份时解除路径链接——被替换或外来路径绝不被删除。
 
-生产激活对已接受的托管本地 会话 路径生效：`local_site_service::managed` 创建或
+生产激活对已接受的托管本地 会话 路径生效：`local_worker_service::managed` 创建或
 取得运行时目录，在发布 会话 就绪之前绑定本端点，绑定或端点初始化失败时诚实失败
 `server start`——不存在静默的 Agent 不可用模式。托管路径经
 `open_observing(policy, socket_path)` 恰好构造一次 canonical `AgentService`——
 socket 路径在构造期即绑定进翻译器，随后 `Arc` 才被共享——并把同一 `Arc` 交给
 端点、Worker 准入（`register_carrier_with_agents` 在注册守卫内准入原生叶子）与
-客户端读取。Worker 从既有 `--local-site <runtime-dir>` 参数推导 socket 路径，
+客户端读取。Worker 从既有 `--runtime-directory <runtime-dir>` 参数推导 socket 路径，
 校验 socket 类型与同用户归属，并经既有环境覆盖注入
 `ORCHBEE_AGENT_OBSERVATION_SOCKET`；不新增 wire 字段、公共设置或 Worker 对
 Server 代码的依赖，远端（非托管）路径保持既有行为。被替换或外来 socket 路径在
@@ -537,4 +537,4 @@ Devin 六组 hook 仅接收 session-identified。身份刷新保留未知或已�
 
 Hermes 仅准入 session-identified。会话启动／重置和 CLI 恢复观察保留规范轮次状态，不制造空闲或完成。
 
-<!-- documentation-pairing: english-sha256=7354af6c548c7c69389e632ccec761b826a42aa1df84577d007ee09ecb0975cd zh-cn-sha256=9aa8946b35171d0ed37d86c7ea7929bfd8ec4671793da79cef068a0cbd674c48 -->
+<!-- documentation-pairing: english-sha256=a05571720da71e398424a12645bd154456888b2a79d5615a23d8419101cb77ed zh-cn-sha256=61ffdfdc3c7c95eda1eae412c96583e46acdd8a21f5947ee7956e125e09922bc -->

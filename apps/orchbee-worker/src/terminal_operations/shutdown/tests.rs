@@ -396,7 +396,7 @@ fn empty_inventory_is_insufficient_until_retained_child_exits() {
         .into_iter()
         .map(std::ffi::OsStr::new)
         .collect();
-    let child = orchbee_local_site_runtime::spawn_retained(&executable, &arguments).unwrap();
+    let child = orchbee_local_runtime::spawn_retained(&executable, &arguments).unwrap();
     let mut owner = ManagedHost::new(child);
     let first = owner.stop(
         &host,

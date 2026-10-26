@@ -1,4 +1,4 @@
-//! Real-Site witnesses for `terminal wait-output`: the public CLI holds a
+//! Real-Session witnesses for `terminal wait-output`: the public CLI holds a
 //! read-only viewer against a real Worker/Host and resolves on literal text
 //! already retained, text produced later, scrollback-only rows, and
 //! UTF-8 soft-wrapped logical lines — with the timeout and signal-cancelled

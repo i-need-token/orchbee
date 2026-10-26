@@ -13,7 +13,7 @@ members = [
 	"crates/local-ipc",
 	"crates/local-peer-credentials",
 	"crates/local-worker-protocol",
-	"crates/local-site-runtime",
+	"crates/local-runtime",
 	"crates/terminal-protocol",
 	"crates/windows-console-host",
 	"crates/workbench-protocol",

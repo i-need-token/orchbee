@@ -1,7 +1,7 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 
 use crate::{
-    ContractError, ProtocolVersion, SiteId, WorkbenchDirectoryId, WorkbenchDirectoryPath,
+    ContractError, ProtocolVersion, SessionId, WorkbenchDirectoryId, WorkbenchDirectoryPath,
     WorkbenchRequestId, WorkbenchRevision,
 };
 
@@ -119,7 +119,7 @@ pub enum WorktreeListUnavailableReason {
 pub enum WorkbenchWorktreeListOutcome {
     Found {
         #[serde(rename = "sessionId")]
-        site_id: SiteId,
+        session_id: SessionId,
         workbench_revision: WorkbenchRevision,
         directory_id: WorkbenchDirectoryId,
         /// The registered workbench directory path — distinct from the

@@ -12,7 +12,7 @@ use crate::{
 };
 use orchbee_workbench_protocol::{
     ClientViewAction, ClientViewControl, ClientViewControlStatus, ClientViewOutcome,
-    ClientViewPhase, ProtocolVersion, SiteId, WorkbenchClientViewRequest,
+    ClientViewPhase, ProtocolVersion, SessionId, WorkbenchClientViewRequest,
     WorkbenchClientViewResult,
 };
 use std::{
@@ -79,7 +79,7 @@ pub(super) fn run(command: &ClientCommand, format: OutputFormat, locale: Locale)
     let mut answer = Answer {
         status_only: matches!(command, ClientCommand::ControlStatus(_)),
         operation_id,
-        site_id: None,
+        session_id: None,
         reply: None,
         unknown: false,
         wait: None,
@@ -138,7 +138,7 @@ fn observe(
         return Ok(());
     }
     let (mut client, _, snapshot) = query::snapshot_session_until(deadline)?;
-    answer.site_id = Some(snapshot.site_id.clone());
+    answer.session_id = Some(snapshot.session_id.clone());
     if interrupted(answer, signals, deadline)? {
         return Ok(());
     }
@@ -159,7 +159,7 @@ fn observe(
             let caller = caller.map(|caller| caller.resolve(&snapshot)).transpose()?;
             let reply = exchange(
                 &mut client,
-                &snapshot.site_id,
+                &snapshot.session_id,
                 ClientViewAction::List {},
                 deadline,
                 signals,
@@ -241,7 +241,7 @@ fn observe(
     }
     exchange_and_wait(
         &mut client,
-        &snapshot.site_id,
+        &snapshot.session_id,
         action,
         matches!(command, ClientCommand::Navigate { detach: false, .. }),
         deadline,
@@ -252,7 +252,7 @@ fn observe(
 
 pub(in crate::cli) fn submit_control(
     client: &mut LocalClient,
-    site_id: &SiteId,
+    session_id: &SessionId,
     command: ClientViewControl,
     deadline: Instant,
     signals: &mut ArmedSignals,
@@ -260,7 +260,7 @@ pub(in crate::cli) fn submit_control(
     let mut answer = Answer {
         status_only: false,
         operation_id: Some(command.operation_id.clone()),
-        site_id: Some(site_id.clone()),
+        session_id: Some(session_id.clone()),
         reply: None,
         unknown: false,
         wait: None,
@@ -268,7 +268,7 @@ pub(in crate::cli) fn submit_control(
     if !interrupted(&mut answer, signals, deadline)? {
         let result = exchange_and_wait(
             client,
-            site_id,
+            session_id,
             ClientViewAction::Submit {
                 command: Box::new(command),
             },
@@ -289,7 +289,7 @@ pub(in crate::cli) fn submit_control(
 
 fn exchange_and_wait(
     client: &mut LocalClient,
-    site_id: &SiteId,
+    session_id: &SessionId,
     action: ClientViewAction,
     wait: bool,
     deadline: Instant,
@@ -298,7 +298,7 @@ fn exchange_and_wait(
 ) -> Result<(), Failure> {
     // Every subsequent exchange is a retained Read. A lost Submit is never replayed.
     let submitted = matches!(action, ClientViewAction::Submit { .. });
-    match exchange(client, site_id, action, deadline, signals) {
+    match exchange(client, session_id, action, deadline, signals) {
         Ok(reply) => {
             verify_attention(client, &reply, deadline, signals)?;
             answer.reply = Some(reply);
@@ -335,7 +335,7 @@ fn exchange_and_wait(
             .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
         match exchange(
             client,
-            site_id,
+            session_id,
             ClientViewAction::Read { operation_id },
             deadline,
             signals,
@@ -379,11 +379,11 @@ pub(in crate::cli) fn wait_submitted(
     };
     let id = operation.command.operation_id.clone();
     let command = operation.command.clone();
-    let site = reply.site_id.clone();
+    let session = reply.session_id.clone();
     let mut answer = Answer {
         status_only: false,
         operation_id: Some(id.clone()),
-        site_id: Some(site.clone()),
+        session_id: Some(session.clone()),
         reply: Some(reply),
         unknown: false,
         wait: None,
@@ -391,7 +391,7 @@ pub(in crate::cli) fn wait_submitted(
     if answer.pending() {
         exchange_and_wait(
             client,
-            &site,
+            &session,
             ClientViewAction::Read { operation_id: id },
             true,
             deadline,
@@ -474,7 +474,7 @@ fn monotonic(previous: &WorkbenchClientViewResult, next: &WorkbenchClientViewRes
 }
 pub(in crate::cli) fn exchange(
     client: &mut LocalClient,
-    site_id: &SiteId,
+    session_id: &SessionId,
     action: ClientViewAction,
     deadline: Instant,
     signals: &ArmedSignals,
@@ -482,7 +482,7 @@ pub(in crate::cli) fn exchange(
     let request = WorkbenchClientViewRequest {
         protocol_version: ProtocolVersion,
         request_id: query::request_id()?,
-        site_id: site_id.clone(),
+        session_id: session_id.clone(),
         action,
     };
     client

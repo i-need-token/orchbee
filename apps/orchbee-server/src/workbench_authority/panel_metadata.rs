@@ -1,4 +1,4 @@
-//! Transient logical-terminal metadata, committed atomically under the Site owner gate.
+//! Transient logical-terminal metadata, committed atomically under the Session owner gate.
 use super::{
     WorkbenchAuthority,
     report_membership::{BindingKey, ReportMembership, key},
@@ -287,7 +287,7 @@ impl PanelMetadata {
     }
 }
 impl WorkbenchAuthority {
-    /// The caller holds the Site gate; no I/O, canonical topology mutation or persistence occurs.
+    /// The caller holds the Session gate; no I/O, canonical topology mutation or persistence occurs.
     pub fn panel_metadata(
         &mut self,
         request: PanelMetadataRequest,
@@ -299,7 +299,7 @@ impl WorkbenchAuthority {
         PanelMetadataResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
-            site_id: request.site_id,
+            session_id: request.session_id,
             outcome,
         }
     }
@@ -312,8 +312,8 @@ impl WorkbenchAuthority {
         if self.retired {
             return Err(Failure::Unavailable);
         }
-        if request.site_id != *self.site_id() {
-            return Err(Failure::SiteMismatch);
+        if request.session_id != *self.session_id() {
+            return Err(Failure::SessionMismatch);
         }
         let ReportMembership {
             panels,

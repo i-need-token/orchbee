@@ -55,7 +55,7 @@ fn admit(harness: &mut Harness, family: Family) -> TestResult<CloseOperation> {
         .ok_or("Close fixture member missing")?;
     let selection = CloseSelection::new(
         CloseTarget::new(
-            state.cache().site_id().clone(),
+            state.cache().session_id().clone(),
             state.cache().terminal_context_id().unwrap().clone(),
             selected.key().tab_id().clone(),
         ),
@@ -189,7 +189,7 @@ fn receive(harness: &Harness, family: Family, operation: &CloseOperation) -> Tes
     match (family, request) {
         (Family::Close, WorkbenchRequest::Command(command)) => {
             assert_eq!(&command.request_id, operation.key().request_id());
-            assert_eq!(&command.site_id, target.site_id());
+            assert_eq!(&command.session_id, target.session_id());
             assert_eq!(command.expected_revision, WorkbenchRevision::new(1));
             assert_eq!(
                 command.action,
@@ -201,13 +201,13 @@ fn receive(harness: &Harness, family: Family, operation: &CloseOperation) -> Tes
         }
         (Family::Read, WorkbenchRequest::TabCloseRead(read)) => {
             assert_eq!(&read.request_id, operation.key().request_id());
-            assert_eq!(&read.site_id, target.site_id());
+            assert_eq!(&read.session_id, target.session_id());
             assert_eq!(&read.terminal_context_id, target.terminal_context_id());
             assert_eq!(&read.tab_id, target.tab_id());
         }
         (Family::Resume, WorkbenchRequest::TabCloseResume(resume)) => {
             assert_eq!(&resume.request_id, operation.key().request_id());
-            assert_eq!(&resume.site_id, target.site_id());
+            assert_eq!(&resume.session_id, target.session_id());
             assert_eq!(&resume.terminal_context_id, target.terminal_context_id());
             assert_eq!(&resume.tab_id, target.tab_id());
             assert_eq!(resume.close_request_id, canonical_id()?);
@@ -248,7 +248,7 @@ fn response(family: Family, operation: &CloseOperation) -> TestResult<WorkbenchR
         Family::Resume => WorkbenchResponse::TabCloseResume(WorkbenchTabCloseResumeResult {
             protocol_version: ProtocolVersion,
             request_id,
-            site_id: target.site_id().clone(),
+            session_id: target.session_id().clone(),
             terminal_context_id: target.terminal_context_id().clone(),
             tab_id: target.tab_id().clone(),
             close_request_id: canonical_id()?,

@@ -1,6 +1,6 @@
 use super::{
     native_cohort::Fixture,
-    tui_observer::{CompletedFrame, ModalRow, NativeHeader, Screen},
+    tui_observer::{CompletedFrame, ModalRow, Screen, WorkbenchHeader},
 };
 use nix::{
     fcntl::{FcntlArg, OFlag, fcntl, open},
@@ -52,7 +52,7 @@ fn initial_ready_mode(frame: &CompletedFrame) -> Option<ReadyMode> {
 }
 
 struct FrameExpectation<'a> {
-    header: Option<NativeHeader<'a>>,
+    header: Option<WorkbenchHeader<'a>>,
     required: &'a [&'a str],
     forbidden: &'a [&'a str],
     exact_content_rows: &'a [&'a str],
@@ -299,7 +299,7 @@ impl Client {
         &mut self,
         checkpoint: usize,
         deadline: Instant,
-        header: NativeHeader<'_>,
+        header: WorkbenchHeader<'_>,
         required: &[&str],
         forbidden: &[&str],
         exact_content_rows: &[&str],
@@ -409,7 +409,7 @@ impl Client {
         self.wait_modal_prompt_after(
             checkpoint,
             deadline,
-            NativeHeader::active(active_header, 1, "1"),
+            WorkbenchHeader::active(active_header, 1, "1"),
             &content_rows,
             pumped_peers,
         );
@@ -420,7 +420,7 @@ impl Client {
         &mut self,
         checkpoint: usize,
         deadline: Instant,
-        header: NativeHeader<'_>,
+        header: WorkbenchHeader<'_>,
         content_rows: &[ModalRow<'_>],
         pumped_peers: &mut [&mut Client],
     ) {
@@ -624,7 +624,7 @@ impl Client {
         });
     }
 
-    pub(super) fn contains_native_header(&mut self, header: NativeHeader<'_>) -> bool {
+    pub(super) fn contains_native_header(&mut self, header: WorkbenchHeader<'_>) -> bool {
         self.collect();
         self.screen
             .latest_frame()
@@ -644,7 +644,7 @@ impl Client {
 
     pub(super) fn current_frame_matches(
         &mut self,
-        header: NativeHeader<'_>,
+        header: WorkbenchHeader<'_>,
         required: &[&str],
     ) -> bool {
         self.collect();

@@ -1,6 +1,6 @@
 use super::*;
 use orchbee_workbench_protocol::{
-    ClientViewPhase, ProtocolVersion, SiteId, WorkbenchClientViewResult, WorkbenchRequest,
+    ClientViewPhase, ProtocolVersion, SessionId, WorkbenchClientViewResult, WorkbenchRequest,
     WorkbenchRevision, parse_workbench_request,
 };
 
@@ -173,7 +173,7 @@ fn execute(
     WorkbenchClientViewResult {
         protocol_version: ProtocolVersion,
         request_id: operation_id(1000),
-        site_id: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
+        session_id: SessionId::parse(&format!("{:032x}", 1)).unwrap(),
         outcome: outcome.clone(),
     }
     .validate()
@@ -235,7 +235,7 @@ fn semantic_events_publish_admitted_focus_and_client_ratio_changes_without_heart
         SemanticEventFilter, SemanticEventKind as K, SemanticEventMatch, SemanticEventScope,
     };
     let authority =
-        orchbee_server::WorkbenchAuthority::new(SiteId::parse(&format!("{:032x}", 1)).unwrap())
+        orchbee_server::WorkbenchAuthority::new(SessionId::parse(&format!("{:032x}", 1)).unwrap())
             .unwrap();
     let journal = authority.event_journal();
     let cursor = journal.head().unwrap();

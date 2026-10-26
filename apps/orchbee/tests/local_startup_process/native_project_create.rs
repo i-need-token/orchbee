@@ -1,6 +1,6 @@
 //! Public headless chain witnesses for `project create`: the real staged
 //! `orchbee` binary drives the accepted `ProjectCreate` action against a live
-//! isolated Site — first an empty Project object, then the JSON-id chained
+//! isolated Session — first an empty Project object, then the JSON-id chained
 //! `workspace create` and `tab create`, ending at a real bound terminal.
 //! The workspace-bound tab honestly exercises the Server's existing
 //! primary-directory precondition; the duplicate-label contract mirrors the
@@ -13,7 +13,7 @@ use super::{
         DIRECTORY_ACCEPTED, DIRECTORY_INPUT_HINT, DIRECTORY_NEEDED, DIRECTORY_NEEDED_ACTION,
         DIRECTORY_PATH, DIRECTORY_READY_ACTION, EMPTY, TEXT_ACTIONS, TEXT_HINTS, modal,
     },
-    tui_observer::{ModalRow, NativeHeader},
+    tui_observer::{ModalRow, WorkbenchHeader},
     *,
 };
 
@@ -158,7 +158,7 @@ fn project_workspace_tab_chain_binds_a_real_terminal() -> TestResult {
     loop {
         client.collect();
         let now = Instant::now();
-        if client.contains_native_header(NativeHeader::empty(&workspace_header)) {
+        if client.contains_native_header(WorkbenchHeader::empty(&workspace_header)) {
             match settle {
                 Some(until) if now >= until => break,
                 None => settle = Some(now + Duration::from_millis(150)),
@@ -175,7 +175,7 @@ fn project_workspace_tab_chain_binds_a_real_terminal() -> TestResult {
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        NativeHeader::empty(&workspace_header),
+        WorkbenchHeader::empty(&workspace_header),
         &[EMPTY, DIRECTORY_NEEDED, DIRECTORY_NEEDED_ACTION],
         &[],
         &[],
@@ -206,7 +206,7 @@ fn project_workspace_tab_chain_binds_a_real_terminal() -> TestResult {
     modal(
         &mut client,
         checkpoint,
-        NativeHeader::empty(&workspace_header),
+        WorkbenchHeader::empty(&workspace_header),
         &[
             ModalRow::exact(DIRECTORY_PATH),
             ModalRow::exact(""),
@@ -228,7 +228,7 @@ fn project_workspace_tab_chain_binds_a_real_terminal() -> TestResult {
     modal(
         &mut client,
         checkpoint,
-        NativeHeader::empty(&workspace_header),
+        WorkbenchHeader::empty(&workspace_header),
         &[
             ModalRow::exact(DIRECTORY_PATH),
             ModalRow::exact(""),
@@ -250,7 +250,7 @@ fn project_workspace_tab_chain_binds_a_real_terminal() -> TestResult {
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        NativeHeader::empty(&workspace_header),
+        WorkbenchHeader::empty(&workspace_header),
         &[
             EMPTY,
             &directory_fact,

@@ -212,7 +212,7 @@ impl WorkbenchAuthority {
         }
         Ok(())
     }
-    /// Caller holds the Site gate and supplies its monotonic observation time.
+    /// Caller holds the Session gate and supplies its monotonic observation time.
     pub fn workspace_metadata(
         &mut self,
         request: WorkspaceMetadataRequest,
@@ -224,7 +224,7 @@ impl WorkbenchAuthority {
         WorkspaceMetadataResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
-            site_id: request.site_id,
+            session_id: request.session_id,
             outcome,
         }
     }
@@ -237,8 +237,8 @@ impl WorkbenchAuthority {
         if self.retired {
             return Err(Failure::Unavailable);
         }
-        if request.site_id != *self.site_id() {
-            return Err(Failure::SiteMismatch);
+        if request.session_id != *self.session_id() {
+            return Err(Failure::SessionMismatch);
         }
         let live = self.workspace_metadata_ids();
         self.expire_workspace_metadata(&live, now)?;

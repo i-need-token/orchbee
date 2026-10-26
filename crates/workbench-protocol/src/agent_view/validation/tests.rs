@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     AgentViewAction, AgentViewOutcome, AgentViewRequest, AgentViewResult, AgentViewSnapshot,
-    AgentViewSortOrder, ProtocolVersion, SiteId, WorkbenchRequestId, WorkbenchRevision,
+    AgentViewSortOrder, ProtocolVersion, SessionId, WorkbenchRequestId, WorkbenchRevision,
 };
 use serde_json::{Value, json};
 fn valid(value: Value) -> bool {
@@ -121,7 +121,7 @@ fn spec_and_wire_have_separate_encoded_bounds() {
     let request = AgentViewRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&"1".repeat(32)).unwrap(),
-        site_id: SiteId::parse(&"2".repeat(32)).unwrap(),
+        session_id: SessionId::parse(&"2".repeat(32)).unwrap(),
         action: AgentViewAction::Clear {
             source: Some("x".into()),
         },
@@ -139,7 +139,7 @@ fn spec_and_wire_have_separate_encoded_bounds() {
     let result = AgentViewResult {
         protocol_version: ProtocolVersion,
         request_id: request.request_id.clone(),
-        site_id: request.site_id.clone(),
+        session_id: request.session_id.clone(),
         outcome: AgentViewOutcome::Available {
             snapshot: AgentViewSnapshot {
                 revision: WorkbenchRevision::new(0),
@@ -166,7 +166,7 @@ fn mutation_replies_must_describe_the_requested_effect() {
     let mut request = AgentViewRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&"1".repeat(32)).unwrap(),
-        site_id: SiteId::parse(&"2".repeat(32)).unwrap(),
+        session_id: SessionId::parse(&"2".repeat(32)).unwrap(),
         action: AgentViewAction::Set {
             spec: Box::new(spec.clone()),
         },
@@ -174,7 +174,7 @@ fn mutation_replies_must_describe_the_requested_effect() {
     let reply = |spec| AgentViewResult {
         protocol_version: ProtocolVersion,
         request_id: request.request_id.clone(),
-        site_id: request.site_id.clone(),
+        session_id: request.session_id.clone(),
         outcome: AgentViewOutcome::Available {
             snapshot: AgentViewSnapshot {
                 revision: WorkbenchRevision::new(1),

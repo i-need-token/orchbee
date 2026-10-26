@@ -87,7 +87,7 @@ fn metadata(stream: &mut LocalStream, case: &str, primary: bool, unbound: bool, 
         &WorkbenchResponse::PanelMetadata(PanelMetadataResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
-            site_id: request.site_id,
+            session_id: request.session_id,
             outcome: serde_json::from_value(outcome).unwrap(),
         }),
     )
@@ -133,7 +133,7 @@ fn report(stream: &mut LocalStream, case: &str, primary: bool, unbound: bool, fe
         &WorkbenchResponse::PanelAgent(PanelAgentResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
-            site_id: request.site_id,
+            session_id: request.session_id,
             outcome: serde_json::from_value(outcome).unwrap(),
         }),
     )

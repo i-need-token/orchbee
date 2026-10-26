@@ -151,7 +151,7 @@ fn stalled_mutation_preserves_heartbeats_and_lane_shutdown_joins_its_connection(
                     &WorkbenchResponse::ClientView(WorkbenchClientViewResult {
                         protocol_version: ProtocolVersion,
                         request_id: request.request_id,
-                        site_id: request.site_id,
+                        session_id: request.session_id,
                         outcome: ClientViewOutcome::Synchronized {
                             control: None,
                             client: Box::new(ClientViewRecord {
@@ -194,7 +194,7 @@ fn stalled_mutation_preserves_heartbeats_and_lane_shutdown_joins_its_connection(
         let mut lane = ClientControlLane::spawn(
             client.origin(),
             client.operation_clock(),
-            SiteId::parse(&format!("{:032x}", 2)).unwrap(),
+            SessionId::parse(&format!("{:032x}", 2)).unwrap(),
         )
         .unwrap();
         drop(client);

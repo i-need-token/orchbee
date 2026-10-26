@@ -8,7 +8,7 @@ use crate::{
     localization::Locale,
 };
 use orchbee_workbench_protocol::{
-    SiteId, WorkbenchRequestId, WorkbenchWorktreeAction, WorkbenchWorktreeRequest,
+    SessionId, WorkbenchRequestId, WorkbenchWorktreeAction, WorkbenchWorktreeRequest,
 };
 use std::{
     thread,
@@ -40,8 +40,8 @@ pub(super) fn run(
         post_open: matches!(command, WorktreeCommand::Start(start) if start.focus)
             .then(super::post_open::Receipt::new),
     };
-    let mut site_id = None;
-    let result = observe(command, &mut answer, &mut site_id, &mut signals);
+    let mut session_id = None;
+    let result = observe(command, &mut answer, &mut session_id, &mut signals);
     let mut finalization = None;
     let result = match signals.finish() {
         Ok(Finish::Clear) => result,
@@ -77,7 +77,7 @@ pub(super) fn run(
         result
     };
     let mut output = match result {
-        Ok(()) => emit(site_id.as_ref(), answer, format, locale),
+        Ok(()) => emit(session_id.as_ref(), answer, format, locale),
         Err(error) => failure_output(error, Some(format), locale),
     };
     output.finalization = finalization;
@@ -87,7 +87,7 @@ pub(super) fn run(
 fn observe(
     command: &WorktreeCommand,
     answer: &mut Answer,
-    site_id: &mut Option<SiteId>,
+    session_id: &mut Option<SessionId>,
     signals: &mut ArmedSignals,
 ) -> Result<(), Failure> {
     let (detached, timeout, read) = match command {
@@ -108,7 +108,7 @@ fn observe(
         None
     };
     let (mut client, _, snapshot) = query::snapshot_session_until(deadline)?;
-    *site_id = Some(snapshot.site_id.clone());
+    *session_id = Some(snapshot.session_id.clone());
     if interrupted(answer, signals, deadline)? {
         return Ok(());
     }
@@ -175,7 +175,7 @@ fn observe(
     let request = WorkbenchWorktreeRequest {
         protocol_version: snapshot.protocol_version,
         request_id: query::request_id()?,
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         action,
     };
     if interrupted(answer, signals, deadline)? {
@@ -221,7 +221,7 @@ fn observe(
         let request = WorkbenchWorktreeRequest {
             protocol_version: snapshot.protocol_version,
             request_id: query::request_id()?,
-            site_id: snapshot.site_id.clone(),
+            session_id: snapshot.session_id.clone(),
             action: WorkbenchWorktreeAction::Read {
                 operation_id: answer.operation_id.clone(),
             },

@@ -1,4 +1,4 @@
-//! The Site lock owns report ordering and samples expiry time after lock admission.
+//! The Session lock owns report ordering and samples expiry time after lock admission.
 use super::LocalTerminalService;
 use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchResponse, WorkspaceMetadataFailure as Failure,
@@ -14,7 +14,7 @@ impl LocalTerminalService {
         let unavailable = WorkspaceMetadataResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id.clone(),
-            site_id: request.site_id.clone(),
+            session_id: request.session_id.clone(),
             outcome: Outcome::Failed {
                 reason: Failure::Unavailable,
             },

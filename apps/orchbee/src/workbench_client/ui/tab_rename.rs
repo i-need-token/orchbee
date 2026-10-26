@@ -2,25 +2,25 @@
 use super::WorkbenchClientState;
 use super::{
     Arc, CarrierFailure, ClientActionDisposition, CommandMailbox, ModalPresentation,
-    MoveAdmissionError, MutationResult, NativeUi, OperationDeadlines, RefreshDecision, UiReply,
-    WorkbenchClientView,
+    MoveAdmissionError, MutationResult, OperationDeadlines, RefreshDecision, UiReply,
+    WorkbenchClientUi, WorkbenchClientView,
 };
-use crate::workbench_client::state::NativeFieldWindow;
+use crate::workbench_client::state::FieldWindow;
 use crate::workbench_client::state::rename_draft::{
     RenameDraftEdit, RenameDraftToken, RenameDraftView,
 };
 use orchbee_workbench_protocol::MAXIMUM_LABEL_LENGTH;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct NativeRenameDraftToken(RenameDraftToken);
+pub(crate) struct RenameDraftToken(RenameDraftToken);
 
-pub(crate) struct NativeRenameDraftView<'a>(RenameDraftView<'a>, Option<&'a str>);
-impl<'a> NativeRenameDraftView<'a> {
+pub(crate) struct RenameDraftView<'a>(RenameDraftView<'a>, Option<&'a str>);
+impl<'a> RenameDraftView<'a> {
     pub(crate) fn tab_id(&self) -> &'a orchbee_workbench_protocol::WorkbenchTabId {
         self.0.tab_id()
     }
-    pub(crate) fn token(&self) -> NativeRenameDraftToken {
-        NativeRenameDraftToken(self.0.token())
+    pub(crate) fn token(&self) -> RenameDraftToken {
+        RenameDraftToken(self.0.token())
     }
     pub(crate) fn text(&self) -> &'a str {
         self.0.text()
@@ -44,7 +44,7 @@ impl<'a> NativeRenameDraftView<'a> {
     /// Pure display-space projection of the draft inside a
     /// `field_width`-cell field; `None` when the field has no drawable
     /// width.
-    pub(crate) fn field_window(&self, field_width: usize) -> Option<NativeFieldWindow<'a>> {
+    pub(crate) fn field_window(&self, field_width: usize) -> Option<FieldWindow<'a>> {
         self.0.field_window(field_width)
     }
     pub(crate) fn input_fault(&self) -> bool {
@@ -65,19 +65,19 @@ impl<'a> NativeRenameDraftView<'a> {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct NativeRenameInputContext {
-    token: NativeRenameDraftToken,
+pub(crate) struct RenameInputContext {
+    token: RenameDraftToken,
 }
-impl NativeRenameInputContext {
+impl RenameInputContext {
     #[cfg(test)]
-    pub(crate) const fn token(self) -> NativeRenameDraftToken {
+    pub(crate) const fn token(self) -> RenameDraftToken {
         self.token
     }
 }
 
 /// The typed edit vocabulary forwarded to the rename draft — the same
 /// contract U5's typed-input bridge emits for text fields.
-pub(crate) enum NativeRenameEdit<'a> {
+pub(crate) enum RenameEdit<'a> {
     Append(&'a str),
     Paste(&'a str),
     Backspace,
@@ -93,17 +93,17 @@ pub(crate) enum NativeRenameEdit<'a> {
 }
 
 impl<'a> WorkbenchClientView<'a> {
-    pub(crate) fn rename_draft(&self) -> Option<NativeRenameDraftView<'a>> {
+    pub(crate) fn rename_draft(&self) -> Option<RenameDraftView<'a>> {
         self.state.as_ref()?.rename_draft().map(|draft| {
             let title = self
                 .tab(draft.position() - 1)
                 .and_then(|tab| tab.observed_title);
-            NativeRenameDraftView(draft, title)
+            RenameDraftView(draft, title)
         })
     }
 }
 
-impl NativeUi {
+impl WorkbenchClientUi {
     #[cfg(test)]
     pub(in crate::workbench_client) fn rename_receipts_for_test(
         &self,
@@ -134,9 +134,7 @@ impl NativeUi {
                 .is_some_and(|state| state.retain_rename_worker(evidence))
         })
     }
-    pub(in crate::workbench_client) fn request_rename_draft(
-        &mut self,
-    ) -> Option<NativeRenameDraftToken> {
+    pub(in crate::workbench_client) fn request_rename_draft(&mut self) -> Option<RenameDraftToken> {
         if self.retirement_failure.is_some() {
             return None;
         }
@@ -144,25 +142,25 @@ impl NativeUi {
         self.mailbox
             .as_ref()?
             .open_rename_draft_for(state)
-            .map(NativeRenameDraftToken)
+            .map(RenameDraftToken)
     }
     pub(in crate::workbench_client) fn rename_input_context(
         &mut self,
-    ) -> Option<NativeRenameInputContext> {
+    ) -> Option<RenameInputContext> {
         let state = self.state.as_mut()?;
         if state.rename_draft().is_none() {
             state.cancel_rename_draft();
             return None;
         }
         let draft = state.rename_draft()?;
-        Some(NativeRenameInputContext {
-            token: NativeRenameDraftToken(draft.token()),
+        Some(RenameInputContext {
+            token: RenameDraftToken(draft.token()),
         })
     }
     pub(in crate::workbench_client) fn edit_rename_draft(
         &mut self,
-        token: NativeRenameDraftToken,
-        edit: NativeRenameEdit<'_>,
+        token: RenameDraftToken,
+        edit: RenameEdit<'_>,
     ) -> bool {
         let Some(state) = self.state.as_mut() else {
             return false;
@@ -173,25 +171,22 @@ impl NativeUi {
         state.edit_rename_draft(
             token.0,
             match edit {
-                NativeRenameEdit::Append(text) => RenameDraftEdit::Append(text),
-                NativeRenameEdit::Paste(text) => RenameDraftEdit::Paste(text),
-                NativeRenameEdit::Backspace => RenameDraftEdit::Backspace,
-                NativeRenameEdit::Clear => RenameDraftEdit::Clear,
-                NativeRenameEdit::Left => RenameDraftEdit::Left,
-                NativeRenameEdit::Right => RenameDraftEdit::Right,
-                NativeRenameEdit::Home => RenameDraftEdit::Home,
-                NativeRenameEdit::End => RenameDraftEdit::End,
-                NativeRenameEdit::Delete => RenameDraftEdit::Delete,
-                NativeRenameEdit::WordBackspace => RenameDraftEdit::WordBackspace,
-                NativeRenameEdit::Fault => RenameDraftEdit::Fault,
-                NativeRenameEdit::Completeness(value) => RenameDraftEdit::Completeness(value),
+                RenameEdit::Append(text) => RenameDraftEdit::Append(text),
+                RenameEdit::Paste(text) => RenameDraftEdit::Paste(text),
+                RenameEdit::Backspace => RenameDraftEdit::Backspace,
+                RenameEdit::Clear => RenameDraftEdit::Clear,
+                RenameEdit::Left => RenameDraftEdit::Left,
+                RenameEdit::Right => RenameDraftEdit::Right,
+                RenameEdit::Home => RenameDraftEdit::Home,
+                RenameEdit::End => RenameDraftEdit::End,
+                RenameEdit::Delete => RenameDraftEdit::Delete,
+                RenameEdit::WordBackspace => RenameDraftEdit::WordBackspace,
+                RenameEdit::Fault => RenameDraftEdit::Fault,
+                RenameEdit::Completeness(value) => RenameDraftEdit::Completeness(value),
             },
         )
     }
-    pub(in crate::workbench_client) fn cancel_rename_draft(
-        &mut self,
-        token: NativeRenameDraftToken,
-    ) {
+    pub(in crate::workbench_client) fn cancel_rename_draft(&mut self, token: RenameDraftToken) {
         if let Some(state) = self.state.as_mut()
             && state
                 .rename_draft()
@@ -202,7 +197,7 @@ impl NativeUi {
     }
     pub(in crate::workbench_client) fn after_rename_draw(
         &mut self,
-        token: Option<ModalPresentation<NativeRenameDraftToken>>,
+        token: Option<ModalPresentation<RenameDraftToken>>,
     ) {
         let Some(state) = self.state.as_mut() else {
             return;
@@ -223,7 +218,7 @@ impl NativeUi {
     }
     pub(in crate::workbench_client) fn submit_rename_draft(
         &mut self,
-        token: NativeRenameDraftToken,
+        token: RenameDraftToken,
     ) -> ClientActionDisposition {
         if self
             .state
@@ -262,7 +257,7 @@ use crate::workbench_client::{
     },
 };
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(super) fn apply_rename_event(
         &mut self,
         mailbox: &Arc<CommandMailbox>,

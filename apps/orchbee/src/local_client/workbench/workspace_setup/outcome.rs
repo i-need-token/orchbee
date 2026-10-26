@@ -284,7 +284,7 @@ fn ordering_outcome_matches(
 
 fn compatible_rejection(action: &WorkbenchAction, reason: WorkbenchRejectionReason) -> bool {
     match reason {
-        WorkbenchRejectionReason::SiteMismatch
+        WorkbenchRejectionReason::SessionMismatch
         | WorkbenchRejectionReason::RevisionMismatch
         | WorkbenchRejectionReason::ResourceLimit
         | WorkbenchRejectionReason::RevisionExhausted

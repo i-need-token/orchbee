@@ -107,7 +107,7 @@ fn exact_commit_rejects_every_change_beyond_target_label() {
     for wrong in failures {
         assert_eq!(
             validate_renamed_tab(&baseline, &expected, wrong),
-            Err(NativeProjectionDivergence)
+            Err(ClientProjectionDivergence)
         );
     }
     assert_eq!(
@@ -142,7 +142,7 @@ fn known_rename_requires_existing_target_changed_label_and_exact_successor() {
     ] {
         assert_eq!(
             validate_renamed_tab(&baseline, &expected, candidate.clone()),
-            Err(NativeProjectionDivergence)
+            Err(ClientProjectionDivergence)
         );
     }
     for revision in [9, 10] {
@@ -152,7 +152,7 @@ fn known_rename_requires_existing_target_changed_label_and_exact_successor() {
                 &expectation(&baseline, 1, 11, "changed"),
                 projected(3, revision),
             ),
-            Err(NativeProjectionDivergence)
+            Err(ClientProjectionDivergence)
         );
     }
     let maximum = projected(1, u64::MAX);
@@ -162,7 +162,7 @@ fn known_rename_requires_existing_target_changed_label_and_exact_successor() {
             &expectation(&maximum, 0, u64::MAX, "changed"),
             maximum.clone(),
         ),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }
 
@@ -195,12 +195,12 @@ fn later_history_still_enforces_canonical_identity_and_membership_bounds() {
     let expected = expectation(&baseline, 1, 11, "changed");
     let mut failures = Vec::new();
     let mut wrong = projected(3, 12);
-    wrong.site_id = site_id(999);
+    wrong.session_id = session_id(999);
     failures.push(wrong);
     let mut wrong = projected(3, 12);
     wrong.location = {
         let fixture_context_id = context_id(999);
-        NativeContextLocation::Workspace {
+        ClientContextLocation::Workspace {
             workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                 fixture_context_id.as_str(),
             )
@@ -228,7 +228,7 @@ fn later_history_still_enforces_canonical_identity_and_membership_bounds() {
     for wrong in failures {
         assert_eq!(
             validate_renamed_tab(&baseline, &expected, wrong),
-            Err(NativeProjectionDivergence)
+            Err(ClientProjectionDivergence)
         );
     }
 }
@@ -251,7 +251,7 @@ fn later_history_accepts_member_owner_migration_when_the_original_tab_vanishes()
 }
 
 fn expectation(
-    baseline: &NativeContextTabs,
+    baseline: &ClientContextTabs,
     target: usize,
     revision: u64,
     requested_label: &str,

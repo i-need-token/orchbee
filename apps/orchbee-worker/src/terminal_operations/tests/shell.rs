@@ -1,7 +1,7 @@
 use super::super::*;
 use orchbee_capability_node_protocol::{self as node, *};
 use orchbee_local_ipc::{LocalListener, LocalStream};
-use orchbee_local_site_runtime::{NativeCohort, WindowsShellSettings};
+use orchbee_local_runtime::{Cohort, ShellSettings};
 use orchbee_terminal_protocol::{
     self as terminal, ConnectionControl, Envelope, HelloAccepted, PayloadEncoding,
     TerminalCreationControl, decode_connection_control, decode_terminal_creation_control,
@@ -340,7 +340,7 @@ fn editor_source_launch_reaches_host_capture_with_literal_argv_and_retains_known
             NonZeroU64::MIN,
             &drain,
             None,
-            &WindowsShellSettings::default(),
+            &ShellSettings::default(),
         );
         driver.join().unwrap();
         assert!(result.is_err());
@@ -372,12 +372,12 @@ fn editor_source_missing_viewer_fails_before_host_create_or_lazy_startup() {
         NonZeroU64::MIN,
         &drain,
         None,
-        &WindowsShellSettings::default(),
+        &ShellSettings::default(),
     );
     driver.join().unwrap();
     assert!(result.is_err());
     let fixture = CohortFixture::new();
-    let cohort = NativeCohort::load(&fixture.0, Instant::now() + Duration::from_secs(3)).unwrap();
+    let cohort = Cohort::load(&fixture.0, Instant::now() + Duration::from_secs(3)).unwrap();
     let runtime = fixture.0.join("runtime");
     let (server, mut peer) = LocalStream::pair().unwrap();
     timeout(&peer);
@@ -396,15 +396,13 @@ fn editor_source_missing_viewer_fails_before_host_create_or_lazy_startup() {
         &cohort,
         &runtime,
         None,
-        &WindowsShellSettings::default(),
+        &ShellSettings::default(),
     );
     driver.join().unwrap();
     assert!(result.is_err());
     assert!(
-        !orchbee_local_site_runtime::ModeCheckedLocalSiteRendezvous::host_runtime_directory(
-            &runtime
-        )
-        .exists()
+        !orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::host_runtime_directory(&runtime)
+            .exists()
     );
 }
 fn send(peer: &mut LocalStream, launch: &AuthorizedTerminalLaunch) {
@@ -551,7 +549,7 @@ fn admitted_worker_survives_invalid_defaults_then_launches_fresh_policy_and_fenc
     let mutations = crate::worktree_mutation_job::WorktreeMutationSlot::new(
         crate::worktree_mutation_windows::run,
     );
-    let fallback = WindowsShellSettings::new("unavailable-startup.exe", "auto").unwrap();
+    let fallback = ShellSettings::new("unavailable-startup.exe", "auto").unwrap();
     assert!(
         run_admitted(
             server,
@@ -566,7 +564,7 @@ fn admitted_worker_survives_invalid_defaults_then_launches_fresh_policy_and_fenc
                 worktree_slot: &worktrees,
                 mutation_slot: &mutations,
                 plugin_jobs: &crate::plugin_jobs::PluginJobs::new(),
-                site_runtime: None,
+                session_runtime: None,
                 managed_host: None,
             }
         )
@@ -629,7 +627,7 @@ impl Drop for CohortFixture {
 #[test]
 fn lazy_worker_retains_invalid_launch_receipt_and_answers_next_request_without_starting_host() {
     let fixture = CohortFixture::new();
-    let cohort = NativeCohort::load(&fixture.0, Instant::now() + Duration::from_secs(3)).unwrap();
+    let cohort = Cohort::load(&fixture.0, Instant::now() + Duration::from_secs(3)).unwrap();
     let runtime = fixture.0.join("runtime");
     let (server, mut peer) = LocalStream::pair().unwrap();
     timeout(&peer);
@@ -663,16 +661,14 @@ fn lazy_worker_retains_invalid_launch_receipt_and_answers_next_request_without_s
             &cohort,
             &runtime,
             None,
-            &WindowsShellSettings::default()
+            &ShellSettings::default()
         )
         .is_err()
     );
     driver.join().unwrap();
     assert!(
-        !orchbee_local_site_runtime::ModeCheckedLocalSiteRendezvous::host_runtime_directory(
-            &runtime
-        )
-        .exists()
+        !orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::host_runtime_directory(&runtime)
+            .exists()
     );
 }
 
@@ -682,9 +678,9 @@ fn lazy_handoff_retains_ticket_history_and_worker_identity_without_starting_host
         WorkerHandoffAction as Action, WorkerHandoffId, WorkerHandoffOutcome as Outcome,
         WorkerHandoffRefusal, WorkerHandoffRequest, WorkerHandoffResult, WorkerHandoffTarget,
     };
-    use orchbee_local_site_runtime::ModeCheckedLocalSiteRendezvous;
+    use orchbee_local_runtime::ModeCheckedLocalSessionRendezvous;
     let fixture = CohortFixture::new();
-    let cohort = NativeCohort::load(&fixture.0, Instant::now() + Duration::from_secs(3)).unwrap();
+    let cohort = Cohort::load(&fixture.0, Instant::now() + Duration::from_secs(3)).unwrap();
     let runtime = fixture.0.join("runtime");
     let prepare = WorkerHandoffRequest {
         operation_id: OperationId::from_bytes([41; 16]).unwrap(),
@@ -696,7 +692,7 @@ fn lazy_handoff_retains_ticket_history_and_worker_identity_without_starting_host
         },
         action: Action::Prepare,
     };
-    let listener = LocalListener::bind(ModeCheckedLocalSiteRendezvous::handoff_endpoint_path(
+    let listener = LocalListener::bind(ModeCheckedLocalSessionRendezvous::handoff_endpoint_path(
         &runtime,
         prepare.target.handoff_id.as_bytes(),
     ))
@@ -793,7 +789,7 @@ fn lazy_handoff_retains_ticket_history_and_worker_identity_without_starting_host
         &cohort,
         &runtime,
         None,
-        &WindowsShellSettings::default(),
+        &ShellSettings::default(),
     );
     original.join().unwrap();
     next.join().unwrap();
@@ -801,13 +797,13 @@ fn lazy_handoff_retains_ticket_history_and_worker_identity_without_starting_host
         result.is_err(),
         "ordinary new Server EOF is not another handoff"
     );
-    assert!(!ModeCheckedLocalSiteRendezvous::host_runtime_directory(&runtime).exists());
+    assert!(!ModeCheckedLocalSessionRendezvous::host_runtime_directory(&runtime).exists());
 }
 
 #[test]
 fn lazy_editor_command_query_echoes_refusals_and_current_resolution_without_starting_host() {
     let fixture = CohortFixture::new();
-    let cohort = NativeCohort::load(&fixture.0, Instant::now() + Duration::from_secs(3)).unwrap();
+    let cohort = Cohort::load(&fixture.0, Instant::now() + Duration::from_secs(3)).unwrap();
     let runtime = fixture.0.join("runtime");
     let (server, mut peer) = LocalStream::pair().unwrap();
     timeout(&peer);
@@ -868,15 +864,13 @@ fn lazy_editor_command_query_echoes_refusals_and_current_resolution_without_star
         &cohort,
         &runtime,
         None,
-        &WindowsShellSettings::default(),
+        &ShellSettings::default(),
     );
     driver.join().unwrap();
     assert!(result.is_err());
     assert!(
-        !orchbee_local_site_runtime::ModeCheckedLocalSiteRendezvous::host_runtime_directory(
-            &runtime
-        )
-        .exists()
+        !orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::host_runtime_directory(&runtime)
+            .exists()
     );
 }
 
@@ -911,7 +905,7 @@ fn admitted_editor_command_query_uses_no_host_request_or_terminal_effect() {
         NonZeroU64::MIN,
         &drain,
         None,
-        &WindowsShellSettings::default(),
+        &ShellSettings::default(),
     );
     driver.join().unwrap();
     assert!(outcome.is_err());

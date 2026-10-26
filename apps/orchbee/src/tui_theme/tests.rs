@@ -796,12 +796,12 @@ fn style_colors(theme: &Theme) -> Vec<(Role, Option<Color>, Option<Color>)> {
 
 #[test]
 fn explicit_sidebar_styles_preserve_absence_and_clear_false_modifiers() {
-    use orchbee_local_site_runtime::WindowsSidebarTokenStyle;
+    use orchbee_local_runtime::SidebarTokenStyle;
     for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
         assert_eq!(
             theme.sidebar_token_style(
                 Role::TextSecondary,
-                WindowsSidebarTokenStyle::default(),
+                SidebarTokenStyle::default(),
                 false,
                 false
             ),
@@ -809,7 +809,7 @@ fn explicit_sidebar_styles_preserve_absence_and_clear_false_modifiers() {
         );
         let explicit = theme.sidebar_token_style(
             Role::HintKey,
-            WindowsSidebarTokenStyle {
+            SidebarTokenStyle {
                 fg: Some([16, 32, 48]),
                 bold: Some(false),
                 dim: Some(true),
@@ -822,7 +822,7 @@ fn explicit_sidebar_styles_preserve_absence_and_clear_false_modifiers() {
         assert!(explicit.add_modifier.contains(Modifier::DIM));
         let cleared = theme.sidebar_token_style(
             Role::TextSecondary,
-            WindowsSidebarTokenStyle {
+            SidebarTokenStyle {
                 dim: Some(false),
                 ..Default::default()
             },
@@ -834,7 +834,7 @@ fn explicit_sidebar_styles_preserve_absence_and_clear_false_modifiers() {
     }
     let explicit = Theme::terminal_native().sidebar_token_style(
         Role::TextSecondary,
-        WindowsSidebarTokenStyle {
+        SidebarTokenStyle {
             fg: Some([16, 32, 48]),
             bold: Some(false),
             dim: Some(true),
@@ -849,7 +849,7 @@ fn explicit_sidebar_styles_preserve_absence_and_clear_false_modifiers() {
 
 #[test]
 fn sidebar_navigation_pairs_text_without_recoloring_status_or_explicit_tokens() {
-    use orchbee_local_site_runtime::WindowsSidebarTokenStyle;
+    use orchbee_local_runtime::SidebarTokenStyle;
     for theme in [
         Theme::terminal_native(),
         Theme::rgb_test_dark(),
@@ -866,7 +866,7 @@ fn sidebar_navigation_pairs_text_without_recoloring_status_or_explicit_tokens() 
             theme.sidebar_token_style(Role::StatusWarning, Default::default(), false, true);
         assert_eq!(status.fg, theme.style(Role::StatusWarning).fg);
         assert_eq!(status.bg, theme.style(Role::SurfaceSelection).bg);
-        let token = WindowsSidebarTokenStyle {
+        let token = SidebarTokenStyle {
             fg: Some([16, 32, 48]),
             bold: Some(false),
             dim: Some(true),

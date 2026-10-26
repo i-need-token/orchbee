@@ -7,7 +7,7 @@ mod program;
 mod support;
 use orchbee_local_client_protocol::{ClientHello, LocalClientMessage, read_message, write_message};
 use orchbee_local_ipc::{ChildInputWriter, ChildOutputReader, LocalListener};
-use orchbee_local_site_runtime::{NativeCohort, WindowsCommandChild};
+use orchbee_local_runtime::{Cohort, CommandChild};
 use std::{
     io::{self, Read, Write},
     process::{Command, Stdio},
@@ -15,7 +15,7 @@ use std::{
     time::{Duration, Instant},
 };
 use support::Fixture;
-struct Owned(WindowsCommandChild);
+struct Owned(CommandChild);
 impl Drop for Owned {
     fn drop(&mut self) {
         self.0.settle().unwrap();
@@ -32,14 +32,14 @@ impl Drop for Peer {
 #[test]
 fn tunnel_helper_preserves_admission_full_duplex_binary_and_final_eof_bytes() {
     let fixture = Fixture::new();
-    let cohort = NativeCohort::load(
+    let cohort = Cohort::load(
         fixture.cohort_directory(),
         Instant::now() + Duration::from_secs(15),
     )
     .unwrap();
-    let site = fixture.rendezvous();
+    let session = fixture.rendezvous();
     for shell in [false, true] {
-        let listener = LocalListener::bind(site.client_socket_path()).unwrap();
+        let listener = LocalListener::bind(session.client_socket_path()).unwrap();
         listener.set_nonblocking(true).unwrap();
         let identity = cohort.identity().to_owned();
         let data: Vec<u8> = (0..512 * 1024).map(|n| (n % 256) as u8).collect();
@@ -104,11 +104,7 @@ fn tunnel_helper_preserves_admission_full_duplex_binary_and_final_eof_bytes() {
             .env("ORCHBEE_RUNTIME_BASE", fixture.0.join("runtime"))
             .env("APPDATA", fixture.0.join("appdata"))
             .env_remove("ORCHBEE_CONFIG_FILE");
-        let mut child = Owned(
-            WindowsCommandChild::spawn(command)
-                .map_err(|e| e.error)
-                .unwrap(),
-        );
+        let mut child = Owned(CommandChild::spawn(command).map_err(|e| e.error).unwrap());
         let mut request = Vec::new();
         write_message(
             &mut request,
@@ -171,7 +167,7 @@ fn tunnel_helper_preserves_admission_full_duplex_binary_and_final_eof_bytes() {
     }
 }
 #[test]
-fn tunnel_helper_refuses_wrong_cohort_without_activating_a_site() {
+fn tunnel_helper_refuses_wrong_cohort_without_activating_a_session() {
     let fixture = Fixture::new();
     let output = fixture.run(&["--machine-tunnel-v1", "default", &"0".repeat(64)]);
     assert_eq!(output.status.code(), Some(5));

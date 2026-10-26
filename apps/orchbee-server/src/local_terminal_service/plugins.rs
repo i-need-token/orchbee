@@ -4,7 +4,7 @@ use crate::worker_obcn_carrier::{
     WorkerOperationRequest, WorkerOperationResult, WorkerRequestError,
 };
 use orchbee_capability_node_protocol as node;
-use orchbee_local_site_runtime::PluginRegistry;
+use orchbee_local_runtime::PluginRegistry;
 use orchbee_workbench_protocol::{
     PluginAction, PluginCommandLog, PluginFailure as Failure, PluginInvocationContext,
     PluginLogCursor, PluginOutcome as Outcome, PluginRequest, PluginResult, PluginWorker,
@@ -19,14 +19,14 @@ impl LocalTerminalService {
         PluginResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
-            site_id: request.site_id,
+            session_id: request.session_id,
             outcome,
         }
     }
     fn plugin_operation(&self, request: &PluginRequest) -> Result<Outcome, Failure> {
         request.validate().map_err(|_| Failure::InvalidIntent)?;
-        if self.workbench_site_matches(&request.site_id) != Some(true) {
-            return Err(Failure::SiteMismatch);
+        if self.workbench_session_matches(&request.session_id) != Some(true) {
+            return Err(Failure::SessionMismatch);
         }
         if matches!(
             request.action,
@@ -288,7 +288,7 @@ fn resolve(
 }
 
 fn verify_link_selection(
-    plugins: &[orchbee_local_site_runtime::PluginRegistryEntry],
+    plugins: &[orchbee_local_runtime::PluginRegistryEntry],
     plugin_id: Option<&str>,
     action_id: &str,
     context: &PluginInvocationContext,

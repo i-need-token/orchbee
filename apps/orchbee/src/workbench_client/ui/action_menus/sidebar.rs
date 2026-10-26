@@ -1,7 +1,7 @@
 //! Sidebar composition projects exact typed organization choices, never labels as identity.
 use super::{
-    Duration, Instant, MenuAction, MenuTarget, NativeContextLocation, NativeMenuContextSource,
-    NativeUi, Stage, Target, WorkbenchClientState, visible_unavailable,
+    ClientContextLocation, Duration, Instant, MenuAction, MenuContextSource, MenuTarget, Stage,
+    Target, WorkbenchClientState, WorkbenchClientUi, visible_unavailable,
 };
 use crate::workbench_client::{
     SidebarWorktreeTarget,
@@ -49,12 +49,12 @@ pub(super) fn target(
         (
             _,
             Target::Workspace {
-                location: NativeContextLocation::Workspace { workspace_id, .. },
+                location: ClientContextLocation::Workspace { workspace_id, .. },
                 ..
             },
         ) => Some(SidebarWorktreeTarget::Workspace(workspace_id.clone())),
         (MenuTarget::Create(None), Target::Global) => match state.cache().location() {
-            NativeContextLocation::Workspace { workspace_id, .. } => {
+            ClientContextLocation::Workspace { workspace_id, .. } => {
                 Some(SidebarWorktreeTarget::Workspace(workspace_id.clone()))
             }
             _ => None,
@@ -67,7 +67,7 @@ fn belongs(entry: &MenuTarget, episode: &Episode) -> bool {
     match (entry, &episode.source.target) {
         (MenuTarget::Worktrees(target), source) => target == source,
         (
-            MenuTarget::Workspace(NativeContextLocation::Workspace { workspace_id, .. }),
+            MenuTarget::Workspace(ClientContextLocation::Workspace { workspace_id, .. }),
             SidebarWorktreeTarget::Workspace(id),
         ) => workspace_id == id,
         (
@@ -162,7 +162,7 @@ pub(super) fn project_choices(
     target: &Target,
 ) -> Option<(Vec<orchbee_workbench_protocol::Project>, Vec<MenuAction>)> {
     let Target::Workspace {
-        source: NativeMenuContextSource::Workspace { workspace, .. },
+        source: MenuContextSource::Workspace { workspace, .. },
         ..
     } = target
     else {
@@ -190,7 +190,7 @@ pub(super) fn project_choices(
     Some((projects, actions))
 }
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(super) fn prepare_sidebar_worktrees(&mut self) {
         let Some(intent) = self.menus.intent.as_ref() else {
             return;

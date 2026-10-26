@@ -13,7 +13,7 @@ getrandom.workspace = true
 orchbee-local-ipc = { path = "../../crates/local-ipc" }
 
 
-orchbee-local-site-runtime = { path = "../../crates/local-site-runtime" }
+orchbee-local-runtime = { path = "../../crates/local-runtime" }
 crossterm = { version = "0.29.0", default-features = false }
 orchbee-agent-observation-protocol = { path = "../../crates/agent-observation-protocol" }
 orchbee-client-server-protocol = { path = "../../crates/client-server-protocol" }

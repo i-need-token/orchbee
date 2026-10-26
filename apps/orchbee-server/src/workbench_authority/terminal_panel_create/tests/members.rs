@@ -5,7 +5,7 @@ use orchbee_workbench_protocol::{TerminalPresentationId, WorkbenchPanelTerminalT
 
 fn fixture() -> (WorkbenchAuthority, WorkbenchGrant, WorkbenchCommand) {
     let mut authority =
-        WorkbenchAuthority::workspace_fixture(SiteId::parse(&identity(700)).unwrap()).unwrap();
+        WorkbenchAuthority::workspace_fixture(SessionId::parse(&identity(700)).unwrap()).unwrap();
     authority.append_fixture_tab(binding(1)).unwrap();
     let snapshot = authority.snapshot();
     let context = &snapshot.terminal_contexts[0];
@@ -16,7 +16,7 @@ fn fixture() -> (WorkbenchAuthority, WorkbenchGrant, WorkbenchCommand) {
     let command = WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&identity(900)).unwrap(),
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         expected_revision: snapshot.revision,
         action: WorkbenchAction::PanelCreateTerminal {
             terminal_context_id: context.terminal_context_id.clone(),
@@ -31,7 +31,8 @@ fn fixture() -> (WorkbenchAuthority, WorkbenchGrant, WorkbenchCommand) {
             options: Default::default(),
         },
     };
-    let grant = WorkbenchGrant::manage_navigation_and_terminal_create(authority.site_id().clone());
+    let grant =
+        WorkbenchGrant::manage_navigation_and_terminal_create(authority.session_id().clone());
     (authority, grant, command)
 }
 

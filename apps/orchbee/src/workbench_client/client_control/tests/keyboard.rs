@@ -8,7 +8,7 @@ use ratatui::layout::Rect;
 #[test]
 fn painted_resize_rejects_changed_source_or_geometry_and_uses_the_keyboard_lane() {
     for changed in [
-        "current", "site", "context", "tab", "focus", "revision", "viewport", "sidebar",
+        "current", "session", "context", "tab", "focus", "revision", "viewport", "sidebar",
     ] {
         let (mut native, mailbox, clock, _) = ready_split_ui();
         let poll = mailbox.try_recv().unwrap().unwrap();
@@ -24,8 +24,9 @@ fn painted_resize_rejects_changed_source_or_geometry_and_uses_the_keyboard_lane(
         };
         let other = format!("{:032x}", 987);
         match changed {
-            "site" => {
-                target.source.site = orchbee_workbench_protocol::SiteId::parse(&other).unwrap()
+            "session" => {
+                target.source.session =
+                    orchbee_workbench_protocol::SessionId::parse(&other).unwrap()
             }
             "context" => {
                 target.source.context =

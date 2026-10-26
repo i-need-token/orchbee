@@ -4,7 +4,7 @@ use crate::{
     machine_discovery::Context as NavigationContext,
     machine_picker::Choice,
     tui_pointer::HitTarget,
-    workbench_client::{NativeContextLocation, NativeContextTarget},
+    workbench_client::{ClientContextLocation, ClientContextTarget},
 };
 use orchbee_workbench_protocol::*;
 use ratatui::{Terminal, backend::TestBackend, style::Modifier};
@@ -40,13 +40,13 @@ fn view(width: u16, height: u16) -> ClientView {
             .sidebar
             .is_some(),
     );
-    let site = SiteId::parse(&id(1)).unwrap();
+    let session = SessionId::parse(&id(1)).unwrap();
     let rows: Vec<_> = (0..2)
         .map(|n| crate::machine_spaces::Row {
             project_id: Some(WorkbenchProjectId::parse(&id(70)).unwrap()),
-            target: NativeContextTarget {
-                site_id: site.clone(),
-                location: NativeContextLocation::Workspace {
+            target: ClientContextTarget {
+                session_id: session.clone(),
+                location: ClientContextLocation::Workspace {
                     workspace_id: WorkbenchWorkspaceId::parse(&id(80 + n)).unwrap(),
                     terminal_context_id: WorkbenchTerminalContextId::parse(&id(90 + n)).unwrap(),
                 },
@@ -89,7 +89,7 @@ fn view(width: u16, height: u16) -> ClientView {
         Choice::Local,
         crate::machine_spaces::Observation::Ready(std::sync::Arc::new(
             crate::machine_spaces::Checkpoint {
-                site_id: site,
+                session_id: session,
                 revision: WorkbenchRevision::new(1),
                 metadata_revision: WorkbenchRevision::new(2),
                 git_requested: true,
@@ -115,20 +115,20 @@ fn token(name: &str) -> serde_json::Value {
 }
 fn configure(view: &mut ClientView, rows: serde_json::Value, gap: u16) {
     view.machines.configure_space_sidebar(
-        orchbee_local_site_runtime::WindowsSpaceSidebarSettings::from_profile(
+        orchbee_local_runtime::SpaceSidebarSettings::from_profile(
             &serde_json::json!({"rows":rows,"row_gap":gap}).to_string(),
         )
         .unwrap(),
     );
 }
 
-fn agent_for(target: NativeContextTarget, number: u64) -> crate::machine_agents::Row {
+fn agent_for(target: ClientContextTarget, number: u64) -> crate::machine_agents::Row {
     let mut agent = crate::machine_agents::tests::row(number);
     agent.target.context = target;
     agent
 }
 
-fn expand_context_agents(view: &mut ClientView, target: NativeContextTarget) {
+fn expand_context_agents(view: &mut ClientView, target: ClientContextTarget) {
     let target = SidebarTarget::Context {
         machine: Choice::Local,
         target,
@@ -334,7 +334,7 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                     assert!(matches!(
                         hits.hit_target_at(x, agent_y),
                         Some(HitTarget::MachineAgentRow { selected: actual, .. })
-                            if matches!(&actual.context, Some(crate::workbench_client::NativeStartupTarget::Agent(target)) if target.as_ref() == &selected)
+                            if matches!(&actual.context, Some(crate::workbench_client::ClientStartupTarget::Agent(target)) if target.as_ref() == &selected)
                     ));
                 }
                 assert!(view.machines.request.is_none());
@@ -597,7 +597,7 @@ fn compact_sidebar_keeps_current_workspace_and_agent_unclipped() {
             unreachable!()
         };
         let agent = agent_for(target.clone(), 23);
-        let member = crate::workbench_client::NativeMemberTarget {
+        let member = crate::workbench_client::ClientMemberTarget {
             tab: agent.target.tab.clone(),
             panel: agent.target.panel.clone(),
             presentation: agent.target.member.clone(),
@@ -718,7 +718,7 @@ fn long_branch_and_custom_text_shrink_before_fixed_divergence_counts() {
         Choice::Local,
         crate::machine_spaces::Observation::Ready(std::sync::Arc::new(
             crate::machine_spaces::Checkpoint {
-                site_id: SiteId::parse(&id(1)).unwrap(),
+                session_id: SessionId::parse(&id(1)).unwrap(),
                 revision: WorkbenchRevision::new(1),
                 metadata_revision: WorkbenchRevision::new(2),
                 git_requested: true,
@@ -1227,7 +1227,7 @@ fn ungrouped_view(label: &str) -> ClientView {
         Choice::Local,
         crate::machine_spaces::Observation::Ready(std::sync::Arc::new(
             crate::machine_spaces::Checkpoint {
-                site_id: current.site_id.clone(),
+                session_id: current.session_id.clone(),
                 revision: WorkbenchRevision::new(3),
                 metadata_revision: WorkbenchRevision::new(2),
                 git_requested: true,
@@ -1340,7 +1340,7 @@ fn shortest_sidebar_keeps_complete_current_context_and_agent_when_both_fit() {
                 unreachable!()
             };
             let agent = agent_for(target.clone(), 23);
-            let member = crate::workbench_client::NativeMemberTarget {
+            let member = crate::workbench_client::ClientMemberTarget {
                 tab: agent.target.tab.clone(),
                 panel: agent.target.panel.clone(),
                 presentation: agent.target.member.clone(),
@@ -1385,7 +1385,7 @@ fn duplicate_project_and_workspace_labels_keep_complete_distinguishing_ids_when_
         .map(|row| view.machines.space_checkpoint_row(row).unwrap().clone())
         .collect();
     for (index, row) in rows.iter_mut().enumerate() {
-        let NativeContextLocation::Workspace { workspace_id, .. } = &mut row.target.location else {
+        let ClientContextLocation::Workspace { workspace_id, .. } = &mut row.target.location else {
             unreachable!()
         };
         *workspace_id =
@@ -1396,7 +1396,7 @@ fn duplicate_project_and_workspace_labels_keep_complete_distinguishing_ids_when_
         Choice::Local,
         crate::machine_spaces::Observation::Ready(std::sync::Arc::new(
             crate::machine_spaces::Checkpoint {
-                site_id: SiteId::parse(&id(1)).unwrap(),
+                session_id: SessionId::parse(&id(1)).unwrap(),
                 revision: WorkbenchRevision::new(2),
                 metadata_revision: WorkbenchRevision::new(2),
                 git_requested: false,
@@ -1517,7 +1517,7 @@ fn colored_current_context_and_agent_keep_plain_identity_state_and_unread_cues_i
         workspace["style"]["bold"] = serde_json::json!(false);
         configure(&mut view, serde_json::json!([[workspace]]), 0);
         view.machines.configure_agent_sidebar(
-            orchbee_local_site_runtime::WindowsAgentSidebarSettings::from_profile(
+            orchbee_local_runtime::AgentSidebarSettings::from_profile(
                 &serde_json::json!({
                     "rows": [[{
                         "name": "pane",
@@ -1553,7 +1553,7 @@ fn colored_current_context_and_agent_keep_plain_identity_state_and_unread_cues_i
         view.machines.observe_focus(
             Choice::Local,
             Some(context_target.clone()),
-            Some(crate::workbench_client::NativeMemberTarget {
+            Some(crate::workbench_client::ClientMemberTarget {
                 tab: member.tab.clone(),
                 panel: member.panel.clone(),
                 presentation: member.member.clone(),
@@ -1712,7 +1712,7 @@ fn alignment_sidebar_tree_keeps_current_focus_children_and_whole_shell_evidence(
     ] {
         let mut view = view(width, height);
         view.configure_color_level(crate::tui_theme::ColorLevel::Truecolor);
-        view.configure_theme(orchbee_local_site_runtime::WindowsThemeName::default());
+        view.configure_theme(orchbee_local_runtime::ThemeName::default());
         configure(
             &mut view,
             serde_json::json!([[token("state_icon"), token("workspace")], [token("branch")]]),
@@ -1769,7 +1769,7 @@ fn alignment_sidebar_tree_keeps_current_focus_children_and_whole_shell_evidence(
         assert!((0..height).any(|y| (0..width).any(|x| matches!(
             hits.hit_target_at(x, y),
             Some(HitTarget::MachineAgentRow { selected, .. })
-                if matches!(&selected.context, Some(crate::workbench_client::NativeStartupTarget::Agent(target)) if target.as_ref() == &agent_selection)
+                if matches!(&selected.context, Some(crate::workbench_client::ClientStartupTarget::Agent(target)) if target.as_ref() == &agent_selection)
         ))));
         assert!((0..height).all(|y| {
             (0..width).all(|x| !matches!(hits.hit_target_at(x, y), Some(HitTarget::SidebarMenu(_))))

@@ -1,5 +1,5 @@
 use crate::{
-    Directory, MAXIMUM_DIRECTORIES, Navigation, Project, ProtocolVersion, SiteId, Snapshot,
+    Directory, MAXIMUM_DIRECTORIES, Navigation, Project, ProtocolVersion, SessionId, Snapshot,
     TerminalContext, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchProjectId,
     WorkbenchRevision, WorkbenchTerminalContextId, WorkbenchWorkspaceId, WorkerId, Workspace,
     validation::validate_snapshot,
@@ -9,7 +9,7 @@ fn snapshot() -> Snapshot {
     let context = WorkbenchTerminalContextId::parse(&format!("{:032x}", 1)).unwrap();
     Snapshot {
         protocol_version: ProtocolVersion,
-        site_id: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
+        session_id: SessionId::parse(&format!("{:032x}", 1)).unwrap(),
         revision: WorkbenchRevision::new(1),
         navigation: {
             let fixture_context_id = context.clone();

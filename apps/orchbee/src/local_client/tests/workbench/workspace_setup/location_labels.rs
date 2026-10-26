@@ -134,7 +134,7 @@ fn location_rename_refusals_follow_exact_project_or_workspace_authority() -> Tes
             WorkbenchSetupSubmission::DefinitePrecommit(WorkbenchSetupPrecommit::Denied)
         ));
         for (reason, accepted) in [
-            (WorkbenchRejectionReason::SiteMismatch, true),
+            (WorkbenchRejectionReason::SessionMismatch, true),
             (WorkbenchRejectionReason::RevisionMismatch, true),
             (WorkbenchRejectionReason::ProjectUnavailable, true),
             (WorkbenchRejectionReason::WorkspaceUnavailable, workspace),

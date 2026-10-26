@@ -406,7 +406,7 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
         self.authority.retire(&self.command)
     }
 
-    /// The Site supplies an exact retained association and a fresh monotonic acceptance sample.
+    /// The Session supplies an exact retained association and a fresh monotonic acceptance sample.
     #[must_use]
     pub fn finish(
         self,
@@ -417,7 +417,7 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
         self.finish_members(vec![(runtime, observed_phase)], now)
     }
 
-    /// The Site supplies one exact runtime observation for every frozen leaf,
+    /// The Session supplies one exact runtime observation for every frozen leaf,
     /// in the deterministic membership order.
     #[must_use]
     pub fn finish_members(
@@ -442,7 +442,7 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
         )
     }
 
-    /// Accept one Site-proven runtime or never-created binding per frozen leaf.
+    /// Accept one Session-proven runtime or never-created binding per frozen leaf.
     #[must_use]
     pub fn finish_resolved_members(
         self,
@@ -630,7 +630,7 @@ impl WorkbenchAuthority {
             &command.action,
             WorkbenchAction::TabClose { .. } | WorkbenchAction::PanelClose { .. }
         ) && grant
-            .is_some_and(|grant| grant.site_id == *self.site_id() && grant.close_terminal);
+            .is_some_and(|grant| grant.session_id == *self.session_id() && grant.close_terminal);
         if !authorized {
             return WorkbenchTabCloseBegin::Ready(result(
                 &command,
@@ -673,8 +673,8 @@ impl WorkbenchAuthority {
             _ => return WorkbenchTabCloseBegin::Ready(self.retire(&command)),
         };
         let snapshot = self.projection.snapshot();
-        let rejection = if command.site_id != snapshot.site_id {
-            Some(WorkbenchRejectionReason::SiteMismatch)
+        let rejection = if command.session_id != snapshot.session_id {
+            Some(WorkbenchRejectionReason::SessionMismatch)
         } else if command.expected_revision != snapshot.revision {
             Some(WorkbenchRejectionReason::RevisionMismatch)
         } else if !snapshot
@@ -705,7 +705,7 @@ impl WorkbenchAuthority {
 
     /// `workspace.close` admission: the same Close lifecycle machinery scoped
     /// to a Workspace's whole Terminal Context — empty membership included.
-    /// Site supplies runtime resolution; this stage resolves the named
+    /// Session supplies runtime resolution; this stage resolves the named
     /// `(project, workspace)` scope against the authoritative snapshot.
     pub fn begin_workspace_close(
         &mut self,
@@ -737,7 +737,7 @@ impl WorkbenchAuthority {
             &command.action,
             WorkbenchAction::WorkspaceClose { .. } | WorkbenchAction::WorkspaceCloseIfIdle { .. }
         ) && grant
-            .is_some_and(|grant| grant.site_id == *self.site_id() && grant.close_terminal);
+            .is_some_and(|grant| grant.session_id == *self.session_id() && grant.close_terminal);
         if !authorized {
             return WorkbenchWorkspaceCloseBegin::Ready(result(
                 &command,
@@ -773,8 +773,8 @@ impl WorkbenchAuthority {
             _ => return WorkbenchWorkspaceCloseBegin::Ready(self.retire(&command)),
         };
         let snapshot = self.projection.snapshot();
-        let rejection = if command.site_id != snapshot.site_id {
-            Some(WorkbenchRejectionReason::SiteMismatch)
+        let rejection = if command.session_id != snapshot.session_id {
+            Some(WorkbenchRejectionReason::SessionMismatch)
         } else if command.expected_revision != snapshot.revision {
             Some(WorkbenchRejectionReason::RevisionMismatch)
         } else {

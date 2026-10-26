@@ -14,7 +14,7 @@ impl WorkbenchAuthority {
         request: CloseOperationRead,
     ) -> CloseOperationResult {
         let outcome = if !grant.is_some_and(|grant| {
-            grant.site_id == *self.site_id() && request.site_id == *self.site_id()
+            grant.session_id == *self.session_id() && request.session_id == *self.session_id()
         }) {
             CloseOperationOutcome::Denied {}
         } else if let Some(RetainedRequest::TabClose(record)) =
@@ -46,7 +46,7 @@ impl WorkbenchAuthority {
         CloseOperationResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
-            site_id: request.site_id,
+            session_id: request.session_id,
             operation_id: request.operation_id,
             outcome,
         }

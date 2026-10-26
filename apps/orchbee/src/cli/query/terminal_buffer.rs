@@ -1,4 +1,4 @@
-//! One existing-Site viewer owns buffer reads, total budgets and deterministic
+//! One existing-Session viewer owns buffer reads, total budgets and deterministic
 //! release for public selection/copy/link queries and one explicit plugin activation;
 //! it never acquires terminal input.
 use super::{
@@ -316,7 +316,7 @@ impl BufferReader<'_> {
             .frame
             .current_directory
             .as_deref()
-            .and_then(orchbee_local_site_runtime::windows_reported_directory)
+            .and_then(orchbee_local_runtime::windows_reported_directory)
         {
             return Ok(Some(directory));
         }

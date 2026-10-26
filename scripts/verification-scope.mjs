@@ -22,8 +22,8 @@ const foreignDependencies = [
 const foreignPaths = [
 	['apps/desktop/resources/', 'apps/orchbee'],
 	['packages/design-tokens/src/tokens.css', 'apps/orchbee'],
-	['crates/local-site-runtime/src/windows_powershell_initialization.ps1', 'apps/terminal-host'],
-	['crates/local-site-runtime/src/windows_powershell_reader.ps1', 'apps/terminal-host'],
+	['crates/local-runtime/src/directory/windows/initialization.ps1', 'apps/terminal-host'],
+	['crates/local-runtime/src/directory/windows/reader.ps1', 'apps/terminal-host'],
 	[
 		'packages/tab-strip/src/tab-strip/model/__tests__/fixtures/tab-close-targets.json',
 		'apps/orchbee',

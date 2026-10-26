@@ -10,7 +10,7 @@ use orchbee_capability_node_protocol::{
     read_message as read_obcn, write_message as write_obcn,
 };
 use orchbee_client_server_protocol::{
-    ClientMessage, RequestId, ServerMessage, SiteId as ClientSiteId,
+    ClientMessage, RequestId, ServerMessage, SessionId as ObcsSessionId,
     TerminalId as ClientTerminalId, TerminalViewerAction, TerminalViewerOutcome,
     TerminalViewerRequest, WorkerId as ClientWorkerId, read_server_message, write_client_message,
 };
@@ -179,7 +179,7 @@ fn command(
     WorkbenchRequest::Command(WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id,
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         expected_revision: snapshot.revision,
         action,
     })
@@ -429,7 +429,7 @@ fn tab_create_commits_before_parked_launch_and_another_client_can_read_navigate_
         &ClientMessage::TerminalViewer(TerminalViewerRequest::new(
             attach_request_id.clone(),
             TerminalViewerAction::AttachBinding {
-                site_id: ClientSiteId::parse(initial.site_id.as_str())?,
+                session_id: ObcsSessionId::parse(initial.session_id.as_str())?,
                 worker_id: ClientWorkerId::parse(first_binding.worker_id.as_str())?,
                 terminal_id: ClientTerminalId::parse(first_binding.terminal_id.as_str())?,
             },

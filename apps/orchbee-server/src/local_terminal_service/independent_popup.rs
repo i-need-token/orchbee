@@ -1,7 +1,7 @@
-//! One connection owns a popup; EOF transfers accepted physical ownership to Site maintenance.
+//! One connection owns a popup; EOF transfers accepted physical ownership to Session maintenance.
 use super::{LocalTerminalService, lease_expiry, placement, submit};
 use crate::{
-    site_coordinator::ProcessObservationTarget,
+    session_coordinator::ProcessObservationTarget,
     terminal_coordinator::{BindingViewerTarget, PreparedOperation},
     worker_obcn_carrier::{WorkerOperationRequest, WorkerOperationResult},
 };
@@ -33,7 +33,7 @@ enum PopupKind {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Failure {
     InvalidIntent,
-    SiteMismatch,
+    SessionMismatch,
     Unavailable,
     PhysicalUnknown,
     Busy,
@@ -46,7 +46,7 @@ impl From<PluginFailure> for Failure {
     fn from(value: PluginFailure) -> Self {
         match value {
             PluginFailure::InvalidIntent => Self::InvalidIntent,
-            PluginFailure::SiteMismatch => Self::SiteMismatch,
+            PluginFailure::SessionMismatch => Self::SessionMismatch,
             PluginFailure::PhysicalUnknown => Self::PhysicalUnknown,
             PluginFailure::Busy => Self::Busy,
             PluginFailure::Conflict => Self::Conflict,
@@ -65,7 +65,7 @@ impl From<Failure> for PluginFailure {
     fn from(value: Failure) -> Self {
         match value {
             Failure::InvalidIntent => Self::InvalidIntent,
-            Failure::SiteMismatch => Self::SiteMismatch,
+            Failure::SessionMismatch => Self::SessionMismatch,
             Failure::PhysicalUnknown => Self::PhysicalUnknown,
             Failure::Busy => Self::Busy,
             Failure::Conflict => Self::Conflict,
@@ -200,7 +200,7 @@ impl LocalTerminalService {
         PluginResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
-            site_id: request.site_id,
+            session_id: request.session_id,
             outcome: outcome.into(),
         }
     }
@@ -236,8 +236,8 @@ impl LocalTerminalService {
         request: &PluginRequest,
     ) -> Result<Outcome, Failure> {
         request.validate().map_err(|_| Failure::InvalidIntent)?;
-        if self.workbench_site_matches(&request.site_id) != Some(true) {
-            return Err(Failure::SiteMismatch);
+        if self.workbench_session_matches(&request.session_id) != Some(true) {
+            return Err(Failure::SessionMismatch);
         }
         match &request.action {
             PluginAction::PopupOpen {
@@ -332,7 +332,7 @@ impl LocalTerminalService {
             }
 
             PluginAction::PopupRead { popup_id } => {
-                self.popup_read(owner, popup_id, &request.site_id, PopupKind::Plugin)
+                self.popup_read(owner, popup_id, &request.session_id, PopupKind::Plugin)
             }
 
             PluginAction::PaneObserve { .. }
@@ -390,7 +390,7 @@ impl LocalTerminalService {
         &self,
         owner: NonZeroU64,
         popup_id: &WorkbenchRequestId,
-        site: &orchbee_workbench_protocol::SiteId,
+        session: &orchbee_workbench_protocol::SessionId,
         kind: PopupKind,
     ) -> Result<Outcome, Failure> {
         let popup = self
@@ -412,7 +412,7 @@ impl LocalTerminalService {
             Phase::Active => {
                 let target = popup.target.ok_or(Failure::Unavailable)?;
                 let observation = ProcessObservationTarget {
-                    site_id: site.clone(),
+                    session_id: session.clone(),
                     binding: PresentationBinding {
                         worker_id: WorkerId::parse(&hex(target.worker.worker_id.as_bytes()))
                             .map_err(|_| Failure::Unavailable)?,

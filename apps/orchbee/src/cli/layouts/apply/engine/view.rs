@@ -19,7 +19,7 @@ impl Engine<'_> {
             self.check()?;
             let reply = control::exchange(
                 &mut self.client,
-                &self.snapshot.site_id,
+                &self.snapshot.session_id,
                 ClientViewAction::Get {
                     client_id: selected.client_id.clone(),
                 },
@@ -78,7 +78,7 @@ impl Engine<'_> {
         self.check()?;
         let result = control::submit_control(
             &mut self.client,
-            &self.snapshot.site_id,
+            &self.snapshot.session_id,
             ClientViewControl {
                 operation_id: query::request_id()?,
                 client_id: current.client_id.clone(),

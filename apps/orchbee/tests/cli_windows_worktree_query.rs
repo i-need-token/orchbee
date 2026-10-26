@@ -1,4 +1,4 @@
-//! Source-query grammar and offline discoverability never activate a Site.
+//! Source-query grammar and offline discoverability never activate a Session.
 #![cfg(windows)]
 use std::process::{Command, Output, Stdio};
 

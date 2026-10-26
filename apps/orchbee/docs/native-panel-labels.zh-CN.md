@@ -47,7 +47,7 @@ CLI 专用 `orchbee.panel.rename` 第 1 版结果记录原请求／Session／bas
 
 ## Client 投影
 
-`NativePanel` 分别保留不可变的创建时标签和可选自定义标签。显示优先使用覆盖项，否则使用
+`ClientPanel` 分别保留不可变的创建时标签和可选自定义标签。显示优先使用覆盖项，否则使用
 回退标签。Panel 标题、Agent 面板及确认文案对显示标签应用既有终端文本净化与宽度限制。
 规范 Panel 查询暴露覆盖项及有效显示文本。创建默认值继续使用创建时标签，不改变既有字段
 的含义。
@@ -77,4 +77,4 @@ CLI Panel 读取保留创建时的 `label`，增加可空 `customLabel` 及实�
 
 叶窗格标题中，已提供的自定义 Presentation 标题或 metadata 标题不再附加 Panel 序号，包括显式提供的数字标题。两者都没有时，生成的标题保留本地化资源前缀和 Panel 序号。创建标签若是继承的纯 ASCII 数字，则从该标题省略；非数字创建标签显示在序号后。这一显示选择不重写不可变标签。所有形式使用同一净化和显示单元截断规则。
 
-<!-- documentation-pairing: english-sha256=c944e291d997fb57437773eb4ce9684e99fbdbe369375484b71406865589d25f zh-cn-sha256=834854d294a4cfad29d10f8194a8ef0167ea783d224f77f2fe5566d29c496574 -->
+<!-- documentation-pairing: english-sha256=f79b9ff7f8b1515bc546d7189618bb9027352dfb78959267509d03712717da97 zh-cn-sha256=18a6f55010f34867fe49902ca848484728ccc0538922cfbee90a85a3b06e1bf0 -->

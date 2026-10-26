@@ -4,7 +4,7 @@ use crate::workbench_client::{WorkspaceCreationPhase, WorkspaceCreationPreview};
 
 #[test]
 fn creation_preview_keeps_current_fill_without_bolding_identity_or_pending_copy() {
-    let site = SiteId::parse(&id(1)).unwrap();
+    let session = SessionId::parse(&id(1)).unwrap();
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [
             Theme::terminal_native(),
@@ -24,7 +24,7 @@ fn creation_preview_keeps_current_fill_without_bolding_identity_or_pending_copy(
                                 Rect::new(0, 1, 64, 1),
                                 64,
                                 WorkspaceCreationPreview {
-                                    site: &site,
+                                    session: &session,
                                     label: Some("Preview"),
                                     project_id: None,
                                     committed: None,
@@ -125,7 +125,7 @@ fn admit_creation_current(view: &mut ClientView, target: &SidebarTarget) -> bool
         SidebarTarget::Context { target, .. } => (target.clone(), None),
         SidebarTarget::Agent { target, .. } => (
             target.context.clone(),
-            Some(crate::workbench_client::NativeMemberTarget {
+            Some(crate::workbench_client::ClientMemberTarget {
                 tab: target.tab.clone(),
                 panel: target.panel.clone(),
                 presentation: target.member.clone(),
@@ -231,7 +231,7 @@ fn foreground_creation_yields_to_the_admitted_member_after_commit() {
             let SidebarTarget::Context { target, .. } = &workspace else {
                 unreachable!()
             };
-            let NativeContextLocation::Workspace { workspace_id, .. } = &target.location else {
+            let ClientContextLocation::Workspace { workspace_id, .. } = &target.location else {
                 unreachable!()
             };
             let project = WorkbenchProjectId::parse(&id(70)).unwrap();
@@ -248,7 +248,7 @@ fn foreground_creation_yields_to_the_admitted_member_after_commit() {
                     locale,
                     &theme,
                     WorkspaceCreationPreview {
-                        site: &target.site_id,
+                        session: &target.session_id,
                         label: Some("Creation preview"),
                         project_id: Some(&project),
                         committed: (!provisional)
@@ -330,14 +330,14 @@ fn retained_committed_preview_follows_member_switches_and_collapsed_ancestors() 
             let SidebarTarget::Context { target, .. } = &workspace else {
                 unreachable!()
             };
-            let NativeContextLocation::Workspace { workspace_id, .. } = &target.location else {
+            let ClientContextLocation::Workspace { workspace_id, .. } = &target.location else {
                 unreachable!()
             };
             let project = WorkbenchProjectId::parse(&id(70)).unwrap();
             // Keep even the old workspace-current bit while changing admitted focus. A retained
             // receipt cannot pin either the current fill or its viewport to the created Workspace.
             let preview = WorkspaceCreationPreview {
-                site: &target.site_id,
+                session: &target.session_id,
                 label: Some("same 工作区"),
                 project_id: Some(&project),
                 committed: Some((workspace_id, WorkbenchRevision::new(1))),
@@ -423,12 +423,12 @@ fn a_background_project_creation_above_manual_reading_keeps_the_same_painted_row
             .space_checkpoint_row(&view.machines.space_rows()[0])
             .unwrap()
             .clone();
-        let site = template.target.site_id.clone();
+        let session = template.target.session_id.clone();
         let project = WorkbenchProjectId::parse(&id(70)).unwrap();
         let old_rows: Vec<_> = (0..20)
             .map(|index| {
                 let mut row = template.clone();
-                row.target.location = NativeContextLocation::Workspace {
+                row.target.location = ClientContextLocation::Workspace {
                     workspace_id: WorkbenchWorkspaceId::parse(&id(100 + index)).unwrap(),
                     terminal_context_id: WorkbenchTerminalContextId::parse(&id(200 + index))
                         .unwrap(),
@@ -444,7 +444,7 @@ fn a_background_project_creation_above_manual_reading_keeps_the_same_painted_row
             let mut rows = old_rows.clone();
             if phase == 2 {
                 let mut created = template.clone();
-                created.target.location = NativeContextLocation::Workspace {
+                created.target.location = ClientContextLocation::Workspace {
                     workspace_id: workspace.clone(),
                     terminal_context_id: WorkbenchTerminalContextId::parse(&id(230)).unwrap(),
                 };
@@ -455,7 +455,7 @@ fn a_background_project_creation_above_manual_reading_keeps_the_same_painted_row
                 Choice::Local,
                 crate::machine_spaces::Observation::Ready(std::sync::Arc::new(
                     crate::machine_spaces::Checkpoint {
-                        site_id: site.clone(),
+                        session_id: session.clone(),
                         revision: WorkbenchRevision::new(if phase == 2 { 2 } else { 1 }),
                         metadata_revision: WorkbenchRevision::new(2),
                         git_requested: true,
@@ -480,7 +480,7 @@ fn a_background_project_creation_above_manual_reading_keeps_the_same_painted_row
                 view.machines.settle_sidebar_scroll();
             }
             let preview = (phase > 0).then_some(WorkspaceCreationPreview {
-                site: &site,
+                session: &session,
                 label: Some("created workspace"),
                 project_id: Some(&project),
                 committed: (phase == 2).then_some((&workspace, WorkbenchRevision::new(2))),
@@ -543,12 +543,12 @@ fn creation_keeps_its_final_group_order_and_scroll_window_through_observer_hando
                     .space_checkpoint_row(&view.machines.space_rows()[0])
                     .unwrap()
                     .clone();
-                let site = template.target.site_id.clone();
+                let session = template.target.session_id.clone();
                 let project = WorkbenchProjectId::parse(&id(70)).unwrap();
                 let canonical: Vec<_> = (0..=count)
                     .map(|index| {
                         let mut row = template.clone();
-                        row.target.location = NativeContextLocation::Workspace {
+                        row.target.location = ClientContextLocation::Workspace {
                             workspace_id: WorkbenchWorkspaceId::parse(&id(100 + index)).unwrap(),
                             terminal_context_id: WorkbenchTerminalContextId::parse(
                                 &id(200 + index),
@@ -576,7 +576,7 @@ fn creation_keeps_its_final_group_order_and_scroll_window_through_observer_hando
                         Choice::Local,
                         crate::machine_spaces::Observation::Ready(std::sync::Arc::new(
                             crate::machine_spaces::Checkpoint {
-                                site_id: site.clone(),
+                                session_id: session.clone(),
                                 revision: WorkbenchRevision::new(if committed { 2 } else { 1 }),
                                 metadata_revision: WorkbenchRevision::new(2),
                                 git_requested: true,
@@ -599,7 +599,7 @@ fn creation_keeps_its_final_group_order_and_scroll_window_through_observer_hando
                     let source = view.machines.sidebar_source();
                     let rows = view.machines.sidebar_navigation_rows();
                     let preview = WorkspaceCreationPreview {
-                        site: &site,
+                        session: &session,
                         label: Some("new 工作区"),
                         project_id: grouped.then_some(&project),
                         committed: committed.then_some((&workspace, WorkbenchRevision::new(2))),
@@ -659,11 +659,12 @@ fn provisional_rows_survive_observer_lag_and_reconcile_without_label_deduplicati
         for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
             for case in ["provisional", "observed", "other-session"] {
                 let view = view(120, 40);
-                let site = SiteId::parse(&id(if case == "other-session" { 2 } else { 1 })).unwrap();
+                let session =
+                    SessionId::parse(&id(if case == "other-session" { 2 } else { 1 })).unwrap();
                 let workspace = WorkbenchWorkspaceId::parse(&id(80)).unwrap();
                 let project = WorkbenchProjectId::parse(&id(70)).unwrap();
                 let preview = WorkspaceCreationPreview {
-                    site: &site,
+                    session: &session,
                     label: Some("same 工作区"),
                     project_id: Some(&project),
                     committed: (case != "provisional")
@@ -723,19 +724,19 @@ fn canonical_handoff_then_higher_revision_removal_clears_the_row_and_collapsed_p
                 .map(|row| view.machines.space_checkpoint_row(row).unwrap().clone())
                 .collect();
             canonical[0].label = Some("created workspace".into());
-            let site = canonical[0].target.site_id.clone();
+            let session = canonical[0].target.session_id.clone();
             let workspace = WorkbenchWorkspaceId::parse(&id(80)).unwrap();
             let project = WorkbenchProjectId::parse(&id(70)).unwrap();
             let parent = SidebarTarget::Project {
                 machine: Choice::Local,
-                site_id: site.clone(),
+                session_id: session.clone(),
                 project_id: project.clone(),
             };
             if collapsed {
                 assert!(view.machines.toggle_sidebar_project(&parent));
             }
             let preview = WorkspaceCreationPreview {
-                site: &site,
+                session: &session,
                 label: Some("created workspace"),
                 project_id: Some(&project),
                 committed: Some((&workspace, WorkbenchRevision::new(3))),
@@ -749,7 +750,7 @@ fn canonical_handoff_then_higher_revision_removal_clears_the_row_and_collapsed_p
                     Choice::Local,
                     crate::machine_spaces::Observation::Ready(std::sync::Arc::new(
                         crate::machine_spaces::Checkpoint {
-                            site_id: site.clone(),
+                            session_id: session.clone(),
                             revision: WorkbenchRevision::new(revision),
                             metadata_revision: WorkbenchRevision::new(revision),
                             git_requested: true,

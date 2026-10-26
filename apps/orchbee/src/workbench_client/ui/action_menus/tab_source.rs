@@ -4,7 +4,7 @@
 //! A peer change retires the captured menu before input or handoff; a later CloseSet decision
 //! remains independently owned by its existing complete-set confirmation.
 
-use crate::workbench_client::workbench_projection::NativeSimpleTab;
+use crate::workbench_client::workbench_projection::ClientTab;
 use orchbee_workbench_protocol::{WorkbenchTabGroupId, WorkbenchTabId};
 
 #[derive(Clone)]
@@ -18,7 +18,7 @@ struct Member {
 }
 
 impl TabResolverSource {
-    pub(super) fn capture(tabs: &[NativeSimpleTab]) -> Self {
+    pub(super) fn capture(tabs: &[ClientTab]) -> Self {
         Self(
             tabs.iter()
                 .map(|tab| Member {
@@ -30,7 +30,7 @@ impl TabResolverSource {
         )
     }
 
-    pub(super) fn matches(&self, tabs: &[NativeSimpleTab]) -> bool {
+    pub(super) fn matches(&self, tabs: &[ClientTab]) -> bool {
         self.0.len() == tabs.len()
             && self.0.iter().zip(tabs).all(|(captured, current)| {
                 &captured.tab == current.tab_id()

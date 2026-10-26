@@ -113,7 +113,7 @@ fn metadata_result_correlation_preserves_order_and_all_request_identity() {
     let request = WorkspaceMetadataRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap(),
-        site_id: SiteId::parse(&format!("{:032x}", 2)).unwrap(),
+        session_id: SessionId::parse(&format!("{:032x}", 2)).unwrap(),
         action: WorkspaceMetadataAction::Read {
             workspace_ids: (3..11)
                 .map(|n| WorkbenchWorkspaceId::parse(&format!("{n:032x}")).unwrap())
@@ -137,7 +137,7 @@ fn metadata_result_correlation_preserves_order_and_all_request_identity() {
     let mut result = WorkspaceMetadataResult {
         protocol_version: ProtocolVersion,
         request_id: request.request_id.clone(),
-        site_id: request.site_id.clone(),
+        session_id: request.session_id.clone(),
         outcome: WorkspaceMetadataOutcome::Read {
             workbench_revision: WorkbenchRevision::new(0),
             metadata_revision: WorkbenchRevision::new(u64::MAX),
@@ -164,9 +164,9 @@ fn metadata_result_correlation_preserves_order_and_all_request_identity() {
         reason: WorkspaceMetadataFailure::NotFound,
     };
     assert!(result.answers(&request));
-    result.site_id = SiteId::parse(&format!("{:032x}", 90)).unwrap();
+    result.session_id = SessionId::parse(&format!("{:032x}", 90)).unwrap();
     assert!(!result.answers(&request));
-    result.site_id = request.site_id.clone();
+    result.session_id = request.session_id.clone();
     result.request_id = WorkbenchRequestId::parse(&format!("{:032x}", 91)).unwrap();
     assert!(!result.answers(&request));
 }

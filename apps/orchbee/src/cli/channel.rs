@@ -1,11 +1,11 @@
 //! Offline release preference; installed cohort identity is a separate observation.
 use super::{Failure, FailureKind, Output, configuration, failure_output, output};
 use crate::{invocation::OutputFormat, localization::Locale};
-use orchbee_local_site_runtime::read_windows_user_settings;
+use orchbee_local_runtime::read_user_settings;
 use serde_json::json;
 
 pub(crate) fn show(format: OutputFormat, locale: Locale) -> Output {
-    let settings = match read_windows_user_settings(|name| std::env::var_os(name)) {
+    let settings = match read_user_settings(|name| std::env::var_os(name)) {
         Ok(settings) => settings,
         Err(error) => {
             return failure_output(

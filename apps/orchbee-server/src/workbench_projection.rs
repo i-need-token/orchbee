@@ -24,7 +24,7 @@ impl WorkbenchPublication {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ProjectionAdvanceError {
     Contract(ContractError),
-    SiteMismatch,
+    SessionMismatch,
     NonIncreasingRevision,
     PublicationInvariant,
 }
@@ -33,7 +33,7 @@ impl fmt::Display for ProjectionAdvanceError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Contract(error) => error.fmt(formatter),
-            Self::SiteMismatch => formatter.write_str("Workbench projection Session mismatch"),
+            Self::SessionMismatch => formatter.write_str("Workbench projection Session mismatch"),
             Self::NonIncreasingRevision => {
                 formatter.write_str("Workbench projection revision must increase")
             }
@@ -48,7 +48,9 @@ impl std::error::Error for ProjectionAdvanceError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Contract(error) => Some(error),
-            Self::SiteMismatch | Self::NonIncreasingRevision | Self::PublicationInvariant => None,
+            Self::SessionMismatch | Self::NonIncreasingRevision | Self::PublicationInvariant => {
+                None
+            }
         }
     }
 }
@@ -61,7 +63,7 @@ impl From<ContractError> for ProjectionAdvanceError {
 
 #[derive(Clone, Debug)]
 pub(crate) struct WorkbenchProjectionStore {
-    events: crate::semantic_events::SiteEventJournal,
+    events: crate::semantic_events::SessionEventJournal,
     graphics: std::sync::Arc<std::sync::Mutex<crate::PaneGraphicsAuthority>>,
     snapshot: Snapshot,
     /// Bounded journal of committed publications, in revision order. A retained Snapshot entry is a
@@ -79,7 +81,7 @@ impl WorkbenchProjectionStore {
     pub(crate) fn load(encoded_snapshot: &[u8]) -> Result<Self, ContractError> {
         let snapshot = parse_snapshot(encoded_snapshot)?;
         Ok(Self {
-            events: crate::semantic_events::SiteEventJournal::new(&snapshot)?,
+            events: crate::semantic_events::SessionEventJournal::new(&snapshot)?,
             graphics: std::sync::Arc::default(),
             snapshot,
             publications: VecDeque::new(),
@@ -94,7 +96,7 @@ impl WorkbenchProjectionStore {
     ) -> std::sync::Arc<std::sync::Mutex<crate::PaneGraphicsAuthority>> {
         self.graphics.clone()
     }
-    pub(crate) fn events(&self) -> crate::semantic_events::SiteEventJournal {
+    pub(crate) fn events(&self) -> crate::semantic_events::SessionEventJournal {
         self.events.clone()
     }
 
@@ -112,8 +114,8 @@ impl WorkbenchProjectionStore {
         encoded_candidate: &[u8],
     ) -> Result<PreparedProjectionAdvance, ProjectionAdvanceError> {
         let candidate = parse_snapshot(encoded_candidate)?;
-        if candidate.site_id != self.snapshot.site_id {
-            return Err(ProjectionAdvanceError::SiteMismatch);
+        if candidate.session_id != self.snapshot.session_id {
+            return Err(ProjectionAdvanceError::SessionMismatch);
         }
         if candidate.revision <= self.snapshot.revision {
             return Err(ProjectionAdvanceError::NonIncreasingRevision);
@@ -128,7 +130,7 @@ impl WorkbenchProjectionStore {
                 changes,
                 protocol_version: candidate.protocol_version,
                 revision: candidate.revision,
-                site_id: candidate.site_id.clone(),
+                session_id: candidate.session_id.clone(),
             };
             match serialize_document(&WorkbenchProtocolDocument::Delta(delta.clone())) {
                 Ok(_encoded_delta) => {

@@ -1,5 +1,5 @@
 //! A saved profile becomes one explicit creation request, without writing device defaults.
-use super::{NativeNoticeContext, NativeUi, WorkbenchClientNotice};
+use super::{NoticeContext, WorkbenchClientNotice, WorkbenchClientUi};
 use crate::client_view::ClientActionDisposition;
 use orchbee_workbench_protocol::{LaunchSelection, UserLaunchCommand, UserLaunchProfile};
 use std::time::Duration;
@@ -36,13 +36,13 @@ impl Coordinator {
     }
 }
 
-impl NativeUi {
+impl WorkbenchClientUi {
     /// Submits one confirmed saved choice through ordinary creation without writing preferences.
     pub(super) fn create_tab_with_profile(
         &mut self,
         profile: &UserLaunchProfile,
     ) -> ClientActionDisposition {
-        self.notice_context = Some(NativeNoticeContext::LaunchProfile(profile.name.clone()));
+        self.notice_context = Some(NoticeContext::LaunchProfile(profile.name.clone()));
         // A removed or edited profile cannot be silently replaced by the new default.
         let launch = self
             .preferences

@@ -162,7 +162,7 @@ fn observe(
     emit(
         relay,
         json!({"kind":"opened", "mode":"observe", "source":{
-        "sessionId":snapshot.site_id, "revision":snapshot.revision,
+        "sessionId":snapshot.session_id, "revision":snapshot.revision,
         "terminalId":terminal.terminal_id, "workerId":terminal.worker_id,
         "viewerId":viewer, "attachmentId":attachment.to_text(), "hostEpoch":epoch.to_text()
     },"width":command.columns,"height":command.rows}),

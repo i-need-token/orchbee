@@ -113,7 +113,7 @@ pub(crate) fn command(ssh: &Path, target: &str, remote: &str) -> Command {
     command
 }
 
-/// Probe only; no Site activation, catalog write, or automatic retry.
+/// Probe only; no Session activation, catalog write, or automatic retry.
 pub(crate) fn probe(
     draft: &crate::machines::Draft,
     deadline: Instant,
@@ -191,9 +191,7 @@ mod platform;
 #[cfg(windows)]
 pub(crate) use platform::executable;
 
-use orchbee_local_site_runtime::{
-    WindowsCommandFailure as Failure, WindowsCommandOutput as Output,
-};
+use orchbee_local_runtime::{CommandFailure as Failure, CommandOutput as Output};
 
 #[cfg(test)]
 mod tests;

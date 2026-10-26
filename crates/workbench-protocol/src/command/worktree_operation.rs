@@ -1,7 +1,7 @@
 //! Bounded native Worktree operation requests and independently observable partial outcomes.
 use super::json_fields::{deserialize_i32 as deserialize_status, deserialize_nullable};
 use crate::{
-    ContractError, ProtocolVersion, SiteId, WorkbenchDirectoryPath, WorkbenchLabel,
+    ContractError, ProtocolVersion, SessionId, WorkbenchDirectoryPath, WorkbenchLabel,
     WorkbenchProjectId, WorkbenchRequestId, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome,
     WorkbenchWorkspaceId,
 };
@@ -184,7 +184,7 @@ pub struct WorkbenchWorktreeRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub action: WorkbenchWorktreeAction,
 }
 impl WorkbenchWorktreeRequest {
@@ -356,7 +356,7 @@ pub enum WorktreeOperationFailure {
     AssociationFailed {},
     CloseIncomplete {},
     #[serde(rename = "session-stopping")]
-    SiteStopping {},
+    SessionStopping {},
     Internal {},
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

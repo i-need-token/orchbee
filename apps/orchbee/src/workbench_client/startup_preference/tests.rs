@@ -7,7 +7,7 @@ fn position(context: u32) -> Position {
                 &format!("{context:032x}"),
             )
             .unwrap();
-            NativeContextLocation::Workspace {
+            ClientContextLocation::Workspace {
                 workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                     fixture_context_id.as_str(),
                 )
@@ -57,7 +57,7 @@ const HISTORICAL_WORKSPACE: &[u8] = br#"{
 #[test]
 fn current_position_rejects_historical_shape_and_requires_member() {
     let expected = Position {
-        location: NativeContextLocation::Workspace {
+        location: ClientContextLocation::Workspace {
             workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                 "00000000000000000000000000000002",
             )
@@ -112,17 +112,16 @@ fn startup_preference_writer_flushes_latest_complete_record_before_join() {
     let root = Root(std::env::temp_dir().join(format!("orchbee-startup-preference-{nonce:032x}")));
     fs::create_dir(&root.0).unwrap();
     let path = root.0.join("position");
-    let lock = orchbee_local_site_runtime::WindowsPrivateCache::acquire(&path).unwrap();
+    let lock = orchbee_local_runtime::PrivateCache::acquire(&path).unwrap();
     let mut writer = Writer::start(path.clone()).unwrap();
     writer.publish(position(1));
     writer.publish(position(2));
     writer.publish(position(2));
     drop(lock);
     drop(writer);
-    let raw =
-        orchbee_local_site_runtime::WindowsPrivateCache::read_existing(&path, FILE, MAXIMUM_BYTES)
-            .unwrap()
-            .unwrap();
+    let raw = orchbee_local_runtime::PrivateCache::read_existing(&path, FILE, MAXIMUM_BYTES)
+        .unwrap()
+        .unwrap();
     assert_eq!(decode(&raw).unwrap(), position(2));
     assert_eq!(
         serde_json::from_slice::<serde_json::Value>(&raw).unwrap()["version"],

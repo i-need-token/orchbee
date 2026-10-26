@@ -65,7 +65,7 @@ impl Reader<'_> {
         let request = PanelMetadataRequest {
             protocol_version: ProtocolVersion,
             request_id: self.id()?,
-            site_id: self.scope.site.clone(),
+            session_id: self.scope.session.clone(),
             action: PanelMetadataAction::ReadPresentations {
                 presentation_ids: ids.to_vec(),
             },
@@ -104,7 +104,7 @@ impl Reader<'_> {
         let request = PanelAgentRequest {
             protocol_version: ProtocolVersion,
             request_id: self.id()?,
-            site_id: self.scope.site.clone(),
+            session_id: self.scope.session.clone(),
             action: PanelAgentAction::ReadPresentations {
                 presentation_ids: ids.to_vec(),
             },

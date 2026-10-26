@@ -95,7 +95,7 @@ fn canonical_refresh_rejects_a_folded_shaped_candidate_at_the_same_revision() {
     let candidate = project_preferred_workspace(&mixed_history_snapshot(10)).unwrap();
     assert_eq!(
         validate_canonical_refresh(&current, candidate),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }
 
@@ -122,7 +122,7 @@ fn canonical_refresh_rejects_identity_reassignment_inside_a_folded_history() {
             &current,
             project_preferred_workspace(&mutated_member).unwrap()
         ),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 
     // A removed leaf identity re-introduced with a different member tuple: "middle"'s Panel
@@ -136,7 +136,7 @@ fn canonical_refresh_rejects_identity_reassignment_inside_a_folded_history() {
     children[0].node = panel(35, 99, 100, 101, "middle");
     assert_eq!(
         validate_canonical_refresh(&current, project_preferred_workspace(&resurrected).unwrap()),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }
 
@@ -155,7 +155,7 @@ fn canonical_refresh_rejects_structure_mutation_inside_a_folded_history() {
     *orientation = PanelOrientation::Vertical;
     assert_eq!(
         validate_canonical_refresh(&current, project_preferred_workspace(&flipped).unwrap()),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 
     // The retained Slot 39 was re-parented under the fresh S70 instead of staying under S40.
@@ -191,7 +191,7 @@ fn canonical_refresh_rejects_structure_mutation_inside_a_folded_history() {
     };
     assert_eq!(
         validate_canonical_refresh(&current, project_preferred_workspace(&reparented).unwrap()),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }
 
@@ -225,7 +225,7 @@ fn publication_fold_then_canonical_refresh_accepts_delta_batches_and_snapshot_fa
             }],
             protocol_version: ProtocolVersion,
             revision: WorkbenchRevision::new(revision),
-            site_id: site_id(SITE_VALUE),
+            session_id: session_id(SESSION_VALUE),
         })
     };
 
@@ -277,6 +277,6 @@ fn publication_fold_then_canonical_refresh_still_rejects_identity_reassignment()
     let current = project_preferred_workspace(&baseline_snapshot).unwrap();
     assert_eq!(
         validate_canonical_refresh(&current, project_preferred_workspace(&folded).unwrap()),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }

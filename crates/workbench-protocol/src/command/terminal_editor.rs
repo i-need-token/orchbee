@@ -1,6 +1,6 @@
 //! Independent editor intent contains selectors, never executable or document authority.
 use crate::{
-    ClientPopupSource, ContractError, ProtocolVersion, SiteId, WorkbenchRequestId,
+    ClientPopupSource, ContractError, ProtocolVersion, SessionId, WorkbenchRequestId,
     WorkbenchRevision, WorkbenchTerminalGeometry,
 };
 use serde::{Deserialize, Serialize};
@@ -77,7 +77,7 @@ pub struct TerminalEditorRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub action: TerminalEditorAction,
 }
 impl TerminalEditorRequest {
@@ -92,7 +92,7 @@ pub enum TerminalEditorFailure {
     Denied,
     InvalidIntent,
     #[serde(rename = "session-mismatch")]
-    SiteMismatch,
+    SessionMismatch,
     Unavailable,
     Busy,
     Conflict,
@@ -148,7 +148,7 @@ pub struct TerminalEditorResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub outcome: TerminalEditorOutcome,
 }
 impl TerminalEditorResult {
@@ -159,7 +159,7 @@ impl TerminalEditorResult {
     pub fn answers(&self, request: &TerminalEditorRequest) -> bool {
         if self.validate().is_err()
             || self.request_id != request.request_id
-            || self.site_id != request.site_id
+            || self.session_id != request.session_id
         {
             return false;
         }

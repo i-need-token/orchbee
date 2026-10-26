@@ -244,11 +244,11 @@ Shell 先绘制终端画布，再为侧栏绘制持久 chrome 背景，并为标
 符合条件的当前会话 Project 行在绘制宽度允许独立控件时，在行菜单旁保留创建动作。
 展开、内容、创建和菜单单元格互不重叠。紧凑字形与语言无关；完整动作标签和不可用原因复用已有中英文目录。
 
-| 入口           | 既有动作与归属                                                                                                                                                                                                                                   |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Tab 顶栏 `+`   | `DrawnTabCreate` 冻结 Session、快照 revision 和 context。无修饰左键按下仅启动本地鼠标手势；在同一个仍可见矩形内匹配释放后，请求 `NativeUi` 重新校验证明，再将 `ClientAction::CreateTab` 交给原 dispatcher 和 membership 准入。按下时没有副作用。 |
-| 新建工作区行   | 无修饰左键按下启动精确的已绘制动作；在同一个仍暴露的区域内匹配释放后，才将 `ClientAction::RequestQuickWorkspace` 委托给已有创建归属者。不打开表单，直接提交独立 Workspace 与首个 shell；按下时没有副作用。                                       |
-| Project 行 `+` | 针对准确的已绘制 Project 打开同一创建子集，把定向快速 Workspace 放在首位。保留原能力检查和禁用原因，不隐式选择子 Workspace。                                                                                                                     |
+| 入口           | 既有动作与归属                                                                                                                                                                                                                                            |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tab 顶栏 `+`   | `DrawnTabCreate` 冻结 Session、快照 revision 和 context。无修饰左键按下仅启动本地鼠标手势；在同一个仍可见矩形内匹配释放后，请求 `WorkbenchClientUi` 重新校验证明，再将 `ClientAction::CreateTab` 交给原 dispatcher 和 membership 准入。按下时没有副作用。 |
+| 新建工作区行   | 无修饰左键按下启动精确的已绘制动作；在同一个仍暴露的区域内匹配释放后，才将 `ClientAction::RequestQuickWorkspace` 委托给已有创建归属者。不打开表单，直接提交独立 Workspace 与首个 shell；按下时没有副作用。                                                |
+| Project 行 `+` | 针对准确的已绘制 Project 打开同一创建子集，把定向快速 Workspace 放在首位。保留原能力检查和禁用原因，不隐式选择子 Workspace。                                                                                                                              |
 
 右键点击 Tab 顶栏 `+` 打开独立的新建 Tab 菜单（普通 Tab、最近分组或新分组）；
 全局菜单提供键盘入口。它保留同一个精确的 `DrawnTabCreate` context 证明。
@@ -261,7 +261,7 @@ Workspace 创建（`Ctrl+B a`）、快速 Workspace（`Ctrl+B Shift+N`）及全�
 菜单。这些控件不拥有新的业务状态、终端身份或持久化。
 
 绘制和命中测试覆盖两种语言、默认／RGB 主题、空／有内容的列表、全部视口级别与长标签。
-鼠标轨迹覆盖完整点击和失效；NativeUi 测试检查旧 context／快照拒绝，以及向原命令／
+鼠标轨迹覆盖完整点击和失效；WorkbenchClientUi 测试检查旧 context／快照拒绝，以及向原命令／
 草稿 owner 的委托。这些确定性测试及合成缓冲区预览不证明实际宿主的调色板或字体表现。
 
 ## 侧栏 Agent 入口
@@ -333,7 +333,7 @@ Git worktree 的 Workspace 同级，每个 Workspace 都拥有自己的 Agent �
 
 `machine_picker::Picker` 拥有 Project 展开、各 Context 独立的 Agent 列表折叠偏好、键盘行焦点
 及共用窗口。`SidebarTarget::Project` 携带 Machine／Session／Project 身份；
-`SidebarTarget::Context` 携带 Machine 与完整 `NativeContextTarget`；
+`SidebarTarget::Context` 携带 Machine 与完整 `ClientContextTarget`；
 `SidebarTarget::Agent` 还保留精确成员与物理绑定身份。可选 Project 归属是 Context 元数据，
 由 `Picker::sidebar_parent` 从当前投影解析。移动 Workspace 或解散其 Project 不改变
 终端身份、Tab 或 Panel 目标。Agent 关联不使用标签或行位置。同名同级行保留 ID 注记。
@@ -561,4 +561,4 @@ F1 包含当前上下文、未读变化、展开折叠及所有 Agent 状态的�
 
 侧栏图例将展开控件的符号标为“已展开”和“已折叠”。帮助首次成功绘制前使用八行的有界导航估计；绘制后按发布的容量翻页。
 
-<!-- documentation-pairing: english-sha256=e8d6644a02bbb5b2ba8fe8f09f1d17658904ab0575911ac15de14f05a4c2016b zh-cn-sha256=8bcc6825f1138723c059bc6c5cc946c7a26a0deac5730af8d33e7d3268af5264 -->
+<!-- documentation-pairing: english-sha256=55b4d0c9c17d32811445a9daa598e022ee8fa92375ad55fb06eafd620c9c50ae zh-cn-sha256=614def21a7e7a3d275c2a110fdb969eda36eb1c669b2f88e32c50f28965b56de -->

@@ -17,8 +17,8 @@ use crate::localization::Locale;
 #[cfg(any(target_os = "linux", windows))]
 use orchbee_local_client_protocol::{UNIX_SOCKET_PATH_CAPACITY, unix_socket_path_fits};
 #[cfg(any(target_os = "linux", windows))]
-use orchbee_local_site_runtime::{
-    ModeCheckedLocalSiteRendezvous, NativeCohort, RendezvousError, SiteScope,
+use orchbee_local_runtime::{
+    Cohort, ModeCheckedLocalSessionRendezvous, RendezvousError, SessionScope,
 };
 
 #[cfg(any(target_os = "linux", windows))]
@@ -188,12 +188,12 @@ fn run_checks() -> Result<Vec<CheckReport>, Failure> {
     let (base, scope_text) = crate::local_activation::runtime_location()
         .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
     let scope =
-        SiteScope::parse(&scope_text).map_err(|_| Failure::new(FailureKind::InternalFailure))?;
+        SessionScope::parse(&scope_text).map_err(|_| Failure::new(FailureKind::InternalFailure))?;
     let scope_directory = base.join(&scope_text);
-    let site = ModeCheckedLocalSiteRendezvous::validate_mode_checked(&base, scope);
+    let session = ModeCheckedLocalSessionRendezvous::validate_mode_checked(&base, scope);
 
     let mut checks = Vec::with_capacity(5);
-    let (base_check, directory_check) = classify_paths(&site, &base, &scope_directory);
+    let (base_check, directory_check) = classify_paths(&session, &base, &scope_directory);
     checks.push(base_check);
     checks.push(directory_check);
 
@@ -202,10 +202,10 @@ fn run_checks() -> Result<Vec<CheckReport>, Failure> {
     let deadline = Instant::now()
         .checked_add(CHECK_BUDGET)
         .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
-    checks.push(cohort_report(NativeCohort::current(deadline)));
+    checks.push(cohort_report(Cohort::current(deadline)));
 
     checks.push(locale_check());
-    checks.push(socket_checks(&site, &scope_directory));
+    checks.push(socket_checks(&session, &scope_directory));
     #[cfg(windows)]
     checks.push(match super::configuration::load() {
         Ok(settings) => {
@@ -229,11 +229,11 @@ fn run_checks() -> Result<Vec<CheckReport>, Failure> {
 
 #[cfg(any(target_os = "linux", windows))]
 fn classify_paths(
-    site: &Result<ModeCheckedLocalSiteRendezvous, RendezvousError>,
+    session: &Result<ModeCheckedLocalSessionRendezvous, RendezvousError>,
     base: &Path,
     scope_directory: &Path,
 ) -> (CheckReport, CheckReport) {
-    match site {
+    match session {
         Ok(_) => (
             pass(
                 "runtime-base",
@@ -268,14 +268,14 @@ fn classify_paths(
                 RendezvousError::System { .. }
                 | RendezvousError::RuntimeBaseNotAbsolute { .. }
                 | RendezvousError::RuntimeBaseNotNormalized { .. }
-                | RendezvousError::InvalidSiteScope => None,
+                | RendezvousError::InvalidSessionScope => None,
                 _ => Some(true),
             };
             let invalid_path = matches!(
                 error,
                 RendezvousError::RuntimeBaseNotAbsolute { .. }
                     | RendezvousError::RuntimeBaseNotNormalized { .. }
-                    | RendezvousError::InvalidSiteScope
+                    | RendezvousError::InvalidSessionScope
             );
             let reason = if invalid_path {
                 "invalid-path"
@@ -302,8 +302,8 @@ fn classify_paths(
                 fail(name, details)
             };
             match (scoped, absent) {
-                // A missing Site scope under a healthy base is not-applicable:
-                // no running Site is a legal state, not a configuration fault.
+                // A missing Session scope under a healthy base is not-applicable:
+                // no running Session is a legal state, not a configuration fault.
                 (true, true) => (
                     base_pass(),
                     not_applicable(
@@ -333,7 +333,7 @@ fn classify_paths(
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) fn rendezvous_error_path(error: &RendezvousError) -> Option<&Path> {
     match error {
-        RendezvousError::InvalidSiteScope => None,
+        RendezvousError::InvalidSessionScope => None,
         RendezvousError::RuntimeBaseNotAbsolute { path }
         | RendezvousError::RuntimeBaseNotNormalized { path }
         | RendezvousError::DirectorySymlink { path }
@@ -351,7 +351,7 @@ pub(crate) fn rendezvous_error_path(error: &RendezvousError) -> Option<&Path> {
 /// The cohort check reports only what the verifier established: `verified`
 /// plus `reason` `deadline`/`invalid-cohort` on failure.
 #[cfg(any(target_os = "linux", windows))]
-fn cohort_report(result: std::io::Result<NativeCohort>) -> CheckReport {
+fn cohort_report(result: std::io::Result<Cohort>) -> CheckReport {
     match result {
         Ok(_) => pass("cohort", detail([("verified".to_owned(), json!(true))])),
         Err(error) => {
@@ -387,14 +387,14 @@ fn locale_check() -> CheckReport {
 /// means a live service.
 #[cfg(any(target_os = "linux", windows))]
 fn socket_checks(
-    site: &Result<ModeCheckedLocalSiteRendezvous, RendezvousError>,
+    session: &Result<ModeCheckedLocalSessionRendezvous, RendezvousError>,
     scope_directory: &Path,
 ) -> CheckReport {
-    let runtime = site
+    let runtime = session
         .as_ref()
-        .map_or(scope_directory, |site| site.runtime_directory());
+        .map_or(scope_directory, |session| session.runtime_directory());
     let [client_path, worker_path, client_pending_path, host_path] =
-        ModeCheckedLocalSiteRendezvous::socket_budget_paths(runtime);
+        ModeCheckedLocalSessionRendezvous::socket_budget_paths(runtime);
     let mut details = Map::new();
     let mut any_fail = false;
     let mut any_present = false;
@@ -402,12 +402,18 @@ fn socket_checks(
         (
             "client",
             client_path,
-            site.as_ref().ok().map(|site| site.client_socket_exists()),
+            session
+                .as_ref()
+                .ok()
+                .map(|session| session.client_socket_exists()),
         ),
         (
             "worker",
             worker_path,
-            site.as_ref().ok().map(|site| site.worker_socket_exists()),
+            session
+                .as_ref()
+                .ok()
+                .map(|session| session.worker_socket_exists()),
         ),
     ] {
         let (entry, present, fail) = socket_entry(exists.as_ref(), &path);

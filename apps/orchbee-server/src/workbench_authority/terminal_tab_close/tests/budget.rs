@@ -93,7 +93,7 @@ fn workspace_resume_request(
     WorkbenchWorkspaceCloseResume {
         protocol_version: ProtocolVersion,
         request_id: request_id(id),
-        site_id: close.site_id.clone(),
+        session_id: close.session_id.clone(),
         workspace_id: workspace_id.clone(),
         close_request_id: close.request_id.clone(),
         expected_attempt_generation: WorkbenchTabCloseAttemptGeneration::new(generation).unwrap(),
@@ -130,7 +130,7 @@ fn leaf_resume_request(
     WorkbenchTabCloseResume {
         protocol_version: ProtocolVersion,
         request_id: request_id(id),
-        site_id: close.site_id.clone(),
+        session_id: close.session_id.clone(),
         terminal_context_id: terminal_context_id.clone(),
         tab_id: tab_id.clone(),
         close_request_id: close.request_id.clone(),

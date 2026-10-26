@@ -9,7 +9,7 @@ fn physical_observation_answers_only_matching_binding_and_contiguous_cursor() {
     let mut request = PanelAgentRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(id).unwrap(),
-        site_id: SiteId::parse(id).unwrap(),
+        session_id: SessionId::parse(id).unwrap(),
         action: PanelAgentAction::Observe {
             binding,
             after_sequence: Some(WorkbenchRevision::new(0)),
@@ -21,7 +21,7 @@ fn physical_observation_answers_only_matching_binding_and_contiguous_cursor() {
     let mut result = PanelAgentResult {
         protocol_version: ProtocolVersion,
         request_id: request.request_id.clone(),
-        site_id: request.site_id.clone(),
+        session_id: request.session_id.clone(),
         outcome: PanelAgentOutcome::Observed {
             workbench_revision: WorkbenchRevision::new(1),
             report_revision: WorkbenchRevision::new(1),
@@ -118,7 +118,7 @@ fn panel_agent_shared_corpus_and_carrier_bounds() {
 }
 
 #[test]
-fn presentation_reads_answer_only_exact_order_and_request_site_identity() {
+fn presentation_reads_answer_only_exact_order_and_request_session_identity() {
     let ids: Vec<_> = (1..=2)
         .map(|n| TerminalPresentationId::parse(&format!("{n:032x}")).unwrap())
         .collect();
@@ -126,7 +126,7 @@ fn presentation_reads_answer_only_exact_order_and_request_site_identity() {
     let request = PanelAgentRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&"4".repeat(32)).unwrap(),
-        site_id: SiteId::parse(&"5".repeat(32)).unwrap(),
+        session_id: SessionId::parse(&"5".repeat(32)).unwrap(),
         action: PanelAgentAction::ReadPresentations {
             presentation_ids: ids.clone(),
         },
@@ -134,7 +134,7 @@ fn presentation_reads_answer_only_exact_order_and_request_site_identity() {
     let mut result = PanelAgentResult {
         protocol_version: ProtocolVersion,
         request_id: request.request_id.clone(),
-        site_id: request.site_id.clone(),
+        session_id: request.session_id.clone(),
         outcome: PanelAgentOutcome::PresentationsRead {
             workbench_revision: WorkbenchRevision::new(9),
             report_revision: WorkbenchRevision::new(0),
@@ -160,9 +160,9 @@ fn presentation_reads_answer_only_exact_order_and_request_site_identity() {
     if let PanelAgentOutcome::PresentationsRead { presentations, .. } = &mut result.outcome {
         presentations.reverse();
     }
-    result.site_id = SiteId::parse(&"6".repeat(32)).unwrap();
+    result.session_id = SessionId::parse(&"6".repeat(32)).unwrap();
     assert!(!result.answers(&request));
-    result.site_id = request.site_id.clone();
+    result.session_id = request.session_id.clone();
     result.request_id = WorkbenchRequestId::parse(&"7".repeat(32)).unwrap();
     assert!(!result.answers(&request));
 }

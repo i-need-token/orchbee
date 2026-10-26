@@ -38,7 +38,7 @@ fn store_reloads_concurrent_changes_and_preserves_corruption_under_real_private_
     };
     let (catalog, _) = store.commit(&first).unwrap();
     assert_eq!(catalog.revision, 1);
-    let lock = WindowsPrivateCache::acquire(&store.root).unwrap();
+    let lock = PrivateCache::acquire(&store.root).unwrap();
     assert_eq!(
         store.commit(&Edit::Remove(id.clone())).unwrap_err(),
         Error::Busy
@@ -59,7 +59,7 @@ fn store_reloads_concurrent_changes_and_preserves_corruption_under_real_private_
     assert_eq!(before.revision, 1);
     assert_eq!(current.revision, 3);
     assert_eq!(current.profiles[0].draft.label, "Concurrent");
-    let mut lock = WindowsPrivateCache::acquire(&store.root).unwrap();
+    let mut lock = PrivateCache::acquire(&store.root).unwrap();
     lock.replace(FILE, b"{").unwrap();
     drop(lock);
     assert_eq!(store.read().unwrap_err(), Error::InvalidCatalog);

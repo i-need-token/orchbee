@@ -1,27 +1,27 @@
 //! Canonical members of one Panel; child terminals never become layout leaves.
-use super::{NativeProjectionError, NativeTerminalBinding};
+use super::{ClientProjectionError, ClientTerminalBinding};
 use orchbee_workbench_protocol::{
     PanelCustomLabel, PanelRightClickTarget, Presentation, PresentationLaunchFailure,
     TerminalPresentationId, WorkbenchLabel, WorkbenchPanelId,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct NativePresentation {
+pub(crate) struct ClientPresentation {
     pub(super) presentation_id: TerminalPresentationId,
     pub(super) presentation_label: WorkbenchLabel,
     pub(super) custom_label: Option<PanelCustomLabel>,
-    pub(super) binding: Option<NativeTerminalBinding>,
+    pub(super) binding: Option<ClientTerminalBinding>,
     pub(super) launch_failure: Option<PresentationLaunchFailure>,
 }
 
-impl NativePresentation {
-    pub(super) fn project(value: &Presentation) -> Result<Self, NativeProjectionError> {
+impl ClientPresentation {
+    pub(super) fn project(value: &Presentation) -> Result<Self, ClientProjectionError> {
         Ok(Self {
             presentation_id: value.presentation_id.clone(),
             presentation_label: WorkbenchLabel::parse(&value.label)
-                .map_err(|_| NativeProjectionError)?,
+                .map_err(|_| ClientProjectionError)?,
             custom_label: value.custom_label.clone(),
-            binding: value.binding.as_ref().map(|binding| NativeTerminalBinding {
+            binding: value.binding.as_ref().map(|binding| ClientTerminalBinding {
                 worker_id: binding.worker_id.clone(),
                 terminal_id: binding.terminal_id.clone(),
             }),
@@ -42,7 +42,7 @@ impl NativePresentation {
         self.custom_label()
             .unwrap_or(self.presentation_label.as_str())
     }
-    pub(in crate::workbench_client) fn binding(&self) -> Option<&NativeTerminalBinding> {
+    pub(in crate::workbench_client) fn binding(&self) -> Option<&ClientTerminalBinding> {
         self.binding.as_ref()
     }
     /// The Server's committed failure for the current binding, visible to every Client.
@@ -52,15 +52,15 @@ impl NativePresentation {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct NativePanel {
+pub(crate) struct ClientPanel {
     pub(super) right_click: PanelRightClickTarget,
     pub(super) panel_id: WorkbenchPanelId,
-    pub(super) primary: NativePresentation,
-    pub(super) children: Box<[NativePresentation]>,
+    pub(super) primary: ClientPresentation,
+    pub(super) children: Box<[ClientPresentation]>,
 }
 
-impl NativePanel {
-    pub(crate) fn primary(&self) -> &NativePresentation {
+impl ClientPanel {
+    pub(crate) fn primary(&self) -> &ClientPresentation {
         &self.primary
     }
     pub(crate) const fn right_click(&self) -> PanelRightClickTarget {
@@ -75,20 +75,20 @@ impl NativePanel {
     pub(crate) fn presentation_label(&self) -> &WorkbenchLabel {
         self.primary.presentation_label()
     }
-    pub(in crate::workbench_client) fn binding(&self) -> Option<&NativeTerminalBinding> {
+    pub(in crate::workbench_client) fn binding(&self) -> Option<&ClientTerminalBinding> {
         self.primary.binding()
     }
     pub(crate) fn presentation_count(&self) -> usize {
         1 + self.children.len()
     }
-    pub(crate) fn presentation(&self, index: usize) -> Option<&NativePresentation> {
+    pub(crate) fn presentation(&self, index: usize) -> Option<&ClientPresentation> {
         if index == 0 {
             Some(&self.primary)
         } else {
             self.children.get(index - 1)
         }
     }
-    pub(crate) fn presentations(&self) -> impl Iterator<Item = &NativePresentation> {
+    pub(crate) fn presentations(&self) -> impl Iterator<Item = &ClientPresentation> {
         std::iter::once(&self.primary).chain(self.children.iter())
     }
     pub(crate) fn presentation_index(&self, id: &TerminalPresentationId) -> Option<usize> {
@@ -97,8 +97,8 @@ impl NativePanel {
     }
     pub(in crate::workbench_client) fn bound_presentation(
         &self,
-        binding: &NativeTerminalBinding,
-    ) -> Option<&NativePresentation> {
+        binding: &ClientTerminalBinding,
+    ) -> Option<&ClientPresentation> {
         self.presentations()
             .find(|member| member.binding() == Some(binding))
     }

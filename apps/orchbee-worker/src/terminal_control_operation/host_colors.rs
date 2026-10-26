@@ -6,7 +6,7 @@ use super::{
 };
 use crate::host_connection::recolored;
 use orchbee_capability_node_protocol::{HostDefaultColors, HostTerminalId};
-use orchbee_local_site_runtime::UserTerminalColors;
+use orchbee_local_runtime::UserTerminalColors;
 use orchbee_terminal_protocol::{
     ApplyTerminalTheme, TerminalThemeOperationId, TerminalThemeTransition, ThemeControl,
     decode_theme_control, encode_theme_control,

@@ -1,6 +1,6 @@
 use super::{PROCESS_TIMEOUT, RunningServer, TestDirectory, TestResult, connect_bounded_client};
 use orchbee_client_server_protocol::{
-    ClientMessage, RequestId, ServerMessage, SiteId as ClientSiteId,
+    ClientMessage, RequestId, ServerMessage, SessionId as ObcsSessionId,
     TerminalId as ClientTerminalId, TerminalViewerAction, TerminalViewerOutcome,
     TerminalViewerRequest, WorkerId as ClientWorkerId, read_server_message, write_client_message,
 };
@@ -48,7 +48,7 @@ fn command(
     WorkbenchRequest::Command(WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id,
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         expected_revision: snapshot.revision,
         action,
     })
@@ -547,7 +547,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
         binding.worker_id.as_str()
     );
 
-    let site_id = ClientSiteId::parse(after_tab.site_id.as_str())?;
+    let session_id = ObcsSessionId::parse(after_tab.session_id.as_str())?;
     let worker_id = ClientWorkerId::parse(binding.worker_id.as_str())?;
     let terminal_id = ClientTerminalId::parse(binding.terminal_id.as_str())?;
     let attach_request_id = client_id(21)?;
@@ -556,7 +556,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
         &ClientMessage::TerminalViewer(TerminalViewerRequest::new(
             attach_request_id.clone(),
             TerminalViewerAction::AttachBinding {
-                site_id,
+                session_id,
                 worker_id,
                 terminal_id,
             },
@@ -860,7 +860,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
     let conflict_request = WorkbenchRequest::Command(WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: move_command.request_id.clone(),
-        site_id: move_command.site_id.clone(),
+        session_id: move_command.session_id.clone(),
         expected_revision: move_command.expected_revision,
         action: WorkbenchAction::TabMove {
             terminal_context_id: expected_after_move.navigation.workspaces[1]

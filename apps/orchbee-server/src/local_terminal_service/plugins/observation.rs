@@ -3,7 +3,7 @@ use super::{
     Failure, LocalTerminalService, Outcome, PluginRequest, WorkerOperationRequest,
     WorkerOperationResult, node,
 };
-use crate::{local_terminal_service::placement, site_coordinator::ProcessObservationTarget};
+use crate::{local_terminal_service::placement, session_coordinator::ProcessObservationTarget};
 use orchbee_workbench_protocol::PluginPaneInfo;
 use std::sync::atomic::AtomicBool;
 
@@ -26,8 +26,8 @@ impl LocalTerminalService {
             }
             let prepared = coordinator
                 .prepare_binding_viewer(
-                    &orchbee_client_server_protocol::SiteId::parse(request.site_id.as_str())
-                        .map_err(|_| Failure::SiteMismatch)?,
+                    &orchbee_client_server_protocol::SessionId::parse(request.session_id.as_str())
+                        .map_err(|_| Failure::SessionMismatch)?,
                     &orchbee_client_server_protocol::WorkerId::parse(
                         pane.binding.worker_id.as_str(),
                     )
@@ -40,7 +40,7 @@ impl LocalTerminalService {
                 )
                 .map_err(|_| Failure::Unavailable)?;
             ProcessObservationTarget {
-                site_id: request.site_id.clone(),
+                session_id: request.session_id.clone(),
                 binding: pane.binding.clone(),
                 target: prepared.target,
             }
@@ -58,8 +58,10 @@ impl LocalTerminalService {
             }) if *current == *pane => {
                 let fresh = coordinator
                     .prepare_binding_viewer(
-                        &orchbee_client_server_protocol::SiteId::parse(request.site_id.as_str())
-                            .map_err(|_| Failure::SiteMismatch)?,
+                        &orchbee_client_server_protocol::SessionId::parse(
+                            request.session_id.as_str(),
+                        )
+                        .map_err(|_| Failure::SessionMismatch)?,
                         &orchbee_client_server_protocol::WorkerId::parse(
                             pane.binding.worker_id.as_str(),
                         )

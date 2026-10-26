@@ -1,6 +1,6 @@
 //! Transient overlay return chains belong to the Client that owns focus and zoom.
 use super::{
-    Instant, NativeContextTabs, NativeSimpleTab, SiteId, WorkbenchClientState, WorkbenchPanelId,
+    ClientContextTabs, ClientTab, Instant, SessionId, WorkbenchClientState, WorkbenchPanelId,
     WorkbenchRequestId, WorkbenchTabId, WorkbenchTerminalContextId,
 };
 use orchbee_workbench_protocol::{
@@ -23,7 +23,7 @@ pub(super) struct Overlay {
 
 #[derive(Clone, Debug)]
 pub(in crate::workbench_client) struct OverlayJob {
-    pub(in crate::workbench_client) site: SiteId,
+    pub(in crate::workbench_client) session: SessionId,
     pub(in crate::workbench_client) context: WorkbenchTerminalContextId,
     pub(in crate::workbench_client) tab: WorkbenchTabId,
     pub(in crate::workbench_client) member: ClientOverlayMember,
@@ -39,7 +39,7 @@ pub(in crate::workbench_client) enum OverlayResult {
     CloseOwned { operation_id: WorkbenchRequestId },
 }
 
-fn matches(panel: &super::super::NativePanel, member: &ClientOverlayMember) -> bool {
+fn matches(panel: &super::super::ClientPanel, member: &ClientOverlayMember) -> bool {
     panel.panel_id() == &member.panel_id
         && panel
             .presentation_index(&member.presentation_id)
@@ -133,7 +133,7 @@ impl WorkbenchClientState {
 
     pub(super) fn overlay_return(
         &self,
-        tab: &NativeSimpleTab,
+        tab: &ClientTab,
         removed: &WorkbenchPanelId,
     ) -> Option<(ClientOverlayMember, bool)> {
         let overlay = self
@@ -165,7 +165,7 @@ impl WorkbenchClientState {
 
     pub(super) fn overlay_return_index(
         &self,
-        tab: &NativeSimpleTab,
+        tab: &ClientTab,
         removed: &WorkbenchPanelId,
     ) -> Option<usize> {
         self.overlay_return(tab, removed).and_then(|(member, _)| {
@@ -176,10 +176,10 @@ impl WorkbenchClientState {
 
     pub(super) fn overlay_return_presentation<'a>(
         &self,
-        tab: &NativeSimpleTab,
+        tab: &ClientTab,
         removed: &WorkbenchPanelId,
-        panel: &'a super::super::NativePanel,
-    ) -> Option<&'a super::super::NativePresentation> {
+        panel: &'a super::super::ClientPanel,
+    ) -> Option<&'a super::super::ClientPresentation> {
         let (member, _) = self.overlay_return(tab, removed)?;
         if !matches(panel, &member) {
             return None;
@@ -201,7 +201,9 @@ impl WorkbenchClientState {
         use crate::workbench_client::workbench_projection::{
             project_native_context_tabs, project_preferred_workspace,
         };
-        if snapshot.site_id != *self.cache.site_id() || snapshot.revision < self.cache.revision() {
+        if snapshot.session_id != *self.cache.session_id()
+            || snapshot.revision < self.cache.revision()
+        {
             return;
         }
         let Ok(navigation) = project_preferred_workspace(snapshot) else {
@@ -243,7 +245,7 @@ impl WorkbenchClientState {
 
     fn prune_plugin_overlays_in(
         &mut self,
-        cache: &NativeContextTabs,
+        cache: &ClientContextTabs,
         previous_focus: Option<&WorkbenchPanelId>,
     ) {
         let records = std::mem::take(&mut self.plugin_overlays);
@@ -346,7 +348,7 @@ impl WorkbenchClientState {
             .find(|o| o.pending.is_none() && o.close.is_none())?;
         overlay.pending = Some(id.clone());
         Some(OverlayJob {
-            site: self.cache.site_id().clone(),
+            session: self.cache.session_id().clone(),
             context: overlay.context.clone(),
             tab: overlay.tab.clone(),
             member: overlay.member.clone(),

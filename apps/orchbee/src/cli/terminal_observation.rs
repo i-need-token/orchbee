@@ -10,7 +10,7 @@ pub(super) enum Observation {
 }
 use crate::terminal_title::stripped;
 
-use orchbee_local_site_runtime::windows_reported_directory as reported_directory;
+use orchbee_local_runtime::windows_reported_directory as reported_directory;
 
 impl Observation {
     pub(super) fn fields(&self) -> Value {

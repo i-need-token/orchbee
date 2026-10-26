@@ -10,7 +10,7 @@ use orchbee_workbench_protocol::{WorkbenchClientId, WorktreeReference};
 mod windows;
 
 #[cfg(windows)]
-type ParsedWorktreePath = orchbee_local_site_runtime::WindowsUserPathOperand;
+type ParsedWorktreePath = orchbee_local_runtime::UserPathOperand;
 #[cfg(not(windows))]
 type ParsedWorktreePath = WorkbenchDirectoryPath;
 pub(crate) type ParsedWorktreeCommand = WorktreeCommand<ParsedWorktreePath>;

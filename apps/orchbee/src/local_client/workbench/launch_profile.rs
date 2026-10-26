@@ -476,7 +476,7 @@ fn classify_mutation_outcome(
         WorkbenchCommandOutcome::Rejected { revision, reason }
             if matches!(
                 reason,
-                WorkbenchRejectionReason::SiteMismatch
+                WorkbenchRejectionReason::SessionMismatch
                     | WorkbenchRejectionReason::RevisionMismatch
                     | WorkbenchRejectionReason::ResourceLimit
                     | WorkbenchRejectionReason::RevisionExhausted

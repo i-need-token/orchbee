@@ -32,7 +32,7 @@ fn workspace_navigation_retains_empty_owners_and_empty_workbench_has_no_identity
     source.navigation.workspace_order.clear();
     source.terminal_contexts.clear();
     let empty = project_preferred_workspace(&source).unwrap();
-    assert_eq!(empty.location(), &NativeContextLocation::NoWorkspace);
+    assert_eq!(empty.location(), &ClientContextLocation::NoWorkspace);
     assert!(empty.navigation().is_empty());
     assert!(empty.canonical_context().is_none());
     assert!(empty.terminal_context_id().is_none());
@@ -83,7 +83,7 @@ fn workspace_navigation_keeps_exact_owner_and_capacity_checks() {
 fn projects_exact_zero_one_and_256_tab_boundaries_in_order() {
     for tab_count in [0, 1, MAXIMUM_TABS_PER_CONTEXT] {
         let projection = project_preferred_workspace(&snapshot(tab_count, 17)).unwrap();
-        assert_eq!(projection.site_id(), &site_id(SITE_VALUE));
+        assert_eq!(projection.session_id(), &session_id(SESSION_VALUE));
         assert_eq!(projection.revision(), WorkbenchRevision::new(17));
         assert_eq!(
             projection.terminal_context_id().unwrap(),
@@ -111,7 +111,7 @@ fn projects_exact_zero_one_and_256_tab_boundaries_in_order() {
 
     assert_eq!(
         project_preferred_workspace(&snapshot(MAXIMUM_TABS_PER_CONTEXT + 1, 17)),
-        Err(NativeProjectionError)
+        Err(ClientProjectionError)
     );
 }
 
@@ -121,7 +121,7 @@ fn requires_one_matching_context_and_ignores_project_workspace_contexts() {
     missing.navigation.workspaces[0].terminal_context_id = context_id(90);
     assert_eq!(
         project_preferred_workspace(&missing),
-        Err(NativeProjectionError)
+        Err(ClientProjectionError)
     );
 
     let mut duplicate = snapshot(1, 1);
@@ -130,7 +130,7 @@ fn requires_one_matching_context_and_ignores_project_workspace_contexts() {
         .push(duplicate.terminal_contexts[0].clone());
     assert_eq!(
         project_preferred_workspace(&duplicate),
-        Err(NativeProjectionError)
+        Err(ClientProjectionError)
     );
 
     let mut coexistence = snapshot(2, 8);
@@ -202,7 +202,7 @@ fn rejects_malformed_metadata_and_unsupported_members_without_filtering() {
     for candidate in unsupported {
         assert_eq!(
             project_preferred_workspace(&candidate),
-            Err(NativeProjectionError),
+            Err(ClientProjectionError),
             "one unsupported member must reject the complete projection"
         );
     }
@@ -322,7 +322,7 @@ fn preserves_exact_duplicate_whitespace_labels_and_separate_identity_domains() {
 
     let same = id(50);
     let mut equal_text = snapshot(1, 1);
-    equal_text.site_id = SiteId::parse(&same).unwrap();
+    equal_text.session_id = SessionId::parse(&same).unwrap();
     equal_text.navigation.workspaces[0].terminal_context_id =
         WorkbenchTerminalContextId::parse(&same).unwrap();
     equal_text.terminal_contexts[0].terminal_context_id =
@@ -344,7 +344,7 @@ fn preserves_exact_duplicate_whitespace_labels_and_separate_identity_domains() {
     binding.terminal_id = TerminalId::parse(&same).unwrap();
     let projection = project_preferred_workspace(&equal_text).unwrap();
     let tab = &projection.tabs()[0];
-    assert_eq!(projection.site_id().as_str(), same);
+    assert_eq!(projection.session_id().as_str(), same);
     assert_eq!(projection.terminal_context_id().unwrap().as_str(), same);
     assert_eq!(tab.tab_id().as_str(), same);
     assert_eq!(tab.panel_id().as_str(), same);
@@ -385,7 +385,7 @@ fn rejects_labels_that_cannot_be_represented_as_workbench_labels() {
     for candidate in invalid {
         assert_eq!(
             project_preferred_workspace(&candidate),
-            Err(NativeProjectionError)
+            Err(ClientProjectionError)
         );
     }
 }

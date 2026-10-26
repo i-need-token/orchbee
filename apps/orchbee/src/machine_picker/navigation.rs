@@ -1,26 +1,26 @@
 //! Sidebar hierarchy and keyboard focus over the Picker's existing canonical rows.
 use super::{
-    Choice, Context, KeyCode, KeyEvent, KeyKind, Modifiers, NativeContextTarget, Picker, Row,
+    Choice, ClientContextTarget, Context, KeyCode, KeyEvent, KeyKind, Modifiers, Picker, Row,
     Selection,
 };
 use crate::{
     client_view::{Binding, KeyLabelGlyphs, LabelStyle, format_binding_with_glyphs},
     tui_layout::SidebarWidthChange,
-    workbench_client::NativeContextLocation,
+    workbench_client::ClientContextLocation,
 };
-use orchbee_workbench_protocol::{SiteId, WorkbenchProjectId};
+use orchbee_workbench_protocol::{SessionId, WorkbenchProjectId};
 use std::sync::Arc;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum SidebarTarget {
     Project {
         machine: Choice,
-        site_id: SiteId,
+        session_id: SessionId,
         project_id: WorkbenchProjectId,
     },
     Context {
         machine: Choice,
-        target: NativeContextTarget,
+        target: ClientContextTarget,
     },
     Agent {
         machine: Choice,
@@ -35,11 +35,11 @@ impl SidebarTarget {
             | Self::Agent { machine, .. } => machine,
         }
     }
-    pub(crate) fn site_id(&self) -> &SiteId {
+    pub(crate) fn session_id(&self) -> &SessionId {
         match self {
-            Self::Project { site_id, .. } => site_id,
-            Self::Context { target, .. } => &target.site_id,
-            Self::Agent { target, .. } => &target.context.site_id,
+            Self::Project { session_id, .. } => session_id,
+            Self::Context { target, .. } => &target.session_id,
+            Self::Agent { target, .. } => &target.context.session_id,
         }
     }
 
@@ -52,7 +52,7 @@ impl SidebarTarget {
             }),
             Self::Agent { machine, target } => Some(Selection {
                 machine: machine.clone(),
-                context: Some(crate::workbench_client::NativeStartupTarget::Agent(
+                context: Some(crate::workbench_client::ClientStartupTarget::Agent(
                     target.clone(),
                 )),
             }),
@@ -123,14 +123,14 @@ impl SidebarSource {
     pub(crate) fn matches_navigation(
         &self,
         machine: &Choice,
-        site: &SiteId,
+        session: &SessionId,
         navigation: &orchbee_workbench_protocol::Navigation,
     ) -> bool {
         let rows = self
             .0
             .rows
             .iter()
-            .filter(|row| row.target.machine() == machine && row.target.site_id() == site)
+            .filter(|row| row.target.machine() == machine && row.target.session_id() == session)
             .collect::<Vec<_>>();
         let projects = rows
             .iter()
@@ -161,7 +161,7 @@ impl SidebarSource {
         >::new();
         for row in &rows {
             if let SidebarTarget::Context { target, .. } = &row.target
-                && let NativeContextLocation::Workspace { workspace_id, .. } = &target.location
+                && let ClientContextLocation::Workspace { workspace_id, .. } = &target.location
             {
                 let Some(workspace) = workspaces.get(workspace_id) else {
                     return false;
@@ -197,8 +197,8 @@ impl SidebarSource {
         }
         rows.into_iter().all(|row| match &row.target {
             SidebarTarget::Context { target, .. } => match &target.location {
-                NativeContextLocation::NoWorkspace => false,
-                NativeContextLocation::Workspace {
+                ClientContextLocation::NoWorkspace => false,
+                ClientContextLocation::Workspace {
                     workspace_id,
                     terminal_context_id,
                 } => workspaces.get(workspace_id).is_some_and(|workspace| {
@@ -208,13 +208,13 @@ impl SidebarSource {
                             (
                                 Some(SidebarTarget::Project {
                                     machine: parent_machine,
-                                    site_id: parent_site,
+                                    session_id: parent_session,
                                     project_id: parent,
                                 }),
                                 Some(project),
                             ) => {
                                 parent_machine == machine
-                                    && parent_site == site
+                                    && parent_session == session
                                     && parent == project
                             }
                             _ => false,
@@ -320,7 +320,7 @@ pub(crate) enum SidebarActivation {
 pub(crate) enum SidebarRow<'a> {
     Project {
         machine: &'a Choice,
-        site_id: &'a SiteId,
+        session_id: &'a SessionId,
         project_id: &'a WorkbenchProjectId,
         label: &'a str,
         /// Member Workspaces, including those hidden while the Project is collapsed.
@@ -339,12 +339,12 @@ impl SidebarRow<'_> {
         match self {
             Self::Project {
                 machine,
-                site_id,
+                session_id,
                 project_id,
                 ..
             } => SidebarTarget::Project {
                 machine: (*machine).clone(),
-                site_id: (*site_id).clone(),
+                session_id: (*session_id).clone(),
                 project_id: (*project_id).clone(),
             },
             Self::Context { row, .. } => row
@@ -522,24 +522,24 @@ enum ContextLocationIdentity<'a> {
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(super) struct ContextIdentity<'a> {
     machine: MachineIdentity<'a>,
-    site: &'a str,
+    session: &'a str,
     location: ContextLocationIdentity<'a>,
 }
 
 /// Shared join key for Agent rows and counts; Project membership is presentation metadata.
 pub(super) fn context_identity<'a>(
     machine: &'a Choice,
-    target: &'a NativeContextTarget,
+    target: &'a ClientContextTarget,
 ) -> ContextIdentity<'a> {
     ContextIdentity {
         machine: match machine {
             Choice::Local => MachineIdentity::Local,
             Choice::Remote(id) => MachineIdentity::Remote(id.as_str()),
         },
-        site: target.site_id.as_str(),
+        session: target.session_id.as_str(),
         location: match &target.location {
-            NativeContextLocation::NoWorkspace => ContextLocationIdentity::NoWorkspace,
-            NativeContextLocation::Workspace {
+            ClientContextLocation::NoWorkspace => ContextLocationIdentity::NoWorkspace,
+            ClientContextLocation::Workspace {
                 workspace_id,
                 terminal_context_id,
             } => ContextLocationIdentity::Workspace {
@@ -600,7 +600,7 @@ impl Picker {
     }
 
     pub(crate) fn sidebar_navigation_rows(&self) -> Vec<SidebarRow<'_>> {
-        // Join the accepted Agent projection to its exact endpoint + Site + Context once.
+        // Join the accepted Agent projection to its exact endpoint + Session + Context once.
         // Labels and physical placement are presentation data, never ownership keys.
         let mut agent_children = std::collections::BTreeMap::new();
         for row in self.agent_rows.iter().filter(|row| row.enabled) {
@@ -620,10 +620,10 @@ impl Picker {
             let mut children = std::collections::BTreeMap::new();
             if let Some(checkpoint) = self.space_checkpoint(&machine.choice) {
                 for project in checkpoint.projects.iter() {
-                    known.insert((checkpoint.site_id.as_str(), project.project_id.as_str()));
+                    known.insert((checkpoint.session_id.as_str(), project.project_id.as_str()));
                     projects.push((
                         &machine.choice,
-                        &checkpoint.site_id,
+                        &checkpoint.session_id,
                         &project.project_id,
                         project.label.as_str(),
                     ));
@@ -642,12 +642,12 @@ impl Picker {
                         ungrouped.push(row);
                     }
                     Some(project_id) => {
-                        let key = (context.target.site_id.as_str(), project_id.as_str());
+                        let key = (context.target.session_id.as_str(), project_id.as_str());
                         children.entry(key).or_insert_with(Vec::new).push(row);
                         if known.insert(key) {
                             projects.push((
                                 &machine.choice,
-                                &context.target.site_id,
+                                &context.target.session_id,
                                 project_id,
                                 context.project.as_deref().unwrap_or(""),
                             ));
@@ -655,29 +655,29 @@ impl Picker {
                     }
                 }
             }
-            for (machine, site_id, project_id, label) in projects {
+            for (machine, session_id, project_id, label) in projects {
                 let target = SidebarTarget::Project {
                     machine: machine.clone(),
-                    site_id: site_id.clone(),
+                    session_id: session_id.clone(),
                     project_id: project_id.clone(),
                 };
                 let expanded = self.sidebar_project_expanded(&target);
                 entries.push(SidebarRow::Project {
                     machine,
-                    site_id,
+                    session_id,
                     project_id,
                     label,
                     workspaces: children
-                        .get(&(site_id.as_str(), project_id.as_str()))
+                        .get(&(session_id.as_str(), project_id.as_str()))
                         .map_or(0, Vec::len),
                 });
                 if expanded
                     && let SidebarTarget::Project {
-                        site_id,
+                        session_id,
                         project_id,
                         ..
                     } = &target
-                    && let Some(rows) = children.get(&(site_id.as_str(), project_id.as_str()))
+                    && let Some(rows) = children.get(&(session_id.as_str(), project_id.as_str()))
                 {
                     for row in rows {
                         append_context(&self.navigation, &agent_children, &mut entries, row);
@@ -695,10 +695,10 @@ impl Picker {
     /// Renderers call this once per candidate frame and clone its `Arc` into painted targets.
     pub(crate) fn sidebar_source(&self) -> SidebarSource {
         let admitted = self.available && self.spaces.visible() && !self.open;
-        let menu_site = self
+        let menu_session = self
             .current_context
             .as_ref()
-            .map(|context| &context.site_id);
+            .map(|context| &context.session_id);
         let rows = self
             .sidebar_navigation_rows()
             .into_iter()
@@ -708,7 +708,7 @@ impl Picker {
                     &target,
                     SidebarTarget::Project { .. } | SidebarTarget::Context { .. }
                 ) && target.machine() == &self.current
-                    && menu_site == Some(target.site_id());
+                    && menu_session == Some(target.session_id());
                 SidebarCatalogRow {
                     parent: self.sidebar_parent(&target),
                     disclosure: match row {
@@ -717,13 +717,13 @@ impl Picker {
                         SidebarRow::Agent { .. } => false,
                     },
                     create: menu && matches!(&target, SidebarTarget::Project { .. }),
-                    // Site Close requires the endpoint menu capability.
+                    // Session Close requires the endpoint menu capability.
                     close: menu
                         && matches!(
                             &target,
                             SidebarTarget::Context {
-                                target: NativeContextTarget {
-                                    location: NativeContextLocation::Workspace { .. },
+                                target: ClientContextTarget {
+                                    location: ClientContextLocation::Workspace { .. },
                                     ..
                                 },
                                 ..
@@ -790,8 +790,8 @@ impl Picker {
             (
                 SidebarTarget::Context {
                     target:
-                        NativeContextTarget {
-                            location: NativeContextLocation::Workspace { workspace_id, .. },
+                        ClientContextTarget {
+                            location: ClientContextLocation::Workspace { workspace_id, .. },
                             ..
                         },
                     ..
@@ -846,11 +846,11 @@ impl Picker {
             }),
             SidebarTarget::Project {
                 machine,
-                site_id,
+                session_id,
                 project_id,
             } => {
                 self.space_checkpoint(machine).is_some_and(|checkpoint| {
-                    &checkpoint.site_id == site_id
+                    &checkpoint.session_id == session_id
                         && checkpoint
                             .projects
                             .iter()
@@ -858,7 +858,7 @@ impl Picker {
                 }) || self.workspace_rows.iter().any(|row| {
                     &row.choice == machine
                         && row.context.as_ref().is_some_and(|context| {
-                            &context.target.site_id == site_id
+                            &context.target.session_id == session_id
                                 && context.project_id.as_ref() == Some(project_id)
                         })
                 })
@@ -900,7 +900,7 @@ impl Picker {
                 })?;
                 Some(SidebarTarget::Project {
                     machine: machine.clone(),
-                    site_id: target.site_id.clone(),
+                    session_id: target.session_id.clone(),
                     project_id: context.project_id.clone()?,
                 })
             }
@@ -1226,7 +1226,7 @@ impl Picker {
                 {
                     return SidebarIntent::Activate(Selection {
                         machine: machine.clone(),
-                        context: Some(crate::workbench_client::NativeStartupTarget::Agent(
+                        context: Some(crate::workbench_client::ClientStartupTarget::Agent(
                             target.clone(),
                         )),
                     });

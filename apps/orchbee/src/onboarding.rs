@@ -1,6 +1,6 @@
 //! Native-profile education state. Only an explicit dismissal writes storage.
 use crate::client_view::{ClientAction, PrefixAction};
-use orchbee_local_site_runtime::{WindowsPrivateCache, windows_user_settings_path};
+use orchbee_local_runtime::{PrivateCache, user_settings_path};
 use serde::Deserialize;
 use std::{io, path::PathBuf};
 const FILE: &str = "onboarding.json";
@@ -72,7 +72,7 @@ fn decode(bytes: Option<Vec<u8>>) -> io::Result<bool> {
 }
 impl State {
     pub(crate) fn load() -> Self {
-        let root = windows_user_settings_path(|name| std::env::var_os(name))
+        let root = user_settings_path(|name| std::env::var_os(name))
             .ok()
             .flatten()
             .and_then(|path| {
@@ -82,7 +82,7 @@ impl State {
         let result = root
             .as_ref()
             .ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))
-            .and_then(|root| WindowsPrivateCache::read_existing(root, FILE, MAX_BYTES))
+            .and_then(|root| PrivateCache::read_existing(root, FILE, MAX_BYTES))
             .and_then(decode);
         Self {
             visible: !matches!(result, Ok(true)),
@@ -97,7 +97,7 @@ impl State {
         // Hide locally even if storage refuses. The notice explains that a restart may show it again.
         self.visible = false;
         let root = self.root.as_ref().ok_or(io::ErrorKind::NotFound)?;
-        let mut cache = WindowsPrivateCache::acquire(root)?;
+        let mut cache = PrivateCache::acquire(root)?;
         if !decode(cache.read(FILE, MAX_BYTES)?)? {
             cache.replace(FILE, DISMISSED)?;
         }
@@ -173,8 +173,7 @@ mod storage_tests {
         let root =
             Root(std::env::temp_dir().join(format!("orchbee-onboarding-test-{}", id.as_str())));
         let directory = root.0.join("profile");
-        let read =
-            || decode(WindowsPrivateCache::read_existing(&directory, FILE, MAX_BYTES).unwrap());
+        let read = || decode(PrivateCache::read_existing(&directory, FILE, MAX_BYTES).unwrap());
         assert!(!read().unwrap());
         assert!(!root.0.exists());
         let mut state = State {
@@ -190,7 +189,7 @@ mod storage_tests {
             root: Some(directory.clone()),
         };
         concurrent.dismiss().unwrap();
-        let mut cache = WindowsPrivateCache::acquire(&directory).unwrap();
+        let mut cache = PrivateCache::acquire(&directory).unwrap();
         cache.replace(FILE, b"broken").unwrap();
         drop(cache);
         let mut corrupted = State {

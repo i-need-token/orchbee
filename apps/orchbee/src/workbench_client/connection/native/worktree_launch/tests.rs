@@ -4,7 +4,7 @@ use crate::workbench_client::state::worktree_launch::{Origin, WorktreeMode, Work
 use orchbee_workbench_protocol::WorkbenchDirectoryPath;
 
 fn prepare(
-    executor: &mut NativeExecutor,
+    executor: &mut ClientExecutor,
     sample: &SourceFixture,
     outcome: &WorkbenchSnapshotOutcome,
 ) -> Result<Option<WorkbenchDirectoryPath>> {

@@ -2,18 +2,17 @@ use super::workspace_setup::{finish, workspace_snapshot, workspace_state};
 use super::*;
 use crate::local_client::workbench::workspace_setup::WorkbenchSetupCommit;
 use crate::workbench_client::state::workspace_setup::{
-    NativeLocationLabelStatus as Status, NativeLocationLabelTarget as Target,
-    NativeSetupEdit as Edit, NativeSetupIntent, NativeSetupStage, NativeSetupStatus,
-    SetupOperation, SetupWorkerEvidence,
+    LocationLabelStatus as Status, LocationLabelTarget as Target, SetupEdit as Edit, SetupIntent,
+    SetupOperation, SetupStage, SetupStatus, SetupWorkerEvidence,
 };
 use crate::workbench_client::workbench_projection::{
-    NativeContextLocation, project_native_context_tabs,
+    ClientContextLocation, project_native_context_tabs,
 };
 use orchbee_workbench_protocol::{
     WorkbenchAction, WorkbenchProjectId, WorkbenchSnapshotUnavailableReason, WorkbenchWorkspaceId,
 };
-fn location() -> NativeContextLocation {
-    NativeContextLocation::Workspace {
+fn location() -> ClientContextLocation {
+    ClientContextLocation::Workspace {
         workspace_id: WorkbenchWorkspaceId::parse(&id(71)).unwrap(),
         terminal_context_id: context_id(72),
     }
@@ -31,7 +30,7 @@ fn workspace_rename_refuses_blank_names_preserving_draft_and_canonical_label() {
         let baseline = state.cache().clone();
         let desired = state.desired().cloned();
         let token = state
-            .open_setup_draft(NativeSetupIntent::RenameLocation(Target::Workspace))
+            .open_setup_draft(SetupIntent::RenameLocation(Target::Workspace))
             .unwrap();
         state.acknowledge_setup_draw(Some(token));
         state.edit_setup_draft(token, Edit::Clear);
@@ -73,13 +72,13 @@ fn operation(
     generation: u64,
 ) -> SetupOperation {
     let token = state
-        .open_setup_draft(NativeSetupIntent::RenameLocation(target))
+        .open_setup_draft(SetupIntent::RenameLocation(target))
         .unwrap();
     assert_eq!(
         state.setup_draft().unwrap().stage(),
         match target {
-            Target::Project => NativeSetupStage::ProjectRename,
-            Target::Workspace => NativeSetupStage::WorkspaceRename,
+            Target::Project => SetupStage::ProjectRename,
+            Target::Workspace => SetupStage::WorkspaceRename,
         }
     );
     let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
@@ -126,7 +125,7 @@ fn location_rename_prefills_canonical_text_and_cancel_does_not_change_target_or_
         let desired = state.desired().cloned();
         let frame = state.focus_accepted_frame().clone();
         let token = state
-            .open_setup_draft(NativeSetupIntent::RenameLocation(target))
+            .open_setup_draft(SetupIntent::RenameLocation(target))
             .unwrap();
         let draft = state.setup_draft().unwrap();
         assert_eq!(
@@ -158,12 +157,12 @@ fn ungrouped_workspace_project_rename_refuses_locally_with_the_requested_target_
         let mut state = ready(1);
         assert!(
             state
-                .open_setup_draft(NativeSetupIntent::RenameLocation(target))
+                .open_setup_draft(SetupIntent::RenameLocation(target))
                 .is_none()
         );
         assert_eq!(
             state.setup_status(),
-            Some(NativeSetupStatus::LocationLabel {
+            Some(SetupStatus::LocationLabel {
                 target,
                 status: Status::Unavailable
             })
@@ -174,7 +173,7 @@ fn ungrouped_workspace_project_rename_refuses_locally_with_the_requested_target_
             .unwrap();
         assert!(
             state
-                .open_setup_draft(NativeSetupIntent::RenameLocation(target))
+                .open_setup_draft(SetupIntent::RenameLocation(target))
                 .is_none()
         );
         assert_eq!(state.setup_status(), None);
@@ -275,7 +274,7 @@ fn exact_location_label_snapshot_changes_only_the_named_label_and_preserves_read
             assert_eq!(state.phase_kind(), ClientPhaseKind::Ready);
             assert_eq!(
                 state.setup_status(),
-                Some(NativeSetupStatus::LocationLabel {
+                Some(SetupStatus::LocationLabel {
                     target,
                     status: if changed {
                         Status::Renamed
@@ -364,7 +363,7 @@ fn noop_result_unavailable_keeps_known_authority_and_explicit_refresh_never_open
         state.clear_settled_setup_status();
         assert_eq!(
             state.setup_status(),
-            Some(NativeSetupStatus::LocationLabel {
+            Some(SetupStatus::LocationLabel {
                 target,
                 status: Status::CommittedNeedRefresh
             })
@@ -379,7 +378,7 @@ fn noop_result_unavailable_keeps_known_authority_and_explicit_refresh_never_open
         assert!(state.setup_draft().is_none());
         assert_eq!(
             state.setup_status(),
-            Some(NativeSetupStatus::LocationLabel {
+            Some(SetupStatus::LocationLabel {
                 target,
                 status: Status::Unchanged
             })
@@ -409,7 +408,7 @@ fn settled_noop_and_new_queued_rename_retirement_evidence_are_consumed_independe
     assert!(state.retain_setup_worker(SetupWorkerEvidence::NotApplied(next)));
     assert_eq!(
         state.setup_status(),
-        Some(NativeSetupStatus::LocationLabel {
+        Some(SetupStatus::LocationLabel {
             target: Target::Project,
             status: Status::NotApplied
         })
@@ -431,7 +430,7 @@ fn targeted_source(initial_workspace: bool, empty: bool) -> (WorkbenchClientStat
             let fixture_context_id = snapshot.navigation.workspaces[0]
                 .terminal_context_id
                 .clone();
-            NativeContextLocation::Workspace {
+            ClientContextLocation::Workspace {
                 workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                     fixture_context_id.as_str(),
                 )
@@ -453,7 +452,7 @@ fn targeted_source(initial_workspace: bool, empty: bool) -> (WorkbenchClientStat
     (state, snapshot)
 }
 
-fn targeted_draft(state: &mut WorkbenchClientState) -> crate::workbench_client::NativeSetupToken {
+fn targeted_draft(state: &mut WorkbenchClientState) -> crate::workbench_client::SetupToken {
     let request = crate::workbench_client::ProjectRenameRequest::capture(
         state,
         &state.cache().projects()[1],
@@ -461,7 +460,7 @@ fn targeted_draft(state: &mut WorkbenchClientState) -> crate::workbench_client::
     )
     .unwrap();
     state
-        .open_setup_draft(NativeSetupIntent::RenameProject(Box::new(request)))
+        .open_setup_draft(SetupIntent::RenameProject(Box::new(request)))
         .unwrap()
 }
 
@@ -561,7 +560,7 @@ fn targeted_project_rename_preserves_source_and_validates_receipts_and_exact_del
                 assert_eq!(state.focus_pane_ref(), focus);
                 assert_eq!(
                     state.setup_status(),
-                    Some(NativeSetupStatus::LocationLabel {
+                    Some(SetupStatus::LocationLabel {
                         target: Target::Project,
                         status: if changed {
                             Status::Renamed
@@ -595,7 +594,7 @@ fn targeted_project_rename_releases_stale_drafts_and_keeps_committed_recovery() 
         assert!(!state.setup_blocks_structure());
         assert_eq!(
             state.setup_status(),
-            Some(NativeSetupStatus::LocationLabel {
+            Some(SetupStatus::LocationLabel {
                 target: Target::Project,
                 status: Status::NotApplied
             })
@@ -603,7 +602,7 @@ fn targeted_project_rename_releases_stale_drafts_and_keeps_committed_recovery() 
         state.cancel_setup_draft(token);
         assert!(
             state
-                .open_setup_draft(NativeSetupIntent::RenameLocation(Target::Project))
+                .open_setup_draft(SetupIntent::RenameLocation(Target::Project))
                 .is_some()
         );
     }
@@ -737,7 +736,7 @@ fn rename_refusal_returns_unread_publication_demand_and_stale_keeps_typed_text()
             state.apply_prepared_refresh(prepared, Instant::now());
             assert_eq!(
                 state.setup_status(),
-                Some(NativeSetupStatus::LocationLabel {
+                Some(SetupStatus::LocationLabel {
                     target,
                     status: if stale {
                         Status::Stale
@@ -766,7 +765,7 @@ fn rename_refusal_returns_unread_publication_demand_and_stale_keeps_typed_text()
             assert!(state.invariant_holds());
 
             let token = state
-                .open_setup_draft(NativeSetupIntent::RenameLocation(target))
+                .open_setup_draft(SetupIntent::RenameLocation(target))
                 .unwrap();
             assert_eq!(
                 state.setup_draft().unwrap().text(),
@@ -774,7 +773,7 @@ fn rename_refusal_returns_unread_publication_demand_and_stale_keeps_typed_text()
             );
             state.cancel_setup_draft(token);
             state
-                .open_setup_draft(NativeSetupIntent::RenameLocation(target))
+                .open_setup_draft(SetupIntent::RenameLocation(target))
                 .unwrap();
             assert_eq!(state.setup_draft().unwrap().text(), "Peer name");
         }

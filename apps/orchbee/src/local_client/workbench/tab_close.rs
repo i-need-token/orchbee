@@ -1,6 +1,6 @@
 use crate::local_client::{ExchangeAttempt, LocalClient, exchange_once};
 use orchbee_workbench_protocol::{
-    SiteId, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
+    SessionId, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
     WorkbenchCommandUnavailableReason, WorkbenchRejectionReason, WorkbenchRequest,
     WorkbenchRequestId, WorkbenchResponse, WorkbenchRevision, WorkbenchTabCloseAttemptGeneration,
     WorkbenchTabId, WorkbenchTerminalContextId, WorkbenchWireError, read_workbench_response,
@@ -215,7 +215,7 @@ fn classify_command_result(
         WorkbenchCommandOutcome::Rejected { revision, reason }
             if matches!(
                 reason,
-                WorkbenchRejectionReason::SiteMismatch
+                WorkbenchRejectionReason::SessionMismatch
                     | WorkbenchRejectionReason::RevisionMismatch
                     | WorkbenchRejectionReason::TerminalContextUnavailable
                     | WorkbenchRejectionReason::TabUnavailable
@@ -328,9 +328,9 @@ pub(crate) enum WorkbenchTabCloseFailure {
         expected: WorkbenchRequestId,
         received: WorkbenchRequestId,
     },
-    SiteMismatch {
-        expected: SiteId,
-        received: SiteId,
+    SessionMismatch {
+        expected: SessionId,
+        received: SessionId,
     },
     TerminalContextMismatch {
         expected: WorkbenchTerminalContextId,
@@ -367,7 +367,7 @@ impl fmt::Display for WorkbenchTabCloseFailure {
                 f,
                 "expected Workbench request {expected} but received {received}"
             ),
-            Self::SiteMismatch { expected, received } => {
+            Self::SessionMismatch { expected, received } => {
                 write!(f, "expected Session {expected} but received {received}")
             }
             Self::TerminalContextMismatch { expected, received } => write!(
@@ -400,7 +400,7 @@ impl std::error::Error for WorkbenchTabCloseFailure {
             Self::UnexpectedResponse
             | Self::ActionIncompatible
             | Self::CorrelationMismatch { .. }
-            | Self::SiteMismatch { .. }
+            | Self::SessionMismatch { .. }
             | Self::TerminalContextMismatch { .. }
             | Self::TabMismatch { .. }
             | Self::OperationMismatch { .. }

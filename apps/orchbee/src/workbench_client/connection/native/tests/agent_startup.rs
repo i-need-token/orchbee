@@ -2,7 +2,7 @@
 use super::{commands::drive_controlling_after_attach, setup::*};
 use crate::{
     machine_agents,
-    workbench_client::{NativeStartupTarget, state::CarrierFailure},
+    workbench_client::{ClientStartupTarget, state::CarrierFailure},
 };
 use orchbee_agent_observation_protocol::{AgentHostEpoch, AgentHostTerminalId};
 use orchbee_client_server_protocol::*;
@@ -50,7 +50,7 @@ fn observe(harness: &Harness, target: &machine_agents::Target, changed: bool) ->
         .respond_workbench(WorkbenchResponse::PanelAgent(PanelAgentResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
-            site_id: request.site_id,
+            session_id: request.session_id,
             outcome: PanelAgentOutcome::States {
                 workbench_revision: WorkbenchRevision::new(1),
                 report_revision: WorkbenchRevision::new(2),
@@ -75,7 +75,7 @@ fn agent_startup_draws_exact_second_tab_child_without_opening_a_terminal() -> Te
     let mut harness = Harness::start_at(
         steps,
         geometry,
-        NativeStartupTarget::Agent(Box::new(target.clone())),
+        ClientStartupTarget::Agent(Box::new(target.clone())),
     )?;
     observe(&harness, &target, false)?;
     let UiEvent::Bootstrap { key } = harness.ui.settle_next(FrameCut::None)? else {
@@ -96,14 +96,14 @@ fn agent_startup_draws_exact_second_tab_child_without_opening_a_terminal() -> Te
         return Err(test_error("exact child Attach"));
     };
     let TerminalViewerAction::AttachBinding {
-        site_id,
+        session_id,
         worker_id,
         terminal_id,
     } = request.action()
     else {
         return Err(test_error("must attach canonical binding"));
     };
-    assert_eq!(site_id.as_str(), target.context.site_id.as_str());
+    assert_eq!(session_id.as_str(), target.context.session_id.as_str());
     assert_eq!(worker_id.as_str(), target.terminal.worker_id.as_str());
     assert_eq!(terminal_id.as_str(), target.terminal.terminal_id.as_str());
     harness
@@ -125,7 +125,7 @@ fn agent_startup_rejects_a_changed_launch_before_any_viewer_or_control_effect() 
     let harness = Harness::start_at(
         vec![WireKind::Workbench; 2],
         fixture_geometry()?,
-        NativeStartupTarget::Agent(Box::new(target.clone())),
+        ClientStartupTarget::Agent(Box::new(target.clone())),
     )?;
     observe(&harness, &target, true)?;
     harness.finish_after_worker_failure(CarrierFailure::AuthorityDivergence)
@@ -142,7 +142,7 @@ fn agent_startup_detaches_a_replaced_host_before_acquiring_control() -> TestResu
             WireKind::Obcs,
         ],
         fixture_geometry()?,
-        NativeStartupTarget::Agent(Box::new(target.clone())),
+        ClientStartupTarget::Agent(Box::new(target.clone())),
     )?;
     observe(&harness, &target, false)?;
     assert!(matches!(
@@ -184,7 +184,7 @@ fn agent_startup_missing_unbound_or_moved_member_never_falls_back_to_primary() -
         let harness = Harness::start_at(
             vec![WireKind::Workbench],
             fixture_geometry()?,
-            NativeStartupTarget::Agent(Box::new(target)),
+            ClientStartupTarget::Agent(Box::new(target)),
         )?;
         let mut snapshot = machine_agents::tests::fixture();
         let PanelNode::Panel {

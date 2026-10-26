@@ -1,7 +1,7 @@
 use super::*;
 use orchbee_workbench_protocol::{
     MetadataReportDisposition, MetadataSource, MetadataTokenKey, MetadataTokenPatch,
-    MetadataTokenValue, SiteId, Snapshot, WorkbenchRevision, WorkbenchWorkspaceId,
+    MetadataTokenValue, SessionId, Snapshot, WorkbenchRevision, WorkbenchWorkspaceId,
     WorkspaceMetadataAction as Action, WorkspaceMetadataFailure as Failure,
     WorkspaceMetadataOutcome as Outcome, WorkspaceMetadataRequest, WorkspaceMetadataResult,
 };
@@ -38,7 +38,7 @@ fn command(service: &WorkbenchService, n: u64, action: WorkbenchAction) -> Workb
         response(service.execute(WorkbenchRequest::Command(WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id: WorkbenchRequestId::parse(&format!("{n:032x}")).unwrap(),
-            site_id: before.site_id,
+            session_id: before.session_id,
             expected_revision: before.revision,
             action,
         })))
@@ -93,7 +93,7 @@ fn workspace_metadata_grants_are_independent_and_reports_do_not_mutate_topology(
     let mut read = WorkspaceMetadataRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 500)).unwrap(),
-        site_id: before.site_id.clone(),
+        session_id: before.session_id.clone(),
         action: Action::Read {
             workspace_ids: ids.clone(),
         },
@@ -169,14 +169,14 @@ fn workspace_metadata_grants_are_independent_and_reports_do_not_mutate_topology(
         }
         assert_eq!(snapshot(&admin), before);
     }
-    read.site_id = SiteId::parse(&format!("{:032x}", 999)).unwrap();
+    read.session_id = SessionId::parse(&format!("{:032x}", 999)).unwrap();
     assert_eq!(
         execute(&admin, &read).outcome,
         Outcome::Failed {
-            reason: Failure::SiteMismatch
+            reason: Failure::SessionMismatch
         }
     );
-    read.site_id = before.site_id.clone();
+    read.session_id = before.session_id.clone();
     read.action = Action::Read {
         workspace_ids: vec![WorkbenchWorkspaceId::parse(&format!("{:032x}", 999)).unwrap()],
     };

@@ -80,7 +80,7 @@ fn close_accepts_older_alias_at_maximum_admitted_base() -> TestResult {
 fn close_preserves_every_action_compatible_precommit_on_the_same_carrier() -> TestResult {
     let mut outcomes = vec![WorkbenchCommandOutcome::Denied {}];
     for reason in [
-        WorkbenchRejectionReason::SiteMismatch,
+        WorkbenchRejectionReason::SessionMismatch,
         WorkbenchRejectionReason::RevisionMismatch,
         WorkbenchRejectionReason::TerminalContextUnavailable,
         WorkbenchRejectionReason::TabUnavailable,
@@ -439,7 +439,7 @@ fn resume_checks_every_echo_on_denied_and_retires_impossible_generations() -> Te
         };
         match field {
             0 => result.request_id = workbench_id(SECOND_REQUEST_ID),
-            1 => result.site_id = SiteId::parse(&id(99))?,
+            1 => result.session_id = SessionId::parse(&id(99))?,
             2 => result.terminal_context_id = context_id(99),
             3 => result.tab_id = WorkbenchTabId::parse(&id(99))?,
             4 => result.close_request_id = workbench_id(SECOND_REQUEST_ID),
@@ -512,7 +512,7 @@ fn close_read() -> WorkbenchTabCloseRead {
     WorkbenchTabCloseRead {
         protocol_version: ProtocolVersion,
         request_id: workbench_id(FIRST_REQUEST_ID),
-        site_id: SiteId::parse(&id(20)).unwrap(),
+        session_id: SessionId::parse(&id(20)).unwrap(),
         terminal_context_id: context_id(30),
         tab_id: WorkbenchTabId::parse(&id(31)).unwrap(),
     }
@@ -545,7 +545,7 @@ fn resume(expected: u64) -> WorkbenchTabCloseResume {
     WorkbenchTabCloseResume {
         protocol_version: ProtocolVersion,
         request_id: read.request_id,
-        site_id: read.site_id,
+        session_id: read.session_id,
         terminal_context_id: read.terminal_context_id,
         tab_id: read.tab_id,
         close_request_id: workbench_id(FIRST_REQUEST_ID),
@@ -557,7 +557,7 @@ fn resume_response(outcome: WorkbenchTabCloseResumeOutcome) -> WorkbenchResponse
     WorkbenchResponse::TabCloseResume(WorkbenchTabCloseResumeResult {
         protocol_version: ProtocolVersion,
         request_id: request.request_id,
-        site_id: request.site_id,
+        session_id: request.session_id,
         terminal_context_id: request.terminal_context_id,
         tab_id: request.tab_id,
         close_request_id: request.close_request_id,

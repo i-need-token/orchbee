@@ -1,5 +1,5 @@
 //! The OBAP names sidecar family: selector resolution plus the bounded
-//! read/manage operations over the Server's per-Site session alias table.
+//! read/manage operations over the Server's per-Session session alias table.
 //! These are their own closed request/result family — a manage is never
 //! typed as a session read. Everything here is a typed wire DTO; fold
 //! semantics live with the Server's `AgentState`.

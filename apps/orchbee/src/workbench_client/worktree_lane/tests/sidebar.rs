@@ -54,8 +54,8 @@ fn attach_reply(
     viewer_reply(
         stream,
         TerminalViewerAction::AttachBinding {
-            site_id: orchbee_client_server_protocol::SiteId::parse(
-                addressed.cache.site_id().as_str(),
+            session_id: orchbee_client_server_protocol::SessionId::parse(
+                addressed.cache.session_id().as_str(),
             )
             .unwrap(),
             worker_id: orchbee_client_server_protocol::WorkerId::parse(
@@ -161,8 +161,8 @@ fn unexpected_attach_reply_retires_the_auxiliary_client_without_borrowing_a_cont
         viewer_reply(
             &mut stream,
             TerminalViewerAction::AttachBinding {
-                site_id: orchbee_client_server_protocol::SiteId::parse(
-                    expected.cache.site_id().as_str(),
+                session_id: orchbee_client_server_protocol::SessionId::parse(
+                    expected.cache.session_id().as_str(),
                 )
                 .unwrap(),
                 worker_id: orchbee_client_server_protocol::WorkerId::parse(
@@ -228,8 +228,8 @@ fn addressed_lane_samples_first_root_around_git_and_always_releases_its_own_view
             viewer_reply(
                 &mut stream,
                 TerminalViewerAction::AttachBinding {
-                    site_id: orchbee_client_server_protocol::SiteId::parse(
-                        expected.cache.site_id().as_str(),
+                    session_id: orchbee_client_server_protocol::SessionId::parse(
+                        expected.cache.session_id().as_str(),
                     )
                     .unwrap(),
                     worker_id: orchbee_client_server_protocol::WorkerId::parse(
@@ -284,7 +284,7 @@ fn addressed_lane_samples_first_root_around_git_and_always_releases_its_own_view
                         protocol_version: ProtocolVersion,
                         request_id: request.request_id,
                         outcome: WorkbenchWorktreeQueryOutcome::Found {
-                            site_id: expected.cache.site_id().clone(),
+                            session_id: expected.cache.session_id().clone(),
                             workbench_revision: expected.cache.revision(),
                             worker_id: primary.worker_id().clone(),
                             source: discovery.source,

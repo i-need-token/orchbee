@@ -7,7 +7,7 @@ mod tui_observer;
 
 use std::time::{Duration, Instant};
 
-use tui_observer::{ModalRow, NativeHeader, Screen};
+use tui_observer::{ModalRow, Screen, WorkbenchHeader};
 
 const COLUMNS: usize = 120;
 const ROWS: usize = 32;
@@ -67,57 +67,57 @@ fn native_header_requires_the_top_location_and_current_compact_tab_grammar() {
     for (top, header, expected) in [
         (
             "+ New workspace             *1 1                 Workspace",
-            NativeHeader::active("Workspace", 1, "1"),
+            WorkbenchHeader::active("Workspace", 1, "1"),
             true,
         ),
         (
             "+ New workspace             *1 1   2 2             Workspace",
-            NativeHeader::active("Workspace", 1, "1"),
+            WorkbenchHeader::active("Workspace", 1, "1"),
             true,
         ),
         (
             "+ New workspace             *1  current             Workspace",
-            NativeHeader::active("Workspace", 1, " current"),
+            WorkbenchHeader::active("Workspace", 1, " current"),
             true,
         ),
         (
             "+ New workspace                                  Setup process / Chosen workspace",
-            NativeHeader::empty("Setup process / Chosen workspace"),
+            WorkbenchHeader::empty("Setup process / Chosen workspace"),
             true,
         ),
         (
             "+ 新建工作区                                      设置进程 / 已选择工作区",
-            NativeHeader::empty("设置进程 / 已选择工作区"),
+            WorkbenchHeader::empty("设置进程 / 已选择工作区"),
             true,
         ),
         (
             "+ New workspace             [*1 1]               Workspace",
-            NativeHeader::active("Workspace", 1, "1"),
+            WorkbenchHeader::active("Workspace", 1, "1"),
             false,
         ),
         (
             "+ New workspace                                  Workspace",
-            NativeHeader::active("Workspace", 1, "1"),
+            WorkbenchHeader::active("Workspace", 1, "1"),
             false,
         ),
         (
             "+ New workspace             *1 1  *2 2             Workspace",
-            NativeHeader::active("Workspace", 1, "1"),
+            WorkbenchHeader::active("Workspace", 1, "1"),
             false,
         ),
         (
             "+ New workspace             *1  current  *2 2       Workspace",
-            NativeHeader::active("Workspace", 1, " current"),
+            WorkbenchHeader::active("Workspace", 1, " current"),
             false,
         ),
         (
             "+ New workspace             *1  current             Workspace",
-            NativeHeader::empty("Workspace"),
+            WorkbenchHeader::empty("Workspace"),
             false,
         ),
         (
             "+ New workspace             *1 current  2 nested    Workspace",
-            NativeHeader::active("Workspace", 1, "current  2 nested"),
+            WorkbenchHeader::active("Workspace", 1, "current  2 nested"),
             false,
         ),
     ] {

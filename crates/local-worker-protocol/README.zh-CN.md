@@ -61,8 +61,8 @@ crate。
 ```sh
 cargo test -p orchbee-local-worker-protocol --all-targets --all-features --locked
 cargo clippy -p orchbee-local-worker-protocol --all-targets --all-features --locked -- -D warnings
-node scripts/tla/run-models.mjs --models local-site-startup
+node scripts/tla/run-models.mjs --models local-session-startup
 pnpm verify
 ```
 
-<!-- documentation-pairing: english-sha256=d5b8ef99f89b956d974a71a1ef53d851577d5f1e0a74bc0ebc518b27e29a82e4 zh-cn-sha256=476c3da826ce267e16132135714b8bf3f54ed1fbf525f145b944f14c9cec778e -->
+<!-- documentation-pairing: english-sha256=a0658e8b02e46526996e70b9ae13f73af57ef242b62aa154cdbc623ff1ba1f35 zh-cn-sha256=e300eee4b8ebf64f49cab26987775a633c4635eebf36f7f08e84258d22910e82 -->

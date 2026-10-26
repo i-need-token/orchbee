@@ -30,7 +30,7 @@ enum StableAnchor {
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct RetainedProjection {
     pane: PaneRef,
-    binding: super::NativeTerminalBinding,
+    binding: super::ClientTerminalBinding,
     mode: ControllerMode,
     observed_geometry: Geometry,
     last_admitted_geometry: Option<Geometry>,
@@ -250,7 +250,7 @@ impl WorkbenchClientState {
                 .tabs()
                 .get(target.selected.index())
                 .is_none_or(|tab| tab.tab_id() != target.selected.key().anchor().tab_id())
-            || target.site_id() != self.cache.site_id()
+            || target.session_id() != self.cache.session_id()
             || !self.target_provenance_valid(&target)
         {
             return false;
@@ -372,8 +372,8 @@ impl WorkbenchClientState {
                 .target
                 .binding()
                 .ok_or(CarrierFailure::AuthorityDivergence)?;
-            let selection = crate::workbench_client::workbench_projection::NativeMemberSelection {
-                member: crate::workbench_client::NativeMemberTarget {
+            let selection = crate::workbench_client::workbench_projection::ClientMemberSelection {
+                member: crate::workbench_client::ClientMemberTarget {
                     tab: marker.anchor().tab_id().clone(),
                     panel: marker.panel().clone(),
                     presentation: (*setup.target.presentation_id).clone(),

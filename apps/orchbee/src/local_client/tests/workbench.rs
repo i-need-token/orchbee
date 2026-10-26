@@ -26,7 +26,7 @@ use crate::local_client::{
 use orchbee_workbench_protocol::{
     ContractError, LaunchProfileId, MAXIMUM_ENCODED_INTENT_BYTES,
     MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES, Navigation, PanelNode, Presentation,
-    PresentationBinding, ProtocolVersion, PublicationReadIntent, SiteId, Snapshot,
+    PresentationBinding, ProtocolVersion, PublicationReadIntent, SessionId, Snapshot,
     SnapshotReadIntent, Tab, TerminalContext, TerminalId, TerminalPresentationId, WorkbenchAction,
     WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandResult,
     WorkbenchCommandUnavailableReason, WorkbenchLabel, WorkbenchPanelId, WorkbenchProjectId,
@@ -116,7 +116,7 @@ fn tab_create_preserves_every_compatible_precommit_on_the_same_carrier() -> Test
         ));
     }
     for reason in [
-        WorkbenchRejectionReason::SiteMismatch,
+        WorkbenchRejectionReason::SessionMismatch,
         WorkbenchRejectionReason::RevisionMismatch,
         WorkbenchRejectionReason::TerminalContextUnavailable,
         WorkbenchRejectionReason::WorkspaceDirectoryUnavailable,
@@ -1279,7 +1279,7 @@ fn workbench_command(
     WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: workbench_id(request_id),
-        site_id: SiteId::parse(&id(20)).unwrap(),
+        session_id: SessionId::parse(&id(20)).unwrap(),
         expected_revision: WorkbenchRevision::new(expected_revision),
         action,
     }
@@ -1363,7 +1363,7 @@ fn snapshot() -> Snapshot {
         },
         protocol_version: ProtocolVersion,
         revision: WorkbenchRevision::new(1),
-        site_id: SiteId::parse(&id(2)).unwrap(),
+        session_id: SessionId::parse(&id(2)).unwrap(),
         terminal_contexts: vec![TerminalContext {
             groups: Vec::new(),
             tabs: vec![Tab {
@@ -1449,7 +1449,7 @@ fn close_control_responses() -> [WorkbenchResponse; 2] {
         WorkbenchResponse::TabCloseResume(WorkbenchTabCloseResumeResult {
             protocol_version: ProtocolVersion,
             request_id: WorkbenchRequestId::parse(FIRST_REQUEST_ID).unwrap(),
-            site_id: SiteId::parse(&id(29)).unwrap(),
+            session_id: SessionId::parse(&id(29)).unwrap(),
             terminal_context_id: context_id(30),
             tab_id: WorkbenchTabId::parse(&id(31)).unwrap(),
             close_request_id: WorkbenchRequestId::parse(&id(32)).unwrap(),

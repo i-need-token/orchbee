@@ -2,10 +2,10 @@ use super::{AttachmentKey, ClientNotice, PaneKey};
 use crate::{
     local_client::workbench::WorkbenchTabCloseAccepted,
     tui_presentation::{GeometrySettlement, PresentationPhase},
-    workbench_client::workbench_projection::NativeTerminalBinding,
+    workbench_client::workbench_projection::ClientTerminalBinding,
 };
 use orchbee_workbench_protocol::{
-    SiteId, WorkbenchLabel, WorkbenchRequestId, WorkbenchRevision,
+    SessionId, WorkbenchLabel, WorkbenchRequestId, WorkbenchRevision,
     WorkbenchTabCloseAttemptGeneration, WorkbenchTabClosePublicationReason,
     WorkbenchTabCloseStatus, WorkbenchTabId, WorkbenchTerminalContextId,
 };
@@ -61,26 +61,26 @@ pub(crate) enum CloseStatusKind {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::workbench_client) struct CloseTarget {
-    site_id: SiteId,
+    session_id: SessionId,
     terminal_context_id: WorkbenchTerminalContextId,
     tab_id: WorkbenchTabId,
 }
 
 impl CloseTarget {
     pub(in crate::workbench_client) const fn new(
-        site_id: SiteId,
+        session_id: SessionId,
         terminal_context_id: WorkbenchTerminalContextId,
         tab_id: WorkbenchTabId,
     ) -> Self {
         Self {
-            site_id,
+            session_id,
             terminal_context_id,
             tab_id,
         }
     }
 
-    pub(in crate::workbench_client) const fn site_id(&self) -> &SiteId {
-        &self.site_id
+    pub(in crate::workbench_client) const fn session_id(&self) -> &SessionId {
+        &self.session_id
     }
     pub(in crate::workbench_client) const fn terminal_context_id(
         &self,
@@ -130,7 +130,7 @@ impl CloseFlightKey {
 pub(in crate::workbench_client) struct CloseSelection {
     target: CloseTarget,
     label: WorkbenchLabel,
-    binding: Option<NativeTerminalBinding>,
+    binding: Option<ClientTerminalBinding>,
     attachment: Option<AttachmentKey>,
     base_revision: WorkbenchRevision,
 }
@@ -139,7 +139,7 @@ impl CloseSelection {
     pub(in crate::workbench_client) fn new(
         target: CloseTarget,
         label: WorkbenchLabel,
-        binding: impl Into<Option<NativeTerminalBinding>>,
+        binding: impl Into<Option<ClientTerminalBinding>>,
         attachment: Option<AttachmentKey>,
         base_revision: WorkbenchRevision,
     ) -> Self {
@@ -158,7 +158,7 @@ impl CloseSelection {
         self.base_revision
     }
 
-    pub(in crate::workbench_client) const fn binding(&self) -> Option<&NativeTerminalBinding> {
+    pub(in crate::workbench_client) const fn binding(&self) -> Option<&ClientTerminalBinding> {
         self.binding.as_ref()
     }
 
@@ -789,7 +789,7 @@ impl super::WorkbenchClientState {
             return None;
         }
         Some(CloseTarget::new(
-            self.cache.site_id().clone(),
+            self.cache.session_id().clone(),
             self.cache.terminal_context_id()?.clone(),
             tab_id.clone(),
         ))
@@ -915,7 +915,7 @@ impl super::WorkbenchClientState {
             .panel(selected.panel_index())
             .ok_or(CloseStateError::UnknownTarget)?;
         let target = CloseTarget::new(
-            self.cache.site_id().clone(),
+            self.cache.session_id().clone(),
             self.cache
                 .terminal_context_id()
                 .ok_or(CloseStateError::UnknownTarget)?
@@ -969,7 +969,7 @@ impl super::WorkbenchClientState {
         let Some(panel) = tab.panel(selected.panel_index()) else {
             return false;
         };
-        self.cache.site_id() == selection.target().site_id()
+        self.cache.session_id() == selection.target().session_id()
             && self.cache.terminal_context_id() == Some(selection.target().terminal_context_id())
             && self.cache.revision() == selection.base_revision()
             && tab.tab_id() == selection.target().tab_id()
@@ -1081,7 +1081,7 @@ impl<'a> super::WorkbenchClientView<'a> {
         }
         if let Some(selected) = self.state.active() {
             let target = CloseTarget::new(
-                self.state.cache.site_id().clone(),
+                self.state.cache.session_id().clone(),
                 self.state.cache.terminal_context_id()?.clone(),
                 selected.key().anchor().tab_id().clone(),
             );

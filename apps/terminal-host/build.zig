@@ -31,7 +31,7 @@ fn powershellStartupModule(builder: *std.Build) *std.Build.Module {
     const files = builder.addWriteFiles();
     for ([_][]const u8{ "initialization", "reader" }) |name| {
         _ = files.addCopyFile(.{ .cwd_relative = builder.pathFromRoot(builder.fmt(
-            "../../crates/local-site-runtime/src/windows_powershell_{s}.ps1",
+            "../../crates/local-runtime/src/directory/windows/{s}.ps1",
             .{name},
         )) }, builder.fmt("{s}.ps1", .{name}));
     }

@@ -241,7 +241,7 @@ GUI 的分组编辑器已绘制带勾选状态的颜色单选项及调色板预�
 | 不变量   | 未绘制或过期时不能激活；打开/取消不改焦点；不对替代目标执行；不隐式重试；输入及决策包尾部不进入 pane；普通关闭保留确认；条件删除要求准确权威证明或新审核决策                                                                                                                         |
 | 模型     | 捕获、绘制、目标失效、自有/外部导航、取消、前提和一次动作转交的有限安全状态机                                                                                                                                                                                                        |
 | 依赖     | 现有原生 membership、终端状态、输入解码器、hit map、布局、本地化和动作 owner；新增条件删除 wire 动作仍由 Server 拥有；无新依赖或持久数据                                                                                                                                             |
-| 归属     | NativeUi 管准入与目标导航；确定性菜单管选择和绘制权限；ClientView 管本地视图决策；仅 InputDispatcher 应用 shell、模式和布局副作用；仅原操作 owner 执行变更                                                                                                                           |
+| 归属     | WorkbenchClientUi 管准入与目标导航；确定性菜单管选择和绘制权限；ClientView 管本地视图决策；仅 InputDispatcher 应用 shell、模式和布局副作用；仅原操作 owner 执行变更                                                                                                                  |
 | 参考范围 | 当前 Orchbee 动作的可发现性                                                                                                                                                                                                                                                          |
 
 `MenuTarget::Project` 携带 `WorkbenchProjectId`，不使用标签或行索引。
@@ -366,4 +366,4 @@ Context Refresh 与 Tab attachment generation 使用不同类型的导航键，�
 
 侧栏锚定菜单保留被覆盖行的完整矩形用于定位，同时抑制底层输入目标。空间允许时在行旁打开，否则在其上方或下方打开。工作树发现过程在检查中、可用和不可用结果间保留原因行，使靠边放置的重命名与删除操作保持位置。
 
-<!-- documentation-pairing: english-sha256=6a4f53142e8bc0117a5fdcb08b0844ac2be8eef03daca54dee6da9a8ba1fa41b zh-cn-sha256=3cf23d2fe130776522334c35634b0d3999a5e10ab9daec98b1e1c7930e35628e -->
+<!-- documentation-pairing: english-sha256=0b0ed17ba4a7716cc77796e6f51b5865ac6aa4635477ba921e0ae38ed00d7030 zh-cn-sha256=3c66d8e2fc5da3ab749a845037f2fe302195ac18acf69ee504ec1920e9e55f63 -->

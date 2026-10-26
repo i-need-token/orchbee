@@ -16,9 +16,7 @@ use crate::{
     },
     tui_pointer::{InteractionSpec, InteractionTarget, PrimaryContract, ProjectedPointer},
 };
-use orchbee_local_site_runtime::{
-    WindowsSidebarTokenStyle, WindowsSpaceSidebarToken, WindowsSpaceSidebarTokenKind as Kind,
-};
+use orchbee_local_runtime::{SidebarTokenStyle, SpaceSidebarToken, SpaceSidebarTokenKind as Kind};
 use ratatui::style::Style;
 use sidebar_text::{fit, machine_label, state_role};
 mod layout;
@@ -111,7 +109,7 @@ impl<'a> Context<'a> {
     }
     /// A continuation line appears only once one of its tokens has a visible value; pending
     /// metadata reserves no blank row, so a non-repository Workspace never shrinks after Git settles.
-    fn keeps(&self, tokens: &[WindowsSpaceSidebarToken], first: bool) -> bool {
+    fn keeps(&self, tokens: &[SpaceSidebarToken], first: bool) -> bool {
         !tokens.is_empty()
             && (first
                 || tokens.iter().any(|token| {
@@ -148,7 +146,7 @@ impl<'a> Context<'a> {
                 .map(|(_, v)| v.as_str()),
         }
     }
-    fn visible(&self, kind: Kind<'_>, style: Option<WindowsSidebarTokenStyle>) -> bool {
+    fn visible(&self, kind: Kind<'_>, style: Option<SidebarTokenStyle>) -> bool {
         if style.is_none() {
             return false;
         }
@@ -190,11 +188,7 @@ fn home_relative(path: &str, home: &str) -> Option<String> {
         .then(|| format!("~{}", rest.trim_end_matches(SEPARATORS)))
 }
 /// Ahead/behind counts painted as right-aligned metadata on their configured line.
-fn git_spans(
-    context: &Context<'_>,
-    theme: &Theme,
-    style: WindowsSidebarTokenStyle,
-) -> Vec<Span<'static>> {
+fn git_spans(context: &Context<'_>, theme: &Theme, style: SidebarTokenStyle) -> Vec<Span<'static>> {
     let Some(git) = context
         .observed
         .and_then(|r| r.git.as_ref())
@@ -419,8 +413,8 @@ fn identity(target: &SidebarTarget) -> Option<&str> {
     match target {
         SidebarTarget::Project { project_id, .. } => Some(project_id.as_str()),
         SidebarTarget::Context { target, .. } => match &target.location {
-            crate::workbench_client::NativeContextLocation::NoWorkspace => None,
-            crate::workbench_client::NativeContextLocation::Workspace { workspace_id, .. } => {
+            crate::workbench_client::ClientContextLocation::NoWorkspace => None,
+            crate::workbench_client::ClientContextLocation::Workspace { workspace_id, .. } => {
                 Some(workspace_id.as_str())
             }
         },
@@ -475,7 +469,7 @@ fn annotations(
         groups
             .entry((
                 machine,
-                target.site_id().as_str().to_owned(),
+                target.session_id().as_str().to_owned(),
                 parent,
                 match row {
                     SidebarRow::Project { .. } => 0,
@@ -610,20 +604,20 @@ fn creation_target_matches(
 ) -> bool {
     let target = row.target();
     target.machine() == &view.machines.current
-        && target.site_id() == preview.site
+        && target.session_id() == preview.session
         && match target {
             SidebarTarget::Context { target, .. } => matches!(&target.location,
-                crate::workbench_client::NativeContextLocation::Workspace { workspace_id, .. }
+                crate::workbench_client::ClientContextLocation::Workspace { workspace_id, .. }
                     if preview.committed.is_some_and(|(workspace, _)| workspace_id == workspace)),
             SidebarTarget::Project { project_id, .. } => {
                 preview.project_id == Some(&project_id)
                     && preview.committed.is_none_or(|(workspace, revision)| {
                         !view
                             .machines
-                            .workspace_checkpoint_covers(preview.site, revision)
+                            .workspace_checkpoint_covers(preview.session, revision)
                             || view
                                 .machines
-                                .workspace_checkpoint_project(preview.site, workspace)
+                                .workspace_checkpoint_project(preview.session, workspace)
                                 == Some(&project_id)
                     })
                     && !view.machines.sidebar_project_expanded(&row.target())
@@ -639,7 +633,7 @@ fn creation_insertion(
 ) -> usize {
     let belongs = |row: &SidebarRow<'_>| {
         let target = row.target();
-        target.machine() == &view.machines.current && target.site_id() == preview.site
+        target.machine() == &view.machines.current && target.session_id() == preview.session
     };
     if let Some(project) = preview.project_id
         && let Some(parent) = rows.iter().position(|row| {
@@ -1170,7 +1164,7 @@ pub(super) fn render(
             && preview.committed.is_none_or(|(_, revision)| {
                 !view
                     .machines
-                    .workspace_checkpoint_covers(preview.site, revision)
+                    .workspace_checkpoint_covers(preview.session, revision)
             })
     });
     // A committed receipt may outlive observer handoff and member switches inside its Workspace.

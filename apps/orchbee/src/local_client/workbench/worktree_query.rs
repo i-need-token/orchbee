@@ -76,9 +76,9 @@ fn correlated(request: &WorkbenchWorktreeQuery, result: &WorkbenchWorktreeQueryR
     }
     match &result.outcome {
         WorkbenchWorktreeQueryOutcome::Found {
-            site_id, source, ..
+            session_id, source, ..
         } => {
-            *site_id == request.site_id
+            *session_id == request.session_id
                 && match &request.source {
                     WorktreeSource::Workspace { workspace_id } => {
                         source.workspace_id.as_ref() == Some(workspace_id)

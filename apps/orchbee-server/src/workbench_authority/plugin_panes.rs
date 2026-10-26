@@ -22,10 +22,9 @@ pub(super) fn resolve(
 ) -> Result<PluginPaneLaunch, WorkbenchCommandUnavailableReason> {
     #[cfg(windows)]
     {
-        let registry = orchbee_local_site_runtime::PluginRegistry::from_environment(|name| {
-            std::env::var_os(name)
-        })
-        .map_err(|_| WorkbenchCommandUnavailableReason::ServiceUnavailable)?;
+        let registry =
+            orchbee_local_runtime::PluginRegistry::from_environment(|name| std::env::var_os(name))
+                .map_err(|_| WorkbenchCommandUnavailableReason::ServiceUnavailable)?;
         resolve_from(&registry, snapshot, command, selector)
     }
     #[cfg(not(windows))]
@@ -37,7 +36,7 @@ pub(super) fn resolve(
 
 #[cfg(windows)]
 fn resolve_from(
-    registry: &orchbee_local_site_runtime::PluginRegistry,
+    registry: &orchbee_local_runtime::PluginRegistry,
     snapshot: &Snapshot,
     command: &WorkbenchCommand,
     selector: &PluginPaneSelector,
@@ -90,7 +89,7 @@ fn resolve_from(
 
 #[cfg(windows)]
 fn freeze(
-    registry: &orchbee_local_site_runtime::PluginRegistry,
+    registry: &orchbee_local_runtime::PluginRegistry,
     selector: &PluginPaneSelector,
     context: orchbee_workbench_protocol::PluginInvocationContext,
 ) -> Result<(PluginPaneLaunch, String), WorkbenchCommandUnavailableReason> {
@@ -113,7 +112,7 @@ fn freeze(
         return Err(WorkbenchCommandUnavailableReason::NoCompatibleWorker);
     }
     let root = Path::new(&entry.plugin_root);
-    let program = orchbee_local_site_runtime::resolve_windows_program(&pane.command[0], root);
+    let program = orchbee_local_runtime::resolve_windows_program(&pane.command[0], root);
     let path = |path: &Path| path.to_str().map(str::to_owned).ok_or(unavailable);
     let launch = LaunchSelection::new(path(&program)?, pane.command[1..].to_vec())
         .map_err(|_| unavailable)?;
@@ -172,10 +171,9 @@ impl super::WorkbenchAuthority {
         }
         let snapshot = self.snapshot();
         let context = source::observed(snapshot, popup_id, &spec.context)?;
-        let registry = orchbee_local_site_runtime::PluginRegistry::from_environment(|name| {
-            std::env::var_os(name)
-        })
-        .map_err(|_| unavailable)?;
+        let registry =
+            orchbee_local_runtime::PluginRegistry::from_environment(|name| std::env::var_os(name))
+                .map_err(|_| unavailable)?;
         freeze(&registry, &spec.selector, context)
     }
 }

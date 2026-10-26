@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, error::Error, io};
 
 use orchbee_workbench_protocol::{
-    ContractError, DeltaRejectionReason, MAXIMUM_ENCODED_INTENT_BYTES, SiteId,
+    ContractError, DeltaRejectionReason, MAXIMUM_ENCODED_INTENT_BYTES, SessionId,
     WorkbenchDirectoryPath, WorkbenchProtocolDocument, WorkbenchRevision, apply_workbench_delta,
     parse_delta, parse_document, parse_snapshot, serialize_document,
 };
@@ -98,8 +98,8 @@ fn applies_every_canonical_delta_transition_atomically() -> Result<(), Box<dyn E
 
 #[test]
 fn enforces_identity_revision_and_encoded_intent_limits() -> Result<(), Box<dyn Error>> {
-    assert!(SiteId::parse("11111111111111111111111111111111").is_ok());
-    assert!(SiteId::parse("00000000000000000000000000000000").is_err());
+    assert!(SessionId::parse("11111111111111111111111111111111").is_ok());
+    assert!(SessionId::parse("00000000000000000000000000000000").is_err());
     assert_eq!(
         WorkbenchRevision::parse("18446744073709551615")?.value(),
         u64::MAX

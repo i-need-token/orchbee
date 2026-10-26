@@ -251,7 +251,7 @@ fn maximum_unicode_sources_and_rows_fit_the_carrier_budget() {
 }
 
 #[test]
-fn presentation_reads_answer_only_exact_order_and_request_site_identity() {
+fn presentation_reads_answer_only_exact_order_and_request_session_identity() {
     let ids: Vec<_> = (1..=2)
         .map(|n| TerminalPresentationId::parse(&format!("{n:032x}")).unwrap())
         .collect();
@@ -259,7 +259,7 @@ fn presentation_reads_answer_only_exact_order_and_request_site_identity() {
     let request = PanelMetadataRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&"4".repeat(32)).unwrap(),
-        site_id: SiteId::parse(&"5".repeat(32)).unwrap(),
+        session_id: SessionId::parse(&"5".repeat(32)).unwrap(),
         action: PanelMetadataAction::ReadPresentations {
             presentation_ids: ids.clone(),
         },
@@ -267,7 +267,7 @@ fn presentation_reads_answer_only_exact_order_and_request_site_identity() {
     let mut result = PanelMetadataResult {
         protocol_version: ProtocolVersion,
         request_id: request.request_id.clone(),
-        site_id: request.site_id.clone(),
+        session_id: request.session_id.clone(),
         outcome: PanelMetadataOutcome::PresentationsRead {
             workbench_revision: WorkbenchRevision::new(9),
             metadata_revision: WorkbenchRevision::new(0),
@@ -294,9 +294,9 @@ fn presentation_reads_answer_only_exact_order_and_request_site_identity() {
     if let PanelMetadataOutcome::PresentationsRead { presentations, .. } = &mut result.outcome {
         presentations.reverse();
     }
-    result.site_id = SiteId::parse(&"6".repeat(32)).unwrap();
+    result.session_id = SessionId::parse(&"6".repeat(32)).unwrap();
     assert!(!result.answers(&request));
-    result.site_id = request.site_id.clone();
+    result.session_id = request.session_id.clone();
     result.request_id = WorkbenchRequestId::parse(&"7".repeat(32)).unwrap();
     assert!(!result.answers(&request));
 }

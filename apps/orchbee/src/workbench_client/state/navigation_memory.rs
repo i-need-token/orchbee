@@ -1,5 +1,5 @@
-use super::{ClientPhase, NativeContextTabs, NativeSimpleTab, SelectedTab, WorkbenchClientState};
-use crate::workbench_client::workbench_projection::NativeContextLocation;
+use super::{ClientContextTabs, ClientPhase, ClientTab, SelectedTab, WorkbenchClientState};
+use crate::workbench_client::workbench_projection::ClientContextLocation;
 use orchbee_workbench_protocol::{TerminalPresentationId, WorkbenchPanelId, WorkbenchTabId};
 use std::collections::BTreeMap;
 
@@ -12,14 +12,14 @@ pub(super) struct NavigationMemory {
 
 #[derive(Debug)]
 struct ContextMemory {
-    location: NativeContextLocation,
+    location: ClientContextLocation,
     last_tab: Option<WorkbenchTabId>,
     panels: BTreeMap<WorkbenchTabId, WorkbenchPanelId>,
     presentations: BTreeMap<WorkbenchPanelId, TerminalPresentationId>,
 }
 
 impl NavigationMemory {
-    pub(super) fn remember(&mut self, cache: &NativeContextTabs, selected: &SelectedTab) {
+    pub(super) fn remember(&mut self, cache: &ClientContextTabs, selected: &SelectedTab) {
         let Some(tab) = cache.tabs().get(selected.index()) else {
             return;
         };
@@ -52,13 +52,13 @@ impl NavigationMemory {
             .insert(tab.tab_id().clone(), selected.key().panel().clone());
     }
 
-    pub(super) fn recent_locations(&self) -> impl Iterator<Item = &NativeContextLocation> {
+    pub(super) fn recent_locations(&self) -> impl Iterator<Item = &ClientContextLocation> {
         self.contexts.iter().rev().map(|entry| &entry.location)
     }
 
     pub(super) fn remember_presentation(
         &mut self,
-        cache: &NativeContextTabs,
+        cache: &ClientContextTabs,
         selected: &SelectedTab,
         id: TerminalPresentationId,
     ) {
@@ -76,9 +76,9 @@ impl NavigationMemory {
 
     pub(super) fn presentation<'a>(
         &self,
-        location: &NativeContextLocation,
-        panel: &'a super::super::NativePanel,
-    ) -> &'a super::super::NativePresentation {
+        location: &ClientContextLocation,
+        panel: &'a super::super::ClientPanel,
+    ) -> &'a super::super::ClientPresentation {
         self.contexts
             .iter()
             .find(|entry| &entry.location == location)
@@ -88,7 +88,7 @@ impl NavigationMemory {
             .unwrap_or_else(|| panel.primary())
     }
 
-    pub(super) fn tab(&self, location: &NativeContextLocation) -> Option<&WorkbenchTabId> {
+    pub(super) fn tab(&self, location: &ClientContextLocation) -> Option<&WorkbenchTabId> {
         self.contexts
             .iter()
             .find(|entry| &entry.location == location)?
@@ -98,7 +98,7 @@ impl NavigationMemory {
 
     pub(super) fn overlay_focus(
         &self,
-        location: &NativeContextLocation,
+        location: &ClientContextLocation,
         tab: &WorkbenchTabId,
     ) -> Option<&WorkbenchPanelId> {
         self.contexts
@@ -110,7 +110,7 @@ impl NavigationMemory {
 
     pub(super) fn restore_overlay_focus(
         &mut self,
-        location: &NativeContextLocation,
+        location: &ClientContextLocation,
         tab: &WorkbenchTabId,
         from: &WorkbenchPanelId,
         to: &orchbee_workbench_protocol::ClientOverlayMember,
@@ -128,11 +128,7 @@ impl NavigationMemory {
         }
     }
 
-    pub(super) fn panel_index(
-        &self,
-        location: &NativeContextLocation,
-        tab: &NativeSimpleTab,
-    ) -> usize {
+    pub(super) fn panel_index(&self, location: &ClientContextLocation, tab: &ClientTab) -> usize {
         self.contexts
             .iter()
             .find(|entry| &entry.location == location)
@@ -143,7 +139,7 @@ impl NavigationMemory {
 
     pub(super) fn prune(
         &mut self,
-        cache: &NativeContextTabs,
+        cache: &ClientContextTabs,
         retained: &[super::context_selection::RetainedContext],
     ) {
         self.contexts.retain_mut(|entry| {
@@ -194,7 +190,7 @@ impl WorkbenchClientState {
     /// The same stable-identity preference used by normal context reentry, without a visit.
     pub(in crate::workbench_client) fn query_active_tab_id(
         &self,
-        candidate: &NativeContextTabs,
+        candidate: &ClientContextTabs,
     ) -> Result<Option<WorkbenchTabId>, ()> {
         if candidate.location() == self.cache.location() {
             let selected = self.active().map(|active| active.key().anchor().tab_id());
@@ -216,8 +212,8 @@ impl WorkbenchClientState {
     /// Resolve a queried inactive Tab without recording a visit or changing selection.
     pub(in crate::workbench_client) fn layout_focus_panel_id(
         &self,
-        location: &NativeContextLocation,
-        tab: &NativeSimpleTab,
+        location: &ClientContextLocation,
+        tab: &ClientTab,
     ) -> Option<WorkbenchPanelId> {
         tab.panel(self.navigation_memory.panel_index(location, tab))
             .map(|panel| panel.panel_id().clone())

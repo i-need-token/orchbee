@@ -85,7 +85,7 @@ fn execute(
     };
     let listed = client_control::windows::exchange(
         &mut client,
-        &snapshot.site_id,
+        &snapshot.session_id,
         ClientViewAction::List {},
         deadline,
         signals,
@@ -149,7 +149,7 @@ fn execute(
     };
     let current = client_control::windows::exchange(
         &mut client,
-        &snapshot.site_id,
+        &snapshot.session_id,
         ClientViewAction::Get {
             client_id: selected.client_id.clone(),
         },
@@ -164,7 +164,7 @@ fn execute(
     }
     let answer = client_control::windows::submit_control(
         &mut client,
-        &snapshot.site_id,
+        &snapshot.session_id,
         ClientViewControl {
             operation_id: id,
             client_id: selected.client_id,

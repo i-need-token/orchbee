@@ -2,7 +2,7 @@
 use super::read::Checkpoint;
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use orchbee_agent_observation_protocol::AgentSafeInteger;
-use orchbee_workbench_protocol::{SiteId, Snapshot, WorkbenchClientId, WorkbenchRevision};
+use orchbee_workbench_protocol::{SessionId, Snapshot, WorkbenchClientId, WorkbenchRevision};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -12,7 +12,7 @@ pub(crate) struct Cursor(String);
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Position {
     #[serde(rename = "session")]
-    site: SiteId,
+    session: SessionId,
     workbench: WorkbenchRevision,
     canonical: AgentSafeInteger,
     reports: WorkbenchRevision,
@@ -89,7 +89,7 @@ fn position(
         hash.update(serde_json::to_vec(&row.document(i + 1, None)).map_err(|_| ())?)
     }
     Ok(Position {
-        site: snapshot.site_id.clone(),
+        session: snapshot.session_id.clone(),
         workbench: snapshot.revision,
         canonical: read.canonical_revision,
         reports: read.report_revision,

@@ -13,7 +13,7 @@ impl From<Failure> for EditorFailure {
     fn from(value: Failure) -> Self {
         match value {
             Failure::InvalidIntent => Self::InvalidIntent,
-            Failure::SiteMismatch => Self::SiteMismatch,
+            Failure::SessionMismatch => Self::SessionMismatch,
             Failure::Unavailable => Self::Unavailable,
             Failure::PhysicalUnknown => Self::PhysicalUnknown,
             Failure::Busy => Self::Busy,
@@ -28,7 +28,7 @@ impl From<EditorFailure> for Failure {
     fn from(value: EditorFailure) -> Self {
         match value {
             EditorFailure::InvalidIntent => Self::InvalidIntent,
-            EditorFailure::SiteMismatch => Self::SiteMismatch,
+            EditorFailure::SessionMismatch => Self::SessionMismatch,
             EditorFailure::PhysicalUnknown => Self::PhysicalUnknown,
             EditorFailure::Busy => Self::Busy,
             EditorFailure::Conflict => Self::Conflict,
@@ -63,8 +63,8 @@ impl LocalTerminalService {
     ) -> TerminalEditorResult {
         let result = (|| {
             request.validate().map_err(|_| Failure::InvalidIntent)?;
-            if self.workbench_site_matches(&request.site_id) != Some(true) {
-                return Err(Failure::SiteMismatch);
+            if self.workbench_session_matches(&request.session_id) != Some(true) {
+                return Err(Failure::SessionMismatch);
             }
             match &request.action {
                 Action::Open {
@@ -77,7 +77,7 @@ impl LocalTerminalService {
                     self.open_editor_popup(owner, popup_id, spec, source, target, *geometry)
                 }
                 Action::Read { popup_id } => {
-                    self.popup_read(owner, popup_id, &request.site_id, PopupKind::Editor)
+                    self.popup_read(owner, popup_id, &request.session_id, PopupKind::Editor)
                 }
                 Action::Close { popup_id } => self.popup_close(owner, popup_id, PopupKind::Editor),
             }
@@ -101,7 +101,7 @@ impl LocalTerminalService {
         TerminalEditorResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
-            site_id: request.site_id,
+            session_id: request.session_id,
             outcome: outcome.into(),
         }
     }
@@ -155,7 +155,7 @@ impl LocalTerminalService {
                 .lock()
                 .map_err(|_| Failure::Unavailable)?
                 .prepare_editor_popup(
-                    crate::site_coordinator::EditorPopupLaunch {
+                    crate::session_coordinator::EditorPopupLaunch {
                         id,
                         spec,
                         source,

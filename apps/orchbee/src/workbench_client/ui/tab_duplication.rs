@@ -1,5 +1,5 @@
 //! The selected-set adapter only admits the next ordinary Create; it owns no worker effects.
-use super::{ActionBuildError, ClientActionDisposition, NativeUi, build_create};
+use super::{ActionBuildError, ClientActionDisposition, WorkbenchClientUi, build_create};
 use crate::workbench_client::{
     mailbox::{AdmissionError, CommandMailbox},
     state::{DuplicateProgress, DuplicateStop},
@@ -9,7 +9,7 @@ use std::sync::Arc;
 #[cfg(test)]
 mod tests;
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(super) fn duplicate_tabs(&mut self, target: &WorkbenchTabId) -> ClientActionDisposition {
         let Some(state) = &mut self.state else {
             return ClientActionDisposition::KeepNavigator;

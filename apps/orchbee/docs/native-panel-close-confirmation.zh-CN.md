@@ -61,12 +61,12 @@ panel 关闭不是 Tab 关闭。确认后的效果就是针对被冻结叶走既
 | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `workbench_client/state/panel_close.rs` | 武装/shown 状态、冻结的 `PanelCloseSelection`、token 签发、`confirmed_panel_selection`、`plan_panel_close_confirmation`、`begin_panel_close_exchange`、存活匹配与不可呈现结算 |
 | `workbench_client/state/tab_close.rs`   | 跨确认的 `settle_stale_close_confirmations` 路由与载波退役取消                                                                                                                |
-| `workbench_client/ui/panel_close.rs`    | `NativePanelCloseConfirmationView`、`request_panel_close_confirmation`、`confirm_panel_close`、`cancel_panel_close`、`capture_panel_confirmation_key`                         |
-| `workbench_client/ui/tab_close.rs`      | `NativeDrawReceipt` 类型化 `ModalPresentation` 字段、`capture_confirmation_key` 路由与 stale 结算、精确键收敛、`after_close_draw`/`invalidate_close_display` 分发             |
-| `workbench_client/ui.rs`                | `NativeUi::tick` 变更后 stale 结算、`WorkbenchClientNotice::ConfirmationCancelled`                                                                                            |
+| `workbench_client/ui/panel_close.rs`    | `PanelCloseConfirmationView`、`request_panel_close_confirmation`、`confirm_panel_close`、`cancel_panel_close`、`capture_panel_confirmation_key`                               |
+| `workbench_client/ui/tab_close.rs`      | `DrawReceipt` 类型化 `ModalPresentation` 字段、`capture_confirmation_key` 路由与 stale 结算、精确键收敛、`after_close_draw`/`invalidate_close_display` 分发                   |
+| `workbench_client/ui.rs`                | `WorkbenchClientUi::tick` 变更后 stale 结算、`WorkbenchClientNotice::ConfirmationCancelled`                                                                                   |
 | `tui_presentation.rs`                   | 共享 pending/admitted/suspended 呈现 phase，以及 owner 层 refused/suspended 几何结算                                                                                          |
 | `tui_render/panel_close.rs`             | 内容区覆盖层绘制（首选有限尺寸）、fit 门、类型化 `Presented`/`NotPresented` 回执                                                                                              |
 | `localization/panel_close.rs`           | `en-US`/`zh-CN` 标题、影响警示、原始操作标签与按键提示标签                                                                                                                    |
 | `workbench_client/ui.rs`                | `ClientAction::ClosePanel` 接入 `request_panel_close_confirmation`                                                                                                            |
 
-<!-- documentation-pairing: english-sha256=4e2da977fe16384ccb44eaba0a60e9e1f173f43f527a6161bd913b2591e73bfd zh-cn-sha256=2c1583bd18442125ee70df67526c053dec0d59fb77641abc5e8191cc7f6c9807 -->
+<!-- documentation-pairing: english-sha256=8c20af93356ec08839d5cc682c65a65860f21de6506806d40601faa7df871995 zh-cn-sha256=abdec9bcfde1a620c7d08f37da94e1188c590c3501983edbcb73b5c382c564e0 -->

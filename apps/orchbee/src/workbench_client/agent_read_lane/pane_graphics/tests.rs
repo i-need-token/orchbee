@@ -17,7 +17,7 @@ fn fixture() -> (Snapshot, Source, PaneGraphicsLayer) {
     };
     let snapshot = Snapshot {
         protocol_version: ProtocolVersion,
-        site_id: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
+        session_id: SessionId::parse(&format!("{:032x}", 1)).unwrap(),
         revision: WorkbenchRevision::new(5),
         navigation: {
             let fixture_context_id = context.clone();
@@ -87,7 +87,7 @@ fn fixture() -> (Snapshot, Source, PaneGraphicsLayer) {
 #[test]
 fn actual_read_connection_stages_every_chunk_and_rejects_catalog_source_and_offset_changes() {
     // 0 full resource, 1 wrong offset, 2 changed catalog, 3 changed binding,
-    // 4 wrong Site, 5 shared cached resource, 6 unrelated Site graphics revision advance.
+    // 4 wrong Session, 5 shared cached resource, 6 unrelated Session graphics revision advance.
     for fault in 0..=6 {
         let server = FakeServer::start_connections(2, move |index, mut stream| {
             assert!(matches!(
@@ -115,7 +115,8 @@ fn actual_read_connection_stages_every_chunk_and_rejects_catalog_source_and_offs
                         last = snapshots == 2 || fault == 4;
                         let mut snapshot = snapshot.clone();
                         if fault == 4 {
-                            snapshot.site_id = SiteId::parse(&format!("{:032x}", 99)).unwrap();
+                            snapshot.session_id =
+                                SessionId::parse(&format!("{:032x}", 99)).unwrap();
                         }
                         if fault == 3 && snapshots == 2 {
                             let PanelNode::Panel {
@@ -202,7 +203,7 @@ fn actual_read_connection_stages_every_chunk_and_rejects_catalog_source_and_offs
                         WorkbenchResponse::PaneGraphics(PaneGraphicsResult {
                             protocol_version: ProtocolVersion,
                             request_id: request.request_id,
-                            site_id: request.site_id,
+                            session_id: request.session_id,
                             outcome,
                         })
                     }
@@ -246,7 +247,7 @@ fn actual_read_connection_stages_every_chunk_and_rejects_catalog_source_and_offs
             deadline: clock.now() + Duration::from_secs(5),
             job: Job {
                 scope: crate::workbench_client::pane_graphics::Scope {
-                    site: snapshot.site_id,
+                    session: snapshot.session_id,
                     revision: snapshot.revision,
                     sources: vec![source.clone()]
                 },

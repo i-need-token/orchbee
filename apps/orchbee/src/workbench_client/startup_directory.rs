@@ -1,14 +1,14 @@
-//! Empty-Site startup intent and retained invocation evidence. Server owns all commits.
+//! Empty-Session startup intent and retained invocation evidence. Server owns all commits.
 use super::{
-    NativeContextLocation, NativeMemberTarget,
+    ClientContextLocation, ClientMemberTarget,
     state::CarrierFailure,
-    workbench_projection::{NativeContextTabs, project_native_context_tabs},
+    workbench_projection::{ClientContextTabs, project_native_context_tabs},
 };
 use crate::{
     local_client::workbench::workspace_launch::WorkspaceLaunchCommit, localization::Locale,
 };
 use orchbee_workbench_protocol::{
-    SiteId, Snapshot, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchRequestId,
+    SessionId, Snapshot, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchRequestId,
     WorkbenchTerminalOutcome,
 };
 use std::{
@@ -103,23 +103,23 @@ impl StartupDirectory {
 
 pub(super) fn validate_workspace(
     snapshot: &Snapshot,
-    site: &SiteId,
+    session: &SessionId,
     commit: &WorkspaceLaunchCommit,
     parameters: &Parameters,
-) -> Result<(NativeContextTabs, NativeMemberTarget), CarrierFailure> {
+) -> Result<(ClientContextTabs, ClientMemberTarget), CarrierFailure> {
     if !matches!(
         commit.terminal_outcome,
         Some(WorkbenchTerminalOutcome::Started { .. })
     ) {
         return Err(CarrierFailure::AuthorityDivergence);
     }
-    if &snapshot.site_id != site
+    if &snapshot.session_id != session
         || snapshot.revision < commit.revision
         || commit.project_id.is_some()
     {
         return Err(CarrierFailure::AuthorityDivergence);
     }
-    let location = NativeContextLocation::Workspace {
+    let location = ClientContextLocation::Workspace {
         workspace_id: commit.workspace_id.clone(),
         terminal_context_id: commit.terminal_context_id.clone(),
     };
@@ -147,7 +147,7 @@ pub(super) fn validate_workspace(
     {
         return Err(CarrierFailure::AuthorityDivergence);
     }
-    let member = NativeMemberTarget {
+    let member = ClientMemberTarget {
         tab: commit.tab_id.clone(),
         panel: commit.panel_id.clone(),
         presentation: commit.presentation_id.clone(),

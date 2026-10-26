@@ -18,9 +18,7 @@ use std::time::{Duration, Instant};
 mod subscription;
 pub(crate) mod system;
 pub(crate) mod terminal;
-use orchbee_local_site_runtime::{
-    NativeNotificationDelivery as Delivery, NativeNotificationSettings,
-};
+use orchbee_local_runtime::{NotificationDelivery as Delivery, NotificationSettings};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Effect {
     pub delivery: Delivery,
@@ -36,11 +34,11 @@ struct Visible {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct State {
     visible: Option<Visible>,
-    policy: NativeNotificationSettings,
+    policy: NotificationSettings,
     pending: Option<Effect>,
 }
 impl State {
-    pub(crate) fn configure(&mut self, policy: NativeNotificationSettings) {
+    pub(crate) fn configure(&mut self, policy: NotificationSettings) {
         if self.policy != policy {
             self.visible = None;
             self.pending = None;
@@ -50,7 +48,7 @@ impl State {
     pub(crate) fn card_delivery(&self) -> bool {
         self.policy.delivery == Delivery::Tui
     }
-    pub(crate) fn policy(&self) -> &NativeNotificationSettings {
+    pub(crate) fn policy(&self) -> &NotificationSettings {
         &self.policy
     }
     pub(crate) fn take_effect(&mut self) -> Option<Effect> {

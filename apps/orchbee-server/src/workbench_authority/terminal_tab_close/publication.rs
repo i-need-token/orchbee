@@ -55,14 +55,14 @@ impl PreparedWorkbenchTabClosePublication<'_> {
         self.revision
     }
 
-    /// Site composition failure retains known disposal; it cannot become a pre-effect rejection.
+    /// Session composition failure retains known disposal; it cannot become a pre-effect rejection.
     pub fn retire_composition_failure(self) {
         *self.retired = true;
         self.record
             .publication_failed(WorkbenchTabClosePublicationReason::AuthorityRetired);
     }
 
-    /// Commit together with Site's separately prepared reference update under the same gate.
+    /// Commit together with Session's separately prepared reference update under the same gate.
     #[must_use]
     pub fn commit(self) -> WorkbenchTabCloseStatus {
         self.projection.commit_prepared(self.prepared);

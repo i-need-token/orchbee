@@ -4,7 +4,7 @@ use super::*;
 fn target(orientation: PanelOrientation, area: Rect, ratio: f64) -> DrawnDivider {
     let ratio = ClientSplitRatio::new(ratio).unwrap();
     let source = DividerSource {
-        site: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
+        session: SessionId::parse(&format!("{:032x}", 1)).unwrap(),
         context: WorkbenchTerminalContextId::parse(&format!("{:032x}", 2)).unwrap(),
         tab: WorkbenchTabId::parse(&format!("{:032x}", 3)).unwrap(),
         focus: WorkbenchPanelId::parse(&format!("{:032x}", 4)).unwrap(),

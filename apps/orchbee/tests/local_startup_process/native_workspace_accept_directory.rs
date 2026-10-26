@@ -1,6 +1,6 @@
 //! Public headless chain witnesses for `workspace accept-directory`: the real
 //! staged `orchbee` binary drives the accepted `WorkspacePrimaryDirectoryAccept`
-//! action against a live isolated Site — with no TUI client and no directory
+//! action against a live isolated Session — with no TUI client and no directory
 //! wizard anywhere in the sequence. `project create → workspace create →
 //! workspace accept-directory → tab create → terminal list/read → tab close
 //! → bounded list observation` is the genuinely headless chain the accepted

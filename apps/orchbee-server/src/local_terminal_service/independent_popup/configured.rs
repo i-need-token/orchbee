@@ -12,7 +12,7 @@ impl From<Failure> for CommandFailure {
     fn from(value: Failure) -> Self {
         match value {
             Failure::InvalidIntent => Self::InvalidIntent,
-            Failure::SiteMismatch => Self::SiteMismatch,
+            Failure::SessionMismatch => Self::SessionMismatch,
             Failure::Unavailable | Failure::EditorUnavailable => Self::Unavailable,
             Failure::PhysicalUnknown => Self::PhysicalUnknown,
             Failure::Busy => Self::Busy,
@@ -27,7 +27,7 @@ impl From<CommandFailure> for Failure {
         match value {
             CommandFailure::Denied | CommandFailure::Unavailable => Self::Unavailable,
             CommandFailure::InvalidIntent => Self::InvalidIntent,
-            CommandFailure::SiteMismatch => Self::SiteMismatch,
+            CommandFailure::SessionMismatch => Self::SessionMismatch,
             CommandFailure::PhysicalUnknown => Self::PhysicalUnknown,
             CommandFailure::Busy => Self::Busy,
             CommandFailure::Conflict => Self::Conflict,
@@ -58,8 +58,8 @@ impl LocalTerminalService {
     ) -> ConfiguredCommandResult {
         let outcome = (|| {
             request.validate().map_err(|_| Failure::InvalidIntent)?;
-            if self.workbench_site_matches(&request.site_id) != Some(true) {
-                return Err(Failure::SiteMismatch);
+            if self.workbench_session_matches(&request.session_id) != Some(true) {
+                return Err(Failure::SessionMismatch);
             }
             match &request.action {
                 Action::PopupOpen {
@@ -68,7 +68,7 @@ impl LocalTerminalService {
                     geometry,
                 } => self.open_configured_popup(owner, popup_id, spec, *geometry),
                 Action::PopupRead { popup_id } => {
-                    self.popup_read(owner, popup_id, &request.site_id, PopupKind::Configured)
+                    self.popup_read(owner, popup_id, &request.session_id, PopupKind::Configured)
                 }
                 Action::PopupClose { popup_id } => {
                     self.popup_close(owner, popup_id, PopupKind::Configured)
@@ -95,7 +95,7 @@ impl LocalTerminalService {
         ConfiguredCommandResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
-            site_id: request.site_id,
+            session_id: request.session_id,
             outcome: outcome.into(),
         }
     }
@@ -122,13 +122,11 @@ impl LocalTerminalService {
                 revision,
                 None,
             )?;
-            if frozen.command.action
-                != orchbee_local_site_runtime::WindowsCustomCommandAction::Popup
-            {
+            if frozen.command.action != orchbee_local_runtime::CustomCommandAction::Popup {
                 return Err(Failure::InvalidIntent);
             }
             let entry = super::super::configured_commands::descriptor(
-                &orchbee_local_site_runtime::WindowsCustomCommandEntry {
+                &orchbee_local_runtime::CustomCommandEntry {
                     id: spec.command_id.clone(),
                     definition: frozen.command.clone(),
                 },

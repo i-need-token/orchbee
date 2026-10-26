@@ -88,7 +88,7 @@ fn regrouping_changes_placement_labels_without_changing_agent_terminal_targets()
 pub(crate) fn fixture() -> Snapshot {
     Snapshot {
         protocol_version: ProtocolVersion,
-        site_id: SiteId::parse(&id(1)).unwrap(),
+        session_id: SessionId::parse(&id(1)).unwrap(),
         revision: WorkbenchRevision::new(1),
         navigation: {
             let fixture_context_id = WorkbenchTerminalContextId::parse(&id(2)).unwrap();
@@ -177,11 +177,11 @@ pub(crate) fn row(n: u64) -> Row {
 }
 pub(crate) fn target() -> Target {
     Target {
-        context: NativeContextTarget {
-            site_id: SiteId::parse(&id(1)).unwrap(),
+        context: ClientContextTarget {
+            session_id: SessionId::parse(&id(1)).unwrap(),
             location: {
                 let fixture_context_id = WorkbenchTerminalContextId::parse(&id(2)).unwrap();
-                NativeContextLocation::Workspace {
+                ClientContextLocation::Workspace {
                     workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                         fixture_context_id.as_str(),
                     )
@@ -225,7 +225,7 @@ pub(crate) fn accept(stream: &mut orchbee_local_ipc::LocalStream) -> io::Result<
 }
 pub(crate) fn checkpoint(rows: Vec<Row>) -> Arc<Checkpoint> {
     Arc::new(Checkpoint {
-        site_id: SiteId::parse(&id(1)).unwrap(),
+        session_id: SessionId::parse(&id(1)).unwrap(),
         report_revision: WorkbenchRevision::new(2),
         contexts: std::iter::once(target().context)
             .chain(rows.iter().map(|r| r.target.context.clone()))
@@ -250,7 +250,7 @@ fn view_reply(stream: &mut orchbee_local_ipc::LocalStream, changed: bool) -> io:
         &WorkbenchResponse::AgentView(AgentViewResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
-            site_id: request.site_id,
+            session_id: request.session_id,
             outcome: AgentViewOutcome::Available {
                 snapshot: AgentViewSnapshot {
                     revision: WorkbenchRevision::new(u64::from(changed)),
@@ -339,7 +339,7 @@ fn peer(bad: u8) -> io::Result<FakeServer> {
                 &WorkbenchResponse::PanelAgent(PanelAgentResult {
                     protocol_version: ProtocolVersion,
                     request_id: request.request_id,
-                    site_id: request.site_id,
+                    session_id: request.session_id,
                     outcome: PanelAgentOutcome::States {
                         workbench_revision: WorkbenchRevision::new(1),
                         report_revision: WorkbenchRevision::new(if bad == 1 && round == 1 {
@@ -503,7 +503,7 @@ fn title_reply(stream: &mut orchbee_local_ipc::LocalStream, bad: u8) -> io::Resu
         &WorkbenchResponse::PanelAgent(PanelAgentResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
-            site_id: request.site_id,
+            session_id: request.session_id,
             outcome: PanelAgentOutcome::Titles {
                 workbench_revision: WorkbenchRevision::new(if bad == 12 { 9 } else { 1 }),
                 presentations,
@@ -545,7 +545,7 @@ fn enrich(stream: &mut orchbee_local_ipc::LocalStream, bad: u8) -> io::Result<bo
             WorkbenchResponse::PanelMetadata(PanelMetadataResult {
                 protocol_version: ProtocolVersion,
                 request_id: request.request_id,
-                site_id: request.site_id,
+                session_id: request.session_id,
                 outcome: PanelMetadataOutcome::PresentationsRead {
                     workbench_revision: WorkbenchRevision::new(1),
                     metadata_revision: WorkbenchRevision::new(if bad == 3 && step == 2 {
@@ -593,7 +593,7 @@ fn enrich(stream: &mut orchbee_local_ipc::LocalStream, bad: u8) -> io::Result<bo
             WorkbenchResponse::PanelAgent(PanelAgentResult {
                 protocol_version: ProtocolVersion,
                 request_id: request.request_id,
-                site_id: request.site_id,
+                session_id: request.session_id,
                 outcome: PanelAgentOutcome::PresentationsRead {
                     workbench_revision: WorkbenchRevision::new(1),
                     report_revision: WorkbenchRevision::new(

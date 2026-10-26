@@ -5,7 +5,7 @@ use super::super::{
     missing_command, missing_required, target, unexpected_argument, unknown_command, usage_with,
     wait_timeout_option,
 };
-use orchbee_local_site_runtime::PluginPanePlacement;
+use orchbee_local_runtime::PluginPanePlacement;
 use orchbee_workbench_protocol::{PluginPaneSelector, WorkbenchPanelSplitDirection};
 
 #[derive(Clone, Debug, Eq, PartialEq)]

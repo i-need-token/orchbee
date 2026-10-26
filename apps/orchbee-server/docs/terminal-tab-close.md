@@ -248,7 +248,7 @@ original command replay; aliases, reads and command replays never resume work.
 
 The read result has exactly `kind`, `protocolVersion`, `requestId`, and `outcome`; only Available
 contains the target fields above. A Read or Resume Session mismatch is Denied before target lookup.
-This does not change the Close command's existing SiteMismatch precedence.
+This does not change the Close command's existing SessionMismatch precedence.
 
 ## Resume with reserved control storage
 

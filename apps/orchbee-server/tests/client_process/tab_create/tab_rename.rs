@@ -88,7 +88,7 @@ fn tab_rename_commits_during_parked_create_and_both_replays_keep_their_revision(
         &ClientMessage::TerminalViewer(TerminalViewerRequest::new(
             attach_request_id.clone(),
             TerminalViewerAction::AttachBinding {
-                site_id: ClientSiteId::parse(initial.site_id.as_str())?,
+                session_id: ObcsSessionId::parse(initial.session_id.as_str())?,
                 worker_id: ClientWorkerId::parse(first_binding.worker_id.as_str())?,
                 terminal_id: ClientTerminalId::parse(first_binding.terminal_id.as_str())?,
             },

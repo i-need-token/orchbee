@@ -1,4 +1,4 @@
-use super::{NativeExecutor, Result, closed, event, io_failure};
+use super::{ClientExecutor, Result, closed, event, io_failure};
 use crate::{
     local_client::workbench::{
         WorkbenchTabCloseFailure, WorkbenchTabCloseNotSubmitted, WorkbenchTabCloseReadError,
@@ -17,7 +17,7 @@ use orchbee_workbench_protocol::{
 };
 use std::time::Instant;
 
-impl NativeExecutor {
+impl ClientExecutor {
     pub(super) fn run_close(
         &mut self,
         lease: &CommandLease,
@@ -92,7 +92,7 @@ impl NativeExecutor {
                 let request = WorkbenchTabCloseRequest::try_from(WorkbenchCommand {
                     protocol_version: ProtocolVersion,
                     request_id,
-                    site_id: target.site_id().clone(),
+                    session_id: target.session_id().clone(),
                     expected_revision: operation.selection().base_revision(),
                     action: WorkbenchAction::TabClose {
                         terminal_context_id: target.terminal_context_id().clone(),
@@ -121,7 +121,7 @@ impl NativeExecutor {
                 let request = WorkbenchTabCloseRead {
                     protocol_version: ProtocolVersion,
                     request_id,
-                    site_id: target.site_id().clone(),
+                    session_id: target.session_id().clone(),
                     terminal_context_id: target.terminal_context_id().clone(),
                     tab_id: target.tab_id().clone(),
                 };
@@ -149,7 +149,7 @@ impl NativeExecutor {
                 let request = WorkbenchTabCloseResume {
                     protocol_version: ProtocolVersion,
                     request_id,
-                    site_id: target.site_id().clone(),
+                    session_id: target.session_id().clone(),
                     terminal_context_id: target.terminal_context_id().clone(),
                     tab_id: target.tab_id().clone(),
                     close_request_id: close_request_id.clone(),
@@ -196,7 +196,7 @@ fn close_read_failure(reason: WorkbenchTabCloseFailure) -> CarrierFailure {
         | WorkbenchTabCloseFailure::UnexpectedResponse
         | WorkbenchTabCloseFailure::ActionIncompatible
         | WorkbenchTabCloseFailure::CorrelationMismatch { .. }
-        | WorkbenchTabCloseFailure::SiteMismatch { .. }
+        | WorkbenchTabCloseFailure::SessionMismatch { .. }
         | WorkbenchTabCloseFailure::TerminalContextMismatch { .. }
         | WorkbenchTabCloseFailure::TabMismatch { .. }
         | WorkbenchTabCloseFailure::OperationMismatch { .. }

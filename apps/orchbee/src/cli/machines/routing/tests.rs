@@ -43,7 +43,7 @@ fn wire_rejects_extra_authority_and_preserves_binary_input_and_failed_exit() {
     let packet = Packet {
         version: 1,
         cohort: "a".repeat(64),
-        site: "work".into(),
+        session: "work".into(),
         arguments: vec![
             "terminal".into(),
             "send".into(),

@@ -203,7 +203,7 @@ fn filetime_renders_as_utc_and_keeps_pre_epoch_values_raw() {
 
 #[test]
 fn readable_commands_drop_the_injected_shell_initialization() {
-    let script = orchbee_local_site_runtime::windows_interactive_powershell_initialization();
+    let script = orchbee_local_runtime::windows_interactive_powershell_initialization();
     let shell = process(
         10,
         None,

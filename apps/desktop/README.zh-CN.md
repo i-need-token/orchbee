@@ -394,7 +394,7 @@ Electron 或 Host 编译失败不会影响最后运行的进程。只有新二�
 
 桌面开发运行时拥有一个序列化更新工作流程。替换过程中到达的较新的成功构建将被合并并随后应用；即使连续观察看到相同的源摘要，每个更改的主机二进制文件也会被接纳。捕获的二进制文件仅限于活动代、回滚代和挂起代，并且关闭 Rsbuild 服务器会阻止所有重新启动。确定性运行时测试自己的命令顺序、适配器故障、中止准备、更新合并、工作区清理和捕获的二进制不变性。强制操作系统终止、编译器正确性和跨主机进程的 PTY 迁移仍然不在这些声明范围内。
 
-Host 源摘要除原生源码与构建文件外，还包含两个共享 Local 会话 Runtime PowerShell 启动资产。
+Host 源摘要除原生源码与构建文件外，还包含两个共享 本地运行时 PowerShell 启动资产。
 Zig 已登记的复制输入会在任一脚本修改时唤醒既有构建监听；Desktop 监听器观察产生的二进制文件。
 缺少共享资产会使观察失败，不会将旧启动字节视为当前代次。
 
@@ -489,4 +489,4 @@ pnpm --filter @orchbee/desktop benchmark -- \
 
 它还可以收集受控的 Ghostty 和仅主机引用。结果是诊断证据；它们不是当前开发阶段的合并或切片完成门。
 
-<!-- documentation-pairing: english-sha256=3362f354f60c09aa9fbeb59a1d0a7d54f14fc6c014d4fe196bb7c08f12833280 zh-cn-sha256=92c0212d1fb1e4e917dc215cdabd2ebab9f3aac16787dda3269da4585ccf25e8 -->
+<!-- documentation-pairing: english-sha256=67203d1e1490bdd36ccdda9db69e01fcd88084c1a7efdda93e379bef8a88d0d3 zh-cn-sha256=47fbbd5847ece8c0b4fcffe16b30894842daa54eac7c8b069c11793313da4e66 -->

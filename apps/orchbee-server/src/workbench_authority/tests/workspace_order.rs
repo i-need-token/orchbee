@@ -260,7 +260,7 @@ fn workspace_move_refusals_preserve_all_state() {
             ..
         }
     ));
-    let read_only = WorkbenchGrant::read_only(before.site_id.clone());
+    let read_only = WorkbenchGrant::read_only(before.session_id.clone());
     assert!(matches!(
         submit(
             &mut owner,

@@ -2,7 +2,7 @@
 use super::{Chrome, ClientView, HitMapBuilder, TerminalSurface};
 use crate::{
     tui_layout::{DividerDrag, DrawnSidebarWidth, ResizeProjection, SidebarWidthDrag},
-    workbench_client::NativeDrawReceipt,
+    workbench_client::DrawReceipt,
 };
 use ratatui::{Frame, widgets::Clear};
 
@@ -26,7 +26,7 @@ pub(super) fn project(
 ) -> ResizeProjection {
     let native_claims = match surface.view() {
         Some(native) => native.capture_claims(),
-        _ => crate::tui_composition::NativeCaptureClaims::default(),
+        _ => crate::tui_composition::CaptureClaims::default(),
     };
     let allowed = transport_allowed
         && !view.prefix_active()
@@ -76,7 +76,7 @@ pub(super) fn render(
     graphics: Option<&crate::tui_graphics::Surface>,
     presentation: Presentation<'_>,
     hits: &mut HitMapBuilder,
-) -> (NativeDrawReceipt, bool) {
+) -> (DrawReceipt, bool) {
     let mut candidate = presentation.projection;
     loop {
         if let Some(graphics) = graphics {

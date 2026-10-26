@@ -1,7 +1,7 @@
 //! Bounded semantic observations, connection-owned subscriptions and explicit history gaps.
 use crate::{
     ClientViewObservation, ClientViewportObservation, ContractError, MetadataTokens,
-    PanelAgentState, PanelAgentView, PanelNode, PresentationBinding, ProtocolVersion, SiteId,
+    PanelAgentState, PanelAgentView, PanelNode, PresentationBinding, ProtocolVersion, SessionId,
     TerminalPresentationId, WorkbenchClientId, WorkbenchLabel, WorkbenchPanelId,
     WorkbenchRequestId, WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId,
     WorkbenchWorkspaceId, WorkbenchWorktreeResult, Workspace,
@@ -179,7 +179,7 @@ impl SemanticEvent {
             } => matches!(self.event, K::LayoutUpdated if {
                 let snapshot = crate::Snapshot {
                     protocol_version: ProtocolVersion,
-                    site_id: SiteId::parse(&format!("{:032x}", 1))
+                    session_id: SessionId::parse(&format!("{:032x}", 1))
                         .map_err(|_| ContractError::InvalidDocument)?,
                     revision: self.workbench_revision,
                     navigation: crate::Navigation {
@@ -473,7 +473,7 @@ pub struct SemanticEventsRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub action: SemanticEventsAction,
 }
 impl SemanticEventsRequest {
@@ -510,7 +510,7 @@ pub enum SemanticEventsFailure {
     InvalidIntent,
     InvalidRegex,
     #[serde(rename = "session-mismatch")]
-    SiteMismatch,
+    SessionMismatch,
     Unavailable,
     Busy,
     Conflict,
@@ -576,7 +576,7 @@ pub struct SemanticEventsResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub outcome: SemanticEventsOutcome,
 }
 impl SemanticEventsResult {
@@ -663,7 +663,7 @@ impl SemanticEventsResult {
         use SemanticEventsAction as A;
         use SemanticEventsOutcome as O;
         self.request_id == request.request_id
-            && self.site_id == request.site_id
+            && self.session_id == request.session_id
             && self.validate().is_ok()
             && {
                 let shared_failure = matches!(&self.outcome, O::Failed { .. });

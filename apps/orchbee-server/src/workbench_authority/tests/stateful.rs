@@ -76,7 +76,7 @@ fn require(condition: bool, message: &str) -> Result<(), String> {
 
 fn run(steps: &[Step]) -> Result<(), String> {
     let (mut authority, grant) = authority();
-    let reader = WorkbenchGrant::read_only(grant.site_id.clone());
+    let reader = WorkbenchGrant::read_only(grant.session_id.clone());
     let mut history: Vec<(WorkbenchCommand, WorkbenchCommandResult)> = Vec::new();
     let mut seen_identities = BTreeSet::new();
     seen_identities.extend([identity(2), identity(3), identity(4)]);

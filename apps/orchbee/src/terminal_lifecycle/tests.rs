@@ -1821,7 +1821,7 @@ fn actual_backend_graphics_write_failure_keeps_owned_cleanup_until_restoration()
         workbench_client::PaneGraphicsCanvas,
     };
     use orchbee_workbench_protocol::{
-        PaneGraphicsLayer, PaneGraphicsPlacement, PaneGraphicsTarget, SiteId, WorkbenchPanelId,
+        PaneGraphicsLayer, PaneGraphicsPlacement, PaneGraphicsTarget, SessionId, WorkbenchPanelId,
         WorkbenchRevision,
     };
     use ratatui::{backend::Backend, layout::Rect};
@@ -1867,7 +1867,7 @@ fn actual_backend_graphics_write_failure_keeps_owned_cleanup_until_restoration()
     );
     graphics.begin_frame(false);
     graphics.select(
-        &SiteId::parse("11111111111111111111111111111111").unwrap(),
+        &SessionId::parse("11111111111111111111111111111111").unwrap(),
         &canvas,
         Rect::new(0, 0, 1, 1),
     );

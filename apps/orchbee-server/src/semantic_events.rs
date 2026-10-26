@@ -1,4 +1,4 @@
-//! Site-lifetime semantic history. Actual owners publish; readers never infer lost commits.
+//! Session-lifetime semantic history. Actual owners publish; readers never infer lost commits.
 use orchbee_workbench_protocol::{
     MAXIMUM_EVENT_PAGE, MAXIMUM_EVENTS_BYTES, SemanticEvent, SemanticEventCursor,
     SemanticEventData, SemanticEventFilter, SemanticEventGap, SemanticEventKind,
@@ -16,7 +16,7 @@ const RETAINED_EVENTS: usize = 512;
 const RETAINED_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Clone, Debug)]
-pub struct SiteEventJournal(Arc<Mutex<State>>);
+pub struct SessionEventJournal(Arc<Mutex<State>>);
 #[derive(Debug)]
 struct State {
     epoch: WorkbenchRequestId,
@@ -27,13 +27,13 @@ struct State {
     events: VecDeque<(SemanticEvent, usize)>,
     workspaces: BTreeMap<WorkbenchTerminalContextId, WorkbenchWorkspaceId>,
 }
-pub struct SiteEventPage {
+pub struct SessionEventPage {
     pub cursor: SemanticEventCursor,
     pub events: Vec<SemanticEvent>,
     pub gap: Option<SemanticEventGap>,
     pub more: bool,
 }
-impl SiteEventJournal {
+impl SessionEventJournal {
     pub(crate) fn new(
         snapshot: &Snapshot,
     ) -> Result<Self, orchbee_workbench_protocol::ContractError> {
@@ -98,7 +98,7 @@ impl SiteEventJournal {
         after: &SemanticEventCursor,
         filters: &[SemanticEventFilter],
         limit: usize,
-    ) -> Result<SiteEventPage, Failure> {
+    ) -> Result<SessionEventPage, Failure> {
         if limit == 0 || limit > MAXIMUM_EVENT_PAGE || filters.is_empty() || filters.len() > 32 {
             return Err(Failure::InvalidIntent);
         }
@@ -136,7 +136,7 @@ impl SiteEventJournal {
         if !more {
             scanned = state.head;
         }
-        Ok(SiteEventPage {
+        Ok(SessionEventPage {
             cursor: SemanticEventCursor {
                 epoch: state.epoch.clone(),
                 sequence: WorkbenchRevision::new(scanned),

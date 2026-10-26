@@ -205,7 +205,7 @@ fn execute(
                 PluginRequest {
                     protocol_version: ProtocolVersion,
                     request_id: request_id().ok()?,
-                    site_id: job.site.clone(),
+                    session_id: job.session.clone(),
                     action,
                 },
                 job.deadline,
@@ -240,7 +240,7 @@ fn execute(
     let Ok(request) = WorkbenchPanelCloseRequest::try_from(WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: job.id.clone(),
-        site_id: job.site.clone(),
+        session_id: job.session.clone(),
         expected_revision: revision,
         action: WorkbenchAction::PanelClose {
             terminal_context_id: job.context.clone(),

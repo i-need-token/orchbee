@@ -2,7 +2,7 @@ use std::mem::size_of;
 
 use orchbee_capability_node_protocol::TerminalLifecycleRequest;
 use orchbee_workbench_protocol::{
-    ProtocolVersion, SiteId, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
+    ProtocolVersion, SessionId, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
     WorkbenchCommandResult, WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse,
     WorkbenchRevision, WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason,
     WorkbenchTabClosePhase, WorkbenchTabClosePublicationReason, WorkbenchTabCloseReadOutcome,
@@ -93,7 +93,7 @@ pub(super) fn maximum_wire_charge(
     let resume = WorkbenchTabCloseResume {
         protocol_version: ProtocolVersion,
         request_id: command.request_id.clone(),
-        site_id: command.site_id.clone(),
+        session_id: command.session_id.clone(),
         terminal_context_id: terminal_context_id.clone(),
         tab_id: tab_id.clone(),
         close_request_id: command.request_id.clone(),
@@ -189,12 +189,12 @@ pub(super) fn tab_receipt_owned_bytes(
     request
         .request_id
         .owned_capacity()
-        .checked_add(request.site_id.owned_capacity())?
+        .checked_add(request.session_id.owned_capacity())?
         .checked_add(request.terminal_context_id.owned_capacity())?
         .checked_add(request.tab_id.owned_capacity())?
         .checked_add(request.close_request_id.owned_capacity())?
         .checked_add(result.request_id.owned_capacity())?
-        .checked_add(result.site_id.owned_capacity())?
+        .checked_add(result.session_id.owned_capacity())?
         .checked_add(result.terminal_context_id.owned_capacity())?
         .checked_add(result.tab_id.owned_capacity())?
         .checked_add(result.close_request_id.owned_capacity())
@@ -209,11 +209,11 @@ pub(super) fn workspace_receipt_owned_bytes(
     request
         .request_id
         .owned_capacity()
-        .checked_add(request.site_id.owned_capacity())?
+        .checked_add(request.session_id.owned_capacity())?
         .checked_add(request.workspace_id.owned_capacity())?
         .checked_add(request.close_request_id.owned_capacity())?
         .checked_add(result.request_id.owned_capacity())?
-        .checked_add(result.site_id.owned_capacity())?
+        .checked_add(result.session_id.owned_capacity())?
         .checked_add(result.workspace_id.owned_capacity())?
         .checked_add(result.close_request_id.owned_capacity())
 }
@@ -238,7 +238,7 @@ pub(super) fn receipt_slot_bytes(scope: &CloseScope) -> Option<usize> {
             let request = WorkbenchWorkspaceCloseResume {
                 protocol_version: ProtocolVersion,
                 request_id: WorkbenchRequestId::parse(&id_max()).ok()?,
-                site_id: SiteId::parse(&id_max()).ok()?,
+                session_id: SessionId::parse(&id_max()).ok()?,
                 workspace_id: WorkbenchWorkspaceId::parse(&id_max()).ok()?,
                 close_request_id: WorkbenchRequestId::parse(&id_max()).ok()?,
                 expected_attempt_generation: maximum_generation,
@@ -255,7 +255,7 @@ pub(super) fn receipt_slot_bytes(scope: &CloseScope) -> Option<usize> {
             let request = WorkbenchTabCloseResume {
                 protocol_version: ProtocolVersion,
                 request_id: WorkbenchRequestId::parse(&id_max()).ok()?,
-                site_id: SiteId::parse(&id_max()).ok()?,
+                session_id: SessionId::parse(&id_max()).ok()?,
                 terminal_context_id: WorkbenchTerminalContextId::parse(&id_max()).ok()?,
                 tab_id: WorkbenchTabId::parse(&id_max()).ok()?,
                 close_request_id: WorkbenchRequestId::parse(&id_max()).ok()?,
@@ -298,7 +298,7 @@ fn command_owned_bytes(command: &WorkbenchCommand) -> Option<usize> {
     command
         .request_id
         .owned_capacity()
-        .checked_add(command.site_id.owned_capacity())?
+        .checked_add(command.session_id.owned_capacity())?
         .checked_add(action)
 }
 
@@ -459,7 +459,7 @@ fn maximum_workspace_charge(
     let resume = WorkbenchWorkspaceCloseResume {
         protocol_version: ProtocolVersion,
         request_id: command.request_id.clone(),
-        site_id: command.site_id.clone(),
+        session_id: command.session_id.clone(),
         workspace_id: workspace_id.clone(),
         close_request_id: command.request_id.clone(),
         expected_attempt_generation: maximum_generation,

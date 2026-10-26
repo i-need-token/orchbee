@@ -17,7 +17,7 @@ use std::{
 };
 
 use nix::fcntl::{FcntlArg, OFlag, fcntl};
-use orchbee_local_site_runtime::ModeCheckedLocalSiteRendezvous;
+use orchbee_local_runtime::ModeCheckedLocalSessionRendezvous;
 use sha2::{Digest, Sha256};
 
 /// Wall-clock backstop on every spawned CLI child. A healthy run retires on
@@ -376,7 +376,7 @@ pub fn run_lang(binary: &Path, base: &Path, arguments: &[&str], lang: &str) -> O
 
 // ---- short runtime base -----------------------------------------------------
 
-/// Site scope directory prefix the rendezvous validator expects.
+/// Session scope directory prefix the rendezvous validator expects.
 const SCOPE_PREFIX: &str = "orchbee-native-";
 
 /// Leaf-name length minted by `runtime_base`: `"oc-"` + 8 hex chars. Fixed
@@ -414,7 +414,7 @@ pub fn runtime_base(tag: &str) -> PathBuf {
     let probe_scope = tmp
         .join("x".repeat(BASE_LEAF_LEN))
         .join(format!("{SCOPE_PREFIX}{uid}"));
-    let worst_len = ModeCheckedLocalSiteRendezvous::host_endpoint_path(&probe_scope)
+    let worst_len = ModeCheckedLocalSessionRendezvous::host_endpoint_path(&probe_scope)
         .as_os_str()
         .as_encoded_bytes()
         .len();
@@ -458,12 +458,12 @@ pub fn runtime_base(tag: &str) -> PathBuf {
     );
 }
 
-/// The existing-only Site scope path inside a runtime base.
+/// The existing-only Session scope path inside a runtime base.
 pub fn scope_dir(base: &Path) -> PathBuf {
     base.join(format!("{SCOPE_PREFIX}{}", nix::unistd::geteuid()))
 }
 
-/// Create the Site scope directory the rendezvous validator expects (mode
+/// Create the Session scope directory the rendezvous validator expects (mode
 /// 0700, owned by the caller).
 pub fn stage_scope(base: &Path) -> PathBuf {
     let scope = scope_dir(base);

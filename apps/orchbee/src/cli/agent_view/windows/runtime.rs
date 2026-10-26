@@ -99,7 +99,7 @@ pub(super) fn read(
     };
     let final_snapshot = query::refresh_snapshot(
         client,
-        &snapshot.site_id,
+        &snapshot.session_id,
         snapshot.revision,
         deadline,
         signals,

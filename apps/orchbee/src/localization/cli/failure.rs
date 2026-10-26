@@ -197,7 +197,7 @@ impl Locale {
                 Self::ZhCn => "本地会话拒绝了启动：原生开发 cohort 未获许可。\n".to_owned(),
             },
             FailureKind::ServiceUnavailable if local_runtime => {
-                self.cli_site_unavailable(failure)
+                self.cli_server_unavailable(failure)
             }
             FailureKind::ConnectionCapacity if local_runtime => match self {
                 Self::EnUs => {
@@ -641,7 +641,7 @@ impl Locale {
         }
     }
 
-    /// The startup diagnostic when a derived Site socket path cannot fit one
+    /// The startup diagnostic when a derived Session socket path cannot fit one
     /// socket address on this platform.
     pub(crate) const fn cli_socket_path_too_long(self) -> &'static str {
         match self {

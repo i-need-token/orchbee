@@ -22,7 +22,7 @@ use crate::{
         measure_key_hints, paint_row_interaction, render_frame_icon_action, render_key_hints,
     },
     tui_theme::{GlyphMode, Role, Theme},
-    workbench_client::{NativeContextTarget, NativeMemberTarget, NativeStartupTarget},
+    workbench_client::{ClientContextTarget, ClientMemberTarget, ClientStartupTarget},
 };
 use ratatui::{
     Frame,
@@ -55,7 +55,7 @@ pub(crate) enum Choice {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Selection {
     pub(crate) machine: Choice,
-    pub(crate) context: Option<NativeStartupTarget>,
+    pub(crate) context: Option<ClientStartupTarget>,
 }
 impl From<Choice> for Selection {
     fn from(machine: Choice) -> Self {
@@ -95,7 +95,7 @@ pub(crate) struct PickerEpisode(NonZeroU64);
 /// its stable ordering without appearing in a row's display copy.
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct AgentSourceBasis {
-    site: orchbee_workbench_protocol::SiteId,
+    session: orchbee_workbench_protocol::SessionId,
     view_revision: orchbee_workbench_protocol::WorkbenchRevision,
     source_order_locked: bool,
 }
@@ -106,8 +106,8 @@ struct PickerAgentBasis {
     view: crate::machine_agents::view::View,
     editing_query: bool,
     current: Choice,
-    current_context: Option<NativeContextTarget>,
-    current_member: Option<NativeMemberTarget>,
+    current_context: Option<ClientContextTarget>,
+    current_member: Option<ClientMemberTarget>,
     source: Option<AgentSourceBasis>,
 }
 
@@ -342,7 +342,7 @@ impl Row {
             context: self
                 .agent
                 .as_ref()
-                .map(|a| NativeStartupTarget::Agent(Box::new(a.target.clone())))
+                .map(|a| ClientStartupTarget::Agent(Box::new(a.target.clone())))
                 .or_else(|| self.context.as_ref().map(|c| c.target.clone().into())),
         }
     }
@@ -360,7 +360,7 @@ pub(crate) struct Picker {
     pub(crate) copy_id_request: Option<String>,
     selection_generation: u64,
     selection_scope: Option<SelectionScope>,
-    pub(crate) current_context: Option<NativeContextTarget>,
+    pub(crate) current_context: Option<ClientContextTarget>,
     local_contexts: std::sync::Arc<[Context]>,
     workspace_rows: std::sync::Arc<[Row]>,
     workspace_matches: std::sync::Arc<[Row]>,
@@ -374,7 +374,7 @@ pub(crate) struct Picker {
     agent_attention: crate::machine_agents::Attention,
     agent_view: crate::machine_agents::view::View,
     agent_sidebar: sidebar::AgentSidebar,
-    spaces: sidebar::Sidebar<orchbee_local_site_runtime::WindowsSpaceSidebarSettings>,
+    spaces: sidebar::Sidebar<orchbee_local_runtime::SpaceSidebarSettings>,
     sidebar_width: crate::tui_layout::SidebarWidth,
     navigation: navigation::SidebarNavigation,
     working_motion: sidebar::Motion,
@@ -384,7 +384,7 @@ pub(crate) struct Picker {
     native_navigation: Option<(Choice, crate::workbench_client::SidebarNavigationProjection)>,
     space_projection: Option<(Choice, Arc<crate::machine_spaces::Checkpoint>)>,
     editing_query: bool,
-    current_member: Option<NativeMemberTarget>,
+    current_member: Option<ClientMemberTarget>,
     pending_navigation: Option<Navigation>,
     selected: usize,
     top: usize,
@@ -463,7 +463,7 @@ impl Picker {
             .find(|(choice, _)| choice == &self.current)
             .and_then(|(_, observation)| match observation {
                 crate::machine_agents::Observation::Ready(checkpoint) => Some(AgentSourceBasis {
-                    site: checkpoint.site_id.clone(),
+                    session: checkpoint.session_id.clone(),
                     view_revision: checkpoint.view.revision,
                     source_order_locked: checkpoint
                         .view
@@ -843,8 +843,8 @@ impl Picker {
         }
         if let Some(context) = &row.context {
             return Some(match &context.target.location {
-                crate::workbench_client::NativeContextLocation::NoWorkspace => return None,
-                crate::workbench_client::NativeContextLocation::Workspace {
+                crate::workbench_client::ClientContextLocation::NoWorkspace => return None,
+                crate::workbench_client::ClientContextLocation::Workspace {
                     workspace_id, ..
                 } => workspace_id.as_str(),
             });

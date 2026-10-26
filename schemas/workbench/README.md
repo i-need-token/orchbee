@@ -6,7 +6,7 @@
 preference values, patches and bridge receipts. Its conformance corpus is consumed by the independent
 Rust and TypeScript bindings. The schema's default values are canonical; neither UI invents defaults,
 reset semantics or a second durable writer. The runtime owner is
-[`UserPreferencesStore`](../../crates/local-site-runtime/README.md#shared-user-preference-storage).
+[`UserPreferencesStore`](../../crates/local-runtime/README.md#shared-user-preference-storage).
 
 | Key                                | Allowed value and default                                               | Effect boundary                                                                                                         |
 | ---------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |

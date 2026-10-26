@@ -1,7 +1,7 @@
 //! Worktree interaction drives one retained operation and reuses native source and membership owners.
 use super::{
-    ClientActionDisposition, ClientNotice, CommandMailbox, ModalPresentation, NativeUi,
-    OperationDeadlines, WorkbenchClientView,
+    ClientActionDisposition, ClientNotice, CommandMailbox, ModalPresentation, OperationDeadlines,
+    WorkbenchClientUi, WorkbenchClientView,
 };
 pub(crate) use crate::workbench_client::state::worktree_launch::{
     WorktreeEdit, WorktreeMode, WorktreeNotice, WorktreeStage, WorktreeToken, WorktreeView,
@@ -117,7 +117,7 @@ impl<'a> WorkbenchClientView<'a> {
             .then_some(launcher.notice())
     }
 }
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn choose_worktree(
         &mut self,
         token: WorktreeToken,

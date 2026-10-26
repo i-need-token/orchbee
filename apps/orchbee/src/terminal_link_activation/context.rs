@@ -111,7 +111,7 @@ pub(crate) fn fence_member<G: Guard>(
     guard: &mut G,
 ) -> Result<(), Error<G::Error>> {
     let fresh = fresh_snapshot(client, deadline, guard)?;
-    if fresh.site_id != snapshot.site_id
+    if fresh.session_id != snapshot.session_id
         || fresh.revision != snapshot.revision
         || member.snapshot_member(&fresh).is_none()
     {
@@ -130,7 +130,7 @@ fn read_presentation_agent<G: Guard>(
     let request = PanelAgentRequest {
         protocol_version: ProtocolVersion,
         request_id: request_id()?,
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         action: PanelAgentAction::ReadPresentations {
             presentation_ids: vec![member.presentation.clone()],
         },
@@ -184,7 +184,7 @@ fn fence_presentation_agent<G: Guard>(
     let request = PanelAgentRequest {
         protocol_version: ProtocolVersion,
         request_id: request_id()?,
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         action: PanelAgentAction::ReadPresentations {
             presentation_ids: Vec::new(),
         },
@@ -388,7 +388,7 @@ fn worktree<G: Guard>(
     let request = WorkbenchWorktreeQuery {
         protocol_version: snapshot.protocol_version,
         request_id: request_id()?,
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         source: WorktreeSource::Workspace {
             workspace_id: workspace.workspace_id.clone(),
         },
@@ -401,7 +401,7 @@ fn worktree<G: Guard>(
         .outcome;
     guard.check(deadline).map_err(Error::Gate)?;
     let WorkbenchWorktreeQueryOutcome::Found {
-        site_id,
+        session_id,
         workbench_revision,
         worker_id,
         source,
@@ -428,7 +428,7 @@ fn worktree<G: Guard>(
             | WorktreeQueryFailure::OwnerIo { .. } => Ok(None),
         };
     };
-    if site_id != snapshot.site_id
+    if session_id != snapshot.session_id
         || workbench_revision != snapshot.revision
         || worker_id != directory.worker_id
         || source.workspace_id.as_ref() != Some(&workspace.workspace_id)

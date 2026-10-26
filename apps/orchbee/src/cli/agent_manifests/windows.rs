@@ -77,7 +77,7 @@ fn submit(
     let mut request = AgentManifestsRequest {
         protocol_version: snapshot.protocol_version,
         request_id: query::request_id()?,
-        site_id: snapshot.site_id,
+        session_id: snapshot.session_id,
         action: action.clone(),
     };
     signals.check_before(deadline)?;
@@ -97,7 +97,7 @@ fn submit(
     };
     let mut answer = Answer {
         request_id: request.request_id.clone(),
-        site_id: request.site_id.clone(),
+        session_id: request.session_id.clone(),
         action,
         observation,
         interrupted: false,

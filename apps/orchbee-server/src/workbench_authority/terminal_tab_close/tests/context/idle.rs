@@ -514,7 +514,7 @@ fn idle_dissolve_preserves_all_resources_and_checks_complete_project_not_first_w
 #[test]
 fn idle_actions_deny_grants_before_runtime_proof_or_ledger_reservation() {
     let (mut owner, _) = workspace_fixture(1);
-    let read_only = WorkbenchGrant::read_only(owner.site_id().clone());
+    let read_only = WorkbenchGrant::read_only(owner.session_id().clone());
     let before = owner.snapshot().clone();
     for grant in [None, Some(&read_only)] {
         let close = conditional(&owner, 11400);

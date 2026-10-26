@@ -34,7 +34,7 @@ use orchbee_client_server_protocol::{
 use orchbee_terminal_protocol::{AttachmentId, HostEpoch};
 use orchbee_workbench_protocol::{
     Navigation, PanelNode, PanelOrientation, PanelSlot, Presentation, PresentationBinding,
-    ProtocolVersion, SiteId, Snapshot, Tab, TerminalContext, TerminalId, TerminalPresentationId,
+    ProtocolVersion, SessionId, Snapshot, Tab, TerminalContext, TerminalId, TerminalPresentationId,
     WorkbenchAction, WorkbenchCommand, WorkbenchCommandUnavailableReason, WorkbenchLabel,
     WorkbenchPanelId, WorkbenchPanelSlotId, WorkbenchPanelSplitDirection, WorkbenchRejectionReason,
     WorkbenchRequestId, WorkbenchRevision, WorkbenchSnapshotOutcome,
@@ -1825,7 +1825,7 @@ impl Trace {
         self.drive_switch_membership_cleanup(&cleanup, marker, lease)
     }
 
-    /// Mirrors the worker's switch cleanup drive and `NativeUi::apply_membership_detached`
+    /// Mirrors the worker's switch cleanup drive and `WorkbenchClientUi::apply_membership_detached`
     /// for a `MembershipResultKey::Switch` cleanup: the lease authorizes the cleanup call,
     /// the answered receipt gates the `MembershipDetached` publication, and the settlement
     /// reply kind is `UiReply::Switch`, not `UiReply::Membership`.
@@ -2455,7 +2455,7 @@ impl Trace {
             "Panel event payload changed",
         )?;
 
-        // Mirrors `NativeUi::apply_panel_event`: prepare outside the reply mutex, then settle
+        // Mirrors `WorkbenchClientUi::apply_panel_event`: prepare outside the reply mutex, then settle
         // inside the exact reply transaction with the same membership cleanup/install pairing.
         let prepared = self.workbench_client.prepare_panel(&operation, outcome);
         let membership = prepared.membership_candidate().is_some();
@@ -2714,7 +2714,7 @@ impl Trace {
         Ok(())
     }
 
-    /// Mirrors `NativeUi::apply_membership_detached` for the Panel/Refresh result keys: the old
+    /// Mirrors `WorkbenchClientUi::apply_membership_detached` for the Panel/Refresh result keys: the old
     /// attachment is fully detached and settled before the membership install commits a new one.
     fn drive_membership_cleanup(
         &mut self,
@@ -3115,7 +3115,7 @@ impl Trace {
             "drain Refresh event changed",
         )?;
 
-        // Mirrors `NativeUi::apply_refresh_event`'s membership arms.
+        // Mirrors `WorkbenchClientUi::apply_refresh_event`'s membership arms.
         let prepared = self.workbench_client.prepare_refresh(generation, outcome);
         let recovery_deadlines =
             match &prepared {
@@ -4233,7 +4233,7 @@ fn create_marker(
     let command = WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: request_id.clone(),
-        site_id: session.cache().site_id().clone(),
+        session_id: session.cache().session_id().clone(),
         expected_revision: session.cache().revision(),
         action: WorkbenchAction::TabCreate {
             placement: None,
@@ -4252,7 +4252,7 @@ fn create_marker(
         OperationDeadlines::from_sample(sampled_at).ok_or("Create deadline overflow")?;
     let operation = CreateOperation::new(
         CreateOperationKey::new(request_id, generation),
-        session.cache().site_id().clone(),
+        session.cache().session_id().clone(),
         session.cache().revision(),
         session.cache().terminal_context_id().unwrap().clone(),
         label,
@@ -4333,8 +4333,8 @@ fn geometry() -> Geometry {
     Geometry::new(80, 24, 8, 16).expect("geometry fixture")
 }
 
-fn site_id(value: u128) -> SiteId {
-    SiteId::parse(&id(value)).expect("site fixture")
+fn session_id(value: u128) -> SessionId {
+    SessionId::parse(&id(value)).expect("session fixture")
 }
 
 fn context_id(value: u128) -> WorkbenchTerminalContextId {
@@ -4906,7 +4906,7 @@ impl Authority {
             },
             protocol_version: ProtocolVersion,
             revision: WorkbenchRevision::new(self.revision),
-            site_id: site_id(2),
+            session_id: session_id(2),
             terminal_contexts: vec![TerminalContext {
                 groups: Vec::new(),
                 tabs: self.tabs.clone(),

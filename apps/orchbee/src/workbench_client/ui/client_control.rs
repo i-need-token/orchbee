@@ -1,16 +1,16 @@
-//! Exact semantic navigation through the existing NativeUi owners.
+//! Exact semantic navigation through the existing WorkbenchClientUi owners.
 use super::{
-    ActionBuildError, Arc, AttachmentKey, ClientPhaseKind, NativeUi, OperationDeadlines,
-    SelectionPlan, SwitchMarker, WorkbenchClientState, WorkbenchPanelId, WorkbenchTabId,
+    ActionBuildError, Arc, AttachmentKey, ClientPhaseKind, OperationDeadlines, SelectionPlan,
+    SwitchMarker, WorkbenchClientState, WorkbenchClientUi, WorkbenchPanelId, WorkbenchTabId,
     finish_action,
 };
 use crate::workbench_client::client_control::{ControlStep, StepProgress};
 use orchbee_workbench_protocol::{
     ClientViewControl, ClientViewControlReason as Reason, ClientViewIntent, ClientViewObservation,
-    ClientViewPhase, ClientViewSelection, SiteId,
+    ClientViewPhase, ClientViewSelection, SessionId,
 };
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn configured_command_completed(
         &mut self,
         completion: crate::workbench_client::client_control::CommandCompletion,
@@ -21,7 +21,7 @@ impl NativeUi {
             ConfiguredCommandFailure as F, ConfiguredCommandOutcome as O,
             WorkbenchCommandOutcome as W, WorkbenchTerminalOutcome as T,
         };
-        self.notice_context = Some(super::NativeNoticeContext::ConfiguredCommand(
+        self.notice_context = Some(super::NoticeContext::ConfiguredCommand(
             completion.command_id,
         ));
         let notice = match completion.reply {
@@ -122,7 +122,7 @@ impl NativeUi {
             return Err(Reason::Unsupported);
         };
         let state = self.state.as_ref().ok_or(Reason::ProjectionUnavailable)?;
-        if snapshot.site_id != *state.cache().site_id()
+        if snapshot.session_id != *state.cache().session_id()
             || snapshot.revision < command.minimum_workbench_revision
             || snapshot.revision < state.cache().revision()
         {
@@ -280,7 +280,7 @@ impl NativeUi {
     pub(in crate::workbench_client) fn control_observation(
         &self,
         shell_blocked: bool,
-    ) -> Option<(SiteId, ClientViewObservation)> {
+    ) -> Option<(SessionId, ClientViewObservation)> {
         let state = self.state.as_ref()?;
         let cache = state.cache();
         let tab = state
@@ -323,7 +323,7 @@ impl NativeUi {
             selection,
         };
         observation.validate().ok()?;
-        Some((cache.site_id().clone(), observation))
+        Some((cache.session_id().clone(), observation))
     }
 
     pub(in crate::workbench_client) fn control_step(

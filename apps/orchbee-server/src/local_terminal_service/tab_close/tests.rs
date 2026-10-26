@@ -2,7 +2,7 @@ use super::*;
 use orchbee_local_ipc::LocalStream as UnixStream;
 mod interleavings;
 use crate::{
-    site_coordinator::PreparedTerminalTabCreate,
+    session_coordinator::PreparedTerminalTabCreate,
     terminal_coordinator::{Completion, WorkerPlacement},
     worker_obcn_carrier::create_worker_carrier,
     worker_registry::{WorkerAdmission, WorkerRegistry},
@@ -77,7 +77,7 @@ fn fixture() -> Fixture {
     let worker_thread = thread::spawn(move || owner.run(server));
     let service = Arc::new(LocalTerminalService::from_identity(
         registry,
-        Ok(orchbee_workbench_protocol::SiteId::parse(&format!("{:032x}", 1)).unwrap()),
+        Ok(orchbee_workbench_protocol::SessionId::parse(&format!("{:032x}", 1)).unwrap()),
     ));
     {
         use crate::test_support::WorkbenchFixture;
@@ -114,7 +114,7 @@ fn add_terminal_between(
     let create = WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: id(10 + u128::from(index) * 100),
-        site_id: snapshot.site_id,
+        session_id: snapshot.session_id,
         expected_revision: snapshot.revision,
         action: WorkbenchAction::TabCreate {
             placement: None,
@@ -134,8 +134,8 @@ fn add_terminal_between(
         generation: WorkerGeneration::new(NonZeroU64::MIN),
     };
     let pending = {
-        let mut site = service.coordinator.lock().unwrap();
-        let PreparedTerminalTabCreate::Dispatch(pending) = site.prepare_terminal_tab_create(
+        let mut session = service.coordinator.lock().unwrap();
+        let PreparedTerminalTabCreate::Dispatch(pending) = session.prepare_terminal_tab_create(
             create,
             Some(
                 orchbee_client_server_protocol::RequestId::parse(&format!(
@@ -153,7 +153,7 @@ fn add_terminal_between(
     };
     before_completion();
     {
-        let mut site = service.coordinator.lock().unwrap();
+        let mut session = service.coordinator.lock().unwrap();
         let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = pending.command() else {
             panic!("launch")
         };
@@ -173,9 +173,10 @@ fn add_terminal_between(
             )),
         )
         .unwrap();
-        site.complete_terminal_tab_create(pending, Completion::Launch(result), Some(worker))
+        session
+            .complete_terminal_tab_create(pending, Completion::Launch(result), Some(worker))
             .unwrap();
-        drop(site);
+        drop(session);
     }
     let snapshot = read_snapshot(service);
     let tab = snapshot
@@ -193,7 +194,7 @@ fn add_terminal_between(
     WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: id(20 + u128::from(index) * 100),
-        site_id: snapshot.site_id,
+        session_id: snapshot.session_id,
         expected_revision: snapshot.revision,
         action: WorkbenchAction::TabClose {
             terminal_context_id: snapshot.navigation.workspaces[0]
@@ -253,7 +254,7 @@ fn read(service: &LocalTerminalService, close: &WorkbenchCommand) -> WorkbenchTa
         .read_terminal_tab_close(WorkbenchTabCloseRead {
             protocol_version: ProtocolVersion,
             request_id: id(40),
-            site_id: close.site_id.clone(),
+            session_id: close.session_id.clone(),
             terminal_context_id: terminal_context_id.clone(),
             tab_id: tab_id.clone(),
         })
@@ -378,12 +379,12 @@ fn late_dispose_is_retained_and_local_resume_publishes_without_a_live_worker() {
     } = fixture();
     service.start_close_maintenance().unwrap();
     {
-        let mut site = service.coordinator.lock().unwrap();
+        let mut session = service.coordinator.lock().unwrap();
         let worker = WorkerPlacement {
             worker_id: orchbee_capability_node_protocol::WorkerId::from_bytes([9; 16]).unwrap(),
             generation: WorkerGeneration::new(NonZeroU64::MIN),
         };
-        let accepted = site
+        let accepted = session
             .execute_terminal_tab_close(
                 close.clone(),
                 Some(worker),
@@ -412,7 +413,7 @@ fn late_dispose_is_retained_and_local_resume_publishes_without_a_live_worker() {
     let resume = orchbee_workbench_protocol::WorkbenchTabCloseResume {
         protocol_version: ProtocolVersion,
         request_id: id(60),
-        site_id: close.site_id.clone(),
+        session_id: close.session_id.clone(),
         terminal_context_id: terminal_context_id.clone(),
         tab_id: tab_id.clone(),
         close_request_id: close.request_id.clone(),
@@ -570,7 +571,7 @@ fn round_robin_serves_another_close_before_the_first_next_step() {
     let renamed = WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: id(70),
-        site_id: close.site_id.clone(),
+        session_id: close.session_id.clone(),
         expected_revision: WorkbenchRevision::new(2),
         action: WorkbenchAction::TabRename {
             terminal_context_id: terminal_context_id.clone(),

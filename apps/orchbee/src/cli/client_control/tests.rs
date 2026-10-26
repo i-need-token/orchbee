@@ -36,7 +36,7 @@ fn physical_attention_receipt_uses_closed_client_control_schema() {
     let answer = Answer {
         status_only: false,
         operation_id: Some(operation.command.operation_id.clone()),
-        site_id: Some(reply.site_id.clone()),
+        session_id: Some(reply.session_id.clone()),
         reply: Some(reply),
         unknown: false,
         wait: None,
@@ -69,7 +69,7 @@ fn agent_focus_receipts_keep_current_control_shape_closed() {
         let answer = Answer {
             status_only: false,
             operation_id: Some(operation.command.operation_id.clone()),
-            site_id: Some(reply.site_id.clone()),
+            session_id: Some(reply.session_id.clone()),
             reply: Some(reply),
             unknown: false,
             wait: None,
@@ -505,7 +505,7 @@ fn client_control_documents_preserve_every_receipt_and_validate_exported_schemas
         let answer = Answer {
             status_only: false,
             operation_id,
-            site_id: Some(reply.site_id.clone()),
+            session_id: Some(reply.session_id.clone()),
             reply: Some(reply),
             unknown: false,
             wait: None,
@@ -536,7 +536,7 @@ fn client_control_documents_preserve_every_receipt_and_validate_exported_schemas
             operation_id: Some(
                 WorkbenchRequestId::parse("00000000000000000000000000000003").unwrap(),
             ),
-            site_id: None,
+            session_id: None,
             reply: None,
             unknown: true,
             wait,
@@ -566,7 +566,7 @@ fn answer_without_reply(wait: Option<Wait>) -> Answer {
     Answer {
         status_only: false,
         operation_id: Some(WorkbenchRequestId::parse("00000000000000000000000000000003").unwrap()),
-        site_id: None,
+        session_id: None,
         reply: None,
         unknown: false,
         wait,
@@ -712,7 +712,7 @@ fn layout_queries_keep_exact_routing_and_emit_closed_locale_independent_document
             panic!("view result");
         };
         let mut answer = answer_without_reply(None);
-        answer.site_id = Some(reply.site_id.clone());
+        answer.session_id = Some(reply.session_id.clone());
         answer.reply = Some(reply);
         for query in [
             LayoutQuery::Layout,
@@ -846,7 +846,7 @@ fn directional_focus_grammar_resolves_source_and_explicit_success_variants() {
         let answer = Answer {
             status_only: false,
             operation_id: Some(operation.command.operation_id.clone()),
-            site_id: Some(reply.site_id.clone()),
+            session_id: Some(reply.session_id.clone()),
             reply: Some(reply),
             unknown: false,
             wait: None,
@@ -1066,7 +1066,7 @@ fn layout_adjustment_receipts_have_closed_json_and_honest_bilingual_text() {
         let answer = Answer {
             status_only: false,
             operation_id: Some(operation.command.operation_id.clone()),
-            site_id: Some(reply.site_id.clone()),
+            session_id: Some(reply.session_id.clone()),
             reply: Some(reply),
             unknown: false,
             wait: None,
@@ -1097,7 +1097,7 @@ fn presentation_receipts_keep_bound_and_empty_shapes_closed() {
         let answer = Answer {
             status_only: false,
             operation_id: Some(operation.command.operation_id.clone()),
-            site_id: Some(reply.site_id.clone()),
+            session_id: Some(reply.session_id.clone()),
             reply: Some(reply),
             unknown: false,
             wait: None,
@@ -1138,7 +1138,7 @@ fn editor_control_receipt_is_closed() {
     let answer = super::Answer {
         status_only: false,
         operation_id: Some(operation.command.operation_id.clone()),
-        site_id: Some(reply.site_id.clone()),
+        session_id: Some(reply.session_id.clone()),
         reply: Some(reply),
         unknown: false,
         wait: None,
@@ -1193,7 +1193,7 @@ fn configured_popup_receipt_is_closed() {
     let answer = Answer {
         status_only: false,
         operation_id: Some(operation.command.operation_id.clone()),
-        site_id: Some(reply.site_id.clone()),
+        session_id: Some(reply.session_id.clone()),
         reply: Some(reply),
         unknown: false,
         wait: None,

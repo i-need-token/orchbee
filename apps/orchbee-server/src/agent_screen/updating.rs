@@ -1,7 +1,7 @@
 //! Real remote-rule cache updates. Observer installation and public receipts are separate owners.
 use super::{ScreenDetector, manifest::Manifest, version::Version};
 use orchbee_agent_observation_protocol::AgentReportProvider;
-use orchbee_local_site_runtime::WindowsPrivateCache;
+use orchbee_local_runtime::PrivateCache;
 use serde::Deserialize;
 use std::{
     cmp::Ordering,
@@ -109,7 +109,7 @@ fn cancelled(stop: &AtomicBool, deadline: Instant) -> Result<(), Failure> {
     }
 }
 fn update_provider(
-    cache: &mut WindowsPrivateCache,
+    cache: &mut PrivateCache,
     provider: AgentReportProvider,
     text: &str,
     stop: &AtomicBool,
@@ -144,7 +144,7 @@ pub(crate) fn maintenance(
 ) -> orchbee_workbench_protocol::AgentManifestMaintenance {
     let loaded = (|| {
         let Some(root) = root else { return Ok(None) };
-        let Some(bytes) = WindowsPrivateCache::read_existing(
+        let Some(bytes) = PrivateCache::read_existing(
             &root.join("agent-detection").join("remote"),
             "status.json",
             LIMIT,
@@ -210,15 +210,13 @@ fn run_with_fetch(
             .map_err(|_| Failure::Clock)?
             .as_secs();
         cache = Some(
-            WindowsPrivateCache::acquire(&root.join("agent-detection").join("remote")).map_err(
-                |e| {
-                    if e.kind() == std::io::ErrorKind::WouldBlock {
-                        Failure::Busy
-                    } else {
-                        Failure::Cache
-                    }
-                },
-            )?,
+            PrivateCache::acquire(&root.join("agent-detection").join("remote")).map_err(|e| {
+                if e.kind() == std::io::ErrorKind::WouldBlock {
+                    Failure::Busy
+                } else {
+                    Failure::Cache
+                }
+            })?,
         );
         if let Some(bytes) = cache
             .as_ref()

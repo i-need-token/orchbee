@@ -21,8 +21,8 @@ impl Fixture {
     pub(super) fn write(&self, text: &str) {
         std::fs::write(self.file(), text).unwrap();
     }
-    pub(super) fn settings(&self, explicit: bool) -> WindowsUserSettings {
-        read_windows_user_settings_at(Some(&self.file()), explicit, |_| None)
+    pub(super) fn settings(&self, explicit: bool) -> UserSettings {
+        read_user_settings_at(Some(&self.file()), explicit, |_| None)
             .unwrap()
             .settings
     }
@@ -47,7 +47,7 @@ pub(super) fn request(action: Action) -> ConfigurationRequest {
         protocol_version: ProtocolVersion,
         request_id: orchbee_workbench_protocol::WorkbenchRequestId::parse(&format!("{:032x}", 1))
             .unwrap(),
-        site_id: orchbee_workbench_protocol::SiteId::parse(&format!("{:032x}", 2)).unwrap(),
+        session_id: orchbee_workbench_protocol::SessionId::parse(&format!("{:032x}", 2)).unwrap(),
         action,
     }
 }
@@ -151,7 +151,7 @@ pub(in crate::local_terminal_service) fn maximum_accepted_source_with_escaped_pr
 fn startup_and_reload_reject_an_accepted_source_whose_composed_response_is_oversized() {
     let fixture = Fixture::new();
     fixture.write(&maximum_accepted_source_with_escaped_profiles());
-    let candidate = read_windows_user_settings_at(Some(&fixture.file()), true, |_| None).unwrap();
+    let candidate = read_user_settings_at(Some(&fixture.file()), true, |_| None).unwrap();
     assert_eq!(candidate.diagnostics.items().len(), 40);
     let keys_profile = candidate.settings.keys.profile();
     let agent_sidebar_profile = candidate.settings.agent_sidebar.profile();
@@ -159,18 +159,12 @@ fn startup_and_reload_reject_an_accepted_source_whose_composed_response_is_overs
     assert_eq!(keys_profile.len(), 65_534);
     assert_eq!(agent_sidebar_profile.len(), 32_767);
     assert_eq!(spaces_sidebar_profile.len(), 32_752);
-    assert!(orchbee_local_site_runtime::WindowsKeySettings::from_profile(&keys_profile).is_ok());
+    assert!(orchbee_local_runtime::KeySettings::from_profile(&keys_profile).is_ok());
     assert!(
-        orchbee_local_site_runtime::WindowsAgentSidebarSettings::from_profile(
-            &agent_sidebar_profile
-        )
-        .is_ok()
+        orchbee_local_runtime::AgentSidebarSettings::from_profile(&agent_sidebar_profile).is_ok()
     );
     assert!(
-        orchbee_local_site_runtime::WindowsSpaceSidebarSettings::from_profile(
-            &spaces_sidebar_profile
-        )
-        .is_ok()
+        orchbee_local_runtime::SpaceSidebarSettings::from_profile(&spaces_sidebar_profile).is_ok()
     );
     let diagnostics = protocol_diagnostics(&candidate.diagnostics).unwrap();
     assert!(diagnostics.validate().is_ok());
@@ -206,9 +200,7 @@ fn startup_and_reload_reject_an_accepted_source_whose_composed_response_is_overs
     ));
 
     let registry = Registry::default();
-    registry
-        .initialize(&WindowsUserSettings::default())
-        .unwrap();
+    registry.initialize(&UserSettings::default()).unwrap();
     let retained = current(&registry);
     let mut applied = false;
     let outcome = registry.execute_with(
@@ -242,10 +234,9 @@ fn sidebar_reload_publishes_valid_profiles_and_defaults_only_invalid_profiles() 
     else {
         panic!()
     };
-    let layout = orchbee_local_site_runtime::WindowsAgentSidebarSettings::from_profile(
-        &snapshot.agent_sidebar_profile,
-    )
-    .unwrap();
+    let layout =
+        orchbee_local_runtime::AgentSidebarSettings::from_profile(&snapshot.agent_sidebar_profile)
+            .unwrap();
     assert_eq!(layout.row_gap(), 1);
     assert_eq!(
         layout.rows_for_agent("codex", None).unwrap()[0][1].name(),
@@ -265,18 +256,16 @@ fn sidebar_reload_publishes_valid_profiles_and_defaults_only_invalid_profiles() 
         "ui.sidebar.agents"
     );
     assert_eq!(
-        orchbee_local_site_runtime::WindowsAgentSidebarSettings::from_profile(
+        orchbee_local_runtime::AgentSidebarSettings::from_profile(
             &agent_warning.agent_sidebar_profile
         )
         .unwrap(),
-        orchbee_local_site_runtime::WindowsAgentSidebarSettings::default()
+        orchbee_local_runtime::AgentSidebarSettings::default()
     );
     assert_eq!(
-        orchbee_local_site_runtime::WindowsSpaceSidebarSettings::from_profile(
-            &snapshot.spaces_sidebar_profile
-        )
-        .unwrap()
-        .row_gap(),
+        orchbee_local_runtime::SpaceSidebarSettings::from_profile(&snapshot.spaces_sidebar_profile)
+            .unwrap()
+            .row_gap(),
         3
     );
     fixture.write("[keys]\nprefix='ctrl+x'\n[ui.toast]\ndelivery='terminal'\n[ui.sidebar.agents]\nrows=[]\n[ui.sidebar.spaces]\nrows=[['agent']]");
@@ -303,11 +292,9 @@ fn sidebar_reload_publishes_valid_profiles_and_defaults_only_invalid_profiles() 
     assert_eq!(next.diagnostics.omitted_count, 0);
     assert!(next.keys_profile.contains("ctrl+x"));
     assert_eq!(
-        orchbee_local_site_runtime::WindowsAgentSidebarSettings::from_profile(
-            &next.agent_sidebar_profile
-        )
-        .unwrap()
-        .row_gap(),
+        orchbee_local_runtime::AgentSidebarSettings::from_profile(&next.agent_sidebar_profile)
+            .unwrap()
+            .row_gap(),
         2
     );
 }
@@ -335,7 +322,7 @@ fn managed_startup_rereads_one_complete_authoritative_server_baseline() {
     let current = request(Action::Current);
     let owner = Owner(Arc::new(LocalTerminalService::from_identity(
         Arc::new(Mutex::new(WorkerRegistry::new())),
-        Ok(current.site_id.clone()),
+        Ok(current.session_id.clone()),
     )));
     owner
         .0
@@ -383,7 +370,7 @@ fn real_configuration_owner_updates_coordinator_and_invalid_reload_retains_live_
     let reload = request(Action::Reload);
     let owner = Owner(Arc::new(LocalTerminalService::from_identity(
         Arc::new(Mutex::new(WorkerRegistry::new())),
-        Ok(reload.site_id.clone()),
+        Ok(reload.session_id.clone()),
     )));
     owner
         .0
@@ -576,11 +563,11 @@ fn busy_exhaustion_and_uninitialized_owner_never_apply_settings() {
 #[test]
 fn reload_releases_committed_state_while_loading_the_configuration_file() {
     let registry = Registry::default();
-    let settings = WindowsUserSettings::default();
+    let settings = UserSettings::default();
     registry.initialize(&settings).unwrap();
-    let candidate = orchbee_local_site_runtime::WindowsUserSettingsLoad {
+    let candidate = orchbee_local_runtime::UserSettingsLoad {
         settings,
-        diagnostics: orchbee_local_site_runtime::WindowsSettingsDiagnostics::default(),
+        diagnostics: orchbee_local_runtime::SettingsDiagnostics::default(),
     };
     let outcome = registry.execute_with(
         &request(Action::Reload),
@@ -624,7 +611,7 @@ fn window_title_reload_defaults_invalid_leaf_and_publishes_its_warning() {
     };
     assert_eq!(
         snapshot.window_title,
-        orchbee_local_site_runtime::DEFAULT_WINDOW_TITLE
+        orchbee_local_runtime::DEFAULT_WINDOW_TITLE
     );
     assert_eq!(snapshot.diagnostics.items[0].field, "ui.window_title");
     fixture.write("[ui]\nwindow_title=''");
@@ -641,7 +628,7 @@ fn window_title_reload_defaults_invalid_leaf_and_publishes_its_warning() {
     };
     assert_eq!(
         snapshot.window_title,
-        orchbee_local_site_runtime::DEFAULT_WINDOW_TITLE
+        orchbee_local_runtime::DEFAULT_WINDOW_TITLE
     );
     assert_eq!(snapshot.diagnostics.items[0].field, "ui.window_title");
     assert_eq!(snapshot.diagnostics.items[0].reason, "wrong-type");
@@ -662,7 +649,7 @@ fn notification_reload_exposes_policy_and_defaults_invalid_leaves() {
         else {
             panic!()
         };
-        let parsed = orchbee_local_site_runtime::WindowsNotificationSettings::from_profile(
+        let parsed = orchbee_local_runtime::NotificationSettings::from_profile(
             &snapshot.notification_profile,
         )
         .unwrap();
@@ -672,7 +659,7 @@ fn notification_reload_exposes_policy_and_defaults_invalid_leaves() {
         assert!(parsed.sound_enabled);
         assert_eq!(
             parsed.agent_sound("codex"),
-            orchbee_local_site_runtime::WindowsAgentSoundSetting::Off
+            orchbee_local_runtime::AgentSoundSetting::Off
         );
         assert_eq!(parsed.position(), "top-left");
         assert!(snapshot.restart_required.is_empty());
@@ -690,11 +677,11 @@ fn notification_reload_exposes_policy_and_defaults_invalid_leaves() {
         "ui.toast.delivery"
     );
     assert_eq!(
-        orchbee_local_site_runtime::WindowsNotificationSettings::from_profile(
+        orchbee_local_runtime::NotificationSettings::from_profile(
             &delivery_warning.notification_profile
         )
         .unwrap(),
-        orchbee_local_site_runtime::WindowsNotificationSettings::default()
+        orchbee_local_runtime::NotificationSettings::default()
     );
     fixture.write("[ui.sound]\nenabled='yes'");
     let Outcome::Reloaded {

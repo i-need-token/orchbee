@@ -3,15 +3,15 @@ use super::*;
 use crate::workbench_client::agent_read_lane::AttentionRound;
 use crate::{
     client_view::ClientView, localization::Locale, tui_pointer::HitMapBuilder,
-    workbench_client::NativeDrawReceipt,
+    workbench_client::DrawReceipt,
 };
 use orchbee_agent_observation_protocol::{AgentChangesCursor, AgentSessionSummary};
 use ratatui::{Terminal, backend::TestBackend};
 use serde_json::json;
 
 fn enable_shared_notifications(
-    ui: &mut NativeUi,
-    settings: &orchbee_local_site_runtime::WindowsNotificationSettings,
+    ui: &mut WorkbenchClientUi,
+    settings: &orchbee_local_runtime::NotificationSettings,
 ) {
     ui.apply_user_preferences(&orchbee_workbench_protocol::UserPreferencesValues {
         agent_notification_mode: orchbee_workbench_protocol::AgentReminderMode::Hidden,
@@ -26,7 +26,7 @@ fn shared_never_remains_disabled_after_legacy_notification_reload() {
     use orchbee_workbench_protocol::{
         AgentReminderMode, PanelAgentState, UserPreferencesValues, WorkbenchRevision,
     };
-    let settings = orchbee_local_site_runtime::WindowsNotificationSettings::from_profile(
+    let settings = orchbee_local_runtime::NotificationSettings::from_profile(
         "[ui.toast]\nagent_delivery='orchbee'\ndelay_seconds=0\n[ui.sound]\nenabled=true",
     )
     .unwrap();
@@ -57,7 +57,7 @@ fn shared_never_remains_disabled_after_legacy_notification_reload() {
     }
 }
 
-fn fixture() -> (NativeUi, PaneRef) {
+fn fixture() -> (WorkbenchClientUi, PaneRef) {
     let (mut ui, _, _, _) = ready_ui();
     let pane = install_projection(&mut ui, Some((9, false, 24)), 0);
     let presentation = ui.view().attention_presentation(&pane).unwrap();
@@ -80,9 +80,9 @@ fn fixture() -> (NativeUi, PaneRef) {
     (ui, pane)
 }
 
-fn draw(ui: &NativeUi, width: u16, height: u16, shell: &ClientView) -> NativeDrawReceipt {
+fn draw(ui: &WorkbenchClientUi, width: u16, height: u16, shell: &ClientView) -> DrawReceipt {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-    let mut receipt = NativeDrawReceipt::default();
+    let mut receipt = DrawReceipt::default();
     terminal
         .draw(|frame| {
             receipt = crate::tui_render::render_terminal_shell(
@@ -99,7 +99,7 @@ fn draw(ui: &NativeUi, width: u16, height: u16, shell: &ClientView) -> NativeDra
 }
 
 fn physical_fixture() -> (
-    NativeUi,
+    WorkbenchClientUi,
     PaneRef,
     orchbee_workbench_protocol::TerminalAgentStateSnapshot,
 ) {
@@ -135,7 +135,7 @@ fn physical_fixture() -> (
 }
 
 pub(in crate::workbench_client) fn focused_physical_agent_fixture() -> (
-    NativeUi,
+    WorkbenchClientUi,
     orchbee_workbench_protocol::TerminalAgentStateSnapshot,
     crate::local_client::LocalOperationClock,
 ) {
@@ -144,7 +144,7 @@ pub(in crate::workbench_client) fn focused_physical_agent_fixture() -> (
     (ui, state, clock)
 }
 fn publish_physical(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     state: &orchbee_workbench_protocol::TerminalAgentStateSnapshot,
 ) {
     ui.attention.publish_physical_for_test(
@@ -155,7 +155,7 @@ fn publish_physical(
     );
 }
 fn physical_seen(
-    ui: &NativeUi,
+    ui: &WorkbenchClientUi,
     state: &orchbee_workbench_protocol::TerminalAgentStateSnapshot,
 ) -> bool {
     ui.read_terminal_agent_attention(std::slice::from_ref(&state.binding))
@@ -169,15 +169,12 @@ fn physical_seen(
 
 #[test]
 fn hidden_physical_transition_emits_after_draw_but_visible_transition_is_seen() {
-    use orchbee_local_site_runtime::{
-        WindowsNotificationDelivery as Delivery, WindowsNotificationSettings,
-    };
+    use orchbee_local_runtime::{NotificationDelivery as Delivery, NotificationSettings};
     use orchbee_workbench_protocol::{NotificationSound, PanelAgentState, WorkbenchRevision};
 
-    let settings = WindowsNotificationSettings::from_profile(
-        "[ui.toast]\nagent_delivery='orchbee'\ndelay_seconds=0",
-    )
-    .unwrap();
+    let settings =
+        NotificationSettings::from_profile("[ui.toast]\nagent_delivery='orchbee'\ndelay_seconds=0")
+            .unwrap();
     let shell = ClientView::new(120);
 
     let (mut background, _, mut state) = physical_fixture();
@@ -240,10 +237,10 @@ fn hidden_physical_transition_emits_after_draw_but_visible_transition_is_seen() 
 
 #[test]
 fn unfocused_exact_visible_paint_suppresses_only_that_notification_version() {
-    use orchbee_local_site_runtime::WindowsNotificationSettings;
+    use orchbee_local_runtime::NotificationSettings;
     use orchbee_workbench_protocol::{NotificationSound, PanelAgentState, WorkbenchRevision};
 
-    let settings = WindowsNotificationSettings::from_profile(
+    let settings = NotificationSettings::from_profile(
         "[ui.toast]\nagent_delivery='orchbee'\ndelay_seconds=0\n[ui.sound]\nenabled=true",
     )
     .unwrap();
@@ -287,13 +284,11 @@ fn unfocused_exact_visible_paint_suppresses_only_that_notification_version() {
 
 #[test]
 fn shared_hidden_request_uses_localized_context_and_per_agent_sound_mute_is_hard() {
-    use orchbee_local_site_runtime::{
-        WindowsNotificationDelivery as Delivery, WindowsNotificationSettings,
-    };
+    use orchbee_local_runtime::{NotificationDelivery as Delivery, NotificationSettings};
     use orchbee_workbench_protocol::{NotificationSound, PanelAgentState, WorkbenchRevision};
 
     for (override_line, expected) in [("", true), ("[ui.sound.agents]\npi='off'", false)] {
-        let settings = WindowsNotificationSettings::from_profile(&format!(
+        let settings = NotificationSettings::from_profile(&format!(
             "[ui.toast]\nagent_delivery='off'\ndelay_seconds=0\n[ui.sound]\nenabled=true\n{override_line}"
         ))
         .unwrap();
@@ -346,7 +341,7 @@ fn shared_hidden_request_uses_localized_context_and_per_agent_sound_mute_is_hard
 fn machine_view_reads_exact_physical_attention_without_consuming_it() {
     let (mut ui, _, mut state) = physical_fixture();
     let bindings = [state.binding.clone()];
-    let seen = |ui: &NativeUi| {
+    let seen = |ui: &WorkbenchClientUi| {
         ui.view()
             .machine_agent_attention(&bindings)
             .unwrap()
@@ -405,7 +400,7 @@ fn overlay_sidebar_cannot_acknowledge_covered_physical_terminals() {
 }
 
 fn focus_command(
-    ui: &NativeUi,
+    ui: &WorkbenchClientUi,
     target: orchbee_agent_observation_protocol::AgentNameTarget,
     presentation: &str,
 ) -> orchbee_workbench_protocol::ClientViewControl {
@@ -454,16 +449,16 @@ fn agent_focus_cancels_only_after_validating_its_source_and_does_not_discard_his
     assert!(ui.view().close_confirmation().is_none());
     assert!(
         ui.request_setup_draft(
-            crate::workbench_client::state::workspace_setup::NativeSetupIntent::TabGroupName(
-                Box::new(orchbee_workbench_protocol::TabConfiguration::CreateGroup {
+            crate::workbench_client::state::workspace_setup::SetupIntent::TabGroupName(Box::new(
+                orchbee_workbench_protocol::TabConfiguration::CreateGroup {
                     tab_id: ui.state.as_ref().unwrap().cache().tabs()[0]
                         .tab_id()
                         .clone(),
                     label: orchbee_workbench_protocol::WorkbenchTabGroupLabel::parse("Group")
                         .unwrap(),
                     color: orchbee_workbench_protocol::TabGroupColor::Blue,
-                })
-            )
+                }
+            ))
         )
         .is_some()
     );
@@ -592,7 +587,7 @@ fn agent_focus_refuses_replacement_and_requires_the_matching_live_frame() {
         "old frame belongs to another terminal in the same Host"
     );
     assert!(!physical_seen(&ui, &state));
-    ui.projections[0].status = NativeProjectionStatus::Empty;
+    ui.projections[0].status = ClientProjectionStatus::Empty;
     assert_eq!(
         ui.finish_focus(&replacement),
         Err(Reason::ProjectionUnavailable)
@@ -700,7 +695,7 @@ fn physical_terminal_replacement_under_same_epoch_cannot_consume_old_frame() {
 fn attention_render_receipts_only_acknowledge_visible_live_panes_after_success() {
     let (mut ui, pane) = fixture();
     let shell = ClientView::new(120);
-    let count = |ui: &NativeUi| ui.view().panel_unseen_count(pane.pane().panel());
+    let count = |ui: &WorkbenchClientUi| ui.view().panel_unseen_count(pane.pane().panel());
     let receipt = draw(&ui, 120, 40, &shell);
     assert_eq!(count(&ui), 1, "rendering alone never acknowledges");
     ui.observe_focus(false);
@@ -727,10 +722,10 @@ fn attention_hidden_history_overlay_and_changed_pane_reject_receipts() {
     assert_eq!(ui.view().panel_unseen_count(pane.pane().panel()), 1);
     ui.board.close();
     let receipt = draw(&ui, 120, 40, &shell);
-    ui.projections[0].status = NativeProjectionStatus::Empty;
+    ui.projections[0].status = ClientProjectionStatus::Empty;
     ui.after_close_draw(receipt);
     assert_eq!(ui.view().panel_unseen_count(pane.pane().panel()), 1);
-    ui.projections[0].status = NativeProjectionStatus::FrameAvailable;
+    ui.projections[0].status = ClientProjectionStatus::FrameAvailable;
     ui.enter_history();
     assert!(ui.view().pane_viewport(pane.pane().panel()).is_some());
     ui.after_close_draw(draw(&ui, 120, 40, &shell));

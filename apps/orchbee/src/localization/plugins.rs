@@ -1,5 +1,5 @@
 use super::Locale;
-use orchbee_local_site_runtime::PluginRegistryError as Error;
+use orchbee_local_runtime::PluginRegistryError as Error;
 impl Locale {
     pub(super) fn cli_plugin_preparation_failure(self, reason: &str) -> &'static str {
         match (self, reason) {
@@ -293,8 +293,8 @@ impl Locale {
             (Self::ZhCn, F::Denied) => "无权执行插件操作。",
             (Self::EnUs, F::Unavailable) => "Plugin runtime unavailable.",
             (Self::ZhCn, F::Unavailable) => "插件运行时不可用。",
-            (Self::EnUs, F::SiteMismatch) => "Plugin session does not match.",
-            (Self::ZhCn, F::SiteMismatch) => "插件会话不匹配。",
+            (Self::EnUs, F::SessionMismatch) => "Plugin session does not match.",
+            (Self::ZhCn, F::SessionMismatch) => "插件会话不匹配。",
             (Self::EnUs, F::WorkerChanged) => {
                 "Plugin Worker changed; the old log cursor is no longer valid."
             }
@@ -348,9 +348,9 @@ impl Locale {
 impl Locale {
     pub(crate) const fn plugin_provision_stage(
         self,
-        stage: orchbee_local_site_runtime::PluginProvisionStage,
+        stage: orchbee_local_runtime::PluginProvisionStage,
     ) -> &'static str {
-        use orchbee_local_site_runtime::PluginProvisionStage as S;
+        use orchbee_local_runtime::PluginProvisionStage as S;
         match (self, stage) {
             (Self::EnUs, S::Prepare) => "Preparing plugin source.",
             (Self::ZhCn, S::Prepare) => "准备插件源。",
@@ -382,9 +382,9 @@ impl Locale {
     }
     pub(crate) const fn plugin_provision_failure(
         self,
-        error: &orchbee_local_site_runtime::PluginProvisionFailure,
+        error: &orchbee_local_runtime::PluginProvisionFailure,
     ) -> &'static str {
-        use orchbee_local_site_runtime::{PluginProvisionFailure as F, WindowsCommandFailure as C};
+        use orchbee_local_runtime::{CommandFailure as C, PluginProvisionFailure as F};
         match error {
             F::Registry(error) => self.plugin_error(*error),
             F::Command(C::Timeout) => match self {

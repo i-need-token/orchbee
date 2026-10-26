@@ -36,7 +36,7 @@ fn metadata_is_retained_and_only_newer_canonical_revisions_can_change_it() {
         assert!(validate_canonical_refresh(&baseline, candidate.clone()).is_err());
         assert!(
             validate_retained_context(
-                baseline.site_id(),
+                baseline.session_id(),
                 baseline.location(),
                 baseline.revision(),
                 baseline.tabs(),
@@ -78,7 +78,7 @@ fn metadata_rejects_duplicate_missing_fragmented_and_pinned_group_records() {
         }
         assert_eq!(
             project_preferred_workspace(&value),
-            Err(NativeProjectionError),
+            Err(ClientProjectionError),
             "{change}"
         );
     }

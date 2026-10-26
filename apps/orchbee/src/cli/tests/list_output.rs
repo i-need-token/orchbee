@@ -277,7 +277,7 @@ fn status_text_reports_selected_session_identity_client_version_and_counts() {
     ] {
         let output = success_output(
             Projection::Status(StatusDoc {
-                site_id: ID.to_owned(),
+                session_id: ID.to_owned(),
                 revision: "999".to_owned(),
                 session_name: Some("work".to_owned()),
                 client_version: env!("CARGO_PKG_VERSION").to_owned(),
@@ -337,7 +337,7 @@ fn status_text_reports_selected_session_identity_client_version_and_counts() {
 
     let unnamed_output = success_output(
         Projection::Status(StatusDoc {
-            site_id: ID.to_owned(),
+            session_id: ID.to_owned(),
             revision: "999".to_owned(),
             session_name: None,
             client_version: env!("CARGO_PKG_VERSION").to_owned(),
@@ -466,7 +466,7 @@ fn list_and_status_machine_documents_keep_their_exact_json_bytes() {
     );
 
     let status = StatusDoc {
-        site_id: ID.to_owned(),
+        session_id: ID.to_owned(),
         revision: "9".to_owned(),
         session_name: Some("work".to_owned()),
         client_version: env!("CARGO_PKG_VERSION").to_owned(),
@@ -490,7 +490,7 @@ fn list_and_status_machine_documents_keep_their_exact_json_bytes() {
             "version":1,
             "source":source,
             "result":{
-                "session":{"reachable":true,"sessionId":status.site_id,"revision":status.revision},
+                "session":{"reachable":true,"sessionId":status.session_id,"revision":status.revision},
                 "counts":{
                     "projects":status.projects,
                     "workspaces":status.workspaces,

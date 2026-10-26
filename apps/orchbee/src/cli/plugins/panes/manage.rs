@@ -67,7 +67,7 @@ fn execute(
             PluginRequest {
                 protocol_version: ProtocolVersion,
                 request_id: query::request_id()?,
-                site_id: snapshot.site_id.clone(),
+                session_id: snapshot.session_id.clone(),
                 action: PluginAction::PaneGet {
                     panel_id: panel_id.clone(),
                 },
@@ -125,7 +125,7 @@ fn execute(
     };
     let reply = client_control::windows::exchange(
         &mut client,
-        &snapshot.site_id,
+        &snapshot.session_id,
         ClientViewAction::List {},
         deadline,
         signals,
@@ -146,7 +146,7 @@ fn execute(
         client_control::selection::select(&clients, command.client.as_ref(), caller.as_ref())?;
     let answer = client_control::windows::submit_control(
         &mut client,
-        &snapshot.site_id,
+        &snapshot.session_id,
         ClientViewControl {
             operation_id: query::request_id()?,
             client_id: selected.client_id.clone(),

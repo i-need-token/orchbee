@@ -1,5 +1,5 @@
 //! Exact target proof joins accepted refreshes and fences context installation before cleanup.
-use super::{Entry, EntryStage, NativeUi, WorktreeNotice, target_context};
+use super::{Entry, EntryStage, WorkbenchClientUi, WorktreeNotice, target_context};
 use crate::workbench_client::state::PreparedRefresh;
 use orchbee_workbench_protocol::{Snapshot, WorkbenchRevision};
 
@@ -26,7 +26,7 @@ fn matches_target(
                 && panel.primary().binding() == Some(&expected.binding)
         })
 }
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(in crate::workbench_client::ui) fn observe_worktree_entry_snapshot(
         &mut self,
         snapshot: &Snapshot,

@@ -2,13 +2,12 @@
 use super::super::modal::paint_modal_frame;
 use super::{
     Binding, Frame, HitLayer, HitMapBuilder, HitTarget, KeyCode, Line, Locale, ModalAction,
-    ModalControl, ModalPresentation, Modifiers, NativeSetupToken, Paragraph, Rect, Text, Theme,
-    Wrap, modal_key_label, modal_layout, paint_modal_action, paint_modal_close,
-    sanitize_terminal_text,
+    ModalControl, ModalPresentation, Modifiers, Paragraph, Rect, SetupToken, Text, Theme, Wrap,
+    modal_key_label, modal_layout, paint_modal_action, paint_modal_close, sanitize_terminal_text,
 };
 
 pub(super) struct Decision<'a> {
-    pub token: NativeSetupToken,
+    pub token: SetupToken,
     pub project: &'a str,
 }
 
@@ -19,7 +18,7 @@ pub(super) fn render(
     content_area: Rect,
     theme: &Theme,
     hits: &mut HitMapBuilder,
-) -> (Rect, ModalPresentation<NativeSetupToken>) {
+) -> (Rect, ModalPresentation<SetupToken>) {
     let escape = modal_key_label(theme, &Binding::new(KeyCode::Esc, Modifiers::NONE));
     let enter = modal_key_label(theme, &Binding::new(KeyCode::Enter, Modifiers::NONE));
     let actions = [
@@ -124,7 +123,7 @@ mod tests {
                 for (width, height) in [(120, 40), (80, 24), (48, 11), (20, 5)] {
                     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
                     let mut hits = HitMapBuilder::new();
-                    let token = NativeSetupToken::for_test(17);
+                    let token = SetupToken::for_test(17);
                     let mut rendered = None;
                     terminal
                         .draw(|frame| {

@@ -219,25 +219,23 @@ struct BoardOwnershipPort {
 }
 
 impl TerminalInputPort for BoardOwnershipPort {
-    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
-        crate::tui_composition::NativeCaptureClaims::default().with_agent_board(self.active)
+    fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
+        crate::tui_composition::CaptureClaims::default().with_agent_board(self.active)
     }
 
     fn native_capture_context(
         &self,
-        owner: crate::tui_composition::NativeCaptureOwner,
-    ) -> Option<crate::workbench_client::NativeCaptureContext> {
-        (self.active && owner == crate::tui_composition::NativeCaptureOwner::AgentBoard).then(
-            || {
-                crate::workbench_client::NativeCaptureContext::AgentBoard(
-                    crate::workbench_client::AgentBoardInputContext::for_test(
-                        crate::workbench_client::AgentBoardEpisodeToken::for_test(1),
-                        crate::tui_presentation::PresentationPhase::Admitted,
-                        true,
-                    ),
-                )
-            },
-        )
+        owner: crate::tui_composition::CaptureOwner,
+    ) -> Option<crate::workbench_client::CaptureContext> {
+        (self.active && owner == crate::tui_composition::CaptureOwner::AgentBoard).then(|| {
+            crate::workbench_client::CaptureContext::AgentBoard(
+                crate::workbench_client::AgentBoardInputContext::for_test(
+                    crate::workbench_client::AgentBoardEpisodeToken::for_test(1),
+                    crate::tui_presentation::PresentationPhase::Admitted,
+                    true,
+                ),
+            )
+        })
     }
 
     fn forward(&mut self, _bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
@@ -1560,34 +1558,32 @@ impl BoardPort {
 }
 
 impl TerminalInputPort for BoardPort {
-    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
-        let claims = crate::tui_composition::NativeCaptureClaims::default()
-            .with_agent_board(self.owned.get());
+    fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
+        let claims =
+            crate::tui_composition::CaptureClaims::default().with_agent_board(self.owned.get());
         let claims = claims.with_action_menu(self.action_menu.input_context().is_some());
         claims
     }
 
     fn native_capture_context(
         &self,
-        owner: crate::tui_composition::NativeCaptureOwner,
-    ) -> Option<crate::workbench_client::NativeCaptureContext> {
-        if owner == crate::tui_composition::NativeCaptureOwner::ActionMenu {
+        owner: crate::tui_composition::CaptureOwner,
+    ) -> Option<crate::workbench_client::CaptureContext> {
+        if owner == crate::tui_composition::CaptureOwner::ActionMenu {
             return self
                 .action_menu
                 .input_context()
-                .map(crate::workbench_client::NativeCaptureContext::ActionMenu);
+                .map(crate::workbench_client::CaptureContext::ActionMenu);
         }
-        (self.owned.get() && owner == crate::tui_composition::NativeCaptureOwner::AgentBoard).then(
-            || {
-                crate::workbench_client::NativeCaptureContext::AgentBoard(
-                    crate::workbench_client::AgentBoardInputContext::for_test(
-                        crate::workbench_client::AgentBoardEpisodeToken::for_test(1),
-                        crate::tui_presentation::PresentationPhase::Admitted,
-                        true,
-                    ),
-                )
-            },
-        )
+        (self.owned.get() && owner == crate::tui_composition::CaptureOwner::AgentBoard).then(|| {
+            crate::workbench_client::CaptureContext::AgentBoard(
+                crate::workbench_client::AgentBoardInputContext::for_test(
+                    crate::workbench_client::AgentBoardEpisodeToken::for_test(1),
+                    crate::tui_presentation::PresentationPhase::Admitted,
+                    true,
+                ),
+            )
+        })
     }
 
     fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
@@ -1673,30 +1669,28 @@ impl TerminalInputPort for ConfirmationBoardPort {
         Ok(())
     }
 
-    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
-        crate::tui_composition::NativeCaptureClaims::default()
+    fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
+        crate::tui_composition::CaptureClaims::default()
             .with_panel_close(true)
             .with_agent_board(true)
     }
 
     fn native_capture_context(
         &self,
-        owner: crate::tui_composition::NativeCaptureOwner,
-    ) -> Option<crate::workbench_client::NativeCaptureContext> {
+        owner: crate::tui_composition::CaptureOwner,
+    ) -> Option<crate::workbench_client::CaptureContext> {
         match owner {
-            crate::tui_composition::NativeCaptureOwner::PanelClose => {
-                Some(crate::workbench_client::NativeCaptureContext::PanelClose(
+            crate::tui_composition::CaptureOwner::PanelClose => {
+                Some(crate::workbench_client::CaptureContext::PanelClose(
                     crate::workbench_client::ConfirmationCaptureContext {
-                        token: crate::workbench_client::NativePanelCloseConfirmationToken::for_test(
-                            2,
-                        ),
+                        token: crate::workbench_client::PanelCloseConfirmationToken::for_test(2),
                         phase: crate::tui_presentation::PresentationPhase::Admitted,
                         readiness: crate::workbench_client::CaptureReadiness::Interactive,
                     },
                 ))
             }
-            crate::tui_composition::NativeCaptureOwner::AgentBoard => {
-                Some(crate::workbench_client::NativeCaptureContext::AgentBoard(
+            crate::tui_composition::CaptureOwner::AgentBoard => {
+                Some(crate::workbench_client::CaptureContext::AgentBoard(
                     crate::workbench_client::AgentBoardInputContext::for_test(
                         crate::workbench_client::AgentBoardEpisodeToken::for_test(1),
                         crate::tui_presentation::PresentationPhase::Admitted,
@@ -1710,7 +1704,7 @@ impl TerminalInputPort for ConfirmationBoardPort {
 
     fn capture_panel_confirmation_key_for(
         &mut self,
-        _token: crate::workbench_client::NativePanelCloseConfirmationToken,
+        _token: crate::workbench_client::PanelCloseConfirmationToken,
         key: crate::client_view::ClientKey,
     ) -> bool {
         self.calls.borrow_mut().push(Call::Confirmation(key));
@@ -2124,12 +2118,12 @@ fn board_prefix_opens_action_menu_after_native_capture_release() {
     );
     assert!(
         port.native_capture_claims()
-            .contains(crate::tui_composition::NativeCaptureOwner::ActionMenu)
+            .contains(crate::tui_composition::CaptureOwner::ActionMenu)
     );
     assert!(
         !port
             .native_capture_claims()
-            .contains(crate::tui_composition::NativeCaptureOwner::AgentBoard)
+            .contains(crate::tui_composition::CaptureOwner::AgentBoard)
     );
     let actions = calls
         .borrow()
@@ -2228,16 +2222,16 @@ fn board_continuation_accepts_two_moves_but_not_stale_activation_in_one_packet()
     }
 
     impl TerminalInputPort for Port {
-        fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
-            crate::tui_composition::NativeCaptureClaims::default().with_agent_board(true)
+        fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
+            crate::tui_composition::CaptureClaims::default().with_agent_board(true)
         }
 
         fn native_capture_context(
             &self,
-            owner: crate::tui_composition::NativeCaptureOwner,
-        ) -> Option<crate::workbench_client::NativeCaptureContext> {
-            (owner == crate::tui_composition::NativeCaptureOwner::AgentBoard).then(|| {
-                crate::workbench_client::NativeCaptureContext::AgentBoard(
+            owner: crate::tui_composition::CaptureOwner,
+        ) -> Option<crate::workbench_client::CaptureContext> {
+            (owner == crate::tui_composition::CaptureOwner::AgentBoard).then(|| {
+                crate::workbench_client::CaptureContext::AgentBoard(
                     crate::workbench_client::AgentBoardInputContext::for_test(
                         crate::workbench_client::AgentBoardEpisodeToken::for_test(7),
                         crate::tui_presentation::PresentationPhase::Admitted,
@@ -2433,7 +2427,7 @@ fn dispatcher_link_source(
         host_terminal: orchbee_client_server_protocol::HostTerminalId::parse(&id(27)).unwrap(),
         screen: crate::terminal_content::TerminalScreen::Primary,
         member: crate::terminal_link_activation::SnapshotMember {
-            site: orchbee_workbench_protocol::SiteId::parse(&id(20)).unwrap(),
+            session: orchbee_workbench_protocol::SessionId::parse(&id(20)).unwrap(),
             context: orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(&id(21))
                 .unwrap(),
             tab,

@@ -290,7 +290,7 @@ fn server_help_exposes_existing_stop_and_its_confirmation_boundary() {
         assert!(page.contains("stop"), "{page}");
         assert!(page.contains("stop-status"), "{page}");
         assert!(page.contains("--confirm"), "{page}");
-        let command = help(HelpTopic::Command(CommandPath::SiteStop), locale);
+        let command = help(HelpTopic::Command(CommandPath::ServerStop), locale);
         assert!(
             command.contains("orchbee server stop --confirm"),
             "{command}"

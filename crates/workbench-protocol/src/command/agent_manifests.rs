@@ -1,6 +1,6 @@
-//! Installed rule snapshots and Site-lifetime reload receipts.
+//! Installed rule snapshots and Session-lifetime reload receipts.
 use crate::{
-    AgentDetectionManifest, ContractError, ProtocolVersion, SiteId, WorkbenchRequestId,
+    AgentDetectionManifest, ContractError, ProtocolVersion, SessionId, WorkbenchRequestId,
     WorkbenchRevision,
 };
 use serde::{Deserialize, Serialize};
@@ -40,7 +40,7 @@ pub enum AgentManifestsFailure {
     Denied,
     Unavailable,
     #[serde(rename = "session-mismatch")]
-    SiteMismatch,
+    SessionMismatch,
     Busy,
     ResourceLimit,
     NotFound,
@@ -69,7 +69,7 @@ pub struct AgentManifestsRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub action: AgentManifestsAction,
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -120,14 +120,14 @@ pub struct AgentManifestsResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub outcome: AgentManifestsOutcome,
 }
 impl AgentManifestsResult {
     pub fn answers(&self, request: &AgentManifestsRequest) -> bool {
         let failed = matches!(&self.outcome, AgentManifestsOutcome::Failed { .. });
         self.request_id == request.request_id
-            && self.site_id == request.site_id
+            && self.session_id == request.session_id
             && match &request.action {
                 AgentManifestsAction::Current {} => {
                     matches!(&self.outcome, AgentManifestsOutcome::Current { .. }) || failed

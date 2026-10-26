@@ -66,17 +66,15 @@ impl Locale {
 
     pub(crate) fn terminal_launch_failure(
         self,
-        failure: crate::workbench_client::NativeLaunchFailure<'_>,
+        failure: crate::workbench_client::LaunchFailure<'_>,
     ) -> String {
-        use crate::workbench_client::NativeLaunchProfile;
+        use crate::workbench_client::LaunchProfile;
         let name = match (self, failure.profile) {
-            (_, NativeLaunchProfile::Named(name)) => {
-                crate::terminal_text::sanitize_terminal_text(name)
-            }
-            (Self::EnUs, NativeLaunchProfile::SystemDefault) => "System default".into(),
-            (Self::ZhCn, NativeLaunchProfile::SystemDefault) => "系统默认".into(),
-            (Self::EnUs, NativeLaunchProfile::Unknown) => "Unknown".into(),
-            (Self::ZhCn, NativeLaunchProfile::Unknown) => "未知".into(),
+            (_, LaunchProfile::Named(name)) => crate::terminal_text::sanitize_terminal_text(name),
+            (Self::EnUs, LaunchProfile::SystemDefault) => "System default".into(),
+            (Self::ZhCn, LaunchProfile::SystemDefault) => "系统默认".into(),
+            (Self::EnUs, LaunchProfile::Unknown) => "Unknown".into(),
+            (Self::ZhCn, LaunchProfile::Unknown) => "未知".into(),
         };
         let reason = match (self, failure.executable) {
             (Self::EnUs, Some(path)) => format!("The executable path could not be started. Check that the file exists and is accessible.\n{}", crate::terminal_text::sanitize_terminal_text(path)),

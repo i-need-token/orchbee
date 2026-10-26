@@ -3,7 +3,7 @@ use crate::{
     client_view::ClientView,
     localization::Locale,
     tui_theme::{Role, Theme},
-    workbench_client::NativeLaunchFailure,
+    workbench_client::LaunchFailure,
 };
 use ratatui::{
     Frame,
@@ -15,7 +15,7 @@ use ratatui::{
 pub(super) fn render(
     frame: &mut Frame<'_>,
     area: Rect,
-    failure: NativeLaunchFailure<'_>,
+    failure: LaunchFailure<'_>,
     view: &ClientView,
     locale: Locale,
     theme: &Theme,

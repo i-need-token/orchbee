@@ -69,7 +69,7 @@ fn ordinal_agent_focus_uses_source_sorted_targets_and_never_counts_placeholders(
         picker.request.take(),
         Some(Selection {
             machine: choice.clone(),
-            context: Some(NativeStartupTarget::Agent(Box::new(first.target)))
+            context: Some(ClientStartupTarget::Agent(Box::new(first.target)))
         })
     );
     picker.focus_agent(0, now);
@@ -78,7 +78,7 @@ fn ordinal_agent_focus_uses_source_sorted_targets_and_never_counts_placeholders(
         picker.request.take(),
         Some(Selection {
             machine: choice,
-            context: Some(NativeStartupTarget::Agent(Box::new(second.target)))
+            context: Some(ClientStartupTarget::Agent(Box::new(second.target)))
         })
     );
     picker.agent_view.scope = Scope::Machine;
@@ -184,7 +184,7 @@ fn active_source_view_drives_list_and_global_cycle_and_failed_source_never_clear
     assert!(picker.drive_agent_navigation(Instant::now()));
     assert_eq!(
         picker.request.take().unwrap().context,
-        Some(crate::workbench_client::NativeStartupTarget::Agent(
+        Some(crate::workbench_client::ClientStartupTarget::Agent(
             Box::new(blocked.target)
         ))
     );
@@ -261,7 +261,7 @@ fn focus(picker: &mut Picker) {
     picker.observe_focus(
         picker.current.clone(),
         Some(target.context),
-        Some(NativeMemberTarget {
+        Some(ClientMemberTarget {
             tab: target.tab,
             panel: target.panel,
             presentation: target.member,
@@ -431,7 +431,7 @@ fn global_agent_navigation_waits_wraps_and_uses_filtered_stable_order() {
         picker.request.take(),
         Some(Selection {
             machine: remote.clone(),
-            context: Some(NativeStartupTarget::Agent(Box::new(blocked.target.clone())))
+            context: Some(ClientStartupTarget::Agent(Box::new(blocked.target.clone())))
         })
     );
     picker.navigate_agent(true, now);
@@ -541,7 +541,7 @@ fn agent_metadata_is_visible_without_changing_activation_identity() {
         picker.request.take(),
         Some(Selection {
             machine: Choice::Local,
-            context: Some(NativeStartupTarget::Agent(Box::new(row.target)))
+            context: Some(ClientStartupTarget::Agent(Box::new(row.target)))
         })
     );
 }

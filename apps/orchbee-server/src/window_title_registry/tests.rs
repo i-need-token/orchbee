@@ -160,7 +160,7 @@ fn window_title_live_template_override_clear_disable_and_context_changes() {
     let mut r = Registry::default();
     let now = Instant::now();
     r.configure("{hostname}: {workspace}/{tab}/{pane}/{terminal_title}");
-    r.hostname = "SiteHost".into();
+    r.hostname = "SessionHost".into();
     let context = orchbee_workbench_protocol::WindowTitleContext::new(
         "Workspace",
         "Tab",
@@ -185,7 +185,7 @@ fn window_title_live_template_override_clear_disable_and_context_changes() {
     let first = poll(&mut r, context.clone()).unwrap();
     assert_eq!(
         first.title.unwrap().as_str(),
-        "SiteHost: Workspace/Tab/Manual/building"
+        "SessionHost: Workspace/Tab/Manual/building"
     );
     run(&mut r, 1, 1, set("Manual override"), now);
     r.configure("{tab}");

@@ -41,7 +41,7 @@ pub(super) fn run(
                     reason,
                     Failure::TransportUnknown {}
                         | Failure::PhysicalUnknown {}
-                        | Failure::SiteStopping {}
+                        | Failure::SessionStopping {}
                         | Failure::Internal {}
                         | Failure::SourceChanged {}
                 )
@@ -271,7 +271,7 @@ impl Driver<'_> {
     }
     fn check(&self) -> Result<(), Failure> {
         if self.stop.load(Ordering::Acquire) {
-            return Err(Failure::SiteStopping {});
+            return Err(Failure::SessionStopping {});
         }
         if Instant::now() >= self.deadline {
             return Err(Failure::CloseIncomplete {});

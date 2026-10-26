@@ -1,6 +1,6 @@
 use orchbee_server::{WorkbenchAuthority, WorkbenchGrant};
 use orchbee_workbench_protocol::{
-    MAXIMUM_ENCODED_INTENT_BYTES, SiteId, WorkbenchRequest, WorkbenchResponse,
+    MAXIMUM_ENCODED_INTENT_BYTES, SessionId, WorkbenchRequest, WorkbenchResponse,
     WorkbenchSnapshotOutcome, parse_workbench_request,
 };
 
@@ -8,9 +8,9 @@ const READ: &[u8] = br#"{"kind":"workbench.snapshot.read","protocolVersion":1,"r
 
 #[test]
 fn snapshot_reads_preserve_correlation_and_isolate_returned_values() {
-    let site = SiteId::parse("11111111111111111111111111111111").unwrap();
-    let mut authority = WorkbenchAuthority::new(site.clone()).unwrap();
-    let grant = WorkbenchGrant::read_only(site.clone());
+    let session = SessionId::parse("11111111111111111111111111111111").unwrap();
+    let mut authority = WorkbenchAuthority::new(session.clone()).unwrap();
+    let grant = WorkbenchGrant::read_only(session.clone());
     let request = parse_workbench_request(READ).unwrap();
     let first = authority.execute(Some(&grant), request.clone().try_into().unwrap());
     let mut changed = first.clone();
@@ -24,7 +24,7 @@ fn snapshot_reads_preserve_correlation_and_isolate_returned_values() {
     let WorkbenchSnapshotOutcome::Available { snapshot } = &mut result.outcome else {
         panic!("expected available")
     };
-    assert_eq!(snapshot.site_id, site);
+    assert_eq!(snapshot.session_id, session);
     snapshot.terminal_contexts.clear();
     assert_eq!(
         authority.execute(Some(&grant), request.try_into().unwrap()),
@@ -47,9 +47,9 @@ fn malformed_or_oversized_read_intents_fail_before_authority_access() {
 }
 
 #[test]
-fn admission_without_a_site_grant_discloses_no_snapshot() {
+fn admission_without_a_session_grant_discloses_no_snapshot() {
     let mut authority =
-        WorkbenchAuthority::new(SiteId::parse("11111111111111111111111111111111").unwrap())
+        WorkbenchAuthority::new(SessionId::parse("11111111111111111111111111111111").unwrap())
             .unwrap();
     let WorkbenchResponse::Snapshot(result) = authority.execute(
         None,

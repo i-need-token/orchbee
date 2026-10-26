@@ -7,9 +7,9 @@ use crate::{
     terminal_text::{display_width, sanitize_terminal_text, unique_identity_suffix},
     tui_pointer::{HitLayer, HitMapBuilder},
     tui_render::controls::{ActionKind, QueryField, render_query_field},
-    workbench_client::NativeContextLocation,
+    workbench_client::ClientContextLocation,
 };
-use orchbee_workbench_protocol::SiteId;
+use orchbee_workbench_protocol::SessionId;
 
 impl Picker {
     pub(super) fn filter_workspaces(&mut self, selected: Option<Selection>) {
@@ -42,10 +42,10 @@ impl Picker {
         }
     }
 
-    /// Same-named Workspaces on one site carry the shortest unique ID suffix, as in
+    /// Same-named Workspaces on one session carry the shortest unique ID suffix, as in
     /// the Sidebar, so a search result names its exact target before it opens.
     pub(super) fn workspace_identity_suffix(&self, row: &Row) -> String {
-        let Some((site, label, id)) = workspace_identity(row) else {
+        let Some((session, label, id)) = workspace_identity(row) else {
             return String::new();
         };
         let peers = self
@@ -53,7 +53,9 @@ impl Picker {
             .iter()
             .filter(|peer| peer.choice == row.choice)
             .filter_map(workspace_identity)
-            .filter(|(peer_site, peer_label, _)| *peer_site == site && *peer_label == label)
+            .filter(|(peer_session, peer_label, _)| {
+                *peer_session == session && *peer_label == label
+            })
             .map(|(_, _, peer_id)| peer_id)
             .collect::<Vec<_>>();
         if peers.len() > 1 {
@@ -183,13 +185,13 @@ impl Picker {
     }
 }
 
-fn workspace_identity(row: &Row) -> Option<(&SiteId, &str, &str)> {
+fn workspace_identity(row: &Row) -> Option<(&SessionId, &str, &str)> {
     let context = row.context.as_ref()?;
-    let NativeContextLocation::Workspace { workspace_id, .. } = &context.target.location else {
+    let ClientContextLocation::Workspace { workspace_id, .. } = &context.target.location else {
         return None;
     };
     Some((
-        &context.target.site_id,
+        &context.target.session_id,
         context.workspace.as_deref()?,
         workspace_id.as_str(),
     ))

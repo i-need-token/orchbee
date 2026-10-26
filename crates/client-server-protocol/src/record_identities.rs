@@ -38,9 +38,9 @@ macro_rules! identity_adapter {
     };
 }
 
-use crate::{ControllerId, RequestId, SiteId, TerminalId, ViewerId, WorkerId};
+use crate::{ControllerId, RequestId, SessionId, TerminalId, ViewerId, WorkerId};
 identity_adapter!(RequestId);
-identity_adapter!(SiteId);
+identity_adapter!(SessionId);
 identity_adapter!(WorkerId);
 identity_adapter!(TerminalId);
 identity_adapter!(ViewerId);

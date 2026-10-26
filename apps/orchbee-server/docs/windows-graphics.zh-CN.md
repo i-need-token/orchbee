@@ -79,6 +79,27 @@ damage 只提示完整帧的变化。Info 仅向请求连接返回其既有生�
 EOF／拓扑移除释放根目录，忙碌清理保留责任。最终组合／全量验收与物理像素传输仍是
 独立义务。
 
+## Windows 私有帧目录
+
+Server 私有的 `frame_directory` 模块拥有 `PrivateFrameDirectory`，在已准入的私有运行时下拥有一个临时
+`graphics-<32-hex-nonce>` 子目录。`reserve` 固定祖先目录但不创建该子目录；`create`
+独占创建子目录并写入应用提供的有界归属记录。创建失败后，同一明确的所有者继续负责，
+直到 `reap` 确认目录已不存在。既有子目录不被接管、修复或删除。应用负责生产者准入、
+nonce 生成、保留、重试和关闭；本设施不启动进程或清理线程。
+
+只有已准入的目录能读取帧。路径必须是该目录下的一个精确直接子文件，文件名符合 Windows
+普通文件规则；拒绝遍历、备用数据流、保留名称、重解析点、硬链接、非普通文件和外来 ACL。
+读取句柄不共享写入／删除权限，核对声明长度，最多复制 16 MiB，并确认 EOF。不可变副本
+不再依赖文件。生产者提交前必须关闭写入句柄。
+例如 `.frame.rgba` 这样以点开头的图像文件名是普通叶子名称；精确的归属标记仍为保留名称。
+
+生命周期为 Reserved → Preparing → Ready → Releasing → Released。准备失败仍由同一
+所有者转入 Releasing。回收关闭根目录固定句柄，核对保存的目录身份，并在祖先仍被固定时
+仅删除由自身推导的已拥有子目录。忙碌或被重定向的目录继续保留责任供重试；对象析构不证明
+已清理。应用租约保持 Ready，直到最后一个读取者结束。Windows 句柄轨迹覆盖有界读取、
+私有准入、写入／重命名排斥、创建拒绝和删除失败重试。同一用户恶意修改 ACL、进程崩溃及
+最终删除系统调用期间的替换不在本逐用户开发边界内；崩溃不证明运行时干净关闭。
+
 ## Client 渲染与真实信息
 
 原生 Windows Client 必须消费安装后的图层 catalog 和完整像素。普通 cell 表面提供彩色
@@ -109,4 +130,4 @@ OBWP 57/58 承载封闭的请求和结果。OBNG 承载受限、由 viewer 定�
 
 在同一已授权 Windows 补齐目标下，基础完成后先接入 CLI 上传及保留流，再接入实际 TUI 渲染与能力事实；两项均完成之后才进行组合验收。CLI 语法与输入规范由 [Windows Panel 图形 CLI](../../orchbee/docs/windows-panel-graphics.zh-CN.md) 拥有。实现顺序调整不改变对齐完成条件。
 
-<!-- documentation-pairing: english-sha256=1d494fbd15085ed835c63e6dd4495959dff93817aaeb5a7acc6f9680fbd33c96 zh-cn-sha256=690b153cc0f9f9b60ab7288551cde727fabb5d66b57474425d03dba916b2f72f -->
+<!-- documentation-pairing: english-sha256=c3043c4120b38ef557e8b0de0f41d67ffa0786e509d58c779f41cc3ef5b6667b zh-cn-sha256=accc3d7c488f227fd166128f91f494edc9c457a5316829db2af83862d48adacd -->

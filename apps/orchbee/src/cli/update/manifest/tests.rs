@@ -21,11 +21,7 @@ fn sample() -> Value {
         "version":"0.1.0","buildId":"test-1","files":files})
 }
 fn accepted(value: &Value) -> bool {
-    Release::parse(
-        &serde_json::to_vec(value).unwrap(),
-        WindowsUpdateChannel::Stable,
-    )
-    .is_some()
+    Release::parse(&serde_json::to_vec(value).unwrap(), UpdateChannel::Stable).is_some()
 }
 #[test]
 fn incomplete_wrong_channel_aliasing_and_unbounded_releases_are_rejected() {

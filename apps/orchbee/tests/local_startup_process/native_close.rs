@@ -1,4 +1,4 @@
-use super::tui_observer::NativeHeader;
+use super::tui_observer::WorkbenchHeader;
 use super::*;
 use nix::poll::{PollFd, PollFlags, PollTimeout, poll};
 use orchbee_workbench_protocol::{
@@ -23,10 +23,10 @@ impl SnapshotObserver {
     /// the budget the test intends to spend watching the shell.
     fn connect(fixture: &Fixture) -> Result<Self, Box<dyn Error>> {
         let deadline = Instant::now() + STARTUP_OR_CREATE_TIMEOUT;
-        let cohort = NativeCohort::load(&fixture.cohort, deadline)
+        let cohort = Cohort::load(&fixture.cohort, deadline)
             .map_err(|error| format!("observer cohort: {error}"))?;
         let admitted = ClientConnection::connect_before(
-            fixture.site().client_socket_path(),
+            fixture.session().client_socket_path(),
             cohort.identity(),
             deadline,
         )
@@ -92,7 +92,7 @@ fn ready(client: &mut Client, checkpoint: usize, deadline: Instant, copy: CloseC
     client.wait_native_frame_text_after(
         checkpoint,
         deadline,
-        NativeHeader::active("Workspace", 1, "1"),
+        WorkbenchHeader::active("Workspace", 1, "1"),
         &[copy.ready],
         &[copy.title],
         &[],
@@ -202,7 +202,7 @@ fn refresh_empty(client: &mut Client, peer: &mut Client, deadline: Instant, revi
     client.wait_native_frame_text_after(
         checkpoint,
         deadline,
-        NativeHeader::empty("Workspace"),
+        WorkbenchHeader::empty("Workspace"),
         &required,
         &[],
         &[],
@@ -214,7 +214,7 @@ fn refresh_empty(client: &mut Client, peer: &mut Client, deadline: Instant, revi
     client.wait_native_frame_text_after(
         checkpoint,
         deadline,
-        NativeHeader::empty("Workspace"),
+        WorkbenchHeader::empty("Workspace"),
         &["No terminal tabs", "Ctrl+b c create Tab"],
         &["Workbench navigator"],
         &[],

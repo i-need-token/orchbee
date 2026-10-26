@@ -3,7 +3,7 @@ use crate::workbench_client::{
     mailbox::WorkerEvent,
     state::{
         CarrierFailure,
-        workspace_setup::{NativeSetupStatus, SetupResult},
+        workspace_setup::{SetupResult, SetupStatus},
     },
 };
 use orchbee_client_server_protocol::{
@@ -138,7 +138,7 @@ fn explicit_setup_recovery_reads_only_and_next_group_command_requires_fresh_draw
     harness.ui.settle_setup_next()?;
     assert_eq!(
         harness.ui.state().setup_status(),
-        Some(NativeSetupStatus::TabsCommittedNeedRefresh)
+        Some(SetupStatus::TabsCommittedNeedRefresh)
     );
     assert_eq!(harness.ui.state().cache(), &baseline);
     assert_eq!(
@@ -169,7 +169,7 @@ fn explicit_setup_recovery_reads_only_and_next_group_command_requires_fresh_draw
     harness.ui.settle_setup_next()?;
     assert_eq!(
         harness.ui.state().setup_status(),
-        Some(NativeSetupStatus::TabsConfigured)
+        Some(SetupStatus::TabsConfigured)
     );
     assert_eq!(
         harness.ui.state().cache().revision(),
@@ -203,7 +203,7 @@ fn explicit_setup_recovery_reads_only_and_next_group_command_requires_fresh_draw
     harness.ui.settle_setup_next()?;
     assert_eq!(
         harness.ui.state().setup_status(),
-        Some(NativeSetupStatus::TabsNotApplied)
+        Some(SetupStatus::TabsNotApplied)
     );
     assert_eq!(
         harness

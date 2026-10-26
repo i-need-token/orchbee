@@ -93,8 +93,8 @@ import {
 	WORKBENCH_MAXIMUM_ENCODED_CONFIGURATION_BYTES,
 } from './workbench-configuration-contract';
 import {
-	NativeSettingsRequestSchema,
-	NativeSettingsResultSchema,
+	SettingsRequestSchema,
+	SettingsResultSchema,
 	WORKBENCH_MAXIMUM_NATIVE_SETTINGS_REQUEST_BYTES,
 } from './workbench-settings-contract';
 import {
@@ -614,7 +614,7 @@ export const WorkbenchRequestSchema = z
 		AgentManifestsRequestSchema,
 		ConfigurationRequestSchema,
 		CloseOperationReadSchema,
-		NativeSettingsRequestSchema,
+		SettingsRequestSchema,
 		TerminalEditorRequestSchema,
 		ConfiguredCommandRequestSchema,
 		SemanticEventsRequestSchema,
@@ -745,7 +745,7 @@ export const WorkbenchResponseSchema = z
 		AgentManifestsResultSchema,
 		ConfigurationResultSchema,
 		CloseOperationResultSchema,
-		NativeSettingsResultSchema,
+		SettingsResultSchema,
 		TerminalEditorResultSchema,
 		ConfiguredCommandResultSchema,
 		SemanticEventsResultSchema,

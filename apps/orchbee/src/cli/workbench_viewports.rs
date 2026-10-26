@@ -115,7 +115,7 @@ pub(super) fn read(
         };
         let outcome = super::client_control::windows::submit_control(
             client,
-            &snapshot.site_id,
+            &snapshot.session_id,
             command.clone(),
             deadline,
             signals,

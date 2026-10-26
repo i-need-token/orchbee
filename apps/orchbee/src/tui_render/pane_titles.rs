@@ -1,7 +1,7 @@
 //! Framed panes title themselves on the frame or divider line above them, so a title never takes a
 //! terminal row. Titles paint after the focus outline, keeping a neighbor's title in its own color.
 use super::{
-    Frame, HitMapBuilder, Locale, NativeTabView, Rect, Role, ShellText, Theme, WorkbenchClientView,
+    ClientTabView, Frame, HitMapBuilder, Locale, Rect, Role, ShellText, Theme, WorkbenchClientView,
     controls::ControlSurface, presentation_selector::PresentationSelector,
 };
 
@@ -15,7 +15,7 @@ use ratatui::{
 };
 
 pub(super) struct PaneTitle<'a> {
-    pub(super) tab: NativeTabView<'a>,
+    pub(super) tab: ClientTabView<'a>,
     /// The pane owns input, so its title carries focus emphasis.
     pub(super) focused: bool,
     /// A zoomed pane names how many panes the zoom hides behind it.
@@ -144,7 +144,7 @@ pub(super) fn paint(
 /// Custom and metadata titles win over the creation label; a numeric creation label keeps the
 /// localized Terminal prefix. Without room for the selector, a member still shows its position.
 fn name(
-    panel: &crate::workbench_client::NativePanel,
+    panel: &crate::workbench_client::ClientPanel,
     native: &WorkbenchClientView<'_>,
     text: ShellText<'_>,
     separator: &str,

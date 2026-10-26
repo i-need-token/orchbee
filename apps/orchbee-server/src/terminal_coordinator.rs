@@ -608,7 +608,7 @@ impl TerminalCoordinator {
                 },
             ),
             // Launch reads never enter the pending-operation path; the service
-            // answers them from the coordinator under one site lock.
+            // answers them from the coordinator under one session lock.
             ClientMessage::TerminalLaunchRead(request) => PreparedOperation::Ready(
                 ServerMessage::TerminalLaunchReadResult(
                     orchbee_client_server_protocol::TerminalLaunchReadResult::new(

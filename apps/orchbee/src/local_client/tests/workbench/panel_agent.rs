@@ -9,7 +9,7 @@ fn panel_agent_report_correlation_uncertainty_and_no_replay() -> TestResult {
         let request = PanelAgentRequest {
             protocol_version: ProtocolVersion,
             request_id: WorkbenchRequestId::parse(&id(1)).unwrap(),
-            site_id: SiteId::parse(&id(2)).unwrap(),
+            session_id: SessionId::parse(&id(2)).unwrap(),
             action: PanelAgentAction::Report {
                 panel_id: orchbee_workbench_protocol::WorkbenchPanelId::parse(&id(3)).unwrap(),
                 expected_binding: orchbee_workbench_protocol::PresentationBinding {

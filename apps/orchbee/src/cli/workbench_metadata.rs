@@ -45,7 +45,7 @@ fn exchange(
         WorkspaceMetadataRequest {
             protocol_version: snapshot.protocol_version,
             request_id: request_id.clone(),
-            site_id: snapshot.site_id.clone(),
+            session_id: snapshot.session_id.clone(),
             action: WorkspaceMetadataAction::Read { workspace_ids: ids },
         },
         deadline,
@@ -77,7 +77,7 @@ fn exchange(
             Ok((request_id, metadata_revision, workspaces))
         }
         Outcome::Failed {
-            reason: Reason::NotFound | Reason::SiteMismatch,
+            reason: Reason::NotFound | Reason::SessionMismatch,
         } => Err(super::workbench_agents::failure("workbench-changed")),
         Outcome::Failed { reason } => Err(Failure::new(match reason {
             Reason::Denied => FailureKind::Denied,
@@ -85,7 +85,7 @@ fn exchange(
             Reason::RevisionExhausted | Reason::DeadlineOverflow => FailureKind::InternalFailure,
             Reason::ResultTooLarge => FailureKind::OutputTooLarge,
             Reason::InvalidRequest
-            | Reason::SiteMismatch
+            | Reason::SessionMismatch
             | Reason::NotFound
             | Reason::TokenLimit
             | Reason::SequenceSourceLimit
@@ -124,7 +124,7 @@ pub(super) fn read(
         let (request_id, revision, rows) =
             exchange(client, snapshot, chunk.to_vec(), deadline, signals)?;
         let doc = document.get_or_insert_with(|| Document { rows: BTreeMap::new(), revision, request_ids: vec![],
-            source: json!({"sessionId":snapshot.site_id,"workbenchRevision":snapshot.revision,"metadataRevision":revision}) });
+            source: json!({"sessionId":snapshot.session_id,"workbenchRevision":snapshot.revision,"metadataRevision":revision}) });
         if doc.revision != revision {
             return Err(super::workbench_agents::failure("metadata-changed"));
         }
@@ -204,6 +204,6 @@ pub(super) fn empty_fixture(snapshot: &Snapshot, projection: &Projection) -> Opt
             .collect(),
         revision: WorkbenchRevision::new(0),
         request_ids: vec![WorkbenchRequestId::parse(&format!("{:032x}", 900)).unwrap()],
-        source: json!({"sessionId":snapshot.site_id,"workbenchRevision":snapshot.revision,"metadataRevision":"0"}),
+        source: json!({"sessionId":snapshot.session_id,"workbenchRevision":snapshot.revision,"metadataRevision":"0"}),
     })
 }

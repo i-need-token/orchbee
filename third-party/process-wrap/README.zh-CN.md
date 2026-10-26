@@ -4,7 +4,7 @@
 （上游提交 `ca45003a831ac125e6673b8759430e5ef33cc1db`），原许可证与版权声明同目录保留。
 它属于第三方依赖，从项目自写 Cargo 工作区排除，Orchbee 不发布此包。
 
-原生 Client、Server 和 `orchbee-local-site-runtime` 使用已有的 `std`、`job-object`、
+原生 Client、Server 和 `orchbee-local-runtime` 使用已有的 `std`、`job-object`、
 `creation-flags` 特性。Windows Worker 命令消费该共享运行时。
 根 patch 固定此修正版源码，不增加第二个 Windows 绑定版本。manifest 保留上游
 依赖和特性图，仅增加 `publish = false`；不复制上游测试夹具和开发产物。unsafe FFI
@@ -30,7 +30,7 @@
 ## 维护与证据
 
 共享运行时在
-[`windows_command_child/tests.rs`](../../crates/local-site-runtime/src/windows_command_child/tests.rs)
+[`command_child/windows/tests.rs`](../../crates/local-runtime/src/command_child/windows/tests.rs)
 中拥有原生完成证据：保留存活后代的句柄，放行根进程或取消 Job，并要求返回时后代句柄
 已发出退出信号。其失败夹具还证明，失败的 Job 等待不能在重试时变成缓存的根进程退出成功。
 另一个原生判据会保留根进程与后代进程句柄，先确认二者存活，再在不调用 `start_kill`
@@ -43,4 +43,4 @@ Worker 发现测试覆盖输出边界、取消和失败清理；原生 Client �
 当上游版本提供等价完成语义并通过这些测试时，删除本目录和根 patch。根进程退出、
 成功发起终止或成员列表为空，都不能替代完成事件。
 
-<!-- documentation-pairing: english-sha256=74f13798eea2a5e3ed45ae056aa28862882c2e552ebac1ebed65ba7b1d6c9bde zh-cn-sha256=6359e629e0f78619c80a6b670d17eee9946fc7dadffaf0d2f44b08e703b22924 -->
+<!-- documentation-pairing: english-sha256=7daed86b80822bc7d7ee681070c3faa74abad38956b1b477903a9b44d074c044 zh-cn-sha256=d142c26e26d839c2cece7d49d3a55df6a41ab6bd2924bab56c9e5b22d7841cca -->

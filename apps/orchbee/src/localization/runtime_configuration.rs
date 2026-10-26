@@ -94,12 +94,12 @@ impl Locale {
     ) -> crate::localization::HelpDetails {
         use crate::invocation::CommandPath as C;
         let (usage, english, chinese) = match path {
-            C::SiteConfig => (
+            C::ServerConfig => (
                 "orchbee server config [--format text|json]",
                 "Read the configuration currently used by the running session. This command neither reloads configuration nor starts a session.",
                 "读取正在运行的会话当前使用的配置。本命令不重新加载配置，也不启动会话。",
             ),
-            C::SiteReloadConfig => (
+            C::ServerReloadConfig => (
                 "orchbee server reload-config [--format text|json]",
                 "Reload the configuration path selected when the session started. Updates shortcuts, window titles, Agent sidebar layouts, notification policy and manifest checks. Shell defaults affect new terminals; startup restore settings require a restart.\n\nFile or TOML errors preserve the previous configuration. Individual field warnings use safe defaults. Requires an existing session; a lost reply is never retried automatically.",
                 "重新加载会话启动时选定的配置路径。更新快捷键、窗口标题、智能体侧边栏布局、通知策略和清单检查。Shell 默认值影响新终端；启动恢复设置需要重启。\n\n文件或 TOML 错误会保留原配置；单字段警告使用安全默认值。需要已运行的会话；应答丢失时不自动重试。",

@@ -79,7 +79,7 @@ cohort 一起部署或回退。新增命令与 schema 为增量能力；裸 `sta
 执行。此流程采用实现测试，不宣称独立审查或未执行的形式证明。
 
 Server 状态作用域同时接纳默认的 `orchbee-native-`（32 位十六进制）与 Windows
-命名作用域 `orchbee-session-`（47 位十六进制），与 `WindowsSiteName::scope_for_user`
+命名作用域 `orchbee-session-`（47 位十六进制），与 `SessionName::scope_for_user`
 的实际输出一致。观察不启动缺失的命名 Session；version 1 schema 接纳这两种既有形式。
 
-<!-- documentation-pairing: english-sha256=42f402e22b44d4b82581253b87d49d90f27d8fcbb0291623205de68bee6d8ea4 zh-cn-sha256=441f2d9a1bfc89e5d9b04b67bdb04cffcf3b9e1c9932a29bf2fa39d40766bc2b -->
+<!-- documentation-pairing: english-sha256=46ac585d266187069e028ff097e38ca76bb72ac47e998f2e881550f16f470d50 zh-cn-sha256=3d938b04b3fb92b649ffdd47dd0bb5bb0e06fb934a25734aede3c7569267971e -->

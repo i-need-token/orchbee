@@ -2,7 +2,7 @@
 use super::{
     AsLocalIo, ClientViewAction, ClientViewControl, ClientViewIntent, CommandCompletion,
     CommandFailure, Duration, JoinHandle, LocalClientOrigin, LocalOperationClock, LocalStream,
-    ProtocolVersion, Shared, SiteId, WorkbenchRequestId, io, random_request_id, thread,
+    ProtocolVersion, SessionId, Shared, WorkbenchRequestId, io, random_request_id, thread,
 };
 
 pub(super) struct Invocation {
@@ -14,7 +14,7 @@ impl Invocation {
         shared: Shared,
         origin: LocalClientOrigin,
         clock: LocalOperationClock,
-        site_id: SiteId,
+        session_id: SessionId,
         registered: orchbee_workbench_protocol::ClientViewRecord,
         invocation: orchbee_workbench_protocol::ConfiguredCommandInvocation,
     ) -> io::Result<Self> {
@@ -32,7 +32,7 @@ impl Invocation {
                     Ok(mut client) => exchange(
                         &mut client,
                         &clock,
-                        &site_id,
+                        &session_id,
                         &wake_read,
                         &registered,
                         invocation,
@@ -70,7 +70,7 @@ impl Drop for Invocation {
 fn exchange(
     client: &mut crate::local_client::LocalClient,
     clock: &LocalOperationClock,
-    site_id: &SiteId,
+    session_id: &SessionId,
     wake: &LocalStream,
     registered: &orchbee_workbench_protocol::ClientViewRecord,
     invocation: orchbee_workbench_protocol::ConfiguredCommandInvocation,
@@ -84,7 +84,7 @@ fn exchange(
                     orchbee_workbench_protocol::ConfiguredCommandRequest {
                         protocol_version: ProtocolVersion,
                         request_id: id,
-                        site_id: site_id.clone(),
+                        session_id: session_id.clone(),
                         action: orchbee_workbench_protocol::ConfiguredCommandAction::Invoke {
                             invocation: Box::new(invocation),
                         },
@@ -110,7 +110,7 @@ fn exchange(
                     && let orchbee_workbench_protocol::WorkbenchCommandOutcome::PanelSplitCreated { revision, terminal_context_id, tab_id, new_panel_id, .. } = &result.outcome {
                     let id = random_request_id().ok_or(false);
                     Some(id.and_then(|id| client.exchange_client_view(orchbee_workbench_protocol::WorkbenchClientViewRequest {
-                        protocol_version: ProtocolVersion, request_id: id.clone(), site_id: site_id.clone(),
+                        protocol_version: ProtocolVersion, request_id: id.clone(), session_id: session_id.clone(),
                         action: ClientViewAction::Submit {command: Box::new(ClientViewControl {
                             operation_id: id, client_id: registered.client_id.clone(), expected_view_revision: registered.view_revision,
                             minimum_workbench_revision: *revision, intent: ClientViewIntent::Panel {

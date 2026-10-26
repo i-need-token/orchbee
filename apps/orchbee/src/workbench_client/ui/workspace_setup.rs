@@ -1,11 +1,13 @@
-use super::{ActionBuildError, ModalPresentation, NativeUi, WorkbenchClientView, finish_action};
+use super::{
+    ActionBuildError, ModalPresentation, WorkbenchClientUi, WorkbenchClientView, finish_action,
+};
 use crate::client_view::ClientActionDisposition;
 pub(crate) use crate::workbench_client::state::workspace_setup::{
-    NativeLocationLabelStatus, NativeLocationLabelTarget, NativeSetupDraftView, NativeSetupEdit,
-    NativeSetupStage, NativeSetupStatus, NativeSetupToken,
+    LocationLabelStatus, LocationLabelTarget, SetupDraftView, SetupEdit, SetupStage, SetupStatus,
+    SetupToken,
 };
 use crate::workbench_client::state::workspace_setup::{
-    NativeSetupIntent, SetupOperation, SetupResult, SetupWorkerEvidence,
+    SetupIntent, SetupOperation, SetupResult, SetupWorkerEvidence,
 };
 pub(crate) use crate::workbench_client::state::workspace_setup::{
     WorkspaceCreationPhase, WorkspaceCreationPreview,
@@ -17,17 +19,17 @@ use crate::workbench_client::{
 use orchbee_workbench_protocol::{MAXIMUM_DIRECTORY_PATH_BYTES, MAXIMUM_LABEL_LENGTH};
 use std::sync::Arc;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct NativeSetupInputContext {
-    token: NativeSetupToken,
-    stage: NativeSetupStage,
+pub(crate) struct SetupInputContext {
+    token: SetupToken,
+    stage: SetupStage,
     remaining_scalars: usize,
     remaining_bytes: usize,
 }
-impl NativeSetupInputContext {
-    pub(crate) const fn token(self) -> NativeSetupToken {
+impl SetupInputContext {
+    pub(crate) const fn token(self) -> SetupToken {
         self.token
     }
-    pub(crate) const fn stage(self) -> NativeSetupStage {
+    pub(crate) const fn stage(self) -> SetupStage {
         self.stage
     }
     pub(crate) const fn remaining_scalars(self) -> usize {
@@ -50,7 +52,7 @@ impl<'a> WorkbenchClientView<'a> {
     ) -> Option<super::super::state::workspace_setup::quick::QuickRecovery<'a>> {
         self.state.as_ref()?.quick_workspace_recovery()
     }
-    pub(crate) fn setup_draft(&self) -> Option<NativeSetupDraftView<'a>> {
+    pub(crate) fn setup_draft(&self) -> Option<SetupDraftView<'a>> {
         self.state.as_ref()?.setup_draft()
     }
     pub(crate) fn setup_capture_claim(&self) -> bool {
@@ -58,19 +60,19 @@ impl<'a> WorkbenchClientView<'a> {
         let draft = draft.filter(|draft| !draft.background());
         draft.is_some()
     }
-    pub(crate) fn setup_input_context(&self) -> Option<NativeSetupInputContext> {
+    pub(crate) fn setup_input_context(&self) -> Option<SetupInputContext> {
         let draft = self.setup_draft()?;
         if draft.background() {
             return None;
         }
-        draft.interactive().then_some(NativeSetupInputContext {
+        draft.interactive().then_some(SetupInputContext {
             token: draft.token(),
             stage: draft.stage(),
             remaining_scalars: MAXIMUM_LABEL_LENGTH.saturating_sub(draft.text().chars().count()),
             remaining_bytes: MAXIMUM_DIRECTORY_PATH_BYTES.saturating_sub(draft.text().len()),
         })
     }
-    pub(crate) fn setup_status(&self) -> Option<NativeSetupStatus> {
+    pub(crate) fn setup_status(&self) -> Option<SetupStatus> {
         self.state.as_ref()?.setup_status()
     }
     pub(crate) fn workspace_directory_path(&self) -> Option<&'a str> {
@@ -82,7 +84,7 @@ impl<'a> WorkbenchClientView<'a> {
             .is_some_and(|state| state.workspace_directory_unconfigured())
     }
 }
-impl NativeUi {
+impl WorkbenchClientUi {
     /// The foreground creation projection has no live terminal target. Keep
     /// this admission fact independent of modal capture so navigation remains usable.
     pub(super) fn workspace_creation_replaces_content(&self) -> bool {
@@ -95,16 +97,16 @@ impl NativeUi {
 
     pub(in crate::workbench_client) fn choose_setup_project(
         &mut self,
-        token: NativeSetupToken,
+        token: SetupToken,
         index: usize,
     ) {
         if self.view().setup_draft().is_some_and(|draft| {
             matches!(
                 draft.stage(),
-                NativeSetupStage::QuickName | NativeSetupStage::QuickDirectory
+                SetupStage::QuickName | SetupStage::QuickDirectory
             )
         }) {
-            self.edit_setup_draft(token, NativeSetupEdit::SelectDirectory(index));
+            self.edit_setup_draft(token, SetupEdit::SelectDirectory(index));
             return;
         }
         if self
@@ -118,10 +120,10 @@ impl NativeUi {
 
     pub(in crate::workbench_client) fn scroll_setup_projects(
         &mut self,
-        token: NativeSetupToken,
+        token: SetupToken,
         up: bool,
         lines: usize,
-    ) -> Option<NativeSetupToken> {
+    ) -> Option<SetupToken> {
         let state = self.state.as_mut()?;
         state
             .scroll_setup_projects(token, up, lines)
@@ -150,7 +152,7 @@ impl NativeUi {
                 .try_enqueue_sidebar_organization_for(state, &request, deadlines, &self.clock)
                 .is_ok();
         }
-        let Some(token) = self.request_setup_draft(NativeSetupIntent::Organize(request)) else {
+        let Some(token) = self.request_setup_draft(SetupIntent::Organize(request)) else {
             return false;
         };
         if self
@@ -189,7 +191,7 @@ impl NativeUi {
     pub(super) fn request_project_rename(
         &mut self,
         request: Box<crate::workbench_client::ProjectRenameRequest>,
-    ) -> Option<NativeSetupToken> {
+    ) -> Option<SetupToken> {
         if self.retirement_failure.is_some() {
             return None;
         }
@@ -297,9 +299,9 @@ impl NativeUi {
     }
     pub(in crate::workbench_client) fn request_setup_draft(
         &mut self,
-        intent: NativeSetupIntent,
-    ) -> Option<NativeSetupToken> {
-        if matches!(intent, NativeSetupIntent::ConfigureDirectory)
+        intent: SetupIntent,
+    ) -> Option<SetupToken> {
+        if matches!(intent, SetupIntent::ConfigureDirectory)
             && !self.admit_capability(crate::tui_capabilities::Capability::DirectoryInput)
         {
             return None;
@@ -315,15 +317,13 @@ impl NativeUi {
     pub(in crate::workbench_client) fn setup_capture_claim(&self) -> bool {
         self.view().setup_capture_claim()
     }
-    pub(in crate::workbench_client) fn setup_input_context(
-        &self,
-    ) -> Option<NativeSetupInputContext> {
+    pub(in crate::workbench_client) fn setup_input_context(&self) -> Option<SetupInputContext> {
         self.view().setup_input_context()
     }
     pub(in crate::workbench_client) fn edit_setup_draft(
         &mut self,
-        token: NativeSetupToken,
-        edit: NativeSetupEdit<'_>,
+        token: SetupToken,
+        edit: SetupEdit<'_>,
     ) -> bool {
         let Some(draft) = self.state.as_ref().and_then(|state| state.setup_draft()) else {
             return false;
@@ -338,14 +338,14 @@ impl NativeUi {
             .as_mut()
             .is_some_and(|state| state.edit_setup_draft(token, edit))
     }
-    pub(in crate::workbench_client) fn cancel_setup_draft(&mut self, token: NativeSetupToken) {
+    pub(in crate::workbench_client) fn cancel_setup_draft(&mut self, token: SetupToken) {
         if let Some(state) = self.state.as_mut() {
             state.cancel_setup_draft(token);
         }
     }
     pub(in crate::workbench_client) fn after_setup_draw(
         &mut self,
-        token: Option<ModalPresentation<NativeSetupToken>>,
+        token: Option<ModalPresentation<SetupToken>>,
     ) {
         let Some(state) = self.state.as_mut() else {
             return;
@@ -366,7 +366,7 @@ impl NativeUi {
     }
     pub(in crate::workbench_client) fn submit_setup_draft(
         &mut self,
-        token: NativeSetupToken,
+        token: SetupToken,
     ) -> ClientActionDisposition {
         let hidden_unaccepted = self.state.as_ref().is_some_and(|state| {
             state

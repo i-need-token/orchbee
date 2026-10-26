@@ -7,9 +7,9 @@ use crate::{
     invocation::{OutputFormat, plugins::PluginCommand},
     localization::Locale,
 };
-use orchbee_local_site_runtime::{
-    PluginProvisionCommand, PluginProvisionExecutor, PluginProvisionFailure, PluginProvisionReport,
-    PluginProvisionStage, PluginRegistry, WindowsCommandFailure, WindowsCommandOutput,
+use orchbee_local_runtime::{
+    CommandFailure, CommandOutput, PluginProvisionCommand, PluginProvisionExecutor,
+    PluginProvisionFailure, PluginProvisionReport, PluginProvisionStage, PluginRegistry,
     resolve_windows_program, run_windows_command,
 };
 use std::{
@@ -23,24 +23,24 @@ struct Executor {
     deadline: Instant,
 }
 impl PluginProvisionExecutor for Executor {
-    fn checkpoint(&mut self) -> Result<(), WindowsCommandFailure> {
+    fn checkpoint(&mut self) -> Result<(), CommandFailure> {
         if self
             .signals
             .take()
-            .map_err(|_| WindowsCommandFailure::Io)?
+            .map_err(|_| CommandFailure::Io)?
             .is_some()
         {
-            Err(WindowsCommandFailure::Cancelled)
+            Err(CommandFailure::Cancelled)
         } else if Instant::now() >= self.deadline {
-            Err(WindowsCommandFailure::Timeout)
+            Err(CommandFailure::Timeout)
         } else {
             Ok(())
         }
     }
-    fn run(&mut self, step: &PluginProvisionCommand) -> WindowsCommandOutput {
+    fn run(&mut self, step: &PluginProvisionCommand) -> CommandOutput {
         let mut command = Command::new(resolve_windows_program(&step.argv[0], &step.directory));
         command.args(&step.argv[1..]).current_dir(&step.directory);
-        // Build steps are source provisioning, not participants in a live Site.
+        // Build steps are source provisioning, not participants in a live Session.
         for (name, _) in std::env::vars_os() {
             if name
                 .to_string_lossy()
@@ -122,9 +122,9 @@ pub(super) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) 
     } else {
         match report.failure {
             None => 0,
-            Some(PluginProvisionFailure::Command(WindowsCommandFailure::Timeout)) => 7,
+            Some(PluginProvisionFailure::Command(CommandFailure::Timeout)) => 7,
             Some(
-                PluginProvisionFailure::Command(WindowsCommandFailure::PhysicalUnknown)
+                PluginProvisionFailure::Command(CommandFailure::PhysicalUnknown)
                 | PluginProvisionFailure::PhysicalUnknown,
             ) => 8,
             _ => 1,

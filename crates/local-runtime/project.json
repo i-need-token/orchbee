@@ -1,0 +1,11 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "local-runtime",
+	"runtime": ["native"],
+	"stability": "experimental",
+	"responsibility": "Shared local cohort and rendezvous admission, Session identity and lifecycle records, registered-child recovery, checkpoint storage guards, configuration-scoped preferences, bounded settings and plugin schemas, and private filesystem capabilities consumed by Client, Server, Worker and the Desktop settings bridge; product types are portable and platform effects stay in child adapters.",
+	"nonGoals": [
+		"Owning application process launch policy, terminal authorization, protocol payloads, or public invocation.",
+		"Providing release signing, automatic recovery, restart, remote transport, or multi-user security."
+	]
+}

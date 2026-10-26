@@ -84,7 +84,7 @@ fn workspace_status(
             WorkbenchWorkspaceCloseRead {
                 protocol_version: ProtocolVersion,
                 request_id: request_id(99000),
-                site_id: authority.site_id().clone(),
+                session_id: authority.session_id().clone(),
                 workspace_id: workspace_id.clone(),
             },
         )
@@ -201,7 +201,7 @@ fn workspace_resume_request(
     WorkbenchWorkspaceCloseResume {
         protocol_version: ProtocolVersion,
         request_id: request_id(id),
-        site_id: close.site_id.clone(),
+        session_id: close.session_id.clone(),
         workspace_id: workspace_id.clone(),
         close_request_id: close.request_id.clone(),
         expected_attempt_generation: WorkbenchTabCloseAttemptGeneration::new(generation).unwrap(),
@@ -824,7 +824,8 @@ fn workspace_close_rejects_unknown_scope_and_denies_without_lifecycle_grant() {
     let (mut authority, grant) = workspace_fixture(1);
     let before = authority.projection.snapshot().clone();
     let close = workspace_close_command(&authority, 10000, 1, 0);
-    let reader = WorkbenchGrant::manage_navigation_and_terminal_create(authority.site_id().clone());
+    let reader =
+        WorkbenchGrant::manage_navigation_and_terminal_create(authority.session_id().clone());
     assert!(matches!(
         authority.begin_workspace_close(Some(&reader), close.clone()),
         WorkbenchWorkspaceCloseBegin::Ready(WorkbenchCommandResult {
@@ -868,7 +869,7 @@ fn workspace_resume_judgment_order_denies_mismatches_and_receipt_conflicts() {
         .unwrap()
         .publication_failed(WorkbenchTabClosePublicationReason::PreparationFailed);
 
-    let reader = WorkbenchGrant::read_only(authority.site_id().clone());
+    let reader = WorkbenchGrant::read_only(authority.session_id().clone());
     let valid = workspace_resume_request(&close, 11000, 1);
     assert!(matches!(
         authority.begin_workspace_close_resume(Some(&reader), valid.clone()),

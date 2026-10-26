@@ -80,7 +80,7 @@ fn complete_cross_attach_fence_includes_host_terminal_and_screen() {
             0,
         ),
         member: SnapshotMember {
-            site: orchbee_workbench_protocol::SiteId::parse(&id(6)).unwrap(),
+            session: orchbee_workbench_protocol::SessionId::parse(&id(6)).unwrap(),
             context: orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(&id(7)).unwrap(),
             tab,
             panel,

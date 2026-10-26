@@ -1,6 +1,6 @@
 //! Retained close identity lookup, independent of surviving layout membership.
 use crate::{
-    ProtocolVersion, SiteId, WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration,
+    ProtocolVersion, SessionId, WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration,
     WorkbenchTabCloseStatus, WorkbenchTabId, WorkbenchTerminalContextId, WorkbenchWorkspaceId,
 };
 use serde::{Deserialize, Serialize};
@@ -11,7 +11,7 @@ pub struct CloseOperationRead {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub operation_id: WorkbenchRequestId,
 }
 
@@ -60,7 +60,7 @@ pub struct CloseOperationResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub operation_id: WorkbenchRequestId,
     pub outcome: CloseOperationOutcome,
 }
@@ -69,7 +69,7 @@ impl CloseOperationResult {
     #[must_use]
     pub fn answers(&self, request: &CloseOperationRead) -> bool {
         self.request_id == request.request_id
-            && self.site_id == request.site_id
+            && self.session_id == request.session_id
             && self.operation_id == request.operation_id
     }
 }

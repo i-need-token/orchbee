@@ -49,7 +49,7 @@ fn execute(
     let request = PaneGraphicsRequest {
         protocol_version: ProtocolVersion,
         request_id: id(10000),
-        site_id: read_snapshot(&fixture.service).site_id,
+        session_id: read_snapshot(&fixture.service).session_id,
         action,
     };
     let WorkbenchExecution::Response(WorkbenchResponse::PaneGraphics(result)) =
@@ -79,7 +79,7 @@ fn synchronize(
     let request = WorkbenchClientViewRequest {
         protocol_version: ProtocolVersion,
         request_id: id(11000),
-        site_id: snapshot.site_id,
+        session_id: snapshot.session_id,
         action: ClientViewAction::Synchronize {
             heartbeat: ClientViewSequence::new(1).unwrap(),
             view_revision: ClientViewSequence::new(1).unwrap(),
@@ -124,7 +124,7 @@ fn graphics_facts_require_the_publishing_connection_and_an_actual_matching_draw_
     let client = synchronize(&observer, &fixture);
     let source = fixture
         .service
-        .graphics_source(&read_snapshot(&fixture.service).site_id, &selected)
+        .graphics_source(&read_snapshot(&fixture.service).session_id, &selected)
         .unwrap();
     let observation = PaneGraphicsClientObservation {
         workbench_revision: client.view.workbench_revision,

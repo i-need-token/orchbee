@@ -108,9 +108,9 @@ This Windows lifecycle does not add a Linux or macOS stop path.
 
 ## Managed Linux lazy Host startup
 
-The private `--local-site <absolute-runtime-directory>` entry verifies the shared runtime and
+The private `--runtime-directory <absolute-runtime-directory>` entry verifies the shared runtime and
 four-artifact cohort, then registers with Server without creating a Host directory or process.
-The [shared modeling record](../../crates/local-site-runtime/README.md) owns process/failure boundaries.
+The [shared modeling record](../../crates/local-runtime/README.md) owns process/failure boundaries.
 
 The first Launch passes the existing authorization kernel and resolves launch facts before Host
 startup. Typed invalid-lease/generation rejection creates no Host. Generation-pinned cwd validation
@@ -129,7 +129,7 @@ and replay cache.
 
 Every Launch on this managed path also propagates the local Agent observation channel through the
 existing Terminal Protocol `environmentOverlay`. For each admitted Launch the launch adapter joins
-the cross-owner file name `agent-observation-v1.sock` onto the verified `--local-site` runtime
+the cross-owner file name `agent-observation-v1.sock` onto the verified `--runtime-directory` runtime
 directory and admits the candidate only when `lstat` proves an existing socket owned by this
 Worker's effective user. An admitted socket sets
 `ORCHBEE_AGENT_OBSERVATION_SOCKET` to its absolute path inside the existing 16-entry and 4 KiB
@@ -281,7 +281,7 @@ resolved executable, an exactly empty literal argument vector, and three fixed e
 The loop combines these with Worker-local cwd, Terminal Protocol profile, geometry, and independent
 creation identity. The three entries map to the Terminal Protocol launch environment. The
 invocation-scoped `CreateTerminal.environmentOverlay` stays empty on the explicit-endpoint path;
-on the managed local-site path it carries the single Agent observation variable described below.
+on the managed local-runtime path it carries the single Agent observation variable described below.
 
 Per-launch `cwd` arrives already selected by the Server: explicit override, accepted Workspace
 directory, then Worker home if absent. Host owns the actual directory check and spawn failure.
@@ -761,7 +761,7 @@ cargo clippy -p orchbee-worker --all-targets --all-features --locked -- -D warni
 cargo test -p orchbee-capability-node-protocol --all-targets --all-features --locked
 cargo clippy -p orchbee-capability-node-protocol --all-targets --all-features --locked -- -D warnings
 cargo test -p orchbee-local-peer-credentials --all-targets --all-features --locked
-node scripts/tla/run-models.mjs --models local-site-startup,worker-send-transaction
+node scripts/tla/run-models.mjs --models local-session-startup,worker-send-transaction
 pnpm verify
 ```
 
@@ -811,7 +811,7 @@ processes are not modified, and no Mac/Linux context injection is introduced.
 Windows additionally mints one nonzero 128-bit Worker ID from the existing OS random
 source before Server connection. `WorkerHello`, retained `ServerConnection`, and the
 operation kernel share that exact identity. Separate connections do not reuse the
-old fixed local diagnostic ID: otherwise different Sites' terminal counters could
+old fixed local diagnostic ID: otherwise different Sessions' terminal counters could
 alias a stale caller. RNG failure or zero fails before connecting. Identity collision
 resistance relies on the OS random source. This changes no OBLW/OBCN fields and does
 not enable reconnect, inventory adoption, or migration of old Worker bindings.
@@ -877,7 +877,7 @@ with no arguments or at most three exact case-insensitive `-NoLogo`, `-NoProfile
 initialization through `-NoExit -Command`. Unknown flags, scripts, command strings,
 other executables and other platforms retain verbatim launch arguments.
 
-The shared Local Session Runtime startup concatenates its common initialization and interactive
+The shared Local Runtime startup concatenates its common initialization and interactive
 reader assets. Host builds consume those same bytes and recognize the exact prepared argv as an
 interactive shell without injecting it twice. The `-Command` switch alone never grants this
 classification: a modified script, extra command operand or noninteractive flag remains a program.
@@ -920,7 +920,7 @@ Legacy Windows shell configuration seeds an unclaimed shared launch-profile leaf
 
 ## Windows plugin process ownership
 
-The admitted request loop also serves bounded plugin-job start/list/get/cancel records before and after Host creation. `plugin_jobs` retains up to 32 command owners and 200 logs; the shared `orchbee-local-site-runtime` Windows command owner supplies the same Job settlement used by Git. CLI disconnect leaves accepted work running. Explicit Session shutdown signals, settles and joins all plugin owners before reporting success. [Native plugin behavior](../orchbee/docs/windows-plugins.md) owns invocation, paging, output limits and remaining integration.
+The admitted request loop also serves bounded plugin-job start/list/get/cancel records before and after Host creation. `plugin_jobs` retains up to 32 command owners and 200 logs; the shared `orchbee-local-runtime` Windows command owner supplies the same Job settlement used by Git. CLI disconnect leaves accepted work running. Explicit Session shutdown signals, settles and joins all plugin owners before reporting success. [Native plugin behavior](../orchbee/docs/windows-plugins.md) owns invocation, paging, output limits and remaining integration.
 
 ## Plugin terminal launch environment
 

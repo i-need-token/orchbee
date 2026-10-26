@@ -7,7 +7,7 @@ use super::controls::{
 use super::sidebar_text::machine_label;
 use super::{
     Block, Borders, Clear, ClientView, Frame, HitLayer, HitMapBuilder, Line, Locale, Padding,
-    Paragraph, Rect, Role, SidebarArea, SidebarLayer, SiteStatus, Span, Theme, display_width,
+    Paragraph, Rect, Role, SessionStatus, SidebarArea, SidebarLayer, Span, Theme, display_width,
 };
 use crate::client_view::{ClientAction, KeyLabelGlyphs, Overlay, PrefixAction};
 use crate::machine_discovery::display_label;
@@ -53,7 +53,7 @@ pub(super) struct RenderContext<'a> {
     pub(super) view: &'a ClientView,
     pub(super) sidebar_surface: crate::client_view::SidebarSurface,
     pub(super) locale: Locale,
-    pub(super) backend_status: SiteStatus<'a>,
+    pub(super) backend_status: SessionStatus<'a>,
     pub(super) theme: &'a Theme,
     pub(super) input: SidebarInput,
     pub(super) creation: Option<crate::workbench_client::WorkspaceCreationPreview<'a>>,

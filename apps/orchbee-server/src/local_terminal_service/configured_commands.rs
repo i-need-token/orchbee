@@ -4,9 +4,8 @@ use crate::worker_obcn_carrier::{
     WorkerOperationRequest, WorkerOperationResult, WorkerRequestError,
 };
 use orchbee_capability_node_protocol as node;
-use orchbee_local_site_runtime::{
-    WindowsCommandSize, WindowsCustomCommand, WindowsCustomCommandAction as Kind,
-    WindowsCustomCommandEntry,
+use orchbee_local_runtime::{
+    CommandSize, CustomCommand, CustomCommandAction as Kind, CustomCommandEntry,
 };
 use orchbee_workbench_protocol::{
     ConfiguredCommandDescriptor, ConfiguredCommandFailure as Failure, ConfiguredCommandInvocation,
@@ -16,7 +15,7 @@ use orchbee_workbench_protocol::{
     WorkbenchLabel, WorkbenchPanelSplitDirection, WorkbenchTerminalGeometry, WorkerId,
 };
 
-pub(crate) fn descriptor(entry: &WindowsCustomCommandEntry) -> ConfiguredCommandDescriptor {
+pub(crate) fn descriptor(entry: &CustomCommandEntry) -> ConfiguredCommandDescriptor {
     let command = &entry.definition;
     ConfiguredCommandDescriptor {
         id: entry.id.clone(),
@@ -29,21 +28,21 @@ pub(crate) fn descriptor(entry: &WindowsCustomCommandEntry) -> ConfiguredCommand
         bindings: command
             .triggers
             .iter()
-            .map(orchbee_local_site_runtime::trigger_label)
+            .map(orchbee_local_runtime::trigger_label)
             .collect(),
         description: command.description.clone(),
         width: size(command.width),
         height: size(command.height),
     }
 }
-fn size(value: Option<WindowsCommandSize>) -> Option<PluginPopupSize> {
+fn size(value: Option<CommandSize>) -> Option<PluginPopupSize> {
     value.map(|value| match value {
-        WindowsCommandSize::Cells(n) => PluginPopupSize::Cells(n),
-        WindowsCommandSize::Percent(n) => PluginPopupSize::Percent(n),
+        CommandSize::Cells(n) => PluginPopupSize::Cells(n),
+        CommandSize::Percent(n) => PluginPopupSize::Percent(n),
     })
 }
 pub(crate) struct Prepared {
-    pub(crate) command: WindowsCustomCommand,
+    pub(crate) command: CustomCommand,
     pub(crate) snapshot: Snapshot,
     pub(crate) context: orchbee_workbench_protocol::PluginInvocationContext,
     pub(crate) directory: WorkbenchDirectoryPath,
@@ -55,10 +54,7 @@ pub(in crate::local_terminal_service) struct Captured {
     pub selected_text: Option<String>,
 }
 impl LocalTerminalService {
-    pub(crate) fn resolve_configured_command(
-        &self,
-        id: &str,
-    ) -> Result<WindowsCustomCommand, Failure> {
+    pub(crate) fn resolve_configured_command(&self, id: &str) -> Result<CustomCommand, Failure> {
         self.configured_commands()?
             .1
             .into_iter()
@@ -289,7 +285,7 @@ impl LocalTerminalService {
                 let reply = self.execute_plugin(PluginRequest {
                     protocol_version: ProtocolVersion,
                     request_id: request.request_id.clone(),
-                    site_id: request.site_id.clone(),
+                    session_id: request.session_id.clone(),
                     action: PluginAction::Invoke {
                         operation_id: request.request_id.as_str().into(),
                         plugin_id: None,
@@ -324,7 +320,7 @@ impl LocalTerminalService {
                 let command = WorkbenchCommand {
                     protocol_version: ProtocolVersion,
                     request_id: request.request_id.clone(),
-                    site_id: request.site_id.clone(),
+                    session_id: request.session_id.clone(),
                     expected_revision: prepared.snapshot.revision,
                     action: WorkbenchAction::PanelSplit {
                         terminal_context_id: source.terminal_context_id.clone(),
@@ -371,7 +367,7 @@ pub(in crate::local_terminal_service) fn launch(
         .filter(|path| path.is_absolute())
         .unwrap_or_else(|| root.join("System32/cmd.exe"));
     let program = root.join("System32/WindowsPowerShell/v1.0/powershell.exe");
-    let encoded = orchbee_local_site_runtime::windows_raw_command_encoded(
+    let encoded = orchbee_local_runtime::windows_raw_command_encoded(
         shell.to_str().ok_or(Failure::Unavailable)?,
         command,
         environment,

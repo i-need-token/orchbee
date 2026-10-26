@@ -1,4 +1,4 @@
-//! Bounded explicit reports commit after generation, capacity and receipt checks under the Site gate.
+//! Bounded explicit reports commit after generation, capacity and receipt checks under the Session gate.
 use super::{
     WorkbenchAuthority,
     agent_reports::{Author, Event, Reports},
@@ -200,7 +200,7 @@ impl WorkbenchAuthority {
         }
     }
     /// Executes an explicit report or read against current committed membership and retained facts.
-    /// The caller holds the Site gate; source strings never supply physical or process proof.
+    /// The caller holds the Session gate; source strings never supply physical or process proof.
     pub fn panel_agent(
         &mut self,
         request: PanelAgentRequest,
@@ -213,7 +213,7 @@ impl WorkbenchAuthority {
         PanelAgentResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
-            site_id: request.site_id,
+            session_id: request.session_id,
             outcome,
         }
     }
@@ -228,8 +228,8 @@ impl WorkbenchAuthority {
         if self.retired {
             return Err(Failure::Unavailable);
         }
-        if request.site_id != *self.site_id() {
-            return Err(Failure::SiteMismatch);
+        if request.session_id != *self.session_id() {
+            return Err(Failure::SessionMismatch);
         }
         if facts.len() > MAXIMUM_RESOURCES {
             return Err(Failure::ResourceLimit);
@@ -253,7 +253,7 @@ impl WorkbenchAuthority {
         let result = |outcome: Outcome| PanelAgentResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id.clone(),
-            site_id: request.site_id.clone(),
+            session_id: request.session_id.clone(),
             outcome,
         };
         let admit_result = |outcome: &Outcome| {
@@ -452,7 +452,7 @@ impl WorkbenchAuthority {
 #[cfg(test)]
 mod tests;
 
-/// Trusted process facts; only a Host observation adapter may supply these to the Site owner.
+/// Trusted process facts; only a Host observation adapter may supply these to the Session owner.
 /// Sample failure is not this value, and cannot be represented as a fabricated exit.
 #[derive(Clone, Copy, Debug)]
 pub struct TerminalAgentProcessObservation {

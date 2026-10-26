@@ -1,5 +1,5 @@
 use super::{LocalTerminalService, lease_expiry, placement, submit};
-use crate::site_coordinator::{PostcommitCoordinationError, PreparedTerminalTabCreate};
+use crate::session_coordinator::{PostcommitCoordinationError, PreparedTerminalTabCreate};
 use orchbee_capability_node_protocol::LeaseExpiresAtUnixMilliseconds;
 use orchbee_client_server_protocol::RequestId;
 use orchbee_workbench_protocol::{
@@ -63,7 +63,7 @@ impl LocalTerminalService {
             submit(&handle, pending.command())
         });
 
-        // Reacquire registry -> Site and retain both gates through the no-fail joint settlement.
+        // Reacquire registry -> Session and retain both gates through the no-fail joint settlement.
         let workers = self
             .workers
             .lock()

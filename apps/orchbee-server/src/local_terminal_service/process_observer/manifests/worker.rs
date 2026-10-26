@@ -63,7 +63,7 @@ impl Worker {
                 .configuration
                 .as_ref()
                 .map(|(path, explicit)| {
-                    orchbee_local_site_runtime::read_windows_user_settings_at(
+                    orchbee_local_runtime::read_user_settings_at(
                         path.as_deref(),
                         *explicit,
                         |name| std::env::var_os(name),

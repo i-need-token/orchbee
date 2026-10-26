@@ -26,7 +26,7 @@ fn fixture_child_route_is_default_unless_explicitly_overridden() {
     }
     let overrides = [
         ("ORCHBEE_RUNTIME_SCOPE", OsStr::new("explicit-scope")),
-        ("ORCHBEE_SESSION", OsStr::new("explicit-site")),
+        ("ORCHBEE_SESSION", OsStr::new("explicit-session")),
     ];
     let command = fixture.command(&["--help"], None, None, &overrides);
     for (name, value) in overrides {
@@ -94,7 +94,7 @@ fn view_reply(stream: &mut LocalStream, request: &WorkbenchClientViewRequest, ou
         &WorkbenchResponse::ClientView(WorkbenchClientViewResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id.clone(),
-            site_id: request.site_id.clone(),
+            session_id: request.session_id.clone(),
             outcome: serde_json::from_value(outcome).unwrap(),
         }),
     )

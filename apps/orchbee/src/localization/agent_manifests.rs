@@ -10,33 +10,37 @@ impl Locale {
         path: CommandPath,
     ) -> crate::localization::HelpDetails {
         match (self, path) {
-            (Self::EnUs, CommandPath::SiteAgentManifests) => crate::localization::HelpDetails::new(
-                "orchbee server agent-manifests [--format text|json]",
-                "Read the running Windows session's installed detection rules, source, version, path and warnings. Includes automatic-check policy and its latest result. This does not reread files or fetch updates.",
-            ),
-            (Self::ZhCn, CommandPath::SiteAgentManifests) => crate::localization::HelpDetails::new(
-                "orchbee server agent-manifests [--format text|json]",
-                "读取运行中 Windows 会话已安装的识别规则、来源、版本、路径及警告。包含自动检查策略及最近结果。不会重新读取文件或下载更新。",
-            ),
-            (Self::EnUs, CommandPath::SiteReloadAgentManifests) => {
+            (Self::EnUs, CommandPath::ServerAgentManifests) => {
+                crate::localization::HelpDetails::new(
+                    "orchbee server agent-manifests [--format text|json]",
+                    "Read the running Windows session's installed detection rules, source, version, path and warnings. Includes automatic-check policy and its latest result. This does not reread files or fetch updates.",
+                )
+            }
+            (Self::ZhCn, CommandPath::ServerAgentManifests) => {
+                crate::localization::HelpDetails::new(
+                    "orchbee server agent-manifests [--format text|json]",
+                    "读取运行中 Windows 会话已安装的识别规则、来源、版本、路径及警告。包含自动检查策略及最近结果。不会重新读取文件或下载更新。",
+                )
+            }
+            (Self::EnUs, CommandPath::ServerReloadAgentManifests) => {
                 crate::localization::HelpDetails::new(
                     "orchbee server reload-agent-manifests [--request-id <operation-id>] [--format text|json]",
                     "Reload local detection rules and update.manifest_check from the frozen configuration path in the running Windows session; reset screen stabilization. Invalid configuration retains the previous policy and rules. Wait up to five seconds; pending/unknown returns exit 8 and retains the operation ID. Query server agent-manifests-status <id> after interruption. Reusing an accepted ID never reloads again. Receipts last for this session generation (maximum 1,024); no remote fetch.",
                 )
             }
-            (Self::ZhCn, CommandPath::SiteReloadAgentManifests) => {
+            (Self::ZhCn, CommandPath::ServerReloadAgentManifests) => {
                 crate::localization::HelpDetails::new(
                     "orchbee server reload-agent-manifests [--request-id <operation-id>] [--format text|json]",
                     "在运行中 Windows 会话从冻结配置路径重载本地识别规则和 update.manifest_check，并重置屏幕稳定状态。配置无效时保留旧策略和规则。最多等待五秒；待处理或结果未知时退出码为 8，并保留操作 ID。中断后使用 server agent-manifests-status <id> 查询。复用已接纳的 ID 不会再次重载。回执保留至此会话代次结束（最多 1,024 条）；不会远程下载。",
                 )
             }
-            (Self::EnUs, CommandPath::SiteUpdateAgentManifests) => {
+            (Self::EnUs, CommandPath::ServerUpdateAgentManifests) => {
                 crate::localization::HelpDetails::new(
                     "orchbee server update-agent-manifests [--request-id <operation-id>] [--format text|json]",
                     "Download detection rules from the configured catalog and activate eligible cached rules. Wait up to five seconds; exit 8 retains the operation ID for server agent-manifests-status. Reusing an ID does not repeat the download. Partial failure returns a nonzero exit; cache results and activation are separate.",
                 )
             }
-            (Self::ZhCn, CommandPath::SiteUpdateAgentManifests) => {
+            (Self::ZhCn, CommandPath::ServerUpdateAgentManifests) => {
                 crate::localization::HelpDetails::new(
                     "orchbee server update-agent-manifests [--request-id <operation-id>] [--format text|json]",
                     "从配置的目录源下载识别规则并启用符合条件的缓存规则。最多等待五秒；退出码 8 会保留操作 ID，可用 server agent-manifests-status 查询。复用 ID 不会重复下载。部分失败返回非零退出码；缓存结果和启用结果分别显示。",

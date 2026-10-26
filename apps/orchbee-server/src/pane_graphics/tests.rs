@@ -3,8 +3,8 @@ use super::*;
 use base64::Engine;
 use orchbee_workbench_protocol::{
     MAXIMUM_GRAPHICS_SET_BYTES, Navigation, PaneGraphicsFormat, PaneGraphicsFrame,
-    PaneGraphicsPlacement, PanelNode, PanelRightClickTarget, Presentation, ProtocolVersion, SiteId,
-    Tab, TerminalContext, TerminalPresentationId, WorkbenchPanelId, WorkbenchTabId,
+    PaneGraphicsPlacement, PanelNode, PanelRightClickTarget, Presentation, ProtocolVersion,
+    SessionId, Tab, TerminalContext, TerminalPresentationId, WorkbenchPanelId, WorkbenchTabId,
     WorkbenchTerminalContextId,
 };
 
@@ -116,7 +116,7 @@ fn fixture() -> (Snapshot, PaneGraphicsTarget) {
     let context = WorkbenchTerminalContextId::parse(&format!("{:032x}", 2)).unwrap();
     let snapshot = Snapshot {
         protocol_version: ProtocolVersion,
-        site_id: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
+        session_id: SessionId::parse(&format!("{:032x}", 1)).unwrap(),
         revision: WorkbenchRevision::new(1),
         navigation: {
             let fixture_context_id = context.clone();

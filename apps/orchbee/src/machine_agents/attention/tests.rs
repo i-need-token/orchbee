@@ -136,10 +136,10 @@ fn endpoint_baseline_changed_new_rebound_and_restart_versions_are_distinct() {
             .seen
     );
     assert!(!attention.acknowledge(&local, &ack));
-    let site = SiteId::parse(&"8".repeat(32)).unwrap();
-    changed.site_id = site.clone();
+    let session = SessionId::parse(&"8".repeat(32)).unwrap();
+    changed.session_id = session.clone();
     let mut rows = changed.rows.to_vec();
-    rows[0].target.context.site_id = site;
+    rows[0].target.context.session_id = session;
     changed.rows = rows.into();
     assert!(attention.project(&local, &Arc::new(changed)).unwrap()[0].seen);
 }

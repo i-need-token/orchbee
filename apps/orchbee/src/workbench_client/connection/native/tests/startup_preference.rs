@@ -1,6 +1,6 @@
 use super::{commands::drive_controlling_after_attach, setup::*};
 use crate::workbench_client::{
-    NativeMemberTarget, NativeStartupTarget, startup_preference::Position,
+    ClientMemberTarget, ClientStartupTarget, startup_preference::Position,
 };
 use orchbee_client_server_protocol::*;
 use orchbee_workbench_protocol::*;
@@ -16,10 +16,10 @@ fn startup_preference_actual_carrier_restores_second_tab_without_open_or_agent_v
     let mut harness = Harness::start_at(
         steps,
         geometry,
-        NativeStartupTarget::LocalDirectory {
+        ClientStartupTarget::LocalDirectory {
             position: Some(Position {
                 location: target.context.location.clone(),
-                member: Some(NativeMemberTarget {
+                member: Some(ClientMemberTarget {
                     tab: target.tab.clone(),
                     panel: target.panel.clone(),
                     presentation: target.member.clone(),
@@ -50,8 +50,8 @@ fn startup_preference_actual_carrier_restores_second_tab_without_open_or_agent_v
         return Err(test_error("canonical AttachBinding"));
     };
     assert!(
-        matches!(request.action(), TerminalViewerAction::AttachBinding { site_id, worker_id, terminal_id }
-        if site_id.as_str() == target.context.site_id.as_str() && worker_id.as_str() == target.terminal.worker_id.as_str()
+        matches!(request.action(), TerminalViewerAction::AttachBinding { session_id, worker_id, terminal_id }
+        if session_id.as_str() == target.context.session_id.as_str() && worker_id.as_str() == target.terminal.worker_id.as_str()
             && terminal_id.as_str() == target.terminal.terminal_id.as_str())
     );
     harness

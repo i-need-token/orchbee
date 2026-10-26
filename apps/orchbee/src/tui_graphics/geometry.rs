@@ -1,6 +1,6 @@
 //! Physical rectangles are clipped before lazy sampling of immutable source pixels.
 use crate::{terminal_graphics::placement, workbench_client::PaneGraphicsCanvas};
-use orchbee_workbench_protocol::{PaneGraphicsCellPixels, SiteId};
+use orchbee_workbench_protocol::{PaneGraphicsCellPixels, SessionId};
 use ratatui::layout::Rect;
 
 pub(super) const CANVAS_BOUND: usize = 64 * 1024 * 1024;
@@ -8,7 +8,7 @@ const IMAGE_BOUND: usize = 32 * 1024 * 1024;
 
 #[derive(Clone, Debug)]
 pub(super) struct Scene {
-    pub(super) site: SiteId,
+    pub(super) session: SessionId,
     pub(super) canvas: PaneGraphicsCanvas,
     body: Rect,
     cells: PaneGraphicsCellPixels,
@@ -17,7 +17,7 @@ pub(super) struct Scene {
 }
 impl Scene {
     pub(super) fn new(
-        site: &SiteId,
+        session: &SessionId,
         canvas: &PaneGraphicsCanvas,
         body: Rect,
         cells: PaneGraphicsCellPixels,
@@ -71,7 +71,7 @@ impl Scene {
             });
         }
         Some(Self {
-            site: site.clone(),
+            session: session.clone(),
             canvas: canvas.clone(),
             body,
             cells,
@@ -80,7 +80,7 @@ impl Scene {
         })
     }
     pub(super) fn scope_matches(&self, other: &Self) -> bool {
-        self.site == other.site
+        self.session == other.session
             && self.body == other.body
             && self.cells == other.cells
             && self.canvas.same_source_and_layers(&other.canvas)

@@ -1,14 +1,14 @@
 use super::*;
-use crate::{machine_discovery::Context, workbench_client::NativeContextLocation};
+use crate::{machine_discovery::Context, workbench_client::ClientContextLocation};
 use orchbee_workbench_protocol::*;
 mod anchoring;
 fn contexts(count: u64) -> Vec<Context> {
-    let site = SiteId::parse(&format!("{:032x}", 1)).unwrap();
+    let session = SessionId::parse(&format!("{:032x}", 1)).unwrap();
     (0..count)
         .map(|n| Context {
-            target: NativeContextTarget {
-                site_id: site.clone(),
-                location: NativeContextLocation::Workspace {
+            target: ClientContextTarget {
+                session_id: session.clone(),
+                location: ClientContextLocation::Workspace {
                     workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", n + 100))
                         .unwrap(),
                     terminal_context_id: WorkbenchTerminalContextId::parse(&format!(
@@ -148,7 +148,7 @@ fn git_checkpoint(revision: u64) -> std::sync::Arc<crate::machine_spaces::Checkp
     use crate::machine_spaces::{Checkpoint, Git, ProjectSummary, Row};
     let contexts = contexts(3);
     std::sync::Arc::new(Checkpoint {
-        site_id: contexts[0].target.site_id.clone(),
+        session_id: contexts[0].target.session_id.clone(),
         revision: WorkbenchRevision::new(revision),
         metadata_revision: WorkbenchRevision::new(revision),
         git_requested: true,
@@ -239,7 +239,7 @@ fn failed_and_missing_workspace_rounds_retain_git_groups_scroll_and_current_iden
             );
         }
         picker.observe_spaces(vec![(Choice::Local, Spaces::Ready(git_checkpoint(1)))]);
-        assert!(picker.workspace_checkpoint_covers(&current.site_id, WorkbenchRevision::new(2)));
+        assert!(picker.workspace_checkpoint_covers(&current.session_id, WorkbenchRevision::new(2)));
         picker.observe_spaces(vec![(Choice::Local, Spaces::Ready(git_checkpoint(3)))]);
         assert!(!picker.space_checkpoint_stale(&picker.workspace_rows[0]));
         picker.forget_space_observations(&Choice::Local);
@@ -273,7 +273,7 @@ fn only_authoritative_same_source_git_results_can_clear_or_replace_a_retained_br
         retained.rows[2].git.is_none(),
         "changed directories cannot inherit old Git facts"
     );
-    next.site_id = SiteId::parse(&format!("{:032x}", 9)).unwrap();
+    next.session_id = SessionId::parse(&format!("{:032x}", 9)).unwrap();
     assert!(next.retaining_git(&previous).rows[0].git.is_none());
 }
 #[test]
@@ -501,7 +501,7 @@ fn long_duplicate_workspace_results_keep_identity_suffix_and_directory_tail() {
         context.workspace = Some(crate::machine_discovery::display_label(long));
     }
     let checkpoint = std::sync::Arc::new(Checkpoint {
-        site_id: contexts[0].target.site_id.clone(),
+        session_id: contexts[0].target.session_id.clone(),
         revision: WorkbenchRevision::new(2),
         metadata_revision: WorkbenchRevision::new(2),
         git_requested: false,

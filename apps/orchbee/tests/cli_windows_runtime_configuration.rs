@@ -1,4 +1,4 @@
-//! Running-Site configuration CLI receipts through an actual Windows named-pipe peer.
+//! Running-Session configuration CLI receipts through an actual Windows named-pipe peer.
 #![cfg(windows)]
 #[allow(dead_code)]
 #[path = "support/windows_agent_peer.rs"]
@@ -64,8 +64,8 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
                 theme_name: orchbee_workbench_protocol::ConfigurationThemeName::TerminalNative,
                 notification_profile: "[ui.toast]\ndelivery='off'\n".into(),
                 agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
-                spaces_sidebar_profile:
-                    orchbee_local_site_runtime::WindowsSpaceSidebarSettings::default().profile(),
+                spaces_sidebar_profile: orchbee_local_runtime::SpaceSidebarSettings::default()
+                    .profile(),
                 window_title: if case == "en" {
                     "{tab}\n\u{202e}"
                 } else {
@@ -105,7 +105,7 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
                 &WorkbenchResponse::Configuration(ConfigurationResult {
                     protocol_version: ProtocolVersion,
                     request_id: request.request_id,
-                    site_id: request.site_id,
+                    session_id: request.session_id,
                     outcome,
                 }),
             )
@@ -211,7 +211,7 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
 }
 
 #[test]
-fn reload_does_not_activate_a_site_and_rejects_unrelated_flags_before_admission() {
+fn reload_does_not_activate_a_session_and_rejects_unrelated_flags_before_admission() {
     let fixture = Fixture::new();
     let _rendezvous = fixture.rendezvous();
     let output = fixture.run(&["server", "reload-config", "--format", "json"]);

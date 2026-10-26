@@ -103,7 +103,7 @@ fn panel_input_rejects_wrong_scope_stale_base_permission_and_capacity_atomically
     install_two_tabs(&mut authority);
     let before = snapshot(&mut authority, &grant);
     let request = command(1, 2, set(&before, 0, PanelRightClickTarget::Panel));
-    let reader = WorkbenchGrant::read_only(grant.site_id.clone());
+    let reader = WorkbenchGrant::read_only(grant.session_id.clone());
     assert!(matches!(
         submit(&mut authority, &reader, request.clone()).outcome,
         WorkbenchCommandOutcome::Denied {}

@@ -54,11 +54,11 @@ fn snapshot_with_root(tab_count: usize, revision: u64, root: PanelNode) -> Snaps
     snapshot
 }
 
-fn candidate_with_root(tab_count: usize, revision: u64, root: PanelNode) -> NativeContextTabs {
+fn candidate_with_root(tab_count: usize, revision: u64, root: PanelNode) -> ClientContextTabs {
     project_preferred_workspace(&snapshot_with_root(tab_count, revision, root)).unwrap()
 }
 
-fn baseline(tab_count: usize, revision: u64) -> NativeContextTabs {
+fn baseline(tab_count: usize, revision: u64) -> ClientContextTabs {
     candidate_with_root(tab_count, revision, baseline_root())
 }
 
@@ -130,7 +130,7 @@ fn rejected_split(root: PanelNode) {
     let candidate = candidate_with_root(1, 11, root);
     assert_eq!(
         validate_split_panel(&baseline, &split_expectation(), candidate),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }
 
@@ -139,7 +139,7 @@ fn rejected_move(root: PanelNode) {
     let candidate = candidate_with_root(1, 11, root);
     assert_eq!(
         validate_moved_panel(&baseline, &move_expectation(), candidate),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }
 
@@ -212,7 +212,7 @@ fn split_expectation_rejects_direction_and_orientation_mismatches() {
     let candidate = candidate_with_root(1, 11, split_candidate());
     assert_eq!(
         validate_split_panel(&baseline, &expected, candidate),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }
 
@@ -257,7 +257,7 @@ fn split_expectation_rejects_wrong_slot_and_split_identities() {
     let candidate = candidate_with_root(1, 11, split_candidate());
     assert_eq!(
         validate_split_panel(&baseline, &expected, candidate),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }
 
@@ -318,20 +318,20 @@ fn split_expectation_rejects_non_increment_and_stale_revisions() {
     let candidate = candidate_with_root(1, 12, split_candidate());
     assert_eq!(
         validate_split_panel(&baseline, &expected, candidate),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
     // A candidate older than the commit is rejected.
     let expected = split_expectation();
     let stale = candidate_with_root(1, 10, split_candidate());
     assert_eq!(
         validate_split_panel(&baseline, &expected, stale),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
     // A candidate that never applied the graft is rejected at the commit revision.
     let unchanged = candidate_with_root(1, 11, baseline_root());
     assert_eq!(
         validate_split_panel(&baseline, &expected, unchanged),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
     // A superseding candidate is accepted without the exact graft.
     let superseding = candidate_with_root(1, 12, baseline_root());
@@ -348,7 +348,7 @@ fn split_expectation_rejects_a_tab_at_a_different_index_and_divergent_siblings()
     let swapped = project_preferred_workspace(&swapped).unwrap();
     assert_eq!(
         validate_split_panel(&baseline, &expected, swapped),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
     // A sibling Tab diverged alongside the graft.
     let mut divergent = snapshot_with_root(2, 11, split_candidate());
@@ -356,7 +356,7 @@ fn split_expectation_rejects_a_tab_at_a_different_index_and_divergent_siblings()
     let divergent = project_preferred_workspace(&divergent).unwrap();
     assert_eq!(
         validate_split_panel(&baseline, &expected, divergent),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }
 
@@ -463,13 +463,13 @@ fn move_expectation_rejects_non_increment_and_stale_revisions() {
     let candidate = candidate_with_root(1, 12, move_candidate());
     assert_eq!(
         validate_moved_panel(&baseline, &expected, candidate),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
     let expected = move_expectation();
     let stale = candidate_with_root(1, 10, move_candidate());
     assert_eq!(
         validate_moved_panel(&baseline, &expected, stale),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
     let superseding = candidate_with_root(1, 12, baseline_root());
     assert!(validate_moved_panel(&baseline, &expected, superseding).is_ok());
@@ -484,14 +484,14 @@ fn move_expectation_rejects_a_tab_at_a_different_index_and_divergent_siblings() 
     let swapped = project_preferred_workspace(&swapped).unwrap();
     assert_eq!(
         validate_moved_panel(&baseline, &expected, swapped),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
     let mut divergent = snapshot_with_root(2, 11, move_candidate());
     divergent.terminal_contexts[0].tabs[1].root = panel(1_011, 1_099, 1_013, 1_014, "2");
     let divergent = project_preferred_workspace(&divergent).unwrap();
     assert_eq!(
         validate_moved_panel(&baseline, &expected, divergent),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }
 
@@ -526,7 +526,7 @@ fn nested_root() -> PanelNode {
     )
 }
 
-fn nested_baseline(tab_count: usize, revision: u64) -> NativeContextTabs {
+fn nested_baseline(tab_count: usize, revision: u64) -> ClientContextTabs {
     candidate_with_root(tab_count, revision, nested_root())
 }
 
@@ -643,7 +643,7 @@ fn rejected_nested_split(root: PanelNode) {
     let candidate = candidate_with_root(1, 11, root);
     assert_eq!(
         validate_split_panel(&baseline, &split_expectation(), candidate),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }
 
@@ -652,7 +652,7 @@ fn rejected_nested_move(root: PanelNode) {
     let candidate = candidate_with_root(1, 11, root);
     assert_eq!(
         validate_moved_panel(&baseline, &move_expectation(), candidate),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }
 
@@ -804,7 +804,7 @@ fn split_expectation_rejects_nested_wrong_members_positions_and_identities() {
     let candidate = candidate_with_root(1, 11, nested_root());
     assert_eq!(
         validate_split_panel(&baseline, &expected, candidate),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }
 
@@ -886,7 +886,7 @@ fn split_expectation_distinguishes_exact_and_superseding_revisions() {
     let at_commit = candidate_with_root(1, 11, nested_split_source_closed_root());
     assert_eq!(
         validate_split_panel(&baseline, &expected, at_commit),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
     // r12: one peer close removes the source leaf; the committed graft
     // collapses and the added leaf retains slot 2_101. That exact three-leaf
@@ -912,7 +912,7 @@ fn move_expectation_distinguishes_exact_and_superseding_revisions() {
     let at_commit = candidate_with_root(1, 11, nested_closed_source_root());
     assert_eq!(
         validate_moved_panel(&baseline, &expected, at_commit),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
     // r12: one peer close of the moved leaf collapses the committed graft and
     // leaf_b keeps slot 2_002 — reachable in a single close because a move
@@ -942,11 +942,11 @@ fn superseding_candidates_still_reject_mutated_members_and_structure() {
     );
     assert_eq!(
         validate_split_panel(&baseline, &split, mutated_member.clone()),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
     assert_eq!(
         validate_moved_panel(&baseline, &moved, mutated_member),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
     // The inner Split survives but its orientation flipped: structure-tuple
     // retention rejects it even though every member tuple is intact.
@@ -971,10 +971,10 @@ fn superseding_candidates_still_reject_mutated_members_and_structure() {
     );
     assert_eq!(
         validate_split_panel(&baseline, &split, flipped_structure.clone()),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
     assert_eq!(
         validate_moved_panel(&baseline, &moved, flipped_structure),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }

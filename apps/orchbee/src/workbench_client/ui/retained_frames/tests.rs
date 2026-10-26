@@ -1,4 +1,4 @@
-use super::super::{ClientAction, ClientActionDisposition, NativeDisplayPhase, NativeUi};
+use super::super::{ClientAction, ClientActionDisposition, DisplayPhase, WorkbenchClientUi};
 use super::*;
 use crate::workbench_client::state::ControllerMode;
 
@@ -53,7 +53,7 @@ fn retained_renderer_has_no_cursor_selection_graphics_input_or_ack() {
     projection.selection = Some(selection);
     let mut terminal = Terminal::new(TestBackend::new(120, 32)).unwrap();
     let theme = Theme::rgb_test_dark();
-    let mut receipt = crate::workbench_client::NativeDrawReceipt::default();
+    let mut receipt = crate::workbench_client::DrawReceipt::default();
     terminal
         .draw(|frame| {
             receipt = crate::tui_render::render_terminal_shell(
@@ -110,7 +110,7 @@ fn retained_renderer_has_no_cursor_selection_graphics_input_or_ack() {
             .is_some()
     );
     let mut hits = HitMapBuilder::new();
-    let mut receipt = crate::workbench_client::NativeDrawReceipt::default();
+    let mut receipt = crate::workbench_client::DrawReceipt::default();
     terminal
         .draw(|frame| {
             receipt = crate::tui_render::render_terminal_shell(
@@ -178,7 +178,7 @@ fn revisiting_a_tab_paints_its_own_pixels_without_reusing_input_or_feedback() {
         ui.select_tab(ClientAction::SelectTab(1)),
         ClientActionDisposition::DismissNavigator
     );
-    assert_eq!(ui.view().phase(), NativeDisplayPhase::Switching);
+    assert_eq!(ui.view().phase(), DisplayPhase::Switching);
     assert!(ui.view().pane_projection(&panel).is_none());
     assert_eq!(
         ui.view().retained_pane_frame(&panel, 80, 24).unwrap().rows[0].cells[0]
@@ -247,7 +247,7 @@ fn blocked_projection_drops_cached_pixels_before_another_draw() {
         .unwrap();
     ui.tick();
     assert!(ui.retained_frames.entries.is_empty());
-    assert_eq!(ui.projections[0].status, NativeProjectionStatus::Blocked);
+    assert_eq!(ui.projections[0].status, ClientProjectionStatus::Blocked);
 }
 
 #[test]
@@ -355,8 +355,8 @@ fn retained_images_have_count_and_byte_bounds_and_never_truncate() {
 }
 
 fn ready_for_retained_handoff(
-    cache: crate::workbench_client::workbench_projection::NativeContextTabs,
-) -> NativeUi {
+    cache: crate::workbench_client::workbench_projection::ClientContextTabs,
+) -> WorkbenchClientUi {
     use crate::{
         local_client::tests::server::adjustable_operation_clock,
         workbench_client::mailbox::{CommandMailbox, EventDeadline, WorkerEvent},
@@ -370,7 +370,7 @@ fn ready_for_retained_handoff(
         10,
         Geometry::new(80, 24, 8, 16).unwrap(),
     ));
-    let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    let mut ui = WorkbenchClientUi::new(Arc::clone(&mailbox), clock.clone());
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {
@@ -395,14 +395,14 @@ fn ready_for_retained_handoff(
 }
 
 fn identity_at(
-    cache: &crate::workbench_client::workbench_projection::NativeContextTabs,
+    cache: &crate::workbench_client::workbench_projection::ClientContextTabs,
     tab_index: usize,
 ) -> Identity {
     let tab = &cache.tabs()[tab_index];
     let panel = tab.panel(0).unwrap();
     let presentation = panel.primary();
     Identity {
-        site: cache.site_id().clone(),
+        session: cache.session_id().clone(),
         context: cache.terminal_context_id().unwrap().clone(),
         tab: tab.tab_id().clone(),
         panel: panel.panel_id().clone(),
@@ -553,13 +553,13 @@ fn inherited_pixels_reject_wrong_binding_and_known_host_epoch() {
             .is_none()
     );
 
-    let mut wrong_site = RetainedFrames::default();
+    let mut wrong_session = RetainedFrames::default();
     let mut foreign_identity = alpha_one.clone();
-    foreign_identity.site = SiteId::parse("88888888888888888888888888888888").unwrap();
-    wrong_site.retain(foreign_identity, marked_frame(&template, "wrong-site"));
-    let mut wrong_site_ui = ready_for_retained_handoff(alpha.clone());
-    wrong_site_ui.inherit_retained_frame_bank(wrong_site.into());
-    assert!(wrong_site_ui.retained_frames.entries.is_empty());
+    foreign_identity.session = SessionId::parse("88888888888888888888888888888888").unwrap();
+    wrong_session.retain(foreign_identity, marked_frame(&template, "wrong-session"));
+    let mut wrong_session_ui = ready_for_retained_handoff(alpha.clone());
+    wrong_session_ui.inherit_retained_frame_bank(wrong_session.into());
+    assert!(wrong_session_ui.retained_frames.entries.is_empty());
 
     let mut stale_epoch_frame = (*template).clone();
     stale_epoch_frame.route.host_epoch =
@@ -576,7 +576,7 @@ fn inherited_pixels_reject_wrong_binding_and_known_host_epoch() {
         "without a live Host epoch, exact canonical pixels remain a safe placeholder"
     );
     super::super::tests::viewport::install_projection(&mut stale_epoch_ui, None, 0);
-    stale_epoch_ui.projections[0].status = NativeProjectionStatus::WaitingForFullFrame;
+    stale_epoch_ui.projections[0].status = ClientProjectionStatus::WaitingForFullFrame;
     assert!(
         stale_epoch_ui
             .view()

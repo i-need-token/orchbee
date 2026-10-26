@@ -157,7 +157,7 @@ proving every old exact process gone under all required guards; live, incomplete
 records remain `rejected`/`recovery-required`. Recovery preserves checkpoint data and never terminates
 old processes. A fresh activation publishes catalog v5 before marker, Server or checkpoint-store
 publication; readers limited to v1–v4 refuse v5 without changing its bytes. The
-[Windows recovery contract](../../crates/local-site-runtime/docs/windows-crash-recovery.md)
+[Windows recovery contract](../../crates/local-runtime/docs/windows-crash-recovery.md)
 owns those boundaries. `server diagnose` is the read-only complement: it reports
 bounded facts about the runtime directory, marker, locks, and finite endpoint paths — each
 a closed-state row at its own observation instant — under one cooperative 5-second budget,
@@ -217,7 +217,7 @@ Build with the repository's pinned Rust and Zig toolchains and Node.js. Run this
 root in PowerShell; the output directory must be new, and its parent must already exist:
 
 ```powershell
-node scripts/stage-native-site.mjs --output "$env:LOCALAPPDATA\OrchbeeNative"
+node scripts/stage-local-runtime.mjs --output "$env:LOCALAPPDATA\OrchbeeNative"
 & "$env:LOCALAPPDATA\OrchbeeNative\orchbee.exe"
 ```
 
@@ -281,11 +281,11 @@ installation, release signing, automatic application updates, and live Host adop
 Build a new development cohort from the repository root:
 
 ```sh
-node scripts/stage-native-site.mjs --output /tmp/orchbee-native-dev
+node scripts/stage-local-runtime.mjs --output /tmp/orchbee-native-dev
 # From a Windows host using WSL Linux:
-node scripts/stage-native-site.mjs --wsl Ubuntu --output /tmp/orchbee-native-dev
+node scripts/stage-local-runtime.mjs --wsl Ubuntu --output /tmp/orchbee-native-dev
 # On Apple Silicon macOS:
-node scripts/stage-native-site.mjs --output /private/tmp/orchbee-native-dev
+node scripts/stage-local-runtime.mjs --output /private/tmp/orchbee-native-dev
 ```
 
 Then run the staged `orchbee` in an interactive terminal (`/tmp/orchbee-native-dev/orchbee` on
@@ -299,7 +299,7 @@ Cargo build cache. This stages a development cohort without installing a system 
 The default Session is `/tmp/orchbee-native-<effective-uid>` on Linux and
 `/private/tmp/orchbee-native-<effective-uid>` on macOS. Development/tests can isolate a Session by
 setting `ORCHBEE_RUNTIME_BASE` to another existing absolute directory on an admitted local filesystem.
-The [shared runtime contract](../../crates/local-site-runtime/README.md) owns the 0700 directory,
+The [shared runtime contract](../../crates/local-runtime/README.md) owns the 0700 directory,
 0600 locks/sockets/immutable attempt marker, exact four-executable cohort with its declared
 adapters sidecar, shared 20-second deadline,
 and delayed 500-ms progress notice. Server + Worker readiness and first terminal frame readiness
@@ -672,7 +672,7 @@ Only help/version/usage one-shot routes use standard-library arguments, environm
 ## POSIX local Session rendezvous foundation
 
 Shared ownership and the complete primitive modeling record are maintained by
-[local-site-runtime](../../crates/local-site-runtime/README.md); the application keeps no duplicate implementation.
+[local-runtime](../../crates/local-runtime/README.md); the application keeps no duplicate implementation.
 
 ## Accepted local Session activation modeling record
 
@@ -686,9 +686,9 @@ Shared ownership and the complete primitive modeling record are maintained by
 | Decisions    | Invocation kind determines whether Session work is permitted. Connection observation distinguishes direct success, absent activation, incompatible failure, and partial-cohort failure. After absence, lock ownership distinguishes launcher from waiter; a lock winner rechecks Session state before launching. Typed readiness, typed failure, or the Client-owned total deadline settles each waiter. Deadline observation may win until connection completes.                                  |
 | Model        | A bounded workflow over exactly two Client slots and four supported initial Session classes. One scalar `activationOwner` models `activation.lock`; `launchCount` and `launchedCohort` expose singleton exact-cohort launch; `serviceLifetimeOwner` distinguishes the ready Session from every Client. External launcher/readiness actions are nondeterministic and have no fairness assumption.                                                                                                   |
 | Transitions  | `idle -> connecting -> connected` for a present compatible Session; `connecting -> failed` for present incompatible or partial state; `connecting -> lock-ready -> lock-held -> waiting-readiness` for the launch winner; `lock-ready -> waiting-readiness` for contention; waiting or recheck states settle as connected or one typed failure; `connected -> exited` preserves Session state. Help/version go directly from `idle` to information completion.                                     |
-| Dependencies | The model composes the accepted command contract with the current private `LocalClient` admission boundary and `ModeCheckedLocalSiteRendezvous` lock semantics only at their named abstractions. Future runtime refinement must supply installation-owned cohort selection, typed readiness, and one monotonic total deadline. This slice adds no process, socket, filesystem, localization, or public-command implementation.                                                                     |
+| Dependencies | The model composes the accepted command contract with the current private `LocalClient` admission boundary and `ModeCheckedLocalSessionRendezvous` lock semantics only at their named abstractions. Future runtime refinement must supply installation-owned cohort selection, typed readiness, and one monotonic total deadline. This slice adds no process, socket, filesystem, localization, or public-command implementation.                                                                  |
 | Ownership    | `apps/orchbee` owns the Client bootstrap workflow, deadline, activation guard, and typed Client result. Installation composition owns the exact cohort capability. Server and Worker own their readiness and service lifetimes after success. The model grants no Client authority to supervise, stop, replace, downgrade, clean up, or recover a Session.                                                                                                                                         |
-| Verification | Startup state, deadline and real-process tests cover supported initial Session classes, competing Clients, exact-cohort launch, existing service preservation and failure settlement. The shared LocalSiteStartup core supplies only its separately declared bounded protocol evidence.                                                                                                                                                                                                            |
+| Verification | Startup state, deadline and real-process tests cover supported initial Session classes, competing Clients, exact-cohort launch, existing service preservation and failure settlement. The shared LocalSessionStartup core supplies only its separately declared bounded protocol evidence.                                                                                                                                                                                                         |
 | Correctness  | Claims LA-01 through LA-05 remain behavioral requirements for startup and admission. Controlled deadline and process traces must demonstrate settlement without assuming an external process responds. The retired activation workflow supplies no current TLC proof.                                                                                                                                                                                                                              |
 | Limits       | The abstraction proves only the checked two-Client, one-Session state space. It does not prove runtime refinement, operating-system scheduling, process creation or detachment, daemonization, service-manager behavior, runtime base or scope, ACLs, socket metadata, cleanup, recovery, retry, update, a concrete deadline or progress threshold, localization, TUI behavior, packaging, public wiring, or external process progress.                                                            |
 
@@ -704,7 +704,7 @@ Shared ownership and the complete primitive modeling record are maintained by
 | Pending Client       | Typed result or total deadline is observed                              | Connect or return `incompatible`, `partial-cohort`, `launcher-failure`, or `timeout`; release any caller-owned activation guard |
 | Connected Client     | Client exits                                                            | End only the Client Connection; preserve Session, cohort, readiness, launch, and service-lifetime state                         |
 
-This model abstracts runtime refinement; `LocalSiteStartup` supplies the concrete startup safety case.
+This model abstracts runtime refinement; `LocalSessionStartup` supplies the concrete startup safety case.
 Future wiring must add deterministic process tests before claiming the model maps to implementation.
 
 | Claim                                                                                                       | Bound                                                                                                                                                       |
@@ -782,7 +782,7 @@ cargo test -p orchbee --all-targets --all-features --locked
 cargo clippy -p orchbee --all-targets --all-features --locked -- -D warnings
 node scripts/tla/check-inventory.mjs
 node scripts/tla/run-models.mjs --workspace apps/orchbee
-node scripts/tla/run-models.mjs --models local-site-startup
+node scripts/tla/run-models.mjs --models local-session-startup
 cargo tree -p orchbee --target x86_64-pc-windows-msvc --locked
 pnpm verify
 ```

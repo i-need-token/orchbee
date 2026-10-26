@@ -11,7 +11,7 @@ mod windows;
 #[cfg(windows)]
 use orchbee_workbench_protocol::{
     AgentManifestsAction, AgentManifestsFailure, AgentManifestsOperation, AgentManifestsOutcome,
-    AgentManifestsResult, SiteId, WorkbenchRequestId, WorkbenchResponse,
+    AgentManifestsResult, SessionId, WorkbenchRequestId, WorkbenchResponse,
 };
 #[cfg(windows)]
 enum Observation {
@@ -21,7 +21,7 @@ enum Observation {
 #[cfg(windows)]
 struct Answer {
     request_id: WorkbenchRequestId,
-    site_id: SiteId,
+    session_id: SessionId,
     action: AgentManifestsAction,
     observation: Observation,
     interrupted: bool,
@@ -51,7 +51,7 @@ impl Answer {
                     .or_insert(serde_json::Value::Null);
             }
         }
-        serde_json::json!({"schema":"orchbee.server.agent-manifests","version":1,"requestId":self.request_id,"sessionId":self.site_id,"action":self.action,"observation":observation,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed})
+        serde_json::json!({"schema":"orchbee.server.agent-manifests","version":1,"requestId":self.request_id,"sessionId":self.session_id,"action":self.action,"observation":observation,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed})
     }
     fn exit_code(&self) -> u8 {
         let failure = match &self.observation {
@@ -114,7 +114,7 @@ impl Answer {
             None => 0,
             Some(
                 AgentManifestsFailure::Denied
-                | AgentManifestsFailure::SiteMismatch
+                | AgentManifestsFailure::SessionMismatch
                 | AgentManifestsFailure::Busy
                 | AgentManifestsFailure::ResourceLimit
                 | AgentManifestsFailure::NotFound

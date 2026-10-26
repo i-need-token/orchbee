@@ -7,11 +7,11 @@
 //!
 //! Environment discipline: each probe runs a private copy of the just-built
 //! binary staged inside an exclusively created mode-0700 directory that holds
-//! nothing else — `NativeCohort::current` inspects the running executable's
+//! nothing else — `Cohort::current` inspects the running executable's
 //! siblings, so a `cohort.json` left beside the build-tree original by a
 //! developer or a staging step can never ride into the oracle.
 //! `ORCHBEE_RUNTIME_BASE` points at a freshly minted empty directory with no
-//! Site inside. Any argv the grammar admits must therefore stop at the
+//! Session inside. Any argv the grammar admits must therefore stop at the
 //! cohort safety check — `check-failed` at stage `cohort`, exit 1 — so a `2`
 //! exit can only come from the parser. Negative controls already pass
 //! because unknown words are grammar failures too.
@@ -71,17 +71,17 @@ const SEND_KEYS: &[&str] = &[
     "ctrl+d",
 ];
 
-/// A minted, exclusively-created, mode-0700 runtime base with no Site inside:
+/// A minted, exclusively-created, mode-0700 runtime base with no Session inside:
 /// the explicit unavailable-runtime environment for every probe.
 fn base() -> PathBuf {
     support::runtime_base("grammar-witness")
 }
 
 /// The owned directory holding exactly one file — a private copy of the
-/// just-built `orchbee`. `NativeCohort::current` resolves the running
+/// just-built `orchbee`. `Cohort::current` resolves the running
 /// executable's parent and opens `cohort.json` there, so a cohort staged
 /// beside the build-tree original would silently ride into the oracle: the
-/// same admitted argv could pass the cohort check and fail at Site discovery
+/// same admitted argv could pass the cohort check and fail at Session discovery
 /// instead, no longer proving grammar admission. Staging the copy makes the
 /// empty-siblings invariant explicit rather than assumed. Dropping removes
 /// the directory; every child spawned from the copy is already reaped by
@@ -240,7 +240,7 @@ fn usage_json_kind(probe: &Probe, arguments: &[&str], kind: &str) {
 }
 
 /// Per-path help answers with zero runtime: exit 0 and a non-empty body even
-/// though no cohort or Site exists.
+/// though no cohort or Session exists.
 fn help_ok(probe: &Probe, arguments: &[&str]) {
     let output = run(probe, arguments);
     assert_eq!(output.status.code(), Some(0), "{arguments:?}");

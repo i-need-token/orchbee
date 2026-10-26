@@ -1,7 +1,7 @@
 //! Bounded Windows OpenSSH preparation. User OpenSSH configuration remains authoritative.
 use super::{Context, Error, Remote};
 use crate::machines::Draft;
-use orchbee_local_site_runtime::{WindowsCommandFailure, run_windows_command};
+use orchbee_local_runtime::{CommandFailure, run_windows_command};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
@@ -86,10 +86,10 @@ pub(super) fn exchange(
         context.interrupted()
     });
     match result.failure {
-        Some(WindowsCommandFailure::Cancelled) => return Err(Error::Cancelled),
-        Some(WindowsCommandFailure::Timeout) => return Err(Error::Timeout),
-        Some(WindowsCommandFailure::PhysicalUnknown) => return Err(Error::PhysicalUnknown),
-        Some(WindowsCommandFailure::SpawnUnavailable) => return Err(Error::SshUnavailable),
+        Some(CommandFailure::Cancelled) => return Err(Error::Cancelled),
+        Some(CommandFailure::Timeout) => return Err(Error::Timeout),
+        Some(CommandFailure::PhysicalUnknown) => return Err(Error::PhysicalUnknown),
+        Some(CommandFailure::SpawnUnavailable) => return Err(Error::SshUnavailable),
         Some(_) => return Err(Error::SshFailed),
         None => {}
     }

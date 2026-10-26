@@ -144,8 +144,8 @@ journal 无法衔接调用方 revision 时，以一条完整 snapshot 边界 pub
 
 ## 托管 Linux 与 macOS 会话 启动
 
-私有 `--local-site <absolute-runtime-directory>` 入口消费
-[共享运行时契约](../../crates/local-site-runtime/README.zh-CN.md)。
+私有 `--runtime-directory <absolute-runtime-directory>` 入口消费
+[共享运行时契约](../../crates/local-runtime/README.zh-CN.md)。
 Server 先校验四产物 cohort 与运行时及不可变激活标记，再独占持有生命周期锁，
 以 `setsid` 脱离 Client 的终端会话。Linux 使用 no-replace 方式绑定并发布 0600 Worker socket；
 macOS 在私有运行时目录中直接绑定最终 socket 路径，设置 `0600`，并验证路径是由当前
@@ -288,7 +288,7 @@ Client framing 和连接适配器。独立的
 | 决策   | Invocation validity、peer-user equality、frame validity、protocol/cohort equality、预期 Worker message kind、active-Worker absence 与 matching cleanup generation 完全决定结果。Current directory、Project、Environment、Worktree、Agent 与 Terminal fact 均不参与。                                               |
 | 模型   | Deterministic Worker registry 拥有 admission 与 generation-scoped disconnect。薄同步 Unix-socket workflow 负责 authenticate、decode、admit 或 reject、acknowledge，并 monitor accepted connection。                                                                                                                |
 | 转换   | `absent -> listening`；candidate `none -> pending -> admitted/rejected/timed-out`；Worker `none -> active(generation) -> none`；Server `listening -> stopped`。第二次 bind 被拒绝，stale cleanup 对其他 generation 是幂等 no-op。                                                                                  |
-| 依赖   | Rust standard-library process、filesystem、Unix socket、timeout、thread 与 I/O，加私有 local-site protocol 和 kernel peer-credential crate。没有 terminal、child process、network socket、async runtime、persistence、environment lookup 或 randomness。                                                           |
+| 依赖   | Rust standard-library process、filesystem、Unix socket、timeout、thread 与 I/O，加私有 local-worker protocol 和 kernel peer-credential crate。没有 terminal、child process、network socket、async runtime、persistence、environment lookup 或 randomness。                                                         |
 | 验证   | Pure codec 与 registry test；macOS/Linux 原生 same-user socket-pair test；覆盖 bind、readiness、admission、duplicate/incompatible rejection、disconnect 后 replacement、Server loss、malformed peer、确切 output 与 cleanup bound 的真实 Server/Worker process test。这些实现轨迹不构成穷尽的 admission 协议证明。 |
 | 限制   | 本 Worker evidence 覆盖同一 effective user 下的 macOS 与 Linux。它不证明 Windows behavior、cross-user negative execution、production endpoint discovery、crash cleanup、service activation、Client Connection semantic、terminal retention 或 remote security。                                                    |
 
@@ -314,7 +314,7 @@ evidence，但不规定 OBCS business policy。
 | 决策   | Wrong-Worker 与 wrong-generation routing 在 enqueue 前 reject，且不 retire owner。Stale handle（包括没有 active generation 时）返回 known unchanged/unavailable。Capacity 是一条 submitted request 加一条 wire request；新鲜的第三条合法 request 记录 backpressure 且不改变两个 occupied slot。`CompleteRequestWrite` 是 ambiguity boundary，并在 request-write deadline 后安装新的 result-read deadline。Local time advancement 与 expiry 让 silent peer settle；response 与 disconnect arrival 没有 fairness assumption。`RetireCarrier` 关闭 generation gate：之后不能继续 write 或新观察 exact response；若 exact result 先被观察则仍可 publish。Replacement 要求每个旧 completion 与 publication 已 settle。 |
 | 模型   | carrier 状态所有者分离 registry identity、cloneable request-handle authority、queue occupancy、sole wire ownership、write completion、actual response arrival、local validation、deadline expiry、publication、retirement 与 cleanup。`ReceiveExactWorkerResult` 验证并保留 `incomingResponse`，不会构造一个 matching result。该模型细化 post-OBLW boundary 与 OBCN semantic contract，而不重新实现任一 byte codec。                                                                                                                                                                                                                                                                                              |
 | 转换   | `ActivateCarrier` 发布一个 generation；`SubmitFirstLaunch`、`SubmitSecondLaunch` 与 `SubmitStart` 覆盖不同 candidate；`DequeueRequest` 将一个 value 移给 owner；`CompleteRequestWrite` 跨过 ambiguity boundary；`AdvanceMonotonicTime` 使 write 前后 expiry 生效；exact arrival 与针对每种 mismatch class 的具名 arrival action 填充 `incomingResponse`；`ReceiveExactWorkerResult` 或 `RejectMismatchedWorkerResult` 验证它；disconnect action 覆盖 idle、before-write、after-write、queued-after-write 与 after-result ordering；publication、late-result discard、replacement、stale rejection 与 generation-matched cleanup 完成 retained state。                                                             |
-| 依赖   | Target 将现有 Server Worker registry 和 post-`WorkerAccepted` stream 与私有 local-site/capability-node protocol contract 组合起来。Local-site protocol 拥有 OBLW framing，capability-node protocol 拥有 OBCN value 与 strict framing，carrier 负责组合二者。OBCS mapping、authorization decision、Host dispatch、terminal retention、persistence、endpoint discovery 与 remote ingress 均不参与。                                                                                                                                                                                                                                                                                                                 |
+| 依赖   | Target 将现有 Server Worker registry 和 post-`WorkerAccepted` stream 与私有 local-worker/capability-node protocol contract 组合起来。Local-worker protocol 拥有 OBLW framing，capability-node protocol 拥有 OBCN value 与 strict framing，carrier 负责组合二者。OBCS mapping、authorization decision、Host dispatch、terminal retention、persistence、endpoint discovery 与 remote ingress 均不参与。                                                                                                                                                                                                                                                                                                             |
 | 所有权 | Server registry 拥有 current Worker generation 与 request-handle publication。一个等价于 `WorkerWireOwner` 的 owner 排他拥有 stream read/write 与 queue draining；request-handle clone 只能 submit。Codec 拥有 byte validity，Worker 拥有 semantic OBCN result，后续 Server policy owner（而非本 carrier）拥有 authorization、reconciliation，或对另一项已证明 known-unchanged operation 的任何 permitted retry。                                                                                                                                                                                                                                                                                                 |
 | 验证   | carrier 测试覆盖准确关联、响应字段/payload 不匹配、各写入侧过期、断开顺序、过期 handle、替换门控、清理及已占队列容量。确定性时钟检查本地结算；不保留独立 carrier TLA 证明。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | 限制   | 这是 bounded formal evidence，而不是 runtime-refinement evidence。它把 complete-frame write 抽象成一个 boundary，并使用 one-tick finite write/read deadline 而非 concrete duration；它不证明 partial-I/O code、system clock implementation、thread scheduling、panic cleanup、OS behavior、codec correctness、OBCS-to-OBCN policy、Host effect、durable recovery，或其他 authorized owner 是否应 retry 一条 known-unchanged request。两个串行 phase deadline 对应 configured write timeout 加 response timeout。                                                                                                                                                                                                  |
@@ -523,17 +523,17 @@ surrogate，排入显式 `server-busy` result，并保留原 reservation。
 该应用负责原生本地 Workbench 权威、Workspace membership、private projection、Worker 与 Client registry、OBCN carrier、terminal-intent coordination 及 Connection viewer/controller relay。保留的本地 Desktop composition 有独立 Workbench writer。生产 Browser ingress 仍是未来能力，本次旧链路退役不引入替代服务。
 
 可导入的 authority boundary 是 `src/lib.rs`；`src/main.rs` 组合私有 binary。穷尽的 lateral 方向为
-`local_site_service -> worker_registry`、`worker_obcn_carrier`、`local_client_service::start`
+`local_worker_service -> worker_registry`、`worker_obcn_carrier`、`local_client_service::start`
 和 `local_terminal_service`；`local_client_service -> client_connection_registry`、
 `local_terminal_service`、`workbench_service` 及其私有 `application_connection`；
 `workbench_service -> local_terminal_service`；
-`local_terminal_service -> site_coordinator`、`WorkbenchAuthority`、`terminal_coordinator` 值类型、`worker_registry`
-和 `worker_obcn_carrier`；`site_coordinator -> WorkbenchAuthority` 和 `terminal_coordinator`；
+`local_terminal_service -> session_coordinator`、`WorkbenchAuthority`、`terminal_coordinator` 值类型、`worker_registry`
+和 `worker_obcn_carrier`；`session_coordinator -> WorkbenchAuthority` 和 `terminal_coordinator`；
 `workbench_authority -> workbench_projection`；以及 `worker_registry -> worker_obcn_carrier`。
-Service 在锁外构造 Workbench 权威。SiteCoordinator 拥有 Workspace 终端创建流程、确切 binding selection 和共享提交边界，
+Service 在锁外构造 Workbench 权威。SessionCoordinator 拥有 Workspace 终端创建流程、确切 binding selection 和共享提交边界，
 组合两个 core，但不接管它们各自的事实。
 
-终端 coordinator 的私有 `outcomes` 子模块拥有 Worker observation 投影。SiteCoordinator 私有 `tab_create` 子模块通过绑定来源、消耗所有权的令牌组合命令的共同准备与结算；`terminal_selection` 组合 canonical exposure、
+终端 coordinator 的私有 `outcomes` 子模块拥有 Worker observation 投影。SessionCoordinator 私有 `tab_create` 子模块通过绑定来源、消耗所有权的令牌组合命令的共同准备与结算；`terminal_selection` 组合 canonical exposure、
 保留目标解析和 attachment identity 准备。WorkbenchAuthority 的
 `terminal_binding_selection` 子模块拥有只读 canonical exposure query；`terminal_tab_create`
 拥有命令接纳、准备后的成员关系、预留账本字节及结算。
@@ -590,7 +590,7 @@ Client 读取规范成员并附着其准确绑定。不存在 `terminal.open` �
 
 ## Windows 原生 会话
 
-Windows 托管 会话 保留现有内存权威和生命周期锁。它准入当前令牌用户的命名管道对端，并禁用句柄继承来启动精确的同级 `orchbee-worker.exe`，使 CLI 输出捕获可独立于保留的 会话 结束。运行时路径、ACL、锁、标记及 cohort 校验仍由 `orchbee-local-site-runtime` 负责。Windows 观察入口无需 Unix 半关闭即可接收一个有界完整 JSON 值；畸形连接不会中断其他客户端。此入口适配器不移植 Unix provider hooks。可用命令面及剩余限制见 [Client 快速开始](../orchbee/README.zh-CN.md#windows-原生快速开始)。
+Windows 托管 会话 保留现有内存权威和生命周期锁。它准入当前令牌用户的命名管道对端，并禁用句柄继承来启动精确的同级 `orchbee-worker.exe`，使 CLI 输出捕获可独立于保留的 会话 结束。运行时路径、ACL、锁、标记及 cohort 校验仍由 `orchbee-local-runtime` 负责。Windows 观察入口无需 Unix 半关闭即可接收一个有界完整 JSON 值；畸形连接不会中断其他客户端。此入口适配器不移植 Unix provider hooks。可用命令面及剩余限制见 [Client 快速开始](../orchbee/README.zh-CN.md#windows-原生快速开始)。
 
 ## 目录工作区启动
 
@@ -732,4 +732,4 @@ GUI、TUI／模拟器或完整 cohort 验收。Client overlay 和公开 CLI 入�
 
 规范分割比例由原生 Client 共享并保存在 checkpoint v6，catalog v5 负责准入。[检查点契约](docs/workbench-checkpoint.zh-CN.md) 负责版本 1–5 的严格迁移；[共享比例契约](docs/shared-split-ratios.zh-CN.md) 负责比例修改、投影与兼容性。
 
-<!-- documentation-pairing: english-sha256=6ff09273d4a540b7d180d2525268cded43e34e62b48be077cc88c7324473e0a2 zh-cn-sha256=97ef7772bda76c0490b588661bcf723c21f14f2b919df1c32228d886ccda05e6 -->
+<!-- documentation-pairing: english-sha256=2e2b6ef7ca06f01fe99169147d92a745ae4b468f3e4ea9693e2dbe2d6970b955 zh-cn-sha256=46d16bbcea392d8c605ddaca5f06789b47e4addfadc5be588900b5ab5d647501 -->

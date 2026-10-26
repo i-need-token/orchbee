@@ -1,4 +1,4 @@
-//! Existing-Site, exact-target, one-shot clear; submitted uncertainty is never replayed.
+//! Existing-Session, exact-target, one-shot clear; submitted uncertainty is never replayed.
 use super::{
     Failure, FailureKind, Output, failure_output, output, query, results,
     source::{ArmedSignals, Finish, SignalWatch},

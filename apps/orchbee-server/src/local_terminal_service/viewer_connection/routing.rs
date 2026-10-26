@@ -42,7 +42,7 @@ impl LocalTerminalConnection<'_> {
                 return self.attach(issued);
             }
             Action::AttachBinding {
-                site_id,
+                session_id,
                 worker_id,
                 terminal_id,
             } => {
@@ -51,7 +51,7 @@ impl LocalTerminalConnection<'_> {
                 }
                 let issued = self
                     .service
-                    .issue_binding_viewer(site_id, worker_id, terminal_id);
+                    .issue_binding_viewer(session_id, worker_id, terminal_id);
                 return self.attach(issued);
             }
             Action::Poll { .. }

@@ -3,7 +3,7 @@ use super::*;
 fn closed_projection_requires_exact_scope_minimum_revision_and_target_absence() {
     let current = projected(2, 10);
     let expected = ClosedTabExpectation::new(
-        current.site_id().clone(),
+        current.session_id().clone(),
         current.terminal_context_id().unwrap().clone(),
         current.tabs()[0].tab_id().clone(),
         WorkbenchRevision::new(12),
@@ -25,33 +25,33 @@ fn closed_projection_requires_exact_scope_minimum_revision_and_target_absence() 
         absent.revision = WorkbenchRevision::new(revision);
         assert_eq!(
             validate_closed_tab(&current, &expected, absent.clone()),
-            Err(NativeProjectionDivergence)
+            Err(ClientProjectionDivergence)
         );
     }
     let present = projected(2, 12);
     assert_eq!(
         validate_closed_tab(&current, &expected, present),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
     absent.revision = WorkbenchRevision::new(12);
-    let wrong_site = ClosedTabExpectation::new(
-        site_id(91),
+    let wrong_session = ClosedTabExpectation::new(
+        session_id(91),
         expected.terminal_context_id().clone(),
         expected.tab_id().clone(),
         expected.minimum_revision(),
     );
     assert_eq!(
-        validate_closed_tab(&current, &wrong_site, absent.clone()),
-        Err(NativeProjectionDivergence)
+        validate_closed_tab(&current, &wrong_session, absent.clone()),
+        Err(ClientProjectionDivergence)
     );
     let wrong_context = ClosedTabExpectation::new(
-        expected.site_id().clone(),
+        expected.session_id().clone(),
         context_id(92),
         expected.tab_id().clone(),
         expected.minimum_revision(),
     );
     assert_eq!(
         validate_closed_tab(&current, &wrong_context, absent),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }

@@ -106,9 +106,9 @@ fn directory_startup_only_empty_content_without_restore_block_admits_creation() 
 fn directory_startup_created_member_requires_known_started_and_exact_receipt_membership() {
     let parameters = directory().parameters().unwrap();
     let (cache, member) =
-        validate_workspace(&created(), &empty().site_id, &commit(), &parameters).unwrap();
+        validate_workspace(&created(), &empty().session_id, &commit(), &parameters).unwrap();
     assert!(
-        matches!(cache.location(), NativeContextLocation::Workspace {workspace_id,..} if workspace_id.as_str()==id(5))
+        matches!(cache.location(), ClientContextLocation::Workspace {workspace_id,..} if workspace_id.as_str()==id(5))
     );
     assert_eq!(member.tab.as_str(), id(10));
     assert_eq!(member.panel.as_str(), id(11));
@@ -118,10 +118,12 @@ fn directory_startup_created_member_requires_known_started_and_exact_receipt_mem
     grouped.navigation.projects = project_only().navigation.projects;
     grouped.navigation.workspaces[0].project_id =
         Some(grouped.navigation.projects[0].project_id.clone());
-    assert!(validate_workspace(&grouped, &empty().site_id, &commit(), &parameters).is_ok());
+    assert!(validate_workspace(&grouped, &empty().session_id, &commit(), &parameters).is_ok());
     let mut grouped_commit = commit();
     grouped_commit.project_id = grouped.navigation.workspaces[0].project_id.clone();
-    assert!(validate_workspace(&grouped, &empty().site_id, &grouped_commit, &parameters).is_err());
+    assert!(
+        validate_workspace(&grouped, &empty().session_id, &grouped_commit, &parameters).is_err()
+    );
     for outcome in [
         None,
         Some(WorkbenchTerminalOutcome::OutcomeUnknown {}),
@@ -134,27 +136,29 @@ fn directory_startup_created_member_requires_known_started_and_exact_receipt_mem
     ] {
         let mut receipt = commit();
         receipt.terminal_outcome = outcome;
-        assert!(validate_workspace(&created(), &empty().site_id, &receipt, &parameters).is_err());
+        assert!(
+            validate_workspace(&created(), &empty().session_id, &receipt, &parameters).is_err()
+        );
     }
     let mut wrong = commit();
     wrong.presentation_id = TerminalPresentationId::parse(&id(13)).unwrap();
-    assert!(validate_workspace(&created(), &empty().site_id, &wrong, &parameters).is_err());
+    assert!(validate_workspace(&created(), &empty().session_id, &wrong, &parameters).is_err());
     let mut foreign = created();
-    foreign.site_id = SiteId::parse(&id(77)).unwrap();
-    assert!(validate_workspace(&foreign, &empty().site_id, &commit(), &parameters).is_err());
+    foreign.session_id = SessionId::parse(&id(77)).unwrap();
+    assert!(validate_workspace(&foreign, &empty().session_id, &commit(), &parameters).is_err());
     let mut stale = created();
     stale.revision = WorkbenchRevision::new(2);
-    assert!(validate_workspace(&stale, &empty().site_id, &commit(), &parameters).is_err());
+    assert!(validate_workspace(&stale, &empty().session_id, &commit(), &parameters).is_err());
     let mut altered = created();
     altered.navigation.directories[0].path = WorkbenchDirectoryPath::parse("C:/other").unwrap();
-    assert!(validate_workspace(&altered, &empty().site_id, &commit(), &parameters).is_err());
+    assert!(validate_workspace(&altered, &empty().session_id, &commit(), &parameters).is_err());
     let mut worker = created();
     worker.navigation.directories[0].worker_id = WorkerId::parse(&id(88)).unwrap();
-    assert!(validate_workspace(&worker, &empty().site_id, &commit(), &parameters).is_err());
+    assert!(validate_workspace(&worker, &empty().session_id, &commit(), &parameters).is_err());
     let mut removed = created();
     removed.navigation.workspaces.clear();
     removed.navigation.workspace_order.clear();
-    assert!(validate_workspace(&removed, &empty().site_id, &commit(), &parameters).is_err());
+    assert!(validate_workspace(&removed, &empty().session_id, &commit(), &parameters).is_err());
 }
 
 #[test]

@@ -44,7 +44,7 @@ fn source(
     wb::TerminalEditorRequest {
         protocol_version: wb::ProtocolVersion,
         request_id: wb::WorkbenchRequestId::parse(&format!("{:032x}", 80002)).unwrap(),
-        site_id: snapshot.site_id,
+        session_id: snapshot.session_id,
         action: wb::TerminalEditorAction::Open {
             popup_id: wb::WorkbenchRequestId::parse(&format!("{:032x}", 80003)).unwrap(),
             spec: Box::new(wb::ScrollbackEditorSpec {
@@ -212,7 +212,7 @@ fn editor_requires_connection_source_canonical_membership_and_grants_before_defe
     let plugin = wb::PluginRequest {
         protocol_version: wb::ProtocolVersion,
         request_id: request.request_id.clone(),
-        site_id: request.site_id.clone(),
+        session_id: request.session_id.clone(),
         action: wb::PluginAction::PopupClose {
             popup_id: request.action.popup_id().clone(),
         },

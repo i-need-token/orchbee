@@ -1,5 +1,5 @@
 //! Project the shared Windows literal path adapter into the Workbench wire type.
-pub(crate) use orchbee_local_site_runtime::WindowsUserPathError as PathFailure;
+pub(crate) use orchbee_local_runtime::UserPathError as PathFailure;
 #[cfg(test)]
 use orchbee_workbench_protocol::MAXIMUM_DIRECTORY_PATH_BYTES;
 use orchbee_workbench_protocol::WorkbenchDirectoryPath;
@@ -10,12 +10,12 @@ pub(crate) fn normalize(
     environment: impl FnMut(&str) -> Option<OsString>,
     cwd: impl FnOnce() -> std::io::Result<PathBuf>,
 ) -> Result<WorkbenchDirectoryPath, PathFailure> {
-    let operand = orchbee_local_site_runtime::WindowsUserPathOperand::parse(value)?;
+    let operand = orchbee_local_runtime::UserPathOperand::parse(value)?;
     resolve(&operand, environment, cwd)
 }
 
 pub(crate) fn resolve(
-    operand: &orchbee_local_site_runtime::WindowsUserPathOperand,
+    operand: &orchbee_local_runtime::UserPathOperand,
     environment: impl FnMut(&str) -> Option<OsString>,
     cwd: impl FnOnce() -> std::io::Result<PathBuf>,
 ) -> Result<WorkbenchDirectoryPath, PathFailure> {

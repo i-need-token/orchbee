@@ -101,7 +101,7 @@ fn states(stream: &mut LocalStream, case: Case, fence: bool) -> io::Result<()> {
         &WorkbenchResponse::PanelAgent(PanelAgentResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
-            site_id: request.site_id,
+            session_id: request.session_id,
             outcome: PanelAgentOutcome::States {
                 workbench_revision: WorkbenchRevision::new(1),
                 report_revision: WorkbenchRevision::new(

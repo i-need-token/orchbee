@@ -145,7 +145,7 @@ fn run(
 ) -> bool {
     #[cfg(test)]
     let started = std::time::Instant::now();
-    use orchbee_local_site_runtime::WindowsCommandChild;
+    use orchbee_local_runtime::CommandChild;
     use std::{
         os::windows::process::CommandExt,
         process::{Command, Stdio},
@@ -174,7 +174,7 @@ fn run(
         .stderr(Stdio::null());
     super::process::clear_context(&mut command);
     command.envs(intent.environment);
-    let mut child = match WindowsCommandChild::spawn(command) {
+    let mut child = match CommandChild::spawn(command) {
         Ok(child) => child,
         Err(failure) => {
             #[cfg(test)]

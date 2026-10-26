@@ -93,7 +93,7 @@ fn rejected_close_install_plan_preserves_both_owners_and_the_unconsumed_origin()
                             projects: Vec::new(),
                         }
                     },
-                    site_id: before.site_id().clone(),
+                    session_id: before.session_id().clone(),
                     terminal_contexts: vec![TerminalContext {
                         terminal_context_id: before.terminal_context_id().unwrap().clone(),
                         groups: Vec::new(),

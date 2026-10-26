@@ -1,11 +1,11 @@
 //! Production connection/file-root traces; every fixture joins consumers and reaps its private runtime.
 use super::*;
-use orchbee_local_site_runtime::WindowsPrivateCache;
+use orchbee_local_runtime::PrivateCache;
 use std::{fs, os::windows::fs::OpenOptionsExt, path::PathBuf};
 
 struct Runtime {
     path: PathBuf,
-    cache: Option<WindowsPrivateCache>,
+    cache: Option<PrivateCache>,
 }
 impl Runtime {
     fn new() -> Self {
@@ -14,7 +14,7 @@ impl Runtime {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!("orchbee-graphics-files-{nonce:032x}"));
-        let cache = WindowsPrivateCache::acquire(&path).unwrap();
+        let cache = PrivateCache::acquire(&path).unwrap();
         Self {
             path,
             cache: Some(cache),
@@ -248,14 +248,17 @@ fn graphics_file_preparation_token_prevents_early_collection_and_bad_runtime_pre
     let runtime = Runtime::new();
     let fixture = Fixture::with_graphics_runtime(&runtime.path);
     let selected = target(&fixture);
-    let site = read_snapshot(&fixture.service).site_id;
-    let source = fixture.service.graphics_source(&site, &selected).unwrap();
+    let session = read_snapshot(&fixture.service).session_id;
+    let source = fixture
+        .service
+        .graphics_source(&session, &selected)
+        .unwrap();
     let lease = fixture
         .service
         .graphics_files
         .as_ref()
         .unwrap()
-        .create(&site, &source, NonZeroU64::MIN, &id(31000))
+        .create(&session, &source, NonZeroU64::MIN, &id(31000))
         .unwrap();
     let directory = lease.directory().unwrap().to_owned();
     assert!(fixture.service.graphics_maintenance_turn().is_some());
@@ -287,18 +290,21 @@ fn graphics_file_root_capacity_counts_uncommitted_leases_and_shutdown_requires_t
     let runtime = Runtime::new();
     let fixture = Fixture::with_graphics_runtime(&runtime.path);
     let selected = target(&fixture);
-    let site = read_snapshot(&fixture.service).site_id;
-    let source = fixture.service.graphics_source(&site, &selected).unwrap();
+    let session = read_snapshot(&fixture.service).session_id;
+    let source = fixture
+        .service
+        .graphics_source(&session, &selected)
+        .unwrap();
     let files = fixture.service.graphics_files.as_ref().unwrap();
     let mut leases = (0..128)
         .map(|n| {
             files
-                .create(&site, &source, NonZeroU64::MIN, &id(32000 + n))
+                .create(&session, &source, NonZeroU64::MIN, &id(32000 + n))
                 .unwrap()
         })
         .collect::<Vec<_>>();
     assert!(matches!(
-        files.create(&site, &source, NonZeroU64::MIN, &id(33000)),
+        files.create(&session, &source, NonZeroU64::MIN, &id(33000)),
         Err(Failure::Busy)
     ));
     let first = leases.pop().unwrap().directory().unwrap().to_owned();
@@ -306,7 +312,7 @@ fn graphics_file_root_capacity_counts_uncommitted_leases_and_shutdown_requires_t
     assert!(!first.exists());
     leases.push(
         files
-            .create(&site, &source, NonZeroU64::MIN, &id(33001))
+            .create(&session, &source, NonZeroU64::MIN, &id(33001))
             .unwrap(),
     );
     assert_eq!(

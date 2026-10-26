@@ -43,7 +43,7 @@ mod terminal_operations;
 
 #[test]
 fn rejects_every_invalid_private_invocation_without_output() -> TestResult {
-    let valid_server = "/tmp/orchbee-site.sock";
+    let valid_server = "/tmp/orchbee-session.sock";
     let valid_runtime = "/tmp/orchbee-host";
     for arguments in [
         Vec::<&str>::new(),
@@ -482,7 +482,7 @@ struct RuntimeFixture {
 impl RuntimeFixture {
     fn new() -> io::Result<Self> {
         let directory = TestDirectory::new()?;
-        let server_endpoint = directory.path().join("site.sock");
+        let server_endpoint = directory.path().join("session.sock");
         let server_listener = bind_listener(&server_endpoint)?;
         Ok(Self {
             _directory: directory,

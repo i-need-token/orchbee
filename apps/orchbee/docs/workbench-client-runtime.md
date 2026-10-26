@@ -109,7 +109,7 @@ When a retained Close status exists, this local notice uses the secondary notice
 that status. Refusal alone grants no display qualification; the normal exact visibility checks
 still govern a later Resume prompt.
 
-The real-client Close interaction corpus drives raw packets through NativeUi, successful
+The real-client Close interaction corpus drives raw packets through WorkbenchClientUi, successful
 TestBackend draws, the causal mailbox and a scripted wire peer. It covers both localized Close
 confirmations, unseen coalesced confirmation, cancellation and packet-tail capture, blocked
 first-paint refusal, admitted suspension and same-token restoration, a sanitized 512-scalar Unicode
@@ -665,38 +665,38 @@ carrier multiplexing, and multi-viewer composition inside one Client remain excl
 The pure Workspace projection lives in `workbench_client/workbench_projection.rs`:
 
 ```rust
-struct NativeContextTabs {
-    site_id: SiteId,
+struct ClientContextTabs {
+    session_id: SessionId,
     revision: WorkbenchRevision,
-    tabs: Vec<NativeSimpleTab>,
-    location: NativeContextLocation,
-    navigation: Arc<[NativeContext]>,
+    tabs: Vec<ClientTab>,
+    location: ClientContextLocation,
+    navigation: Arc<[ClientContext]>,
 }
 
-struct NativeSimpleTab {
+struct ClientTab {
     tab_id: WorkbenchTabId,
     tab_label: WorkbenchLabel,
     automatic_label: bool,
     panel_id: WorkbenchPanelId,
     presentation_id: TerminalPresentationId,
     presentation_label: WorkbenchLabel,
-    binding: NativeTerminalBinding,
-    panels: Box<[NativePanel]>,
-    tree: NativePanelTree,
+    binding: ClientTerminalBinding,
+    panels: Box<[ClientPanel]>,
+    tree: ClientPanelTree,
 }
 
-struct NativePanel {
+struct ClientPanel {
     panel_id: WorkbenchPanelId,
     presentation_id: TerminalPresentationId,
     presentation_label: WorkbenchLabel,
-    binding: NativeTerminalBinding,
+    binding: ClientTerminalBinding,
 }
 
-enum NativePanelTree {
+enum ClientPanelTree {
     Panel { panel_index: usize },
     Split {
-        first: Box<NativePanelTree>,
-        second: Box<NativePanelTree>,
+        first: Box<ClientPanelTree>,
+        second: Box<ClientPanelTree>,
         first_slot_id: WorkbenchPanelSlotId,
         second_slot_id: WorkbenchPanelSlotId,
         orientation: PanelOrientation,
@@ -704,7 +704,7 @@ enum NativePanelTree {
     },
 }
 
-struct NativeTerminalBinding {
+struct ClientTerminalBinding {
     worker_id: WorkerId,
     terminal_id: TerminalId,
 }
@@ -722,7 +722,7 @@ struct CreatedTabExpectation {
 
 fn project_preferred_workspace(
     snapshot: &Snapshot,
-) -> Result<NativeContextTabs, NativeProjectionError>;
+) -> Result<ClientContextTabs, ClientProjectionError>;
 ```
 
 The startup projector selects a real Workspace by canonical order, or an identity-less empty landing state when no Workspaces/Contexts exist. Current-context projection validates the exact Workspace/Context pair. All Contexts must have exactly one owner. The selected Workspace admits 0–256 ordered Tabs, groups and a pinned prefix. Every Tab preserves the complete binary tree and exact Panel, Split, slot, orientation, Presentation and binding identities. Unsupported membership rejects the entire projection; no member is silently filtered or selected as a fallback. Nonactive layouts remain canonical snapshot data.
@@ -731,15 +731,15 @@ Two additional pure validators own cache replacement:
 
 ```rust
 fn validate_canonical_refresh(
-    current: &NativeContextTabs,
-    candidate: NativeContextTabs,
-) -> Result<NativeContextTabs, NativeProjectionDivergence>;
+    current: &ClientContextTabs,
+    candidate: ClientContextTabs,
+) -> Result<ClientContextTabs, ClientProjectionDivergence>;
 
 fn validate_created_tab(
-    current: &NativeContextTabs,
+    current: &ClientContextTabs,
     expected: &CreatedTabExpectation,
-    candidate: NativeContextTabs,
-) -> Result<(NativeContextTabs, usize), NativeProjectionDivergence>;
+    candidate: ClientContextTabs,
+) -> Result<(ClientContextTabs, usize), ClientProjectionDivergence>;
 ```
 
 The accepted Move refinement replaces the legacy `validate_append_only_refresh` prefix policy:
@@ -809,7 +809,7 @@ The projector accepts empty Workspaces and an empty Workbench. `NoWorkspace` has
 
 ## Panel projection and local focus
 
-The accepted `NativePanelTree` is a strict, depth-first representation of the canonical PanelNode.
+The accepted `ClientPanelTree` is a strict, depth-first representation of the canonical PanelNode.
 Leaf order is the order used by attachment state; the tree retains split orientation and both slot
 identities so a later snapshot cannot silently replace a leaf or reshape a Tab. Every visible leaf
 owns its own viewer attachment inside the shared per-Client HostViewers budget (8): the Client
@@ -879,7 +879,7 @@ Cold startup follows the current Workspace model:
 1. measure complete real terminal geometry;
 2. submit a correlated `SnapshotRead` on the admitted carrier;
 3. resolve the explicit or remembered Workspace selection, otherwise use the first canonical Workspace in display order; eligible Windows directory startup uses the ordinary Workspace launch path;
-4. validate the full `NativeContextTabs` projection, accepting an empty Workspace or a `NoWorkspace` landing when the Workbench has no Workspaces;
+4. validate the full `ClientContextTabs` projection, accepting an empty Workspace or a `NoWorkspace` landing when the Workbench has no Workspaces;
 5. publish Bootstrap and let its exact UI settlement install the cache and, when a selected terminal exists, allocate the initial attachment generation;
 6. for that selected terminal, send snapshot-derived `AttachBinding`, Acquire, conditionally Resize, receive and draw a fresh full projection, send matching `FrameApplied`, and require `FeedbackAccepted` before publishing attached Ready.
 
@@ -1041,7 +1041,7 @@ enum QueuedCommand {
 struct SwitchMarker {
     generation: u64,
     tab_id: WorkbenchTabId,
-    binding: NativeTerminalBinding,
+    binding: ClientTerminalBinding,
     provenance: CreateTerminalProvenance,
     forward_cutoff: Instant,
     setup_deadline: Instant,
@@ -1050,7 +1050,7 @@ struct SwitchMarker {
 struct CreateMarker {
     reserved_generation: u64,
     request_id: WorkbenchRequestId,
-    site_id: SiteId,
+    session_id: SessionId,
     expected_revision: WorkbenchRevision,
     terminal_context_id: WorkbenchTerminalContextId,
     label: WorkbenchLabel,
@@ -1847,7 +1847,7 @@ The existing terminal mode lease enables bracketed paste before entry and retain
 recognized drain and quiet handoff; enable failure creates no draft or command.
 
 `workbench_client/tests/rename_interaction.rs` drives the persistent dispatcher, actual renderer,
-NativeUi, mailbox and executor over a local scripted socket. It covers both locales, unseen Enter,
+WorkbenchClientUi, mailbox and executor over a local scripted socket. It covers both locales, unseen Enter,
 sticky input faults, exact maximum scalar paste, cancellation drain, viewport invalidation,
 navigator dismissal, authoritative no-op, changed projection, explicit recovery, malformed known
 projection, ambiguous exchange and lost postcommit Snapshot. Later target removal exercises the
@@ -1927,8 +1927,8 @@ establish reorder preservation.
 | Claim                                                                                                                       | Lowest evidence                                                                                                     | Additional witness                                                                            | Limits                                                                                       |
 | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | Strict 0..256 projection and identity-preserving refresh                                                                    | exhaustive partition/unit cases and corpus-derived fixtures                                                         | generated create/rename/move histories and exact commit-permutation tests                     | Higher revisions may reorder and rename Tabs; immutable member facts survive.                |
-| Canonical split-tree projection preserves leaf/split/slot identity and orientation                                          | `projects_split_tree_and_directional_leaf_neighbors` plus strict structural-ID checks                               | canonical snapshot projection through the real `NativeTabView`                                | Canonical pin/group metadata and bound and unbound primary/child Presentations are accepted. |
-| Local Panel focus keeps the Tab and switches to the exact selected leaf binding                                             | `panel_focus_switch_keeps_the_tab_and_targets_the_selected_leaf_binding` plus NativeUi switch admission             | existing Switch cleanup/Attach lifecycle and renderer tree traversal                          | One viewer is attached at a time; inactive leaves do not show a second live frame.           |
+| Canonical split-tree projection preserves leaf/split/slot identity and orientation                                          | `projects_split_tree_and_directional_leaf_neighbors` plus strict structural-ID checks                               | canonical snapshot projection through the real `ClientTabView`                                | Canonical pin/group metadata and bound and unbound primary/child Presentations are accepted. |
+| Local Panel focus keeps the Tab and switches to the exact selected leaf binding                                             | `panel_focus_switch_keeps_the_tab_and_targets_the_selected_leaf_binding` plus WorkbenchClientUi switch admission    | existing Switch cleanup/Attach lifecycle and renderer tree traversal                          | One viewer is attached at a time; inactive leaves do not show a second live frame.           |
 | Panel split/close/move submit through structural admission and settle exact commit, refusal, unknown, and membership repair | `native/tests/panel.rs` mailbox/worker settlement cases plus exact split/move candidate validators                  | local-client outcome classification tests and the common membership cleanup/install lifecycle | Provisional key bindings may change; close relies on the ordinary publication path.          |
 | Selection wrap/bounds/same/retry and atomic refusal                                                                         | pure selection table tests                                                                                          | generated mailbox traces with stable seeds, semantic shrinking, and replay text               | Finite generated trace sizes are reported, not universal proof.                              |
 | Create drains old Poll/Feedback before submit and precommit restores                                                        | controlled implementation tests plus fake-carrier traces                                                            | deterministic old-frame/draw/feedback checkpoint trace                                        | Fake-carrier traces do not prove physical rendering or arbitrary scheduling.                 |
@@ -1936,7 +1936,7 @@ establish reorder preservation.
 | Rapid switch cleanup/generation/first-frame/geometry gate                                                                   | controlled implementation tests plus deterministic core traces                                                      | real PTY active-token + Ready checkpoints                                                     | Controlled traces do not prove arbitrary Create/refresh interleavings or physical pixels.    |
 | Refresh single-pending generation fence/identity/active preservation and navigator toggle                                   | controlled implementation tests plus deterministic stale-event tests                                                | two-Client/process refresh witness                                                            | No push or inter-read freshness.                                                             |
 | Peer publication demand retained through Busy/Full admission and installed without manual refresh or a second mutation      | controlled implementation tests plus deterministic mailbox/UI debt tests                                            | real two-Client PTY/Server/Worker/Host publication witness                                    | One observer Client and one committed change; no push or concurrent-publication claim.       |
-| Move preserves the selected terminal and exact known commit                                                                 | controlled implementation tests, mailbox/state, worker and actual NativeUi/outer retirement traces                  | two Linux cohort Move scenarios                                                               | PTY shell continuity does not independently prove absence of viewer reattachment.            |
+| Move preserves the selected terminal and exact known commit                                                                 | controlled implementation tests, mailbox/state, worker and actual WorkbenchClientUi/outer retirement traces         | two Linux cohort Move scenarios                                                               | PTY shell continuity does not independently prove absence of viewer reattachment.            |
 | Total setup termination                                                                                                     | fake monotonic clock at Empty/NeedSnapshot/Blocked/Busy and cleanup reserve boundaries                              | PTY uses named Ready/unavailable checkpoints, never sleep                                     | Does not prove Host eventually responds successfully.                                        |
 | Safe exact label rendering                                                                                                  | pure sanitizer/layout/backend byte tests                                                                            | PTY numeric labels and active marker                                                          | OS font/pixel fidelity is excluded.                                                          |
 | Platform dependency boundary                                                                                                | Windows target `check/test` for help/version/unavailability plus Cargo metadata assertion; Unix build/tests for TUI | Linux real PTY                                                                                | No Windows TUI claim.                                                                        |
@@ -1971,12 +1971,12 @@ The outer worker join retains both Create and Move known-commit handoffs.
 Six focused state tests cover controlling and read-only historical Ready, both unattached phases,
 nonfirst selection, definite refusal, singleton no-op, corruption and higher-revision recovery.
 The combined canonical-state/mailbox trace settles Move A, queues B before A's worker reply is read,
-then retires and recognizes only A's exact commit without replacing B. The real NativeUi/carrier test
+then retires and recognizes only A's exact commit without replacing B. The real WorkbenchClientUi/carrier test
 drives raw Move and `w` keys, renders the reordered active position, exercises input/Poll/Resize during
 explicit unavailability, rejects structural actions, and permits only SnapshotRead during recovery.
 Nine worker transport tests separately check cutoff placement, deadline-free UI settlement, exact
 request allocation, retained viewer authority and known commits across transport/retirement cuts.
-An actual NativeUi contention regression holds the mailbox through admission expiry and requires
+An actual WorkbenchClientUi contention regression holds the mailbox through admission expiry and requires
 the refusal to return before unlocking, preserving the notice, viewer and identity cursor. Ordinary
 Move refusal therefore performs no second lock acquisition. A separate outer WorkbenchClient test
 interrupts a postcommit Snapshot read, joins the worker and verifies the exact retained Move commit

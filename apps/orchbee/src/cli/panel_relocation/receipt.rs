@@ -5,13 +5,13 @@ use crate::{
     localization::Locale,
 };
 use orchbee_workbench_protocol::{
-    ClientPanelLayout, ClientSplitRatio, ClientViewControlStatus, ClientViewOutcome, SiteId,
+    ClientPanelLayout, ClientSplitRatio, ClientViewControlStatus, ClientViewOutcome, SessionId,
     WorkbenchClientId, WorkbenchDirectoryPath, WorkbenchRevision,
 };
 use serde_json::{Value, json};
 
 pub(super) struct Receipt {
-    pub(super) site_id: SiteId,
+    pub(super) session_id: SessionId,
     pub(super) base_revision: WorkbenchRevision,
     pub(super) source: Panel,
     pub(super) client_id: Option<WorkbenchClientId>,
@@ -90,7 +90,7 @@ impl Receipt {
         } else {
             "completed"
         };
-        json!({"schema":"orchbee.panel.move","version":1,"sessionId":self.site_id,"baseRevision":self.base_revision,
+        json!({"schema":"orchbee.panel.move","version":1,"sessionId":self.session_id,"baseRevision":self.base_revision,
             "source":{"terminalContextId":self.source.terminal_context_id,"tabId":self.source.tab_id,"panelId":self.source.panel_id},"clientId":self.client_id,"requestedFocus":self.requested_focus,"requestedRatio":self.requested_ratio,
             "directoryPath":self.directory_path,"directorySource":self.directory_source,
             "movement":self.movement.as_ref().map(mutation::Receipt::document),

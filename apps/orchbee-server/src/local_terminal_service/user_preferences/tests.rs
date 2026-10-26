@@ -19,9 +19,9 @@ impl Drop for Scope {
 }
 
 #[test]
-fn settings_dispatch_checks_permission_and_site_before_shared_store_access() {
+fn settings_dispatch_checks_permission_and_session_before_shared_store_access() {
     let root = std::env::temp_dir().join(format!(
-        "orchbee-site-preferences-{}-{}",
+        "orchbee-session-preferences-{}-{}",
         std::process::id(),
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -38,11 +38,14 @@ fn settings_dispatch_checks_permission_and_site_before_shared_store_access() {
     let scope = UserPreferencesScope::for_configuration(&fixture.0.join("config.toml")).unwrap();
     let service = Arc::new(LocalTerminalService::from_identity(
         Arc::new(Mutex::new(WorkerRegistry::new())),
-        Ok(orchbee_workbench_protocol::SiteId::parse("11111111111111111111111111111111").unwrap()),
+        Ok(
+            orchbee_workbench_protocol::SessionId::parse("11111111111111111111111111111111")
+                .unwrap(),
+        ),
     ));
     service.initialize_preferences(scope.clone()).unwrap();
     assert!(service.initialize_preferences(scope.clone()).is_err());
-    let dispatch = |allowed, site, operation: Value| {
+    let dispatch = |allowed, session, operation: Value| {
         let workbench = WorkbenchService::new(
             WorkbenchPolicy {
                 read: allowed,
@@ -53,8 +56,8 @@ fn settings_dispatch_checks_permission_and_site_before_shared_store_access() {
             },
             service.clone(),
         );
-        let request: NativeSettingsRequest = serde_json::from_value(json!({"protocolVersion": 1,
-            "requestId": "22222222222222222222222222222222", "sessionId": site, "operation": operation})).unwrap();
+        let request: SettingsRequest = serde_json::from_value(json!({"protocolVersion": 1,
+            "requestId": "22222222222222222222222222222222", "sessionId": session, "operation": operation})).unwrap();
         request.validate().unwrap();
         let WorkbenchExecution::Response(WorkbenchResponse::Settings(result)) =
             workbench.execute(WorkbenchRequest::Settings(request.clone()))
@@ -64,9 +67,9 @@ fn settings_dispatch_checks_permission_and_site_before_shared_store_access() {
         assert_eq!(result.request_id, request.request_id);
         result.outcome
     };
-    let site = "11111111111111111111111111111111";
+    let session = "11111111111111111111111111111111";
     assert_eq!(
-        dispatch(false, site, json!({"kind":"open"})),
+        dispatch(false, session, json!({"kind":"open"})),
         Outcome::Refused {
             reason: Failure::Denied
         }
@@ -78,17 +81,17 @@ fn settings_dispatch_checks_permission_and_site_before_shared_store_access() {
             json!({"kind":"open"})
         ),
         Outcome::Refused {
-            reason: Failure::SiteMismatch
+            reason: Failure::SessionMismatch
         }
     );
     assert!(!scope.directory().exists());
-    let Outcome::Opened { snapshot } = dispatch(true, site, json!({"kind":"open"})) else {
+    let Outcome::Opened { snapshot } = dispatch(true, session, json!({"kind":"open"})) else {
         panic!("open");
     };
     let request =
         json!({"kind":"save", "source": snapshot.source, "changes":{"applicationTheme":"dark"}});
     assert_eq!(
-        dispatch(false, site, request.clone()),
+        dispatch(false, session, request.clone()),
         Outcome::Refused {
             reason: Failure::Denied
         }
@@ -96,12 +99,12 @@ fn settings_dispatch_checks_permission_and_site_before_shared_store_access() {
     let Outcome::Saved {
         snapshot: saved,
         changed: true,
-    } = dispatch(true, site, request.clone())
+    } = dispatch(true, session, request.clone())
     else {
         panic!("save");
     };
     assert_eq!(
-        dispatch(true, site, request),
+        dispatch(true, session, request),
         Outcome::Refused {
             reason: Failure::SourceChanged
         }

@@ -34,8 +34,8 @@ impl Driver<'_> {
                 .coordinator
                 .lock()
                 .ok()
-                .and_then(|mut site| {
-                    site.worktree_authority().map(|authority| {
+                .and_then(|mut session| {
+                    session.worktree_authority().map(|authority| {
                         authority.retain_worktree_workspace(self.plan, &close_request_id)
                     })
                 })
@@ -102,12 +102,12 @@ impl Driver<'_> {
                 let handle = workers
                     .request_handle()
                     .ok_or(Failure::WorkerUnavailable {})?;
-                let mut site = self
+                let mut session = self
                     .service
                     .coordinator
                     .lock()
                     .map_err(|_| Failure::Internal {})?;
-                let pending = site.prepare_worktree_shell(
+                let pending = session.prepare_worktree_shell(
                     self.plan,
                     close,
                     &member,

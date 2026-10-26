@@ -5,7 +5,7 @@ use orchbee_workbench_protocol::WorkbenchResponse;
 fn receipt() -> Receipt {
     let id = |n| format!("{n:032x}");
     Receipt {
-        site_id: SiteId::parse(&id(2)).unwrap(),
+        session_id: SessionId::parse(&id(2)).unwrap(),
         client_id: Some(WorkbenchClientId::parse(&id(7)).unwrap()),
         base_revision: WorkbenchRevision::new(12),
         source: Panel {
@@ -91,7 +91,7 @@ fn terminal_failure_cuts_preserve_canonical_and_focus_evidence_in_both_locales()
                     operation_id: Some(
                         WorkbenchRequestId::parse("00000000000000000000000000000003").unwrap(),
                     ),
-                    site_id: Some(receipt.site_id.clone()),
+                    session_id: Some(receipt.session_id.clone()),
                     reply: Some(reply),
                     unknown: false,
                     wait: None,
@@ -126,7 +126,7 @@ fn terminal_failure_cuts_preserve_canonical_and_focus_evidence_in_both_locales()
     receipt.focus = Some(Answer {
         status_only: false,
         operation_id: receipt.request_id.clone(),
-        site_id: Some(receipt.site_id.clone()),
+        session_id: Some(receipt.session_id.clone()),
         reply: None,
         unknown: true,
         wait: None,

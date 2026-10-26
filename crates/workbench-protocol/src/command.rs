@@ -56,9 +56,7 @@ use notification::{NotificationRequest, NotificationResult};
 pub(crate) mod configuration;
 use configuration::{ConfigurationRequest, ConfigurationResult, MAXIMUM_CONFIGURATION_BYTES};
 pub(crate) mod settings;
-use settings::{
-    MAXIMUM_NATIVE_SETTINGS_REQUEST_BYTES, NativeSettingsRequest, NativeSettingsResult,
-};
+use settings::{MAXIMUM_SETTINGS_REQUEST_BYTES, SettingsRequest, SettingsResult};
 pub(crate) mod agent_manifest_update;
 pub(crate) mod agent_manifests;
 use agent_manifests::{
@@ -210,7 +208,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, de, de::Visitor};
 use crate::{
     directory::WorkbenchDirectoryPath,
     identity::{
-        ProtocolVersion, SiteId, TerminalPresentationId, WorkbenchDirectoryId, WorkbenchPanelId,
+        ProtocolVersion, SessionId, TerminalPresentationId, WorkbenchDirectoryId, WorkbenchPanelId,
         WorkbenchPanelSlotId, WorkbenchProjectId, WorkbenchRequestId, WorkbenchRevision,
         WorkbenchSplitId, WorkbenchTabId, WorkbenchTerminalContextId, WorkbenchWorkspaceId,
         WorkerId,
@@ -990,7 +988,7 @@ pub struct WorkbenchCommand {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub expected_revision: WorkbenchRevision,
     pub action: WorkbenchAction,
 }
@@ -1015,7 +1013,7 @@ pub enum WorkbenchRequest {
     #[serde(rename = "workbench.configuration")]
     Configuration(ConfigurationRequest),
     #[serde(rename = "workbench.settings")]
-    Settings(NativeSettingsRequest),
+    Settings(SettingsRequest),
     #[serde(rename = "workbench.notification")]
     Notification(NotificationRequest),
     #[serde(rename = "workbench.window-title")]
@@ -1062,7 +1060,7 @@ pub enum WorkbenchRequest {
 #[serde(rename_all = "kebab-case")]
 pub enum WorkbenchRejectionReason {
     #[serde(rename = "session-mismatch")]
-    SiteMismatch,
+    SessionMismatch,
     RevisionMismatch,
     ProjectUnavailable,
     WorkspaceUnavailable,
@@ -1429,7 +1427,7 @@ pub enum WorkbenchResponse {
     #[serde(rename = "workbench.configuration.result")]
     Configuration(ConfigurationResult),
     #[serde(rename = "workbench.settings.result")]
-    Settings(NativeSettingsResult),
+    Settings(SettingsResult),
     #[serde(rename = "workbench.notification.result")]
     Notification(NotificationResult),
     #[serde(rename = "workbench.window-title.result")]
@@ -1619,7 +1617,7 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
 
 fn request_byte_limit(request: &WorkbenchRequest) -> usize {
     if matches!(request, WorkbenchRequest::Settings(_)) {
-        return MAXIMUM_NATIVE_SETTINGS_REQUEST_BYTES;
+        return MAXIMUM_SETTINGS_REQUEST_BYTES;
     }
     if matches!(request, WorkbenchRequest::PaneGraphics(_)) {
         return MAXIMUM_GRAPHICS_REQUEST_BYTES;

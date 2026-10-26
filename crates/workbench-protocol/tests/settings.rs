@@ -41,23 +41,23 @@ fn settings_matches_shared_corpus_and_roundtrips_the_distinct_carrier() {
 
 #[test]
 fn settings_requires_exact_correlation_and_matching_operation() {
-    let request = NativeSettingsRequest {
+    let request = SettingsRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse("00000000000000000000000000000001").unwrap(),
-        site_id: SiteId::parse("00000000000000000000000000000002").unwrap(),
-        operation: NativeSettingsOperation::Open {},
+        session_id: SessionId::parse("00000000000000000000000000000002").unwrap(),
+        operation: SettingsOperation::Open {},
     };
-    let result = NativeSettingsResult {
+    let result = SettingsResult {
         protocol_version: ProtocolVersion,
         request_id: request.request_id.clone(),
-        site_id: request.site_id.clone(),
-        outcome: NativeSettingsOutcome::Refused {
-            reason: NativeSettingsFailure::Busy,
+        session_id: request.session_id.clone(),
+        outcome: SettingsOutcome::Refused {
+            reason: SettingsFailure::Busy,
         },
     };
     assert!(result.answers(&request));
     let mut other = request.clone();
-    other.site_id = SiteId::parse("00000000000000000000000000000003").unwrap();
+    other.session_id = SessionId::parse("00000000000000000000000000000003").unwrap();
     assert!(!result.answers(&other));
     other = request.clone();
     other.request_id = WorkbenchRequestId::parse("00000000000000000000000000000004").unwrap();
@@ -71,12 +71,12 @@ fn settings_save_receipts_confirm_dirty_values_reset_claims_and_uncertainty_with
     let mut after = before.clone();
     after.application_theme = ApplicationAppearance::Dark;
     let changes = UserPreferencesPatch::between(&before, &after);
-    let request = NativeSettingsRequest {
+    let request = SettingsRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&"1".repeat(32)).unwrap(),
-        site_id: SiteId::parse(&"2".repeat(32)).unwrap(),
-        operation: NativeSettingsOperation::Save {
-            source: NativeSettingsSource::parse("missing").unwrap(),
+        session_id: SessionId::parse(&"2".repeat(32)).unwrap(),
+        operation: SettingsOperation::Save {
+            source: SettingsSource::parse("missing").unwrap(),
             changes,
         },
     };
@@ -85,11 +85,11 @@ fn settings_save_receipts_confirm_dirty_values_reset_claims_and_uncertainty_with
         values: after,
         claimed: [PreferenceKey::ApplicationTheme].into(),
     };
-    let mut result = NativeSettingsResult {
+    let mut result = SettingsResult {
         protocol_version: ProtocolVersion,
         request_id: request.request_id.clone(),
-        site_id: request.site_id.clone(),
-        outcome: NativeSettingsOutcome::Saved {
+        session_id: request.session_id.clone(),
+        outcome: SettingsOutcome::Saved {
             snapshot: snapshot.clone(),
             changed: true,
         },
@@ -97,7 +97,7 @@ fn settings_save_receipts_confirm_dirty_values_reset_claims_and_uncertainty_with
     assert!(result.answers(&request));
     let mut wrong = snapshot.clone();
     wrong.values.application_theme = ApplicationAppearance::Light;
-    result.outcome = NativeSettingsOutcome::Saved {
+    result.outcome = SettingsOutcome::Saved {
         snapshot: wrong,
         changed: true,
     };
@@ -107,7 +107,7 @@ fn settings_save_receipts_confirm_dirty_values_reset_claims_and_uncertainty_with
     );
     let mut unclaimed = snapshot;
     unclaimed.claimed.clear();
-    result.outcome = NativeSettingsOutcome::Saved {
+    result.outcome = SettingsOutcome::Saved {
         snapshot: unclaimed,
         changed: false,
     };
@@ -115,10 +115,10 @@ fn settings_save_receipts_confirm_dirty_values_reset_claims_and_uncertainty_with
         !result.answers(&request),
         "a migration may not overwrite acknowledged edits"
     );
-    result.outcome = NativeSettingsOutcome::OutcomeUnknown {};
+    result.outcome = SettingsOutcome::OutcomeUnknown {};
     assert!(result.answers(&request));
     let mut read = request;
-    read.operation = NativeSettingsOperation::Open {};
+    read.operation = SettingsOperation::Open {};
     assert!(
         !result.answers(&read),
         "a write receipt cannot answer a read"
@@ -127,26 +127,25 @@ fn settings_save_receipts_confirm_dirty_values_reset_claims_and_uncertainty_with
 
 #[test]
 fn settings_checks_request_size_and_direction_before_body_admission() {
-    let request = NativeSettingsRequest {
+    let request = SettingsRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse("00000000000000000000000000000001").unwrap(),
-        site_id: SiteId::parse("00000000000000000000000000000002").unwrap(),
-        operation: NativeSettingsOperation::Open {},
+        session_id: SessionId::parse("00000000000000000000000000000002").unwrap(),
+        operation: SettingsOperation::Open {},
     };
     let mut encoded =
         serialize_workbench_request(&WorkbenchRequest::Settings(request.clone())).unwrap();
-    encoded.resize(MAXIMUM_NATIVE_SETTINGS_REQUEST_BYTES, b' ');
+    encoded.resize(MAXIMUM_SETTINGS_REQUEST_BYTES, b' ');
     assert!(parse_workbench_request(&encoded).is_ok());
     encoded.push(b' ');
     assert!(parse_workbench_request(&encoded).is_err());
     let mut frame = Vec::new();
     write_workbench_request(&mut frame, &WorkbenchRequest::Settings(request)).unwrap();
-    frame[8..12]
-        .copy_from_slice(&((MAXIMUM_NATIVE_SETTINGS_REQUEST_BYTES + 1) as u32).to_be_bytes());
+    frame[8..12].copy_from_slice(&((MAXIMUM_SETTINGS_REQUEST_BYTES + 1) as u32).to_be_bytes());
     assert!(matches!(
         read_workbench_request(&mut &frame[..12]),
         Err(WorkbenchWireError::Contract(ContractError::EncodedValueTooLarge { actual, maximum }))
-            if actual == MAXIMUM_NATIVE_SETTINGS_REQUEST_BYTES + 1 && maximum == MAXIMUM_NATIVE_SETTINGS_REQUEST_BYTES
+            if actual == MAXIMUM_SETTINGS_REQUEST_BYTES + 1 && maximum == MAXIMUM_SETTINGS_REQUEST_BYTES
     ));
     frame[6..8].copy_from_slice(&60u16.to_be_bytes());
     assert!(matches!(

@@ -1,8 +1,9 @@
 //! Bounded retained Workspace group closure; child lifecycle truth remains owned by Close.
 use super::json_fields::deserialize_nullable;
 use crate::{
-    ContractError, ProtocolVersion, SiteId, WorkbenchLabel, WorkbenchProjectId, WorkbenchRequestId,
-    WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseStatus, WorkbenchWorkspaceId,
+    ContractError, ProtocolVersion, SessionId, WorkbenchLabel, WorkbenchProjectId,
+    WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseStatus,
+    WorkbenchWorkspaceId,
 };
 use serde::{Deserialize, Deserializer, Serialize, de};
 use std::collections::BTreeSet;
@@ -78,7 +79,7 @@ pub struct WorkbenchWorkspaceGroupCloseRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub action: WorkspaceGroupCloseAction,
 }
 impl WorkbenchWorkspaceGroupCloseRequest {
@@ -149,7 +150,7 @@ pub enum WorkspaceGroupCloseFailure {
     OutcomeUnknown,
     Deadline,
     #[serde(rename = "session-stopping")]
-    SiteStopping,
+    SessionStopping,
     Internal,
 }
 impl WorkspaceGroupCloseFailure {

@@ -9,7 +9,7 @@ publish = false
 [dependencies]
 getrandom.workspace = true
 orchbee-local-ipc = { path = "../../crates/local-ipc" }
-orchbee-local-site-runtime = { path = "../../crates/local-site-runtime" }
+orchbee-local-runtime = { path = "../../crates/local-runtime" }
 
 orchbee-capability-node-protocol = { path = "../../crates/capability-node-protocol" }
 orchbee-local-peer-credentials = { path = "../../crates/local-peer-credentials" }

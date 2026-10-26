@@ -2,8 +2,8 @@ use super::*;
 
 #[test]
 fn nested_tui_guard_is_route_specific_and_requires_product_terminal_identity() {
-    let current = WindowsSiteName::parse("work").unwrap();
-    let other = WindowsSiteName::parse("other").unwrap();
+    let current = SessionName::parse("work").unwrap();
+    let other = SessionName::parse("other").unwrap();
     let scope = current.scope_for_user("sid");
     for selected in [None, Some(&current), Some(&other)] {
         for hosted in [false, true] {
@@ -32,7 +32,7 @@ fn nested_tui_guard_is_route_specific_and_requires_product_terminal_identity() {
 
 #[test]
 fn explicit_default_overrides_inherited_scope_and_name_without_reading_them() {
-    let default = WindowsSiteName::parse("default").unwrap();
+    let default = SessionName::parse("default").unwrap();
     let location = resolve(
         Some(&default),
         |key| {
@@ -52,7 +52,7 @@ fn inherited_route_precedes_name_and_invalid_selected_values_do_not_fall_back() 
     let inherited = resolve(
         None,
         |key| match key {
-            "ORCHBEE_RUNTIME_SCOPE" => Some(OsString::from("owning-site")),
+            "ORCHBEE_RUNTIME_SCOPE" => Some(OsString::from("owning-session")),
             "ORCHBEE_SESSION" => panic!("inherited route must win"),
             _ => None,
         },
@@ -60,7 +60,7 @@ fn inherited_route_precedes_name_and_invalid_selected_values_do_not_fall_back() 
         PathBuf::from("C:/base"),
     )
     .unwrap();
-    assert_eq!(inherited.scope, "owning-site");
+    assert_eq!(inherited.scope, "owning-session");
     assert!(inherited.name.is_none());
     for variable in ["ORCHBEE_RUNTIME_SCOPE", "ORCHBEE_SESSION"] {
         for bad in ["", "..", "some/name"] {
@@ -85,8 +85,6 @@ fn inherited_route_precedes_name_and_invalid_selected_values_do_not_fall_back() 
     .unwrap();
     assert_eq!(
         named.scope,
-        WindowsSiteName::parse("work")
-            .unwrap()
-            .scope_for_user("sid")
+        SessionName::parse("work").unwrap().scope_for_user("sid")
     );
 }

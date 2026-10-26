@@ -84,7 +84,7 @@ fn joined_ordinary_poll_unavailability_allows_only_explicit_snapshot_then_empty(
     );
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         let view = workbench_client.view();
-        view.phase() == NativeDisplayPhase::Empty
+        view.phase() == DisplayPhase::Empty
     }));
     let snapshot = received.recv_timeout(Duration::from_secs(2))?;
     assert!(
@@ -151,7 +151,7 @@ fn arm_uncommitted_panel_close(
     workbench_client.apply_client_action(ClientAction::ClosePanel);
     let view = ClientView::new(120);
     let mut terminal = Terminal::new(TestBackend::new(120, 32))?;
-    let mut receipt = NativeDrawReceipt::default();
+    let mut receipt = DrawReceipt::default();
     terminal.draw(|frame| {
         receipt = render_terminal_shell(
             frame,
@@ -164,7 +164,7 @@ fn arm_uncommitted_panel_close(
     })?;
     workbench_client.after_close_draw(receipt);
     let view = workbench_client.view();
-    assert_eq!(view.phase(), NativeDisplayPhase::Ready);
+    assert_eq!(view.phase(), DisplayPhase::Ready);
     assert!(
         view.panel_close_confirmation().is_some(),
         "a real draw leaves the uncommitted confirmation armed"
@@ -230,12 +230,12 @@ fn repeated_failed_recovery_joins_before_explicit_retry_and_never_resets_request
     received.recv_timeout(Duration::from_secs(2))?;
     assert!({
         let view = workbench_client.view();
-        view.phase() == NativeDisplayPhase::Retired
+        view.phase() == DisplayPhase::Retired
     });
     workbench_client.apply_client_action(ClientAction::OpenWorkbenchNavigator);
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         let view = workbench_client.view();
-        view.phase() == NativeDisplayPhase::Empty
+        view.phase() == DisplayPhase::Empty
     }));
     received.recv_timeout(Duration::from_secs(2))?;
     drop(workbench_client);
@@ -547,7 +547,7 @@ fn recover_neighbor(mode: u8) -> TestResult {
     if mode == 1 {
         let ok = spin_with_draw(
             &mut workbench_client,
-            |workbench_client| matches!(&workbench_client.backend, ClientBackend::Native(native) if native.view().phase() == NativeDisplayPhase::Ready),
+            |workbench_client| matches!(&workbench_client.backend, ClientBackend::Native(native) if native.view().phase() == DisplayPhase::Ready),
         );
         assert!(ok);
     } else {
@@ -565,9 +565,9 @@ fn recover_neighbor(mode: u8) -> TestResult {
     assert_eq!(
         view.phase(),
         if mode == 1 {
-            NativeDisplayPhase::Ready
+            DisplayPhase::Ready
         } else {
-            NativeDisplayPhase::Retired
+            DisplayPhase::Retired
         }
     );
     assert_eq!(view.tab(0).unwrap().tab_label(), "survivor");

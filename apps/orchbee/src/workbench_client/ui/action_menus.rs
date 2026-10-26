@@ -1,7 +1,7 @@
 //! One local menu intent; existing membership and action owners retain all execution authority.
 use super::{
-    ClientAction, ClientPhaseKind, Geometry, ModalPresentation, NativeUi, PaneKey, PaneRef,
-    WorkbenchClientNotice, WorkbenchClientState, WorkbenchClientView,
+    ClientAction, ClientPhaseKind, Geometry, ModalPresentation, PaneKey, PaneRef,
+    WorkbenchClientNotice, WorkbenchClientState, WorkbenchClientUi, WorkbenchClientView,
 };
 use crate::action_menu::{
     ActionMenu, DrawnMenuSource, MenuAction, MenuControl, MenuDraw, MenuInputContext,
@@ -12,7 +12,7 @@ use crate::client_view::KeyEvent;
 use crate::tui_presentation::GeometrySettlement;
 use crate::workbench_client::state::TabCloseResumePermit;
 use crate::workbench_client::workbench_projection::{
-    NativeContextLocation, NativeMenuContextSource, NativeSimpleTab,
+    ClientContextLocation, ClientTab, MenuContextSource,
 };
 use std::time::{Duration, Instant};
 mod sidebar;
@@ -29,14 +29,14 @@ enum Origin {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct ContextOrigin {
-    selected: Vec<NativeSimpleTab>,
+    selected: Vec<ClientTab>,
     groups: Vec<orchbee_workbench_protocol::TabGroup>,
-    site: orchbee_workbench_protocol::SiteId,
-    location: NativeContextLocation,
+    session: orchbee_workbench_protocol::SessionId,
+    location: ClientContextLocation,
     desired: Option<PaneKey>,
     focus: Option<PaneRef>,
-    tab: Option<NativeSimpleTab>,
-    source: Option<NativeMenuContextSource>,
+    tab: Option<ClientTab>,
+    source: Option<MenuContextSource>,
 }
 
 impl Origin {
@@ -51,7 +51,7 @@ impl Origin {
                     .cloned()
                     .collect(),
                 groups: state.cache().groups().to_vec(),
-                site: state.cache().site_id().clone(),
+                session: state.cache().session_id().clone(),
                 location: state.cache().location().clone(),
                 desired: state.desired().cloned(),
                 focus: state.focus_pane_ref(),
@@ -84,17 +84,17 @@ enum Target {
     Pane {
         pane: PaneRef,
         presentation: orchbee_workbench_protocol::TerminalPresentationId,
-        source: NativeMenuContextSource,
+        source: MenuContextSource,
     },
     Tab {
-        location: NativeContextLocation,
-        tab: Box<NativeSimpleTab>,
-        source: NativeMenuContextSource,
+        location: ClientContextLocation,
+        tab: Box<ClientTab>,
+        source: MenuContextSource,
         resolver: TabResolverSource,
     },
     Workspace {
-        location: NativeContextLocation,
-        source: NativeMenuContextSource,
+        location: ClientContextLocation,
+        source: MenuContextSource,
     },
     Project {
         project: Box<orchbee_workbench_protocol::Project>,
@@ -104,8 +104,8 @@ enum Target {
 
 #[derive(Clone)]
 struct ProjectContext {
-    location: NativeContextLocation,
-    source: NativeMenuContextSource,
+    location: ClientContextLocation,
+    source: MenuContextSource,
 }
 
 fn action_availability(
@@ -128,7 +128,7 @@ fn action_availability(
     if action == MenuAction::NewTab
         && !capabilities.supports(crate::tui_capabilities::Capability::DirectoryInput)
         && state.is_some_and(|state| {
-            matches!(state.cache().location(), NativeContextLocation::NoWorkspace)
+            matches!(state.cache().location(), ClientContextLocation::NoWorkspace)
         })
     {
         return ActionAvailability::Hidden;
@@ -157,7 +157,7 @@ fn action_availability(
             | MenuAction::NewTabInRecentGroup
             | MenuAction::NewTabWithProfile(_)
     ) && state.is_some_and(|state| {
-        matches!(state.cache().location(), NativeContextLocation::NoWorkspace)
+        matches!(state.cache().location(), ClientContextLocation::NoWorkspace)
             && state.cache().tabs().is_empty()
     }) {
         return ActionAvailability::Disabled(MenuUnavailable::WorkspaceRequired);
@@ -205,7 +205,7 @@ fn action_availability(
             state.close_scope_available()
                 || matches!(target,
                     Target::Workspace {
-                        location: NativeContextLocation::Workspace { workspace_id, .. }, ..
+                        location: ClientContextLocation::Workspace { workspace_id, .. }, ..
                     } if state.can_confirm_guarded_workspace_close(workspace_id))
         });
         return ActionAvailability::from_disabled_reason(
@@ -260,7 +260,7 @@ fn action_availability(
     };
     if matches!(
         source,
-        NativeMenuContextSource::Workspace {
+        MenuContextSource::Workspace {
             directory: Some(_),
             ..
         }
@@ -397,9 +397,9 @@ enum ResumePermitSeed {
 
 struct ResumeHandoff {
     deadline: Instant,
-    location: NativeContextLocation,
-    source: NativeMenuContextSource,
-    tab: Box<NativeSimpleTab>,
+    location: ClientContextLocation,
+    source: MenuContextSource,
+    tab: Box<ClientTab>,
     permit: TabCloseResumePermit,
 }
 
@@ -458,7 +458,7 @@ impl WorkbenchClientView<'_> {
     }
 }
 
-impl NativeUi {
+impl WorkbenchClientUi {
     /// Revalidate the drawn context before delegating to the existing create admission.
     pub(in crate::workbench_client) fn tab_create_action(
         &mut self,
@@ -582,7 +582,7 @@ impl NativeUi {
             MenuTarget::Drawn { source, target } => {
                 if !self.menu_carrier_live()
                     || self.state.as_ref().is_none_or(|state| {
-                        state.cache().site_id() != &source.site
+                        state.cache().session_id() != &source.session
                             || state.cache().revision() != source.revision
                     })
                 {
@@ -613,7 +613,7 @@ impl NativeUi {
                     }) else {
                         return false;
                     };
-                    MenuTarget::Workspace(NativeContextLocation::Workspace {
+                    MenuTarget::Workspace(ClientContextLocation::Workspace {
                         workspace_id: id,
                         terminal_context_id: workspace.terminal_context_id.clone(),
                     })
@@ -735,7 +735,7 @@ impl NativeUi {
                     return false;
                 };
                 let context = match state.cache().location() {
-                    location @ NativeContextLocation::Workspace { .. }
+                    location @ ClientContextLocation::Workspace { .. }
                         if state.cache().project_id() == Some(&id) =>
                     {
                         let Some(source) = state.cache().menu_context_source(location) else {
@@ -1691,7 +1691,7 @@ impl NativeUi {
         let action = match (&intent.target, action) {
             (
                 Target::Workspace {
-                    location: NativeContextLocation::Workspace { workspace_id, .. },
+                    location: ClientContextLocation::Workspace { workspace_id, .. },
                     ..
                 },
                 MenuAction::DeleteWorkspace,
@@ -1704,7 +1704,7 @@ impl NativeUi {
             }
             (
                 Target::Workspace {
-                    location: NativeContextLocation::Workspace { workspace_id, .. },
+                    location: ClientContextLocation::Workspace { workspace_id, .. },
                     ..
                 },
                 MenuAction::DeleteWorkspace,
@@ -1717,7 +1717,7 @@ impl NativeUi {
             )),
             (
                 Target::Workspace {
-                    location: NativeContextLocation::Workspace { workspace_id, .. },
+                    location: ClientContextLocation::Workspace { workspace_id, .. },
                     ..
                 },
                 choice @ (MenuAction::CreateWorkspaceProject
@@ -1749,7 +1749,7 @@ impl NativeUi {
             }
             (
                 Target::Workspace {
-                    location: NativeContextLocation::Workspace { workspace_id, .. },
+                    location: ClientContextLocation::Workspace { workspace_id, .. },
                     ..
                 },
                 MenuAction::CloseWorkspace,

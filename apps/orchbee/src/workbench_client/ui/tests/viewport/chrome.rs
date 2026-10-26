@@ -216,7 +216,7 @@ fn creation_admission_retires_old_map_before_mouse_events_in_the_same_or_next_pa
             let content = Rect::new(0, 0, 80, 24);
             let mut view = ClientView::new(120);
             let mut dispatcher = InputDispatcher::default();
-            dispatcher.set_pointer_capture(&mut view, &mut NativePort(&mut ui), true);
+            dispatcher.set_pointer_capture(&mut view, &mut ClientInputPort(&mut ui), true);
             let mut hits = HitMapBuilder::new();
             hits.record(
                 crate::tui_pointer::HitLayer::Foreground,
@@ -462,7 +462,7 @@ fn ended_single_terminal_keeps_exit_feedback_in_the_reserved_status_row() {
                     assert_eq!(projection.value.receive_lifecycle(&record), Ok(true));
                     assert_eq!(
                         ui.view().phase(),
-                        crate::workbench_client::NativeDisplayPhase::Ready
+                        crate::workbench_client::DisplayPhase::Ready
                     );
                     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
                     for _ in 0..2 {

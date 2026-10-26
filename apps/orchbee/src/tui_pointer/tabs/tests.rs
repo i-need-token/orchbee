@@ -7,9 +7,9 @@ use crate::{
         HitLayer, HitMapBuilder, InteractionSpec, InteractionTarget, MotionObservability,
         PrimaryContract, ProjectedPointer,
     },
-    workbench_client::NativeContextLocation,
+    workbench_client::ClientContextLocation,
 };
-use orchbee_workbench_protocol::{SiteId, WorkbenchRevision, WorkbenchTerminalContextId};
+use orchbee_workbench_protocol::{SessionId, WorkbenchRevision, WorkbenchTerminalContextId};
 use std::time::Instant;
 
 struct Port {
@@ -68,13 +68,13 @@ fn fixture(collapsed: bool) -> (PointerState, Port, ClientView, FrameHitMap) {
     let source = TabDragSource {
         drawn: DrawnTabCreate {
             source: DrawnMenuSource {
-                site: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
+                session: SessionId::parse(&format!("{:032x}", 1)).unwrap(),
                 revision: WorkbenchRevision::new(1),
             },
             location: {
                 let fixture_context_id =
                     WorkbenchTerminalContextId::parse(&format!("{:032x}", 50)).unwrap();
-                NativeContextLocation::Workspace {
+                ClientContextLocation::Workspace {
                     workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                         fixture_context_id.as_str(),
                     )
@@ -628,7 +628,7 @@ fn double_click_survives_selection_revision_but_not_a_context_replacement() {
             port.source.drawn.location = {
                 let fixture_context_id =
                     WorkbenchTerminalContextId::parse(&format!("{:032x}", 51)).unwrap();
-                NativeContextLocation::Workspace {
+                ClientContextLocation::Workspace {
                     workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                         fixture_context_id.as_str(),
                     )

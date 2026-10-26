@@ -58,7 +58,7 @@ impl Reader<'_> {
                 PanelMetadataRequest {
                     protocol_version: ProtocolVersion,
                     request_id: request_id()?,
-                    site_id: self.snapshot.site_id.clone(),
+                    session_id: self.snapshot.session_id.clone(),
                     action: PanelMetadataAction::ReadPresentations {
                         presentation_ids: ids.to_vec(),
                     },
@@ -103,7 +103,7 @@ impl Reader<'_> {
                 PanelAgentRequest {
                     protocol_version: ProtocolVersion,
                     request_id: request_id()?,
-                    site_id: self.snapshot.site_id.clone(),
+                    session_id: self.snapshot.session_id.clone(),
                     action: PanelAgentAction::ReadPresentations {
                         presentation_ids: ids.to_vec(),
                     },

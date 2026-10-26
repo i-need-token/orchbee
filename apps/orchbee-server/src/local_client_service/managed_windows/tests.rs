@@ -1,7 +1,7 @@
 use super::*;
 use orchbee_local_client_protocol::{
-    ClientHello, LocalClientMessage, RejectionReason, SiteStopRequest, SiteStopStatus, StopAction,
-    StopId, read_message, write_message,
+    ClientHello, LocalClientMessage, RejectionReason, SessionStopRequest, SessionStopStatus,
+    StopAction, StopId, read_message, write_message,
 };
 use std::io::Read;
 
@@ -30,7 +30,7 @@ fn control_fences_cohort_freezes_new_hellos_and_joins_idle_and_partial_clients()
         })
         .unwrap(),
     );
-    let shutdown = Arc::new(SiteShutdown::default());
+    let shutdown = Arc::new(SessionShutdown::default());
     let mut service = start(&endpoint, "test", terminals, agents, Arc::clone(&shutdown)).unwrap();
     let mut admitted = UnixStream::connect(&endpoint).unwrap();
     admitted
@@ -45,7 +45,7 @@ fn control_fences_cohort_freezes_new_hellos_and_joins_idle_and_partial_clients()
         read_message(&mut admitted).unwrap(),
         LocalClientMessage::ClientAccepted { .. }
     ));
-    let request = SiteStopRequest {
+    let request = SessionStopRequest {
         hello: ClientHello::new("foreign").unwrap(),
         id: StopId::new([1; 16]).unwrap(),
         action: StopAction::Start,
@@ -53,19 +53,19 @@ fn control_fences_cohort_freezes_new_hellos_and_joins_idle_and_partial_clients()
     assert_eq!(
         exchange(
             &endpoint,
-            LocalClientMessage::SiteStopRequest(request.clone())
+            LocalClientMessage::SessionStopRequest(request.clone())
         ),
         LocalClientMessage::Rejected {
             reason: RejectionReason::IncompatibleCohort
         }
     );
     assert!(shutdown.enter().is_some());
-    let request = SiteStopRequest {
+    let request = SessionStopRequest {
         hello: ClientHello::new("test").unwrap(),
         ..request
     };
     assert!(
-        matches!(exchange(&endpoint, LocalClientMessage::SiteStopRequest(request)), LocalClientMessage::SiteStopResult(result) if matches!(result.status, SiteStopStatus::Pending { .. }))
+        matches!(exchange(&endpoint, LocalClientMessage::SessionStopRequest(request)), LocalClientMessage::SessionStopResult(result) if matches!(result.status, SessionStopStatus::Pending { .. }))
     );
     assert_eq!(
         exchange(

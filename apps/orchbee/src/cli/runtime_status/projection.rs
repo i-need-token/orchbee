@@ -5,7 +5,7 @@ use orchbee_local_client_protocol::{
     SERVER_FEATURE_AGENT_OBSERVATION, SERVER_FEATURE_CLIENT_VIEW, SERVER_FEATURE_LIVE_HANDOFF,
     SERVER_FEATURE_RENDER_ROWS, SERVER_KNOWN_FEATURES, ServerMetadata, ServerMode,
 };
-use orchbee_local_site_runtime::{NativeArtifact, NativeCohortError};
+use orchbee_local_runtime::{CohortArtifact, CohortError};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 
@@ -87,11 +87,11 @@ impl CohortIoKind {
 }
 
 impl CohortDiagnostic {
-    pub(super) fn from_error(error: &NativeCohortError) -> Self {
+    pub(super) fn from_error(error: &CohortError) -> Self {
         Self {
             io_kind: CohortIoKind::from_error_kind(error.kind()),
             os_error: error.raw_os_error(),
-            missing_artifact: error.missing_artifact().map(NativeArtifact::file_name),
+            missing_artifact: error.missing_artifact().map(CohortArtifact::file_name),
         }
     }
 

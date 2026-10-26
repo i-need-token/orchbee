@@ -796,7 +796,7 @@ fn tab_create_rejection_is_compatible(
     }
     matches!(
         reason,
-        WorkbenchRejectionReason::SiteMismatch
+        WorkbenchRejectionReason::SessionMismatch
             | WorkbenchRejectionReason::RevisionMismatch
             | WorkbenchRejectionReason::TerminalContextUnavailable
             | WorkbenchRejectionReason::WorkspaceDirectoryUnavailable

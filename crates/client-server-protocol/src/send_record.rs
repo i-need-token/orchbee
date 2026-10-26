@@ -1,7 +1,7 @@
 use crate::record_identities::{identity, identity_bytes};
 use crate::{
     ClientMessage, ProtocolError, ReadMessageError, RequestId, SendBytes, SendPasteContent,
-    SendRecord, SendRecords, SendText, SendTextInput, SiteId, TerminalId, TerminalSendRequest,
+    SendRecord, SendRecords, SendText, SendTextInput, SessionId, TerminalId, TerminalSendRequest,
     WorkerId,
 };
 use std::io::Read;
@@ -16,7 +16,7 @@ pub const SEND_RECORD_MAGIC: [u8; 4] = *b"OBSN";
 
 const HEADER: usize = 12;
 const PREFIX: [u8; 8] = *b"OBSN\0\x01\0\0";
-/// request_id + site_id + worker_id + terminal_id + record count.
+/// request_id + session_id + worker_id + terminal_id + record count.
 const BODY_PREFIX: usize = 16 * 4 + 1;
 /// A semantic stroke uses kind, modifiers, key identity, and a u32 value.
 const RECORD_OVERHEAD: usize = 7;
@@ -35,7 +35,7 @@ pub(crate) fn encode(request: &TerminalSendRequest) -> Result<Vec<u8>, ProtocolE
     let records = request.records().as_slice();
     let mut body = Vec::with_capacity(BODY_PREFIX + 64);
     body.extend_from_slice(&identity_bytes(request.request_id())?);
-    body.extend_from_slice(&identity_bytes(request.site_id())?);
+    body.extend_from_slice(&identity_bytes(request.session_id())?);
     body.extend_from_slice(&identity_bytes(request.worker_id())?);
     body.extend_from_slice(&identity_bytes(request.terminal_id())?);
     body.push(u8::try_from(records.len()).map_err(|_| ProtocolError::InvalidPayload)?);
@@ -155,7 +155,7 @@ fn body_length(header: &[u8]) -> Result<usize, ProtocolError> {
 
 fn decode_body(body: &[u8]) -> Result<ClientMessage, ProtocolError> {
     let request_id = identity::<RequestId>(body.get(..16))?;
-    let site_id = identity::<SiteId>(body.get(16..32))?;
+    let session_id = identity::<SessionId>(body.get(16..32))?;
     let worker_id = identity::<WorkerId>(body.get(32..48))?;
     let terminal_id = identity::<TerminalId>(body.get(48..64))?;
     let count = usize::from(*body.get(64).ok_or(ProtocolError::InvalidPayload)?);
@@ -172,7 +172,7 @@ fn decode_body(body: &[u8]) -> Result<ClientMessage, ProtocolError> {
     }
     Ok(ClientMessage::TerminalSend(TerminalSendRequest::new(
         request_id,
-        site_id,
+        session_id,
         worker_id,
         terminal_id,
         SendRecords::new(records)?,

@@ -1,19 +1,19 @@
-use super::super::field_window::{NativeFieldWindow, field_window};
+use super::super::field_window::{FieldWindow, field_window};
 use super::super::line_editor::{LengthLimit, LineEditor};
-use super::{NativeContextTabs, WorkbenchClientState, WorkbenchLabel, WorkbenchProjectId};
+use super::{ClientContextTabs, WorkbenchClientState, WorkbenchLabel, WorkbenchProjectId};
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 use orchbee_workbench_protocol::{MAXIMUM_DIRECTORY_PATH_BYTES, MAXIMUM_LABEL_LENGTH};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct NativeSetupToken(pub(super) u64);
-impl NativeSetupToken {
+pub(crate) struct SetupToken(pub(super) u64);
+impl SetupToken {
     #[cfg(test)]
     pub(crate) const fn for_test(value: u64) -> Self {
         Self(value)
     }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum NativeSetupStage {
+pub(crate) enum SetupStage {
     ChooseWorkspaceProject,
     WorkspaceProjectName,
     DissolveProject,
@@ -28,7 +28,7 @@ pub(crate) enum NativeSetupStage {
     WorkspaceRename,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum NativeSetupStatus {
+pub(crate) enum SetupStatus {
     PresentationUnavailable,
     WorkspaceOrganized,
     ProjectDissolved,
@@ -38,8 +38,8 @@ pub(crate) enum NativeSetupStatus {
     TabsCommittedNeedRefresh,
     TabsOutcomeUnknown,
     LocationLabel {
-        target: NativeLocationLabelTarget,
-        status: NativeLocationLabelStatus,
+        target: LocationLabelTarget,
+        status: LocationLabelStatus,
     },
     NotApplied,
     /// Refused because the Workbench changed elsewhere; the session is resynchronizing.
@@ -50,7 +50,7 @@ pub(crate) enum NativeSetupStatus {
     CommittedNeedRefresh,
     OutcomeUnknown,
 }
-impl NativeSetupStatus {
+impl SetupStatus {
     pub(in crate::workbench_client) const fn transient(self) -> bool {
         !matches!(
             self,
@@ -59,8 +59,8 @@ impl NativeSetupStatus {
                 | Self::CommittedNeedRefresh
                 | Self::OutcomeUnknown
                 | Self::LocationLabel {
-                    status: NativeLocationLabelStatus::CommittedNeedRefresh
-                        | NativeLocationLabelStatus::OutcomeUnknown,
+                    status: LocationLabelStatus::CommittedNeedRefresh
+                        | LocationLabelStatus::OutcomeUnknown,
                     ..
                 }
         )
@@ -69,7 +69,7 @@ impl NativeSetupStatus {
 /// The typed edit vocabulary the setup draft applies — the same contract
 /// U5's typed-input bridge delivers. Text operations apply to the stage's
 /// line editor and are inert while the picker owns the draft.
-pub(crate) enum NativeSetupEdit<'a> {
+pub(crate) enum SetupEdit<'a> {
     NextField,
     SelectDirectory(usize),
     Append(&'a str),
@@ -89,12 +89,12 @@ pub(crate) enum NativeSetupEdit<'a> {
     ScrollProjects { up: bool, lines: usize },
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum NativeLocationLabelTarget {
+pub(crate) enum LocationLabelTarget {
     Project,
     Workspace,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum NativeLocationLabelStatus {
+pub(crate) enum LocationLabelStatus {
     Unavailable,
     NotApplied,
     /// Refused because the owner changed elsewhere; the typed text is kept for retry.
@@ -105,11 +105,11 @@ pub(crate) enum NativeLocationLabelStatus {
     OutcomeUnknown,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(in crate::workbench_client) enum NativeSetupIntent {
+pub(in crate::workbench_client) enum SetupIntent {
     Organize(Box<super::WorkspaceOrganizationRequest>),
     TabGroupName(Box<orchbee_workbench_protocol::TabConfiguration>),
     ConfigureDirectory,
-    RenameLocation(NativeLocationLabelTarget),
+    RenameLocation(LocationLabelTarget),
     RenameProject(Box<super::ProjectRenameRequest>),
 }
 #[derive(Clone, Debug)]
@@ -119,9 +119,9 @@ pub(super) struct SetupDraft {
     pub(super) project_rename: Option<Box<super::ProjectRenameRequest>>,
     pub(super) continuation: Option<super::OperationDeadlines>,
     pub(super) quick: Option<super::quick::QuickWorkspaceFields>,
-    pub(super) token: NativeSetupToken,
-    pub(super) baseline: NativeContextTabs,
-    pub(super) stage: NativeSetupStage,
+    pub(super) token: SetupToken,
+    pub(super) baseline: ClientContextTabs,
+    pub(super) stage: SetupStage,
     pub(super) selected: usize,
     pub(super) project: Option<WorkbenchProjectId>,
     pub(super) editor: LineEditor,
@@ -132,7 +132,7 @@ pub(super) struct SetupDraft {
 }
 #[derive(Clone, Debug)]
 pub(super) struct SetupParent {
-    stage: NativeSetupStage,
+    stage: SetupStage,
     selected: usize,
     project: Option<WorkbenchProjectId>,
     editor: LineEditor,
@@ -140,12 +140,12 @@ pub(super) struct SetupParent {
     faulted: bool,
     quick: Option<super::quick::QuickWorkspaceFields>,
 }
-pub(crate) struct NativeSetupDraftView<'a> {
+pub(crate) struct SetupDraftView<'a> {
     foreground_preparation: bool,
     pub(super) draft: &'a SetupDraft,
     presentation: PresentationPhase,
 }
-pub(crate) struct NativeSetupProjectView<'a> {
+pub(crate) struct SetupProjectView<'a> {
     pub(super) position: usize,
     pub(super) label: Option<&'a str>,
     ungrouped: bool,
@@ -154,26 +154,26 @@ impl SetupDraft {
     fn text_field(&self) -> bool {
         !matches!(
             self.stage,
-            NativeSetupStage::ChooseWorkspaceProject
-                | NativeSetupStage::DissolveProject
-                | NativeSetupStage::ProjectDeleteConfirm
-                | NativeSetupStage::QuickProject
-                | NativeSetupStage::PreparingWorkspace
+            SetupStage::ChooseWorkspaceProject
+                | SetupStage::DissolveProject
+                | SetupStage::ProjectDeleteConfirm
+                | SetupStage::QuickProject
+                | SetupStage::PreparingWorkspace
         )
     }
     pub(super) fn editor(&self) -> &LineEditor {
         self.quick.as_ref().map_or(&self.editor, |fields| {
-            fields.field(self.stage == NativeSetupStage::QuickDirectory)
+            fields.field(self.stage == SetupStage::QuickDirectory)
         })
     }
     fn editor_mut(&mut self) -> &mut LineEditor {
         match &mut self.quick {
-            Some(fields) => fields.field_mut(self.stage == NativeSetupStage::QuickDirectory),
+            Some(fields) => fields.field_mut(self.stage == SetupStage::QuickDirectory),
             None => &mut self.editor,
         }
     }
 }
-impl<'a> NativeSetupProjectView<'a> {
+impl<'a> SetupProjectView<'a> {
     pub(crate) fn ungrouped(&self) -> bool {
         self.ungrouped
     }
@@ -184,9 +184,9 @@ impl<'a> NativeSetupProjectView<'a> {
         self.label
     }
 }
-impl<'a> NativeSetupDraftView<'a> {
+impl<'a> SetupDraftView<'a> {
     pub(in crate::workbench_client) fn background(&self) -> bool {
-        (self.draft.stage == NativeSetupStage::PreparingWorkspace && !self.foreground_preparation)
+        (self.draft.stage == SetupStage::PreparingWorkspace && !self.foreground_preparation)
             || self.draft.quick.is_some() && self.draft.continuation.is_some()
     }
     pub(crate) const fn interactive(&self) -> bool {
@@ -213,17 +213,13 @@ impl<'a> NativeSetupDraftView<'a> {
             .as_ref()
             .and_then(|fields| fields.selected_directory())
     }
-    pub(crate) fn quick_window(
-        &self,
-        directory: bool,
-        width: usize,
-    ) -> Option<NativeFieldWindow<'a>> {
+    pub(crate) fn quick_window(&self, directory: bool, width: usize) -> Option<FieldWindow<'a>> {
         field_window(self.draft.quick.as_ref()?.field(directory), width)
     }
-    pub(crate) fn token(&self) -> NativeSetupToken {
+    pub(crate) fn token(&self) -> SetupToken {
         self.draft.token
     }
-    pub(crate) fn stage(&self) -> NativeSetupStage {
+    pub(crate) fn stage(&self) -> SetupStage {
         self.draft.stage
     }
     /// The draft's exact raw text — what a submit sends and a cancel
@@ -234,7 +230,7 @@ impl<'a> NativeSetupDraftView<'a> {
     /// Pure display-space projection of the draft inside a
     /// `field_width`-cell field; `None` when the field has no drawable
     /// width.
-    pub(crate) fn field_window(&self, field_width: usize) -> Option<NativeFieldWindow<'a>> {
+    pub(crate) fn field_window(&self, field_width: usize) -> Option<FieldWindow<'a>> {
         field_window(self.draft.editor(), field_width)
     }
     pub(crate) fn faulted(&self) -> bool {
@@ -243,12 +239,12 @@ impl<'a> NativeSetupDraftView<'a> {
     pub(crate) fn project_count(&self) -> usize {
         self.draft.project_count()
     }
-    pub(crate) fn project_at(&self, index: usize) -> Option<NativeSetupProjectView<'a>> {
+    pub(crate) fn project_at(&self, index: usize) -> Option<SetupProjectView<'a>> {
         if index >= self.project_count() {
             return None;
         }
-        Some(NativeSetupProjectView {
-            ungrouped: self.draft.stage == NativeSetupStage::ChooseWorkspaceProject
+        Some(SetupProjectView {
+            ungrouped: self.draft.stage == SetupStage::ChooseWorkspaceProject
                 && index == self.draft.baseline.projects().len(),
             position: index + 1,
             label: self
@@ -290,7 +286,7 @@ impl WorkbenchClientState {
     /// selection, authorizes this exact choice. No undrawn token is armed.
     pub(in crate::workbench_client) fn choose_setup_project(
         &mut self,
-        token: NativeSetupToken,
+        token: SetupToken,
         index: usize,
     ) -> bool {
         if self.setup_draft().is_none() || self.quick_continuation().is_some() {
@@ -305,7 +301,7 @@ impl WorkbenchClientState {
                 && !draft.faulted
                 && matches!(
                     draft.stage,
-                    NativeSetupStage::QuickProject | NativeSetupStage::ChooseWorkspaceProject
+                    SetupStage::QuickProject | SetupStage::ChooseWorkspaceProject
                 )
                 && index < draft.project_count()
         }) else {
@@ -322,7 +318,7 @@ impl WorkbenchClientState {
 
     pub(in crate::workbench_client) fn scroll_setup_projects(
         &mut self,
-        token: NativeSetupToken,
+        token: SetupToken,
         up: bool,
         lines: usize,
     ) -> bool {
@@ -331,13 +327,13 @@ impl WorkbenchClientState {
         }) {
             return false;
         }
-        self.edit_setup_draft(token, NativeSetupEdit::ScrollProjects { up, lines })
+        self.edit_setup_draft(token, SetupEdit::ScrollProjects { up, lines })
     }
 
     pub(in crate::workbench_client) fn open_setup_draft(
         &mut self,
-        intent: NativeSetupIntent,
-    ) -> Option<NativeSetupToken> {
+        intent: SetupIntent,
+    ) -> Option<SetupToken> {
         if self.setup_blocks_structure()
             || !self.setup_authority_available()
             || !self.invariant_holds()
@@ -346,11 +342,11 @@ impl WorkbenchClientState {
         }
         if matches!(
             intent,
-            NativeSetupIntent::RenameLocation(_) | NativeSetupIntent::RenameProject(_)
+            SetupIntent::RenameLocation(_) | SetupIntent::RenameProject(_)
         ) {
             self.clear_notice();
         }
-        if matches!(intent, NativeSetupIntent::ConfigureDirectory)
+        if matches!(intent, SetupIntent::ConfigureDirectory)
             && self.directory_configuration_unavailable().is_some()
         {
             return None;
@@ -360,7 +356,7 @@ impl WorkbenchClientState {
         let mut organization = None;
         let mut tab_configuration = None;
         let (stage, editor) = match intent {
-            NativeSetupIntent::Organize(request) => {
+            SetupIntent::Organize(request) => {
                 if !request.matches(self) {
                     return None;
                 }
@@ -368,17 +364,17 @@ impl WorkbenchClientState {
                     super::organization::OrganizationTarget::Workspace(workspace) => {
                         project = workspace.project_id.clone();
                         if request.choice == super::organization::OrganizationChoice::NewProject {
-                            NativeSetupStage::WorkspaceProjectName
+                            SetupStage::WorkspaceProjectName
                         } else {
-                            NativeSetupStage::ChooseWorkspaceProject
+                            SetupStage::ChooseWorkspaceProject
                         }
                     }
                     super::organization::OrganizationTarget::Project(target) => {
                         project = Some(target.project_id.clone());
                         if request.reviewed_delete() {
-                            NativeSetupStage::ProjectDeleteConfirm
+                            SetupStage::ProjectDeleteConfirm
                         } else {
-                            NativeSetupStage::DissolveProject
+                            SetupStage::DissolveProject
                         }
                     }
                 };
@@ -388,7 +384,7 @@ impl WorkbenchClientState {
                     LineEditor::new(String::new(), LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH)),
                 )
             }
-            NativeSetupIntent::TabGroupName(operation) => {
+            SetupIntent::TabGroupName(operation) => {
                 let label = match &*operation {
                     orchbee_workbench_protocol::TabConfiguration::CreateGroup { label, .. }
                     | orchbee_workbench_protocol::TabConfiguration::CreateGroupForTabs {
@@ -411,11 +407,11 @@ impl WorkbenchClientState {
                 };
                 tab_configuration = Some(*operation);
                 (
-                    NativeSetupStage::TabGroupName,
+                    SetupStage::TabGroupName,
                     LineEditor::new(label, LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH)),
                 )
             }
-            NativeSetupIntent::RenameProject(request) => {
+            SetupIntent::RenameProject(request) => {
                 if !request.matches(self) {
                     return None;
                 }
@@ -427,29 +423,29 @@ impl WorkbenchClientState {
                     .unwrap_or_else(|| request.label().to_owned());
                 let editor = LineEditor::new(label, LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH));
                 project_rename = Some(request);
-                (NativeSetupStage::ProjectRename, editor)
+                (SetupStage::ProjectRename, editor)
             }
-            NativeSetupIntent::ConfigureDirectory => (
-                NativeSetupStage::DirectoryPath,
+            SetupIntent::ConfigureDirectory => (
+                SetupStage::DirectoryPath,
                 LineEditor::new(
                     String::new(),
                     LengthLimit::Bytes(MAXIMUM_DIRECTORY_PATH_BYTES),
                 ),
             ),
-            NativeSetupIntent::RenameLocation(target) => {
+            SetupIntent::RenameLocation(target) => {
                 let Some((owner, label)) = super::labels::location_label_owner(&self.cache, target)
                 else {
-                    self.setup.status = Some(NativeSetupStatus::LocationLabel {
+                    self.setup.status = Some(SetupStatus::LocationLabel {
                         target,
-                        status: NativeLocationLabelStatus::Unavailable,
+                        status: LocationLabelStatus::Unavailable,
                     });
                     return None;
                 };
                 let label = self.take_retained_label(&owner).unwrap_or(label);
                 (
                     match target {
-                        NativeLocationLabelTarget::Project => NativeSetupStage::ProjectRename,
-                        NativeLocationLabelTarget::Workspace => NativeSetupStage::WorkspaceRename,
+                        LocationLabelTarget::Project => SetupStage::ProjectRename,
+                        LocationLabelTarget::Workspace => SetupStage::WorkspaceRename,
                     },
                     // Prefill keeps the protocol-legal label byte-exact with
                     // the cursor at its end.
@@ -466,7 +462,7 @@ impl WorkbenchClientState {
                     .position(|p| &p.project_id == id)
             })
             .unwrap_or(self.cache.projects().len());
-        let token = NativeSetupToken(self.setup.last_token.checked_add(1)?);
+        let token = SetupToken(self.setup.last_token.checked_add(1)?);
         self.setup.last_token = token.0;
         self.setup.status = None;
         self.setup.presentation = PresentationPhase::Pending;
@@ -489,7 +485,7 @@ impl WorkbenchClientState {
         });
         Some(token)
     }
-    pub(in crate::workbench_client) fn setup_draft(&self) -> Option<NativeSetupDraftView<'_>> {
+    pub(in crate::workbench_client) fn setup_draft(&self) -> Option<SetupDraftView<'_>> {
         let draft = self.setup.draft.as_ref()?;
         ((self.setup_authority_available() || self.setup.preparation.is_some())
             && draft.baseline == self.cache
@@ -505,7 +501,7 @@ impl WorkbenchClientState {
                 .quick
                 .as_ref()
                 .is_none_or(|fields| fields.target_current(self)))
-        .then_some(NativeSetupDraftView {
+        .then_some(SetupDraftView {
             foreground_preparation: self
                 .setup
                 .preparation
@@ -520,12 +516,12 @@ impl WorkbenchClientState {
             self.setup.status = None;
         }
     }
-    pub(in crate::workbench_client) fn setup_status(&self) -> Option<NativeSetupStatus> {
+    pub(in crate::workbench_client) fn setup_status(&self) -> Option<SetupStatus> {
         self.setup.status
     }
     pub(in crate::workbench_client) fn acknowledge_setup_draw(
         &mut self,
-        token: Option<NativeSetupToken>,
+        token: Option<SetupToken>,
     ) {
         let presented = self
             .setup
@@ -554,11 +550,11 @@ impl WorkbenchClientState {
         let settlement = self.setup.presentation.geometry_blocked();
         if settlement == GeometrySettlement::Refused {
             self.setup.draft = None;
-            self.setup.status = Some(NativeSetupStatus::PresentationUnavailable);
+            self.setup.status = Some(SetupStatus::PresentationUnavailable);
         }
         Some(settlement)
     }
-    pub(in crate::workbench_client) fn cancel_setup_draft(&mut self, token: NativeSetupToken) {
+    pub(in crate::workbench_client) fn cancel_setup_draft(&mut self, token: SetupToken) {
         let Some(draft) = self
             .setup
             .draft
@@ -577,7 +573,7 @@ impl WorkbenchClientState {
             draft.complete = parent.complete;
             draft.faulted = parent.faulted;
             draft.quick = parent.quick;
-            draft.token = NativeSetupToken(next);
+            draft.token = SetupToken(next);
             draft.shown = false;
             self.setup.last_token = next;
         } else {
@@ -586,8 +582,8 @@ impl WorkbenchClientState {
     }
     pub(in crate::workbench_client) fn edit_setup_draft(
         &mut self,
-        token: NativeSetupToken,
-        edit: NativeSetupEdit<'_>,
+        token: SetupToken,
+        edit: SetupEdit<'_>,
     ) -> bool {
         if self.setup_draft().is_none() || self.quick_continuation().is_some() {
             return false;
@@ -602,13 +598,13 @@ impl WorkbenchClientState {
             return false;
         };
         match edit {
-            NativeSetupEdit::SelectDirectory(_)
-            | NativeSetupEdit::SelectPreviousProject
-            | NativeSetupEdit::SelectNextProject
+            SetupEdit::SelectDirectory(_)
+            | SetupEdit::SelectPreviousProject
+            | SetupEdit::SelectNextProject
                 if draft.complete
                     && matches!(
                         draft.stage,
-                        NativeSetupStage::QuickDirectory | NativeSetupStage::QuickName
+                        SetupStage::QuickDirectory | SetupStage::QuickName
                     )
                     && draft.quick.is_some() =>
             {
@@ -619,48 +615,48 @@ impl WorkbenchClientState {
                 let count = fields.directory_choices().len();
                 let current = fields.selected_directory().unwrap_or(0);
                 let index = match edit {
-                    NativeSetupEdit::SelectDirectory(index) => index,
-                    NativeSetupEdit::SelectNextProject => (current + 1) % count,
+                    SetupEdit::SelectDirectory(index) => index,
+                    SetupEdit::SelectNextProject => (current + 1) % count,
                     _ => (current + count - 1) % count,
                 };
                 if !fields.select_directory(index, &draft.baseline) {
                     return false;
                 }
-                draft.stage = NativeSetupStage::QuickDirectory;
+                draft.stage = SetupStage::QuickDirectory;
                 draft.faulted = false;
-                draft.token = NativeSetupToken(next);
+                draft.token = SetupToken(next);
                 self.setup.last_token = next;
                 draft.shown = false;
             }
-            NativeSetupEdit::NextField
+            SetupEdit::NextField
                 if draft.complete
                     && draft.quick.is_some()
                     && matches!(
                         draft.stage,
-                        NativeSetupStage::QuickName | NativeSetupStage::QuickDirectory
+                        SetupStage::QuickName | SetupStage::QuickDirectory
                     ) =>
             {
                 let Some(next) = self.setup.last_token.checked_add(1) else {
                     return false;
                 };
-                draft.stage = if draft.stage == NativeSetupStage::QuickName {
-                    NativeSetupStage::QuickDirectory
+                draft.stage = if draft.stage == SetupStage::QuickName {
+                    SetupStage::QuickDirectory
                 } else {
-                    NativeSetupStage::QuickName
+                    SetupStage::QuickName
                 };
-                draft.token = NativeSetupToken(next);
+                draft.token = SetupToken(next);
                 self.setup.last_token = next;
                 draft.shown = false;
             }
-            NativeSetupEdit::Completeness(value) => draft.complete = value,
-            NativeSetupEdit::Fault => draft.faulted = true,
-            NativeSetupEdit::SelectPreviousProject
-            | NativeSetupEdit::SelectNextProject
-            | NativeSetupEdit::ScrollProjects { .. }
+            SetupEdit::Completeness(value) => draft.complete = value,
+            SetupEdit::Fault => draft.faulted = true,
+            SetupEdit::SelectPreviousProject
+            | SetupEdit::SelectNextProject
+            | SetupEdit::ScrollProjects { .. }
                 if draft.complete
                     && matches!(
                         draft.stage,
-                        NativeSetupStage::QuickProject | NativeSetupStage::ChooseWorkspaceProject
+                        SetupStage::QuickProject | SetupStage::ChooseWorkspaceProject
                     ) =>
             {
                 let Some(next_token) = self.setup.last_token.checked_add(1) else {
@@ -668,14 +664,14 @@ impl WorkbenchClientState {
                 };
                 let count = draft.project_count();
                 let selected = match edit {
-                    NativeSetupEdit::ScrollProjects { up: true, lines } => {
+                    SetupEdit::ScrollProjects { up: true, lines } => {
                         draft.selected.saturating_sub(lines)
                     }
-                    NativeSetupEdit::ScrollProjects { up: false, lines } => draft
+                    SetupEdit::ScrollProjects { up: false, lines } => draft
                         .selected
                         .saturating_add(lines)
                         .min(count.saturating_sub(1)),
-                    NativeSetupEdit::SelectNextProject => (draft.selected + 1) % count,
+                    SetupEdit::SelectNextProject => (draft.selected + 1) % count,
                     _ => (draft.selected + count - 1) % count,
                 };
                 if selected == draft.selected {
@@ -687,11 +683,11 @@ impl WorkbenchClientState {
                     .projects()
                     .get(draft.selected)
                     .map(|p| p.project_id.clone());
-                draft.token = NativeSetupToken(next_token);
+                draft.token = SetupToken(next_token);
                 self.setup.last_token = next_token;
                 draft.shown = false;
             }
-            NativeSetupEdit::Append(value) | NativeSetupEdit::Paste(value)
+            SetupEdit::Append(value) | SetupEdit::Paste(value)
                 if draft.complete && draft.text_field() =>
             {
                 // Typed input and paste share the editor's one atomic insert
@@ -700,47 +696,44 @@ impl WorkbenchClientState {
                     draft.faulted = true;
                 }
             }
-            NativeSetupEdit::Backspace if draft.complete && draft.text_field() => {
+            SetupEdit::Backspace if draft.complete && draft.text_field() => {
                 draft.editor_mut().backspace();
                 draft.faulted = false;
             }
-            NativeSetupEdit::Delete if draft.complete && draft.text_field() => {
+            SetupEdit::Delete if draft.complete && draft.text_field() => {
                 draft.editor_mut().delete();
                 draft.faulted = false;
             }
-            NativeSetupEdit::WordBackspace if draft.complete && draft.text_field() => {
+            SetupEdit::WordBackspace if draft.complete && draft.text_field() => {
                 draft.editor_mut().word_back();
                 draft.faulted = false;
             }
-            NativeSetupEdit::Clear if draft.complete && draft.text_field() => {
+            SetupEdit::Clear if draft.complete && draft.text_field() => {
                 draft.editor_mut().clear();
                 draft.faulted = false;
             }
-            NativeSetupEdit::Left if draft.complete && draft.text_field() => {
+            SetupEdit::Left if draft.complete && draft.text_field() => {
                 draft.editor_mut().left();
             }
-            NativeSetupEdit::Right if draft.complete && draft.text_field() => {
+            SetupEdit::Right if draft.complete && draft.text_field() => {
                 draft.editor_mut().right();
             }
-            NativeSetupEdit::Home if draft.complete && draft.text_field() => {
+            SetupEdit::Home if draft.complete && draft.text_field() => {
                 draft.editor_mut().home();
             }
-            NativeSetupEdit::End if draft.complete && draft.text_field() => {
+            SetupEdit::End if draft.complete && draft.text_field() => {
                 draft.editor_mut().end();
             }
             _ => return false,
         }
-        if draft.stage == NativeSetupStage::QuickDirectory
+        if draft.stage == SetupStage::QuickDirectory
             && let Some(fields) = &mut draft.quick
         {
             fields.refresh_name(&draft.baseline);
         }
         true
     }
-    pub(in crate::workbench_client) fn advance_setup_picker(
-        &mut self,
-        token: NativeSetupToken,
-    ) -> bool {
+    pub(in crate::workbench_client) fn advance_setup_picker(&mut self, token: SetupToken) -> bool {
         if self.setup_draft().is_none() {
             return false;
         }
@@ -753,12 +746,12 @@ impl WorkbenchClientState {
                 && !d.faulted
                 && matches!(
                     d.stage,
-                    NativeSetupStage::QuickProject | NativeSetupStage::ChooseWorkspaceProject
+                    SetupStage::QuickProject | SetupStage::ChooseWorkspaceProject
                 )
         }) else {
             return false;
         };
-        if draft.stage == NativeSetupStage::ChooseWorkspaceProject
+        if draft.stage == SetupStage::ChooseWorkspaceProject
             && draft.selected <= draft.baseline.projects().len()
         {
             return false;
@@ -780,8 +773,8 @@ impl WorkbenchClientState {
             .projects()
             .get(draft.selected)
             .map(|p| p.project_id.clone());
-        draft.stage = if draft.stage == NativeSetupStage::ChooseWorkspaceProject {
-            NativeSetupStage::WorkspaceProjectName
+        draft.stage = if draft.stage == SetupStage::ChooseWorkspaceProject {
+            SetupStage::WorkspaceProjectName
         } else if let Some(fields) = &mut draft.quick {
             let Some(project) = &draft.project else {
                 return false;
@@ -789,11 +782,11 @@ impl WorkbenchClientState {
             if !fields.select_project(project, &draft.baseline) {
                 return false;
             }
-            NativeSetupStage::QuickName
+            SetupStage::QuickName
         } else {
             return false;
         };
-        draft.token = NativeSetupToken(next);
+        draft.token = SetupToken(next);
         self.setup.last_token = next;
         draft.shown = false;
         draft.parent = Some(Box::new(parent));
@@ -803,7 +796,7 @@ impl WorkbenchClientState {
 impl SetupDraft {
     fn project_count(&self) -> usize {
         self.baseline.projects().len()
-            + if self.stage == NativeSetupStage::ChooseWorkspaceProject {
+            + if self.stage == SetupStage::ChooseWorkspaceProject {
                 2
             } else {
                 0
@@ -816,10 +809,10 @@ impl<'a> crate::workbench_client::state::WorkbenchClientView<'a> {
     ) -> Option<super::quick::QuickRecovery<'a>> {
         self.state.quick_workspace_recovery()
     }
-    pub(in crate::workbench_client) fn setup_draft(&self) -> Option<NativeSetupDraftView<'a>> {
+    pub(in crate::workbench_client) fn setup_draft(&self) -> Option<SetupDraftView<'a>> {
         self.state.setup_draft()
     }
-    pub(in crate::workbench_client) fn setup_status(&self) -> Option<NativeSetupStatus> {
+    pub(in crate::workbench_client) fn setup_status(&self) -> Option<SetupStatus> {
         self.state.setup_status()
     }
     pub(in crate::workbench_client) fn workspace_directory_path(&self) -> Option<&'a str> {

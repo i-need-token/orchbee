@@ -1,13 +1,13 @@
 //! Confirm and retain one Workspace Close or explicit Project close-all. Membership owns removal.
 use super::recovery_fence::RecoveryFence;
 use super::{
-    ClientNotice, ClientPhase, NativeContextTabs, OperationDeadlines, PaneKey,
+    ClientContextTabs, ClientNotice, ClientPhase, OperationDeadlines, PaneKey,
     PendingRefreshFlight, WorkbenchClientState, context_removal::ContextRemovalPermit,
 };
 use crate::{
     local_client::workbench::WorkbenchWorkspaceCloseAccepted,
     tui_presentation::{GeometrySettlement, PresentationPhase},
-    workbench_client::workbench_projection::NativeContextLocation,
+    workbench_client::workbench_projection::ClientContextLocation,
 };
 use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchProjectId, WorkbenchRequestId,
@@ -42,7 +42,7 @@ pub(in crate::workbench_client) enum WorkspaceCloseTarget {
     },
 }
 impl WorkspaceCloseTarget {
-    fn matches_snapshot(&self, baseline: &NativeContextTabs) -> bool {
+    fn matches_snapshot(&self, baseline: &ClientContextTabs) -> bool {
         let snapshot = baseline.canonical_snapshot();
         match self {
             Self::Workspace {
@@ -93,7 +93,7 @@ pub(in crate::workbench_client) struct WorkspaceCloseOperation {
     pub(in crate::workbench_client) request_id: WorkbenchRequestId,
     pub(in crate::workbench_client) generation: u64,
     pub(in crate::workbench_client) deadlines: OperationDeadlines,
-    pub(in crate::workbench_client) baseline: NativeContextTabs,
+    pub(in crate::workbench_client) baseline: ClientContextTabs,
     desired: Option<PaneKey>,
     label: String,
 }
@@ -187,7 +187,7 @@ impl WorkspaceCloseOperation {
         Some(WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id: self.request_id.clone(),
-            site_id: self.baseline.site_id().clone(),
+            session_id: self.baseline.session_id().clone(),
             expected_revision: self.baseline.revision(),
             action: if self.conditional {
                 WorkbenchAction::WorkspaceCloseIfIdle {
@@ -209,7 +209,7 @@ impl WorkspaceCloseOperation {
         Some(WorkbenchWorkspaceGroupCloseRequest {
             protocol_version: ProtocolVersion,
             request_id: self.request_id.clone(),
-            site_id: self.baseline.site_id().clone(),
+            session_id: self.baseline.session_id().clone(),
             action: WorkspaceGroupCloseAction::Start {
                 operation_id: self.request_id.clone(),
                 project_id: project_id.clone(),
@@ -260,7 +260,7 @@ struct Confirmation {
     destructive: bool,
     token: WorkspaceCloseToken,
     target: WorkspaceCloseTarget,
-    baseline: NativeContextTabs,
+    baseline: ClientContextTabs,
     desired: Option<PaneKey>,
     label: String,
     presentation: PresentationPhase,
@@ -280,7 +280,7 @@ pub(super) struct WorkspaceCloseState {
 struct ClosedLanding {
     request_id: WorkbenchRequestId,
     generation: u64,
-    location: NativeContextLocation,
+    location: ClientContextLocation,
 }
 /// Read-only scope and draw identity of one pending confirmation.
 #[derive(Clone, Copy)]
@@ -423,7 +423,7 @@ impl WorkbenchClientState {
     pub(in crate::workbench_client) fn open_workspace_close(
         &mut self,
     ) -> Option<WorkspaceCloseToken> {
-        let NativeContextLocation::Workspace { workspace_id, .. } = self.cache.location() else {
+        let ClientContextLocation::Workspace { workspace_id, .. } = self.cache.location() else {
             self.set_notice(ClientNotice::WorkspaceCloseUnavailable);
             return None;
         };
@@ -751,7 +751,7 @@ impl WorkbenchClientState {
         &mut self,
         permit: Option<&ContextRemovalPermit>,
         generation: Option<u64>,
-        candidate: &NativeContextTabs,
+        candidate: &ClientContextTabs,
     ) {
         if candidate.location() == self.cache.location() {
             return;

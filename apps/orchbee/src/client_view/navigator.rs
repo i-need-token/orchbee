@@ -1,26 +1,26 @@
 //! Client-local navigator focus and exact painted-row identity. No I/O or selection effects.
-use orchbee_workbench_protocol::{SiteId, WorkbenchRevision, WorkbenchTabId};
+use orchbee_workbench_protocol::{SessionId, WorkbenchRevision, WorkbenchTabId};
 
 use super::{Binding, KeyCode, KeyEvent, KeyKind, KeyLabelGlyphs, Modifiers};
-use crate::workbench_client::NativeContextLocation;
+use crate::workbench_client::ClientContextLocation;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Source {
-    pub(crate) site: SiteId,
+    pub(crate) session: SessionId,
     pub(crate) revision: WorkbenchRevision,
-    pub(crate) location: NativeContextLocation,
+    pub(crate) location: ClientContextLocation,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Target {
-    Location(NativeContextLocation),
+    Location(ClientContextLocation),
     Tab(WorkbenchTabId),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Catalog {
     pub(crate) source: Source,
-    pub(crate) locations: Vec<NativeContextLocation>,
+    pub(crate) locations: Vec<ClientContextLocation>,
     pub(crate) tabs: Vec<WorkbenchTabId>,
     pub(crate) current_tab: Option<WorkbenchTabId>,
 }
@@ -260,7 +260,7 @@ impl Navigator {
             let Some(new) = &catalog else {
                 return Reconcile::Cancel;
             };
-            if old.source.site != new.source.site
+            if old.source.session != new.source.session
                 || old.source.location != new.source.location
                 || self
                     .focus

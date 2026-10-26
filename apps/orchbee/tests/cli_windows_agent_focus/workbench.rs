@@ -67,7 +67,7 @@ fn viewport(stream: &mut LocalStream, case: &str) {
             let reply = WorkbenchResponse::ClientView(WorkbenchClientViewResult {
                 protocol_version: ProtocolVersion,
                 request_id: next.request_id,
-                site_id: next.site_id,
+                session_id: next.session_id,
                 outcome: serde_json::from_value(json!({"kind":"operation","operation":{"command":command,"status":{"kind":"queued"}}})).unwrap(),
             });
             match write_workbench_response(stream, &reply) {

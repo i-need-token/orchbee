@@ -159,14 +159,14 @@ fn ungrouped_workspace_accepts_a_global_directory_without_creating_a_project() {
 #[test]
 fn directory_grant_is_independent_and_denial_precedes_replay() {
     let (mut authority, grant, command) = empty_workspace();
-    let site = authority.site_id().clone();
+    let session = authority.session_id().clone();
     let before = authority.projection.snapshot().clone();
     for denied in [
         None,
-        Some(WorkbenchGrant::read_only(site.clone()).with_directory_association()),
-        Some(WorkbenchGrant::manage_navigation(site.clone())),
+        Some(WorkbenchGrant::read_only(session.clone()).with_directory_association()),
+        Some(WorkbenchGrant::manage_navigation(session.clone())),
         Some(WorkbenchGrant::manage_navigation_and_terminal_create(
-            site.clone(),
+            session.clone(),
         )),
     ] {
         assert!(matches!(

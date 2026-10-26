@@ -97,7 +97,7 @@ fn actual_full_carrier_backpressure_does_not_charge_the_close_step() {
 }
 
 #[test]
-fn successful_enqueue_is_confirmed_after_expiry_under_the_real_site_gate() {
+fn successful_enqueue_is_confirmed_after_expiry_under_the_real_session_gate() {
     let Fixture {
         service,
         mut peer,
@@ -131,21 +131,22 @@ fn successful_enqueue_is_confirmed_after_expiry_under_the_real_site_gate() {
     service.close_maintenance.notify();
     admission.recv_timeout(Duration::from_secs(2)).unwrap();
     let query = lifecycle(&mut peer);
-    let mut site = service.coordinator.lock().unwrap();
+    let mut session = service.coordinator.lock().unwrap();
     proceed.send(()).unwrap();
     // The actual owner gate, not another adapter entry point, delays admission confirmation.
     let remaining =
         (accepted_at + Duration::from_secs(30)).saturating_duration_since(Instant::now());
     thread::sleep(remaining + Duration::from_millis(10));
     assert_eq!(
-        site.close_authority()
+        session
+            .close_authority()
             .unwrap()
             .next_terminal_tab_close_step(&close.request_id, Instant::now())
             .unwrap(),
         CloseContinuationNext::Outstanding
     );
     reply(&mut peer, query, settled_page());
-    drop(site);
+    drop(session);
     let deadline = Instant::now() + Duration::from_secs(2);
     loop {
         if matches!(

@@ -1,14 +1,14 @@
 //! Automatic tail shares the existing bounded read/ack/recovery owner with manual history.
 use super::{
-    AdmissionError, Arc, CarrierFailure, CommandMailbox, KeyedProjection, NativeProjectionStatus,
-    NativeUi, PaneRef, QueuedCommand, Tagged, TerminalViewport, ViewportNav, ViewportStep,
-    ViewportWindow, WorkbenchClientView, WorkbenchPanelId,
+    AdmissionError, Arc, CarrierFailure, ClientProjectionStatus, CommandMailbox, KeyedProjection,
+    PaneRef, QueuedCommand, Tagged, TerminalViewport, ViewportNav, ViewportStep, ViewportWindow,
+    WorkbenchClientUi, WorkbenchClientView, WorkbenchPanelId,
 };
 use crate::workbench_client::terminal_tail::Target;
 
 impl KeyedProjection {
     pub(super) fn tail_window(&self) -> Option<(&ViewportWindow, u32)> {
-        if self.status != NativeProjectionStatus::FrameAvailable {
+        if self.status != ClientProjectionStatus::FrameAvailable {
             return None;
         }
         let target = self.tail?;
@@ -34,7 +34,7 @@ impl WorkbenchClientView<'_> {
         let panel_id = key.pane().panel();
         if self.pane_ref_for_panel(panel_id).as_ref() != Some(key)
             || (self.zoom_active() && self.focus_panel_id() != Some(panel_id))
-            || self.pane_projection_status(panel_id) != NativeProjectionStatus::FrameAvailable
+            || self.pane_projection_status(panel_id) != ClientProjectionStatus::FrameAvailable
         {
             return None;
         }
@@ -65,7 +65,7 @@ impl WorkbenchClientView<'_> {
     }
 }
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(super) fn drive_terminal_tails(&mut self, mailbox: &Arc<CommandMailbox>) -> bool {
         let mut changed = false;
         for index in 0..self.projections.len() {

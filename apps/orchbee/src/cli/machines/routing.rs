@@ -10,9 +10,7 @@ use crate::{
     machines::{Catalog, Profile, Store},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use orchbee_local_site_runtime::{
-    NativeCohort, WindowsCommandFailure, WindowsSiteName, run_windows_command_exchange,
-};
+use orchbee_local_runtime::{Cohort, CommandFailure, SessionName, run_windows_command_exchange};
 use serde::{Deserialize, Serialize};
 use std::{
     path::PathBuf,
@@ -29,7 +27,7 @@ struct Packet {
     version: u8,
     cohort: String,
     #[serde(rename = "session")]
-    site: String,
+    session: String,
     arguments: Vec<String>,
     input: Option<String>,
     locale: String,
@@ -241,7 +239,7 @@ fn execute(
     let packet = Packet {
         version: 1,
         cohort: client.cohort,
-        site: profile.draft.session.as_str().into(),
+        session: profile.draft.session.as_str().into(),
         arguments,
         input,
         locale: match locale {
@@ -266,15 +264,15 @@ fn execute(
     });
     if matches!(
         result.failure,
-        Some(WindowsCommandFailure::SpawnUnavailable | WindowsCommandFailure::SpawnFailed)
+        Some(CommandFailure::SpawnUnavailable | CommandFailure::SpawnFailed)
     ) {
         *outcome = Outcome::NotSubmitted;
     }
     if let Some(failure) = result.failure {
         return Err(match failure {
-            WindowsCommandFailure::Cancelled => ("cancelled", 130),
-            WindowsCommandFailure::Timeout => ("timeout", 7),
-            WindowsCommandFailure::PhysicalUnknown => ("physical-unknown", 8),
+            CommandFailure::Cancelled => ("cancelled", 130),
+            CommandFailure::Timeout => ("timeout", 7),
+            CommandFailure::PhysicalUnknown => ("physical-unknown", 8),
             _ => ("ssh-failed", 5),
         });
     }
@@ -353,7 +351,7 @@ fn admit_packet(bytes: &[u8]) -> Option<(Packet, Vec<u8>)> {
         || packet.arguments.len() > 1024
         || packet.arguments.iter().map(String::len).sum::<usize>() > ARGUMENT_LIMIT
         || !matches!(packet.locale.as_str(), "en_US.UTF-8" | "zh_CN.UTF-8")
-        || WindowsSiteName::parse(&packet.site).is_err()
+        || SessionName::parse(&packet.session).is_err()
         || packet.cohort.len() != 64
         || !packet
             .cohort
@@ -364,7 +362,7 @@ fn admit_packet(bytes: &[u8]) -> Option<(Packet, Vec<u8>)> {
     }
     let parsed =
         invocation::parse_selected_request(packet.arguments.iter().map(Into::into)).ok()?;
-    if parsed.site.is_some() {
+    if parsed.session.is_some() {
         return None;
     }
     let (_, source) = invocation::machine_routing::admit(&parsed.request)?;
@@ -390,7 +388,7 @@ fn serve_packet(bytes: &[u8], deadline: Instant, signals: &mut ArmedSignals) -> 
     let Some((packet, input)) = admit_packet(bytes) else {
         return Reply::failure(Outcome::NotSubmitted);
     };
-    let Ok(cohort) = NativeCohort::current(deadline) else {
+    let Ok(cohort) = Cohort::current(deadline) else {
         return Reply::failure(Outcome::NotSubmitted);
     };
     if cohort.identity() != packet.cohort {
@@ -401,7 +399,7 @@ fn serve_packet(bytes: &[u8], deadline: Instant, signals: &mut ArmedSignals) -> 
     };
     let mut command = Command::new(executable);
     command
-        .args(["--session", &packet.site])
+        .args(["--session", &packet.session])
         .args(&packet.arguments)
         .env("LC_ALL", &packet.locale)
         .env_remove("ORCHBEE_TERMINAL_ID")
@@ -414,7 +412,7 @@ fn serve_packet(bytes: &[u8], deadline: Instant, signals: &mut ArmedSignals) -> 
     if result.stdout_truncated || result.stderr_truncated {
         return Reply::failure(Outcome::Unknown);
     }
-    if (result.failure.is_none() || result.failure == Some(WindowsCommandFailure::ExitFailure))
+    if (result.failure.is_none() || result.failure == Some(CommandFailure::ExitFailure))
         && let Some(status) = result.exit_code.and_then(|code| u8::try_from(code).ok())
     {
         return Reply {
@@ -428,7 +426,7 @@ fn serve_packet(bytes: &[u8], deadline: Instant, signals: &mut ArmedSignals) -> 
     Reply::failure(
         if matches!(
             result.failure,
-            Some(WindowsCommandFailure::SpawnFailed | WindowsCommandFailure::SpawnUnavailable)
+            Some(CommandFailure::SpawnFailed | CommandFailure::SpawnUnavailable)
         ) {
             Outcome::NotSubmitted
         } else {

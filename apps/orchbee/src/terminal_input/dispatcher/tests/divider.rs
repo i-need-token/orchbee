@@ -3,7 +3,7 @@ use super::*;
 use crate::tui_layout::{DividerSource, DrawnDivider};
 use crate::tui_pointer::{HitLayer, HitMapBuilder, HitTarget};
 use orchbee_workbench_protocol::{
-    ClientSplitRatio, PanelOrientation, SiteId, WorkbenchPanelId, WorkbenchPanelSlotId,
+    ClientSplitRatio, PanelOrientation, SessionId, WorkbenchPanelId, WorkbenchPanelSlotId,
     WorkbenchRevision, WorkbenchSplitId, WorkbenchTabId, WorkbenchTerminalContextId,
 };
 use ratatui::layout::Rect;
@@ -40,7 +40,7 @@ impl TerminalInputPort for Port {
 }
 fn fixture() -> (InputDispatcher, ClientView, Port) {
     let source = DividerSource {
-        site: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
+        session: SessionId::parse(&format!("{:032x}", 1)).unwrap(),
         context: WorkbenchTerminalContextId::parse(&format!("{:032x}", 2)).unwrap(),
         tab: WorkbenchTabId::parse(&format!("{:032x}", 3)).unwrap(),
         focus: WorkbenchPanelId::parse(&format!("{:032x}", 4)).unwrap(),
@@ -169,9 +169,7 @@ fn divider_focus_loss_rolls_back_and_late_release_fences_only_its_packet() {
 
 #[test]
 fn divider_menu_chord_and_direct_binding_refuse_without_canceling_the_drag() {
-    use orchbee_local_site_runtime::{
-        WindowsKeyChord, WindowsKeyOverride, WindowsKeySettings, WindowsKeyTrigger,
-    };
+    use orchbee_local_runtime::{KeyChord, KeyOverride, KeySettings, KeyTrigger};
 
     for binding in 0..3 {
         let (mut dispatcher, mut view, mut port) = fixture();
@@ -180,15 +178,15 @@ fn divider_menu_chord_and_direct_binding_refuse_without_canceling_the_drag() {
             1 => b"\x01",
             _ => b"",
         };
-        let mut settings = WindowsKeySettings::default();
+        let mut settings = KeySettings::default();
         if binding == 1 {
             settings.prefix.key = "a".into();
         } else if binding == 2 {
-            settings.overrides.push(WindowsKeyOverride {
+            settings.overrides.push(KeyOverride {
                 action: "menu",
-                triggers: vec![WindowsKeyTrigger {
+                triggers: vec![KeyTrigger {
                     prefix: false,
-                    chord: WindowsKeyChord {
+                    chord: KeyChord {
                         key: "f2".into(),
                         ctrl: false,
                         alt: false,

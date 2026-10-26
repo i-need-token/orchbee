@@ -4,7 +4,7 @@
 #[path = "support/windows_agent_peer.rs"]
 mod support;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use orchbee_local_site_runtime::{NativeCohort, WindowsPrivateCache, run_windows_command_exchange};
+use orchbee_local_runtime::{Cohort, PrivateCache, run_windows_command_exchange};
 use serde_json::{Value, json};
 use std::{
     process::Command,
@@ -13,7 +13,7 @@ use std::{
 use support::{Fixture, validate};
 
 fn packet(fixture: &Fixture, args: &[&str]) -> Value {
-    let cohort = NativeCohort::load(
+    let cohort = Cohort::load(
         fixture.cohort_directory(),
         Instant::now() + Duration::from_secs(15),
     )
@@ -247,7 +247,7 @@ fn relay_refuses_recursion_wrong_cohort_and_local_file_authority() {
     assert!(!fixture.0.join("runtime").exists());
 }
 #[test]
-fn routing_help_and_selection_refuse_before_ssh_or_site_effects() {
+fn routing_help_and_selection_refuse_before_ssh_or_session_effects() {
     let fixture = Fixture::new();
     assert!(
         fixture
@@ -256,7 +256,7 @@ fn routing_help_and_selection_refuse_before_ssh_or_site_effects() {
             .success()
     );
     let root = fixture.0.join("appdata/Orchbee/machines");
-    let mut cache = WindowsPrivateCache::acquire(&root).unwrap();
+    let mut cache = PrivateCache::acquire(&root).unwrap();
     cache.replace("catalog.json",&serde_json::to_vec(&json!({"schemaVersion":1,"revision":1,"profiles":[
         {"id":"11111111111111111111111111111111","label":"same","target":"example.invalid","session":"work","enabled":false},
         {"id":"22222222222222222222222222222222","label":"same","target":"example.invalid","session":"work","enabled":true}

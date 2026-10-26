@@ -1,8 +1,8 @@
 //! Mouse intents enter the same episode, selection and query owners as keyboard intents.
-use super::{CopyModeKey, Mode, NativeUi, Refusal, TerminalTextPoint};
+use super::{CopyModeKey, Mode, Refusal, TerminalTextPoint, WorkbenchClientUi};
 use crate::terminal_copy_mode::{CopyControl, CopyModeCursor, CopyModeToken, CopySurfaceToken};
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn click_copy_control(
         &mut self,
         token: CopyModeToken,

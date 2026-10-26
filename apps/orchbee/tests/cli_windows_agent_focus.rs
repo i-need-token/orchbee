@@ -76,7 +76,7 @@ fn view_reply(stream: &mut LocalStream, request: &WorkbenchClientViewRequest, ou
         &WorkbenchResponse::ClientView(WorkbenchClientViewResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id.clone(),
-            site_id: request.site_id.clone(),
+            session_id: request.session_id.clone(),
             outcome: serde_json::from_value(outcome).unwrap(),
         }),
     )
@@ -171,7 +171,7 @@ fn physical_agent_focus_pins_the_full_binding_and_never_substitutes_a_childs_par
                 json!({"kind":"observe","binding":binding,"afterSequence":null})
             );
             write_workbench_response(&mut stream,&WorkbenchResponse::PanelAgent(PanelAgentResult {
-                protocol_version:ProtocolVersion, request_id:request.request_id, site_id:request.site_id,
+                protocol_version:ProtocolVersion, request_id:request.request_id, session_id:request.session_id,
                 outcome:PanelAgentOutcome::Observed {
                     workbench_revision:WorkbenchRevision::new(12), report_revision:WorkbenchRevision::new(3),
                     observation:Box::new(serde_json::from_value(json!({"binding":binding,"sequence":"0","changes":[],
@@ -293,7 +293,7 @@ fn unified_agent_selectors_complete_before_resolving_or_submitting_focus() {
                 &WorkbenchResponse::PanelAgent(PanelAgentResult {
                     protocol_version: ProtocolVersion,
                     request_id: request.request_id,
-                    site_id: request.site_id,
+                    session_id: request.session_id,
                     outcome: PanelAgentOutcome::Observed {
                         workbench_revision: WorkbenchRevision::new(12),
                         report_revision: WorkbenchRevision::new(7),

@@ -1,7 +1,7 @@
 use super::*;
 use orchbee_workbench_protocol::WorkbenchAction;
 
-fn choose(ui: &mut NativeUi, target: MenuTarget, action: MenuAction) -> ClientAction {
+fn choose(ui: &mut WorkbenchClientUi, target: MenuTarget, action: MenuAction) -> ClientAction {
     assert!(ui.open_action_menu(
         MenuTarget::Drawn {
             source: ui.view().action_menu_source().unwrap(),
@@ -58,7 +58,7 @@ fn leaving_noncurrent_workspace_submits_exact_organization_without_navigating() 
     let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
         panic!("one exact grouping command");
     };
-    let NativeContextLocation::Workspace { workspace_id, .. } = target else {
+    let ClientContextLocation::Workspace { workspace_id, .. } = target else {
         panic!("canonical Workspace");
     };
     assert_eq!(
@@ -88,7 +88,7 @@ fn right_clicking_noncurrent_ungrouped_workspace_keeps_canonical_focus_and_exact
     let original = Origin::capture(ui.state.as_ref());
     assert!(matches!(
         ui.state.as_ref().unwrap().cache().location(),
-        NativeContextLocation::Workspace { .. }
+        ClientContextLocation::Workspace { .. }
     ));
     let current_pane = ui.state.as_ref().unwrap().focus_pane_ref();
     assert!(ui.open_action_menu(
@@ -131,7 +131,7 @@ fn deleting_noncurrent_workspace_submits_only_conditional_admission_without_navi
         .unwrap()
         .location
         .clone();
-    let NativeContextLocation::Workspace { workspace_id, .. } = &target else {
+    let ClientContextLocation::Workspace { workspace_id, .. } = &target else {
         panic!("Workspace target");
     };
     let expected = workspace_id.clone();

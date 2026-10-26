@@ -8,7 +8,7 @@ use crate::{
     tui_pointer::{HitLayer, HitMapBuilder, HitTarget},
     tui_theme::Theme,
     workbench_client::{
-        ModalPresentation, NativePanelCloseConfirmationToken, NativePanelCloseConfirmationView,
+        ModalPresentation, PanelCloseConfirmationToken, PanelCloseConfirmationView,
     },
 };
 use ratatui::{
@@ -20,7 +20,7 @@ use ratatui::{
 
 pub(super) struct PanelModalDraw {
     pub(super) area: Rect,
-    pub(super) prompt: ModalPresentation<NativePanelCloseConfirmationToken>,
+    pub(super) prompt: ModalPresentation<PanelCloseConfirmationToken>,
 }
 
 struct PreparedContent<'a> {
@@ -33,7 +33,7 @@ struct PreparedContent<'a> {
 pub(super) fn render(
     frame: &mut Frame<'_>,
     locale: Locale,
-    confirmation: &NativePanelCloseConfirmationView<'_>,
+    confirmation: &PanelCloseConfirmationView<'_>,
     content_area: Rect,
     theme: &Theme,
     hits: &mut HitMapBuilder,
@@ -80,7 +80,7 @@ pub(super) fn render(
 
 fn render_prepared(
     frame: &mut Frame<'_>,
-    token: NativePanelCloseConfirmationToken,
+    token: PanelCloseConfirmationToken,
     content_area: Rect,
     content: PreparedContent<'_>,
     theme: &Theme,
@@ -187,7 +187,7 @@ fn render_content(
     let mut hits = HitMapBuilder::new();
     let draw = render_prepared(
         frame,
-        NativePanelCloseConfirmationToken::for_test(0),
+        PanelCloseConfirmationToken::for_test(0),
         content_area,
         PreparedContent {
             title: Locale::EnUs.panel_close_title(),

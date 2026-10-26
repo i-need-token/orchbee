@@ -1,6 +1,6 @@
 //! Plugin invocation context is display data; only an admitted Server resolves executable intent.
 use crate::{
-    ContractError, ProtocolVersion, SiteId, WorkbenchRequestId, WorkbenchRevision, WorkerId,
+    ContractError, ProtocolVersion, SessionId, WorkbenchRequestId, WorkbenchRevision, WorkerId,
 };
 use serde::{Deserialize, Serialize};
 pub const MAXIMUM_ENCODED_PLUGIN_REQUEST_BYTES: usize = 32 * 1024;
@@ -323,7 +323,7 @@ pub struct PluginRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub action: PluginAction,
 }
 impl PluginRequest {
@@ -412,7 +412,7 @@ pub enum PluginFailure {
     Denied,
     Unavailable,
     #[serde(rename = "session-mismatch")]
-    SiteMismatch,
+    SessionMismatch,
     WorkerChanged,
     InvalidIntent,
     NotFound,
@@ -508,7 +508,7 @@ pub struct PluginResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub outcome: PluginOutcome,
 }
 impl PluginResult {
@@ -562,7 +562,7 @@ impl PluginResult {
     }
     pub fn answers(&self, request: &PluginRequest) -> bool {
         self.request_id == request.request_id
-            && self.site_id == request.site_id
+            && self.session_id == request.session_id
             && self.validate().is_ok()
             && {
                 let shared_failure = matches!(&self.outcome, PluginOutcome::Failed { .. });

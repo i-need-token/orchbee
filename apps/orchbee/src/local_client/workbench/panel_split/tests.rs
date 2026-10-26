@@ -8,7 +8,7 @@ fn request() -> WorkbenchCommand {
     WorkbenchCommand {
         protocol_version: orchbee_workbench_protocol::ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&id(1)).unwrap(),
-        site_id: orchbee_workbench_protocol::SiteId::parse(&id(2)).unwrap(),
+        session_id: orchbee_workbench_protocol::SessionId::parse(&id(2)).unwrap(),
         expected_revision: WorkbenchRevision::new(7),
         action: WorkbenchAction::PanelSplit {
             right_click: Default::default(),

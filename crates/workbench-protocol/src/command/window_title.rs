@@ -1,5 +1,5 @@
-//! Site-owned outer title publication, independent of pane metadata.
-use crate::{ContractError, ProtocolVersion, SiteId, WorkbenchRequestId, WorkbenchRevision};
+//! Session-owned outer title publication, independent of pane metadata.
+use crate::{ContractError, ProtocolVersion, SessionId, WorkbenchRequestId, WorkbenchRevision};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -107,7 +107,7 @@ pub struct WindowTitleRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub action: WindowTitleAction,
 }
 impl WindowTitleRequest {
@@ -132,7 +132,7 @@ pub enum WindowTitleFailure {
     Denied,
     Unavailable,
     #[serde(rename = "session-mismatch")]
-    SiteMismatch,
+    SessionMismatch,
     Conflict,
     Busy,
 }
@@ -163,13 +163,13 @@ pub struct WindowTitleResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub outcome: WindowTitleOutcome,
 }
 impl WindowTitleResult {
     pub fn answers(&self, request: &WindowTitleRequest) -> bool {
         self.request_id == request.request_id
-            && self.site_id == request.site_id
+            && self.session_id == request.session_id
             && {
                 let shared_failure = matches!(&self.outcome, WindowTitleOutcome::Failed { .. });
                 match &request.action {

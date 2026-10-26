@@ -324,7 +324,7 @@ fn close_set_completed_summary_expires_or_yields_to_the_next_notice_without_eras
         localization::Locale,
         tui_pointer::HitMapBuilder,
         tui_theme::Theme,
-        workbench_client::{NativeProjectionStatus, WorkbenchClientView},
+        workbench_client::{ClientProjectionStatus, WorkbenchClientView},
     };
     use ratatui::{Terminal, backend::TestBackend};
     let render = |state: &WorkbenchClientState, locale| {
@@ -338,7 +338,7 @@ fn close_set_completed_summary_expires_or_yields_to_the_next_notice_without_eras
                     Some(WorkbenchClientView::test_view(
                         state,
                         &[],
-                        NativeProjectionStatus::Empty,
+                        ClientProjectionStatus::Empty,
                     )),
                     &Theme::terminal_native(),
                     &mut HitMapBuilder::new(),
@@ -585,8 +585,8 @@ fn close_set_targeted_resume_rejects_same_key_rebind_at_plan_and_final_admission
 
 #[test]
 fn close_set_background_resume_draw_uses_its_exact_record_when_active_record_competes() {
-    use crate::workbench_client::ui::NativeProjectionStatus;
-    use crate::workbench_client::{ModalPresentation, NativeDrawReceipt, WorkbenchClientView};
+    use crate::workbench_client::ui::ClientProjectionStatus;
+    use crate::workbench_client::{DrawReceipt, ModalPresentation, WorkbenchClientView};
     use crate::{client_view::ClientView, localization::Locale, tui_theme::Theme};
     use ratatui::{Terminal, backend::TestBackend};
 
@@ -618,9 +618,9 @@ fn close_set_background_resume_draw_uses_its_exact_record_when_active_record_com
             );
             assert_eq!(state.view().close_status().unwrap().token(), status);
 
-            let view = WorkbenchClientView::test_view(&state, &[], NativeProjectionStatus::Empty);
+            let view = WorkbenchClientView::test_view(&state, &[], ClientProjectionStatus::Empty);
             let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-            let mut receipt = NativeDrawReceipt::default();
+            let mut receipt = DrawReceipt::default();
             terminal
                 .draw(|frame| {
                     receipt = crate::tui_render::render_terminal_shell(
@@ -635,7 +635,7 @@ fn close_set_background_resume_draw_uses_its_exact_record_when_active_record_com
                 .unwrap();
             assert_eq!(
                 receipt,
-                NativeDrawReceipt::new(Some(ModalPresentation::Presented(prompt)), Some(status))
+                DrawReceipt::new(Some(ModalPresentation::Presented(prompt)), Some(status))
                     .with_position(receipt.position().cloned())
             );
             state.acknowledge_close_draw(Some(prompt), Some(status));

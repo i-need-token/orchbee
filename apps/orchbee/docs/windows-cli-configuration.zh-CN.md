@@ -69,7 +69,7 @@ Windows `config check` v1 增加 `manifestCheck` 和 `manifestCheckSource`。
 Client 激活将已校验的检查值、来源、配置路径和显式文件标志传递。
 托管 Server 将其接纳为启动策略快照，随后在冻结位置读取完整的权威版本 0 候选。
 直接启动通过同一设置所有者建立这两种角色。cohort 必须匹配。
-`read_windows_user_settings_at` 在冻结位置支持有界显式重载，保留默认文件缺失与显式文件缺失的
+`read_user_settings_at` 在冻结位置支持有界显式重载，保留默认文件缺失与显式文件缺失的
 差别，不创建配置文件。
 
 持久托管发布版 Session 在启动时及每三十分钟检查规则。调试／测试构建和独立端点关闭自动网络任务。
@@ -280,6 +280,8 @@ orchbee update --format json
 
 独立版本目录同时保存经过接纳的原始 `release.json`；该保留文件不属于文件清单条目，复用时核对其未改变。`status client` v1 将清单绑定到目录标识和已验证 cohort 后再投影实际安装来源，不以当前配置偏好替代。
 
+CLI 私有的 `release_store` 模块拥有不可变发布。`ReleaseStore` 获取已有私有缓存写锁并固定安装目录祖先。暂存区借用该锁，只创建经过验证的可移植路径与独占私有文件，再通过不替换目录重命名发布到小写 SHA-256 标识。应用拥有清单校验、下载、cohort 接纳、启动检查、用户 PATH 激活及保留版本。显式清理只删除自身未发布暂存区；子进程结束未确认时使用 `retain_for_recovery` 并报告保留路径。`open_release_file` 拒绝不安全祖先、重解析点、外部 ACL 和硬链接。确定性 Windows 测试覆盖写入互斥、独立发布、别名拒绝和暂存清理。
+
 ## Windows Agent 侧栏布局
 
 Windows 主 TUI 在启动及 `server reload-config` 后应用 `ui.sidebar.agents`。例如：
@@ -341,4 +343,4 @@ Git 在所属 Worker 上读取已提交的 Workspace 目录，显示相对本地
 
 `terminal.focus_new_panel` 接受布尔值，默认为 `true`。原生 Client 分屏选中刚提交的新窗格；`false` 保留原窗格。Client 在启动时读取该偏好，编辑此字段后需重启。类型无效时产生字段级诊断并使用默认值。CLI `panel split --focus` 保留显式命令策略。
 
-<!-- documentation-pairing: english-sha256=29157d2728fd786a09a71cdf26f4dd8a1705eee05ffce4c85547a62118f1df2c zh-cn-sha256=e99e5162c57f4d2071bff6cecd0791cdeb2f54e1e032127b96be80603190eb40 -->
+<!-- documentation-pairing: english-sha256=0d4ca7075f47850f58111625617ede133a7dc01ab04ae7dff8bb92746ff25c96 zh-cn-sha256=4a8c471f7045da463cf170959ad3f0579edbfdc32b8814d0aa5f6b803a83011e -->

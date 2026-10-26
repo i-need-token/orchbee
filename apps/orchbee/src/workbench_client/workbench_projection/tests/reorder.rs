@@ -62,7 +62,7 @@ fn projector_rejects_duplicate_structural_ids_in_any_member() {
         }
         assert_eq!(
             project_preferred_workspace(&candidate),
-            Err(NativeProjectionError),
+            Err(ClientProjectionError),
             "field {field}"
         );
     }
@@ -81,7 +81,7 @@ fn projector_rejects_a_terminal_bound_twice_even_with_distinct_workers() {
     primary_presentation.binding.as_mut().unwrap().terminal_id = terminal_id(tab_seed(0) + 4);
     assert_eq!(
         project_preferred_workspace(&candidate),
-        Err(NativeProjectionError)
+        Err(ClientProjectionError)
     );
 }
 
@@ -107,7 +107,7 @@ fn created_member_is_found_after_later_moves_but_must_be_new_at_successor_revisi
             reordered_at_commit.tabs.rotate_right(1);
             assert_eq!(
                 validate_created_tab(&current, &expected, reordered_at_commit),
-                Err(NativeProjectionDivergence)
+                Err(ClientProjectionDivergence)
             );
         }
     }
@@ -116,12 +116,12 @@ fn created_member_is_found_after_later_moves_but_must_be_new_at_successor_revisi
     let reused = expectation_for(&candidate, 0, 11, "1");
     assert_eq!(
         validate_created_tab(&current, &reused, candidate.clone()),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
     let wrong_successor = expectation_for(&candidate, 2, 12, "3");
     assert_eq!(
         validate_created_tab(&current, &wrong_successor, candidate),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }
 
@@ -144,7 +144,7 @@ fn reordered_members_still_reject_every_immutable_change_and_duplicate_identity(
         }
         assert_eq!(
             validate_canonical_refresh(&current, candidate),
-            Err(NativeProjectionDivergence),
+            Err(ClientProjectionDivergence),
             "field {field}"
         );
     }
@@ -154,7 +154,7 @@ fn reordered_members_still_reject_every_immutable_change_and_duplicate_identity(
     candidate.tabs[0].presentation_label = label("renamed presentation");
     assert_eq!(
         validate_created_tab(&current, &expected, candidate),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }
 

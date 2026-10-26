@@ -210,7 +210,7 @@ fn unbound_workspace_materialization_needs_no_directory_and_respects_context_clo
         WorkbenchCommandOutcome::TabLayoutCreated { .. }
     ));
     let grant =
-        WorkbenchGrant::manage_navigation(owner.site_id().clone()).with_terminal_lifecycle();
+        WorkbenchGrant::manage_navigation(owner.session_id().clone()).with_terminal_lifecycle();
     let close = command(
         1003,
         owner.snapshot().revision.value(),

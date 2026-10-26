@@ -32,7 +32,7 @@ pub(super) fn read_reply(stream: &mut LocalStream, case: &str, turn: u64) {
     let reply = WorkspaceMetadataResult {
         protocol_version: ProtocolVersion,
         request_id: request.request_id,
-        site_id: request.site_id,
+        session_id: request.session_id,
         outcome: serde_json::from_value(outcome).unwrap(),
     };
     write_workbench_response(stream, &WorkbenchResponse::WorkspaceMetadata(reply)).unwrap();
@@ -214,7 +214,7 @@ fn workspace_metadata_report_preserves_known_and_unknown_outcomes_without_replay
                         } else {
                             request.request_id
                         },
-                        site_id: request.site_id,
+                        session_id: request.session_id,
                         outcome: serde_json::from_value(outcome).unwrap(),
                     }),
                 )

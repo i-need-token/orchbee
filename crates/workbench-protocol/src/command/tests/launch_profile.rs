@@ -23,7 +23,7 @@ fn command_request(action: WorkbenchAction) -> WorkbenchRequest {
     WorkbenchRequest::Command(WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse("11111111111111111111111111111111").unwrap(),
-        site_id: SiteId::parse("22222222222222222222222222222222").unwrap(),
+        session_id: SessionId::parse("22222222222222222222222222222222").unwrap(),
         expected_revision: WorkbenchRevision::new(0),
         action,
     })
@@ -137,20 +137,20 @@ fn catalog_read_intent_and_result_round_trip_the_full_outcome_set() {
         assert_eq!(parse_workbench_request(&encoded).unwrap(), request);
     }
 
-    let site = SiteId::parse("22222222222222222222222222222222").unwrap();
+    let session = SessionId::parse("22222222222222222222222222222222").unwrap();
     let entry = LaunchProfileEntry {
-        profile_id: LaunchProfileId::parse(&format!("{}:a", site.as_str())).unwrap(),
+        profile_id: LaunchProfileId::parse(&format!("{}:a", session.as_str())).unwrap(),
         name: LaunchProfileName::parse("dev-shell").unwrap(),
         launch: LaunchSelection::new("/bin/zsh".to_owned(), Vec::new()).unwrap(),
     };
     let outcomes = [
         LaunchProfileCatalogOutcome::Catalog {
-            site_id: site.clone(),
+            session_id: session.clone(),
             catalog_revision: LaunchProfileCatalogRevision::new(7),
             entries: vec![entry.clone()],
         },
         LaunchProfileCatalogOutcome::Profile {
-            site_id: site.clone(),
+            session_id: session.clone(),
             catalog_revision: LaunchProfileCatalogRevision::new(7),
             profile: entry.clone(),
         },

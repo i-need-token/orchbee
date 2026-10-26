@@ -12,9 +12,8 @@ use crate::{
     tui_layout::ViewportTier,
     tui_theme::{GlyphMode, Role, Theme},
     workbench_client::{
-        NativeDisplayController, NativeDisplayPhase, NativeDisplayProvenance,
-        NativeLocationLabelStatus, NativeLocationLabelTarget, NativeSetupStatus, TakeoverStatus,
-        WorkbenchClientView,
+        DisplayController, DisplayPhase, DisplayProvenance, LocationLabelStatus,
+        LocationLabelTarget, SetupStatus, TakeoverStatus, WorkbenchClientView,
     },
 };
 use ratatui::{
@@ -52,7 +51,7 @@ enum StatusAction {
     RetryClose,
     TakeControl,
     ConfigureDirectory,
-    RetryRename(NativeLocationLabelTarget),
+    RetryRename(LocationLabelTarget),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -823,8 +822,8 @@ fn action_hint(
         ),
         StatusAction::RetryRename(target) => (
             PrefixAction::Client(match target {
-                NativeLocationLabelTarget::Project => ClientAction::RequestProjectRename,
-                NativeLocationLabelTarget::Workspace => ClientAction::RequestWorkspaceRename,
+                LocationLabelTarget::Project => ClientAction::RequestProjectRename,
+                LocationLabelTarget::Workspace => ClientAction::RequestWorkspaceRename,
             }),
             copy.retry_rename,
         ),
@@ -888,35 +887,34 @@ fn native_status_actions(native: &WorkbenchClientView<'_>) -> Vec<StatusAction> 
     }
     if native.notice().is_some() {
         return match native.setup_status() {
-            Some(NativeSetupStatus::LocationLabel {
-                status: NativeLocationLabelStatus::CommittedNeedRefresh,
+            Some(SetupStatus::LocationLabel {
+                status: LocationLabelStatus::CommittedNeedRefresh,
                 ..
             })
-            | Some(
-                NativeSetupStatus::CommittedNeedRefresh
-                | NativeSetupStatus::TabsCommittedNeedRefresh,
-            ) => vec![StatusAction::Refresh],
+            | Some(SetupStatus::CommittedNeedRefresh | SetupStatus::TabsCommittedNeedRefresh) => {
+                vec![StatusAction::Refresh]
+            }
             _ => Vec::new(),
         };
     }
     match native.setup_status() {
-        Some(NativeSetupStatus::WorkspaceCreated) if native.workspace_directory_unconfigured() => {
+        Some(SetupStatus::WorkspaceCreated) if native.workspace_directory_unconfigured() => {
             vec![StatusAction::ConfigureDirectory]
         }
-        Some(NativeSetupStatus::DirectoryAccepted) => vec![StatusAction::CreateTab],
+        Some(SetupStatus::DirectoryAccepted) => vec![StatusAction::CreateTab],
         // The refused text is retained for this owner; the retry stays a separate,
         // droppable hint so the short refusal fact keeps priority.
-        Some(NativeSetupStatus::LocationLabel {
+        Some(SetupStatus::LocationLabel {
             target,
-            status: NativeLocationLabelStatus::Stale,
+            status: LocationLabelStatus::Stale,
         }) => vec![StatusAction::RetryRename(target)],
-        Some(NativeSetupStatus::LocationLabel {
-            status: NativeLocationLabelStatus::CommittedNeedRefresh,
+        Some(SetupStatus::LocationLabel {
+            status: LocationLabelStatus::CommittedNeedRefresh,
             ..
         })
-        | Some(
-            NativeSetupStatus::CommittedNeedRefresh | NativeSetupStatus::TabsCommittedNeedRefresh,
-        ) => vec![StatusAction::Refresh],
+        | Some(SetupStatus::CommittedNeedRefresh | SetupStatus::TabsCommittedNeedRefresh) => {
+            vec![StatusAction::Refresh]
+        }
         Some(_) => Vec::new(),
         None => phase_actions,
     }
@@ -924,7 +922,7 @@ fn native_status_actions(native: &WorkbenchClientView<'_>) -> Vec<StatusAction> 
 
 fn native_phase_actions(native: &WorkbenchClientView<'_>) -> Vec<StatusAction> {
     if native.quick_workspace_recovery().is_some()
-        || (native.phase() == NativeDisplayPhase::SelectedWithoutAttachment
+        || (native.phase() == DisplayPhase::SelectedWithoutAttachment
             && native.selected_is_unbound()
             && native.retirement().is_none())
     {
@@ -934,47 +932,45 @@ fn native_phase_actions(native: &WorkbenchClientView<'_>) -> Vec<StatusAction> {
         return vec![StatusAction::Exit];
     }
     match native.phase() {
-        NativeDisplayPhase::Empty
+        DisplayPhase::Empty
             if native.workspace_directory_path().is_some()
                 || native.workspace_directory_unconfigured() =>
         {
             Vec::new()
         }
-        NativeDisplayPhase::Empty if native.no_current_workspace() => {
+        DisplayPhase::Empty if native.no_current_workspace() => {
             vec![StatusAction::CreateWorkspace]
         }
-        NativeDisplayPhase::Empty => vec![StatusAction::CreateTab],
-        NativeDisplayPhase::Ready if native.active_position().is_none() => {
+        DisplayPhase::Empty => vec![StatusAction::CreateTab],
+        DisplayPhase::Ready if native.active_position().is_none() => {
             vec![StatusAction::Exit]
         }
         // An ended terminal keeps its output but accepts no controller.
-        NativeDisplayPhase::Ready if focus_terminal_ended(native) => {
+        DisplayPhase::Ready if focus_terminal_ended(native) => {
             vec![StatusAction::CreateTab]
         }
-        NativeDisplayPhase::Ready
-            if native.controller() == Some(NativeDisplayController::ReadOnly) =>
-        {
+        DisplayPhase::Ready if native.controller() == Some(DisplayController::ReadOnly) => {
             vec![StatusAction::TakeControl]
         }
         // A known failed launch is never retried; another Tab is the direct recovery.
-        NativeDisplayPhase::SelectedWithoutAttachment
+        DisplayPhase::SelectedWithoutAttachment
             if native.active_position().is_some()
-                && native.selected_provenance() == Some(NativeDisplayProvenance::Failed) =>
+                && native.selected_provenance() == Some(DisplayProvenance::Failed) =>
         {
             vec![StatusAction::CreateTab]
         }
-        NativeDisplayPhase::ProjectionUnavailable
-        | NativeDisplayPhase::MoveProjectionUnavailable
-        | NativeDisplayPhase::PanelProjectionUnavailable
-        | NativeDisplayPhase::RenameProjectionUnavailable => vec![StatusAction::Refresh],
-        NativeDisplayPhase::Switching
-        | NativeDisplayPhase::SelectedWithoutAttachment
-        | NativeDisplayPhase::RetryableAttachUnavailable
+        DisplayPhase::ProjectionUnavailable
+        | DisplayPhase::MoveProjectionUnavailable
+        | DisplayPhase::PanelProjectionUnavailable
+        | DisplayPhase::RenameProjectionUnavailable => vec![StatusAction::Refresh],
+        DisplayPhase::Switching
+        | DisplayPhase::SelectedWithoutAttachment
+        | DisplayPhase::RetryableAttachUnavailable
             if native.active_position().is_none() =>
         {
             vec![StatusAction::Exit]
         }
-        NativeDisplayPhase::Retired => vec![StatusAction::Exit],
+        DisplayPhase::Retired => vec![StatusAction::Exit],
         _ => Vec::new(),
     }
 }

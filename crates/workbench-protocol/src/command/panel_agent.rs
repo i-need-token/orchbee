@@ -1,6 +1,6 @@
 //! Explicit terminal Agent reports and reads; process proof is never a public request field.
 use crate::{
-    ContractError, PresentationBinding, ProtocolVersion, SiteId, TerminalPresentationId,
+    ContractError, PresentationBinding, ProtocolVersion, SessionId, TerminalPresentationId,
     WorkbenchPanelId, WorkbenchRequestId, WorkbenchRevision,
 };
 use orchbee_agent_observation_protocol::{AgentReportSequence, normalize_agent_report_label};
@@ -140,7 +140,7 @@ pub struct PanelAgentRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub action: PanelAgentAction,
 }
 impl PanelAgentRequest {
@@ -243,7 +243,7 @@ pub enum PanelAgentFailure {
     Denied,
     Unavailable,
     #[serde(rename = "session-mismatch")]
-    SiteMismatch,
+    SessionMismatch,
     InvalidRequest,
     NotFound,
     Unbound,
@@ -321,7 +321,7 @@ pub struct PanelAgentResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub outcome: PanelAgentOutcome,
 }
 impl PanelAgentResult {
@@ -381,7 +381,7 @@ impl PanelAgentResult {
     }
     pub fn answers(&self, request: &PanelAgentRequest) -> bool {
         if self.request_id != request.request_id
-            || self.site_id != request.site_id
+            || self.session_id != request.session_id
             || self.validate().is_err()
         {
             return false;

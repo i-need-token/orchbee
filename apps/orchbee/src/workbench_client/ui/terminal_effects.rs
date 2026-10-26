@@ -1,12 +1,12 @@
 //! Pane effect intake and post-flush dispatch through one lifecycle-owned FIFO.
-use super::{NativeProjectionStatus, NativeUi};
+use super::{ClientProjectionStatus, WorkbenchClientUi};
 use crate::workbench_client::{
     state::ClientNotice,
     terminal_effects::{Kind, Outcome, Payload, Scope},
 };
 use std::io;
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn copy_picker_identifier(&mut self, text: String) -> bool {
         if text.len() != 32 || !text.bytes().all(|byte| byte.is_ascii_hexdigit()) {
             return false;
@@ -89,7 +89,7 @@ impl NativeUi {
                     } => {
                         let current_projection = state.ready().is_some()
                             && state.panel_viewer_live(key.pane().panel())
-                            && projection.status == NativeProjectionStatus::FrameAvailable
+                            && projection.status == ClientProjectionStatus::FrameAvailable
                             && projection
                                 .value
                                 .frame()

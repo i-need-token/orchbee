@@ -3,7 +3,12 @@ use super::*;
 use crate::machine_picker::{Choice, Picker, SidebarRow};
 use orchbee_workbench_protocol::{NavigationConfiguration, configure_navigation};
 
-fn ready_sidebar() -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
+fn ready_sidebar() -> (
+    WorkbenchClientUi,
+    Arc<CommandMailbox>,
+    LocalOperationClock,
+    Snapshot,
+) {
     let mut snapshot = super::super::membership::snapshot(1, 1);
     for n in [800, 801] {
         let terminal_context_id =

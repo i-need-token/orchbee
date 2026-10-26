@@ -1,6 +1,6 @@
 use super::Locale;
 use crate::workbench_client::{
-    NativeLocationLabelStatus as Status, NativeLocationLabelTarget as Target, NativeSetupStatus,
+    LocationLabelStatus as Status, LocationLabelTarget as Target, SetupStatus,
     WorkbenchClientNotice,
 };
 
@@ -67,7 +67,7 @@ fn location_label_results_name_the_target_and_distinguish_unchanged_from_renamed
 #[test]
 fn location_rename_recovery_preserves_its_target_without_offering_recovery_after_retirement() {
     for target in [Target::Project, Target::Workspace] {
-        let setup = NativeSetupStatus::LocationLabel {
+        let setup = SetupStatus::LocationLabel {
             target,
             status: Status::CommittedNeedRefresh,
         };
@@ -108,7 +108,7 @@ fn location_rename_recovery_preserves_its_target_without_offering_recovery_after
 fn later_errors_take_precedence_over_location_rename_success() {
     for target in [Target::Project, Target::Workspace] {
         for status in [Status::Renamed, Status::Unchanged] {
-            let setup = NativeSetupStatus::LocationLabel { target, status };
+            let setup = SetupStatus::LocationLabel { target, status };
             for locale in [Locale::EnUs, Locale::ZhCn] {
                 let notice = WorkbenchClientNotice::CreateNotCreated;
                 assert_eq!(

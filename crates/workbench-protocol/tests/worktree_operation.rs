@@ -1,5 +1,5 @@
 use orchbee_workbench_protocol::{
-    ProtocolVersion, SiteId, WorkbenchDirectoryPath, WorkbenchRequest, WorkbenchRequestId,
+    ProtocolVersion, SessionId, WorkbenchDirectoryPath, WorkbenchRequest, WorkbenchRequestId,
     WorkbenchResponse, WorkbenchTerminalGeometry, WorkbenchWorktreeAction as Action,
     WorkbenchWorktreeOutcome as Outcome, WorkbenchWorktreeRequest as Request,
     WorkbenchWorktreeResult as ResultDocument, WorktreeGitEffect, WorktreeGitError,
@@ -44,7 +44,7 @@ fn request(action: Action) -> WorkbenchRequest {
     WorkbenchRequest::WorktreeOperation(Request {
         protocol_version: ProtocolVersion,
         request_id: id(),
-        site_id: SiteId::parse("33333333333333333333333333333333").unwrap(),
+        session_id: SessionId::parse("33333333333333333333333333333333").unwrap(),
         action,
     })
 }

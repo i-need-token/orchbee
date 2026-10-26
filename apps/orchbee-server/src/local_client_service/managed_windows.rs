@@ -1,6 +1,6 @@
-//! Retained Windows Client listener and handlers, closed only by the managed Site owner.
+//! Retained Windows Client listener and handlers, closed only by the managed Session owner.
 use super::{AgentRuntimeOwner, ConnectionSlots, bind_managed, handle_candidate_control};
-use crate::site_shutdown::SiteShutdown;
+use crate::session_shutdown::SessionShutdown;
 use crate::{
     agent_service::AgentService,
     client_connection_registry::ClientConnectionRegistry,
@@ -87,7 +87,7 @@ pub(crate) fn start(
     cohort: &str,
     terminals: Arc<LocalTerminalService>,
     agents: Arc<AgentService>,
-    shutdown: Arc<SiteShutdown>,
+    shutdown: Arc<SessionShutdown>,
 ) -> io::Result<ManagedClients> {
     terminals.bind_agent_names(&agents)?;
     let listener = bind_managed(endpoint)?;

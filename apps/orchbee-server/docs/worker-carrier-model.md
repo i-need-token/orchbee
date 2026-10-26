@@ -133,7 +133,7 @@ cannot retire a replacement's leaf: both the leaf's full-identity check and the 
 generation check refuse it. No mutex is held across socket I/O, and the unmanaged
 `register_carrier()` keeps its behavior untouched — it is the same
 `register_carrier_impl` without a service argument. The managed listener path wires the
-seam in production: `LocalSiteService` calls `register_carrier_with_agents` when the
+seam in production: `local_worker_service` calls `register_carrier_with_agents` when the
 shared `AgentService` exists and plain `register_carrier` otherwise; lifecycle authority
 stays at the session composition root.
 

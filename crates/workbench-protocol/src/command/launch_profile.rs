@@ -2,11 +2,11 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use std::fmt;
 
 use crate::{
-    ContractError, ProtocolVersion, SiteId, WorkbenchRequestId, WorkbenchSnapshotUnavailableReason,
-    command::LaunchSelection,
+    ContractError, ProtocolVersion, SessionId, WorkbenchRequestId,
+    WorkbenchSnapshotUnavailableReason, command::LaunchSelection,
 };
 
-/// Maximum entries one per-Site Launch Profile catalog retains.
+/// Maximum entries one per-Session Launch Profile catalog retains.
 pub const MAXIMUM_LAUNCH_PROFILE_ENTRIES: usize = 64;
 /// Maximum serialized bytes the catalog document occupies, escaping
 /// included — measured exactly like `ledger_size` measures requests.
@@ -32,7 +32,7 @@ fn valid_profile_id(value: &str) -> bool {
 
 /// A minted Launch Profile identity. Opaque text in the shared id grammar;
 /// the Server mints `<sessionHex>:<counterHex>` so a selector captured under a
-/// dead Site can never alias a different Site's profile.
+/// dead Session can never alias a different Session's profile.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
 pub struct LaunchProfileId(String);
@@ -182,7 +182,7 @@ pub struct LaunchProfileEntry {
 }
 
 /// `workbench.launch-profile-catalog.read` — the dedicated typed read intent
-/// for the per-Site ephemeral catalog. `selector` absent lists the whole
+/// for the per-Session ephemeral catalog. `selector` absent lists the whole
 /// catalog; present resolves exactly one entry under the same lock.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -207,13 +207,13 @@ pub struct WorkbenchLaunchProfileCatalogRead {
 pub enum LaunchProfileCatalogOutcome {
     Catalog {
         #[serde(rename = "sessionId")]
-        site_id: SiteId,
+        session_id: SessionId,
         catalog_revision: LaunchProfileCatalogRevision,
         entries: Vec<LaunchProfileEntry>,
     },
     Profile {
         #[serde(rename = "sessionId")]
-        site_id: SiteId,
+        session_id: SessionId,
         catalog_revision: LaunchProfileCatalogRevision,
         profile: LaunchProfileEntry,
     },

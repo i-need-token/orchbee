@@ -16,9 +16,10 @@ fn setup() -> (WorkbenchAuthority, WorkbenchGrant, WorkbenchProjectId) {
         &navigation,
         command(10, 0, create("repo")),
     ));
-    let grant = WorkbenchGrant::manage_navigation_and_terminal_create(authority.site_id().clone())
-        .with_directory_association()
-        .with_terminal_lifecycle();
+    let grant =
+        WorkbenchGrant::manage_navigation_and_terminal_create(authority.session_id().clone())
+            .with_directory_association()
+            .with_terminal_lifecycle();
     (authority, grant, project)
 }
 fn intent() -> WorktreeIntent {
@@ -50,7 +51,7 @@ fn apply(
     let request = Request {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&identity(10000)).unwrap(),
-        site_id: authority.site_id().clone(),
+        session_id: authority.session_id().clone(),
         action,
     };
     authority
@@ -221,13 +222,13 @@ fn capacity_never_expires_an_old_operation_and_unknown_failure_cannot_resume() {
     assert!(authority.claim_worktree_operation().is_none());
 }
 #[test]
-fn wrong_site_denies_even_existing_receipts_and_missing_source_never_admits() {
+fn wrong_session_denies_even_existing_receipts_and_missing_source_never_admits() {
     let (mut authority, grant, project) = setup();
     apply(&mut authority, Some(&grant), start(&project, 40), true);
     let wrong = Request {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&identity(1000)).unwrap(),
-        site_id: orchbee_workbench_protocol::SiteId::parse(&identity(200)).unwrap(),
+        session_id: orchbee_workbench_protocol::SessionId::parse(&identity(200)).unwrap(),
         action: start(&project, 40),
     };
     assert_eq!(

@@ -1,4 +1,4 @@
-//! Metadata is readable before cohort admission and never activates a Site.
+//! Metadata is readable before cohort admission and never activates a Session.
 #![cfg(windows)]
 #[allow(dead_code)]
 #[path = "support/windows_agent_peer.rs"]
@@ -9,7 +9,7 @@ use orchbee_local_client_protocol::{
     write_message,
 };
 use orchbee_local_ipc::{LocalListener, LocalStream};
-use orchbee_local_site_runtime::NativeCohort;
+use orchbee_local_runtime::Cohort;
 use serde_json::{Value, json};
 use std::{
     fs,
@@ -98,13 +98,13 @@ fn shared_preparation_keeps_mutable_fixtures_and_corrupt_cohorts_isolated() {
     fs::write(private_root.join("cohort.json"), b"invalid manifest").unwrap();
     fs::write(first.0.join("settings"), b"private state").unwrap();
     assert!(!second.0.join("settings").exists());
-    assert!(NativeCohort::load(&private_root, Instant::now() + Duration::from_secs(10)).is_err());
+    assert!(Cohort::load(&private_root, Instant::now() + Duration::from_secs(10)).is_err());
     drop(private);
     assert!(!private_root.exists());
     drop(first);
     assert!(!first_root.exists());
     // Retiring a sibling and corrupting a private cohort cannot invalidate this reader.
-    NativeCohort::load(
+    Cohort::load(
         second.cohort_directory(),
         Instant::now() + Duration::from_secs(10),
     )
@@ -135,8 +135,8 @@ fn peer(
     fixture: &Fixture,
     action: impl FnOnce(&mut LocalStream) + Send + 'static,
 ) -> thread::JoinHandle<()> {
-    let site = fixture.rendezvous();
-    let listener = LocalListener::bind(site.client_socket_path()).unwrap();
+    let session = fixture.rendezvous();
+    let listener = LocalListener::bind(session.client_socket_path()).unwrap();
     listener.set_nonblocking(true).unwrap();
     thread::spawn(move || {
         let deadline = Instant::now() + Duration::from_secs(30);
@@ -206,14 +206,14 @@ fn offline_client_and_absent_server_do_not_create_runtime_or_locks() {
     );
     assert!(server["result"]["compatibility"]["restartRequired"].is_null());
     assert!(!fixture.0.join("runtime").exists());
-    let site = fixture.rendezvous();
+    let session = fixture.rendezvous();
     let server = success(
         fixture.run(&["status", "server", "--format=json"]),
         "server",
     );
     assert_eq!(server["result"]["server"]["reason"], "endpoint-absent");
     assert!(
-        fs::read_dir(site.runtime_directory())
+        fs::read_dir(session.runtime_directory())
             .unwrap()
             .next()
             .is_none()
@@ -223,7 +223,7 @@ fn offline_client_and_absent_server_do_not_create_runtime_or_locks() {
 #[test]
 fn observed_server_facts_survive_mismatch_and_missing_local_cohort() {
     let fixture = Fixture::private_cohort();
-    let matching = NativeCohort::load(
+    let matching = Cohort::load(
         fixture.cohort_directory(),
         Instant::now() + Duration::from_secs(10),
     )

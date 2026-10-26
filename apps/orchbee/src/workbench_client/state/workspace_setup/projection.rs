@@ -1,15 +1,15 @@
 use super::{
-    NativeContextLocation, NativeContextTabs, SetupKnownCommit, Snapshot, WorkbenchAction,
+    ClientContextLocation, ClientContextTabs, SetupKnownCommit, Snapshot, WorkbenchAction,
     WorkbenchSetupCommit, project_native_context_tabs, validate_canonical_refresh,
 };
 
 impl SetupKnownCommit {
-    pub(super) fn target(&self) -> NativeContextLocation {
+    pub(super) fn target(&self) -> ClientContextLocation {
         match (&self.operation.command.action, &self.commit) {
             (
                 WorkbenchAction::WorkspaceLaunch { .. },
                 WorkbenchSetupCommit::WorkspaceLaunched(commit),
-            ) => NativeContextLocation::Workspace {
+            ) => ClientContextLocation::Workspace {
                 workspace_id: commit.workspace_id.clone(),
                 terminal_context_id: commit.terminal_context_id.clone(),
             },
@@ -20,7 +20,7 @@ impl SetupKnownCommit {
                     terminal_context_id,
                     ..
                 },
-            ) => NativeContextLocation::Workspace {
+            ) => ClientContextLocation::Workspace {
                 workspace_id: workspace_id.clone(),
                 terminal_context_id: terminal_context_id.clone(),
             },
@@ -28,9 +28,11 @@ impl SetupKnownCommit {
             _ => self.operation.baseline.location().clone(),
         }
     }
-    pub(super) fn validate(&self, snapshot: &Snapshot) -> Option<NativeContextTabs> {
+    pub(super) fn validate(&self, snapshot: &Snapshot) -> Option<ClientContextTabs> {
         let baseline = &self.operation.baseline;
-        if snapshot.site_id != *baseline.site_id() || snapshot.revision < self.commit.revision() {
+        if snapshot.session_id != *baseline.session_id()
+            || snapshot.revision < self.commit.revision()
+        {
             return None;
         }
         if matches!(
@@ -267,7 +269,7 @@ impl SetupKnownCommit {
         &self,
         snapshot: &Snapshot,
         commit: &crate::local_client::workbench::workspace_launch::WorkspaceLaunchCommit,
-    ) -> Option<NativeContextTabs> {
+    ) -> Option<ClientContextTabs> {
         use orchbee_workbench_protocol::{WorkbenchTerminalOutcome, WorkspacePlacement};
         let WorkbenchAction::WorkspaceLaunch {
             placement,

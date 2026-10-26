@@ -1,7 +1,7 @@
 //! Title-line geometry and exact member targets share one painter; selectors never overlap Pane
 //! hits.
 use super::{
-    Frame, HitLayer, HitMapBuilder, NativeDisplayPhase, Paragraph, Rect, Role, Theme,
+    DisplayPhase, Frame, HitLayer, HitMapBuilder, Paragraph, Rect, Role, Theme,
     WorkbenchClientView,
     controls::{
         Availability, ControlSurface, IconActionGlyph, IconActionSpec, PointerPresentation,
@@ -11,7 +11,7 @@ use super::{
 use crate::{
     terminal_text::display_width,
     tui_pointer::{InteractionSpec, InteractionTarget, PrimaryContract, ProjectedPointer},
-    workbench_client::{DrawnPresentationTarget, NativePanel},
+    workbench_client::{ClientPanel, DrawnPresentationTarget},
 };
 
 pub(super) struct PresentationSelector {
@@ -24,14 +24,14 @@ pub(super) struct PresentationSelector {
 impl PresentationSelector {
     pub(super) fn new(
         header: Rect,
-        panel: &NativePanel,
+        panel: &ClientPanel,
         native: &WorkbenchClientView<'_>,
     ) -> Option<Self> {
         if header.is_empty()
             || panel.presentation_count() < 2
             || !matches!(
                 native.phase(),
-                NativeDisplayPhase::Ready | NativeDisplayPhase::SelectedWithoutAttachment
+                DisplayPhase::Ready | DisplayPhase::SelectedWithoutAttachment
             )
             || native.retirement().is_some()
         {
@@ -83,7 +83,7 @@ impl PresentationSelector {
     /// text at the same strip end.
     pub(super) fn pending_count(
         strip: Rect,
-        panel: &NativePanel,
+        panel: &ClientPanel,
         native: &WorkbenchClientView<'_>,
     ) -> Option<(Rect, String)> {
         let total = panel.presentation_count();

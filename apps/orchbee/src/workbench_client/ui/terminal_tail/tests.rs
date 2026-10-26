@@ -8,7 +8,7 @@ use orchbee_terminal_protocol::{
 use ratatui::{Terminal, backend::TestBackend, style::Color};
 use std::num::NonZeroU64;
 
-fn fixture() -> (NativeUi, PaneRef, Arc<CommandMailbox>) {
+fn fixture() -> (WorkbenchClientUi, PaneRef, Arc<CommandMailbox>) {
     let (mut ui, _, _) = super::super::agent_attention::tests::focused_physical_agent_fixture();
     let key = ui.projections[0].key.clone();
     let mut frame = ui.projections[0].value.frame().unwrap().clone();
@@ -35,7 +35,7 @@ fn fixture() -> (NativeUi, PaneRef, Arc<CommandMailbox>) {
     (ui, key, mailbox)
 }
 
-fn install_tail(ui: &mut NativeUi, key: &PaneRef, mailbox: &Arc<CommandMailbox>) {
+fn install_tail(ui: &mut WorkbenchClientUi, key: &PaneRef, mailbox: &Arc<CommandMailbox>) {
     assert!(ui.drive_terminal_tails(mailbox));
     let lease = mailbox.try_recv().unwrap().expect("tail entry");
     assert!(matches!(
@@ -57,7 +57,7 @@ fn install_tail(ui: &mut NativeUi, key: &PaneRef, mailbox: &Arc<CommandMailbox>)
     serve_tail_window(ui, key, mailbox);
 }
 
-fn serve_tail_window(ui: &mut NativeUi, key: &PaneRef, mailbox: &Arc<CommandMailbox>) {
+fn serve_tail_window(ui: &mut WorkbenchClientUi, key: &PaneRef, mailbox: &Arc<CommandMailbox>) {
     let frame = ui.projections[0].value.frame().unwrap().clone();
     let target = Target::capture(&frame).unwrap();
     let core = ui.projections[0].viewport.as_mut().unwrap();
@@ -125,7 +125,7 @@ fn serve_tail_window(ui: &mut NativeUi, key: &PaneRef, mailbox: &Arc<CommandMail
     core.ack_outcome(request_sequence, true);
 }
 
-fn paint(ui: &NativeUi, locale: Locale, theme: &Theme) -> ratatui::buffer::Buffer {
+fn paint(ui: &WorkbenchClientUi, locale: Locale, theme: &Theme) -> ratatui::buffer::Buffer {
     let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
     terminal
         .draw(|frame| {

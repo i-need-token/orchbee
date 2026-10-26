@@ -34,7 +34,7 @@ fn explicit_three_tab_move_table_and_revision_overflow_pin_the_commit_contract()
             .collect();
         assert_eq!(
             validate_moved_candidate(&baseline, &expected, candidate.clone()),
-            order.map_or(Err(NativeProjectionDivergence), |_| Ok(candidate))
+            order.map_or(Err(ClientProjectionDivergence), |_| Ok(candidate))
         );
     }
     let baseline = projected(3, u64::MAX);
@@ -46,7 +46,7 @@ fn explicit_three_tab_move_table_and_revision_overflow_pin_the_commit_contract()
     );
     assert_eq!(
         validate_moved_candidate(&baseline, &expected, baseline.clone()),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }
 
@@ -85,14 +85,14 @@ fn moved_projection_requires_exact_commit_permutation_and_allows_later_history()
                 candidate.tabs.insert(to, moved);
                 let accepted = validate_moved_candidate(&current, &expected, candidate.clone());
                 if from == to {
-                    assert_eq!(accepted, Err(NativeProjectionDivergence));
+                    assert_eq!(accepted, Err(ClientProjectionDivergence));
                     continue;
                 }
                 assert_eq!(accepted, Ok(candidate.clone()));
                 candidate.tabs[to].tab_label = label("impossible rename at commit");
                 assert_eq!(
                     validate_moved_candidate(&current, &expected, candidate.clone()),
-                    Err(NativeProjectionDivergence)
+                    Err(ClientProjectionDivergence)
                 );
                 candidate.revision = WorkbenchRevision::new(12);
                 candidate.tabs.reverse();
@@ -134,7 +134,7 @@ fn moved_projection_rejects_wrong_commit_tuple_revision_and_retained_member_chan
     for (expected, candidate) in failures {
         assert_eq!(
             validate_moved_candidate(&current, &expected, candidate),
-            Err(NativeProjectionDivergence)
+            Err(ClientProjectionDivergence)
         );
     }
     let mut later = projected(4, 12);
@@ -146,9 +146,9 @@ fn moved_projection_rejects_wrong_commit_tuple_revision_and_retained_member_chan
 }
 
 fn validate_moved_candidate(
-    baseline: &NativeContextTabs,
+    baseline: &ClientContextTabs,
     expected: &MovedTabExpectation,
-    candidate: NativeContextTabs,
-) -> Result<NativeContextTabs, NativeProjectionDivergence> {
+    candidate: ClientContextTabs,
+) -> Result<ClientContextTabs, ClientProjectionDivergence> {
     validate_moved_tab(baseline, expected, candidate).map(|validated| validated.candidate)
 }

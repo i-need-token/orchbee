@@ -1,5 +1,5 @@
 use super::{CloseWait, PanelQueryTarget};
-use super::{CreationCommand, CreationKind, SiteStopCommand};
+use super::{CreationCommand, CreationKind, ServerStopCommand};
 use super::{CreationDirectory, ManifestCommand};
 use crate::localization::Locale;
 use std::ffi::OsString;
@@ -577,23 +577,23 @@ fn accepts_every_query_path_with_default_text() {
 }
 
 #[test]
-fn site_start_admits_only_format() {
+fn session_start_admits_only_format() {
     // The bare path defaults to text; `--format` is the sole option.
     assert_eq!(
         parse(&["server", "start"]),
-        Ok(Request::SiteStart {
+        Ok(Request::ServerStart {
             format: OutputFormat::Text
         })
     );
     assert_eq!(
         parse(&["server", "start", "--format", "json"]),
-        Ok(Request::SiteStart {
+        Ok(Request::ServerStart {
             format: OutputFormat::Json
         })
     );
     assert_eq!(
         parse(&["--format=json", "server", "start"]),
-        Ok(Request::SiteStart {
+        Ok(Request::ServerStart {
             format: OutputFormat::Json
         })
     );
@@ -654,21 +654,21 @@ fn site_start_admits_only_format() {
     );
     assert_eq!(
         parse(&["server", "start", "--help"]),
-        Ok(Request::Help(HelpTopic::Command(CommandPath::SiteStart)))
+        Ok(Request::Help(HelpTopic::Command(CommandPath::ServerStart)))
     );
     assert_eq!(
         parse(&["help", "server", "start"]),
-        Ok(Request::Help(HelpTopic::Command(CommandPath::SiteStart)))
+        Ok(Request::Help(HelpTopic::Command(CommandPath::ServerStart)))
     );
 }
 
 #[test]
-fn site_stop_requires_confirmation_and_preserves_explicit_recovery_identity() {
+fn session_stop_requires_confirmation_and_preserves_explicit_recovery_identity() {
     let id = "11111111111111111111111111111111";
     assert!(matches!(
         parse(&["server", "stop", "--confirm"]),
-        Ok(Request::SiteStop {
-            command: SiteStopCommand::Stop {
+        Ok(Request::ServerStop {
+            command: ServerStopCommand::Stop {
                 id: None,
                 retry: false,
                 detach: false,
@@ -689,8 +689,8 @@ fn site_stop_requires_confirmation_and_preserves_explicit_recovery_identity() {
             "--timeout=1",
             "--format=json"
         ]),
-        Ok(Request::SiteStop {
-            command: SiteStopCommand::Stop {
+        Ok(Request::ServerStop {
+            command: ServerStopCommand::Stop {
                 id: Some(_),
                 retry: true,
                 detach: true,
@@ -701,8 +701,8 @@ fn site_stop_requires_confirmation_and_preserves_explicit_recovery_identity() {
     ));
     assert!(matches!(
         parse(&["server", "stop-status", id]),
-        Ok(Request::SiteStop {
-            command: SiteStopCommand::Status { .. },
+        Ok(Request::ServerStop {
+            command: ServerStopCommand::Status { .. },
             ..
         })
     ));
@@ -739,23 +739,23 @@ fn site_stop_requires_confirmation_and_preserves_explicit_recovery_identity() {
 }
 
 #[test]
-fn site_diagnose_admits_only_format() {
+fn session_diagnose_admits_only_format() {
     // The bare path defaults to text; `--format` is the sole option.
     assert_eq!(
         parse(&["server", "diagnose"]),
-        Ok(Request::SiteDiagnose {
+        Ok(Request::ServerDiagnose {
             format: OutputFormat::Text
         })
     );
     assert_eq!(
         parse(&["server", "diagnose", "--format", "json"]),
-        Ok(Request::SiteDiagnose {
+        Ok(Request::ServerDiagnose {
             format: OutputFormat::Json
         })
     );
     assert_eq!(
         parse(&["--format=json", "server", "diagnose"]),
-        Ok(Request::SiteDiagnose {
+        Ok(Request::ServerDiagnose {
             format: OutputFormat::Json
         })
     );
@@ -789,11 +789,15 @@ fn site_diagnose_admits_only_format() {
     // Help-path resolution: command help is its own topic.
     assert_eq!(
         parse(&["server", "diagnose", "--help"]),
-        Ok(Request::Help(HelpTopic::Command(CommandPath::SiteDiagnose)))
+        Ok(Request::Help(HelpTopic::Command(
+            CommandPath::ServerDiagnose
+        )))
     );
     assert_eq!(
         parse(&["help", "server", "diagnose"]),
-        Ok(Request::Help(HelpTopic::Command(CommandPath::SiteDiagnose)))
+        Ok(Request::Help(HelpTopic::Command(
+            CommandPath::ServerDiagnose
+        )))
     );
 }
 
@@ -1704,17 +1708,17 @@ fn accepts_every_mutation_path() {
             },
         ),
         (
-            &["project", "rename", "web", "--label", "site"],
+            &["project", "rename", "web", "--label", "session"],
             MutationCommand::ProjectRename {
                 target: Target::Label("web".into()),
-                label: label("site"),
+                label: label("session"),
             },
         ),
         (
-            &["project", "rename", ID, "--label", "site"],
+            &["project", "rename", ID, "--label", "session"],
             MutationCommand::ProjectRename {
                 target: Target::Id(ID.into()),
-                label: label("site"),
+                label: label("session"),
             },
         ),
         // A non-ID token — uppercase hex included — is a label candidate, not
@@ -1725,27 +1729,27 @@ fn accepts_every_mutation_path() {
                 "rename",
                 "0123456789ABCDEF0123456789ABCDEF",
                 "--label",
-                "site",
+                "session",
             ],
             MutationCommand::ProjectRename {
                 target: Target::Label("0123456789ABCDEF0123456789ABCDEF".into()),
-                label: label("site"),
+                label: label("session"),
             },
         ),
         (
-            &["project", "rename", "--label", "site", "web"],
+            &["project", "rename", "--label", "session", "web"],
             MutationCommand::ProjectRename {
                 target: Target::Label("web".into()),
-                label: label("site"),
+                label: label("session"),
             },
         ),
         // `--` shields a flag-spelling operand: the literal label `--help`
         // still resolves through the shared target rules.
         (
-            &["project", "rename", "--label", "site", "--", "--help"],
+            &["project", "rename", "--label", "session", "--", "--help"],
             MutationCommand::ProjectRename {
                 target: Target::Label("--help".into()),
-                label: label("site"),
+                label: label("session"),
             },
         ),
         #[cfg(not(windows))]
@@ -7294,7 +7298,7 @@ fn prompt_client_selection_requires_wait_and_one_exact_client() {
 }
 #[cfg(windows)]
 #[test]
-fn named_site_selection_preserves_complete_grammar_and_value_ownership() {
+fn named_session_selection_preserves_complete_grammar_and_value_ownership() {
     use super::parse_selected_request;
     let parse = |words: &[&str]| parse_selected_request(words.iter().map(OsString::from));
     for words in [
@@ -7302,7 +7306,7 @@ fn named_site_selection_preserves_complete_grammar_and_value_ownership() {
         vec!["status", "--session=Work"],
     ] {
         let request = parse(&words).unwrap();
-        assert_eq!(request.site.unwrap().as_str(), "Work");
+        assert_eq!(request.session.unwrap().as_str(), "Work");
         assert_eq!(
             request.request,
             parse_request(["status"].into_iter().map(OsString::from)).unwrap()
@@ -7333,7 +7337,7 @@ fn named_site_selection_preserves_complete_grammar_and_value_ownership() {
         "work",
     ])
     .unwrap();
-    assert_eq!(launch.site.unwrap().as_str(), "work");
+    assert_eq!(launch.session.unwrap().as_str(), "work");
     let agent = parse(&[
         "--session",
         "work",
@@ -7343,7 +7347,7 @@ fn named_site_selection_preserves_complete_grammar_and_value_ownership() {
         "00000000000000000000000000000001",
     ]);
     let agent = agent.unwrap();
-    assert_eq!(agent.site.unwrap().as_str(), "work");
+    assert_eq!(agent.session.unwrap().as_str(), "work");
     assert!(matches!(
         agent.request,
         Request::Query {
@@ -7354,9 +7358,9 @@ fn named_site_selection_preserves_complete_grammar_and_value_ownership() {
     // A runtime selector alone must not become an Agent target.
     assert!(parse(&["--session", "work", "agent", "get"]).is_err());
     for words in [
-        vec!["--site", "work", "status"],
-        vec!["site", "start"],
-        vec!["help", "site"],
+        vec!["--session", "work", "status"],
+        vec!["session", "start"],
+        vec!["help", "session"],
     ] {
         assert!(parse(&words).is_err(), "retired spelling: {words:?}");
     }
@@ -7364,7 +7368,7 @@ fn named_site_selection_preserves_complete_grammar_and_value_ownership() {
 
 #[cfg(windows)]
 #[test]
-fn workspace_creation_defaults_are_accepted_with_and_without_site_selection() {
+fn workspace_creation_defaults_are_accepted_with_and_without_session_selection() {
     for words in [
         vec!["workspace", "create", "--label", "w"],
         vec!["workspace", "create", "--project", "p"],
@@ -7413,7 +7417,7 @@ fn workspace_creation_defaults_are_accepted_with_and_without_site_selection() {
         )
         .unwrap();
         assert_eq!(selected.request, ordinary);
-        assert_eq!(selected.site.unwrap().as_str(), "work");
+        assert_eq!(selected.session.unwrap().as_str(), "work");
     }
 }
 

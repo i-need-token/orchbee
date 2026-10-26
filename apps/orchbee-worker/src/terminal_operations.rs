@@ -47,8 +47,8 @@ pub(crate) fn run(
     worker_id: WorkerId,
     generation: NonZeroU64,
     drain: &Rc<RefCell<AgentDrain>>,
-    preferences: Option<&orchbee_local_site_runtime::UserPreferencesStore>,
-    #[cfg(windows)] shell: &orchbee_local_site_runtime::WindowsShellSettings,
+    preferences: Option<&orchbee_local_runtime::UserPreferencesStore>,
+    #[cfg(windows)] shell: &orchbee_local_runtime::ShellSettings,
 ) -> Result<(), Box<dyn Error>> {
     server.set_nonblocking(true)?;
     host.stream().set_nonblocking(true)?;
@@ -76,7 +76,7 @@ pub(crate) fn run(
             mutation_slot: &mutation_slot,
             #[cfg(windows)]
             plugin_jobs: &plugin_jobs,
-            site_runtime: None,
+            session_runtime: None,
             #[cfg(windows)]
             managed_host: None,
         },
@@ -89,19 +89,19 @@ pub(crate) fn run(
 }
 
 /// Auxiliary channels admitted alongside the operation kernel: the Agent
-/// drain, the WorktreeJob discovery slot, and the managed site runtime
+/// drain, the WorktreeJob discovery slot, and the managed session runtime
 /// directory (`None` for unmanaged launches).
 pub(crate) struct AdmittedAux<'a> {
-    pub(crate) preferences: Option<&'a orchbee_local_site_runtime::UserPreferencesStore>,
+    pub(crate) preferences: Option<&'a orchbee_local_runtime::UserPreferencesStore>,
     #[cfg(windows)]
-    pub(crate) shell: &'a orchbee_local_site_runtime::WindowsShellSettings,
+    pub(crate) shell: &'a orchbee_local_runtime::ShellSettings,
     pub(crate) drain: &'a Rc<RefCell<AgentDrain>>,
     pub(crate) worktree_slot: &'a crate::worktree_discovery_job::WorktreeDiscoverySlot,
     #[cfg(windows)]
     pub(crate) mutation_slot: &'a crate::worktree_mutation_job::WorktreeMutationSlot,
     #[cfg(windows)]
     pub(crate) plugin_jobs: &'a crate::plugin_jobs::PluginJobs,
-    pub(crate) site_runtime: Option<&'a std::path::Path>,
+    pub(crate) session_runtime: Option<&'a std::path::Path>,
     #[cfg(windows)]
     pub(super) managed_host: Option<&'a mut shutdown::ManagedHost>,
 }
@@ -116,7 +116,7 @@ pub(crate) fn run_admitted(
     aux: AdmittedAux<'_>,
 ) -> Result<(), Box<dyn Error>> {
     #[cfg(windows)]
-    let handoff = handoff::Handoff::new(aux.site_runtime);
+    let handoff = handoff::Handoff::new(aux.session_runtime);
     run_admitted_with_handoff(
         server,
         host,
@@ -248,7 +248,7 @@ fn run_admitted_with_handoff(
                 #[cfg(windows)]
                 aux.plugin_jobs,
                 #[cfg(windows)]
-                aux.site_runtime,
+                aux.session_runtime,
             );
             if server_transport::send(
                 &server,
@@ -453,7 +453,7 @@ fn run_admitted_with_handoff(
             HostOperationAdmission::Dispatch(dispatch) => match prepare_or_fail(
                 &mut kernel,
                 &dispatch,
-                aux.site_runtime,
+                aux.session_runtime,
                 aux.preferences,
                 observed_colors,
                 #[cfg(windows)]
@@ -545,14 +545,14 @@ fn take_result(kernel: &mut AuthorizedHostOperationKernel) -> io::Result<Capabil
 fn prepare_or_fail(
     kernel: &mut AuthorizedHostOperationKernel,
     dispatch: &AuthorizedHostDispatch,
-    site_runtime: Option<&std::path::Path>,
-    preferences: Option<&orchbee_local_site_runtime::UserPreferencesStore>,
-    observed_colors: Option<orchbee_local_site_runtime::UserTerminalColors>,
-    #[cfg(windows)] shell: &orchbee_local_site_runtime::WindowsShellSettings,
+    session_runtime: Option<&std::path::Path>,
+    preferences: Option<&orchbee_local_runtime::UserPreferencesStore>,
+    observed_colors: Option<orchbee_local_runtime::UserTerminalColors>,
+    #[cfg(windows)] shell: &orchbee_local_runtime::ShellSettings,
 ) -> Result<Option<PreparedHostOperation>, Box<dyn Error>> {
     match prepare(
         dispatch,
-        site_runtime,
+        session_runtime,
         preferences,
         observed_colors,
         #[cfg(windows)]
@@ -568,10 +568,10 @@ fn prepare_or_fail(
 
 fn prepare(
     dispatch: &AuthorizedHostDispatch,
-    site_runtime: Option<&std::path::Path>,
-    preferences: Option<&orchbee_local_site_runtime::UserPreferencesStore>,
-    observed_colors: Option<orchbee_local_site_runtime::UserTerminalColors>,
-    #[cfg(windows)] shell: &orchbee_local_site_runtime::WindowsShellSettings,
+    session_runtime: Option<&std::path::Path>,
+    preferences: Option<&orchbee_local_runtime::UserPreferencesStore>,
+    observed_colors: Option<orchbee_local_runtime::UserTerminalColors>,
+    #[cfg(windows)] shell: &orchbee_local_runtime::ShellSettings,
 ) -> Result<PreparedHostOperation, Box<dyn Error>> {
     let correlation = CorrelationId::from_bytes(crate::worker_identity::fresh_identity()?)?;
     match dispatch.operation() {
@@ -602,7 +602,7 @@ fn prepare(
             let selected = launch
                 .default_shell()
                 .map(|policy| {
-                    orchbee_local_site_runtime::WindowsShellSettings::new(
+                    orchbee_local_runtime::ShellSettings::new(
                         policy.executable(),
                         policy.mode().as_str(),
                     )
@@ -617,7 +617,7 @@ fn prepare(
             let host_colors = if follows_host {
                 observed_colors.unwrap_or_else(system_terminal_colors)
             } else {
-                orchbee_local_site_runtime::UserTerminalColors::LIGHT
+                orchbee_local_runtime::UserTerminalColors::LIGHT
             };
             Ok(PreparedHostOperation::launch(
                 dispatch,
@@ -629,13 +629,13 @@ fn prepare(
                     defaults.as_ref(),
                     host_colors,
                     #[cfg(windows)]
-                    launch_facts::WindowsShellLaunch {
+                    launch_facts::ShellLaunchPolicy {
                         editor_launch: launch.editor_source().is_some(),
                         settings: shell,
                     },
                 )?,
                 correlation,
-                site_runtime,
+                session_runtime,
                 follows_host,
             )?)
         }
@@ -645,12 +645,12 @@ fn prepare(
     }
 }
 
-fn system_terminal_colors() -> orchbee_local_site_runtime::UserTerminalColors {
+fn system_terminal_colors() -> orchbee_local_runtime::UserTerminalColors {
     #[cfg(windows)]
-    if orchbee_local_site_runtime::read_windows_apps_use_light_theme() == Some(false) {
-        return orchbee_local_site_runtime::UserTerminalColors::DARK;
+    if orchbee_local_runtime::read_windows_apps_use_light_theme() == Some(false) {
+        return orchbee_local_runtime::UserTerminalColors::DARK;
     }
-    orchbee_local_site_runtime::UserTerminalColors::LIGHT
+    orchbee_local_runtime::UserTerminalColors::LIGHT
 }
 
 fn unix_milliseconds() -> u64 {

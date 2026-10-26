@@ -64,7 +64,7 @@ fn reply(stream: &mut LocalStream, case: &str, turn: u64, count: u64) {
     let response = PanelMetadataResult {
         protocol_version: ProtocolVersion,
         request_id: request.request_id,
-        site_id: request.site_id,
+        session_id: request.session_id,
         outcome: serde_json::from_value(outcome).unwrap(),
     };
     write_workbench_response(stream, &WorkbenchResponse::PanelMetadata(response)).unwrap();
@@ -119,7 +119,7 @@ fn report_reply(stream: &mut LocalStream, case: &str, turn: u64, count: u64) {
         &WorkbenchResponse::PanelAgent(PanelAgentResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
-            site_id: request.site_id,
+            session_id: request.session_id,
             outcome: serde_json::from_value(outcome).unwrap(),
         }),
     )

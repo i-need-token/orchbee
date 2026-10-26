@@ -73,7 +73,7 @@ fn submit(
     let request = WorkspaceMetadataRequest {
         protocol_version: snapshot.protocol_version,
         request_id: query::request_id()?,
-        site_id: snapshot.site_id,
+        session_id: snapshot.session_id,
         action: WorkspaceMetadataAction::Report {
             workspace_id: workspace.workspace_id.clone(),
             source: command.source.clone(),
@@ -100,7 +100,7 @@ fn submit(
     };
     Ok(Answer {
         request_id: request.request_id,
-        site_id: request.site_id,
+        session_id: request.session_id,
         workspace_id: workspace.workspace_id.clone(),
         observation,
         interrupted: false,

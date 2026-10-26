@@ -12,22 +12,30 @@ use crate::{
                 WorkspaceCloseOperation, WorkspaceCloseResult, WorkspaceCloseTarget,
             },
         },
-        workbench_projection::{NativeContextLocation, project_native_context_tabs},
+        workbench_projection::{ClientContextLocation, project_native_context_tabs},
     },
 };
 use orchbee_workbench_protocol::*;
 use ratatui::{Terminal, backend::TestBackend};
 use std::{io, time::Instant};
 
-pub(in crate::workbench_client) fn ready()
--> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
+pub(in crate::workbench_client) fn ready() -> (
+    WorkbenchClientUi,
+    Arc<CommandMailbox>,
+    LocalOperationClock,
+    Snapshot,
+) {
     ready_with_background_target(false)
 }
 
 /// Settles the guarded IfIdle route as a resumable host refusal so tests can
 /// exercise the explicit destructive confirmation that follows that outcome.
-pub(in crate::workbench_client) fn ready_after_guard_refusal()
--> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
+pub(in crate::workbench_client) fn ready_after_guard_refusal() -> (
+    WorkbenchClientUi,
+    Arc<CommandMailbox>,
+    LocalOperationClock,
+    Snapshot,
+) {
     let (mut ui, mailbox, clock, snapshot) = ready();
     let workspace = snapshot.navigation.workspaces[1].workspace_id.clone();
     assert_eq!(
@@ -98,7 +106,12 @@ pub(in crate::workbench_client) fn ready_after_guard_refusal()
 
 fn ready_with_background_target(
     background: bool,
-) -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
+) -> (
+    WorkbenchClientUi,
+    Arc<CommandMailbox>,
+    LocalOperationClock,
+    Snapshot,
+) {
     let clock = crate::local_client::tests::server::adjustable_operation_clock(Arc::new(
         std::sync::atomic::AtomicU64::new(0),
     ));
@@ -106,7 +119,7 @@ fn ready_with_background_target(
         10,
         Geometry::new(80, 24, 8, 16).unwrap(),
     ));
-    let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    let mut ui = WorkbenchClientUi::new(Arc::clone(&mailbox), clock.clone());
     let mut snapshot = super::super::tests::membership::snapshot(usize::from(background), 1);
     let project_id = WorkbenchProjectId::parse(&format!("{:032x}", 270)).unwrap();
     let workspace_id = WorkbenchWorkspaceId::parse(&format!("{:032x}", 271)).unwrap();
@@ -138,7 +151,7 @@ fn ready_with_background_target(
             let fixture_context_id = snapshot.navigation.workspaces[0]
                 .terminal_context_id
                 .clone();
-            NativeContextLocation::Workspace {
+            ClientContextLocation::Workspace {
                 workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                     fixture_context_id.as_str(),
                 )
@@ -147,7 +160,7 @@ fn ready_with_background_target(
             }
         }
     } else {
-        NativeContextLocation::Workspace {
+        ClientContextLocation::Workspace {
             workspace_id,
             terminal_context_id,
         }
@@ -179,14 +192,14 @@ fn ready_with_background_target(
             ControllerMode::ReadOnly,
             None
         ));
-        assert_eq!(ui.view().phase(), NativeDisplayPhase::Ready);
+        assert_eq!(ui.view().phase(), DisplayPhase::Ready);
     } else {
-        assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
+        assert_eq!(ui.view().phase(), DisplayPhase::Empty);
     }
     (ui, mailbox, clock, snapshot)
 }
 pub(in crate::workbench_client) fn open_confirmation(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     target: Option<&WorkbenchWorkspaceId>,
 ) -> ClientActionDisposition {
     let (Some(mailbox), Some(state)) = (ui.mailbox.as_ref(), ui.state.as_mut()) else {
@@ -208,7 +221,7 @@ pub(in crate::workbench_client) fn open_confirmation(
     }
 }
 pub(in crate::workbench_client) fn submit(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &CommandMailbox,
 ) -> super::super::super::mailbox::CommandLease {
     assert_eq!(
@@ -317,11 +330,17 @@ fn suspended_workspace_close_keeps_only_local_escape_cancellation_active() {
     assert!(ui.view().workspace_close_confirmation().is_none());
     assert!(mailbox.try_recv().unwrap().is_none());
 }
-fn draw(ui: &mut NativeUi, locale: Locale, theme: &Theme, width: u16, height: u16) -> String {
+fn draw(
+    ui: &mut WorkbenchClientUi,
+    locale: Locale,
+    theme: &Theme,
+    width: u16,
+    height: u16,
+) -> String {
     draw_with_hits(ui, locale, theme, width, height).0
 }
 fn draw_with_hits(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     locale: Locale,
     theme: &Theme,
     width: u16,
@@ -505,7 +524,7 @@ fn background_workspace_close_ui_keeps_the_live_origin_through_cancel_and_canoni
             assert_eq!(state.pane_record(&desired).unwrap().binding(), &binding);
             assert!(state.pane_attached(&pane));
             assert!(state.pane_projected(&pane));
-            assert_eq!(ui.view().phase(), NativeDisplayPhase::Ready);
+            assert_eq!(ui.view().phase(), DisplayPhase::Ready);
             assert!(state.invariant_holds());
         }
     }
@@ -626,7 +645,7 @@ fn workspace_close_mouse_decisions_require_current_drawn_token_for_each_scope() 
     for project in [false, true] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             let (mut ui, mailbox, _, snapshot) = ready();
-            let open = |ui: &mut NativeUi| {
+            let open = |ui: &mut WorkbenchClientUi| {
                 if project {
                     ui.request_project_close_all(&snapshot.navigation.projects[0].project_id)
                 } else {
@@ -684,17 +703,17 @@ fn workspace_close_mouse_decisions_require_current_drawn_token_for_each_scope() 
     }
 }
 struct Port<'a> {
-    ui: &'a mut NativeUi,
+    ui: &'a mut WorkbenchClientUi,
     forwarded: &'a mut Vec<u8>,
 }
 impl TerminalInputPort for Port<'_> {
-    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+    fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
         self.ui.capture_claims()
     }
     fn native_capture_context(
         &self,
-        owner: crate::tui_composition::NativeCaptureOwner,
-    ) -> Option<crate::workbench_client::NativeCaptureContext> {
+        owner: crate::tui_composition::CaptureOwner,
+    ) -> Option<crate::workbench_client::CaptureContext> {
         self.ui.capture_context(owner)
     }
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable> {
@@ -706,14 +725,14 @@ impl TerminalInputPort for Port<'_> {
     }
     fn capture_tab_confirmation_key_for(
         &mut self,
-        token: NativeCloseConfirmationToken,
+        token: CloseConfirmationToken,
         key: ClientKey,
     ) -> bool {
         self.ui.capture_tab_confirmation_key(token, key)
     }
     fn capture_panel_confirmation_key_for(
         &mut self,
-        token: NativePanelCloseConfirmationToken,
+        token: PanelCloseConfirmationToken,
         key: ClientKey,
     ) -> bool {
         self.ui.capture_panel_confirmation_key(token, key)
@@ -729,7 +748,7 @@ impl TerminalInputPort for Port<'_> {
 fn dispatch(
     dispatcher: &mut InputDispatcher,
     view: &mut ClientView,
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     forwarded: &mut Vec<u8>,
     bytes: &[u8],
 ) {

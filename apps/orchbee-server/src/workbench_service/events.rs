@@ -1,6 +1,6 @@
 //! One immutable subscription and one bounded observation actor belong to the authenticated connection.
 use super::WorkbenchClientConnection;
-use orchbee_server::{SiteEventJournal, SiteEventPage};
+use orchbee_server::{SessionEventJournal, SessionEventPage};
 use orchbee_workbench_protocol::{
     MAXIMUM_EVENTS_BYTES, SemanticEventCursor, SemanticEventFilter, SemanticEventsAction as Action,
     SemanticEventsFailure as Failure, SemanticEventsOutcome as Outcome, SemanticEventsRequest,
@@ -16,7 +16,7 @@ pub(super) struct Subscription {
     journal_filters: Vec<SemanticEventFilter>,
     definition_cursor: Option<SemanticEventCursor>,
     cursor: SemanticEventCursor,
-    journal: SiteEventJournal,
+    journal: SessionEventJournal,
     probes: Vec<probes::Probe>,
     next_probe: usize,
     probe_sequence: u64,
@@ -32,7 +32,7 @@ impl WorkbenchClientConnection<'_> {
         SemanticEventsResult {
             protocol_version: request.protocol_version,
             request_id: request.request_id,
-            site_id: request.site_id,
+            session_id: request.session_id,
             outcome,
         }
     }
@@ -45,10 +45,10 @@ impl WorkbenchClientConnection<'_> {
         if self
             .service
             .terminals
-            .workbench_site_matches(&request.site_id)
+            .workbench_session_matches(&request.session_id)
             != Some(true)
         {
-            return Err(Failure::SiteMismatch);
+            return Err(Failure::SessionMismatch);
         }
         let mut owned = self.events.try_lock().map_err(|_| Failure::Busy)?;
         match &request.action {
@@ -83,7 +83,7 @@ impl WorkbenchClientConnection<'_> {
                     }
                     None => journal.head()?,
                 };
-                let probes = probes::prepare(self, &request.site_id, filters)?;
+                let probes = probes::prepare(self, &request.session_id, filters)?;
                 let journal_filters = probes::journal_filters(filters, &probes);
                 let subscription = Subscription {
                     id: subscription_id.clone(),
@@ -190,7 +190,7 @@ impl Subscription {
         request: &SemanticEventsRequest,
         limit: usize,
         gap_only: bool,
-    ) -> Result<SiteEventPage, Failure> {
+    ) -> Result<SessionEventPage, Failure> {
         if let Some(reason) = self.pending_failure {
             return Err(reason);
         }
@@ -202,7 +202,7 @@ impl Subscription {
                 .ok_or(Failure::RevisionExhausted)?;
             if let Some(event) = probe.initial(session, &self.id, sequence)? {
                 self.probe_sequence = sequence;
-                return Ok(SiteEventPage {
+                return Ok(SessionEventPage {
                     cursor: self.cursor.clone(),
                     events: vec![event],
                     gap: None,
@@ -246,7 +246,7 @@ impl Subscription {
                 .ok_or(Failure::RevisionExhausted)?;
             let observed = self.probes[index].observe(
                 session,
-                &request.site_id,
+                &request.session_id,
                 &self.id,
                 sequence,
                 index,

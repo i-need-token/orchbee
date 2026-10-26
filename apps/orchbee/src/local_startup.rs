@@ -21,7 +21,7 @@ use std::{
 
 // The verdict enum is owned by the shared activation core so the core has
 // no dependency back on this adapter; the re-export keeps the TUI call
-// sites and the localization routing on their existing path.
+// sessions and the localization routing on their existing path.
 pub(crate) use crate::local_activation::StartupFailure;
 
 pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
@@ -58,11 +58,11 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
     // socket-path budget, and the connect-or-activate loop; the TUI verdict
     // is exactly the `StartupFailure` it always derived.
     let started =
-        local_activation::activate_local_site(deadline).map_err(|failure| failure.failure)?;
+        local_activation::activate_local_session(deadline).map_err(|failure| failure.failure)?;
     #[cfg(windows)]
     let allow_startup_directory = !matches!(
         started.restore_notice,
-        Some(orchbee_local_site_runtime::WindowsCheckpointRestoreNotice::Empty)
+        Some(orchbee_local_runtime::CheckpointRestoreNotice::Empty)
     );
     #[cfg(not(windows))]
     let allow_startup_directory = false;
@@ -73,10 +73,10 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
     );
     #[cfg(windows)]
     let notice = started.restore_notice.map(|notice| match notice {
-        orchbee_local_site_runtime::WindowsCheckpointRestoreNotice::Recovered => {
+        orchbee_local_runtime::CheckpointRestoreNotice::Recovered => {
             crate::client_view::Notice::CheckpointRecovered
         }
-        orchbee_local_site_runtime::WindowsCheckpointRestoreNotice::Empty => {
+        orchbee_local_runtime::CheckpointRestoreNotice::Empty => {
             crate::client_view::Notice::CheckpointEmpty
         }
     });

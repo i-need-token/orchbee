@@ -6,7 +6,7 @@ use std::sync::{
 };
 fn scope() -> Scope {
     Scope {
-        site: SiteId::parse("00000000000000000000000000000001").unwrap(),
+        session: SessionId::parse("00000000000000000000000000000001").unwrap(),
         revision: WorkbenchRevision::new(1),
         panels: vec![],
     }

@@ -80,7 +80,7 @@ fn invalid_paths_fail_without_an_established_exists() {
         RendezvousError::RuntimeBaseNotNormalized {
             path: "/tmp/../tmp".into(),
         },
-        RendezvousError::InvalidSiteScope,
+        RendezvousError::InvalidSessionScope,
     ] {
         let repr = format!("{error:?}");
         let (base, directory) = classify(error);
@@ -201,24 +201,21 @@ fn cohort_report_maps_verifier_outcomes() {
     fs::set_permissions(&manifest, fs::Permissions::from_mode(0o600)).unwrap();
 
     let deadline = Instant::now() + Duration::from_secs(5);
-    let report = cohort_report(NativeCohort::load(&cohort, deadline));
+    let report = cohort_report(Cohort::load(&cohort, deadline));
     assert_eq!(report.status, "pass");
     assert_eq!(report.details["verified"], json!(true));
     fs::remove_dir_all(&cohort).ok();
 
     // A missing manifest is an invalid-cohort failure, not a crash.
     let empty = scratch("cohort-empty");
-    let report = cohort_report(NativeCohort::load(&empty, deadline));
+    let report = cohort_report(Cohort::load(&empty, deadline));
     assert_eq!(report.status, "fail");
     assert_eq!(report.details["verified"], json!(false));
     assert_eq!(report.details["reason"], json!("invalid-cohort"));
     fs::remove_dir_all(&empty).ok();
 
     // An already-spent deadline reports `deadline` before any I/O.
-    let report = cohort_report(NativeCohort::load(
-        Path::new("/nonexistent"),
-        Instant::now(),
-    ));
+    let report = cohort_report(Cohort::load(Path::new("/nonexistent"), Instant::now()));
     assert_eq!(report.status, "fail");
     assert_eq!(report.details["reason"], json!("deadline"));
 }
@@ -403,7 +400,7 @@ fn socket_checks_report_derived_budget_entries() {
     // An over-budget derived address fails on its own: only the budget
     // verdict changes, `presence` stays honestly unchecked.
     let long_dir = PathBuf::from("/".to_owned() + &"a".repeat(UNIX_SOCKET_PATH_CAPACITY));
-    let report = socket_checks(&Err(RendezvousError::InvalidSiteScope), &long_dir);
+    let report = socket_checks(&Err(RendezvousError::InvalidSessionScope), &long_dir);
     assert_eq!(report.status, "fail");
     for name in ["clientPending", "host"] {
         let entry = &report.details[name];
@@ -458,21 +455,21 @@ fn socket_checks_aggregate_real_states() {
             .expect("chmod short socket base");
         directory
     };
-    let site = || {
-        ModeCheckedLocalSiteRendezvous::validate_mode_checked(
+    let session = || {
+        ModeCheckedLocalSessionRendezvous::validate_mode_checked(
             &base,
-            SiteScope::parse("ob-test-sockets").unwrap(),
+            SessionScope::parse("ob-test-sockets").unwrap(),
         )
         .expect("validated scope")
     };
-    let scope_directory = ModeCheckedLocalSiteRendezvous::prepare_mode_checked(
+    let scope_directory = ModeCheckedLocalSessionRendezvous::prepare_mode_checked(
         &base,
-        SiteScope::parse("ob-test-sockets").unwrap(),
+        SessionScope::parse("ob-test-sockets").unwrap(),
     )
     .expect("prepared scope")
     .runtime_directory()
     .to_owned();
-    let report = socket_checks(&Ok(site()), &scope_directory);
+    let report = socket_checks(&Ok(session()), &scope_directory);
     assert_eq!(report.status, "not-applicable");
     assert_eq!(report.details["client"]["presence"], json!("absent"));
     assert_eq!(report.details["worker"]["presence"], json!("absent"));
@@ -484,7 +481,7 @@ fn socket_checks_aggregate_real_states() {
         fs::Permissions::from_mode(0o600),
     )
     .unwrap();
-    let report = socket_checks(&Ok(site()), &scope_directory);
+    let report = socket_checks(&Ok(session()), &scope_directory);
     assert_eq!(report.status, "pass");
     assert_eq!(report.details["client"]["presence"], json!("present"));
     assert_eq!(report.details["client"]["status"], json!("pass"));
@@ -494,7 +491,7 @@ fn socket_checks_aggregate_real_states() {
     // An inspected invalid entry fails: a regular file is not a socket.
     fs::remove_file(scope_directory.join("client.sock")).unwrap();
     fs::write(scope_directory.join("client.sock"), b"not a socket").unwrap();
-    let report = socket_checks(&Ok(site()), &scope_directory);
+    let report = socket_checks(&Ok(session()), &scope_directory);
     assert_eq!(report.status, "fail");
     assert_eq!(report.details["client"]["presence"], json!("present"));
     assert_eq!(report.details["client"]["status"], json!("fail"));

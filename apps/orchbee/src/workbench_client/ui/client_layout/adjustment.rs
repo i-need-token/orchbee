@@ -1,15 +1,15 @@
 //! Resolve one canonical mutation against rendered and canonical split identities.
 use super::{
-    ClientPanelLayout, ClientPanelNeighbors, ClientViewControl, ClientViewIntent, NativeUi, Reason,
-    Rect, SidebarSurface, Snapshot, cell, project_geometry,
+    ClientPanelLayout, ClientPanelNeighbors, ClientViewControl, ClientViewIntent, Reason, Rect,
+    SidebarSurface, Snapshot, WorkbenchClientUi, cell, project_geometry,
 };
-use crate::workbench_client::NativePanelTree;
+use crate::workbench_client::ClientPanelTree;
 use orchbee_workbench_protocol::{
     ClientLayoutAdjustment, ClientLayoutChange, ClientSplitChange, ClientSplitPath,
     ClientViewObservation, PanelNode, WorkbenchPanelSlotId, WorkbenchSplitId,
 };
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn prepare_keyboard_adjustment(
         &self,
         direction: orchbee_workbench_protocol::ClientPanelDirection,
@@ -17,13 +17,13 @@ impl NativeUi {
         viewport: Option<(Rect, SidebarSurface)>,
     ) -> Result<
         (
-            orchbee_workbench_protocol::SiteId,
+            orchbee_workbench_protocol::SessionId,
             ClientLayoutAdjustment,
             ClientViewObservation,
         ),
         Reason,
     > {
-        let (site, before) = self
+        let (session, before) = self
             .control_observation(false)
             .ok_or(Reason::ProjectionUnavailable)?;
         if before.phase != orchbee_workbench_protocol::ClientViewPhase::Ready {
@@ -94,7 +94,7 @@ impl NativeUi {
                 }
             });
         Ok((
-            site,
+            session,
             ClientLayoutAdjustment {
                 terminal_context_id: layout.terminal_context_id,
                 tab_id: layout.tab_id,
@@ -123,7 +123,7 @@ impl NativeUi {
         viewport: Option<(Rect, SidebarSurface)>,
     ) -> Result<ClientLayoutAdjustment, Reason> {
         let state = self.state.as_ref().ok_or(Reason::ProjectionUnavailable)?;
-        if snapshot.site_id != *state.cache().site_id()
+        if snapshot.session_id != *state.cache().session_id()
             || snapshot.revision < state.cache().revision()
             || snapshot.revision < command.minimum_workbench_revision
         {
@@ -374,16 +374,16 @@ fn canonical_split_at<'a>(
     Some((split_id, &children[0].slot_id, &children[1].slot_id, *ratio))
 }
 fn native_split_at<'a>(
-    mut node: &'a NativePanelTree,
+    mut node: &'a ClientPanelTree,
     path: &ClientSplitPath,
 ) -> Option<SplitIdentity<'a>> {
     for index in path.indices() {
-        let NativePanelTree::Split { first, second, .. } = node else {
+        let ClientPanelTree::Split { first, second, .. } = node else {
             return None;
         };
         node = if *index == 0 { first } else { second };
     }
-    let NativePanelTree::Split {
+    let ClientPanelTree::Split {
         split_id,
         first_slot_id,
         second_slot_id,

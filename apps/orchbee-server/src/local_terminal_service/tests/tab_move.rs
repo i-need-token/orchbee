@@ -1,5 +1,5 @@
 use super::*;
-use crate::site_coordinator::PreparedTerminalTabCreate;
+use crate::session_coordinator::PreparedTerminalTabCreate;
 use orchbee_workbench_protocol::{
     ProtocolVersion, SnapshotReadIntent, WorkbenchAction, WorkbenchCommand,
     WorkbenchCommandOutcome, WorkbenchLabel, WorkbenchRequest, WorkbenchRequestId,
@@ -30,7 +30,7 @@ fn committed_move_finishes_while_another_owner_holds_the_worker_registry() {
         let command = WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id: WorkbenchRequestId::parse(&format!("{:032x}", 10 + index)).unwrap(),
-            site_id: snapshot.site_id.clone(),
+            session_id: snapshot.session_id.clone(),
             expected_revision: WorkbenchRevision::new(index),
             action: WorkbenchAction::TabCreate {
                 placement: None,
@@ -72,7 +72,7 @@ fn committed_move_finishes_while_another_owner_holds_the_worker_registry() {
     let command = WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 30)).unwrap(),
-        site_id: snapshot.site_id,
+        session_id: snapshot.session_id,
         expected_revision: WorkbenchRevision::new(2),
         action: WorkbenchAction::TabMove {
             terminal_context_id: snapshot.navigation.workspaces[0]

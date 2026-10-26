@@ -38,20 +38,20 @@ pub fn exchange_server_metadata_before(
 /// Retains whether a complete stop control record was submitted before exchange failure.
 #[cfg(windows)]
 #[derive(Debug)]
-pub struct SiteStopExchangeError {
+pub struct SessionStopExchangeError {
     pub failure: ConnectClientError,
     pub submitted: bool,
 }
 
 /// One same-user stop/status control exchange, with no activation or mutation retry.
 #[cfg(windows)]
-pub fn exchange_site_stop_before(
+pub fn exchange_session_stop_before(
     endpoint: &Path,
-    request: crate::SiteStopRequest,
+    request: crate::SessionStopRequest,
     deadline: std::time::Instant,
     wake: Option<LocalIo<'_>>,
-) -> Result<crate::SiteStopResult, SiteStopExchangeError> {
-    windows_admission::site_stop(endpoint, request, deadline, wake)
+) -> Result<crate::SessionStopResult, SessionStopExchangeError> {
+    windows_admission::session_stop(endpoint, request, deadline, wake)
 }
 
 /// Byte capacity of a filesystem-path Unix socket address on this platform's
@@ -85,7 +85,7 @@ pub struct ClientConnection {
 
 impl ClientConnection {
     /// Admits one Unix connection within the caller's existing monotonic deadline.
-    /// This neither selects a timeout nor activates, retries, or supervises a Site.
+    /// This neither selects a timeout nor activates, retries, or supervises a Session.
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     pub fn connect_before(
         endpoint: &Path,
@@ -131,8 +131,8 @@ impl ClientConnection {
                 return Err(ConnectClientError::Rejected(reason));
             }
             LocalClientMessage::ClientHello(_)
-            | LocalClientMessage::SiteStopRequest(_)
-            | LocalClientMessage::SiteStopResult(_)
+            | LocalClientMessage::SessionStopRequest(_)
+            | LocalClientMessage::SessionStopResult(_)
             | LocalClientMessage::ServerMetadataRequest
             | LocalClientMessage::ServerMetadata(_) => {
                 return Err(ConnectClientError::UnexpectedResponse);

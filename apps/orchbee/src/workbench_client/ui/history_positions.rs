@@ -1,7 +1,7 @@
 //! Volatile, content-validated reading choices across viewer and context replacement.
 //! This owner retains no viewer, controller, pending command, selection, or paintable window.
 
-use super::{ClientNotice, NativeProjectionStatus, NativeUi};
+use super::{ClientNotice, ClientProjectionStatus, WorkbenchClientUi};
 use crate::{
     terminal_content::{ContentSource, SnapshotMember, TerminalScreen},
     workbench_client::{
@@ -122,7 +122,7 @@ impl Coordinator {
     }
 }
 
-impl NativeUi {
+impl WorkbenchClientUi {
     /// Capture committed reading choices before navigation and after a successful draw.
     pub(super) fn remember_history_positions(&mut self) {
         let Some(state) = self.state.as_ref().filter(|state| state.ready().is_some()) else {
@@ -186,7 +186,7 @@ impl NativeUi {
             .projections
             .iter()
             .filter(|p| {
-                p.status == NativeProjectionStatus::FrameAvailable && state.pane_projected(&p.key)
+                p.status == ClientProjectionStatus::FrameAvailable && state.pane_projected(&p.key)
             })
             .map(|p| p.key.clone())
             .collect::<Vec<_>>();

@@ -508,7 +508,7 @@ fn plugin_pane_focus_close_require_exact_membership_and_never_repeat_effects() {
                 &WorkbenchResponse::Plugin(PluginResult {
                     protocol_version: ProtocolVersion,
                     request_id: request.request_id,
-                    site_id: request.site_id,
+                    session_id: request.session_id,
                     outcome,
                 }),
             )

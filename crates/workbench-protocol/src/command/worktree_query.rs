@@ -1,7 +1,7 @@
 //! Read-only source discovery, with canonical Workspace associations observed after Git.
 use super::json_fields::{deserialize_i32, deserialize_nullable};
 use crate::{
-    ContractError, ProtocolVersion, SiteId, WorkbenchDirectoryPath, WorkbenchLabel,
+    ContractError, ProtocolVersion, SessionId, WorkbenchDirectoryPath, WorkbenchLabel,
     WorkbenchProjectId, WorkbenchRequestId, WorkbenchRevision, WorkbenchWorkspaceId, WorkerId,
     WorktreeEntry, WorktreeEntryText, WorktreeListStage, WorktreeListTooLargeOrigin,
     WorktreeListUnavailableReason, WorktreeSource,
@@ -17,7 +17,7 @@ pub struct WorkbenchWorktreeQuery {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub source: WorktreeSource,
     pub trust_repository: bool,
 }
@@ -98,7 +98,7 @@ pub enum WorktreeQueryFailure {
 pub enum WorkbenchWorktreeQueryOutcome {
     Found {
         #[serde(rename = "sessionId")]
-        site_id: SiteId,
+        session_id: SessionId,
         workbench_revision: WorkbenchRevision,
         worker_id: WorkerId,
         source: WorktreeQuerySource,

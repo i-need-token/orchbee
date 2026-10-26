@@ -210,7 +210,7 @@ impl LocalTerminalService {
         let result = WorkspaceGitResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id.clone(),
-            site_id: request.site_id.clone(),
+            session_id: request.session_id.clone(),
             workspace_id: request.workspace_id.clone(),
             outcome: self
                 .workspace_git(&request, deadline)
@@ -262,7 +262,7 @@ impl LocalTerminalService {
             let authority = coordinator
                 .worktree_authority()
                 .ok_or(Failure::Unavailable)?;
-            if authority.site_id() != &request.site_id {
+            if authority.session_id() != &request.session_id {
                 return Err(Failure::Denied);
             }
             let canonical = match authority.worktree_query_target(&source, &worker) {
@@ -322,7 +322,7 @@ impl LocalTerminalService {
         let authority = coordinator
             .worktree_authority()
             .ok_or(Failure::Unavailable)?;
-        if authority.site_id() != &request.site_id
+        if authority.session_id() != &request.session_id
             || authority.snapshot().revision != revision
             || authority.worktree_query_target(&source, &owner).ok() != canonical
         {

@@ -1,28 +1,30 @@
 use super::recovery_fence::RecoveryFence;
 use super::{
-    CarrierFailure, ClientPhase, CreateTerminalProvenance, NativeContextTabs, OperationDeadlines,
+    CarrierFailure, ClientContextTabs, ClientPhase, CreateTerminalProvenance, OperationDeadlines,
     PreparedRefresh, WorkbenchClientState, WorkbenchClientView,
     context_removal::ContextRemovalPermit, validate_canonical_refresh,
 };
 use crate::workbench_client::workbench_projection::{
-    NativeContext, NativeContextLocation, NativeMemberSelection, NativeSimpleTab,
+    ClientContext, ClientContextLocation, ClientMemberSelection, ClientTab,
     project_native_context_tabs, validate_canonical_candidate, validate_retained_context,
 };
-use orchbee_workbench_protocol::{MAXIMUM_TERMINAL_CONTEXTS, SiteId, Snapshot, WorkbenchRevision};
+use orchbee_workbench_protocol::{
+    MAXIMUM_TERMINAL_CONTEXTS, SessionId, Snapshot, WorkbenchRevision,
+};
 
 pub(super) struct ContextSelection {
     generation: u64,
-    target: NativeContextLocation,
+    target: ClientContextLocation,
     deadlines: OperationDeadlines,
-    member: Option<NativeMemberSelection>,
+    member: Option<ClientMemberSelection>,
 }
 
 #[derive(Clone, Debug)]
 pub(super) struct RetainedContext {
-    site_id: SiteId,
-    location: NativeContextLocation,
+    session_id: SessionId,
+    location: ClientContextLocation,
     revision: WorkbenchRevision,
-    tabs: Vec<NativeSimpleTab>,
+    tabs: Vec<ClientTab>,
     groups: Vec<orchbee_workbench_protocol::TabGroup>,
     provenance: Vec<CreateTerminalProvenance>,
 }
@@ -30,25 +32,25 @@ pub(super) struct RetainedContext {
 impl RetainedContext {
     /// The snapshot's last-known tab membership — the zoom GC reads
     /// departed-context truth only through this view.
-    pub(super) fn tabs(&self) -> &[NativeSimpleTab] {
+    pub(super) fn tabs(&self) -> &[ClientTab] {
         &self.tabs
     }
 
     /// The snapshot's context identity: the zoom GC never consults a
     /// retained entry sharing the current cache's location — the fresh
     /// cache is already that location's complete truth, absence included.
-    pub(super) fn location(&self) -> &NativeContextLocation {
+    pub(super) fn location(&self) -> &ClientContextLocation {
         &self.location
     }
 }
 
 pub(super) struct ContextProvenance<'a> {
-    tabs: &'a [NativeSimpleTab],
+    tabs: &'a [ClientTab],
     provenance: &'a [CreateTerminalProvenance],
 }
 
 impl ContextProvenance<'_> {
-    pub(super) fn for_tab(&self, candidate: &NativeSimpleTab) -> Option<&CreateTerminalProvenance> {
+    pub(super) fn for_tab(&self, candidate: &ClientTab) -> Option<&CreateTerminalProvenance> {
         self.tabs
             .iter()
             .position(|tab| tab.tab_id() == candidate.tab_id())
@@ -153,7 +155,7 @@ impl WorkbenchClientState {
         generation: u64,
         index: usize,
         deadlines: OperationDeadlines,
-        member: Option<NativeMemberSelection>,
+        member: Option<ClientMemberSelection>,
     ) -> bool {
         self.cancel_duplicate_sequence();
         if generation == 0 || !self.context_selection_available() {
@@ -253,7 +255,7 @@ impl WorkbenchClientState {
 
     pub(super) fn validate_candidate_provenance(
         &self,
-        candidate: &NativeContextTabs,
+        candidate: &ClientContextTabs,
         permit: Option<&ContextRemovalPermit>,
     ) -> Result<Option<ContextProvenance<'_>>, CarrierFailure> {
         if candidate.location() == self.cache.location() {
@@ -269,7 +271,7 @@ impl WorkbenchClientState {
         // here because the permit only exists inside the prepared candidate.
         let removal_landing =
             permit.is_some_and(|permit| permit.authorizes(&self.cache, candidate));
-        if candidate.site_id() != self.cache.site_id()
+        if candidate.session_id() != self.cache.session_id()
             || candidate.revision() < self.cache.revision()
             || (!removal_landing
                 && self.context_selection.as_ref().is_none_or(|intent| {
@@ -286,7 +288,7 @@ impl WorkbenchClientState {
             return Ok(None);
         };
         validate_retained_context(
-            &retained.site_id,
+            &retained.session_id,
             &retained.location,
             retained.revision,
             &retained.tabs,
@@ -302,7 +304,7 @@ impl WorkbenchClientState {
 
     pub(super) fn prepare_retained_contexts(
         &self,
-        candidate: &NativeContextTabs,
+        candidate: &ClientContextTabs,
         permit: Option<&ContextRemovalPermit>,
     ) -> Option<Vec<RetainedContext>> {
         if candidate.location() == self.cache.location() {
@@ -329,7 +331,7 @@ impl WorkbenchClientState {
             return Some(retained_contexts);
         }
         let retained = RetainedContext {
-            site_id: self.cache.site_id().clone(),
+            session_id: self.cache.session_id().clone(),
             location: self.cache.location().clone(),
             revision: self.cache.revision(),
             tabs: self.cache.tabs().to_vec(),
@@ -348,13 +350,13 @@ impl WorkbenchClientState {
     }
 }
 
-pub(crate) struct NativeContextView<'a> {
-    entry: &'a NativeContext,
+pub(crate) struct ClientContextView<'a> {
+    entry: &'a ClientContext,
     position: usize,
     active: bool,
 }
 
-impl<'a> NativeContextView<'a> {
+impl<'a> ClientContextView<'a> {
     pub(crate) fn project_id(&self) -> Option<&'a orchbee_workbench_protocol::WorkbenchProjectId> {
         self.entry.project_id.as_ref()
     }
@@ -379,7 +381,7 @@ impl<'a> NativeContextView<'a> {
 
     /// The row's stable navigation identity — what a pointer hit region
     /// records so a later click resolves against current state.
-    pub(crate) const fn location(&self) -> &'a NativeContextLocation {
+    pub(crate) const fn location(&self) -> &'a ClientContextLocation {
         &self.entry.location
     }
 }
@@ -389,12 +391,12 @@ impl<'a> WorkbenchClientView<'a> {
     pub(in crate::workbench_client) fn no_current_workspace(&self) -> bool {
         matches!(
             self.state.cache.location(),
-            NativeContextLocation::NoWorkspace
+            ClientContextLocation::NoWorkspace
         ) && self.state.cache.tabs().is_empty()
     }
 
-    pub(in crate::workbench_client) fn navigation_site(&self) -> &SiteId {
-        self.state.cache.site_id()
+    pub(in crate::workbench_client) fn navigation_session(&self) -> &SessionId {
+        self.state.cache.session_id()
     }
     pub(in crate::workbench_client) fn context_count(&self) -> usize {
         self.state.cache.navigation().len()
@@ -410,9 +412,9 @@ impl<'a> WorkbenchClientView<'a> {
     pub(in crate::workbench_client) fn context_at(
         &self,
         index: usize,
-    ) -> Option<NativeContextView<'a>> {
+    ) -> Option<ClientContextView<'a>> {
         let entry = self.state.cache.navigation().get(index)?;
-        Some(NativeContextView {
+        Some(ClientContextView {
             entry,
             position: index + 1,
             active: &entry.location == self.state.cache.location(),

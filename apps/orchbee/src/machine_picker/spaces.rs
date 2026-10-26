@@ -74,26 +74,26 @@ impl Picker {
     /// A same-Session canonical topology at this revision supersedes a creation-only projection.
     pub(crate) fn workspace_checkpoint_covers(
         &self,
-        site: &orchbee_workbench_protocol::SiteId,
+        session: &orchbee_workbench_protocol::SessionId,
         revision: orchbee_workbench_protocol::WorkbenchRevision,
     ) -> bool {
         self.space_checkpoint(&self.current)
             .is_some_and(|checkpoint| {
-                &checkpoint.site_id == site && checkpoint.revision >= revision
+                &checkpoint.session_id == session && checkpoint.revision >= revision
             })
     }
     /// Current canonical membership keeps a collapsed Project marker from outliving its Workspace.
     pub(crate) fn workspace_checkpoint_project(
         &self,
-        site: &orchbee_workbench_protocol::SiteId,
+        session: &orchbee_workbench_protocol::SessionId,
         workspace: &orchbee_workbench_protocol::WorkbenchWorkspaceId,
     ) -> Option<&orchbee_workbench_protocol::WorkbenchProjectId> {
         let checkpoint = self.space_checkpoint(&self.current)?;
-        if &checkpoint.site_id != site {
+        if &checkpoint.session_id != session {
             return None;
         }
         checkpoint.rows.iter().find_map(|row| {
-            let crate::workbench_client::NativeContextLocation::Workspace { workspace_id, .. } =
+            let crate::workbench_client::ClientContextLocation::Workspace { workspace_id, .. } =
                 &row.target.location
             else {
                 return None;
@@ -106,14 +106,12 @@ impl Picker {
     pub(crate) fn wants_spaces(&self) -> bool {
         self.spaces.visible() || (self.open && self.mode == Mode::Workspaces)
     }
-    pub(crate) fn space_settings(
-        &self,
-    ) -> &orchbee_local_site_runtime::WindowsSpaceSidebarSettings {
+    pub(crate) fn space_settings(&self) -> &orchbee_local_runtime::SpaceSidebarSettings {
         &self.spaces.settings
     }
     pub(crate) fn configure_space_sidebar(
         &mut self,
-        settings: orchbee_local_site_runtime::WindowsSpaceSidebarSettings,
+        settings: orchbee_local_runtime::SpaceSidebarSettings,
     ) {
         if self.spaces.settings.as_ref() != &settings {
             self.spaces.settings = std::sync::Arc::new(settings);
@@ -145,7 +143,7 @@ impl Picker {
                 });
             let observation = match (observation, known) {
                 (Observation::Ready(checkpoint), Some(known))
-                    if checkpoint.site_id == known.site_id
+                    if checkpoint.session_id == known.session_id
                         && (checkpoint.revision < known.revision
                             || checkpoint.metadata_revision < known.metadata_revision) =>
                 {
@@ -228,7 +226,7 @@ impl Picker {
     pub(crate) fn space_checkpoint_row(&self, row: &Row) -> Option<&crate::machine_spaces::Row> {
         let context = row.context.as_ref()?;
         self.space_checkpoint(&row.choice)
-            .filter(|checkpoint| checkpoint.site_id == context.target.site_id)
+            .filter(|checkpoint| checkpoint.session_id == context.target.session_id)
             .and_then(|checkpoint| checkpoint.rows.iter().find(|r| r.target == context.target))
     }
     pub(crate) fn workspace_state(&self, row: &Row) -> Option<MetadataState> {
@@ -241,7 +239,7 @@ impl Picker {
         else {
             return None;
         };
-        if cp.site_id != context.target.site_id || !cp.contexts.contains(&context.target) {
+        if cp.session_id != context.target.session_id || !cp.contexts.contains(&context.target) {
             return None;
         }
         // These are complete, attention-projected physical rows, before every view/source filter.
@@ -276,7 +274,7 @@ impl Picker {
             self.agent_observations.iter().any(|(choice, observation)| {
                 *choice == row.choice
                     && matches!(observation, crate::machine_agents::Observation::Ready(cp)
-                        if cp.site_id == context.target.site_id
+                        if cp.session_id == context.target.session_id
                             && cp.rows.iter().any(|agent| agent.target.context == context.target && !agent.seen))
             })
         })

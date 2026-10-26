@@ -14,9 +14,9 @@ use crate::workbench_client::{
 };
 use orchbee_client_server_protocol::{
     ClientMessage, ControlInput, ControlUnavailableReason, ControllerId, Geometry, ServerMessage,
-    SiteId as ObcsSiteId, TerminalControlAction, TerminalControlOutcome, TerminalControlResult,
-    TerminalId as ObcsTerminalId, TerminalViewerAction, TerminalViewerOutcome,
-    TerminalViewerResult, ViewerUnavailableReason, WorkerId as ObcsWorkerId,
+    SessionId as ObcsSessionId, TerminalControlAction, TerminalControlOutcome,
+    TerminalControlResult, TerminalId as ObcsTerminalId, TerminalViewerAction,
+    TerminalViewerOutcome, TerminalViewerResult, ViewerUnavailableReason, WorkerId as ObcsWorkerId,
 };
 use orchbee_workbench_protocol::{
     PanelNode, PanelOrientation, ProtocolVersion, Snapshot, TerminalPresentationId,
@@ -783,7 +783,7 @@ fn panel_close_of_the_attached_leaf_repairs_membership_to_the_survivor() -> Test
     assert_eq!(
         attach.action(),
         &TerminalViewerAction::AttachBinding {
-            site_id: ObcsSiteId::parse(&id(100))?,
+            session_id: ObcsSessionId::parse(&id(100))?,
             worker_id: ObcsWorkerId::parse(&id(3_011))?,
             terminal_id: ObcsTerminalId::parse(&id(3_012))?,
         }
@@ -1242,7 +1242,7 @@ fn committed_move_whose_superseding_snapshot_drops_the_selected_leaf_repairs_mem
     assert_eq!(
         attach.action(),
         &TerminalViewerAction::AttachBinding {
-            site_id: ObcsSiteId::parse(&id(100))?,
+            session_id: ObcsSessionId::parse(&id(100))?,
             worker_id: ObcsWorkerId::parse(&id(3_011))?,
             terminal_id: ObcsTerminalId::parse(&id(3_012))?,
         }
@@ -1357,7 +1357,7 @@ fn committed_split_whose_superseding_snapshot_drops_the_source_leaf_repairs_memb
     assert_eq!(
         attach.action(),
         &TerminalViewerAction::AttachBinding {
-            site_id: ObcsSiteId::parse(&id(100))?,
+            session_id: ObcsSessionId::parse(&id(100))?,
             worker_id: ObcsWorkerId::parse(&id(5_011))?,
             terminal_id: ObcsTerminalId::parse(&id(5_012))?,
         }
@@ -1721,7 +1721,7 @@ fn committed_split_after_reorder_dropping_the_selected_leaf_repairs_membership()
     assert_eq!(
         attach.action(),
         &TerminalViewerAction::AttachBinding {
-            site_id: ObcsSiteId::parse(&id(100))?,
+            session_id: ObcsSessionId::parse(&id(100))?,
             worker_id: ObcsWorkerId::parse(&id(5_011))?,
             terminal_id: ObcsTerminalId::parse(&id(5_012))?,
         }
@@ -2000,7 +2000,7 @@ fn committed_move_superseding_leaf_loss_attach_unavailable_parks_retryable_keepi
     assert_eq!(
         attach.action(),
         &TerminalViewerAction::AttachBinding {
-            site_id: ObcsSiteId::parse(&id(100))?,
+            session_id: ObcsSessionId::parse(&id(100))?,
             worker_id: ObcsWorkerId::parse(&id(3_011))?,
             terminal_id: ObcsTerminalId::parse(&id(3_012))?,
         }
@@ -2139,7 +2139,7 @@ fn refused_move_whose_superseding_snapshot_drops_the_tab_repairs_membership_to_s
     assert_eq!(
         attach.action(),
         &TerminalViewerAction::AttachBinding {
-            site_id: ObcsSiteId::parse(&id(100))?,
+            session_id: ObcsSessionId::parse(&id(100))?,
             worker_id: ObcsWorkerId::parse(&id(1_013))?,
             terminal_id: ObcsTerminalId::parse(&id(1_014))?,
         }
@@ -2300,7 +2300,7 @@ fn committed_move_whose_superseding_snapshot_clamps_the_selection_down_to_a_surv
     assert_eq!(
         attach.action(),
         &TerminalViewerAction::AttachBinding {
-            site_id: ObcsSiteId::parse(&id(100))?,
+            session_id: ObcsSessionId::parse(&id(100))?,
             worker_id: ObcsWorkerId::parse(&id(5_011))?,
             terminal_id: ObcsTerminalId::parse(&id(5_012))?,
         }
@@ -2471,7 +2471,7 @@ fn refused_move_superseding_tab_loss_while_unattached_reattaches_without_cleanup
     assert_eq!(
         attach.action(),
         &TerminalViewerAction::AttachBinding {
-            site_id: ObcsSiteId::parse(&id(100))?,
+            session_id: ObcsSessionId::parse(&id(100))?,
             worker_id: ObcsWorkerId::parse(&id(1_003))?,
             terminal_id: ObcsTerminalId::parse(&id(1_004))?,
         }
@@ -2625,7 +2625,7 @@ fn drive_reconcile_peer_first_frame(
     assert_eq!(
         attach.action(),
         &TerminalViewerAction::AttachBinding {
-            site_id: ObcsSiteId::parse(&id(100))?,
+            session_id: ObcsSessionId::parse(&id(100))?,
             worker_id: ObcsWorkerId::parse(&id(3_011))?,
             terminal_id: ObcsTerminalId::parse(&id(3_012))?,
         }
@@ -2719,7 +2719,7 @@ fn drive_reconcile_peer_first_frame(
 
     // The peer's setup poll produces its actual first frame draw while still
     // the background pane; the driver's latest-installed projection routes
-    // the record by exact `PaneRef`, the same routing `NativeUi::after_draw`
+    // the record by exact `PaneRef`, the same routing `WorkbenchClientUi::after_draw`
     // applies for a non-focus leaf.
     let ClientMessage::TerminalViewer(poll) = harness.carrier.take_obcs()? else {
         return Err(test_error("peer setup must Poll"));

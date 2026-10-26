@@ -4,7 +4,7 @@ use crate::{
     machine_picker::SidebarRow,
     terminal_input::{PointerProbe, TerminalInputUnavailable},
     tui_pointer::{HitLayer, HitMapBuilder, InteractionSpec},
-    workbench_client::NativeContextTarget,
+    workbench_client::ClientContextTarget,
 };
 use orchbee_workbench_protocol::{
     Project, ProtocolVersion, Snapshot, TerminalContext, WorkbenchProjectId, WorkbenchRevision,
@@ -85,7 +85,7 @@ fn fixture() -> (PointerState, ClientView, Port, FrameHitMap) {
             .collect(),
         }
     };
-    let site_id = SiteId::parse(&identity(9)).unwrap();
+    let session_id = SessionId::parse(&identity(9)).unwrap();
     let mut view = ClientView::new(120);
     view.machines.available = true;
     view.machines.observe_agent_sidebar(true);
@@ -93,9 +93,9 @@ fn fixture() -> (PointerState, ClientView, Port, FrameHitMap) {
         .workspaces
         .iter()
         .map(|workspace| Context {
-            target: NativeContextTarget {
-                site_id: site_id.clone(),
-                location: NativeContextLocation::Workspace {
+            target: ClientContextTarget {
+                session_id: session_id.clone(),
+                location: ClientContextLocation::Workspace {
                     workspace_id: workspace.workspace_id.clone(),
                     terminal_context_id: workspace.terminal_context_id.clone(),
                 },
@@ -121,7 +121,7 @@ fn fixture() -> (PointerState, ClientView, Port, FrameHitMap) {
     };
     let mut hits = HitMapBuilder::new();
     hits.record_action_menu_source(Some(crate::action_menu::DrawnMenuSource {
-        site: site_id.clone(),
+        session: session_id.clone(),
         revision: WorkbenchRevision::new(1),
     }));
     for (index, row) in rows.iter().enumerate() {
@@ -169,7 +169,7 @@ fn fixture() -> (PointerState, ClientView, Port, FrameHitMap) {
         Port {
             source: SidebarReorderSource::from_snapshot(std::sync::Arc::new(Snapshot {
                 protocol_version: ProtocolVersion,
-                site_id,
+                session_id,
                 revision: WorkbenchRevision::new(1),
                 terminal_contexts: navigation
                     .workspaces

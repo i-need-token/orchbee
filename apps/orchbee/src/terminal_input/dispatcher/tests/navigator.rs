@@ -3,9 +3,9 @@ use crate::client_view::navigator::{Admission, Catalog, Row, Source, Target};
 use crate::tui_pointer::{
     HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
 };
-use crate::workbench_client::NativeContextLocation;
+use crate::workbench_client::ClientContextLocation;
 use orchbee_workbench_protocol::{
-    SiteId, WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId,
+    SessionId, WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId,
 };
 use ratatui::layout::Rect;
 
@@ -20,7 +20,7 @@ impl Port {
         let location = {
             let fixture_context_id =
                 WorkbenchTerminalContextId::parse(&format!("{:032x}", 1)).unwrap();
-            NativeContextLocation::Workspace {
+            ClientContextLocation::Workspace {
                 workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                     fixture_context_id.as_str(),
                 )
@@ -37,7 +37,7 @@ impl Port {
             refuse: false,
             catalog: Catalog {
                 source: Source {
-                    site: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
+                    session: SessionId::parse(&format!("{:032x}", 1)).unwrap(),
                     revision: WorkbenchRevision::new(1),
                     location: location.clone(),
                 },
@@ -421,10 +421,8 @@ fn paste_lease_failure_prevents_navigator_and_refresh_admission() {
 
 #[test]
 fn remapped_direct_and_disabled_toggles_stay_beneath_local_capture() {
-    use orchbee_local_site_runtime::{
-        WindowsKeyChord, WindowsKeyOverride, WindowsKeySettings, WindowsKeyTrigger,
-    };
-    let chord = |key: &str, ctrl| WindowsKeyChord {
+    use orchbee_local_runtime::{KeyChord, KeyOverride, KeySettings, KeyTrigger};
+    let chord = |key: &str, ctrl| KeyChord {
         key: key.into(),
         ctrl,
         alt: false,
@@ -434,7 +432,7 @@ fn remapped_direct_and_disabled_toggles_stay_beneath_local_capture() {
     for (prefix, triggers, close) in [
         (
             true,
-            vec![WindowsKeyTrigger {
+            vec![KeyTrigger {
                 prefix: true,
                 chord: chord("n", false),
             }],
@@ -442,7 +440,7 @@ fn remapped_direct_and_disabled_toggles_stay_beneath_local_capture() {
         ),
         (
             false,
-            vec![WindowsKeyTrigger {
+            vec![KeyTrigger {
                 prefix: false,
                 chord: chord("f1", false),
             }],
@@ -452,10 +450,10 @@ fn remapped_direct_and_disabled_toggles_stay_beneath_local_capture() {
     ] {
         let (mut d, mut v, mut p) = opened();
         let disabled = triggers.is_empty();
-        v.configure_keys(&WindowsKeySettings {
+        v.configure_keys(&KeySettings {
             commands: Vec::new(),
             prefix: chord("a", true),
-            overrides: vec![WindowsKeyOverride {
+            overrides: vec![KeyOverride {
                 action: "workspace_picker",
                 triggers,
             }],

@@ -1,7 +1,7 @@
 use super::Locale;
 use crate::{
     terminal_text::sanitize_terminal_text,
-    workbench_client::{NativeCloseConfirmationKind, NativeCloseStatusKind, NativeCloseStatusView},
+    workbench_client::{CloseConfirmationKind, CloseStatusKind, CloseStatusView},
 };
 
 impl Locale {
@@ -71,12 +71,12 @@ impl Locale {
             }
         }
     }
-    pub(crate) const fn close_title(self, kind: NativeCloseConfirmationKind) -> &'static str {
+    pub(crate) const fn close_title(self, kind: CloseConfirmationKind) -> &'static str {
         match (self, kind) {
-            (Self::EnUs, NativeCloseConfirmationKind::Close) => "Close Tab?",
-            (Self::ZhCn, NativeCloseConfirmationKind::Close) => "关闭标签页？",
-            (Self::EnUs, NativeCloseConfirmationKind::Resume) => "Resume closing this Tab?",
-            (Self::ZhCn, NativeCloseConfirmationKind::Resume) => "继续关闭此标签页？",
+            (Self::EnUs, CloseConfirmationKind::Close) => "Close Tab?",
+            (Self::ZhCn, CloseConfirmationKind::Close) => "关闭标签页？",
+            (Self::EnUs, CloseConfirmationKind::Resume) => "Resume closing this Tab?",
+            (Self::ZhCn, CloseConfirmationKind::Resume) => "继续关闭此标签页？",
         }
     }
 
@@ -89,24 +89,24 @@ impl Locale {
         }
     }
 
-    pub(crate) fn native_close_status(self, status: &NativeCloseStatusView<'_>) -> String {
+    pub(crate) fn native_close_status(self, status: &CloseStatusView<'_>) -> String {
         let phase = match (self, status.status()) {
-            (Self::EnUs, NativeCloseStatusKind::AwaitingStatus) => "Awaiting Close status",
-            (Self::ZhCn, NativeCloseStatusKind::AwaitingStatus) => "等待关闭状态",
-            (Self::EnUs, NativeCloseStatusKind::Closing) => "Closing",
-            (Self::ZhCn, NativeCloseStatusKind::Closing) => "正在关闭",
-            (Self::EnUs, NativeCloseStatusKind::CleanupBlocked) => "Close cleanup blocked",
-            (Self::ZhCn, NativeCloseStatusKind::CleanupBlocked) => "关闭清理受阻",
-            (Self::EnUs, NativeCloseStatusKind::OutcomeUnknown) => "Close outcome unknown",
-            (Self::ZhCn, NativeCloseStatusKind::OutcomeUnknown) => "关闭结果未知",
-            (Self::EnUs, NativeCloseStatusKind::DisposedAwaitingPublication) => {
+            (Self::EnUs, CloseStatusKind::AwaitingStatus) => "Awaiting Close status",
+            (Self::ZhCn, CloseStatusKind::AwaitingStatus) => "等待关闭状态",
+            (Self::EnUs, CloseStatusKind::Closing) => "Closing",
+            (Self::ZhCn, CloseStatusKind::Closing) => "正在关闭",
+            (Self::EnUs, CloseStatusKind::CleanupBlocked) => "Close cleanup blocked",
+            (Self::ZhCn, CloseStatusKind::CleanupBlocked) => "关闭清理受阻",
+            (Self::EnUs, CloseStatusKind::OutcomeUnknown) => "Close outcome unknown",
+            (Self::ZhCn, CloseStatusKind::OutcomeUnknown) => "关闭结果未知",
+            (Self::EnUs, CloseStatusKind::DisposedAwaitingPublication) => {
                 "Execution ended; awaiting Tab removal"
             }
-            (Self::ZhCn, NativeCloseStatusKind::DisposedAwaitingPublication) => {
+            (Self::ZhCn, CloseStatusKind::DisposedAwaitingPublication) => {
                 "执行已终止；等待移除标签页"
             }
-            (Self::EnUs, NativeCloseStatusKind::Closed) => "Closed",
-            (Self::ZhCn, NativeCloseStatusKind::Closed) => "已关闭",
+            (Self::EnUs, CloseStatusKind::Closed) => "Closed",
+            (Self::ZhCn, CloseStatusKind::Closed) => "已关闭",
         };
         let mut text = format!(
             "{} · {phase}",

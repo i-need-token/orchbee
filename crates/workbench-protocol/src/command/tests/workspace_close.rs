@@ -10,7 +10,7 @@ fn workspace_close_read() -> WorkbenchWorkspaceCloseRead {
     WorkbenchWorkspaceCloseRead {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&id(0x11)).unwrap(),
-        site_id: SiteId::parse(&id(0x22)).unwrap(),
+        session_id: SessionId::parse(&id(0x22)).unwrap(),
         workspace_id: WorkbenchWorkspaceId::parse(&id(0x44)).unwrap(),
     }
 }
@@ -63,7 +63,7 @@ fn workspace_close_envelopes_preserve_exact_fields_through_json_and_obwp() {
     let resume = WorkbenchRequest::WorkspaceCloseResume(WorkbenchWorkspaceCloseResume {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&id(0x12)).unwrap(),
-        site_id: SiteId::parse(&id(0x22)).unwrap(),
+        session_id: SessionId::parse(&id(0x22)).unwrap(),
         workspace_id: WorkbenchWorkspaceId::parse(&id(0x44)).unwrap(),
         close_request_id: WorkbenchRequestId::parse(&id(0x11)).unwrap(),
         expected_attempt_generation: WorkbenchTabCloseAttemptGeneration::new(3).unwrap(),
@@ -115,7 +115,7 @@ fn workspace_close_envelopes_preserve_exact_fields_through_json_and_obwp() {
         WorkbenchResponse::WorkspaceCloseResume(WorkbenchWorkspaceCloseResumeResult {
             protocol_version: ProtocolVersion,
             request_id: WorkbenchRequestId::parse(&id(0x12)).unwrap(),
-            site_id: SiteId::parse(&id(0x22)).unwrap(),
+            session_id: SessionId::parse(&id(0x22)).unwrap(),
             workspace_id: WorkbenchWorkspaceId::parse(&id(0x44)).unwrap(),
             close_request_id: WorkbenchRequestId::parse(&id(0x11)).unwrap(),
             outcome: WorkbenchWorkspaceCloseResumeOutcome::Resumed {

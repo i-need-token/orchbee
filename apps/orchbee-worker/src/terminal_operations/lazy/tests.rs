@@ -24,8 +24,8 @@ use orchbee_capability_node_protocol::{
     AgentDrainEntry, SendRecord, SendRecords, SendText, SendTextInput, TerminalPixelGeometry,
     TerminalSendOutcome, TerminalSendRequest,
 };
+use orchbee_local_runtime::{Cohort, ModeCheckedLocalSessionRendezvous};
 use orchbee_local_worker_protocol::WorkerId;
-use orchbee_local_site_runtime::{ModeCheckedLocalSiteRendezvous, NativeCohort};
 
 use super::run;
 
@@ -49,19 +49,19 @@ type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 #[test]
 fn validation_before_first_launch_uses_real_socket_and_never_creates_host_runtime() -> TestResult {
     let fixture = TestCohort::new()?;
-    let cohort = NativeCohort::load(fixture.path(), Instant::now() + Duration::from_secs(2))?;
+    let cohort = Cohort::load(fixture.path(), Instant::now() + Duration::from_secs(2))?;
     let available = fixture.path().join("available");
     fs::create_dir(&available)?;
     let missing = fixture.path().join("missing");
-    let site_runtime = fixture.path().join("runtime");
-    fs::create_dir(&site_runtime)?;
-    fs::set_permissions(&site_runtime, fs::Permissions::from_mode(0o700))?;
-    let host_runtime = ModeCheckedLocalSiteRendezvous::host_runtime_directory(&site_runtime);
-    let host_endpoint = ModeCheckedLocalSiteRendezvous::host_endpoint_path(&site_runtime);
+    let session_runtime = fixture.path().join("runtime");
+    fs::create_dir(&session_runtime)?;
+    fs::set_permissions(&session_runtime, fs::Permissions::from_mode(0o700))?;
+    let host_runtime = ModeCheckedLocalSessionRendezvous::host_runtime_directory(&session_runtime);
+    let host_endpoint = ModeCheckedLocalSessionRendezvous::host_endpoint_path(&session_runtime);
     let (mut server, worker) = UnixStream::pair()?;
     server.set_read_timeout(Some(Duration::from_secs(2)))?;
     server.set_write_timeout(Some(Duration::from_secs(2)))?;
-    let worker_runtime = site_runtime.clone();
+    let worker_runtime = session_runtime.clone();
     let worker_thread = thread::spawn(move || {
         run(
             worker,
@@ -119,18 +119,18 @@ fn validation_before_first_launch_uses_real_socket_and_never_creates_host_runtim
 #[test]
 fn worktree_job_before_first_launch_answers_without_a_host() -> TestResult {
     let fixture = TestCohort::new()?;
-    let cohort = NativeCohort::load(fixture.path(), Instant::now() + Duration::from_secs(2))?;
+    let cohort = Cohort::load(fixture.path(), Instant::now() + Duration::from_secs(2))?;
     let directory = fixture.path().join("plain-directory");
     fs::create_dir(&directory)?;
-    let site_runtime = fixture.path().join("runtime");
-    fs::create_dir(&site_runtime)?;
-    fs::set_permissions(&site_runtime, fs::Permissions::from_mode(0o700))?;
-    let host_runtime = ModeCheckedLocalSiteRendezvous::host_runtime_directory(&site_runtime);
-    let host_endpoint = ModeCheckedLocalSiteRendezvous::host_endpoint_path(&site_runtime);
+    let session_runtime = fixture.path().join("runtime");
+    fs::create_dir(&session_runtime)?;
+    fs::set_permissions(&session_runtime, fs::Permissions::from_mode(0o700))?;
+    let host_runtime = ModeCheckedLocalSessionRendezvous::host_runtime_directory(&session_runtime);
+    let host_endpoint = ModeCheckedLocalSessionRendezvous::host_endpoint_path(&session_runtime);
     let (mut server, worker) = UnixStream::pair()?;
     server.set_read_timeout(Some(Duration::from_secs(5)))?;
     server.set_write_timeout(Some(Duration::from_secs(2)))?;
-    let worker_runtime = site_runtime.clone();
+    let worker_runtime = session_runtime.clone();
     let worker_thread = thread::spawn(move || {
         run(
             worker,
@@ -223,24 +223,24 @@ fn worktree_job_before_first_launch_answers_without_a_host() -> TestResult {
 #[test]
 fn overlong_host_endpoint_fails_before_host_directory_or_spawn() -> TestResult {
     let fixture = TestCohort::new()?;
-    let cohort = NativeCohort::load(fixture.path(), Instant::now() + Duration::from_secs(2))?;
-    // Pad the Site runtime until the derived `host/<id>.s` endpoint cannot fit
-    // one socket address, while the Site directory itself is still creatable.
-    let mut site_runtime = fixture.path().join("runtime");
-    while nix::sys::socket::UnixAddr::new(&ModeCheckedLocalSiteRendezvous::host_endpoint_path(
-        &site_runtime,
+    let cohort = Cohort::load(fixture.path(), Instant::now() + Duration::from_secs(2))?;
+    // Pad the Session runtime until the derived `host/<id>.s` endpoint cannot fit
+    // one socket address, while the Session directory itself is still creatable.
+    let mut session_runtime = fixture.path().join("runtime");
+    while nix::sys::socket::UnixAddr::new(&ModeCheckedLocalSessionRendezvous::host_endpoint_path(
+        &session_runtime,
     ))
     .is_ok()
     {
-        site_runtime = site_runtime.join("x");
+        session_runtime = session_runtime.join("x");
     }
-    fs::create_dir_all(&site_runtime)?;
-    fs::set_permissions(&site_runtime, fs::Permissions::from_mode(0o700))?;
-    let host_runtime = ModeCheckedLocalSiteRendezvous::host_runtime_directory(&site_runtime);
+    fs::create_dir_all(&session_runtime)?;
+    fs::set_permissions(&session_runtime, fs::Permissions::from_mode(0o700))?;
+    let host_runtime = ModeCheckedLocalSessionRendezvous::host_runtime_directory(&session_runtime);
     let (mut server, worker) = UnixStream::pair()?;
     server.set_read_timeout(Some(Duration::from_secs(2)))?;
     server.set_write_timeout(Some(Duration::from_secs(2)))?;
-    let worker_runtime = site_runtime.clone();
+    let worker_runtime = session_runtime.clone();
     let worker_thread = thread::spawn(move || {
         run(
             worker,
@@ -449,7 +449,7 @@ mod fixture_lifecycle {
     };
 
     use nix::poll::{PollFd, PollFlags, PollTimeout, poll};
-    use orchbee_local_site_runtime::HOST_ENDPOINT_ID;
+    use orchbee_local_runtime::HOST_ENDPOINT_ID;
     use rustix::process::{Pid as RustixPid, PidfdFlags, Signal, pidfd_open, pidfd_send_signal};
 
     use super::TestCohort;
@@ -955,7 +955,7 @@ use fixture_lifecycle::FixtureLifecycle;
 #[cfg(target_os = "linux")]
 use std::os::fd::OwnedFd;
 
-/// Guarded real-Host setup: cohort, site runtime, socket pair, and the
+/// Guarded real-Host setup: cohort, session runtime, socket pair, and the
 /// worker thread all move into one `FixtureLifecycle` owner. Returns the
 /// owner plus the paths the caller needs for readiness assertions — the
 /// cohort root is captured BEFORE the dir owner moves, so post-drop
@@ -971,15 +971,15 @@ fn guarded_real_host() -> TestResult<(FixtureLifecycle, PathBuf, PathBuf)> {
         .into());
     };
     let cohort_root = cohort_dir.path().to_path_buf();
-    let site_runtime = cohort_root.join("runtime");
-    fs::create_dir(&site_runtime)?;
-    fs::set_permissions(&site_runtime, fs::Permissions::from_mode(0o700))?;
-    let host_runtime = ModeCheckedLocalSiteRendezvous::host_runtime_directory(&site_runtime);
+    let session_runtime = cohort_root.join("runtime");
+    fs::create_dir(&session_runtime)?;
+    fs::set_permissions(&session_runtime, fs::Permissions::from_mode(0o700))?;
+    let host_runtime = ModeCheckedLocalSessionRendezvous::host_runtime_directory(&session_runtime);
     let executable = cohort_root.join("orchbee-terminal-host");
     let (server, worker) = UnixStream::pair()?;
     server.set_read_timeout(Some(FIXTURE_TIMEOUT))?;
     server.set_write_timeout(Some(FIXTURE_TIMEOUT))?;
-    let worker_runtime = site_runtime.clone();
+    let worker_runtime = session_runtime.clone();
     let worker_thread = thread::spawn(move || {
         run(
             worker,
@@ -993,7 +993,7 @@ fn guarded_real_host() -> TestResult<(FixtureLifecycle, PathBuf, PathBuf)> {
     });
     let lifecycle =
         FixtureLifecycle::new(cohort_dir, server, worker_thread, executable, host_runtime);
-    Ok((lifecycle, site_runtime, cohort_root))
+    Ok((lifecycle, session_runtime, cohort_root))
 }
 
 /// A real `AuthorizedTerminalLaunch` in Immediate mode; on HostAccepted the
@@ -1203,16 +1203,16 @@ fn send_apc(
 #[test]
 fn lazy_prehost_drain_replies_empty_and_never_starts_host() -> TestResult {
     let fixture = TestCohort::new()?;
-    let cohort = NativeCohort::load(fixture.path(), Instant::now() + FIXTURE_TIMEOUT)?;
-    let site_runtime = fixture.path().join("runtime");
-    fs::create_dir(&site_runtime)?;
-    fs::set_permissions(&site_runtime, fs::Permissions::from_mode(0o700))?;
-    let host_runtime = ModeCheckedLocalSiteRendezvous::host_runtime_directory(&site_runtime);
-    let host_endpoint = ModeCheckedLocalSiteRendezvous::host_endpoint_path(&site_runtime);
+    let cohort = Cohort::load(fixture.path(), Instant::now() + FIXTURE_TIMEOUT)?;
+    let session_runtime = fixture.path().join("runtime");
+    fs::create_dir(&session_runtime)?;
+    fs::set_permissions(&session_runtime, fs::Permissions::from_mode(0o700))?;
+    let host_runtime = ModeCheckedLocalSessionRendezvous::host_runtime_directory(&session_runtime);
+    let host_endpoint = ModeCheckedLocalSessionRendezvous::host_endpoint_path(&session_runtime);
     let (mut server, worker) = UnixStream::pair()?;
     server.set_read_timeout(Some(FIXTURE_TIMEOUT))?;
     server.set_write_timeout(Some(FIXTURE_TIMEOUT))?;
-    let worker_runtime = site_runtime.clone();
+    let worker_runtime = session_runtime.clone();
     let worker_thread = thread::spawn(move || {
         run(
             worker,
@@ -1252,8 +1252,8 @@ fn lazy_prehost_drain_replies_empty_and_never_starts_host() -> TestResult {
 #[cfg(target_os = "linux")]
 #[test]
 fn lazy_drain_survives_first_launch_and_captures_real_agent_signal() -> TestResult {
-    let (mut lifecycle, site_runtime, cohort_root) = guarded_real_host()?;
-    let host_endpoint = ModeCheckedLocalSiteRendezvous::host_endpoint_path(&site_runtime);
+    let (mut lifecycle, session_runtime, cohort_root) = guarded_real_host()?;
+    let host_endpoint = ModeCheckedLocalSessionRendezvous::host_endpoint_path(&session_runtime);
     let deadline = Instant::now() + FIXTURE_TIMEOUT;
 
     let mut mint = TokenMint(0);
@@ -1277,8 +1277,8 @@ fn lazy_drain_survives_first_launch_and_captures_real_agent_signal() -> TestResu
 #[cfg(target_os = "linux")]
 #[test]
 fn fixture_lifecycle_removes_dirs_on_pre_spawn_error() -> TestResult {
-    let (mut lifecycle, site_runtime, cohort_root) = guarded_real_host()?;
-    let host_endpoint = ModeCheckedLocalSiteRendezvous::host_endpoint_path(&site_runtime);
+    let (mut lifecycle, session_runtime, cohort_root) = guarded_real_host()?;
+    let host_endpoint = ModeCheckedLocalSessionRendezvous::host_endpoint_path(&session_runtime);
     let abandoned = (|| -> TestResult {
         let mut mint = TokenMint(0);
         let reply = drain(lifecycle.server(), &mut mint, 0)?;
@@ -1302,12 +1302,12 @@ fn fixture_lifecycle_removes_dirs_on_pre_spawn_error() -> TestResult {
 #[cfg(target_os = "linux")]
 #[test]
 fn fixture_lifecycle_reclaims_pinned_host_on_post_spawn_error() -> TestResult {
-    let (mut lifecycle, site_runtime, cohort_root) = guarded_real_host()?;
+    let (mut lifecycle, session_runtime, cohort_root) = guarded_real_host()?;
     let mut host_pin = None;
     let abandoned = (|| -> TestResult {
         let _identity = launch_real_terminal(lifecycle.server())?;
-        wait_endpoint(&ModeCheckedLocalSiteRendezvous::host_endpoint_path(
-            &site_runtime,
+        wait_endpoint(&ModeCheckedLocalSessionRendezvous::host_endpoint_path(
+            &session_runtime,
         ))?;
         host_pin = Some(
             lifecycle
@@ -1329,8 +1329,8 @@ fn fixture_lifecycle_reclaims_pinned_host_on_post_spawn_error() -> TestResult {
 #[cfg(target_os = "linux")]
 #[test]
 fn fixture_lifecycle_reclaims_pinned_host_on_post_readiness_error() -> TestResult {
-    let (mut lifecycle, site_runtime, cohort_root) = guarded_real_host()?;
-    let host_endpoint = ModeCheckedLocalSiteRendezvous::host_endpoint_path(&site_runtime);
+    let (mut lifecycle, session_runtime, cohort_root) = guarded_real_host()?;
+    let host_endpoint = ModeCheckedLocalSessionRendezvous::host_endpoint_path(&session_runtime);
     let deadline = Instant::now() + FIXTURE_TIMEOUT;
     let mut host_pin = None;
     let abandoned = (|| -> TestResult {
@@ -1359,10 +1359,10 @@ fn fixture_lifecycle_reclaims_pinned_host_on_panic_unwind() {
     let mut cohort_root = None;
     let mut host_pin = None;
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let (mut lifecycle, site_runtime, root) =
+        let (mut lifecycle, session_runtime, root) =
             guarded_real_host().expect("guarded real-Host fixture");
         cohort_root = Some(root);
-        let host_endpoint = ModeCheckedLocalSiteRendezvous::host_endpoint_path(&site_runtime);
+        let host_endpoint = ModeCheckedLocalSessionRendezvous::host_endpoint_path(&session_runtime);
         let deadline = Instant::now() + FIXTURE_TIMEOUT;
         let mut mint = TokenMint(0);
         prove_readiness(lifecycle.server(), &mut mint, &host_endpoint, deadline)
@@ -1403,9 +1403,9 @@ fn reclaim_never_matches_an_unrelated_cohort() -> TestResult {
     let other = TestCohort::new()?;
     let own_exe = own.path().join("orchbee-terminal-host");
     let own_host_runtime =
-        ModeCheckedLocalSiteRendezvous::host_runtime_directory(&own.path().join("runtime"));
+        ModeCheckedLocalSessionRendezvous::host_runtime_directory(&own.path().join("runtime"));
     let other_host_runtime =
-        ModeCheckedLocalSiteRendezvous::host_runtime_directory(&other.path().join("runtime"));
+        ModeCheckedLocalSessionRendezvous::host_runtime_directory(&other.path().join("runtime"));
     // Synthetic argv exactly as lazy::start_host builds it, once under this
     // fixture's own paths and once under the OTHER cohort's unique paths.
     let push = |argv: &mut Vec<u8>, arg: &std::ffi::OsStr| {
@@ -1421,7 +1421,7 @@ fn reclaim_never_matches_an_unrelated_cohort() -> TestResult {
         push(&mut argv, std::ffi::OsStr::new("--endpoint-id"));
         push(
             &mut argv,
-            std::ffi::OsStr::new(orchbee_local_site_runtime::HOST_ENDPOINT_ID),
+            std::ffi::OsStr::new(orchbee_local_runtime::HOST_ENDPOINT_ID),
         );
         argv
     };
@@ -1451,12 +1451,12 @@ fn reclaim_never_matches_an_unrelated_cohort() -> TestResult {
 #[test]
 fn server_close_mid_drain_ends_the_epoch() -> TestResult {
     let fixture = TestCohort::new()?;
-    let cohort = NativeCohort::load(fixture.path(), Instant::now() + FIXTURE_TIMEOUT)?;
-    let site_runtime = fixture.path().join("runtime");
-    fs::create_dir(&site_runtime)?;
-    fs::set_permissions(&site_runtime, fs::Permissions::from_mode(0o700))?;
+    let cohort = Cohort::load(fixture.path(), Instant::now() + FIXTURE_TIMEOUT)?;
+    let session_runtime = fixture.path().join("runtime");
+    fs::create_dir(&session_runtime)?;
+    fs::set_permissions(&session_runtime, fs::Permissions::from_mode(0o700))?;
     let (mut server, worker) = UnixStream::pair()?;
-    let worker_runtime = site_runtime.clone();
+    let worker_runtime = session_runtime.clone();
     let worker_thread = thread::spawn(move || {
         run(
             worker,
@@ -1515,7 +1515,7 @@ fn base64_url_nopad(bytes: &[u8]) -> String {
 
 /// `TestCohort::with_real_host` copies the built
 /// `apps/terminal-host/zig-out/bin/orchbee-terminal-host` into the cohort as
-/// the TerminalHost artifact. `NativeCohort::load` hashes every artifact
+/// the TerminalHost artifact. `Cohort::load` hashes every artifact
 /// against cohort.json, so the manifest must carry each file's real sha256;
 /// orchbee-worker has no sha2/serde_json dependency, so hashing goes through
 /// the system `sha256sum` subprocess (Linux-only, matching lazy::run).
@@ -1524,7 +1524,7 @@ fn base64_url_nopad(bytes: &[u8]) -> String {
 /// test because start_host spawns from `cohort.path()`.
 impl TestCohort {
     #[cfg(target_os = "linux")]
-    fn with_real_host() -> io::Result<Option<(Self, NativeCohort)>> {
+    fn with_real_host() -> io::Result<Option<(Self, Cohort)>> {
         let binary = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../terminal-host/zig-out/bin/orchbee-terminal-host");
         if !binary.is_file() || Command::new("sha256sum").arg("--version").output().is_err() {
@@ -1552,7 +1552,7 @@ impl TestCohort {
             ),
         )?;
         fs::set_permissions(&manifest, fs::Permissions::from_mode(0o600))?;
-        let loaded = NativeCohort::load(cohort.path(), Instant::now() + FIXTURE_TIMEOUT)?;
+        let loaded = Cohort::load(cohort.path(), Instant::now() + FIXTURE_TIMEOUT)?;
         Ok(Some((cohort, loaded)))
     }
 }

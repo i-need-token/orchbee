@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use orchbee_workbench_protocol::WorkbenchPanelId;
 
-use super::{KeyedProjection, NativeProjectionStatus, NativeUi, WorkbenchClientView};
+use super::{ClientProjectionStatus, KeyedProjection, WorkbenchClientUi, WorkbenchClientView};
 use crate::terminal_scrollbar::ScrollbarSnapshot;
 use crate::workbench_client::{
     state::PaneRef,
@@ -32,7 +32,7 @@ impl KeyedProjection {
             );
         }
         let frame = self.value.frame().filter(|frame| {
-            self.status == NativeProjectionStatus::FrameAvailable
+            self.status == ClientProjectionStatus::FrameAvailable
                 && !frame.alternate_screen
                 && !frame.rows.is_empty()
         })?;
@@ -61,7 +61,7 @@ impl WorkbenchClientView<'_> {
     }
 }
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn scrollbar_scroll(
         &mut self,
         key: &PaneRef,

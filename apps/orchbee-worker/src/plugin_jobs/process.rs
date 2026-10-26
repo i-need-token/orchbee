@@ -1,7 +1,5 @@
 use super::{Failure, PluginCommandIntent, PluginCommandLog, now_ms};
-use orchbee_local_site_runtime::{
-    WindowsCommandFailure, resolve_windows_program, run_windows_command,
-};
+use orchbee_local_runtime::{CommandFailure, resolve_windows_program, run_windows_command};
 use std::{
     path::Path,
     process::{Command, Stdio},
@@ -31,12 +29,12 @@ pub(super) fn run(
     log.stdout_truncated = output.stdout_truncated;
     log.stderr_truncated = output.stderr_truncated;
     log.failure = output.failure.map(|reason| match reason {
-        WindowsCommandFailure::ExitFailure => Failure::ExitFailure,
-        WindowsCommandFailure::SpawnUnavailable => Failure::SpawnUnavailable,
-        WindowsCommandFailure::SpawnFailed => Failure::SpawnFailed,
-        WindowsCommandFailure::Io | WindowsCommandFailure::Timeout => Failure::Io,
-        WindowsCommandFailure::Cancelled => Failure::Cancelled,
-        WindowsCommandFailure::PhysicalUnknown => Failure::PhysicalUnknown,
+        CommandFailure::ExitFailure => Failure::ExitFailure,
+        CommandFailure::SpawnUnavailable => Failure::SpawnUnavailable,
+        CommandFailure::SpawnFailed => Failure::SpawnFailed,
+        CommandFailure::Io | CommandFailure::Timeout => Failure::Io,
+        CommandFailure::Cancelled => Failure::Cancelled,
+        CommandFailure::PhysicalUnknown => Failure::PhysicalUnknown,
     });
     log
 }

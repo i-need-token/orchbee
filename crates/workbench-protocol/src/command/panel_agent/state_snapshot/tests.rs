@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     PanelAgentAction, PanelAgentOutcome, PanelAgentRequest, PanelAgentResult, ProtocolVersion,
-    SiteId, WorkbenchRequestId,
+    SessionId, WorkbenchRequestId,
 };
 use serde_json::json;
 
@@ -21,7 +21,7 @@ fn compact_physical_states_require_ordered_exact_presentations_and_real_generati
     let request = PanelAgentRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&"1".repeat(32)).unwrap(),
-        site_id: SiteId::parse(&"2".repeat(32)).unwrap(),
+        session_id: SessionId::parse(&"2".repeat(32)).unwrap(),
         action: PanelAgentAction::States {
             presentation_ids: ids.clone(),
         },
@@ -30,7 +30,7 @@ fn compact_physical_states_require_ordered_exact_presentations_and_real_generati
     let mut result = PanelAgentResult {
         protocol_version: ProtocolVersion,
         request_id: request.request_id.clone(),
-        site_id: request.site_id.clone(),
+        session_id: request.session_id.clone(),
         outcome: PanelAgentOutcome::States {
             workbench_revision: WorkbenchRevision::new(3),
             report_revision: WorkbenchRevision::new(5),
@@ -78,7 +78,7 @@ fn compact_states_bound_unique_requests_and_do_not_admit_history_fields() {
     let mut request = PanelAgentRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&"1".repeat(32)).unwrap(),
-        site_id: SiteId::parse(&"2".repeat(32)).unwrap(),
+        session_id: SessionId::parse(&"2".repeat(32)).unwrap(),
         action: PanelAgentAction::States {
             presentation_ids: ids,
         },

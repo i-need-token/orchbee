@@ -31,7 +31,7 @@ fn open(fixture: &Fixture) -> PluginRequest {
     PluginRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 90000)).unwrap(),
-        site_id: snapshot.site_id,
+        session_id: snapshot.session_id,
         action: PluginAction::PopupOpen {
             popup_id: WorkbenchRequestId::parse(&format!("{:032x}", 90001)).unwrap(),
             spec: Box::new(spec),

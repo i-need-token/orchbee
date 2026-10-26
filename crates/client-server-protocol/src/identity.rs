@@ -62,7 +62,7 @@ macro_rules! define_identity {
 }
 
 define_identity!(RequestId);
-define_identity!(SiteId);
+define_identity!(SessionId);
 define_identity!(WorkerId);
 define_identity!(TerminalId);
 define_identity!(PresentationId);

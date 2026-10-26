@@ -1,14 +1,14 @@
 //! Complete immutable canvases, visible source scope and one cancellable read owner.
 use super::{
-    NativePanel, NativePresentation,
+    ClientPanel, ClientPresentation,
     agent_read_lane::{AgentReadLane, LaneCommand, LaneOutcome},
     state::WorkbenchClientState,
 };
 use crate::local_client::{LocalClientOrigin, LocalOperationClock};
 use orchbee_workbench_protocol::{
     MAXIMUM_GRAPHICS_LAYERS, MAXIMUM_GRAPHICS_LAYERS_PER_PANE, MAXIMUM_GRAPHICS_RESIDENT_BYTES,
-    PaneGraphicsLayer, PaneGraphicsTarget, PresentationBinding, SiteId, Snapshot, WorkbenchPanelId,
-    WorkbenchRevision, graphics_rgba_bytes,
+    PaneGraphicsLayer, PaneGraphicsTarget, PresentationBinding, SessionId, Snapshot,
+    WorkbenchPanelId, WorkbenchRevision, graphics_rgba_bytes,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -24,7 +24,7 @@ pub(super) struct Source {
     pub(super) binding: Option<PresentationBinding>,
 }
 impl Source {
-    pub(super) fn capture(panel: &NativePanel, presentation: &NativePresentation) -> Self {
+    pub(super) fn capture(panel: &ClientPanel, presentation: &ClientPresentation) -> Self {
         Self {
             target: PaneGraphicsTarget {
                 panel_id: panel.panel_id().clone(),
@@ -214,14 +214,14 @@ impl Draw {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct Scope {
-    pub(super) site: SiteId,
+    pub(super) session: SessionId,
     pub(super) revision: WorkbenchRevision,
     pub(super) sources: Vec<Source>,
 }
 impl Scope {
     fn matches(&self, state: &WorkbenchClientState) -> bool {
         let cache = state.cache();
-        if &self.site != cache.site_id() {
+        if &self.session != cache.session_id() {
             return false;
         }
         let Some(active) = state.active() else {
@@ -367,7 +367,7 @@ impl Driver {
         if self
             .scope
             .as_ref()
-            .is_none_or(|old| old.site != scope.site || old.sources != scope.sources)
+            .is_none_or(|old| old.session != scope.session || old.sources != scope.sources)
         {
             self.interrupt();
             self.next = None;
@@ -375,7 +375,7 @@ impl Driver {
             self.rows.retain(|_, row| {
                 self.scope
                     .as_ref()
-                    .is_some_and(|old| old.site == scope.site)
+                    .is_some_and(|old| old.session == scope.session)
                     && scope.sources.contains(&row.source)
             });
         }
@@ -384,8 +384,8 @@ impl Driver {
     }
     pub(super) fn view(
         &self,
-        panel: &NativePanel,
-        presentation: &NativePresentation,
+        panel: &ClientPanel,
+        presentation: &ClientPresentation,
     ) -> Option<&Canvas> {
         let source = Source::capture(panel, presentation);
         self.scope
@@ -426,7 +426,7 @@ impl Driver {
             if let Ok(round) = result
                 && now < deadline
                 && self.scope.as_ref().is_some_and(|scope| {
-                    scope.site == round.scope.site
+                    scope.session == round.scope.session
                         && round
                             .scope
                             .sources
@@ -498,7 +498,7 @@ impl Driver {
             .collect();
         let job = Job {
             scope: Scope {
-                site: scope.site.clone(),
+                session: scope.session.clone(),
                 revision: scope.revision,
                 sources,
             },

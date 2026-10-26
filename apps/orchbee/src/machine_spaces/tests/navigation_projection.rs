@@ -31,7 +31,7 @@ fn pending_order_rolls_back_without_mutating_either_authority_and_a_newer_commit
     let moved = &snapshot.navigation.workspaces[1];
     assert_eq!(
         projected.rows.last().unwrap().target.location,
-        NativeContextLocation::Workspace {
+        ClientContextLocation::Workspace {
             workspace_id: moved.workspace_id.clone(),
             terminal_context_id: moved.terminal_context_id.clone(),
         }
@@ -120,7 +120,7 @@ fn metadata_is_retained_by_target_and_git_also_requires_the_same_directory_and_s
         .unwrap();
     assert_eq!(row.tokens, tokens);
     assert!(row.git.is_none());
-    observed.site_id = SiteId::parse(&id(999)).unwrap();
+    observed.session_id = SessionId::parse(&id(999)).unwrap();
     let replaced =
         Checkpoint::project_navigation(&source(snapshot, None), Some(&observed)).unwrap();
     assert!(

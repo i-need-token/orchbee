@@ -142,7 +142,7 @@ Session 准入了其探针时报告 `already-running`。该命令即使在拒绝
 活 owner、不完整登记和旧版 Active 记录仍为 `rejected`/`recovery-required`。恢复保留 checkpoint，
 不终止旧进程。新激活会在提交标记、拉起 Server 或发布检查点存储前先发布 catalog v5；只支持
 v1–v4 的读取器会拒绝 v5，且不改变其字节。这些边界由
-[Windows 恢复契约](../../crates/local-site-runtime/docs/windows-crash-recovery.zh-CN.md)维护。
+[Windows 恢复契约](../../crates/local-runtime/docs/windows-crash-recovery.zh-CN.md)维护。
 `server diagnose` 是只读对偶面：它报告运行时目录、标记、锁与有限端点路径的有界事实——
 每行是各自观察瞬间的封闭状态行——共享一个协作式 5 秒预算；它绝不 connect、创建、
 取锁、修复，也不声称任何进程存活或消失。
@@ -197,7 +197,7 @@ Help 只写 stdout，失败只写 stderr；Version 写入一行与 locale 无关
 尚不存在，且父目录已经存在：
 
 ```powershell
-node scripts/stage-native-site.mjs --output "$env:LOCALAPPDATA\OrchbeeNative"
+node scripts/stage-local-runtime.mjs --output "$env:LOCALAPPDATA\OrchbeeNative"
 & "$env:LOCALAPPDATA\OrchbeeNative\orchbee.exe"
 ```
 
@@ -254,11 +254,11 @@ Shell 补全提供 bash/zsh/fish/powershell/elvish。在 PowerShell 中显式运
 从仓库根目录构建一个新的开发 cohort：
 
 ```sh
-node scripts/stage-native-site.mjs --output /tmp/orchbee-native-dev
+node scripts/stage-local-runtime.mjs --output /tmp/orchbee-native-dev
 # Windows 主机使用 WSL Linux：
-node scripts/stage-native-site.mjs --wsl Ubuntu --output /tmp/orchbee-native-dev
+node scripts/stage-local-runtime.mjs --wsl Ubuntu --output /tmp/orchbee-native-dev
 # Apple Silicon macOS：
-node scripts/stage-native-site.mjs --output /private/tmp/orchbee-native-dev
+node scripts/stage-local-runtime.mjs --output /private/tmp/orchbee-native-dev
 ```
 
 随后在交互式终端执行暂存的 `orchbee`（Linux 使用 `/tmp/orchbee-native-dev/orchbee`，
@@ -271,7 +271,7 @@ macOS 使用 `/private/tmp/orchbee-native-dev/orchbee`）。
 Linux 默认 Session 位于 `/tmp/orchbee-native-<effective-uid>`，macOS 默认位于
 `/private/tmp/orchbee-native-<effective-uid>`。开发和测试可将 `ORCHBEE_RUNTIME_BASE`
 指向准入本机文件系统上的另一个已有绝对目录来隔离 Session。
-[共享运行时契约](../../crates/local-site-runtime/README.zh-CN.md) 定义 0700 目录、
+[共享运行时契约](../../crates/local-runtime/README.zh-CN.md) 定义 0700 目录、
 0600 锁/socket/不可变启动标记、声明适配器 sidecar 的四可执行文件精确 cohort、
 20 秒共用截止时间和 500 毫秒延迟提示。
 Server + Worker 就绪与终端首帧就绪是不同阶段。初始 Open、snapshot read、attach、acquire、
@@ -594,7 +594,7 @@ Authored help 与 diagnostic 同时提供 `en-US` 和 `zh-CN`。Locale selection
 ## POSIX 本机 Session rendezvous 底座
 
 共享所有权与完整原语建模记录现由
-[local-site-runtime](../../crates/local-site-runtime/README.zh-CN.md) 维护；应用不再保留重复实现。
+[local-runtime](../../crates/local-runtime/README.zh-CN.md) 维护；应用不再保留重复实现。
 
 ## 已接受的本机 Session activation 建模记录
 
@@ -608,9 +608,9 @@ Authored help 与 diagnostic 同时提供 `en-US` 和 `zh-CN`。Locale selection
 | 决策   | Invocation kind 决定是否允许执行 Session work。Connection observation 区分 direct success、absent activation、incompatible failure 与 partial-cohort failure。发现 absent 后，lock ownership 区分 launcher 与 waiter；lock winner 在 launch 前重新检查 Session state。Typed readiness、typed failure 或 Client-owned total deadline 结算每个 waiter。在 connection 完成之前，deadline observation 可以胜出。                               |
 | 模型   | 对恰好两个 Client slot 与四种受支持 initial Session class 建模的 bounded workflow。一个 scalar `activationOwner` 对 `activation.lock` 建模；`launchCount` 与 `launchedCohort` 暴露 singleton exact-cohort launch；`serviceLifetimeOwner` 把 ready Session 与每个 Client 区分。External launcher/readiness action 是 nondeterministic，且没有 fairness assumption。                                                                         |
 | 转换   | Present compatible Session 下为 `idle -> connecting -> connected`；present incompatible 或 partial state 下为 `connecting -> failed`；launch winner 为 `connecting -> lock-ready -> lock-held -> waiting-readiness`；contention 为 `lock-ready -> waiting-readiness`；waiting 或 recheck state 会结算为 connected 或一种 typed failure；`connected -> exited` 保留 Session state。Help/version 从 `idle` 直接进入 information completion。 |
-| 依赖   | Model 仅在具名 abstraction 上组合已接受 command contract、当前 private `LocalClient` admission boundary 与 `ModeCheckedLocalSiteRendezvous` lock semantics。未来 runtime refinement 必须提供 installation-owned cohort selection、typed readiness 与一个 monotonic total deadline。本 slice 不增加 process、socket、filesystem、localization 或 public-command implementation。                                                            |
+| 依赖   | Model 仅在具名 abstraction 上组合已接受 command contract、当前 private `LocalClient` admission boundary 与 `ModeCheckedLocalSessionRendezvous` lock semantics。未来 runtime refinement 必须提供 installation-owned cohort selection、typed readiness 与一个 monotonic total deadline。本 slice 不增加 process、socket、filesystem、localization 或 public-command implementation。                                                         |
 | 所有权 | `apps/orchbee` 拥有 Client bootstrap workflow、deadline、activation guard 与 typed Client result。Installation composition 拥有 exact cohort capability。Server 与 Worker 在成功后拥有各自 readiness 与 service lifetime。Model 不向 Client 授予 supervise、stop、replace、downgrade、clean up 或 recover Session 的 authority。                                                                                                           |
-| 验证   | 启动状态、期限与真实进程测试覆盖受支持初始 Session 类、竞争 Client、准确 cohort 启动、既有服务保留及失败结算。共享 LocalSiteStartup 核心仅提供其单独声明的有界协议证据。                                                                                                                                                                                                                                                                   |
+| 验证   | 启动状态、期限与真实进程测试覆盖受支持初始 Session 类、竞争 Client、准确 cohort 启动、既有服务保留及失败结算。共享 LocalSessionStartup 核心仅提供其单独声明的有界协议证据。                                                                                                                                                                                                                                                                |
 | 正确性 | LA-01 至 LA-05 仍是启动与准入行为要求。受控期限及进程轨迹必须展示无需假设外部进程响应的结算。已移除激活流程不提供当前 TLC 证明。                                                                                                                                                                                                                                                                                                           |
 | 限制   | 该 abstraction 只证明 checked two-Client、one-Session state space。它不证明 runtime refinement、operating-system scheduling、process creation 或 detachment、daemonization、service-manager behavior、runtime base 或 scope、ACL、socket metadata、cleanup、recovery、retry、update、concrete deadline 或 progress threshold、localization、TUI behavior、packaging、public wiring 或 external process progress。                          |
 
@@ -626,7 +626,7 @@ Authored help 与 diagnostic 同时提供 `en-US` 和 `zh-CN`。Locale selection
 | Pending Client       | 观察到 typed result 或 total deadline                               | 连接或返回 `incompatible`、`partial-cohort`、`launcher-failure` 或 `timeout`；释放 caller 拥有的 activation guard |
 | Connected Client     | Client exits                                                        | 只结束 Client Connection；保留 Session、cohort、readiness、launch 与 service-lifetime state                       |
 
-该模型抽象了运行时细化；`LocalSiteStartup` 提供具体的启动安全论证。在声称该模型映射到实现
+该模型抽象了运行时细化；`LocalSessionStartup` 提供具体的启动安全论证。在声称该模型映射到实现
 之前，未来接线必须补充确定性进程测试。
 
 | Claim                                                                                            | Bound                                                                                                                           |
@@ -698,7 +698,7 @@ cargo test -p orchbee --all-targets --all-features --locked
 cargo clippy -p orchbee --all-targets --all-features --locked -- -D warnings
 node scripts/tla/check-inventory.mjs
 node scripts/tla/run-models.mjs --workspace apps/orchbee
-node scripts/tla/run-models.mjs --models local-site-startup
+node scripts/tla/run-models.mjs --models local-session-startup
 cargo tree -p orchbee --target x86_64-pc-windows-msvc --locked
 pnpm verify
 ```
@@ -892,4 +892,4 @@ Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin acti
 
 Windows 首次运行引导在终端可继续输入时提供 Workspace 创建、Agent 选择、操作与帮助入口，关闭状态按原生配置档案保存。参见[原生首次运行引导](docs/native-onboarding.zh-CN.md)。
 
-<!-- documentation-pairing: english-sha256=2ef73e7428302d6b021b9585f71d0cb429279e619480d910ee1afcf3c564b86f zh-cn-sha256=751ec8fb130ccf8d8ae7807fced437bb59934b05f82794abda3cbffdd63a2962 -->
+<!-- documentation-pairing: english-sha256=11d3829e089342cccfab8db77ca6ea641ed83dda48b977814efd62891c66a0cc zh-cn-sha256=e49997be67736c05cbe1cd7d32bbdd905d5aa7f56e4453ee1cbe0737ad391d12 -->

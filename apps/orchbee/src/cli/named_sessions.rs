@@ -8,10 +8,10 @@ use crate::{
 use orchbee_local_client_protocol::{
     ConnectClientError, ServerMode, exchange_server_metadata_before,
 };
-use orchbee_local_site_runtime::{
-    ActivationState, ModeCheckedLocalSiteRendezvous as Rendezvous, RendezvousError,
-    SiteLifetimeObservation, WindowsNamedSiteCatalog as Catalog, WindowsNamedSiteDeleteFailure,
-    WindowsNamedSiteDeleteOutcome, WindowsNamedSiteDeleteReason as Reason, WindowsNamedSiteEntry,
+use orchbee_local_runtime::{
+    ActivationState, ModeCheckedLocalSessionRendezvous as Rendezvous, NamedSessionDeleteFailure,
+    NamedSessionDeleteOutcome, NamedSessionDeleteReason as Reason, NamedSessionEntry,
+    RendezvousError, SessionCatalog as Catalog, SessionLifetimeObservation,
 };
 use serde_json::{Value, json};
 use std::{
@@ -72,21 +72,21 @@ pub(crate) fn run(command: &NamedSessionCommand, format: OutputFormat, locale: L
             };
             super::process_result(result, locale)
         }
-        NamedSessionCommand::Stop { command, .. } => super::site_stop(command, format, locale),
+        NamedSessionCommand::Stop { command, .. } => super::server_stop(command, format, locale),
         NamedSessionCommand::List => list(format, locale),
         NamedSessionCommand::Delete { name } => delete(name, format, locale),
     }
 }
 
 fn delete(
-    name: &orchbee_local_site_runtime::WindowsSiteName,
+    name: &orchbee_local_runtime::SessionName,
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
     if name.as_str() == "default" {
         return delete_output(
             name.as_str(),
-            Err(WindowsNamedSiteDeleteFailure {
+            Err(NamedSessionDeleteFailure {
                 reason: Reason::DefaultSession,
                 pending: false,
             }),
@@ -121,7 +121,7 @@ fn delete(
         }) => {
             finalization = Some(owed);
             match result {
-                Ok(_) => Ok(Err(WindowsNamedSiteDeleteFailure {
+                Ok(_) => Ok(Err(NamedSessionDeleteFailure {
                     reason: Reason::Interrupted,
                     pending,
                 })),
@@ -232,7 +232,7 @@ fn list(format: OutputFormat, locale: Locale) -> Output {
 }
 
 fn observe(
-    entry: &WindowsNamedSiteEntry,
+    entry: &NamedSessionEntry,
     deadline: Instant,
     signals: &ArmedSignals,
 ) -> Result<(SessionState, Option<u32>), Failure> {
@@ -245,8 +245,8 @@ fn observe(
     if entry.cold_recoverable().map_err(local_error)? {
         return Ok((SessionState::Recoverable, None));
     }
-    let site = match Rendezvous::from_runtime_directory(&entry.runtime) {
-        Ok(site) => site,
+    let session = match Rendezvous::from_runtime_directory(&entry.runtime) {
+        Ok(session) => session,
         Err(RendezvousError::System { source, .. }) if source.kind() == io::ErrorKind::NotFound => {
             let state = match entry.absent_runtime_state().map_err(local_error)? {
                 None => SessionState::Absent,
@@ -257,7 +257,8 @@ fn observe(
         }
         Err(_) => return Err(local_error(io::ErrorKind::InvalidData.into())),
     };
-    match exchange_server_metadata_before(site.client_socket_path(), deadline, signals.poll_fd()) {
+    match exchange_server_metadata_before(session.client_socket_path(), deadline, signals.poll_fd())
+    {
         Ok(metadata) => Ok((
             if metadata.mode() == ServerMode::ManagedStopping {
                 SessionState::Stopping
@@ -272,8 +273,10 @@ fn observe(
                 io::ErrorKind::NotFound | io::ErrorKind::ConnectionRefused
             ) =>
         {
-            let marker = site.activation_state().map_err(local_error)?;
-            let lifetime = site.observe_site_lifetime_lock().map_err(local_error)?;
+            let marker = session.activation_state().map_err(local_error)?;
+            let lifetime = session
+                .observe_session_lifetime_lock()
+                .map_err(local_error)?;
             let state = if entry.accepts_runtime_state(marker) {
                 inactive_state(marker, lifetime)
             } else {
@@ -288,27 +291,39 @@ fn observe(
     }
 }
 
-fn inactive_state(marker: ActivationState, lifetime: SiteLifetimeObservation) -> SessionState {
+fn inactive_state(marker: ActivationState, lifetime: SessionLifetimeObservation) -> SessionState {
     match (marker, lifetime) {
         (
             ActivationState::Absent,
-            SiteLifetimeObservation::Absent | SiteLifetimeObservation::Free,
+            SessionLifetimeObservation::Absent | SessionLifetimeObservation::Free,
         ) => SessionState::Absent,
-        (ActivationState::Stopped { .. }, SiteLifetimeObservation::Free) => SessionState::Stopped,
-        (ActivationState::Active, SiteLifetimeObservation::Held) => SessionState::Starting,
+        (ActivationState::Stopped { .. }, SessionLifetimeObservation::Free) => {
+            SessionState::Stopped
+        }
+        (ActivationState::Active, SessionLifetimeObservation::Held) => SessionState::Starting,
         _ => SessionState::RecoveryRequired,
     }
 }
 
 fn delete_output(
     name: &str,
-    result: Result<WindowsNamedSiteDeleteOutcome, WindowsNamedSiteDeleteFailure>,
+    result: Result<NamedSessionDeleteOutcome, NamedSessionDeleteFailure>,
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
+    if matches!(&result, Err(failure) if failure.reason == Reason::Unsupported) {
+        return failure_output(
+            Failure::new(FailureKind::ServiceUnavailable).details(super::stage_reason_details(
+                "platform",
+                "unsupported-platform",
+            )),
+            Some(format),
+            locale,
+        );
+    }
     let (outcome, reason, pending, status) = match result {
-        Ok(WindowsNamedSiteDeleteOutcome::Deleted) => ("deleted", None, false, 0),
-        Ok(WindowsNamedSiteDeleteOutcome::Absent) => ("absent", None, false, 0),
+        Ok(NamedSessionDeleteOutcome::Deleted) => ("deleted", None, false, 0),
+        Ok(NamedSessionDeleteOutcome::Absent) => ("absent", None, false, 0),
         Err(failure) => (
             if failure.reason == Reason::Interrupted {
                 "interrupted"
@@ -334,6 +349,7 @@ fn delete_output(
         Reason::Filesystem => "filesystem",
         Reason::TimedOut => "timed-out",
         Reason::Interrupted => "interrupted",
+        Reason::Unsupported => "unsupported-platform",
     });
     let result = json!({"name":name,"outcome":outcome,"reason":reason_token,"pending":pending});
     let diagnostic = locale.cli_session_delete(name, outcome, reason);

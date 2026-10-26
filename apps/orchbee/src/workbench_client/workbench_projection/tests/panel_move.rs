@@ -227,7 +227,7 @@ fn canonical_refresh_rejects_a_move_graft_reusing_known_identities() {
             &current,
             project_preferred_workspace(&reused_split).unwrap()
         ),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 
     // A fresh Split identity that recycles a baseline Slot identity.
@@ -249,7 +249,7 @@ fn canonical_refresh_rejects_a_move_graft_reusing_known_identities() {
     };
     assert_eq!(
         validate_canonical_refresh(&current, project_preferred_workspace(&reused_slot).unwrap()),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }
 
@@ -296,7 +296,7 @@ fn canonical_refresh_rejects_relocation_that_mutates_the_moved_or_untouched_subt
             &current,
             project_preferred_workspace(&mutated_leaf).unwrap()
         ),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 
     // The surviving sibling kept its Panel but lost its Slot identity.
@@ -336,7 +336,7 @@ fn canonical_refresh_rejects_relocation_that_mutates_the_moved_or_untouched_subt
             &current,
             project_preferred_workspace(&mutated_slot).unwrap()
         ),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }
 
@@ -500,6 +500,6 @@ fn canonical_refresh_rejects_restructures_that_reassign_retained_identity() {
     };
     assert_eq!(
         validate_canonical_refresh(&current, project_preferred_workspace(&mutated).unwrap()),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }

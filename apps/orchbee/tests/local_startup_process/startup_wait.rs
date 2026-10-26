@@ -64,8 +64,8 @@ fn initially_zero_cell_startup_recovers_on_resize_and_reaches_ready() -> TestRes
             &[],
             &mut [],
         );
-        // Before the first successful Ready no Site exists yet, so waiting must
-        // have started no services; later iterations legitimately see the site
+        // Before the first successful Ready no Session exists yet, so waiting must
+        // have started no services; later iterations legitimately see the session
         // the earlier recovery created.
         if index == 0 {
             assert!(fixture.processes("orchbee-server").is_empty());

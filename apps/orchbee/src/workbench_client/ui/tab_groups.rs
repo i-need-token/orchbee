@@ -1,9 +1,9 @@
 //! Menu adapters for canonical Tab configuration and identity-keyed, Client-local group disclosure.
 //! The existing setup lane owns admission, unknown outcomes, publication recovery and selection.
-use super::{ClientActionDisposition, NativeUi, OperationDeadlines, WorkbenchClientState};
+use super::{ClientActionDisposition, OperationDeadlines, WorkbenchClientState, WorkbenchClientUi};
 use crate::action_menu::{MenuAction, MenuTarget, TabMenuScope};
-use crate::workbench_client::state::workspace_setup::NativeSetupIntent;
-use crate::workbench_client::workbench_projection::NativeSimpleTab;
+use crate::workbench_client::state::workspace_setup::SetupIntent;
+use crate::workbench_client::workbench_projection::ClientTab;
 use orchbee_workbench_protocol::{
     TabConfiguration, TabGroupColor, TabGroupMoveDirection, WorkbenchTabGroupId,
     WorkbenchTabGroupLabel, WorkbenchTabId, WorkbenchTabIdSet, WorkbenchTabMoveDirection,
@@ -22,7 +22,7 @@ pub(super) enum MenuPage {
 
 pub(super) fn menu_actions(
     state: &WorkbenchClientState,
-    tab: &NativeSimpleTab,
+    tab: &ClientTab,
     submenu: Option<MenuPage>,
 ) -> Vec<MenuAction> {
     use MenuAction::*;
@@ -144,14 +144,14 @@ fn configuration_scope(state: &WorkbenchClientState, target: &WorkbenchTabId) ->
     }
 }
 
-fn group_scope(state: &WorkbenchClientState, tab: &NativeSimpleTab) -> Option<TabMenuScope> {
+fn group_scope(state: &WorkbenchClientState, tab: &ClientTab) -> Option<TabMenuScope> {
     NonZeroUsize::new(close_tab_ids(state, tab.tab_id(), MenuAction::CloseGroup)?.len())
         .map(TabMenuScope::Group)
 }
 
 pub(super) fn menu_scope(
     state: &WorkbenchClientState,
-    tab: &NativeSimpleTab,
+    tab: &ClientTab,
     page: Option<MenuPage>,
 ) -> Option<TabMenuScope> {
     match page {
@@ -163,7 +163,7 @@ pub(super) fn menu_scope(
 /// Project the same exact owner-resolved set that execution will revalidate; zero is not a scope.
 pub(super) fn menu_row(
     state: &WorkbenchClientState,
-    tab: &NativeSimpleTab,
+    tab: &ClientTab,
     action: &MenuAction,
 ) -> Option<TabMenuScope> {
     use MenuAction::*;
@@ -224,7 +224,7 @@ pub(super) fn close_tab_ids(
     ))
 }
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn tab_drag_source(
         &mut self,
     ) -> Option<crate::tui_pointer::TabDragSource> {
@@ -532,14 +532,14 @@ impl NativeUi {
                     },
                     adjacent_group_collapsed: adjacent
                         .and_then(|index| state.cache().tabs().get(index))
-                        .and_then(NativeSimpleTab::group)
+                        .and_then(ClientTab::group)
                         .is_some_and(|group| state.group_collapsed(&group.group_id)),
                 }
             }
             _ => return None,
         };
         if matches!(action, CreateGroup | RenameGroup) {
-            self.request_setup_draft(NativeSetupIntent::TabGroupName(Box::new(operation)))?;
+            self.request_setup_draft(SetupIntent::TabGroupName(Box::new(operation)))?;
         } else {
             let deadlines = OperationDeadlines::from_sample(self.clock.now())?;
             self.mailbox

@@ -10,7 +10,7 @@ use crate::{
     },
 };
 use orchbee_workbench_protocol::{
-    ClientSplitRatio, PanelOrientation, SiteId, WorkbenchPanelId, WorkbenchPanelSlotId,
+    ClientSplitRatio, PanelOrientation, SessionId, WorkbenchPanelId, WorkbenchPanelSlotId,
     WorkbenchRevision, WorkbenchSplitId, WorkbenchTabId, WorkbenchTerminalContextId,
 };
 use ratatui::{layout::Rect, widgets::Paragraph};
@@ -18,7 +18,7 @@ use ratatui::{layout::Rect, widgets::Paragraph};
 fn fixture_divider(viewport: Rect) -> DrawnDivider {
     DrawnDivider {
         source: DividerSource {
-            site: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
+            session: SessionId::parse(&format!("{:032x}", 1)).unwrap(),
             context: WorkbenchTerminalContextId::parse(&format!("{:032x}", 2)).unwrap(),
             tab: WorkbenchTabId::parse(&format!("{:032x}", 3)).unwrap(),
             focus: WorkbenchPanelId::parse(&format!("{:032x}", 4)).unwrap(),
@@ -627,7 +627,7 @@ fn divider_lost_preview_restores_graphics_in_the_same_flushed_frame_without_anot
             )],
         );
         graphics.select(
-            &SiteId::parse(&format!("{:032x}", 1)).unwrap(),
+            &SessionId::parse(&format!("{:032x}", 1)).unwrap(),
             &canvas,
             Rect::new(30, 4, 10, 10),
         );

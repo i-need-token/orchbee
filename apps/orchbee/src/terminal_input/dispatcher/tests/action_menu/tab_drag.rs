@@ -9,7 +9,7 @@ fn drag_release_and_cancellation_fence_keys_paste_and_fragmented_packet_tails() 
         let context = sidebar_context();
         let drawn = crate::action_menu::DrawnTabCreate {
             source: crate::action_menu::DrawnMenuSource {
-                site: context.site_id,
+                session: context.session_id,
                 revision: WorkbenchRevision::new(1),
             },
             location: context.location,
@@ -129,7 +129,7 @@ fn asynchronously_opened_menu_retires_tab_drag_but_owns_its_late_release_once() 
     let context = sidebar_context();
     let drawn = crate::action_menu::DrawnTabCreate {
         source: crate::action_menu::DrawnMenuSource {
-            site: context.site_id,
+            session: context.session_id,
             revision: WorkbenchRevision::new(1),
         },
         location: context.location,

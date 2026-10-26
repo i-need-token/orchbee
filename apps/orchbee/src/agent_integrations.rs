@@ -7,7 +7,7 @@
 //!
 //! The payload source is the native cohort's `agent-observation-adapters`
 //! sidecar — declared by the schema-2 manifest, admitted lazily here, and
-//! never touched by Site startup. The managed capsule materializes at
+//! never touched by Session startup. The managed capsule materializes at
 //! `~/.orchbee/agent-observation-adapters/<payloadSha256>` only as an
 //! explicit `enable` effect.
 
@@ -59,7 +59,7 @@ mod imp {
         time::{Duration, Instant},
     };
 
-    use orchbee_local_site_runtime::NativeCohort;
+    use orchbee_local_runtime::Cohort;
 
     use super::model::{ManagementMode, Provenance};
     use super::{IntegrationId, SnapshotItem, capsule, mutation, providers};
@@ -165,14 +165,14 @@ mod imp {
     /// Resolve the adapter source: the explicit `--adapter-source` override
     /// wins; otherwise the cohort's declared sidecar. A cohort that cannot be
     /// loaded is an absent source — the integration command answers a typed
-    /// unavailable rather than failing Site-style.
+    /// unavailable rather than failing Session-style.
     fn resolve_adapter_source(override_path: Option<&Path>, deadline: Instant) -> AdapterSource {
         if let Some(path) = override_path {
             return AdapterSource::Override {
                 directory: path.to_path_buf(),
             };
         }
-        match NativeCohort::current(deadline) {
+        match Cohort::current(deadline) {
             Ok(cohort) => {
                 let sidecar = cohort.observation_adapters_sidecar();
                 AdapterSource::Cohort {

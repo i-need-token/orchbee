@@ -4,16 +4,16 @@ use super::*;
 use crate::{
     terminal_input::InputDispatcher,
     tui_theme::Theme,
-    workbench_client::{NativeDrawReceipt, WorkbenchClientView},
+    workbench_client::{DrawReceipt, WorkbenchClientView},
 };
-use orchbee_local_site_runtime::{NativeNotificationDelivery, NativeNotificationSettings};
+use orchbee_local_runtime::{NotificationDelivery, NotificationSettings};
 use orchbee_workbench_protocol::{Notification, NotificationPosition, NotificationSound};
 use ratatui::layout::Rect;
 
 #[derive(Default)]
 struct Surface {
     forwarded: Vec<u8>,
-    receipts: Vec<NativeDrawReceipt>,
+    receipts: Vec<DrawReceipt>,
     successful_frames: usize,
     pane_observations: usize,
 }
@@ -30,7 +30,7 @@ impl super::super::TerminalSurface for Surface {
         Some(WorkbenchClientView::notification_test_view())
     }
 
-    fn after_close_draw(&mut self, receipt: NativeDrawReceipt) {
+    fn after_close_draw(&mut self, receipt: DrawReceipt) {
         self.receipts.push(receipt);
     }
 
@@ -149,8 +149,8 @@ fn notification_waits_for_a_presentable_root_frame_before_painting_and_settling_
     let locale = Locale::EnUs;
     let theme = Theme::terminal_native();
     let mut shell = ClientView::new(SMALL_WIDTH);
-    let mut policy = NativeNotificationSettings::default();
-    policy.delivery = NativeNotificationDelivery::Tui;
+    let mut policy = NotificationSettings::default();
+    policy.delivery = NotificationDelivery::Tui;
     shell.notifications.configure(policy);
     assert!(
         shell.notifications.install(
@@ -204,7 +204,7 @@ fn notification_waits_for_a_presentable_root_frame_before_painting_and_settling_
         shell.notifications, pending_draw_effect,
         "a frame that cannot present the card must retain its pending post-draw effect"
     );
-    assert_eq!(surface.receipts, [NativeDrawReceipt::default()]);
+    assert_eq!(surface.receipts, [DrawReceipt::default()]);
     assert_eq!(surface.successful_frames, 1);
 
     terminal.backend_mut().resize(LARGE_WIDTH, LARGE_HEIGHT);
@@ -237,7 +237,7 @@ fn notification_waits_for_a_presentable_root_frame_before_painting_and_settling_
         "the successful root draw already settled the one pending delivery"
     );
     let settled = shell.notifications.clone();
-    assert_eq!(surface.receipts[1], NativeDrawReceipt::default());
+    assert_eq!(surface.receipts[1], DrawReceipt::default());
     assert_eq!(surface.successful_frames, 2);
 
     draw(
@@ -250,7 +250,7 @@ fn notification_waits_for_a_presentable_root_frame_before_painting_and_settling_
     );
     assert_eq!(shell.notifications, settled);
     assert_eq!(text(&terminal).matches(TITLE).count(), 1);
-    assert_eq!(surface.receipts[2], NativeDrawReceipt::default());
+    assert_eq!(surface.receipts[2], DrawReceipt::default());
     assert_eq!(surface.successful_frames, 3);
     assert!(surface.forwarded.is_empty());
 }

@@ -315,7 +315,7 @@ fn run_prepared_surface(
     {
         // A connected Client may paint one provisional local projection while the configuration
         // watcher obtains the Server's authoritative baseline. A later local fatal error cannot
-        // invalidate an already admitted Site; Workbench startup still fails on that boundary.
+        // invalidate an already admitted Session; Workbench startup still fails on that boundary.
         let host_colors = ["NO_COLOR", "FORCE_COLOR", "COLORTERM", "TERM", "WT_SESSION"]
             .map(|name| std::env::var(name).ok());
         initial_view.configure_no_color(
@@ -338,11 +338,8 @@ fn run_prepared_surface(
     {
         if crate::tui_capabilities::Capability::ConfigurationFile.available() {
             initial_view.onboarding = crate::onboarding::State::load();
-            initial_view
-                .configure_theme(orchbee_local_site_runtime::WindowsThemeName::TerminalNative);
-            let load = orchbee_local_site_runtime::read_windows_user_settings(|name| {
-                std::env::var_os(name)
-            });
+            initial_view.configure_theme(orchbee_local_runtime::ThemeName::TerminalNative);
+            let load = orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name));
             if let Err(error) = &load
                 && !server_configuration
             {
@@ -435,7 +432,7 @@ fn run_prepared_surface(
                 ModeRequest::PointerAdmissionQuery(query) => modes.query_pointer_admission(query),
                 ModeRequest::AppearanceQuery(query) => modes.query_host_appearance(query),
                 ModeRequest::Notification(effect) => {
-                    use orchbee_local_site_runtime::WindowsNotificationDelivery as Delivery;
+                    use orchbee_local_runtime::NotificationDelivery as Delivery;
                     let result = match effect.delivery {
                         Delivery::Terminal => modes.notify_terminal(&effect.message),
                         Delivery::System => system_notifications.submit(effect.message.clone()),
@@ -525,7 +522,7 @@ fn frame_appearance(
                 client_capture_claims(view),
                 native.capture_claims(),
             ) == Some(crate::tui_composition::CaptureOwner::Native(
-                crate::tui_composition::NativeCaptureOwner::Settings,
+                crate::tui_composition::CaptureOwner::Settings,
             )) =>
         {
             native.settings_appearance_preview()
@@ -1045,7 +1042,7 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
     let capture_owner = {
         let native_claims = match surface.view() {
             Some(native) => native.capture_claims(),
-            _ => crate::tui_composition::NativeCaptureClaims::default(),
+            _ => crate::tui_composition::CaptureClaims::default(),
         };
         crate::tui_composition::project_capture(client_capture_claims(view), native_claims)
     };
@@ -1059,7 +1056,7 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
         return Ok(false);
     }
     let mut notification_painted = false;
-    let mut receipt = crate::workbench_client::NativeDrawReceipt::default();
+    let mut receipt = crate::workbench_client::DrawReceipt::default();
     let mut hits = HitMapBuilder::with_pointer(dispatcher.pointer_projection());
     let preview = if capture_owner.is_none() {
         dispatcher
@@ -1172,7 +1169,7 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
     if capture_owner == Some(crate::tui_composition::CaptureOwner::Machine) {
         // Covered native content cannot acknowledge successful visible presentation.
         surface.graphics_covered();
-        surface.after_close_draw(crate::workbench_client::NativeDrawReceipt::default());
+        surface.after_close_draw(crate::workbench_client::DrawReceipt::default());
         return Ok(pointer_projection_redraw);
     }
     if notification_painted {
@@ -1531,7 +1528,7 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
     }
     fn navigate_context(
         &mut self,
-        _target: &crate::workbench_client::NativeContextTarget,
+        _target: &crate::workbench_client::ClientContextTarget,
     ) -> crate::workbench_client::ContextNavigationAdmission {
         crate::workbench_client::ContextNavigationAdmission::Unavailable
     }
@@ -1539,7 +1536,7 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
     fn next_poll_delay(&self) -> Option<Duration> {
         None
     }
-    /// The attached Site published an Agent change; Client-owned Agent reads start early.
+    /// The attached Session published an Agent change; Client-owned Agent reads start early.
     fn expedite_agent_reads(&mut self) {}
     fn observe_client_viewport(&mut self, _view: &ClientView, _viewport: Rect) {}
     fn popup_surface(&mut self, _area: Rect, _pixels: (u16, u16)) {}
@@ -1569,7 +1566,7 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
     fn configure_agent_notifications(
         &mut self,
         _revision: u64,
-        _settings: &orchbee_local_site_runtime::WindowsNotificationSettings,
+        _settings: &orchbee_local_runtime::NotificationSettings,
     ) {
     }
     fn client_control_tick(
@@ -1599,7 +1596,7 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
     ) -> io::Result<()> {
         Ok(())
     }
-    fn after_close_draw(&mut self, _receipt: crate::workbench_client::NativeDrawReceipt) {}
+    fn after_close_draw(&mut self, _receipt: crate::workbench_client::DrawReceipt) {}
     fn graphics_covered(&mut self) {}
     fn observe_panes(
         &mut self,
@@ -1624,7 +1621,7 @@ impl TerminalSurface for crate::workbench_client::WorkbenchClient {
     }
     fn navigate_context(
         &mut self,
-        target: &crate::workbench_client::NativeContextTarget,
+        target: &crate::workbench_client::ClientContextTarget,
     ) -> crate::workbench_client::ContextNavigationAdmission {
         self.navigate_context(target)
     }
@@ -1646,7 +1643,7 @@ impl TerminalSurface for crate::workbench_client::WorkbenchClient {
     fn configure_agent_notifications(
         &mut self,
         revision: u64,
-        settings: &orchbee_local_site_runtime::WindowsNotificationSettings,
+        settings: &orchbee_local_runtime::NotificationSettings,
     ) {
         self.configure_agent_notifications(revision, settings);
     }
@@ -1679,8 +1676,8 @@ impl TerminalSurface for crate::workbench_client::WorkbenchClient {
         if view.retirement().is_none()
             && matches!(
                 view.phase(),
-                crate::workbench_client::NativeDisplayPhase::SelectedWithoutAttachment
-                    | crate::workbench_client::NativeDisplayPhase::RetryableAttachUnavailable
+                crate::workbench_client::DisplayPhase::SelectedWithoutAttachment
+                    | crate::workbench_client::DisplayPhase::RetryableAttachUnavailable
             )
         {
             return true;
@@ -1732,7 +1729,7 @@ impl TerminalSurface for crate::workbench_client::WorkbenchClient {
     ) {
         self.observe_panes(panes)
     }
-    fn after_close_draw(&mut self, receipt: crate::workbench_client::NativeDrawReceipt) {
+    fn after_close_draw(&mut self, receipt: crate::workbench_client::DrawReceipt) {
         self.after_close_draw(receipt)
     }
     fn graphics_covered(&mut self) {

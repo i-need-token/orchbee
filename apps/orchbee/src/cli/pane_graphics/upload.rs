@@ -1,4 +1,4 @@
-//! Acquire one complete input before any Site discovery or graphics submission.
+//! Acquire one complete input before any Session discovery or graphics submission.
 use super::{Failure, FailureKind, Signals};
 use crate::{
     cli::source::{self, SourceFailure},

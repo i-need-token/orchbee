@@ -97,7 +97,7 @@ impl<'a> WorkbenchTabCloseResumeAdmission<'a> {
         resume_result(&self.request, busy())
     }
 
-    /// The Site first validates the exact dependencies required by the retained phase.
+    /// The Session first validates the exact dependencies required by the retained phase.
     #[must_use]
     pub fn finish(self, now: Instant) -> WorkbenchTabCloseResumePreparation<'a> {
         let Some(generation) = self.record.generation.checked_next() else {
@@ -190,7 +190,7 @@ impl<'a> WorkbenchWorkspaceCloseResumeAdmission<'a> {
         workspace_resume_result(&self.request, workspace_busy())
     }
 
-    /// The Site first validates the exact dependencies required by the retained phase.
+    /// The Session first validates the exact dependencies required by the retained phase.
     #[must_use]
     pub fn finish(self, now: Instant) -> WorkbenchWorkspaceCloseResumePreparation<'a> {
         let Some(generation) = self.record.generation.checked_next() else {
@@ -284,7 +284,7 @@ impl WorkbenchAuthority {
         request: WorkbenchTabCloseRead,
     ) -> WorkbenchTabCloseReadResult {
         let authorized = grant.is_some_and(|grant| {
-            grant.site_id == *self.site_id() && request.site_id == *self.site_id()
+            grant.session_id == *self.session_id() && request.session_id == *self.session_id()
         });
         let outcome = if !authorized {
             WorkbenchTabCloseReadOutcome::Denied {}
@@ -322,8 +322,8 @@ impl WorkbenchAuthority {
         grant: Option<&WorkbenchGrant>,
         request: WorkbenchTabCloseResume,
     ) -> WorkbenchTabCloseResumeBegin<'_> {
-        let authorized =
-            grant.is_some_and(|grant| grant.site_id == *self.site_id() && grant.close_terminal);
+        let authorized = grant
+            .is_some_and(|grant| grant.session_id == *self.session_id() && grant.close_terminal);
         if !authorized {
             return WorkbenchTabCloseResumeBegin::Ready(resume_result(
                 &request,
@@ -336,7 +336,7 @@ impl WorkbenchAuthority {
                 rejected(WorkbenchTabCloseResumeRejectionReason::OperationUnavailable),
             ));
         };
-        if request.site_id != record.command.site_id
+        if request.session_id != record.command.session_id
             || !record.matches_context_tab(&request.terminal_context_id, &request.tab_id)
         {
             return WorkbenchTabCloseResumeBegin::Ready(resume_result(
@@ -393,8 +393,8 @@ impl WorkbenchAuthority {
         grant: Option<&WorkbenchGrant>,
         request: WorkbenchWorkspaceCloseResume,
     ) -> WorkbenchWorkspaceCloseResumeBegin<'_> {
-        let authorized =
-            grant.is_some_and(|grant| grant.site_id == *self.site_id() && grant.close_terminal);
+        let authorized = grant
+            .is_some_and(|grant| grant.session_id == *self.session_id() && grant.close_terminal);
         if !authorized {
             return WorkbenchWorkspaceCloseResumeBegin::Ready(workspace_resume_result(
                 &request,
@@ -407,7 +407,7 @@ impl WorkbenchAuthority {
                 workspace_rejected(WorkbenchTabCloseResumeRejectionReason::OperationUnavailable),
             ));
         };
-        if request.site_id != record.command.site_id
+        if request.session_id != record.command.session_id
             || !record.matches_context_scope(&request.workspace_id)
         {
             return WorkbenchWorkspaceCloseResumeBegin::Ready(workspace_resume_result(
@@ -467,7 +467,7 @@ impl WorkbenchAuthority {
         request: WorkbenchWorkspaceCloseRead,
     ) -> WorkbenchWorkspaceCloseReadResult {
         let authorized = grant.is_some_and(|grant| {
-            grant.site_id == *self.site_id() && request.site_id == *self.site_id()
+            grant.session_id == *self.session_id() && request.session_id == *self.session_id()
         });
         let outcome = if !authorized {
             WorkbenchWorkspaceCloseReadOutcome::Denied {}
@@ -541,7 +541,7 @@ pub(super) fn resume_result(
     WorkbenchTabCloseResumeResult {
         protocol_version: ProtocolVersion,
         request_id: request.request_id.clone(),
-        site_id: request.site_id.clone(),
+        session_id: request.session_id.clone(),
         terminal_context_id: request.terminal_context_id.clone(),
         tab_id: request.tab_id.clone(),
         close_request_id: request.close_request_id.clone(),
@@ -556,7 +556,7 @@ pub(super) fn workspace_resume_result(
     WorkbenchWorkspaceCloseResumeResult {
         protocol_version: ProtocolVersion,
         request_id: request.request_id.clone(),
-        site_id: request.site_id.clone(),
+        session_id: request.session_id.clone(),
         workspace_id: request.workspace_id.clone(),
         close_request_id: request.close_request_id.clone(),
         outcome,

@@ -5,7 +5,7 @@ source (upstream commit `ca45003a831ac125e6673b8759430e5ef33cc1db`). Original li
 and copyright notices remain beside the source. It is a third-party dependency,
 excluded from the authored Cargo workspace and never published by Orchbee.
 
-The native Client, Server, and `orchbee-local-site-runtime` use its existing `std`,
+The native Client, Server, and `orchbee-local-runtime` use its existing `std`,
 `job-object` and `creation-flags` features. Windows Worker commands consume that shared
 runtime. The root patch pins this corrected source without adding
 a second Windows binding version. The manifest keeps the upstream dependency and
@@ -37,7 +37,7 @@ termination cannot be confirmed.
 ## Maintenance and evidence
 
 The shared runtime owns native completion evidence in
-[`windows_command_child/tests.rs`](../../crates/local-site-runtime/src/windows_command_child/tests.rs):
+[`command_child/windows/tests.rs`](../../crates/local-runtime/src/command_child/windows/tests.rs):
 retain a live descendant's handle, release the root or cancel the Job, and require
 the descendant handle already signaled at return. Its failure fixture also proves that
 a failed Job wait cannot become cached root-exit success on retry. A separate native

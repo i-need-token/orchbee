@@ -6,7 +6,7 @@ use orchbee_workbench_protocol::{
 };
 
 #[test]
-fn view_exchange_correlates_owner_sample_and_site_and_never_replays() -> TestResult {
+fn view_exchange_correlates_owner_sample_and_session_and_never_replays() -> TestResult {
     let corpus: serde_json::Value = serde_json::from_str(include_str!(
         "../../../../../../schemas/workbench/v1/workbench-client-view-conformance-v1.json"
     ))
@@ -45,7 +45,7 @@ fn view_exchange_correlates_owner_sample_and_site_and_never_replays() -> TestRes
         let mut reply = WorkbenchClientViewResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id.clone(),
-            site_id: request.site_id.clone(),
+            session_id: request.session_id.clone(),
             outcome: ClientViewOutcome::Synchronized {
                 client: Box::new(record),
                 control: None,
@@ -55,7 +55,7 @@ fn view_exchange_correlates_owner_sample_and_site_and_never_replays() -> TestRes
             reply.request_id = WorkbenchRequestId::parse(&id(90)).unwrap();
         }
         if fault == 2 {
-            reply.site_id = SiteId::parse(&id(90)).unwrap();
+            reply.session_id = SessionId::parse(&id(90)).unwrap();
         }
         let expected = request.clone();
         let server = FakeServer::start(move |mut stream| {

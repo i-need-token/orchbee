@@ -5,7 +5,7 @@ use std::num::NonZeroU64;
 use orchbee_client_server_protocol::HostTerminalId;
 use orchbee_terminal_protocol::{AttachmentId, HostEpoch, TerminalTextFrame};
 use orchbee_workbench_protocol::{
-    PanelNode, Presentation, SiteId, Snapshot, TerminalId, TerminalPresentationId,
+    PanelNode, Presentation, SessionId, Snapshot, TerminalId, TerminalPresentationId,
     WorkbenchPanelId, WorkbenchTabId, WorkbenchTerminalContextId, WorkerId,
 };
 
@@ -16,7 +16,7 @@ use crate::workbench_client::state::PaneRef;
 /// or re-created pane instead of following its logical label.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct SnapshotMember {
-    pub(crate) site: SiteId,
+    pub(crate) session: SessionId,
     pub(crate) context: WorkbenchTerminalContextId,
     pub(crate) tab: WorkbenchTabId,
     pub(crate) panel: WorkbenchPanelId,
@@ -32,7 +32,7 @@ impl SnapshotMember {
         &self,
         snapshot: &'a Snapshot,
     ) -> Option<(&'a orchbee_workbench_protocol::Tab, &'a Presentation)> {
-        if snapshot.site_id != self.site {
+        if snapshot.session_id != self.session {
             return None;
         }
         let context = snapshot

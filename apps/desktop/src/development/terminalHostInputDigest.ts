@@ -10,12 +10,9 @@ export async function terminalHostInputDigest(terminalHostRoot: string): Promise
 		path.join(terminalHostRoot, 'build.zig.zon'),
 		path.resolve(
 			terminalHostRoot,
-			'../../crates/local-site-runtime/src/windows_powershell_initialization.ps1',
+			'../../crates/local-runtime/src/directory/windows/initialization.ps1',
 		),
-		path.resolve(
-			terminalHostRoot,
-			'../../crates/local-site-runtime/src/windows_powershell_reader.ps1',
-		),
+		path.resolve(terminalHostRoot, '../../crates/local-runtime/src/directory/windows/reader.ps1'),
 		...sourcePaths,
 	].sort();
 	const hash = createHash('sha256');

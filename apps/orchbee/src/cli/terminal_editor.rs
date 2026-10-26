@@ -117,7 +117,7 @@ fn execute_admitted(
     };
     let listed = client_control::windows::exchange(
         client,
-        &snapshot.site_id,
+        &snapshot.session_id,
         ClientViewAction::List {},
         deadline,
         signals,
@@ -161,7 +161,7 @@ fn execute_admitted(
         .map_err(|_| Failure::new(FailureKind::Rejected))?;
     let current = client_control::windows::exchange(
         client,
-        &snapshot.site_id,
+        &snapshot.session_id,
         ClientViewAction::Get {
             client_id: selected.client_id.clone(),
         },
@@ -185,7 +185,7 @@ fn execute_admitted(
     };
     let mut answer = client_control::windows::submit_control(
         client,
-        &snapshot.site_id,
+        &snapshot.session_id,
         command.clone(),
         deadline,
         signals,

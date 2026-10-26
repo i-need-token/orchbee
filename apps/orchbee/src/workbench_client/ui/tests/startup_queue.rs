@@ -7,7 +7,7 @@ use orchbee_workbench_protocol::WorkbenchPanelId;
 use std::sync::atomic::Ordering;
 
 fn publish(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
     event: WorkerEvent,

@@ -331,7 +331,7 @@ mod active {
                     total,
                     signals,
                     #[cfg(windows)]
-                    WindowsObservation {
+                    PromptObservation {
                         snapshot: &snapshot,
                         journal: &mut journal,
                     },
@@ -368,7 +368,7 @@ mod active {
     }
 
     #[cfg(windows)]
-    struct WindowsObservation<'a> {
+    struct PromptObservation<'a> {
         snapshot: &'a orchbee_workbench_protocol::Snapshot,
         journal: &'a mut query::AgentJournal,
     }
@@ -380,10 +380,10 @@ mod active {
         start: Instant,
         total: WaitDeadline,
         signals: &mut ArmedSignals,
-        #[cfg(windows)] windows: WindowsObservation<'_>,
+        #[cfg(windows)] windows: PromptObservation<'_>,
     ) -> Result<Matched, Failure> {
         #[cfg(windows)]
-        let WindowsObservation { snapshot, journal } = windows;
+        let PromptObservation { snapshot, journal } = windows;
         let effect = total.step(Instant::now(), READ_BUDGET)?;
         let mut active = matches!(before.status, AgentSemanticStatus::Working { .. });
         let mut observations = 0;

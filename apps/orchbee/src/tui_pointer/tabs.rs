@@ -433,7 +433,7 @@ impl PointerState {
                                 // The first click selects the tab, which republishes the
                                 // workbench revision; the pair only needs the same context.
                                 let double = self.tab_click.take().is_some_and(|click| {
-                                    click.source.source.site == drag.source.drawn.source.site
+                                    click.source.source.session == drag.source.drawn.source.session
                                         && click.source.location == drag.source.drawn.location
                                         && click.tab == id
                                         && click.position.0.abs_diff(position.0) <= 1

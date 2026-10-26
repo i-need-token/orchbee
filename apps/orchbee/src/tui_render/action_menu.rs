@@ -231,7 +231,7 @@ pub(super) fn render(
     let legacy = matches!(
         menu.source,
         crate::action_menu::MenuTarget::Workspace(
-            crate::workbench_client::NativeContextLocation::NoWorkspace
+            crate::workbench_client::ClientContextLocation::NoWorkspace
         )
     );
     let title = if menu.tabs.is_some() {

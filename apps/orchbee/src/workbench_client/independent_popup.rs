@@ -15,8 +15,8 @@ use orchbee_local_ipc::{AsLocalIo, LocalStream};
 use orchbee_terminal_protocol::{AttachmentId, HostEpoch, MouseTracking};
 use orchbee_workbench_protocol::{
     ClientViewCompletionOutcome, ClientViewControlReason as Reason, PluginAction, PluginOutcome,
-    PluginPopupSize, PluginPopupSpec, PluginRequest, ProtocolVersion, ScrollbackEditorSpec, SiteId,
-    WorkbenchRequestId, WorkbenchTerminalGeometry,
+    PluginPopupSize, PluginPopupSpec, PluginRequest, ProtocolVersion, ScrollbackEditorSpec,
+    SessionId, WorkbenchRequestId, WorkbenchTerminalGeometry,
 };
 use ratatui::layout::Rect;
 use std::{
@@ -289,33 +289,33 @@ impl Driver {
     }
     pub(super) fn begin_open(
         &mut self,
-        site: SiteId,
+        session: SessionId,
         id: WorkbenchRequestId,
         spec: PluginPopupSpec,
     ) -> Result<(), Reason> {
-        self.begin_spec(site, id, PopupSpec::Plugin(Box::new(spec)))
+        self.begin_spec(session, id, PopupSpec::Plugin(Box::new(spec)))
     }
     pub(super) fn begin_editor(
         &mut self,
-        site: SiteId,
+        session: SessionId,
         id: WorkbenchRequestId,
         spec: ScrollbackEditorSpec,
     ) -> Result<(), Reason> {
         spec.validate().map_err(|_| Reason::StaleView)?;
-        self.begin_spec(site, id, PopupSpec::Editor(Box::new(spec)))
+        self.begin_spec(session, id, PopupSpec::Editor(Box::new(spec)))
     }
     pub(super) fn begin_configured(
         &mut self,
-        site: SiteId,
+        session: SessionId,
         id: WorkbenchRequestId,
         spec: orchbee_workbench_protocol::ConfiguredCommandPopupSpec,
     ) -> Result<(), Reason> {
         spec.validate().map_err(|_| Reason::StaleView)?;
-        self.begin_spec(site, id, PopupSpec::Configured(Box::new(spec)))
+        self.begin_spec(session, id, PopupSpec::Configured(Box::new(spec)))
     }
     fn begin_spec(
         &mut self,
-        site: SiteId,
+        session: SessionId,
         id: WorkbenchRequestId,
         spec: PopupSpec,
     ) -> Result<(), Reason> {
@@ -352,7 +352,7 @@ impl Driver {
             .name("orchbee-independent-popup".into())
             .spawn(move || {
                 let mut workbench_client = PopupRunner {
-                    site,
+                    session,
                     id: launch_id,
                     clock,
                     wake: reader,
@@ -610,7 +610,7 @@ impl Driver {
 }
 
 struct PopupRunner {
-    site: SiteId,
+    session: SessionId,
     id: WorkbenchRequestId,
     clock: LocalOperationClock,
     wake: LocalStream,
@@ -660,7 +660,7 @@ impl PopupRunner {
             .plugin(
                 PluginRequest {
                     protocol_version: ProtocolVersion,
-                    site_id: self.site.clone(),
+                    session_id: self.session.clone(),
                     request_id: request_id()?,
                     action,
                 },

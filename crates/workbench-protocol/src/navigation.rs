@@ -45,7 +45,7 @@ impl Navigation {
             .find(|workspace| &workspace.workspace_id == workspace_id)
     }
 
-    /// Directories belong to the Site and can be referenced across organizational groups.
+    /// Directories belong to the Session and can be referenced across organizational groups.
     #[must_use]
     pub fn directory(&self, directory_id: &WorkbenchDirectoryId) -> Option<&Directory> {
         self.directories

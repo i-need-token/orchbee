@@ -105,7 +105,7 @@ impl LocalTerminalService {
             )
         };
 
-        // The Worker observes the filesystem without registry or Site ownership held.
+        // The Worker observes the filesystem without registry or Session ownership held.
         let observed = handle.validate_terminal_cwd(request.clone());
         Ok((request, observed))
     }
@@ -113,7 +113,8 @@ impl LocalTerminalService {
     pub(crate) fn execute_workspace_launch(
         &self,
         command: WorkbenchCommand,
-    ) -> Result<WorkbenchCommandResult, crate::site_coordinator::PostcommitCoordinationError> {
+    ) -> Result<WorkbenchCommandResult, crate::session_coordinator::PostcommitCoordinationError>
+    {
         let (request, observed) = match self.observe_workspace_directory(&command) {
             Ok(probe) => probe,
             Err(result) => return Ok(*result),

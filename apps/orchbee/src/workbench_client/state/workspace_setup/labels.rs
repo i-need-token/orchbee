@@ -1,8 +1,8 @@
 //! Exact location-label targets and receipt validation; the setup owner retains submission authority.
 use super::super::{PaneKey, PaneRef, WorkbenchClientState};
 use super::{
-    NativeContextLocation, NativeContextTabs, NativeLocationLabelStatus, NativeLocationLabelTarget,
-    NativeSetupStatus, SetupOperation, WorkbenchAction, WorkbenchSetupCommit,
+    ClientContextLocation, ClientContextTabs, LocationLabelStatus, LocationLabelTarget,
+    SetupOperation, SetupStatus, WorkbenchAction, WorkbenchSetupCommit,
 };
 use orchbee_workbench_protocol::{Project, WorkbenchProjectId, WorkbenchWorkspaceId};
 use std::time::Instant;
@@ -26,7 +26,7 @@ pub(super) struct RetainedLabel {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ProjectRenameRequest {
     project: Project,
-    source: NativeContextTabs,
+    source: ClientContextTabs,
     desired: Option<PaneKey>,
     focus: Option<PaneRef>,
     deadline: Instant,
@@ -87,9 +87,9 @@ impl WorkbenchClientState {
         });
         if stale {
             self.setup.draft = None;
-            self.setup.status = Some(NativeSetupStatus::LocationLabel {
-                target: NativeLocationLabelTarget::Project,
-                status: NativeLocationLabelStatus::NotApplied,
+            self.setup.status = Some(SetupStatus::LocationLabel {
+                target: LocationLabelTarget::Project,
+                status: LocationLabelStatus::NotApplied,
             });
         }
         stale
@@ -98,15 +98,15 @@ impl WorkbenchClientState {
 
 /// The current location's rename owner and its present label.
 pub(super) fn location_label_owner(
-    cache: &NativeContextTabs,
-    target: NativeLocationLabelTarget,
+    cache: &ClientContextTabs,
+    target: LocationLabelTarget,
 ) -> Option<(LabelOwner, String)> {
     let label = location_label(cache, target)?.to_owned();
-    let NativeContextLocation::Workspace { workspace_id, .. } = cache.location() else {
+    let ClientContextLocation::Workspace { workspace_id, .. } = cache.location() else {
         return None;
     };
     let owner = match target {
-        NativeLocationLabelTarget::Project => LabelOwner::Project(
+        LocationLabelTarget::Project => LabelOwner::Project(
             cache
                 .canonical_snapshot()
                 .navigation
@@ -114,7 +114,7 @@ pub(super) fn location_label_owner(
                 .project_id
                 .clone()?,
         ),
-        NativeLocationLabelTarget::Workspace => LabelOwner::Workspace(workspace_id.clone()),
+        LocationLabelTarget::Workspace => LabelOwner::Workspace(workspace_id.clone()),
     };
     Some((owner, label))
 }
@@ -139,10 +139,10 @@ impl WorkbenchClientState {
 }
 
 pub(super) fn location_label(
-    cache: &NativeContextTabs,
-    target: NativeLocationLabelTarget,
+    cache: &ClientContextTabs,
+    target: LocationLabelTarget,
 ) -> Option<&str> {
-    let NativeContextLocation::Workspace {
+    let ClientContextLocation::Workspace {
         workspace_id,
         terminal_context_id,
     } = cache.location()
@@ -155,10 +155,8 @@ pub(super) fn location_label(
         return None;
     }
     Some(match target {
-        NativeLocationLabelTarget::Project => {
-            &navigation.project(workspace.project_id.as_ref()?)?.label
-        }
-        NativeLocationLabelTarget::Workspace => &workspace.label,
+        LocationLabelTarget::Project => &navigation.project(workspace.project_id.as_ref()?)?.label,
+        LocationLabelTarget::Workspace => &workspace.label,
     })
 }
 impl SetupOperation {
@@ -179,31 +177,29 @@ impl SetupOperation {
             label: label.as_str().to_owned(),
         })
     }
-    pub(super) fn location_label_target(&self) -> Option<NativeLocationLabelTarget> {
+    pub(super) fn location_label_target(&self) -> Option<LocationLabelTarget> {
         match self.command.action {
-            WorkbenchAction::ProjectRename { .. } => Some(NativeLocationLabelTarget::Project),
-            WorkbenchAction::WorkspaceRename { .. } => Some(NativeLocationLabelTarget::Workspace),
+            WorkbenchAction::ProjectRename { .. } => Some(LocationLabelTarget::Project),
+            WorkbenchAction::WorkspaceRename { .. } => Some(LocationLabelTarget::Workspace),
             // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
             _ => None,
         }
     }
     pub(super) fn status(
         &self,
-        label_status: NativeLocationLabelStatus,
-        other: NativeSetupStatus,
-    ) -> NativeSetupStatus {
+        label_status: LocationLabelStatus,
+        other: SetupStatus,
+    ) -> SetupStatus {
         if matches!(self.command.action, WorkbenchAction::TabsConfigure { .. }) {
             return match other {
-                NativeSetupStatus::NotApplied => NativeSetupStatus::TabsNotApplied,
-                NativeSetupStatus::CommittedNeedRefresh => {
-                    NativeSetupStatus::TabsCommittedNeedRefresh
-                }
-                NativeSetupStatus::OutcomeUnknown => NativeSetupStatus::TabsOutcomeUnknown,
+                SetupStatus::NotApplied => SetupStatus::TabsNotApplied,
+                SetupStatus::CommittedNeedRefresh => SetupStatus::TabsCommittedNeedRefresh,
+                SetupStatus::OutcomeUnknown => SetupStatus::TabsOutcomeUnknown,
                 status => status,
             };
         }
         self.location_label_target()
-            .map_or(other, |target| NativeSetupStatus::LocationLabel {
+            .map_or(other, |target| SetupStatus::LocationLabel {
                 target,
                 status: label_status,
             })
@@ -218,7 +214,7 @@ impl SetupOperation {
                 .map(|project| project.label.as_str());
         }
         let target = self.location_label_target()?;
-        let NativeContextLocation::Workspace {
+        let ClientContextLocation::Workspace {
             workspace_id: expected_workspace,
             ..
         } = self.baseline.location()

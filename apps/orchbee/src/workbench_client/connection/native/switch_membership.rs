@@ -1,4 +1,4 @@
-use super::{NativeExecutor, Result, closed, event, submission};
+use super::{ClientExecutor, Result, closed, event, submission};
 use crate::{
     local_client::SubmissionError,
     workbench_client::{
@@ -10,7 +10,7 @@ use orchbee_client_server_protocol::{
     TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, ViewerUnavailableReason,
 };
 
-impl NativeExecutor {
+impl ClientExecutor {
     pub(super) fn run_switch_membership(
         &mut self,
         lease: &CommandLease,

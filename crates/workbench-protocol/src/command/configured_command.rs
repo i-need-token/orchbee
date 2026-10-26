@@ -1,7 +1,7 @@
 //! Installed command selectors, source fences and distinct execution receipts.
 use crate::{
     ClientPopupSource, ClientViewSequence, ContractError, PluginInvocationContext, PluginPopupSize,
-    PluginResult, PluginWorker, ProtocolVersion, SiteId, WorkbenchClientId,
+    PluginResult, PluginWorker, ProtocolVersion, SessionId, WorkbenchClientId,
     WorkbenchClientViewResult, WorkbenchCommandResult, WorkbenchRequestId, WorkbenchRevision,
     WorkbenchTerminalGeometry,
 };
@@ -193,7 +193,7 @@ pub struct ConfiguredCommandRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub action: ConfiguredCommandAction,
 }
 impl ConfiguredCommandRequest {
@@ -213,7 +213,7 @@ pub enum ConfiguredCommandFailure {
     Denied,
     InvalidIntent,
     #[serde(rename = "session-mismatch")]
-    SiteMismatch,
+    SessionMismatch,
     Unavailable,
     Busy,
     Conflict,
@@ -278,7 +278,7 @@ pub struct ConfiguredCommandResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub outcome: ConfiguredCommandOutcome,
 }
 impl ConfiguredCommandResult {
@@ -333,7 +333,7 @@ impl ConfiguredCommandResult {
                 identifier(command_id)?;
                 result.validate()?;
                 if result.request_id != self.request_id
-                    || result.site_id != self.site_id
+                    || result.session_id != self.session_id
                     || !matches!(
                         result.outcome,
                         crate::PluginOutcome::Started { .. }
@@ -347,7 +347,7 @@ impl ConfiguredCommandResult {
             O::PopupControl { command_id, result } => {
                 identifier(command_id)?;
                 result.validate()?;
-                if result.request_id != self.request_id || result.site_id != self.site_id {
+                if result.request_id != self.request_id || result.session_id != self.session_id {
                     return Err(ContractError::InvalidDocument);
                 }
                 match &result.outcome {
@@ -390,7 +390,7 @@ impl ConfiguredCommandResult {
         use ConfiguredCommandAction as A;
         use ConfiguredCommandOutcome as O;
         self.request_id == request.request_id
-            && self.site_id == request.site_id
+            && self.session_id == request.session_id
             && self.validate().is_ok()
             && {
                 let shared_failure = matches!(&self.outcome, O::Failed { .. });

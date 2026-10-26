@@ -5,7 +5,7 @@ use orchbee_agent_observation_protocol::{
 };
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_local_ipc::{LocalListener, LocalStream};
-use orchbee_local_site_runtime::{ModeCheckedLocalSiteRendezvous, SiteScope};
+use orchbee_local_runtime::{ModeCheckedLocalSessionRendezvous, SessionScope};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
@@ -116,14 +116,14 @@ impl Fixture {
         self.2.executable()
     }
 
-    pub(super) fn rendezvous(&self) -> ModeCheckedLocalSiteRendezvous {
+    pub(super) fn rendezvous(&self) -> ModeCheckedLocalSessionRendezvous {
         let base = self.0.join("runtime");
         fs::create_dir_all(&base).unwrap();
         let sid = orchbee_local_ipc::current_user_sid().unwrap();
         let scope = format!("orchbee-native-{:x}", Sha256::digest(sid.as_bytes()))[..47].to_owned();
-        ModeCheckedLocalSiteRendezvous::prepare_mode_checked(
+        ModeCheckedLocalSessionRendezvous::prepare_mode_checked(
             &base,
-            SiteScope::parse(&scope).unwrap(),
+            SessionScope::parse(&scope).unwrap(),
         )
         .unwrap()
     }
@@ -686,7 +686,7 @@ impl AgentProjectionFixture {
             &WorkbenchResponse::PanelAgent(PanelAgentResult {
                 protocol_version: ProtocolVersion,
                 request_id: request.request_id,
-                site_id: request.site_id,
+                session_id: request.session_id,
                 outcome: PanelAgentOutcome::States {
                     workbench_revision: self.snapshot.revision,
                     report_revision: WorkbenchRevision::new(self.report_revision),
@@ -1032,7 +1032,7 @@ pub(super) fn snapshot_after_metadata(
             }
             WorkbenchRequest::PanelMetadata(request) => {
                 assert!(!fenced, "no reads after metadata fence");
-                assert_eq!(request.site_id, snapshot.site_id);
+                assert_eq!(request.session_id, snapshot.session_id);
                 if let PanelMetadataAction::ReadPresentations { presentation_ids } = &request.action
                 {
                     assert!(!presentation_ids.is_empty());
@@ -1057,7 +1057,7 @@ pub(super) fn snapshot_after_metadata(
                         &WorkbenchResponse::PanelMetadata(PanelMetadataResult {
                             protocol_version: ProtocolVersion,
                             request_id: request.request_id,
-                            site_id: request.site_id,
+                            session_id: request.session_id,
                             outcome: PanelMetadataOutcome::PresentationsRead {
                                 workbench_revision: snapshot.revision,
                                 metadata_revision: WorkbenchRevision::new(0),
@@ -1092,7 +1092,7 @@ pub(super) fn snapshot_after_metadata(
                     &WorkbenchResponse::PanelMetadata(PanelMetadataResult {
                         protocol_version: ProtocolVersion,
                         request_id: request.request_id,
-                        site_id: request.site_id,
+                        session_id: request.session_id,
                         outcome: PanelMetadataOutcome::Read {
                             workbench_revision: snapshot.revision,
                             metadata_revision: WorkbenchRevision::new(0),
@@ -1104,7 +1104,7 @@ pub(super) fn snapshot_after_metadata(
             }
             WorkbenchRequest::PanelAgent(request) => {
                 assert!(!report_fenced, "no reads after report fence");
-                assert_eq!(request.site_id, snapshot.site_id);
+                assert_eq!(request.session_id, snapshot.session_id);
                 if let PanelAgentAction::ReadPresentations { presentation_ids } = &request.action {
                     assert!(!presentation_ids.is_empty());
                     report_reads += 1;
@@ -1133,7 +1133,7 @@ pub(super) fn snapshot_after_metadata(
                         &WorkbenchResponse::PanelAgent(PanelAgentResult {
                             protocol_version: ProtocolVersion,
                             request_id: request.request_id,
-                            site_id: request.site_id,
+                            session_id: request.session_id,
                             outcome: PanelAgentOutcome::PresentationsRead {
                                 workbench_revision: snapshot.revision,
                                 report_revision: WorkbenchRevision::new(0),
@@ -1176,7 +1176,7 @@ pub(super) fn snapshot_after_metadata(
                     &WorkbenchResponse::PanelAgent(PanelAgentResult {
                         protocol_version: ProtocolVersion,
                         request_id: request.request_id,
-                        site_id: request.site_id,
+                        session_id: request.session_id,
                         outcome: PanelAgentOutcome::Read {
                             workbench_revision: snapshot.revision,
                             report_revision: WorkbenchRevision::new(0),

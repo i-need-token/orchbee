@@ -153,7 +153,7 @@ fn setup_refusals_are_action_specific_and_preserve_the_carrier() -> TestResult {
             WorkbenchSetupSubmission::DefinitePrecommit(WorkbenchSetupPrecommit::Denied)
         ));
         for (reason, admitted) in [
-            (WorkbenchRejectionReason::SiteMismatch, true),
+            (WorkbenchRejectionReason::SessionMismatch, true),
             (WorkbenchRejectionReason::RevisionMismatch, true),
             (WorkbenchRejectionReason::ResourceLimit, true),
             (WorkbenchRejectionReason::IdentityExhausted, true),

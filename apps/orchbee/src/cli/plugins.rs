@@ -12,7 +12,7 @@ use crate::{
     invocation::{OutputFormat, plugins::PluginCommand},
     localization::Locale,
 };
-use orchbee_local_site_runtime::{PluginRegistry, PluginRegistryError, PluginRegistryMutation};
+use orchbee_local_runtime::{PluginRegistry, PluginRegistryError, PluginRegistryMutation};
 use serde_json::{Value, json};
 
 enum RegistryCommand {

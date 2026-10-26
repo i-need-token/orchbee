@@ -25,7 +25,7 @@ const READ_BUDGET: Duration = Duration::from_secs(5);
 const READ_INTERVAL: Duration = Duration::from_secs(1);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct NativeAgentAttentionDraw {
+pub(crate) struct AgentAttentionDraw {
     paint: Option<AttentionPaint>,
     physical: Option<physical::PhysicalPaint>,
     pub(super) panes: Vec<PaintedPane>,
@@ -155,7 +155,7 @@ impl AgentAttention {
     pub(super) fn configure_notifications(
         &mut self,
         revision: u64,
-        settings: &orchbee_local_site_runtime::NativeNotificationSettings,
+        settings: &orchbee_local_runtime::NotificationSettings,
     ) -> bool {
         self.physical.configure_notifications(revision, settings)
     }
@@ -168,7 +168,7 @@ impl AgentAttention {
         &mut self,
         sink_available: bool,
     ) -> Option<(
-        orchbee_local_site_runtime::NativeNotificationDelivery,
+        orchbee_local_runtime::NotificationDelivery,
         crate::workbench_client::agent_notifications::AgentNotificationCommand,
     )> {
         self.physical.take_notification(sink_available)
@@ -355,7 +355,7 @@ impl AgentAttention {
             .max(self.physical.state.unseen_in(presentation))
     }
 
-    pub(super) fn paint(&self, panes: Vec<PaintedPane>) -> Option<NativeAgentAttentionDraw> {
+    pub(super) fn paint(&self, panes: Vec<PaintedPane>) -> Option<AgentAttentionDraw> {
         let presentations: BTreeSet<_> = panes
             .iter()
             .map(|pane| pane.presentation.as_str())
@@ -365,7 +365,7 @@ impl AgentAttention {
             .physical
             .state
             .paint(|binding| panes.iter().any(|pane| pane.matches(binding)));
-        (paint.is_some() || physical.is_some()).then_some(NativeAgentAttentionDraw {
+        (paint.is_some() || physical.is_some()).then_some(AgentAttentionDraw {
             paint,
             physical,
             panes,
@@ -374,7 +374,7 @@ impl AgentAttention {
 
     pub(super) fn acknowledge(
         &mut self,
-        draw: &NativeAgentAttentionDraw,
+        draw: &AgentAttentionDraw,
         focused: Option<bool>,
         visible: &[PaintedPane],
     ) {

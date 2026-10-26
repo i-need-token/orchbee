@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 const bootstrap = readFileSync(
-	new URL('../../../crates/local-site-runtime/src/windows_powershell_reader.ps1', import.meta.url),
+	new URL('../../../crates/local-runtime/src/directory/windows/reader.ps1', import.meta.url),
 	'utf8',
 );
 const shells =

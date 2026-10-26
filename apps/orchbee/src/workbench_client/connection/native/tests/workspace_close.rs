@@ -1,5 +1,5 @@
-//! Real framed exchanges prove the destructive scope, retained evidence, and NativeUi settlement.
-use super::super::NativeExecutor;
+//! Real framed exchanges prove the destructive scope, retained evidence, and WorkbenchClientUi settlement.
+use super::super::ClientExecutor;
 use super::setup::{TestResult, admit};
 use crate::{
     client_view::{ClientAction, ClientActionDisposition, ClientKey, ClientView},
@@ -14,8 +14,8 @@ use crate::{
             CarrierFailure, OPERATION_TOTAL,
             workspace_close::{WorkspaceCloseOperation, WorkspaceCloseResult},
         },
-        ui::NativeUi,
-        workbench_projection::{NativeContextLocation, project_native_context_tabs},
+        ui::WorkbenchClientUi,
+        workbench_projection::{ClientContextLocation, project_native_context_tabs},
     },
 };
 use orchbee_client_server_protocol::Geometry;
@@ -103,7 +103,7 @@ fn snapshot() -> Snapshot {
         .collect();
     Snapshot {
         protocol_version: ProtocolVersion,
-        site_id: SiteId::parse(&id(1)).unwrap(),
+        session_id: SessionId::parse(&id(1)).unwrap(),
         revision: WorkbenchRevision::new(1),
         navigation: Navigation {
             project_order: Vec::new(),
@@ -131,7 +131,14 @@ fn snapshot() -> Snapshot {
         terminal_contexts: contexts,
     }
 }
-fn ready(scope: Scope) -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
+fn ready(
+    scope: Scope,
+) -> (
+    WorkbenchClientUi,
+    Arc<CommandMailbox>,
+    LocalOperationClock,
+    Snapshot,
+) {
     let clock = crate::local_client::tests::server::adjustable_operation_clock(Arc::new(
         std::sync::atomic::AtomicU64::new(0),
     ));
@@ -139,7 +146,7 @@ fn ready(scope: Scope) -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, S
         10,
         Geometry::new(80, 24, 8, 16).unwrap(),
     ));
-    let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    let mut ui = WorkbenchClientUi::new(Arc::clone(&mailbox), clock.clone());
     let snapshot = snapshot();
     let origin = if scope == Scope::BackgroundWorkspace {
         0
@@ -147,7 +154,7 @@ fn ready(scope: Scope) -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, S
         scope.index()
     };
     let workspace = &snapshot.navigation.workspaces[origin];
-    let location = NativeContextLocation::Workspace {
+    let location = ClientContextLocation::Workspace {
         workspace_id: workspace.workspace_id.clone(),
         terminal_context_id: workspace.terminal_context_id.clone(),
     };
@@ -165,7 +172,7 @@ fn ready(scope: Scope) -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, S
     mailbox.take_deposited_reply(&wait).unwrap().unwrap();
     (ui, mailbox, clock, snapshot)
 }
-fn open(ui: &mut NativeUi, scope: Scope) {
+fn open(ui: &mut WorkbenchClientUi, scope: Scope) {
     if scope.project() {
         assert_eq!(
             ui.request_project_close_all(&project_id(scope)),
@@ -185,7 +192,13 @@ fn open(ui: &mut NativeUi, scope: Scope) {
     }
 }
 
-fn draw(ui: &mut NativeUi, locale: Locale, theme: &Theme, width: u16, height: u16) -> String {
+fn draw(
+    ui: &mut WorkbenchClientUi,
+    locale: Locale,
+    theme: &Theme,
+    width: u16,
+    height: u16,
+) -> String {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     let view = ClientView::new(width);
     let mut receipt = None;
@@ -211,7 +224,7 @@ fn draw(ui: &mut NativeUi, locale: Locale, theme: &Theme, width: u16, height: u1
         .collect::<Vec<_>>()
         .join("\n")
 }
-fn submit(ui: &mut NativeUi, mailbox: &CommandMailbox, scope: Scope) -> CommandLease {
+fn submit(ui: &mut WorkbenchClientUi, mailbox: &CommandMailbox, scope: Scope) -> CommandLease {
     open(ui, scope);
     draw(ui, Locale::EnUs, &Theme::terminal_native(), 120, 40);
     assert!(ui.capture_confirmation_key(ClientKey::Enter));
@@ -535,7 +548,7 @@ fn exercise(scope: Scope, cut: Cut) -> TestResult {
     let client = LocalClient::connect(server.endpoint(), "native-close-test")?;
     let worker_mailbox = Arc::clone(&mailbox);
     let worker = thread::spawn(move || {
-        let mut executor = NativeExecutor::new(client, Arc::clone(&worker_mailbox));
+        let mut executor = ClientExecutor::new(client, Arc::clone(&worker_mailbox));
         let result = executor.run_refresh(&lease, marker);
         let evidence = executor.pending_workspace_close.take();
         if result.is_ok() {
@@ -596,7 +609,7 @@ fn exercise(scope: Scope, cut: Cut) -> TestResult {
             let workspace = surviving.navigation.ordered_workspaces().unwrap()[0].1;
             assert_eq!(
                 active,
-                NativeContextLocation::Workspace {
+                ClientContextLocation::Workspace {
                     workspace_id: workspace.workspace_id.clone(),
                     terminal_context_id: workspace.terminal_context_id.clone(),
                 },
@@ -616,7 +629,7 @@ fn exercise(scope: Scope, cut: Cut) -> TestResult {
             assert!(
                 (0..ui.view().context_count()).all(|index| matches!(
                     ui.view().context_at(index).unwrap().location(),
-                    NativeContextLocation::Workspace { .. }
+                    ClientContextLocation::Workspace { .. }
                 )),
                 "the empty compatibility slot is not a navigation row"
             );

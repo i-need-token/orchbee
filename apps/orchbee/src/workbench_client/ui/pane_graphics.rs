@@ -1,8 +1,8 @@
-use super::{NativeUi, WorkbenchClientView};
+use super::{WorkbenchClientUi, WorkbenchClientView};
 #[cfg(test)]
 mod tests;
 use crate::workbench_client::{
-    NativePanel, PaneGraphicsCanvas, PaneGraphicsDraw,
+    ClientPanel, PaneGraphicsCanvas, PaneGraphicsDraw,
     pane_graphics::{Scope, Source},
 };
 
@@ -17,11 +17,11 @@ impl WorkbenchClientView<'_> {
     }
     pub(crate) fn physical_graphics(
         &self,
-        panel: &NativePanel,
+        panel: &ClientPanel,
         body: ratatui::layout::Rect,
     ) -> Option<crate::tui_graphics::Choice> {
         self.graphics_surface.as_ref()?.select(
-            self.navigation_site()?,
+            self.navigation_session()?,
             self.panel_graphics(panel)?,
             body,
         )
@@ -31,12 +31,12 @@ impl WorkbenchClientView<'_> {
     ) -> Option<orchbee_workbench_protocol::PaneGraphicsCellPixels> {
         self.graphics?.cell_pixels()
     }
-    pub(crate) fn panel_graphics(&self, panel: &NativePanel) -> Option<&PaneGraphicsCanvas> {
+    pub(crate) fn panel_graphics(&self, panel: &ClientPanel) -> Option<&PaneGraphicsCanvas> {
         self.graphics?
             .view(panel, self.selected_presentation(panel))
     }
 
-    pub(crate) fn graphics_draw(&self, panel: &NativePanel) -> Option<PaneGraphicsDraw> {
+    pub(crate) fn graphics_draw(&self, panel: &ClientPanel) -> Option<PaneGraphicsDraw> {
         self.graphics?;
         Some(PaneGraphicsDraw::new(
             Source::capture(panel, self.selected_presentation(panel)),
@@ -45,7 +45,7 @@ impl WorkbenchClientView<'_> {
     }
 }
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn observe_host_graphics(
         &mut self,
         facts: crate::terminal_graphics::Facts,
@@ -70,7 +70,7 @@ impl NativeUi {
         };
         self.graphics.observe(
             Scope {
-                site: state.cache().site_id().clone(),
+                session: state.cache().session_id().clone(),
                 revision: state.cache().revision(),
                 sources: draws.iter().map(|draw| draw.source.clone()).collect(),
             },

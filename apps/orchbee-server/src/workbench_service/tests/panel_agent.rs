@@ -1,7 +1,7 @@
 use super::*;
 use orchbee_workbench_protocol::{
     PanelAgentAction as Action, PanelAgentFailure as Failure, PanelAgentOutcome as Outcome,
-    PanelAgentRequest, SiteId, Snapshot,
+    PanelAgentRequest, SessionId, Snapshot,
 };
 fn service(terminals: &Arc<LocalTerminalService>, grants: u8) -> WorkbenchService {
     WorkbenchService::new(
@@ -37,7 +37,7 @@ fn panel_agent_permissions_are_independent_and_refusals_leave_topology_unchanged
     ))));
     let admin = service(&terminals, 31);
     let before = snapshot(&admin);
-    let mut request:PanelAgentRequest=serde_json::from_value(serde_json::json!({"protocolVersion":1,"requestId":"1".repeat(32),"sessionId":before.site_id,"action":{"kind":"read","panelIds":[]}})).unwrap();
+    let mut request:PanelAgentRequest=serde_json::from_value(serde_json::json!({"protocolVersion":1,"requestId":"1".repeat(32),"sessionId":before.session_id,"action":{"kind":"read","panelIds":[]}})).unwrap();
     let execute = |grants, request: &PanelAgentRequest| {
         let WorkbenchResponse::PanelAgent(reply) = response(
             service(&terminals, grants).execute(WorkbenchRequest::PanelAgent(request.clone())),
@@ -105,14 +105,14 @@ fn panel_agent_permissions_are_independent_and_refusals_leave_topology_unchanged
             }
         );
     }
-    request.site_id = SiteId::parse(&"f".repeat(32)).unwrap();
+    request.session_id = SessionId::parse(&"f".repeat(32)).unwrap();
     assert_eq!(
         execute(31, &request),
         Outcome::Failed {
-            reason: Failure::SiteMismatch
+            reason: Failure::SessionMismatch
         }
     );
-    request.site_id = before.site_id.clone();
+    request.session_id = before.session_id.clone();
     if let Action::Report { report, .. } = &mut request.action
         && let orchbee_workbench_protocol::PanelAgentReport::State { agent, .. } = report.as_mut()
     {

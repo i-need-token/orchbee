@@ -16,7 +16,7 @@ fn canonical_refresh_accepts_identical_revision_advances_and_ordered_extensions(
     same_revision_rename.tabs[0].tab_label = label("same revision change");
     assert_eq!(
         validate_canonical_refresh(&current, same_revision_rename),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 
     let mut revision_only = current.clone();
@@ -202,7 +202,7 @@ fn canonical_refresh_rejects_split_extension_that_mutates_the_untouched_sibling_
             &current,
             project_preferred_workspace(&candidate_snapshot).unwrap()
         ),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }
 
@@ -237,14 +237,14 @@ fn canonical_refresh_rejects_outer_revision_and_membership_divergence() {
     let current = projected(2, 10);
 
     let mut candidates = Vec::new();
-    let mut site_mismatch = projected(3, 11);
-    site_mismatch.site_id = site_id(80);
-    candidates.push(site_mismatch);
+    let mut session_mismatch = projected(3, 11);
+    session_mismatch.session_id = session_id(80);
+    candidates.push(session_mismatch);
 
     let mut context_mismatch = projected(3, 11);
     context_mismatch.location = {
         let fixture_context_id = context_id(81);
-        NativeContextLocation::Workspace {
+        ClientContextLocation::Workspace {
             workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                 fixture_context_id.as_str(),
             )
@@ -264,14 +264,14 @@ fn canonical_refresh_rejects_outer_revision_and_membership_divergence() {
     for candidate in candidates {
         assert_eq!(
             validate_canonical_refresh(&current, candidate),
-            Err(NativeProjectionDivergence)
+            Err(ClientProjectionDivergence)
         );
     }
 }
 
 #[test]
 fn canonical_refresh_rejects_every_non_tab_label_change_to_existing_members() {
-    type Mutation = fn(&mut NativeSimpleTab);
+    type Mutation = fn(&mut ClientTab);
     let mutations: [(&str, Mutation); 5] = [
         ("Panel ID", |tab| tab.panel_id = panel_id(201)),
         ("Presentation ID", |tab| {
@@ -293,7 +293,7 @@ fn canonical_refresh_rejects_every_non_tab_label_change_to_existing_members() {
         mutate(&mut candidate.tabs[0]);
         assert_eq!(
             validate_canonical_refresh(&current, candidate),
-            Err(NativeProjectionDivergence),
+            Err(ClientProjectionDivergence),
             "changed {field} must reject the complete refresh"
         );
     }
@@ -405,7 +405,7 @@ fn canonical_refresh_accepts_two_folded_panel_split_extensions() {
     );
 
     // The folded baseline->latest jump commits both valid splits at once (+2 panels); refresh
-    // validation must accept it instead of reporting NativeProjectionDivergence.
+    // validation must accept it instead of reporting ClientProjectionDivergence.
     assert_eq!(
         validate_canonical_refresh(&baseline, latest.clone()),
         Ok(latest)

@@ -1,6 +1,6 @@
 use super::recovery_fence::RecoveryFence;
 use super::{
-    AttachmentKey, CarrierFailure, ClientPhase, NativeContextTabs, OperationDeadlines,
+    AttachmentKey, CarrierFailure, ClientContextTabs, ClientPhase, OperationDeadlines,
     PreparedMembershipCandidate, WorkbenchClientState,
 };
 use crate::workbench_client::mailbox::PollKey;
@@ -17,7 +17,7 @@ pub(in crate::workbench_client) struct UnavailablePoll {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::workbench_client) struct RetiredMembershipOrigin {
     evidence: UnavailablePoll,
-    baseline: NativeContextTabs,
+    baseline: ClientContextTabs,
     ordinal: usize,
 }
 
@@ -91,7 +91,7 @@ impl WorkbenchClientState {
     pub(in crate::workbench_client) fn prepare_retired_membership_candidate(
         &self,
         origin: &RetiredMembershipOrigin,
-        candidate: NativeContextTabs,
+        candidate: ClientContextTabs,
     ) -> Result<PreparedMembershipCandidate, CarrierFailure> {
         if !self.retired_membership_origin_matches(origin) {
             return Err(CarrierFailure::AuthorityDivergence);

@@ -11,7 +11,7 @@ use crate::{
     terminal_link_activation::{self, Error, Guard, SnapshotMember},
 };
 #[cfg(test)]
-use orchbee_local_site_runtime::PluginRegistryEntry;
+use orchbee_local_runtime::PluginRegistryEntry;
 use orchbee_workbench_protocol::{
     Snapshot, TerminalId, TerminalPresentationId, WorkbenchPanelId, WorkbenchTabId,
     WorkbenchTerminalContextId, WorkerId,
@@ -116,7 +116,7 @@ fn snapshot_member(
 ) -> Result<SnapshotMember, Failure> {
     let invalid = || Failure::new(FailureKind::ProtocolInvalid);
     Ok(SnapshotMember {
-        site: snapshot.site_id.clone(),
+        session: snapshot.session_id.clone(),
         context: WorkbenchTerminalContextId::parse(&terminal.terminal_context_id)
             .map_err(|_| invalid())?,
         tab: WorkbenchTabId::parse(&terminal.tab_id).map_err(|_| invalid())?,
@@ -147,7 +147,7 @@ pub(in crate::cli) fn submit(
 
 #[cfg(test)]
 fn select_entries(
-    entries: &[orchbee_local_site_runtime::PluginRegistryEntry],
+    entries: &[orchbee_local_runtime::PluginRegistryEntry],
     url: &str,
     check: impl FnMut() -> Result<(), Failure>,
 ) -> Result<Option<Selection>, Failure> {

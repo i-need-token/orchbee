@@ -13,19 +13,18 @@ struct Port {
     forwarded: Vec<u8>,
 }
 impl TerminalInputPort for Port {
-    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
-        crate::tui_composition::NativeCaptureClaims::default()
-            .with_agent_board(self.board.owns_input())
+    fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
+        crate::tui_composition::CaptureClaims::default().with_agent_board(self.board.owns_input())
     }
     fn native_capture_context(
         &self,
-        owner: crate::tui_composition::NativeCaptureOwner,
-    ) -> Option<crate::workbench_client::NativeCaptureContext> {
+        owner: crate::tui_composition::CaptureOwner,
+    ) -> Option<crate::workbench_client::CaptureContext> {
         match owner {
-            crate::tui_composition::NativeCaptureOwner::AgentBoard => self
+            crate::tui_composition::CaptureOwner::AgentBoard => self
                 .board
                 .input_context()
-                .map(crate::workbench_client::NativeCaptureContext::AgentBoard),
+                .map(crate::workbench_client::CaptureContext::AgentBoard),
             _ => None,
         }
     }
@@ -114,7 +113,7 @@ fn paint(
             receipt = Some(crate::tui_render::render_agent_board_for_test(
                 frame,
                 locale,
-                &NativeAgentBoardView::new(&port.board, &index),
+                &AgentBoardView::new(&port.board, &index),
                 &theme,
                 &mut hits,
             ));

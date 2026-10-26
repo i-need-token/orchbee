@@ -1,5 +1,5 @@
 //! UI-owned remote navigation. The lane transports observations; only this owner advances UI steps.
-use super::ui::NativeUi;
+use super::ui::WorkbenchClientUi;
 use crate::local_client::{LocalClientOrigin, LocalOperationClock};
 use orchbee_workbench_protocol::{
     ClientLayoutAdjustment, ClientViewCompletion, ClientViewCompletionOutcome, ClientViewControl,
@@ -99,7 +99,7 @@ impl Execution {
     }
     fn step(
         &mut self,
-        native: &mut NativeUi,
+        native: &mut WorkbenchClientUi,
         shell_mode: bool,
         too_small: bool,
         dismiss_shell_modes: &mut bool,
@@ -160,7 +160,7 @@ impl Execution {
     }
     fn outcome(
         &self,
-        native: &NativeUi,
+        native: &WorkbenchClientUi,
         command: &ClientViewControl,
         view: &ClientViewObservation,
     ) -> Option<ClientViewCompletionOutcome> {
@@ -227,7 +227,7 @@ pub(super) struct ClientControl {
 impl ClientControl {
     pub(super) fn invoke_configured(
         &mut self,
-        native: &NativeUi,
+        native: &WorkbenchClientUi,
         id: String,
     ) -> Result<(), orchbee_workbench_protocol::ConfiguredCommandFailure> {
         use orchbee_workbench_protocol::ConfiguredCommandFailure as F;
@@ -267,7 +267,11 @@ impl ClientControl {
     ) {
         self.viewport = Some((viewport, sidebar));
     }
-    fn sample(&mut self, view: ClientViewObservation, native: &NativeUi) -> Option<Sample> {
+    fn sample(
+        &mut self,
+        view: ClientViewObservation,
+        native: &WorkbenchClientUi,
+    ) -> Option<Sample> {
         self.heartbeat = self.heartbeat.checked_add(1)?;
         if self.observed.as_ref() != Some(&view) {
             self.revision = self.revision.checked_add(1)?;
@@ -296,7 +300,7 @@ impl ClientControl {
     pub(super) fn take_shell_mode_dismissal(&mut self) -> bool {
         std::mem::take(&mut self.dismiss_shell_modes)
     }
-    pub(super) fn tick(&mut self, native: &mut NativeUi, shell_mode: bool) -> bool {
+    pub(super) fn tick(&mut self, native: &mut WorkbenchClientUi, shell_mode: bool) -> bool {
         let too_small = self.viewport.is_some_and(|(viewport, sidebar)| {
             crate::tui_layout::project_shell_areas(viewport, sidebar).tier
                 == crate::tui_layout::ViewportTier::TooSmall
@@ -306,7 +310,7 @@ impl ClientControl {
         if self.stopped {
             return false;
         }
-        let Some((site_id, view)) =
+        let Some((session_id, view)) =
             native.control_observation(shell_blocked || self.local_resize.is_some())
         else {
             return false;
@@ -317,8 +321,11 @@ impl ClientControl {
             return false;
         };
         if self.lane.is_none() {
-            match ClientControlLane::spawn(self.origin.clone(), self.clock.clone(), site_id.clone())
-            {
+            match ClientControlLane::spawn(
+                self.origin.clone(),
+                self.clock.clone(),
+                session_id.clone(),
+            ) {
                 Ok(lane) => self.lane = Some(lane),
                 Err(_) => {
                     self.close();
@@ -424,7 +431,7 @@ impl ClientControl {
                 match prepared {
                     Ok(adjustment) if adjustment.change.changed() => {
                         let prepared = SharedAdjustment::prepare(
-                            site_id,
+                            session_id,
                             command.operation_id.clone(),
                             adjustment,
                             sample.view.clone(),
@@ -572,7 +579,7 @@ impl ClientControl {
             }
         }
     }
-    pub(super) fn after_draw(&mut self, native: &mut NativeUi) {
+    pub(super) fn after_draw(&mut self, native: &mut WorkbenchClientUi) {
         if self.stopped {
             return;
         }
@@ -642,7 +649,7 @@ impl ClientControl {
 /// Resolve geometry exactly once, before any navigation. Err is a terminal receipt,
 /// including successful reads and no-neighbor observations that require no draw.
 fn prepare_control(
-    native: &NativeUi,
+    native: &WorkbenchClientUi,
     command: &ClientViewControl,
     snapshot: Option<&orchbee_workbench_protocol::Snapshot>,
     viewport: Option<(ratatui::layout::Rect, crate::client_view::SidebarSurface)>,

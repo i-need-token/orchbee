@@ -3,7 +3,7 @@ use super::*;
 use crate::workbench_client::mailbox::QueuedCommand;
 use orchbee_workbench_protocol::WorkbenchRevision;
 
-fn row(ui: &NativeUi, target: Target) -> Row {
+fn row(ui: &WorkbenchClientUi, target: Target) -> Row {
     Row {
         episode: 1,
         source: ui.navigator_catalog().unwrap().source,
@@ -204,7 +204,7 @@ fn long_navigator_lists_paint_only_complete_scrolled_rows_in_both_locales_and_si
     use crate::localization::Locale;
     use crate::tui_pointer::{HitMapBuilder, HitTarget};
 
-    use orchbee_local_site_runtime::{WindowsKeyChord, WindowsKeySettings};
+    use orchbee_local_runtime::{KeyChord, KeySettings};
     use orchbee_workbench_protocol::*;
     use ratatui::{Terminal, backend::TestBackend};
     let mut source = super::super::tests::membership::snapshot(20, 1);
@@ -236,10 +236,10 @@ fn long_navigator_lists_paint_only_complete_scrolled_rows_in_both_locales_and_si
             for remapped in [false, true] {
                 let mut view = ClientView::new(width);
                 if remapped {
-                    view.configure_keys(&WindowsKeySettings {
+                    view.configure_keys(&KeySettings {
                         commands: Vec::new(),
                         overrides: Vec::new(),
-                        prefix: WindowsKeyChord {
+                        prefix: KeyChord {
                             key: "a".into(),
                             ctrl: true,
                             alt: false,

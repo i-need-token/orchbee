@@ -5,7 +5,7 @@ use crate::{
     workbench_client::{PaneGraphicsCanvas, PaneGraphicsDraw},
 };
 use base64::{Engine, engine::general_purpose::STANDARD};
-use orchbee_workbench_protocol::{SiteId, WorkbenchRevision};
+use orchbee_workbench_protocol::{SessionId, WorkbenchRevision};
 use ratatui::layout::{Position, Rect};
 use std::{
     cell::RefCell,
@@ -144,7 +144,7 @@ impl Surface {
     }
     pub(crate) fn select(
         &self,
-        site: &SiteId,
+        session: &SessionId,
         canvas: &PaneGraphicsCanvas,
         body: Rect,
     ) -> Option<Choice> {
@@ -153,7 +153,7 @@ impl Surface {
             return None;
         }
         let cells = state.facts.cell_capabilities().cell_pixels?;
-        let scene = Scene::new(site, canvas, body, cells)?;
+        let scene = Scene::new(session, canvas, body, cells)?;
         if state.staged.len() >= IMAGE_COUNT
             || scene.images.len()
                 + state

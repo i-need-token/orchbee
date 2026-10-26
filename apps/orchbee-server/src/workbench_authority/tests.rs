@@ -20,17 +20,17 @@ mod workspace_organization;
 mod worktree_operation;
 
 fn authority() -> (WorkbenchAuthority, WorkbenchGrant) {
-    let site = SiteId::parse(&identity(100)).unwrap();
+    let session = SessionId::parse(&identity(100)).unwrap();
     (
-        WorkbenchAuthority::workspace_fixture(site.clone()).unwrap(),
-        WorkbenchGrant::manage_navigation(site),
+        WorkbenchAuthority::workspace_fixture(session.clone()).unwrap(),
+        WorkbenchGrant::manage_navigation(session),
     )
 }
 fn command(id: u128, revision: u64, action: WorkbenchAction) -> WorkbenchCommand {
     WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&identity(id)).unwrap(),
-        site_id: SiteId::parse(&identity(100)).unwrap(),
+        session_id: SessionId::parse(&identity(100)).unwrap(),
         expected_revision: WorkbenchRevision::new(revision),
         action,
     }
@@ -132,7 +132,7 @@ fn install_two_tabs(
         },
     );
     let terminal_grant =
-        WorkbenchGrant::manage_navigation_and_terminal_create(authority.site_id().clone());
+        WorkbenchGrant::manage_navigation_and_terminal_create(authority.session_id().clone());
     let WorkbenchTabCreateBegin::Admitted(admission) =
         authority.begin_terminal_tab_create(Some(&terminal_grant), create)
     else {
@@ -185,9 +185,10 @@ fn authorization_precedes_ledger_revision_and_retirement_disclosure() {
     let (mut authority, grant) = authority();
     let first = command(1, 0, create("Private"));
     let accepted = submit(&mut authority, &grant, first.clone());
-    let reader = WorkbenchGrant::read_only(grant.site_id.clone());
-    let wrong_site = WorkbenchGrant::manage_navigation(SiteId::parse(&identity(200)).unwrap());
-    for denied in [None, Some(&reader), Some(&wrong_site)] {
+    let reader = WorkbenchGrant::read_only(grant.session_id.clone());
+    let wrong_session =
+        WorkbenchGrant::manage_navigation(SessionId::parse(&identity(200)).unwrap());
+    for denied in [None, Some(&reader), Some(&wrong_session)] {
         let response = authority.execute(
             denied,
             WorkbenchRequest::Command(first.clone()).try_into().unwrap(),
@@ -203,7 +204,7 @@ fn authorization_precedes_ledger_revision_and_retirement_disclosure() {
         snapshot(&mut authority, &reader).navigation.projects.len(),
         1
     );
-    let response = authority.execute(Some(&wrong_site), read().try_into().unwrap());
+    let response = authority.execute(Some(&wrong_session), read().try_into().unwrap());
     assert!(matches!(
         response,
         WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
@@ -519,7 +520,7 @@ fn navigation_grant_can_rename_a_tab_without_terminal_grant_or_partial_ledger_ef
             "renamed",
         ),
     );
-    let reader = WorkbenchGrant::read_only(grant.site_id.clone());
+    let reader = WorkbenchGrant::read_only(grant.session_id.clone());
     let before = snapshot(&mut authority, &grant);
     assert_eq!(
         authority.execute(
@@ -707,7 +708,7 @@ fn publication_preflight_failure_precedes_ledger_byte_refusal_atomically() {
 #[test]
 fn publication_read_replays_committed_history_under_the_read_grant() {
     let (mut authority, grant) = authority();
-    let reader = WorkbenchGrant::read_only(grant.site_id.clone());
+    let reader = WorkbenchGrant::read_only(grant.session_id.clone());
 
     assert_eq!(
         publication_outcome(&mut authority, Some(&reader), publication_read(800, 0)),
@@ -729,7 +730,7 @@ fn publication_read_replays_committed_history_under_the_read_grant() {
     // Rewind the reader baseline to revision 0 by re-reading the initial state shape.
     let base = Snapshot {
         revision: WorkbenchRevision::new(0),
-        navigation: WorkbenchAuthority::workspace_fixture(replayed.site_id.clone())
+        navigation: WorkbenchAuthority::workspace_fixture(replayed.session_id.clone())
             .unwrap()
             .snapshot()
             .navigation
@@ -773,16 +774,17 @@ fn publication_read_replays_committed_history_under_the_read_grant() {
 fn publication_read_denies_before_disclosure_and_skips_the_command_ledger() {
     let (mut authority, grant) = authority();
     submit(&mut authority, &grant, command(1, 0, create("Private")));
-    let reader = WorkbenchGrant::read_only(grant.site_id.clone());
-    let wrong_site = WorkbenchGrant::manage_navigation(SiteId::parse(&identity(200)).unwrap());
+    let reader = WorkbenchGrant::read_only(grant.session_id.clone());
+    let wrong_session =
+        WorkbenchGrant::manage_navigation(SessionId::parse(&identity(200)).unwrap());
 
-    for denied in [None, Some(&wrong_site)] {
+    for denied in [None, Some(&wrong_session)] {
         assert_eq!(
             publication_outcome(&mut authority, denied, publication_read(810, 0)),
             WorkbenchPublicationOutcome::Denied {}
         );
     }
-    // A read-only grant may observe publications but a wrong Site still learns nothing.
+    // A read-only grant may observe publications but a wrong Session still learns nothing.
     assert!(matches!(
         publication_outcome(&mut authority, Some(&reader), publication_read(811, 1)),
         WorkbenchPublicationOutcome::Current { .. } | WorkbenchPublicationOutcome::Published { .. }

@@ -30,7 +30,7 @@ use orchbee_client_server_protocol::{
 use crate::{
     agent::AgentRuntimeSnapshot,
     agent_service::{AgentService, PreparedUnavailable},
-    site_coordinator::SiteCoordinator,
+    session_coordinator::SessionCoordinator,
     terminal_coordinator::{Completion, PreparedOperation, WorkerPlacement},
     worker_obcn_carrier::{
         WorkerOperationRequest, WorkerOperationResult, WorkerRequestError, WorkerRequestHandle,
@@ -83,7 +83,7 @@ const AGENT_DRAIN_READ_WINDOW: Duration = Duration::from_secs(4);
 const AGENT_DRAIN_READ_RETRY: Duration = Duration::from_millis(25);
 
 pub(crate) struct LocalTerminalService {
-    preferences: std::sync::OnceLock<orchbee_local_site_runtime::UserPreferencesStore>,
+    preferences: std::sync::OnceLock<orchbee_local_runtime::UserPreferencesStore>,
     #[cfg(windows)]
     configuration: configuration::Registry,
     #[cfg(windows)]
@@ -103,7 +103,7 @@ pub(crate) struct LocalTerminalService {
     group_close_maintenance: operation_maintenance::OperationMaintenance,
     worktree_discovery: worktree_list::DiscoveryGate,
     workers: Arc<Mutex<WorkerRegistry>>,
-    coordinator: Mutex<SiteCoordinator>,
+    coordinator: Mutex<SessionCoordinator>,
     controllers: Mutex<
         std::collections::BTreeMap<
             controller_connection::ControlTarget,
@@ -114,16 +114,16 @@ pub(crate) struct LocalTerminalService {
 
 impl LocalTerminalService {
     pub(crate) fn new(workers: Arc<Mutex<WorkerRegistry>>) -> Self {
-        Self::from_identity(workers, random_site_id())
+        Self::from_identity(workers, random_session_id())
     }
 
     fn from_identity(
         workers: Arc<Mutex<WorkerRegistry>>,
-        identity: std::io::Result<orchbee_workbench_protocol::SiteId>,
+        identity: std::io::Result<orchbee_workbench_protocol::SessionId>,
     ) -> Self {
         let workbench = identity
             .ok()
-            .and_then(|site| orchbee_server::WorkbenchAuthority::new(site).ok());
+            .and_then(|session| orchbee_server::WorkbenchAuthority::new(session).ok());
         Self::from_workbench(workers, workbench)
     }
 
@@ -158,16 +158,19 @@ impl LocalTerminalService {
             ),
             worktree_discovery: worktree_list::DiscoveryGate::default(),
             workers,
-            coordinator: Mutex::new(SiteCoordinator::new(workbench)),
+            coordinator: Mutex::new(SessionCoordinator::new(workbench)),
             controllers: Mutex::new(std::collections::BTreeMap::new()),
         }
     }
 
-    pub(crate) fn workbench_site_matches(
+    pub(crate) fn workbench_session_matches(
         &self,
-        site: &orchbee_workbench_protocol::SiteId,
+        session: &orchbee_workbench_protocol::SessionId,
     ) -> Option<bool> {
-        self.coordinator.lock().ok()?.workbench_site_matches(site)
+        self.coordinator
+            .lock()
+            .ok()?
+            .workbench_session_matches(session)
     }
 
     /// The production prepared-read provider for Agent OBAP reads. One
@@ -295,10 +298,10 @@ impl LocalTerminalService {
     }
 }
 
-fn random_site_id() -> std::io::Result<orchbee_workbench_protocol::SiteId> {
+fn random_session_id() -> std::io::Result<orchbee_workbench_protocol::SessionId> {
     let mut bytes = [0; 16];
     getrandom::fill(&mut bytes).map_err(|error| std::io::Error::other(error.to_string()))?;
-    orchbee_workbench_protocol::SiteId::parse(&format!("{:032x}", u128::from_be_bytes(bytes)))
+    orchbee_workbench_protocol::SessionId::parse(&format!("{:032x}", u128::from_be_bytes(bytes)))
         .map_err(std::io::Error::other)
 }
 

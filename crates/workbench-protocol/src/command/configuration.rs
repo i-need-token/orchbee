@@ -1,5 +1,5 @@
-//! Site-owned runtime configuration publication; a revision is not a Client acknowledgement.
-use crate::{ContractError, ProtocolVersion, SiteId, WorkbenchRequestId, WorkbenchRevision};
+//! Session-owned runtime configuration publication; a revision is not a Client acknowledgement.
+use crate::{ContractError, ProtocolVersion, SessionId, WorkbenchRequestId, WorkbenchRevision};
 use serde::{Deserialize, Serialize};
 pub const MAXIMUM_CONFIGURATION_BYTES: usize = 256 * 1024;
 pub const MAXIMUM_CONFIGURATION_DIAGNOSTICS: usize = 128;
@@ -21,7 +21,7 @@ pub struct ConfigurationRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub action: ConfigurationAction,
 }
 
@@ -153,7 +153,7 @@ pub enum ConfigurationFailure {
     Denied,
     Unavailable,
     #[serde(rename = "session-mismatch")]
-    SiteMismatch,
+    SessionMismatch,
     Busy,
     LoadFailed,
     RevisionExhausted,
@@ -198,13 +198,13 @@ pub struct ConfigurationResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub outcome: ConfigurationOutcome,
 }
 impl ConfigurationResult {
     pub fn answers(&self, request: &ConfigurationRequest) -> bool {
         self.request_id == request.request_id
-            && self.site_id == request.site_id
+            && self.session_id == request.session_id
             && match request.action {
                 ConfigurationAction::Current => matches!(
                     &self.outcome,

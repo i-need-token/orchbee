@@ -304,7 +304,7 @@ pub(crate) struct AgentBoardSummary {
 /// snapshot carried at index-build time.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PresentationPlacement {
-    pub(crate) location: super::workbench_projection::NativeContextLocation,
+    pub(crate) location: super::workbench_projection::ClientContextLocation,
     pub(crate) tab_id: orchbee_workbench_protocol::WorkbenchTabId,
     pub(crate) panel_id: orchbee_workbench_protocol::WorkbenchPanelId,
     pub(crate) tab_position: usize,
@@ -358,7 +358,7 @@ impl PresentationIndex {
     /// raw snapshot).
     pub(super) fn install_context(
         &mut self,
-        tabs: &super::workbench_projection::NativeContextTabs,
+        tabs: &super::workbench_projection::ClientContextTabs,
     ) {
         self.ready = true;
         let (project_label, workspace_label) = tabs
@@ -424,16 +424,16 @@ impl PresentationIndex {
     }
 }
 
-/// Every `NativeContextLocation` a snapshot's navigation declares, in
+/// Every `ClientContextLocation` a snapshot's navigation declares, in
 /// canonical Workspace order.
 fn navigation_locations(
     snapshot: &orchbee_workbench_protocol::Snapshot,
-) -> Vec<super::workbench_projection::NativeContextLocation> {
-    use super::workbench_projection::NativeContextLocation;
+) -> Vec<super::workbench_projection::ClientContextLocation> {
+    use super::workbench_projection::ClientContextLocation;
     let mut locations = Vec::with_capacity(snapshot.navigation.workspaces.len());
     if let Ok(ordered) = snapshot.navigation.ordered_workspaces() {
         for (_, workspace) in ordered {
-            locations.push(NativeContextLocation::Workspace {
+            locations.push(ClientContextLocation::Workspace {
                 workspace_id: workspace.workspace_id.clone(),
                 terminal_context_id: workspace.terminal_context_id.clone(),
             });
@@ -586,8 +586,8 @@ pub(super) enum JumpStep {
 #[expect(clippy::too_many_arguments)]
 pub(super) fn plan_jump_step(
     placement: &PresentationPlacement,
-    active_location: Option<&super::workbench_projection::NativeContextLocation>,
-    context_locations: &[super::workbench_projection::NativeContextLocation],
+    active_location: Option<&super::workbench_projection::ClientContextLocation>,
+    context_locations: &[super::workbench_projection::ClientContextLocation],
     target_tab_index: Option<usize>,
     active_tab: Option<&orchbee_workbench_protocol::WorkbenchTabId>,
     focus_panel: Option<&orchbee_workbench_protocol::WorkbenchPanelId>,
@@ -1787,13 +1787,13 @@ impl AgentBoard {
 /// `WorkbenchClientView`, exposes rows and placement lookups without
 /// handing out mutation.
 #[derive(Clone, Copy)]
-pub(crate) struct NativeAgentBoardView<'a> {
+pub(crate) struct AgentBoardView<'a> {
     board: &'a AgentBoard,
     index: &'a PresentationIndex,
     attention: Option<&'a super::agent_attention::AgentAttention>,
 }
 
-impl<'a> NativeAgentBoardView<'a> {
+impl<'a> AgentBoardView<'a> {
     pub(super) const fn new(board: &'a AgentBoard, index: &'a PresentationIndex) -> Self {
         Self {
             board,
@@ -1839,7 +1839,7 @@ impl<'a> NativeAgentBoardView<'a> {
     pub(crate) fn input_context(&self) -> AgentBoardInputContext {
         self.board
             .input_context()
-            .expect("a NativeAgentBoardView borrows an open Board")
+            .expect("a AgentBoardView borrows an open Board")
     }
     /// Builds the exact successful-frame witness after the renderer has
     /// resolved the viewport. The owner supplies the source revision,

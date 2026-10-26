@@ -240,7 +240,7 @@ fn canonical_refresh_rejects_contraction_that_mutates_the_untouched_sibling_subt
             &current,
             project_preferred_workspace(&candidate_snapshot).unwrap()
         ),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }
 
@@ -271,7 +271,7 @@ fn canonical_refresh_rejects_contraction_candidates_that_reassign_retained_ident
     stranger.terminal_contexts[0].tabs[0].root = panel(60, 61, 62, 63, "stranger");
     assert_eq!(
         validate_canonical_refresh(&current, project_preferred_workspace(&stranger).unwrap()),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 
     // The surviving leaf mutated: same shape, different binding.
@@ -279,7 +279,7 @@ fn canonical_refresh_rejects_contraction_candidates_that_reassign_retained_ident
     relabeled.terminal_contexts[0].tabs[0].root = panel(30, 31, 32, 63, "left");
     assert_eq!(
         validate_canonical_refresh(&current, project_preferred_workspace(&relabeled).unwrap()),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 
     // The Split kept its shape while a leaf vanished from it.
@@ -336,6 +336,6 @@ fn canonical_refresh_rejects_contraction_candidates_that_reassign_retained_ident
             &project_preferred_workspace(&reordered_snapshot).unwrap(),
             project_preferred_workspace(&reordered).unwrap()
         ),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }

@@ -322,17 +322,17 @@ Client 见证。这些有限轨迹不是穷尽交错证明，仅通过核心或 
 
 已准入本地 Client 通过 `attach-binding` 选择规范快照中的准确 会话／Worker／逻辑 Terminal 绑定。Workbench 在运行时查询前证明当前暴露关系；会话 随后检查保留 Worker 代际及 Host 身份。选择不授予创建、导航、输入或 resize 权限。成员缺失、运行时不可用及附着身份变化仍是不同类型化结果。
 
-| 字段   | 契约                                                                                                                                                                                                 |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 问题   | Client 读取共享产品状态后，应能选择其保留终端，而不依赖内部 Create reference，也不静默跟随另一个执行身份。                                                                                           |
-| 输入   | 已准入 Session，以及确切的 会话/Worker/Server-terminal 三元组。三者是独立的不透明身份域；都不是 Host identity、generation、operation、lease 或 Create reference。                                    |
-| 数据   | Canonical 暴露的 binding、保留终端的 authorization/phase、当前 Worker placement 和 Session 本地 attachment state。                                                                                   |
-| 输出   | 现有 Attached scope，或有类型的拒绝/不可用结果。选择不产生终端 create、start、input、resize、controller grant 或 Workbench effect。                                                                  |
-| 不变量 | 只解析当前活跃 会话 暴露的 binding；固定保留的确切 Worker generation；绝不替换终端或 Worker；target validation 失败时，在分配 attachment identity 前拒绝。                                           |
-| 所有权 | WorkbenchAuthority 检查 canonical membership；TerminalCoordinator 解析保留执行；SiteCoordinator 在现有 registry 后 会话 的锁顺序下组合这些检查。ViewerSession 在释放锁后拥有 attachment IPC 和清理。 |
-| 模型   | 解析有类型的 target，准备 attachment，通过固定的 handle dispatch，并在现有 current-Worker 检查处提交 Session attachment。                                                                            |
-| 依赖   | 尚未发布的 OBCS v1 值、保持不变的 OBCN/OBSR relay、现有 OBWP snapshot read，以及原生 Client 现有的绝对提交截止时间。                                                                                 |
-| 限制   | 同用户本机 target resolution，不接管控制权。Selection 模型不证明多个 viewer 路由、远程授权、持久化、重启后接管、选择 UI 或 Worker 持续可用。                                                         |
+| 字段   | 契约                                                                                                                                                                                                    |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 问题   | Client 读取共享产品状态后，应能选择其保留终端，而不依赖内部 Create reference，也不静默跟随另一个执行身份。                                                                                              |
+| 输入   | 已准入 Session，以及确切的 会话/Worker/Server-terminal 三元组。三者是独立的不透明身份域；都不是 Host identity、generation、operation、lease 或 Create reference。                                       |
+| 数据   | Canonical 暴露的 binding、保留终端的 authorization/phase、当前 Worker placement 和 Session 本地 attachment state。                                                                                      |
+| 输出   | 现有 Attached scope，或有类型的拒绝/不可用结果。选择不产生终端 create、start、input、resize、controller grant 或 Workbench effect。                                                                     |
+| 不变量 | 只解析当前活跃 会话 暴露的 binding；固定保留的确切 Worker generation；绝不替换终端或 Worker；target validation 失败时，在分配 attachment identity 前拒绝。                                              |
+| 所有权 | WorkbenchAuthority 检查 canonical membership；TerminalCoordinator 解析保留执行；SessionCoordinator 在现有 registry 后 会话 的锁顺序下组合这些检查。ViewerSession 在释放锁后拥有 attachment IPC 和清理。 |
+| 模型   | 解析有类型的 target，准备 attachment，通过固定的 handle dispatch，并在现有 current-Worker 检查处提交 Session attachment。                                                                               |
+| 依赖   | 尚未发布的 OBCS v1 值、保持不变的 OBCN/OBSR relay、现有 OBWP snapshot read，以及原生 Client 现有的绝对提交截止时间。                                                                                    |
+| 限制   | 同用户本机 target resolution，不接管控制权。Selection 模型不证明多个 viewer 路由、远程授权、持久化、重启后接管、选择 UI 或 Worker 持续可用。                                                            |
 
 [Session 路由所有者](../README.md#accepted-connection-viewer-routing-modeling-record) 先回收精确
 已知 Disposed 的条目，再执行容量限制。有空余容量时，同一 Session 重复解析到同一个存活 target，
@@ -480,10 +480,10 @@ Panel 所属关系及非空、与期望一致的绑定，再应用来源守卫�
 不产生另一次副作用。标签和输入策略在结构创建后保留。Client 焦点、比例、分组、固定和物理启动由各自
 的所有者处理，不由此回执暗示。完全未绑定的 Tab 参与检查点、选择及零终端 Close。
 
-[multi-leaf-tests]: ../src/site_coordinator/tests/multileaf_membership.rs
-[move-tests]: ../src/site_coordinator/tests/tab_create/tab_move.rs
-[create-tests]: ../src/site_coordinator/tests/tab_create.rs
-[failed-close-tests]: ../src/site_coordinator/tests/failed_launch_close.rs
+[multi-leaf-tests]: ../src/session_coordinator/tests/multileaf_membership.rs
+[move-tests]: ../src/session_coordinator/tests/tab_create/tab_move.rs
+[create-tests]: ../src/session_coordinator/tests/tab_create.rs
+[failed-close-tests]: ../src/session_coordinator/tests/failed_launch_close.rs
 [create-service-tests]: ../src/local_terminal_service/tab_create/tests.rs
 [multi-leaf-process]: ../tests/client_process/tab_create/multileaf.rs
 [panel-label-tests]: ../src/workbench_authority/tests/panel_labels.rs
@@ -491,13 +491,12 @@ Panel 所属关系及非空、与期望一致的绑定，再应用来源守卫�
 [authority-stateful]: ../src/workbench_authority/tests/stateful.rs
 [authority-process]: ../tests/client_process/workbench.rs
 [session-tests]: ../src/local_client_service/application_connection/tests/workbench.rs
-[Workspace-tests]: ../src/site_coordinator/tests/Workspace.rs
 [workspace-process]: ../tests/client_process/terminal_operations/workspace.rs
-[selection-tests]: ../src/site_coordinator/tests/terminal_selection.rs
+[selection-tests]: ../src/session_coordinator/tests/terminal_selection.rs
 [viewer-tests]: ../src/local_terminal_service/viewer_connection/tests.rs
 [placement-tests]: ../src/workbench_authority/terminal_tab_create/tests/placement.rs
 [rename-process]: ../tests/client_process/tab_create/tab_rename.rs
 [create-process]: ../tests/client_process/tab_create.rs
 [create-authority-tests]: ../src/workbench_authority/terminal_tab_create/tests.rs
 
-<!-- documentation-pairing: english-sha256=c1844ebe264bbca30cfbb86d7847dbe127b03cd3754274269fe898892652f41a zh-cn-sha256=2c389b8c52effbb0033d6340e13f780cf9f436ac674c58d45ea511e8ac4479d9 -->
+<!-- documentation-pairing: english-sha256=f5bc38df5e588d8f8e76ad52bcd4bbd89ea038e57688cb7b53196b190a250172 zh-cn-sha256=b2b1ecc7d10100b75de34269ebe006b0c9ec254a72e37064d5989686a984d85e -->

@@ -100,9 +100,9 @@ pub(crate) mod agent_start_runtime {
     };
     pub(crate) use super::send::submit_prompt_on_session_cancellable as submit_prompt_on_session;
 }
-mod site;
-mod site_diagnose;
-mod site_stop;
+mod server;
+mod server_diagnose;
+mod server_stop;
 #[cfg(windows)]
 mod terminal_observation;
 #[cfg(windows)]
@@ -119,7 +119,7 @@ mod workbench_terminals;
 mod workbench_viewports;
 #[cfg(windows)]
 mod workbench_worktrees;
-pub(crate) use site_stop::run as site_stop;
+pub(crate) use server_stop::run as server_stop;
 mod workspace_group_close;
 mod worktree_operation;
 pub(crate) use workspace_group_close::run as run_workspace_group_close;
@@ -475,20 +475,20 @@ impl Failure {
     /// Retain bounded evidence from a native cohort admission error. The
     /// missing sibling is available only when its artifact-open operation
     /// returned `NotFound`.
-    pub(crate) fn io_diagnostic(
-        mut self,
-        error: &orchbee_local_site_runtime::NativeCohortError,
-    ) -> Self {
+    pub(crate) fn io_diagnostic(mut self, error: &orchbee_local_runtime::CohortError) -> Self {
         self.io_diagnostic = Some(Box::new(IoDiagnostic {
             missing_artifact: error
                 .missing_artifact()
-                .map(orchbee_local_site_runtime::NativeArtifact::file_name),
+                .map(orchbee_local_runtime::CohortArtifact::file_name),
         }));
         self
     }
 }
 
-pub(crate) fn target_details(resource: crate::invocation::Resource, target: &str) -> Map<String, Value> {
+pub(crate) fn target_details(
+    resource: crate::invocation::Resource,
+    target: &str,
+) -> Map<String, Value> {
     Map::from_iter([
         ("resource".to_owned(), json!(resource.as_str())),
         ("target".to_owned(), json!(target)),
@@ -654,8 +654,7 @@ pub(crate) fn completion(shell: CompletionShell, locale: Locale) -> Output {
 #[cfg(windows)]
 pub(crate) fn default_config(locale: Locale) -> Output {
     let actions = crate::client_view::Bindings::default_windows_key_action_bindings();
-    let config =
-        orchbee_local_site_runtime::default_windows_user_settings_toml_with_actions(&actions);
+    let config = orchbee_local_runtime::default_user_settings_toml_with_actions(&actions);
     fixed_text(&config, locale)
 }
 
@@ -696,19 +695,19 @@ pub(crate) fn mutation(command: MutationCommand, format: OutputFormat, locale: L
 
 /// `server start` is neither a query nor a workbench mutation: it runs the
 /// shared connect-or-activate core once and reports the branch it took.
-pub(crate) fn site_start(format: OutputFormat, locale: Locale) -> Output {
-    site::start(format, locale)
+pub(crate) fn session_start(format: OutputFormat, locale: Locale) -> Output {
+    server::start(format, locale)
 }
 
 /// `server diagnose` is neither a query nor a mutation: it reports bounded
 /// local runtime facts and the limits of those observations — it never
 /// connects, creates, repairs, or predicts a later start.
-pub(crate) fn site_diagnose(format: OutputFormat, locale: Locale) -> Output {
-    site_diagnose::run(format, locale)
+pub(crate) fn server_diagnose(format: OutputFormat, locale: Locale) -> Output {
+    server_diagnose::run(format, locale)
 }
 
 /// `agent integration` is CLI-local provider onboarding: the bounded local
-/// runner owns every provider command, and no Site is started or contacted.
+/// runner owns every provider command, and no Session is started or contacted.
 pub(crate) fn agent_integration(
     command: crate::invocation::AgentIntegrationCommand,
     format: OutputFormat,

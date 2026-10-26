@@ -12,7 +12,7 @@ fn resume_request(close: &WorkbenchCommand, id: u128, generation: u64) -> Workbe
     WorkbenchTabCloseResume {
         protocol_version: ProtocolVersion,
         request_id: request_id(id),
-        site_id: close.site_id.clone(),
+        session_id: close.session_id.clone(),
         terminal_context_id: terminal_context_id.clone(),
         tab_id: tab_id.clone(),
         close_request_id: close.request_id.clone(),
@@ -248,7 +248,7 @@ fn resume_authorization_operation_and_generation_precedence_are_effect_free() {
         .unwrap();
     let before = status(&authority, &grant, &close);
     let bytes = authority.ledger_bytes;
-    let reader = WorkbenchGrant::read_only(authority.site_id().clone());
+    let reader = WorkbenchGrant::read_only(authority.session_id().clone());
     let valid = resume_request(&close, 11000, 1);
     assert!(matches!(
         authority.begin_terminal_tab_close_resume(Some(&reader), valid.clone()),

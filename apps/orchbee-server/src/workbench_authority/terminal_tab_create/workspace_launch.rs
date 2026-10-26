@@ -1,5 +1,5 @@
 //! Admits a directory Workspace into the terminal creation commit boundary.
-//! The Site caller owns the successful Worker probe and its generation fence.
+//! The Session caller owns the successful Worker probe and its generation fence.
 use super::super::workspace_organization::PreparedPlacement;
 use super::super::{
     LaunchProfileUse, PlanFailure, ProfileSelectorResolution, WorkbenchAuthority, WorkbenchGrant,
@@ -25,7 +25,7 @@ impl WorkbenchAuthority {
     ) -> Option<WorkbenchCommandResult> {
         if !matches!(command.action, WorkbenchAction::WorkspaceLaunch { .. })
             || !grant.is_some_and(|grant| {
-                grant.site_id == *self.site_id()
+                grant.session_id == *self.session_id()
                     && grant.mutate_navigation
                     && grant.associate_directory
                     && grant.create_terminal
@@ -67,8 +67,8 @@ impl WorkbenchAuthority {
         };
         let snapshot = self.projection.snapshot();
         let reject = |reason| PlanFailure::Rejected(reason);
-        if command.site_id != snapshot.site_id {
-            return Err(reject(WorkbenchRejectionReason::SiteMismatch));
+        if command.session_id != snapshot.session_id {
+            return Err(reject(WorkbenchRejectionReason::SessionMismatch));
         }
         if command.expected_revision != snapshot.revision {
             return Err(reject(WorkbenchRejectionReason::RevisionMismatch));
@@ -87,7 +87,7 @@ impl WorkbenchAuthority {
         Ok(placement)
     }
 
-    /// Prepares the Workspace and first Tab together. Caller must hold registry then Site
+    /// Prepares the Workspace and first Tab together. Caller must hold registry then Session
     /// gates and prove a successful directory probe on the current Worker generation.
     pub fn begin_workspace_launch(
         &mut self,

@@ -12,7 +12,7 @@ fn project_picker_windows_large_lists_and_records_only_painted_choices() {
             for (width, height) in [(80, 24), (120, 40), (60, 12), (50, 18), (20, 5)] {
                 for selected in [0, 100, 200, 201] {
                     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-                    let token = NativeSetupToken::for_test(17);
+                    let token = SetupToken::for_test(17);
                     let mut hits = HitMapBuilder::new();
                     let long = format!("Project 界{}\x1b[31m", "猫".repeat(500));
                     let visited = Cell::new(0);
@@ -29,7 +29,7 @@ fn project_picker_windows_large_lists_and_records_only_painted_choices() {
                                 locale,
                                 ProjectPicker {
                                     token,
-                                    stage: NativeSetupStage::ChooseWorkspaceProject,
+                                    stage: SetupStage::ChooseWorkspaceProject,
                                     workspace: "Workspace 界",
                                     count: 202,
                                     selected,
@@ -131,8 +131,8 @@ fn missing_project_rows_never_acquire_a_click_target() {
                 frame,
                 Locale::EnUs,
                 ProjectPicker {
-                    token: NativeSetupToken::for_test(1),
-                    stage: NativeSetupStage::ChooseWorkspaceProject,
+                    token: SetupToken::for_test(1),
+                    stage: SetupStage::ChooseWorkspaceProject,
                     workspace: "Workspace",
                     count: 3,
                     selected: 0,
@@ -194,8 +194,8 @@ fn refused_project_picker_preserves_the_underlay_and_prior_hit_map() {
                 frame,
                 Locale::EnUs,
                 ProjectPicker {
-                    token: NativeSetupToken::for_test(1),
-                    stage: NativeSetupStage::ChooseWorkspaceProject,
+                    token: SetupToken::for_test(1),
+                    stage: SetupStage::ChooseWorkspaceProject,
                     workspace: "Workspace",
                     count: 2,
                     selected: 0,
@@ -240,7 +240,7 @@ fn refused_project_picker_preserves_the_underlay_and_prior_hit_map() {
 #[test]
 fn directory_actions_only_replace_a_live_empty_panel() {
     use crate::client_view::{ClientAction, PrefixAction, PrefixDesc};
-    use crate::workbench_client::NativeDisplayPhase as Phase;
+    use crate::workbench_client::DisplayPhase as Phase;
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for phase in [
             Phase::Starting,
@@ -280,13 +280,13 @@ fn directory_actions_only_replace_a_live_empty_panel() {
 #[test]
 fn directory_guidance_uses_the_effective_action_binding_only_without_a_capture_owner() {
     use super::*;
-    use crate::{client_view::ClientView, tui_theme::Theme, workbench_client::NativeDisplayPhase};
-    use orchbee_local_site_runtime::{WindowsKeyChord, WindowsKeySettings};
+    use crate::{client_view::ClientView, tui_theme::Theme, workbench_client::DisplayPhase};
+    use orchbee_local_runtime::{KeyChord, KeySettings};
 
     let mut client = ClientView::new(100);
-    client.configure_keys(&WindowsKeySettings {
+    client.configure_keys(&KeySettings {
         commands: Vec::new(),
-        prefix: WindowsKeyChord {
+        prefix: KeyChord {
             key: "a".into(),
             ctrl: true,
             alt: false,
@@ -322,7 +322,7 @@ fn directory_guidance_uses_the_effective_action_binding_only_without_a_capture_o
 
     let ready = directory_guidance(
         Locale::EnUs,
-        NativeDisplayPhase::Empty,
+        DisplayPhase::Empty,
         false,
         Some("C:/workspace"),
         false,
@@ -333,8 +333,7 @@ fn directory_guidance_uses_the_effective_action_binding_only_without_a_capture_o
     assert!(visible.contains("Ctrl+a c Create a Tab (requires connection)"));
     assert!(!visible.contains("Ctrl+B c"));
 
-    let needed =
-        directory_guidance(Locale::EnUs, NativeDisplayPhase::Empty, false, None, true).unwrap();
+    let needed = directory_guidance(Locale::EnUs, DisplayPhase::Empty, false, None, true).unwrap();
     let visible = draw(&needed, true);
     assert!(visible.contains("No directory configured."));
     assert!(visible.contains("Ctrl+a e Configure an empty Workspace's first directory"));

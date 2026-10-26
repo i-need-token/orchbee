@@ -106,7 +106,7 @@ impl Drop for OperationMaintenance {
         self.wake.available.store(false, Ordering::Release);
         self.wake.stop.store(true, Ordering::Release);
         self.notify();
-        // Explicit Site shutdown owns joining; Drop only signals cancellation.
+        // Explicit Session shutdown owns joining; Drop only signals cancellation.
     }
 }
 struct Running(Arc<Wake>);

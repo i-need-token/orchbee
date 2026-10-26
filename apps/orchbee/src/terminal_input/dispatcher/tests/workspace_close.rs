@@ -9,26 +9,24 @@ struct ClosePort {
     forwarded: Vec<u8>,
 }
 impl TerminalInputPort for ClosePort {
-    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
-        crate::tui_composition::NativeCaptureClaims::default().with_workspace_close(self.active)
+    fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
+        crate::tui_composition::CaptureClaims::default().with_workspace_close(self.active)
     }
 
     fn native_capture_context(
         &self,
-        owner: crate::tui_composition::NativeCaptureOwner,
-    ) -> Option<crate::workbench_client::NativeCaptureContext> {
-        if owner != crate::tui_composition::NativeCaptureOwner::WorkspaceClose || !self.active {
+        owner: crate::tui_composition::CaptureOwner,
+    ) -> Option<crate::workbench_client::CaptureContext> {
+        if owner != crate::tui_composition::CaptureOwner::WorkspaceClose || !self.active {
             return None;
         }
-        Some(
-            crate::workbench_client::NativeCaptureContext::WorkspaceClose(
-                crate::workbench_client::ConfirmationCaptureContext {
-                    token: WorkspaceCloseToken::for_test(1),
-                    phase: crate::tui_presentation::PresentationPhase::Admitted,
-                    readiness: crate::workbench_client::CaptureReadiness::Interactive,
-                },
-            ),
-        )
+        Some(crate::workbench_client::CaptureContext::WorkspaceClose(
+            crate::workbench_client::ConfirmationCaptureContext {
+                token: WorkspaceCloseToken::for_test(1),
+                phase: crate::tui_presentation::PresentationPhase::Admitted,
+                readiness: crate::workbench_client::CaptureReadiness::Interactive,
+            },
+        ))
     }
 
     fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {

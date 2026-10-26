@@ -3,8 +3,8 @@ use super::Discovery;
 use crate::workbench_client::{
     primary_directory::RootDirectory,
     workbench_projection::{
-        NativeContextLocation, NativeContextTabs, NativeMemberTarget, NativeMenuContextSource,
-        NativeTerminalBinding, project_native_context_tabs,
+        ClientContextLocation, ClientContextTabs, ClientMemberTarget, ClientTerminalBinding,
+        MenuContextSource, project_native_context_tabs,
     },
 };
 use orchbee_workbench_protocol::{
@@ -54,11 +54,11 @@ enum SourceOwner {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::workbench_client) struct AddressedWorktreeSource {
     pub target: SidebarWorktreeTarget,
-    pub cache: NativeContextTabs,
-    pub member: Option<NativeMemberTarget>,
-    pub primary: Option<NativeTerminalBinding>,
+    pub cache: ClientContextTabs,
+    pub member: Option<ClientMemberTarget>,
+    pub primary: Option<ClientTerminalBinding>,
     owner: SourceOwner,
-    source: NativeMenuContextSource,
+    source: MenuContextSource,
     context: TerminalContext,
 }
 
@@ -87,7 +87,7 @@ impl AddressedWorktreeSource {
                 )
             }
         };
-        let location = NativeContextLocation::Workspace {
+        let location = ClientContextLocation::Workspace {
             workspace_id: workspace.workspace_id.clone(),
             terminal_context_id: workspace.terminal_context_id.clone(),
         };
@@ -97,7 +97,7 @@ impl AddressedWorktreeSource {
             .tabs()
             .first()
             .and_then(|tab| tab.panel(0).map(|panel| (tab, panel)));
-        let member = first.map(|(tab, panel)| NativeMemberTarget {
+        let member = first.map(|(tab, panel)| ClientMemberTarget {
             tab: tab.tab_id().clone(),
             panel: panel.panel_id().clone(),
             presentation: panel.primary().presentation_id().clone(),
@@ -119,7 +119,7 @@ impl AddressedWorktreeSource {
 
     pub fn unchanged(&self, snapshot: &Snapshot) -> bool {
         Self::capture(snapshot, &self.target).is_some_and(|current| {
-            self.cache.site_id() == current.cache.site_id()
+            self.cache.session_id() == current.cache.session_id()
                 && self.owner == current.owner
                 && self.source == current.source
                 && self.context == current.context
@@ -140,7 +140,7 @@ impl AddressedWorktreeSource {
                 if self.cache.directory().is_some()
                     && (self.primary.is_some() || self.member.is_none()) =>
             {
-                let NativeContextLocation::Workspace { workspace_id, .. } = self.cache.location()
+                let ClientContextLocation::Workspace { workspace_id, .. } = self.cache.location()
                 else {
                     return None;
                 };
@@ -169,7 +169,7 @@ impl Discovery {
                         .is_some_and(|binding| binding.worker_id() == &self.worker)
             }
             WorktreeSource::Workspace { workspace_id } => {
-                matches!(addressed.cache.location(), NativeContextLocation::Workspace { workspace_id: expected, .. } if expected == workspace_id)
+                matches!(addressed.cache.location(), ClientContextLocation::Workspace { workspace_id: expected, .. } if expected == workspace_id)
                     && self.source.workspace_id.as_ref() == Some(workspace_id)
                     && addressed.cache.directory().is_some_and(|directory| {
                         directory.path == self.source.requested_path

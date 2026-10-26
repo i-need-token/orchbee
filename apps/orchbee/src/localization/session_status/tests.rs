@@ -2,30 +2,28 @@ use super::Locale;
 
 #[test]
 fn native_prebootstrap_starting_remains_connecting_without_a_selected_tab() {
-    use crate::workbench_client::{NativeProjectionStatus, TerminalStatus};
+    use crate::workbench_client::{ClientProjectionStatus, TerminalStatus};
 
     for locale in [Locale::EnUs, Locale::ZhCn] {
         assert_eq!(
-            locale.native_starting_status(None, NativeProjectionStatus::Empty),
+            locale.native_starting_status(None, ClientProjectionStatus::Empty),
             locale.terminal_status(TerminalStatus::Connecting)
         );
         assert_eq!(
-            locale.native_switching_status(None, NativeProjectionStatus::Empty),
+            locale.native_switching_status(None, ClientProjectionStatus::Empty),
             locale.terminal_status(TerminalStatus::Unavailable)
         );
     }
     assert_eq!(
         Locale::EnUs
-            .native_starting_status(Some("Tab 1"), NativeProjectionStatus::WaitingForFullFrame),
+            .native_starting_status(Some("Tab 1"), ClientProjectionStatus::WaitingForFullFrame),
         "Tab 1 · Connecting · waiting for full frame"
     );
 }
 
 #[test]
 fn native_prebootstrap_retirement_overrides_the_synthetic_starting_phase() {
-    use crate::workbench_client::{
-        NativeDisplayPhase, NativeDisplayRetirement, NativeProjectionStatus,
-    };
+    use crate::workbench_client::{ClientProjectionStatus, DisplayPhase, DisplayRetirement};
 
     for (locale, unavailable, outcome_unknown) in [
         (
@@ -37,18 +35,15 @@ fn native_prebootstrap_retirement_overrides_the_synthetic_starting_phase() {
     ] {
         let status = |retirement| {
             locale.native_phase_status_values(
-                NativeDisplayPhase::Starting,
+                DisplayPhase::Starting,
                 None,
                 None,
                 None,
-                NativeProjectionStatus::Empty,
+                ClientProjectionStatus::Empty,
                 Some(retirement),
             )
         };
-        assert_eq!(status(NativeDisplayRetirement::Unavailable), unavailable);
-        assert_eq!(
-            status(NativeDisplayRetirement::OutcomeUnknown),
-            outcome_unknown
-        );
+        assert_eq!(status(DisplayRetirement::Unavailable), unavailable);
+        assert_eq!(status(DisplayRetirement::OutcomeUnknown), outcome_unknown);
     }
 }

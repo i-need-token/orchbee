@@ -15,13 +15,10 @@ enum ControlTarget {
         crate::terminal_copy_mode::CopyControl,
     ),
     Resize(super::ResizeControl),
-    TabClose(crate::workbench_client::NativeCloseConfirmationToken, bool),
-    PanelClose(
-        crate::workbench_client::NativePanelCloseConfirmationToken,
-        bool,
-    ),
-    Rename(crate::workbench_client::NativeRenameDraftToken, bool),
-    Setup(crate::workbench_client::NativeSetupToken, ModalControl),
+    TabClose(crate::workbench_client::CloseConfirmationToken, bool),
+    PanelClose(crate::workbench_client::PanelCloseConfirmationToken, bool),
+    Rename(crate::workbench_client::RenameDraftToken, bool),
+    Setup(crate::workbench_client::SetupToken, ModalControl),
     Worktree(crate::workbench_client::WorktreeToken, ModalControl),
     Close(crate::workbench_client::WorkspaceCloseToken, bool),
 }
@@ -734,10 +731,7 @@ impl PointerState {
             }
             Some(ControlTarget::Setup(token, control)) => match control {
                 ModalControl::NextField => {
-                    port.edit_setup_draft(
-                        token,
-                        crate::workbench_client::NativeSetupEdit::NextField,
-                    );
+                    port.edit_setup_draft(token, crate::workbench_client::SetupEdit::NextField);
                 }
                 ModalControl::Choice(index) => port.choose_setup_project(token, index),
                 ModalControl::Submit => {

@@ -26,7 +26,7 @@ use orchbee_terminal_protocol::{
     encode_transport_envelope, inspect_terminal_frame_route,
 };
 use orchbee_workbench_protocol::{
-    Navigation, PanelNode, Presentation, PresentationBinding, ProtocolVersion, SiteId, Snapshot,
+    Navigation, PanelNode, Presentation, PresentationBinding, ProtocolVersion, SessionId, Snapshot,
     Tab, TerminalContext, TerminalId, TerminalPresentationId, WorkbenchAction,
     WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchPanelId,
     WorkbenchPublicationDocument, WorkbenchPublicationOutcome, WorkbenchPublicationResult,
@@ -46,7 +46,7 @@ use std::{
     time::{Duration, Instant},
 };
 const ID: &str = "11111111111111111111111111111111";
-const SITE_ID: &str = "22222222222222222222222222222222";
+const SESSION_ID: &str = "22222222222222222222222222222222";
 const WORKER_ID: &str = "33333333333333333333333333333333";
 const TERMINAL_ID: &str = "44444444444444444444444444444444";
 const CREATED_TAB_ID: &str = "55555555555555555555555555555555";
@@ -245,7 +245,7 @@ fn available_snapshot(binding: Option<PresentationBinding>) -> WorkbenchSnapshot
             },
             protocol_version: ProtocolVersion,
             revision: WorkbenchRevision::new(1),
-            site_id: SiteId::parse(SITE_ID).unwrap(),
+            session_id: SessionId::parse(SESSION_ID).unwrap(),
             terminal_contexts: vec![TerminalContext {
                 groups: Vec::new(),
                 tabs: vec![Tab {
@@ -281,7 +281,7 @@ fn binding() -> PresentationBinding {
 
 fn binding_attach_outcome() -> io::Result<TerminalViewerOutcome> {
     Ok(TerminalViewerOutcome::Attached {
-        attachment_id: ViewerId::parse(SITE_ID).map_err(io::Error::other)?,
+        attachment_id: ViewerId::parse(SESSION_ID).map_err(io::Error::other)?,
         host_epoch: HostEpoch::parse(ID).map_err(io::Error::other)?,
         host_terminal_id: orchbee_client_server_protocol::HostTerminalId::parse(ID)
             .map_err(io::Error::other)?,
@@ -306,7 +306,7 @@ fn attach_binding(stream: &mut UnixStream) -> io::Result<()> {
     assert_eq!(
         request.action(),
         &TerminalViewerAction::AttachBinding {
-            site_id: orchbee_client_server_protocol::SiteId::parse(SITE_ID)
+            session_id: orchbee_client_server_protocol::SessionId::parse(SESSION_ID)
                 .map_err(io::Error::other)?,
             worker_id: orchbee_client_server_protocol::WorkerId::parse(WORKER_ID)
                 .map_err(io::Error::other)?,
@@ -376,7 +376,7 @@ fn serve_native_controlling_frame_with_snapshot(
     assert_eq!(
         attach.action(),
         &TerminalViewerAction::AttachBinding {
-            site_id: orchbee_client_server_protocol::SiteId::parse(SITE_ID)
+            session_id: orchbee_client_server_protocol::SessionId::parse(SESSION_ID)
                 .map_err(io::Error::other)?,
             worker_id: orchbee_client_server_protocol::WorkerId::parse(WORKER_ID)
                 .map_err(io::Error::other)?,
@@ -542,7 +542,7 @@ fn workbench_client_with_identity(
             notifications: None,
             window_title: None,
             client_control: None,
-            backend: ClientBackend::Native(Box::new(ui::NativeUi::new(
+            backend: ClientBackend::Native(Box::new(ui::WorkbenchClientUi::new(
                 Arc::clone(&mailbox),
                 clock,
             ))),
@@ -577,7 +577,7 @@ fn unsupported_reload_without_a_watcher_reports_before_dispatch() -> TestResult 
         notifications: None,
         window_title: None,
         client_control: None,
-        backend: ClientBackend::Native(Box::new(ui::NativeUi::with_capabilities(
+        backend: ClientBackend::Native(Box::new(ui::WorkbenchClientUi::with_capabilities(
             Arc::clone(&mailbox),
             client.operation_clock(),
             Capabilities::none(),
@@ -660,7 +660,7 @@ fn assert_ready_prefix_client(
     let native = workbench_client.view();
     assert_eq!(
         native.phase(),
-        NativeDisplayPhase::Ready,
+        DisplayPhase::Ready,
         "native display phase changed\n{rendered}"
     );
     assert_eq!(
@@ -740,7 +740,7 @@ fn native_create_action_renders_before_feedback_and_captures_wire_intent() -> Te
         };
         assert_eq!(command.protocol_version, ProtocolVersion);
         assert_eq!(command.request_id.as_str(), native_identity(0x108));
-        assert_eq!(command.site_id.as_str(), SITE_ID);
+        assert_eq!(command.session_id.as_str(), SESSION_ID);
         assert_eq!(command.expected_revision, WorkbenchRevision::new(1));
         let WorkbenchAction::TabCreate {
             terminal_context_id,
@@ -812,7 +812,7 @@ fn native_create_action_renders_before_feedback_and_captures_wire_intent() -> Te
     );
     assert_eq!(
         workbench_client.view().projection_status(),
-        NativeProjectionStatus::FrameAvailable
+        ClientProjectionStatus::FrameAvailable
     );
     // A visible first frame suppresses the connection-only footer while its draw
     // acknowledgement is pending; it does not authorize Ready or input yet.
@@ -1099,7 +1099,7 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
         assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
             let native = workbench_client.view();
             if unavailable {
-                native.phase() == NativeDisplayPhase::MoveProjectionUnavailable
+                native.phase() == DisplayPhase::MoveProjectionUnavailable
             } else {
                 native.active_position() == Some(2)
             }
@@ -1154,7 +1154,7 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
             )?;
             assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
                 let native = workbench_client.view();
-                native.phase() == NativeDisplayPhase::Ready && native.active_position() == Some(2)
+                native.phase() == DisplayPhase::Ready && native.active_position() == Some(2)
             }));
             assert_eq!(workbench_client.status(), TerminalStatus::Controlling);
         }
@@ -1338,7 +1338,7 @@ fn run_taken_forward_expiry_ui_first() -> TestResult {
         assert!(!workbench_client.tick());
     });
     let view = workbench_client.view();
-    assert_eq!(view.phase(), NativeDisplayPhase::Creating);
+    assert_eq!(view.phase(), DisplayPhase::Creating);
     assert_eq!(view.retirement(), None);
     assert_eq!(mailbox.is_closed(), None);
     drop(worker_pause);
@@ -1524,7 +1524,7 @@ fn native_worker_commit_survives_ui_deadline_retirement_and_join() -> TestResult
     assert!(mailbox.await_condition_waiter_before(Instant::now() + Duration::from_secs(1)));
     assert!({
         let view = workbench_client.view();
-        view.phase() == NativeDisplayPhase::Creating
+        view.phase() == DisplayPhase::Creating
     });
 
     clock_phase.store(1, Ordering::SeqCst);
@@ -1532,11 +1532,8 @@ fn native_worker_commit_survives_ui_deadline_retirement_and_join() -> TestResult
     assert_eq!(clock_phase.load(Ordering::SeqCst), 3);
     assert_eq!(mailbox.is_closed(), Some(CarrierFailure::Deadline));
     let view = workbench_client.view();
-    assert_eq!(view.phase(), NativeDisplayPhase::Retired);
-    assert_eq!(
-        view.retirement(),
-        Some(NativeDisplayRetirement::Unavailable)
-    );
+    assert_eq!(view.phase(), DisplayPhase::Retired);
+    assert_eq!(view.retirement(), Some(DisplayRetirement::Unavailable));
     let ClientBackend::Native(native) = &workbench_client.backend;
     assert!(native.committed_target_retained_for_test());
 
@@ -1625,7 +1622,7 @@ fn semantic_create_retirement_finishes_before_the_tick_returns() -> TestResult {
     release_ordinary_poll.send(())?;
     spin(&mut workbench_client, |workbench_client| {
         let view = workbench_client.view();
-        view.phase() == NativeDisplayPhase::CreateCommittedNeedDetach
+        view.phase() == DisplayPhase::CreateCommittedNeedDetach
     });
     snapshot_written
         .recv_timeout(Duration::from_secs(1))
@@ -1645,8 +1642,8 @@ fn semantic_create_retirement_finishes_before_the_tick_returns() -> TestResult {
     );
     assert!({
         let view = workbench_client.view();
-        view.phase() == NativeDisplayPhase::Retired
-            && view.retirement() == Some(NativeDisplayRetirement::Unavailable)
+        view.phase() == DisplayPhase::Retired
+            && view.retirement() == Some(DisplayRetirement::Unavailable)
     });
 
     assert!(
@@ -1785,10 +1782,10 @@ fn closed_action_admission_preserves_a_worker_pending_commit() -> TestResult {
     assert!(workbench_client.task.is_none());
     let ClientBackend::Native(native) = &workbench_client.backend;
     assert!(native.committed_target_retained_for_test());
-    assert_eq!(native.view().phase(), NativeDisplayPhase::Retired);
+    assert_eq!(native.view().phase(), DisplayPhase::Retired);
     assert_eq!(
         native.view().retirement(),
-        Some(NativeDisplayRetirement::Unavailable)
+        Some(DisplayRetirement::Unavailable)
     );
 
     drop(workbench_client);
@@ -1886,7 +1883,7 @@ fn workspace_startup_attaches_only_the_snapshot_binding() -> TestResult {
         assert_eq!(
             request.action(),
             &TerminalViewerAction::AttachBinding {
-                site_id: orchbee_client_server_protocol::SiteId::parse(SITE_ID)
+                session_id: orchbee_client_server_protocol::SessionId::parse(SESSION_ID)
                     .map_err(io::Error::other)?,
                 worker_id: orchbee_client_server_protocol::WorkerId::parse(WORKER_ID)
                     .map_err(io::Error::other)?,
@@ -2258,12 +2255,12 @@ fn workspace_snapshot_does_not_complete_or_reset_the_startup_deadline() -> TestR
     native.close(CarrierFailure::Protocol);
     assert_eq!(
         native.view().retirement(),
-        Some(NativeDisplayRetirement::OutcomeUnknown)
+        Some(DisplayRetirement::OutcomeUnknown)
     );
     native.close(CarrierFailure::Closed);
     assert_eq!(
         native.view().retirement(),
-        Some(NativeDisplayRetirement::OutcomeUnknown)
+        Some(DisplayRetirement::OutcomeUnknown)
     );
     drop(workbench_client);
     server.finish()?;

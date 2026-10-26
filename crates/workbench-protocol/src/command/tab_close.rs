@@ -3,8 +3,8 @@ use std::{fmt, num::NonZeroU64};
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 
 use crate::{
-    ContractError, ProtocolVersion, SiteId, WorkbenchRequestId, WorkbenchRevision, WorkbenchTabId,
-    WorkbenchTerminalContextId,
+    ContractError, ProtocolVersion, SessionId, WorkbenchRequestId, WorkbenchRevision,
+    WorkbenchTabId, WorkbenchTerminalContextId,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -155,7 +155,7 @@ pub struct WorkbenchTabCloseRead {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub terminal_context_id: WorkbenchTerminalContextId,
     pub tab_id: WorkbenchTabId,
 }
@@ -196,7 +196,7 @@ pub struct WorkbenchTabCloseResume {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub terminal_context_id: WorkbenchTerminalContextId,
     pub tab_id: WorkbenchTabId,
     pub close_request_id: WorkbenchRequestId,
@@ -232,7 +232,7 @@ pub struct WorkbenchTabCloseResumeResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub terminal_context_id: WorkbenchTerminalContextId,
     pub tab_id: WorkbenchTabId,
     pub close_request_id: WorkbenchRequestId,

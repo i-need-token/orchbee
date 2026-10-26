@@ -570,19 +570,19 @@ pub(crate) enum CommandPath {
     ChannelSet,
     #[cfg(windows)]
     Update,
-    SiteStart,
-    SiteDiagnose,
-    SiteConfig,
-    SiteReloadConfig,
+    ServerStart,
+    ServerDiagnose,
+    ServerConfig,
+    ServerReloadConfig,
     TerminalTitleSet,
     TerminalTitleClear,
     NotificationShow,
-    SiteAgentManifests,
-    SiteReloadAgentManifests,
-    SiteUpdateAgentManifests,
-    SiteAgentManifestsStatus,
-    SiteStop,
-    SiteStopStatus,
+    ServerAgentManifests,
+    ServerReloadAgentManifests,
+    ServerUpdateAgentManifests,
+    ServerAgentManifestsStatus,
+    ServerStop,
+    ServerStopStatus,
 }
 
 impl CommandPath {
@@ -772,10 +772,10 @@ impl CommandPath {
             Self::ChannelSet => "channel set",
             #[cfg(windows)]
             Self::Update => "update",
-            Self::SiteStart => "server start",
-            Self::SiteDiagnose => "server diagnose",
-            Self::SiteConfig => "server config",
-            Self::SiteReloadConfig => "server reload-config",
+            Self::ServerStart => "server start",
+            Self::ServerDiagnose => "server diagnose",
+            Self::ServerConfig => "server config",
+            Self::ServerReloadConfig => "server reload-config",
             Self::TerminalTitleSet => "terminal title set",
             Self::TerminalTitleClear => "terminal title clear",
             #[cfg(windows)]
@@ -809,12 +809,12 @@ impl CommandPath {
             #[cfg(windows)]
             Self::PluginPaneClose => "plugin pane close",
             Self::NotificationShow => "notification show",
-            Self::SiteAgentManifests => "server agent-manifests",
-            Self::SiteUpdateAgentManifests => "server update-agent-manifests",
-            Self::SiteReloadAgentManifests => "server reload-agent-manifests",
-            Self::SiteAgentManifestsStatus => "server agent-manifests-status",
-            Self::SiteStop => "server stop",
-            Self::SiteStopStatus => "server stop-status",
+            Self::ServerAgentManifests => "server agent-manifests",
+            Self::ServerUpdateAgentManifests => "server update-agent-manifests",
+            Self::ServerReloadAgentManifests => "server reload-agent-manifests",
+            Self::ServerAgentManifestsStatus => "server agent-manifests-status",
+            Self::ServerStop => "server stop",
+            Self::ServerStopStatus => "server stop-status",
         }
     }
 }
@@ -1302,7 +1302,7 @@ pub(crate) enum PanelMoveDestination {
 }
 
 /// One `agent integration` command admitted by the grammar — a local
-/// provider-onboarding operation that never touches a Site. `provider` is
+/// provider-onboarding operation that never touches a Session. `provider` is
 /// optional on `list` (a filter) and required on every other verb;
 /// `adapter_source` is the development/test override already validated as
 /// a literal absolute path.
@@ -1369,7 +1369,7 @@ pub(crate) enum ManifestCommand {
     },
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum SiteStopCommand {
+pub(crate) enum ServerStopCommand {
     Stop {
         id: Option<orchbee_local_client_protocol::StopId>,
         retry: bool,
@@ -1393,7 +1393,7 @@ fn stop_id(
                 context,
                 option,
                 value: value.to_owned(),
-                expected: ExpectedValue::SiteStopId,
+                expected: ExpectedValue::ServerStopRequestId,
             },
             envelope,
         )
@@ -1566,8 +1566,8 @@ pub(crate) enum Request {
         command: ParsedWorktreeCommand,
         format: OutputFormat,
     },
-    SiteStop {
-        command: SiteStopCommand,
+    ServerStop {
+        command: ServerStopCommand,
         format: OutputFormat,
     },
     /// `mouse` is the `--mouse off|on` selection: whether host pointer
@@ -1601,7 +1601,7 @@ pub(crate) enum Request {
     },
     /// `server start`: the headless connect-or-activate command — neither a
     /// Workbench query nor a mutation; it runs the shared activation core.
-    SiteStart {
+    ServerStart {
         format: OutputFormat,
     },
     #[cfg(windows)]
@@ -1615,14 +1615,14 @@ pub(crate) enum Request {
     },
     #[cfg(windows)]
     Update {
-        channel: Option<orchbee_local_site_runtime::WindowsUpdateChannel>,
+        channel: Option<orchbee_local_runtime::UpdateChannel>,
         format: OutputFormat,
     },
     #[cfg(windows)]
     ConfigResetKeys {
         format: OutputFormat,
     },
-    /// Read or reload the running Site's configuration; never activates a Site.
+    /// Read or reload the running Session's configuration; never activates a Session.
     WindowTitle {
         title: Option<orchbee_workbench_protocol::WindowTitle>,
         format: OutputFormat,
@@ -1639,12 +1639,12 @@ pub(crate) enum Request {
         command: ManifestCommand,
         format: OutputFormat,
     },
-    SiteDiagnose {
+    ServerDiagnose {
         format: OutputFormat,
     },
     /// `agent integration`: the local provider-onboarding surface — runs
     /// entirely off ambient PATH and the cohort sidecar, never contacts a
-    /// Site.
+    /// Session.
     AgentStart {
         command: AgentStartCommand,
         format: OutputFormat,
@@ -1664,7 +1664,7 @@ pub(crate) enum Request {
 pub(crate) struct SelectedRequest {
     pub(crate) request: Request,
     #[cfg(windows)]
-    pub(crate) site: Option<orchbee_local_site_runtime::WindowsSiteName>,
+    pub(crate) session: Option<orchbee_local_runtime::SessionName>,
 }
 
 /// How a parse failure is allowed to answer on stdout.
@@ -1767,7 +1767,7 @@ pub(crate) enum ExpectedValue {
     MetadataSequence,
     MetadataTtl,
     #[cfg(windows)]
-    SiteName,
+    SessionName,
     RightClick,
     PanelLabel,
     OutputFilePath,
@@ -1803,7 +1803,7 @@ pub(crate) enum ExpectedValue {
     AgentStartTimeout,
     AgentStartProvider,
     AgentStartArgument,
-    SiteStopId,
+    ServerStopRequestId,
     ManifestOperationId,
     SendText,
     SendKey,
@@ -2020,7 +2020,7 @@ struct Options {
     metadata: workspace_metadata::Options,
     panel_metadata: panel_metadata::Options,
     #[cfg(windows)]
-    site: Option<String>,
+    session: Option<String>,
     output: Option<String>,
     client: Option<String>,
     focus: bool,
@@ -2750,17 +2750,17 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
         }
     }
     #[cfg(windows)]
-    let mut site = options
-        .site
+    let mut session = options
+        .session
         .take()
         .map(|name| {
-            orchbee_local_site_runtime::WindowsSiteName::parse(&name).map_err(|_| {
+            orchbee_local_runtime::SessionName::parse(&name).map_err(|_| {
                 usage_with(
                     UsageReason::InvalidValue {
                         context: UsageContext::Root,
                         option: "--session",
                         value: name,
-                        expected: ExpectedValue::SiteName,
+                        expected: ExpectedValue::SessionName,
                     },
                     envelope,
                 )
@@ -2769,7 +2769,7 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
         .transpose()?;
     let request = resolve(positionals, options)?;
     #[cfg(windows)]
-    if matches!(&request, Request::DefaultConfig) && site.is_some() {
+    if matches!(&request, Request::DefaultConfig) && session.is_some() {
         return Err(usage_with(
             UsageReason::UnexpectedOption {
                 context: UsageContext::Literal("orchbee --default-config"),
@@ -2782,7 +2782,7 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
     if let Request::NamedSession { command, .. } = &request
         && let Some(name) = command.name()
     {
-        if site.as_ref().is_some_and(|selected| selected != name) {
+        if session.as_ref().is_some_and(|selected| selected != name) {
             return Err(usage_with(
                 UsageReason::ConflictingOptions {
                     context: UsageContext::Path("session"),
@@ -2792,12 +2792,12 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
                 envelope,
             ));
         }
-        site = Some(name.clone());
+        session = Some(name.clone());
     }
     Ok(SelectedRequest {
         request,
         #[cfg(windows)]
-        site,
+        session,
     })
 }
 
@@ -2890,7 +2890,7 @@ fn apply_value_flag(
         "--seq" => &mut options.metadata.sequence,
         "--ttl-ms" => &mut options.metadata.ttl,
         #[cfg(windows)]
-        "--session" => &mut options.site,
+        "--session" => &mut options.session,
         "--output" => &mut options.output,
         "--branch" => &mut options.branch,
         "--base" => &mut options.base,
@@ -4508,9 +4508,9 @@ fn resolve_words(
             reject_filters(options, UsageContext::Path("channel set"), envelope)?;
             Ok(Request::Update {
                 channel: Some(if *channel == "stable" {
-                    orchbee_local_site_runtime::WindowsUpdateChannel::Stable
+                    orchbee_local_runtime::UpdateChannel::Stable
                 } else {
-                    orchbee_local_site_runtime::WindowsUpdateChannel::Preview
+                    orchbee_local_runtime::UpdateChannel::Preview
                 }),
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
@@ -4521,7 +4521,7 @@ fn resolve_words(
         }
         ["server", "start"] => {
             reject_filters(options, UsageContext::Path("server start"), envelope)?;
-            Ok(Request::SiteStart {
+            Ok(Request::ServerStart {
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
@@ -4717,19 +4717,19 @@ fn resolve_words(
         )),
         ["server", "diagnose"] => {
             reject_filters(options, UsageContext::Path("server diagnose"), envelope)?;
-            Ok(Request::SiteDiagnose {
+            Ok(Request::ServerDiagnose {
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
-        ["server", "stop"] => Ok(Request::SiteStop {
+        ["server", "stop"] => Ok(Request::ServerStop {
             command: stop_command(options, UsageContext::Path("server stop"), envelope)?,
             format: options.format.unwrap_or(OutputFormat::Text),
         }),
         ["server", "stop-status", id] => {
             let context = UsageContext::Path("server stop-status");
             reject_filters(options, context, envelope)?;
-            Ok(Request::SiteStop {
-                command: SiteStopCommand::Status {
+            Ok(Request::ServerStop {
+                command: ServerStopCommand::Status {
                     id: stop_id(id, context, "<request-id>", envelope)?,
                 },
                 format: options.format.unwrap_or(OutputFormat::Text),
@@ -7842,7 +7842,7 @@ fn stop_command(
     options: &Options,
     context: UsageContext,
     envelope: FailureEnvelope,
-) -> Result<SiteStopCommand, ParseFailure> {
+) -> Result<ServerStopCommand, ParseFailure> {
     check_scope(
         options,
         Scope {
@@ -7872,7 +7872,7 @@ fn stop_command(
     } else {
         65_000
     };
-    Ok(SiteStopCommand::Stop {
+    Ok(ServerStopCommand::Stop {
         id,
         retry: options.retry,
         detach: options.detach,

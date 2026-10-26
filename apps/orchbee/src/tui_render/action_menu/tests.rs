@@ -4,7 +4,7 @@ use crate::{
     client_view::{ClientAction, ClientView, KeyEvent, PrefixAction},
     tui_pointer::{FrameHitMap, HitLayer, HitTarget},
 };
-use orchbee_local_site_runtime::{WindowsKeyChord, WindowsKeySettings};
+use orchbee_local_runtime::{KeyChord, KeySettings};
 use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, style::Style, text::Span};
 
 mod sidebar;
@@ -247,7 +247,7 @@ fn no_results_keeps_a_drawn_query_surface_without_an_activatable_row() {
 
 #[test]
 fn object_rename_rows_use_short_localized_copy_for_their_exact_actions() {
-    use crate::{action_menu::MenuTarget, workbench_client::NativeContextLocation};
+    use crate::{action_menu::MenuTarget, workbench_client::ClientContextLocation};
     use orchbee_workbench_protocol::{
         WorkbenchProjectId, WorkbenchTabId, WorkbenchTerminalContextId, WorkbenchWorkspaceId,
     };
@@ -255,7 +255,7 @@ fn object_rename_rows_use_short_localized_copy_for_their_exact_actions() {
     let tab = WorkbenchTabId::parse(&format!("{:032x}", 1)).unwrap();
     let cases = [
         (
-            MenuTarget::Workspace(NativeContextLocation::Workspace {
+            MenuTarget::Workspace(ClientContextLocation::Workspace {
                 workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 2)).unwrap(),
                 terminal_context_id: WorkbenchTerminalContextId::parse(&format!("{:032x}", 3))
                     .unwrap(),
@@ -896,10 +896,10 @@ fn configured_prefix(
     alt: bool,
     shift: bool,
     super_key: bool,
-) -> WindowsKeySettings {
-    WindowsKeySettings {
+) -> KeySettings {
+    KeySettings {
         commands: Vec::new(),
-        prefix: WindowsKeyChord {
+        prefix: KeyChord {
             key: key.into(),
             ctrl,
             alt,

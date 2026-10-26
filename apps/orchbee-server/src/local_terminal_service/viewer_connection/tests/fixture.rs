@@ -1,5 +1,5 @@
 use super::super::*;
-use crate::site_coordinator::PreparedTerminalTabCreate;
+use crate::session_coordinator::PreparedTerminalTabCreate;
 use crate::terminal_coordinator::{Completion, WorkerPlacement};
 use crate::worker_obcn_carrier::create_worker_carrier;
 use crate::worker_registry::{WorkerAdmission, WorkerRegistry};
@@ -116,7 +116,7 @@ impl Fixture {
             thread::spawn(move || worker::run(peer, observation, refusals, faults, static_codex));
         let mut service = LocalTerminalService::from_identity(
             registry,
-            Ok(orchbee_workbench_protocol::SiteId::parse(&format!("{:032x}", 1)).unwrap()),
+            Ok(orchbee_workbench_protocol::SessionId::parse(&format!("{:032x}", 1)).unwrap()),
         );
         configure(&mut service);
         let service = Arc::new(service);
@@ -167,7 +167,7 @@ impl Fixture {
             .map(|binding| binding.terminal_id.as_str().to_owned())
             .unwrap_or_else(|| format!("{:032x}", 90000 + target));
         Action::AttachBinding {
-            site_id: ClientSiteId::parse(snapshot.site_id.as_str()).unwrap(),
+            session_id: ObcsSessionId::parse(snapshot.session_id.as_str()).unwrap(),
             worker_id: ClientWorkerId::parse(&format!("{:032x}", u128::from_be_bytes([9; 16])))
                 .unwrap(),
             terminal_id: ClientTerminalId::parse(&terminal_id).unwrap(),
@@ -314,7 +314,7 @@ fn add_terminal(service: &LocalTerminalService, index: u8, plugin: bool) -> Work
     let create = WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: workbench_id(10 + u128::from(index) * 100),
-        site_id: snapshot.site_id,
+        session_id: snapshot.session_id,
         expected_revision: snapshot.revision,
         action: WorkbenchAction::TabCreate {
             placement: None,
@@ -338,8 +338,8 @@ fn add_terminal(service: &LocalTerminalService, index: u8, plugin: bool) -> Work
             }),
         },
     };
-    let mut site = service.coordinator.lock().unwrap();
-    let PreparedTerminalTabCreate::Dispatch(pending) = site.prepare_terminal_tab_create(
+    let mut session = service.coordinator.lock().unwrap();
+    let PreparedTerminalTabCreate::Dispatch(pending) = session.prepare_terminal_tab_create(
         create,
         Some(client_id(11 + u128::from(index) * 100)),
         super::super::super::lease_expiry(),
@@ -366,9 +366,10 @@ fn add_terminal(service: &LocalTerminalService, index: u8, plugin: bool) -> Work
         )),
     )
     .unwrap();
-    site.complete_terminal_tab_create(pending, Completion::Launch(result), Some(placement_value()))
+    session
+        .complete_terminal_tab_create(pending, Completion::Launch(result), Some(placement_value()))
         .unwrap();
-    drop(site);
+    drop(session);
     let snapshot = read_snapshot(service);
     let tab_id = snapshot.terminal_contexts[0]
         .tabs
@@ -379,7 +380,7 @@ fn add_terminal(service: &LocalTerminalService, index: u8, plugin: bool) -> Work
     WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: workbench_id(20 + u128::from(index) * 100),
-        site_id: snapshot.site_id,
+        session_id: snapshot.session_id,
         expected_revision: snapshot.revision,
         action: WorkbenchAction::TabClose {
             terminal_context_id: snapshot.navigation.workspaces[0]

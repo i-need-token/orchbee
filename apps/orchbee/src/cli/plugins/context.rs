@@ -109,7 +109,7 @@ pub(in crate::cli) fn observe(
         // Even an empty Workspace is an observation, never a pending switch intent.
         let fresh = query::refresh_snapshot(
             client,
-            &snapshot.site_id,
+            &snapshot.session_id,
             snapshot.revision,
             deadline,
             signals,
@@ -120,7 +120,7 @@ pub(in crate::cli) fn observe(
         if let Some(original) = selected {
             let reply = exchange(
                 client,
-                &snapshot.site_id,
+                &snapshot.session_id,
                 ClientViewAction::Get {
                     client_id: original.client_id.clone(),
                 },

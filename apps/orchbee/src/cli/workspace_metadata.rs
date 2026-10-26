@@ -10,8 +10,8 @@ use crate::{
 mod windows;
 #[cfg(any(windows, test))]
 use orchbee_workbench_protocol::{
-    SiteId, WorkbenchRequestId, WorkbenchResponse, WorkbenchWorkspaceId, WorkspaceMetadataFailure,
-    WorkspaceMetadataOutcome, WorkspaceMetadataResult,
+    SessionId, WorkbenchRequestId, WorkbenchResponse, WorkbenchWorkspaceId,
+    WorkspaceMetadataFailure, WorkspaceMetadataOutcome, WorkspaceMetadataResult,
 };
 #[cfg(any(windows, test))]
 #[derive(Debug)]
@@ -23,7 +23,7 @@ enum Observation {
 #[derive(Debug)]
 struct Answer {
     request_id: WorkbenchRequestId,
-    site_id: SiteId,
+    session_id: SessionId,
     workspace_id: WorkbenchWorkspaceId,
     observation: Observation,
     interrupted: bool,
@@ -39,7 +39,7 @@ impl Answer {
             Observation::Unknown(reason) => serde_json::json!({"kind":"unknown", "reason":reason}),
         };
         serde_json::json!({"schema":"orchbee.workspace.metadata", "version":1,
-            "requestId":self.request_id,"sessionId":self.site_id,"workspaceId":self.workspace_id,
+            "requestId":self.request_id,"sessionId":self.session_id,"workspaceId":self.workspace_id,
             "observation":observation,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed})
     }
     fn exit_code(&self) -> u8 {
@@ -57,7 +57,7 @@ impl Answer {
                 WorkspaceMetadataOutcome::Failed { reason } => match reason {
                     WorkspaceMetadataFailure::Denied
                     | WorkspaceMetadataFailure::NotFound
-                    | WorkspaceMetadataFailure::SiteMismatch
+                    | WorkspaceMetadataFailure::SessionMismatch
                     | WorkspaceMetadataFailure::TokenLimit
                     | WorkspaceMetadataFailure::SequenceSourceLimit
                     | WorkspaceMetadataFailure::ResourceLimit => 3,

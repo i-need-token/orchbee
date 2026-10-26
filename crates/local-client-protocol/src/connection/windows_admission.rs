@@ -26,8 +26,8 @@ pub(super) fn server_metadata(
             }
             LocalClientMessage::ClientHello(..)
             | LocalClientMessage::ClientAccepted { .. }
-            | LocalClientMessage::SiteStopRequest(..)
-            | LocalClientMessage::SiteStopResult(..)
+            | LocalClientMessage::SessionStopRequest(..)
+            | LocalClientMessage::SessionStopResult(..)
             | LocalClientMessage::ServerMetadataRequest => {
                 return Err(ConnectClientError::UnexpectedResponse);
             }
@@ -65,8 +65,8 @@ pub(super) fn connect(
                 return Err(ConnectClientError::Rejected(reason));
             }
             LocalClientMessage::ClientHello(_)
-            | LocalClientMessage::SiteStopRequest(_)
-            | LocalClientMessage::SiteStopResult(_)
+            | LocalClientMessage::SessionStopRequest(_)
+            | LocalClientMessage::SessionStopResult(_)
             | LocalClientMessage::ServerMetadataRequest
             | LocalClientMessage::ServerMetadata(_) => {
                 return Err(ConnectClientError::UnexpectedResponse);
@@ -140,12 +140,12 @@ fn connect_stream_with<T>(
 #[cfg(test)]
 mod tests;
 
-pub(super) fn site_stop(
+pub(super) fn session_stop(
     endpoint: &Path,
-    request: crate::SiteStopRequest,
+    request: crate::SessionStopRequest,
     deadline: Instant,
     wake: Option<LocalIo<'_>>,
-) -> Result<crate::SiteStopResult, super::SiteStopExchangeError> {
+) -> Result<crate::SessionStopResult, super::SessionStopExchangeError> {
     let mut submitted = false;
     let result = (|| {
         let stream = connect_stream(endpoint, deadline, wake)?;
@@ -159,18 +159,18 @@ pub(super) fn site_stop(
             let id = request.id;
             write_message(
                 &mut transport,
-                &LocalClientMessage::SiteStopRequest(request),
+                &LocalClientMessage::SessionStopRequest(request),
             )?;
             submitted = true;
             let result = match read_message(&mut transport)? {
-                LocalClientMessage::SiteStopResult(result) if result.id == id => result,
+                LocalClientMessage::SessionStopResult(result) if result.id == id => result,
                 LocalClientMessage::Rejected { reason } => {
                     return Err(ConnectClientError::Rejected(reason));
                 }
                 LocalClientMessage::ClientHello(..)
                 | LocalClientMessage::ClientAccepted { .. }
-                | LocalClientMessage::SiteStopRequest(..)
-                | LocalClientMessage::SiteStopResult(..)
+                | LocalClientMessage::SessionStopRequest(..)
+                | LocalClientMessage::SessionStopResult(..)
                 | LocalClientMessage::ServerMetadataRequest
                 | LocalClientMessage::ServerMetadata(..) => {
                     return Err(ConnectClientError::UnexpectedResponse);
@@ -185,7 +185,7 @@ pub(super) fn site_stop(
         }
         exchange
     })();
-    result.map_err(|failure| super::SiteStopExchangeError { failure, submitted })
+    result.map_err(|failure| super::SessionStopExchangeError { failure, submitted })
 }
 
 fn check_wake(wake: Option<LocalIo<'_>>) -> Result<(), ConnectClientError> {

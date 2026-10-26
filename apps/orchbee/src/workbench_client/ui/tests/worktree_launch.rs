@@ -9,10 +9,10 @@ use crate::{
 use orchbee_workbench_protocol::{WorkbenchDirectoryPath, WorkbenchRequestId, WorktreeSource};
 use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, style::Modifier};
 
-pub(in crate::workbench_client::ui) fn ready(mode: WorktreeMode) -> NativeUi {
+pub(in crate::workbench_client::ui) fn ready(mode: WorktreeMode) -> WorkbenchClientUi {
     ready_with_project(mode, true)
 }
-fn ready_with_project(mode: WorktreeMode, with_project: bool) -> NativeUi {
+fn ready_with_project(mode: WorktreeMode, with_project: bool) -> WorkbenchClientUi {
     let (mut ui, _, clock, _) = super::super::tests::workspace_setup::ready(with_project);
     let p = ui
         .state
@@ -42,7 +42,12 @@ fn ready_with_project(mode: WorktreeMode, with_project: bool) -> NativeUi {
     );
     ui
 }
-fn draw(ui: &mut NativeUi, locale: crate::localization::Locale, width: u16, height: u16) -> String {
+fn draw(
+    ui: &mut WorkbenchClientUi,
+    locale: crate::localization::Locale,
+    width: u16,
+    height: u16,
+) -> String {
     draw_with_theme(
         ui,
         locale,
@@ -52,7 +57,7 @@ fn draw(ui: &mut NativeUi, locale: crate::localization::Locale, width: u16, heig
     )
 }
 fn draw_with_theme(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     locale: crate::localization::Locale,
     width: u16,
     height: u16,
@@ -80,14 +85,14 @@ fn visible_row(buffer: &Buffer, width: u16, y: u16) -> String {
 }
 
 fn draw_frame_with_theme(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     locale: crate::localization::Locale,
     width: u16,
     height: u16,
     theme: &crate::tui_theme::Theme,
 ) -> DrawnWorktree {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-    let mut receipt = NativeDrawReceipt::default();
+    let mut receipt = DrawReceipt::default();
     let mut hits = HitMapBuilder::new();
     terminal
         .draw(|frame| {

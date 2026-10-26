@@ -9,7 +9,7 @@ use super::{
         SetupEventDisposition,
     },
     terminal_viewport::{ViewportReadRejection, ViewportStep},
-    workbench_projection::NativeContextTabs,
+    workbench_projection::ClientContextTabs,
 };
 use crate::{
     local_client::{
@@ -760,8 +760,8 @@ pub(super) enum WorkerEvent {
         outcome: super::state::PanelResult,
     },
     Bootstrap {
-        cache: NativeContextTabs,
-        selection: Option<super::workbench_projection::NativeMemberTarget>,
+        cache: ClientContextTabs,
+        selection: Option<super::workbench_projection::ClientMemberTarget>,
     },
     SetupConfigured {
         key: PaneRef,

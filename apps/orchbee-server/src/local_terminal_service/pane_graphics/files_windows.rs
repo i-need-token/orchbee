@@ -1,7 +1,7 @@
-//! Bounded Site-owned file roots and temporary read/preparation leases; canonical topology owns only directory identities.
-use orchbee_local_site_runtime::WindowsPrivateFrameDirectory;
+//! Bounded Session-owned file roots and temporary read/preparation leases; canonical topology owns only directory identities.
+use crate::frame_directory::PrivateFrameDirectory;
 use orchbee_workbench_protocol::{
-    PaneGraphicsFailure as Failure, SemanticPane, SiteId, WorkbenchRequestId,
+    PaneGraphicsFailure as Failure, SemanticPane, SessionId, WorkbenchRequestId,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -13,7 +13,7 @@ use std::{
 const MAXIMUM_ROOTS: usize = 128;
 #[derive(Default)]
 struct Roots {
-    directories: BTreeMap<String, Arc<WindowsPrivateFrameDirectory>>,
+    directories: BTreeMap<String, Arc<PrivateFrameDirectory>>,
     preparing_or_reaping: usize,
 }
 
@@ -25,7 +25,7 @@ pub(in crate::local_terminal_service) struct GraphicsFiles {
 }
 /// Keeps one exact root alive through preparation; release wakes the existing maintenance owner.
 pub(in crate::local_terminal_service) struct FileLease {
-    root: Option<Arc<WindowsPrivateFrameDirectory>>,
+    root: Option<Arc<PrivateFrameDirectory>>,
     wake: Arc<dyn Fn() + Send + Sync>,
 }
 impl FileLease {
@@ -79,7 +79,7 @@ impl GraphicsFiles {
     /// Allocates an owned private root with an explicit recovery note; failure remains registered for cleanup.
     pub(in crate::local_terminal_service) fn create(
         &self,
-        site: &SiteId,
+        session: &SessionId,
         source: &SemanticPane,
         connection: NonZeroU64,
         stream: &WorkbenchRequestId,
@@ -91,9 +91,9 @@ impl GraphicsFiles {
         }
         let nonce = format!("{:032x}", u128::from_be_bytes(nonce));
         let note = serde_json::to_vec(&serde_json::json!({
-            "version": 1, "sessionId": site, "source": source, "connection": connection.get(),
+            "version": 1, "sessionId": session, "source": source, "connection": connection.get(),
             "streamId": stream, "processId": std::process::id(), "nonce": nonce,
-            "owner": "site-graphics-producer", "release": "producer retired and last reader settled"
+            "owner": "session-graphics-producer", "release": "producer retired and last reader settled"
         }))
         .map_err(|_| Failure::Unavailable)?;
         {
@@ -103,7 +103,7 @@ impl GraphicsFiles {
             }
             roots.preparing_or_reaping += 1;
         }
-        let reserved = WindowsPrivateFrameDirectory::reserve(&self.runtime, &nonce);
+        let reserved = PrivateFrameDirectory::reserve(&self.runtime, &nonce);
         let mut root = match reserved {
             Ok(root) => root,
             Err(_) => {

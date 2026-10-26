@@ -249,7 +249,7 @@ fn child_source(split: bool) -> orchbee_workbench_protocol::Snapshot {
     source
 }
 fn painted_selector(
-    ui: &NativeUi,
+    ui: &WorkbenchClientUi,
     width: u16,
     height: u16,
     capture: Option<&str>,
@@ -281,7 +281,7 @@ fn painted_selector(
     let panes = hits.painted_panes().count();
     (terminal.backend().buffer().clone(), hits.finish(), panes)
 }
-struct PointerUi<'a>(&'a mut NativeUi);
+struct PointerUi<'a>(&'a mut WorkbenchClientUi);
 impl crate::terminal_input::TerminalInputPort for PointerUi<'_> {
     fn forward(&mut self, _: &[u8]) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
         panic!("member navigation never forwards terminal bytes")
@@ -296,7 +296,7 @@ impl crate::terminal_input::TerminalInputPort for PointerUi<'_> {
 
 fn activate_painted_presentation(
     pointer: &mut crate::tui_pointer::PointerState,
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     column: u16,
     row: u16,
 ) -> ClientActionDisposition {
@@ -491,7 +491,7 @@ fn painted_member_arrows_select_exact_children_in_single_split_and_zoom_views() 
         assert_eq!(view.focus_panel_id(), Some(&panel_id));
         assert_eq!(
             view.focused_member(),
-            Some(crate::workbench_client::NativeMemberTarget {
+            Some(crate::workbench_client::ClientMemberTarget {
                 tab: view.tab(0).unwrap().tab_id().clone(),
                 panel: panel_id.clone(),
                 presentation: destination.clone(),
@@ -794,7 +794,7 @@ fn empty_source() -> orchbee_workbench_protocol::Snapshot {
 }
 
 fn empty_ui() -> (
-    NativeUi,
+    WorkbenchClientUi,
     Arc<CommandMailbox>,
     Arc<std::sync::atomic::AtomicU64>,
 ) {
@@ -806,7 +806,7 @@ fn empty_ui() -> (
         10,
         Geometry::new(80, 24, 8, 16).unwrap(),
     ));
-    let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    let mut ui = WorkbenchClientUi::new(Arc::clone(&mailbox), clock.clone());
     let source = empty_source();
     let cache = crate::workbench_client::workbench_projection::project_preferred_workspace(&source)
         .unwrap();

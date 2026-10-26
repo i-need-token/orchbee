@@ -24,10 +24,10 @@ mod reorder;
 mod tab_metadata;
 mod workspace_replacement;
 
-const SITE_VALUE: u128 = 1;
+const SESSION_VALUE: u128 = 1;
 const WORKSPACE_CONTEXT_VALUE: u128 = 2;
 
-fn projected(tab_count: usize, revision: u64) -> NativeContextTabs {
+fn projected(tab_count: usize, revision: u64) -> ClientContextTabs {
     project_preferred_workspace(&snapshot(tab_count, revision)).unwrap()
 }
 
@@ -57,7 +57,7 @@ fn snapshot(tab_count: usize, revision: u64) -> Snapshot {
         },
         protocol_version: ProtocolVersion,
         revision: WorkbenchRevision::new(revision),
-        site_id: site_id(SITE_VALUE),
+        session_id: session_id(SESSION_VALUE),
         terminal_contexts: vec![terminal_context(WORKSPACE_CONTEXT_VALUE, tab_count)],
     }
 }
@@ -106,7 +106,7 @@ fn created_candidate(
     candidate_tab_count: usize,
     revision: u64,
     requested_label: &str,
-) -> NativeContextTabs {
+) -> ClientContextTabs {
     let mut candidate = snapshot(candidate_tab_count, revision);
     let created = &mut candidate.terminal_contexts[0].tabs[current_tab_count];
     created.label = requested_label.into();
@@ -122,7 +122,7 @@ fn created_candidate(
 }
 
 fn expectation_for(
-    candidate: &NativeContextTabs,
+    candidate: &ClientContextTabs,
     index: usize,
     committed_revision: u64,
     requested_label: &str,
@@ -147,8 +147,8 @@ fn label(value: &str) -> WorkbenchLabel {
     WorkbenchLabel::parse(value).unwrap()
 }
 
-fn site_id(value: u128) -> SiteId {
-    SiteId::parse(&id(value)).unwrap()
+fn session_id(value: u128) -> SessionId {
+    SessionId::parse(&id(value)).unwrap()
 }
 
 fn context_id(value: u128) -> WorkbenchTerminalContextId {

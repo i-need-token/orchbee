@@ -1,7 +1,7 @@
 use super::*;
 use crate::local_client::workbench::workspace_setup::WorkbenchSetupCommit;
 use crate::workbench_client::state::workspace_setup::{
-    NativeSetupEdit, NativeSetupToken, SetupResult, SetupWorkerEvidence,
+    SetupEdit, SetupResult, SetupToken, SetupWorkerEvidence,
 };
 use orchbee_workbench_protocol::WorkbenchProjectId;
 
@@ -123,7 +123,7 @@ fn project_rename_fixture(
     let context = WorkbenchTerminalContextId::parse(&id(3)).unwrap();
     let snapshot = Snapshot {
         protocol_version: ProtocolVersion,
-        site_id: SiteId::parse(&id(2)).unwrap(),
+        session_id: SessionId::parse(&id(2)).unwrap(),
         revision: WorkbenchRevision::new(1),
         navigation: {
             let fixture_context_id = context.clone();
@@ -241,23 +241,23 @@ fn targeted_project_rename_rechecks_deadline_after_acquiring_lock() {
     }
 }
 
-fn draft(state: &mut WorkbenchClientState) -> NativeSetupToken {
+fn draft(state: &mut WorkbenchClientState) -> SetupToken {
     let token = state
         .open_setup_draft(
-            crate::workbench_client::state::workspace_setup::NativeSetupIntent::TabGroupName(
-                Box::new(orchbee_workbench_protocol::TabConfiguration::CreateGroup {
+            crate::workbench_client::state::workspace_setup::SetupIntent::TabGroupName(Box::new(
+                orchbee_workbench_protocol::TabConfiguration::CreateGroup {
                     tab_id: state.cache().tabs()[0].tab_id().clone(),
                     label: orchbee_workbench_protocol::WorkbenchTabGroupLabel::parse("Group")
                         .unwrap(),
                     color: orchbee_workbench_protocol::TabGroupColor::Blue,
-                }),
-            ),
+                },
+            )),
         )
         .unwrap();
     state.acknowledge_setup_draw(Some(token));
     let token = state.setup_draft().unwrap().token();
-    state.edit_setup_draft(token, NativeSetupEdit::Clear);
-    state.edit_setup_draft(token, NativeSetupEdit::Append("Group"));
+    state.edit_setup_draft(token, SetupEdit::Clear);
+    state.edit_setup_draft(token, SetupEdit::Append("Group"));
     state.acknowledge_setup_draw(Some(token));
     token
 }
@@ -392,6 +392,6 @@ fn queued_setup_is_definitely_not_applied_when_earlier_carrier_work_retires() {
     assert!(!state.setup_blocks_structure());
     assert_eq!(
         state.setup_status(),
-        Some(crate::workbench_client::state::workspace_setup::NativeSetupStatus::TabsNotApplied)
+        Some(crate::workbench_client::state::workspace_setup::SetupStatus::TabsNotApplied)
     );
 }

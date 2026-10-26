@@ -1,12 +1,12 @@
 //! Read-only target projection using canonical membership and the observing Client's geometry.
 mod adjustment;
 mod divider;
-use super::NativeUi;
+use super::WorkbenchClientUi;
 use crate::{
     client_view::SidebarSurface,
     tui_layout::{self, ViewportTier},
     workbench_client::workbench_projection::{
-        NativeSimpleTab, project_native_context_tabs, project_preferred_workspace,
+        ClientTab, project_native_context_tabs, project_preferred_workspace,
     },
 };
 use orchbee_workbench_protocol::{
@@ -16,7 +16,7 @@ use orchbee_workbench_protocol::{
 };
 use ratatui::layout::Rect;
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn read_client_selections(
         &self,
         command: &ClientViewControl,
@@ -30,7 +30,7 @@ impl NativeUi {
         };
         command.validate().map_err(|_| Reason::TargetUnavailable)?;
         let state = self.state.as_ref().ok_or(Reason::ProjectionUnavailable)?;
-        if snapshot.site_id != *state.cache().site_id()
+        if snapshot.session_id != *state.cache().session_id()
             || snapshot.revision < command.minimum_workbench_revision
         {
             return Err(Reason::ProjectionUnavailable);
@@ -96,7 +96,7 @@ impl NativeUi {
             _ => return Err(Reason::Unsupported),
         };
         let state = self.state.as_ref().ok_or(Reason::ProjectionUnavailable)?;
-        if snapshot.site_id != *state.cache().site_id()
+        if snapshot.session_id != *state.cache().session_id()
             || snapshot.revision < command.minimum_workbench_revision
         {
             return Err(Reason::ProjectionUnavailable);
@@ -182,7 +182,7 @@ impl NativeUi {
 fn project_geometry(
     viewport: Rect,
     sidebar: SidebarSurface,
-    tab: &NativeSimpleTab,
+    tab: &ClientTab,
     active_panel: Option<usize>,
     zoomed: bool,
     ratios: &impl Fn(

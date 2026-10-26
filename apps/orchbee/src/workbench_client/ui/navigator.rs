@@ -1,6 +1,6 @@
 //! Exact navigator admission shares the original mailbox and Client selection operations.
 use super::{
-    ActionBuildError, AdmissionError, NativeUi, OperationDeadlines, WorkbenchClientState,
+    ActionBuildError, AdmissionError, OperationDeadlines, WorkbenchClientState, WorkbenchClientUi,
     build_switch, finish_action,
 };
 use crate::client_view::{
@@ -24,7 +24,7 @@ fn admitted_catalog(state: &WorkbenchClientState, row: &Row) -> Result<Catalog, 
     Ok(catalog)
 }
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn navigator_catalog(&self) -> Option<Catalog> {
         if self.retirement.is_some() {
             return None;

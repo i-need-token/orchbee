@@ -45,25 +45,25 @@ fn deletion_receipts_validate_without_hiding_partial_effects_or_diagnostics() {
         serde_json::from_str(include_str!("../schemas/orchbee.session.delete.json")).unwrap();
     let validator = jsonschema::draft202012::new(&schema).unwrap();
     for result in [
-        Err(WindowsNamedSiteDeleteFailure {
+        Err(NamedSessionDeleteFailure {
             reason: Reason::Interrupted,
             pending: false,
         }),
-        Err(WindowsNamedSiteDeleteFailure {
+        Err(NamedSessionDeleteFailure {
             reason: Reason::Interrupted,
             pending: true,
         }),
-        Ok(WindowsNamedSiteDeleteOutcome::Deleted),
-        Ok(WindowsNamedSiteDeleteOutcome::Absent),
-        Err(WindowsNamedSiteDeleteFailure {
+        Ok(NamedSessionDeleteOutcome::Deleted),
+        Ok(NamedSessionDeleteOutcome::Absent),
+        Err(NamedSessionDeleteFailure {
             reason: Reason::DefaultSession,
             pending: false,
         }),
-        Err(WindowsNamedSiteDeleteFailure {
+        Err(NamedSessionDeleteFailure {
             reason: Reason::Filesystem,
             pending: true,
         }),
-        Err(WindowsNamedSiteDeleteFailure {
+        Err(NamedSessionDeleteFailure {
             reason: Reason::TimedOut,
             pending: true,
         }),
@@ -90,11 +90,11 @@ fn deletion_receipts_validate_without_hiding_partial_effects_or_diagnostics() {
 #[test]
 fn absent_endpoint_never_turns_unknown_lifecycle_into_stopped() {
     assert_eq!(
-        inactive_state(ActivationState::Active, SiteLifetimeObservation::Free),
+        inactive_state(ActivationState::Active, SessionLifetimeObservation::Free),
         SessionState::RecoveryRequired
     );
     assert_eq!(
-        inactive_state(ActivationState::Active, SiteLifetimeObservation::Held),
+        inactive_state(ActivationState::Active, SessionLifetimeObservation::Held),
         SessionState::Starting
     );
     assert_eq!(
@@ -102,14 +102,14 @@ fn absent_endpoint_never_turns_unknown_lifecycle_into_stopped() {
             ActivationState::Stopped {
                 request_id: [1; 16]
             },
-            SiteLifetimeObservation::Free
+            SessionLifetimeObservation::Free
         ),
         SessionState::Stopped
     );
     for lifetime in [
-        SiteLifetimeObservation::Held,
-        SiteLifetimeObservation::Unsafe,
-        SiteLifetimeObservation::Absent,
+        SessionLifetimeObservation::Held,
+        SessionLifetimeObservation::Unsafe,
+        SessionLifetimeObservation::Absent,
     ] {
         assert_eq!(
             inactive_state(

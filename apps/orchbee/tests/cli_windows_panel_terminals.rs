@@ -262,7 +262,7 @@ fn selected_client_routes_read_only_and_retains_profile_refusal() {
             &WorkbenchResponse::ClientView(WorkbenchClientViewResult {
                 protocol_version: ProtocolVersion,
                 request_id: request.request_id,
-                site_id: request.site_id,
+                session_id: request.session_id,
                 outcome: serde_json::from_value(json!({"kind":"listed","clients":[client]}))
                     .unwrap(),
             }),

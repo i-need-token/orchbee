@@ -8,7 +8,7 @@ fn explain_request(a: &WorkbenchAuthority) -> PanelAgentRequest {
     PanelAgentRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&"7".repeat(32)).unwrap(),
-        site_id: a.site_id().clone(),
+        session_id: a.session_id().clone(),
         action: Action::Explain { binding },
     }
 }

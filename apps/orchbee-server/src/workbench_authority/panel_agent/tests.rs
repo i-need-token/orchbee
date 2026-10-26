@@ -1,8 +1,8 @@
 use super::*;
 use orchbee_capability_node_protocol::{HostCreationId, HostEpoch, HostTerminalId};
 use orchbee_workbench_protocol::{
-    SiteId, TerminalId, WorkbenchPanelId, WorkbenchProtocolDocument, WorkbenchRequestId, WorkerId,
-    parse_snapshot, serialize_document,
+    SessionId, TerminalId, WorkbenchPanelId, WorkbenchProtocolDocument, WorkbenchRequestId,
+    WorkerId, parse_snapshot, serialize_document,
 };
 use serde_json::{Value, json};
 use std::num::NonZeroU64;
@@ -35,7 +35,8 @@ fn install(a: &mut WorkbenchAuthority, doc: &Value) {
     .unwrap();
 }
 fn owner() -> WorkbenchAuthority {
-    let mut a = WorkbenchAuthority::new(SiteId::parse(&format!("{:032x}", 80)).unwrap()).unwrap();
+    let mut a =
+        WorkbenchAuthority::new(SessionId::parse(&format!("{:032x}", 80)).unwrap()).unwrap();
     install(&mut a, &tree());
     a
 }
@@ -209,7 +210,7 @@ fn invoke(a: &mut WorkbenchAuthority, action: Action, facts: &[TerminalAgentBind
     let request = PanelAgentRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 7)).unwrap(),
-        site_id: a.site_id().clone(),
+        session_id: a.session_id().clone(),
         action,
     };
     let result = a.panel_agent(request.clone(), facts, Instant::now());
@@ -345,7 +346,7 @@ fn metadata(
     sequence: &str,
     now: Instant,
 ) {
-    let value = json!({"protocolVersion":1,"requestId":"a".repeat(32),"sessionId":a.site_id(),"action":{"kind":"report","panelId":panel(),"expectedBinding":binding(1),"source":source,"patch":{"agent":agent,"title":title,"tokens":{"progress":"kept"}},"sequence":sequence}});
+    let value = json!({"protocolVersion":1,"requestId":"a".repeat(32),"sessionId":a.session_id(),"action":{"kind":"report","panelId":panel(),"expectedBinding":binding(1),"source":source,"patch":{"agent":agent,"title":title,"tokens":{"progress":"kept"}},"sequence":sequence}});
     let request = serde_json::from_value(value).unwrap();
     assert!(matches!(
         a.panel_metadata(request, now).outcome,
@@ -356,7 +357,7 @@ fn metadata_read(
     a: &mut WorkbenchAuthority,
     now: Instant,
 ) -> orchbee_workbench_protocol::PanelMetadataRow {
-    let request=serde_json::from_value(json!({"protocolVersion":1,"requestId":"a".repeat(32),"sessionId":a.site_id(),"action":{"kind":"read","panelIds":[panel()]}})).unwrap();
+    let request=serde_json::from_value(json!({"protocolVersion":1,"requestId":"a".repeat(32),"sessionId":a.session_id(),"action":{"kind":"read","panelIds":[panel()]}})).unwrap();
     let orchbee_workbench_protocol::PanelMetadataOutcome::Read { mut panels, .. } =
         a.panel_metadata(request, now).outcome
     else {

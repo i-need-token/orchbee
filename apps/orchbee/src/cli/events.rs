@@ -227,7 +227,7 @@ fn execute(
 }
 
 fn source(snapshot: &Snapshot) -> serde_json::Value {
-    json!({"kind":"server","sessionId":snapshot.site_id,"revision":snapshot.revision})
+    json!({"kind":"server","sessionId":snapshot.session_id,"revision":snapshot.revision})
 }
 fn public_reply(reply: &SemanticEventsResult) -> Result<serde_json::Value, Failure> {
     let mut value =
@@ -304,7 +304,7 @@ fn exchange(
             SemanticEventsRequest {
                 protocol_version: ProtocolVersion,
                 request_id: query::request_id()?,
-                site_id: snapshot.site_id.clone(),
+                session_id: snapshot.session_id.clone(),
                 action,
             },
             Instant::now() + Duration::from_secs(3),

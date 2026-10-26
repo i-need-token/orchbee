@@ -1,8 +1,8 @@
 use super::*;
 use crate::test_support::WorkbenchFixture;
-use orchbee_local_site_runtime::{PluginRegistry, PluginRegistryMutation};
+use orchbee_local_runtime::{PluginRegistry, PluginRegistryMutation};
 use orchbee_workbench_protocol::{
-    LaunchOptions, PluginInvocationContext, ProtocolVersion, SiteId, WorkbenchAction,
+    LaunchOptions, PluginInvocationContext, ProtocolVersion, SessionId, WorkbenchAction,
     WorkbenchLabel, WorkbenchRequestId, WorkbenchRevision, WorkbenchTerminalGeometry,
 };
 use std::{fs, path::PathBuf};
@@ -57,7 +57,7 @@ fn fixture() -> (
         })
         .unwrap();
     let authority = super::super::WorkbenchAuthority::workspace_fixture(
-        SiteId::parse(&format!("{:032x}", 1)).unwrap(),
+        SessionId::parse(&format!("{:032x}", 1)).unwrap(),
     )
     .unwrap();
     let snapshot = authority.projection.snapshot().clone();
@@ -65,7 +65,7 @@ fn fixture() -> (
     let command = WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 2)).unwrap(),
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         expected_revision: WorkbenchRevision::new(0),
         action: WorkbenchAction::TabCreate {
             placement: None,
@@ -202,12 +202,12 @@ fn plugin_pane_admission_publication_replay_and_membership_lifetime() {
     let mut process = std::process::Command::new(std::env::current_exe().unwrap());
     process.args(["--exact", "workbench_authority::plugin_panes::tests::plugin_pane_admission_publication_replay_and_membership_lifetime", "--nocapture"])
         .env(CHILD, &root.0).env("APPDATA", root.0.join("appdata")).env_remove("ORCHBEE_CONFIG_FILE");
-    let result = orchbee_local_site_runtime::run_windows_command(
+    let result = orchbee_local_runtime::run_windows_command(
         process,
         Some(std::time::Instant::now() + std::time::Duration::from_secs(30)),
         || Ok(false),
     );
-    if result.failure == Some(orchbee_local_site_runtime::WindowsCommandFailure::PhysicalUnknown) {
+    if result.failure == Some(orchbee_local_runtime::CommandFailure::PhysicalUnknown) {
         eprintln!(
             "Root agent owns retained admission fixture pending child settlement: {}",
             root.0.display()
@@ -240,9 +240,9 @@ fn admission_witness(root: PathBuf) {
         })
         .unwrap();
     let id = |value: u64| format!("{value:032x}");
-    let site = SiteId::parse(&id(100)).unwrap();
-    let mut authority = WorkbenchAuthority::workspace_fixture(site.clone()).unwrap();
-    let grant = WorkbenchGrant::manage_navigation_and_terminal_create(site);
+    let session = SessionId::parse(&id(100)).unwrap();
+    let mut authority = WorkbenchAuthority::workspace_fixture(session.clone()).unwrap();
+    let grant = WorkbenchGrant::manage_navigation_and_terminal_create(session);
     let command: WorkbenchCommand = serde_json::from_value(json!({
         "protocolVersion":1,"requestId":id(200),"sessionId":id(100),"expectedRevision":"0",
         "action":{"kind":"tab.create","terminalContextId":id(1),"label":"Dashboard",

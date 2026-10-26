@@ -2,7 +2,7 @@
 //! availability gates with the honest `HistoryUnavailable` notice and zero
 //! wire commands, the per-incarnation read-sequence watermark carried by
 //! `KeyedProjection` across episodes, and the recover-before-input and
-//! history-key consumption contracts — driven on real `NativeUi` fixtures
+//! history-key consumption contracts — driven on real `WorkbenchClientUi` fixtures
 //! without a session worker.
 
 use super::super::tests::move_membership::ready_ui;
@@ -96,7 +96,7 @@ pub(in crate::workbench_client::ui) fn frame(
 /// watermark the test needs — bypassing the event path for fixtures that
 /// exercise gates rather than the owner seam.
 pub(in crate::workbench_client::ui) fn install_projection(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     frame_spec: Option<(u64, bool, u16)>,
     read_watermark: u64,
 ) -> PaneRef {
@@ -120,7 +120,7 @@ pub(in crate::workbench_client::ui) fn install_projection(
         ),
         key: key.clone(),
         value,
-        status: NativeProjectionStatus::FrameAvailable,
+        status: ClientProjectionStatus::FrameAvailable,
         viewport: None,
         tail: None,
         tail_attempted: None,
@@ -133,7 +133,7 @@ pub(in crate::workbench_client::ui) fn install_projection(
 
 /// Installs the live frame `enter_history`'s gates require on a projection
 /// the event path already installed.
-fn install_frame(ui: &mut NativeUi, key: &PaneRef) {
+fn install_frame(ui: &mut WorkbenchClientUi, key: &PaneRef) {
     let projection = projection_at(ui, key);
     let frame = frame(&projection.value, 9, false, 24);
     projection.value.install_frame_for_test(frame);
@@ -142,7 +142,7 @@ fn install_frame(ui: &mut NativeUi, key: &PaneRef) {
 /// Publishes one worker event through the real intake the way a session
 /// worker would deliver it.
 fn publish(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
     event: WorkerEvent,
@@ -161,7 +161,7 @@ fn publish(
 /// The real `Attached` arm installs the incarnation's projection — the
 /// owner seam that mints a fresh `read_watermark` domain per attachment.
 fn attach_projection(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
     key: &PaneRef,
@@ -189,7 +189,7 @@ fn drain(mailbox: &CommandMailbox) {
 /// The first read sequence staged for `key`'s core after `facts`, drained
 /// off the wire queue.
 fn staged_read_sequence(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &Arc<CommandMailbox>,
     key: &PaneRef,
     sequence: u64,
@@ -273,7 +273,7 @@ fn window(
 /// its window, and the accepted acknowledgement — the committed
 /// `Viewing` state that navigation then reads from.
 pub(in crate::workbench_client::ui) fn settle_viewing(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &Arc<CommandMailbox>,
     key: &PaneRef,
     generation: u64,
@@ -320,7 +320,7 @@ pub(in crate::workbench_client::ui) fn settle_viewing(
         .ack_outcome(sequence, true);
 }
 
-fn projection_at<'a>(ui: &'a mut NativeUi, key: &PaneRef) -> &'a mut KeyedProjection {
+fn projection_at<'a>(ui: &'a mut WorkbenchClientUi, key: &PaneRef) -> &'a mut KeyedProjection {
     ui.projections
         .iter_mut()
         .find(|projection| projection.key == *key)
@@ -667,7 +667,7 @@ fn viewport_outcome_notice_survives_publish_take_apply() {
 
 /// A ready fixture under a `Controlling` mode — `forward` requires it.
 pub(in crate::workbench_client::ui) fn controlling_ui() -> (
-    NativeUi,
+    WorkbenchClientUi,
     Arc<CommandMailbox>,
     LocalOperationClock,
     Arc<AtomicU64>,
@@ -678,7 +678,7 @@ pub(in crate::workbench_client::ui) fn controlling_ui() -> (
         10,
         Geometry::new(80, 24, 8, 16).unwrap(),
     ));
-    let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    let mut ui = WorkbenchClientUi::new(Arc::clone(&mailbox), clock.clone());
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {
@@ -733,19 +733,19 @@ fn typed_byte_lands_once_behind_one_recover() {
     );
 }
 
-/// Delegates `TerminalInputPort` onto `NativeUi` the way the production
+/// Delegates `TerminalInputPort` onto `WorkbenchClientUi` the way the production
 /// `WorkbenchClient` impl does, including the history hooks.
-struct NativePort<'a>(&'a mut NativeUi);
+struct ClientInputPort<'a>(&'a mut WorkbenchClientUi);
 
-impl TerminalInputPort for NativePort<'_> {
-    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+impl TerminalInputPort for ClientInputPort<'_> {
+    fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
         self.0.capture_claims()
     }
 
     fn native_capture_context(
         &self,
-        owner: crate::tui_composition::NativeCaptureOwner,
-    ) -> Option<crate::workbench_client::NativeCaptureContext> {
+        owner: crate::tui_composition::CaptureOwner,
+    ) -> Option<crate::workbench_client::CaptureContext> {
         self.0.capture_context(owner)
     }
 
@@ -790,7 +790,7 @@ impl TerminalInputPort for NativePort<'_> {
 
     fn capture_tab_confirmation_key_for(
         &mut self,
-        token: NativeCloseConfirmationToken,
+        token: CloseConfirmationToken,
         key: ClientKey,
     ) -> bool {
         self.0.capture_tab_confirmation_key(token, key)
@@ -798,7 +798,7 @@ impl TerminalInputPort for NativePort<'_> {
 
     fn capture_panel_confirmation_key_for(
         &mut self,
-        token: NativePanelCloseConfirmationToken,
+        token: PanelCloseConfirmationToken,
         key: ClientKey,
     ) -> bool {
         self.0.capture_panel_confirmation_key(token, key)
@@ -812,34 +812,27 @@ impl TerminalInputPort for NativePort<'_> {
         self.0.capture_workspace_close_key(token, key)
     }
 
-    fn edit_rename_draft(
-        &mut self,
-        token: NativeRenameDraftToken,
-        edit: NativeRenameEdit<'_>,
-    ) -> bool {
+    fn edit_rename_draft(&mut self, token: RenameDraftToken, edit: RenameEdit<'_>) -> bool {
         self.0.edit_rename_draft(token, edit)
     }
 
-    fn cancel_rename_draft(&mut self, token: NativeRenameDraftToken) {
+    fn cancel_rename_draft(&mut self, token: RenameDraftToken) {
         self.0.cancel_rename_draft(token);
     }
 
-    fn submit_rename_draft(
-        &mut self,
-        token: NativeRenameDraftToken,
-    ) -> Option<ClientActionDisposition> {
+    fn submit_rename_draft(&mut self, token: RenameDraftToken) -> Option<ClientActionDisposition> {
         Some(self.0.submit_rename_draft(token))
     }
 
-    fn edit_setup_draft(&mut self, token: NativeSetupToken, edit: NativeSetupEdit<'_>) -> bool {
+    fn edit_setup_draft(&mut self, token: SetupToken, edit: SetupEdit<'_>) -> bool {
         self.0.edit_setup_draft(token, edit)
     }
 
-    fn cancel_setup_draft(&mut self, token: NativeSetupToken) {
+    fn cancel_setup_draft(&mut self, token: SetupToken) {
         self.0.cancel_setup_draft(token);
     }
 
-    fn submit_setup_draft(&mut self, token: NativeSetupToken) -> Option<ClientActionDisposition> {
+    fn submit_setup_draft(&mut self, token: SetupToken) -> Option<ClientActionDisposition> {
         Some(self.0.submit_setup_draft(token))
     }
 }
@@ -847,10 +840,10 @@ impl TerminalInputPort for NativePort<'_> {
 fn dispatch(
     dispatcher: &mut InputDispatcher,
     view: &mut ClientView,
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     bytes: &[u8],
 ) {
-    let mut port = NativePort(ui);
+    let mut port = ClientInputPort(ui);
     dispatcher
         .dispatch(
             view,
@@ -957,7 +950,7 @@ fn unfocused_read_only_log_wheel_enters_and_navigates_its_own_history_without_fo
         let projection = projection_at(&mut ui, key);
         let live = frame(&projection.value, 1000, false, 24);
         projection.value.install_frame_for_test(live);
-        projection.status = NativeProjectionStatus::FrameAvailable;
+        projection.status = ClientProjectionStatus::FrameAvailable;
     }
     assert!(ui.history_wheel(&peer, true));
     let lease = mailbox.try_recv().unwrap().unwrap();
@@ -1011,7 +1004,7 @@ fn unfocused_program_mouse_tracking_and_alternate_screen_do_not_enter_history() 
                 .interaction;
         }
         projection.value.install_frame_for_test(live);
-        projection.status = NativeProjectionStatus::FrameAvailable;
+        projection.status = ClientProjectionStatus::FrameAvailable;
         assert!(!ui.history_wheel(&peer, true));
         assert!(mailbox.try_recv().unwrap().is_none());
         assert_eq!(ui.state.as_ref().unwrap().focus_pane_ref(), Some(focus));

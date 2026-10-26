@@ -58,7 +58,7 @@ fn receive_close_after_frame(stream: &mut UnixStream) -> io::Result<WorkbenchCom
 fn draw_recovery(workbench_client: &mut WorkbenchClient) -> TestResult {
     let view = ClientView::new(120);
     let mut terminal = Terminal::new(TestBackend::new(120, 32))?;
-    let mut receipt = NativeDrawReceipt::default();
+    let mut receipt = DrawReceipt::default();
     terminal.draw(|frame| {
         receipt = render_terminal_shell(
             frame,
@@ -73,7 +73,7 @@ fn draw_recovery(workbench_client: &mut WorkbenchClient) -> TestResult {
     Ok(())
 }
 
-fn recovered_status(workbench_client: &WorkbenchClient, expected: NativeCloseStatusKind) -> bool {
+fn recovered_status(workbench_client: &WorkbenchClient, expected: CloseStatusKind) -> bool {
     {
         let view = workbench_client.view();
         view.close_status()
@@ -102,7 +102,7 @@ fn recovery_rejects_foreign_target_without_adopting_its_operation() -> TestResul
                 "recovery must read only the retained target",
             ));
         };
-        assert_eq!(request.site_id.as_str(), SITE_ID);
+        assert_eq!(request.session_id.as_str(), SESSION_ID);
         assert_eq!(request.tab_id.as_str(), ID);
         write_workbench_response(
             &mut stream,
@@ -265,7 +265,7 @@ fn early_not_closing_preserves_uncertain_identity_until_explicit_read_resolves_i
     assert!(canonical.is_none());
     workbench_client.apply_client_action(ClientAction::OpenWorkbenchNavigator);
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
-        recovered_status(workbench_client, NativeCloseStatusKind::CleanupBlocked)
+        recovered_status(workbench_client, CloseStatusKind::CleanupBlocked)
     }));
     let ClientBackend::Native(native) = &workbench_client.backend;
     assert!(
@@ -298,7 +298,7 @@ fn explicit_recovery_reads_then_confirmed_resume_retires_and_recovers_closed() -
             return Err(io::Error::other("recovery must start with status Read"));
         };
         let command = original.as_ref().unwrap();
-        assert_eq!(request.site_id, command.site_id);
+        assert_eq!(request.session_id, command.session_id);
         assert_eq!(request.terminal_context_id.as_str(), ID);
         assert_eq!(request.tab_id.as_str(), ID);
         assert_ne!(Some(&request.request_id), previous_request.as_ref());
@@ -339,7 +339,7 @@ fn explicit_recovery_reads_then_confirmed_resume_retires_and_recovers_closed() -
             };
             assert_eq!(resume.close_request_id, command.request_id);
             assert_eq!(resume.expected_attempt_generation.value(), 1);
-            assert_eq!(resume.site_id, command.site_id);
+            assert_eq!(resume.session_id, command.session_id);
             assert_eq!(resume.terminal_context_id.as_str(), ID);
             assert_eq!(resume.tab_id.as_str(), ID);
             assert_ne!(Some(&resume.request_id), previous_request.as_ref());
@@ -373,7 +373,7 @@ fn explicit_recovery_reads_then_confirmed_resume_retires_and_recovers_closed() -
         "explicit status recovery creates one fresh worker"
     );
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
-        recovered_status(workbench_client, NativeCloseStatusKind::CleanupBlocked)
+        recovered_status(workbench_client, CloseStatusKind::CleanupBlocked)
     }));
     workbench_client.apply_client_action(ClientAction::RequestCloseTab);
     assert!(
@@ -388,7 +388,7 @@ fn explicit_recovery_reads_then_confirmed_resume_retires_and_recovers_closed() -
     assert!({
         let view = workbench_client.view();
         view.close_confirmation()
-            .is_some_and(|prompt| prompt.kind() == NativeCloseConfirmationKind::Resume)
+            .is_some_and(|prompt| prompt.kind() == CloseConfirmationKind::Resume)
     });
     workbench_client.apply_client_action(ClientAction::ConfirmClose);
     assert!(
@@ -409,7 +409,7 @@ fn explicit_recovery_reads_then_confirmed_resume_retires_and_recovers_closed() -
 
     workbench_client.apply_client_action(ClientAction::OpenWorkbenchNavigator);
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
-        recovered_status(workbench_client, NativeCloseStatusKind::Closed)
+        recovered_status(workbench_client, CloseStatusKind::Closed)
     }));
     draw_recovery(&mut workbench_client)?;
     for _ in 0..4 {

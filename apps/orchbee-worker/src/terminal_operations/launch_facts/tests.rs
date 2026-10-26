@@ -4,7 +4,7 @@ use crate::{
     terminal_host_launch_adapter::map_launch_dispatch,
 };
 use orchbee_capability_node_protocol::*;
-use orchbee_local_site_runtime::WindowsShellSettings;
+use orchbee_local_runtime::ShellSettings;
 use std::num::NonZeroU64;
 
 #[test]
@@ -13,16 +13,16 @@ fn configured_and_explicit_shells_reach_real_host_launch_preparation() -> Result
     let powershell = std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap())
         .join("System32/WindowsPowerShell/v1.0/powershell.exe");
     let cwd = AbsoluteCwd::new(std::env::temp_dir().to_str().unwrap())?;
-    let configured = WindowsShellSettings::new(powershell.to_str().unwrap(), "login")?;
+    let configured = ShellSettings::new(powershell.to_str().unwrap(), "login")?;
     for (explicit, shared) in [(false, false), (true, false), (false, true), (true, true)] {
-        let defaults = shared.then(|| orchbee_local_site_runtime::UserTerminalLaunchDefaults {
-            launch: Some(orchbee_local_site_runtime::DefaultInteractiveLaunch {
+        let defaults = shared.then(|| orchbee_local_runtime::UserTerminalLaunchDefaults {
+            launch: Some(orchbee_local_runtime::DefaultInteractiveLaunch {
                 executable: "C:/shared/default.exe".into(),
                 arguments: vec!["literal && shared value".into()],
                 environment: default_launch_environment(),
             }),
             scrollback_bytes: 4321,
-            colors: Some(orchbee_local_site_runtime::UserTerminalColors::DARK),
+            colors: Some(orchbee_local_runtime::UserTerminalColors::DARK),
         });
         let selection = explicit.then(|| {
             LaunchSelection::new(
@@ -32,7 +32,7 @@ fn configured_and_explicit_shells_reach_real_host_launch_preparation() -> Result
             .unwrap()
         });
         let snapshot = if explicit {
-            WindowsShellSettings::new("definitely-missing-shell.exe", "login")?
+            ShellSettings::new("definitely-missing-shell.exe", "login")?
         } else {
             configured.clone()
         };
@@ -53,8 +53,8 @@ fn configured_and_explicit_shells_reach_real_host_launch_preparation() -> Result
             &environment,
             plugin.as_ref(),
             defaults.as_ref(),
-            orchbee_local_site_runtime::UserTerminalColors::LIGHT,
-            WindowsShellLaunch {
+            orchbee_local_runtime::UserTerminalColors::LIGHT,
+            ShellLaunchPolicy {
                 editor_launch: false,
                 settings: &snapshot,
             },
@@ -174,7 +174,7 @@ fn configured_and_explicit_shells_reach_real_host_launch_preparation() -> Result
 
 #[test]
 fn resolved_launch_colors_reach_the_profile_without_changing_the_ansi_palette() {
-    use orchbee_local_site_runtime::UserTerminalColors;
+    use orchbee_local_runtime::UserTerminalColors;
     let baseline = terminal_profile(UserTerminalColors::LIGHT);
     for (colors, pair, scheme) in [
         (

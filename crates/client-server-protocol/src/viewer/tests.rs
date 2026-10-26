@@ -1,6 +1,6 @@
 use crate::{
     ClientMessage, FRAME_HEADER_BYTES, HistoryDemand, ProjectionDemand, RequestId, ServerMessage,
-    SiteId, TerminalId, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest,
+    SessionId, TerminalId, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest,
     TerminalViewerResult, ViewerId, ViewerRejectedReason, ViewerUnavailableReason,
     ViewportRowOrigin, WorkerId, decode_client_frame, decode_server_frame, encode_client_frame,
     encode_server_frame,
@@ -35,7 +35,7 @@ fn attach_binding_round_trips_equal_bytes_through_distinct_identity_domains()
     let message = ClientMessage::TerminalViewer(TerminalViewerRequest::new(
         RequestId::parse(SHARED_IDENTITY)?,
         TerminalViewerAction::AttachBinding {
-            site_id: SiteId::parse(SHARED_IDENTITY)?,
+            session_id: SessionId::parse(SHARED_IDENTITY)?,
             worker_id: WorkerId::parse(SHARED_IDENTITY)?,
             terminal_id: TerminalId::parse(SHARED_IDENTITY)?,
         },
@@ -83,7 +83,7 @@ fn attachment_id_accessor_distinguishes_server_issued_viewer_actions()
         terminal_create_request_id: RequestId::parse(SHARED_IDENTITY)?,
     };
     let attach_binding = TerminalViewerAction::AttachBinding {
-        site_id: SiteId::parse(SHARED_IDENTITY)?,
+        session_id: SessionId::parse(SHARED_IDENTITY)?,
         worker_id: WorkerId::parse(SHARED_IDENTITY)?,
         terminal_id: TerminalId::parse(SHARED_IDENTITY)?,
     };

@@ -288,8 +288,8 @@ fn machine_pending_click_is_fenced_by_catalog_identity_before_queue_admission() 
         let (mut manager, mut view, mut surface) = setup();
         let request = crate::machine_picker::Selection {
             machine: Choice::Remote(profile().id),
-            context: Some(NativeStartupTarget::Context(NativeContextTarget {
-                site_id: orchbee_workbench_protocol::SiteId::parse(
+            context: Some(ClientStartupTarget::Context(ClientContextTarget {
+                session_id: orchbee_workbench_protocol::SessionId::parse(
                     "11111111111111111111111111111111",
                 )
                 .unwrap(),
@@ -299,7 +299,7 @@ fn machine_pending_click_is_fenced_by_catalog_identity_before_queue_admission() 
                             "22222222222222222222222222222222",
                         )
                         .unwrap();
-                    crate::workbench_client::NativeContextLocation::Workspace {
+                    crate::workbench_client::ClientContextLocation::Workspace {
                         workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                             fixture_context_id.as_str(),
                         )

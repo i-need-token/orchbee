@@ -2,7 +2,7 @@
 
 use std::time::Instant;
 
-use orchbee_local_site_runtime::{PluginRegistry, PluginRegistryEntry};
+use orchbee_local_runtime::{PluginRegistry, PluginRegistryEntry};
 use orchbee_workbench_protocol::{
     PluginAction, PluginFailure, PluginInvocationContext, PluginLinkCatalogGuard, PluginOutcome,
     PluginRequest, PluginWorker, Snapshot, WorkbenchRequestId,
@@ -358,7 +358,7 @@ pub(crate) fn submit<G: Guard>(
     let request = PluginRequest {
         protocol_version: snapshot.protocol_version,
         request_id: request_id()?,
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         action: PluginAction::Invoke {
             operation_id: operation_id.clone(),
             plugin_id: Some(selection.entry.manifest.id.clone()),

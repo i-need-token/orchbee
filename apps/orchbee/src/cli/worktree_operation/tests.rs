@@ -202,7 +202,7 @@ fn partial_git_failure_keeps_closed_truth_escapes_diagnostics_and_matches_schema
         },
     };
     let output = emit(
-        Some(&SiteId::parse(&id(1)).unwrap()),
+        Some(&SessionId::parse(&id(1)).unwrap()),
         answer(status.clone()),
         OutputFormat::Json,
         Locale::EnUs,

@@ -2,7 +2,7 @@
 
 use super::{WorkbenchClientState, WorkbenchSetupCommit, quick::ProjectQuickEntry};
 use orchbee_workbench_protocol::{
-    SiteId, WorkbenchProjectId, WorkbenchRevision, WorkbenchWorkspaceId,
+    SessionId, WorkbenchProjectId, WorkbenchRevision, WorkbenchWorkspaceId,
 };
 
 /// The creation phase projected without waiting for preparation or terminal startup I/O.
@@ -19,7 +19,7 @@ pub(crate) enum WorkspaceCreationPhase {
 /// One admitted launch's display, separate from canonical navigation and terminal selection.
 #[derive(Clone, Copy)]
 pub(crate) struct WorkspaceCreationPreview<'a> {
-    pub(crate) site: &'a SiteId,
+    pub(crate) session: &'a SessionId,
     pub(crate) label: Option<&'a str>,
     pub(crate) project_id: Option<&'a WorkbenchProjectId>,
     pub(crate) committed: Option<(&'a WorkbenchWorkspaceId, WorkbenchRevision)>,
@@ -61,7 +61,7 @@ impl WorkbenchClientState {
             let current = matches!(self.setup.project_quick_entry,
                 Some(ProjectQuickEntry::Preparing(token)) if token == draft.token);
             return Some(WorkspaceCreationPreview {
-                site: self.cache.site_id(),
+                session: self.cache.session_id(),
                 label,
                 project_id: draft.project.as_ref(),
                 committed: None,
@@ -102,7 +102,7 @@ impl WorkbenchClientState {
                 Some(ProjectQuickEntry::Submitted(generation)) if generation == operation.generation)
         };
         Some(WorkspaceCreationPreview {
-            site: self.cache.site_id(),
+            session: self.cache.session_id(),
             label: Some(
                 workspace.map_or(plan.label.as_str(), |workspace| workspace.label.as_str()),
             ),

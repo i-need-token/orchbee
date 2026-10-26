@@ -9,12 +9,12 @@ use crate::terminal_text::{display_width, project_terminal_text};
 /// `field_width`-cell area: the chrome-safe projection of the window's text
 /// and the cursor's column inside that window. A window attests that what it
 /// shows is drawable — it never claims the whole draft fits on screen.
-pub(crate) struct NativeFieldWindow<'a> {
+pub(crate) struct FieldWindow<'a> {
     display: Cow<'a, str>,
     cursor_column: usize,
 }
 
-impl NativeFieldWindow<'_> {
+impl FieldWindow<'_> {
     /// Chrome-safe text of the visible window, whole grapheme clusters only.
     pub(crate) fn display(&self) -> &str {
         &self.display
@@ -32,10 +32,7 @@ impl NativeFieldWindow<'_> {
 /// byte map, so no raw middle fragment is ever re-parsed as if from ground
 /// state. The window then packs whole display graphemes. A zero-width field
 /// is not drawable and yields no window rather than a fake cursor position.
-pub(super) fn field_window(
-    editor: &LineEditor,
-    field_width: usize,
-) -> Option<NativeFieldWindow<'_>> {
+pub(super) fn field_window(editor: &LineEditor, field_width: usize) -> Option<FieldWindow<'_>> {
     if field_width == 0 {
         return None;
     }
@@ -66,7 +63,7 @@ pub(super) fn field_window(
         Cow::Borrowed(text) => Cow::Borrowed(&text[scroll..end]),
         Cow::Owned(text) => Cow::Owned(text[scroll..end].to_owned()),
     };
-    Some(NativeFieldWindow {
+    Some(FieldWindow {
         display: window,
         cursor_column: display_width(&display[scroll..visible_cursor]),
     })

@@ -39,7 +39,7 @@ fn automatic_rename_placeholder_tracks_the_tab_position_after_reordering() {
     document.terminal_contexts[0].tabs.reverse();
     let cache = project_preferred_workspace(&document).unwrap();
     let second = &cache.tabs()[1];
-    let selection = crate::workbench_client::workbench_projection::NativeMemberTarget {
+    let selection = crate::workbench_client::workbench_projection::ClientMemberTarget {
         tab: second.tab_id().clone(),
         panel: second.panel_id().clone(),
         presentation: second.presentation_id().clone(),
@@ -101,7 +101,7 @@ fn rename_operation_captures_exact_request_intent_and_original_deadline() {
             orchbee_workbench_protocol::WorkbenchCommand {
                 protocol_version: ProtocolVersion,
                 request_id: workbench_request_id(100),
-                site_id: state.cache().site_id().clone(),
+                session_id: state.cache().session_id().clone(),
                 expected_revision: WorkbenchRevision::new(1),
                 action: orchbee_workbench_protocol::WorkbenchAction::TabRename {
                     terminal_context_id: state.cache().terminal_context_id().unwrap().clone(),

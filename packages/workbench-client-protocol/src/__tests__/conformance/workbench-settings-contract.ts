@@ -13,8 +13,8 @@ import {
 } from './workbench-semantic-contract';
 
 export const WORKBENCH_MAXIMUM_NATIVE_SETTINGS_REQUEST_BYTES = MAXIMUM_USER_PREFERENCES_BYTES;
-const NativeSettingsSourceSchema = UserPreferencesSourceSchema;
-const NativeSettingsChangesSchema = UserPreferencesPatchSchema.refine(
+const SettingsSourceSchema = UserPreferencesSourceSchema;
+const SettingsChangesSchema = UserPreferencesPatchSchema.refine(
 	(changes) => Object.keys(changes).length > 0,
 );
 const correlation = {
@@ -22,7 +22,7 @@ const correlation = {
 	requestId: WorkbenchRequestIdSchema,
 	sessionId: SessionIdSchema,
 };
-export const NativeSettingsRequestSchema = z
+export const SettingsRequestSchema = z
 	.strictObject({
 		kind: z.literal('workbench.settings'),
 		...correlation,
@@ -30,13 +30,13 @@ export const NativeSettingsRequestSchema = z
 			z.strictObject({ kind: z.literal('open') }),
 			z.strictObject({
 				kind: z.literal('save'),
-				source: NativeSettingsSourceSchema,
-				changes: NativeSettingsChangesSchema,
+				source: SettingsSourceSchema,
+				changes: SettingsChangesSchema,
 			}),
 		]),
 	})
 	.readonly();
-export const NativeSettingsResultSchema = z
+export const SettingsResultSchema = z
 	.strictObject({
 		kind: z.literal('workbench.settings.result'),
 		...correlation,

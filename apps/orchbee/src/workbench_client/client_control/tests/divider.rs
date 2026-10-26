@@ -65,7 +65,7 @@ fn divider_busy_refusal_supersedes_submission_clear_in_the_same_input_batch() {
 }
 
 fn painted(
-    native: &NativeUi,
+    native: &WorkbenchClientUi,
     view: &ClientView,
     width: u16,
     height: u16,
@@ -74,7 +74,7 @@ fn painted(
 }
 
 fn painted_with_resize(
-    native: &NativeUi,
+    native: &WorkbenchClientUi,
     view: &ClientView,
     width: u16,
     height: u16,
@@ -146,7 +146,9 @@ fn divider_native_preparation_pins_every_painted_identity_and_geometry_without_e
         let mut stale = target.clone();
         let other = &format!("{:032x}", 9999);
         match dimension {
-            0 => stale.source.site = orchbee_workbench_protocol::SiteId::parse(other).unwrap(),
+            0 => {
+                stale.source.session = orchbee_workbench_protocol::SessionId::parse(other).unwrap()
+            }
             1 => {
                 stale.source.context =
                     orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(other).unwrap()

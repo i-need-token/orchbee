@@ -74,8 +74,8 @@ impl Locale {
                 match (self, reason) {
                     (Self::EnUs, F::Denied) => "Agent view permission denied",
                     (Self::ZhCn, F::Denied) => "没有智能体视图操作权限",
-                    (Self::EnUs, F::SiteMismatch) => "Agent view session changed",
-                    (Self::ZhCn, F::SiteMismatch) => "智能体视图会话已改变",
+                    (Self::EnUs, F::SessionMismatch) => "Agent view session changed",
+                    (Self::ZhCn, F::SessionMismatch) => "智能体视图会话已改变",
                     (Self::EnUs, F::InvalidRequest) => "Invalid Agent view specification",
                     (Self::ZhCn, F::InvalidRequest) => "智能体视图规格无效",
                     (Self::EnUs, F::PluginNotFound) => "Agent view plugin not found",

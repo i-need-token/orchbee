@@ -42,7 +42,7 @@ fn snapshot() -> Snapshot {
         },
         protocol_version: ProtocolVersion,
         revision: WorkbenchRevision::new(17),
-        site_id: SiteId::parse(&format!("{:032x}", 3)).unwrap(),
+        session_id: SessionId::parse(&format!("{:032x}", 3)).unwrap(),
         terminal_contexts: vec![TerminalContext {
             groups: Vec::new(),
             tabs: Vec::new(),
@@ -464,11 +464,11 @@ fn discovered_contexts_preserve_global_order_and_full_identity_beyond_label_prev
     assert_eq!(overview.workspaces, 20);
     assert!(overview.contexts.iter().all(|context| matches!(
         context.target.location,
-        NativeContextLocation::Workspace { .. }
+        ClientContextLocation::Workspace { .. }
     )));
     for (context, expected) in overview.contexts.iter().zip(&s.navigation.workspace_order) {
-        assert_eq!(context.target.site_id, s.site_id);
-        let NativeContextLocation::Workspace { workspace_id, .. } = &context.target.location else {
+        assert_eq!(context.target.session_id, s.session_id);
+        let ClientContextLocation::Workspace { workspace_id, .. } = &context.target.location else {
             panic!("workspace row");
         };
         let expected_workspace = s.navigation.workspace(expected).unwrap();

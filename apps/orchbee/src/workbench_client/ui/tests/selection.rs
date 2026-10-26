@@ -10,7 +10,7 @@ use orchbee_terminal_protocol::{
     encode_selection_control, encode_transport_envelope,
 };
 
-fn response(ui: &NativeUi, control: SelectionControl) -> Vec<u8> {
+fn response(ui: &WorkbenchClientUi, control: SelectionControl) -> Vec<u8> {
     let encoded = encode_selection_control(&control).unwrap();
     encode_transport_envelope(&Envelope {
         correlation_id: Some(CorrelationId::from_bytes([9; 16]).unwrap()),
@@ -26,7 +26,7 @@ fn response(ui: &NativeUi, control: SelectionControl) -> Vec<u8> {
 }
 
 fn command(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &Arc<CommandMailbox>,
 ) -> (PaneRef, super::super::super::terminal_selection::Command) {
     ui.admit_selections(mailbox);
@@ -294,7 +294,7 @@ fn selection_poll_keeps_the_frame_and_uses_the_normal_no_feedback_settlement() {
     assert!(ui.retirement_failure.is_none());
     assert_eq!(
         ui.projections[0].status,
-        NativeProjectionStatus::FrameAvailable
+        ClientProjectionStatus::FrameAvailable
     );
     assert!(ui.projections[0].value.frame().is_some());
     assert_eq!(
@@ -367,7 +367,7 @@ fn pane_effect_poll_keeps_the_frame_and_settles_without_frame_feedback() {
         );
         assert_eq!(
             ui.projections[0].status,
-            NativeProjectionStatus::FrameAvailable
+            ClientProjectionStatus::FrameAvailable
         );
         assert!(
             ui.effects.has_pending(),

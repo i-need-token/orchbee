@@ -1,23 +1,23 @@
 //! Revalidate a painted divider against the selected cache before release-only CAS handoff.
-use super::{NativeUi, Reason};
+use super::{Reason, WorkbenchClientUi};
 use crate::{
     client_view::SidebarSurface,
     tui_layout::{DrawnDivider, project_panel_tree, project_shell_areas, terminal_area},
 };
 use orchbee_workbench_protocol::{
     ClientLayoutAdjustment, ClientLayoutChange, ClientSplitChange, ClientSplitRatio,
-    ClientViewObservation, ClientViewPhase, SiteId,
+    ClientViewObservation, ClientViewPhase, SessionId,
 };
 use ratatui::layout::Rect;
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn prepare_divider_adjustment(
         &self,
         target: &DrawnDivider,
         ratio: ClientSplitRatio,
         viewport: Option<(Rect, SidebarSurface)>,
-    ) -> Result<(SiteId, ClientLayoutAdjustment, ClientViewObservation), Reason> {
-        let (site, before) = self
+    ) -> Result<(SessionId, ClientLayoutAdjustment, ClientViewObservation), Reason> {
+        let (session, before) = self
             .control_observation(false)
             .ok_or(Reason::ProjectionUnavailable)?;
         if before.phase == ClientViewPhase::Unavailable || self.retirement_failure.is_some() {
@@ -28,7 +28,7 @@ impl NativeUi {
         }
         self.validate_divider_geometry(target, viewport)?;
         Ok((
-            site,
+            session,
             ClientLayoutAdjustment {
                 terminal_context_id: target.source.context.clone(),
                 tab_id: target.source.tab.clone(),

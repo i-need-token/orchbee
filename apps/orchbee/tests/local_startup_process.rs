@@ -28,8 +28,8 @@ mod native_pointer;
 mod native_project_create;
 #[path = "local_startup_process/native_send.rs"]
 mod native_send;
-#[path = "local_startup_process/native_site_start.rs"]
-mod native_site_start;
+#[path = "local_startup_process/native_session_start.rs"]
+mod native_session_start;
 #[path = "local_startup_process/native_viewer_capacity.rs"]
 mod native_viewer_capacity;
 #[path = "local_startup_process/native_wait.rs"]
@@ -55,7 +55,7 @@ mod support;
 
 use native_cohort::{Fixture, ManagedProcess};
 use orchbee_local_client_protocol::ClientConnection;
-use orchbee_local_site_runtime::{LockAttempt, NativeCohort};
+use orchbee_local_runtime::{Cohort, LockAttempt};
 use pty_client::{Client, ReadyMode, wait_file};
 use std::{
     error::Error,
@@ -601,7 +601,7 @@ fn require_shell_identity(value: &str, expected_marker: &str) -> u32 {
 }
 
 #[test]
-fn simultaneous_bare_clients_share_one_site_and_reopen_the_same_shell() {
+fn simultaneous_bare_clients_share_one_session_and_reopen_the_same_shell() {
     let _process_witness = process_witness_guard();
     let fixture = Fixture::with_workspace();
     let startup_deadline = Instant::now() + STARTUP_OR_CREATE_TIMEOUT;
@@ -661,20 +661,20 @@ fn simultaneous_bare_clients_share_one_site_and_reopen_the_same_shell() {
 fn server_and_worker_readiness_does_not_start_a_host() -> TestResult {
     let _process_witness = process_witness_guard();
     let fixture = Fixture::new();
-    let site = fixture.site();
-    site.commit_activation()?;
+    let session = fixture.session();
+    session.commit_activation()?;
     let deadline = Instant::now() + Duration::from_secs(20);
-    let cohort = NativeCohort::load(&fixture.cohort, deadline)
+    let cohort = Cohort::load(&fixture.cohort, deadline)
         .map_err(|error| format!("fixture cohort admission: {error}"))?;
     let mut server = Command::new(fixture.cohort.join("orchbee-server"))
-        .arg("--local-site")
+        .arg("--runtime-directory")
         .arg(fixture.runtime())
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()?;
     loop {
-        if site.client_socket_exists()? {
+        if session.client_socket_exists()? {
             break;
         }
         assert!(server.try_wait()?.is_none());
@@ -682,13 +682,13 @@ fn server_and_worker_readiness_does_not_start_a_host() -> TestResult {
         thread::yield_now();
     }
     let connection =
-        ClientConnection::connect_before(site.client_socket_path(), cohort.identity(), deadline)
+        ClientConnection::connect_before(session.client_socket_path(), cohort.identity(), deadline)
             .map_err(|error| format!("managed Client admission: {error}"))?;
     assert_eq!(fixture.processes("orchbee-worker").len(), 1);
     assert!(fixture.processes("orchbee-terminal-host").is_empty());
     assert!(!fixture.runtime().join("host").exists());
     // Managed admission is permanently fenced after the initial Worker.
-    assert!(std::os::unix::net::UnixStream::connect(site.worker_socket_path()).is_err());
+    assert!(std::os::unix::net::UnixStream::connect(session.worker_socket_path()).is_err());
     drop(connection);
     server.kill()?;
     server.wait()?;
@@ -699,7 +699,7 @@ fn server_and_worker_readiness_does_not_start_a_host() -> TestResult {
 fn committed_failed_startup_requires_recovery_and_does_not_launch_again() {
     let _process_witness = process_witness_guard();
     let fixture = Fixture::new();
-    fixture.site().commit_activation().unwrap();
+    fixture.session().commit_activation().unwrap();
     for locale in ["en_US.UTF-8", "zh_CN.UTF-8"] {
         let startup_deadline = Instant::now() + STARTUP_OR_CREATE_TIMEOUT;
         let mut client = Client::spawn(&fixture, locale);
@@ -718,8 +718,8 @@ fn committed_failed_startup_requires_recovery_and_does_not_launch_again() {
 fn activation_contention_uses_one_deadline_and_delayed_progress() {
     let _process_witness = process_witness_guard();
     let fixture = Fixture::new();
-    let site = fixture.site();
-    let LockAttempt::Acquired(_guard) = site.try_acquire_activation_lock().unwrap() else {
+    let session = fixture.session();
+    let LockAttempt::Acquired(_guard) = session.try_acquire_activation_lock().unwrap() else {
         panic!("fixture lock")
     };
     let started = Instant::now();
@@ -730,7 +730,7 @@ fn activation_contention_uses_one_deadline_and_delayed_progress() {
     );
     assert!(error.contains("Starting the local terminal"));
     assert!(error.contains("startup timed out"));
-    assert!(!site.activation_started().unwrap());
+    assert!(!session.activation_started().unwrap());
     assert!(fixture.processes("orchbee-server").is_empty());
 }
 
@@ -768,17 +768,19 @@ fn lazy_worker_rejects_invalid_launches_then_preserves_its_first_dispatch_and_re
         time::{SystemTime, UNIX_EPOCH},
     };
     let fixture = Fixture::new();
-    let site = fixture.site();
-    site.commit_activation()?;
-    let listener = UnixListener::bind(site.worker_socket_path())?;
-    fs::set_permissions(site.worker_socket_path(), fs::Permissions::from_mode(0o600))?;
+    let session = fixture.session();
+    session.commit_activation()?;
+    let listener = UnixListener::bind(session.worker_socket_path())?;
+    fs::set_permissions(
+        session.worker_socket_path(),
+        fs::Permissions::from_mode(0o600),
+    )?;
     listener.set_nonblocking(true)?;
-    let cohort_identity =
-        NativeCohort::load(&fixture.cohort, Instant::now() + Duration::from_secs(20))?
-            .identity()
-            .to_owned();
+    let cohort_identity = Cohort::load(&fixture.cohort, Instant::now() + Duration::from_secs(20))?
+        .identity()
+        .to_owned();
     let mut worker = Command::new(fixture.cohort.join("orchbee-worker"))
-        .arg("--local-site")
+        .arg("--runtime-directory")
         .arg(fixture.runtime())
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -892,9 +894,9 @@ fn managed_process_loss_never_starts_a_replacement() -> TestResult {
         }
         // A reopening Client may legitimately contend for activation within the original 20 s
         // startup deadline. Holding this existing lock beyond 5 s exposes a premature observer.
-        let site = fixture.site();
+        let session = fixture.session();
         let activation = if failed_role == "orchbee-server" {
-            let LockAttempt::Acquired(guard) = site.try_acquire_activation_lock()? else {
+            let LockAttempt::Acquired(guard) = session.try_acquire_activation_lock()? else {
                 panic!("fixture activation lock")
             };
             Some(guard)
@@ -973,7 +975,7 @@ fn help_version_and_non_tty_use_no_runtime_or_processes() -> TestResult {
 }
 
 #[test]
-fn incompatible_warm_cohort_is_rejected_without_replacing_the_running_site() -> TestResult {
+fn incompatible_warm_cohort_is_rejected_without_replacing_the_running_session() -> TestResult {
     let _process_witness = process_witness_guard();
     let fixture = Fixture::with_workspace();
     let mut first = Client::spawn(&fixture, "en_US.UTF-8");

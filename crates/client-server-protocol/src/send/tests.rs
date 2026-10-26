@@ -3,7 +3,7 @@ use super::{
     SendKey, SendProgress, SendRecord, SendRecords, SendTarget, SendText, SendTextInput,
     TerminalSendOutcome, TerminalSendRequest, TerminalSendResult,
 };
-use crate::{HostEpoch, HostTerminalId, RequestId, SiteId, TerminalId, WorkerId};
+use crate::{HostEpoch, HostTerminalId, RequestId, SessionId, TerminalId, WorkerId};
 use std::num::NonZeroU64;
 
 #[test]
@@ -18,7 +18,7 @@ fn send_stroke_mixed_records_preserve_boundaries_and_reject_malformed_payloads()
     .unwrap();
     let request = TerminalSendRequest::new(
         RequestId::parse("11111111111111111111111111111111").unwrap(),
-        SiteId::parse("22222222222222222222222222222222").unwrap(),
+        SessionId::parse("22222222222222222222222222222222").unwrap(),
         WorkerId::parse("33333333333333333333333333333333").unwrap(),
         TerminalId::parse("44444444444444444444444444444444").unwrap(),
         records,
@@ -213,7 +213,7 @@ fn every_outcome_carries_the_cleanup_axis() -> Result<(), Box<dyn std::error::Er
 fn request_exposes_the_flat_binding_triple_and_records() -> Result<(), Box<dyn std::error::Error>> {
     let request = TerminalSendRequest::new(
         RequestId::parse("11111111111111111111111111111111")?,
-        SiteId::parse("22222222222222222222222222222222")?,
+        SessionId::parse("22222222222222222222222222222222")?,
         WorkerId::parse("33333333333333333333333333333333")?,
         TerminalId::parse("44444444444444444444444444444444")?,
         SendRecords::new(vec![SendRecord::Stroke(
@@ -225,7 +225,7 @@ fn request_exposes_the_flat_binding_triple_and_records() -> Result<(), Box<dyn s
         "11111111111111111111111111111111"
     );
     assert_eq!(
-        request.site_id().as_str(),
+        request.session_id().as_str(),
         "22222222222222222222222222222222"
     );
     assert_eq!(

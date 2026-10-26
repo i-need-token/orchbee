@@ -19,7 +19,7 @@ pub(super) fn interactive(provider: &str, powershell: bool) -> Option<String> {
 }
 
 fn launch_program(program: &str, args: &[String]) -> Option<String> {
-    let encoded = orchbee_local_site_runtime::windows_encoded_command(program, args)?;
+    let encoded = orchbee_local_runtime::windows_encoded_command(program, args)?;
     let text = format!("powershell.exe -NoLogo -NoProfile -EncodedCommand {encoded}");
     // This text is typed into an existing shell; retain cmd.exe's smaller limit.
     (text.len() <= 8000).then_some(text)

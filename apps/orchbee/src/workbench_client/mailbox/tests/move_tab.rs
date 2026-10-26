@@ -276,7 +276,7 @@ fn canonical_move_a_settlement_then_b_queued_preserves_exact_a_commit_at_retirem
             snapshot: Snapshot {
                 protocol_version: ProtocolVersion,
                 revision: commit.revision,
-                site_id: first.baseline().site_id().clone(),
+                session_id: first.baseline().session_id().clone(),
                 navigation: {
                     let fixture_context_id = commit.terminal_context_id.clone();
                     let fixture_workspace_id =

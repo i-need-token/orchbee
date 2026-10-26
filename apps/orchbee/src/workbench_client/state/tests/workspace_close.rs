@@ -9,7 +9,7 @@ use crate::{
             WorkspaceCloseEvidence, WorkspaceCloseOperation, WorkspaceCloseResult,
             WorkspaceCloseTarget, WorkspaceCloseToken, retains_close_result,
         },
-        workbench_projection::{NativeContextLocation, project_native_context_tabs},
+        workbench_projection::{ClientContextLocation, project_native_context_tabs},
     },
 };
 use orchbee_workbench_protocol::{
@@ -57,7 +57,7 @@ fn workspace_id(index: u128) -> WorkbenchWorkspaceId {
 fn close_state(index: u128) -> WorkbenchClientState {
     let source = close_snapshot();
     let workspace = source.navigation.workspace(&workspace_id(index)).unwrap();
-    let location = NativeContextLocation::Workspace {
+    let location = ClientContextLocation::Workspace {
         workspace_id: workspace.workspace_id.clone(),
         terminal_context_id: workspace.terminal_context_id.clone(),
     };
@@ -74,7 +74,7 @@ fn background_state(initial_workspace: bool) -> WorkbenchClientState {
     let location = if initial_workspace {
         {
             let fixture_context_id = source.navigation.workspaces[0].terminal_context_id.clone();
-            NativeContextLocation::Workspace {
+            ClientContextLocation::Workspace {
                 workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                     fixture_context_id.as_str(),
                 )
@@ -85,7 +85,7 @@ fn background_state(initial_workspace: bool) -> WorkbenchClientState {
     } else {
         source.terminal_contexts[1].tabs = std::mem::take(&mut source.terminal_contexts[0].tabs);
         let workspace = &source.navigation.workspaces[1];
-        NativeContextLocation::Workspace {
+        ClientContextLocation::Workspace {
             workspace_id: workspace.workspace_id.clone(),
             terminal_context_id: workspace.terminal_context_id.clone(),
         }
@@ -821,7 +821,7 @@ fn closed_receipt_survives_exact_automatic_canonical_landing_but_not_manual_navi
     // The initial nonempty Workspace remains a real, later navigation target.
     source.navigation.workspace_order.rotate_left(1);
     let initial_workspace = source.navigation.workspaces[0].workspace_id.clone();
-    let location = NativeContextLocation::Workspace {
+    let location = ClientContextLocation::Workspace {
         workspace_id: workspace_id(0),
         terminal_context_id: context_id(372),
     };
@@ -870,7 +870,7 @@ fn closed_receipt_survives_exact_automatic_canonical_landing_but_not_manual_navi
             .commit(),
         MembershipInstallDecision::Empty
     ));
-    let landing = NativeContextLocation::Workspace {
+    let landing = ClientContextLocation::Workspace {
         workspace_id: workspace_id(1),
         terminal_context_id: context_id(373),
     };
@@ -912,7 +912,7 @@ fn automatic_nonempty_sibling_workspace_landing_uses_the_same_permit_without_new
     source.navigation.workspace_order.truncate(2);
     source.terminal_contexts.truncate(2);
     let workspace = &source.navigation.workspaces[1];
-    let location = NativeContextLocation::Workspace {
+    let location = ClientContextLocation::Workspace {
         workspace_id: workspace.workspace_id.clone(),
         terminal_context_id: workspace.terminal_context_id.clone(),
     };
@@ -956,7 +956,7 @@ fn automatic_nonempty_sibling_workspace_landing_uses_the_same_permit_without_new
     ));
     assert_eq!(state.cache().location(), &{
         let fixture_context_id = source.navigation.workspaces[0].terminal_context_id.clone();
-        NativeContextLocation::Workspace {
+        ClientContextLocation::Workspace {
             workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                 fixture_context_id.as_str(),
             )

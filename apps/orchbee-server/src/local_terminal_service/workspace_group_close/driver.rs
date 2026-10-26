@@ -1,9 +1,9 @@
 //! Ordered group submission: Close owns physical disposal, this owner preserves child observations.
 use super::{LocalTerminalService, worker_identity};
-use crate::{local_terminal_service::placement, site_coordinator::SiteCoordinator};
+use crate::{local_terminal_service::placement, session_coordinator::SessionCoordinator};
 use orchbee_server::WorkspaceGroupClosePlan;
 use orchbee_workbench_protocol::{
-    ProtocolVersion, SiteId, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
+    ProtocolVersion, SessionId, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
     WorkbenchRequestId, WorkbenchTabCloseStatus, WorkbenchWorkspaceCloseRead,
     WorkbenchWorkspaceCloseReadOutcome, WorkbenchWorkspaceCloseResume,
     WorkbenchWorkspaceCloseResumeOutcome, WorkspaceGroupCloseChild,
@@ -50,14 +50,14 @@ struct Driver<'a> {
 }
 impl Driver<'_> {
     fn execute(&mut self) -> Result<(), Failure> {
-        let site_id = self
+        let session_id = self
             .service
             .coordinator
             .lock()
             .map_err(|_| Failure::Internal)?
             .worktree_authority()
             .ok_or(Failure::Internal)?
-            .site_id()
+            .session_id()
             .clone();
         for index in 0..self.plan.members.len() {
             self.check()?;
@@ -70,7 +70,7 @@ impl Driver<'_> {
                 continue;
             }
             if self.plan.members[index].member.close.is_none() {
-                self.admit(index, &site_id)?;
+                self.admit(index, &session_id)?;
             }
             let mut may_resume = self.plan.attempt > 1;
             loop {
@@ -81,7 +81,7 @@ impl Driver<'_> {
                         .coordinator
                         .lock()
                         .map_err(|_| Failure::Internal)?;
-                    self.observe(&mut coordinator, index, &site_id)?
+                    self.observe(&mut coordinator, index, &session_id)?
                 };
                 match observation.status {
                     WorkbenchTabCloseStatus::Closed { .. } => break,
@@ -96,7 +96,7 @@ impl Driver<'_> {
                         ..
                     } if may_resume => {
                         may_resume = false;
-                        self.resume(index, &site_id, observation)?;
+                        self.resume(index, &session_id, observation)?;
                     }
                     WorkbenchTabCloseStatus::OutcomeUnknown { .. } => {
                         return Err(Failure::OutcomeUnknown);
@@ -112,14 +112,14 @@ impl Driver<'_> {
     }
     fn check(&self) -> Result<(), Failure> {
         if self.stop.load(Ordering::Acquire) {
-            return Err(Failure::SiteStopping);
+            return Err(Failure::SessionStopping);
         }
         if Instant::now() >= self.deadline {
             return Err(Failure::Deadline);
         }
         Ok(())
     }
-    fn admit(&mut self, index: usize, site_id: &SiteId) -> Result<(), Failure> {
+    fn admit(&mut self, index: usize, session_id: &SessionId) -> Result<(), Failure> {
         let request_id = identity()?;
         let service = self.service;
         {
@@ -136,7 +136,7 @@ impl Driver<'_> {
             let command = WorkbenchCommand {
                 protocol_version: ProtocolVersion,
                 request_id,
-                site_id: site_id.clone(),
+                session_id: session_id.clone(),
                 expected_revision: authority.snapshot().revision,
                 action: WorkbenchAction::WorkspaceClose {
                     workspace_id: member.workspace_id.clone(),
@@ -160,7 +160,7 @@ impl Driver<'_> {
                     reason:
                         orchbee_workbench_protocol::WorkbenchRejectionReason::ProjectUnavailable
                         | orchbee_workbench_protocol::WorkbenchRejectionReason::WorkspaceUnavailable
-                        | orchbee_workbench_protocol::WorkbenchRejectionReason::SiteMismatch,
+                        | orchbee_workbench_protocol::WorkbenchRejectionReason::SessionMismatch,
                     ..
                 } => return Err(Failure::SourceChanged),
                 // This step consumes its specific mutation receipt; other command results cannot confirm the requested postcondition.
@@ -172,16 +172,16 @@ impl Driver<'_> {
             });
             self.publish(&mut coordinator)?;
             // Accepted identity is already retained if this read detects an internal contradiction.
-            self.observe(&mut coordinator, index, site_id)?;
+            self.observe(&mut coordinator, index, session_id)?;
         }
         service.close_maintenance.notify();
         Ok(())
     }
     fn observe(
         &mut self,
-        coordinator: &mut SiteCoordinator,
+        coordinator: &mut SessionCoordinator,
         index: usize,
-        site_id: &SiteId,
+        session_id: &SessionId,
     ) -> Result<WorkspaceGroupCloseObservation, Failure> {
         let member = &self.plan.members[index].member;
         let expected = member
@@ -194,7 +194,7 @@ impl Driver<'_> {
             .read_workspace_close(WorkbenchWorkspaceCloseRead {
                 protocol_version: ProtocolVersion,
                 request_id: identity()?,
-                site_id: site_id.clone(),
+                session_id: session_id.clone(),
                 workspace_id: member.workspace_id.clone(),
             })
             .ok_or(Failure::Internal)?;
@@ -221,7 +221,7 @@ impl Driver<'_> {
         self.publish(coordinator)?;
         Ok(observation)
     }
-    fn publish(&self, coordinator: &mut SiteCoordinator) -> Result<(), Failure> {
+    fn publish(&self, coordinator: &mut SessionCoordinator) -> Result<(), Failure> {
         if !coordinator
             .worktree_authority()
             .ok_or(Failure::Internal)?
@@ -248,7 +248,7 @@ impl Driver<'_> {
     fn resume(
         &self,
         index: usize,
-        site_id: &SiteId,
+        session_id: &SessionId,
         observation: WorkspaceGroupCloseObservation,
     ) -> Result<(), Failure> {
         let request_id = identity()?;
@@ -275,7 +275,7 @@ impl Driver<'_> {
                     WorkbenchWorkspaceCloseResume {
                         protocol_version: ProtocolVersion,
                         request_id,
-                        site_id: site_id.clone(),
+                        session_id: session_id.clone(),
                         workspace_id: member.workspace_id.clone(),
                         close_request_id,
                         expected_attempt_generation: observation.attempt_generation,

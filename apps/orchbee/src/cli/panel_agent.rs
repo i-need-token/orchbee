@@ -10,7 +10,7 @@ use crate::{
 mod windows;
 #[cfg(any(windows, test))]
 use orchbee_workbench_protocol::{
-    PanelAgentFailure, PanelAgentOutcome, PanelAgentResult, SiteId, WorkbenchPanelId,
+    PanelAgentFailure, PanelAgentOutcome, PanelAgentResult, SessionId, WorkbenchPanelId,
     WorkbenchRequestId, WorkbenchResponse,
 };
 #[cfg(any(windows, test))]
@@ -23,7 +23,7 @@ enum Observation {
 #[derive(Debug)]
 struct Answer {
     request_id: WorkbenchRequestId,
-    site_id: SiteId,
+    session_id: SessionId,
     panel_id: WorkbenchPanelId,
     presentation_id: Option<orchbee_workbench_protocol::TerminalPresentationId>,
     observation: Observation,
@@ -40,7 +40,7 @@ impl Answer {
             Observation::Unknown(reason) => serde_json::json!({"kind":"unknown", "reason":reason}),
         };
         let value = serde_json::json!({"schema":"orchbee.panel.agent-report", "version":1,
-            "requestId":self.request_id,"sessionId":self.site_id,"panelId":self.panel_id,"presentationId":self.presentation_id,
+            "requestId":self.request_id,"sessionId":self.session_id,"panelId":self.panel_id,"presentationId":self.presentation_id,
             "observation":observation,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed});
         value
     }
@@ -67,7 +67,7 @@ impl Answer {
                     | PanelAgentFailure::NotFound
                     | PanelAgentFailure::Unbound
                     | PanelAgentFailure::BindingChanged
-                    | PanelAgentFailure::SiteMismatch
+                    | PanelAgentFailure::SessionMismatch
                     | PanelAgentFailure::HistoryLimit
                     | PanelAgentFailure::SourceLimit
                     | PanelAgentFailure::ResourceLimit => 3,

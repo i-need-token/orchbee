@@ -44,7 +44,7 @@
 		"test:style-contract": "vitest run --config scripts/style-contract/vitest.config.ts",
 		"test:storage-contract": "vitest run --config scripts/storage-contract/vitest.config.ts",
 		"test:experience-contract": "vitest run --config scripts/experience-catalog/vitest.config.ts",
-		"test:stage-native-site": "node scripts/run-checks.mjs test:stage-native-site",
+		"test:stage-local-runtime": "node scripts/run-checks.mjs test:stage-local-runtime",
 		"test:tla": "node scripts/run-checks.mjs test:tla",
 		"test:tla:changed": "node scripts/tla/run-models.mjs --cache-dir .tools/tla-cache --changed-since",
 		"test:tla:inventory": "node scripts/run-checks.mjs test:tla:inventory",

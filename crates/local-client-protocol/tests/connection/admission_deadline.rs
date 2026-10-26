@@ -175,8 +175,8 @@ fn invalid_responses_remain_typed_and_close_the_candidate() -> TestResult {
                 );
             }
             LocalClientMessage::ClientHello(_)
-            | LocalClientMessage::SiteStopRequest(_)
-            | LocalClientMessage::SiteStopResult(_)
+            | LocalClientMessage::SessionStopRequest(_)
+            | LocalClientMessage::SessionStopResult(_)
             | LocalClientMessage::ServerMetadataRequest
             | LocalClientMessage::ServerMetadata(_) => assert!(matches!(
                 result,

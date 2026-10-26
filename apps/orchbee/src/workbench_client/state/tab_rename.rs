@@ -1,6 +1,6 @@
 use super::recovery_fence::RecoveryFence;
 use super::rename_draft::{RenameDraftIntent, RenameDraftToken};
-use super::{AttachmentKey, CarrierFailure, NativeContextTabs};
+use super::{AttachmentKey, CarrierFailure, ClientContextTabs};
 use crate::local_client::workbench::label_rename::{
     WorkbenchLabelRenamePrecommit, WorkbenchLabelRenameRequest,
 };
@@ -221,7 +221,7 @@ impl RenameOperation {
         let request = WorkbenchLabelRenameRequest::try_from(WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id,
-            site_id: intent.baseline().site_id().clone(),
+            session_id: intent.baseline().session_id().clone(),
             expected_revision: intent.baseline().revision(),
             action: WorkbenchAction::TabRename {
                 terminal_context_id: intent
@@ -250,7 +250,7 @@ impl RenameOperation {
     pub(in crate::workbench_client) const fn draft_token(&self) -> RenameDraftToken {
         self.intent.token()
     }
-    pub(in crate::workbench_client) const fn baseline(&self) -> &NativeContextTabs {
+    pub(in crate::workbench_client) const fn baseline(&self) -> &ClientContextTabs {
         self.intent.baseline()
     }
     pub(in crate::workbench_client) const fn target(&self) -> &AttachmentKey {
@@ -354,10 +354,10 @@ impl PendingRenameCommit {
 
     pub(super) fn validate_projection(
         &self,
-        candidate: NativeContextTabs,
+        candidate: ClientContextTabs,
     ) -> Result<
         ValidatedRenamedProjection,
-        super::super::workbench_projection::NativeProjectionDivergence,
+        super::super::workbench_projection::ClientProjectionDivergence,
     > {
         validate_renamed_tab(
             self.operation.baseline(),
@@ -366,7 +366,7 @@ impl PendingRenameCommit {
                 self.operation
                     .baseline()
                     .terminal_context_id()
-                    .ok_or(super::super::workbench_projection::NativeProjectionDivergence)?
+                    .ok_or(super::super::workbench_projection::ClientProjectionDivergence)?
                     .clone(),
                 self.operation.target().tab_id().clone(),
                 self.operation.label().clone(),

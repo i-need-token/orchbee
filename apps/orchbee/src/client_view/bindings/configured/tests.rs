@@ -1,11 +1,9 @@
 use super::*;
 use crate::client_view::KeyLabelGlyphs;
-use orchbee_local_site_runtime::{
-    WindowsKeyChord, WindowsKeyOverride, WindowsKeySettings, WindowsKeyTrigger,
-};
+use orchbee_local_runtime::{KeyChord, KeyOverride, KeySettings, KeyTrigger};
 
-fn chord(key: &str, ctrl: bool) -> WindowsKeyChord {
-    WindowsKeyChord {
+fn chord(key: &str, ctrl: bool) -> KeyChord {
+    KeyChord {
         key: key.into(),
         ctrl,
         alt: false,
@@ -16,17 +14,17 @@ fn chord(key: &str, ctrl: bool) -> WindowsKeyChord {
 
 #[test]
 fn effective_action_labels_apply_glyph_fallback_to_all_complete_overridden_chords() {
-    let settings = WindowsKeySettings {
+    let settings = KeySettings {
         commands: Vec::new(),
         prefix: chord("a", true),
-        overrides: vec![WindowsKeyOverride {
+        overrides: vec![KeyOverride {
             action: "menu",
             triggers: vec![
-                WindowsKeyTrigger {
+                KeyTrigger {
                     prefix: true,
                     chord: chord("left", false),
                 },
-                WindowsKeyTrigger {
+                KeyTrigger {
                     prefix: false,
                     chord: chord("right", true),
                 },
@@ -47,7 +45,7 @@ fn effective_action_labels_apply_glyph_fallback_to_all_complete_overridden_chord
 fn default_config_action_rows_match_resolved_bindings_after_round_trip() {
     use std::fmt::Write as _;
 
-    let registered = WindowsKeySettings::registered_actions();
+    let registered = KeySettings::registered_actions();
     let defaults = Bindings::default();
     let generated = Bindings::default_windows_key_action_bindings();
     let rendered_actions = generated
@@ -81,7 +79,7 @@ fn default_config_action_rows_match_resolved_bindings_after_round_trip() {
         };
         writeln!(profile, "{} = {value}", entry.action).unwrap();
     }
-    let settings = WindowsKeySettings::from_profile(&profile).unwrap();
+    let settings = KeySettings::from_profile(&profile).unwrap();
     let round_trip = Bindings::configured(&settings);
 
     let resolved = |bindings: &Bindings| {

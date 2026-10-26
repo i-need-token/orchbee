@@ -3,19 +3,19 @@ use super::*;
 use crate::local_client::tests::server::FakeServer;
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_workbench_protocol::{
-    NativeSettingsChanges, NativeSettingsFailure, NativeSettingsOperation, NativeSettingsOutcome,
-    NativeSettingsSource, PreferenceKey, ProtocolVersion, SiteId, WorkbenchRequestId,
-    read_workbench_request, write_workbench_response,
+    PreferenceKey, ProtocolVersion, SessionId, SettingsChanges, SettingsFailure, SettingsOperation,
+    SettingsOutcome, SettingsSource, WorkbenchRequestId, read_workbench_request,
+    write_workbench_response,
 };
 use std::{io, num::NonZeroU64, time::Duration};
-fn request() -> NativeSettingsRequest {
-    NativeSettingsRequest {
+fn request() -> SettingsRequest {
+    SettingsRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap(),
-        site_id: SiteId::parse(&format!("{:032x}", 2)).unwrap(),
-        operation: NativeSettingsOperation::Save {
-            source: NativeSettingsSource::parse("missing").unwrap(),
-            changes: NativeSettingsChanges::reset([PreferenceKey::ApplicationTheme]),
+        session_id: SessionId::parse(&format!("{:032x}", 2)).unwrap(),
+        operation: SettingsOperation::Save {
+            source: SettingsSource::parse("missing").unwrap(),
+            changes: SettingsChanges::reset([PreferenceKey::ApplicationTheme]),
         },
     }
 }
@@ -39,19 +39,16 @@ fn settings_lost_and_wrong_receipts_are_submitted_unknown_and_never_replayed() {
             else {
                 panic!("one Settings request");
             };
-            assert!(matches!(
-                received.operation,
-                NativeSettingsOperation::Save { .. }
-            ));
+            assert!(matches!(received.operation, SettingsOperation::Save { .. }));
             if wrong_receipt {
                 write_workbench_response(
                     &mut stream,
-                    &WorkbenchResponse::Settings(NativeSettingsResult {
+                    &WorkbenchResponse::Settings(SettingsResult {
                         protocol_version: ProtocolVersion,
                         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 3)).unwrap(),
-                        site_id: received.site_id,
-                        outcome: NativeSettingsOutcome::Refused {
-                            reason: NativeSettingsFailure::Denied,
+                        session_id: received.session_id,
+                        outcome: SettingsOutcome::Refused {
+                            reason: SettingsFailure::Denied,
                         },
                     }),
                 )

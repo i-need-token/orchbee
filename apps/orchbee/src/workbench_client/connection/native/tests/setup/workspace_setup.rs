@@ -3,9 +3,7 @@ use crate::workbench_client::{
     mailbox::DesiredInstall,
     state::{
         MembershipInstallDecision, PreparedRefresh,
-        workspace_setup::{
-            NativeSetupEdit, NativeSetupStatus, NativeSetupToken, SetupResult, SetupWorkerEvidence,
-        },
+        workspace_setup::{SetupEdit, SetupResult, SetupStatus, SetupToken, SetupWorkerEvidence},
     },
 };
 
@@ -14,18 +12,16 @@ impl UiDriver {
         &mut self,
         label: &str,
         drawn: bool,
-    ) -> TestResult<NativeSetupToken> {
+    ) -> TestResult<SetupToken> {
         let mailbox = Arc::clone(&self.mailbox);
         let state = self.state_mut();
-        let intent =
-            crate::workbench_client::state::workspace_setup::NativeSetupIntent::TabGroupName(
-                Box::new(orchbee_workbench_protocol::TabConfiguration::CreateGroup {
-                    tab_id: state.cache().tabs()[0].tab_id().clone(),
-                    label: orchbee_workbench_protocol::WorkbenchTabGroupLabel::parse(label)
-                        .unwrap(),
-                    color: orchbee_workbench_protocol::TabGroupColor::Blue,
-                }),
-            );
+        let intent = crate::workbench_client::state::workspace_setup::SetupIntent::TabGroupName(
+            Box::new(orchbee_workbench_protocol::TabConfiguration::CreateGroup {
+                tab_id: state.cache().tabs()[0].tab_id().clone(),
+                label: orchbee_workbench_protocol::WorkbenchTabGroupLabel::parse(label).unwrap(),
+                color: orchbee_workbench_protocol::TabGroupColor::Blue,
+            }),
+        );
         let token = mailbox
             .open_setup_draft_for(state, intent)
             .ok_or_else(|| test_error("group draft admission"))?;
@@ -37,7 +33,7 @@ impl UiDriver {
 
     pub(in crate::workbench_client::connection::native::tests) fn enqueue_setup_token(
         &mut self,
-        token: NativeSetupToken,
+        token: SetupToken,
     ) -> TestResult {
         let clock = self.clock.clone();
         let deadlines = OperationDeadlines::from_sample(clock.now())
@@ -50,12 +46,12 @@ impl UiDriver {
 
     pub(in crate::workbench_client::connection::native::tests) fn draw_setup(
         &mut self,
-        token: NativeSetupToken,
+        token: SetupToken,
     ) {
         self.state_mut().acknowledge_setup_draw(Some(token));
     }
 
-    // The explicit recovery action uses the same admission and frozen-state checks as NativeUi.
+    // The explicit recovery action uses the same admission and frozen-state checks as WorkbenchClientUi.
     pub(in crate::workbench_client::connection::native::tests) fn refresh_known_setup(
         &mut self,
     ) -> TestResult {
@@ -191,7 +187,7 @@ impl Harness {
         assert!(self.ui.state_mut().retain_setup_worker(evidence));
         assert_eq!(
             self.ui.state().setup_status(),
-            Some(NativeSetupStatus::TabsNotApplied)
+            Some(SetupStatus::TabsNotApplied)
         );
         assert!(!self.ui.state().setup_pending_or_draft());
         let state = self
@@ -208,19 +204,19 @@ impl Harness {
 impl UiDriver {
     pub(in crate::workbench_client::connection::native::tests) fn location_label_draft(
         &mut self,
-        target: crate::workbench_client::state::workspace_setup::NativeLocationLabelTarget,
+        target: crate::workbench_client::state::workspace_setup::LocationLabelTarget,
         replacement: Option<&str>,
-    ) -> TestResult<NativeSetupToken> {
-        use crate::workbench_client::state::workspace_setup::NativeSetupIntent;
+    ) -> TestResult<SetupToken> {
+        use crate::workbench_client::state::workspace_setup::SetupIntent;
         let mailbox = Arc::clone(&self.mailbox);
         let state = self.state_mut();
         let token = mailbox
-            .open_setup_draft_for(state, NativeSetupIntent::RenameLocation(target))
+            .open_setup_draft_for(state, SetupIntent::RenameLocation(target))
             .ok_or_else(|| test_error("location label draft admission"))?;
         state.acknowledge_setup_draw(Some(token));
         if let Some(label) = replacement {
-            assert!(state.edit_setup_draft(token, NativeSetupEdit::Clear));
-            assert!(state.edit_setup_draft(token, NativeSetupEdit::Append(label)));
+            assert!(state.edit_setup_draft(token, SetupEdit::Clear));
+            assert!(state.edit_setup_draft(token, SetupEdit::Append(label)));
         }
         Ok(token)
     }

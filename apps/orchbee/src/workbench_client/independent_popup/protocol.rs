@@ -52,7 +52,7 @@ impl PopupOutcome {
                 TerminalEditorFailure::Busy => Reason::Busy,
                 TerminalEditorFailure::Denied
                 | TerminalEditorFailure::InvalidIntent
-                | TerminalEditorFailure::SiteMismatch
+                | TerminalEditorFailure::SessionMismatch
                 | TerminalEditorFailure::Unavailable
                 | TerminalEditorFailure::Conflict
                 | TerminalEditorFailure::NotFound
@@ -84,7 +84,7 @@ impl PopupRunner {
             .configured_command(
                 ConfiguredCommandRequest {
                     protocol_version: ProtocolVersion,
-                    site_id: self.site.clone(),
+                    session_id: self.session.clone(),
                     request_id: request_id()?,
                     action,
                 },
@@ -106,7 +106,7 @@ impl PopupRunner {
                 F::Busy => Reason::Busy,
                 F::Denied
                 | F::InvalidIntent
-                | F::SiteMismatch
+                | F::SessionMismatch
                 | F::Unavailable
                 | F::Conflict
                 | F::NotFound
@@ -131,7 +131,7 @@ impl PopupRunner {
             .terminal_editor(
                 TerminalEditorRequest {
                     protocol_version: ProtocolVersion,
-                    site_id: self.site.clone(),
+                    session_id: self.session.clone(),
                     request_id: request_id()?,
                     action,
                 },

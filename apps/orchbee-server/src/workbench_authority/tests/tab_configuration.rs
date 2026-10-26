@@ -212,7 +212,7 @@ fn tab_configuration_stale_missing_and_close_fences_have_no_partial_writes() {
         panic!("layout")
     };
     let close_grant =
-        WorkbenchGrant::manage_navigation(owner.site_id().clone()).with_terminal_lifecycle();
+        WorkbenchGrant::manage_navigation(owner.session_id().clone()).with_terminal_lifecycle();
     let close = command(
         3103,
         owner.snapshot().revision.value(),

@@ -62,7 +62,7 @@ fn route(
                 .and_then(|p| p.to_str())
                 .ok_or(())?;
             let scope = runtime.file_name().and_then(|p| p.to_str()).ok_or(())?;
-            orchbee_local_site_runtime::SiteScope::parse(scope).map_err(|_| ())?;
+            orchbee_local_runtime::SessionScope::parse(scope).map_err(|_| ())?;
             environment.retain(|(k, _)| {
                 !matches!(k.as_str(), "ORCHBEE_RUNTIME_BASE" | "ORCHBEE_RUNTIME_SCOPE")
             });

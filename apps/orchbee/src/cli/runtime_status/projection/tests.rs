@@ -56,7 +56,7 @@ fn installed_channel_is_bound_to_release_observation_without_widening_v1() {
         executable: PathBuf::from("C:/release/orchbee.exe"),
         cohort: Cohort::Available("a".repeat(64)),
         installation: crate::cli::update::Installation::Verified {
-            channel: orchbee_local_site_runtime::WindowsUpdateChannel::Preview,
+            channel: orchbee_local_runtime::UpdateChannel::Preview,
             version: "0.1.0".into(),
             build_id: "test".into(),
             manifest: "b".repeat(64),

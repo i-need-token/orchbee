@@ -250,7 +250,7 @@ struct RunningServer {
 impl RunningServer {
     fn start() -> TestResult<Self> {
         let directory = TestDirectory::new("server")?;
-        let endpoint = directory.path().join("site.sock");
+        let endpoint = directory.path().join("session.sock");
         let mut child = Command::new(env!("CARGO_BIN_EXE_orchbee-server"))
             .arg("--local-endpoint")
             .arg(&endpoint)

@@ -51,7 +51,7 @@ fn coordinator() -> Coordinator {
 }
 
 fn take_selection(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &Arc<CommandMailbox>,
 ) -> (PaneRef, terminal_selection::Command, TerminalViewerAction) {
     ui.admit_selections(mailbox);
@@ -74,7 +74,7 @@ fn take_selection(
 }
 
 fn reply_selection(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &Arc<CommandMailbox>,
     key: PaneRef,
     command: terminal_selection::Command,
@@ -110,7 +110,7 @@ fn reply_selection(
 }
 
 fn reject_selection(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &Arc<CommandMailbox>,
     key: PaneRef,
     command: terminal_selection::Command,
@@ -126,7 +126,7 @@ fn reject_selection(
 }
 
 fn reply_export_control(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &Arc<CommandMailbox>,
     key: PaneRef,
     command: terminal_selection::Command,
@@ -166,7 +166,12 @@ fn active_selection() -> SelectionChangedState {
     }
 }
 
-fn install_wide_tail(ui: &mut NativeUi, row: u16, lead_column: u16, cursor: Option<(u16, u16)>) {
+fn install_wide_tail(
+    ui: &mut WorkbenchClientUi,
+    row: u16,
+    lead_column: u16,
+    cursor: Option<(u16, u16)>,
+) {
     let projection = &mut ui.projections[0];
     let mut frame = projection.value.frame().unwrap().clone();
     let template = frame.rows[usize::from(row)].cells[0].clone();
@@ -1051,7 +1056,7 @@ fn raw_ctrl_h_del_and_tab_follow_inline_search_editing() {
 }
 
 struct PrimaryRefresh {
-    ui: NativeUi,
+    ui: WorkbenchClientUi,
     mailbox: Arc<CommandMailbox>,
     key: PaneRef,
     sequence: NonZeroU64,

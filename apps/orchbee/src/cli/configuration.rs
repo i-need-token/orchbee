@@ -2,30 +2,29 @@
 use super::{Failure, FailureKind};
 use crate::invocation::CreationDirectory;
 #[cfg(test)]
-use orchbee_local_site_runtime::WindowsUserSettings;
-use orchbee_local_site_runtime::{
-    WindowsDirectoryPolicy, WindowsSettingsDiagnostics, WindowsSettingsError,
-    WindowsUserSettingsLoad, read_windows_user_settings,
+use orchbee_local_runtime::UserSettings;
+use orchbee_local_runtime::{
+    DirectoryPolicy, SettingsDiagnostics, SettingsError, UserSettingsLoad, read_user_settings,
 };
 use orchbee_workbench_protocol::{LaunchOptions, WorkbenchDirectoryPath};
 use std::path::PathBuf;
 
 #[derive(Debug)]
 pub(super) struct Settings {
-    theme: orchbee_local_site_runtime::WindowsThemeName,
+    theme: orchbee_local_runtime::ThemeName,
     window_title: String,
-    agent_sidebar: orchbee_local_site_runtime::WindowsAgentSidebarSettings,
-    space_sidebar: orchbee_local_site_runtime::WindowsSpaceSidebarSettings,
-    notifications: orchbee_local_site_runtime::WindowsNotificationSettings,
-    shell: orchbee_local_site_runtime::WindowsShellSettings,
-    keys: orchbee_local_site_runtime::WindowsKeySettings,
+    agent_sidebar: orchbee_local_runtime::AgentSidebarSettings,
+    space_sidebar: orchbee_local_runtime::SpaceSidebarSettings,
+    notifications: orchbee_local_runtime::NotificationSettings,
+    shell: orchbee_local_runtime::ShellSettings,
+    keys: orchbee_local_runtime::KeySettings,
     pub(super) path: Option<PathBuf>,
     pub(super) exists: bool,
     pub(super) cwd: Option<(CreationDirectory, Option<WorkbenchDirectoryPath>)>,
     pub(super) worktree_root: Option<WorkbenchDirectoryPath>,
     manifest_check: bool,
     manifest_check_source: &'static str,
-    pub(super) diagnostics: WindowsSettingsDiagnostics,
+    pub(super) diagnostics: SettingsDiagnostics,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -47,18 +46,18 @@ impl Error {
     }
 }
 
-impl From<WindowsSettingsError> for Error {
-    fn from(error: WindowsSettingsError) -> Self {
+impl From<SettingsError> for Error {
+    fn from(error: SettingsError) -> Self {
         Self::new(error.field, error.reason)
     }
 }
 
 pub(super) fn load() -> Result<Settings, Error> {
-    project(read_windows_user_settings(|name| std::env::var_os(name))?)
+    project(read_user_settings(|name| std::env::var_os(name))?)
 }
 
-fn project(load: WindowsUserSettingsLoad) -> Result<Settings, Error> {
-    let WindowsUserSettingsLoad {
+fn project(load: UserSettingsLoad) -> Result<Settings, Error> {
+    let UserSettingsLoad {
         settings: raw,
         diagnostics,
     } = load;
@@ -80,11 +79,11 @@ fn project(load: WindowsUserSettingsLoad) -> Result<Settings, Error> {
             .map(|(policy, value)| {
                 Ok::<_, Error>((
                     match policy {
-                        WindowsDirectoryPolicy::Follow => CreationDirectory::Follow,
-                        WindowsDirectoryPolicy::Home => CreationDirectory::Home,
-                        WindowsDirectoryPolicy::Current => CreationDirectory::Current,
-                        WindowsDirectoryPolicy::Workspace => CreationDirectory::Workspace,
-                        WindowsDirectoryPolicy::Explicit => CreationDirectory::Explicit,
+                        DirectoryPolicy::Follow => CreationDirectory::Follow,
+                        DirectoryPolicy::Home => CreationDirectory::Home,
+                        DirectoryPolicy::Current => CreationDirectory::Current,
+                        DirectoryPolicy::Workspace => CreationDirectory::Workspace,
+                        DirectoryPolicy::Explicit => CreationDirectory::Explicit,
                     },
                     value
                         .map(|value| path(value, "terminal.new_cwd"))
@@ -159,10 +158,7 @@ impl Settings {
             (
                 "windowTitleDiagnostic".into(),
                 serde_json::json!(
-                    orchbee_local_site_runtime::WindowsWindowTitleTemplate::parse(
-                        &self.window_title
-                    )
-                    .err()
+                    orchbee_local_runtime::WindowTitleTemplate::parse(&self.window_title).err()
                 ),
             ),
             ("keyOverrides".into(), self.keys.overrides.len().into()),

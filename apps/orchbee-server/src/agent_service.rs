@@ -208,7 +208,7 @@ impl AgentState {
 
     /// Opens the cell with a genuine empty canonical runtime. The
     /// translator receives the observation socket path at construction —
-    /// `None` when the owning site has no managed endpoint, and also when
+    /// `None` when the owning session has no managed endpoint, and also when
     /// the bound endpoint's path has no UTF-8 overlay representation while
     /// the endpoint itself remains bound — so the path is immutable before
     /// the cell is ever shared.

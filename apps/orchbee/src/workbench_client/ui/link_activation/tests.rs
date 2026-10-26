@@ -23,7 +23,7 @@ fn synchronous_link_rejection_replaces_an_older_lane_notice() {
         10,
         Geometry::new(80, 24, 8, 16).unwrap(),
     ));
-    let mut ui = NativeUi::new(mailbox, clock);
+    let mut ui = WorkbenchClientUi::new(mailbox, clock);
     ui.links.set_notice_for_test(Notice::Handled);
     assert_eq!(
         ui.view().command_notice,
@@ -48,7 +48,7 @@ fn synchronous_link_notice_expiry_requests_one_idle_redraw() {
         10,
         Geometry::new(80, 24, 8, 16).unwrap(),
     ));
-    let mut ui = NativeUi::new(mailbox, clock);
+    let mut ui = WorkbenchClientUi::new(mailbox, clock);
     assert_eq!(
         ui.pointer_link(source(), PointerSelectionCell { column: 0, row: 0 }),
         PointerLinkAdmission::Rejected
@@ -70,7 +70,7 @@ fn accepted_link_retires_an_older_synchronous_link_notice() {
         10,
         Geometry::new(80, 24, 8, 16).unwrap(),
     ));
-    let mut ui = NativeUi::new(mailbox, clock);
+    let mut ui = WorkbenchClientUi::new(mailbox, clock);
     ui.report_link_notice(WorkbenchClientNotice::LinkBusy);
     ui.links.set_notice_for_test(Notice::Handled);
     assert_eq!(
@@ -116,7 +116,7 @@ fn source() -> PaintedLinkSource {
             0,
         ),
         member: SnapshotMember {
-            site: orchbee_workbench_protocol::SiteId::parse(&id(3)).unwrap(),
+            session: orchbee_workbench_protocol::SessionId::parse(&id(3)).unwrap(),
             context: orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(&id(4)).unwrap(),
             tab,
             panel,

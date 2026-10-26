@@ -4,7 +4,7 @@
 //! `register_carrier`, the registered wire owner on a real
 //! `UnixStream::pair` driven through the PRODUCTION `run()` entry
 //! (`run_configured_for_test` skips `configure_idle_stream` and is for
-//! fake streams only — Agent43), a real `SiteCoordinator` fed through
+//! fake streams only — Agent43), a real `SessionCoordinator` fed through
 //! `prepare_terminal_tab_create`/`complete_terminal_tab_create`, and a real `AgentService`. The only fake
 //! element is the remote CNP peer, and it HOLDS the socket open on an
 //! owned channel until the pump's result is in hand — closing early
@@ -35,7 +35,7 @@ use serde_json::json;
 use crate::{
     agent_service::{AgentPolicy, AgentReadFault},
     local_terminal_service::{LocalTerminalService, lease_expiry},
-    site_coordinator::PreparedTerminalTabCreate,
+    session_coordinator::PreparedTerminalTabCreate,
     terminal_coordinator::{Completion, WorkerPlacement},
     worker_obcn_carrier::{WorkerWireExit, create_worker_carrier},
     worker_registry::{RegisteredWorkerWireOwner, WorkerAdmission},
@@ -204,7 +204,7 @@ fn open_member(service: &LocalTerminalService, generation: NonZeroU64) -> String
             "11111111111111111111111111111111",
         )
         .unwrap(),
-        site_id: snapshot.site_id,
+        session_id: snapshot.session_id,
         expected_revision: snapshot.revision,
         action: orchbee_workbench_protocol::WorkbenchAction::TabCreate {
             placement: None,

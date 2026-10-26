@@ -1,27 +1,27 @@
 //! Selected-context group metadata validation and exact mutation receipt guards.
 use super::{
-    NativeContextTabs, NativeProjectionDivergence, NativeProjectionError, WorkbenchRevision,
+    ClientContextTabs, ClientProjectionDivergence, ClientProjectionError, WorkbenchRevision,
 };
 use orchbee_workbench_protocol::{
     MAXIMUM_TAB_GROUPS_PER_CONTEXT, TerminalContext, WorkbenchTabGroupLabel,
 };
 use std::collections::{HashMap, HashSet};
 
-pub(super) fn validate(context: &TerminalContext) -> Result<(), NativeProjectionError> {
+pub(super) fn validate(context: &TerminalContext) -> Result<(), ClientProjectionError> {
     if context.groups.len() > MAXIMUM_TAB_GROUPS_PER_CONTEXT {
-        return Err(NativeProjectionError);
+        return Err(ClientProjectionError);
     }
     let mut groups = HashSet::new();
     for group in &context.groups {
         if !groups.insert(&group.group_id) || WorkbenchTabGroupLabel::parse(&group.label).is_err() {
-            return Err(NativeProjectionError);
+            return Err(ClientProjectionError);
         }
     }
     let mut unpinned = false;
     let mut positions = HashMap::new();
     for (index, tab) in context.tabs.iter().enumerate() {
         if tab.pinned && (unpinned || tab.group_id.is_some()) {
-            return Err(NativeProjectionError);
+            return Err(ClientProjectionError);
         }
         unpinned |= !tab.pinned;
         if let Some(group) = &tab.group_id
@@ -30,17 +30,17 @@ pub(super) fn validate(context: &TerminalContext) -> Result<(), NativeProjection
                     .insert(group, index)
                     .is_some_and(|previous| previous + 1 != index))
         {
-            return Err(NativeProjectionError);
+            return Err(ClientProjectionError);
         }
     }
     Ok(())
 }
 
 pub(super) fn validate_receipt(
-    baseline: &NativeContextTabs,
-    candidate: &NativeContextTabs,
+    baseline: &ClientContextTabs,
+    candidate: &ClientContextTabs,
     committed_revision: WorkbenchRevision,
-) -> Result<(), NativeProjectionDivergence> {
+) -> Result<(), ClientProjectionDivergence> {
     if candidate.revision == committed_revision
         && (candidate.groups() != baseline.groups()
             || candidate.tabs.iter().any(|next| {
@@ -51,7 +51,7 @@ pub(super) fn validate_receipt(
                     .is_some_and(|prior| prior.pinned != next.pinned || prior.group != next.group)
             }))
     {
-        return Err(NativeProjectionDivergence);
+        return Err(ClientProjectionDivergence);
     }
     Ok(())
 }

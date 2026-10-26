@@ -1,6 +1,6 @@
 use super::*;
 use orchbee_workbench_protocol::{
-    PluginAction, PluginFailure, PluginInvocationContext, PluginOutcome, PluginRequest, SiteId,
+    PluginAction, PluginFailure, PluginInvocationContext, PluginOutcome, PluginRequest, SessionId,
 };
 #[test]
 fn plugin_execution_requires_read_create_and_lifecycle_authority_before_resolution() {
@@ -23,7 +23,7 @@ fn plugin_execution_requires_read_create_and_lifecycle_authority_before_resoluti
                 let request = PluginRequest {
                     protocol_version: ProtocolVersion,
                     request_id: WorkbenchRequestId::parse(&"1".repeat(32)).unwrap(),
-                    site_id: SiteId::parse(&"2".repeat(32)).unwrap(),
+                    session_id: SessionId::parse(&"2".repeat(32)).unwrap(),
                     action: PluginAction::Invoke {
                         operation_id: "4".repeat(32),
                         plugin_id: None,
@@ -41,7 +41,7 @@ fn plugin_execution_requires_read_create_and_lifecycle_authority_before_resoluti
                     result.outcome,
                     PluginOutcome::Failed {
                         reason: if read && create && lifecycle {
-                            PluginFailure::SiteMismatch
+                            PluginFailure::SessionMismatch
                         } else {
                             PluginFailure::Denied
                         }
@@ -108,7 +108,7 @@ fn popup_session_applies_read_create_and_close_permissions_per_operation() {
                     let request = PluginRequest {
                         protocol_version: ProtocolVersion,
                         request_id: WorkbenchRequestId::parse(&"1".repeat(32)).unwrap(),
-                        site_id: SiteId::parse(&"2".repeat(32)).unwrap(),
+                        session_id: SessionId::parse(&"2".repeat(32)).unwrap(),
                         action,
                     };
                     let WorkbenchResponse::Plugin(result) =
@@ -120,7 +120,7 @@ fn popup_session_applies_read_create_and_close_permissions_per_operation() {
                         result.outcome,
                         PluginOutcome::Failed {
                             reason: if allowed {
-                                PluginFailure::SiteMismatch
+                                PluginFailure::SessionMismatch
                             } else {
                                 PluginFailure::Denied
                             }

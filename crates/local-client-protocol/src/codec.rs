@@ -66,8 +66,8 @@ pub enum LocalClientMessage {
     ClientHello(ClientHello),
     ClientAccepted { generation: NonZeroU64 },
     Rejected { reason: RejectionReason },
-    SiteStopRequest(crate::SiteStopRequest),
-    SiteStopResult(crate::SiteStopResult),
+    SessionStopRequest(crate::SessionStopRequest),
+    SessionStopResult(crate::SessionStopResult),
     ServerMetadataRequest,
     ServerMetadata(crate::ServerMetadata),
 }
@@ -238,8 +238,10 @@ fn encode_payload(message: &LocalClientMessage) -> Result<Vec<u8>, ProtocolError
     let payload = match message {
         LocalClientMessage::ServerMetadataRequest => vec![6],
         LocalClientMessage::ServerMetadata(metadata) => crate::server_metadata::encode(metadata),
-        LocalClientMessage::SiteStopRequest(request) => crate::site_stop::encode_request(request),
-        LocalClientMessage::SiteStopResult(result) => crate::site_stop::encode_result(result),
+        LocalClientMessage::SessionStopRequest(request) => {
+            crate::session_stop::encode_request(request)
+        }
+        LocalClientMessage::SessionStopResult(result) => crate::session_stop::encode_result(result),
         LocalClientMessage::ClientHello(hello) => {
             let cohort_length =
                 u8::try_from(hello.cohort.len()).map_err(|_error| ProtocolError::InvalidCohort)?;
@@ -271,9 +273,11 @@ fn decode_payload(payload: &[u8]) -> Result<LocalClientMessage, ProtocolError> {
         Some(6) if payload.len() == 1 => Ok(LocalClientMessage::ServerMetadataRequest),
         Some(7) => crate::server_metadata::decode(payload).map(LocalClientMessage::ServerMetadata),
         Some(4) => {
-            crate::site_stop::decode_request(payload).map(LocalClientMessage::SiteStopRequest)
+            crate::session_stop::decode_request(payload).map(LocalClientMessage::SessionStopRequest)
         }
-        Some(5) => crate::site_stop::decode_result(payload).map(LocalClientMessage::SiteStopResult),
+        Some(5) => {
+            crate::session_stop::decode_result(payload).map(LocalClientMessage::SessionStopResult)
+        }
         Some(CLIENT_HELLO_KIND) => decode_client_hello(payload),
         Some(CLIENT_ACCEPTED_KIND) => decode_client_accepted(payload),
         Some(REJECTED_KIND) => decode_rejected(payload),

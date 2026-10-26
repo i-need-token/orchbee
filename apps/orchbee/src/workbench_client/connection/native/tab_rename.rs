@@ -1,5 +1,5 @@
 use super::{
-    CarrierFailure, CommandLease, NativeExecutor, RefreshDecision, Result, SetupEntryExpiry,
+    CarrierFailure, ClientExecutor, CommandLease, RefreshDecision, Result, SetupEntryExpiry,
     SetupOwner, SetupTarget, UiReply, closed, event,
 };
 use crate::local_client::workbench::label_rename::{
@@ -10,7 +10,7 @@ use crate::workbench_client::{
     state::tab_rename::{RenameOperation, RenameResult, RenameWorkerEvidence},
 };
 
-impl NativeExecutor {
+impl ClientExecutor {
     pub(super) fn run_rename(
         &mut self,
         lease: &CommandLease,

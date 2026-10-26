@@ -1,6 +1,6 @@
 //! Read-only local branch/upstream facts; neither topology nor a remote fetch.
 use crate::{
-    ContractError, ProtocolVersion, SiteId, WorkbenchRequestId, WorkbenchRevision,
+    ContractError, ProtocolVersion, SessionId, WorkbenchRequestId, WorkbenchRevision,
     WorkbenchWorkspaceId,
 };
 use serde::{Deserialize, Serialize};
@@ -17,7 +17,7 @@ pub struct WorkspaceGitRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub workspace_id: WorkbenchWorkspaceId,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -55,7 +55,7 @@ pub struct WorkspaceGitResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub workspace_id: WorkbenchWorkspaceId,
     pub outcome: WorkspaceGitOutcome,
 }
@@ -63,7 +63,7 @@ impl WorkspaceGitResult {
     pub fn answers(&self, request: &WorkspaceGitRequest) -> bool {
         self.protocol_version == request.protocol_version
             && self.request_id == request.request_id
-            && self.site_id == request.site_id
+            && self.session_id == request.session_id
             && self.workspace_id == request.workspace_id
     }
     pub fn validate(&self) -> Result<(), ContractError> {

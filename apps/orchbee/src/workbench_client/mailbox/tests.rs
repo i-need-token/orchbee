@@ -8,7 +8,7 @@ use crate::{
 };
 use orchbee_client_server_protocol::{ControllerId, ViewerId};
 use orchbee_workbench_protocol::{
-    Navigation, PanelNode, Presentation, PresentationBinding, ProtocolVersion, SiteId, Snapshot,
+    Navigation, PanelNode, Presentation, PresentationBinding, ProtocolVersion, SessionId, Snapshot,
     Tab, TerminalContext, TerminalId, TerminalPresentationId, WorkbenchAction, WorkbenchCommand,
     WorkbenchLabel, WorkbenchPanelId, WorkbenchRevision, WorkbenchTabId,
     WorkbenchTerminalContextId, WorkbenchTerminalGeometry, WorkerId,
@@ -2669,14 +2669,14 @@ fn cleanup_event(key: AttachmentKey) -> WorkerEvent {
 }
 
 fn create_marker(base: Instant, generation: u64, request_id: WorkbenchRequestId) -> CreateMarker {
-    let site_id = SiteId::parse(&id(2)).unwrap();
+    let session_id = SessionId::parse(&id(2)).unwrap();
     let context_id = WorkbenchTerminalContextId::parse(&id(3)).unwrap();
     let label = WorkbenchLabel::parse("2").unwrap();
     let workbench_geometry = WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap();
     let command = WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: request_id.clone(),
-        site_id: site_id.clone(),
+        session_id: session_id.clone(),
         expected_revision: WorkbenchRevision::new(1),
         action: WorkbenchAction::TabCreate {
             placement: None,
@@ -2692,7 +2692,7 @@ fn create_marker(base: Instant, generation: u64, request_id: WorkbenchRequestId)
     let request = WorkbenchTabCreateRequest::try_from(command).unwrap();
     let operation = CreateOperation::new(
         CreateOperationKey::new(request_id, generation),
-        site_id,
+        session_id,
         WorkbenchRevision::new(1),
         context_id,
         label,
@@ -2726,11 +2726,11 @@ fn panel() -> WorkbenchPanelId {
 /// The `PaneKey`/`PaneRef` a real state minted for `anchor` — preferred over
 /// the fabricated helpers whenever a session exists so panel identity matches
 /// the actual workbench leaf.
-fn projected_one_tab() -> NativeContextTabs {
+fn projected_one_tab() -> ClientContextTabs {
     projected_tabs(1)
 }
 
-fn projected_tabs(tab_count: usize) -> NativeContextTabs {
+fn projected_tabs(tab_count: usize) -> ClientContextTabs {
     project_preferred_workspace(&Snapshot {
         navigation: {
             let fixture_context_id = WorkbenchTerminalContextId::parse(&id(3)).unwrap();
@@ -2756,7 +2756,7 @@ fn projected_tabs(tab_count: usize) -> NativeContextTabs {
         },
         protocol_version: ProtocolVersion,
         revision: WorkbenchRevision::new(1),
-        site_id: SiteId::parse(&id(2)).unwrap(),
+        session_id: SessionId::parse(&id(2)).unwrap(),
         terminal_contexts: vec![TerminalContext {
             groups: Vec::new(),
             tabs: (0..tab_count)

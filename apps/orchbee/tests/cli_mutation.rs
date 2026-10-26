@@ -1,11 +1,11 @@
 //! Process-level mutation evidence: the real `orchbee` binary runs against a
-//! scripted local peer bound at the Site's client socket. The peer speaks the
+//! scripted local peer bound at the Session's client socket. The peer speaks the
 //! genuine OBLC admission and OBWP snapshot + command protocol, so every
 //! mutation class — committed, unchanged, accepted, rejected, denied,
 //! unavailable, ambiguous transport — is exercised against the production
 //! code path. Every test also asserts the wire shape the CLI submitted:
 //! exactly one snapshot read, then exactly one `workbench.command` carrying
-//! the snapshot's Site identity and revision under a fresh request identity.
+//! the snapshot's Session identity and revision under a fresh request identity.
 #![cfg(target_os = "linux")]
 
 use std::{
@@ -44,7 +44,7 @@ type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 /// One cohort directory per test process: copies of the four build artifacts
 /// plus a `cohort.json` manifest, so the spawned CLI passes the real
-/// `NativeCohort::current` verification.
+/// `Cohort::current` verification.
 fn cohort() -> &'static Path {
     static COHORT: OnceLock<PathBuf> = OnceLock::new();
     COHORT
@@ -100,7 +100,7 @@ fn cohort() -> &'static Path {
         .as_path()
 }
 
-// ---- Site scope staging ---------------------------------------------------
+// ---- Session scope staging ---------------------------------------------------
 
 /// Thin wrapper over the shared minter: a long TMPDIR must not push the
 /// rendezvous socket path past `sun_path`, so names stay short and exclusive.
@@ -108,7 +108,7 @@ fn base_dir(tag: &str) -> PathBuf {
     support::runtime_base(tag)
 }
 
-/// Create the existing-only Site scope directory the rendezvous validator
+/// Create the existing-only Session scope directory the rendezvous validator
 /// expects (mode 0700, owned by the caller).
 fn stage_scope(base: &Path) -> PathBuf {
     support::stage_scope(base)
@@ -405,7 +405,7 @@ fn fixture_document() -> &'static [u8] {
 }"#
 }
 
-const SITE: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const SESSION: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const STANDALONE_CONTEXT: &str = "00000000000000000000000000000001";
 const PROJECT: &str = "00000000000000000000000000000010";
 const WORKSPACE: &str = "00000000000000000000000000000011";
@@ -415,13 +415,13 @@ const LOGS_TAB: &str = "00000000000000000000000000000040";
 const LEFT_PANEL: &str = "00000000000000000000000000000043";
 const RIGHT_PANEL: &str = "00000000000000000000000000000046";
 
-/// Assert the one-command contract the wire just proved: Site identity and
+/// Assert the one-command contract the wire just proved: Session identity and
 /// expected revision come from the snapshot, the request identity is fresh
 /// (never the snapshot read's), and the action is the expected one.
 fn assert_command_base(command: &WorkbenchCommand, snapshot_request: &str) {
     assert_eq!(
-        command.site_id.as_str(),
-        SITE,
+        command.session_id.as_str(),
+        SESSION,
         "Session identity from snapshot"
     );
     assert_eq!(
@@ -485,7 +485,7 @@ fn project_create_commits_under_a_fresh_request() -> TestResult {
     assert_eq!(document["schema"], "orchbee.mutation.result");
     assert_eq!(document["version"], 1);
     assert_eq!(document["source"]["kind"], "workbench-command");
-    assert_eq!(document["source"]["sessionId"], SITE);
+    assert_eq!(document["source"]["sessionId"], SESSION);
     assert_eq!(document["source"]["expectedRevision"], "7");
     assert_eq!(document["result"]["action"], "project.create");
     assert_eq!(document["result"]["outcome"], "committed");
@@ -563,7 +563,7 @@ fn workspace_create_commits_under_a_fresh_request() -> TestResult {
     assert_eq!(document["schema"], "orchbee.mutation.result");
     assert_eq!(document["version"], 1);
     assert_eq!(document["source"]["kind"], "workbench-command");
-    assert_eq!(document["source"]["sessionId"], SITE);
+    assert_eq!(document["source"]["sessionId"], SESSION);
     assert_eq!(document["source"]["expectedRevision"], "7");
     assert_eq!(document["result"]["action"], "workspace.create");
     assert_eq!(document["result"]["outcome"], "committed");
@@ -2209,7 +2209,7 @@ fn workspace_accept_directory_commits_under_a_fresh_request() -> TestResult {
     let document = envelope(&output);
     assert_eq!(document["schema"], "orchbee.mutation.result");
     assert_eq!(document["source"]["kind"], "workbench-command");
-    assert_eq!(document["source"]["sessionId"], SITE);
+    assert_eq!(document["source"]["sessionId"], SESSION);
     assert_eq!(document["source"]["expectedRevision"], "7");
     assert_eq!(document["result"]["action"], "workspace.accept-directory");
     assert_eq!(document["result"]["outcome"], "committed");
@@ -2968,7 +2968,7 @@ fn project_rename_commits_by_id_and_label() -> TestResult {
         assert_eq!(document["schema"], "orchbee.project.rename");
         assert_eq!(document["version"], 1);
         assert_eq!(document["source"]["kind"], "workbench-command");
-        assert_eq!(document["source"]["sessionId"], SITE);
+        assert_eq!(document["source"]["sessionId"], SESSION);
         assert_eq!(document["source"]["expectedRevision"], "7");
         assert_eq!(document["result"]["action"], "project.rename");
         assert_eq!(document["result"]["outcome"], "committed");
@@ -3462,7 +3462,7 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
                 );
             }
             WorkbenchRequest::WorkspaceCloseRead(read) => {
-                assert_eq!(read.site_id.as_str(), SITE);
+                assert_eq!(read.session_id.as_str(), SESSION);
 
                 assert_eq!(read.workspace_id.as_str(), WORKSPACE);
                 assert_ne!(
@@ -3519,7 +3519,7 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
                 .expect("peer writes close read result");
             }
             WorkbenchRequest::WorkspaceCloseResume(resume) => {
-                assert_eq!(resume.site_id.as_str(), SITE);
+                assert_eq!(resume.session_id.as_str(), SESSION);
 
                 assert_eq!(resume.workspace_id.as_str(), WORKSPACE);
                 // The stable id the accepted receipt carried reaches the
@@ -3531,7 +3531,7 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
                     &WorkbenchResponse::WorkspaceCloseResume(WorkbenchWorkspaceCloseResumeResult {
                         protocol_version: ProtocolVersion,
                         request_id: resume.request_id,
-                        site_id: resume.site_id,
+                        session_id: resume.session_id,
 
                         workspace_id: resume.workspace_id,
                         close_request_id: resume.close_request_id,
@@ -3567,7 +3567,7 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
     assert_eq!(document["schema"], "orchbee.mutation.result");
     assert_eq!(document["version"], 1);
     assert_eq!(document["source"]["kind"], "workbench-command");
-    assert_eq!(document["source"]["sessionId"], SITE);
+    assert_eq!(document["source"]["sessionId"], SESSION);
     assert_eq!(document["source"]["expectedRevision"], "7");
     assert_eq!(
         document["source"]["requestId"].as_str().unwrap(),
@@ -3603,7 +3603,7 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
     assert_eq!(document["schema"], "orchbee.workspace.close-status");
     assert_eq!(document["version"], 1);
     assert_eq!(document["source"]["kind"], "workbench-snapshot");
-    assert_eq!(document["source"]["sessionId"], SITE);
+    assert_eq!(document["source"]["sessionId"], SESSION);
     assert_eq!(document["source"]["revision"], "7");
     assert_eq!(document["result"]["kind"], "available");
     assert_eq!(document["result"]["closeRequestId"], CLOSE_ID);
@@ -3639,7 +3639,7 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
     assert_eq!(document["version"], 1);
     // `close-resume` reports its own request echo — there is no command.
     assert_eq!(document["source"]["kind"], "workspace-close-resume");
-    assert_eq!(document["source"]["sessionId"], SITE);
+    assert_eq!(document["source"]["sessionId"], SESSION);
     assert_eq!(document["source"]["closeRequestId"], CLOSE_ID);
     assert_eq!(document["source"]["expectedAttemptGeneration"], "1");
     assert_eq!(document["result"]["action"], "workspace.close-resume");

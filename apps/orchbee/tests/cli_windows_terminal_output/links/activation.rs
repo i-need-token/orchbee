@@ -3,7 +3,7 @@ use super::*;
 use orchbee_agent_observation_protocol::{
     AgentRequest, AgentResult, read_agent_request, write_agent_result,
 };
-use orchbee_local_site_runtime::{PluginRegistry, PluginRegistryMutation};
+use orchbee_local_runtime::{PluginRegistry, PluginRegistryMutation};
 use orchbee_workbench_protocol::*;
 use serde_json::json;
 const SCHEMA: &str = include_str!("../../../src/cli/schemas/orchbee.terminal.link-activate.json");
@@ -70,7 +70,7 @@ fn context_with_agent(
         &WorkbenchResponse::PanelAgent(PanelAgentResult {
             protocol_version: ProtocolVersion,
             request_id: req.request_id,
-            site_id: req.site_id,
+            session_id: req.session_id,
             outcome: PanelAgentOutcome::PresentationsRead {
                 workbench_revision: WorkbenchRevision::new(9),
                 report_revision: WorkbenchRevision::new(2),
@@ -122,7 +122,7 @@ fn context_with_agent(
         &WorkbenchResponse::PanelAgent(PanelAgentResult {
             protocol_version: ProtocolVersion,
             request_id: req.request_id,
-            site_id: req.site_id,
+            session_id: req.session_id,
             outcome: PanelAgentOutcome::PresentationsRead {
                 workbench_revision: WorkbenchRevision::new(9),
                 report_revision: WorkbenchRevision::new(2),
@@ -362,7 +362,7 @@ fn link_activation_invokes_once_with_exact_clicked_primary_or_child_and_preserve
                 &WorkbenchResponse::Plugin(PluginResult {
                     protocol_version: ProtocolVersion,
                     request_id: req.request_id,
-                    site_id: req.site_id,
+                    session_id: req.session_id,
                     outcome,
                 }),
             )

@@ -3,8 +3,8 @@ use super::metadata_exchange::{MetadataExchangeError, MetadataExchangeReason};
 use crate::local_client::{ExchangeAttempt, LocalClient, exchange_once};
 use orchbee_local_ipc::LocalIo;
 use orchbee_workbench_protocol::{
-    NativeSettingsRequest, NativeSettingsResult, WorkbenchRequest, WorkbenchResponse,
-    read_workbench_response, write_workbench_request,
+    SettingsRequest, SettingsResult, WorkbenchRequest, WorkbenchResponse, read_workbench_response,
+    write_workbench_request,
 };
 use std::time::Instant;
 #[cfg(test)]
@@ -12,10 +12,10 @@ mod tests;
 impl LocalClient {
     pub(crate) fn settings(
         &mut self,
-        request: NativeSettingsRequest,
+        request: SettingsRequest,
         deadline: Instant,
         wake: Option<LocalIo<'_>>,
-    ) -> Result<NativeSettingsResult, MetadataExchangeError> {
+    ) -> Result<SettingsResult, MetadataExchangeError> {
         let before = |reason| MetadataExchangeError {
             submitted: false,
             reason,

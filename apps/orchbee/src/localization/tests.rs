@@ -100,7 +100,7 @@ fn tab_menu_copy_localizes_scope_and_preserves_close_and_rename_consequences() {
 
     use crate::{
         action_menu::{MenuAction, MenuTarget, MenuUnavailable, TabMenuScope},
-        workbench_client::NativeCloseConfirmationKind,
+        workbench_client::CloseConfirmationKind,
     };
     use orchbee_workbench_protocol::WorkbenchTabId;
 
@@ -161,7 +161,7 @@ fn tab_menu_copy_localizes_scope_and_preserves_close_and_rename_consequences() {
     );
     assert_eq!(locale.close_set_title(2), "关闭 2 个标签页？");
     assert_eq!(
-        locale.close_title(NativeCloseConfirmationKind::Resume),
+        locale.close_title(CloseConfirmationKind::Resume),
         "继续关闭此标签页？"
     );
     assert_eq!(
@@ -179,14 +179,14 @@ fn tab_menu_copy_localizes_scope_and_preserves_close_and_rename_consequences() {
 #[test]
 fn help_page_bindings_follow_the_configured_prefix() {
     use crate::client_view::{ClientView, KeyLabelGlyphs, PrefixAction};
-    use orchbee_local_site_runtime::{WindowsKeyChord, WindowsKeySettings};
+    use orchbee_local_runtime::{KeyChord, KeySettings};
     for (remapped, prefix) in [(false, "Ctrl+b"), (true, "Ctrl+a")] {
         let mut view = ClientView::new(80);
         if remapped {
-            view.configure_keys(&WindowsKeySettings {
+            view.configure_keys(&KeySettings {
                 commands: Vec::new(),
                 overrides: Vec::new(),
-                prefix: WindowsKeyChord {
+                prefix: KeyChord {
                     key: "a".into(),
                     ctrl: true,
                     alt: false,
@@ -445,13 +445,13 @@ fn panel_shortcut_discovery_and_dispatch_match_in_both_locales() {
 #[cfg(unix)]
 #[test]
 fn settled_setup_notices_never_hide_later_failures_or_retirement() {
-    use crate::workbench_client::{NativeSetupStatus, WorkbenchClientNotice};
+    use crate::workbench_client::{SetupStatus, WorkbenchClientNotice};
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for setup in [
-            NativeSetupStatus::ProjectCreated,
-            NativeSetupStatus::WorkspaceCreated,
-            NativeSetupStatus::DirectoryAccepted,
-            NativeSetupStatus::NotApplied,
+            SetupStatus::ProjectCreated,
+            SetupStatus::WorkspaceCreated,
+            SetupStatus::DirectoryAccepted,
+            SetupStatus::NotApplied,
         ] {
             for notice in [
                 WorkbenchClientNotice::CreateNotCreated,
@@ -486,11 +486,11 @@ fn settled_setup_notices_never_hide_later_failures_or_retirement() {
 #[cfg(unix)]
 #[test]
 fn current_failure_keeps_the_known_setup_recovery_fact() {
-    use crate::workbench_client::{NativeSetupStatus, WorkbenchClientNotice};
+    use crate::workbench_client::{SetupStatus, WorkbenchClientNotice};
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for setup in [
-            NativeSetupStatus::CommittedNeedRefresh,
-            NativeSetupStatus::OutcomeUnknown,
+            SetupStatus::CommittedNeedRefresh,
+            SetupStatus::OutcomeUnknown,
         ] {
             let notice = WorkbenchClientNotice::LocalBusy;
             let status = locale.native_status_with_setup(
@@ -511,7 +511,7 @@ fn current_failure_keeps_the_known_setup_recovery_fact() {
             );
             assert!(retired.starts_with("retired"));
             assert!(
-                retired.contains(if setup == NativeSetupStatus::CommittedNeedRefresh {
+                retired.contains(if setup == SetupStatus::CommittedNeedRefresh {
                     locale.setup_committed_fact()
                 } else {
                     locale.setup_status(setup)
@@ -535,9 +535,9 @@ fn current_failure_keeps_the_known_setup_recovery_fact() {
 #[cfg(unix)]
 #[test]
 fn workspace_created_only_offers_directory_setup_for_an_eligible_current_context() {
-    use crate::workbench_client::NativeSetupStatus;
+    use crate::workbench_client::SetupStatus;
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let setup = NativeSetupStatus::WorkspaceCreated;
+        let setup = SetupStatus::WorkspaceCreated;
         let eligible =
             locale.native_status_with_setup("phase".to_owned(), false, None, Some(setup), true);
         assert_eq!(
@@ -663,7 +663,7 @@ fn cli_cohort_failure_uses_repair_text_without_leaking_raw_io() {
     use serde_json::json;
 
     let cohort_failure = |error: &std::io::Error| {
-        let error = orchbee_local_site_runtime::NativeCohortError::from(std::io::Error::new(
+        let error = orchbee_local_runtime::CohortError::from(std::io::Error::new(
             error.kind(),
             error.to_string(),
         ));

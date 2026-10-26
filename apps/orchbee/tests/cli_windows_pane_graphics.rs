@@ -15,7 +15,7 @@ fn reply(stream: &mut LocalStream, request: PaneGraphicsRequest, outcome: PaneGr
         &WorkbenchResponse::PaneGraphics(PaneGraphicsResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
-            site_id: request.site_id,
+            session_id: request.session_id,
             outcome,
         }),
     )
@@ -359,7 +359,7 @@ fn actual_graphics_raw_pipe_frames_keep_owner_sequence_and_cleanup_on_eof_bad_fr
     }
 }
 #[test]
-fn malformed_input_stays_before_site_discovery() {
+fn malformed_input_stays_before_session_discovery() {
     let fixture = Fixture::new();
     let output = fixture.run_process(
         &[

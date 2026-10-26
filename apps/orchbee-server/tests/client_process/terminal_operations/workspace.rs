@@ -1,7 +1,7 @@
 use super::*;
 use nix::poll::{PollFd, PollFlags, poll};
 use orchbee_client_server_protocol::{
-    SiteId as ClientSiteId, TerminalId as ClientTerminalId, TerminalViewerAction,
+    SessionId as ObcsSessionId, TerminalId as ClientTerminalId, TerminalViewerAction,
     TerminalViewerOutcome, TerminalViewerRequest, ViewerUnavailableReason,
     WorkerId as ClientWorkerId,
 };
@@ -17,7 +17,7 @@ pub(super) fn tab_request(snapshot: &Snapshot, value: u128) -> TestResult<Workbe
     Ok(WorkbenchRequest::Command(WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{value:032x}"))?,
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         expected_revision: snapshot.revision,
         action: WorkbenchAction::TabCreate {
             automatic_label: false,
@@ -70,7 +70,7 @@ fn navigate(
         &WorkbenchRequest::Command(WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id: request_id.clone(),
-            site_id: snapshot.site_id.clone(),
+            session_id: snapshot.session_id.clone(),
             expected_revision: snapshot.revision,
             action,
         }),
@@ -328,7 +328,7 @@ fn workspace_tab_unknown_after_worker_loss_retains_membership_across_worker_gene
     let attach = ClientMessage::TerminalViewer(TerminalViewerRequest::new(
         id(3)?,
         TerminalViewerAction::AttachBinding {
-            site_id: ClientSiteId::parse(after_loss.site_id.as_str())?,
+            session_id: ObcsSessionId::parse(after_loss.session_id.as_str())?,
             worker_id: ClientWorkerId::parse(binding.worker_id.as_str())?,
             terminal_id: ClientTerminalId::parse(binding.terminal_id.as_str())?,
         },

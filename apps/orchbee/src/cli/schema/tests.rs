@@ -624,7 +624,7 @@ fn configuration_admits_bounded_warnings_and_requires_current_fields() {
         "schema":"orchbee.config.check", "version":1, "source":{"kind":"local-runtime"},
         "result":{"ok":false,"checks":[
             {"name":"runtime-base","status":"pass","details":{"exists":true,"path":"C:/runtime"}},
-            {"name":"runtime-directory","status":"pass","details":{"exists":true,"path":"C:/runtime/site"}},
+            {"name":"runtime-directory","status":"pass","details":{"exists":true,"path":"C:/runtime/session"}},
             {"name":"cohort","status":"pass","details":{"verified":true}},
             {"name":"locale","status":"pass","details":{"locale":"en-US","source":"LC_ALL"}},
             {"name":"sockets","status":"not-applicable","details":{"client":endpoint,"worker":endpoint,"host":budget,"clientPending":budget}},

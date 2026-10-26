@@ -41,7 +41,7 @@ fn command(service: &LocalTerminalService, id: u128, action: WorkbenchAction) ->
     WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{id:032x}")).unwrap(),
-        site_id: current.site_id,
+        session_id: current.session_id,
         expected_revision: current.revision,
         action,
     }

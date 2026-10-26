@@ -87,7 +87,7 @@ impl Fixture {
         let command = WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id: id(3),
-            site_id: snapshot.site_id,
+            session_id: snapshot.session_id,
             expected_revision: snapshot.revision,
             action: WorkbenchAction::WorkspacePrimaryDirectoryAccept {
                 workspace_id: workspace_id.clone(),
@@ -119,7 +119,7 @@ impl Fixture {
             .execute_worktree_operation(Request {
                 protocol_version: ProtocolVersion,
                 request_id: id(1000),
-                site_id: snapshot(&self.service).site_id,
+                session_id: snapshot(&self.service).session_id,
                 action,
             })
             .outcome
@@ -246,7 +246,7 @@ fn navigation(
     let request = WorkbenchRequest::Command(WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: id(value),
-        site_id: snapshot.site_id,
+        session_id: snapshot.session_id,
         expected_revision: snapshot.revision,
         action,
     });
@@ -476,7 +476,7 @@ fn failed_remove_can_close_explicitly_without_repeating_git_and_pending_close_is
             .execute_workspace_close(WorkbenchCommand {
                 protocol_version: ProtocolVersion,
                 request_id: id(request),
-                site_id: state.site_id,
+                session_id: state.session_id,
                 expected_revision: state.revision,
                 action: WorkbenchAction::WorkspaceClose {
                     workspace_id: fixture.workspace.clone(),
@@ -518,7 +518,7 @@ fn failed_remove_can_close_explicitly_without_repeating_git_and_pending_close_is
             .execute_workspace_close(WorkbenchCommand {
                 protocol_version: ProtocolVersion,
                 request_id: id(901),
-                site_id: state.site_id,
+                session_id: state.session_id,
                 expected_revision: state.revision,
                 action: WorkbenchAction::WorkspaceClose {
                     workspace_id: fixture.workspace.clone()
@@ -573,7 +573,7 @@ fn mismatched_removed_path_is_unknown_and_keeps_the_workspace() {
 }
 
 #[test]
-fn site_stop_joins_the_retained_submitter_after_cancelling_its_job() {
+fn session_stop_joins_the_retained_submitter_after_cancelling_its_job() {
     let mut fixture = Fixture::new();
     fixture.start(WorktreeIntent::Open {
         source: WorktreeSource::Directory {
@@ -614,7 +614,7 @@ fn site_stop_joins_the_retained_submitter_after_cancelling_its_job() {
     assert!(matches!(
         fixture.settled(),
         Status::Failed {
-            reason: Failure::SiteStopping {},
+            reason: Failure::SessionStopping {},
             resumable: false,
             ..
         }
@@ -652,7 +652,7 @@ fn observed_source_open_then_group_close_retains_tombstones_without_git_deletion
             WorkbenchCommand {
                 protocol_version: ProtocolVersion,
                 request_id: id(51),
-                site_id: head.site_id.clone(),
+                session_id: head.session_id.clone(),
                 expected_revision: head.revision,
                 action: WorkbenchAction::WorkspacePrimaryDirectoryAccept {
                     workspace_id: main.clone(),
@@ -697,7 +697,7 @@ fn observed_source_open_then_group_close_retains_tombstones_without_git_deletion
     let read = || WorkbenchWorkspaceGroupCloseRequest {
         protocol_version: ProtocolVersion,
         request_id: id(81),
-        site_id: head.site_id.clone(),
+        session_id: head.session_id.clone(),
         action: GroupAction::Read {
             operation_id: id(80),
         },
@@ -716,7 +716,7 @@ fn observed_source_open_then_group_close_retains_tombstones_without_git_deletion
     let start = WorkbenchWorkspaceGroupCloseRequest {
         protocol_version: ProtocolVersion,
         request_id: id(82),
-        site_id: head.site_id.clone(),
+        session_id: head.session_id.clone(),
         action: GroupAction::Start {
             operation_id: id(80),
             project_id: fixture.project.clone(),
@@ -812,7 +812,7 @@ fn group_owner_resumes_admission_failure_but_refuses_stop_or_removed_source() {
         let handle = workers.request_handle().unwrap();
         let mut coordinator = fixture.service.coordinator.lock().unwrap();
         let authority = coordinator.worktree_authority().unwrap();
-        let grant = orchbee_server::WorkbenchGrant::read_only(head.site_id.clone())
+        let grant = orchbee_server::WorkbenchGrant::read_only(head.session_id.clone())
             .with_terminal_lifecycle();
         authority
             .execute_workspace_group_close(
@@ -820,7 +820,7 @@ fn group_owner_resumes_admission_failure_but_refuses_stop_or_removed_source() {
                 WorkbenchWorkspaceGroupCloseRequest {
                     protocol_version: ProtocolVersion,
                     request_id: id(91),
-                    site_id: head.site_id,
+                    session_id: head.session_id,
                     action,
                 },
                 Some((
@@ -852,7 +852,7 @@ fn group_owner_resumes_admission_failure_but_refuses_stop_or_removed_source() {
                 .execute_workspace_close(WorkbenchCommand {
                     protocol_version: ProtocolVersion,
                     request_id: id(92),
-                    site_id: head.site_id,
+                    session_id: head.session_id,
                     expected_revision: head.revision,
                     action: WorkbenchAction::WorkspaceClose {
                         workspace_id: fixture.workspace.clone(),
@@ -889,7 +889,7 @@ fn group_owner_resumes_admission_failure_but_refuses_stop_or_removed_source() {
         assert_eq!(
             reason,
             if stopping {
-                GroupFailure::SiteStopping
+                GroupFailure::SessionStopping
             } else if removed {
                 GroupFailure::SourceChanged
             } else {

@@ -1,6 +1,6 @@
 //! Verifies creation against its original full canonical baseline, including placement and fresh IDs.
 use super::{
-    CreatedTabExpectation, NativeContextTabs, NativeProjectionDivergence,
+    ClientContextTabs, ClientProjectionDivergence, CreatedTabExpectation,
     ValidatedCreatedProjection, validate_canonical_candidate,
 };
 use orchbee_workbench_protocol::{
@@ -8,10 +8,10 @@ use orchbee_workbench_protocol::{
 };
 
 pub(in crate::workbench_client) fn validate_created_tab(
-    current: &NativeContextTabs,
+    current: &ClientContextTabs,
     expected: &CreatedTabExpectation,
-    candidate: NativeContextTabs,
-) -> Result<ValidatedCreatedProjection, NativeProjectionDivergence> {
+    candidate: ClientContextTabs,
+) -> Result<ValidatedCreatedProjection, ClientProjectionDivergence> {
     validate_canonical_candidate(current, &candidate)?;
     if current.revision.value().checked_add(1) != Some(expected.committed_revision.value())
         || candidate.revision < expected.committed_revision
@@ -27,21 +27,21 @@ pub(in crate::workbench_client) fn validate_created_tab(
                 })
             })
     {
-        return Err(NativeProjectionDivergence);
+        return Err(ClientProjectionDivergence);
     }
     let created_index = candidate.tab_index(&expected.tab_id);
     if candidate.revision == expected.committed_revision {
-        let index = created_index.ok_or(NativeProjectionDivergence)?;
+        let index = created_index.ok_or(ClientProjectionDivergence)?;
         let created = &candidate
             .canonical_context()
-            .ok_or(NativeProjectionDivergence)?
+            .ok_or(ClientProjectionDivergence)?
             .tabs[index];
         let PanelNode::Panel {
             primary_presentation,
             ..
         } = &created.root
         else {
-            return Err(NativeProjectionDivergence);
+            return Err(ClientProjectionDivergence);
         };
         let new_group = matches!(expected.placement, Some(TabCreationPlacement::NewGroup {}))
             .then_some(created.group_id.as_ref())
@@ -53,12 +53,12 @@ pub(in crate::workbench_client) fn validate_created_tab(
                 .iter()
                 .any(|context| context.groups.iter().any(|group| &group.group_id == id))
         }) {
-            return Err(NativeProjectionDivergence);
+            return Err(ClientProjectionDivergence);
         }
         let context = create_terminal_tab(
             current
                 .canonical_context()
-                .ok_or(NativeProjectionDivergence)?,
+                .ok_or(ClientProjectionDivergence)?,
             expected.placement.as_ref(),
             NewTerminalTab {
                 tab_id: expected.tab_id.clone(),
@@ -69,21 +69,21 @@ pub(in crate::workbench_client) fn validate_created_tab(
                 binding: primary_presentation
                     .binding
                     .clone()
-                    .ok_or(NativeProjectionDivergence)?,
+                    .ok_or(ClientProjectionDivergence)?,
             },
             new_group,
         )
-        .map_err(|_| NativeProjectionDivergence)?;
+        .map_err(|_| ClientProjectionDivergence)?;
         let mut snapshot = current.canonical_snapshot().clone();
         snapshot.revision = expected.committed_revision;
         snapshot.terminal_contexts[current
             .canonical_context
-            .ok_or(NativeProjectionDivergence)?] = context;
+            .ok_or(ClientProjectionDivergence)?] = context;
         let exact = current
             .project_snapshot(&snapshot)
-            .map_err(|_| NativeProjectionDivergence)?;
+            .map_err(|_| ClientProjectionDivergence)?;
         if candidate != exact {
-            return Err(NativeProjectionDivergence);
+            return Err(ClientProjectionDivergence);
         }
     } else if let Some(index) = created_index {
         let created = &candidate.tabs[index];
@@ -92,7 +92,7 @@ pub(in crate::workbench_client) fn validate_created_tab(
                 .tabs
                 .iter()
                 .find(|tab| tab.tab_id() == tab_id)
-                .ok_or(NativeProjectionDivergence)?
+                .ok_or(ClientProjectionDivergence)?
                 .tab_label(),
             // Only explicit relative placements require the anchor postcondition checked here.
             _ => &expected.requested_label,
@@ -101,7 +101,7 @@ pub(in crate::workbench_client) fn validate_created_tab(
             || created.presentation_id != expected.presentation_id
             || &created.presentation_label != label
         {
-            return Err(NativeProjectionDivergence);
+            return Err(ClientProjectionDivergence);
         }
     } else if candidate
         .canonical_snapshot()
@@ -114,7 +114,7 @@ pub(in crate::workbench_client) fn validate_created_tab(
                 .any(|tab| contains_identity(&tab.root, expected))
         })
     {
-        return Err(NativeProjectionDivergence);
+        return Err(ClientProjectionDivergence);
     }
     Ok(ValidatedCreatedProjection {
         candidate,

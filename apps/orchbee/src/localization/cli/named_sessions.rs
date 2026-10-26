@@ -1,6 +1,6 @@
 use super::Locale;
 use crate::{cli::named_sessions::SessionState, invocation::CommandPath};
-use orchbee_local_site_runtime::WindowsNamedSiteDeleteReason as Reason;
+use orchbee_local_runtime::NamedSessionDeleteReason as Reason;
 
 impl Locale {
     pub(crate) fn cli_session_state(self, state: SessionState) -> &'static str {
@@ -51,6 +51,10 @@ impl Locale {
             (Self::ZhCn, Some(Reason::Filesystem)) => {
                 "无法准入或删除会话存储；请检查所有权和文件占用。"
             }
+            (Self::EnUs, Some(Reason::Unsupported)) => {
+                "Session deletion is unavailable on this platform."
+            }
+            (Self::ZhCn, Some(Reason::Unsupported)) => "此平台不支持删除会话。",
             (Self::EnUs, Some(Reason::Interrupted)) => {
                 "Deletion was interrupted and may have changed storage; inspect session list or repeat the same delete command."
             }

@@ -1,6 +1,6 @@
 //! Full-duplex fixture exchange on one retained Windows Job owner thread.
 use orchbee_local_ipc::{ChildInputWriter, ChildOutputReader};
-use orchbee_local_site_runtime::WindowsCommandChild;
+use orchbee_local_runtime::CommandChild;
 use std::{
     fmt,
     io::{self, Read, Write},
@@ -69,7 +69,7 @@ struct Capture {
 
 // The production owner kills on Drop without waiting. This synchronous fixture
 // also attempts settlement if its launch callback or another invariant unwinds.
-struct Child(WindowsCommandChild);
+struct Child(CommandChild);
 impl Drop for Child {
     fn drop(&mut self) {
         let _ = self.0.settle();
@@ -134,7 +134,7 @@ fn exchange(
         None => (None, Stdio::null()),
     };
     command.stdin(stdin).stdout(stdout).stderr(stderr);
-    let mut child = Child(WindowsCommandChild::spawn(command).map_err(|failure| {
+    let mut child = Child(CommandChild::spawn(command).map_err(|failure| {
         Problem(
             if failure.created {
                 FailureKind::PhysicalUnknown

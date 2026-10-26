@@ -74,7 +74,10 @@ fn exact_policy_mutation_has_one_exchange_and_truthful_known_or_unknown_receipts
                 panic!("one mutation")
             };
             assert_eq!(command.expected_revision, WorkbenchRevision::new(9));
-            assert_eq!(command.site_id.as_str(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+            assert_eq!(
+                command.session_id.as_str(),
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            );
             assert_eq!(
                 json!(command.action),
                 json!({"kind":"panel.input.set","terminalContextId":"00000000000000000000000000000001","tabId":"00000000000000000000000000000002","panelId":PANEL,"rightClick":"panel"})

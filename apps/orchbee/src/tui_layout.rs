@@ -13,7 +13,7 @@ use orchbee_workbench_protocol::{
     ClientSplitRatio, PanelOrientation, WorkbenchPanelSlotId, WorkbenchSplitId,
 };
 
-use crate::{client_view::SidebarSurface, workbench_client::NativePanelTree};
+use crate::{client_view::SidebarSurface, workbench_client::ClientPanelTree};
 
 pub(crate) const FULL_MINIMUM_COLUMNS: u16 = 100;
 pub(crate) const FULL_MINIMUM_ROWS: u16 = 24;
@@ -469,7 +469,7 @@ pub(crate) struct SplitArea<'a> {
 /// leaf the live terminal attaches to.
 pub(crate) fn project_panel_tree<'a>(
     area: Rect,
-    tree: &'a NativePanelTree,
+    tree: &'a ClientPanelTree,
     active_panel: Option<usize>,
     ratios: &impl Fn(
         &WorkbenchSplitId,
@@ -484,7 +484,7 @@ pub(crate) fn project_panel_tree<'a>(
 
 fn collect_panel_tree<'a>(
     area: Rect,
-    tree: &'a NativePanelTree,
+    tree: &'a ClientPanelTree,
     active_panel: Option<usize>,
     ratios: &impl Fn(
         &WorkbenchSplitId,
@@ -494,12 +494,12 @@ fn collect_panel_tree<'a>(
     projection: &mut PanelTreeProjection<'a>,
 ) {
     match tree {
-        NativePanelTree::Panel { panel_index } => projection.leaves.push(LeafArea {
+        ClientPanelTree::Panel { panel_index } => projection.leaves.push(LeafArea {
             panel_index: *panel_index,
             leaf: area,
             content: scrollbar_content(area),
         }),
-        NativePanelTree::Split {
+        ClientPanelTree::Split {
             first,
             second,
             orientation,
@@ -528,7 +528,7 @@ fn collect_panel_tree<'a>(
                 None => {
                     collect_hidden_splits(first, ratios, &mut projection.splits);
                     collect_hidden_splits(second, ratios, &mut projection.splits);
-                    if let Some(NativePanelTree::Panel { panel_index }) =
+                    if let Some(ClientPanelTree::Panel { panel_index }) =
                         active_leaf(tree, active_panel).or_else(|| first_leaf(tree))
                     {
                         projection.leaves.push(LeafArea {
@@ -544,7 +544,7 @@ fn collect_panel_tree<'a>(
 }
 
 fn collect_hidden_splits<'a>(
-    tree: &'a NativePanelTree,
+    tree: &'a ClientPanelTree,
     ratios: &impl Fn(
         &WorkbenchSplitId,
         &WorkbenchPanelSlotId,
@@ -552,7 +552,7 @@ fn collect_hidden_splits<'a>(
     ) -> ClientSplitRatio,
     output: &mut Vec<SplitArea<'a>>,
 ) {
-    if let NativePanelTree::Split {
+    if let ClientPanelTree::Split {
         first,
         second,
         split_id,
@@ -576,19 +576,19 @@ fn collect_hidden_splits<'a>(
     }
 }
 
-fn active_leaf(tree: &NativePanelTree, active: Option<usize>) -> Option<&NativePanelTree> {
+fn active_leaf(tree: &ClientPanelTree, active: Option<usize>) -> Option<&ClientPanelTree> {
     match tree {
-        NativePanelTree::Panel { panel_index } => (Some(*panel_index) == active).then_some(tree),
-        NativePanelTree::Split { first, second, .. } => {
+        ClientPanelTree::Panel { panel_index } => (Some(*panel_index) == active).then_some(tree),
+        ClientPanelTree::Split { first, second, .. } => {
             active_leaf(first, active).or_else(|| active_leaf(second, active))
         }
     }
 }
 
-fn first_leaf(tree: &NativePanelTree) -> Option<&NativePanelTree> {
+fn first_leaf(tree: &ClientPanelTree) -> Option<&ClientPanelTree> {
     match tree {
-        NativePanelTree::Panel { .. } => Some(tree),
-        NativePanelTree::Split { first, .. } => first_leaf(first),
+        ClientPanelTree::Panel { .. } => Some(tree),
+        ClientPanelTree::Split { first, .. } => first_leaf(first),
     }
 }
 

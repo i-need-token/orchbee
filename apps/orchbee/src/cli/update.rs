@@ -1,4 +1,4 @@
-//! Explicit Windows cohort updates and save-then-update channel changes; never starts a Site.
+//! Explicit Windows cohort updates and save-then-update channel changes; never starts a Session.
 mod acquire;
 mod install;
 mod installed;
@@ -9,9 +9,8 @@ use super::{
 };
 use crate::{invocation::OutputFormat, localization::Locale};
 pub(in crate::cli) use installed::{Installation, inspect as inspect_installation};
-use orchbee_local_site_runtime::{
-    WindowsCommandFailure, WindowsCommandOutput, WindowsUpdateChannel, read_windows_user_settings,
-    set_windows_update_channel,
+use orchbee_local_runtime::{
+    CommandFailure, CommandOutput, UpdateChannel, read_user_settings, set_update_channel,
 };
 use serde_json::json;
 use std::{
@@ -92,12 +91,12 @@ impl Context {
         }
         Ok(())
     }
-    fn command_result(&self, result: &WindowsCommandOutput) -> Result<(), Error> {
+    fn command_result(&self, result: &CommandOutput) -> Result<(), Error> {
         match result.failure {
             None => Ok(()),
-            Some(WindowsCommandFailure::Cancelled) => Err(Error::Cancelled),
-            Some(WindowsCommandFailure::Timeout) => Err(Error::Timeout),
-            Some(WindowsCommandFailure::PhysicalUnknown) => Err(Error::PhysicalUnknown),
+            Some(CommandFailure::Cancelled) => Err(Error::Cancelled),
+            Some(CommandFailure::Timeout) => Err(Error::Timeout),
+            Some(CommandFailure::PhysicalUnknown) => Err(Error::PhysicalUnknown),
             Some(_) => Err(Error::Download),
         }
     }
@@ -116,7 +115,7 @@ struct Report {
 
 /// Persists an optional channel first, then attempts its complete Windows update.
 pub(crate) fn run(
-    channel: Option<WindowsUpdateChannel>,
+    channel: Option<UpdateChannel>,
     timeout_ms: u32,
     format: OutputFormat,
     locale: Locale,
@@ -152,13 +151,13 @@ pub(crate) fn run(
         context.check()?;
         if let Some(channel) = channel {
             report.config_path = Some(
-                set_windows_update_channel(channel, |name| std::env::var_os(name))
+                set_update_channel(channel, |name| std::env::var_os(name))
                     .map_err(|_| Error::Configuration)?,
             );
             report.channel_saved = true;
         }
-        let settings = read_windows_user_settings(|name| std::env::var_os(name))
-            .map_err(|_| Error::Configuration)?;
+        let settings =
+            read_user_settings(|name| std::env::var_os(name)).map_err(|_| Error::Configuration)?;
         selected = Some(settings.update_channel);
         report.phase = "source";
         let source = acquire::Source::configured(settings.update_channel)?;
@@ -208,7 +207,7 @@ pub(crate) fn run(
         "schema":"orchbee.update", "version":1, "source":{"kind":"local-installation"},
         "operation": if channel.is_some() {"channel-set"} else {"update"},
         "result":{
-            "channel":selected.map(WindowsUpdateChannel::as_str),
+            "channel":selected.map(UpdateChannel::as_str),
             "phase":report.phase, "channelSaved":report.channel_saved, "configPath":report.config_path,
             "releasePath":report.published, "reused":report.reused, "activated":report.activated,
             "releaseVersion":report.version, "buildId":report.build_id, "cleanupPending":report.cleanup_pending,

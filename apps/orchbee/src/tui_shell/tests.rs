@@ -45,13 +45,13 @@ pub(crate) fn run_native_close_resize_confirmation(
         prompts_after_draw: Vec<bool>,
     }
     impl TerminalInputPort for Surface<'_> {
-        fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+        fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
             self.session.native_capture_claims()
         }
         fn native_capture_context(
             &self,
-            owner: crate::tui_composition::NativeCaptureOwner,
-        ) -> Option<crate::workbench_client::NativeCaptureContext> {
+            owner: crate::tui_composition::CaptureOwner,
+        ) -> Option<crate::workbench_client::CaptureContext> {
             self.session.native_capture_context(owner)
         }
         fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
@@ -62,7 +62,7 @@ pub(crate) fn run_native_close_resize_confirmation(
         }
         fn capture_tab_confirmation_key_for(
             &mut self,
-            token: crate::workbench_client::NativeCloseConfirmationToken,
+            token: crate::workbench_client::CloseConfirmationToken,
             key: crate::client_view::ClientKey,
         ) -> bool {
             self.session.capture_tab_confirmation_key_for(token, key)
@@ -81,7 +81,7 @@ pub(crate) fn run_native_close_resize_confirmation(
         fn after_draw(&mut self) {
             self.session.after_draw();
         }
-        fn after_close_draw(&mut self, receipt: crate::workbench_client::NativeDrawReceipt) {
+        fn after_close_draw(&mut self, receipt: crate::workbench_client::DrawReceipt) {
             self.session.after_close_draw(receipt);
             self.prompts_after_draw.push({
                 let view = self.session.view();
@@ -852,7 +852,7 @@ fn failed_draw_never_acknowledges_the_pending_terminal_frame() {
         }
     }
     impl super::TerminalSurface for Surface {
-        fn after_close_draw(&mut self, _receipt: crate::workbench_client::NativeDrawReceipt) {
+        fn after_close_draw(&mut self, _receipt: crate::workbench_client::DrawReceipt) {
             self.close_acknowledged += 1;
         }
         fn tick(&mut self) -> bool {
@@ -1102,7 +1102,7 @@ mod window_title;
 fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forwarding_input() {
     use crate::terminal_text::display_width;
     use crate::tui_theme::{ColorLevel, Role, Theme};
-    use orchbee_local_site_runtime::WindowsThemeName;
+    use orchbee_local_runtime::ThemeName;
     for (width, height) in [(80, 24), (120, 40), (70, 18), (40, 10), (18, 4)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             let mut terminal = test_terminal(dimensions(width, height));
@@ -1118,9 +1118,9 @@ fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forward
             let mut surface = OrderedSurface::default();
             let mut dispatcher = crate::terminal_input::InputDispatcher::default();
             for (name, expected) in [
-                (WindowsThemeName::OneLight, Theme::one_light()),
-                (WindowsThemeName::OneDark, Theme::one_dark()),
-                (WindowsThemeName::TerminalNative, Theme::terminal_native()),
+                (ThemeName::OneLight, Theme::one_light()),
+                (ThemeName::OneDark, Theme::one_dark()),
+                (ThemeName::TerminalNative, Theme::terminal_native()),
             ] {
                 view.configure_theme(name);
                 assert!(
@@ -1179,7 +1179,7 @@ fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forward
                 );
             }
             view.configure_color_level(ColorLevel::Monochrome);
-            view.configure_theme(WindowsThemeName::OneLight);
+            view.configure_theme(ThemeName::OneLight);
             assert!(
                 super::draw_surface(
                     &mut terminal,

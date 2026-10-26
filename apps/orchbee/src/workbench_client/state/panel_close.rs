@@ -3,9 +3,9 @@ use super::{
     WorkbenchClientState,
 };
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
-use crate::workbench_client::workbench_projection::NativeTerminalBinding;
+use crate::workbench_client::workbench_projection::ClientTerminalBinding;
 use orchbee_workbench_protocol::{
-    SiteId, WorkbenchLabel, WorkbenchPanelId, WorkbenchRequestId, WorkbenchRevision,
+    SessionId, WorkbenchLabel, WorkbenchPanelId, WorkbenchRequestId, WorkbenchRevision,
     WorkbenchTabId, WorkbenchTerminalContextId,
 };
 use std::time::Instant;
@@ -24,7 +24,7 @@ impl PanelCloseConfirmationToken {
 /// refuses to execute against anything else.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::workbench_client) struct PanelCloseTarget {
-    site_id: SiteId,
+    session_id: SessionId,
     terminal_context_id: WorkbenchTerminalContextId,
     tab_id: WorkbenchTabId,
     panel_id: WorkbenchPanelId,
@@ -32,13 +32,13 @@ pub(in crate::workbench_client) struct PanelCloseTarget {
 
 impl PanelCloseTarget {
     const fn new(
-        site_id: SiteId,
+        session_id: SessionId,
         terminal_context_id: WorkbenchTerminalContextId,
         tab_id: WorkbenchTabId,
         panel_id: WorkbenchPanelId,
     ) -> Self {
         Self {
-            site_id,
+            session_id,
             terminal_context_id,
             tab_id,
             panel_id,
@@ -54,7 +54,7 @@ pub(in crate::workbench_client) struct PanelCloseSelection {
     tab_label: WorkbenchLabel,
     panel_position: usize,
     tab_position: usize,
-    binding: Option<NativeTerminalBinding>,
+    binding: Option<ClientTerminalBinding>,
     dissolves_tab: bool,
     base_revision: WorkbenchRevision,
 }
@@ -202,7 +202,7 @@ impl WorkbenchClientState {
             .ok_or(PanelCloseStateError::Busy)?;
         let selection = PanelCloseSelection {
             target: PanelCloseTarget::new(
-                self.cache.site_id().clone(),
+                self.cache.session_id().clone(),
                 self.cache
                     .terminal_context_id()
                     .ok_or(PanelCloseStateError::Busy)?
@@ -243,7 +243,7 @@ impl WorkbenchClientState {
     }
 
     /// Whether the frozen selection still matches live Client selection identity: same
-    /// site, context, revision, desired attachment, selected Tab and panel id,
+    /// session, context, revision, desired attachment, selected Tab and panel id,
     /// leaf binding, and last-leaf nature.
     fn panel_close_selection_matches(&self, selection: &PanelCloseSelection) -> bool {
         let Some(selected) = self.active() else {
@@ -255,7 +255,7 @@ impl WorkbenchClientState {
         let Some(panel) = tab.panel(selected.panel_index()) else {
             return false;
         };
-        self.cache.site_id() == &selection.target.site_id
+        self.cache.session_id() == &selection.target.session_id
             && self.cache.terminal_context_id() == Some(&selection.target.terminal_context_id)
             && self.cache.revision() == selection.base_revision
             && self.desired.as_ref().map(PaneKey::anchor) == Some(&selection.desired)

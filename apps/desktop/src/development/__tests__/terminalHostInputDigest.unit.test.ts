@@ -21,22 +21,22 @@ describe('terminalHostInputDigest', () => {
 		const repository = await mkdtemp(path.join(tmpdir(), 'orchbee-host-inputs-'));
 		temporaryDirectories.push(repository);
 		const host = path.join(repository, 'apps/terminal-host');
-		const shared = path.join(repository, 'crates/local-site-runtime/src');
+		const shared = path.join(repository, 'crates/local-runtime/src/directory/windows');
 		await mkdir(path.join(host, 'src'), { recursive: true });
 		await mkdir(shared, { recursive: true });
 		await Promise.all([
 			writeFile(path.join(host, 'build.zig'), 'build'),
 			writeFile(path.join(host, 'build.zig.zon'), 'dependencies'),
 			writeFile(path.join(host, 'src/main.zig'), 'main'),
-			writeFile(path.join(shared, 'windows_powershell_initialization.ps1'), 'common'),
-			writeFile(path.join(shared, 'windows_powershell_reader.ps1'), 'reader'),
+			writeFile(path.join(shared, 'initialization.ps1'), 'common'),
+			writeFile(path.join(shared, 'reader.ps1'), 'reader'),
 		]);
 		const original = await terminalHostInputDigest(host);
 		for (const { name, contents } of [
 			{ name: 'initialization', contents: 'common' },
 			{ name: 'reader', contents: 'reader' },
 		]) {
-			const asset = path.join(shared, `windows_powershell_${name}.ps1`);
+			const asset = path.join(shared, `${name}.ps1`);
 			await writeFile(asset, `${contents}-changed`);
 			expect(await terminalHostInputDigest(host)).not.toBe(original);
 			await writeFile(asset, contents);
@@ -44,7 +44,7 @@ describe('terminalHostInputDigest', () => {
 		}
 		await writeFile(path.join(shared, 'unrelated.rs'), 'other runtime owner');
 		expect(await terminalHostInputDigest(host)).toBe(original);
-		await rm(path.join(shared, 'windows_powershell_reader.ps1'));
+		await rm(path.join(shared, 'reader.ps1'));
 		await expect(terminalHostInputDigest(host)).rejects.toMatchObject({ code: 'ENOENT' });
 	});
 });

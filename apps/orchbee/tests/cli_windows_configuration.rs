@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 use support::{Fixture, assert_closed, peer, validate};
 
 #[test]
-fn channel_set_persists_before_failed_update_and_never_activates_a_site() {
+fn channel_set_persists_before_failed_update_and_never_activates_a_session() {
     use std::ffi::OsStr;
     let fixture = Fixture::new();
     let config = fixture.0.join("appdata/Orchbee/config.toml");
@@ -206,7 +206,7 @@ fn sidebar_configuration_check_projects_profiles_and_defaults_invalid_profiles()
     let schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
     validate(&doc, schema);
     assert_eq!(doc["version"], 1);
-    let profile = orchbee_local_site_runtime::WindowsAgentSidebarSettings::from_profile(
+    let profile = orchbee_local_runtime::AgentSidebarSettings::from_profile(
         doc["result"]["checks"][5]["details"]["agentSidebarProfile"]
             .as_str()
             .unwrap(),
@@ -226,14 +226,14 @@ fn sidebar_configuration_check_projects_profiles_and_defaults_invalid_profiles()
         std::fs::write(&config, &invalid).unwrap();
         let checked = config_check_document(&fixture);
         assert_warning_diagnostic(&checked, "ui.sidebar.agents", reason, "defaulted");
-        let profile = orchbee_local_site_runtime::WindowsAgentSidebarSettings::from_profile(
+        let profile = orchbee_local_runtime::AgentSidebarSettings::from_profile(
             checked["result"]["checks"][5]["details"]["agentSidebarProfile"]
                 .as_str()
                 .unwrap(),
         )
         .unwrap();
         assert!(profile.rows_for_agent("codex", None).is_none());
-        assert_creation_reaches_missing_site(&fixture);
+        assert_creation_reaches_missing_session(&fixture);
         assert_eq!(std::fs::read_to_string(&config).unwrap(), invalid);
     }
 }
@@ -290,7 +290,7 @@ fn generated_default_config_passes_the_offline_config_check() {
     assert_eq!(user_config["details"]["keyOverrides"], 0);
 
     let generated = std::fs::read_to_string(&config).unwrap();
-    let actions = orchbee_local_site_runtime::WindowsKeySettings::registered_actions();
+    let actions = orchbee_local_runtime::KeySettings::registered_actions();
     let mut uncommented = String::new();
     for line in generated.lines() {
         let action_line = line.strip_prefix("# ").filter(|candidate| {
@@ -350,7 +350,7 @@ fn assert_warning_diagnostic(document: &Value, field: &str, reason: &str, dispos
     );
 }
 
-fn assert_creation_reaches_missing_site(fixture: &Fixture) {
+fn assert_creation_reaches_missing_session(fixture: &Fixture) {
     std::fs::create_dir_all(fixture.0.join("runtime")).unwrap();
     let output = fixture.run(&["workspace", "create", "--cwd=C:/explicit", "--format=json"]);
     assert_eq!(
@@ -558,7 +558,7 @@ fn field_errors_warn_default_or_disable_only_the_affected_setting() {
             0
         );
         assert!(!checked.to_string().contains("DO-NOT-ECHO"));
-        assert_creation_reaches_missing_site(&fixture);
+        assert_creation_reaches_missing_session(&fixture);
         assert_eq!(std::fs::read_to_string(&config).unwrap(), text);
     }
 }
@@ -969,7 +969,7 @@ fn config_check_window_title_diagnostics() {
     let fixture = Fixture::new();
     let config = fixture.0.join("appdata/Orchbee/config.toml");
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
-    let default = orchbee_local_site_runtime::DEFAULT_WINDOW_TITLE;
+    let default = orchbee_local_runtime::DEFAULT_WINDOW_TITLE;
     for (title, effective, diagnostic) in [
         ("", "", None),
         ("{workspace}/{tab}", "{workspace}/{tab}", None),
@@ -994,7 +994,7 @@ fn config_check_window_title_diagnostics() {
         checked["result"]["checks"][5]["details"]["windowTitle"],
         default
     );
-    assert_creation_reaches_missing_site(&fixture);
+    assert_creation_reaches_missing_session(&fixture);
 }
 
 #[test]
@@ -1054,7 +1054,7 @@ fn config_check_notification_policy_validates_actual_file_and_closed_versions() 
         let checked = config_check_document(&fixture);
         assert_warning_diagnostic(&checked, field, reason, "defaulted");
         assert_eq!(checked["result"]["checks"][5]["details"][detail], expected);
-        assert_creation_reaches_missing_site(&fixture);
+        assert_creation_reaches_missing_session(&fixture);
     }
 }
 
@@ -1070,7 +1070,7 @@ fn workspace_sidebar_configuration_has_separate_profiles_and_defaults_invalid_pr
     validate(&doc, schema);
     assert_eq!(doc["version"], 1);
     let details = &doc["result"]["checks"][5]["details"];
-    let profile = orchbee_local_site_runtime::WindowsSpaceSidebarSettings::from_profile(
+    let profile = orchbee_local_runtime::SpaceSidebarSettings::from_profile(
         details["spacesSidebarProfile"].as_str().unwrap(),
     )
     .unwrap();
@@ -1101,13 +1101,13 @@ fn workspace_sidebar_configuration_has_separate_profiles_and_defaults_invalid_pr
         std::fs::write(&config, format!("[ui.sidebar.spaces]\n{invalid}")).unwrap();
         let checked = config_check_document(&fixture);
         assert_warning_diagnostic(&checked, field, reason, disposition);
-        let profile = orchbee_local_site_runtime::WindowsSpaceSidebarSettings::from_profile(
+        let profile = orchbee_local_runtime::SpaceSidebarSettings::from_profile(
             checked["result"]["checks"][5]["details"]["spacesSidebarProfile"]
                 .as_str()
                 .unwrap(),
         )
         .unwrap();
         assert_eq!(profile.rows().len(), 2);
-        assert_creation_reaches_missing_site(&fixture);
+        assert_creation_reaches_missing_session(&fixture);
     }
 }

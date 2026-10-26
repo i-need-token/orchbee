@@ -1,11 +1,11 @@
 //! One temporary process/screen viewer; unsettled cleanup blocks the sampler's next attachment.
 use super::{
-    BindingViewerTarget, ClientSiteId, ClientTerminalId, ClientWorkerId, IssuedViewer,
-    LocalTerminalService, TargetLifecycle, WorkerOperationRequest, WorkerOperationResult,
-    WorkerOutcome, WorkerRequest, WorkerRequestError, WorkerRequestHandle,
+    BindingViewerTarget, ClientTerminalId, ClientWorkerId, IssuedViewer, LocalTerminalService,
+    ObcsSessionId, TargetLifecycle, WorkerOperationRequest, WorkerOperationResult, WorkerOutcome,
+    WorkerRequest, WorkerRequestError, WorkerRequestHandle,
 };
 use crate::agent_screen::ScreenDetector;
-use crate::site_coordinator::ProcessObservationTarget;
+use crate::session_coordinator::ProcessObservationTarget;
 use std::sync::atomic::{AtomicBool, Ordering};
 pub(in crate::local_terminal_service) mod screen;
 
@@ -15,7 +15,7 @@ pub(in crate::local_terminal_service) struct CapturedAgentExplanation {
     pub(in crate::local_terminal_service) sample: orchbee_workbench_protocol::AgentDetectionSample,
 }
 
-/// Owned by the periodic sampler until exact Detach/Disposed, or matching Site shutdown proves Worker exit.
+/// Owned by the periodic sampler until exact Detach/Disposed, or matching Session shutdown proves Worker exit.
 pub(in crate::local_terminal_service) struct PendingCleanup {
     handle: WorkerRequestHandle,
     target: BindingViewerTarget,
@@ -100,14 +100,14 @@ impl LocalTerminalService {
         if stop.load(Ordering::Acquire) {
             return None;
         }
-        let (Ok(site), Ok(worker), Ok(terminal)) = (
-            ClientSiteId::parse(target.site_id.as_str()),
+        let (Ok(session), Ok(worker), Ok(terminal)) = (
+            ObcsSessionId::parse(target.session_id.as_str()),
             ClientWorkerId::parse(target.binding.worker_id.as_str()),
             ClientTerminalId::parse(target.binding.terminal_id.as_str()),
         ) else {
             return None;
         };
-        let Ok(issued) = self.issue_binding_viewer(&site, &worker, &terminal) else {
+        let Ok(issued) = self.issue_binding_viewer(&session, &worker, &terminal) else {
             return None;
         };
         self.with_issued_observation_viewer(target, stop, issued, observe)

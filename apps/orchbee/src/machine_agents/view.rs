@@ -1,6 +1,6 @@
 //! Pure machine-qualified Agent list projection, independent of network and input ownership.
 use super::{
-    AgentViewSpec, Choice, MetadataState, NativeContextLocation, NativeContextTarget,
+    AgentViewSpec, Choice, ClientContextLocation, ClientContextTarget, MetadataState,
     PanelAgentState, Row, display_label,
 };
 mod source;
@@ -39,7 +39,7 @@ impl View {
         &self,
         candidates: impl IntoIterator<Item = Entry<'a>>,
         current: &Choice,
-        context: Option<&NativeContextTarget>,
+        context: Option<&ClientContextTarget>,
     ) -> Vec<Entry<'a>> {
         self.project_source(candidates, current, context, None, None)
     }
@@ -82,7 +82,7 @@ impl View {
         label: &str,
         row: &Row,
         current: &Choice,
-        context: Option<&NativeContextTarget>,
+        context: Option<&ClientContextTarget>,
     ) -> bool {
         if self.state.is_some_and(|state| state != row.display_state())
             || (self.scope != Scope::All && machine != current)

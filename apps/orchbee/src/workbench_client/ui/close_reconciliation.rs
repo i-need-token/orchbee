@@ -1,13 +1,13 @@
 use super::{
-    Arc, CarrierFailure, CommandMailbox, MutationResult, NativeUi, OperationDeadlines,
-    RefreshDecision, UiReply, WorkbenchClientState,
+    Arc, CarrierFailure, CommandMailbox, MutationResult, OperationDeadlines, RefreshDecision,
+    UiReply, WorkbenchClientState, WorkbenchClientUi,
 };
 use crate::workbench_client::{
     mailbox::{CloseAdmissionError, CloseReconciliationSettlement, DesiredInstall, UiWaitKey},
     state::{CloseReconciliationMarker, MembershipInstallDecision},
 };
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(super) fn schedule_close_reconciliation(&mut self, mailbox: &Arc<CommandMailbox>) {
         let Some(deadline) = self
             .clock

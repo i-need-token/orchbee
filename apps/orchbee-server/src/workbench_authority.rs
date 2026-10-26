@@ -5,7 +5,7 @@ use orchbee_workbench_protocol::{
     ContractError, Directory, LaunchProfileCatalogOutcome, LaunchProfileCatalogRevision,
     LaunchProfileEntry, LaunchProfileId, LaunchProfileSelector,
     MAXIMUM_LAUNCH_PROFILE_CATALOG_BYTES, MAXIMUM_LAUNCH_PROFILE_ENTRIES, MAXIMUM_PROJECTS,
-    MAXIMUM_TERMINAL_CONTEXTS, Navigation, Project, ProtocolVersion, SiteId, Snapshot,
+    MAXIMUM_TERMINAL_CONTEXTS, Navigation, Project, ProtocolVersion, SessionId, Snapshot,
     TerminalContext, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
     WorkbenchCommandResult, WorkbenchCommandUnavailableReason, WorkbenchDirectoryId,
     WorkbenchLabel, WorkbenchLaunchProfileCatalogResult, WorkbenchProjectId,
@@ -110,7 +110,7 @@ const MAXIMUM_LEDGER_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Clone, Debug)]
 pub struct WorkbenchGrant {
-    site_id: SiteId,
+    session_id: SessionId,
     mutate_navigation: bool,
     create_terminal: bool,
     close_terminal: bool,
@@ -181,9 +181,9 @@ impl TryFrom<WorkbenchRequest> for WorkbenchReadOrNavigationRequest {
 
 impl WorkbenchGrant {
     #[must_use]
-    pub fn read_only(site_id: SiteId) -> Self {
+    pub fn read_only(session_id: SessionId) -> Self {
         Self {
-            site_id,
+            session_id,
             mutate_navigation: false,
             create_terminal: false,
             close_terminal: false,
@@ -191,9 +191,9 @@ impl WorkbenchGrant {
         }
     }
     #[must_use]
-    pub fn manage_navigation(site_id: SiteId) -> Self {
+    pub fn manage_navigation(session_id: SessionId) -> Self {
         Self {
-            site_id,
+            session_id,
             mutate_navigation: true,
             create_terminal: false,
             close_terminal: false,
@@ -202,9 +202,9 @@ impl WorkbenchGrant {
     }
 
     #[must_use]
-    pub fn manage_navigation_and_terminal_create(site_id: SiteId) -> Self {
+    pub fn manage_navigation_and_terminal_create(session_id: SessionId) -> Self {
         Self {
-            site_id,
+            session_id,
             mutate_navigation: true,
             create_terminal: true,
             close_terminal: false,
@@ -228,11 +228,11 @@ impl WorkbenchGrant {
 }
 
 /// The committed point-in-time membership slice a Worktree List request
-/// resolves and later re-verifies: site identity, revision, and the registered
+/// resolves and later re-verifies: session identity, revision, and the registered
 /// directory record (which carries its owning Worker identity).
 #[derive(Clone, Debug)]
 pub struct WorktreeListTarget {
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub revision: WorkbenchRevision,
     pub directory: Directory,
 }
@@ -281,7 +281,7 @@ pub struct WorkbenchAuthority {
     last_identity: u128,
     ledger: BTreeMap<WorkbenchRequestId, RetainedRequest>,
     ledger_bytes: usize,
-    /// The per-Site ephemeral Launch Profile catalog: private Server state
+    /// The per-Session ephemeral Launch Profile catalog: private Server state
     /// that never enters the public snapshot, journaled only through the same
     /// request ledger as every other command.
     catalog: Vec<LaunchProfileEntry>,
@@ -303,11 +303,11 @@ pub struct WorkbenchAuthority {
 }
 
 impl WorkbenchAuthority {
-    pub fn new(site_id: SiteId) -> Result<Self, ContractError> {
+    pub fn new(session_id: SessionId) -> Result<Self, ContractError> {
         let snapshot = Snapshot {
             protocol_version: ProtocolVersion,
             revision: WorkbenchRevision::new(0),
-            site_id,
+            session_id,
             navigation: Navigation {
                 project_order: Vec::new(),
                 directories: Vec::new(),
@@ -337,8 +337,8 @@ impl WorkbenchAuthority {
     }
 
     #[must_use]
-    pub fn site_id(&self) -> &SiteId {
-        &self.projection.snapshot().site_id
+    pub fn session_id(&self) -> &SessionId {
+        &self.projection.snapshot().session_id
     }
 
     /// The committed projection head. Callers already hold the coordinator
@@ -352,7 +352,7 @@ impl WorkbenchAuthority {
     pub fn graphics_owner(&self) -> std::sync::Arc<std::sync::Mutex<crate::PaneGraphicsAuthority>> {
         self.projection.graphics()
     }
-    pub fn event_journal(&self) -> crate::SiteEventJournal {
+    pub fn event_journal(&self) -> crate::SessionEventJournal {
         self.projection.events()
     }
 
@@ -371,7 +371,7 @@ impl WorkbenchAuthority {
             return WorktreeListResolution::Missing;
         };
         WorktreeListResolution::Found(WorktreeListTarget {
-            site_id: snapshot.site_id.clone(),
+            session_id: snapshot.session_id.clone(),
             revision: snapshot.revision,
             directory: directory.clone(),
         })
@@ -384,7 +384,7 @@ impl WorkbenchAuthority {
     ) -> WorkbenchResponse {
         match request.0 {
             ReadOrNavigationRequest::SnapshotRead(intent) => {
-                let authorized = grant.is_some_and(|grant| grant.site_id == *self.site_id());
+                let authorized = grant.is_some_and(|grant| grant.session_id == *self.session_id());
                 let outcome = if !authorized {
                     WorkbenchSnapshotOutcome::Denied {}
                 } else if self.retired {
@@ -403,7 +403,7 @@ impl WorkbenchAuthority {
                 })
             }
             ReadOrNavigationRequest::PublicationRead(intent) => {
-                let authorized = grant.is_some_and(|grant| grant.site_id == *self.site_id());
+                let authorized = grant.is_some_and(|grant| grant.session_id == *self.session_id());
                 let outcome = if !authorized {
                     WorkbenchPublicationOutcome::Denied {}
                 } else if self.retired {
@@ -420,7 +420,7 @@ impl WorkbenchAuthority {
                 })
             }
             ReadOrNavigationRequest::LaunchProfileCatalogRead(intent) => {
-                let authorized = grant.is_some_and(|grant| grant.site_id == *self.site_id());
+                let authorized = grant.is_some_and(|grant| grant.session_id == *self.session_id());
                 let outcome = if !authorized {
                     LaunchProfileCatalogOutcome::Denied {}
                 } else if self.retired {
@@ -443,7 +443,7 @@ impl WorkbenchAuthority {
             }
             ReadOrNavigationRequest::Command { command, action } => {
                 let authorized = grant.is_some_and(|grant| {
-                    grant.site_id == *self.site_id() && grant.mutate_navigation
+                    grant.session_id == *self.session_id() && grant.mutate_navigation
                 });
                 let command_result = if authorized {
                     self.command(command, action)
@@ -528,13 +528,13 @@ impl WorkbenchAuthority {
     ) -> Result<LaunchProfileCatalogOutcome, ()> {
         let outcome = match selector {
             None => LaunchProfileCatalogOutcome::Catalog {
-                site_id: self.site_id().clone(),
+                session_id: self.session_id().clone(),
                 catalog_revision: LaunchProfileCatalogRevision::new(self.catalog_revision),
                 entries: self.catalog.clone(),
             },
             Some(selector) => match resolve_profile_selector(&self.catalog, selector) {
                 ProfileSelectorResolution::Found(entry) => LaunchProfileCatalogOutcome::Profile {
-                    site_id: self.site_id().clone(),
+                    session_id: self.session_id().clone(),
                     catalog_revision: LaunchProfileCatalogRevision::new(self.catalog_revision),
                     profile: entry.clone(),
                 },
@@ -698,8 +698,8 @@ impl WorkbenchAuthority {
         action: PureWorkbenchAction,
     ) -> Result<CommitPlan, PlanFailure> {
         let current = self.projection.snapshot();
-        if command.site_id != current.site_id {
-            return reject(WorkbenchRejectionReason::SiteMismatch);
+        if command.session_id != current.session_id {
+            return reject(WorkbenchRejectionReason::SessionMismatch);
         }
         if command.expected_revision != current.revision {
             return reject(WorkbenchRejectionReason::RevisionMismatch);
@@ -1145,7 +1145,7 @@ impl WorkbenchAuthority {
                     last_identity = allocate(last_identity, 1)?;
                     let profile_id = LaunchProfileId::parse(&format!(
                         "{}:{}",
-                        current.site_id.as_str(),
+                        current.session_id.as_str(),
                         identity(last_identity)
                     ))
                     .map_err(|_error| PlanFailure::Internal)?;

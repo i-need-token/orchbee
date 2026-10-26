@@ -7,7 +7,7 @@ fn agent_view_correlation_deadline_and_post_handoff_failure_never_replay() -> Te
         let request = AgentViewRequest {
             protocol_version: ProtocolVersion,
             request_id: WorkbenchRequestId::parse(&id(1)).unwrap(),
-            site_id: SiteId::parse(&id(2)).unwrap(),
+            session_id: SessionId::parse(&id(2)).unwrap(),
             action: AgentViewAction::Clear { source: None },
         };
         let expected = request.clone();

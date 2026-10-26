@@ -43,7 +43,7 @@ pub use control::{
 };
 pub use publication::{PreparedWorkbenchTabClosePublication, WorkbenchTabClosePublicationError};
 
-/// Exact retained runtime association supplied by the Site/Terminal owner under its gate.
+/// Exact retained runtime association supplied by the Session/Terminal owner under its gate.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WorkbenchTabCloseRuntimeTarget {
     worker_id: WorkerId,
@@ -108,7 +108,7 @@ impl WorkbenchTabCloseRuntimeTarget {
     }
 }
 
-/// Site-owned evidence for one exact frozen member. Uncreated means a settled
+/// Session-owned evidence for one exact frozen member. Uncreated means a settled
 /// Create failure before Host commit, never merely a missing runtime observation.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum WorkbenchTabCloseMemberRuntime {

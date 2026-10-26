@@ -1,12 +1,12 @@
 use super::workbench_projection::{
-    CreatedTabExpectation, NativeContextTabs, NativeSimpleTab, NativeTerminalBinding,
+    ClientContextTabs, ClientTab, ClientTerminalBinding, CreatedTabExpectation,
     validate_canonical_refresh, validate_created_tab,
 };
 use crate::client_view::ClientAction;
 use crate::local_client::workbench::WorkbenchTabCreateCommit;
 use orchbee_client_server_protocol::{ControllerId, Geometry};
 use orchbee_workbench_protocol::{
-    SiteId, WorkbenchLabel, WorkbenchPanelId, WorkbenchRequestId, WorkbenchRevision,
+    SessionId, WorkbenchLabel, WorkbenchPanelId, WorkbenchRequestId, WorkbenchRevision,
     WorkbenchSnapshotOutcome, WorkbenchTabId, WorkbenchTerminalContextId,
     WorkbenchTerminalFailureReason, WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason,
 };
@@ -24,8 +24,8 @@ pub(super) use tab_groups::TabSelectionChange;
 pub(super) mod workspace_close;
 pub(super) mod workspace_setup;
 pub(super) mod worktree_launch;
-pub(crate) use context_selection::NativeContextView;
-pub(crate) use field_window::NativeFieldWindow;
+pub(crate) use context_selection::ClientContextView;
+pub(crate) use field_window::FieldWindow;
 mod create_membership;
 mod tab_duplication;
 pub(crate) use tab_duplication::{DuplicateProgress, DuplicateStop};
@@ -216,8 +216,8 @@ pub(super) enum PaneFault {
 pub(super) struct ReconcileTarget {
     pane_ref: PaneRef,
     index: usize,
-    site_id: SiteId,
-    binding: NativeTerminalBinding,
+    session_id: SessionId,
+    binding: ClientTerminalBinding,
     provenance: CreateTerminalProvenance,
     geometry: Geometry,
 }
@@ -227,7 +227,7 @@ impl ReconcileTarget {
         Self {
             pane_ref: record.pane_ref(),
             index: record.index,
-            site_id: record.site_id.clone(),
+            session_id: record.session_id.clone(),
             binding: record.binding.clone(),
             provenance: record.provenance.clone(),
             geometry: record.observed_geometry,
@@ -242,11 +242,11 @@ impl ReconcileTarget {
         self.index
     }
 
-    pub(super) const fn site_id(&self) -> &SiteId {
-        &self.site_id
+    pub(super) const fn session_id(&self) -> &SessionId {
+        &self.session_id
     }
 
-    pub(super) const fn binding(&self) -> &NativeTerminalBinding {
+    pub(super) const fn binding(&self) -> &ClientTerminalBinding {
         &self.binding
     }
 
@@ -286,8 +286,8 @@ pub(super) struct PaneRecord {
     incarnation: u32,
     index: usize,
     panel_index: usize,
-    site_id: SiteId,
-    binding: NativeTerminalBinding,
+    session_id: SessionId,
+    binding: ClientTerminalBinding,
     provenance: CreateTerminalProvenance,
     observed_geometry: Geometry,
     attached: bool,
@@ -312,15 +312,15 @@ impl PaneRecord {
     pub(super) const fn provenance(&self) -> &CreateTerminalProvenance {
         &self.provenance
     }
-    pub(super) const fn binding(&self) -> &NativeTerminalBinding {
+    pub(super) const fn binding(&self) -> &ClientTerminalBinding {
         &self.binding
     }
     fn new(
         pane_ref: PaneRef,
         index: usize,
         panel_index: usize,
-        site_id: SiteId,
-        binding: NativeTerminalBinding,
+        session_id: SessionId,
+        binding: ClientTerminalBinding,
         provenance: CreateTerminalProvenance,
         observed_geometry: Geometry,
     ) -> Self {
@@ -333,7 +333,7 @@ impl PaneRecord {
             incarnation,
             index,
             panel_index,
-            site_id,
+            session_id,
             binding,
             provenance,
             observed_geometry,
@@ -452,7 +452,7 @@ impl CreateTerminalProvenance {
 
     /// A committed Server launch failure supersedes retained or observer provenance, so no
     /// Client attaches to a terminal that never started.
-    pub(super) fn observed_for(self, member: &super::NativePresentation) -> Self {
+    pub(super) fn observed_for(self, member: &super::ClientPresentation) -> Self {
         member
             .launch_failure()
             .map_or(self, |failure| Self::Failed(failure.reason))
@@ -661,7 +661,7 @@ pub(super) struct CreateOperation {
     automatic_label: bool,
     origin: CreateOriginKind,
     key: CreateOperationKey,
-    site_id: SiteId,
+    session_id: SessionId,
     expected_revision: WorkbenchRevision,
     terminal_context_id: WorkbenchTerminalContextId,
     label: WorkbenchLabel,
@@ -672,7 +672,7 @@ pub(super) struct CreateOperation {
 impl CreateOperation {
     pub(super) const fn new(
         key: CreateOperationKey,
-        site_id: SiteId,
+        session_id: SessionId,
         expected_revision: WorkbenchRevision,
         terminal_context_id: WorkbenchTerminalContextId,
         label: WorkbenchLabel,
@@ -685,7 +685,7 @@ impl CreateOperation {
             placement: None,
             automatic_label: false,
             key,
-            site_id,
+            session_id,
             expected_revision,
             terminal_context_id,
             label,
@@ -882,8 +882,8 @@ impl CommittedTabCreate {
 pub(super) struct AttachTarget {
     selected: SelectedTab,
     presentation_id: Box<orchbee_workbench_protocol::TerminalPresentationId>,
-    site_id: SiteId,
-    binding: Option<NativeTerminalBinding>,
+    session_id: SessionId,
+    binding: Option<ClientTerminalBinding>,
     provenance: CreateTerminalProvenance,
     deadlines: OperationDeadlines,
     incarnation: u32,
@@ -895,8 +895,8 @@ pub(super) struct AttachTarget {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct BootstrapTarget {
     selected: SelectedTab,
-    site_id: SiteId,
-    binding: Option<NativeTerminalBinding>,
+    session_id: SessionId,
+    binding: Option<ClientTerminalBinding>,
     incarnation: u32,
 }
 
@@ -905,11 +905,11 @@ impl BootstrapTarget {
         &self.selected
     }
 
-    pub(super) const fn site_id(&self) -> &SiteId {
-        &self.site_id
+    pub(super) const fn session_id(&self) -> &SessionId {
+        &self.session_id
     }
 
-    pub(super) const fn binding(&self) -> Option<&NativeTerminalBinding> {
+    pub(super) const fn binding(&self) -> Option<&ClientTerminalBinding> {
         self.binding.as_ref()
     }
 
@@ -923,11 +923,11 @@ impl AttachTarget {
         &self.selected
     }
 
-    pub(super) const fn site_id(&self) -> &SiteId {
-        &self.site_id
+    pub(super) const fn session_id(&self) -> &SessionId {
+        &self.session_id
     }
 
-    pub(super) const fn binding(&self) -> Option<&NativeTerminalBinding> {
+    pub(super) const fn binding(&self) -> Option<&ClientTerminalBinding> {
         self.binding.as_ref()
     }
 
@@ -1039,7 +1039,7 @@ pub(super) enum PreparedRefresh {
         baseline_revision: WorkbenchRevision,
         baseline_phase: ClientPhaseKind,
         active: SelectedTab,
-        candidate: NativeContextTabs,
+        candidate: ClientContextTabs,
     },
     Divergent {
         generation: u64,
@@ -1135,7 +1135,7 @@ pub(super) struct WorkbenchClientState {
         orchbee_workbench_protocol::TerminalPresentationId,
         LaunchDescription,
     >,
-    cache: NativeContextTabs,
+    cache: ClientContextTabs,
     context_selection: Option<context_selection::ContextSelection>,
     retained_contexts: Vec<context_selection::RetainedContext>,
     navigation_memory: navigation_memory::NavigationMemory,
@@ -1183,7 +1183,7 @@ pub(super) struct WorkbenchClientState {
 impl WorkbenchClientState {
     #[cfg(test)]
     pub(super) fn starting(
-        cache: NativeContextTabs,
+        cache: ClientContextTabs,
         generation: u64,
         geometry: Geometry,
     ) -> Option<(Self, BootstrapTarget)> {
@@ -1193,10 +1193,10 @@ impl WorkbenchClientState {
         Self::starting_at(cache, generation, geometry, None)
     }
     fn starting_at(
-        cache: NativeContextTabs,
+        cache: ClientContextTabs,
         generation: u64,
         geometry: Geometry,
-        selection: Option<&super::workbench_projection::NativeMemberTarget>,
+        selection: Option<&super::workbench_projection::ClientMemberTarget>,
     ) -> Option<(Self, BootstrapTarget)> {
         if generation == 0 {
             return None;
@@ -1224,7 +1224,7 @@ impl WorkbenchClientState {
                 PaneRef::new(key.clone(), 1),
                 tab_index,
                 panel_index,
-                cache.site_id().clone(),
+                cache.session_id().clone(),
                 binding.clone(),
                 CreateTerminalProvenance::BindingOnly,
                 geometry,
@@ -1232,7 +1232,7 @@ impl WorkbenchClientState {
         });
         let target = BootstrapTarget {
             selected: selected.clone(),
-            site_id: cache.site_id().clone(),
+            session_id: cache.session_id().clone(),
             binding: member.binding().cloned(),
             incarnation: 1,
         };
@@ -1259,17 +1259,17 @@ impl WorkbenchClientState {
 
     #[cfg(test)]
     pub(super) fn bootstrap(
-        cache: NativeContextTabs,
+        cache: ClientContextTabs,
         generation: u64,
         geometry: Geometry,
     ) -> Option<(Self, Option<BootstrapTarget>)> {
         Self::bootstrap_at(cache, generation, geometry, None)
     }
     pub(super) fn bootstrap_at(
-        cache: NativeContextTabs,
+        cache: ClientContextTabs,
         generation: u64,
         geometry: Geometry,
-        selection: Option<&super::workbench_projection::NativeMemberTarget>,
+        selection: Option<&super::workbench_projection::ClientMemberTarget>,
     ) -> Option<(Self, Option<BootstrapTarget>)> {
         if generation == 0 {
             return None;
@@ -1281,7 +1281,7 @@ impl WorkbenchClientState {
                 .map(|(state, target)| (state, Some(target)))
         }
     }
-    fn initial(cache: NativeContextTabs, geometry: Geometry) -> Self {
+    fn initial(cache: ClientContextTabs, geometry: Geometry) -> Self {
         Self {
             launch_descriptions: std::collections::HashMap::new(),
             context_selection: None,
@@ -1352,7 +1352,7 @@ impl WorkbenchClientState {
         }
     }
 
-    pub(super) const fn cache(&self) -> &NativeContextTabs {
+    pub(super) const fn cache(&self) -> &ClientContextTabs {
         &self.cache
     }
 
@@ -1547,7 +1547,7 @@ impl WorkbenchClientState {
         self.provenance.get(index)
     }
 
-    pub(super) fn tab(&self, index: usize) -> Option<&NativeSimpleTab> {
+    pub(super) fn tab(&self, index: usize) -> Option<&ClientTab> {
         self.cache.tabs().get(index)
     }
 
@@ -1664,7 +1664,7 @@ impl WorkbenchClientState {
         use crate::client_view::navigator::{Catalog, Source};
         Catalog {
             source: Source {
-                site: self.cache.site_id().clone(),
+                session: self.cache.session_id().clone(),
                 revision: self.cache.revision(),
                 location: self.cache.location().clone(),
             },
@@ -1753,7 +1753,7 @@ impl WorkbenchClientState {
                         PaneRef::new(pane, incarnation),
                         tab_index,
                         *panel_index,
-                        self.cache.site_id().clone(),
+                        self.cache.session_id().clone(),
                         binding,
                         provenance,
                         *geometry,
@@ -1913,7 +1913,7 @@ impl WorkbenchClientState {
             PaneRef::new(pane, target.incarnation),
             target.selected.index,
             target.selected.panel_index,
-            target.site_id.clone(),
+            target.session_id.clone(),
             binding,
             target.provenance.clone(),
             self.latest_geometry,
@@ -1945,7 +1945,7 @@ impl WorkbenchClientState {
             PaneRef::new(pane, incarnation),
             selected.index,
             selected.panel_index,
-            self.cache.site_id().clone(),
+            self.cache.session_id().clone(),
             binding,
             provenance,
             self.latest_geometry,
@@ -2581,7 +2581,7 @@ impl WorkbenchClientState {
         };
         if !attachment_ok
             || self.pending_refresh.is_some()
-            || operation.site_id != *self.cache.site_id()
+            || operation.session_id != *self.cache.session_id()
             || operation.expected_revision != self.cache.revision()
             || Some(&operation.terminal_context_id) != self.cache.terminal_context_id()
             || operation.geometry != self.latest_geometry
@@ -3218,7 +3218,7 @@ impl WorkbenchClientState {
     /// a direct merge that cannot find it.
     fn selected_leaf_repair_index(
         &self,
-        candidate: &NativeContextTabs,
+        candidate: &ClientContextTabs,
         active: &SelectedTab,
     ) -> Option<usize> {
         let index = candidate.tab_index(active.key.anchor().tab_id())?;
@@ -3248,7 +3248,7 @@ impl WorkbenchClientState {
         }
     }
 
-    fn merge_projection(&mut self, candidate: NativeContextTabs) -> bool {
+    fn merge_projection(&mut self, candidate: ClientContextTabs) -> bool {
         if !self.invariant_holds() {
             return false;
         }
@@ -3332,7 +3332,7 @@ impl WorkbenchClientState {
         Some(AttachTarget {
             selected,
             presentation_id: Box::new(presentation_id),
-            site_id: self.cache.site_id().clone(),
+            session_id: self.cache.session_id().clone(),
             binding,
             provenance,
             deadlines,
@@ -3594,7 +3594,7 @@ impl WorkbenchClientState {
     /// flag survives AND its current cache membership stays multi-leaf — a
     /// stale retained flag can never paint a zoom.
     /// Observe the retained flag against the queried Tab's authoritative membership, without GC.
-    pub(super) fn layout_zoomed(&self, tab: &NativeSimpleTab) -> bool {
+    pub(super) fn layout_zoomed(&self, tab: &ClientTab) -> bool {
         tab.panel_count() > 1 && self.zoomed_tabs.contains(tab.tab_id())
     }
 
@@ -3623,7 +3623,7 @@ impl WorkbenchClientState {
             .iter()
             .filter(|retained| retained.location() != current)
             .find_map(|retained| retained.tabs().iter().find(|tab| tab.tab_id() == tab_id))
-            .map_or(0, NativeSimpleTab::panel_count)
+            .map_or(0, ClientTab::panel_count)
     }
 
     /// Every install collects flags whose last known truth is no longer
@@ -3998,7 +3998,7 @@ pub(super) struct WorkbenchClientView<'a> {
 impl<'a> WorkbenchClientView<'a> {
     pub(super) fn action_menu_source(&self) -> crate::action_menu::DrawnMenuSource {
         crate::action_menu::DrawnMenuSource {
-            site: self.state.cache.site_id().clone(),
+            session: self.state.cache.session_id().clone(),
             revision: self.state.cache.revision(),
         }
     }
@@ -4006,7 +4006,7 @@ impl<'a> WorkbenchClientView<'a> {
         let active = self.state.active()?;
         let tab = self.state.cache.tabs().get(active.index())?;
         Some(crate::tui_layout::DividerSource {
-            site: self.state.cache.site_id().clone(),
+            session: self.state.cache.session_id().clone(),
             context: self.state.cache.terminal_context_id()?.clone(),
             tab: tab.tab_id().clone(),
             focus: self.state.focus_panel_id()?.clone(),
@@ -4014,15 +4014,15 @@ impl<'a> WorkbenchClientView<'a> {
         })
     }
 
-    pub(super) fn site_id(&self) -> &SiteId {
-        self.state.cache.site_id()
+    pub(super) fn session_id(&self) -> &SessionId {
+        self.state.cache.session_id()
     }
 
     pub(super) fn terminal_context_id(&self) -> Option<&WorkbenchTerminalContextId> {
         self.state.cache.terminal_context_id()
     }
 
-    pub(super) fn unbound_panel_key(&self, panel: &super::NativePanel) -> Option<PaneKey> {
+    pub(super) fn unbound_panel_key(&self, panel: &super::ClientPanel) -> Option<PaneKey> {
         let active = self.state.active()?;
         let tab = self.state.cache.tabs().get(active.index())?;
         if tab.panel_index(panel.panel_id()).is_none()
@@ -4041,8 +4041,8 @@ impl<'a> WorkbenchClientView<'a> {
 
     pub(super) fn selected_presentation(
         &self,
-        panel: &'a super::NativePanel,
-    ) -> &'a super::NativePresentation {
+        panel: &'a super::ClientPanel,
+    ) -> &'a super::ClientPresentation {
         self.state.selected_presentation(panel)
     }
     pub(super) const fn phase(&self) -> ClientPhaseKind {
@@ -4053,14 +4053,14 @@ impl<'a> WorkbenchClientView<'a> {
         self.state.cache.tabs().len()
     }
 
-    pub(super) fn tab(&self, index: usize) -> Option<NativeTabView<'a>> {
+    pub(super) fn tab(&self, index: usize) -> Option<ClientTabView<'a>> {
         let tab = self.state.cache.tabs().get(index)?;
         let active_panel = self
             .state
             .active()
             .filter(|active| active.index() == index)
             .map(SelectedTab::panel_index);
-        Some(NativeTabView {
+        Some(ClientTabView {
             tab,
             position: index + 1,
             active: active_panel.is_some(),
@@ -4110,7 +4110,7 @@ impl<'a> WorkbenchClientView<'a> {
 
     pub(super) fn launch_description(
         &self,
-        panel: &super::NativePanel,
+        panel: &super::ClientPanel,
     ) -> Option<&'a LaunchDescription> {
         self.state
             .launch_descriptions
@@ -4138,14 +4138,14 @@ impl<'a> WorkbenchClientView<'a> {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct NativeTabView<'a> {
-    tab: &'a NativeSimpleTab,
+pub(super) struct ClientTabView<'a> {
+    tab: &'a ClientTab,
     position: usize,
     active: bool,
     active_panel: Option<usize>,
 }
 
-impl<'a> NativeTabView<'a> {
+impl<'a> ClientTabView<'a> {
     pub(super) fn group(&self) -> Option<&'a orchbee_workbench_protocol::TabGroup> {
         self.tab.group()
     }
@@ -4190,7 +4190,7 @@ impl<'a> NativeTabView<'a> {
         self.tab.panel_count()
     }
 
-    pub(super) fn panel_tree(&self) -> &'a super::NativePanelTree {
+    pub(super) fn panel_tree(&self) -> &'a super::ClientPanelTree {
         self.tab.panel_tree()
     }
 
@@ -4198,7 +4198,7 @@ impl<'a> NativeTabView<'a> {
         self.active_panel
     }
 
-    pub(super) fn panel(&self, index: usize) -> Option<&'a super::NativePanel> {
+    pub(super) fn panel(&self, index: usize) -> Option<&'a super::ClientPanel> {
         self.tab.panel(index)
     }
 

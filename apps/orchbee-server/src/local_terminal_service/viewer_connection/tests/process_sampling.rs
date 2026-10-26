@@ -223,7 +223,7 @@ fn static_codex_refreshes_the_retained_frame_after_process_before() {
     let result = fixture.service.execute_panel_agent(PanelAgentRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 77_777)).unwrap(),
-        site_id: snapshot.site_id,
+        session_id: snapshot.session_id,
         action: PanelAgentAction::Read {
             panel_ids: vec![pane.panel_id],
         },
@@ -328,7 +328,7 @@ fn semantic_events_pending_physical_baseline_is_busy_and_real_source_refusal_nev
         let request = SemanticEventsRequest {
             protocol_version: ProtocolVersion,
             request_id: id.clone(),
-            site_id: snapshot.site_id.clone(),
+            session_id: snapshot.session_id.clone(),
             action,
         };
         let WorkbenchExecution::Response(WorkbenchResponse::Events(result)) =

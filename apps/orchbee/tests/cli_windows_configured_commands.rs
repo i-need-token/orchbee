@@ -46,7 +46,7 @@ fn configured_command_cli_catalog_refusal_and_delivery_unknown_never_replay() {
                 &WorkbenchResponse::ConfiguredCommand(ConfiguredCommandResult {
                     protocol_version: ProtocolVersion,
                     request_id: catalog.request_id,
-                    site_id: catalog.site_id,
+                    session_id: catalog.session_id,
                     outcome: ConfiguredCommandOutcome::Catalog {
                         revision: WorkbenchRevision::new(1),
                         entries,
@@ -68,7 +68,7 @@ fn configured_command_cli_catalog_refusal_and_delivery_unknown_never_replay() {
                 &WorkbenchResponse::ClientView(WorkbenchClientViewResult {
                     protocol_version: ProtocolVersion,
                     request_id: list.request_id,
-                    site_id: list.site_id,
+                    session_id: list.session_id,
                     outcome: ClientViewOutcome::Listed { clients: vec![] },
                 }),
             )
@@ -110,7 +110,7 @@ fn configured_command_cli_catalog_refusal_and_delivery_unknown_never_replay() {
                 &WorkbenchResponse::ConfiguredCommand(ConfiguredCommandResult {
                     protocol_version: ProtocolVersion,
                     request_id: request.request_id,
-                    site_id: request.site_id,
+                    session_id: request.session_id,
                     outcome,
                 }),
             )

@@ -4,7 +4,7 @@ use super::{
 };
 use crate::workbench_client::state::{
     RefreshDecision,
-    workspace_setup::{NativeLocationLabelStatus, NativeLocationLabelTarget, NativeSetupStatus},
+    workspace_setup::{LocationLabelStatus, LocationLabelTarget, SetupStatus},
 };
 use orchbee_client_server_protocol::{
     ClientMessage, ServerMessage, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerResult,
@@ -50,10 +50,7 @@ fn respond_snapshot(harness: &Harness, outcome: WorkbenchSnapshotOutcome) -> Tes
 #[test]
 fn location_rename_and_noop_recover_by_snapshot_only_without_replacing_terminal_identity()
 -> TestResult {
-    for target in [
-        NativeLocationLabelTarget::Project,
-        NativeLocationLabelTarget::Workspace,
-    ] {
+    for target in [LocationLabelTarget::Project, LocationLabelTarget::Workspace] {
         for unchanged in [false, true] {
             let geometry = fixture_geometry()?;
             let mut steps = vec![WireKind::Workbench];
@@ -113,12 +110,12 @@ fn location_rename_and_noop_recover_by_snapshot_only_without_replacing_terminal_
             let WorkbenchRequest::Command(command) = harness.carrier.take_workbench()? else {
                 return Err(test_error("expected one location rename command"));
             };
-            assert_eq!(command.site_id, initial.site_id);
+            assert_eq!(command.session_id, initial.session_id);
             assert_eq!(command.expected_revision, initial.revision);
             let project = &initial.navigation.projects[0];
             let original_label = match target {
-                NativeLocationLabelTarget::Project => &project.label,
-                NativeLocationLabelTarget::Workspace => &initial.navigation.workspaces[1].label,
+                LocationLabelTarget::Project => &project.label,
+                LocationLabelTarget::Workspace => &initial.navigation.workspaces[1].label,
             };
             let expected_label = if unchanged {
                 original_label.as_str()
@@ -128,7 +125,7 @@ fn location_rename_and_noop_recover_by_snapshot_only_without_replacing_terminal_
             match (&command.action, target) {
                 (
                     WorkbenchAction::ProjectRename { project_id, label },
-                    NativeLocationLabelTarget::Project,
+                    LocationLabelTarget::Project,
                 ) => {
                     assert_eq!(project_id, &project.project_id);
                     assert_eq!(label.as_str(), expected_label);
@@ -138,7 +135,7 @@ fn location_rename_and_noop_recover_by_snapshot_only_without_replacing_terminal_
                         workspace_id,
                         label,
                     },
-                    NativeLocationLabelTarget::Workspace,
+                    LocationLabelTarget::Workspace,
                 ) => {
                     assert_eq!(workspace_id, &initial.navigation.workspaces[1].workspace_id);
                     assert_eq!(label.as_str(), expected_label);
@@ -167,9 +164,9 @@ fn location_rename_and_noop_recover_by_snapshot_only_without_replacing_terminal_
             harness.ui.settle_setup_next()?;
             assert_eq!(
                 harness.ui.state().setup_status(),
-                Some(NativeSetupStatus::LocationLabel {
+                Some(SetupStatus::LocationLabel {
                     target,
-                    status: NativeLocationLabelStatus::CommittedNeedRefresh
+                    status: LocationLabelStatus::CommittedNeedRefresh
                 })
             );
             assert_eq!(harness.ui.state().cache(), &baseline);
@@ -182,10 +179,10 @@ fn location_rename_and_noop_recover_by_snapshot_only_without_replacing_terminal_
             let mut recovered = initial.clone();
             recovered.revision = revision;
             match target {
-                NativeLocationLabelTarget::Project => {
+                LocationLabelTarget::Project => {
                     recovered.navigation.projects[0].label = expected_label.into()
                 }
-                NativeLocationLabelTarget::Workspace => {
+                LocationLabelTarget::Workspace => {
                     recovered.navigation.workspaces[1].label = expected_label.into()
                 }
             }
@@ -198,12 +195,12 @@ fn location_rename_and_noop_recover_by_snapshot_only_without_replacing_terminal_
             harness.ui.settle_setup_next()?;
             assert_eq!(
                 harness.ui.state().setup_status(),
-                Some(NativeSetupStatus::LocationLabel {
+                Some(SetupStatus::LocationLabel {
                     target,
                     status: if unchanged {
-                        NativeLocationLabelStatus::Unchanged
+                        LocationLabelStatus::Unchanged
                     } else {
-                        NativeLocationLabelStatus::Renamed
+                        LocationLabelStatus::Renamed
                     }
                 })
             );

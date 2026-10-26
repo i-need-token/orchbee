@@ -1,37 +1,33 @@
 use crate::{cli::escape::quoted, localization::Locale};
-use orchbee_local_site_runtime::{WindowsKeysResetOutcome, WindowsKeysResetReport};
+use orchbee_local_runtime::{KeysResetOutcome, KeysResetReport};
 
 impl Locale {
-    pub(crate) fn cli_config_reset(self, report: &WindowsKeysResetReport) -> String {
+    pub(crate) fn cli_config_reset(self, report: &KeysResetReport) -> String {
         let path = report
             .path
             .as_deref()
             .and_then(std::path::Path::to_str)
             .map(quoted);
         let mut text = match (&report.outcome, self) {
-            (WindowsKeysResetOutcome::Missing, Self::EnUs) => {
+            (KeysResetOutcome::Missing, Self::EnUs) => {
                 "No configuration file; nothing changed.\n".to_owned()
             }
-            (WindowsKeysResetOutcome::Missing, Self::ZhCn) => {
-                "配置文件不存在，未做更改。\n".to_owned()
-            }
-            (WindowsKeysResetOutcome::NoKeys, Self::EnUs) => {
+            (KeysResetOutcome::Missing, Self::ZhCn) => "配置文件不存在，未做更改。\n".to_owned(),
+            (KeysResetOutcome::NoKeys, Self::EnUs) => {
                 "No custom keys; nothing changed.\n".to_owned()
             }
-            (WindowsKeysResetOutcome::NoKeys, Self::ZhCn) => {
-                "没有自定义键位，未做更改。\n".to_owned()
-            }
-            (WindowsKeysResetOutcome::Reset { .. }, Self::EnUs) => {
+            (KeysResetOutcome::NoKeys, Self::ZhCn) => "没有自定义键位，未做更改。\n".to_owned(),
+            (KeysResetOutcome::Reset { .. }, Self::EnUs) => {
                 "Custom keys removed. Running Clients were not reloaded.\n".to_owned()
             }
-            (WindowsKeysResetOutcome::Reset { .. }, Self::ZhCn) => {
+            (KeysResetOutcome::Reset { .. }, Self::ZhCn) => {
                 "已移除自定义键位；未重载运行中的客户端。\n".to_owned()
             }
-            (WindowsKeysResetOutcome::Failed { error, .. }, Self::EnUs) => format!(
+            (KeysResetOutcome::Failed { error, .. }, Self::EnUs) => format!(
                 "Keybinding reset failed ({}: {}).\n",
                 error.field, error.reason
             ),
-            (WindowsKeysResetOutcome::Failed { error, .. }, Self::ZhCn) => {
+            (KeysResetOutcome::Failed { error, .. }, Self::ZhCn) => {
                 format!("快捷键恢复失败（{}: {}）。\n", error.field, error.reason)
             }
         };
@@ -42,8 +38,8 @@ impl Locale {
             });
         }
         let (backup, recovery) = match &report.outcome {
-            WindowsKeysResetOutcome::Reset { backup_path } => (Some(backup_path), false),
-            WindowsKeysResetOutcome::Failed {
+            KeysResetOutcome::Reset { backup_path } => (Some(backup_path), false),
+            KeysResetOutcome::Failed {
                 backup_path,
                 recovery_required,
                 ..

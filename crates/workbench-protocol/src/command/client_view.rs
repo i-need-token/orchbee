@@ -14,7 +14,7 @@ use super::{
 };
 use crate::identity::WorkbenchClientId;
 use crate::{
-    ContractError, ProtocolVersion, SiteId, WorkbenchPanelId, WorkbenchRequestId,
+    ContractError, ProtocolVersion, SessionId, WorkbenchPanelId, WorkbenchRequestId,
     WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId,
 };
 use orchbee_agent_observation_protocol::AgentSessionId;
@@ -991,7 +991,7 @@ pub struct WorkbenchClientViewRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub action: ClientViewAction,
 }
 impl WorkbenchClientViewRequest {
@@ -1116,7 +1116,7 @@ pub struct WorkbenchClientViewResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub outcome: ClientViewOutcome,
 }
 impl WorkbenchClientViewResult {

@@ -231,24 +231,22 @@ fn prefix_mode_hint_uses_the_configured_effective_binding_without_repeating_the_
     assert!(!text.contains("Ctrl+a ←"), "{text}");
 }
 
-fn configured_arrow_help() -> orchbee_local_site_runtime::WindowsKeySettings {
-    use orchbee_local_site_runtime::{
-        WindowsKeyChord, WindowsKeyOverride, WindowsKeySettings, WindowsKeyTrigger,
-    };
+fn configured_arrow_help() -> orchbee_local_runtime::KeySettings {
+    use orchbee_local_runtime::{KeyChord, KeyOverride, KeySettings, KeyTrigger};
 
-    let chord = |key: &str, ctrl| WindowsKeyChord {
+    let chord = |key: &str, ctrl| KeyChord {
         key: key.into(),
         ctrl,
         alt: false,
         shift: false,
         super_key: false,
     };
-    WindowsKeySettings {
+    KeySettings {
         commands: Vec::new(),
         prefix: chord("a", true),
-        overrides: vec![WindowsKeyOverride {
+        overrides: vec![KeyOverride {
             action: "help",
-            triggers: vec![WindowsKeyTrigger {
+            triggers: vec![KeyTrigger {
                 prefix: true,
                 chord: chord("left", false),
             }],
@@ -428,7 +426,7 @@ fn recoverable_status_receipt_requires_the_complete_raw_fact() {
 #[test]
 fn stale_rename_fact_fits_compact_content_and_retry_is_a_separate_rename_hint() {
     use crate::workbench_client::{
-        NativeLocationLabelStatus as Status, NativeLocationLabelTarget as Target, NativeSetupStatus,
+        LocationLabelStatus as Status, LocationLabelTarget as Target, SetupStatus,
     };
     let theme = Theme::rgb_test_dark();
     // Compact docks the sidebar only while content keeps 60 columns beside it.
@@ -439,7 +437,7 @@ fn stale_rename_fact_fits_compact_content_and_retry_is_a_separate_rename_hint() 
             (Target::Workspace, ClientAction::RequestWorkspaceRename),
             (Target::Project, ClientAction::RequestProjectRename),
         ] {
-            let fact = locale.setup_status(NativeSetupStatus::LocationLabel {
+            let fact = locale.setup_status(SetupStatus::LocationLabel {
                 target,
                 status: Status::Stale,
             });

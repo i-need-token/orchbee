@@ -67,7 +67,7 @@ fn notification_pipe_receipts_are_correlated_and_never_retried() {
                 &WorkbenchResponse::Notification(NotificationResult {
                     protocol_version: ProtocolVersion,
                     request_id: request.request_id,
-                    site_id: request.site_id,
+                    session_id: request.session_id,
                     outcome,
                 }),
             )
@@ -136,7 +136,7 @@ fn notification_pipe_receipts_are_correlated_and_never_retried() {
 }
 
 #[test]
-fn notification_rejects_bad_arguments_before_admission_and_never_starts_site() {
+fn notification_rejects_bad_arguments_before_admission_and_never_starts_session() {
     let fixture = Fixture::new();
     let _rendezvous = fixture.rendezvous();
     assert_eq!(

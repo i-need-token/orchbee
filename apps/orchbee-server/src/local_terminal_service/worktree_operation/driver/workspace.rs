@@ -123,7 +123,7 @@ impl Driver<'_> {
                     let command = WorkbenchCommand {
                         protocol_version: ProtocolVersion,
                         request_id,
-                        site_id: authority.site_id().clone(),
+                        session_id: authority.session_id().clone(),
                         expected_revision: authority.snapshot().revision,
                         action: WorkbenchAction::WorkspaceRename {
                             workspace_id: workspace_id.clone(),
@@ -134,7 +134,7 @@ impl Driver<'_> {
                         WorkbenchRequest::Command(command),
                     )
                     .map_err(|_| Failure::Internal {})?;
-                    let grant = WorkbenchGrant::manage_navigation(authority.site_id().clone());
+                    let grant = WorkbenchGrant::manage_navigation(authority.session_id().clone());
                     if !matches!(authority.execute(Some(&grant), request), WorkbenchResponse::Command(result)
                         if matches!(result.outcome, WorkbenchCommandOutcome::Renamed { .. } | WorkbenchCommandOutcome::Unchanged { .. }))
                     {
@@ -165,7 +165,7 @@ impl Driver<'_> {
             let command = WorkbenchCommand {
                 protocol_version: ProtocolVersion,
                 request_id,
-                site_id: authority.site_id().clone(),
+                session_id: authority.session_id().clone(),
                 expected_revision: authority.snapshot().revision,
                 action: WorkbenchAction::WorkspaceLaunch {
                     placement: match &self.plan.source_workspace_id {
@@ -309,7 +309,7 @@ impl Driver<'_> {
             let command = WorkbenchCommand {
                 protocol_version: ProtocolVersion,
                 request_id,
-                site_id: authority.site_id().clone(),
+                session_id: authority.session_id().clone(),
                 expected_revision: authority.snapshot().revision,
                 action: WorkbenchAction::WorkspaceClose {
                     workspace_id: workspace_id.clone(),
@@ -362,14 +362,14 @@ impl Driver<'_> {
         else {
             return Err(Failure::Internal {});
         };
-        let site_id = self
+        let session_id = self
             .service
             .coordinator
             .lock()
             .map_err(|_| Failure::Internal {})?
             .worktree_authority()
             .ok_or(Failure::Internal {})?
-            .site_id()
+            .session_id()
             .clone();
         let mut may_resume = self.plan.attempt > 1;
         loop {
@@ -379,7 +379,7 @@ impl Driver<'_> {
                 .read_workspace_close(WorkbenchWorkspaceCloseRead {
                     protocol_version: ProtocolVersion,
                     request_id: identity()?,
-                    site_id: site_id.clone(),
+                    session_id: session_id.clone(),
                     workspace_id: workspace_id.clone(),
                 })
                 .ok_or(Failure::CloseIncomplete {})?;
@@ -433,7 +433,7 @@ impl Driver<'_> {
                             .resume_workspace_close(WorkbenchWorkspaceCloseResume {
                                 protocol_version: ProtocolVersion,
                                 request_id: identity()?,
-                                site_id: site_id.clone(),
+                                session_id: session_id.clone(),
                                 workspace_id: workspace_id.clone(),
                                 close_request_id: close_request_id.clone(),
                                 expected_attempt_generation: attempt_generation,

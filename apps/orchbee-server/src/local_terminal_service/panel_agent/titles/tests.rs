@@ -1,6 +1,6 @@
 use super::*;
 use orchbee_workbench_protocol::{
-    PanelAgentState, SiteId, TerminalAgentStateSnapshot, WorkbenchRequestId,
+    PanelAgentState, SessionId, TerminalAgentStateSnapshot, WorkbenchRequestId,
 };
 use serde_json::json;
 fn binding() -> AgentLaunchBinding {
@@ -10,7 +10,7 @@ fn result(binding: AgentLaunchBinding) -> PanelAgentResult {
     PanelAgentResult {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse("00000000000000000000000000000005").unwrap(),
-        site_id: SiteId::parse("00000000000000000000000000000006").unwrap(),
+        session_id: SessionId::parse("00000000000000000000000000000006").unwrap(),
         outcome: PanelAgentOutcome::States {
             workbench_revision: WorkbenchRevision::new(1),
             report_revision: WorkbenchRevision::new(2),

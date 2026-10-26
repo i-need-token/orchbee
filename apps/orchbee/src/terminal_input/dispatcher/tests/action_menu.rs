@@ -26,11 +26,11 @@ struct Port {
     settings_capture: bool,
 }
 
-fn sidebar_context() -> crate::workbench_client::NativeContextTarget {
+fn sidebar_context() -> crate::workbench_client::ClientContextTarget {
     use orchbee_workbench_protocol::*;
-    crate::workbench_client::NativeContextTarget {
-        site_id: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
-        location: crate::workbench_client::NativeContextLocation::Workspace {
+    crate::workbench_client::ClientContextTarget {
+        session_id: SessionId::parse(&format!("{:032x}", 1)).unwrap(),
+        location: crate::workbench_client::ClientContextLocation::Workspace {
             workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 3)).unwrap(),
             terminal_context_id: WorkbenchTerminalContextId::parse(&format!("{:032x}", 4)).unwrap(),
         },
@@ -106,7 +106,7 @@ fn rendered_sidebar_map_with(
         })
         .unwrap();
     hits.record_action_menu_source(Some(crate::action_menu::DrawnMenuSource {
-        site: sidebar_context().site_id,
+        session: sidebar_context().session_id,
         revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
     }));
     hits.finish()
@@ -125,7 +125,7 @@ fn sidebar_primary_cell(
                     crate::machine_picker::SidebarTarget::Context { machine, target },
                 ) => {
                     &selected.machine == machine
-                        && matches!(&selected.context, Some(crate::workbench_client::NativeStartupTarget::Context(row)) if row == target)
+                        && matches!(&selected.context, Some(crate::workbench_client::ClientStartupTarget::Context(row)) if row == target)
                 }
                 _ => false,
             };
@@ -196,12 +196,12 @@ fn revealed_disclosure(
 
 fn sidebar_project_target() -> crate::machine_picker::SidebarTarget {
     let target = sidebar_context();
-    let crate::workbench_client::NativeContextLocation::Workspace { .. } = target.location else {
+    let crate::workbench_client::ClientContextLocation::Workspace { .. } = target.location else {
         unreachable!()
     };
     crate::machine_picker::SidebarTarget::Project {
         machine: crate::machine_picker::Choice::Local,
-        site_id: target.site_id,
+        session_id: target.session_id,
         project_id: orchbee_workbench_protocol::WorkbenchProjectId::parse(&format!("{:032x}", 2))
             .unwrap(),
     }
@@ -219,7 +219,7 @@ fn sidebar_target_map(
 ) -> crate::tui_pointer::FrameHitMap {
     let mut hits = HitMapBuilder::new();
     hits.record_action_menu_source(Some(crate::action_menu::DrawnMenuSource {
-        site: sidebar_context().site_id,
+        session: sidebar_context().session_id,
         revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
     }));
     hits.record(
@@ -422,7 +422,7 @@ fn sidebar_keyboard_and_row_menu_share_drawn_identity_and_cancel_returns_to_navi
                 port.target,
                 Some(MenuTarget::Drawn {
                     source: crate::action_menu::DrawnMenuSource {
-                        site: sidebar_context().site_id,
+                        session: sidebar_context().session_id,
                         revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
                     },
                     target: Box::new(match target {
@@ -562,7 +562,7 @@ fn workspace_close_is_pointer_revealed_and_requests_the_existing_confirmation() 
         y = close_y + 1
     );
     dispatch_all(&mut dispatcher, &mut view, &mut port, click.as_bytes());
-    let crate::workbench_client::NativeContextLocation::Workspace { workspace_id, .. } =
+    let crate::workbench_client::ClientContextLocation::Workspace { workspace_id, .. } =
         sidebar_context().location
     else {
         unreachable!()
@@ -711,19 +711,19 @@ impl Port {
     }
 }
 impl TerminalInputPort for Port {
-    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
-        crate::tui_composition::NativeCaptureClaims::default()
+    fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
+        crate::tui_composition::CaptureClaims::default()
             .with_settings(self.settings_capture)
             .with_action_menu(self.menu.input_context().is_some())
     }
     fn native_capture_context(
         &self,
-        owner: crate::tui_composition::NativeCaptureOwner,
-    ) -> Option<crate::workbench_client::NativeCaptureContext> {
-        (owner == crate::tui_composition::NativeCaptureOwner::ActionMenu)
+        owner: crate::tui_composition::CaptureOwner,
+    ) -> Option<crate::workbench_client::CaptureContext> {
+        (owner == crate::tui_composition::CaptureOwner::ActionMenu)
             .then(|| self.menu.input_context())
             .flatten()
-            .map(crate::workbench_client::NativeCaptureContext::ActionMenu)
+            .map(crate::workbench_client::CaptureContext::ActionMenu)
     }
     fn tab_drag_source(&mut self) -> Option<crate::tui_pointer::TabDragSource> {
         self.drag.clone()
@@ -1209,7 +1209,7 @@ fn tab_create_click_uses_the_keyboard_action_and_fences_release_packet_tails_eve
             Rect::new(10, 0, 3, 1),
             InteractionTarget::TabCreate(crate::action_menu::DrawnTabCreate {
                 source: crate::action_menu::DrawnMenuSource {
-                    site: context.site_id,
+                    session: context.session_id,
                     revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
                 },
                 location: context.location,
@@ -1261,7 +1261,7 @@ fn tab_create_focus_loss_cancels_action_and_fences_its_late_release_packet() {
         Rect::new(10, 0, 3, 1),
         InteractionTarget::TabCreate(crate::action_menu::DrawnTabCreate {
             source: crate::action_menu::DrawnMenuSource {
-                site: context.site_id,
+                session: context.session_id,
                 revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
             },
             location: context.location,
@@ -1514,8 +1514,10 @@ fn right_menu_does_not_focus_and_policy_chrome_modifiers_and_release_keep_owners
         });
         let mut hits = HitMapBuilder::new();
         let source = crate::action_menu::DrawnMenuSource {
-            site: orchbee_workbench_protocol::SiteId::parse("00000000000000000000000000000001")
-                .unwrap(),
+            session: orchbee_workbench_protocol::SessionId::parse(
+                "00000000000000000000000000000001",
+            )
+            .unwrap(),
             revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
         };
         hits.record_action_menu_source(Some(source.clone()));
@@ -1862,8 +1864,10 @@ fn lost_menu_release_cannot_swallow_a_later_program_owned_right_release() {
         let mut view = ClientView::new(120);
         dispatcher.set_pointer_capture(&mut view, &mut port, true);
         let source = crate::action_menu::DrawnMenuSource {
-            site: orchbee_workbench_protocol::SiteId::parse("00000000000000000000000000000001")
-                .unwrap(),
+            session: orchbee_workbench_protocol::SessionId::parse(
+                "00000000000000000000000000000001",
+            )
+            .unwrap(),
             revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
         };
         let publish = |dispatcher: &mut InputDispatcher| {

@@ -108,7 +108,7 @@ fn actual_create_unavailable_consumed_after_total_keeps_old_identity_without_eff
         ))
     ));
     mailbox.finish_lease(lease).unwrap();
-    assert_eq!(ui.view().phase(), NativeDisplayPhase::ProjectionUnavailable);
+    assert_eq!(ui.view().phase(), DisplayPhase::ProjectionUnavailable);
     assert_eq!(ui.state.as_ref().unwrap().desired(), Some(&old));
     assert_eq!(ui.state.as_ref().unwrap().attached_key(), Some(&old));
     assert_eq!(ui.state.as_ref().unwrap().projection_key(), Some(&old));
@@ -180,7 +180,7 @@ fn actual_create_candidate_installs_reserved_survivor_fresh_fallback_or_empty() 
         );
         assert_eq!(state.cache().tabs().len(), remaining);
         if remaining == 0 {
-            assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
+            assert_eq!(ui.view().phase(), DisplayPhase::Empty);
             assert_eq!(state.desired(), None);
             assert_eq!(mailbox.cursors().0, operation.reserved_generation());
         } else {
@@ -309,9 +309,9 @@ fn actual_empty_create_installs_without_old_cleanup_and_preserves_prior_receipt_
         assert_eq!(
             ui.view().phase(),
             if revision == 3 {
-                NativeDisplayPhase::Empty
+                DisplayPhase::Empty
             } else {
-                NativeDisplayPhase::SelectedWithoutAttachment
+                DisplayPhase::SelectedWithoutAttachment
             }
         );
         assert_eq!(
@@ -328,24 +328,24 @@ fn actual_empty_create_installs_without_old_cleanup_and_preserves_prior_receipt_
     }
 }
 
-fn ready_create_ui() -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock) {
+fn ready_create_ui() -> (WorkbenchClientUi, Arc<CommandMailbox>, LocalOperationClock) {
     ready_create_ui_at(Arc::new(AtomicU64::new(0)))
 }
 
 fn ready_create_ui_at(
     elapsed: Arc<AtomicU64>,
-) -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock) {
+) -> (WorkbenchClientUi, Arc<CommandMailbox>, LocalOperationClock) {
     ready_create_ui_from(snapshot(1, 1), elapsed)
 }
 
 fn ready_create_ui_from(
     snapshot: Snapshot,
     elapsed: Arc<AtomicU64>,
-) -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock) {
+) -> (WorkbenchClientUi, Arc<CommandMailbox>, LocalOperationClock) {
     let clock = adjustable_operation_clock(elapsed);
     let geometry = Geometry::new(80, 24, 8, 16).unwrap();
     let mailbox = Arc::new(CommandMailbox::new(10, geometry));
-    let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    let mut ui = WorkbenchClientUi::new(Arc::clone(&mailbox), clock.clone());
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {
@@ -390,7 +390,7 @@ fn rename_created_fixture(candidate: &mut Snapshot, index: usize, label: &str) {
 }
 
 fn retain_ui_create(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
     committed: &Snapshot,

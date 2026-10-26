@@ -1,8 +1,7 @@
 //! Bounded explicit release acquisition. Every subprocess belongs to the invocation's Job.
 use super::{Context, Error, manifest};
-use orchbee_local_site_runtime::{
-    WindowsUpdateChannel, open_windows_release_file, run_windows_command,
-};
+use crate::release_store::open_release_file;
+use orchbee_local_runtime::{UpdateChannel, run_windows_command};
 use std::{
     fs::{File, OpenOptions},
     io::{Read, Write},
@@ -16,7 +15,7 @@ pub(super) enum Source {
     Https(String),
 }
 impl Source {
-    pub fn configured(channel: WindowsUpdateChannel) -> Result<Self, Error> {
+    pub fn configured(channel: UpdateChannel) -> Result<Self, Error> {
         let value =
             std::env::var("ORCHBEE_UPDATE_MANIFEST").map_err(|_| Error::SourceUnconfigured)?;
         if value.trim().is_empty() {
@@ -45,7 +44,7 @@ impl Source {
         if manifest::valid_https(url) {
             return Ok(Self::Https(url.into()));
         }
-        if !orchbee_local_site_runtime::valid_windows_release_path(url) {
+        if !crate::release_store::valid_release_path(url) {
             return Err(Error::SourceInvalid);
         }
         match self {
@@ -111,8 +110,7 @@ impl Source {
                     .file_name()
                     .and_then(|s| s.to_str())
                     .ok_or(Error::SourceInvalid)?;
-                let mut input =
-                    open_windows_release_file(parent, name).map_err(|_| Error::Download)?;
+                let mut input = open_release_file(parent, name).map_err(|_| Error::Download)?;
                 if input.metadata().map_err(|_| Error::Download)?.len() != size {
                     return Err(Error::Checksum);
                 }

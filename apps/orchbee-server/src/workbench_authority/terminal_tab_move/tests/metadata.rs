@@ -106,7 +106,7 @@ fn every_grouped_pinned_placement_matches_exact_permutation_or_retained_refusal(
                 let request = WorkbenchCommand {
                     protocol_version: orchbee_workbench_protocol::ProtocolVersion,
                     request_id: WorkbenchRequestId::parse(&identity(9000)).unwrap(),
-                    site_id: before.site_id.clone(),
+                    session_id: before.session_id.clone(),
                     expected_revision: before.revision,
                     action,
                 };

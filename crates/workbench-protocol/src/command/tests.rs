@@ -182,7 +182,7 @@ fn typed_tab_moves_preserve_exact_fields_through_json_and_obwp() {
         let request = WorkbenchRequest::Command(WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id: request_id.clone(),
-            site_id: SiteId::parse("22222222222222222222222222222222").unwrap(),
+            session_id: SessionId::parse("22222222222222222222222222222222").unwrap(),
             expected_revision: WorkbenchRevision::new(7),
             action: WorkbenchAction::TabMove {
                 terminal_context_id: context.clone(),
@@ -246,7 +246,7 @@ fn typed_workspace_primary_directory_acceptance_preserves_exact_fields() {
     let request = WorkbenchRequest::Command(WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: request_id.clone(),
-        site_id: SiteId::parse("22222222222222222222222222222222").unwrap(),
+        session_id: SessionId::parse("22222222222222222222222222222222").unwrap(),
         expected_revision: WorkbenchRevision::new(7),
         action: WorkbenchAction::WorkspacePrimaryDirectoryAccept {
             workspace_id: WorkbenchWorkspaceId::parse("44444444444444444444444444444444").unwrap(),

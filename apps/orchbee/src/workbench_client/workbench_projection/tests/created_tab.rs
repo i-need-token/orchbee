@@ -197,7 +197,7 @@ fn created_tab_accepts_later_concurrent_members_and_snapshot_binding() {
     let mut candidate = created_candidate(1, 4, 9, "created");
     candidate.tabs[0].tab_label = label("renamed old member");
     candidate.tabs[1].tab_label = label("renamed created member");
-    candidate.tabs[1].binding = Some(NativeTerminalBinding {
+    candidate.tabs[1].binding = Some(ClientTerminalBinding {
         worker_id: worker_id(300),
         terminal_id: terminal_id(301),
     });
@@ -253,14 +253,14 @@ fn created_tab_rejects_revision_context_prefix_and_immediate_position_divergence
     later_commit.committed_revision = WorkbenchRevision::new(7);
     failures.push((later_commit, lower_than_commit));
 
-    let mut site_mismatch = candidate.clone();
-    site_mismatch.site_id = site_id(400);
-    failures.push((expected.clone(), site_mismatch));
+    let mut session_mismatch = candidate.clone();
+    session_mismatch.session_id = session_id(400);
+    failures.push((expected.clone(), session_mismatch));
 
     let mut context_mismatch = candidate.clone();
     context_mismatch.location = {
         let fixture_context_id = context_id(401);
-        NativeContextLocation::Workspace {
+        ClientContextLocation::Workspace {
             workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                 fixture_context_id.as_str(),
             )
@@ -283,7 +283,7 @@ fn created_tab_rejects_revision_context_prefix_and_immediate_position_divergence
     for (expected, candidate) in failures {
         assert_eq!(
             validate_created_tab(&current, &expected, candidate),
-            Err(NativeProjectionDivergence)
+            Err(ClientProjectionDivergence)
         );
     }
 }
@@ -314,7 +314,7 @@ fn created_tab_rejects_each_committed_tuple_or_label_mismatch() {
     for expected in expectations {
         assert_eq!(
             validate_created_tab(&current, &expected, candidate.clone()),
-            Err(NativeProjectionDivergence)
+            Err(ClientProjectionDivergence)
         );
     }
 
@@ -322,14 +322,14 @@ fn created_tab_rejects_each_committed_tuple_or_label_mismatch() {
     tab_label_mismatch.tabs[1].tab_label = label("different tab label");
     assert_eq!(
         validate_created_tab(&current, &expected, tab_label_mismatch),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 
     let mut presentation_label_mismatch = candidate;
     presentation_label_mismatch.tabs[1].presentation_label = label("different presentation label");
     assert_eq!(
         validate_created_tab(&current, &expected, presentation_label_mismatch),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }
 
@@ -342,7 +342,7 @@ fn created_tab_requires_the_old_prefix_labels_exactly_at_the_commit_revision() {
 
     assert_eq!(
         validate_created_tab(&current, &expected, candidate),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }
 
@@ -354,6 +354,6 @@ fn created_tab_requires_exactly_one_appended_member_at_the_commit_revision() {
 
     assert_eq!(
         validate_created_tab(&current, &expected, candidate),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }

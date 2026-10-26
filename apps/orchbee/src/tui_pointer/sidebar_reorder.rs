@@ -10,9 +10,9 @@ use crate::{
         DrawnSidebarTarget, SidebarPart, SidebarSource, SidebarTarget, SidebarWindow,
     },
     terminal_input::TerminalInputPort,
-    workbench_client::NativeContextLocation,
+    workbench_client::ClientContextLocation,
 };
-use orchbee_workbench_protocol::{Navigation, NavigationConfiguration, SiteId, Snapshot};
+use orchbee_workbench_protocol::{Navigation, NavigationConfiguration, SessionId, Snapshot};
 use ratatui::layout::Rect;
 use std::time::{Duration, Instant};
 mod destination;
@@ -32,16 +32,16 @@ impl SidebarReorderSource {
         source: &SidebarSource,
         machine: &crate::machine_picker::Choice,
     ) -> bool {
-        source.matches_navigation(machine, self.site_id(), self.navigation())
+        source.matches_navigation(machine, self.session_id(), self.navigation())
     }
     pub(crate) fn matches_menu_source(&self, source: &crate::action_menu::DrawnMenuSource) -> bool {
-        source.site == self.0.site_id && source.revision == self.0.revision
+        source.session == self.0.session_id && source.revision == self.0.revision
     }
     pub(crate) fn navigation(&self) -> &Navigation {
         &self.0.navigation
     }
-    pub(crate) fn site_id(&self) -> &SiteId {
-        &self.0.site_id
+    pub(crate) fn session_id(&self) -> &SessionId {
+        &self.0.session_id
     }
 }
 
@@ -124,7 +124,7 @@ impl SidebarReorder {
         }
         let (target, _) = row_at(map, event.column, event.row)?;
         if target.target().machine() != &view.machines.current
-            || target.target().site_id() != source.site_id()
+            || target.target().session_id() != source.session_id()
         {
             return None;
         }
@@ -183,7 +183,7 @@ impl SidebarReorder {
             return None;
         };
         let target = region.target.sidebar_target()?;
-        if target.site_id() != self.source.site_id()
+        if target.session_id() != self.source.session_id()
             || target.machine() != self.target.target().machine()
         {
             return None;

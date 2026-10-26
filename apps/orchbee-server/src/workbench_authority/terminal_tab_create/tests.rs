@@ -5,7 +5,7 @@ use crate::workbench_authority::terminal_membership::append_simple_tab;
 use crate::workbench_projection::WorkbenchProjectionStore;
 use orchbee_workbench_protocol::MAXIMUM_TABS_PER_CONTEXT;
 use orchbee_workbench_protocol::{
-    Directory, PanelNode, Project, ProtocolVersion, SiteId, SnapshotReadIntent, TerminalContext,
+    Directory, PanelNode, Project, ProtocolVersion, SessionId, SnapshotReadIntent, TerminalContext,
     TerminalId, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchProjectId,
     WorkbenchRequest, WorkbenchResponse, WorkbenchWorkspaceId, WorkerId, Workspace,
 };
@@ -19,10 +19,10 @@ fn identity(value: u128) -> String {
 }
 
 fn authority() -> (WorkbenchAuthority, WorkbenchGrant) {
-    let site_id = SiteId::parse(&identity(100)).unwrap();
+    let session_id = SessionId::parse(&identity(100)).unwrap();
     (
-        WorkbenchAuthority::workspace_fixture(site_id.clone()).unwrap(),
-        WorkbenchGrant::manage_navigation_and_terminal_create(site_id),
+        WorkbenchAuthority::workspace_fixture(session_id.clone()).unwrap(),
+        WorkbenchGrant::manage_navigation_and_terminal_create(session_id),
     )
 }
 
@@ -47,7 +47,7 @@ fn command(
     WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&identity(request)).unwrap(),
-        site_id: SiteId::parse(&identity(100)).unwrap(),
+        session_id: SessionId::parse(&identity(100)).unwrap(),
         expected_revision: WorkbenchRevision::new(revision),
         action: WorkbenchAction::TabCreate {
             placement: None,
@@ -191,17 +191,17 @@ fn assert_retained_rejection(
 }
 
 #[test]
-fn site_revision_and_context_preflight_precedence_is_retained_and_atomic() {
+fn session_revision_and_context_preflight_precedence_is_retained_and_atomic() {
     let (mut authority, grant) = authority();
     let wrong_context = WorkbenchTerminalContextId::parse(&identity(900)).unwrap();
 
-    let mut wrong_site = command(1, 99, wrong_context.clone(), "one", geometry(80));
-    wrong_site.site_id = SiteId::parse(&identity(101)).unwrap();
+    let mut wrong_session = command(1, 99, wrong_context.clone(), "one", geometry(80));
+    wrong_session.session_id = SessionId::parse(&identity(101)).unwrap();
     assert_retained_rejection(
         &mut authority,
         &grant,
-        wrong_site,
-        WorkbenchRejectionReason::SiteMismatch,
+        wrong_session,
+        WorkbenchRejectionReason::SessionMismatch,
     );
 
     assert_retained_rejection(
@@ -398,7 +398,7 @@ fn exact_pending_replay_and_every_semantic_difference_conflict_without_mutation(
     changed.expected_revision = WorkbenchRevision::new(1);
     differences.push(changed);
     let mut changed = request.clone();
-    changed.site_id = SiteId::parse(&identity(101)).unwrap();
+    changed.session_id = SessionId::parse(&identity(101)).unwrap();
     differences.push(changed);
     let mut changed = request.clone();
     if let WorkbenchAction::TabCreate { label, .. } = &mut changed.action {
@@ -505,7 +505,7 @@ fn full_entry_ledger_still_replays_and_conflicts_before_refusing_a_new_tab_creat
         "new",
         geometry(80),
     );
-    new_request.site_id = SiteId::parse(&identity(101)).unwrap();
+    new_request.session_id = SessionId::parse(&identity(101)).unwrap();
     let WorkbenchTabCreateBegin::Ready(full) =
         authority.begin_terminal_tab_create(Some(&grant), new_request)
     else {
@@ -554,7 +554,7 @@ fn combined_grant_precedes_retirement_and_settlement_remains_valid_after_retirem
     let request = tab_command(&authority, 1, 0, "one");
     let (pending, _metadata) = commit(&mut authority, &grant, request.clone(), binding(20));
     authority.retire_terminal_membership();
-    let navigation_only = WorkbenchGrant::manage_navigation(authority.site_id().clone());
+    let navigation_only = WorkbenchGrant::manage_navigation(authority.session_id().clone());
 
     let WorkbenchTabCreateBegin::Ready(denied) =
         authority.begin_terminal_tab_create(Some(&navigation_only), request.clone())
@@ -865,7 +865,7 @@ fn request_classification_routes_tab_create_without_authorization_or_state_inter
         let pure = WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id: WorkbenchRequestId::parse(&identity(100 + offset as u128)).unwrap(),
-            site_id: authority.site_id().clone(),
+            session_id: authority.session_id().clone(),
             expected_revision: WorkbenchRevision::new(0),
             action,
         };
@@ -877,7 +877,7 @@ fn request_classification_routes_tab_create_without_authorization_or_state_inter
     let pure = WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&identity(2)).unwrap(),
-        site_id: authority.site_id().clone(),
+        session_id: authority.session_id().clone(),
         expected_revision: WorkbenchRevision::new(0),
         action: WorkbenchAction::ProjectCreate {
             label: WorkbenchLabel::parse("project").unwrap(),
@@ -1379,7 +1379,7 @@ fn workspace_launch_denied_or_abandoned_admission_preserves_every_resource() {
         None,
         Some(grant.clone()),
         Some(
-            WorkbenchGrant::manage_navigation(authority.site_id().clone())
+            WorkbenchGrant::manage_navigation(authority.session_id().clone())
                 .with_directory_association(),
         ),
     ] {

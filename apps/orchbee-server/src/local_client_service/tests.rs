@@ -112,7 +112,7 @@ fn managed_socket_publication_has_final_permissions_and_never_replaces_an_entry(
     let directory = std::env::temp_dir().join(format!("ob-publish-{}", std::process::id()));
     fs::create_dir(&directory)?;
     fs::set_permissions(&directory, fs::Permissions::from_mode(0o700))?;
-    use orchbee_local_site_runtime::CLIENT_PENDING_SOCKET_NAME;
+    use orchbee_local_runtime::CLIENT_PENDING_SOCKET_NAME;
     let endpoint = directory.join("client.sock");
     let listener = super::bind_managed(&endpoint)?;
     assert_eq!(

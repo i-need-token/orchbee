@@ -8,7 +8,7 @@ use crate::{
     machines::{Profile, Store},
     terminal_device::WindowDimensions,
     workbench_client::{
-        ContextNavigationAdmission, NativeContextTarget, NativeStartupTarget, TerminalStatus,
+        ClientContextTarget, ClientStartupTarget, ContextNavigationAdmission, TerminalStatus,
         WorkbenchClient,
     },
 };
@@ -30,7 +30,7 @@ const AGENT_EVENTS: &[orchbee_workbench_protocol::SemanticEventKind] = &[
 ];
 struct Attempt {
     profile: Option<Profile>,
-    context: Option<NativeStartupTarget>,
+    context: Option<ClientStartupTarget>,
     cancel: Arc<AtomicU8>,
     task: Option<JoinHandle<io::Result<PreparedSelection>>>,
 }
@@ -74,7 +74,7 @@ struct Queued {
     deadline: Instant,
 }
 enum Destination {
-    Startup(Option<NativeStartupTarget>),
+    Startup(Option<ClientStartupTarget>),
     VerifiedAgent(Box<crate::machine_agents::Target>),
 }
 #[derive(Default)]
@@ -399,7 +399,7 @@ impl Manager {
                 .selection_scope
                 .is_some_and(|scope| scope.origin == SelectionOrigin::Sidebar)
                 && same_machine_endpoint(self.current.as_ref(), queued.profile.as_ref())
-                && let Destination::Startup(Some(NativeStartupTarget::Context(target))) =
+                && let Destination::Startup(Some(ClientStartupTarget::Context(target))) =
                     &queued.destination
             {
                 // Reuse this Session's per-location tab/panel memory. One accepted
@@ -445,7 +445,7 @@ impl Manager {
                         same_machine_endpoint(self.current.as_ref(), queued.profile.as_ref())
                     })
                     .and_then(|_| match &context {
-                        Some(NativeStartupTarget::Agent(target)) => Some(target.clone()),
+                        Some(ClientStartupTarget::Agent(target)) => Some(target.clone()),
                         _ => None,
                     });
                 match thread::Builder::new()
@@ -704,7 +704,7 @@ impl Manager {
         keep_old: bool,
         before_switch: &mut dyn FnMut(&mut dyn crate::terminal_input::TerminalInputPort),
     ) {
-        // Retain the picker catalog and host capture truth; all per-Site navigation stays with its surface.
+        // Retain the picker catalog and host capture truth; all per-Session navigation stays with its surface.
         before_switch(surface.active());
         let focus = surface.active().suspend_machine();
         next.surface.resume_machine(focus);
@@ -790,14 +790,14 @@ fn navigation(surface: &dyn TerminalSurface) -> Vec<Context> {
     let Some(native) = surface.view() else {
         return Vec::new();
     };
-    let Some(site) = native.navigation_site() else {
+    let Some(session) = native.navigation_session() else {
         return Vec::new();
     };
     (0..native.context_count())
         .filter_map(|index| native.context_at(index))
         .map(|context| Context {
-            target: NativeContextTarget {
-                site_id: site.clone(),
+            target: ClientContextTarget {
+                session_id: session.clone(),
                 location: context.location().clone(),
             },
             project_id: context.project_id().cloned(),
@@ -806,7 +806,7 @@ fn navigation(surface: &dyn TerminalSurface) -> Vec<Context> {
         })
         .collect()
 }
-fn active_context(surface: &dyn TerminalSurface) -> Option<NativeContextTarget> {
+fn active_context(surface: &dyn TerminalSurface) -> Option<ClientContextTarget> {
     let Some(native) = surface.view() else {
         return None;
     };
@@ -814,15 +814,15 @@ fn active_context(surface: &dyn TerminalSurface) -> Option<NativeContextTarget> 
         .context_at(native.active_context_position()?.checked_sub(1)?)?
         .location()
         .clone();
-    Some(NativeContextTarget {
-        site_id: native.navigation_site()?.clone(),
+    Some(ClientContextTarget {
+        session_id: native.navigation_session()?.clone(),
         location,
     })
 }
 
 fn focused_member(
     surface: &dyn TerminalSurface,
-) -> Option<crate::workbench_client::NativeMemberTarget> {
+) -> Option<crate::workbench_client::ClientMemberTarget> {
     let Some(native) = surface.view() else {
         return None;
     };

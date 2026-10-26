@@ -21,9 +21,9 @@ use crate::{
 
 /// Captured Windows shell policy; editor launches keep their literal argument list.
 #[cfg(windows)]
-pub(super) struct WindowsShellLaunch<'a> {
+pub(super) struct ShellLaunchPolicy<'a> {
     pub(super) editor_launch: bool,
-    pub(super) settings: &'a orchbee_local_site_runtime::WindowsShellSettings,
+    pub(super) settings: &'a orchbee_local_runtime::ShellSettings,
 }
 
 pub(super) fn resolve(
@@ -31,9 +31,9 @@ pub(super) fn resolve(
     selection: Option<&orchbee_capability_node_protocol::LaunchSelection>,
     environment: &orchbee_capability_node_protocol::LaunchEnvironment,
     plugin_environment: Option<&orchbee_capability_node_protocol::PluginTerminalEnvironment>,
-    defaults: Option<&orchbee_local_site_runtime::UserTerminalLaunchDefaults>,
-    host_colors: orchbee_local_site_runtime::UserTerminalColors,
-    #[cfg(windows)] shell: WindowsShellLaunch<'_>,
+    defaults: Option<&orchbee_local_runtime::UserTerminalLaunchDefaults>,
+    host_colors: orchbee_local_runtime::UserTerminalColors,
+    #[cfg(windows)] shell: ShellLaunchPolicy<'_>,
 ) -> Result<ResolvedTerminalLaunchFacts, Box<dyn Error>> {
     if plugin_environment.is_some() && (!cfg!(windows) || selection.is_none()) {
         return Err(io::Error::new(
@@ -128,7 +128,7 @@ fn launch_environment(
                 value,
             });
         }
-        // Action/link invocations can be ancestors of a newly started Site too.
+        // Action/link invocations can be ancestors of a newly started Session too.
         for name in [
             "ORCHBEE_PLUGIN_ACTION_ID",
             "ORCHBEE_PLUGIN_CLICKED_URL",
@@ -145,7 +145,7 @@ fn launch_environment(
 
 // Only the default colors and their color scheme follow device preferences or Host colors.
 // The ANSI palette remains the protocol profile's authority, independent of Client rendering.
-fn terminal_profile(colors: orchbee_local_site_runtime::UserTerminalColors) -> TerminalProfile {
+fn terminal_profile(colors: orchbee_local_runtime::UserTerminalColors) -> TerminalProfile {
     let (foreground, background) = colors.rgb();
     let mut palette = vec![
         0x00_00_00, 0xcd_31_31, 0x10_7c_10, 0x94_98_00, 0x04_51_a5, 0xbc_05_bc, 0x05_98_bc,

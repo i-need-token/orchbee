@@ -1,5 +1,5 @@
 use super::native_workspace_fixture::*;
-use super::tui_observer::NativeHeader;
+use super::tui_observer::WorkbenchHeader;
 use super::*;
 
 #[test]
@@ -34,7 +34,7 @@ fn native_empty_workspace_uses_literal_directory_and_only_explicitly_launches() 
 
     seed_empty_workspace(&fixture, &mut client)?;
     let created = observer.snapshot()?;
-    assert_eq!(created.site_id, initial.site_id);
+    assert_eq!(created.session_id, initial.session_id);
     assert!(created.revision > initial.revision);
     assert_eq!(created.navigation.projects.len(), 1);
     let project = &created.navigation.projects[0];
@@ -86,7 +86,7 @@ fn native_empty_workspace_uses_literal_directory_and_only_explicitly_launches() 
     );
     let configured = observer.snapshot()?;
     assert!(configured.revision > created.revision);
-    assert_eq!(configured.site_id, created.site_id);
+    assert_eq!(configured.session_id, created.session_id);
     assert_eq!(
         configured.terminal_contexts, created.terminal_contexts,
         "directory acceptance does not create any Workspace Tab or terminal binding"
@@ -123,7 +123,7 @@ fn native_empty_workspace_uses_literal_directory_and_only_explicitly_launches() 
 
     finish_modal_handoff(
         &mut client,
-        NativeHeader::empty(WORKSPACE_LOCATION),
+        WorkbenchHeader::empty(WORKSPACE_LOCATION),
         &[EMPTY],
     );
     let checkpoint = client.checkpoint();
@@ -131,7 +131,7 @@ fn native_empty_workspace_uses_literal_directory_and_only_explicitly_launches() 
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
-        NativeHeader::active(WORKSPACE_LOCATION, 1, "1"),
+        WorkbenchHeader::active(WORKSPACE_LOCATION, 1, "1"),
         &["Tab 1 · Ready · controlling"],
         &[EMPTY],
         &[],
@@ -183,7 +183,7 @@ fn native_empty_workspace_uses_literal_directory_and_only_explicitly_launches() 
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        NativeHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
+        WorkbenchHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
         &["Tab 1 · Ready · controlling"],
         &[WORKSPACE_LOCATION, EMPTY],
         &[],
@@ -239,7 +239,7 @@ fn native_directory_setup_cancel_preserves_the_empty_workspace_and_original_shel
     }
     finish_modal_handoff(
         &mut client,
-        NativeHeader::empty(WORKSPACE_LOCATION),
+        WorkbenchHeader::empty(WORKSPACE_LOCATION),
         &[EMPTY],
     );
     let checkpoint = client.checkpoint();
@@ -247,7 +247,7 @@ fn native_directory_setup_cancel_preserves_the_empty_workspace_and_original_shel
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        NativeHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
+        WorkbenchHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
         &["Tab 1 · Ready · controlling"],
         &[WORKSPACE_LOCATION, EMPTY],
         &[],

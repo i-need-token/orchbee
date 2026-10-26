@@ -1,5 +1,5 @@
 //! Process-level Agent read evidence: the real `orchbee` binary runs against
-//! a scripted local peer bound at the Site's client socket. The peer speaks
+//! a scripted local peer bound at the Session's client socket. The peer speaks
 //! the genuine OBLC admission and the OBAP record protocol, so every admitted
 //! outcome class — listed/found, semantic refusal, unavailable, malformed,
 //! correlation mismatch — is exercised against the production code path.
@@ -34,7 +34,7 @@ type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 /// One cohort directory per test process: copies of the four build artifacts
 /// plus a `cohort.json` manifest, so the spawned CLI passes the real
-/// `NativeCohort::current` verification.
+/// `Cohort::current` verification.
 fn cohort() -> &'static Path {
     static COHORT: OnceLock<PathBuf> = OnceLock::new();
     COHORT

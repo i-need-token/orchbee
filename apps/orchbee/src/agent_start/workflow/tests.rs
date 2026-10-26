@@ -42,7 +42,7 @@ fn idle_shell_refuses_commands_unknown_processes_and_incomplete_samples() {
 #[test]
 fn idle_shell_accepts_only_the_complete_runtime_powershell_initialization() {
     for shell in ["powershell.exe", "pwsh.exe"] {
-        let prompt = orchbee_local_site_runtime::windows_interactive_powershell_initialization();
+        let prompt = orchbee_local_runtime::windows_interactive_powershell_initialization();
         let mut sample = TerminalProcessInfo {
             attachment_id: orchbee_terminal_protocol::AttachmentId::from_bytes([1; 16]).unwrap(),
             terminal_id: orchbee_terminal_protocol::TerminalId::from_bytes([2; 16]).unwrap(),

@@ -12,7 +12,7 @@ use orchbee_workbench_protocol::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 fn ready() -> (
-    NativeUi,
+    WorkbenchClientUi,
     Arc<CommandMailbox>,
     LocalOperationClock,
     Arc<AtomicU64>,
@@ -131,7 +131,7 @@ fn selected_duplicate_snapshot_unavailable_and_late_commit_never_restart_the_cap
     mailbox.finish_lease(lease).unwrap();
     ui.tick();
     assert!(mailbox.try_recv().unwrap().is_none());
-    assert_eq!(ui.view().phase(), NativeDisplayPhase::ProjectionUnavailable);
+    assert_eq!(ui.view().phase(), DisplayPhase::ProjectionUnavailable);
     assert_eq!(ui.view().selected_tab_ids(), sources);
 }
 
@@ -189,7 +189,7 @@ fn selected_duplicate_total_budget_is_fixed_and_each_operation_has_one_cleanup_r
     );
 }
 
-fn start(ui: &mut NativeUi) -> Vec<WorkbenchTabId> {
+fn start(ui: &mut WorkbenchClientUi) -> Vec<WorkbenchTabId> {
     let sources = ui.view().selected_tab_ids();
     ui.apply_tab_menu(MenuAction::DuplicateTab, Some(&sources[1]));
     assert_eq!(ui.view().duplicate_progress().unwrap().total, 2);
@@ -197,7 +197,7 @@ fn start(ui: &mut NativeUi) -> Vec<WorkbenchTabId> {
 }
 
 fn reply(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &Arc<CommandMailbox>,
     clock: &LocalOperationClock,
     event: WorkerEvent,
@@ -217,7 +217,7 @@ fn reply(
 }
 
 fn receive(
-    ui: &NativeUi,
+    ui: &WorkbenchClientUi,
     mailbox: &CommandMailbox,
     source: &WorkbenchTabId,
 ) -> (CommandLease, CreateOperationKey, Snapshot, usize) {
@@ -273,7 +273,7 @@ fn receive(
 }
 
 fn commit(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &Arc<CommandMailbox>,
     clock: &LocalOperationClock,
     key: &CreateOperationKey,
@@ -336,7 +336,7 @@ fn started() -> Option<WorkbenchTerminalOutcome> {
 }
 
 fn candidate(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &Arc<CommandMailbox>,
     clock: &LocalOperationClock,
     key: &CreateOperationKey,
@@ -357,7 +357,7 @@ fn candidate(
 }
 
 fn install(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &Arc<CommandMailbox>,
     clock: &LocalOperationClock,
     cleanup: crate::workbench_client::state::MembershipCleanup,
@@ -376,7 +376,7 @@ fn install(
 }
 
 fn reattach(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &Arc<CommandMailbox>,
     clock: &LocalOperationClock,
     pane: &PaneRef,
@@ -433,7 +433,7 @@ fn reattach(
             last_accepted_geometry: None,
         },
     );
-    assert_eq!(ui.view().phase(), NativeDisplayPhase::Ready);
+    assert_eq!(ui.view().phase(), DisplayPhase::Ready);
 }
 
 #[test]

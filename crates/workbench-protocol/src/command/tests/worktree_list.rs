@@ -25,7 +25,7 @@ fn utf8(text: &str) -> WorktreeEntryText {
 
 fn found(entries: Vec<WorktreeEntry>) -> WorkbenchWorktreeListOutcome {
     WorkbenchWorktreeListOutcome::Found {
-        site_id: SiteId::parse("22222222222222222222222222222222").unwrap(),
+        session_id: SessionId::parse("22222222222222222222222222222222").unwrap(),
         workbench_revision: WorkbenchRevision::parse("7").unwrap(),
         directory_id: WorkbenchDirectoryId::parse("44444444444444444444444444444444").unwrap(),
         path: WorkbenchDirectoryPath::parse("/repo").unwrap(),

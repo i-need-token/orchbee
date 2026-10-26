@@ -28,7 +28,7 @@ fn grouped() -> Snapshot {
     snapshot
 }
 
-fn present_action_menu(ui: &mut NativeUi) -> MenuToken {
+fn present_action_menu(ui: &mut WorkbenchClientUi) -> MenuToken {
     let (token, selected, visible_rows, result_actions) = {
         let view = ui.view();
         let menu = view.action_menu().unwrap();
@@ -49,7 +49,7 @@ fn present_action_menu(ui: &mut NativeUi) -> MenuToken {
     token
 }
 
-fn choose(ui: &mut NativeUi, action: MenuAction) {
+fn choose(ui: &mut WorkbenchClientUi, action: MenuAction) {
     if !ui.view().action_menu().unwrap().actions.contains(&action) {
         let parent = match action {
             MenuAction::SelectTab
@@ -102,7 +102,7 @@ fn choose(ui: &mut NativeUi, action: MenuAction) {
 }
 
 fn accept_configuration(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
     snapshot: &mut Snapshot,
@@ -162,7 +162,7 @@ fn accept_configuration(
         old.as_ref(),
         "same viewer, incarnation and binding"
     );
-    assert_eq!(ui.view().phase(), NativeDisplayPhase::Ready);
+    assert_eq!(ui.view().phase(), DisplayPhase::Ready);
     assert_eq!(
         ui.state.as_ref().unwrap().cache().canonical_snapshot(),
         snapshot
@@ -243,7 +243,7 @@ fn selected_tab_configuration_menu_marks_exact_set_and_preserves_active_terminal
         assert!(!text.contains("1–512"));
     }
     ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
-    ui.edit_setup_draft(token, NativeSetupEdit::Clear);
+    ui.edit_setup_draft(token, SetupEdit::Clear);
     ui.submit_setup_draft(token);
     let group = WorkbenchTabGroupId::parse(&format!("{:032x}", 1902)).unwrap();
     let operation = accept_configuration(
@@ -378,8 +378,8 @@ fn tab_group_menus_submit_canonical_operations_and_preserve_selected_terminal() 
         "draft also requires a complete paint"
     );
     ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
-    ui.edit_setup_draft(token, NativeSetupEdit::Clear);
-    ui.edit_setup_draft(token, NativeSetupEdit::Paste("构建 🦀"));
+    ui.edit_setup_draft(token, SetupEdit::Clear);
+    ui.edit_setup_draft(token, SetupEdit::Paste("构建 🦀"));
     ui.submit_setup_draft(token);
     accept_configuration(
         &mut ui,

@@ -432,7 +432,7 @@ fn agent_focus_acknowledges_only_after_an_uninterrupted_unexpired_draw() {
         };
         inject(&control, command);
         assert!(control.tick(&mut native, false));
-        let seen = |native: &NativeUi| {
+        let seen = |native: &WorkbenchClientUi| {
             native
                 .read_terminal_agent_attention(std::slice::from_ref(&agent.binding))
                 .unwrap()
@@ -510,7 +510,7 @@ fn ordinary_focus_acknowledges_an_unfocused_tab_only_after_a_valid_draw() {
             };
             inject(&control, command);
             assert!(control.tick(&mut native, false));
-            let seen = |native: &NativeUi| {
+            let seen = |native: &WorkbenchClientUi| {
                 native
                     .read_terminal_agent_attention(std::slice::from_ref(&agent.binding))
                     .unwrap()
@@ -1184,11 +1184,11 @@ fn presentation_read_completes_without_draw_or_navigation_in_ready_and_busy() {
 #[test]
 fn panel_focus_validates_canonical_target_before_cancelling_modes() {
     use crate::workbench_client::ui::tests::membership::snapshot;
-    use orchbee_workbench_protocol::{SiteId, WorkbenchRevision};
+    use orchbee_workbench_protocol::{SessionId, WorkbenchRevision};
     for case in [
         "valid",
         "missing",
-        "wrong-site",
+        "wrong-session",
         "stale",
         "unknown-panel",
         "wrong-tab",
@@ -1202,7 +1202,9 @@ fn panel_focus_validates_canonical_target_before_cancelling_modes() {
         let mut command = command(&control, None);
         let mut canonical = snapshot(2, 1);
         match case {
-            "wrong-site" => canonical.site_id = SiteId::parse(&format!("{:032x}", 99)).unwrap(),
+            "wrong-session" => {
+                canonical.session_id = SessionId::parse(&format!("{:032x}", 99)).unwrap()
+            }
             "stale" => command.minimum_workbench_revision = WorkbenchRevision::new(2),
             "unknown-panel" | "wrong-tab" | "wrong-context" => {
                 let ClientViewIntent::Panel {
@@ -1257,7 +1259,7 @@ fn panel_focus_validates_canonical_target_before_cancelling_modes() {
                 ClientViewCompletionOutcome::Applied {}
             );
         } else {
-            let reason = if matches!(case, "missing" | "wrong-site" | "stale") {
+            let reason = if matches!(case, "missing" | "wrong-session" | "stale") {
                 Reason::ProjectionUnavailable
             } else {
                 Reason::TargetUnavailable

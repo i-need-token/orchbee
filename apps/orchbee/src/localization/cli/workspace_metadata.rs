@@ -44,8 +44,8 @@ impl Locale {
             Some(Outcome::Failed { reason }) => match (self, reason) {
                 (Self::EnUs, Failure::InvalidRequest) => "Invalid metadata request",
                 (Self::ZhCn, Failure::InvalidRequest) => "元数据请求无效",
-                (Self::EnUs, Failure::SiteMismatch) => "Session identity changed",
-                (Self::ZhCn, Failure::SiteMismatch) => "会话身份已改变",
+                (Self::EnUs, Failure::SessionMismatch) => "Session identity changed",
+                (Self::ZhCn, Failure::SessionMismatch) => "会话身份已改变",
                 (Self::EnUs, Failure::NotFound) => "Workspace no longer exists",
                 (Self::ZhCn, Failure::NotFound) => "工作区已不存在",
                 (Self::EnUs, Failure::Denied) => "Metadata reporting denied",

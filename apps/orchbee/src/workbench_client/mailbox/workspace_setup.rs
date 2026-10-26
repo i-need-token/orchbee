@@ -8,9 +8,7 @@ use crate::local_client::LocalOperationClock;
 use crate::workbench_client::state::{OperationDeadlines, PendingRefreshStage};
 use crate::workbench_client::state::{
     WorkbenchClientState,
-    workspace_setup::{
-        NativeSetupIntent, NativeSetupToken, SetupOperation, SetupResult, SetupWorkerEvidence,
-    },
+    workspace_setup::{SetupIntent, SetupOperation, SetupResult, SetupToken, SetupWorkerEvidence},
 };
 
 pub(super) struct SetupFlight {
@@ -86,8 +84,8 @@ impl CommandMailbox {
     pub(in crate::workbench_client) fn open_setup_draft_for(
         &self,
         canonical: &mut WorkbenchClientState,
-        intent: NativeSetupIntent,
-    ) -> Option<NativeSetupToken> {
+        intent: SetupIntent,
+    ) -> Option<SetupToken> {
         let state = self.lock();
         if !Self::setup_draft_available(&state, canonical) {
             return None;
@@ -99,7 +97,7 @@ impl CommandMailbox {
         canonical: &mut WorkbenchClientState,
         request: Box<crate::workbench_client::ProjectRenameRequest>,
         clock: &LocalOperationClock,
-    ) -> Option<NativeSetupToken> {
+    ) -> Option<SetupToken> {
         self.open_project_rename_draft_for_using(canonical, request, clock)
     }
     pub(super) fn open_project_rename_draft_for_using(
@@ -107,13 +105,13 @@ impl CommandMailbox {
         canonical: &mut WorkbenchClientState,
         request: Box<crate::workbench_client::ProjectRenameRequest>,
         clock: &dyn MailboxClock,
-    ) -> Option<NativeSetupToken> {
+    ) -> Option<SetupToken> {
         let deadline = request.deadline();
         let (state, _) = self.lock_before(deadline, clock)?;
         if !Self::setup_draft_available(&state, canonical) || clock.now() >= deadline {
             return None;
         }
-        let token = canonical.open_setup_draft(NativeSetupIntent::RenameProject(request))?;
+        let token = canonical.open_setup_draft(SetupIntent::RenameProject(request))?;
         // The draft is still private to this admission. Preparation may have
         // crossed the original cutoff; never publish its token in that case.
         if clock.now() >= deadline {
@@ -142,7 +140,7 @@ impl CommandMailbox {
     pub(in crate::workbench_client) fn try_enqueue_setup_for(
         &self,
         canonical: &mut WorkbenchClientState,
-        token: NativeSetupToken,
+        token: SetupToken,
         deadlines: OperationDeadlines,
         clock: &LocalOperationClock,
     ) -> Result<(), MoveAdmissionError<()>> {
@@ -151,7 +149,7 @@ impl CommandMailbox {
     pub(super) fn try_enqueue_setup_for_using(
         &self,
         canonical: &mut WorkbenchClientState,
-        token: NativeSetupToken,
+        token: SetupToken,
         deadlines: OperationDeadlines,
         clock: &dyn MailboxClock,
     ) -> Result<(), MoveAdmissionError<()>> {

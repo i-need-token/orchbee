@@ -1,25 +1,23 @@
-//! Offline settings repair; this command never connects to or activates a Site.
+//! Offline settings repair; this command never connects to or activates a Session.
 use super::{Failure, FailureKind, Output, failure_output, output};
 use crate::{invocation::OutputFormat, localization::Locale};
-use orchbee_local_site_runtime::{
-    WindowsKeysResetOutcome, WindowsKeysResetReport, reset_windows_keybindings,
-};
+use orchbee_local_runtime::{KeysResetOutcome, KeysResetReport, reset_keybindings};
 use serde_json::json;
 
 pub(crate) fn run(format: OutputFormat, locale: Locale) -> Output {
     emit(
-        reset_windows_keybindings(|name| std::env::var_os(name)),
+        reset_keybindings(|name| std::env::var_os(name)),
         format,
         locale,
     )
 }
 
-fn emit(report: WindowsKeysResetReport, format: OutputFormat, locale: Locale) -> Output {
+fn emit(report: KeysResetReport, format: OutputFormat, locale: Locale) -> Output {
     let (state, backup, error, recovery) = match &report.outcome {
-        WindowsKeysResetOutcome::Missing => ("missing", None, None, false),
-        WindowsKeysResetOutcome::NoKeys => ("no-keys", None, None, false),
-        WindowsKeysResetOutcome::Reset { backup_path } => ("reset", Some(backup_path), None, false),
-        WindowsKeysResetOutcome::Failed {
+        KeysResetOutcome::Missing => ("missing", None, None, false),
+        KeysResetOutcome::NoKeys => ("no-keys", None, None, false),
+        KeysResetOutcome::Reset { backup_path } => ("reset", Some(backup_path), None, false),
+        KeysResetOutcome::Failed {
             error,
             backup_path,
             recovery_required,

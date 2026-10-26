@@ -39,7 +39,7 @@ fn panel_split_preserves_every_compatible_precommit_and_keeps_the_carrier() -> T
         ),
     ];
     for reason in [
-        WorkbenchRejectionReason::SiteMismatch,
+        WorkbenchRejectionReason::SessionMismatch,
         WorkbenchRejectionReason::RevisionMismatch,
         WorkbenchRejectionReason::TerminalContextUnavailable,
         WorkbenchRejectionReason::TabUnavailable,

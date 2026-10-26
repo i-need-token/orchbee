@@ -1,6 +1,6 @@
 //! Fence one actual Host diagnostic against the report context before publishing it.
 use super::super::{LocalTerminalService, placement};
-use crate::site_coordinator::ProcessObservationTarget;
+use crate::session_coordinator::ProcessObservationTarget;
 use orchbee_server::TerminalAgentExplainContext;
 use orchbee_workbench_protocol::{
     PanelAgentFailure as Failure, PanelAgentOutcome as Outcome, PanelAgentRequest,
@@ -18,8 +18,8 @@ impl LocalTerminalService {
         let handle = workers.request_handle();
         let current =
             placement(handle.as_ref().filter(|h| h.is_active())).ok_or(Failure::Unavailable)?;
-        let mut site = self.coordinator.lock().map_err(|_| Failure::Unavailable)?;
-        let prepared = site.prepare_agent_explanation(request, Instant::now())?;
+        let mut session = self.coordinator.lock().map_err(|_| Failure::Unavailable)?;
+        let prepared = session.prepare_agent_explanation(request, Instant::now())?;
         if prepared.1.target.worker != current {
             return Err(Failure::BindingChanged);
         }
@@ -50,7 +50,7 @@ impl LocalTerminalService {
         let mut result = PanelAgentResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id.clone(),
-            site_id: request.site_id.clone(),
+            session_id: request.session_id.clone(),
             outcome: prepare().unwrap_or_else(|reason| Outcome::Failed { reason }),
         };
         if serialize_workbench_response(&WorkbenchResponse::PanelAgent(result.clone())).is_err() {

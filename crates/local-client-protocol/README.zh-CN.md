@@ -154,7 +154,7 @@ persistence、Windows named pipe、remote authentication 与 production service 
 cargo test -p orchbee-local-client-protocol --all-targets --all-features --locked
 cargo clippy -p orchbee-local-client-protocol --all-targets --all-features --locked -- -D warnings
 node scripts/tla/run-models.mjs --workspace apps/orchbee
-node scripts/tla/run-models.mjs --models local-site-startup
+node scripts/tla/run-models.mjs --models local-session-startup
 pnpm verify
 ```
 
@@ -173,4 +173,4 @@ Windows 使用 `orchbee-local-ipc` 本地命名管道承载相同的 OBLC 消息
 取消、连接后失败、迟到完成和候选清理。原生元数据／停止测试覆盖真实管道适配器。
 这些具名轨迹补充既有协议模型，不建模或限制 Windows 内核调度。
 
-<!-- documentation-pairing: english-sha256=3ab791f63745e21fbf29947311aaa152fe1b8c2fa8ff076a18bd40dd5aee150a zh-cn-sha256=c50951b505a965997d5618f35ec0b9d730784eb46dd12ca0c25cfd00530bb1a2 -->
+<!-- documentation-pairing: english-sha256=3d11c3c701166230b7c6b47f39bc26fdae0abdaa67833fe4e64156c7cbc87a33 zh-cn-sha256=db1a27f469c7570b12d475882ba0270af55337b51bb4870ded46e4c46f5ace1e -->

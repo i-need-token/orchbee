@@ -31,7 +31,7 @@ fn attachment(presentation: u64) -> AgentPresentationAttachment {
 }
 
 fn fixture() -> (
-    NativeUi,
+    WorkbenchClientUi,
     Arc<CommandMailbox>,
     crate::local_client::LocalOperationClock,
 ) {
@@ -40,11 +40,11 @@ fn fixture() -> (
         10,
         Geometry::new(80, 24, 8, 16).unwrap(),
     ));
-    let ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    let ui = WorkbenchClientUi::new(Arc::clone(&mailbox), clock.clone());
     (ui, mailbox, clock)
 }
 
-fn bootstrap(ui: &mut NativeUi, mailbox: &CommandMailbox, clock: &LocalOperationClock) {
+fn bootstrap(ui: &mut WorkbenchClientUi, mailbox: &CommandMailbox, clock: &LocalOperationClock) {
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {
@@ -67,7 +67,7 @@ fn bootstrap(ui: &mut NativeUi, mailbox: &CommandMailbox, clock: &LocalOperation
 
 /// Drives the bootstrap's focus pane through the test-path setup chain to
 /// `Ready` — the phase `open_navigator`'s refresh admission requires.
-fn ready(ui: &mut NativeUi) {
+fn ready(ui: &mut WorkbenchClientUi) {
     let state = ui.state.as_mut().unwrap();
     let key = state.desired().unwrap().clone();
     assert!(state.install_projection_t(&key));

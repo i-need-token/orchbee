@@ -72,7 +72,7 @@ fn organization_events_have_one_nullable_project_location_in_both_machine_envelo
             let schema: serde_json::Value = serde_json::from_str(document_schema).unwrap();
             let validator = jsonschema::validator_for(&schema).unwrap();
             let mut document = json!({"schema":schema_id,"version":1,
-                "source":{"kind":"server","sessionId":reply.site_id,"revision":"1"},"result":reply});
+                "source":{"kind":"server","sessionId":reply.session_id,"revision":"1"},"result":reply});
             if schema_id == "orchbee.events.stream" {
                 document["kind"] = json!("event");
             } else {

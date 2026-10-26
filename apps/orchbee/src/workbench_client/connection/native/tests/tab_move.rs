@@ -13,7 +13,7 @@ use crate::workbench_client::{
     },
 };
 use orchbee_client_server_protocol::{
-    ClientMessage, ControlInput, Geometry, ServerMessage, SiteId as ObcsSiteId,
+    ClientMessage, ControlInput, Geometry, ServerMessage, SessionId as ObcsSessionId,
     TerminalControlAction, TerminalControlOutcome, TerminalControlResult,
     TerminalId as ObcsTerminalId, TerminalViewerAction, TerminalViewerOutcome,
     TerminalViewerResult, WorkerId as ObcsWorkerId,
@@ -805,7 +805,7 @@ fn committed_move_whose_superseding_snapshot_drops_the_selected_leaf_repairs_mem
     assert_eq!(
         attach.action(),
         &TerminalViewerAction::AttachBinding {
-            site_id: ObcsSiteId::parse(&id(100))?,
+            session_id: ObcsSessionId::parse(&id(100))?,
             worker_id: ObcsWorkerId::parse(&id(3_011))?,
             terminal_id: ObcsTerminalId::parse(&id(3_012))?,
         }
@@ -1043,7 +1043,7 @@ fn committed_move_after_reorder_dropping_the_selected_leaf_repairs_membership() 
     assert_eq!(
         attach.action(),
         &TerminalViewerAction::AttachBinding {
-            site_id: ObcsSiteId::parse(&id(100))?,
+            session_id: ObcsSessionId::parse(&id(100))?,
             worker_id: ObcsWorkerId::parse(&id(3_011))?,
             terminal_id: ObcsTerminalId::parse(&id(3_012))?,
         }

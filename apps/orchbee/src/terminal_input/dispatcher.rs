@@ -5,18 +5,17 @@ use crate::client_view::{
     PrefixInput, ShellCommand,
 };
 use crate::tui_composition::{
-    CaptureOwner, ClientCaptureClaims, NativeCaptureOwner, client_chrome_overlay_allowed,
-    project_capture,
+    CaptureOwner, ClientCaptureClaims, client_chrome_overlay_allowed, project_capture,
 };
 use crate::tui_pointer::{
     CancelledModalEvent, FrameHitMap, InteractionTarget, MotionObservability, PointerOutcome,
     PointerState, PrimaryContract, ReleaseOwnership,
 };
-use crate::workbench_client::NativeSetupStage;
+use crate::workbench_client::SetupStage;
 
 use super::{
-    DispatchOutcome, HostReply, ModeRequest, NativeRenameDraftToken, NativeRenameEdit,
-    NativeSetupEdit, NativeSetupToken, PointerCaptureRequest, TerminalInputPort,
+    DispatchOutcome, HostReply, ModeRequest, PointerCaptureRequest, RenameDraftToken, RenameEdit,
+    SetupEdit, SetupToken, TerminalInputPort,
     decoder::{DecodedItem, DecodedKind, LegacyDecoder},
     forward_edit_or_report,
     modal::{ModalCapacity, ModalDecoder, ModalInputEvent},
@@ -81,8 +80,8 @@ pub(crate) struct InputDispatcher {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ModalEpoch {
-    Rename(NativeRenameDraftToken),
-    Setup(NativeSetupToken),
+    Rename(RenameDraftToken),
+    Setup(SetupToken),
     Worktree(crate::workbench_client::WorktreeToken),
 }
 
@@ -154,37 +153,33 @@ impl InputDispatcher {
     }
 
     fn modal_remaining(port: &mut (impl TerminalInputPort + ?Sized), epoch: ModalEpoch) -> usize {
-        use crate::workbench_client::NativeCaptureContext;
+        use crate::workbench_client::CaptureContext;
 
         match epoch {
-            ModalEpoch::Rename(token) => {
-                match port.native_capture_context(NativeCaptureOwner::Rename) {
-                    Some(crate::workbench_client::NativeCaptureContext::Rename(context))
-                        if context.token == token =>
-                    {
+            ModalEpoch::Rename(token) => match port.native_capture_context(CaptureOwner::Rename) {
+                Some(crate::workbench_client::CaptureContext::Rename(context))
+                    if context.token == token =>
+                {
+                    context.remaining_scalars
+                }
+                _ => 0,
+            },
+            ModalEpoch::Setup(token) => match port.native_capture_context(CaptureOwner::Setup) {
+                Some(CaptureContext::Setup(context)) if context.token == token => {
+                    if matches!(
+                        context.stage,
+                        SetupStage::DirectoryPath | SetupStage::QuickDirectory
+                    ) {
+                        context.remaining_bytes
+                    } else {
                         context.remaining_scalars
                     }
-                    _ => 0,
                 }
-            }
-            ModalEpoch::Setup(token) => {
-                match port.native_capture_context(NativeCaptureOwner::Setup) {
-                    Some(NativeCaptureContext::Setup(context)) if context.token == token => {
-                        if matches!(
-                            context.stage,
-                            NativeSetupStage::DirectoryPath | NativeSetupStage::QuickDirectory
-                        ) {
-                            context.remaining_bytes
-                        } else {
-                            context.remaining_scalars
-                        }
-                    }
-                    _ => 0,
-                }
-            }
+                _ => 0,
+            },
             ModalEpoch::Worktree(token) => {
-                match port.native_capture_context(NativeCaptureOwner::Worktree) {
-                    Some(NativeCaptureContext::Worktree(context)) if context.token == token => {
+                match port.native_capture_context(CaptureOwner::Worktree) {
+                    Some(CaptureContext::Worktree(context)) if context.token == token => {
                         context.remaining_bytes
                     }
                     _ => 0,
@@ -338,7 +333,7 @@ impl InputDispatcher {
         let request = self.admitted_pointer_capture();
         let request = if request == PointerCaptureRequest::ButtonOnly
             && Self::projected_capture(view, port)
-                == Some(CaptureOwner::Native(NativeCaptureOwner::ActionMenu))
+                == Some(CaptureOwner::Native(CaptureOwner::ActionMenu))
         {
             PointerCaptureRequest::MenuMotion
         } else {
@@ -395,7 +390,7 @@ impl InputDispatcher {
         if !enabled {
             let closing = port
                 .native_capture_claims()
-                .contains(NativeCaptureOwner::ActionMenu);
+                .contains(CaptureOwner::ActionMenu);
             port.cancel_action_menu();
             self.menu_release = None;
             if closing {
@@ -511,9 +506,9 @@ impl InputDispatcher {
         port: &mut Port,
     ) -> bool {
         let current = Self::projected_capture(view, port);
-        let popup = if current == Some(CaptureOwner::Native(NativeCaptureOwner::Popup)) {
-            match port.native_capture_context(NativeCaptureOwner::Popup) {
-                Some(crate::workbench_client::NativeCaptureContext::Popup(context)) => {
+        let popup = if current == Some(CaptureOwner::Native(CaptureOwner::Popup)) {
+            match port.native_capture_context(CaptureOwner::Popup) {
+                Some(crate::workbench_client::CaptureContext::Popup(context)) => {
                     Some(context.id().clone())
                 }
                 _ => None,
@@ -533,17 +528,13 @@ impl InputDispatcher {
         if current.is_some() && self.pointer.retire_covered_chrome_gesture() {
             self.pointer_packet = true;
         }
-        if previous == Some(CaptureOwner::Native(NativeCaptureOwner::Settings))
-            && current != previous
-        {
+        if previous == Some(CaptureOwner::Native(CaptureOwner::Settings)) && current != previous {
             self.settle_settings_closed(port);
         }
-        if previous == Some(CaptureOwner::Native(NativeCaptureOwner::ActionMenu))
-            && current != previous
-        {
+        if previous == Some(CaptureOwner::Native(CaptureOwner::ActionMenu)) && current != previous {
             self.settle_action_menu_closed(port);
         }
-        if previous == Some(CaptureOwner::Native(NativeCaptureOwner::Popup))
+        if previous == Some(CaptureOwner::Native(CaptureOwner::Popup))
             && (current != previous || popup_changed)
         {
             self.popup_packet = true;
@@ -554,17 +545,13 @@ impl InputDispatcher {
         if matches!(
             previous,
             Some(CaptureOwner::Native(
-                NativeCaptureOwner::PanelClose
-                    | NativeCaptureOwner::TabClose
-                    | NativeCaptureOwner::WorkspaceClose
+                CaptureOwner::PanelClose | CaptureOwner::TabClose | CaptureOwner::WorkspaceClose
             ))
         ) && current != previous
         {
             self.confirm_packet = true;
         }
-        if previous == Some(CaptureOwner::Native(NativeCaptureOwner::AgentBoard))
-            && current != previous
-        {
+        if previous == Some(CaptureOwner::Native(CaptureOwner::AgentBoard)) && current != previous {
             self.pointer_packet = true;
         }
         self.keys.capture_pending();
@@ -778,7 +765,7 @@ impl InputDispatcher {
         after_layout: &mut impl FnMut(&mut ClientView, &mut Port) -> Result<bool, Error>,
         mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<DispatchOutcome, Error> {
-        use crate::workbench_client::NativeCaptureContext;
+        use crate::workbench_client::CaptureContext;
 
         let ProjectedCaptureItem { owner, item, now } = projected;
 
@@ -926,7 +913,7 @@ impl InputDispatcher {
         };
         let context = port.native_capture_context(native_owner);
         match (native_owner, context) {
-            (NativeCaptureOwner::Settings, Some(NativeCaptureContext::Settings(expected))) => {
+            (CaptureOwner::Settings, Some(CaptureContext::Settings(expected))) => {
                 match item.kind {
                     DecodedKind::Paste { text } => {
                         let _consumed = port.capture_settings_paste_for(expected, Some(&text));
@@ -977,7 +964,7 @@ impl InputDispatcher {
                     _ => {}
                 }
                 if Self::projected_capture(view, port)
-                    != Some(CaptureOwner::Native(NativeCaptureOwner::Settings))
+                    != Some(CaptureOwner::Native(CaptureOwner::Settings))
                 {
                     self.settle_settings_closed(port);
                     if Self::projected_capture(view, port).is_none() {
@@ -985,7 +972,7 @@ impl InputDispatcher {
                     }
                 }
             }
-            (NativeCaptureOwner::ActionMenu, Some(NativeCaptureContext::ActionMenu(expected))) => {
+            (CaptureOwner::ActionMenu, Some(CaptureContext::ActionMenu(expected))) => {
                 match item.kind {
                     DecodedKind::Key(event) => {
                         let _consumed = port.capture_action_menu_key_for(expected, event);
@@ -1054,7 +1041,7 @@ impl InputDispatcher {
                     _ => {}
                 }
                 if Self::projected_capture(view, port)
-                    != Some(CaptureOwner::Native(NativeCaptureOwner::ActionMenu))
+                    != Some(CaptureOwner::Native(CaptureOwner::ActionMenu))
                 {
                     self.settle_action_menu_closed(port);
                     if Self::projected_capture(view, port).is_none()
@@ -1064,7 +1051,7 @@ impl InputDispatcher {
                     }
                 }
             }
-            (NativeCaptureOwner::Popup, Some(NativeCaptureContext::Popup(expected))) => {
+            (CaptureOwner::Popup, Some(CaptureContext::Popup(expected))) => {
                 if let DecodedKind::Mouse(event) = &item.kind {
                     self.pointer.external_capture_event(*event);
                     match self.pointer.popup_event(port, *event) {
@@ -1102,23 +1089,23 @@ impl InputDispatcher {
                     port.popup_input(expected.id(), &item);
                 }
                 if Self::projected_capture(view, port)
-                    != Some(CaptureOwner::Native(NativeCaptureOwner::Popup))
+                    != Some(CaptureOwner::Native(CaptureOwner::Popup))
                 {
                     self.popup_packet = true;
                     self.keys.capture_pending();
                     self.pointer.invalidate_map_with_port(port);
                 }
             }
-            (NativeCaptureOwner::Worktree, Some(NativeCaptureContext::Worktree(_)))
-            | (NativeCaptureOwner::Setup, Some(NativeCaptureContext::Setup(_)))
-            | (NativeCaptureOwner::Rename, Some(NativeCaptureContext::Rename(_))) => {
+            (CaptureOwner::Worktree, Some(CaptureContext::Worktree(_)))
+            | (CaptureOwner::Setup, Some(CaptureContext::Setup(_)))
+            | (CaptureOwner::Rename, Some(CaptureContext::Rename(_))) => {
                 // The modal decoder owns all interactive and recovery input for
                 // these surfaces. A complete legacy item here means its exact
                 // context disappeared between byte reconciliation and dispatch;
                 // consume it without selecting a lower owner.
             }
 
-            (NativeCaptureOwner::PanelClose, Some(NativeCaptureContext::PanelClose(expected))) => {
+            (CaptureOwner::PanelClose, Some(CaptureContext::PanelClose(expected))) => {
                 if let DecodedKind::Mouse(event) = &item.kind {
                     self.capture_confirmation_mouse(port, *event);
                 } else {
@@ -1128,7 +1115,7 @@ impl InputDispatcher {
                     self.keys.capture_pending();
                 }
             }
-            (NativeCaptureOwner::TabClose, Some(NativeCaptureContext::TabClose(expected))) => {
+            (CaptureOwner::TabClose, Some(CaptureContext::TabClose(expected))) => {
                 if let DecodedKind::Mouse(event) = &item.kind {
                     self.capture_confirmation_mouse(port, *event);
                 } else {
@@ -1138,10 +1125,7 @@ impl InputDispatcher {
                     self.keys.capture_pending();
                 }
             }
-            (
-                NativeCaptureOwner::WorkspaceClose,
-                Some(NativeCaptureContext::WorkspaceClose(expected)),
-            ) => {
+            (CaptureOwner::WorkspaceClose, Some(CaptureContext::WorkspaceClose(expected))) => {
                 if let DecodedKind::Mouse(event) = &item.kind {
                     self.capture_confirmation_mouse(port, *event);
                 } else {
@@ -1151,7 +1135,7 @@ impl InputDispatcher {
                     self.keys.capture_pending();
                 }
             }
-            (NativeCaptureOwner::AgentBoard, Some(NativeCaptureContext::AgentBoard(expected))) => {
+            (CaptureOwner::AgentBoard, Some(CaptureContext::AgentBoard(expected))) => {
                 if let DecodedKind::Mouse(event) = item.kind {
                     let outcome = self.pointer.board_event(port, event);
                     self.capture_modal_release(event);
@@ -1205,7 +1189,7 @@ impl InputDispatcher {
                     let _consumed = port.capture_agent_board_key_for(expected.episode(), event);
                 }
                 if Self::projected_capture(view, port)
-                    != Some(CaptureOwner::Native(NativeCaptureOwner::AgentBoard))
+                    != Some(CaptureOwner::Native(CaptureOwner::AgentBoard))
                 {
                     self.pointer_packet = true;
                     self.keys.capture_pending();
@@ -1367,7 +1351,7 @@ impl InputDispatcher {
         if let DecodedKind::Mouse(event) = item.kind
             && event.action == super::MouseAction::Release
             && Self::projected_capture(view, port)
-                != Some(CaptureOwner::Native(NativeCaptureOwner::ActionMenu))
+                != Some(CaptureOwner::Native(CaptureOwner::ActionMenu))
             && self.menu_release.is_some_and(|button| {
                 event.button == button || event.button == super::MouseButton::None
             })
@@ -1386,9 +1370,9 @@ impl InputDispatcher {
             && self.pointer.modal_release_ownership() == ReleaseOwnership::Active
             && let Some(
                 owner @ CaptureOwner::Native(
-                    NativeCaptureOwner::PanelClose
-                    | NativeCaptureOwner::TabClose
-                    | NativeCaptureOwner::WorkspaceClose,
+                    CaptureOwner::PanelClose
+                    | CaptureOwner::TabClose
+                    | CaptureOwner::WorkspaceClose,
                 ),
             ) = Self::projected_capture(view, port)
         {
@@ -1460,7 +1444,7 @@ impl InputDispatcher {
                 | DecodedKind::Mouse(_) => {}
             }
         }
-        if projected == Some(CaptureOwner::Native(NativeCaptureOwner::AgentBoard))
+        if projected == Some(CaptureOwner::Native(CaptureOwner::AgentBoard))
             && matches!(
                 &item.kind,
                 DecodedKind::Key(event)
@@ -2041,7 +2025,7 @@ impl InputDispatcher {
             action.as_ref(),
             Some(ClientAction::OpenActionMenu | ClientAction::FocusBusinessSidebar)
         ) && Self::projected_capture(view, port)
-            == Some(CaptureOwner::Native(NativeCaptureOwner::AgentBoard));
+            == Some(CaptureOwner::Native(CaptureOwner::AgentBoard));
         if action == Some(ClientAction::EnterCopyMode) {
             self.cancel_pointer(port);
             self.copy_packet = true;
@@ -2296,7 +2280,7 @@ impl InputDispatcher {
         port: &mut (impl TerminalInputPort + ?Sized),
         now: Instant,
     ) -> bool {
-        use crate::workbench_client::NativeCaptureContext;
+        use crate::workbench_client::CaptureContext;
 
         let capture_changed = self.settle_capture_edge(view, port);
         let projected = Self::projected_capture(view, port);
@@ -2311,19 +2295,17 @@ impl InputDispatcher {
         );
         let context = native_owner.and_then(|owner| port.native_capture_context(owner));
         let setup = match context.as_ref() {
-            Some(NativeCaptureContext::Setup(context)) => Some(*context),
+            Some(CaptureContext::Setup(context)) => Some(*context),
             _ => None,
         };
         let worktree = match context.as_ref() {
-            Some(NativeCaptureContext::Worktree(context)) => Some(*context),
+            Some(CaptureContext::Worktree(context)) => Some(*context),
             _ => None,
         };
         let current = match context.as_ref() {
-            Some(NativeCaptureContext::Setup(context)) => Some(ModalEpoch::Setup(context.token)),
-            Some(NativeCaptureContext::Rename(context)) => Some(ModalEpoch::Rename(context.token)),
-            Some(NativeCaptureContext::Worktree(context)) => {
-                Some(ModalEpoch::Worktree(context.token))
-            }
+            Some(CaptureContext::Setup(context)) => Some(ModalEpoch::Setup(context.token)),
+            Some(CaptureContext::Rename(context)) => Some(ModalEpoch::Rename(context.token)),
+            Some(CaptureContext::Worktree(context)) => Some(ModalEpoch::Worktree(context.token)),
             _ => None,
         };
         if higher_exclusive {
@@ -2331,7 +2313,7 @@ impl InputDispatcher {
             port.cancel_copy_mode();
         }
         let capture_retains_sidebar =
-            projected == Some(CaptureOwner::Native(NativeCaptureOwner::ActionMenu));
+            projected == Some(CaptureOwner::Native(CaptureOwner::ActionMenu));
         let capture_blocks_sidebar = projected.is_some() && !capture_retains_sidebar;
         if capture_blocks_sidebar {
             view.machines.leave_sidebar_navigation();
@@ -2356,10 +2338,10 @@ impl InputDispatcher {
         let choice_keys = setup.is_some_and(|context| {
             matches!(
                 context.stage,
-                NativeSetupStage::QuickProject
-                    | NativeSetupStage::ChooseWorkspaceProject
-                    | NativeSetupStage::QuickDirectory
-                    | NativeSetupStage::QuickName
+                SetupStage::QuickProject
+                    | SetupStage::ChooseWorkspaceProject
+                    | SetupStage::QuickDirectory
+                    | SetupStage::QuickName
             )
         });
         let choice_keys = choice_keys
@@ -2392,7 +2374,7 @@ impl InputDispatcher {
         let capacity = if setup.is_some_and(|context| {
             matches!(
                 context.stage,
-                NativeSetupStage::DirectoryPath | NativeSetupStage::QuickDirectory
+                SetupStage::DirectoryPath | SetupStage::QuickDirectory
             )
         }) {
             ModalCapacity::Bytes4096
@@ -2449,16 +2431,16 @@ impl InputDispatcher {
                 if self.pointer.flush_list_scroll(view, port) {
                     self.epoch = match self.epoch {
                         Some(ModalEpoch::Setup(_)) => {
-                            match port.native_capture_context(NativeCaptureOwner::Setup) {
-                                Some(crate::workbench_client::NativeCaptureContext::Setup(
-                                    context,
-                                )) => Some(ModalEpoch::Setup(context.token)),
+                            match port.native_capture_context(CaptureOwner::Setup) {
+                                Some(crate::workbench_client::CaptureContext::Setup(context)) => {
+                                    Some(ModalEpoch::Setup(context.token))
+                                }
                                 _ => None,
                             }
                         }
                         Some(ModalEpoch::Worktree(_)) => {
-                            match port.native_capture_context(NativeCaptureOwner::Worktree) {
-                                Some(crate::workbench_client::NativeCaptureContext::Worktree(
+                            match port.native_capture_context(CaptureOwner::Worktree) {
+                                Some(crate::workbench_client::CaptureContext::Worktree(
                                     context,
                                 )) => Some(ModalEpoch::Worktree(context.token)),
                                 _ => None,
@@ -2495,16 +2477,16 @@ impl InputDispatcher {
                     // same input owner. It never acknowledges the new token.
                     self.epoch = match epoch {
                         ModalEpoch::Setup(_) => {
-                            match port.native_capture_context(NativeCaptureOwner::Setup) {
-                                Some(crate::workbench_client::NativeCaptureContext::Setup(
-                                    context,
-                                )) => Some(ModalEpoch::Setup(context.token)),
+                            match port.native_capture_context(CaptureOwner::Setup) {
+                                Some(crate::workbench_client::CaptureContext::Setup(context)) => {
+                                    Some(ModalEpoch::Setup(context.token))
+                                }
                                 _ => None,
                             }
                         }
                         ModalEpoch::Worktree(_) => {
-                            match port.native_capture_context(NativeCaptureOwner::Worktree) {
-                                Some(crate::workbench_client::NativeCaptureContext::Worktree(
+                            match port.native_capture_context(CaptureOwner::Worktree) {
+                                Some(crate::workbench_client::CaptureContext::Worktree(
                                     context,
                                 )) => Some(ModalEpoch::Worktree(context.token)),
                                 _ => None,
@@ -2530,18 +2512,18 @@ impl InputDispatcher {
                 }
             };
             let edit = match event {
-                ModalInputEvent::Append(ref text) => NativeRenameEdit::Append(text),
-                ModalInputEvent::Paste(ref text) => NativeRenameEdit::Paste(text),
-                ModalInputEvent::Backspace => NativeRenameEdit::Backspace,
-                ModalInputEvent::Clear => NativeRenameEdit::Clear,
-                ModalInputEvent::Left => NativeRenameEdit::Left,
-                ModalInputEvent::Right => NativeRenameEdit::Right,
-                ModalInputEvent::Home => NativeRenameEdit::Home,
-                ModalInputEvent::End => NativeRenameEdit::End,
-                ModalInputEvent::Delete => NativeRenameEdit::Delete,
-                ModalInputEvent::WordBackspace => NativeRenameEdit::WordBackspace,
-                ModalInputEvent::Fault => NativeRenameEdit::Fault,
-                ModalInputEvent::Completeness(complete) => NativeRenameEdit::Completeness(complete),
+                ModalInputEvent::Append(ref text) => RenameEdit::Append(text),
+                ModalInputEvent::Paste(ref text) => RenameEdit::Paste(text),
+                ModalInputEvent::Backspace => RenameEdit::Backspace,
+                ModalInputEvent::Clear => RenameEdit::Clear,
+                ModalInputEvent::Left => RenameEdit::Left,
+                ModalInputEvent::Right => RenameEdit::Right,
+                ModalInputEvent::Home => RenameEdit::Home,
+                ModalInputEvent::End => RenameEdit::End,
+                ModalInputEvent::Delete => RenameEdit::Delete,
+                ModalInputEvent::WordBackspace => RenameEdit::WordBackspace,
+                ModalInputEvent::Fault => RenameEdit::Fault,
+                ModalInputEvent::Completeness(complete) => RenameEdit::Completeness(complete),
                 ModalInputEvent::Submit => {
                     let _disposition = port.submit_rename_draft(token);
                     continue;
@@ -2569,10 +2551,10 @@ impl InputDispatcher {
         event: ModalInputEvent,
     ) {
         use crate::workbench_client::{
-            CaptureReadiness, NativeCaptureContext, WorktreeEdit as E, WorktreeStage as S,
+            CaptureContext, CaptureReadiness, WorktreeEdit as E, WorktreeStage as S,
         };
-        let Some(NativeCaptureContext::Worktree(context)) =
-            port.native_capture_context(NativeCaptureOwner::Worktree)
+        let Some(CaptureContext::Worktree(context)) =
+            port.native_capture_context(CaptureOwner::Worktree)
         else {
             return;
         };
@@ -2634,8 +2616,8 @@ impl InputDispatcher {
             | ModalInputEvent::HostReply(_) => return,
         };
         if port.edit_worktree(token, edit)
-            && let Some(NativeCaptureContext::Worktree(context)) =
-                port.native_capture_context(NativeCaptureOwner::Worktree)
+            && let Some(CaptureContext::Worktree(context)) =
+                port.native_capture_context(CaptureOwner::Worktree)
         {
             self.epoch = Some(ModalEpoch::Worktree(context.token));
         }
@@ -2644,13 +2626,12 @@ impl InputDispatcher {
     fn apply_setup_event(
         &mut self,
         port: &mut (impl TerminalInputPort + ?Sized),
-        token: NativeSetupToken,
+        token: SetupToken,
         event: ModalInputEvent,
     ) {
-        use crate::workbench_client::{CaptureReadiness, NativeCaptureContext};
+        use crate::workbench_client::{CaptureContext, CaptureReadiness};
 
-        let Some(NativeCaptureContext::Setup(context)) =
-            port.native_capture_context(NativeCaptureOwner::Setup)
+        let Some(CaptureContext::Setup(context)) = port.native_capture_context(CaptureOwner::Setup)
         else {
             return;
         };
@@ -2663,7 +2644,7 @@ impl InputDispatcher {
             }
             return;
         }
-        if context.stage == NativeSetupStage::ProjectDeleteConfirm {
+        if context.stage == SetupStage::ProjectDeleteConfirm {
             // This setup stage is a decision, not an editor. Framing completeness remains an
             // admission fact, while text, paste and editing faults never change its question.
             match event {
@@ -2672,40 +2653,40 @@ impl InputDispatcher {
                 }
                 ModalInputEvent::Cancel => port.cancel_setup_draft(token),
                 ModalInputEvent::Completeness(complete) => {
-                    port.edit_setup_draft(token, NativeSetupEdit::Completeness(complete));
+                    port.edit_setup_draft(token, SetupEdit::Completeness(complete));
                 }
                 _ => {}
             }
             return;
         }
         let edit = match event {
-            ModalInputEvent::NextField => NativeSetupEdit::NextField,
-            ModalInputEvent::PreviousChoice => NativeSetupEdit::SelectPreviousProject,
-            ModalInputEvent::NextChoice => NativeSetupEdit::SelectNextProject,
+            ModalInputEvent::NextField => SetupEdit::NextField,
+            ModalInputEvent::PreviousChoice => SetupEdit::SelectPreviousProject,
+            ModalInputEvent::NextChoice => SetupEdit::SelectNextProject,
             ModalInputEvent::Append(ref text)
                 if matches!(
                     context.stage,
-                    NativeSetupStage::QuickProject | NativeSetupStage::ChooseWorkspaceProject
+                    SetupStage::QuickProject | SetupStage::ChooseWorkspaceProject
                 ) =>
             {
                 match text.as_str() {
-                    "[" => NativeSetupEdit::SelectPreviousProject,
-                    "]" => NativeSetupEdit::SelectNextProject,
+                    "[" => SetupEdit::SelectPreviousProject,
+                    "]" => SetupEdit::SelectNextProject,
                     _ => return,
                 }
             }
-            ModalInputEvent::Append(ref text) => NativeSetupEdit::Append(text),
-            ModalInputEvent::Paste(ref text) => NativeSetupEdit::Paste(text),
-            ModalInputEvent::Backspace => NativeSetupEdit::Backspace,
-            ModalInputEvent::Clear => NativeSetupEdit::Clear,
-            ModalInputEvent::Left => NativeSetupEdit::Left,
-            ModalInputEvent::Right => NativeSetupEdit::Right,
-            ModalInputEvent::Home => NativeSetupEdit::Home,
-            ModalInputEvent::End => NativeSetupEdit::End,
-            ModalInputEvent::Delete => NativeSetupEdit::Delete,
-            ModalInputEvent::WordBackspace => NativeSetupEdit::WordBackspace,
-            ModalInputEvent::Fault => NativeSetupEdit::Fault,
-            ModalInputEvent::Completeness(complete) => NativeSetupEdit::Completeness(complete),
+            ModalInputEvent::Append(ref text) => SetupEdit::Append(text),
+            ModalInputEvent::Paste(ref text) => SetupEdit::Paste(text),
+            ModalInputEvent::Backspace => SetupEdit::Backspace,
+            ModalInputEvent::Clear => SetupEdit::Clear,
+            ModalInputEvent::Left => SetupEdit::Left,
+            ModalInputEvent::Right => SetupEdit::Right,
+            ModalInputEvent::Home => SetupEdit::Home,
+            ModalInputEvent::End => SetupEdit::End,
+            ModalInputEvent::Delete => SetupEdit::Delete,
+            ModalInputEvent::WordBackspace => SetupEdit::WordBackspace,
+            ModalInputEvent::Fault => SetupEdit::Fault,
+            ModalInputEvent::Completeness(complete) => SetupEdit::Completeness(complete),
             ModalInputEvent::Submit => {
                 let _disposition = port.submit_setup_draft(token);
                 return;
@@ -2721,26 +2702,24 @@ impl InputDispatcher {
         };
         let selecting = matches!(
             edit,
-            NativeSetupEdit::SelectPreviousProject
-                | NativeSetupEdit::SelectNextProject
-                | NativeSetupEdit::NextField
+            SetupEdit::SelectPreviousProject | SetupEdit::SelectNextProject | SetupEdit::NextField
         );
         if port.edit_setup_draft(token, edit)
             && selecting
-            && let Some(NativeCaptureContext::Setup(context)) =
-                port.native_capture_context(NativeCaptureOwner::Setup)
+            && let Some(CaptureContext::Setup(context)) =
+                port.native_capture_context(CaptureOwner::Setup)
             && matches!(
                 context.stage,
-                NativeSetupStage::ChooseWorkspaceProject
-                    | NativeSetupStage::QuickProject
-                    | NativeSetupStage::QuickName
-                    | NativeSetupStage::QuickDirectory
+                SetupStage::ChooseWorkspaceProject
+                    | SetupStage::QuickProject
+                    | SetupStage::QuickName
+                    | SetupStage::QuickDirectory
             )
         {
             // Selection changes draw authority, while this decoder still owns the same picker.
             self.epoch = Some(ModalEpoch::Setup(context.token));
             self.decoder
-                .set_capacity(if context.stage == NativeSetupStage::QuickDirectory {
+                .set_capacity(if context.stage == SetupStage::QuickDirectory {
                     ModalCapacity::Bytes4096
                 } else {
                     ModalCapacity::Scalars512

@@ -10,10 +10,10 @@ use orchbee_capability_node_protocol::{
 };
 use orchbee_server::WorktreeListResolution;
 use orchbee_workbench_protocol::{
-    Directory, ProtocolVersion, SiteId, WorkbenchRequestId, WorkbenchResponse, WorkbenchRevision,
-    WorkbenchWorktreeListOutcome, WorkbenchWorktreeListRead, WorkbenchWorktreeListResult,
-    WorktreeEntry, WorktreeEntryText, WorktreeListStage, WorktreeListTooLargeOrigin,
-    WorktreeListUnavailableReason, serialize_workbench_response,
+    Directory, ProtocolVersion, SessionId, WorkbenchRequestId, WorkbenchResponse,
+    WorkbenchRevision, WorkbenchWorktreeListOutcome, WorkbenchWorktreeListRead,
+    WorkbenchWorktreeListResult, WorktreeEntry, WorktreeEntryText, WorktreeListStage,
+    WorktreeListTooLargeOrigin, WorktreeListUnavailableReason, serialize_workbench_response,
 };
 
 use crate::worker_obcn_carrier::{
@@ -98,7 +98,7 @@ impl DiscoveryGate {
 
 impl Drop for DiscoveryPermit<'_> {
     fn drop(&mut self) {
-        // No Worker/Site lock, IPC or physical cleanup wait is held here.
+        // No Worker/Session lock, IPC or physical cleanup wait is held here.
         let mut state = self.0.admission.lock().unwrap_or_else(|e| e.into_inner());
         state.active = false;
         self.0.changed.notify_one();
@@ -433,7 +433,7 @@ impl LocalTerminalService {
                 WorkbenchWorktreeListOutcome::Timeout {},
             ));
         }
-        let (site_id, revision) = match self.recheck_worktree_target(&read, target) {
+        let (session_id, revision) = match self.recheck_worktree_target(&read, target) {
             Ok(identity) => identity,
             Err(ResolutionFailure::Missing) => {
                 return Some(worktree_result(
@@ -461,7 +461,7 @@ impl LocalTerminalService {
             protocol_version: ProtocolVersion,
             request_id: read.request_id.clone(),
             outcome: WorkbenchWorktreeListOutcome::Found {
-                site_id,
+                session_id,
                 workbench_revision: revision,
                 directory_id: read.directory_id,
                 path: target.directory.path.clone(),
@@ -538,7 +538,7 @@ impl LocalTerminalService {
         &self,
         read: &WorkbenchWorktreeListRead,
         target: &ReadyTarget,
-    ) -> Result<(SiteId, WorkbenchRevision), ResolutionFailure> {
+    ) -> Result<(SessionId, WorkbenchRevision), ResolutionFailure> {
         let workers = self.workers.lock().map_err(|_| {
             ResolutionFailure::Unavailable(WorktreeListUnavailableReason::ServerBusy)
         })?;
@@ -569,7 +569,7 @@ impl LocalTerminalService {
                 WorktreeListUnavailableReason::WorkerUnavailable,
             ));
         }
-        Ok((current.site_id, current.revision))
+        Ok((current.session_id, current.revision))
     }
 }
 

@@ -1,6 +1,6 @@
 use super::Locale;
 use crate::workbench_client::{
-    NativeLocationLabelStatus, NativeSetupStage, NativeSetupStatus, WorkbenchClientNotice,
+    LocationLabelStatus, SetupStage, SetupStatus, WorkbenchClientNotice,
 };
 
 impl Locale {
@@ -110,7 +110,7 @@ impl Locale {
         phase: String,
         retired: bool,
         notice: Option<WorkbenchClientNotice>,
-        setup: Option<NativeSetupStatus>,
+        setup: Option<SetupStatus>,
         can_configure_directory: bool,
     ) -> String {
         let primary = if retired {
@@ -121,9 +121,9 @@ impl Locale {
         match (primary, setup) {
             (
                 Some(primary),
-                Some(NativeSetupStatus::LocationLabel {
+                Some(SetupStatus::LocationLabel {
                     target,
-                    status: NativeLocationLabelStatus::CommittedNeedRefresh,
+                    status: LocationLabelStatus::CommittedNeedRefresh,
                 }),
             ) if retired => {
                 format!(
@@ -133,19 +133,19 @@ impl Locale {
             }
             (
                 Some(primary),
-                Some(NativeSetupStatus::LocationLabel {
+                Some(SetupStatus::LocationLabel {
                     target,
                     status:
-                        status @ (NativeLocationLabelStatus::CommittedNeedRefresh
-                        | NativeLocationLabelStatus::OutcomeUnknown),
+                        status @ (LocationLabelStatus::CommittedNeedRefresh
+                        | LocationLabelStatus::OutcomeUnknown),
                 }),
             ) => {
                 format!("{primary} · {}", self.location_label_status(target, status))
             }
-            (Some(primary), Some(NativeSetupStatus::CommittedNeedRefresh)) if retired => {
+            (Some(primary), Some(SetupStatus::CommittedNeedRefresh)) if retired => {
                 format!("{primary} · {}", self.setup_committed_fact())
             }
-            (Some(primary), Some(NativeSetupStatus::TabsCommittedNeedRefresh)) if retired => {
+            (Some(primary), Some(SetupStatus::TabsCommittedNeedRefresh)) if retired => {
                 format!(
                     "{primary} · {}",
                     match self {
@@ -157,16 +157,16 @@ impl Locale {
             (
                 Some(primary),
                 Some(
-                    status @ (NativeSetupStatus::CommittedNeedRefresh
-                    | NativeSetupStatus::OutcomeUnknown
-                    | NativeSetupStatus::TabsCommittedNeedRefresh
-                    | NativeSetupStatus::TabsOutcomeUnknown),
+                    status @ (SetupStatus::CommittedNeedRefresh
+                    | SetupStatus::OutcomeUnknown
+                    | SetupStatus::TabsCommittedNeedRefresh
+                    | SetupStatus::TabsOutcomeUnknown),
                 ),
             ) => {
                 format!("{primary} · {}", self.setup_status(status))
             }
             (Some(primary), _) => primary,
-            (None, Some(NativeSetupStatus::WorkspaceCreated)) if can_configure_directory => {
+            (None, Some(SetupStatus::WorkspaceCreated)) if can_configure_directory => {
                 self.setup_workspace_directory_action().to_owned()
             }
             (None, Some(status)) => self.setup_status(status).to_owned(),
@@ -188,33 +188,27 @@ impl Locale {
         }
     }
 
-    pub(crate) const fn setup_title(self, stage: NativeSetupStage) -> &'static str {
+    pub(crate) const fn setup_title(self, stage: SetupStage) -> &'static str {
         match (self, stage) {
-            (Self::EnUs, NativeSetupStage::ChooseWorkspaceProject) => "Move Workspace to Project",
-            (Self::ZhCn, NativeSetupStage::ChooseWorkspaceProject) => "将工作区移入项目",
-            (Self::EnUs, NativeSetupStage::WorkspaceProjectName) => {
-                "Create Project and move Workspace"
-            }
-            (Self::ZhCn, NativeSetupStage::WorkspaceProjectName) => "新建项目并移入工作区",
-            (Self::EnUs, NativeSetupStage::DissolveProject) => "Dissolving Project…",
-            (Self::ZhCn, NativeSetupStage::DissolveProject) => "正在解散项目…",
-            (_, NativeSetupStage::ProjectDeleteConfirm) => self.project_delete_title(),
-            (Self::EnUs, NativeSetupStage::TabGroupName) => "Tab group name",
-            (Self::ZhCn, NativeSetupStage::TabGroupName) => "标签页分组名称",
-            (Self::EnUs, NativeSetupStage::PreparingWorkspace) => "Preparing Workspace directory…",
-            (Self::ZhCn, NativeSetupStage::PreparingWorkspace) => "正在准备工作区目录…",
-            (Self::EnUs, NativeSetupStage::QuickProject) => "New Workspace · choose Project",
-            (Self::ZhCn, NativeSetupStage::QuickProject) => "新建工作区 · 选择项目",
-            (Self::EnUs, NativeSetupStage::QuickName | NativeSetupStage::QuickDirectory) => {
-                "New Workspace"
-            }
-            (Self::ZhCn, NativeSetupStage::QuickName | NativeSetupStage::QuickDirectory) => {
-                "新建工作区"
-            }
-            (Self::EnUs, NativeSetupStage::DirectoryPath) => "Configure Workspace directory",
-            (Self::ZhCn, NativeSetupStage::DirectoryPath) => "配置工作区目录",
-            (_, NativeSetupStage::ProjectRename) => self.location_rename_title(true),
-            (_, NativeSetupStage::WorkspaceRename) => self.location_rename_title(false),
+            (Self::EnUs, SetupStage::ChooseWorkspaceProject) => "Move Workspace to Project",
+            (Self::ZhCn, SetupStage::ChooseWorkspaceProject) => "将工作区移入项目",
+            (Self::EnUs, SetupStage::WorkspaceProjectName) => "Create Project and move Workspace",
+            (Self::ZhCn, SetupStage::WorkspaceProjectName) => "新建项目并移入工作区",
+            (Self::EnUs, SetupStage::DissolveProject) => "Dissolving Project…",
+            (Self::ZhCn, SetupStage::DissolveProject) => "正在解散项目…",
+            (_, SetupStage::ProjectDeleteConfirm) => self.project_delete_title(),
+            (Self::EnUs, SetupStage::TabGroupName) => "Tab group name",
+            (Self::ZhCn, SetupStage::TabGroupName) => "标签页分组名称",
+            (Self::EnUs, SetupStage::PreparingWorkspace) => "Preparing Workspace directory…",
+            (Self::ZhCn, SetupStage::PreparingWorkspace) => "正在准备工作区目录…",
+            (Self::EnUs, SetupStage::QuickProject) => "New Workspace · choose Project",
+            (Self::ZhCn, SetupStage::QuickProject) => "新建工作区 · 选择项目",
+            (Self::EnUs, SetupStage::QuickName | SetupStage::QuickDirectory) => "New Workspace",
+            (Self::ZhCn, SetupStage::QuickName | SetupStage::QuickDirectory) => "新建工作区",
+            (Self::EnUs, SetupStage::DirectoryPath) => "Configure Workspace directory",
+            (Self::ZhCn, SetupStage::DirectoryPath) => "配置工作区目录",
+            (_, SetupStage::ProjectRename) => self.location_rename_title(true),
+            (_, SetupStage::WorkspaceRename) => self.location_rename_title(false),
         }
     }
     pub(crate) const fn quick_workspace_name(self) -> &'static str {
@@ -289,73 +283,67 @@ impl Locale {
         }
     }
 
-    pub(crate) const fn setup_status(self, status: NativeSetupStatus) -> &'static str {
+    pub(crate) const fn setup_status(self, status: SetupStatus) -> &'static str {
         match (self, status) {
-            (Self::EnUs, NativeSetupStatus::PresentationUnavailable) => {
+            (Self::EnUs, SetupStatus::PresentationUnavailable) => {
                 "Cannot open here: enlarge the terminal."
             }
-            (Self::ZhCn, NativeSetupStatus::PresentationUnavailable) => {
-                "终端尺寸不足，放大后重试。"
-            }
-            (Self::EnUs, NativeSetupStatus::WorkspaceOrganized) => "Workspace organization updated",
-            (Self::ZhCn, NativeSetupStatus::WorkspaceOrganized) => "工作区分组已更新",
-            (Self::EnUs, NativeSetupStatus::ProjectDissolved) => {
+            (Self::ZhCn, SetupStatus::PresentationUnavailable) => "终端尺寸不足，放大后重试。",
+            (Self::EnUs, SetupStatus::WorkspaceOrganized) => "Workspace organization updated",
+            (Self::ZhCn, SetupStatus::WorkspaceOrganized) => "工作区分组已更新",
+            (Self::EnUs, SetupStatus::ProjectDissolved) => {
                 "Project dissolved · Workspaces retained"
             }
-            (Self::ZhCn, NativeSetupStatus::ProjectDissolved) => "项目已解散 · 工作区已保留",
-            (Self::EnUs, NativeSetupStatus::NavigationConfigured) => "Sidebar organization updated",
-            (Self::ZhCn, NativeSetupStatus::NavigationConfigured) => "侧栏排序和分组已更新",
-            (Self::EnUs, NativeSetupStatus::TabsConfigured) => "Tabs updated",
-            (Self::ZhCn, NativeSetupStatus::TabsConfigured) => "标签页已更新",
-            (Self::EnUs, NativeSetupStatus::TabsNotApplied) => {
+            (Self::ZhCn, SetupStatus::ProjectDissolved) => "项目已解散 · 工作区已保留",
+            (Self::EnUs, SetupStatus::NavigationConfigured) => "Sidebar organization updated",
+            (Self::ZhCn, SetupStatus::NavigationConfigured) => "侧栏排序和分组已更新",
+            (Self::EnUs, SetupStatus::TabsConfigured) => "Tabs updated",
+            (Self::ZhCn, SetupStatus::TabsConfigured) => "标签页已更新",
+            (Self::EnUs, SetupStatus::TabsNotApplied) => {
                 "Tabs not updated · check the target before trying again"
             }
-            (Self::ZhCn, NativeSetupStatus::TabsNotApplied) => "标签页未更新 · 请检查目标后再试",
-            (Self::EnUs, NativeSetupStatus::TabsCommittedNeedRefresh) => {
+            (Self::ZhCn, SetupStatus::TabsNotApplied) => "标签页未更新 · 请检查目标后再试",
+            (Self::EnUs, SetupStatus::TabsCommittedNeedRefresh) => {
                 "Tabs updated · recover the snapshot; do not resubmit"
             }
-            (Self::ZhCn, NativeSetupStatus::TabsCommittedNeedRefresh) => {
+            (Self::ZhCn, SetupStatus::TabsCommittedNeedRefresh) => {
                 "标签页已更新 · 恢复快照；请勿重复提交"
             }
-            (Self::EnUs, NativeSetupStatus::TabsOutcomeUnknown) => {
+            (Self::EnUs, SetupStatus::TabsOutcomeUnknown) => {
                 "Tab update outcome unknown · connection retired; do not repeat the mutation"
             }
-            (Self::ZhCn, NativeSetupStatus::TabsOutcomeUnknown) => {
+            (Self::ZhCn, SetupStatus::TabsOutcomeUnknown) => {
                 "标签页更新结果未知 · 连接已退役；请勿重复变更"
             }
-            (_, NativeSetupStatus::LocationLabel { target, status }) => {
+            (_, SetupStatus::LocationLabel { target, status }) => {
                 self.location_label_status(target, status)
             }
-            (Self::EnUs, NativeSetupStatus::NotApplied) => {
+            (Self::EnUs, SetupStatus::NotApplied) => {
                 "Workspace setup not applied · check the target and input before trying again"
             }
-            (Self::ZhCn, NativeSetupStatus::NotApplied) => {
-                "工作区设置未应用 · 请检查目标及输入后再试"
-            }
-            (Self::EnUs, NativeSetupStatus::Stale) => "Setup not applied · Workbench changed",
-            (Self::ZhCn, NativeSetupStatus::Stale) => "设置未应用 · 工作台已变化",
-            (Self::EnUs, NativeSetupStatus::ProjectCreated) => {
+            (Self::ZhCn, SetupStatus::NotApplied) => "工作区设置未应用 · 请检查目标及输入后再试",
+            (Self::EnUs, SetupStatus::Stale) => "Setup not applied · Workbench changed",
+            (Self::ZhCn, SetupStatus::Stale) => "设置未应用 · 工作台已变化",
+            (Self::EnUs, SetupStatus::ProjectCreated) => {
                 "Project created · the committed Project is retained"
             }
-            (Self::ZhCn, NativeSetupStatus::ProjectCreated) => "项目已创建 · 已提交的项目会保留",
-            (Self::EnUs, NativeSetupStatus::WorkspaceCreated) => "Workspace created",
-            (Self::ZhCn, NativeSetupStatus::WorkspaceCreated) => "工作区已创建",
-            (Self::EnUs, NativeSetupStatus::DirectoryAccepted) => {
+            (Self::ZhCn, SetupStatus::ProjectCreated) => "项目已创建 · 已提交的项目会保留",
+            (Self::EnUs, SetupStatus::WorkspaceCreated) => "Workspace created",
+            (Self::ZhCn, SetupStatus::WorkspaceCreated) => "工作区已创建",
+            (Self::EnUs, SetupStatus::DirectoryAccepted) => {
                 "Directory configured · ready to launch a terminal"
             }
-            (Self::ZhCn, NativeSetupStatus::DirectoryAccepted) => "目录已配置 · 可以启动终端",
-            (Self::EnUs, NativeSetupStatus::CommittedNeedRefresh) => {
+            (Self::ZhCn, SetupStatus::DirectoryAccepted) => "目录已配置 · 可以启动终端",
+            (Self::EnUs, SetupStatus::CommittedNeedRefresh) => {
                 "Setup committed · recover the snapshot; do not resubmit"
             }
-            (Self::ZhCn, NativeSetupStatus::CommittedNeedRefresh) => {
+            (Self::ZhCn, SetupStatus::CommittedNeedRefresh) => {
                 "设置已提交 · 恢复快照；请勿重复提交"
             }
-            (Self::EnUs, NativeSetupStatus::OutcomeUnknown) => {
+            (Self::EnUs, SetupStatus::OutcomeUnknown) => {
                 "Setup outcome unknown · connection retired; do not repeat the mutation"
             }
-            (Self::ZhCn, NativeSetupStatus::OutcomeUnknown) => {
-                "设置结果未知 · 连接已退役；请勿重复变更"
-            }
+            (Self::ZhCn, SetupStatus::OutcomeUnknown) => "设置结果未知 · 连接已退役；请勿重复变更",
         }
     }
 

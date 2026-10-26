@@ -65,7 +65,7 @@ an upload shortcut. A lost write receipt remains unknown and is not replayed.
 
 ## Windows producer file ownership
 
-Managed Windows Sites lazily allocate one private directory for each admitted producer. A pure
+Managed Windows Sessions lazily allocate one private directory for each admitted producer. A pure
 open preparation first proves canonical source, connection ownership and capacity; directory I/O
 then runs outside canonical locks, and commit repeats the source and producer checks. Idempotent
 open returns the same directory. Allocation failure preserves the old static layer. Unmanaged
@@ -93,6 +93,32 @@ sessions: source changes and foreign producers cannot read, malformed files pres
 sequence, complete BGRA normalizes correctly, idempotent open is stable, EOF/topology removal
 releases roots, and busy cleanup retains responsibility. Final composed/full acceptance and
 physical pixel transports remain separate obligations.
+
+## Windows private frame directories
+
+The Server-private `frame_directory` module owns `PrivateFrameDirectory`, which retains one ephemeral `graphics-<32-hex-nonce>` leaf beneath an
+already admitted private runtime. `reserve` pins its ancestors without creating the leaf;
+`create` exclusively creates it and writes the application's bounded owner record. Failed
+creation keeps the same explicit owner until `reap` confirms absence. An existing leaf is never
+adopted, repaired or deleted. Applications own producer admission, nonce generation, retention,
+retry and shutdown; this facility starts no process or cleanup thread.
+
+Only an admitted directory reads frames. The supplied path must be one exact direct child,
+with a normal Windows filename; traversal, alternate streams, reserved names, reparse points,
+hard links, nonregular files and foreign ACLs are refused. A read opens without write/delete
+sharing, checks the exact declared length, copies at most 16 MiB and confirms EOF. The immutable
+copy has no remaining file dependency. Producers must close their writer before submitting it.
+Leading-dot image names such as `.frame.rgba` are ordinary leaf names; the exact owner marker
+remains reserved.
+
+The lifecycle is Reserved → Preparing → Ready → Releasing → Released. Preparation failure moves
+to Releasing under the same owner. Releasing closes the root pin, checks the saved directory
+identity and removes only its derived owned leaf while retaining pinned ancestors. A busy or
+redirected root remains owned for retry; dropping the object is not cleanup evidence. Application
+leases keep Ready alive until the last reader finishes. Windows handle traces cover bounded reads,
+private admission, writer/rename exclusion, creation refusal and failed-removal retry. Same-user
+malicious ACL changes, process crashes and replacement during the final delete syscall are outside
+this per-user development boundary; a crash does not prove clean runtime shutdown.
 
 ## Client rendering and truthful information
 

@@ -66,7 +66,7 @@ pub(crate) fn start_managed(
 #[cfg(target_os = "linux")]
 fn bind_managed(endpoint: &Path) -> io::Result<UnixListener> {
     use nix::fcntl::{OFlag, RenameFlags, open, renameat2};
-    use orchbee_local_site_runtime::CLIENT_PENDING_SOCKET_NAME;
+    use orchbee_local_runtime::CLIENT_PENDING_SOCKET_NAME;
     let parent = endpoint.parent().ok_or(io::ErrorKind::InvalidInput)?;
     let name = endpoint.file_name().ok_or(io::ErrorKind::InvalidInput)?;
     let directory = open(
@@ -257,13 +257,13 @@ fn handle_candidate_control(
         metadata::respond(&mut stream, expected_cohort, control.metadata_mode());
         return;
     }
-    if let LocalClientMessage::SiteStopRequest(request) = message {
+    if let LocalClientMessage::SessionStopRequest(request) = message {
         if request.hello.cohort() != expected_cohort {
             send_rejection(&mut stream, RejectionReason::IncompatibleCohort);
             return;
         }
         let result = control.request(&request);
-        let _delivery = write_message(&mut stream, &LocalClientMessage::SiteStopResult(result));
+        let _delivery = write_message(&mut stream, &LocalClientMessage::SessionStopResult(result));
         return;
     }
     let LocalClientMessage::ClientHello(hello) = message else {

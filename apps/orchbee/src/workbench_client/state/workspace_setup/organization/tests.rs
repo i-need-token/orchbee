@@ -1,6 +1,4 @@
-use super::super::{
-    NativeSetupEdit, NativeSetupIntent, NativeSetupStage, NativeSetupStatus, SetupWorkerEvidence,
-};
+use super::super::{SetupEdit, SetupIntent, SetupStage, SetupStatus, SetupWorkerEvidence};
 use super::*;
 use crate::workbench_client::state::{
     OperationDeadlines, PreparedRefresh,
@@ -50,7 +48,7 @@ fn conditional_project_delete_reviews_organization_only_and_needs_fresh_draw_and
         .review_project_delete(&operation, deadlines.total())
         .unwrap();
     let draft = state.setup_draft().unwrap();
-    assert_eq!(draft.stage(), NativeSetupStage::ProjectDeleteConfirm);
+    assert_eq!(draft.stage(), SetupStage::ProjectDeleteConfirm);
     assert!(draft.draft.organization.as_ref().unwrap().reviewed_delete());
     assert!(!draft.interactive());
     let next = WorkbenchRequestId::parse(&format!("{:032x}", 91)).unwrap();
@@ -120,7 +118,7 @@ fn open(state: &mut WorkbenchClientState) {
     )
     .unwrap();
     let token = state
-        .open_setup_draft(NativeSetupIntent::Organize(Box::new(request)))
+        .open_setup_draft(SetupIntent::Organize(Box::new(request)))
         .unwrap();
     state.acknowledge_setup_draw(Some(token));
 }
@@ -171,7 +169,7 @@ fn move_noncurrent_workspace_changes_only_grouping_and_preserves_selected_termin
     let contexts = snapshot.terminal_contexts.clone();
     open(&mut state);
     let token = state.setup_draft().unwrap().token();
-    assert!(state.edit_setup_draft(token, NativeSetupEdit::SelectPreviousProject));
+    assert!(state.edit_setup_draft(token, SetupEdit::SelectPreviousProject));
     let operation = plan(&mut state);
     assert!(
         matches!(&operation.command.action, WorkbenchAction::WorkspaceSetProject { workspace_id: workspace, project_id: Some(project) } if workspace == &workspace_id() && project == &project_id(70))
@@ -194,10 +192,7 @@ fn move_noncurrent_workspace_changes_only_grouping_and_preserves_selected_termin
         state.cache().canonical_snapshot().terminal_contexts,
         contexts
     );
-    assert_eq!(
-        state.setup_status(),
-        Some(NativeSetupStatus::WorkspaceOrganized)
-    );
+    assert_eq!(state.setup_status(), Some(SetupStatus::WorkspaceOrganized));
 }
 
 #[test]
@@ -205,17 +200,17 @@ fn create_project_and_move_is_one_commit_and_dissolve_keeps_workspace_resources(
     let (mut state, mut snapshot) = fixture();
     open(&mut state);
     let token = state.setup_draft().unwrap().token();
-    assert!(state.edit_setup_draft(token, NativeSetupEdit::SelectNextProject));
+    assert!(state.edit_setup_draft(token, SetupEdit::SelectNextProject));
     let token = state.setup_draft().unwrap().token();
     state.acknowledge_setup_draw(Some(token));
     assert!(state.advance_setup_picker(token));
     assert_eq!(
         state.setup_draft().unwrap().stage(),
-        NativeSetupStage::WorkspaceProjectName
+        SetupStage::WorkspaceProjectName
     );
     let token = state.setup_draft().unwrap().token();
     state.acknowledge_setup_draw(Some(token));
-    assert!(state.edit_setup_draft(token, NativeSetupEdit::Append("New group")));
+    assert!(state.edit_setup_draft(token, SetupEdit::Append("New group")));
     let operation = plan(&mut state);
     assert!(
         matches!(&operation.command.action, WorkbenchAction::WorkspaceCreateProject { workspace_id: workspace, label } if workspace == &workspace_id() && label.as_str() == "New group")
@@ -249,7 +244,7 @@ fn create_project_and_move_is_one_commit_and_dissolve_keeps_workspace_resources(
     )
     .unwrap();
     let token = state
-        .open_setup_draft(NativeSetupIntent::Organize(Box::new(request)))
+        .open_setup_draft(SetupIntent::Organize(Box::new(request)))
         .unwrap();
     assert!(state.arm_project_dissolve(
         token,
@@ -280,10 +275,7 @@ fn create_project_and_move_is_one_commit_and_dissolve_keeps_workspace_resources(
             .len(),
         2
     );
-    assert_eq!(
-        state.setup_status(),
-        Some(NativeSetupStatus::ProjectDissolved)
-    );
+    assert_eq!(state.setup_status(), Some(SetupStatus::ProjectDissolved));
 }
 
 #[test]

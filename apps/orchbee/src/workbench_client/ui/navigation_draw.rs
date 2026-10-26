@@ -1,6 +1,6 @@
 //! Keep the last flushed shell visible while navigation attaches its first frame.
 
-use super::{ClientPhaseKind, NativeProjectionStatus, NativeUi};
+use super::{ClientPhaseKind, ClientProjectionStatus, WorkbenchClientUi};
 use ratatui::layout::Rect;
 
 #[derive(Default)]
@@ -9,7 +9,7 @@ pub(super) struct NavigationDraw {
     presented: Option<Rect>,
 }
 
-impl NativeUi {
+impl WorkbenchClientUi {
     /// Preparing a draw never claims that its candidate reached the terminal.
     /// The shell may retain its last frame only without an intervening resize or overlay.
     pub(in crate::workbench_client) fn prepare_draw(
@@ -53,7 +53,7 @@ impl NativeUi {
                 .is_none_or(|pane| pane.fault().is_none())
                 && matches!(
                     view.pane_projection_status(panel),
-                    NativeProjectionStatus::Empty | NativeProjectionStatus::WaitingForFullFrame
+                    ClientProjectionStatus::Empty | ClientProjectionStatus::WaitingForFullFrame
                 )
         })
     }

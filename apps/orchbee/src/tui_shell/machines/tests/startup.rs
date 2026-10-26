@@ -3,7 +3,7 @@ use super::super::*;
 use super::{dimensions, profile, setup};
 use crate::{
     local_client::tests::server::FakeServer,
-    workbench_client::{NativeContextLocation, NativeContextTarget},
+    workbench_client::{ClientContextLocation, ClientContextTarget},
 };
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_workbench_protocol::*;
@@ -36,7 +36,7 @@ fn snapshot(empty: bool) -> Snapshot {
     };
     Snapshot {
         protocol_version: ProtocolVersion,
-        site_id: SiteId::parse(&id(6)).unwrap(),
+        session_id: SessionId::parse(&id(6)).unwrap(),
         revision: WorkbenchRevision::new(1),
         navigation: {
             let fixture_context_id = standalone.clone();
@@ -103,11 +103,11 @@ fn snapshot(empty: bool) -> Snapshot {
         ],
     }
 }
-fn target(snapshot: &Snapshot) -> NativeContextTarget {
+fn target(snapshot: &Snapshot) -> ClientContextTarget {
     let workspace = &snapshot.navigation.workspaces[1];
-    NativeContextTarget {
-        site_id: snapshot.site_id.clone(),
-        location: NativeContextLocation::Workspace {
+    ClientContextTarget {
+        session_id: snapshot.session_id.clone(),
+        location: ClientContextLocation::Workspace {
             workspace_id: workspace.workspace_id.clone(),
             terminal_context_id: workspace.terminal_context_id.clone(),
         },
@@ -149,7 +149,7 @@ fn peer(snapshot: Snapshot) -> io::Result<FakeServer> {
         Ok(())
     })
 }
-fn attempt(server: &FakeServer, context: Option<NativeContextTarget>) -> Attempt {
+fn attempt(server: &FakeServer, context: Option<ClientContextTarget>) -> Attempt {
     let endpoint = server.endpoint().to_path_buf();
     Attempt {
         profile: Some(profile()),
@@ -188,7 +188,7 @@ fn machine_candidate_supplies_startup_deadline_and_commits_drawable_standalone()
     }
     assert!(matches!(
         active_context(surface.active()).unwrap().location,
-        NativeContextLocation::Workspace { .. }
+        ClientContextLocation::Workspace { .. }
     ));
     drop(manager);
     drop(surface);
@@ -207,7 +207,7 @@ fn machine_workspace_candidate_starts_exact_context_including_empty_without_open
             view.machines.observe(&[(
                 profile().id,
                 crate::machine_discovery::Observation::Online(crate::machine_discovery::Overview {
-                    site: target.site_id.clone(),
+                    session: target.session_id.clone(),
                     revision: WorkbenchRevision::new(1),
                     projects: 1,
                     workspaces: 1,
@@ -280,13 +280,13 @@ fn machine_workspace_candidate_starts_exact_context_including_empty_without_open
     Ok(())
 }
 #[test]
-fn machine_workspace_missing_site_or_membership_refuses_without_fallback() -> io::Result<()> {
-    for changed_site in [true, false] {
+fn machine_workspace_missing_session_or_membership_refuses_without_fallback() -> io::Result<()> {
+    for changed_session in [true, false] {
         let snapshot = snapshot(false);
         let mut target = target(&snapshot);
-        if changed_site {
-            target.site_id = SiteId::parse(&id(99)).unwrap();
-        } else if let NativeContextLocation::Workspace { workspace_id, .. } = &mut target.location {
+        if changed_session {
+            target.session_id = SessionId::parse(&id(99)).unwrap();
+        } else if let ClientContextLocation::Workspace { workspace_id, .. } = &mut target.location {
             *workspace_id = WorkbenchWorkspaceId::parse(&id(99)).unwrap();
         }
         let server = peer(snapshot)?;
@@ -439,15 +439,15 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
         })
         .map_err(io::Error::other)?;
         // The destination closes after its snapshot. Native physical attention
-        // instead reads the same Site's presentation states; leave that decoded
+        // instead reads the same Session's presentation states; leave that decoded
         // request pending until the existing surface teardown cancels it.
         match read_workbench_request(&mut stream) {
             Ok(WorkbenchRequest::PanelAgent(PanelAgentRequest {
-                site_id,
+                session_id,
                 action: PanelAgentAction::States { presentation_ids },
                 ..
             })) => {
-                assert_eq!(site_id, snapshot.site_id);
+                assert_eq!(session_id, snapshot.session_id);
                 assert_eq!(
                     presentation_ids,
                     vec![TerminalPresentationId::parse(&id(5)).unwrap()]
@@ -470,11 +470,11 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
                 ..
             })) => {}
             Ok(WorkbenchRequest::Events(SemanticEventsRequest {
-                site_id,
+                session_id,
                 action: SemanticEventsAction::Subscribe { .. },
                 ..
             })) => {
-                assert_eq!(site_id, snapshot.site_id);
+                assert_eq!(session_id, snapshot.session_id);
                 assert_eq!(
                     stream.read(&mut [0])?,
                     0,

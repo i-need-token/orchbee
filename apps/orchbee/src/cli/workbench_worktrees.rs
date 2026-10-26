@@ -41,7 +41,7 @@ fn classify(
 ) -> Result<Observation, Failure> {
     let invalid = || Failure::new(FailureKind::ProtocolInvalid);
     let WorkbenchWorktreeQueryOutcome::Found {
-        site_id,
+        session_id,
         workbench_revision,
         worker_id,
         source,
@@ -72,7 +72,7 @@ fn classify(
             None => Ok(Observation::Unavailable { request_id, reason }),
         };
     };
-    if site_id != snapshot.site_id || workbench_revision != snapshot.revision {
+    if session_id != snapshot.session_id || workbench_revision != snapshot.revision {
         return Err(super::workbench_agents::failure("workbench-changed"));
     }
     let directory = snapshot
@@ -116,7 +116,7 @@ fn classify(
         .find(|part| !part.is_empty())
         .ok_or_else(invalid)?;
     Ok(Observation::Observed {
-        source: json!({"kind":"worktree-query","requestId":request_id,"sessionId":site_id,"workbenchRevision":workbench_revision}),
+        source: json!({"kind":"worktree-query","requestId":request_id,"sessionId":session_id,"workbenchRevision":workbench_revision}),
         summary: json!({"workerId":worker_id,"repositoryRoot":source.repository_root,
             "commonDirectory":source.common_directory,"repositoryName":name,
             "checkoutPath":source.checkout_path,"linked":checkout.linked}),
@@ -146,7 +146,7 @@ pub(super) fn read(
                 WorkbenchWorktreeQuery {
                     protocol_version: snapshot.protocol_version,
                     request_id: request_id.clone(),
-                    site_id: snapshot.site_id.clone(),
+                    session_id: snapshot.session_id.clone(),
                     source: WorktreeSource::Workspace {
                         workspace_id: WorkbenchWorkspaceId::parse(&row.workspace_id)
                             .map_err(|_| Failure::new(FailureKind::ProtocolInvalid))?,

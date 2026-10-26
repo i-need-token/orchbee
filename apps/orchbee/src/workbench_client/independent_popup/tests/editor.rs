@@ -60,8 +60,8 @@ pub(super) fn open_source(
 ) -> io::Result<()> {
     let request = viewer_request(stream)?;
     assert!(
-        matches!(request.action(), TerminalViewerAction::AttachBinding { site_id, worker_id, terminal_id }
-        if site_id.as_str()==id(2) && worker_id.as_str()==id(8) && terminal_id.as_str()==id(9))
+        matches!(request.action(), TerminalViewerAction::AttachBinding { session_id, worker_id, terminal_id }
+        if session_id.as_str()==id(2) && worker_id.as_str()==id(8) && terminal_id.as_str()==id(9))
     );
     viewer_reply(stream, &request, attached())?;
     let request = viewer_request(stream)?;
@@ -135,7 +135,7 @@ pub(super) fn open_source(
         stream,
         &WorkbenchResponse::TerminalEditor(TerminalEditorResult {
             protocol_version: ProtocolVersion,
-            site_id: request.site_id,
+            session_id: request.session_id,
             request_id: if matches!(mode, OpenMode::WrongEcho) {
                 WorkbenchRequestId::parse(&id(59)).unwrap()
             } else {
@@ -182,7 +182,7 @@ pub(super) fn lifecycle_reply(stream: &mut LocalStream, close: bool, done: bool)
         &WorkbenchResponse::TerminalEditor(TerminalEditorResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
-            site_id: request.site_id,
+            session_id: request.session_id,
             outcome,
         }),
     )
@@ -197,7 +197,7 @@ fn editor_unbound_source_is_refused_before_connection_or_lane() {
     };
     assert_eq!(
         driver.begin_editor(
-            SiteId::parse(&id(2)).unwrap(),
+            SessionId::parse(&id(2)).unwrap(),
             WorkbenchRequestId::parse(&id(10)).unwrap(),
             unbound
         ),
@@ -239,7 +239,7 @@ fn editor_refusal_unknown_wrong_echo_and_shutdown_never_repeat_open() -> TestRes
         );
         driver
             .begin_editor(
-                SiteId::parse(&id(2))?,
+                SessionId::parse(&id(2))?,
                 WorkbenchRequestId::parse(&id(10))?,
                 spec(),
             )
@@ -301,7 +301,7 @@ fn editor_close_during_source_poll_detaches_without_open_or_input() -> TestResul
     driver.observe_surface(Rect::new(0, 0, 80, 24), (0, 0));
     driver
         .begin_editor(
-            SiteId::parse(&id(2))?,
+            SessionId::parse(&id(2))?,
             WorkbenchRequestId::parse(&id(10))?,
             spec(),
         )

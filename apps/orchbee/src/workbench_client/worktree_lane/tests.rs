@@ -320,7 +320,7 @@ fn uncertain_start_reconnects_for_read_without_replaying_start() {
                     protocol_version: ProtocolVersion,
                     request_id: request.request_id,
                     outcome: WorkbenchWorktreeQueryOutcome::Found {
-                        site_id: expected.origin.cache.site_id().clone(),
+                        session_id: expected.origin.cache.session_id().clone(),
                         workbench_revision: expected.origin.cache.revision(),
                         worker_id: d.worker,
                         source: d.source,

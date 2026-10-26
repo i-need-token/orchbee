@@ -22,7 +22,7 @@ enum Action {
     RenameAndAppend,
     SameRevisionRename,
     OlderRevision,
-    ChangeSite,
+    ChangeSession,
     ChangeContext,
     RemoveExisting,
     ReorderExisting,
@@ -55,7 +55,7 @@ impl Action {
         Self::RenameAndAppend,
         Self::SameRevisionRename,
         Self::OlderRevision,
-        Self::ChangeSite,
+        Self::ChangeSession,
         Self::ChangeContext,
         Self::RemoveExisting,
         Self::ReorderExisting,
@@ -160,10 +160,10 @@ fn replay(seed: u64, actions: &[Action]) -> Result<(usize, usize), String> {
 
 fn apply(
     action: Action,
-    current: &NativeContextTabs,
+    current: &ClientContextTabs,
     random: &mut Random,
     fresh: &mut u128,
-) -> NativeContextTabs {
+) -> ClientContextTabs {
     if matches!(action, Action::ExactSameRevision) {
         return current.clone();
     }
@@ -227,11 +227,13 @@ fn apply(
         Action::OlderRevision => {
             candidate.revision = WorkbenchRevision::new(current.revision.value() - 1);
         }
-        Action::ChangeSite => candidate.site_id = site_id(100_000 + u128::from(random.next())),
+        Action::ChangeSession => {
+            candidate.session_id = session_id(100_000 + u128::from(random.next()))
+        }
         Action::ChangeContext => {
             candidate.location = {
                 let fixture_context_id = context_id(200_000 + u128::from(random.next()));
-                NativeContextLocation::Workspace {
+                ClientContextLocation::Workspace {
                     workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                         fixture_context_id.as_str(),
                     )
@@ -306,7 +308,7 @@ fn fresh_id(fresh: &mut u128) -> u128 {
 /// Replaces every member identity of `tab` — the tab-level primary member
 /// and each leaf panel member — with fresh deterministic identities while
 /// keeping the owning Tab untouched.
-fn replace_members_with_fresh(tab: &mut NativeSimpleTab, fresh: &mut u128) {
+fn replace_members_with_fresh(tab: &mut ClientTab, fresh: &mut u128) {
     tab.panel_id = panel_id(fresh_id(fresh));
     tab.presentation_id = presentation_id(fresh_id(fresh));
     tab.presentation_label = generated_label(u64::try_from(*fresh).unwrap_or(u64::MAX));
@@ -322,7 +324,7 @@ fn replace_members_with_fresh(tab: &mut NativeSimpleTab, fresh: &mut u128) {
     }
 }
 
-fn successor(current: &NativeContextTabs, appended: usize) -> NativeContextTabs {
+fn successor(current: &ClientContextTabs, appended: usize) -> ClientContextTabs {
     let revision = current.revision.value() + 1;
     let mut candidate = current.clone();
     candidate.revision = WorkbenchRevision::new(revision);
@@ -336,7 +338,7 @@ fn successor(current: &NativeContextTabs, appended: usize) -> NativeContextTabs 
     candidate
 }
 
-fn rename(candidate: &mut NativeContextTabs, index: usize, value: u64) {
+fn rename(candidate: &mut ClientContextTabs, index: usize, value: u64) {
     candidate.tabs[index].tab_label = generated_label(value);
 }
 
@@ -345,7 +347,7 @@ fn generated_label(value: u64) -> WorkbenchLabel {
 }
 
 /// The independent set/relation oracle for the canonical refresh contract.
-/// (a) envelope and Tab domain: same Site/context, nondecreasing revision,
+/// (a) envelope and Tab domain: same Session/context, nondecreasing revision,
 /// same-revision projection equality, globally unique Tab ids within the
 /// existing bound. (b) member identity domains: Panel, Presentation and
 /// Terminal identities each stay injective across the candidate's leaf
@@ -356,11 +358,11 @@ fn generated_label(value: u64) -> WorkbenchLabel {
 /// members under that same identity; a vanished Tab is exempt. The oracle
 /// quantifies over the same member tuples the validator enumerates but
 /// expresses every rule relationally, not as the production three-map loop.
-fn reference_accepts(current: &NativeContextTabs, candidate: &NativeContextTabs) -> bool {
-    // (a) Envelope: same Site/context and a nondecreasing revision; the
+fn reference_accepts(current: &ClientContextTabs, candidate: &ClientContextTabs) -> bool {
+    // (a) Envelope: same Session/context and a nondecreasing revision; the
     // same revision requires the complete projection — Tabs, navigation
     // and projects — exact.
-    if candidate.site_id != current.site_id
+    if candidate.session_id != current.session_id
         || candidate.location != current.location
         || candidate.revision < current.revision
     {
@@ -382,7 +384,7 @@ fn reference_accepts(current: &NativeContextTabs, candidate: &NativeContextTabs)
     // candidate's leaf panels — the same relation the structural-id rule
     // enforces. The tab-level primary member shares its leaf's identity
     // and must not be double-counted here.
-    let candidate_panels: Vec<&NativePanel> = candidate
+    let candidate_panels: Vec<&ClientPanel> = candidate
         .tabs
         .iter()
         .flat_map(|tab| tab.panels.iter())

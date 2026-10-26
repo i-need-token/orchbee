@@ -4,7 +4,7 @@ use crate::{
         LocalTerminalService,
         semantic_events::{OutputRead, OutputSample},
     },
-    site_coordinator::ProcessObservationTarget,
+    session_coordinator::ProcessObservationTarget,
 };
 use orchbee_workbench_protocol::{
     SemanticEventsFailure as Failure, SemanticPane, WorkbenchRevision,

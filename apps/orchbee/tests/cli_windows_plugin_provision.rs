@@ -1,4 +1,4 @@
-//! Actual offline CLI + Git + build processes, with no network or Site dependency.
+//! Actual offline CLI + Git + build processes, with no network or Session dependency.
 #![cfg(windows)]
 #[allow(dead_code)]
 #[path = "support/windows_agent_peer.rs"]

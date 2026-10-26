@@ -1,5 +1,5 @@
 //! Windows argv and localized help evidence for Workspace creation and group closure.
-//! Invalid runtime configuration proves invalid launch input never reaches a Site.
+//! Invalid runtime configuration proves invalid launch input never reaches a Session.
 #![cfg(windows)]
 use std::process::{Command, Output, Stdio};
 fn run(words: &[&str], locale: &str) -> Output {

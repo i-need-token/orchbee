@@ -1,8 +1,7 @@
 use crate::client_view::{ClientAction, ClientActionDisposition, ClientKey, ClientView};
-use crate::tui_composition::{NativeCaptureClaims, NativeCaptureOwner};
+use crate::tui_composition::{CaptureClaims, CaptureOwner};
 use crate::workbench_client::{
-    NativeCaptureContext, NativeRenameDraftToken, NativeRenameEdit, NativeSetupEdit,
-    NativeSetupToken,
+    CaptureContext, RenameDraftToken, RenameEdit, SetupEdit, SetupToken,
 };
 use orchbee_client_server_protocol::Geometry;
 use orchbee_terminal_protocol::{MouseFormat, MouseTracking};
@@ -221,12 +220,12 @@ pub(crate) trait TerminalInputPort {
     }
 
     /// Pure exclusive-capture intents from the native surface owners.
-    fn native_capture_claims(&self) -> NativeCaptureClaims {
-        NativeCaptureClaims::default()
+    fn native_capture_claims(&self) -> CaptureClaims {
+        CaptureClaims::default()
     }
 
     /// Exact per-item context for the compositor-selected native owner.
-    fn native_capture_context(&self, _owner: NativeCaptureOwner) -> Option<NativeCaptureContext> {
+    fn native_capture_context(&self, _owner: CaptureOwner) -> Option<CaptureContext> {
         None
     }
 
@@ -549,7 +548,7 @@ pub(crate) trait TerminalInputPort {
 
     fn capture_tab_confirmation_key_for(
         &mut self,
-        _token: crate::workbench_client::NativeCloseConfirmationToken,
+        _token: crate::workbench_client::CloseConfirmationToken,
         _key: ClientKey,
     ) -> bool {
         false
@@ -557,7 +556,7 @@ pub(crate) trait TerminalInputPort {
 
     fn capture_panel_confirmation_key_for(
         &mut self,
-        _token: crate::workbench_client::NativePanelCloseConfirmationToken,
+        _token: crate::workbench_client::PanelCloseConfirmationToken,
         _key: ClientKey,
     ) -> bool {
         false
@@ -574,14 +573,14 @@ pub(crate) trait TerminalInputPort {
     /// A completed click on an exact, fully painted Workspace/Project close decision.
     fn click_tab_close(
         &mut self,
-        _token: crate::workbench_client::NativeCloseConfirmationToken,
+        _token: crate::workbench_client::CloseConfirmationToken,
         _confirm: bool,
     ) {
     }
 
     fn click_panel_close(
         &mut self,
-        _token: crate::workbench_client::NativePanelCloseConfirmationToken,
+        _token: crate::workbench_client::PanelCloseConfirmationToken,
         _confirm: bool,
     ) {
     }
@@ -630,20 +629,13 @@ pub(crate) trait TerminalInputPort {
 
     fn invalidate_close_display(&mut self) {}
 
-    fn edit_rename_draft(
-        &mut self,
-        _token: NativeRenameDraftToken,
-        _edit: NativeRenameEdit<'_>,
-    ) -> bool {
+    fn edit_rename_draft(&mut self, _token: RenameDraftToken, _edit: RenameEdit<'_>) -> bool {
         false
     }
 
-    fn cancel_rename_draft(&mut self, _token: NativeRenameDraftToken) {}
+    fn cancel_rename_draft(&mut self, _token: RenameDraftToken) {}
 
-    fn submit_rename_draft(
-        &mut self,
-        _token: NativeRenameDraftToken,
-    ) -> Option<ClientActionDisposition> {
+    fn submit_rename_draft(&mut self, _token: RenameDraftToken) -> Option<ClientActionDisposition> {
         None
     }
 
@@ -667,26 +659,26 @@ pub(crate) trait TerminalInputPort {
     }
     fn invalidate_worktree_display(&mut self) {}
 
-    fn edit_setup_draft(&mut self, _token: NativeSetupToken, _edit: NativeSetupEdit<'_>) -> bool {
+    fn edit_setup_draft(&mut self, _token: SetupToken, _edit: SetupEdit<'_>) -> bool {
         false
     }
 
-    fn cancel_setup_draft(&mut self, _token: NativeSetupToken) {}
+    fn cancel_setup_draft(&mut self, _token: SetupToken) {}
 
-    fn submit_setup_draft(&mut self, _token: NativeSetupToken) -> Option<ClientActionDisposition> {
+    fn submit_setup_draft(&mut self, _token: SetupToken) -> Option<ClientActionDisposition> {
         None
     }
 
     /// Select and submit one exact Project row authorized by the last draw.
-    fn choose_setup_project(&mut self, _token: NativeSetupToken, _index: usize) {}
+    fn choose_setup_project(&mut self, _token: SetupToken, _index: usize) {}
 
     /// Move the Project picker only while its painted token still matches.
     fn scroll_setup_projects(
         &mut self,
-        _token: NativeSetupToken,
+        _token: SetupToken,
         _up: bool,
         _lines: usize,
-    ) -> Option<NativeSetupToken> {
+    ) -> Option<SetupToken> {
         None
     }
 

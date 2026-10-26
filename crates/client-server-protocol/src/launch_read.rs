@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::num::NonZeroU64;
 
 use crate::{
-    CreateOutcome, Geometry, PanelId, PresentationId, ProtocolError, RequestId, SiteId, TabId,
+    CreateOutcome, Geometry, PanelId, PresentationId, ProtocolError, RequestId, SessionId, TabId,
     TerminalContextId, TerminalId, WorkerId,
 };
 
@@ -221,7 +221,7 @@ pub enum TerminalLaunchReadUnavailableReason {
 }
 
 /// The retained provenance of a profile-launched terminal: the opaque
-/// Site-scoped profile identity and the catalog-private revision captured
+/// Session-scoped profile identity and the catalog-private revision captured
 /// when the launch command resolved the profile. It records history — the
 /// entry may since have been deleted — and is absent for launches that never
 /// named a profile.
@@ -281,7 +281,7 @@ impl LaunchProfileProvenance {
 }
 
 /// `terminal.launch.read.result` — `found` answers with the resolved routing
-/// and retained fact; `not-found` covers both an absent binding and a site with
+/// and retained fact; `not-found` covers both an absent binding and a session with
 /// no Workbench at all.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(
@@ -292,7 +292,7 @@ impl LaunchProfileProvenance {
 pub enum TerminalLaunchReadOutcome {
     Found {
         #[serde(rename = "sessionId")]
-        site_id: SiteId,
+        session_id: SessionId,
         #[serde(serialize_with = "crate::number::decimal::serialize")]
         workbench_revision: u64,
         terminal: Box<TerminalLaunchRoute>,

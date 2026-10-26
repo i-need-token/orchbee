@@ -9,14 +9,14 @@ use std::num::NonZeroU64;
 
 fn execute(
     session: &WorkbenchClientConnection<'_>,
-    site: &orchbee_workbench_protocol::SiteId,
+    session: &orchbee_workbench_protocol::SessionId,
     action: ClientViewAction,
 ) -> ClientViewOutcome {
     let WorkbenchResponse::ClientView(result) = response(session.execute(
         WorkbenchRequest::ClientView(WorkbenchClientViewRequest {
             protocol_version: ProtocolVersion,
             request_id: WorkbenchRequestId::parse(&format!("{:032x}", 900)).unwrap(),
-            site_id: site.clone(),
+            session_id: session.clone(),
             action,
         }),
     )) else {
@@ -81,20 +81,20 @@ fn sample(
 fn client_view_sessions_bind_identity_route_exactly_and_settle_disconnect() {
     let service = service(true, true);
     let snapshot = bootstrap(&service);
-    let site = &snapshot.site_id;
+    let session = &snapshot.session_id;
     let first = service.client_connection(NonZeroU64::new(1).unwrap());
     let second = service.client_connection(NonZeroU64::new(2).unwrap());
     let caller = service.client_connection(NonZeroU64::new(3).unwrap());
     let ClientViewOutcome::Synchronized {
         client: first_view, ..
-    } = execute(&first, site, sample(&snapshot, None))
+    } = execute(&first, session, sample(&snapshot, None))
     else {
         panic!("first view");
     };
     let ClientViewOutcome::Synchronized {
         client: second_view,
         ..
-    } = execute(&second, site, sample(&snapshot, None))
+    } = execute(&second, session, sample(&snapshot, None))
     else {
         panic!("second view");
     };
@@ -115,19 +115,19 @@ fn client_view_sessions_bind_identity_route_exactly_and_settle_disconnect() {
         command: Box::new(command.clone()),
     };
     assert!(
-        matches!(execute(&caller,site,submit.clone()),ClientViewOutcome::Operation { operation } if operation.status == ClientViewControlStatus::Queued {})
+        matches!(execute(&caller,session,submit.clone()),ClientViewOutcome::Operation { operation } if operation.status == ClientViewControlStatus::Queued {})
     );
     assert!(matches!(
-        execute(&second, site, sample(&snapshot, None)),
+        execute(&second, session, sample(&snapshot, None)),
         ClientViewOutcome::Synchronized { control: None, .. }
     ));
     assert!(
-        matches!(execute(&first,site,sample(&snapshot,None)),ClientViewOutcome::Synchronized { control:Some(delivered),.. } if *delivered==command)
+        matches!(execute(&first,session,sample(&snapshot,None)),ClientViewOutcome::Synchronized { control:Some(delivered),.. } if *delivered==command)
     );
     assert!(matches!(
         execute(
             &second,
-            site,
+            session,
             sample(
                 &snapshot,
                 Some(ClientViewCompletion {
@@ -138,17 +138,18 @@ fn client_view_sessions_bind_identity_route_exactly_and_settle_disconnect() {
         ),
         ClientViewOutcome::Conflict {}
     ));
-    let wrong_site = orchbee_workbench_protocol::SiteId::parse(&format!("{:032x}", 905)).unwrap();
+    let wrong_session =
+        orchbee_workbench_protocol::SessionId::parse(&format!("{:032x}", 905)).unwrap();
     assert!(matches!(
-        execute(&caller, &wrong_site, ClientViewAction::List {}),
+        execute(&caller, &wrong_session, ClientViewAction::List {}),
         ClientViewOutcome::Denied {}
     ));
     drop(first);
     assert!(
-        matches!(execute(&caller,site,submit),ClientViewOutcome::Operation { operation } if operation.status==ClientViewControlStatus::Incomplete { reason:ClientViewControlReason::ClientDisconnected,view:None })
+        matches!(execute(&caller,session,submit),ClientViewOutcome::Operation { operation } if operation.status==ClientViewControlStatus::Incomplete { reason:ClientViewControlReason::ClientDisconnected,view:None })
     );
     assert!(
-        matches!(execute(&caller,site,ClientViewAction::List {}),ClientViewOutcome::Listed { clients } if clients.len()==1 && clients[0].client_id==second_view.client_id)
+        matches!(execute(&caller,session,ClientViewAction::List {}),ClientViewOutcome::Listed { clients } if clients.len()==1 && clients[0].client_id==second_view.client_id)
     );
     let after = bootstrap(&service);
     assert_eq!(
@@ -162,7 +163,7 @@ fn client_view_control_requires_navigation_permission_but_status_is_read_only() 
     let snapshot = bootstrap(&service);
     let session = service.client_connection(NonZeroU64::new(1).unwrap());
     let ClientViewOutcome::Synchronized { client, .. } =
-        execute(&session, &snapshot.site_id, sample(&snapshot, None))
+        execute(&session, &snapshot.session_id, sample(&snapshot, None))
     else {
         panic!("read publication");
     };
@@ -170,7 +171,7 @@ fn client_view_control_requires_navigation_permission_but_status_is_read_only() 
     assert!(matches!(
         execute(
             &session,
-            &snapshot.site_id,
+            &snapshot.session_id,
             ClientViewAction::Submit {
                 command: Box::new(ClientViewControl {
                     operation_id: id.clone(),
@@ -190,7 +191,7 @@ fn client_view_control_requires_navigation_permission_but_status_is_read_only() 
     assert!(matches!(
         execute(
             &session,
-            &snapshot.site_id,
+            &snapshot.session_id,
             ClientViewAction::Read { operation_id: id }
         ),
         ClientViewOutcome::NotFound {}
@@ -200,7 +201,7 @@ fn client_view_control_requires_navigation_permission_but_status_is_read_only() 
     assert!(matches!(
         execute(
             &denied_session,
-            &snapshot.site_id,
+            &snapshot.session_id,
             ClientViewAction::List {}
         ),
         ClientViewOutcome::Denied {}

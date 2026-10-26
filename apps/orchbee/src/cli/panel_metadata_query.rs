@@ -28,7 +28,7 @@ pub(super) struct Document {
     encoded_row_bytes: usize,
     revision: WorkbenchRevision,
     request_ids: Vec<WorkbenchRequestId>,
-    site: orchbee_workbench_protocol::SiteId,
+    session: orchbee_workbench_protocol::SessionId,
     workbench_revision: WorkbenchRevision,
 }
 fn binding<'a>(
@@ -85,7 +85,7 @@ fn observe(
         PanelMetadataOutcome::Failed {
             reason:
                 PanelMetadataFailure::NotFound
-                | PanelMetadataFailure::SiteMismatch
+                | PanelMetadataFailure::SessionMismatch
                 | PanelMetadataFailure::BindingChanged,
         } => Err(super::workbench_agents::failure("workbench-changed")),
         PanelMetadataOutcome::Failed { reason } => Err(Failure::new(match reason {
@@ -96,7 +96,7 @@ fn observe(
             }
             PanelMetadataFailure::ResultTooLarge => FailureKind::OutputTooLarge,
             PanelMetadataFailure::InvalidRequest
-            | PanelMetadataFailure::SiteMismatch
+            | PanelMetadataFailure::SessionMismatch
             | PanelMetadataFailure::NotFound
             | PanelMetadataFailure::Unbound
             | PanelMetadataFailure::BindingChanged
@@ -121,7 +121,7 @@ fn send(
         PanelMetadataRequest {
             protocol_version: snapshot.protocol_version,
             request_id: request_id.clone(),
-            site_id: snapshot.site_id.clone(),
+            session_id: snapshot.session_id.clone(),
             action,
         },
         deadline,
@@ -209,7 +209,7 @@ pub(super) fn read_presentation(
         encoded_row_bytes: 0,
         revision,
         request_ids: vec![],
-        site: snapshot.site_id.clone(),
+        session: snapshot.session_id.clone(),
         workbench_revision,
     };
     document.admit(id, revision, vec![row.panel])?;
@@ -251,7 +251,7 @@ pub(super) fn read(
             encoded_row_bytes: 0,
             revision,
             request_ids: vec![],
-            site: snapshot.site_id.clone(),
+            session: snapshot.session_id.clone(),
             workbench_revision: snapshot.revision,
         });
         doc.admit(request_id, revision, rows)?;
@@ -322,12 +322,12 @@ impl Document {
             .view(id);
         let agent = view.and_then(|view| view.agent.as_deref());
         let authority = view.and_then(|view| view.authority_source.as_deref());
-        json!({"source":{"sessionId":self.site,"workbenchRevision":self.workbench_revision,"metadataRevision":self.revision,"requestIds":self.request_ids},"binding":row.binding,"tokens":row.tokens,"presentations":row.presentations,"context":{"agent":agent,"authoritySource":authority},"presentation":row.presentation(agent,authority)})
+        json!({"source":{"sessionId":self.session,"workbenchRevision":self.workbench_revision,"metadataRevision":self.revision,"requestIds":self.request_ids},"binding":row.binding,"tokens":row.tokens,"presentations":row.presentations,"context":{"agent":agent,"authoritySource":authority},"presentation":row.presentation(agent,authority)})
     }
     pub(super) fn report_value(&self, id: &WorkbenchPanelId) -> Value {
         self.reports.as_ref().expect("completed report read").value(
             id,
-            &self.site,
+            &self.session,
             self.workbench_revision,
         )
     }
@@ -425,7 +425,7 @@ pub(super) fn empty_fixture(
             WorkbenchRequestId::parse(&format!("{:032x}", 900)).unwrap(),
             WorkbenchRequestId::parse(&format!("{:032x}", 901)).unwrap(),
         ],
-        site: snapshot.site_id.clone(),
+        session: snapshot.session_id.clone(),
         workbench_revision: snapshot.revision,
     })
 }

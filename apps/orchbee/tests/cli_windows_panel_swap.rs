@@ -43,7 +43,7 @@ fn view_reply(stream: &mut LocalStream, request: &WorkbenchClientViewRequest, ou
     let result = WorkbenchClientViewResult {
         protocol_version: ProtocolVersion,
         request_id: request.request_id.clone(),
-        site_id: request.site_id.clone(),
+        session_id: request.session_id.clone(),
         outcome: serde_json::from_value(outcome).unwrap(),
     };
     write_workbench_response(stream, &WorkbenchResponse::ClientView(result)).unwrap();

@@ -110,10 +110,10 @@ impl Locale {
             ) => "Worker 不可用或忙碌。请查询状态，在允许时恢复移除。",
             (Self::EnUs, F::Unsupported { .. }) => "This Worker does not support worktree removal.",
             (Self::ZhCn, F::Unsupported { .. }) => "此 Worker 不支持移除工作树。",
-            (Self::EnUs, F::SiteStopping { .. }) => {
+            (Self::EnUs, F::SessionStopping { .. }) => {
                 "The Session is stopping. Read status before continuing."
             }
-            (Self::ZhCn, F::SiteStopping { .. }) => "会话正在停止。请先查询状态。",
+            (Self::ZhCn, F::SessionStopping { .. }) => "会话正在停止。请先查询状态。",
             (Self::EnUs, F::Git { .. }) => {
                 "Git refused removal. Read status; known checkout and Workspace facts are retained."
             }

@@ -333,7 +333,7 @@ fn unbound_panel_and_tab_close_use_addressed_publication_with_replay_and_scope_f
         let resume = WorkbenchTabCloseResume {
             protocol_version: ProtocolVersion,
             request_id: request_id(60005),
-            site_id: close.site_id.clone(),
+            session_id: close.session_id.clone(),
             terminal_context_id: context_id.clone(),
             tab_id: tab_id.clone(),
             close_request_id: close.request_id.clone(),

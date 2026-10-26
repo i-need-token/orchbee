@@ -4,7 +4,7 @@ use orchbee_workbench_protocol::{
     ClientSplitRatio, PanelOrientation, WorkbenchPanelSlotId, WorkbenchSplitId,
 };
 
-use crate::{client_view::SidebarSurface, workbench_client::NativePanelTree};
+use crate::{client_view::SidebarSurface, workbench_client::ClientPanelTree};
 
 use super::{
     LeafArea, PaneFrame, SidebarLayer, SidebarWidth, ViewportTier, centered_overlay, divide_panes,
@@ -322,17 +322,17 @@ fn tree_id(value: u128) -> String {
     format!("{value:032x}")
 }
 
-fn panel(index: usize) -> NativePanelTree {
-    NativePanelTree::Panel { panel_index: index }
+fn panel(index: usize) -> ClientPanelTree {
+    ClientPanelTree::Panel { panel_index: index }
 }
 
 fn split(
-    first: NativePanelTree,
-    second: NativePanelTree,
+    first: ClientPanelTree,
+    second: ClientPanelTree,
     orientation: PanelOrientation,
     id: u128,
-) -> NativePanelTree {
-    NativePanelTree::Split {
+) -> ClientPanelTree {
+    ClientPanelTree::Split {
         ratio: Default::default(),
         first: Box::new(first),
         second: Box::new(second),

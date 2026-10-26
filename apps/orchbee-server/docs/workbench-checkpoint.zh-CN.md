@@ -91,13 +91,13 @@ Workspace 的 `projectId` 必填且可为 null。Directory 记录含 `directoryI
 
 ## Windows 托管启动与正常停止
 
-托管启动在 `LOCALAPPDATA` 下打开独占 `WindowsSessionStore`，并在启动 Worker 前解析已提交
+托管启动在 `LOCALAPPDATA` 下打开独占 `SessionStore`，并在启动 Worker 前解析已提交
 副本。存储 owner 从三个槽位选择最新且完整验证的 payload。无效副本保留并产生可见恢复提醒；
 全部副本无效时明确报告空恢复。数据缺失表示新 Workbench；私有路径或文件系统准入失败仍中止启动。
-详见 [Windows checkpoint 存储契约](../../../crates/local-site-runtime/docs/windows-checkpoint-storage.zh-CN.md)。
+详见 [Windows checkpoint 存储契约](../../../crates/local-runtime/docs/windows-checkpoint-storage.zh-CN.md)。
 默认和命名 会话 激活均在使用存储前发布当前版本 1 的 durable 记录。
 Server 在打开 store 和清理 pending 文件前准入完整的 durable 形状。
-`WindowsSessionStore::read_validated` 将所有无效 payload 作为不可读副本处理：选择有效槽位或
+`SessionStore::read_validated` 将所有无效 payload 作为不可读副本处理：选择有效槽位或
 报告空恢复，保留无效字节，并在替换前归档。领域解析失败不再存在特殊的致命迁移错误；文件系统
 准入错误仍中止启动。未提交 pending 文件的清理保持不变。
 
@@ -142,4 +142,4 @@ Workbench revision；每次变化重置 500ms 防抖。每 30 秒还捕获已缓
 已移除成员。调度测试使用显式时间及延迟写入，证明防抖、定期补存、有界待办与最终停止顺序。
 原生崩溃／重启验收须比较多个 Tab、嵌套分屏、标签、目录；机器重启及交互负载仍须单独提供证据。
 
-<!-- documentation-pairing: english-sha256=f60cad86e8bc5df952b9f245964d7c6a9ad945fee5f548000e06bb43fb4c3921 zh-cn-sha256=7b18ea55194ab165e5d76a8b0f5eb66fe3d1c68ed1e2aa035a24cd2f5ffc1240 -->
+<!-- documentation-pairing: english-sha256=e5b1f56121fb85ad3fe856d8ec3e2c4844cc9c45b9c7b9a74cd46c8e17c47973 zh-cn-sha256=107454a7446502abdac8af68aac5ab906a1278ca57d286d4ec78f888021cdf2e -->

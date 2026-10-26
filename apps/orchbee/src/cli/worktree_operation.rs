@@ -10,7 +10,7 @@ use crate::{
 };
 #[cfg(any(windows, test))]
 use orchbee_workbench_protocol::{
-    SiteId, WorkbenchRequestId, WorkbenchTerminalOutcome, WorkbenchWorktreeOutcome,
+    SessionId, WorkbenchRequestId, WorkbenchTerminalOutcome, WorkbenchWorktreeOutcome,
     WorkbenchWorktreeResult, WorktreeOperationStatus,
 };
 #[cfg(any(windows, test))]
@@ -125,7 +125,7 @@ impl Answer {
                             | F::WorkerBusy {}
                             | F::WorkerCapacity {}
                             | F::Unsupported {}
-                            | F::SiteStopping {} => 4,
+                            | F::SessionStopping {} => 4,
                             F::Internal {} => 1,
                             F::Git { .. }
                             | F::SourceChanged { .. }
@@ -183,13 +183,18 @@ pub(crate) fn run(command: ParsedWorktreeCommand, format: OutputFormat, locale: 
 }
 
 #[cfg(any(windows, test))]
-fn emit(site_id: Option<&SiteId>, answer: Answer, format: OutputFormat, locale: Locale) -> Output {
+fn emit(
+    session_id: Option<&SessionId>,
+    answer: Answer,
+    format: OutputFormat,
+    locale: Locale,
+) -> Output {
     let status = answer.exit_code();
     let result = answer.document();
     let encoded = match format {
         OutputFormat::Json => {
             output::encode_document(&json!({"schema":"orchbee.worktree.operation","version":1,
-            "source":{"kind":"local-worktree","sessionId":site_id},"result":result}))
+            "source":{"kind":"local-worktree","sessionId":session_id},"result":result}))
         }
         OutputFormat::Text => output::encode_text(&locale.cli_worktree_result(&result)),
     };

@@ -604,7 +604,9 @@ impl WorkbenchAuthority {
             &command.action,
             WorkbenchAction::PanelSplit { .. } | WorkbenchAction::PanelCreateTerminal { .. }
         ) && grant.is_some_and(|grant| {
-            grant.site_id == *self.site_id() && grant.mutate_navigation && grant.create_terminal
+            grant.session_id == *self.session_id()
+                && grant.mutate_navigation
+                && grant.create_terminal
         });
         if !authorized {
             return WorkbenchPanelCreateBegin::Ready(result(
@@ -637,9 +639,9 @@ impl WorkbenchAuthority {
                 _ => return WorkbenchPanelCreateBegin::Ready(retire(self, &command)),
             };
         let snapshot = self.projection.snapshot();
-        if command.site_id != snapshot.site_id {
+        if command.session_id != snapshot.session_id {
             return WorkbenchPanelCreateBegin::Ready(
-                self.retain_rejection(command, WorkbenchRejectionReason::SiteMismatch),
+                self.retain_rejection(command, WorkbenchRejectionReason::SessionMismatch),
             );
         }
         if command.expected_revision != snapshot.revision {

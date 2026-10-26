@@ -1,8 +1,8 @@
 //! Bounded selected duplication. The ordinary Create owner retains every member's effects.
 //! Only an exact membership install may replace this sequence's old concrete pane fence.
 use super::{
-    ClientPhase, CommittedTabCreate, CreateOperation, CreateOperationKey, CreateTerminalProvenance,
-    MembershipInstallDecision, NativeContextTabs, NativeTerminalBinding, OperationDeadlines,
+    ClientContextTabs, ClientPhase, ClientTerminalBinding, CommittedTabCreate, CreateOperation,
+    CreateOperationKey, CreateTerminalProvenance, MembershipInstallDecision, OperationDeadlines,
     PaneRef, WorkbenchClientState, WorkbenchTabId,
 };
 use orchbee_workbench_protocol::TerminalPresentationId;
@@ -34,7 +34,7 @@ struct SelectionFence {
     marks: Vec<WorkbenchTabId>,
     pane: PaneRef,
     presentation: TerminalPresentationId,
-    binding: NativeTerminalBinding,
+    binding: ClientTerminalBinding,
 }
 
 impl SelectionFence {
@@ -97,7 +97,7 @@ enum Flight {
 
 pub(super) struct DuplicateSequence {
     sources: Vec<WorkbenchTabId>,
-    accepted: NativeContextTabs,
+    accepted: ClientContextTabs,
     fence: SelectionFence,
     deadline: Instant,
     next: usize,
@@ -111,7 +111,7 @@ pub(super) struct DuplicateSequence {
 /// Not Clone: derived under the install's exclusive state borrow, consumed once after pane minting.
 pub(super) struct DuplicateInstallWitness {
     operation: CreateOperationKey,
-    candidate: NativeContextTabs,
+    candidate: ClientContextTabs,
     pane: PaneRef,
 }
 
@@ -358,7 +358,7 @@ impl WorkbenchClientState {
     pub(super) fn prepare_duplicate_install(
         &mut self,
         committed: Option<&CommittedTabCreate>,
-        candidate: &NativeContextTabs,
+        candidate: &ClientContextTabs,
         decision: &MembershipInstallDecision,
     ) -> Option<DuplicateInstallWitness> {
         let sequence = self.duplicate_sequence.as_ref()?;

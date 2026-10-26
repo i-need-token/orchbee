@@ -5,7 +5,7 @@ use orchbee_capability_node_protocol::{
     TerminalViewerResult as WorkerResult,
 };
 use orchbee_client_server_protocol::{
-    SiteId as ClientSiteId, TerminalId as ClientTerminalId, TerminalViewerAction as Action,
+    SessionId as ObcsSessionId, TerminalId as ClientTerminalId, TerminalViewerAction as Action,
     TerminalViewerOutcome as Outcome, TerminalViewerRequest, ViewerRejectedReason,
     ViewerSnapshotReason, WorkerId as ClientWorkerId,
 };
@@ -280,7 +280,7 @@ fn canonical_snapshot_binding_attaches_exact_host_without_launch_and_is_session_
 
     let snapshot = workspace::read_snapshot(&mut first, 700)?;
     let binding = workspace::workspace_binding(&snapshot)?;
-    let site_id = ClientSiteId::parse(snapshot.site_id.as_str())?;
+    let session_id = ObcsSessionId::parse(snapshot.session_id.as_str())?;
     let worker_id = ClientWorkerId::parse(binding.worker_id.as_str())?;
     let terminal_id = ClientTerminalId::parse(binding.terminal_id.as_str())?;
     assert_eq!(
@@ -305,24 +305,24 @@ fn canonical_snapshot_binding_attaches_exact_host_without_launch_and_is_session_
         )
     );
     let exact = Action::AttachBinding {
-        site_id: site_id.clone(),
+        session_id: session_id.clone(),
         worker_id: worker_id.clone(),
         terminal_id: terminal_id.clone(),
     };
 
     for wrong in [
         Action::AttachBinding {
-            site_id: ClientSiteId::parse(&different_identity(site_id.as_str()))?,
+            session_id: ObcsSessionId::parse(&different_identity(session_id.as_str()))?,
             worker_id: worker_id.clone(),
             terminal_id: terminal_id.clone(),
         },
         Action::AttachBinding {
-            site_id: site_id.clone(),
+            session_id: session_id.clone(),
             worker_id: ClientWorkerId::parse(&different_identity(worker_id.as_str()))?,
             terminal_id: terminal_id.clone(),
         },
         Action::AttachBinding {
-            site_id: site_id.clone(),
+            session_id: session_id.clone(),
             worker_id: worker_id.clone(),
             terminal_id: ClientTerminalId::parse(&different_identity(terminal_id.as_str()))?,
         },

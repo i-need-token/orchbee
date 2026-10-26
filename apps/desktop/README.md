@@ -608,7 +608,7 @@ update coalescing, workspace cleanup, and captured-binary immutability. Forced o
 termination, compiler correctness, and PTY migration across a Host process remain outside these
 claims.
 
-The Host source digest includes the two shared Local Session Runtime PowerShell startup assets in
+The Host source digest includes the two shared Local Runtime PowerShell startup assets in
 addition to its native sources and build files. Zig's tracked copy inputs wake the existing build
 watch for either script; the Desktop watcher observes the resulting binary. A missing shared asset
 fails observation instead of treating stale startup bytes as the current generation.

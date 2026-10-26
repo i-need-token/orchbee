@@ -1,4 +1,4 @@
-//! Real-Site journey witness for `worktree list`: the staged `orchbee` binary
+//! Real-Session journey witness for `worktree list`: the staged `orchbee` binary
 //! drives `project create → workspace create → workspace accept-directory →
 //! worktree list` against a live Server and the lazily spawned Worker, with a
 //! real private Git repository (committed main worktree plus a detached linked

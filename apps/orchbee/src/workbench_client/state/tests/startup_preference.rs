@@ -1,20 +1,20 @@
 use super::*;
 use crate::workbench_client::{
-    NativeContextLocation,
+    ClientContextLocation,
     startup_preference::{Position, resolve},
     workbench_projection::{preferred_workspace_location, project_native_context_tabs},
 };
 
 #[test]
-fn startup_preference_restores_exact_nonfirst_member_after_reorder_and_new_site_boot() {
+fn startup_preference_restores_exact_nonfirst_member_after_reorder_and_new_session_boot() {
     let mut snapshot = super::context_selection::contexts(2, 1);
-    let location = NativeContextLocation::Workspace {
+    let location = ClientContextLocation::Workspace {
         workspace_id: snapshot.navigation.workspaces[1].workspace_id.clone(),
         terminal_context_id: snapshot.terminal_contexts[1].terminal_context_id.clone(),
     };
     let cache = project_native_context_tabs(&snapshot, &location).unwrap();
     let tab = &cache.tabs()[1];
-    let member = super::super::super::workbench_projection::NativeMemberTarget {
+    let member = super::super::super::workbench_projection::ClientMemberTarget {
         tab: tab.tab_id().clone(),
         panel: tab.panel(0).unwrap().panel_id().clone(),
         presentation: tab.panel(0).unwrap().presentation_id().clone(),
@@ -23,7 +23,7 @@ fn startup_preference_restores_exact_nonfirst_member_after_reorder_and_new_site_
         location: location.clone(),
         member: Some(member.clone()),
     };
-    snapshot.site_id = SiteId::parse(&id(999)).unwrap();
+    snapshot.session_id = SessionId::parse(&id(999)).unwrap();
     snapshot.terminal_contexts[1].tabs.reverse();
     let (cache, selected, fallback) = resolve(&snapshot, &saved).unwrap();
     assert_eq!(cache.location(), &location);
@@ -37,7 +37,7 @@ fn startup_preference_removed_tab_falls_back_in_same_location_without_launching(
     let workspace = &snapshot.navigation.workspaces[1];
     let cache = project_native_context_tabs(
         &snapshot,
-        &NativeContextLocation::Workspace {
+        &ClientContextLocation::Workspace {
             workspace_id: workspace.workspace_id.clone(),
             terminal_context_id: workspace.terminal_context_id.clone(),
         },
@@ -46,7 +46,7 @@ fn startup_preference_removed_tab_falls_back_in_same_location_without_launching(
     let position = Position {
         location: cache.location().clone(),
         member: Some(
-            super::super::super::workbench_projection::NativeMemberTarget {
+            super::super::super::workbench_projection::ClientMemberTarget {
                 tab: WorkbenchTabId::parse(&id(999)).unwrap(),
                 panel: WorkbenchPanelId::parse(&id(998)).unwrap(),
                 presentation: TerminalPresentationId::parse(&id(997)).unwrap(),
@@ -64,7 +64,7 @@ fn startup_preference_removed_location_falls_back_without_inventing_a_context() 
     let mut snapshot = super::context_selection::contexts(2, 1);
     let workspace = &snapshot.navigation.workspaces[2];
     let position = Position {
-        location: NativeContextLocation::Workspace {
+        location: ClientContextLocation::Workspace {
             workspace_id: workspace.workspace_id.clone(),
             terminal_context_id: workspace.terminal_context_id.clone(),
         },
@@ -87,7 +87,7 @@ fn startup_preference_removed_location_falls_back_without_inventing_a_context() 
     snapshot.navigation.workspace_order.clear();
     snapshot.terminal_contexts.clear();
     let (cache, member, fallback) = resolve(&snapshot, &position).unwrap();
-    assert_eq!(cache.location(), &NativeContextLocation::NoWorkspace);
+    assert_eq!(cache.location(), &ClientContextLocation::NoWorkspace);
     assert!(cache.terminal_context_id().is_none());
     assert!(member.is_none());
     assert!(fallback);

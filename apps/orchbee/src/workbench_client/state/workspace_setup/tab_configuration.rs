@@ -24,7 +24,7 @@ impl WorkbenchClientState {
         let command = WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id,
-            site_id: self.cache.site_id().clone(),
+            session_id: self.cache.session_id().clone(),
             expected_revision: self.cache.revision(),
             action: WorkbenchAction::TabsConfigure {
                 terminal_context_id: self.cache.terminal_context_id()?.clone(),
@@ -65,7 +65,7 @@ impl SetupOperation {
         if Some(terminal_context_id) != self.baseline.terminal_context_id() {
             return None;
         }
-        // Group identities are Site-wide; a receipt cannot reuse one from another context.
+        // Group identities are Session-wide; a receipt cannot reuse one from another context.
         if let Some(group_id) = group_id
             && self
                 .baseline

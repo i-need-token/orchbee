@@ -53,7 +53,7 @@ fn rename_preserves_exact_commit_noop_and_compatible_precommit() -> TestResult {
         WorkbenchCommandOutcome::Denied {},
     ];
     for reason in [
-        WorkbenchRejectionReason::SiteMismatch,
+        WorkbenchRejectionReason::SessionMismatch,
         WorkbenchRejectionReason::RevisionMismatch,
         WorkbenchRejectionReason::TerminalContextUnavailable,
         WorkbenchRejectionReason::TabUnavailable,

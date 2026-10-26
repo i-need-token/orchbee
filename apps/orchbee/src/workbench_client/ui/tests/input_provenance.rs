@@ -1,4 +1,4 @@
-//! Packet provenance through the real `LegacyDecoder -> InputDispatcher -> NativeUi`
+//! Packet provenance through the real `LegacyDecoder -> InputDispatcher -> WorkbenchClientUi`
 //! chain with `WorkbenchClientState` fixtures and the Tab-close confirmation API.
 //! Decoder-only witnesses live in `terminal_input/tests/provenance.rs`.
 
@@ -14,19 +14,19 @@ use std::{
 };
 
 struct RecordingPort<'a> {
-    ui: &'a mut NativeUi,
+    ui: &'a mut WorkbenchClientUi,
     forwarded: Vec<u8>,
 }
 
 impl TerminalInputPort for RecordingPort<'_> {
-    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+    fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
         self.ui.capture_claims()
     }
 
     fn native_capture_context(
         &self,
-        owner: crate::tui_composition::NativeCaptureOwner,
-    ) -> Option<crate::workbench_client::NativeCaptureContext> {
+        owner: crate::tui_composition::CaptureOwner,
+    ) -> Option<crate::workbench_client::CaptureContext> {
         self.ui.capture_context(owner)
     }
 
@@ -44,7 +44,7 @@ impl TerminalInputPort for RecordingPort<'_> {
 
     fn capture_tab_confirmation_key_for(
         &mut self,
-        token: NativeCloseConfirmationToken,
+        token: CloseConfirmationToken,
         key: ClientKey,
     ) -> bool {
         self.ui.capture_tab_confirmation_key(token, key)
@@ -52,7 +52,7 @@ impl TerminalInputPort for RecordingPort<'_> {
 
     fn capture_panel_confirmation_key_for(
         &mut self,
-        token: NativePanelCloseConfirmationToken,
+        token: PanelCloseConfirmationToken,
         key: ClientKey,
     ) -> bool {
         self.ui.capture_panel_confirmation_key(token, key)
@@ -66,34 +66,27 @@ impl TerminalInputPort for RecordingPort<'_> {
         self.ui.capture_workspace_close_key(token, key)
     }
 
-    fn edit_rename_draft(
-        &mut self,
-        token: NativeRenameDraftToken,
-        edit: NativeRenameEdit<'_>,
-    ) -> bool {
+    fn edit_rename_draft(&mut self, token: RenameDraftToken, edit: RenameEdit<'_>) -> bool {
         self.ui.edit_rename_draft(token, edit)
     }
 
-    fn cancel_rename_draft(&mut self, token: NativeRenameDraftToken) {
+    fn cancel_rename_draft(&mut self, token: RenameDraftToken) {
         self.ui.cancel_rename_draft(token)
     }
 
-    fn submit_rename_draft(
-        &mut self,
-        token: NativeRenameDraftToken,
-    ) -> Option<ClientActionDisposition> {
+    fn submit_rename_draft(&mut self, token: RenameDraftToken) -> Option<ClientActionDisposition> {
         Some(self.ui.submit_rename_draft(token))
     }
 
-    fn edit_setup_draft(&mut self, token: NativeSetupToken, edit: NativeSetupEdit<'_>) -> bool {
+    fn edit_setup_draft(&mut self, token: SetupToken, edit: SetupEdit<'_>) -> bool {
         self.ui.edit_setup_draft(token, edit)
     }
 
-    fn cancel_setup_draft(&mut self, token: NativeSetupToken) {
+    fn cancel_setup_draft(&mut self, token: SetupToken) {
         self.ui.cancel_setup_draft(token)
     }
 
-    fn submit_setup_draft(&mut self, token: NativeSetupToken) -> Option<ClientActionDisposition> {
+    fn submit_setup_draft(&mut self, token: SetupToken) -> Option<ClientActionDisposition> {
         Some(self.ui.submit_setup_draft(token))
     }
 }
@@ -101,7 +94,7 @@ impl TerminalInputPort for RecordingPort<'_> {
 fn dispatch(
     dispatcher: &mut InputDispatcher,
     view: &mut ClientView,
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     bytes: &[u8],
     now: Instant,
     forwarded: &mut Vec<u8>,
@@ -127,7 +120,7 @@ fn dispatch(
 fn synchronize(
     dispatcher: &mut InputDispatcher,
     view: &mut ClientView,
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     now: Instant,
     forwarded: &mut Vec<u8>,
 ) {
@@ -141,13 +134,13 @@ fn synchronize(
     *forwarded = port.forwarded;
 }
 
-fn armed(ui: &NativeUi) -> bool {
+fn armed(ui: &WorkbenchClientUi) -> bool {
     ui.state
         .as_ref()
         .is_some_and(|state| state.view().close_confirmation().is_some())
 }
 
-fn draw_close_prompt(ui: &mut NativeUi) {
+fn draw_close_prompt(ui: &mut WorkbenchClientUi) {
     let token = ui
         .state
         .as_ref()
@@ -156,13 +149,13 @@ fn draw_close_prompt(ui: &mut NativeUi) {
         .close_confirmation()
         .unwrap()
         .token();
-    ui.after_close_draw(NativeDrawReceipt::new(
+    ui.after_close_draw(DrawReceipt::new(
         Some(ModalPresentation::Presented(token)),
         None,
     ));
 }
 
-fn arm_and_draw(ui: &mut NativeUi) {
+fn arm_and_draw(ui: &mut WorkbenchClientUi) {
     assert_eq!(
         ui.apply_client_action(ClientAction::RequestCloseTab),
         ClientActionDisposition::DismissNavigator
@@ -171,7 +164,7 @@ fn arm_and_draw(ui: &mut NativeUi) {
     draw_close_prompt(ui);
 }
 
-// ---------- seam-level (real dispatcher → NativeUi) ----------
+// ---------- seam-level (real dispatcher → WorkbenchClientUi) ----------
 
 /// Packet-07 boundary witness re-run on the final candidates: a decision-read
 /// trailing partial sequence now completes in the next read as an OWNED item

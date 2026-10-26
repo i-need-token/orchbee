@@ -50,10 +50,10 @@ fn validate_resume_result(
         return Err(WorkbenchTabCloseFailure::UnexpectedResponse);
     };
     validate_correlation(&request.request_id, &result.request_id)?;
-    if request.site_id != result.site_id {
-        return Err(WorkbenchTabCloseFailure::SiteMismatch {
-            expected: request.site_id.clone(),
-            received: result.site_id,
+    if request.session_id != result.session_id {
+        return Err(WorkbenchTabCloseFailure::SessionMismatch {
+            expected: request.session_id.clone(),
+            received: result.session_id,
         });
     }
     validate_target(

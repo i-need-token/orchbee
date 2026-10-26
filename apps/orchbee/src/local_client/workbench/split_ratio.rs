@@ -75,7 +75,7 @@ impl LocalClient {
                     WorkbenchCommandOutcome::Rejected { reason, .. } => {
                         let reason = match reason {
                             WorkbenchRejectionReason::RevisionMismatch
-                            | WorkbenchRejectionReason::SiteMismatch => Reason::StaleView,
+                            | WorkbenchRejectionReason::SessionMismatch => Reason::StaleView,
                             WorkbenchRejectionReason::ResourceLimit
                             | WorkbenchRejectionReason::RevisionExhausted
                             | WorkbenchRejectionReason::IdentityExhausted => Reason::Busy,

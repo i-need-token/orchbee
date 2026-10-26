@@ -93,7 +93,7 @@ impl WorkbenchService {
             WorkbenchRequest::Plugin(request) => self.policy.read && (!request.action.mutating() || (self.policy.create_terminal && self.policy.manage_terminal_lifecycle)),
             WorkbenchRequest::TerminalEditor(_) | WorkbenchRequest::WindowTitle(_) | WorkbenchRequest::Notification(_) => false,
             WorkbenchRequest::Configuration(request) => match request.action { orchbee_workbench_protocol::ConfigurationAction::Reload => self.policy.manage_navigation, orchbee_workbench_protocol::ConfigurationAction::Current => self.policy.read },
-            WorkbenchRequest::Settings(request) => match request.operation { orchbee_workbench_protocol::NativeSettingsOperation::Save { .. } => self.policy.manage_navigation, orchbee_workbench_protocol::NativeSettingsOperation::Open {} => self.policy.read },
+            WorkbenchRequest::Settings(request) => match request.operation { orchbee_workbench_protocol::SettingsOperation::Save { .. } => self.policy.manage_navigation, orchbee_workbench_protocol::SettingsOperation::Open {} => self.policy.read },
             WorkbenchRequest::AgentManifests(request) => match request.action {
                 orchbee_workbench_protocol::AgentManifestsAction::Reload { .. } | orchbee_workbench_protocol::AgentManifestsAction::Update { .. } => self.policy.manage_navigation,
                 orchbee_workbench_protocol::AgentManifestsAction::Current {} | orchbee_workbench_protocol::AgentManifestsAction::Operation { .. } => self.policy.read,
@@ -274,7 +274,7 @@ impl WorkbenchService {
                 ));
             }
             WorkbenchRequest::TabCloseRead(read) => {
-                let denied = self.terminals.workbench_site_matches(&read.site_id) == Some(false);
+                let denied = self.terminals.workbench_session_matches(&read.session_id) == Some(false);
                 let response = if denied {
                     None
                 } else {
@@ -287,7 +287,7 @@ impl WorkbenchService {
                 );
             }
             WorkbenchRequest::TabCloseResume(resume) => {
-                let denied = self.terminals.workbench_site_matches(&resume.site_id) == Some(false);
+                let denied = self.terminals.workbench_session_matches(&resume.session_id) == Some(false);
                 let response = if denied {
                     None
                 } else {
@@ -300,14 +300,14 @@ impl WorkbenchService {
                 );
             }
             WorkbenchRequest::CloseOperationRead(read) => {
-                let denied = self.terminals.workbench_site_matches(&read.site_id) == Some(false);
+                let denied = self.terminals.workbench_session_matches(&read.session_id) == Some(false);
                 let response = if denied { None } else {
                     self.terminals.read_close_operation(read.clone()).map(WorkbenchResponse::CloseOperation)
                 };
                 return WorkbenchExecution::Response(response.unwrap_or_else(|| unavailable_or_denied(request, denied)));
             }
             WorkbenchRequest::WorkspaceCloseRead(read) => {
-                let denied = self.terminals.workbench_site_matches(&read.site_id) == Some(false);
+                let denied = self.terminals.workbench_session_matches(&read.session_id) == Some(false);
                 let response = if denied {
                     None
                 } else {
@@ -320,7 +320,7 @@ impl WorkbenchService {
                 );
             }
             WorkbenchRequest::WorkspaceCloseResume(resume) => {
-                let denied = self.terminals.workbench_site_matches(&resume.site_id) == Some(false);
+                let denied = self.terminals.workbench_session_matches(&resume.session_id) == Some(false);
                 let response = if denied {
                     None
                 } else {
@@ -467,7 +467,7 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
             WorkbenchResponse::CloseOperation(orchbee_workbench_protocol::CloseOperationResult {
                 protocol_version: read.protocol_version,
                 request_id: read.request_id,
-                site_id: read.site_id,
+                session_id: read.session_id,
                 operation_id: read.operation_id,
                 outcome: if denied {
                     orchbee_workbench_protocol::CloseOperationOutcome::Denied {}
@@ -477,15 +477,15 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
             })
         }
         WorkbenchRequest::Settings(request) => {
-            WorkbenchResponse::Settings(orchbee_workbench_protocol::NativeSettingsResult {
+            WorkbenchResponse::Settings(orchbee_workbench_protocol::SettingsResult {
                 protocol_version: request.protocol_version,
                 request_id: request.request_id,
-                site_id: request.site_id,
-                outcome: orchbee_workbench_protocol::NativeSettingsOutcome::Refused {
+                session_id: request.session_id,
+                outcome: orchbee_workbench_protocol::SettingsOutcome::Refused {
                     reason: if denied {
-                        orchbee_workbench_protocol::NativeSettingsFailure::Denied
+                        orchbee_workbench_protocol::SettingsFailure::Denied
                     } else {
-                        orchbee_workbench_protocol::NativeSettingsFailure::Unavailable
+                        orchbee_workbench_protocol::SettingsFailure::Unavailable
                     },
                 },
             })
@@ -494,7 +494,7 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
             WorkbenchResponse::PaneGraphics(orchbee_workbench_protocol::PaneGraphicsResult {
                 protocol_version: ProtocolVersion,
                 request_id: request.request_id,
-                site_id: request.site_id,
+                session_id: request.session_id,
                 outcome: orchbee_workbench_protocol::PaneGraphicsOutcome::Failed {
                     reason: if denied {
                         orchbee_workbench_protocol::PaneGraphicsFailure::Denied
@@ -508,7 +508,7 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
             WorkbenchResponse::Events(orchbee_workbench_protocol::SemanticEventsResult {
                 protocol_version: ProtocolVersion,
                 request_id: request.request_id,
-                site_id: request.site_id,
+                session_id: request.session_id,
                 outcome: orchbee_workbench_protocol::SemanticEventsOutcome::Failed {
                     reason: if denied {
                         orchbee_workbench_protocol::SemanticEventsFailure::Denied
@@ -522,7 +522,7 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
             orchbee_workbench_protocol::ConfiguredCommandResult {
                 protocol_version: ProtocolVersion,
                 request_id: request.request_id,
-                site_id: request.site_id,
+                session_id: request.session_id,
                 outcome: orchbee_workbench_protocol::ConfiguredCommandOutcome::Failed {
                     reason: if denied {
                         orchbee_workbench_protocol::ConfiguredCommandFailure::Denied
@@ -536,7 +536,7 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
             WorkbenchResponse::TerminalEditor(orchbee_workbench_protocol::TerminalEditorResult {
                 protocol_version: ProtocolVersion,
                 request_id: request.request_id,
-                site_id: request.site_id,
+                session_id: request.session_id,
                 outcome: orchbee_workbench_protocol::TerminalEditorOutcome::Failed {
                     reason: if denied {
                         orchbee_workbench_protocol::TerminalEditorFailure::Denied
@@ -550,7 +550,7 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
             WorkbenchResponse::Plugin(orchbee_workbench_protocol::PluginResult {
                 protocol_version: ProtocolVersion,
                 request_id: request.request_id,
-                site_id: request.site_id,
+                session_id: request.session_id,
                 outcome: orchbee_workbench_protocol::PluginOutcome::Failed {
                     reason: if denied {
                         orchbee_workbench_protocol::PluginFailure::Denied
@@ -564,7 +564,7 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
             WorkbenchResponse::WindowTitle(orchbee_workbench_protocol::WindowTitleResult {
                 protocol_version: request.protocol_version,
                 request_id: request.request_id,
-                site_id: request.site_id,
+                session_id: request.session_id,
                 outcome: orchbee_workbench_protocol::WindowTitleOutcome::Failed {
                     reason: if denied {
                         orchbee_workbench_protocol::WindowTitleFailure::Denied
@@ -578,7 +578,7 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
             WorkbenchResponse::Notification(orchbee_workbench_protocol::NotificationResult {
                 protocol_version: request.protocol_version,
                 request_id: request.request_id,
-                site_id: request.site_id,
+                session_id: request.session_id,
                 outcome: orchbee_workbench_protocol::NotificationOutcome::Failed {
                     reason: if denied {
                         orchbee_workbench_protocol::NotificationFailure::Denied
@@ -592,7 +592,7 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
             WorkbenchResponse::Configuration(orchbee_workbench_protocol::ConfigurationResult {
                 protocol_version: ProtocolVersion,
                 request_id: request.request_id,
-                site_id: request.site_id,
+                session_id: request.session_id,
                 outcome: orchbee_workbench_protocol::ConfigurationOutcome::failed(if denied {
                     orchbee_workbench_protocol::ConfigurationFailure::Denied
                 } else {
@@ -604,7 +604,7 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
             WorkbenchResponse::AgentManifests(orchbee_workbench_protocol::AgentManifestsResult {
                 protocol_version: ProtocolVersion,
                 request_id: request.request_id,
-                site_id: request.site_id,
+                session_id: request.session_id,
                 outcome: orchbee_workbench_protocol::AgentManifestsOutcome::Failed {
                     reason: if denied {
                         orchbee_workbench_protocol::AgentManifestsFailure::Denied
@@ -618,7 +618,7 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
             WorkbenchResponse::PanelAgent(orchbee_workbench_protocol::PanelAgentResult {
                 protocol_version: ProtocolVersion,
                 request_id: request.request_id,
-                site_id: request.site_id,
+                session_id: request.session_id,
                 outcome: orchbee_workbench_protocol::PanelAgentOutcome::Failed {
                     reason: if denied {
                         orchbee_workbench_protocol::PanelAgentFailure::Denied
@@ -632,7 +632,7 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
             WorkbenchResponse::WorkspaceGit(orchbee_workbench_protocol::WorkspaceGitResult {
                 protocol_version: ProtocolVersion,
                 request_id: request.request_id.clone(),
-                site_id: request.site_id.clone(),
+                session_id: request.session_id.clone(),
                 workspace_id: request.workspace_id.clone(),
                 outcome: orchbee_workbench_protocol::WorkspaceGitOutcome::Failed {
                     reason: if denied {
@@ -647,7 +647,7 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
             orchbee_workbench_protocol::WorkspaceMetadataResult {
                 protocol_version: ProtocolVersion,
                 request_id: request.request_id,
-                site_id: request.site_id,
+                session_id: request.session_id,
                 outcome: orchbee_workbench_protocol::WorkspaceMetadataOutcome::Failed {
                     reason: if denied {
                         orchbee_workbench_protocol::WorkspaceMetadataFailure::Denied
@@ -661,7 +661,7 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
             WorkbenchResponse::AgentView(orchbee_workbench_protocol::AgentViewResult {
                 protocol_version: ProtocolVersion,
                 request_id: request.request_id,
-                site_id: request.site_id,
+                session_id: request.session_id,
                 outcome: orchbee_workbench_protocol::AgentViewOutcome::Failed {
                     reason: if denied {
                         orchbee_workbench_protocol::AgentViewFailure::Denied
@@ -675,7 +675,7 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
             WorkbenchResponse::PanelMetadata(orchbee_workbench_protocol::PanelMetadataResult {
                 protocol_version: ProtocolVersion,
                 request_id: request.request_id,
-                site_id: request.site_id,
+                session_id: request.session_id,
                 outcome: orchbee_workbench_protocol::PanelMetadataOutcome::Failed {
                     reason: if denied {
                         orchbee_workbench_protocol::PanelMetadataFailure::Denied
@@ -689,7 +689,7 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
             WorkbenchResponse::ClientView(orchbee_workbench_protocol::WorkbenchClientViewResult {
                 protocol_version: ProtocolVersion,
                 request_id: request.request_id,
-                site_id: request.site_id,
+                session_id: request.session_id,
                 outcome: if denied {
                     orchbee_workbench_protocol::ClientViewOutcome::Denied {}
                 } else {
@@ -783,7 +783,7 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
             WorkbenchResponse::TabCloseResume(WorkbenchTabCloseResumeResult {
                 protocol_version: ProtocolVersion,
                 request_id: resume.request_id,
-                site_id: resume.site_id,
+                session_id: resume.session_id,
                 terminal_context_id: resume.terminal_context_id,
                 tab_id: resume.tab_id,
                 close_request_id: resume.close_request_id,
@@ -813,7 +813,7 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
             WorkbenchResponse::WorkspaceCloseResume(WorkbenchWorkspaceCloseResumeResult {
                 protocol_version: ProtocolVersion,
                 request_id: resume.request_id,
-                site_id: resume.site_id,
+                session_id: resume.session_id,
                 workspace_id: resume.workspace_id,
                 close_request_id: resume.close_request_id,
                 outcome: if denied {
@@ -984,11 +984,11 @@ impl WorkbenchClientConnection<'_> {
             } else if self
                 .service
                 .terminals
-                .workbench_site_matches(&request.site_id)
+                .workbench_session_matches(&request.session_id)
                 != Some(true)
             {
                 WindowTitleOutcome::Failed {
-                    reason: Failure::SiteMismatch,
+                    reason: Failure::SessionMismatch,
                 }
             } else if let Ok(mut registry) = self.service.window_titles.lock() {
                 let Ok(profile) = self.service.terminals.window_title_configuration() else {
@@ -1013,7 +1013,7 @@ impl WorkbenchClientConnection<'_> {
                 WindowTitleResult {
                     protocol_version: request.protocol_version,
                     request_id: request.request_id.clone(),
-                    site_id: request.site_id.clone(),
+                    session_id: request.session_id.clone(),
                     outcome,
                 },
             ));
@@ -1034,11 +1034,11 @@ impl WorkbenchClientConnection<'_> {
             } else if self
                 .service
                 .terminals
-                .workbench_site_matches(&request.site_id)
+                .workbench_session_matches(&request.session_id)
                 != Some(true)
             {
                 NotificationOutcome::Failed {
-                    reason: Failure::SiteMismatch,
+                    reason: Failure::SessionMismatch,
                 }
             } else if let Ok(mut registry) = self.service.notifications.lock() {
                 let Ok(disabled) = self.service.terminals.notifications_disabled() else {
@@ -1063,7 +1063,7 @@ impl WorkbenchClientConnection<'_> {
                 NotificationResult {
                     protocol_version: request.protocol_version,
                     request_id: request.request_id.clone(),
-                    site_id: request.site_id.clone(),
+                    session_id: request.session_id.clone(),
                     outcome,
                 },
             ));
@@ -1081,7 +1081,7 @@ impl WorkbenchClientConnection<'_> {
                 || self
                     .service
                     .terminals
-                    .workbench_site_matches(&request.site_id)
+                    .workbench_session_matches(&request.session_id)
                     != Some(true)
             {
                 ClientViewOutcome::Denied {}
@@ -1096,7 +1096,7 @@ impl WorkbenchClientConnection<'_> {
                 WorkbenchClientViewResult {
                     protocol_version: ProtocolVersion,
                     request_id: request.request_id,
-                    site_id: request.site_id,
+                    session_id: request.session_id,
                     outcome,
                 },
             ));

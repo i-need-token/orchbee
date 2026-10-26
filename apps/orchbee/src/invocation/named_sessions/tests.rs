@@ -7,18 +7,18 @@ fn selected(words: &[&str]) -> Result<SelectedRequest, ParseFailure> {
 }
 
 #[test]
-fn named_lifecycle_selects_one_exact_site_and_preserves_stop_options() {
+fn named_lifecycle_selects_one_exact_session_and_preserves_stop_options() {
     for verb in ["attach", "stop", "delete"] {
         let mut words = vec!["--session=Work", "session", verb, "Work"];
         if verb != "attach" {
             words.push("--confirm");
         }
         let result = selected(&words).unwrap();
-        assert_eq!(result.site.unwrap().as_str(), "Work");
+        assert_eq!(result.session.unwrap().as_str(), "Work");
         assert!(matches!(result.request, Request::NamedSession { .. }));
     }
     let result = selected(&["session", "attach", "work", "--mouse=off"]).unwrap();
-    assert_eq!(result.site.unwrap().as_str(), "work");
+    assert_eq!(result.session.unwrap().as_str(), "work");
     assert!(matches!(
         result.request,
         Request::NamedSession {
@@ -42,7 +42,7 @@ fn named_lifecycle_selects_one_exact_site_and_preserves_stop_options() {
         result.request,
         Request::NamedSession {
             command: NamedSessionCommand::Stop {
-                command: SiteStopCommand::Stop {
+                command: ServerStopCommand::Stop {
                     retry: true,
                     detach: true,
                     timeout_ms: 1234,

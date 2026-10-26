@@ -36,7 +36,7 @@ fn expiry_requests_idle_redraw_and_sound_is_once_after_successful_paint_only() {
 #[test]
 fn automatic_delivery_does_not_inherit_or_change_manual_delivery() {
     let mut state = State::default();
-    let mut policy = NativeNotificationSettings::default();
+    let mut policy = NotificationSettings::default();
     policy.agent_delivery = Delivery::System;
     state.configure(policy);
     let now = Instant::now();
@@ -180,8 +180,8 @@ fn ordinary_status_notice_keeps_admission_open_while_blocking_surfaces_still_ref
     assert!(!available(&view, Some(native())));
 }
 
-fn cards() -> NativeNotificationSettings {
-    let mut policy = NativeNotificationSettings::default();
+fn cards() -> NotificationSettings {
+    let mut policy = NotificationSettings::default();
     policy.delivery = Delivery::Tui;
     policy
 }
@@ -201,7 +201,7 @@ fn notification_policy_inherits_position_explicit_wins_and_off_keeps_custom_soun
         state.visible.as_ref().unwrap().message.position,
         Some(Position::BottomRight)
     );
-    state.configure(NativeNotificationSettings::default());
+    state.configure(NotificationSettings::default());
     assert!(state.empty());
     state.configure(cards());
     state.install(message(Position::TopLeft), now);
@@ -210,7 +210,7 @@ fn notification_policy_inherits_position_explicit_wins_and_off_keeps_custom_soun
         Some(Position::TopLeft)
     );
     for delivery in [Delivery::Terminal, Delivery::System] {
-        let mut policy = NativeNotificationSettings::default();
+        let mut policy = NotificationSettings::default();
         policy.delivery = delivery;
         state.configure(policy);
         assert!(state.install(custom.clone(), now));

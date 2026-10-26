@@ -24,7 +24,7 @@ fn metadata_projection_preserves_sources_without_inventing_authority_and_fences_
         encoded_row_bytes: 0,
         revision: WorkbenchRevision::new(2),
         request_ids: vec![],
-        site: state.site_id,
+        session: state.session_id,
         workbench_revision: state.revision,
     };
     doc.admit(
@@ -120,7 +120,7 @@ fn metadata_batch_admission_bounds_aggregate_rows_without_partial_state() {
         encoded_row_bytes: super::super::output::LIMIT - size,
         revision: WorkbenchRevision::new(2),
         request_ids: vec![],
-        site: state.site_id,
+        session: state.session_id,
         workbench_revision: state.revision,
     };
     doc.admit(
@@ -162,7 +162,7 @@ fn actual_report_context_selects_guarded_metadata_without_rewriting_canonical_fi
         encoded_row_bytes: 0,
         revision: WorkbenchRevision::new(2),
         request_ids: vec![],
-        site: state.site_id.clone(),
+        session: state.session_id.clone(),
         workbench_revision: state.revision,
     };
     doc.admit(

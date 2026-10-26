@@ -1,13 +1,13 @@
 //! Sidebar Delete retains exact source evidence and asks the Server for conditional admission.
 use super::{
-    Instant, NativeContextTabs, OperationDeadlines, PaneKey, WorkbenchClientState,
+    ClientContextTabs, Instant, OperationDeadlines, PaneKey, WorkbenchClientState,
     WorkbenchRequestId, WorkbenchWorkspaceId, WorkspaceCloseEvidence, WorkspaceCloseOperation,
     WorkspaceCloseResult, WorkspaceCloseTarget,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct WorkspaceDeleteRequest {
-    baseline: NativeContextTabs,
+    baseline: ClientContextTabs,
     desired: Option<PaneKey>,
     workspace: orchbee_workbench_protocol::Workspace,
     deadline: Instant,

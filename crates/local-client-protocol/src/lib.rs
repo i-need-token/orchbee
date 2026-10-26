@@ -1,6 +1,6 @@
 //! Bounded local Client admission and control messages with a same-user connecting adapter.
 //! Callers own endpoint selection, invocation deadlines and the accepted stream; Server owns
-//! Connection admission and lifecycle decisions. This crate neither activates a Site nor interprets
+//! Connection admission and lifecycle decisions. This crate neither activates a Session nor interprets
 //! the application protocol that follows admission.
 
 mod codec;
@@ -10,10 +10,10 @@ pub use server_metadata::{
     SERVER_FEATURE_LIVE_HANDOFF, SERVER_FEATURE_RENDER_ROWS, SERVER_KNOWN_FEATURES, ServerMetadata,
     ServerMode,
 };
-mod site_stop;
-pub use site_stop::{
-    SiteStopRequest, SiteStopResult, SiteStopStatus, StopAction, StopAttempt, StopFailure, StopId,
-    StopPhase,
+mod session_stop;
+pub use session_stop::{
+    SessionStopRequest, SessionStopResult, SessionStopStatus, StopAction, StopAttempt, StopFailure,
+    StopId, StopPhase,
 };
 
 #[cfg(any(unix, windows))]
@@ -31,5 +31,5 @@ pub use connection::{
 };
 #[cfg(windows)]
 pub use connection::{
-    SiteStopExchangeError, exchange_server_metadata_before, exchange_site_stop_before,
+    SessionStopExchangeError, exchange_server_metadata_before, exchange_session_stop_before,
 };

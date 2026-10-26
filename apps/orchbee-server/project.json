@@ -3,7 +3,7 @@
 	"domain": "orchbee-server",
 	"runtime": ["native"],
 	"stability": "experimental",
-	"responsibility": "Private local Site authority for Workbench state and publication, retained operation outcomes, Client admission and terminal authority, and managed Worker coordination, including owned Windows checkpoint capture, publication, and restoration.",
+	"responsibility": "Private local Session authority for Workbench state and publication, retained operation outcomes, Client admission and terminal authority, and managed Worker coordination, including owned Windows checkpoint capture, publication, and restoration.",
 	"nonGoals": [
 		"Providing remote authorization, automatic effect replay, or replacement Worker enrollment in managed mode.",
 		"Providing operating-system service installation, release packaging, cohort updates, or release rollback.",

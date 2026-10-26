@@ -1,7 +1,7 @@
 //! `agent integration` — the CLI-local provider onboarding commands. Every
 //! command runs on this machine only: the ambient PATH resolves provider
 //! executables, provider commands run under the bounded local runner, and no
-//! Site is started or contacted. Mutations are guarded and report the
+//! Session is started or contacted. Mutations are guarded and report the
 //! post-effect state they actually observed.
 
 use serde_json::{Map, Value, json};

@@ -17,7 +17,7 @@ use crate::{
 use orchbee_workbench_protocol::{
     ClientSplitIdentity, ClientSplitPath, ClientViewAction, ClientViewAvailability,
     ClientViewControl, ClientViewIntent, ClientViewOutcome, ClientViewPhase, ClientViewRecord,
-    PanelNode, ProtocolVersion, SiteId, Snapshot, SnapshotReadIntent, WorkbenchPanelId,
+    PanelNode, ProtocolVersion, SessionId, Snapshot, SnapshotReadIntent, WorkbenchPanelId,
     WorkbenchPanelSlotId, WorkbenchRevision, WorkbenchSnapshotOutcome, WorkbenchSplitId,
     WorkbenchTabId, WorkbenchTerminalContextId,
 };
@@ -121,7 +121,7 @@ fn execute(
     let selected = if needs_client || (targeting::needs_source(command) && caller.is_none()) {
         let reply = control::exchange(
             &mut client,
-            &snapshot.site_id,
+            &snapshot.session_id,
             ClientViewAction::List {},
             deadline,
             signals,
@@ -169,7 +169,7 @@ fn execute(
             .ok_or_else(internal)?;
         let answer = control::submit_control(
             &mut client,
-            &snapshot.site_id,
+            &snapshot.session_id,
             ClientViewControl {
                 operation_id: query::request_id()?,
                 client_id: selected.client_id.clone(),
@@ -259,7 +259,7 @@ fn execute(
         if let Some(original) = &selected {
             let fresh = control::exchange(
                 &mut client,
-                &snapshot.site_id,
+                &snapshot.session_id,
                 ClientViewAction::Get {
                     client_id: original.client_id.clone(),
                 },
@@ -337,7 +337,13 @@ fn execute(
                 .map_err(|_| internal())?,
         };
         receipt.stage = "ratio-resolution";
-        let fresh = read_snapshot(&mut client, &snapshot.site_id, revision, deadline, signals)?;
+        let fresh = read_snapshot(
+            &mut client,
+            &snapshot.session_id,
+            revision,
+            deadline,
+            signals,
+        )?;
         let tree = fresh
             .terminal_contexts
             .iter()
@@ -348,7 +354,7 @@ fn execute(
             .ok_or_else(|| Failure::new(FailureKind::NotFound))?;
         let current = observe(
             &mut client,
-            &snapshot.site_id,
+            &snapshot.session_id,
             selected,
             &created,
             fresh.revision,
@@ -358,7 +364,7 @@ fn execute(
         receipt.stage = "ratio";
         receipt.ratio = Some(control::submit_control(
             &mut client,
-            &snapshot.site_id,
+            &snapshot.session_id,
             ClientViewControl {
                 operation_id: query::request_id()?,
                 client_id: selected.client_id.clone(),
@@ -387,7 +393,7 @@ fn execute(
         receipt.stage = "focus-observation";
         let current = observe(
             &mut client,
-            &snapshot.site_id,
+            &snapshot.session_id,
             selected,
             &created,
             revision,
@@ -397,14 +403,20 @@ fn execute(
         check(signals, deadline)?;
         receipt.stage = "focus";
         let overlay_intent = if let Some(return_to) = overlay_return {
-            let fresh = read_snapshot(&mut client, &snapshot.site_id, revision, deadline, signals)?;
+            let fresh = read_snapshot(
+                &mut client,
+                &snapshot.session_id,
+                revision,
+                deadline,
+                signals,
+            )?;
             Some(overlay::intent(&fresh, &created, return_to, selected)?)
         } else {
             None
         };
         receipt.focus = Some(control::submit_control(
             &mut client,
-            &snapshot.site_id,
+            &snapshot.session_id,
             ClientViewControl {
                 operation_id: query::request_id()?,
                 client_id: selected.client_id.clone(),
@@ -444,7 +456,7 @@ fn execute(
 
 fn read_snapshot(
     client: &mut LocalClient,
-    site: &SiteId,
+    session: &SessionId,
     minimum: WorkbenchRevision,
     deadline: Instant,
     signals: &mut ArmedSignals,
@@ -463,7 +475,7 @@ fn read_snapshot(
         .outcome
     {
         WorkbenchSnapshotOutcome::Available { snapshot }
-            if &snapshot.site_id == site && snapshot.revision >= minimum =>
+            if &snapshot.session_id == session && snapshot.revision >= minimum =>
         {
             Ok(snapshot)
         }
@@ -507,7 +519,7 @@ fn split_path(
 
 fn observe(
     client: &mut LocalClient,
-    site: &SiteId,
+    session: &SessionId,
     original: &ClientViewRecord,
     created: &Created,
     minimum: WorkbenchRevision,
@@ -518,7 +530,7 @@ fn observe(
         check(signals, deadline)?;
         let reply = control::exchange(
             client,
-            site,
+            session,
             ClientViewAction::Get {
                 client_id: original.client_id.clone(),
             },

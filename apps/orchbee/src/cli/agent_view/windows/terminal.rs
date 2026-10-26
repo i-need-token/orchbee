@@ -82,7 +82,7 @@ pub(super) fn read(
     query::named_terminal::verify_named_binding(client, &binding, deadline, signals.poll_fd())?;
     let latest = query::refresh_snapshot(
         client,
-        &snapshot.site_id,
+        &snapshot.session_id,
         snapshot.revision,
         deadline,
         signals,

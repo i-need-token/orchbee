@@ -1,6 +1,6 @@
 use super::*;
 use crate::workbench_client::{WorkspaceCreationPhase, WorkspaceCreationPreview};
-use orchbee_workbench_protocol::SiteId;
+use orchbee_workbench_protocol::SessionId;
 
 fn sidebar_display_text(buffer: &ratatui::buffer::Buffer, area: Rect) -> String {
     let mut text = String::new();
@@ -17,7 +17,7 @@ fn sidebar_display_text(buffer: &ratatui::buffer::Buffer, area: Rect) -> String 
 }
 
 #[test]
-fn empty_sidebar_keeps_actions_and_settings_without_site_business_or_zero_count_filler() {
+fn empty_sidebar_keeps_actions_and_settings_without_session_business_or_zero_count_filler() {
     for (width, height) in [(120, 40), (80, 24), (60, 12), (50, 10), (18, 4)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for theme in [
@@ -36,7 +36,7 @@ fn empty_sidebar_keeps_actions_and_settings_without_site_business_or_zero_count_
                         view.commit(transition, ClientActionDisposition::KeepNavigator);
                     }
                 }
-                let site = SiteId::parse(&format!("{:032x}", 1)).unwrap();
+                let session = SessionId::parse(&format!("{:032x}", 1)).unwrap();
                 let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
                 // A pending creation is real content. Its removal must leave a fresh empty hit map.
                 for creating in [true, false] {
@@ -54,14 +54,14 @@ fn empty_sidebar_keeps_actions_and_settings_without_site_business_or_zero_count_
                                         view: &view,
                                         sidebar_surface: view.sidebar_surface(),
                                         locale,
-                                        backend_status: SiteStatus {
+                                        backend_status: SessionStatus {
                                             text: "No terminal tabs",
                                             role: Role::TextSecondary,
                                         },
                                         theme: &theme,
                                         input: SidebarInput::Terminal,
                                         creation: creating.then_some(WorkspaceCreationPreview {
-                                            site: &site,
+                                            session: &session,
                                             label: Some("Codex 工作区"),
                                             project_id: None,
                                             committed: None,

@@ -1,7 +1,7 @@
 //! Authenticated command admission coordinates existing execution and Client owners.
 use super::{WorkbenchClientConnection, WorkbenchExecution};
 use crate::local_terminal_service::configured_commands::descriptor;
-use orchbee_local_site_runtime::{WindowsCustomCommandAction, WindowsCustomCommandEntry};
+use orchbee_local_runtime::{CustomCommandAction, CustomCommandEntry};
 use orchbee_workbench_protocol::{
     ClientViewAction, ClientViewAvailability, ClientViewControl, ClientViewIntent,
     ClientViewOutcome, ClientViewPhase, ConfiguredCommandAction as Action,
@@ -23,7 +23,7 @@ impl WorkbenchClientConnection<'_> {
         ConfiguredCommandResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
-            site_id: request.site_id,
+            session_id: request.session_id,
             outcome,
         }
     }
@@ -35,10 +35,10 @@ impl WorkbenchClientConnection<'_> {
         if self
             .service
             .terminals
-            .workbench_site_matches(&request.site_id)
+            .workbench_session_matches(&request.session_id)
             != Some(true)
         {
-            return Err(Failure::SiteMismatch);
+            return Err(Failure::SessionMismatch);
         }
         match &request.action {
             Action::List {} => {
@@ -57,7 +57,7 @@ impl WorkbenchClientConnection<'_> {
                     && self.service.policy.manage_terminal_lifecycle)
                     || matches!(
                         command.action,
-                        WindowsCustomCommandAction::Pane | WindowsCustomCommandAction::Popup
+                        CustomCommandAction::Pane | CustomCommandAction::Popup
                     ) && !self.service.policy.manage_navigation
                 {
                     return Err(Failure::Denied);
@@ -68,9 +68,9 @@ impl WorkbenchClientConnection<'_> {
                     .terminals
                     .prepare_configured_command(invocation)?;
                 self.check_command_client(invocation)?;
-                if prepared.command.action == WindowsCustomCommandAction::Popup {
+                if prepared.command.action == CustomCommandAction::Popup {
                     let source = invocation.source.as_ref().ok_or(Failure::StaleSource)?;
-                    let entry = descriptor(&WindowsCustomCommandEntry {
+                    let entry = descriptor(&CustomCommandEntry {
                         id: invocation.command_id.clone(),
                         definition: prepared.command,
                     });
@@ -93,7 +93,7 @@ impl WorkbenchClientConnection<'_> {
                     let nested = WorkbenchClientViewRequest {
                         protocol_version: ProtocolVersion,
                         request_id: request.request_id.clone(),
-                        site_id: request.site_id.clone(),
+                        session_id: request.session_id.clone(),
                         action: ClientViewAction::Submit {
                             command: Box::new(command),
                         },

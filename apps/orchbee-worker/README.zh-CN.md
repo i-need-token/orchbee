@@ -88,9 +88,9 @@ Agent 行为、服务安装或恢复。
 
 ## 托管 Linux 延迟启动 Host
 
-私有 `--local-site <absolute-runtime-directory>` 入口校验共享运行时及四产物 cohort，
+私有 `--runtime-directory <absolute-runtime-directory>` 入口校验共享运行时及四产物 cohort，
 先完成 Server 注册，此时不创建 Host 目录也不启动 Host。
-[共享建模记录](../../crates/local-site-runtime/README.zh-CN.md) 定义进程与失败边界。
+[共享建模记录](../../crates/local-runtime/README.zh-CN.md) 定义进程与失败边界。
 
 首个 Launch 先由现有授权内核准入并解析启动事实。无效 lease/generation 的类型化拒绝
 不产生 Host。绑定代次的 cwd validation 和 worktree-job 请求都可以在该 Launch 前完成
@@ -106,7 +106,7 @@ Host 启动、唯一连接和严格 OBTP 握手共用五秒预算；不续期或
 
 此 managed 路径上的每个 Launch 还会通过现有 Terminal Protocol `environmentOverlay`
 传播本地 Agent 观察通道。对每个准入的 Launch，launch adapter 将跨属主约定的文件名
-`agent-observation-v1.sock` 拼接到已验证的 `--local-site` 运行时目录上，仅当 `lstat`
+`agent-observation-v1.sock` 拼接到已验证的 `--runtime-directory` 运行时目录上，仅当 `lstat`
 证明该路径是存在且归本 Worker effective user 所有的 socket 时才予以采纳。被采纳的
 socket 在现有 16 条 / 4 KiB overlay 上限内把 `ORCHBEE_AGENT_OBSERVATION_SOCKET`
 设为其绝对路径；候选缺失、非 socket、属主不符或非 UTF-8 时则不注入变量，也绝不因此
@@ -234,7 +234,7 @@ output 只持有一个已解析 executable、恰好为空的 literal argument ve
 environment entry。Loop 将它们与 Worker-local cwd、Terminal Protocol profile、geometry 和独立
 creation identity 组合。三个 entry 映射到 Terminal Protocol launch environment。
 invocation-scoped `CreateTerminal.environmentOverlay` 在显式端点路径上仍为空；在 managed
-local-site 路径上承载下文所述的单个 Agent 观察变量。
+local-runtime 路径上承载下文所述的单个 Agent 观察变量。
 
 单次启动的 `cwd` 由 Server 选择后传入：显式覆盖优先，其次已接纳的 Workspace 目录，
 均未提供时使用 Worker 主目录。Host 负责实际目录检查和启动失败。
@@ -684,7 +684,7 @@ cargo clippy -p orchbee-worker --all-targets --all-features --locked -- -D warni
 cargo test -p orchbee-capability-node-protocol --all-targets --all-features --locked
 cargo clippy -p orchbee-capability-node-protocol --all-targets --all-features --locked -- -D warnings
 cargo test -p orchbee-local-peer-credentials --all-targets --all-features --locked
-node scripts/tla/run-models.mjs --models local-site-startup,worker-send-transaction
+node scripts/tla/run-models.mjs --models local-session-startup,worker-send-transaction
 pnpm verify
 ```
 
@@ -778,7 +778,7 @@ InspectSource 解析包含源目录的检出；Open 允许主检出。Create 在
 保留这些开关，通过 `-NoExit -Command` 添加固定的进程内初始化。
 未知开关、脚本、命令字符串、其他程序和其他平台均保留原始启动参数。
 
-共享 Local 会话 Runtime 启动命令连接其公共初始化与交互 reader 资产。Host 构建消费同样字节，
+共享 本地运行时 启动命令连接其公共初始化与交互 reader 资产。Host 构建消费同样字节，
 将精确准备的 argv 识别为交互 shell，且不重复注入。仅有 `-Command` 开关不能获得此分类：
 修改过的脚本、额外命令操作数或非交互开关仍视为程序。reader 仅准入标准 PSReadLine 模块／导出
 身份与已知定义指纹；自定义或不受支持的定义保持原样，受保护的 Close 按 unknown 处理。
@@ -818,7 +818,7 @@ Windows 可运行的本地管道测试覆盖真实协议交换，不代表打包
 
 ## Windows 插件进程归属
 
-受理请求循环在 Host 创建前后处理有界插件任务 start/list/get/cancel 记录。`plugin_jobs` 保留最多 32 个命令 owner 和 200 条日志；共享 `orchbee-local-site-runtime` Windows 命令所有者 复用 Git 的 Job 清理方式。CLI 断开后已受理任务继续运行。显式停止 会话 时，必须先通知、清理并等待所有插件 owner 结束，才能报告成功。[原生插件行为](../orchbee/docs/windows-plugins.zh-CN.md) 管理调用、分页、输出上限及剩余集成。
+受理请求循环在 Host 创建前后处理有界插件任务 start/list/get/cancel 记录。`plugin_jobs` 保留最多 32 个命令 owner 和 200 条日志；共享 `orchbee-local-runtime` Windows 命令所有者 复用 Git 的 Job 清理方式。CLI 断开后已受理任务继续运行。显式停止 会话 时，必须先通知、清理并等待所有插件 owner 结束，才能报告成功。[原生插件行为](../orchbee/docs/windows-plugins.zh-CN.md) 管理调用、分页、输出上限及剩余集成。
 
 ## 插件终端启动环境
 
@@ -858,4 +858,4 @@ Windows 可运行的本地管道测试覆盖真实协议交换，不代表打包
 启动前后均可用。[所属模型](docs/windows-server-handoff.zh-CN.md) 定义精确票据、截止点、
 回滚及证据边界。公开 Server 状态／端点交接仍需独立集成；传输回执不是最终 CLI 成功。
 
-<!-- documentation-pairing: english-sha256=8f5ca0c70737104815ee0d67e43a3c3ec37b9fa038b8df03669016afc15a1a6f zh-cn-sha256=ffc5e8d47701154d6c86617e1ce9972e94e7b8bb842d2c295d40c8e6f002389c -->
+<!-- documentation-pairing: english-sha256=5a5fda0561d8eed6cc2db9689e58893409e7aa04a54c77f7e4c00e2aadbe0aad zh-cn-sha256=02103490bedcfbc1515da07f6c1a2169d478c339c3dccb2da0741ee97311fb84 -->

@@ -96,7 +96,7 @@ fn unconfigured_workspaces_keep_the_runtime_default_directory() {
 }
 
 #[test]
-fn refuses_old_site_foreign_worker_removed_membership_and_changed_directory() {
+fn refuses_old_session_foreign_worker_removed_membership_and_changed_directory() {
     let mut authority = restore(&checkpoint()).unwrap();
     let target = authority
         .restoration_targets(&worker(400))
@@ -110,10 +110,10 @@ fn refuses_old_site_foreign_worker_removed_membership_and_changed_directory() {
         Some(WorkbenchRestoreError::ForeignWorker)
     );
     assert_eq!(authority.snapshot(), &before);
-    let mut another_site =
-        WorkbenchAuthority::from_checkpoint(&checkpoint(), site(301), &worker(400)).unwrap();
+    let mut another_session =
+        WorkbenchAuthority::from_checkpoint(&checkpoint(), session(301), &worker(400)).unwrap();
     assert_eq!(
-        another_site
+        another_session
             .prepare_restored_terminal(&target, binding(900, 400))
             .err(),
         Some(WorkbenchRestoreError::TargetChanged)

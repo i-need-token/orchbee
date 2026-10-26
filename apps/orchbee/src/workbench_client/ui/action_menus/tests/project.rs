@@ -3,10 +3,10 @@ use crate::client_view::{KeyCode, Modifiers};
 use crate::local_client::tests::server::adjustable_operation_clock;
 use crate::workbench_client::mailbox::EventDeadline;
 use crate::workbench_client::ui::CommandMailbox;
-use crate::workbench_client::{NativeSetupEdit, NativeSetupStage};
+use crate::workbench_client::{SetupEdit, SetupStage};
 use orchbee_workbench_protocol::WorkbenchAction;
 use orchbee_workbench_protocol::{
-    Directory, Project, SiteId, Snapshot, TerminalContext, WorkbenchDirectoryId,
+    Directory, Project, SessionId, Snapshot, TerminalContext, WorkbenchDirectoryId,
     WorkbenchDirectoryPath, WorkbenchProjectId, WorkbenchRevision, WorkbenchTerminalContextId,
     WorkbenchWorkspaceId, WorkerId,
 };
@@ -44,7 +44,7 @@ fn create_menu_omits_unresolved_worktree_and_reuses_exact_project_quick_workspac
     let mut snapshot = snapshot();
     snapshot.terminal_contexts[0].tabs.clear();
     let workspace = &snapshot.navigation.workspaces[1];
-    let location = NativeContextLocation::Workspace {
+    let location = ClientContextLocation::Workspace {
         workspace_id: workspace.workspace_id.clone(),
         terminal_context_id: workspace.terminal_context_id.clone(),
     };
@@ -105,14 +105,14 @@ fn create_menu_omits_unresolved_worktree_and_reuses_exact_project_quick_workspac
     assert_eq!(ui.state.as_ref().unwrap().cache().location(), &location);
 }
 
-fn workspace(snapshot: &Snapshot, project: &Project) -> NativeContextLocation {
+fn workspace(snapshot: &Snapshot, project: &Project) -> ClientContextLocation {
     let workspace = snapshot
         .navigation
         .workspaces
         .iter()
         .find(|workspace| workspace.project_id.as_ref() == Some(&project.project_id))
         .unwrap();
-    NativeContextLocation::Workspace {
+    ClientContextLocation::Workspace {
         workspace_id: workspace.workspace_id.clone(),
         terminal_context_id: workspace.terminal_context_id.clone(),
     }
@@ -147,7 +147,7 @@ fn dissolve_project(snapshot: &mut Snapshot, project: &WorkbenchProjectId) {
     }
 }
 
-fn install(ui: &mut NativeUi, snapshot: &Snapshot, location: &NativeContextLocation) {
+fn install(ui: &mut WorkbenchClientUi, snapshot: &Snapshot, location: &ClientContextLocation) {
     let cache = crate::workbench_client::workbench_projection::project_native_context_tabs(
         snapshot, location,
     )
@@ -159,13 +159,16 @@ fn install(ui: &mut NativeUi, snapshot: &Snapshot, location: &NativeContextLocat
     );
 }
 
-fn ready(snapshot: &Snapshot, location: &NativeContextLocation) -> (NativeUi, Arc<CommandMailbox>) {
+fn ready(
+    snapshot: &Snapshot,
+    location: &ClientContextLocation,
+) -> (WorkbenchClientUi, Arc<CommandMailbox>) {
     let clock = adjustable_operation_clock(Arc::new(AtomicU64::new(0)));
     let mailbox = Arc::new(CommandMailbox::new(
         10,
         Geometry::new(80, 24, 8, 16).unwrap(),
     ));
-    let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    let mut ui = WorkbenchClientUi::new(Arc::clone(&mailbox), clock.clone());
     // Draft admission requires the mailbox and UI to own the same context.
     // Bootstrap both owners instead of replacing only the ready UI's state.
     let wait = mailbox
@@ -186,12 +189,12 @@ fn ready(snapshot: &Snapshot, location: &NativeContextLocation) -> (NativeUi, Ar
         mailbox.take_deposited_reply(&wait).unwrap(),
         Some(UiReply::BootstrapApplied(None))
     ));
-    assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
+    assert_eq!(ui.view().phase(), DisplayPhase::Empty);
     assert_eq!(ui.state.as_ref().unwrap().cache().location(), location);
     (ui, mailbox)
 }
 
-fn open(ui: &mut NativeUi, project: &Project) -> bool {
+fn open(ui: &mut WorkbenchClientUi, project: &Project) -> bool {
     ui.open_action_menu(
         MenuTarget::Drawn {
             source: ui.view().action_menu_source().unwrap(),
@@ -215,7 +218,7 @@ fn workspace_project_submenu_uses_exact_ids_with_duplicate_labels_and_keeps_curr
             snapshot.navigation.projects[1].label
         );
         let addressed = &snapshot.navigation.workspaces[1];
-        let target = NativeContextLocation::Workspace {
+        let target = ClientContextLocation::Workspace {
             workspace_id: addressed.workspace_id.clone(),
             terminal_context_id: addressed.terminal_context_id.clone(),
         };
@@ -223,7 +226,7 @@ fn workspace_project_submenu_uses_exact_ids_with_duplicate_labels_and_keeps_curr
             let fixture_context_id = snapshot.navigation.workspaces[0]
                 .terminal_context_id
                 .clone();
-            NativeContextLocation::Workspace {
+            ClientContextLocation::Workspace {
                 workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                     fixture_context_id.as_str(),
                 )
@@ -291,7 +294,7 @@ fn workspace_project_choice_reorder_retires_the_frozen_submenu_before_dispatch()
         let fixture_context_id = snapshot.navigation.workspaces[0]
             .terminal_context_id
             .clone();
-        NativeContextLocation::Workspace {
+        ClientContextLocation::Workspace {
             workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                 fixture_context_id.as_str(),
             )
@@ -320,7 +323,7 @@ fn workspace_project_choice_reorder_retires_the_frozen_submenu_before_dispatch()
     assert!(mailbox.try_recv().unwrap().is_none());
 }
 
-fn confirm_quick(ui: &mut NativeUi, project: &Project, keyboard: bool) -> ClientAction {
+fn confirm_quick(ui: &mut WorkbenchClientUi, project: &Project, keyboard: bool) -> ClientAction {
     let action = confirm_project_action(ui, project, keyboard, MenuAction::QuickWorkspace);
     assert!(matches!(
         action,
@@ -330,7 +333,7 @@ fn confirm_quick(ui: &mut NativeUi, project: &Project, keyboard: bool) -> Client
 }
 
 fn confirm_project_action(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     project: &Project,
     keyboard: bool,
     requested: MenuAction,
@@ -378,7 +381,7 @@ fn project_quick_menu_keeps_exact_target_through_preparation_and_one_launch() {
                     let fixture_context_id = snapshot.navigation.workspaces[0]
                         .terminal_context_id
                         .clone();
-                    NativeContextLocation::Workspace {
+                    ClientContextLocation::Workspace {
                         workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                             fixture_context_id.as_str(),
                         )
@@ -586,7 +589,7 @@ fn project_menu_empty_and_noncurrent_targets_do_not_invent_a_worktree_or_change_
                     let fixture_context_id = snapshot.navigation.workspaces[0]
                         .terminal_context_id
                         .clone();
-                    NativeContextLocation::Workspace {
+                    ClientContextLocation::Workspace {
                         workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                             fixture_context_id.as_str(),
                         )
@@ -645,10 +648,10 @@ fn project_menu_rejects_stale_drawn_and_replaced_sources_before_confirmation_or_
     let original = snapshot();
     let project = &original.navigation.projects[0];
     install(&mut ui, &original, &workspace(&original, project));
-    for wrong_site in [false, true] {
+    for wrong_session in [false, true] {
         let mut source = ui.view().action_menu_source().unwrap();
-        if wrong_site {
-            source.site = SiteId::parse(&format!("{:032x}", 999)).unwrap();
+        if wrong_session {
+            source.session = SessionId::parse(&format!("{:032x}", 999)).unwrap();
         } else {
             source.revision = WorkbenchRevision::new(source.revision.value() + 1);
         }
@@ -712,7 +715,7 @@ fn project_menu_rejects_stale_drawn_and_replaced_sources_before_confirmation_or_
                         let fixture_context_id = replacement.navigation.workspaces[0]
                             .terminal_context_id
                             .clone();
-                        NativeContextLocation::Workspace {
+                        ClientContextLocation::Workspace {
                             workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                                 fixture_context_id.as_str(),
                             )
@@ -759,7 +762,7 @@ fn project_menu_disabled_reason_renders_in_both_locales_at_small_geometry() {
                     let fixture_context_id = snapshot.navigation.workspaces[0]
                         .terminal_context_id
                         .clone();
-                    NativeContextLocation::Workspace {
+                    ClientContextLocation::Workspace {
                         workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                             fixture_context_id.as_str(),
                         )
@@ -776,7 +779,7 @@ fn project_menu_disabled_reason_renders_in_both_locales_at_small_geometry() {
                 let action_count = ui.view().action_menu().unwrap().actions.len();
                 ui.menus.menu.select_action(MenuAction::DeleteProject);
                 let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-                let mut receipt = NativeDrawReceipt::default();
+                let mut receipt = DrawReceipt::default();
                 let mut hits = HitMapBuilder::new();
                 terminal
                     .draw(|frame| {
@@ -873,7 +876,7 @@ fn project_rename_menu_opens_exact_target_without_navigation_and_submits_once_af
                         let fixture_context_id = snapshot.navigation.workspaces[0]
                             .terminal_context_id
                             .clone();
-                        NativeContextLocation::Workspace {
+                        ClientContextLocation::Workspace {
                             workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                                 fixture_context_id.as_str(),
                             )
@@ -900,7 +903,7 @@ fn project_rename_menu_opens_exact_target_without_navigation_and_submits_once_af
                 ui.apply_client_action(action);
                 let draft = ui.view().setup_draft().unwrap();
                 let token = draft.token();
-                assert_eq!(draft.stage(), NativeSetupStage::ProjectRename);
+                assert_eq!(draft.stage(), SetupStage::ProjectRename);
                 assert_eq!(draft.text(), project.label);
                 assert_eq!(draft.project_label(), Some(project.label.as_str()));
                 assert_eq!(Origin::capture(ui.state.as_ref()), origin);
@@ -914,8 +917,8 @@ fn project_rename_menu_opens_exact_target_without_navigation_and_submits_once_af
                     ui.submit_setup_draft(token);
                     assert!(mailbox.try_recv().unwrap().is_none());
                     ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
-                    ui.edit_setup_draft(token, NativeSetupEdit::Clear);
-                    ui.edit_setup_draft(token, NativeSetupEdit::Append("Exact 雪"));
+                    ui.edit_setup_draft(token, SetupEdit::Clear);
+                    ui.edit_setup_draft(token, SetupEdit::Append("Exact 雪"));
                     ui.submit_setup_draft(token);
                     let lease = mailbox.try_recv().unwrap().unwrap();
                     let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
@@ -997,19 +1000,19 @@ fn project_rename_handoff_expires_or_rejects_replacement_but_editor_does_not_exp
 }
 
 struct RenameInput<'a> {
-    ui: &'a mut NativeUi,
+    ui: &'a mut WorkbenchClientUi,
     expire: Option<Arc<AtomicU64>>,
     forwarded: Vec<u8>,
 }
 
 impl crate::terminal_input::TerminalInputPort for RenameInput<'_> {
-    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+    fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
         self.ui.capture_claims()
     }
     fn native_capture_context(
         &self,
-        owner: crate::tui_composition::NativeCaptureOwner,
-    ) -> Option<crate::workbench_client::NativeCaptureContext> {
+        owner: crate::tui_composition::CaptureOwner,
+    ) -> Option<crate::workbench_client::CaptureContext> {
         self.ui.capture_context(owner)
     }
     fn forward(
@@ -1041,17 +1044,17 @@ impl crate::terminal_input::TerminalInputPort for RenameInput<'_> {
     }
     fn edit_setup_draft(
         &mut self,
-        token: crate::workbench_client::NativeSetupToken,
-        edit: NativeSetupEdit<'_>,
+        token: crate::workbench_client::SetupToken,
+        edit: SetupEdit<'_>,
     ) -> bool {
         self.ui.edit_setup_draft(token, edit)
     }
-    fn cancel_setup_draft(&mut self, token: crate::workbench_client::NativeSetupToken) {
+    fn cancel_setup_draft(&mut self, token: crate::workbench_client::SetupToken) {
         self.ui.cancel_setup_draft(token);
     }
     fn submit_setup_draft(
         &mut self,
-        token: crate::workbench_client::NativeSetupToken,
+        token: crate::workbench_client::SetupToken,
     ) -> Option<ClientActionDisposition> {
         Some(self.ui.submit_setup_draft(token))
     }

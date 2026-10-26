@@ -4,19 +4,19 @@ use crate::native_settings::Basis;
 use crate::{
     client_view::{ClientView, KeyCode, Modifiers},
     tui_presentation::PresentationPhase,
-    workbench_client::NativeDrawReceipt,
+    workbench_client::DrawReceipt,
 };
 use ratatui::{Terminal, backend::TestBackend};
 mod appearance;
-fn ready() -> NativeUi {
+fn ready() -> WorkbenchClientUi {
     ready_with_basis(draft_basis())
 }
 fn ready_with_application_theme(
     application_theme: orchbee_workbench_protocol::ApplicationAppearance,
-) -> NativeUi {
+) -> WorkbenchClientUi {
     ready_with_basis(draft_basis_with_application_theme(application_theme))
 }
-fn ready_with_basis(basis: Basis) -> NativeUi {
+fn ready_with_basis(basis: Basis) -> WorkbenchClientUi {
     let (mut ui, _, _, _) = super::super::tests::workspace_setup::ready(true);
     let token = ui.settings.editor.open().unwrap();
     assert!(ui.settings.editor.loaded(token, basis.clone()));
@@ -46,10 +46,10 @@ fn draft_basis_with_application_theme(
     }
 }
 
-fn present_settings(ui: &mut NativeUi) {
+fn present_settings(ui: &mut WorkbenchClientUi) {
     let shell = ClientView::new(120);
     let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
-    let mut receipt = NativeDrawReceipt::default();
+    let mut receipt = DrawReceipt::default();
     terminal
         .draw(|frame| {
             receipt = crate::tui_render::render_terminal_shell(
@@ -234,7 +234,7 @@ fn captures_whole_shell_settings_alignment_frames() {
         super::super::tests::viewport::install_projection(&mut ui, Some((9, false, 24)), 0);
         let shell = ClientView::new(width);
         let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-        let mut receipt = NativeDrawReceipt::default();
+        let mut receipt = DrawReceipt::default();
         terminal
             .draw(|frame| {
                 receipt = crate::tui_render::render_terminal_shell(
@@ -455,7 +455,7 @@ fn settings_draft_cancel_and_small_draw_have_no_live_application() {
         let before = shell.clone();
         ui.capture_settings_key(KeyEvent::press(KeyCode::Right, Modifiers::NONE));
         let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
-        let mut receipt = NativeDrawReceipt::default();
+        let mut receipt = DrawReceipt::default();
         terminal
             .draw(|frame| {
                 receipt = crate::tui_render::render_terminal_shell(
@@ -483,7 +483,7 @@ fn settings_draft_cancel_and_small_draw_have_no_live_application() {
         assert_eq!(ui.settings.notice(ui.clock.now()), Some(Notice::TooSmall));
         assert!(ui.settings.editor.open().is_none());
 
-        let mut resumed = NativeDrawReceipt::default();
+        let mut resumed = DrawReceipt::default();
         terminal
             .draw(|frame| {
                 resumed = crate::tui_render::render_terminal_shell(
@@ -523,7 +523,7 @@ fn initial_too_small_settings_is_refused_without_cancelling_its_read() {
         );
         let shell = ClientView::new(120);
         let mut terminal = Terminal::new(TestBackend::new(120, 10)).unwrap();
-        let mut receipt = NativeDrawReceipt::default();
+        let mut receipt = DrawReceipt::default();
         let mut hits = crate::tui_pointer::HitMapBuilder::new();
         terminal
             .draw(|frame| {

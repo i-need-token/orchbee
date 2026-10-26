@@ -1,5 +1,5 @@
 use super::*;
-use crate::workbench_client::workbench_projection::NativeContextLocation;
+use crate::workbench_client::workbench_projection::ClientContextLocation;
 use orchbee_workbench_protocol::{Project, WorkbenchProjectId, WorkbenchWorkspaceId, Workspace};
 
 #[test]
@@ -75,7 +75,7 @@ fn removal_snapshot(tab_count: usize, revision: u64) -> Snapshot {
         },
         protocol_version: ProtocolVersion,
         revision: WorkbenchRevision::new(revision),
-        site_id: site_id(1),
+        session_id: session_id(1),
         terminal_contexts: vec![TerminalContext {
             groups: Vec::new(),
             tabs: (0..tab_count).map(removal_tab).collect(),
@@ -119,7 +119,7 @@ fn removed_workspace_lands_on_first_ordered_empty_workspace() {
     let mut state = ready_with_cache(
         crate::workbench_client::workbench_projection::project_native_context_tabs(
             &snapshot,
-            &NativeContextLocation::Workspace {
+            &ClientContextLocation::Workspace {
                 workspace_id: removed.workspace_id.clone(),
                 terminal_context_id: removed.terminal_context_id.clone(),
             },
@@ -165,7 +165,7 @@ fn removed_workspace_lands_on_first_ordered_empty_workspace() {
     ));
     assert_eq!(
         state.cache().location(),
-        &NativeContextLocation::Workspace {
+        &ClientContextLocation::Workspace {
             workspace_id: surviving.workspace_id,
             terminal_context_id: surviving.terminal_context_id,
         }
@@ -244,7 +244,7 @@ fn removed_context_with_live_viewers_stages_cleanup_before_landing() {
         .commit();
     assert_eq!(state.cache().location(), &{
         let fixture_context_id = context_id(9);
-        NativeContextLocation::Workspace {
+        ClientContextLocation::Workspace {
             workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                 fixture_context_id.as_str(),
             )
@@ -291,7 +291,7 @@ fn removed_context_without_viewers_installs_directly_and_never_reinserts_the_rem
         .commit();
     assert_eq!(state.cache().location(), &{
         let fixture_context_id = context_id(9);
-        NativeContextLocation::Workspace {
+        ClientContextLocation::Workspace {
             workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                 fixture_context_id.as_str(),
             )
@@ -305,7 +305,8 @@ fn removed_context_without_viewers_installs_directly_and_never_reinserts_the_rem
 }
 
 #[test]
-fn removal_classification_diverges_on_uncertain_provenance_malformed_navigation_and_wrong_site() {
+fn removal_classification_diverges_on_uncertain_provenance_malformed_navigation_and_wrong_session()
+{
     let mut uncertain = ready(1);
     uncertain.provenance[0] = CreateTerminalProvenance::OutcomeUnknown;
     assert!(uncertain.start_pending_refresh(5));
@@ -328,12 +329,12 @@ fn removal_classification_diverges_on_uncertain_provenance_malformed_navigation_
         PreparedRefresh::Divergent { generation: 5 }
     ));
 
-    let mut wrong_site = ready(1);
-    assert!(wrong_site.start_pending_refresh(5));
+    let mut wrong_session = ready(1);
+    assert!(wrong_session.start_pending_refresh(5));
     let mut wrong = removal_snapshot(1, 2);
-    wrong.site_id = site_id(77);
+    wrong.session_id = session_id(77);
     assert!(matches!(
-        wrong_site.prepare_refresh(5, WorkbenchSnapshotOutcome::Available { snapshot: wrong }),
+        wrong_session.prepare_refresh(5, WorkbenchSnapshotOutcome::Available { snapshot: wrong }),
         PreparedRefresh::Divergent { generation: 5 }
     ));
 

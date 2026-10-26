@@ -1,4 +1,4 @@
-use super::{NativeExecutor, Result, closed, event, submission};
+use super::{ClientExecutor, Result, closed, event, submission};
 use crate::{
     local_client::SubmissionError,
     workbench_client::{
@@ -14,7 +14,7 @@ use orchbee_client_server_protocol::{
     TerminalControlRequest, TerminalViewerAction, TerminalViewerOutcome,
 };
 
-impl NativeExecutor {
+impl ClientExecutor {
     pub(super) fn run_takeover(
         &mut self,
         lease: &CommandLease,

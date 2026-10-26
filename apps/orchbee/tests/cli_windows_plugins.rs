@@ -109,7 +109,7 @@ fn plugin_link_context_failure_precedes_catalog_access_in_both_output_formats() 
 }
 
 #[test]
-fn plugin_catalog_real_cli_round_trip_without_site_or_command_execution() {
+fn plugin_catalog_real_cli_round_trip_without_session_or_command_execution() {
     let fixture = Fixture::new();
     let empty = run(&fixture, &["plugin", "list"], 0);
     assert_eq!(empty["result"]["catalog"]["revision"], 0);

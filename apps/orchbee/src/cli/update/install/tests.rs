@@ -2,7 +2,7 @@
 //! This proves staging/publication, not Server/Worker/Host behavior or user PATH activation.
 use super::*;
 use crate::cli::source::ArmedSignals;
-use orchbee_local_site_runtime::{WindowsPrivateCache, WindowsUpdateChannel};
+use orchbee_local_runtime::{PrivateCache, UpdateChannel};
 use serde_json::json;
 use std::{
     fs,
@@ -76,7 +76,7 @@ fn offline_install_verifies_before_probe_reuses_without_overwrite_and_cleans_fai
         format!("orchbee-release-test-{}-{}", std::process::id(),
         std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()),
     ));
-    let lock = WindowsPrivateCache::acquire(&fixture.0).unwrap();
+    let lock = PrivateCache::acquire(&fixture.0).unwrap();
     let source = fixture.0.join("source");
     fs::create_dir(&source).unwrap();
     let probe = fixture.0.join("probe.rs");
@@ -151,7 +151,7 @@ fn offline_install_verifies_before_probe_reuses_without_overwrite_and_cleans_fai
         "channel":"stable","version":"0.1.0","buildId":"test","files":files}),
     )
     .unwrap();
-    let mut release = Release::parse(&bytes, WindowsUpdateChannel::Stable).unwrap();
+    let mut release = Release::parse(&bytes, UpdateChannel::Stable).unwrap();
     let source_ref = Source::Local(source.join("release.json"));
     let mut context = Context {
         signals: ArmedSignals::arm_interrupts().unwrap(),
@@ -171,7 +171,7 @@ fn offline_install_verifies_before_probe_reuses_without_overwrite_and_cleans_fai
         published
     );
     assert!(second.reused);
-    let admitted = NativeCohort::load(&published, context.deadline).unwrap();
+    let admitted = Cohort::load(&published, context.deadline).unwrap();
     let installed = crate::cli::update::inspect_installation(
         &published.join("orchbee.exe"),
         Some(&admitted),
@@ -202,7 +202,7 @@ fn offline_install_verifies_before_probe_reuses_without_overwrite_and_cleans_fai
     different["artifacts"]["orchbee-server"] =
         json!(format!("{:x}", Sha256::digest(b"another cohort peer")));
     fs::write(published.join("cohort.json"), different.to_string()).unwrap();
-    let stale = NativeCohort::load(&published, context.deadline).unwrap();
+    let stale = Cohort::load(&published, context.deadline).unwrap();
     fs::write(published.join("cohort.json"), cohort_before).unwrap();
     fs::write(published.join("orchbee-server.exe"), peer_before).unwrap();
     assert_eq!(

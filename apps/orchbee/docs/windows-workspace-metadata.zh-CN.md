@@ -2,7 +2,7 @@
 
 ## 所有权与范围
 
-Workspace 元数据是外部上报的临时展示数据。Workbench 权威在既有 SiteCoordinator 锁下
+Workspace 元数据是外部上报的临时展示数据。Workbench 权威在既有 SessionCoordinator 锁下
 拥有值、来源序号高水位和单调时钟过期信息。它不改变权威拓扑、Agent 生命周期、终端 OSC
 元数据、Git 状态或配置。重启后元数据为空。重命名和移动保留 Workspace 身份；
 关闭的 Workspace 身份在下一次元数据观察或上报前清理。
@@ -94,4 +94,4 @@ CLI 集成还要求以进程检查覆盖修订改变、取消及结果不确定�
 交付匹配的 cohort 组件。回滚匹配代码即可撤销，无需持久化迁移或修改用户配置。
 不得从拓扑检查点恢复临时序号／TTL 状态。
 
-<!-- documentation-pairing: english-sha256=af12ce9f41164896aed205949c71c21b16c7e0cdc847e51d832ec40cd1e42bc6 zh-cn-sha256=16d7d0bd14b8ff991945efa90140ae0b4013f9545a2d01ccd497747dce05cc40 -->
+<!-- documentation-pairing: english-sha256=37e3ab942339bc6e953d05bf22856b4f4138bc80897b2c054cfd591975212755 zh-cn-sha256=2034729b4ce9a3861b6217a24e9c62620c6b910653c8b43c06826418f549035d -->

@@ -9,7 +9,7 @@
 `Ctrl+B U` 为准确的焦点 pane 进入键盘复制模式。`[keys] copy_mode`
 通过现有解析后的绑定注册表替换或禁用入口。大写入口不替换 `Ctrl+B [`、`Ctrl+B ]` 的上下文切换。
 
-`NativeUi` 拥有易失的 episode、pane incarnation 和集成。确定性 `terminal_copy_mode` 核心
+`WorkbenchClientUi` 拥有易失的 episode、pane incarnation 和集成。确定性 `terminal_copy_mode` 核心
 拥有光标、搜索草稿、选区和待定意图。`ClientView` 仅投影该 owner 是否活动。
 `TerminalViewport` 保持历史所有权；Terminal Host 仍是选区端点与导出文本权威。
 现有效果队列和剪贴板 writer 拥有系统提交。这些内容均不存入 checkpoint。
@@ -185,4 +185,4 @@ Minimal 尺寸下，以两种语言和原生／RGB 主题组合完整 shell。�
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
 
-<!-- documentation-pairing: english-sha256=51067f7ba898b26100864060e004b2a980185a987f69ed97c01a6038bc8c56b0 zh-cn-sha256=d07b23941173e05196b525ff2914bf0ec9e0ca984c649ec0dd6f6850b93956b9 -->
+<!-- documentation-pairing: english-sha256=e6f328f44c8d1585897e242b827904e9f2393bebf6c88d4331aee826289e3a3e zh-cn-sha256=c29181a28c317ce8be39fbee0c35677a23b8f4bb26c2563e4a49adbb556e2b06 -->

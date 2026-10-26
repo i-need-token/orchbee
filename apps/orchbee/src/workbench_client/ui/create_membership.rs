@@ -1,9 +1,10 @@
 use super::{
     Arc, CarrierFailure, CommandMailbox, CreateOperationKey, CreateProjectionDecision,
-    MutationResult, NativeUi, OperationDeadlines, RefreshDecision, RefreshSettlement, UiReply,
+    MutationResult, OperationDeadlines, RefreshDecision, RefreshSettlement, UiReply,
+    WorkbenchClientUi,
 };
 
-impl NativeUi {
+impl WorkbenchClientUi {
     #[expect(clippy::too_many_arguments)]
     pub(super) fn apply_create_recovery_event(
         &mut self,

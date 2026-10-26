@@ -18,11 +18,10 @@ pub(super) fn connect(
     host: Option<&HostBrokerConnection>,
     deadline: Instant,
 ) -> Result<LocalStream, Refusal> {
-    let endpoint =
-        orchbee_local_site_runtime::ModeCheckedLocalSiteRendezvous::handoff_endpoint_path(
-            runtime,
-            peer.target.handoff_id.as_bytes(),
-        );
+    let endpoint = orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::handoff_endpoint_path(
+        runtime,
+        peer.target.handoff_id.as_bytes(),
+    );
     let stream =
         LocalStream::connect_before(&endpoint, deadline).map_err(|_| Refusal::TargetUnavailable)?;
     orchbee_local_peer_credentials::require_same_effective_user(&stream)

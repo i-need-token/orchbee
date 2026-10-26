@@ -39,8 +39,8 @@ use crate::{
     localization::{Locale, RecoveryVerb, ShellText},
     terminal_text::{display_width, truncate_display},
     tui_composition::{
-        CaptureOwner, ClientCaptureClaims, NativeCaptureClaims, NativeCaptureOwner,
-        client_chrome_overlay_allowed, project_capture,
+        CaptureClaims, CaptureOwner, ClientCaptureClaims, client_chrome_overlay_allowed,
+        project_capture,
     },
     tui_layout::{
         PaneFrame, ShellAreas, SidebarArea, SidebarLayer, ViewportTier, native_terminal_area,
@@ -52,9 +52,8 @@ use crate::{
     },
     tui_theme::{Role, Theme},
     workbench_client::{
-        AgentBoardDraw, ModalPresentation, NativeCloseStatusToken, NativeDisplayController,
-        NativeDisplayPhase, NativeDrawReceipt, NativeProjectionStatus, NativeRefreshStatus,
-        NativeTabView, WorkbenchClientView,
+        AgentBoardDraw, ClientProjectionStatus, ClientTabView, CloseStatusToken, DisplayController,
+        DisplayPhase, DrawReceipt, ModalPresentation, RefreshStatus, WorkbenchClientView,
     },
 };
 
@@ -67,7 +66,7 @@ mod agent_board;
 pub(crate) fn render_agent_board_for_test(
     frame: &mut Frame<'_>,
     locale: Locale,
-    board: &crate::workbench_client::NativeAgentBoardView<'_>,
+    board: &crate::workbench_client::AgentBoardView<'_>,
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> AgentBoardDraw {
@@ -123,12 +122,12 @@ mod worktree_launch;
 pub(crate) fn render_tab_rename_for_test(
     frame: &mut Frame<'_>,
     locale: Locale,
-    draft: &crate::workbench_client::NativeRenameDraftView<'_>,
+    draft: &crate::workbench_client::RenameDraftView<'_>,
     content_area: Rect,
     theme: &Theme,
 ) -> (
     Rect,
-    ModalPresentation<crate::workbench_client::NativeRenameDraftToken>,
+    ModalPresentation<crate::workbench_client::RenameDraftToken>,
 ) {
     tab_rename::render(
         frame,
@@ -141,12 +140,12 @@ pub(crate) fn render_tab_rename_for_test(
 }
 
 #[derive(Clone, Copy)]
-struct SiteStatus<'a> {
+struct SessionStatus<'a> {
     text: &'a str,
     role: Role,
 }
 
-impl SiteStatus<'_> {
+impl SessionStatus<'_> {
     fn line(self, width: usize, theme: &Theme) -> Line<'static> {
         let marker = format!("{} ", theme.glyphs.status_bullet);
         let remaining = width.saturating_sub(display_width(&marker));
@@ -185,7 +184,7 @@ pub(crate) fn render_terminal_shell(
     workbench_client: Option<WorkbenchClientView<'_>>,
     theme: &Theme,
     hits: &mut HitMapBuilder,
-) -> NativeDrawReceipt {
+) -> DrawReceipt {
     render_terminal_shell_with_resize(
         frame,
         view,
@@ -205,7 +204,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
     theme: &Theme,
     hits: &mut HitMapBuilder,
     resize: &'a crate::tui_layout::ResizeProjection,
-) -> NativeDrawReceipt {
+) -> DrawReceipt {
     if let Some(native) = workbench_client.as_mut() {
         native.set_resize_projection(resize);
     }
@@ -216,7 +215,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
         .with_resize(view.resize_mode());
     let native_claims = match workbench_client.as_ref() {
         Some(native) => native.capture_claims(),
-        _ => NativeCaptureClaims::default(),
+        _ => CaptureClaims::default(),
     };
     let capture_owner = project_capture(client_claims, native_claims);
     let native_top = |owner| capture_owner == Some(CaptureOwner::Native(owner));
@@ -277,7 +276,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
         native.cover_graphics();
     }
 
-    let mut status_draw: Option<(NativeCloseStatusToken, Rect)> = None;
+    let mut status_draw: Option<(CloseStatusToken, Rect)> = None;
     let mut prompt = None;
     let mut panel_prompt = None;
     let mut workspace_prompt = None;
@@ -329,7 +328,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
                         .map(|reminder| locale.command_completion_reminder(reminder))
                 });
             sidebar_status = phase_status.to_owned();
-            if native.phase() == NativeDisplayPhase::Ready
+            if native.phase() == DisplayPhase::Ready
                 && native
                     .focus_panel_id()
                     .and_then(|panel| native.terminal_end(panel))
@@ -412,7 +411,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
         copy_mode::render_controls(frame, view, copy, locale, theme, hits);
     }
 
-    let site_status = SiteStatus {
+    let session_status = SessionStatus {
         text: &sidebar_status,
         role: sidebar_status_role,
     };
@@ -442,7 +441,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
                             Some(native) => native.workspace_creation_preview(),
                             _ => None,
                         },
-                        backend_status: site_status,
+                        backend_status: session_status,
                         theme,
                         input: if captured
                             || view
@@ -466,7 +465,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
                     hits.record_covered_sidebar_geometry(covered_sidebar);
                 }
             } else {
-                render_sidebar(frame, sidebar, text, site_status, agent_line, theme);
+                render_sidebar(frame, sidebar, text, session_status, agent_line, theme);
             }
         }
 
@@ -525,7 +524,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
         // overlay: it paints above the workbench (and any chrome overlay)
         // but below armed modals, and its painted truth settles input
         // capture through the draw receipt.
-        if native_top(NativeCaptureOwner::AgentBoard)
+        if native_top(CaptureOwner::AgentBoard)
             && let Some(native) = workbench_client.as_ref()
             && let Some(board) = native.agent_board()
         {
@@ -543,7 +542,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             board_draw = Some(draw);
         }
 
-        if native_top(NativeCaptureOwner::WorkspaceClose)
+        if native_top(CaptureOwner::WorkspaceClose)
             && let Some(native) = workbench_client.as_ref()
             && let Some(confirmation) = native.workspace_close_confirmation()
         {
@@ -558,7 +557,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
             workspace_prompt = Some(token);
         }
-        if native_top(NativeCaptureOwner::TabClose)
+        if native_top(CaptureOwner::TabClose)
             && let Some(native) = workbench_client.as_ref()
             && let Some(confirmation) = native.close_confirmation()
         {
@@ -576,7 +575,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
                 status_draw = Some((token, modal.area));
             }
         }
-        if native_top(NativeCaptureOwner::PanelClose)
+        if native_top(CaptureOwner::PanelClose)
             && let Some(native) = workbench_client.as_ref()
             && let Some(confirmation) = native.panel_close_confirmation()
         {
@@ -592,7 +591,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             prompt = None;
             panel_prompt = Some(modal.prompt);
         }
-        if native_top(NativeCaptureOwner::Rename)
+        if native_top(CaptureOwner::Rename)
             && let Some(native) = workbench_client.as_ref()
             && let Some(draft) = native.rename_draft()
         {
@@ -617,7 +616,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             panel_prompt = None;
             rename = Some(token);
         }
-        if native_top(NativeCaptureOwner::Setup)
+        if native_top(CaptureOwner::Setup)
             && let Some(native) = workbench_client.as_ref()
             && let Some(draft) = native.setup_draft()
         {
@@ -636,7 +635,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             rename = None;
             setup = Some(token);
         }
-        if native_top(NativeCaptureOwner::Worktree)
+        if native_top(CaptureOwner::Worktree)
             && let Some(native) = workbench_client.as_ref()
             && let Some(draft) = native.worktree()
         {
@@ -654,22 +653,22 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
         // refuses an incarnation that has never painted, or suspends a
         // previously presented task while revoking its current draw proof.
         if workbench_client.as_ref().is_some() {
-            if native_top(NativeCaptureOwner::WorkspaceClose) {
+            if native_top(CaptureOwner::WorkspaceClose) {
                 workspace_prompt = Some(ModalPresentation::NotPresented);
             }
-            if native_top(NativeCaptureOwner::TabClose) {
+            if native_top(CaptureOwner::TabClose) {
                 prompt = Some(ModalPresentation::NotPresented);
             }
-            if native_top(NativeCaptureOwner::PanelClose) {
+            if native_top(CaptureOwner::PanelClose) {
                 panel_prompt = Some(ModalPresentation::NotPresented);
             }
-            if native_top(NativeCaptureOwner::Rename) {
+            if native_top(CaptureOwner::Rename) {
                 rename = Some(ModalPresentation::NotPresented);
             }
-            if native_top(NativeCaptureOwner::Setup) {
+            if native_top(CaptureOwner::Setup) {
                 setup = Some(ModalPresentation::NotPresented);
             }
-            if native_top(NativeCaptureOwner::Worktree) {
+            if native_top(CaptureOwner::Worktree) {
                 worktree = Some(ModalPresentation::NotPresented);
             }
         }
@@ -678,7 +677,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
     // An open board that could not paint at all (too-small viewport)
     // still reports its verdict — input capture never settles on an
     // unpainted surface.
-    if native_top(NativeCaptureOwner::AgentBoard)
+    if native_top(CaptureOwner::AgentBoard)
         && board_draw.is_none()
         && let Some(native) = workbench_client.as_ref()
         && let Some(board) = native.agent_board()
@@ -688,7 +687,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
 
     // Only the actual top owner's evaluated geometry can explain this frame.
     // Covered lower owners receive no receipt and publish no recovery chrome.
-    enum NativeRecoveryStatus {
+    enum RecoveryStatus {
         LocalReturn {
             phase: crate::tui_presentation::PresentationPhase,
             verb: RecoveryVerb,
@@ -699,7 +698,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
         (capture_owner, workbench_client.as_ref())
     {
         match owner {
-            NativeCaptureOwner::WorkspaceClose
+            CaptureOwner::WorkspaceClose
                 if matches!(
                     workspace_prompt.as_ref(),
                     Some(ModalPresentation::NotPresented)
@@ -709,35 +708,35 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
                     .workspace_close_confirmation()
                     .map(|view| (view.presentation(), RecoveryVerb::Cancel))
             }
-            NativeCaptureOwner::TabClose
+            CaptureOwner::TabClose
                 if matches!(prompt.as_ref(), Some(ModalPresentation::NotPresented)) =>
             {
                 native
                     .close_confirmation()
                     .map(|view| (view.presentation(), RecoveryVerb::Cancel))
             }
-            NativeCaptureOwner::PanelClose
+            CaptureOwner::PanelClose
                 if matches!(panel_prompt.as_ref(), Some(ModalPresentation::NotPresented)) =>
             {
                 native
                     .panel_close_confirmation()
                     .map(|view| (view.presentation(), RecoveryVerb::Cancel))
             }
-            NativeCaptureOwner::Rename
+            CaptureOwner::Rename
                 if matches!(rename.as_ref(), Some(ModalPresentation::NotPresented)) =>
             {
                 native
                     .rename_draft()
                     .map(|view| (view.presentation(), RecoveryVerb::Cancel))
             }
-            NativeCaptureOwner::Setup
+            CaptureOwner::Setup
                 if matches!(setup.as_ref(), Some(ModalPresentation::NotPresented)) =>
             {
                 native
                     .setup_draft()
                     .map(|view| (view.presentation(), RecoveryVerb::Cancel))
             }
-            NativeCaptureOwner::Worktree
+            CaptureOwner::Worktree
                 if matches!(worktree.as_ref(), Some(ModalPresentation::NotPresented)) =>
             {
                 native.worktree().map(|view| {
@@ -751,7 +750,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
                     )
                 })
             }
-            NativeCaptureOwner::AgentBoard
+            CaptureOwner::AgentBoard
                 if board_draw.as_ref().is_some_and(|draw| !draw.is_presented()) =>
             {
                 native
@@ -764,14 +763,12 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
         None
     };
     let native_recovery =
-        native_recovery.map(|(phase, verb)| NativeRecoveryStatus::LocalReturn { phase, verb });
+        native_recovery.map(|(phase, verb)| RecoveryStatus::LocalReturn { phase, verb });
     let native_recovery = if tier == ViewportTier::TooSmall
-        && capture_owner == Some(CaptureOwner::Native(NativeCaptureOwner::Popup))
+        && capture_owner == Some(CaptureOwner::Native(CaptureOwner::Popup))
         && matches!(workbench_client.as_ref(), Some(native) if native.popup().is_some())
     {
-        Some(NativeRecoveryStatus::Plain(
-            locale.plugin_popup_resize_recovery(),
-        ))
+        Some(RecoveryStatus::Plain(locale.plugin_popup_resize_recovery()))
     } else {
         native_recovery
     };
@@ -788,7 +785,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
     let read_only = matches!(
         workbench_client.as_ref(),
         Some(native)
-            if native.controller() == Some(NativeDisplayController::ReadOnly)
+            if native.controller() == Some(DisplayController::ReadOnly)
     );
     let status_visible = status_overlay_visible(view, workbench_client.as_ref(), capture_owner)
         || notice.is_some()
@@ -830,7 +827,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
     );
     if let Some(recovery) = native_recovery {
         match recovery {
-            NativeRecoveryStatus::LocalReturn { phase, verb } => {
+            RecoveryStatus::LocalReturn { phase, verb } => {
                 let retained = phase != crate::tui_presentation::PresentationPhase::Pending;
                 recovery::render(
                     frame,
@@ -840,7 +837,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
                     theme,
                 );
             }
-            NativeRecoveryStatus::Plain(notice) => {
+            RecoveryStatus::Plain(notice) => {
                 recovery::render(frame, areas.status, notice, None, theme);
             }
         }
@@ -877,7 +874,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
         status_draw = status_draw.or(visible.map(|area| (close.token(), area)));
     }
 
-    let receipt = NativeDrawReceipt::new(prompt, status_draw.map(|(token, _)| token))
+    let receipt = DrawReceipt::new(prompt, status_draw.map(|(token, _)| token))
         .with_panel_close(panel_prompt)
         .with_workspace_close(workspace_prompt)
         .with_rename(rename)
@@ -899,7 +896,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
         _ => None,
     });
     if tier != ViewportTier::TooSmall
-        && native_top(NativeCaptureOwner::Popup)
+        && native_top(CaptureOwner::Popup)
         && let Some(native) = workbench_client.as_ref()
         && let Some(popup) = native.popup()
     {
@@ -923,7 +920,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             hits,
         );
     }
-    let receipt = if native_top(NativeCaptureOwner::ActionMenu)
+    let receipt = if native_top(CaptureOwner::ActionMenu)
         && let Some(native) = workbench_client.as_ref()
         && let Some(menu) = native.action_menu()
     {
@@ -980,7 +977,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
     } else {
         receipt
     };
-    let receipt = if native_top(NativeCaptureOwner::Settings)
+    let receipt = if native_top(CaptureOwner::Settings)
         && let Some(native) = workbench_client.as_ref()
         && let Some(settings) = native.settings()
     {
@@ -1380,7 +1377,7 @@ fn render_native_workbench(
         );
     }
     if native.no_current_workspace()
-        && native.phase() == NativeDisplayPhase::Empty
+        && native.phase() == DisplayPhase::Empty
         && native.retirement().is_none()
     {
         return;
@@ -1539,7 +1536,7 @@ fn render_native_workbench(
             hits.record_divider(target);
         }
     } else {
-        let terminal = if native.projection_status() == NativeProjectionStatus::FrameAvailable {
+        let terminal = if native.projection_status() == ClientProjectionStatus::FrameAvailable {
             native
                 .projection()
                 .and_then(crate::terminal_projection::TerminalProjection::frame)
@@ -1675,12 +1672,12 @@ fn render_native_workbench(
         } else {
             let panel_status = if matches!(
                 native.phase(),
-                NativeDisplayPhase::Ready
-                    | NativeDisplayPhase::MoveProjectionUnavailable
-                    | NativeDisplayPhase::PanelProjectionUnavailable
-                    | NativeDisplayPhase::RenameProjectionUnavailable
+                DisplayPhase::Ready
+                    | DisplayPhase::MoveProjectionUnavailable
+                    | DisplayPhase::PanelProjectionUnavailable
+                    | DisplayPhase::RenameProjectionUnavailable
             ) && native.projection_status()
-                != NativeProjectionStatus::FrameAvailable
+                != ClientProjectionStatus::FrameAvailable
             {
                 locale.terminal_status(TerminalStatus::Blocked)
             } else {
@@ -1746,7 +1743,7 @@ fn render_native_workbench(
 fn render_panel_graphics(
     frame: &mut Frame<'_>,
     area: Rect,
-    panel: &crate::workbench_client::NativePanel,
+    panel: &crate::workbench_client::ClientPanel,
     native: &WorkbenchClientView<'_>,
     draws: &mut Vec<crate::workbench_client::PaneGraphicsDraw>,
 ) {
@@ -1945,7 +1942,7 @@ fn render_tab_strip(
 fn render_leaf(
     frame: &mut Frame<'_>,
     leaf: &crate::tui_layout::LeafArea,
-    tab: NativeTabView<'_>,
+    tab: ClientTabView<'_>,
     input_enabled: bool,
     cursor_visible: bool,
     phase_status: &str,
@@ -1969,7 +1966,7 @@ fn render_leaf(
         );
     }
     let terminal = panel.map(|panel| panel.panel_id()).and_then(|panel_id| {
-        (native.pane_projection_status(panel_id) == NativeProjectionStatus::FrameAvailable)
+        (native.pane_projection_status(panel_id) == ClientProjectionStatus::FrameAvailable)
             .then(|| {
                 native
                     .pane_projection(panel_id)
@@ -2051,10 +2048,10 @@ fn render_leaf(
             locale.native_unbound_terminal()
         } else if matches!(
             native.phase(),
-            NativeDisplayPhase::Ready
-                | NativeDisplayPhase::MoveProjectionUnavailable
-                | NativeDisplayPhase::PanelProjectionUnavailable
-                | NativeDisplayPhase::RenameProjectionUnavailable
+            DisplayPhase::Ready
+                | DisplayPhase::MoveProjectionUnavailable
+                | DisplayPhase::PanelProjectionUnavailable
+                | DisplayPhase::RenameProjectionUnavailable
         ) {
             locale.terminal_status(TerminalStatus::Blocked)
         } else {
@@ -2171,7 +2168,7 @@ fn native_tab<'a>(
     locale: Locale,
     pinned_label: &str,
 ) -> Option<tabs::TabDisplay<'a>> {
-    let tab: NativeTabView<'a> = native.tab(index)?;
+    let tab: ClientTabView<'a> = native.tab(index)?;
     Some(tabs::TabDisplay {
         position: tab.position(),
         active: tab.active(),
@@ -2203,15 +2200,15 @@ fn status_overlay_visible(
             // settles. Do not flash a connection-only footer for that handoff.
             let connecting_frame = matches!(
                 native.phase(),
-                NativeDisplayPhase::Starting | NativeDisplayPhase::Switching
+                DisplayPhase::Starting | DisplayPhase::Switching
             ) && native.projection_status()
-                == NativeProjectionStatus::FrameAvailable;
-            let visible = (native.phase() != NativeDisplayPhase::Ready && !connecting_frame)
+                == ClientProjectionStatus::FrameAvailable;
+            let visible = (native.phase() != DisplayPhase::Ready && !connecting_frame)
                 || native
                     .focus_panel_id()
                     .and_then(|panel| native.terminal_end(panel))
                     .is_some()
-                || native.controller() == Some(NativeDisplayController::ReadOnly)
+                || native.controller() == Some(DisplayController::ReadOnly)
                 || native.notice().is_some()
                 || native.takeover_status().is_some()
                 || native.setup_status().is_some()
@@ -2260,7 +2257,7 @@ fn render_sidebar(
     frame: &mut Frame<'_>,
     sidebar: SidebarArea,
     text: ShellText,
-    backend_status: SiteStatus<'_>,
+    backend_status: SessionStatus<'_>,
     agent_line: Option<String>,
     theme: &Theme,
 ) {

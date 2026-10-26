@@ -1,14 +1,14 @@
 //! Controlled admission traces for direct sidebar navigation and its latest-intent slot.
 use super::super::*;
 use super::{dimensions, setup};
-use crate::{machine_picker::Selection, workbench_client::NativeContextLocation};
-use orchbee_workbench_protocol::{SiteId, WorkbenchTerminalContextId, WorkbenchWorkspaceId};
+use crate::{machine_picker::Selection, workbench_client::ClientContextLocation};
+use orchbee_workbench_protocol::{SessionId, WorkbenchTerminalContextId, WorkbenchWorkspaceId};
 use std::{cell::RefCell, rc::Rc};
 
 struct Navigation {
-    current: NativeContextTarget,
-    pending: Option<NativeContextTarget>,
-    admitted: Vec<NativeContextTarget>,
+    current: ClientContextTarget,
+    pending: Option<ClientContextTarget>,
+    admitted: Vec<ClientContextTarget>,
     unavailable: bool,
 }
 struct Surface(Rc<RefCell<Navigation>>);
@@ -18,7 +18,7 @@ impl crate::terminal_input::TerminalInputPort for Surface {
     }
 }
 impl TerminalSurface for Surface {
-    fn navigate_context(&mut self, target: &NativeContextTarget) -> ContextNavigationAdmission {
+    fn navigate_context(&mut self, target: &ClientContextTarget) -> ContextNavigationAdmission {
         let mut state = self.0.borrow_mut();
         if state.unavailable {
             ContextNavigationAdmission::Unavailable
@@ -33,11 +33,11 @@ impl TerminalSurface for Surface {
         }
     }
 }
-fn targets() -> Vec<NativeContextTarget> {
+fn targets() -> Vec<ClientContextTarget> {
     (1..=3)
-        .map(|n| NativeContextTarget {
-            site_id: SiteId::parse(&format!("{:032x}", 9)).unwrap(),
-            location: NativeContextLocation::Workspace {
+        .map(|n| ClientContextTarget {
+            session_id: SessionId::parse(&format!("{:032x}", 9)).unwrap(),
+            location: ClientContextLocation::Workspace {
                 workspace_id: WorkbenchWorkspaceId::parse(&format!("{n:032x}")).unwrap(),
                 terminal_context_id: WorkbenchTerminalContextId::parse(&format!("{:032x}", n + 3))
                     .unwrap(),
@@ -45,7 +45,7 @@ fn targets() -> Vec<NativeContextTarget> {
         })
         .collect()
 }
-fn request(view: &mut ClientView, target: &NativeContextTarget) {
+fn request(view: &mut ClientView, target: &ClientContextTarget) {
     assert!(view.machines.activate_sidebar_workspace(&Selection {
         machine: Choice::Local,
         context: Some(target.clone().into()),
@@ -336,13 +336,13 @@ fn verified_agent(
     )]);
     assert!(view.machines.activate_sidebar_agent(&Selection {
         machine: Choice::Local,
-        context: Some(NativeStartupTarget::Agent(Box::new(target.clone())))
+        context: Some(ClientStartupTarget::Agent(Box::new(target.clone())))
     }));
     assert_eq!(
         view.machines.request.take().unwrap(),
         Selection {
             machine: Choice::Local,
-            context: Some(NativeStartupTarget::Agent(Box::new(target.clone()))),
+            context: Some(ClientStartupTarget::Agent(Box::new(target.clone()))),
         }
     );
     manager.cancel();
@@ -364,7 +364,7 @@ fn direct_agent_reuses_session_serializes_admitted_switch_and_keeps_latest_waiti
     assert!(
         !view.machines.activate_sidebar_agent(&Selection {
             machine: Choice::Local,
-            context: Some(NativeStartupTarget::Agent(Box::new(targets[1].clone()))),
+            context: Some(ClientStartupTarget::Agent(Box::new(targets[1].clone()))),
         }),
         "the source-less fixture cannot click a withdrawn Agent row"
     );
@@ -444,7 +444,7 @@ fn cancelled_verification_result_cannot_switch_or_reopen_explicit_navigator() {
         let cancel = Arc::new(AtomicU8::new(0));
         manager.attempt = Some(Attempt {
             profile: None,
-            context: Some(NativeStartupTarget::Agent(Box::new(targets[1].clone()))),
+            context: Some(ClientStartupTarget::Agent(Box::new(targets[1].clone()))),
             cancel: cancel.clone(),
             task: Some(task),
         });

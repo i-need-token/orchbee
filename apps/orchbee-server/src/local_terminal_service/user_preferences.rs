@@ -1,10 +1,9 @@
-//! One frozen Site scope; Desktop and Site processes share the store's OS commit lock.
+//! One frozen Session scope; Desktop and Session processes share the store's OS commit lock.
 use super::LocalTerminalService;
-use orchbee_local_site_runtime::{UserPreferencesScope, UserPreferencesStore};
+use orchbee_local_runtime::{UserPreferencesScope, UserPreferencesStore};
 use orchbee_workbench_protocol::{
-    NativeSettingsFailure as Failure, NativeSettingsOperation as Operation,
-    NativeSettingsOutcome as Outcome, NativeSettingsRequest, NativeSettingsResult, ProtocolVersion,
-    UserPreferencesResponse,
+    ProtocolVersion, SettingsFailure as Failure, SettingsOperation as Operation,
+    SettingsOutcome as Outcome, SettingsRequest, SettingsResult, UserPreferencesResponse,
 };
 
 impl LocalTerminalService {
@@ -17,13 +16,13 @@ impl LocalTerminalService {
             .map_err(|_| std::io::Error::from(std::io::ErrorKind::AlreadyExists))
     }
 
-    pub(crate) fn execute_settings(&self, request: NativeSettingsRequest) -> NativeSettingsResult {
-        let outcome = match self.workbench_site_matches(&request.site_id) {
+    pub(crate) fn execute_settings(&self, request: SettingsRequest) -> SettingsResult {
+        let outcome = match self.workbench_session_matches(&request.session_id) {
             None => Outcome::Refused {
                 reason: Failure::Unavailable,
             },
             Some(false) => Outcome::Refused {
-                reason: Failure::SiteMismatch,
+                reason: Failure::SessionMismatch,
             },
             Some(true) => self.preferences.get().map_or(
                 Outcome::Refused {
@@ -43,10 +42,10 @@ impl LocalTerminalService {
                 },
             ),
         };
-        NativeSettingsResult {
+        SettingsResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
-            site_id: request.site_id,
+            session_id: request.session_id,
             outcome,
         }
     }

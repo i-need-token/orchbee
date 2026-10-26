@@ -1,5 +1,5 @@
 use orchbee_workbench_protocol::{
-    MAXIMUM_TABS_PER_CONTEXT, MAXIMUM_TERMINAL_CONTEXTS, PanelNode, PanelOrientation, SiteId,
+    MAXIMUM_TABS_PER_CONTEXT, MAXIMUM_TERMINAL_CONTEXTS, PanelNode, PanelOrientation, SessionId,
     Snapshot, Tab, TerminalId, TerminalPresentationId, WorkbenchLabel, WorkbenchPanelId,
     WorkbenchPanelSlotId, WorkbenchPanelSplitDirection, WorkbenchProjectId, WorkbenchRevision,
     WorkbenchSplitId, WorkbenchTabId, WorkbenchTabMoveDirection, WorkbenchTerminalContextId,
@@ -11,29 +11,29 @@ mod closed;
 mod created;
 pub(super) use created::validate_created_tab;
 mod menu_source;
-pub(super) use menu_source::NativeMenuContextSource;
+pub(super) use menu_source::MenuContextSource;
 mod presentations;
 pub(super) mod renamed;
 mod tab_metadata;
 pub(super) use closed::{ClosedTabExpectation, validate_closed_tab};
-pub(crate) use presentations::{NativePanel, NativePresentation};
+pub(crate) use presentations::{ClientPanel, ClientPresentation};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct NativeContextTabs {
+pub(super) struct ClientContextTabs {
     // Retain the bounded input once for exact receipts, including non-selected contexts.
     canonical: std::sync::Arc<Snapshot>,
     canonical_context: Option<usize>,
-    site_id: SiteId,
+    session_id: SessionId,
     revision: WorkbenchRevision,
-    tabs: Vec<NativeSimpleTab>,
-    location: NativeContextLocation,
-    navigation: std::sync::Arc<[NativeContext]>,
+    tabs: Vec<ClientTab>,
+    location: ClientContextLocation,
+    navigation: std::sync::Arc<[ClientContext]>,
     projects: std::sync::Arc<[orchbee_workbench_protocol::Project]>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "kind", content = "identity", deny_unknown_fields)]
-pub(crate) enum NativeContextLocation {
+pub(crate) enum ClientContextLocation {
     /// No Workspace is open. This UI location has no terminal Context or persistent identity.
     #[serde(skip)]
     NoWorkspace,
@@ -43,16 +43,16 @@ pub(crate) enum NativeContextLocation {
     },
 }
 
-/// An explicit destination is bound to a Site as well as its navigation identity.
+/// An explicit destination is bound to a Session as well as its navigation identity.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct NativeContextTarget {
-    pub(crate) site_id: SiteId,
-    pub(crate) location: NativeContextLocation,
+pub(crate) struct ClientContextTarget {
+    pub(crate) session_id: SessionId,
+    pub(crate) location: ClientContextLocation,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) enum NativeStartupTarget {
-    Context(NativeContextTarget),
+pub(crate) enum ClientStartupTarget {
+    Context(ClientContextTarget),
     Agent(Box<crate::machine_agents::Target>),
     LocalDirectory {
         position: Option<super::startup_preference::Position>,
@@ -60,7 +60,7 @@ pub(crate) enum NativeStartupTarget {
         directory: Box<super::startup_directory::StartupDirectory>,
     },
 }
-impl PartialEq for NativeStartupTarget {
+impl PartialEq for ClientStartupTarget {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Context(left), Self::Context(right)) => left == right,
@@ -85,14 +85,14 @@ impl PartialEq for NativeStartupTarget {
         }
     }
 }
-impl Eq for NativeStartupTarget {}
-impl From<NativeContextTarget> for NativeStartupTarget {
-    fn from(value: NativeContextTarget) -> Self {
+impl Eq for ClientStartupTarget {}
+impl From<ClientContextTarget> for ClientStartupTarget {
+    fn from(value: ClientContextTarget) -> Self {
         Self::Context(value)
     }
 }
-impl NativeStartupTarget {
-    pub(super) fn context(&self) -> Option<&NativeContextTarget> {
+impl ClientStartupTarget {
+    pub(super) fn context(&self) -> Option<&ClientContextTarget> {
         match self {
             Self::Context(context) => Some(context),
             Self::Agent(target) => Some(&target.context),
@@ -102,7 +102,7 @@ impl NativeStartupTarget {
 }
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct NativeMemberTarget {
+pub(crate) struct ClientMemberTarget {
     pub(crate) tab: WorkbenchTabId,
     pub(crate) panel: WorkbenchPanelId,
     pub(crate) presentation: TerminalPresentationId,
@@ -110,13 +110,13 @@ pub(crate) struct NativeMemberTarget {
 
 /// An exact bound member, with an optional physical Host fence for Agent navigation.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct NativeMemberSelection {
-    pub(super) member: NativeMemberTarget,
+pub(super) struct ClientMemberSelection {
+    pub(super) member: ClientMemberTarget,
     pub(super) binding: orchbee_workbench_protocol::PresentationBinding,
     pub(super) expected_host: Option<orchbee_agent_observation_protocol::AgentLaunchBinding>,
 }
 
-impl NativeContextLocation {
+impl ClientContextLocation {
     pub(super) fn terminal_context_id(&self) -> Option<&WorkbenchTerminalContextId> {
         match self {
             Self::NoWorkspace => None,
@@ -129,14 +129,14 @@ impl NativeContextLocation {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct NativeContext {
-    pub(super) location: NativeContextLocation,
+pub(super) struct ClientContext {
+    pub(super) location: ClientContextLocation,
     pub(super) project_id: Option<WorkbenchProjectId>,
     pub(super) project_label: Option<WorkbenchLabel>,
     pub(super) workspace_label: Option<WorkbenchLabel>,
 }
 
-impl NativeContextTabs {
+impl ClientContextTabs {
     pub(super) fn canonical_context(&self) -> Option<&orchbee_workbench_protocol::TerminalContext> {
         self.canonical_context
             .and_then(|index| self.canonical.terminal_contexts.get(index))
@@ -157,14 +157,14 @@ impl NativeContextTabs {
     }
 
     pub(super) fn directory(&self) -> Option<&orchbee_workbench_protocol::Directory> {
-        let NativeContextLocation::Workspace { workspace_id, .. } = &self.location else {
+        let ClientContextLocation::Workspace { workspace_id, .. } = &self.location else {
             return None;
         };
         self.canonical.navigation.workspace_directory(workspace_id)
     }
 
     pub(super) fn project_id(&self) -> Option<&WorkbenchProjectId> {
-        let NativeContextLocation::Workspace { workspace_id, .. } = &self.location else {
+        let ClientContextLocation::Workspace { workspace_id, .. } = &self.location else {
             return None;
         };
         self.canonical
@@ -174,22 +174,22 @@ impl NativeContextTabs {
             .as_ref()
     }
 
-    pub(super) fn location(&self) -> &NativeContextLocation {
+    pub(super) fn location(&self) -> &ClientContextLocation {
         &self.location
     }
 
-    pub(super) fn navigation(&self) -> &[NativeContext] {
+    pub(super) fn navigation(&self) -> &[ClientContext] {
         &self.navigation
     }
 
     pub(super) fn project_snapshot(
         &self,
         snapshot: &Snapshot,
-    ) -> Result<Self, NativeProjectionError> {
+    ) -> Result<Self, ClientProjectionError> {
         project_native_context_tabs(snapshot, &self.location)
     }
-    pub(super) fn site_id(&self) -> &SiteId {
-        &self.site_id
+    pub(super) fn session_id(&self) -> &SessionId {
+        &self.session_id
     }
 
     pub(super) const fn revision(&self) -> WorkbenchRevision {
@@ -200,7 +200,7 @@ impl NativeContextTabs {
         self.location.terminal_context_id()
     }
 
-    pub(super) fn tabs(&self) -> &[NativeSimpleTab] {
+    pub(super) fn tabs(&self) -> &[ClientTab] {
         &self.tabs
     }
 
@@ -214,14 +214,14 @@ impl NativeContextTabs {
     /// still requires the complete placement and physical binding tuple.
     pub(in crate::workbench_client) fn contains_terminal_presentation(
         &self,
-        site: &SiteId,
+        session: &SessionId,
         context: &WorkbenchTerminalContextId,
         tab: &WorkbenchTabId,
         panel: &WorkbenchPanelId,
         presentation: &TerminalPresentationId,
-        binding: &NativeTerminalBinding,
+        binding: &ClientTerminalBinding,
     ) -> bool {
-        if &self.canonical.site_id != site {
+        if &self.canonical.session_id != session {
             return false;
         }
         let Some(context) = self
@@ -274,7 +274,7 @@ fn canonical_panel<'a>(
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct NativeSimpleTab {
+pub(super) struct ClientTab {
     tab_id: WorkbenchTabId,
     tab_label: WorkbenchLabel,
     automatic_label: bool,
@@ -283,12 +283,12 @@ pub(super) struct NativeSimpleTab {
     panel_id: WorkbenchPanelId,
     presentation_id: TerminalPresentationId,
     presentation_label: WorkbenchLabel,
-    binding: Option<NativeTerminalBinding>,
-    panels: Box<[NativePanel]>,
-    tree: NativePanelTree,
+    binding: Option<ClientTerminalBinding>,
+    panels: Box<[ClientPanel]>,
+    tree: ClientPanelTree,
 }
 
-impl NativeSimpleTab {
+impl ClientTab {
     pub(super) fn group(&self) -> Option<&orchbee_workbench_protocol::TabGroup> {
         self.group.as_ref()
     }
@@ -354,7 +354,7 @@ impl NativeSimpleTab {
     }
 
     #[cfg(test)]
-    pub(super) fn binding(&self) -> Option<&NativeTerminalBinding> {
+    pub(super) fn binding(&self) -> Option<&ClientTerminalBinding> {
         self.binding.as_ref()
     }
 
@@ -362,7 +362,7 @@ impl NativeSimpleTab {
         self.panels.len()
     }
 
-    pub(super) fn panel(&self, index: usize) -> Option<&NativePanel> {
+    pub(super) fn panel(&self, index: usize) -> Option<&ClientPanel> {
         self.panels.get(index)
     }
 
@@ -372,7 +372,7 @@ impl NativeSimpleTab {
             .position(|panel| panel.panel_id() == panel_id)
     }
 
-    pub(super) fn panel_tree(&self) -> &NativePanelTree {
+    pub(super) fn panel_tree(&self) -> &ClientPanelTree {
         &self.tree
     }
 
@@ -396,7 +396,7 @@ impl NativeSimpleTab {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum NativePanelTree {
+pub(crate) enum ClientPanelTree {
     Panel {
         panel_index: usize,
     },
@@ -420,7 +420,7 @@ struct PanelBounds {
     bottom: f64,
 }
 
-impl NativePanelTree {
+impl ClientPanelTree {
     pub(super) fn split_ratio(
         &self,
         id: &WorkbenchSplitId,
@@ -597,12 +597,12 @@ impl NativePanelTree {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct NativeTerminalBinding {
+pub(super) struct ClientTerminalBinding {
     worker_id: WorkerId,
     terminal_id: TerminalId,
 }
 
-impl NativeTerminalBinding {
+impl ClientTerminalBinding {
     pub(super) fn worker_id(&self) -> &WorkerId {
         &self.worker_id
     }
@@ -685,7 +685,7 @@ impl CreatedTabExpectation {
 
 /// A canonical context or its visible Workspace projection failed validation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct NativeProjectionError;
+pub(crate) struct ClientProjectionError;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct MovedTabExpectation {
@@ -712,17 +712,17 @@ impl MovedTabExpectation {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) struct NativeProjectionDivergence;
+pub(super) struct ClientProjectionDivergence;
 
 #[derive(Debug, Eq, PartialEq)]
 pub(super) struct ValidatedCreatedProjection {
-    pub(super) candidate: NativeContextTabs,
+    pub(super) candidate: ClientContextTabs,
     pub(super) created_index: Option<usize>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub(super) struct ValidatedMovedProjection {
-    pub(super) candidate: NativeContextTabs,
+    pub(super) candidate: ClientContextTabs,
     pub(super) moved_index: Option<usize>,
 }
 
@@ -774,14 +774,14 @@ impl MovedPanelExpectation {
 /// Select a real Workspace, or a UI landing with no terminal Context when none remain.
 pub(super) fn preferred_workspace_location(
     snapshot: &Snapshot,
-) -> Result<NativeContextLocation, NativeProjectionError> {
+) -> Result<ClientContextLocation, ClientProjectionError> {
     Ok(snapshot
         .navigation
         .ordered_workspaces()
-        .map_err(|_| NativeProjectionError)?
+        .map_err(|_| ClientProjectionError)?
         .first()
-        .map_or(NativeContextLocation::NoWorkspace, |(_, workspace)| {
-            NativeContextLocation::Workspace {
+        .map_or(ClientContextLocation::NoWorkspace, |(_, workspace)| {
+            ClientContextLocation::Workspace {
                 workspace_id: workspace.workspace_id.clone(),
                 terminal_context_id: workspace.terminal_context_id.clone(),
             }
@@ -790,16 +790,16 @@ pub(super) fn preferred_workspace_location(
 
 pub(super) fn project_preferred_workspace(
     snapshot: &Snapshot,
-) -> Result<NativeContextTabs, NativeProjectionError> {
+) -> Result<ClientContextTabs, ClientProjectionError> {
     project_native_context_tabs(snapshot, &preferred_workspace_location(snapshot)?)
 }
 
 pub(super) fn project_native_context_tabs(
     snapshot: &Snapshot,
-    location: &NativeContextLocation,
-) -> Result<NativeContextTabs, NativeProjectionError> {
+    location: &ClientContextLocation,
+) -> Result<ClientContextTabs, ClientProjectionError> {
     if snapshot.navigation.workspaces.len() > MAXIMUM_TERMINAL_CONTEXTS {
-        return Err(NativeProjectionError);
+        return Err(ClientProjectionError);
     }
     let contexts: HashSet<_> = snapshot
         .terminal_contexts
@@ -814,13 +814,13 @@ pub(super) fn project_native_context_tabs(
             .iter()
             .any(|workspace| !contexts.contains(&workspace.terminal_context_id))
     {
-        return Err(NativeProjectionError);
+        return Err(ClientProjectionError);
     }
     let mut navigation = Vec::new();
     for (project, workspace) in snapshot
         .navigation
         .ordered_workspaces()
-        .map_err(|_| NativeProjectionError)?
+        .map_err(|_| ClientProjectionError)?
     {
         if workspace.primary_directory_id.as_ref().is_some_and(|id| {
             snapshot
@@ -831,13 +831,13 @@ pub(super) fn project_native_context_tabs(
                 .count()
                 != 1
         }) {
-            return Err(NativeProjectionError);
+            return Err(ClientProjectionError);
         }
         if navigation.len() == MAXIMUM_TERMINAL_CONTEXTS {
-            return Err(NativeProjectionError);
+            return Err(ClientProjectionError);
         }
-        navigation.push(NativeContext {
-            location: NativeContextLocation::Workspace {
+        navigation.push(ClientContext {
+            location: ClientContextLocation::Workspace {
                 workspace_id: workspace.workspace_id.clone(),
                 terminal_context_id: workspace.terminal_context_id.clone(),
             },
@@ -845,15 +845,15 @@ pub(super) fn project_native_context_tabs(
             project_label: project
                 .map(|project| WorkbenchLabel::parse(&project.label))
                 .transpose()
-                .map_err(|_| NativeProjectionError)?,
+                .map_err(|_| ClientProjectionError)?,
             workspace_label: Some(
-                WorkbenchLabel::parse(&workspace.label).map_err(|_| NativeProjectionError)?,
+                WorkbenchLabel::parse(&workspace.label).map_err(|_| ClientProjectionError)?,
             ),
         });
     }
     let admitted_location = match location {
-        NativeContextLocation::NoWorkspace => snapshot.navigation.workspaces.is_empty(),
-        NativeContextLocation::Workspace { .. } => {
+        ClientContextLocation::NoWorkspace => snapshot.navigation.workspaces.is_empty(),
+        ClientContextLocation::Workspace { .. } => {
             navigation.iter().any(|entry| &entry.location == location)
         }
     };
@@ -864,7 +864,7 @@ pub(super) fn project_native_context_tabs(
             })
         })
     {
-        return Err(NativeProjectionError);
+        return Err(ClientProjectionError);
     }
     let (canonical_context, tabs) = match location.terminal_context_id() {
         Some(context_id) => {
@@ -873,9 +873,9 @@ pub(super) fn project_native_context_tabs(
                 .iter()
                 .enumerate()
                 .filter(|(_, context)| &context.terminal_context_id == context_id);
-            let (index, context) = contexts.next().ok_or(NativeProjectionError)?;
+            let (index, context) = contexts.next().ok_or(ClientProjectionError)?;
             if contexts.next().is_some() || context.tabs.len() > MAXIMUM_TABS_PER_CONTEXT {
-                return Err(NativeProjectionError);
+                return Err(ClientProjectionError);
             }
             tab_metadata::validate(context)?;
             let tabs = context
@@ -887,18 +887,18 @@ pub(super) fn project_native_context_tabs(
         }
         None => {
             if !snapshot.terminal_contexts.is_empty() {
-                return Err(NativeProjectionError);
+                return Err(ClientProjectionError);
             }
             (None, Vec::new())
         }
     };
     if !unique_structural_ids(&tabs) {
-        return Err(NativeProjectionError);
+        return Err(ClientProjectionError);
     }
-    Ok(NativeContextTabs {
+    Ok(ClientContextTabs {
         canonical: std::sync::Arc::new(snapshot.clone()),
         canonical_context,
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         revision: snapshot.revision,
         tabs,
         location: location.clone(),
@@ -906,7 +906,7 @@ pub(super) fn project_native_context_tabs(
         projects: snapshot
             .navigation
             .ordered_projects()
-            .map_err(|_| NativeProjectionError)?
+            .map_err(|_| ClientProjectionError)?
             .into_iter()
             .cloned()
             .collect::<Vec<_>>()
@@ -915,29 +915,29 @@ pub(super) fn project_native_context_tabs(
 }
 
 pub(super) fn validate_canonical_refresh(
-    current: &NativeContextTabs,
-    candidate: NativeContextTabs,
-) -> Result<NativeContextTabs, NativeProjectionDivergence> {
+    current: &ClientContextTabs,
+    candidate: ClientContextTabs,
+) -> Result<ClientContextTabs, ClientProjectionDivergence> {
     validate_canonical_candidate(current, &candidate)?;
     Ok(candidate)
 }
 
 pub(super) fn validate_moved_tab(
-    baseline: &NativeContextTabs,
+    baseline: &ClientContextTabs,
     expected: &MovedTabExpectation,
-    candidate: NativeContextTabs,
-) -> Result<ValidatedMovedProjection, NativeProjectionDivergence> {
+    candidate: ClientContextTabs,
+) -> Result<ValidatedMovedProjection, ClientProjectionDivergence> {
     validate_canonical_candidate(baseline, &candidate)?;
     tab_metadata::validate_receipt(baseline, &candidate, expected.committed_revision)?;
     if baseline.revision.value().checked_add(1) != Some(expected.committed_revision.value())
         || Some(&expected.terminal_context_id) != baseline.terminal_context_id()
         || candidate.revision < expected.committed_revision
     {
-        return Err(NativeProjectionDivergence);
+        return Err(ClientProjectionDivergence);
     }
     let from = baseline
         .tab_index(&expected.tab_id)
-        .ok_or(NativeProjectionDivergence)?;
+        .ok_or(ClientProjectionDivergence)?;
     let to = match expected.direction {
         WorkbenchTabMoveDirection::Previous => from.saturating_sub(1),
         WorkbenchTabMoveDirection::Next => (from + 1).min(baseline.tabs.len() - 1),
@@ -945,14 +945,14 @@ pub(super) fn validate_moved_tab(
         WorkbenchTabMoveDirection::Last => baseline.tabs.len() - 1,
     };
     if from == to {
-        return Err(NativeProjectionDivergence);
+        return Err(ClientProjectionDivergence);
     }
     if candidate.revision == expected.committed_revision {
         let mut expected_tabs = baseline.tabs.clone();
         let moved = expected_tabs.remove(from);
         expected_tabs.insert(to, moved);
         if candidate.tabs != expected_tabs {
-            return Err(NativeProjectionDivergence);
+            return Err(ClientProjectionDivergence);
         }
     }
     let moved_index = candidate.tab_index(&expected.tab_id);
@@ -963,27 +963,27 @@ pub(super) fn validate_moved_tab(
 }
 
 pub(super) fn validate_split_panel(
-    baseline: &NativeContextTabs,
+    baseline: &ClientContextTabs,
     expected: &SplitPanelExpectation,
-    candidate: NativeContextTabs,
-) -> Result<NativeContextTabs, NativeProjectionDivergence> {
+    candidate: ClientContextTabs,
+) -> Result<ClientContextTabs, ClientProjectionDivergence> {
     validate_canonical_candidate(baseline, &candidate)?;
     tab_metadata::validate_receipt(baseline, &candidate, expected.committed_revision)?;
     if baseline.revision.value().checked_add(1) != Some(expected.committed_revision.value())
         || Some(&expected.terminal_context_id) != baseline.terminal_context_id()
         || candidate.revision < expected.committed_revision
     {
-        return Err(NativeProjectionDivergence);
+        return Err(ClientProjectionDivergence);
     }
     if candidate.revision == expected.committed_revision {
         let index = baseline
             .tab_index(&expected.tab_id)
-            .ok_or(NativeProjectionDivergence)?;
+            .ok_or(ClientProjectionDivergence)?;
         let baseline_tab = &baseline.tabs[index];
         let candidate_tab = candidate
             .tabs
             .get(index)
-            .ok_or(NativeProjectionDivergence)?;
+            .ok_or(ClientProjectionDivergence)?;
         if candidate.tabs.len() != baseline.tabs.len()
             || candidate_tab.tab_id != expected.tab_id
             || candidate_tab.tab_label != baseline_tab.tab_label
@@ -997,34 +997,34 @@ pub(super) fn validate_split_panel(
                 .enumerate()
                 .any(|(position, (candidate, baseline))| position != index && candidate != baseline)
         {
-            return Err(NativeProjectionDivergence);
+            return Err(ClientProjectionDivergence);
         }
     }
     Ok(candidate)
 }
 
 pub(super) fn validate_moved_panel(
-    baseline: &NativeContextTabs,
+    baseline: &ClientContextTabs,
     expected: &MovedPanelExpectation,
-    candidate: NativeContextTabs,
-) -> Result<NativeContextTabs, NativeProjectionDivergence> {
+    candidate: ClientContextTabs,
+) -> Result<ClientContextTabs, ClientProjectionDivergence> {
     validate_canonical_candidate(baseline, &candidate)?;
     tab_metadata::validate_receipt(baseline, &candidate, expected.committed_revision)?;
     if baseline.revision.value().checked_add(1) != Some(expected.committed_revision.value())
         || Some(&expected.terminal_context_id) != baseline.terminal_context_id()
         || candidate.revision < expected.committed_revision
     {
-        return Err(NativeProjectionDivergence);
+        return Err(ClientProjectionDivergence);
     }
     if candidate.revision == expected.committed_revision {
         let index = baseline
             .tab_index(&expected.tab_id)
-            .ok_or(NativeProjectionDivergence)?;
+            .ok_or(ClientProjectionDivergence)?;
         let baseline_tab = &baseline.tabs[index];
         let candidate_tab = candidate
             .tabs
             .get(index)
-            .ok_or(NativeProjectionDivergence)?;
+            .ok_or(ClientProjectionDivergence)?;
         if candidate.tabs.len() != baseline.tabs.len()
             || candidate_tab.tab_id != expected.tab_id
             || candidate_tab.tab_label != baseline_tab.tab_label
@@ -1041,7 +1041,7 @@ pub(super) fn validate_moved_panel(
                 .enumerate()
                 .any(|(position, (candidate, baseline))| position != index && candidate != baseline)
         {
-            return Err(NativeProjectionDivergence);
+            return Err(ClientProjectionDivergence);
         }
     }
     Ok(candidate)
@@ -1051,7 +1051,7 @@ pub(super) fn validate_moved_panel(
 /// projection that inserted or removed leaves can be reduced back to the baseline shape.
 #[derive(Debug, Eq, PartialEq)]
 enum TreeShape<'a> {
-    Leaf(&'a NativePanel),
+    Leaf(&'a ClientPanel),
     Split {
         first: Box<TreeShape<'a>>,
         second: Box<TreeShape<'a>>,
@@ -1062,10 +1062,10 @@ enum TreeShape<'a> {
     },
 }
 
-fn tree_shape<'a>(tree: &'a NativePanelTree, panels: &'a [NativePanel]) -> Option<TreeShape<'a>> {
+fn tree_shape<'a>(tree: &'a ClientPanelTree, panels: &'a [ClientPanel]) -> Option<TreeShape<'a>> {
     match tree {
-        NativePanelTree::Panel { .. } => leaf_panel(tree, panels).map(TreeShape::Leaf),
-        NativePanelTree::Split {
+        ClientPanelTree::Panel { .. } => leaf_panel(tree, panels).map(TreeShape::Leaf),
+        ClientPanelTree::Split {
             first,
             second,
             first_slot_id,
@@ -1085,10 +1085,10 @@ fn tree_shape<'a>(tree: &'a NativePanelTree, panels: &'a [NativePanel]) -> Optio
 }
 
 fn find_split<'a>(
-    tree: &'a NativePanelTree,
+    tree: &'a ClientPanelTree,
     split_id: &WorkbenchSplitId,
-) -> Option<&'a NativePanelTree> {
-    let NativePanelTree::Split {
+) -> Option<&'a ClientPanelTree> {
+    let ClientPanelTree::Split {
         first,
         second,
         split_id: id,
@@ -1103,20 +1103,20 @@ fn find_split<'a>(
     find_split(first, split_id).or_else(|| find_split(second, split_id))
 }
 
-fn split_contains_id(tree: &NativePanelTree, split_id: &WorkbenchSplitId) -> bool {
+fn split_contains_id(tree: &ClientPanelTree, split_id: &WorkbenchSplitId) -> bool {
     find_split(tree, split_id).is_some()
 }
 
-fn leaf_panel<'a>(tree: &'a NativePanelTree, panels: &'a [NativePanel]) -> Option<&'a NativePanel> {
-    let NativePanelTree::Panel { panel_index } = tree else {
+fn leaf_panel<'a>(tree: &'a ClientPanelTree, panels: &'a [ClientPanel]) -> Option<&'a ClientPanel> {
+    let ClientPanelTree::Panel { panel_index } = tree else {
         return None;
     };
     panels.get(*panel_index)
 }
 
 fn leaf_panel_id<'a>(
-    tree: &'a NativePanelTree,
-    panels: &'a [NativePanel],
+    tree: &'a ClientPanelTree,
+    panels: &'a [ClientPanel],
 ) -> Option<&'a WorkbenchPanelId> {
     leaf_panel(tree, panels).map(|panel| &panel.panel_id)
 }
@@ -1124,12 +1124,12 @@ fn leaf_panel_id<'a>(
 /// Replaces the committed Split with one of its children and reduces the tree to a shape; the
 /// substitute must itself belong to the same tree so the graft is the only difference.
 fn ungrafted_shape<'a>(
-    tree: &'a NativePanelTree,
+    tree: &'a ClientPanelTree,
     graft_id: &WorkbenchSplitId,
-    replacement: &'a NativePanelTree,
-    panels: &'a [NativePanel],
+    replacement: &'a ClientPanelTree,
+    panels: &'a [ClientPanel],
 ) -> Option<TreeShape<'a>> {
-    let NativePanelTree::Split {
+    let ClientPanelTree::Split {
         first,
         second,
         first_slot_id,
@@ -1157,19 +1157,19 @@ fn ungrafted_shape<'a>(
 /// Removes the leaf carrying `panel_id` and collapses its parent Split into the surviving
 /// sibling subtree, yielding the reduced shape. Absent leaves leave the shape unchanged.
 fn removed_leaf_shape<'a>(
-    tree: &'a NativePanelTree,
-    panels: &'a [NativePanel],
+    tree: &'a ClientPanelTree,
+    panels: &'a [ClientPanel],
     panel_id: &WorkbenchPanelId,
 ) -> Option<TreeShape<'a>> {
     match tree {
-        NativePanelTree::Panel { .. } => {
+        ClientPanelTree::Panel { .. } => {
             if leaf_panel_id(tree, panels) == Some(panel_id) {
                 None
             } else {
                 tree_shape(tree, panels)
             }
         }
-        NativePanelTree::Split {
+        ClientPanelTree::Split {
             first,
             second,
             first_slot_id,
@@ -1209,11 +1209,11 @@ const fn direction_orientation(direction: WorkbenchPanelSplitDirection) -> Panel
 }
 
 fn split_graft_matches(
-    baseline: &NativeSimpleTab,
-    candidate: &NativeSimpleTab,
+    baseline: &ClientTab,
+    candidate: &ClientTab,
     expected: &SplitPanelExpectation,
 ) -> bool {
-    let Some(NativePanelTree::Split {
+    let Some(ClientPanelTree::Split {
         first,
         second,
         first_slot_id,
@@ -1240,7 +1240,7 @@ fn split_graft_matches(
         }
     };
     let Some(added_panel) = leaf_panel_id(added, &candidate.panels).and_then(|panel_id| {
-        let NativePanelTree::Panel { panel_index } = added else {
+        let ClientPanelTree::Panel { panel_index } = added else {
             return None;
         };
         candidate
@@ -1269,8 +1269,8 @@ fn split_graft_matches(
 }
 
 fn move_graft_matches(
-    baseline: &NativeSimpleTab,
-    candidate: &NativeSimpleTab,
+    baseline: &ClientTab,
+    candidate: &ClientTab,
     expected: &MovedPanelExpectation,
 ) -> bool {
     let orientation = direction_orientation(expected.direction);
@@ -1295,7 +1295,7 @@ fn move_graft_matches(
     let Some((graft, target_child)) = graft else {
         return false;
     };
-    let NativePanelTree::Split {
+    let ClientPanelTree::Split {
         first,
         second,
         split_id,
@@ -1335,15 +1335,15 @@ fn move_graft_matches(
 /// Locates the fresh graft Split whose two children are exactly the moved and target leaves in
 /// the direction-implied order, returning the Split and the child that restores the target leaf.
 fn find_move_graft<'a>(
-    tree: &'a NativePanelTree,
-    panels: &'a [NativePanel],
+    tree: &'a ClientPanelTree,
+    panels: &'a [ClientPanel],
     first_id: &WorkbenchPanelId,
     second_id: &WorkbenchPanelId,
     orientation: PanelOrientation,
     target_id: &WorkbenchPanelId,
-    graft: &mut Option<(&'a NativePanelTree, &'a NativePanelTree)>,
+    graft: &mut Option<(&'a ClientPanelTree, &'a ClientPanelTree)>,
 ) {
-    let NativePanelTree::Split {
+    let ClientPanelTree::Split {
         first,
         second,
         orientation: node_orientation,
@@ -1388,13 +1388,13 @@ fn find_move_graft<'a>(
 fn project_tab(
     tab: &Tab,
     groups: &[orchbee_workbench_protocol::TabGroup],
-) -> Result<NativeSimpleTab, NativeProjectionError> {
+) -> Result<ClientTab, ClientProjectionError> {
     let mut panels = Vec::new();
     let tree = project_panel_tree(&tab.root, &mut panels)?;
-    let primary = panels.first().ok_or(NativeProjectionError)?;
-    Ok(NativeSimpleTab {
+    let primary = panels.first().ok_or(ClientProjectionError)?;
+    Ok(ClientTab {
         tab_id: tab.tab_id.clone(),
-        tab_label: WorkbenchLabel::parse(&tab.label).map_err(|_error| NativeProjectionError)?,
+        tab_label: WorkbenchLabel::parse(&tab.label).map_err(|_error| ClientProjectionError)?,
         automatic_label: tab.automatic_label,
         pinned: tab.pinned,
         group: tab
@@ -1413,8 +1413,8 @@ fn project_tab(
 
 fn project_panel_tree(
     node: &PanelNode,
-    panels: &mut Vec<NativePanel>,
-) -> Result<NativePanelTree, NativeProjectionError> {
+    panels: &mut Vec<ClientPanel>,
+) -> Result<ClientPanelTree, ClientProjectionError> {
     match node {
         PanelNode::Panel {
             right_click,
@@ -1425,20 +1425,20 @@ fn project_panel_tree(
             if child_presentations.len()
                 > orchbee_workbench_protocol::MAXIMUM_CHILD_PRESENTATIONS_PER_PANEL
             {
-                return Err(NativeProjectionError);
+                return Err(ClientProjectionError);
             }
             let panel_index = panels.len();
-            panels.push(NativePanel {
+            panels.push(ClientPanel {
                 right_click: *right_click,
                 panel_id: panel_id.clone(),
-                primary: NativePresentation::project(primary_presentation)?,
+                primary: ClientPresentation::project(primary_presentation)?,
                 children: child_presentations
                     .iter()
-                    .map(NativePresentation::project)
+                    .map(ClientPresentation::project)
                     .collect::<Result<Vec<_>, _>>()?
                     .into_boxed_slice(),
             });
-            Ok(NativePanelTree::Panel { panel_index })
+            Ok(ClientPanelTree::Panel { panel_index })
         }
         PanelNode::Split {
             children,
@@ -1449,7 +1449,7 @@ fn project_panel_tree(
             let [first, second] = children.as_ref();
             let first_tree = project_panel_tree(&first.node, panels)?;
             let second_tree = project_panel_tree(&second.node, panels)?;
-            Ok(NativePanelTree::Split {
+            Ok(ClientPanelTree::Split {
                 first: Box::new(first_tree),
                 second: Box::new(second_tree),
                 first_slot_id: first.slot_id.clone(),
@@ -1463,11 +1463,11 @@ fn project_panel_tree(
 }
 
 pub(super) fn validate_canonical_candidate(
-    current: &NativeContextTabs,
-    candidate: &NativeContextTabs,
-) -> Result<(), NativeProjectionDivergence> {
+    current: &ClientContextTabs,
+    candidate: &ClientContextTabs,
+) -> Result<(), ClientProjectionDivergence> {
     validate_retained_context(
-        &current.site_id,
+        &current.session_id,
         &current.location,
         current.revision,
         &current.tabs,
@@ -1477,30 +1477,30 @@ pub(super) fn validate_canonical_candidate(
     if candidate.revision == current.revision
         && (candidate.navigation != current.navigation || candidate.projects != current.projects)
     {
-        return Err(NativeProjectionDivergence);
+        return Err(ClientProjectionDivergence);
     }
     Ok(())
 }
 
 /// Historical membership retains no navigation labels; the active snapshot validates navigation.
 pub(super) fn validate_retained_context(
-    site_id: &SiteId,
-    location: &NativeContextLocation,
+    session_id: &SessionId,
+    location: &ClientContextLocation,
     revision: WorkbenchRevision,
-    tabs: &[NativeSimpleTab],
+    tabs: &[ClientTab],
     groups: &[orchbee_workbench_protocol::TabGroup],
-    candidate: &NativeContextTabs,
-) -> Result<(), NativeProjectionDivergence> {
-    if &candidate.site_id != site_id
+    candidate: &ClientContextTabs,
+) -> Result<(), ClientProjectionDivergence> {
+    if &candidate.session_id != session_id
         || &candidate.location != location
         || candidate.revision < revision
     {
-        return Err(NativeProjectionDivergence);
+        return Err(ClientProjectionDivergence);
     }
     if candidate.revision == revision {
         return (candidate.tabs.as_slice() == tabs && candidate.groups() == groups)
             .then_some(())
-            .ok_or(NativeProjectionDivergence);
+            .ok_or(ClientProjectionDivergence);
     }
     if candidate.tabs.len() > MAXIMUM_TABS_PER_CONTEXT
         || !unique_structural_ids(&candidate.tabs)
@@ -1508,16 +1508,16 @@ pub(super) fn validate_retained_context(
         || !retained_member_tuples(
             tabs,
             &candidate.tabs,
-            matches!(location, NativeContextLocation::Workspace { .. }),
+            matches!(location, ClientContextLocation::Workspace { .. }),
         )
         || !retained_structure_tuples(tabs, &candidate.tabs)
     {
-        return Err(NativeProjectionDivergence);
+        return Err(ClientProjectionDivergence);
     }
     Ok(())
 }
 
-fn unique_structural_ids(tabs: &[NativeSimpleTab]) -> bool {
+fn unique_structural_ids(tabs: &[ClientTab]) -> bool {
     let mut tab_ids = std::collections::HashSet::new();
     let mut panels = std::collections::HashSet::new();
     let mut presentations = std::collections::HashSet::new();
@@ -1549,7 +1549,7 @@ fn unique_structural_ids(tabs: &[NativeSimpleTab]) -> bool {
     })
 }
 
-fn retained_tab_labels(before: &[NativeSimpleTab], after: &[NativeSimpleTab]) -> bool {
+fn retained_tab_labels(before: &[ClientTab], after: &[ClientTab]) -> bool {
     after.iter().all(|next| {
         !next.automatic_label
             || before
@@ -1571,10 +1571,10 @@ type MemberTuple<'a> = (
     &'a WorkbenchPanelId,
     &'a TerminalPresentationId,
     &'a WorkbenchLabel,
-    &'a Option<NativeTerminalBinding>,
+    &'a Option<ClientTerminalBinding>,
 );
 
-fn member_tuples(tab: &NativeSimpleTab) -> impl Iterator<Item = MemberTuple<'_>> {
+fn member_tuples(tab: &ClientTab) -> impl Iterator<Item = MemberTuple<'_>> {
     std::iter::once((
         &tab.tab_id,
         &tab.panel_id,
@@ -1606,8 +1606,8 @@ fn member_tuples(tab: &NativeSimpleTab) -> impl Iterator<Item = MemberTuple<'_>>
 /// history that relocates all of a Tab's members elsewhere (for example a two-Tab full member
 /// exchange, which legal command steps can produce) is still rejected as divergence.
 fn retained_member_tuples(
-    current: &[NativeSimpleTab],
-    candidate: &[NativeSimpleTab],
+    current: &[ClientTab],
+    candidate: &[ClientTab],
     allow_replacement: bool,
 ) -> bool {
     let current_presentations: std::collections::HashSet<_> = current
@@ -1712,12 +1712,12 @@ type SplitTuple<'a> = (
 );
 
 fn collect_structure_tuples<'a>(
-    node: &'a NativePanelTree,
+    node: &'a ClientPanelTree,
     tab_id: &'a WorkbenchTabId,
     splits: &mut HashMap<&'a WorkbenchSplitId, SplitTuple<'a>>,
     slots: &mut HashMap<&'a WorkbenchPanelSlotId, &'a WorkbenchSplitId>,
 ) {
-    let NativePanelTree::Split {
+    let ClientPanelTree::Split {
         first,
         second,
         first_slot_id,
@@ -1740,12 +1740,12 @@ fn collect_structure_tuples<'a>(
 }
 
 fn structure_tuples_retained(
-    node: &NativePanelTree,
+    node: &ClientPanelTree,
     tab_id: &WorkbenchTabId,
     splits: &HashMap<&WorkbenchSplitId, SplitTuple<'_>>,
     slots: &HashMap<&WorkbenchPanelSlotId, &WorkbenchSplitId>,
 ) -> bool {
-    let NativePanelTree::Split {
+    let ClientPanelTree::Split {
         first,
         second,
         first_slot_id,
@@ -1773,7 +1773,7 @@ fn structure_tuples_retained(
 /// A Split identity that survives keeps its owning Tab, both Slot identities and orientation; a
 /// Slot identity that survives keeps its parent Split. Removed or entirely fresh structural
 /// identities need no comparison.
-fn retained_structure_tuples(current: &[NativeSimpleTab], candidate: &[NativeSimpleTab]) -> bool {
+fn retained_structure_tuples(current: &[ClientTab], candidate: &[ClientTab]) -> bool {
     let mut splits = HashMap::new();
     let mut slots = HashMap::new();
     for tab in candidate {

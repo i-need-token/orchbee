@@ -9,14 +9,14 @@ use orchbee_workbench_protocol::{
     ApplicationAppearance, PreferencesLocale, TerminalDisplayAppearance, UserPreferencesValues,
 };
 
-impl SettingsFrameSource for NativeUi {
+impl SettingsFrameSource for WorkbenchClientUi {
     fn settings_view(&self) -> WorkbenchClientView<'_> {
         self.view()
     }
 }
 
 fn paint(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     shell: &mut ClientView,
     size: (u16, u16),
     locale: Locale,

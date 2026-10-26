@@ -1,5 +1,5 @@
 use super::*;
-use orchbee_local_site_runtime::PluginRegistryMutation;
+use orchbee_local_runtime::PluginRegistryMutation;
 use std::{
     fs,
     path::PathBuf,
@@ -185,7 +185,7 @@ fn plugin_server_dispatch_pins_worker_and_preserves_transport_uncertainty() {
         worker_registry::{WorkerAdmission, WorkerRegistry},
     };
     use orchbee_local_ipc::LocalStream;
-    use orchbee_workbench_protocol::{SiteId, WorkbenchRequestId};
+    use orchbee_workbench_protocol::{SessionId, WorkbenchRequestId};
     for lost in [false, true] {
         let workers = Arc::new(Mutex::new(WorkerRegistry::new()));
         let local = orchbee_local_worker_protocol::WorkerId::from_bytes([7; 16]);
@@ -203,8 +203,8 @@ fn plugin_server_dispatch_pins_worker_and_preserves_transport_uncertainty() {
         peer.set_write_timeout(Some(Duration::from_secs(5)))
             .unwrap();
         let wire = thread::spawn(move || owner.run(server));
-        let site = SiteId::parse(&"2".repeat(32)).unwrap();
-        let service = LocalTerminalService::from_identity(workers, Ok(site.clone()));
+        let session = SessionId::parse(&"2".repeat(32)).unwrap();
+        let service = LocalTerminalService::from_identity(workers, Ok(session.clone()));
         let driver = thread::spawn(move || {
             let node::CapabilityNodeMessage::PluginJobRequest(request) =
                 node::read_message(&mut peer).unwrap()
@@ -234,7 +234,7 @@ fn plugin_server_dispatch_pins_worker_and_preserves_transport_uncertainty() {
         let request = PluginRequest {
             protocol_version: ProtocolVersion,
             request_id: WorkbenchRequestId::parse(&"1".repeat(32)).unwrap(),
-            site_id: site,
+            session_id: session,
             action: PluginAction::Cancel {
                 worker: PluginWorker {
                     worker_id: WorkerId::parse(&hex(local.as_bytes())).unwrap(),

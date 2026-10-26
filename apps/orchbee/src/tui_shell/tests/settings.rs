@@ -1,6 +1,6 @@
 //! Exercises Settings through the real whole-frame drawing boundary.
 use super::*;
-use crate::workbench_client::{NativeDrawReceipt, WorkbenchClientView};
+use crate::workbench_client::{DrawReceipt, WorkbenchClientView};
 
 pub(crate) trait SettingsFrameSource {
     fn settings_view(&self) -> WorkbenchClientView<'_>;
@@ -11,10 +11,10 @@ pub(crate) fn settings_frame(
     view: &mut ClientView,
     locale: Locale,
     session: &impl SettingsFrameSource,
-) -> (ratatui::buffer::Buffer, NativeDrawReceipt) {
+) -> (ratatui::buffer::Buffer, DrawReceipt) {
     struct Surface<'a, S> {
         session: &'a S,
-        receipt: NativeDrawReceipt,
+        receipt: DrawReceipt,
     }
     impl<S> TerminalInputPort for Surface<'_, S> {
         fn forward(&mut self, _bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
@@ -25,14 +25,14 @@ pub(crate) fn settings_frame(
         fn view(&self) -> Option<WorkbenchClientView<'_>> {
             Some(self.session.settings_view())
         }
-        fn after_close_draw(&mut self, receipt: NativeDrawReceipt) {
+        fn after_close_draw(&mut self, receipt: DrawReceipt) {
             self.receipt = receipt;
         }
     }
     let mut terminal = test_terminal(dimensions(size.0, size.1));
     let mut surface = Surface {
         session,
-        receipt: NativeDrawReceipt::default(),
+        receipt: DrawReceipt::default(),
     };
     super::super::draw_surface(
         &mut terminal,

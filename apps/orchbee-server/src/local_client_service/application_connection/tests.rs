@@ -359,12 +359,13 @@ fn rejects_malformed_paste_records_without_reaching_the_executor()
 #[test]
 fn routes_send_records_through_the_control_executor() -> Result<(), Box<dyn std::error::Error>> {
     use orchbee_client_server_protocol::{
-        SendRecord, SendRecords, SendText, SendTextInput, SiteId, TerminalId, TerminalSendRequest,
+        SendRecord, SendRecords, SendText, SendTextInput, SessionId, TerminalId,
+        TerminalSendRequest,
     };
 
     let request = ClientMessage::TerminalSend(TerminalSendRequest::new(
         RequestId::parse(FIRST_REQUEST_ID)?,
-        SiteId::parse("33333333333333333333333333333333")?,
+        SessionId::parse("33333333333333333333333333333333")?,
         WorkerId::parse(WORKER_ID)?,
         TerminalId::parse("55555555555555555555555555555555")?,
         SendRecords::new(vec![SendRecord::Text(SendTextInput::new(
@@ -402,12 +403,13 @@ fn routes_send_records_through_the_control_executor() -> Result<(), Box<dyn std:
 fn rejects_malformed_send_records_without_reaching_the_executor()
 -> Result<(), Box<dyn std::error::Error>> {
     use orchbee_client_server_protocol::{
-        SendRecord, SendRecords, SendText, SendTextInput, SiteId, TerminalId, TerminalSendRequest,
+        SendRecord, SendRecords, SendText, SendTextInput, SessionId, TerminalId,
+        TerminalSendRequest,
     };
 
     let request = ClientMessage::TerminalSend(TerminalSendRequest::new(
         RequestId::parse(FIRST_REQUEST_ID)?,
-        SiteId::parse("33333333333333333333333333333333")?,
+        SessionId::parse("33333333333333333333333333333333")?,
         WorkerId::parse(WORKER_ID)?,
         TerminalId::parse("55555555555555555555555555555555")?,
         SendRecords::new(vec![SendRecord::Text(SendTextInput::new(

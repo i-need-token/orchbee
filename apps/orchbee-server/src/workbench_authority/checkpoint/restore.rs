@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, fmt};
 
 use orchbee_workbench_protocol::{
-    ContractError, PanelNode, Presentation, PresentationBinding, SiteId, Snapshot,
+    ContractError, PanelNode, Presentation, PresentationBinding, SessionId, Snapshot,
     TerminalPresentationId, WorkbenchDirectoryPath, WorkbenchPanelId, WorkbenchProtocolDocument,
     WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId, WorkerId, serialize_document,
 };
@@ -49,7 +49,7 @@ impl std::error::Error for WorkbenchRestoreError {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WorkbenchRestoreTarget {
-    site_id: SiteId,
+    session_id: SessionId,
     local_worker: WorkerId,
     terminal_context_id: WorkbenchTerminalContextId,
     tab_id: WorkbenchTabId,
@@ -118,7 +118,7 @@ impl WorkbenchAuthority {
                     &mut |panel_id, presentation| {
                         if presentation.binding.is_none() {
                             targets.push(WorkbenchRestoreTarget {
-                                site_id: snapshot.site_id.clone(),
+                                session_id: snapshot.session_id.clone(),
                                 local_worker: local_worker.clone(),
                                 terminal_context_id: context.terminal_context_id.clone(),
                                 tab_id: tab.tab_id.clone(),
@@ -148,7 +148,7 @@ impl WorkbenchAuthority {
         if self.retired {
             return Err(WorkbenchRestoreError::Unavailable);
         }
-        if self.site_id() != &target.site_id {
+        if self.session_id() != &target.session_id {
             return Err(WorkbenchRestoreError::TargetChanged);
         }
         if binding.worker_id != target.local_worker {
@@ -195,7 +195,7 @@ impl WorkbenchAuthority {
         let advance = self.projection.prepare_advance(&encoded).map_err(|error| {
             WorkbenchRestoreError::InvalidProjection(match error {
                 ProjectionAdvanceError::Contract(error) => error,
-                ProjectionAdvanceError::SiteMismatch
+                ProjectionAdvanceError::SessionMismatch
                 | ProjectionAdvanceError::NonIncreasingRevision
                 | ProjectionAdvanceError::PublicationInvariant => ContractError::InvalidDocument,
             })

@@ -1,5 +1,5 @@
 //! A private, one-exchange adapter. The parent closes stdin, enforces its deadline and reaps us.
-use orchbee_local_site_runtime::{UserPreferencesScope, UserPreferencesStore};
+use orchbee_local_runtime::{UserPreferencesScope, UserPreferencesStore};
 use orchbee_workbench_protocol::{
     MAXIMUM_USER_PREFERENCES_BYTES, PreferencesFailure, UserPreferencesResponse,
     parse_user_preferences_request,
@@ -67,9 +67,9 @@ fn serve_system_shell() -> ExitCode {
     {
         return ExitCode::from(1);
     }
-    let executable = orchbee_local_site_runtime::resolve_default_interactive_launch(
+    let executable = orchbee_local_runtime::resolve_default_interactive_launch(
         #[cfg(windows)]
-        &orchbee_local_site_runtime::WindowsShellSettings::default(),
+        &orchbee_local_runtime::ShellSettings::default(),
     )
     .ok()
     .map(|launch| launch.executable);

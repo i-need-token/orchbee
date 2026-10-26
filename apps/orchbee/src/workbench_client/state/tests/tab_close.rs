@@ -23,7 +23,7 @@ fn selection(index: usize) -> CloseSelection {
     let tab = &cache.tabs()[index];
     CloseSelection::new(
         CloseTarget::new(
-            cache.site_id().clone(),
+            cache.session_id().clone(),
             cache.terminal_context_id().unwrap().clone(),
             tab.tab_id().clone(),
         ),
@@ -556,7 +556,7 @@ fn retained_record_capacity_rejects_257_before_opening_or_replacing_an_intent() 
         let tab = &cache.tabs()[0];
         CloseSelection::new(
             CloseTarget::new(
-                cache.site_id().clone(),
+                cache.session_id().clone(),
                 cache.terminal_context_id().unwrap().clone(),
                 super::tab_id(20_000 + index as u128),
             ),

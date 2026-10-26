@@ -13,7 +13,7 @@ use orchbee_terminal_protocol::{
 };
 use std::{io, num::NonZeroU64};
 
-fn record(ui: &NativeUi, clipboard: bool) -> Vec<u8> {
+fn record(ui: &WorkbenchClientUi, clipboard: bool) -> Vec<u8> {
     let projection = &ui.projections[0].value;
     let attachment_id = *projection.attachment();
     let event = if clipboard {

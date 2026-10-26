@@ -4,7 +4,7 @@ use super::{
     ScrollbackEditorSpec, TerminalProjection, TerminalViewerAction, TerminalViewerOutcome,
     WorkbenchRequestId, WorkbenchTerminalGeometry, thread,
 };
-use orchbee_client_server_protocol::{SiteId as ViewerSiteId, TerminalId, WorkerId};
+use orchbee_client_server_protocol::{SessionId as ObcsSessionId, TerminalId, WorkerId};
 use orchbee_workbench_protocol::{EditorPopupCapture, TerminalEditorAction, WorkbenchRevision};
 
 impl PopupRunner {
@@ -22,7 +22,8 @@ impl PopupRunner {
         } = self.viewer(
             client,
             TerminalViewerAction::AttachBinding {
-                site_id: ViewerSiteId::parse(self.site.as_str()).map_err(|_| Reason::StaleView)?,
+                session_id: ObcsSessionId::parse(self.session.as_str())
+                    .map_err(|_| Reason::StaleView)?,
                 worker_id: WorkerId::parse(binding.worker_id.as_str())
                     .map_err(|_| Reason::StaleView)?,
                 terminal_id: TerminalId::parse(binding.terminal_id.as_str())

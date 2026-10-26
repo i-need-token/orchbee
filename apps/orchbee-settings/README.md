@@ -10,7 +10,7 @@ exit 1 accompanies a refusal, an unknown outcome or a failed output. Missing/mal
 never permission to replay a write.
 
 The [shared preference contract](../../schemas/workbench/README.md) owns values and wire semantics.
-[`orchbee-local-site-runtime`](../../crates/local-site-runtime/README.md) owns configuration-scoped
+[`orchbee-local-runtime`](../../crates/local-runtime/README.md) owns configuration-scoped
 storage and native initial-source admission. Native Session calls that same owner directly.
 
 The separate `--system-shell-v1` mode accepts exactly a closed empty JSON object and returns

@@ -1,7 +1,7 @@
 use super::*;
 
 // Reducer-only fixtures use the actual candidate/cleanup/install plans. Carrier and atomic
-// mailbox receipt consumption are covered by the native executor and NativeUi membership tests.
+// mailbox receipt consumption are covered by the native executor and WorkbenchClientUi membership tests.
 impl WorkbenchClientState {
     pub(super) fn settle_create_snapshot(
         &mut self,

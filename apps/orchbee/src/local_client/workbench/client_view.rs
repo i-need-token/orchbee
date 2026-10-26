@@ -79,7 +79,7 @@ fn correlated(
     generation: std::num::NonZeroU64,
 ) -> bool {
     if result.request_id != request.request_id
-        || result.site_id != request.site_id
+        || result.session_id != request.session_id
         || result.protocol_version != request.protocol_version
     {
         return false;

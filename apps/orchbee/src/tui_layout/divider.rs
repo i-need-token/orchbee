@@ -4,14 +4,14 @@ use orchbee_workbench_protocol::{
     ClientSplitRatio, PanelOrientation, WorkbenchPanelSlotId, WorkbenchSplitId,
 };
 use orchbee_workbench_protocol::{
-    SiteId, WorkbenchPanelId, WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId,
+    SessionId, WorkbenchPanelId, WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId,
 };
 use ratatui::layout::Rect;
 
 /// Selected canonical identity; drawing it grants no terminal input authority.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct DividerSource {
-    pub(crate) site: SiteId,
+    pub(crate) session: SessionId,
     pub(crate) context: WorkbenchTerminalContextId,
     pub(crate) tab: WorkbenchTabId,
     pub(crate) focus: WorkbenchPanelId,

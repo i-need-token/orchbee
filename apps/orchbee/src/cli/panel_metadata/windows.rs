@@ -63,7 +63,7 @@ fn submit(
     let request = PanelMetadataRequest {
         protocol_version: snapshot.protocol_version,
         request_id: query::request_id()?,
-        site_id: snapshot.site_id,
+        session_id: snapshot.session_id,
         action: command.action(panel_id.clone(), binding),
     };
     signals.check_before(deadline)?;
@@ -84,7 +84,7 @@ fn submit(
     };
     Ok(Answer {
         request_id: request.request_id,
-        site_id: request.site_id,
+        session_id: request.session_id,
         panel_id: panel_id.clone(),
         presentation_id: command.presentation_id.clone(),
         observation,

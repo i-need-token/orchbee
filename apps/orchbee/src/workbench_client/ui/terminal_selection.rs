@@ -1,5 +1,5 @@
 //! Selection admission and record intake for the installed pane incarnation.
-use super::{NativeProjectionStatus, NativeUi, NativeViewportSurface};
+use super::{ClientProjectionStatus, ViewportSurface, WorkbenchClientUi};
 use crate::terminal_input::{PointerSelectionAdmission, PointerSelectionIntent};
 use crate::workbench_client::terminal_selection::{
     self as selection, Command, Driver, Event, Failure, Reply,
@@ -11,7 +11,7 @@ use crate::workbench_client::{
 use orchbee_client_server_protocol::TerminalViewerOutcome;
 use std::sync::Arc;
 
-impl NativeUi {
+impl WorkbenchClientUi {
     /// Per-projection ordering gate shared by copy entry/exit and every
     /// ordinary viewport admission path.
     pub(super) fn viewport_admission_blocked(&self, key: &PaneRef) -> bool {
@@ -48,7 +48,7 @@ impl NativeUi {
                     || state.focus_pane_ref().as_ref() != Some(key)
                     || state.close_suppresses_attachment(key.pane().anchor())
             })
-            || self.projections[index].status != NativeProjectionStatus::FrameAvailable
+            || self.projections[index].status != ClientProjectionStatus::FrameAvailable
         {
             return false;
         }
@@ -154,7 +154,7 @@ impl NativeUi {
                     || state.focus_pane_ref().as_ref() != Some(key)
                     || state.close_suppresses_attachment(key.pane().anchor())
             })
-            || self.projections[index].status != NativeProjectionStatus::FrameAvailable
+            || self.projections[index].status != ClientProjectionStatus::FrameAvailable
         {
             return PointerSelectionAdmission::Rejected;
         }
@@ -179,7 +179,7 @@ impl NativeUi {
         if self
             .view()
             .pane_viewport(key.pane().panel())
-            .is_some_and(|surface| !matches!(surface, NativeViewportSurface::Window { .. }))
+            .is_some_and(|surface| !matches!(surface, ViewportSurface::Window { .. }))
         {
             return PointerSelectionAdmission::Rejected;
         }

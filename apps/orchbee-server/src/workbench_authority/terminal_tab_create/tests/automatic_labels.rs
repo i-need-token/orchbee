@@ -42,7 +42,7 @@ fn automatic_creation_fingerprints_mode_and_equal_text_rename_survives_settlemen
     let rename = WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&identity(2)).unwrap(),
-        site_id: authority.site_id().clone(),
+        session_id: authority.session_id().clone(),
         expected_revision: WorkbenchRevision::new(1),
         action: WorkbenchAction::TabRename {
             terminal_context_id: metadata.terminal_context_id().clone(),

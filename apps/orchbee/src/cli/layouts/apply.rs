@@ -109,7 +109,7 @@ fn execute(
     let selected = if needs_client {
         let reply = control::exchange(
             &mut client,
-            &snapshot.site_id,
+            &snapshot.session_id,
             ClientViewAction::List {},
             work_deadline,
             signals,
@@ -139,7 +139,7 @@ fn execute(
     };
     let destination = targeting::resolve(command, &snapshot, selected.as_ref())?;
     receipt.source = Some(
-        json!({"kind":"layout-application","sessionId":snapshot.site_id,"baseRevision":snapshot.revision,"clientId":selected.as_ref().map(|client| &client.client_id)}),
+        json!({"kind":"layout-application","sessionId":snapshot.session_id,"baseRevision":snapshot.revision,"clientId":selected.as_ref().map(|client| &client.client_id)}),
     );
     receipt.old_tab = destination.old.as_ref().map(|tab| tab.tab_id.clone());
     let mut engine = engine::Engine::new(

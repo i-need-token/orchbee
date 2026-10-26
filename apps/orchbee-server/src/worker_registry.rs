@@ -167,7 +167,7 @@ impl WorkerRegistry {
     /// `agent_drain_carrier` can never expose a Live carrier whose leaf was
     /// refused — and the leaf retires inside the registration guard before
     /// the slot frees. The service is held weakly; lifecycle authority stays
-    /// at the site composition root for later wiring.
+    /// at the session composition root for later wiring.
     pub(crate) fn register_carrier_with_agents(
         registry: &Arc<Mutex<Self>>,
         generation: NonZeroU64,

@@ -124,7 +124,7 @@ fn notification_effect_reaches_owner_once_and_failure_keeps_input_and_exit_worki
             self.notice |=
                 view.notice() == Some(crate::client_view::Notice::NotificationUnavailable);
             if std::mem::take(&mut self.pending) {
-                let policy = orchbee_local_site_runtime::WindowsNotificationSettings::from_profile(
+                let policy = orchbee_local_runtime::NotificationSettings::from_profile(
                     "[ui.toast]\ndelivery='terminal'",
                 )
                 .unwrap();

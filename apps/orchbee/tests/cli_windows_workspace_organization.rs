@@ -108,7 +108,7 @@ fn organization_actions_preserve_exact_scope_and_never_submit_terminal_or_filesy
             else {
                 panic!("one metadata command")
             };
-            assert_eq!(command.site_id.as_str(), id(1));
+            assert_eq!(command.session_id.as_str(), id(1));
             assert_eq!(command.expected_revision.value(), 7);
             assert_eq!(json!(command.action), expected);
             write_workbench_response(

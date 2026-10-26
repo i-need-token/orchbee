@@ -123,15 +123,15 @@ pub(crate) enum HitTarget {
         action: HelpControl,
     },
     TabClose {
-        token: crate::workbench_client::NativeCloseConfirmationToken,
+        token: crate::workbench_client::CloseConfirmationToken,
         confirm: bool,
     },
     PanelClose {
-        token: crate::workbench_client::NativePanelCloseConfirmationToken,
+        token: crate::workbench_client::PanelCloseConfirmationToken,
         confirm: bool,
     },
     Rename {
-        token: crate::workbench_client::NativeRenameDraftToken,
+        token: crate::workbench_client::RenameDraftToken,
         submit: bool,
     },
     WorkspaceClose {
@@ -140,7 +140,7 @@ pub(crate) enum HitTarget {
     },
     /// A control actually painted by the Workspace setup owner.
     Setup {
-        token: crate::workbench_client::NativeSetupToken,
+        token: crate::workbench_client::SetupToken,
         control: ModalControl,
     },
     Worktree {
@@ -285,7 +285,7 @@ impl HitTarget {
             | Self::SidebarClose(target)
             | Self::CreateMenu(Some(target)) => Some(target.clone()),
             Self::MachineWorkspaceRow { selected, .. } => match &selected.context {
-                Some(crate::workbench_client::NativeStartupTarget::Context(target)) => {
+                Some(crate::workbench_client::ClientStartupTarget::Context(target)) => {
                     Some(SidebarTarget::Context {
                         machine: selected.machine.clone(),
                         target: target.clone(),
@@ -1679,13 +1679,13 @@ impl PointerState {
         let exact = match target {
             SidebarTarget::Project {
                 machine,
-                site_id,
+                session_id,
                 project_id,
-            } if machine == &view.machines.current && site_id == &source.site => {
+            } if machine == &view.machines.current && session_id == &source.session => {
                 MenuTarget::Project(project_id.clone())
             }
             SidebarTarget::Context { machine, target }
-                if machine == &view.machines.current && target.site_id == source.site =>
+                if machine == &view.machines.current && target.session_id == source.session =>
             {
                 MenuTarget::Workspace(target.location.clone())
             }
@@ -2509,7 +2509,7 @@ impl PointerState {
             let menu_owns_interaction = matches!(
                 _capture,
                 Some(crate::tui_composition::CaptureOwner::Native(
-                    crate::tui_composition::NativeCaptureOwner::ActionMenu
+                    crate::tui_composition::CaptureOwner::ActionMenu
                 ))
             );
 

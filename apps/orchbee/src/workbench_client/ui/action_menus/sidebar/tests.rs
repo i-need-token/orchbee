@@ -5,7 +5,7 @@ use crate::client_view::{KeyCode, KeyEvent, Modifiers};
 use crate::workbench_client::{ModalPresentation, ui::tests::context_selection};
 use orchbee_workbench_protocol::WorkbenchDirectoryPath;
 
-fn draw(ui: &mut NativeUi) -> MenuToken {
+fn draw(ui: &mut WorkbenchClientUi) -> MenuToken {
     let view = ui.view();
     let menu = view.action_menu().unwrap();
     let draw = MenuDraw {
@@ -20,7 +20,7 @@ fn draw(ui: &mut NativeUi) -> MenuToken {
     token
 }
 
-fn ready_discovery(ui: &NativeUi) -> SidebarDiscovery {
+fn ready_discovery(ui: &WorkbenchClientUi) -> SidebarDiscovery {
     let addressed = ui.menus.sidebar.as_ref().unwrap().source.clone();
     let mut discovery = crate::workbench_client::state::worktree_launch::tests::discovery();
     discovery.worker = addressed.primary.as_ref().unwrap().worker_id().clone();
@@ -38,7 +38,7 @@ fn ready_discovery(ui: &NativeUi) -> SidebarDiscovery {
     result
 }
 
-fn project_target(ui: &NativeUi) -> MenuTarget {
+fn project_target(ui: &WorkbenchClientUi) -> MenuTarget {
     MenuTarget::Project(
         ui.state
             .as_ref()

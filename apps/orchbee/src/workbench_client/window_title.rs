@@ -1,7 +1,7 @@
 //! Owns one independently cancellable listener connection and its latest handoff.
 use crate::local_client::{LocalClientOrigin, LocalOperationClock};
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
-use orchbee_workbench_protocol::{ProtocolVersion, SiteId, WorkbenchRequestId};
+use orchbee_workbench_protocol::{ProtocolVersion, SessionId, WorkbenchRequestId};
 use orchbee_workbench_protocol::{
     WindowTitleAction, WindowTitleContext, WindowTitleOutcome, WindowTitleRequest,
     WindowTitleSnapshot,
@@ -37,14 +37,14 @@ impl Subscription {
     pub(super) fn spawn(
         origin: LocalClientOrigin,
         clock: LocalOperationClock,
-        site: SiteId,
+        session: SessionId,
     ) -> std::io::Result<Self> {
         let shared = Arc::new((Mutex::new(Handoff::default()), Condvar::new()));
         let (reader, wake) = LocalStream::pair()?;
         let state = Arc::clone(&shared);
         let task = thread::Builder::new()
             .name("orchbee-window-title".into())
-            .spawn(move || run(state, origin, clock, site, reader))?;
+            .spawn(move || run(state, origin, clock, session, reader))?;
         Ok(Self {
             shared,
             wake,
@@ -89,7 +89,7 @@ fn run(
     shared: Shared,
     origin: LocalClientOrigin,
     clock: LocalOperationClock,
-    site: SiteId,
+    session: SessionId,
     wake: LocalStream,
 ) {
     let mut client = None;
@@ -123,7 +123,7 @@ fn run(
                     protocol_version: ProtocolVersion,
                     request_id: WorkbenchRequestId::parse(&format!("{serial:032x}"))
                         .expect("nonzero serial"),
-                    site_id: site.clone(),
+                    session_id: session.clone(),
                     action: WindowTitleAction::Listen { focused, context },
                 },
                 clock.now() + Duration::from_secs(2),

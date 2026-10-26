@@ -7,16 +7,17 @@ use orchbee_workbench_protocol::{
 };
 
 fn apply(authority: &mut WorkbenchAuthority, action: Action) -> Outcome {
-    let grant = WorkbenchGrant::manage_navigation_and_terminal_create(authority.site_id().clone())
-        .with_terminal_lifecycle()
-        .with_directory_association();
+    let grant =
+        WorkbenchGrant::manage_navigation_and_terminal_create(authority.session_id().clone())
+            .with_terminal_lifecycle()
+            .with_directory_association();
     authority
         .execute_worktree_request(
             Some(&grant),
             WorkbenchWorktreeRequest {
                 protocol_version: ProtocolVersion,
                 request_id: request_id(50001),
-                site_id: authority.site_id().clone(),
+                session_id: authority.session_id().clone(),
                 action,
             },
             Some((binding(700).worker_id, NonZeroU64::MIN)),
@@ -361,7 +362,7 @@ fn recovery_rebind_preserves_slots_and_cancels_only_the_owned_quiescent_close() 
         let resume = orchbee_workbench_protocol::WorkbenchWorkspaceCloseResume {
             protocol_version: ProtocolVersion,
             request_id: request_id(11002),
-            site_id: authority.site_id().clone(),
+            session_id: authority.session_id().clone(),
             workspace_id: workspace.workspace_id.clone(),
             close_request_id: close.request_id.clone(),
             expected_attempt_generation: authority

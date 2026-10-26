@@ -1,4 +1,4 @@
-use super::{NativeWorkerExit, attach_binding};
+use super::{ClientConnectionExit, attach_binding};
 use crate::{
     local_client::{
         LocalClient, LocalOperationClock, SubmissionError,
@@ -27,7 +27,7 @@ use crate::{
             ViewportReadRejection, ViewportStep, ViewportWindowFailure, decode_viewport_window,
         },
         workbench_projection::{
-            NativeStartupTarget, project_native_context_tabs, project_preferred_workspace,
+            ClientStartupTarget, project_native_context_tabs, project_preferred_workspace,
         },
     },
 };
@@ -84,7 +84,7 @@ fn run(
     client: LocalClient,
     initial_geometry: Geometry,
     mailbox: Arc<CommandMailbox>,
-) -> NativeWorkerExit {
+) -> ClientConnectionExit {
     run_at(client, initial_geometry, mailbox, None)
 }
 
@@ -92,17 +92,17 @@ pub(super) fn run_at(
     client: LocalClient,
     initial_geometry: Geometry,
     mailbox: Arc<CommandMailbox>,
-    context: Option<NativeStartupTarget>,
-) -> NativeWorkerExit {
+    context: Option<ClientStartupTarget>,
+) -> ClientConnectionExit {
     let mut exit = WorkerExit::new(Arc::clone(&mailbox));
-    let mut executor = NativeExecutor::new(client, mailbox);
+    let mut executor = ClientExecutor::new(client, mailbox);
     executor.initial_context = context;
     let result = executor.run(initial_geometry);
     let failure = result.err();
     if let Some(failure) = failure {
         exit.failure = failure;
     }
-    let returned = NativeWorkerExit::new(
+    let returned = ClientConnectionExit::new(
         executor.pending_create.take(),
         executor.pending_move.take(),
         executor.pending_panel.take(),
@@ -136,8 +136,8 @@ impl Drop for WorkerExit {
     }
 }
 
-struct NativeExecutor {
-    initial_context: Option<NativeStartupTarget>,
+struct ClientExecutor {
+    initial_context: Option<ClientStartupTarget>,
     status_only: bool,
     membership_recovery: bool,
     unavailable_poll: Option<crate::workbench_client::state::retired_membership::UnavailablePoll>,
@@ -199,7 +199,7 @@ impl SetupTarget {
             index: target.selected().index(),
             provenance: CreateTerminalProvenance::BindingOnly,
             attach: attach_binding(
-                target.site_id(),
+                target.session_id(),
                 target.binding().ok_or(CarrierFailure::Protocol)?,
             )
             .map_err(|_status| CarrierFailure::Protocol)?,
@@ -216,7 +216,7 @@ impl SetupTarget {
             index: target.selected().index(),
             provenance: target.provenance().clone(),
             attach: attach_binding(
-                target.site_id(),
+                target.session_id(),
                 target.binding().ok_or(CarrierFailure::Protocol)?,
             )
             .map_err(|_status| CarrierFailure::Protocol)?,
@@ -234,7 +234,7 @@ impl SetupTarget {
             key: target.pane_ref().clone(),
             index: target.index(),
             provenance: target.provenance().clone(),
-            attach: attach_binding(target.site_id(), target.binding())
+            attach: attach_binding(target.session_id(), target.binding())
                 .map_err(|_status| CarrierFailure::Protocol)?,
             deadlines: Some(deadlines),
             geometry: Some(target.geometry()),
@@ -317,7 +317,7 @@ enum InitialAttachResult {
     EntryExpired,
 }
 
-impl NativeExecutor {
+impl ClientExecutor {
     fn new(client: LocalClient, mailbox: Arc<CommandMailbox>) -> Self {
         let clock = client.operation_clock();
         let started = clock.now();
@@ -401,9 +401,9 @@ impl NativeExecutor {
         } else if let Some(target) = self
             .initial_context
             .as_ref()
-            .and_then(NativeStartupTarget::context)
+            .and_then(ClientStartupTarget::context)
         {
-            if target.site_id != snapshot.site_id {
+            if target.session_id != snapshot.session_id {
                 return Err(CarrierFailure::AuthorityDivergence);
             }
             project_native_context_tabs(&snapshot, &target.location)
@@ -413,7 +413,7 @@ impl NativeExecutor {
             project_preferred_workspace(&snapshot)
         }
         .map_err(|_error| CarrierFailure::AuthorityDivergence)?;
-        if let Some(NativeStartupTarget::Agent(target)) = &self.initial_context {
+        if let Some(ClientStartupTarget::Agent(target)) = &self.initial_context {
             // This read shares the startup deadline and precedes any attachment.
             crate::machine_agents::verify(
                 &mut self.client,
@@ -424,7 +424,7 @@ impl NativeExecutor {
             )
             .map_err(|_| CarrierFailure::AuthorityDivergence)?;
             selection = Some(
-                crate::workbench_client::workbench_projection::NativeMemberTarget {
+                crate::workbench_client::workbench_projection::ClientMemberTarget {
                     tab: target.tab.clone(),
                     panel: target.panel.clone(),
                     presentation: target.member.clone(),
@@ -442,9 +442,9 @@ impl NativeExecutor {
     fn remembered_startup(
         &self,
         snapshot: &orchbee_workbench_protocol::Snapshot,
-        selection: &mut Option<crate::workbench_client::NativeMemberTarget>,
-    ) -> Result<Option<crate::workbench_client::workbench_projection::NativeContextTabs>> {
-        if let Some(NativeStartupTarget::LocalDirectory {
+        selection: &mut Option<crate::workbench_client::ClientMemberTarget>,
+    ) -> Result<Option<crate::workbench_client::workbench_projection::ClientContextTabs>> {
+        if let Some(ClientStartupTarget::LocalDirectory {
             position, fallback, ..
         }) = &self.initial_context
         {
@@ -543,7 +543,7 @@ impl NativeExecutor {
             return self.cleanup_after_setup_failure(owner, &target);
         }
         if matches!(owner, SetupOwner::Startup { .. })
-            && let Some(NativeStartupTarget::Agent(expected)) = &self.initial_context
+            && let Some(ClientStartupTarget::Agent(expected)) = &self.initial_context
             && (host_epoch.as_str() != expected.physical.host_epoch.as_str()
                 || host_terminal_id.as_str() != expected.physical.host_terminal_id.as_str())
         {
@@ -3425,7 +3425,7 @@ fn publication(error: PublicationReadError) -> CarrierFailure {
 /// history the baseline came from (authority divergence) or is malformed on the wire (protocol).
 fn publication_fold_failure(reason: DeltaRejectionReason) -> CarrierFailure {
     match reason {
-        DeltaRejectionReason::SiteMismatch
+        DeltaRejectionReason::SessionMismatch
         | DeltaRejectionReason::BaseRevisionMismatch
         | DeltaRejectionReason::NonIncreasingRevision => CarrierFailure::AuthorityDivergence,
         DeltaRejectionReason::InvalidProjection | DeltaRejectionReason::DuplicateChangeTarget => {

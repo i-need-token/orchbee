@@ -1,5 +1,5 @@
 //! Fresh complete inventory preflight grants only guarded Close admission.
-//! No Site/registry lock spans IPC; no inspection claims Worker Close ownership.
+//! No Session/registry lock spans IPC; no inspection claims Worker Close ownership.
 use super::super::{LocalTerminalService, lease_expiry, placement};
 use crate::worker_obcn_carrier::WorkerRequestHandle;
 use orchbee_capability_node_protocol::{

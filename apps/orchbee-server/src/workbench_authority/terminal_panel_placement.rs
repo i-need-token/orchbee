@@ -230,7 +230,7 @@ impl WorkbenchAuthority {
             &command.action,
             WorkbenchAction::PanelMove { .. } | WorkbenchAction::PanelSwap { .. }
         ) && grant
-            .is_some_and(|grant| grant.site_id == *self.site_id() && grant.mutate_navigation);
+            .is_some_and(|grant| grant.session_id == *self.session_id() && grant.mutate_navigation);
         if !authorized {
             return WorkbenchPanelPlacementBegin::Ready(result(
                 &command,
@@ -276,8 +276,8 @@ impl WorkbenchAuthority {
                 }
             };
         let snapshot = self.projection.snapshot();
-        let rejection = if command.site_id != snapshot.site_id {
-            Some(WorkbenchRejectionReason::SiteMismatch)
+        let rejection = if command.session_id != snapshot.session_id {
+            Some(WorkbenchRejectionReason::SessionMismatch)
         } else if command.expected_revision != snapshot.revision {
             Some(WorkbenchRejectionReason::RevisionMismatch)
         } else if !snapshot

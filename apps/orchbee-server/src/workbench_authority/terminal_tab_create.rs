@@ -467,7 +467,9 @@ impl WorkbenchAuthority {
     ) -> WorkbenchTabCreateBegin<'_> {
         let authorized = matches!(&command.action, WorkbenchAction::TabCreate { .. })
             && grant.is_some_and(|grant| {
-                grant.site_id == *self.site_id() && grant.mutate_navigation && grant.create_terminal
+                grant.session_id == *self.session_id()
+                    && grant.mutate_navigation
+                    && grant.create_terminal
             });
         if !authorized {
             return ready(&command, WorkbenchCommandOutcome::Denied {});
@@ -491,11 +493,11 @@ impl WorkbenchAuthority {
             );
         };
         let snapshot = self.projection.snapshot();
-        if command.site_id != snapshot.site_id {
+        if command.session_id != snapshot.session_id {
             return WorkbenchTabCreateBegin::Ready(retain_rejection(
                 self,
                 command,
-                WorkbenchRejectionReason::SiteMismatch,
+                WorkbenchRejectionReason::SessionMismatch,
             ));
         }
         if command.expected_revision != snapshot.revision {

@@ -17,7 +17,7 @@ use std::{
 
 fn scope() -> Scope {
     Scope {
-        site: SiteId::parse("00000000000000000000000000000001").unwrap(),
+        session: SessionId::parse("00000000000000000000000000000001").unwrap(),
         revision: WorkbenchRevision::new(5),
         panels: vec![SelectedPanel {
             panel_id: WorkbenchPanelId::parse("00000000000000000000000000000002").unwrap(),
@@ -26,7 +26,7 @@ fn scope() -> Scope {
         }],
     }
 }
-use orchbee_workbench_protocol::SiteId;
+use orchbee_workbench_protocol::SessionId;
 fn accept(stream: &mut orchbee_local_ipc::LocalStream) -> io::Result<()> {
     assert!(matches!(
         read_message(stream).map_err(io::Error::other)?,
@@ -64,7 +64,7 @@ fn panel_read_lane_joins_guards_and_refuses_either_revision_fence_or_wrong_bindi
                         if fault == 8 { panel["panelId"] = json!("9".repeat(32)); }
                         json!({"presentationId":if fault == 7 { "8".repeat(32) } else { s.panels[0].presentation_id.as_str().to_owned() },"panel":panel})
                     }).collect();
-                    let result: PanelMetadataResult = serde_json::from_value(json!({"protocolVersion":1,"requestId":request.request_id,"sessionId":request.site_id,"outcome":{"kind":"presentations-read","workbenchRevision":if fault==4 {"6"} else {"5"},"metadataRevision":if fault==1 && step==2 {"2"} else {"1"},"presentations":presentations}})).unwrap();
+                    let result: PanelMetadataResult = serde_json::from_value(json!({"protocolVersion":1,"requestId":request.request_id,"sessionId":request.session_id,"outcome":{"kind":"presentations-read","workbenchRevision":if fault==4 {"6"} else {"5"},"metadataRevision":if fault==1 && step==2 {"2"} else {"1"},"presentations":presentations}})).unwrap();
                     WorkbenchResponse::PanelMetadata(result)
                 } else {
                     let WorkbenchRequest::PanelAgent(request) = request else { panic!("report after metadata and last fence") };
@@ -72,7 +72,7 @@ fn panel_read_lane_joins_guards_and_refuses_either_revision_fence_or_wrong_bindi
                     assert_eq!(presentation_ids, if step == 1 { vec![s.panels[0].presentation_id.clone()] } else { vec![] });
                     let panels = if step == 1 { json!([{"panelId":s.panels[0].panel_id,"binding":s.panels[0].binding,"report":{"agent":"grok","state":"blocked","authoritySource":"custom","message":"approval"}}]) } else { json!([]) };
                     let presentations: Vec<_> = panels.as_array().unwrap().iter().map(|panel| json!({"presentationId":s.panels[0].presentation_id,"panel":panel})).collect();
-                    let result: PanelAgentResult = serde_json::from_value(json!({"protocolVersion":1,"requestId":request.request_id,"sessionId":request.site_id,"outcome":{"kind":"presentations-read","workbenchRevision":"5","reportRevision":if fault==2 && step==3 {"2"} else {"1"},"presentations":presentations}})).unwrap();
+                    let result: PanelAgentResult = serde_json::from_value(json!({"protocolVersion":1,"requestId":request.request_id,"sessionId":request.session_id,"outcome":{"kind":"presentations-read","workbenchRevision":"5","reportRevision":if fault==2 && step==3 {"2"} else {"1"},"presentations":presentations}})).unwrap();
                     WorkbenchResponse::PanelAgent(result)
                 };
                 write_workbench_response(&mut stream, &response).map_err(io::Error::other)?;

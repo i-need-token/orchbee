@@ -9,7 +9,7 @@ use orchbee_workbench_protocol::{Snapshot, WorkbenchRevision, WorkbenchSnapshotO
 use std::sync::atomic::{AtomicU64, Ordering};
 
 pub(in crate::workbench_client) fn ready_ui() -> (
-    NativeUi,
+    WorkbenchClientUi,
     Arc<CommandMailbox>,
     LocalOperationClock,
     Arc<AtomicU64>,
@@ -20,7 +20,7 @@ pub(in crate::workbench_client) fn ready_ui() -> (
 pub(in crate::workbench_client) fn ready_ui_with_snapshot(
     source: Snapshot,
 ) -> (
-    NativeUi,
+    WorkbenchClientUi,
     Arc<CommandMailbox>,
     LocalOperationClock,
     Arc<AtomicU64>,
@@ -31,7 +31,7 @@ pub(in crate::workbench_client) fn ready_ui_with_snapshot(
         10,
         Geometry::new(80, 24, 8, 16).unwrap(),
     ));
-    let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    let mut ui = WorkbenchClientUi::new(Arc::clone(&mailbox), clock.clone());
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {
@@ -58,7 +58,7 @@ pub(in crate::workbench_client) fn ready_ui_with_snapshot(
 }
 
 fn place_move(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
     candidate: Snapshot,
@@ -181,7 +181,7 @@ fn actual_move_ui_stages_later_removal_after_timely_result_without_destroying_ol
                 );
                 assert_eq!(state.cache().tabs().len(), 1);
             } else {
-                assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
+                assert_eq!(ui.view().phase(), DisplayPhase::Empty);
                 assert!(settlement.desired().is_none());
             }
             mailbox.finish_lease(lease).unwrap();

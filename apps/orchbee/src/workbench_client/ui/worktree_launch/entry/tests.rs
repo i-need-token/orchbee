@@ -10,11 +10,11 @@ use orchbee_workbench_protocol::{
     WorkbenchWorkspaceId, Workspace, WorktreeCheckoutFacts,
 };
 
-fn case() -> (NativeUi, Plan, Snapshot) {
+fn case() -> (WorkbenchClientUi, Plan, Snapshot) {
     case_with_mode(WorktreeMode::Open)
 }
 
-fn case_with_mode(mode: WorktreeMode) -> (NativeUi, Plan, Snapshot) {
+fn case_with_mode(mode: WorktreeMode) -> (WorkbenchClientUi, Plan, Snapshot) {
     let mut ui = tests::worktree_launch::ready(mode);
     let origin = ui.state.as_ref().unwrap().worktree_origin().unwrap();
     let token = ui.worktrees.launcher.token().unwrap();
@@ -200,7 +200,7 @@ fn completed_create_entry_accepts_one_fresh_noncurrent_project_checkout_after_di
     assert_eq!(ui.view().focused_member().as_ref(), Some(&target));
     assert_eq!(
         ui.view().pane_projection_status(&target.panel),
-        NativeProjectionStatus::FrameAvailable
+        ClientProjectionStatus::FrameAvailable
     );
     ui.worktrees.dismiss_focus();
     assert!(!ui.worktrees.launcher.visible());
@@ -442,7 +442,7 @@ fn worktree_entry_matches_server_directory_spelling_without_relaxing_worker_or_p
 }
 
 fn publish_snapshot(
-    ui: &NativeUi,
+    ui: &WorkbenchClientUi,
     lease: &crate::workbench_client::mailbox::CommandLease,
     snapshot: Snapshot,
 ) -> crate::workbench_client::mailbox::UiWaitKey {
@@ -465,7 +465,7 @@ fn publish_snapshot(
         .unwrap()
 }
 
-fn source_refresh(ui: &mut NativeUi) -> crate::workbench_client::mailbox::CommandLease {
+fn source_refresh(ui: &mut WorkbenchClientUi) -> crate::workbench_client::mailbox::CommandLease {
     let mailbox = ui.mailbox.as_ref().unwrap().clone();
     mailbox
         .try_enqueue_refresh_for(
@@ -788,7 +788,7 @@ fn worktree_entry_current_context_child_uses_existing_primary_presentation_switc
             .unwrap()
             .geometry,
     ));
-    let mut ui = NativeUi::new(mailbox.clone(), original.clock.clone());
+    let mut ui = WorkbenchClientUi::new(mailbox.clone(), original.clock.clone());
     let mut selected = entry.member.clone();
     selected.presentation = child;
     let wait = mailbox

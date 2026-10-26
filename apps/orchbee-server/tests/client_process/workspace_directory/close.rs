@@ -143,7 +143,7 @@ fn create_associated_workspace(
 
 fn read_close(
     client: &mut UnixStream,
-    site_id: &orchbee_workbench_protocol::SiteId,
+    session_id: &orchbee_workbench_protocol::SessionId,
     terminal_context_id: &orchbee_workbench_protocol::WorkbenchTerminalContextId,
     tab_id: &orchbee_workbench_protocol::WorkbenchTabId,
     request_value: u128,
@@ -154,7 +154,7 @@ fn read_close(
         &WorkbenchRequest::TabCloseRead(WorkbenchTabCloseRead {
             protocol_version: ProtocolVersion,
             request_id: request_id.clone(),
-            site_id: site_id.clone(),
+            session_id: session_id.clone(),
             terminal_context_id: terminal_context_id.clone(),
             tab_id: tab_id.clone(),
         }),
@@ -178,7 +178,7 @@ fn wait_for_closed(
     loop {
         let outcome = read_close(
             client,
-            &snapshot.site_id,
+            &snapshot.session_id,
             terminal_context_id,
             tab_id,
             next_request,
@@ -235,7 +235,7 @@ fn attach_binding(
         &ClientMessage::TerminalViewer(TerminalViewerRequest::new(
             request_id.clone(),
             TerminalViewerAction::AttachBinding {
-                site_id: ClientSiteId::parse(snapshot.site_id.as_str())?,
+                session_id: ObcsSessionId::parse(snapshot.session_id.as_str())?,
                 worker_id: ClientWorkerId::parse(binding.worker_id.as_str())?,
                 terminal_id: ClientTerminalId::parse(binding.terminal_id.as_str())?,
             },
@@ -1108,7 +1108,7 @@ fn real_workspace_close_preserves_sibling_and_can_recreate() -> TestResult {
     assert_eq!(
         read_close(
             &mut first,
-            &before_close.site_id,
+            &before_close.session_id,
             &setup.terminal_context_id,
             &workspace_tab_id,
             0x114,
@@ -1125,7 +1125,7 @@ fn real_workspace_close_preserves_sibling_and_can_recreate() -> TestResult {
         &ClientMessage::TerminalViewer(TerminalViewerRequest::new(
             old_binding_request_id.clone(),
             TerminalViewerAction::AttachBinding {
-                site_id: ClientSiteId::parse(before_close.site_id.as_str())?,
+                session_id: ObcsSessionId::parse(before_close.session_id.as_str())?,
                 worker_id: ClientWorkerId::parse(old_binding.worker_id.as_str())?,
                 terminal_id: ClientTerminalId::parse(old_binding.terminal_id.as_str())?,
             },

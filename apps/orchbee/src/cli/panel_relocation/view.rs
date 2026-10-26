@@ -30,7 +30,7 @@ pub(super) fn observe(
         signals.check_before(deadline)?;
         let reply = control::exchange(
             client,
-            &snapshot.site_id,
+            &snapshot.session_id,
             ClientViewAction::Get {
                 client_id: original.client_id.clone(),
             },
@@ -88,7 +88,7 @@ pub(super) fn submit(
     signals.check_before(deadline)?;
     control::submit_control(
         client,
-        &snapshot.site_id,
+        &snapshot.session_id,
         ClientViewControl {
             operation_id: query::request_id()?,
             client_id: current.client_id.clone(),

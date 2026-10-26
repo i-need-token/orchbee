@@ -56,7 +56,7 @@ fn plugin_invoke_real_cli_reports_admission_failure_or_unknown_without_resubmiss
                 &WorkbenchResponse::ClientView(WorkbenchClientViewResult {
                     protocol_version: ProtocolVersion,
                     request_id: list.request_id,
-                    site_id: list.site_id,
+                    session_id: list.session_id,
                     outcome: ClientViewOutcome::Listed { clients: vec![] },
                 }),
             )
@@ -107,7 +107,7 @@ fn plugin_invoke_real_cli_reports_admission_failure_or_unknown_without_resubmiss
                 &WorkbenchResponse::Plugin(PluginResult {
                     protocol_version: ProtocolVersion,
                     request_id: request.request_id,
-                    site_id: request.site_id,
+                    session_id: request.session_id,
                     outcome,
                 }),
             )
@@ -222,7 +222,7 @@ fn plugin_log_cli_follows_exact_worker_cursor_and_requested_limit() {
                 &WorkbenchResponse::Plugin(PluginResult {
                     protocol_version: ProtocolVersion,
                     request_id: request.request_id,
-                    site_id: request.site_id,
+                    session_id: request.session_id,
                     outcome: PluginOutcome::Logs {
                         worker: worker(),
                         logs,
@@ -300,7 +300,7 @@ fn plugin_history_defaults_to_latest_fifty_in_chronological_json_and_text_order(
                     &WorkbenchResponse::Plugin(PluginResult {
                         protocol_version: ProtocolVersion,
                         request_id: request.request_id,
-                        site_id: request.site_id,
+                        session_id: request.session_id,
                         outcome: PluginOutcome::Logs {
                             worker: worker(),
                             logs,

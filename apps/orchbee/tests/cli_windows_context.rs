@@ -1,5 +1,5 @@
 //! Real Windows process evidence for caller-context admission and offline
-//! schemas. Invalid runtime configuration prevents any Site access.
+//! schemas. Invalid runtime configuration prevents any Session access.
 #![cfg(windows)]
 
 use std::process::{Command, Output, Stdio};

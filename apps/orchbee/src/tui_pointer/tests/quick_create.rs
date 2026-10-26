@@ -1,19 +1,19 @@
 //! Creation gestures preserve the painted source and never forward terminal input.
 use super::*;
 use crate::action_menu::{DrawnMenuSource, DrawnTabCreate};
-use crate::workbench_client::NativeContextLocation;
-use orchbee_workbench_protocol::{SiteId, WorkbenchRevision, WorkbenchTerminalContextId};
+use crate::workbench_client::ClientContextLocation;
+use orchbee_workbench_protocol::{SessionId, WorkbenchRevision, WorkbenchTerminalContextId};
 
 fn target() -> DrawnTabCreate {
     DrawnTabCreate {
         source: DrawnMenuSource {
-            site: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
+            session: SessionId::parse(&format!("{:032x}", 1)).unwrap(),
             revision: WorkbenchRevision::new(1),
         },
         location: {
             let fixture_context_id =
                 WorkbenchTerminalContextId::parse(&format!("{:032x}", 2)).unwrap();
-            NativeContextLocation::Workspace {
+            ClientContextLocation::Workspace {
                 workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                     fixture_context_id.as_str(),
                 )
@@ -182,7 +182,7 @@ fn compositor_cover_cancels_generic_tab_create_and_owns_one_late_release() {
 }
 
 #[test]
-fn project_create_entry_uses_the_existing_exact_machine_and_site_menu_admission() {
+fn project_create_entry_uses_the_existing_exact_machine_and_session_menu_admission() {
     let (mut view, mut drawn) = workspace_fixture(2);
     let project = view
         .machines
@@ -194,7 +194,7 @@ fn project_create_entry_uses_the_existing_exact_machine_and_site_menu_admission(
         })
         .unwrap();
     let source = DrawnMenuSource {
-        site: project.site_id().clone(),
+        session: project.session_id().clone(),
         revision: WorkbenchRevision::new(1),
     };
     drawn.menu_source = Some(source.clone());
@@ -212,8 +212,8 @@ fn project_create_entry_uses_the_existing_exact_machine_and_site_menu_admission(
         pointer.set_capture(true);
         let mut map = drawn.clone();
         if stale {
-            map.menu_source.as_mut().unwrap().site =
-                SiteId::parse(&format!("{:032x}", 999)).unwrap();
+            map.menu_source.as_mut().unwrap().session =
+                SessionId::parse(&format!("{:032x}", 999)).unwrap();
         }
         pointer.publish(map);
         let outcome = pointer.event(

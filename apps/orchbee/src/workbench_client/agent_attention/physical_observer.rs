@@ -9,14 +9,12 @@ use crate::workbench_client::agent_notifications::{
     AgentNotificationScheduler, AgentSoundPolicy,
 };
 use orchbee_agent_observation_protocol::AgentLaunchBinding;
-use orchbee_local_site_runtime::{
-    NativeAgentSoundSetting, NativeNotificationDelivery, NativeNotificationSettings,
-};
+use orchbee_local_runtime::{AgentSoundSetting, NotificationDelivery, NotificationSettings};
 
 pub(super) struct PhysicalObserver {
     pub(super) state: PhysicalAttentionState,
     scheduler: AgentNotificationScheduler,
-    notification_delivery: NativeNotificationDelivery,
+    notification_delivery: NotificationDelivery,
     clock: LocalOperationClock,
     time_origin: Instant,
     origin: Option<LocalClientOrigin>,
@@ -41,7 +39,7 @@ impl PhysicalObserver {
         Self {
             state: PhysicalAttentionState::default(),
             scheduler,
-            notification_delivery: NativeNotificationDelivery::Off,
+            notification_delivery: NotificationDelivery::Off,
             clock,
             time_origin,
             origin: None,
@@ -72,13 +70,13 @@ impl PhysicalObserver {
     pub(super) fn configure_notifications(
         &mut self,
         revision: u64,
-        settings: &NativeNotificationSettings,
+        settings: &NotificationSettings,
     ) -> bool {
         let delivery_changed = self.notification_delivery != settings.agent_delivery;
         self.notification_delivery = settings.agent_delivery;
         let policy = AgentNotificationPolicy {
             delay_millis: settings.delay_seconds.saturating_mul(1000),
-            popup_enabled: settings.agent_delivery != NativeNotificationDelivery::Off,
+            popup_enabled: settings.agent_delivery != NotificationDelivery::Off,
             sound_enabled: settings.sound_enabled,
             agent_sounds: settings
                 .agent_sounds()
@@ -87,9 +85,9 @@ impl PhysicalObserver {
                     (
                         agent.clone(),
                         match setting {
-                            NativeAgentSoundSetting::Default => AgentSoundPolicy::Default,
-                            NativeAgentSoundSetting::On => AgentSoundPolicy::On,
-                            NativeAgentSoundSetting::Off => AgentSoundPolicy::Off,
+                            AgentSoundSetting::Default => AgentSoundPolicy::Default,
+                            AgentSoundSetting::On => AgentSoundPolicy::On,
+                            AgentSoundSetting::Off => AgentSoundPolicy::Off,
                         },
                     )
                 })
@@ -99,13 +97,13 @@ impl PhysicalObserver {
     }
 
     pub(super) fn notification_requires_card(&self) -> bool {
-        self.notification_delivery == NativeNotificationDelivery::Tui
+        self.notification_delivery == NotificationDelivery::Tui
     }
 
     pub(super) fn take_notification(
         &mut self,
         sink_available: bool,
-    ) -> Option<(NativeNotificationDelivery, AgentNotificationCommand)> {
+    ) -> Option<(NotificationDelivery, AgentNotificationCommand)> {
         let now = self.now_millis()?;
         self.scheduler
             .take_ready(now, sink_available)

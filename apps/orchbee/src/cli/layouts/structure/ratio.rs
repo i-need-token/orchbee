@@ -28,7 +28,7 @@ pub(in crate::cli) fn submit(
     let command = WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: request_id.clone(),
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         expected_revision: snapshot.revision,
         action: WorkbenchAction::SplitRatioSet {
             terminal_context_id: context.clone(),
@@ -49,7 +49,7 @@ pub(in crate::cli) fn submit(
         }),
     };
     let effect = json!({
-        "action":"layout.set-split-ratio","sessionId":snapshot.site_id,"requestId":request_id,
+        "action":"layout.set-split-ratio","sessionId":snapshot.session_id,"requestId":request_id,
         "baseRevision":snapshot.revision,"terminalContextId":context,"tabId":tab,
         "split":split,"previousRatio":previous_ratio,"ratio":ratio,"result":outcome,
     });

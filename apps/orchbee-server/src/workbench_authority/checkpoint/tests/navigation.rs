@@ -113,7 +113,7 @@ fn normalized_navigation_requires_an_explicit_complete_workspace_order() {
         );
     }
 
-    let empty = WorkbenchAuthority::new(site(100)).unwrap();
+    let empty = WorkbenchAuthority::new(session(100)).unwrap();
     let value: Value = serde_json::from_slice(&empty.checkpoint(&worker(200)).unwrap()).unwrap();
     assert_eq!(value["navigation"]["workspaceOrder"], json!([]));
 }
@@ -121,7 +121,7 @@ fn normalized_navigation_requires_an_explicit_complete_workspace_order() {
 #[test]
 fn current_checkpoint_preserves_nullable_organization_and_shared_directories_after_dissolve() {
     let mut owner = fixture();
-    let mut source = graph(site(100), &worker(200), true, 99);
+    let mut source = graph(session(100), &worker(200), true, 99);
     source["navigation"]["projects"]
         .as_array_mut()
         .unwrap()

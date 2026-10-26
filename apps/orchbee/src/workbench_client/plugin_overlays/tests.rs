@@ -5,7 +5,7 @@ use crate::local_client::{
 };
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_workbench_protocol::{
-    ClientOverlayMember, PluginFailure, PluginPaneInfo, PluginResult, SiteId,
+    ClientOverlayMember, PluginFailure, PluginPaneInfo, PluginResult, SessionId,
     TerminalPresentationId, WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchRequest,
     WorkbenchResponse, WorkbenchRevision, read_workbench_request, write_workbench_response,
 };
@@ -36,7 +36,7 @@ fn pane() -> PluginPaneInfo {
 fn job(clock: &LocalOperationClock) -> OverlayJob {
     let pane = pane();
     OverlayJob {
-        site: SiteId::parse(&id(2)).unwrap(),
+        session: SessionId::parse(&id(2)).unwrap(),
         context: pane.terminal_context_id,
         tab: pane.tab_id,
         member: ClientOverlayMember {
@@ -58,7 +58,7 @@ fn reply(
         &WorkbenchResponse::Plugin(PluginResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id.clone(),
-            site_id: request.site_id.clone(),
+            session_id: request.session_id.clone(),
             outcome,
         }),
     )

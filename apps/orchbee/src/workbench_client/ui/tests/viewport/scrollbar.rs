@@ -8,7 +8,11 @@ use crate::{
 };
 use ratatui::{Terminal, backend::TestBackend, layout::Rect};
 
-fn painted_map(ui: &NativeUi, key: &PaneRef, content: Rect) -> crate::tui_pointer::FrameHitMap {
+fn painted_map(
+    ui: &WorkbenchClientUi,
+    key: &PaneRef,
+    content: Rect,
+) -> crate::tui_pointer::FrameHitMap {
     let mut hits = HitMapBuilder::new();
     hits.record(
         crate::tui_pointer::HitLayer::Foreground,
@@ -30,7 +34,7 @@ fn painted_map(ui: &NativeUi, key: &PaneRef, content: Rect) -> crate::tui_pointe
     hits.finish()
 }
 
-fn fill_frame(ui: &mut NativeUi, key: &PaneRef, content: Rect) {
+fn fill_frame(ui: &mut WorkbenchClientUi, key: &PaneRef, content: Rect) {
     let projection = projection_at(ui, key);
     let mut live = frame(&projection.value, 1000, false, content.height);
     live.geometry.columns = content.width;
@@ -39,10 +43,10 @@ fn fill_frame(ui: &mut NativeUi, key: &PaneRef, content: Rect) {
         row.cells = vec![row.cells[0].clone(); usize::from(content.width)];
     }
     projection.value.install_frame_for_test(live);
-    projection.status = NativeProjectionStatus::FrameAvailable;
+    projection.status = ClientProjectionStatus::FrameAvailable;
 }
 
-fn serve_history(ui: &mut NativeUi, mailbox: &Arc<CommandMailbox>, key: &PaneRef) {
+fn serve_history(ui: &mut WorkbenchClientUi, mailbox: &Arc<CommandMailbox>, key: &PaneRef) {
     let projection = projection_at(ui, key);
     let live = projection.value.frame().unwrap().clone();
     let mut changed = facts(&projection.value, 1, 1);
@@ -89,7 +93,7 @@ fn serve_history(ui: &mut NativeUi, mailbox: &Arc<CommandMailbox>, key: &PaneRef
 }
 
 fn paint(
-    ui: &NativeUi,
+    ui: &WorkbenchClientUi,
     view: &ClientView,
     width: u16,
     height: u16,
@@ -393,7 +397,7 @@ fn scrollbar_decoded_drag_to_zero_runs_recovery_before_live_without_forwarding_m
     let content = Rect::new(0, 0, 80, 24);
     let mut view = ClientView::new(120);
     let mut dispatcher = InputDispatcher::default();
-    dispatcher.set_pointer_capture(&mut view, &mut NativePort(&mut ui), true);
+    dispatcher.set_pointer_capture(&mut view, &mut ClientInputPort(&mut ui), true);
     dispatcher.publish_hit_map(painted_map(&ui, &key, content));
     dispatch(&mut dispatcher, &mut view, &mut ui, b"\x1b[<0;81;24M");
     assert!(recv_wire(&mailbox).is_empty());
@@ -565,7 +569,7 @@ fn scrollbar_decoded_drag_is_cancelled_by_host_focus_loss_and_keyboard_input() {
         let mut view = ClientView::new(120);
         let content = Rect::new(0, 0, 80, 24);
         let mut dispatcher = InputDispatcher::default();
-        dispatcher.set_pointer_capture(&mut view, &mut NativePort(&mut ui), true);
+        dispatcher.set_pointer_capture(&mut view, &mut ClientInputPort(&mut ui), true);
         dispatcher.publish_hit_map(painted_map(&ui, &key, content));
         dispatch(&mut dispatcher, &mut view, &mut ui, b"\x1b[<0;81;24M");
         assert!(recv_wire(&mailbox).is_empty());

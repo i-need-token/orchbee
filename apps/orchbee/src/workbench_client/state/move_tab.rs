@@ -3,11 +3,11 @@ use super::{
     PaneKey, PreparedMembershipCandidate, WorkbenchClientState,
 };
 use crate::workbench_client::workbench_projection::{
-    MovedTabExpectation, NativeProjectionDivergence, validate_canonical_refresh, validate_moved_tab,
+    ClientProjectionDivergence, MovedTabExpectation, validate_canonical_refresh, validate_moved_tab,
 };
 use crate::{
     local_client::workbench::{WorkbenchTabMoveCommit, WorkbenchTabMovePrecommit},
-    workbench_client::workbench_projection::NativeContextTabs,
+    workbench_client::workbench_projection::ClientContextTabs,
 };
 use orchbee_workbench_protocol::{
     WorkbenchRequestId, WorkbenchRevision, WorkbenchSnapshotOutcome, WorkbenchTabMoveDirection,
@@ -18,7 +18,7 @@ use std::time::Instant;
 pub(in crate::workbench_client) struct MoveOperation {
     request_id: WorkbenchRequestId,
     target: AttachmentKey,
-    baseline: NativeContextTabs,
+    baseline: ClientContextTabs,
     direction: WorkbenchTabMoveDirection,
     deadline: Instant,
 }
@@ -27,7 +27,7 @@ impl MoveOperation {
     pub(in crate::workbench_client) const fn new(
         request_id: WorkbenchRequestId,
         target: AttachmentKey,
-        baseline: NativeContextTabs,
+        baseline: ClientContextTabs,
         direction: WorkbenchTabMoveDirection,
         deadline: Instant,
     ) -> Self {
@@ -46,7 +46,7 @@ impl MoveOperation {
     pub(in crate::workbench_client) const fn target(&self) -> &AttachmentKey {
         &self.target
     }
-    pub(in crate::workbench_client) const fn baseline(&self) -> &NativeContextTabs {
+    pub(in crate::workbench_client) const fn baseline(&self) -> &ClientContextTabs {
         &self.baseline
     }
     pub(in crate::workbench_client) const fn direction(&self) -> WorkbenchTabMoveDirection {
@@ -105,8 +105,8 @@ impl PendingMoveCommit {
 
     pub(super) fn validate_projection(
         &self,
-        candidate: NativeContextTabs,
-    ) -> Result<NativeContextTabs, NativeProjectionDivergence> {
+        candidate: ClientContextTabs,
+    ) -> Result<ClientContextTabs, ClientProjectionDivergence> {
         validate_moved_tab(
             &self.operation.baseline,
             &MovedTabExpectation::new(
@@ -167,9 +167,9 @@ enum PreparedMoveResult {
     Unchanged,
     Committed {
         pending: PendingMoveCommit,
-        candidate: Option<NativeContextTabs>,
+        candidate: Option<ClientContextTabs>,
     },
-    RefusedProjection(NativeContextTabs),
+    RefusedProjection(ClientContextTabs),
     Membership {
         pending: Option<PendingMoveCommit>,
         prepared: Box<PreparedMembershipCandidate>,
@@ -318,7 +318,7 @@ impl WorkbenchClientState {
         &self,
         operation: &MoveOperation,
         pending: Option<PendingMoveCommit>,
-        candidate: NativeContextTabs,
+        candidate: ClientContextTabs,
     ) -> PreparedMoveResult {
         let mut leaf_repair = None;
         if candidate.tab_index(operation.target.tab_id()).is_some() {

@@ -9,7 +9,7 @@ fn job(now: Instant) -> (Job, mpsc::Receiver<Option<CapturedAgentExplanation>>) 
     let (result, receiver) = mpsc::sync_channel(1);
     let job = Job {
         target: ProcessObservationTarget {
-            site_id: orchbee_workbench_protocol::SiteId::parse(&"1".repeat(32)).unwrap(),
+            session_id: orchbee_workbench_protocol::SessionId::parse(&"1".repeat(32)).unwrap(),
             binding: serde_json::from_value(
                 serde_json::json!({"workerId":"2".repeat(32),"terminalId":"3".repeat(32)}),
             )

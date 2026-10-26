@@ -1,4 +1,4 @@
-//! Explicit Agent reports resolve retained generations while holding the Site commit gate.
+//! Explicit Agent reports resolve retained generations while holding the Session commit gate.
 use super::LocalTerminalService;
 use orchbee_workbench_protocol::{
     PanelAgentFailure, PanelAgentOutcome, PanelAgentRequest, PanelAgentResult, ProtocolVersion,
@@ -26,7 +26,7 @@ impl LocalTerminalService {
         let unavailable = PanelAgentResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id.clone(),
-            site_id: request.site_id.clone(),
+            session_id: request.session_id.clone(),
             outcome: PanelAgentOutcome::Failed {
                 reason: PanelAgentFailure::Unavailable,
             },

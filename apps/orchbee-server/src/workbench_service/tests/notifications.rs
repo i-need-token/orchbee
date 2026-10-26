@@ -1,12 +1,12 @@
 use super::*;
 use orchbee_workbench_protocol::{
     Notification, NotificationAction, NotificationFailure, NotificationOutcome,
-    NotificationPosition, NotificationReason, NotificationRequest, NotificationSound, SiteId,
+    NotificationPosition, NotificationReason, NotificationRequest, NotificationSound, SessionId,
 };
 use std::num::NonZeroU64;
 
 #[test]
-fn notification_admission_checks_grants_site_and_session_drop_reclaims_inbox() {
+fn notification_admission_checks_grants_session_and_session_drop_reclaims_inbox() {
     for (read, navigate) in [(false, false), (false, true), (true, false), (true, true)] {
         let terminals = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
             WorkerRegistry::new(),
@@ -44,12 +44,12 @@ fn notification_admission_checks_grants_site_and_session_drop_reclaims_inbox() {
         );
         let subscriber = service.client_connection(NonZeroU64::new(1).unwrap());
         let caller = service.client_connection(NonZeroU64::new(2).unwrap());
-        let run = |session: &WorkbenchClientConnection<'_>, site: SiteId, id: u64, action| {
+        let run = |session: &WorkbenchClientConnection<'_>, session: SessionId, id: u64, action| {
             let WorkbenchResponse::Notification(result) = response(session.execute(
                 WorkbenchRequest::Notification(NotificationRequest {
                     protocol_version: ProtocolVersion,
                     request_id: WorkbenchRequestId::parse(&format!("{id:032x}")).unwrap(),
-                    site_id: site,
+                    session_id: session,
                     action,
                 }),
             )) else {
@@ -60,7 +60,7 @@ fn notification_admission_checks_grants_site_and_session_drop_reclaims_inbox() {
         };
         let listen = NotificationAction::Listen { accepting: true };
         assert_eq!(
-            run(&subscriber, snapshot.site_id.clone(), 2, listen.clone()),
+            run(&subscriber, snapshot.session_id.clone(), 2, listen.clone()),
             if read {
                 NotificationOutcome::Listening { notification: None }
             } else {
@@ -72,13 +72,13 @@ fn notification_admission_checks_grants_site_and_session_drop_reclaims_inbox() {
         assert_eq!(
             run(
                 &subscriber,
-                SiteId::parse(&"f".repeat(32)).unwrap(),
+                SessionId::parse(&"f".repeat(32)).unwrap(),
                 3,
                 listen.clone()
             ),
             NotificationOutcome::Failed {
                 reason: if read {
-                    NotificationFailure::SiteMismatch
+                    NotificationFailure::SessionMismatch
                 } else {
                     NotificationFailure::Denied
                 }
@@ -93,7 +93,7 @@ fn notification_admission_checks_grants_site_and_session_drop_reclaims_inbox() {
             )
             .unwrap(),
         };
-        let outcome = run(&caller, snapshot.site_id.clone(), 4, show.clone());
+        let outcome = run(&caller, snapshot.session_id.clone(), 4, show.clone());
         assert_eq!(
             outcome,
             if read && navigate {
@@ -109,18 +109,18 @@ fn notification_admission_checks_grants_site_and_session_drop_reclaims_inbox() {
         );
         if read && navigate {
             assert!(matches!(
-                run(&subscriber, snapshot.site_id.clone(), 5, listen.clone()),
+                run(&subscriber, snapshot.session_id.clone(), 5, listen.clone()),
                 NotificationOutcome::Listening {
                     notification: Some(_)
                 }
             ));
             assert_eq!(
-                run(&subscriber, snapshot.site_id.clone(), 6, listen),
+                run(&subscriber, snapshot.session_id.clone(), 6, listen),
                 NotificationOutcome::Listening { notification: None }
             );
             drop(subscriber);
             assert_eq!(
-                run(&caller, snapshot.site_id, 7, show),
+                run(&caller, snapshot.session_id, 7, show),
                 NotificationOutcome::Show {
                     shown: false,
                     reason: NotificationReason::NoForegroundClient

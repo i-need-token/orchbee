@@ -30,7 +30,7 @@ enum Argument {
     Profile,
     Schema,
     #[cfg(windows)]
-    Site,
+    Session,
     Title,
     #[cfg(windows)]
     ConfiguredCommand,
@@ -215,19 +215,19 @@ impl Locale {
             CommandPath::ApiSchema => &[Argument::Schema],
             CommandPath::ConfigCheck => &[],
             CommandPath::ConfigResetKeys => &[],
-            CommandPath::SiteStart => &[],
+            CommandPath::ServerStart => &[],
             #[cfg(windows)]
             CommandPath::SessionList => &[],
             #[cfg(windows)]
-            CommandPath::SessionAttach => &[Argument::Site],
+            CommandPath::SessionAttach => &[Argument::Session],
             #[cfg(windows)]
-            CommandPath::SessionStop => &[Argument::Site],
+            CommandPath::SessionStop => &[Argument::Session],
             #[cfg(windows)]
-            CommandPath::SessionDelete => &[Argument::Site],
-            CommandPath::SiteDiagnose => &[],
-            CommandPath::SiteUpdateAgentManifests => &[],
-            CommandPath::SiteConfig => &[],
-            CommandPath::SiteReloadConfig => &[],
+            CommandPath::SessionDelete => &[Argument::Session],
+            CommandPath::ServerDiagnose => &[],
+            CommandPath::ServerUpdateAgentManifests => &[],
+            CommandPath::ServerConfig => &[],
+            CommandPath::ServerReloadConfig => &[],
             CommandPath::TerminalTitleSet => &[Argument::Title],
             CommandPath::TerminalTitleClear => &[],
             #[cfg(windows)]
@@ -269,11 +269,11 @@ impl Locale {
             #[cfg(windows)]
             CommandPath::PluginActionList => &[Argument::Plugin],
             CommandPath::NotificationShow => &[Argument::Title],
-            CommandPath::SiteAgentManifests => &[],
-            CommandPath::SiteReloadAgentManifests => &[],
-            CommandPath::SiteAgentManifestsStatus => &[Argument::Operation],
-            CommandPath::SiteStop => &[],
-            CommandPath::SiteStopStatus => &[Argument::Operation],
+            CommandPath::ServerAgentManifests => &[],
+            CommandPath::ServerReloadAgentManifests => &[],
+            CommandPath::ServerAgentManifestsStatus => &[Argument::Operation],
+            CommandPath::ServerStop => &[],
+            CommandPath::ServerStopStatus => &[Argument::Operation],
         };
         roles.iter().map(|role| {
             let (label, english, chinese) = match *role {
@@ -303,7 +303,7 @@ impl Locale {
                 Argument::Profile => ("<selector>", "Launch profile ID or an unambiguous saved name.", "启动配置 ID 或无歧义的保存名称。"),
                 Argument::Schema => ("[<schema-id>]", "Optional schema ID; omit to print the schema dictionary.", "可选 Schema ID；省略时输出结构字典。"),
                 #[cfg(windows)]
-                Argument::Site => ("<name>", "Case-sensitive local session name. An explicit --session must match.", "区分大小写的本地会话名称；显式 --session 必须与其一致。"),
+                Argument::Session => ("<name>", "Case-sensitive local session name. An explicit --session must match.", "区分大小写的本地会话名称；显式 --session 必须与其一致。"),
                 Argument::Title => ("<title>", "Display title as one argument.", "作为一个参数传入的显示标题。"),
                 #[cfg(windows)]
                 Argument::ConfiguredCommand => ("<command-id>", "Exact ID returned by orchbee command list; starts with cmd_.", "orchbee command list 返回的精确 ID，以 cmd_ 开头。"),

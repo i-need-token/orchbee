@@ -10,7 +10,7 @@ fn workspace_metadata_report_correlation_uncertainty_and_no_replay() -> TestResu
         let request = WorkspaceMetadataRequest {
             protocol_version: ProtocolVersion,
             request_id: WorkbenchRequestId::parse(&id(1)).unwrap(),
-            site_id: SiteId::parse(&id(2)).unwrap(),
+            session_id: SessionId::parse(&id(2)).unwrap(),
             action: WorkspaceMetadataAction::Report {
                 workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(&id(3))
                     .unwrap(),

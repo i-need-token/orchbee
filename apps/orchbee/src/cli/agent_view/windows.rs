@@ -209,7 +209,7 @@ pub(in crate::cli) fn current_client(
     check(deadline, signals)?;
     let result = exchange(
         client,
-        &snapshot.site_id,
+        &snapshot.session_id,
         ClientViewAction::Get {
             client_id: selected.clone(),
         },
@@ -315,7 +315,7 @@ fn read_control(
     // changes cursor before returning any AttentionRead payload.
     let answer = submit_control(
         client,
-        &snapshot.site_id,
+        &snapshot.session_id,
         command.clone(),
         deadline,
         signals,

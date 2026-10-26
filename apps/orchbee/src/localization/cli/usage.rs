@@ -227,10 +227,12 @@ impl Locale {
             (Self::ZhCn, ExpectedValue::WorktreeOperationId) => "非零的 32 位小写十六进制操作标识",
             (Self::EnUs, ExpectedValue::WorktreeAttempt) => "a decimal attempt number from 1 to 64",
             (Self::ZhCn, ExpectedValue::WorktreeAttempt) => "1–64 的十进制尝试序号",
-            (Self::EnUs, ExpectedValue::SiteStopId) => {
+            (Self::EnUs, ExpectedValue::ServerStopRequestId) => {
                 "a nonzero 32-character lowercase hexadecimal stop request ID"
             }
-            (Self::ZhCn, ExpectedValue::SiteStopId) => "非零的 32 位小写十六进制停止请求标识",
+            (Self::ZhCn, ExpectedValue::ServerStopRequestId) => {
+                "非零的 32 位小写十六进制停止请求标识"
+            }
             (Self::EnUs, ExpectedValue::Format) => "'text' or 'json'",
             (Self::ZhCn, ExpectedValue::Format) => "'text' 或 'json'",
             (Self::EnUs, ExpectedValue::RightClick) => "'orchbee' or 'panel'",
@@ -347,11 +349,11 @@ impl Locale {
                 "不含密码的 SSH 别名、[user@]host 或 ssh://[user@]host[:port]"
             }
             #[cfg(windows)]
-            (Self::EnUs, ExpectedValue::SiteName) => {
+            (Self::EnUs, ExpectedValue::SessionName) => {
                 "1–64 ASCII letters, digits, '.', '_' or '-'; excluding '.' and '..'"
             }
             #[cfg(windows)]
-            (Self::ZhCn, ExpectedValue::SiteName) => {
+            (Self::ZhCn, ExpectedValue::SessionName) => {
                 "1–64 个 ASCII 字母、数字、'.'、'_' 或 '-'；排除 '.' 和 '..'"
             }
             (Self::EnUs, ExpectedValue::MouseMode) => "'off' or 'on'",

@@ -413,7 +413,7 @@ fn panel_close_read_and_resume_reuse_the_close_control_surface() {
     let resume = WorkbenchTabCloseResume {
         protocol_version: ProtocolVersion,
         request_id: request_id(99001),
-        site_id: close.site_id.clone(),
+        session_id: close.session_id.clone(),
         terminal_context_id: terminal_context_id.clone(),
         tab_id: created.tab_id().clone(),
         close_request_id: close.request_id.clone(),

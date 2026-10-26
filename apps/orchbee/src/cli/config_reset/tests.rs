@@ -1,5 +1,5 @@
 use super::*;
-use orchbee_local_site_runtime::WindowsSettingsError;
+use orchbee_local_runtime::SettingsError;
 
 #[test]
 fn reset_receipts_keep_backup_and_recovery_evidence_in_both_locales() {
@@ -11,20 +11,20 @@ fn reset_receipts_keep_backup_and_recovery_evidence_in_both_locales() {
             "missing", "no-keys", "reset", "failed", "recovery", "cleanup",
         ] {
             let outcome = match case {
-                "missing" => WindowsKeysResetOutcome::Missing,
-                "no-keys" => WindowsKeysResetOutcome::NoKeys,
-                "reset" => WindowsKeysResetOutcome::Reset {
+                "missing" => KeysResetOutcome::Missing,
+                "no-keys" => KeysResetOutcome::NoKeys,
+                "reset" => KeysResetOutcome::Reset {
                     backup_path: "C:/settings/config.toml.bak-keys-1".into(),
                 },
-                _ => WindowsKeysResetOutcome::Failed {
-                    error: WindowsSettingsError::new("file", "write-failed"),
+                _ => KeysResetOutcome::Failed {
+                    error: SettingsError::new("file", "write-failed"),
                     backup_path: (case != "failed")
                         .then(|| "C:/settings/config.toml.bak-keys-1".into()),
                     recovery_required: case == "recovery",
                 },
             };
             let answer = emit(
-                WindowsKeysResetReport {
+                KeysResetReport {
                     path: Some("C:/settings/config.toml".into()),
                     outcome,
                 },

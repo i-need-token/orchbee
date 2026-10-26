@@ -2,7 +2,7 @@
 use super::{Discovery, Launcher, Origin, Phase, Plan, WorktreeMode, WorktreeNotice};
 use crate::tui_presentation::PresentationPhase;
 use crate::workbench_client::state::{
-    field_window::{NativeFieldWindow, field_window},
+    field_window::{FieldWindow, field_window},
     line_editor::{LengthLimit, LineEditor},
 };
 use orchbee_workbench_protocol::{
@@ -347,7 +347,7 @@ impl<'a> WorktreeView<'a> {
     pub(crate) fn remaining_bytes(&self) -> usize {
         1024usize.saturating_sub(self.text().len())
     }
-    pub(crate) fn field_window(&self, cells: usize) -> Option<NativeFieldWindow<'_>> {
+    pub(crate) fn field_window(&self, cells: usize) -> Option<FieldWindow<'_>> {
         match &self.launcher.phase {
             Phase::Draft(d) => field_window(d.field(), cells),
             _ => None,

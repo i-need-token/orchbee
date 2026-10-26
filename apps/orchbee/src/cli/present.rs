@@ -1502,9 +1502,9 @@ fn check_summary(check: &CheckReport) -> String {
 /// document's own dotted field path (`locks.activation`,
 /// `endpoints.client`), and advisory tokens append their localized note
 /// lines after the rows.
-pub(crate) fn site_diagnose(
+pub(crate) fn server_diagnose(
     out: &mut Bounded,
-    document: &super::site_diagnose::DiagnoseDocument,
+    document: &super::server_diagnose::DiagnoseDocument,
     locale: Locale,
 ) -> Result<(), TooLarge> {
     for (name, row) in &document.rows {
@@ -1520,7 +1520,7 @@ pub(crate) fn site_diagnose(
         }
     }
     for advisory in &document.advisories {
-        out.push(locale.cli_site_diagnose_advisory(advisory))?;
+        out.push(locale.cli_server_diagnose_advisory(advisory))?;
     }
     Ok(())
 }

@@ -257,7 +257,7 @@ fn sidebar_global_prefix_dispatches_default_creation_and_preserves_return_marker
 
 #[test]
 fn sidebar_prefix_respects_configured_chords_and_captures_paste_and_key_releases() {
-    let settings = orchbee_local_site_runtime::WindowsKeySettings::from_profile(
+    let settings = orchbee_local_runtime::KeySettings::from_profile(
         "[keys]\nprefix='ctrl+a'\nnew_workspace='prefix+w'\nnew_tab='alt+n'",
     )
     .unwrap();

@@ -1,4 +1,4 @@
-//! Closed event filters and ergonomic selectors are admitted before joining an existing Site.
+//! Closed event filters and ergonomic selectors are admitted before joining an existing Session.
 use super::{
     ExpectedValue, FailureEnvelope, NO_OPTIONS, OutputFormat, ParseFailure, Request, Resource,
     Scope, Target, UsageContext, UsageReason, check_scope, missing_command, target,

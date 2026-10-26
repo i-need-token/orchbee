@@ -16,7 +16,7 @@ mod split_ratios;
 fn admission_validates_the_complete_graph_before_runtime_reconstruction() {
     let bytes = checkpoint();
     let admitted = WorkbenchCheckpoint::parse(&bytes).unwrap();
-    let authority = admitted.reconstruct(site(300), &worker(400)).unwrap();
+    let authority = admitted.reconstruct(session(300), &worker(400)).unwrap();
     assert_eq!(authority.snapshot(), restore(&bytes).unwrap().snapshot());
     assert_eq!(authority.catalog, restore(&bytes).unwrap().catalog);
     let invalid_graph =
@@ -30,8 +30,8 @@ fn admission_validates_the_complete_graph_before_runtime_reconstruction() {
     ));
 }
 
-fn site(value: u128) -> SiteId {
-    SiteId::parse(&identity(value)).unwrap()
+fn session(value: u128) -> SessionId {
+    SessionId::parse(&identity(value)).unwrap()
 }
 
 fn worker(value: u128) -> WorkerId {
@@ -47,10 +47,10 @@ fn presentation(id: u128, owner: &WorkerId, bound: bool) -> Value {
     })
 }
 
-fn graph(site_id: SiteId, owner: &WorkerId, bound: bool, revision: u64) -> Value {
+fn graph(session_id: SessionId, owner: &WorkerId, bound: bool, revision: u64) -> Value {
     json!({
         "kind": "workbench.snapshot", "protocolVersion": 1,
-        "sessionId": site_id, "revision": revision.to_string(),
+        "sessionId": session_id, "revision": revision.to_string(),
         "navigation": {
             "projects": [{"projectId": identity(2), "label": "项目"}],
             "directories": [{"directoryId": identity(3), "workerId": owner, "path": "C:\\work space\\项目"}],
@@ -83,9 +83,9 @@ fn graph(site_id: SiteId, owner: &WorkerId, bound: bool, revision: u64) -> Value
 }
 
 fn fixture() -> WorkbenchAuthority {
-    let mut authority = WorkbenchAuthority::workspace_fixture(site(100)).unwrap();
+    let mut authority = WorkbenchAuthority::workspace_fixture(session(100)).unwrap();
     authority.projection = WorkbenchProjectionStore::load(
-        &serde_json::to_vec(&graph(site(100), &worker(200), true, 99)).unwrap(),
+        &serde_json::to_vec(&graph(session(100), &worker(200), true, 99)).unwrap(),
     )
     .unwrap();
     authority.last_identity = 40;
@@ -111,14 +111,14 @@ fn checkpoint() -> Vec<u8> {
 }
 
 fn restore(encoded: &[u8]) -> Result<WorkbenchAuthority, WorkbenchCheckpointError> {
-    WorkbenchAuthority::from_checkpoint(encoded, site(300), &worker(400))
+    WorkbenchAuthority::from_checkpoint(encoded, session(300), &worker(400))
 }
 
 fn command(authority: &mut WorkbenchAuthority, action: WorkbenchAction) -> WorkbenchCommandOutcome {
-    let grant = WorkbenchGrant::manage_navigation(authority.site_id().clone());
+    let grant = WorkbenchGrant::manage_navigation(authority.session_id().clone());
     let request = WorkbenchRequest::Command(WorkbenchCommand {
         protocol_version: ProtocolVersion,
-        site_id: authority.site_id().clone(),
+        session_id: authority.session_id().clone(),
         request_id: WorkbenchRequestId::parse(&identity(
             1_000 + u128::from(authority.snapshot().revision.value()),
         ))
@@ -147,7 +147,7 @@ fn preserves_the_graph_and_profiles_without_retaining_process_authority() {
     let encoded = source.checkpoint(&worker(200)).unwrap();
     let restored = restore(&encoded).unwrap();
     let expected = WorkbenchProjectionStore::load(
-        &serde_json::to_vec(&graph(site(300), &worker(400), false, 0)).unwrap(),
+        &serde_json::to_vec(&graph(session(300), &worker(400), false, 0)).unwrap(),
     )
     .unwrap();
     assert_eq!(restored.snapshot(), expected.snapshot());
@@ -224,7 +224,7 @@ fn preserves_deleted_identity_high_water_and_rejects_exhaustion() {
 
 #[test]
 fn deleted_profile_is_not_resurrected_and_its_counter_is_not_reused() {
-    let mut source = WorkbenchAuthority::new(site(100)).unwrap();
+    let mut source = WorkbenchAuthority::new(session(100)).unwrap();
     source.seed_fixture_workspace(worker(200));
     let action = || WorkbenchAction::LaunchProfileCreate {
         name: LaunchProfileName::parse("profile").unwrap(),
@@ -258,7 +258,7 @@ fn deleted_profile_is_not_resurrected_and_its_counter_is_not_reused() {
 
 #[test]
 fn restores_actual_committed_membership_with_new_grants_and_an_empty_journal() {
-    let mut source = WorkbenchAuthority::new(site(100)).unwrap();
+    let mut source = WorkbenchAuthority::new(session(100)).unwrap();
     source.seed_fixture_workspace(worker(200));
     let membership = source
         .prepare_fixture_tab(orchbee_workbench_protocol::PresentationBinding {
@@ -312,7 +312,7 @@ fn restores_actual_committed_membership_with_new_grants_and_an_empty_journal() {
     let before = restored.snapshot().clone();
     let request = WorkbenchRequest::Command(WorkbenchCommand {
         protocol_version: ProtocolVersion,
-        site_id: restored.site_id().clone(),
+        session_id: restored.session_id().clone(),
         request_id: WorkbenchRequestId::parse(&identity(77)).unwrap(),
         expected_revision: WorkbenchRevision::new(0),
         action: WorkbenchAction::ProjectCreate {
@@ -320,7 +320,7 @@ fn restores_actual_committed_membership_with_new_grants_and_an_empty_journal() {
         },
     });
     let response = restored.execute(
-        Some(&WorkbenchGrant::manage_navigation(site(100))),
+        Some(&WorkbenchGrant::manage_navigation(session(100))),
         request.try_into().unwrap(),
     );
     assert!(matches!(
@@ -351,7 +351,7 @@ fn capture_refuses_foreign_directories_primary_and_child_presentations() {
     ];
     for path in paths {
         let mut source = fixture();
-        let mut value = graph(site(100), &worker(200), true, 99);
+        let mut value = graph(session(100), &worker(200), true, 99);
         *value.pointer_mut(path).unwrap() = json!(identity(500));
         source.projection =
             WorkbenchProjectionStore::load(&serde_json::to_vec(&value).unwrap()).unwrap();

@@ -56,7 +56,7 @@ fn workspace_git_requires_only_read_grant_and_never_changes_canonical_state() {
         let request = WorkspaceGitRequest {
             protocol_version: ProtocolVersion,
             request_id: WorkbenchRequestId::parse(&format!("{:032x}", 2)).unwrap(),
-            site_id: before.site_id.clone(),
+            session_id: before.session_id.clone(),
             workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 3)).unwrap(),
         };
         let WorkbenchResponse::WorkspaceGit(reply) =
@@ -99,7 +99,8 @@ fn configuration_reads_and_reloads_require_their_own_grant_before_owner_admissio
             WorkbenchRequest::Configuration(ConfigurationRequest {
                 protocol_version: ProtocolVersion,
                 request_id: WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap(),
-                site_id: orchbee_workbench_protocol::SiteId::parse(&format!("{:032x}", 2)).unwrap(),
+                session_id:
+                    orchbee_workbench_protocol::SessionId::parse(&format!("{:032x}", 2)).unwrap(),
                 action,
             }),
         )) else {
@@ -151,7 +152,7 @@ fn navigation_permission_alone_denies_tab_create_before_terminal_or_ledger_effec
     let command = WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 2)).unwrap(),
-        site_id: snapshot.site_id,
+        session_id: snapshot.session_id,
         expected_revision: snapshot.revision,
         action: WorkbenchAction::TabCreate {
             placement: None,
@@ -235,7 +236,7 @@ fn navigation_permission_admits_move_without_terminal_create_permission() {
     let command = WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 21)).unwrap(),
-        site_id: snapshot.site_id,
+        session_id: snapshot.session_id,
         expected_revision: snapshot.revision,
         action: WorkbenchAction::TabMove {
             terminal_context_id: snapshot.navigation.workspaces[0]
@@ -290,7 +291,7 @@ fn panel_terminal_creation_requires_both_grants_and_reaches_the_lifecycle_owner(
     let command = WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 9801)).unwrap(),
-        site_id: snapshot.site_id,
+        session_id: snapshot.session_id,
         expected_revision: snapshot.revision,
         action: WorkbenchAction::PanelCreateTerminal {
             terminal_context_id: snapshot.navigation.workspaces[0]
@@ -368,7 +369,7 @@ fn directory_association_requires_its_own_grant_and_navigation_without_launch_pe
     let command = WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 402)).unwrap(),
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         expected_revision: snapshot.revision,
         action: WorkbenchAction::WorkspacePrimaryDirectoryAccept {
             workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(&format!(
@@ -445,7 +446,7 @@ fn workspace_launch_requires_navigation_directory_and_terminal_grants() {
     let command = WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 402)).unwrap(),
-        site_id: snapshot.site_id.clone(),
+        session_id: snapshot.session_id.clone(),
         expected_revision: snapshot.revision,
         action: WorkbenchAction::WorkspaceLaunch {
             placement: orchbee_workbench_protocol::WorkspacePlacement::Project {
@@ -556,7 +557,7 @@ fn layout_structure_uses_navigation_only_without_a_worker() {
     };
     let command = WorkbenchCommand { protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 9810)).unwrap(),
-        site_id: snapshot.site_id, expected_revision: snapshot.revision,
+        session_id: snapshot.session_id, expected_revision: snapshot.revision,
         action: WorkbenchAction::TabCreateLayout { terminal_context_id: snapshot.navigation.workspaces[0].terminal_context_id.clone(),
             label: WorkbenchLabel::parse("Layout").unwrap(), automatic_label: false,
             layout: serde_json::from_value(serde_json::json!({"kind":"panel","primary":{"label":"Empty","customLabel":null},"children":[],"rightClick":"orchbee"})).unwrap() } };

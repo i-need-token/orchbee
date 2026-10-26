@@ -1,11 +1,11 @@
 //! Exact Agent subject identity and physical-frame readiness for explicit focus.
-use super::NativeUi;
+use super::WorkbenchClientUi;
 use orchbee_agent_observation_protocol::AgentNameTarget;
 use orchbee_workbench_protocol::{
     ClientViewControl, ClientViewControlReason as Reason, ClientViewIntent,
 };
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn agent_focus_source(
         &self,
         command: &ClientViewControl,
@@ -63,7 +63,7 @@ impl NativeUi {
         if let AgentNameTarget::Terminal { binding } = target {
             let view = self.view();
             if view.pane_projection_status(panel_id)
-                != super::NativeProjectionStatus::FrameAvailable
+                != super::ClientProjectionStatus::FrameAvailable
             {
                 return Ok(false);
             }

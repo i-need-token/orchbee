@@ -502,13 +502,13 @@ fn launch_and_response_values_are_revalidated_at_the_host_protocol_boundary() ->
 }
 
 #[test]
-fn admitted_site_observation_socket_sets_the_overlay_variable() -> TestResult {
-    let directory = ObservationSiteDirectory::new()?;
+fn admitted_session_observation_socket_sets_the_overlay_variable() -> TestResult {
+    let directory = ObservationSessionDirectory::new()?;
     #[cfg(unix)]
     let endpoint = directory.path().join(OBSERVATION_SOCKET_NAME);
     #[cfg(windows)]
     let endpoint =
-        orchbee_local_site_runtime::ModeCheckedLocalSiteRendezvous::observation_endpoint_path(
+        orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::observation_endpoint_path(
             directory.path(),
         );
     let _listener = UnixListener::bind(&endpoint)?;
@@ -558,7 +558,7 @@ fn admitted_site_observation_socket_sets_the_overlay_variable() -> TestResult {
 #[cfg(unix)]
 #[test]
 fn unqualified_observation_candidates_produce_no_overlay() -> TestResult {
-    let directory = ObservationSiteDirectory::new()?;
+    let directory = ObservationSessionDirectory::new()?;
     let dispatch = launch_dispatch(None, TerminalLaunchMode::Deferred)?;
     let socket_name = directory.path().join(OBSERVATION_SOCKET_NAME);
 
@@ -597,9 +597,9 @@ type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 static NEXT_OBSERVATION_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
-struct ObservationSiteDirectory(PathBuf);
+struct ObservationSessionDirectory(PathBuf);
 
-impl ObservationSiteDirectory {
+impl ObservationSessionDirectory {
     fn new() -> std::io::Result<Self> {
         let path = std::env::temp_dir().join(format!(
             "orchbee-worker-observation-overlay-{}-{}",
@@ -615,7 +615,7 @@ impl ObservationSiteDirectory {
     }
 }
 
-impl Drop for ObservationSiteDirectory {
+impl Drop for ObservationSessionDirectory {
     fn drop(&mut self) {
         let _ = std::fs::remove_dir_all(&self.0);
     }
@@ -843,11 +843,11 @@ fn windows_managed_launch_carries_exact_route_and_rejects_unrepresentable_route(
         let request = map_launch_dispatch(
             &dispatch,
             resolved_facts("C:/Users/worker")?,
-            Some(std::path::Path::new("C:/isolated/site-a")),
+            Some(std::path::Path::new("C:/isolated/session-a")),
         )?;
         for (name, expected) in [
             ("ORCHBEE_RUNTIME_BASE", "C:/isolated"),
-            ("ORCHBEE_RUNTIME_SCOPE", "site-a"),
+            ("ORCHBEE_RUNTIME_SCOPE", "session-a"),
         ] {
             assert_eq!(
                 request
@@ -862,9 +862,9 @@ fn windows_managed_launch_carries_exact_route_and_rejects_unrepresentable_route(
             map_launch_dispatch(
                 &dispatch,
                 resolved_facts("C:/Users/worker")?,
-                Some(std::path::Path::new("relative/site-a"))
+                Some(std::path::Path::new("relative/session-a"))
             ),
-            Err(HostLaunchAdapterError::InvalidSiteRoute)
+            Err(HostLaunchAdapterError::InvalidSessionRoute)
         ));
     }
     Ok(())

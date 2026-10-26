@@ -3,7 +3,7 @@
 #[allow(dead_code)]
 #[path = "support/windows_agent_peer.rs"]
 mod support;
-use orchbee_local_site_runtime::WindowsPrivateCache;
+use orchbee_local_runtime::PrivateCache;
 use serde_json::{Value, json};
 use support::{Fixture, validate};
 const ID: &str = "11111111111111111111111111111111";
@@ -23,7 +23,7 @@ fn saved_machine_commands_round_trip_without_local_activation_or_remote_stop() {
     let list = document(fixture.run(&["machine", "list", "--json"]), 0);
     assert_eq!(list["result"]["profiles"], json!([]));
     assert!(!root.exists());
-    let mut cache = WindowsPrivateCache::acquire(&root).unwrap();
+    let mut cache = PrivateCache::acquire(&root).unwrap();
     cache
         .replace(
             "catalog.json",
@@ -62,7 +62,7 @@ fn saved_machine_commands_round_trip_without_local_activation_or_remote_stop() {
 fn invalid_catalog_and_invalid_grammar_refuse_add_before_ssh_and_preserve_bytes() {
     let fixture = Fixture::new();
     let root = fixture.0.join("appdata/Orchbee/machines");
-    let mut cache = WindowsPrivateCache::acquire(&root).unwrap();
+    let mut cache = PrivateCache::acquire(&root).unwrap();
     cache.replace("catalog.json", b"not json").unwrap();
     drop(cache);
     let value = document(

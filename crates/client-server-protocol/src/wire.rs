@@ -4,7 +4,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 
 use crate::{
     ClientMessage, CreateOutcome, Geometry, PROTOCOL_VERSION, ProtocolError, RequestId,
-    ServerMessage, SiteId, StartMode, StartOutcome, TerminalCreateRequest, TerminalCreateResult,
+    ServerMessage, SessionId, StartMode, StartOutcome, TerminalCreateRequest, TerminalCreateResult,
     TerminalId, TerminalStartRequest, TerminalStartResult, WorkerConstraint, WorkingDirectory,
     number::Binary64SafeInteger,
 };
@@ -286,7 +286,7 @@ struct DecodedTerminalLaunchFact {
 enum DecodedTerminalLaunchReadOutcome {
     Found {
         #[serde(rename = "sessionId")]
-        site_id: SiteId,
+        session_id: SessionId,
         #[serde(deserialize_with = "crate::number::decimal::deserialize")]
         workbench_revision: u64,
         terminal: Box<crate::TerminalLaunchRoute>,
@@ -497,7 +497,7 @@ pub(crate) fn decode_server_payload(payload: &[u8]) -> Result<ServerMessage, Pro
         } => {
             let outcome = match outcome {
                 DecodedTerminalLaunchReadOutcome::Found {
-                    site_id,
+                    session_id,
                     workbench_revision,
                     terminal,
                     launch,
@@ -510,7 +510,7 @@ pub(crate) fn decode_server_payload(payload: &[u8]) -> Result<ServerMessage, Pro
                         return Err(ProtocolError::InvalidPayload);
                     }
                     crate::TerminalLaunchReadOutcome::Found {
-                        site_id,
+                        session_id,
                         workbench_revision,
                         terminal,
                         launch: Box::new(crate::TerminalLaunchFact::new(

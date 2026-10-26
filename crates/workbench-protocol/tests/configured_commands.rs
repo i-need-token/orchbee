@@ -55,7 +55,7 @@ fn configured_popup_read_correlates_a_retained_closing_owner() {
     let request = ConfiguredCommandRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap(),
-        site_id: SiteId::parse(&format!("{:032x}", 2)).unwrap(),
+        session_id: SessionId::parse(&format!("{:032x}", 2)).unwrap(),
         action: ConfiguredCommandAction::PopupRead {
             popup_id: WorkbenchRequestId::parse(&format!("{:032x}", 3)).unwrap(),
         },
@@ -63,7 +63,7 @@ fn configured_popup_read_correlates_a_retained_closing_owner() {
     let mut result = ConfiguredCommandResult {
         protocol_version: ProtocolVersion,
         request_id: request.request_id.clone(),
-        site_id: request.site_id.clone(),
+        session_id: request.session_id.clone(),
         outcome: ConfiguredCommandOutcome::PopupClosing {
             popup_id: WorkbenchRequestId::parse(&format!("{:032x}", 3)).unwrap(),
         },

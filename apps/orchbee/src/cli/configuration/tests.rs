@@ -2,13 +2,13 @@ use super::*;
 
 #[test]
 fn explicit_creation_wins_over_shared_file_policy() {
-    let settings = project(WindowsUserSettingsLoad {
-        settings: WindowsUserSettings {
-            cwd: Some((WindowsDirectoryPolicy::Explicit, Some(r"C:\项目".into()))),
+    let settings = project(UserSettingsLoad {
+        settings: UserSettings {
+            cwd: Some((DirectoryPolicy::Explicit, Some(r"C:\项目".into()))),
             worktree_root: Some(r"C:\worktrees".into()),
-            ..WindowsUserSettings::default()
+            ..UserSettings::default()
         },
-        diagnostics: WindowsSettingsDiagnostics::default(),
+        diagnostics: SettingsDiagnostics::default(),
     })
     .unwrap();
     let mut directory = CreationDirectory::Default;
@@ -28,13 +28,10 @@ fn explicit_creation_wins_over_shared_file_policy() {
 #[test]
 fn shared_path_budget_matches_wire_and_cli_failure_preserves_field() {
     assert_eq!(
-        orchbee_local_site_runtime::WINDOWS_USER_PATH_LIMIT,
+        orchbee_local_runtime::USER_PATH_LIMIT,
         orchbee_workbench_protocol::MAXIMUM_DIRECTORY_PATH_BYTES
     );
-    let error = Error::from(WindowsSettingsError::new(
-        "update.manifest_check",
-        "wrong-type",
-    ));
+    let error = Error::from(SettingsError::new("update.manifest_check", "wrong-type"));
     assert_eq!(error.field, "update.manifest_check");
     assert_eq!(error.reason, "wrong-type");
 }
@@ -49,8 +46,8 @@ fn named_theme_config_check_is_required_and_closed() {
         schema.as_object_mut().unwrap().remove(key);
     }
     let validator = jsonschema::validator_for(&schema).unwrap();
-    let load = orchbee_local_site_runtime::WindowsUserSettingsLoad {
-        settings: orchbee_local_site_runtime::WindowsUserSettings::default(),
+    let load = orchbee_local_runtime::UserSettingsLoad {
+        settings: orchbee_local_runtime::UserSettings::default(),
         diagnostics: Default::default(),
     };
     let details = super::project(load).unwrap().check_details();

@@ -1,5 +1,6 @@
 use super::{
-    CommandMailbox, NativeUi, OperationDeadlines, RefreshDecision, RefreshSettlement, UiReply,
+    CommandMailbox, OperationDeadlines, RefreshDecision, RefreshSettlement, UiReply,
+    WorkbenchClientUi,
 };
 use crate::{
     local_client::LocalOperationClock,
@@ -20,7 +21,7 @@ pub(super) struct RetiredMembershipAttempt {
     deadlines: OperationDeadlines,
 }
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn finish_retired_peer_join(
         &mut self,
         evidence: Option<UnavailablePoll>,

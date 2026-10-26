@@ -1,6 +1,6 @@
 //! Join Client-local Agent versions to the exact live panes actually painted.
-use super::{NativeProjectionStatus, NativeUi, PaneRef, WorkbenchClientView};
-use crate::workbench_client::agent_attention::{NativeAgentAttentionDraw, PaintedPane};
+use super::{ClientProjectionStatus, PaneRef, WorkbenchClientUi, WorkbenchClientView};
+use crate::workbench_client::agent_attention::{AgentAttentionDraw, PaintedPane};
 use orchbee_workbench_protocol::WorkbenchPanelId;
 
 impl WorkbenchClientView<'_> {
@@ -46,7 +46,7 @@ impl WorkbenchClientView<'_> {
     fn attention_presentation(&self, pane: &PaneRef) -> Option<String> {
         let panel_id = pane.pane().panel();
         if self.pane_ref_for_panel(panel_id).as_ref() != Some(pane)
-            || self.pane_projection_status(panel_id) != NativeProjectionStatus::FrameAvailable
+            || self.pane_projection_status(panel_id) != ClientProjectionStatus::FrameAvailable
             || self.pane_projection(panel_id)?.frame().is_none()
             || (self.zoom_active() && self.focus_panel_id() != Some(panel_id))
         {
@@ -96,7 +96,7 @@ impl WorkbenchClientView<'_> {
     pub(crate) fn attention_draw<'a>(
         &self,
         panes: impl Iterator<Item = &'a PaneRef>,
-    ) -> Option<NativeAgentAttentionDraw> {
+    ) -> Option<AgentAttentionDraw> {
         if !self.attention_uncovered() {
             return None;
         }
@@ -126,7 +126,7 @@ impl WorkbenchClientView<'_> {
     }
 }
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn terminal_edited(&mut self) {
         let Some(pane) = self
             .state
@@ -142,14 +142,14 @@ impl NativeUi {
     pub(in crate::workbench_client) fn configure_agent_notifications(
         &mut self,
         revision: u64,
-        settings: &orchbee_local_site_runtime::NativeNotificationSettings,
+        settings: &orchbee_local_runtime::NotificationSettings,
     ) -> bool {
         self.notification_base = (revision, settings.clone());
         self.apply_notification_preferences()
     }
 
     pub(super) fn apply_notification_preferences(&mut self) -> bool {
-        use orchbee_local_site_runtime::NativeNotificationDelivery as Delivery;
+        use orchbee_local_runtime::NotificationDelivery as Delivery;
         use orchbee_workbench_protocol::AgentReminderMode;
         let (revision, base) = &self.notification_base;
         let mut effective = base.clone();
@@ -177,7 +177,7 @@ impl NativeUi {
         locale: crate::localization::Locale,
         sink_available: bool,
     ) -> Option<(
-        orchbee_local_site_runtime::NativeNotificationDelivery,
+        orchbee_local_runtime::NotificationDelivery,
         orchbee_workbench_protocol::Notification,
     )> {
         use crate::workbench_client::agent_notifications::AgentNotificationKind;
@@ -186,7 +186,7 @@ impl NativeUi {
         let (delivery, command) = self.attention.take_notification(sink_available)?;
         debug_assert_eq!(
             command.popup,
-            delivery != orchbee_local_site_runtime::NativeNotificationDelivery::Off
+            delivery != orchbee_local_runtime::NotificationDelivery::Off
         );
         debug_assert!(command.sequence > 0);
         let placement = self
@@ -234,7 +234,7 @@ impl NativeUi {
     ) -> Option<orchbee_workbench_protocol::ClientAgentAttentionSnapshot> {
         self.attention.read(sessions, self.outer_focused)
     }
-    pub(super) fn after_attention_draw(&mut self, draw: NativeAgentAttentionDraw) {
+    pub(super) fn after_attention_draw(&mut self, draw: AgentAttentionDraw) {
         let view = self.view();
         if !view.attention_uncovered() {
             return;

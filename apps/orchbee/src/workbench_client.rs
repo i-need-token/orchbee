@@ -57,17 +57,17 @@ mod terminal_selection;
 mod terminal_tail;
 pub(crate) mod terminal_viewport;
 mod ui;
-pub(crate) use ui::NativeNoticeContext;
+pub(crate) use ui::NoticeContext;
 pub(crate) use ui::settings::Notice as SettingsNotice;
 pub(crate) use ui::{WorkspaceCreationPhase, WorkspaceCreationPreview};
 mod wakeup;
 mod workbench_projection;
 pub(crate) use wakeup::UiWakeup;
 
-pub(crate) use workbench_projection::NativeContextTarget;
-pub(crate) use workbench_projection::NativeStartupTarget;
+pub(crate) use workbench_projection::ClientContextTarget;
+pub(crate) use workbench_projection::ClientStartupTarget;
 pub(crate) use workbench_projection::{
-    NativeContextLocation, NativeMemberTarget, NativePanel, NativePanelTree, NativePresentation,
+    ClientContextLocation, ClientMemberTarget, ClientPanel, ClientPanelTree, ClientPresentation,
 };
 
 pub(crate) use ui::{
@@ -80,24 +80,20 @@ pub(crate) use ui::WorktreeCaptureContext;
 pub(crate) use ui::{
     AgentBoardActualDraw, AgentBoardControl, AgentBoardControlTarget, AgentBoardDraw,
     AgentBoardEpisodeToken, AgentBoardRead, AgentBoardReadFailure, AgentBoardRow,
-    AgentBoardRowTarget, AgentBoardSummary, AgentBoardToken, CaptureReadiness,
-    DrawnPresentationTarget, JumpFailure, ModalPresentation, NativeAgentBoardView,
-    NativeCaptureContext, NativeCloseConfirmationKind, NativeCloseConfirmationToken,
-    NativeCloseConfirmationView, NativeCloseStatusKind, NativeCloseStatusToken,
-    NativeCloseStatusView, NativeDisplayController, NativeDisplayPhase, NativeDisplayProvenance,
-    NativeDisplayRetirement, NativeDrawReceipt, NativeLaunchFailure, NativeLaunchProfile,
-    NativeLocationLabelStatus, NativeLocationLabelTarget, NativePanelCloseConfirmationToken,
-    NativePanelCloseConfirmationView, NativeProjectionStatus, NativeRefreshStatus,
-    NativeRenameDraftToken, NativeRenameDraftView, NativeRenameEdit, NativeSetupDraftView,
-    NativeSetupEdit, NativeSetupStage, NativeSetupStatus, NativeSetupToken, NativeTabView,
-    NativeViewportSurface, PresentationPlacement, WorkbenchClientNotice, WorkbenchClientView,
-    WorkspaceCloseConfirmationView, WorkspaceCloseStatus, WorkspaceCloseStatusView,
-    WorkspaceCloseToken,
+    AgentBoardRowTarget, AgentBoardSummary, AgentBoardToken, AgentBoardView, CaptureContext,
+    CaptureReadiness, ClientProjectionStatus, ClientTabView, CloseConfirmationKind,
+    CloseConfirmationToken, CloseConfirmationView, CloseStatusKind, CloseStatusToken,
+    CloseStatusView, DisplayController, DisplayPhase, DisplayProvenance, DisplayRetirement,
+    DrawReceipt, DrawnPresentationTarget, JumpFailure, LaunchFailure, LaunchProfile,
+    LocationLabelStatus, LocationLabelTarget, ModalPresentation, PanelCloseConfirmationToken,
+    PanelCloseConfirmationView, PresentationPlacement, RefreshStatus, RenameDraftToken,
+    RenameDraftView, RenameEdit, SetupDraftView, SetupEdit, SetupStage, SetupStatus, SetupToken,
+    ViewportSurface, WorkbenchClientNotice, WorkbenchClientView, WorkspaceCloseConfirmationView,
+    WorkspaceCloseStatus, WorkspaceCloseStatusView, WorkspaceCloseToken,
 };
 #[cfg(test)]
 pub(crate) use ui::{
-    AgentBoardInputContext, ConfirmationCaptureContext, NativeRenameInputContext,
-    SetupCaptureContext,
+    AgentBoardInputContext, ConfirmationCaptureContext, RenameInputContext, SetupCaptureContext,
 };
 pub(crate) use ui::{AgentStartCatalogStatus, AgentStartPhase};
 
@@ -121,11 +117,11 @@ pub(crate) enum ContextNavigationAdmission {
 }
 
 enum ClientBackend {
-    Native(Box<ui::NativeUi>),
+    Native(Box<ui::WorkbenchClientUi>),
 }
 
 impl ClientBackend {
-    fn native_mut(&mut self) -> Option<&mut ui::NativeUi> {
+    fn native_mut(&mut self) -> Option<&mut ui::WorkbenchClientUi> {
         match self {
             Self::Native(native) => Some(native),
         }
@@ -133,7 +129,7 @@ impl ClientBackend {
 }
 
 enum ClientTask {
-    Native(JoinHandle<connection::NativeWorkerExit>),
+    Native(JoinHandle<connection::ClientConnectionExit>),
 }
 
 pub(crate) struct WorkbenchClient {
@@ -166,7 +162,7 @@ impl WorkbenchClient {
 
     pub(crate) fn navigate_context(
         &mut self,
-        target: &NativeContextTarget,
+        target: &ClientContextTarget,
     ) -> ContextNavigationAdmission {
         self.backend
             .native_mut()
@@ -245,7 +241,7 @@ impl WorkbenchClient {
 
     pub(crate) fn start_target(
         client: LocalClient,
-        target: NativeStartupTarget,
+        target: ClientStartupTarget,
         geometry: Geometry,
     ) -> io::Result<Self> {
         Self::start_with_context(client, geometry, Some(target))
@@ -262,7 +258,7 @@ impl WorkbenchClient {
         }
         let preferences = startup_preference::Preferences::load(runtime);
         let fallback = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let context = Some(NativeStartupTarget::LocalDirectory {
+        let context = Some(ClientStartupTarget::LocalDirectory {
             position: preferences.position.clone(),
             fallback: Arc::clone(&fallback),
             directory: Box::new(directory),
@@ -314,7 +310,7 @@ impl WorkbenchClient {
     fn start_with_context(
         client: LocalClient,
         geometry: Geometry,
-        context: Option<workbench_projection::NativeStartupTarget>,
+        context: Option<workbench_projection::ClientStartupTarget>,
     ) -> io::Result<Self> {
         let shutdown = client.shutdown_handle()?;
         let clock = client.operation_clock();
@@ -329,7 +325,7 @@ impl WorkbenchClient {
             origin.clone(),
             clock.clone(),
         ));
-        let mut native = ui::NativeUi::with_capabilities(
+        let mut native = ui::WorkbenchClientUi::with_capabilities(
             mailbox,
             clock,
             crate::tui_capabilities::Capabilities::for_host(),
@@ -416,7 +412,7 @@ impl WorkbenchClient {
     }
 
     #[cfg(test)]
-    pub(crate) fn rename_input_context(&mut self) -> Option<NativeRenameInputContext> {
+    pub(crate) fn rename_input_context(&mut self) -> Option<RenameInputContext> {
         match &mut self.backend {
             ClientBackend::Native(native) => native.rename_input_context(),
         }
@@ -426,7 +422,7 @@ impl WorkbenchClient {
     pub(crate) fn configure_agent_notifications(
         &mut self,
         revision: u64,
-        settings: &orchbee_local_site_runtime::WindowsNotificationSettings,
+        settings: &orchbee_local_runtime::NotificationSettings,
     ) {
         if let Some(native) = self.backend.native_mut() {
             native.configure_agent_notifications(revision, settings);
@@ -495,12 +491,12 @@ impl WorkbenchClient {
                 view.settle_copy_mode(native.copy_mode_active());
                 if self.configuration.is_none()
                     && let Some(origin) = &self.origin
-                    && let Some((site, _)) = native.control_observation(false)
+                    && let Some((session, _)) = native.control_observation(false)
                 {
                     self.configuration = configuration::Watcher::spawn(
                         origin.clone(),
                         native.configuration_clock(),
-                        site,
+                        session,
                     )
                     .ok();
                 }
@@ -515,23 +511,23 @@ impl WorkbenchClient {
                 }
                 if self.notifications.is_none()
                     && let Some(origin) = &self.origin
-                    && let Some((site, _)) = native.control_observation(false)
+                    && let Some((session, _)) = native.control_observation(false)
                 {
                     self.notifications = crate::notifications::Subscription::spawn(
                         origin.clone(),
                         native.configuration_clock(),
-                        site,
+                        session,
                     )
                     .ok();
                 }
                 if self.window_title.is_none()
                     && let Some(origin) = &self.origin
-                    && let Some((site, _)) = native.control_observation(false)
+                    && let Some((session, _)) = native.control_observation(false)
                 {
                     self.window_title = window_title::Subscription::spawn(
                         origin.clone(),
                         native.configuration_clock(),
-                        site,
+                        session,
                     )
                     .ok();
                 }
@@ -620,7 +616,7 @@ impl WorkbenchClient {
         self.finalize_native_retirement();
     }
 
-    pub(crate) fn after_close_draw(&mut self, receipt: NativeDrawReceipt) {
+    pub(crate) fn after_close_draw(&mut self, receipt: DrawReceipt) {
         if let Some(native) = self.backend.native_mut() {
             if let Some(writer) = self.position_writer.as_mut()
                 && let Some(draw) = receipt.position()
@@ -799,7 +795,7 @@ impl TerminalInputPort for WorkbenchClient {
         }
     }
 
-    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+    fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
         match &self.backend {
             ClientBackend::Native(native) => native.capture_claims(),
         }
@@ -807,8 +803,8 @@ impl TerminalInputPort for WorkbenchClient {
 
     fn native_capture_context(
         &self,
-        owner: crate::tui_composition::NativeCaptureOwner,
-    ) -> Option<NativeCaptureContext> {
+        owner: crate::tui_composition::CaptureOwner,
+    ) -> Option<CaptureContext> {
         match &self.backend {
             ClientBackend::Native(native) => native.capture_context(owner),
         }
@@ -826,13 +822,13 @@ impl TerminalInputPort for WorkbenchClient {
             control.resize_drawn(native, target, direction, fine);
         }
     }
-    fn click_tab_close(&mut self, token: NativeCloseConfirmationToken, confirm: bool) {
+    fn click_tab_close(&mut self, token: CloseConfirmationToken, confirm: bool) {
         if let Some(native) = self.backend.native_mut() {
             native.click_tab_close(token, confirm);
         }
         self.finalize_native_retirement();
     }
-    fn click_panel_close(&mut self, token: NativePanelCloseConfirmationToken, confirm: bool) {
+    fn click_panel_close(&mut self, token: PanelCloseConfirmationToken, confirm: bool) {
         if let Some(native) = self.backend.native_mut() {
             native.click_panel_close(token, confirm);
         }
@@ -1035,19 +1031,19 @@ impl TerminalInputPort for WorkbenchClient {
         }
     }
 
-    fn edit_setup_draft(&mut self, token: NativeSetupToken, edit: NativeSetupEdit<'_>) -> bool {
+    fn edit_setup_draft(&mut self, token: SetupToken, edit: SetupEdit<'_>) -> bool {
         self.backend
             .native_mut()
             .is_some_and(|native| native.edit_setup_draft(token, edit))
     }
 
-    fn cancel_setup_draft(&mut self, token: NativeSetupToken) {
+    fn cancel_setup_draft(&mut self, token: SetupToken) {
         if let Some(native) = self.backend.native_mut() {
             native.cancel_setup_draft(token);
         }
     }
 
-    fn choose_setup_project(&mut self, token: NativeSetupToken, index: usize) {
+    fn choose_setup_project(&mut self, token: SetupToken, index: usize) {
         if let Some(native) = self.backend.native_mut() {
             native.choose_setup_project(token, index);
         }
@@ -1056,16 +1052,16 @@ impl TerminalInputPort for WorkbenchClient {
 
     fn scroll_setup_projects(
         &mut self,
-        token: NativeSetupToken,
+        token: SetupToken,
         up: bool,
         lines: usize,
-    ) -> Option<NativeSetupToken> {
+    ) -> Option<SetupToken> {
         self.backend
             .native_mut()
             .and_then(|native| native.scroll_setup_projects(token, up, lines))
     }
 
-    fn submit_setup_draft(&mut self, token: NativeSetupToken) -> Option<ClientActionDisposition> {
+    fn submit_setup_draft(&mut self, token: SetupToken) -> Option<ClientActionDisposition> {
         let disposition = self
             .backend
             .native_mut()
@@ -1080,26 +1076,19 @@ impl TerminalInputPort for WorkbenchClient {
         }
     }
 
-    fn edit_rename_draft(
-        &mut self,
-        token: NativeRenameDraftToken,
-        edit: NativeRenameEdit<'_>,
-    ) -> bool {
+    fn edit_rename_draft(&mut self, token: RenameDraftToken, edit: RenameEdit<'_>) -> bool {
         match &mut self.backend {
             ClientBackend::Native(native) => native.edit_rename_draft(token, edit),
         }
     }
 
-    fn cancel_rename_draft(&mut self, token: NativeRenameDraftToken) {
+    fn cancel_rename_draft(&mut self, token: RenameDraftToken) {
         if let Some(native) = self.backend.native_mut() {
             native.cancel_rename_draft(token);
         }
     }
 
-    fn submit_rename_draft(
-        &mut self,
-        token: NativeRenameDraftToken,
-    ) -> Option<ClientActionDisposition> {
+    fn submit_rename_draft(&mut self, token: RenameDraftToken) -> Option<ClientActionDisposition> {
         let disposition = match &mut self.backend {
             ClientBackend::Native(native) => Some(native.submit_rename_draft(token)),
         };
@@ -1115,7 +1104,7 @@ impl TerminalInputPort for WorkbenchClient {
 
     fn capture_tab_confirmation_key_for(
         &mut self,
-        token: NativeCloseConfirmationToken,
+        token: CloseConfirmationToken,
         key: crate::client_view::ClientKey,
     ) -> bool {
         let captured = self
@@ -1128,7 +1117,7 @@ impl TerminalInputPort for WorkbenchClient {
 
     fn capture_panel_confirmation_key_for(
         &mut self,
-        token: NativePanelCloseConfirmationToken,
+        token: PanelCloseConfirmationToken,
         key: crate::client_view::ClientKey,
     ) -> bool {
         let captured = self
@@ -1434,7 +1423,7 @@ impl TerminalInputPort for WorkbenchClient {
     fn cancel_copy_mode(&mut self) -> bool {
         self.backend
             .native_mut()
-            .is_some_and(ui::NativeUi::cancel_copy_mode)
+            .is_some_and(ui::WorkbenchClientUi::cancel_copy_mode)
     }
 
     fn history_wheel(&mut self, key: &state::PaneRef, up: bool) -> bool {

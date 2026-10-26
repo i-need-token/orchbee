@@ -5,7 +5,7 @@ use super::super::{
 };
 use crate::{
     agent_screen::{ScreenDetector, ScreenInput},
-    site_coordinator::identify_host_agent,
+    session_coordinator::identify_host_agent,
 };
 use orchbee_capability_node_protocol::{OperationId, ViewerRowDetail, ViewerSnapshotReason};
 use orchbee_terminal_protocol::{
@@ -150,7 +150,7 @@ pub(super) fn directory(
         .and_then(|f| {
             f.current_directory
                 .as_deref()
-                .and_then(orchbee_local_site_runtime::windows_reported_directory)
+                .and_then(orchbee_local_runtime::windows_reported_directory)
         })
         .and_then(|p| orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(&p).ok());
     reported.or_else(|| {
@@ -161,7 +161,7 @@ pub(super) fn directory(
             .find(|p| p.pid == sample.root_pid)?
             .current_directory
             .as_deref()?;
-        orchbee_local_site_runtime::windows_reported_directory(path)
+        orchbee_local_runtime::windows_reported_directory(path)
             .and_then(|p| orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(&p).ok())
     })
 }
@@ -180,7 +180,7 @@ pub(in crate::local_terminal_service) fn configured_capture(
     let mut directory = frame
         .current_directory
         .as_deref()
-        .and_then(orchbee_local_site_runtime::windows_reported_directory)
+        .and_then(orchbee_local_runtime::windows_reported_directory)
         .and_then(|path| orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(&path).ok());
     let selected_text = if let Some(selection) = selection {
         selection.validate().map_err(|_| F::InvalidIntent)?;
@@ -268,7 +268,7 @@ pub(in crate::local_terminal_service) fn configured_capture(
                     .find(|p| p.pid == sample.root_pid)
             })
             .and_then(|p| p.current_directory)
-            .and_then(|path| orchbee_local_site_runtime::windows_reported_directory(&path))
+            .and_then(|path| orchbee_local_runtime::windows_reported_directory(&path))
             .and_then(|path| orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(&path).ok());
     }
     Ok(
@@ -472,7 +472,7 @@ pub(super) fn observe(
     let reported = projection
         .as_ref()
         .and_then(|frame| frame.current_directory.as_deref())
-        .and_then(orchbee_local_site_runtime::windows_reported_directory)
+        .and_then(orchbee_local_runtime::windows_reported_directory)
         .and_then(|path| orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(&path).ok());
     if !stop.load(Ordering::Acquire) {
         viewer.service.observe_terminal_projection(
@@ -528,7 +528,7 @@ fn checkpoint_directory(
             .iter()
             .find(|process| process.pid == sample.root_pid)
             .and_then(|process| process.current_directory.as_deref())
-            .and_then(orchbee_local_site_runtime::windows_reported_directory)
+            .and_then(orchbee_local_runtime::windows_reported_directory)
             .and_then(|path| orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(&path).ok())
     })
 }

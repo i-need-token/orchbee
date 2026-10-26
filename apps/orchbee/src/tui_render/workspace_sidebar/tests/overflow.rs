@@ -236,7 +236,7 @@ fn project_gap_view(label: &str) -> ClientView {
         Choice::Local,
         crate::machine_spaces::Observation::Ready(std::sync::Arc::new(
             crate::machine_spaces::Checkpoint {
-                site_id: SiteId::parse(&id(1)).unwrap(),
+                session_id: SessionId::parse(&id(1)).unwrap(),
                 revision: WorkbenchRevision::new(3),
                 metadata_revision: WorkbenchRevision::new(2),
                 git_requested: true,
@@ -272,7 +272,7 @@ fn project_group_gap_stays_inert_while_hover_targets_only_the_inline_disclosure_
                     );
                     let target = SidebarTarget::Project {
                         machine: Choice::Local,
-                        site_id: SiteId::parse(&id(1)).unwrap(),
+                        session_id: SessionId::parse(&id(1)).unwrap(),
                         project_id: WorkbenchProjectId::parse(&id(71)).unwrap(),
                     };
                     let mut pointer = PointerState::default();

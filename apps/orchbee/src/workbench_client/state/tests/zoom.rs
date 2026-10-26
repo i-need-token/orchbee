@@ -544,18 +544,18 @@ fn zoomed_paint_narrows_the_drawn_set_but_not_the_observed_set() {
         KeyedProjection::for_test(
             focus.clone(),
             framed_projection(),
-            crate::workbench_client::NativeProjectionStatus::FrameAvailable,
+            crate::workbench_client::ClientProjectionStatus::FrameAvailable,
         ),
         KeyedProjection::for_test(
             peer.clone(),
             framed_projection(),
-            crate::workbench_client::NativeProjectionStatus::FrameAvailable,
+            crate::workbench_client::ClientProjectionStatus::FrameAvailable,
         ),
     ];
     let unzoomed_view = WorkbenchClientView::test_view(
         &state,
         &unzoomed_panes,
-        crate::workbench_client::NativeProjectionStatus::FrameAvailable,
+        crate::workbench_client::ClientProjectionStatus::FrameAvailable,
     );
     let client_view = ClientView::new(120);
     let dimensions = WindowDimensions {
@@ -584,18 +584,18 @@ fn zoomed_paint_narrows_the_drawn_set_but_not_the_observed_set() {
         KeyedProjection::for_test(
             focus.clone(),
             framed_projection(),
-            crate::workbench_client::NativeProjectionStatus::FrameAvailable,
+            crate::workbench_client::ClientProjectionStatus::FrameAvailable,
         ),
         KeyedProjection::for_test(
             peer.clone(),
             framed_projection(),
-            crate::workbench_client::NativeProjectionStatus::FrameAvailable,
+            crate::workbench_client::ClientProjectionStatus::FrameAvailable,
         ),
     ];
     let zoomed_view = WorkbenchClientView::test_view(
         &state,
         &zoomed_panes,
-        crate::workbench_client::NativeProjectionStatus::FrameAvailable,
+        crate::workbench_client::ClientProjectionStatus::FrameAvailable,
     );
     let zoomed = pane_geometries(dimensions, &client_view, &zoomed_view).unwrap();
     // The observed set is unchanged: both leaves still report — the focused

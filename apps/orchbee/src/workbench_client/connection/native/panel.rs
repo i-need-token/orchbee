@@ -1,4 +1,4 @@
-use super::{NativeExecutor, Result, SetupEntryExpiry, SetupOwner, SetupTarget, closed, event};
+use super::{ClientExecutor, Result, SetupEntryExpiry, SetupOwner, SetupTarget, closed, event};
 use crate::{
     local_client::workbench::{
         panel_close::{
@@ -27,7 +27,7 @@ use orchbee_workbench_protocol::{
     WorkbenchSnapshotOutcome,
 };
 
-impl NativeExecutor {
+impl ClientExecutor {
     pub(super) fn run_panel(
         &mut self,
         lease: &CommandLease,
@@ -46,7 +46,7 @@ impl NativeExecutor {
         let command = |action| WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id: operation.request_id().clone(),
-            site_id: baseline.site_id().clone(),
+            session_id: baseline.session_id().clone(),
             expected_revision: baseline.revision(),
             action,
         };

@@ -7,11 +7,11 @@ use orchbee_workbench_protocol::{
     WorkbenchTabGroupId,
 };
 
-fn key(ui: &mut NativeUi, code: KeyCode) {
+fn key(ui: &mut WorkbenchClientUi, code: KeyCode) {
     ui.capture_action_menu_key(KeyEvent::press(code, Modifiers::NONE));
 }
 
-fn select(ui: &mut NativeUi, action: MenuAction) -> (MenuToken, MenuTarget, usize) {
+fn select(ui: &mut WorkbenchClientUi, action: MenuAction) -> (MenuToken, MenuTarget, usize) {
     arm(ui);
     key(ui, KeyCode::Home);
     let row = action_row(ui, action);
@@ -24,7 +24,7 @@ fn select(ui: &mut NativeUi, action: MenuAction) -> (MenuToken, MenuTarget, usiz
 }
 
 /// The real state refresh policy installs a peer Append without opening another UI surface.
-fn peer_append(ui: &mut NativeUi, snapshot: Snapshot) {
+fn peer_append(ui: &mut WorkbenchClientUi, snapshot: Snapshot) {
     let state = ui.state.as_mut().unwrap();
     let desired = state.desired().cloned();
     let focus = state.focus_pane_ref();

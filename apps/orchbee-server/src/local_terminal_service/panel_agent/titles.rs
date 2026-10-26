@@ -167,7 +167,7 @@ impl LocalTerminalService {
         let mut result = PanelAgentResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id.clone(),
-            site_id: request.site_id.clone(),
+            session_id: request.session_id.clone(),
             outcome: read().unwrap_or_else(|reason| PanelAgentOutcome::Failed { reason }),
         };
         if serialize_workbench_response(&WorkbenchResponse::PanelAgent(result.clone())).is_err() {

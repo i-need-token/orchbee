@@ -6,7 +6,7 @@ pub(super) fn execute(
     deadline: Option<Instant>,
     interrupted: impl FnMut() -> io::Result<bool>,
 ) -> io::Result<Output> {
-    Ok(orchbee_local_site_runtime::run_windows_command(
+    Ok(orchbee_local_runtime::run_windows_command(
         command,
         deadline,
         interrupted,

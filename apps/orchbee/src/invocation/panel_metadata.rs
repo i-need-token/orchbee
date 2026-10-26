@@ -183,7 +183,7 @@ fn preflight(
     command: &PanelMetadataCommand,
 ) -> Result<(), orchbee_workbench_protocol::WorkbenchWireError> {
     use orchbee_workbench_protocol::{
-        PanelMetadataRequest, PresentationBinding, ProtocolVersion, SiteId, TerminalId,
+        PanelMetadataRequest, PresentationBinding, ProtocolVersion, SessionId, TerminalId,
         WorkbenchPanelId, WorkbenchRequest, WorkbenchRequestId, WorkerId, write_workbench_request,
     };
     const ID: &str = "00000000000000000000000000000001";
@@ -192,7 +192,7 @@ fn preflight(
         &WorkbenchRequest::PanelMetadata(PanelMetadataRequest {
             protocol_version: ProtocolVersion,
             request_id: WorkbenchRequestId::parse(ID).expect("fixed identity"),
-            site_id: SiteId::parse(ID).expect("fixed identity"),
+            session_id: SessionId::parse(ID).expect("fixed identity"),
             action: command.action(
                 WorkbenchPanelId::parse(ID).expect("fixed identity"),
                 PresentationBinding {

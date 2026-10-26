@@ -181,7 +181,7 @@ Controlled export/queue/writer tests and integrated traces in the verification m
 
 The maintained deterministic evidence includes
 `accepted_release_and_complete_host_export_reach_the_copy_queue_once`, which runs the real
-NativeUi/mailbox command and Host-record intake boundary without changing the shared clipboard,
+WorkbenchClientUi/mailbox command and Host-record intake boundary without changing the shared clipboard,
 and `reverse_drag_uses_absolute_rows_and_highlights_a_wide_glyph_as_one_unit`. Copy-queue tests
 exercise cancellation before dispatch, retirement after dispatch, definite adapter loss, and
 unknown loss without replay. The native hidden-owner test creates and pumps a real Windows window,

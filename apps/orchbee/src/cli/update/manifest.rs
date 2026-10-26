@@ -1,5 +1,6 @@
 //! Admission of explicit Windows release manifests; no download or installation effects.
-use orchbee_local_site_runtime::{WindowsUpdateChannel, valid_windows_release_path};
+use crate::release_store::valid_release_path;
+use orchbee_local_runtime::UpdateChannel;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
@@ -11,7 +12,7 @@ const TOTAL_LIMIT: u64 = 2 * 1024 * 1024 * 1024;
 /// A complete bounded release admitted before creating an installation directory.
 pub(super) struct Release {
     pub encoded: Vec<u8>,
-    pub channel: WindowsUpdateChannel,
+    pub channel: UpdateChannel,
     pub identity: String,
     pub version: String,
     pub build_id: String,
@@ -24,7 +25,7 @@ pub(super) struct Artifact {
     pub size: u64,
 }
 impl Release {
-    pub fn parse(bytes: &[u8], channel: WindowsUpdateChannel) -> Option<Self> {
+    pub fn parse(bytes: &[u8], channel: UpdateChannel) -> Option<Self> {
         if bytes.len() > MANIFEST_LIMIT {
             return None;
         }
@@ -60,14 +61,14 @@ impl Release {
         for value in array {
             object(value, &["path", "url", "sha256", "size"])?;
             let path = value["path"].as_str()?;
-            if !valid_windows_release_path(path)
+            if !valid_release_path(path)
                 || path.eq_ignore_ascii_case("release.json")
                 || !paths.insert(path.to_ascii_lowercase())
             {
                 return None;
             }
             let url = value["url"].as_str()?;
-            if !valid_https(url) && !valid_windows_release_path(url) {
+            if !valid_https(url) && !valid_release_path(url) {
                 return None;
             }
             let sha256 = value["sha256"].as_str()?;

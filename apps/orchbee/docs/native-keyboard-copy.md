@@ -11,7 +11,7 @@ request reports a localized unsupported outcome while retaining the selection. S
 can replace or disable that entry through the existing resolved binding registry. The uppercase
 entry does not replace context switching with `Ctrl+B [` or `Ctrl+B ]`.
 
-`NativeUi` owns the volatile episode, pane incarnation and integration. Its deterministic
+`WorkbenchClientUi` owns the volatile episode, pane incarnation and integration. Its deterministic
 `terminal_copy_mode` core owns cursor, search draft, selection and pending intent. `ClientView`
 only projects whether that owner is active. `TerminalViewport` retains its existing history
 ownership; the Terminal Host remains the authority for selection endpoints and exported text.

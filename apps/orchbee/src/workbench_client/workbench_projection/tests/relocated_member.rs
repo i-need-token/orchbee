@@ -131,7 +131,7 @@ fn canonical_refresh_rejects_a_relocated_member_whose_identity_mutated() {
                 &current,
                 project_preferred_workspace(&candidate_snapshot).unwrap()
             ),
-            Err(NativeProjectionDivergence),
+            Err(ClientProjectionDivergence),
             "mutated member fields must diverge"
         );
     }
@@ -153,7 +153,7 @@ fn canonical_refresh_rejects_a_surviving_tab_that_keeps_no_member() {
             &current,
             project_preferred_workspace(&candidate_snapshot).unwrap()
         ),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }
 
@@ -186,6 +186,6 @@ fn canonical_refresh_rejects_a_retained_split_identity_reparented_across_tabs() 
             &current,
             project_preferred_workspace(&candidate_snapshot).unwrap()
         ),
-        Err(NativeProjectionDivergence)
+        Err(ClientProjectionDivergence)
     );
 }

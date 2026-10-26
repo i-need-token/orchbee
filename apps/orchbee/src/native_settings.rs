@@ -2,8 +2,8 @@
 use crate::terminal_text::line_editor::{LengthLimit, LineEditor};
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 use orchbee_workbench_protocol::{
-    NativeSettingsOperation, NativeSettingsSource, PreferenceKey, UserLaunchField,
-    UserPreferencesPatch, UserPreferencesSnapshot, UserPreferencesValues,
+    PreferenceKey, SettingsOperation, SettingsSource, UserLaunchField, UserPreferencesPatch,
+    UserPreferencesSnapshot, UserPreferencesValues,
 };
 mod appearance;
 pub(crate) use appearance::AppearancePreview;
@@ -138,7 +138,7 @@ pub(crate) enum Edit {
 }
 pub(crate) struct Submission {
     pub(crate) token: Token,
-    pub(crate) operation: NativeSettingsOperation,
+    pub(crate) operation: SettingsOperation,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Confirmation {
@@ -1118,7 +1118,7 @@ impl Editor {
                     self.surface_presented = false;
                     return Some(Submission {
                         token,
-                        operation: NativeSettingsOperation::Open {},
+                        operation: SettingsOperation::Open {},
                     });
                 }
                 Confirmation::ResetAll => {
@@ -1192,7 +1192,7 @@ impl Editor {
                 self.redraw();
                 return None;
             }
-            let source = NativeSettingsSource::parse(&draft.basis.source).ok()?;
+            let source = SettingsSource::parse(&draft.basis.source).ok()?;
             let token = draft.token;
             if let State::Draft(draft) = std::mem::take(&mut self.state) {
                 self.state = State::Saving {
@@ -1203,7 +1203,7 @@ impl Editor {
             self.surface_presented = false;
             return Some(Submission {
                 token,
-                operation: NativeSettingsOperation::Save { source, changes },
+                operation: SettingsOperation::Save { source, changes },
             });
         }
         let rows = draft.project().navigation_rows();

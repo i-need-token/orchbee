@@ -71,7 +71,7 @@ enum RetirementClass {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum PanelSettleClass {
     NotSubmitted,
-    // Synthetic defensive input only: see the construction site in `panel_settle` — no
+    // Synthetic defensive input only: see the construction session in `panel_settle` — no
     // reachable Server history produces a fresh-baseline rejection for these fixtures,
     // so the class verifies the NotApplied mapping, not a real peer edit.
     RejectedFresh,

@@ -64,7 +64,7 @@ Directory ID 和 Worker ID。缺配置为 `workspace-directory-unavailable`；�
 | 声明                                                | 保留证据                                                                                                                                            | 限制                                  |
 | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
 | 准入、重新验证和重放保留准确 Directory 所有权       | [权威目录测试](../src/workbench_authority/tests/workspace_directory.rs)及[服务目录测试](../src/local_terminal_service/workspace_directory/tests.rs) | 确定性内存／传输夹具                  |
-| Tab 创建使用 Workspace Worker／cwd 并保留无关成员   | [会话 创建测试](../src/site_coordinator/tests/tab_create.rs)                                                                                        | 准确准备与保留操作事实                |
+| Tab 创建使用 Workspace Worker／cwd 并保留无关成员   | [会话 创建测试](../src/session_coordinator/tests/tab_create.rs)                                                                                     | 准确准备与保留操作事实                |
 | 两个 Client 观察同一真实 Workspace shell 及失败结果 | [Workspace 目录进程证据](../tests/client_process/workspace_directory.rs)                                                                            | 支持的 Linux cohort；其他平台独立验证 |
 
 Unix socket 与 Linux shell 见证需要对应原生主机及已构建的进程前置产物。
@@ -81,4 +81,4 @@ lazy 循环回归区分 `server_transport::send` 的 Host 关闭标志与 Server
 回退恢复先前未使用的 cohort，不能丢弃已接受执行效果或复活已终止进程。交付后本文继续保留于
 Server，作为持续维护的行为和证据所有者。
 
-<!-- documentation-pairing: english-sha256=be40dc717ec5f712db96d851cf25d8cf8497a2db4f73f9b3bc91981c684ace8a zh-cn-sha256=a00cda72403cac5db3ffa36bda2d971023978c384192689ebfb14294005ebb2a -->
+<!-- documentation-pairing: english-sha256=78575fec648c1b2881ad15196cb44e0096ca64e1a42ced83048599375dfcfbe0 zh-cn-sha256=0a3711dfd5aebc832d69449150af66090242a0885654763bb30770e9bd78db51 -->

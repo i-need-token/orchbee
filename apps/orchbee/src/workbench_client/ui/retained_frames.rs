@@ -1,14 +1,14 @@
 //! Bound immutable live pixels by canonical presentation identity.
 //! These images never participate in attachment, input, selection, or feedback.
 
-use super::{KeyedProjection, NativeProjectionStatus};
+use super::{ClientProjectionStatus, KeyedProjection};
 use crate::workbench_client::{
     state::{ClientPhaseKind, WorkbenchClientState},
-    workbench_projection::NativeTerminalBinding,
+    workbench_projection::ClientTerminalBinding,
 };
 use orchbee_terminal_protocol::{TerminalTextCell, TerminalTextFrame, TerminalTextRow};
 use orchbee_workbench_protocol::{
-    SiteId, TerminalPresentationId, WorkbenchPanelId, WorkbenchTabId, WorkbenchTerminalContextId,
+    SessionId, TerminalPresentationId, WorkbenchPanelId, WorkbenchTabId, WorkbenchTerminalContextId,
 };
 use std::sync::Arc;
 
@@ -17,12 +17,12 @@ const MAXIMUM_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Clone, PartialEq, Eq)]
 struct Identity {
-    site: SiteId,
+    session: SessionId,
     context: WorkbenchTerminalContextId,
     tab: WorkbenchTabId,
     panel: WorkbenchPanelId,
     presentation: TerminalPresentationId,
-    binding: NativeTerminalBinding,
+    binding: ClientTerminalBinding,
 }
 
 impl Identity {
@@ -32,7 +32,7 @@ impl Identity {
         let panel = tab.panel(tab.panel_index(panel)?)?;
         let presentation = state.selected_presentation(panel);
         Some(Self {
-            site: cache.site_id().clone(),
+            session: cache.session_id().clone(),
             context: cache.terminal_context_id()?.clone(),
             tab: tab.tab_id().clone(),
             panel: panel.panel_id().clone(),
@@ -44,7 +44,7 @@ impl Identity {
     fn remains_member(&self, state: &WorkbenchClientState) -> bool {
         let cache = state.cache();
         cache.contains_terminal_presentation(
-            &self.site,
+            &self.session,
             &self.context,
             &self.tab,
             &self.panel,
@@ -105,15 +105,15 @@ impl RetainedFrames {
     /// A verified physical replacement cannot reuse pixels from an earlier Host incarnation.
     pub(super) fn fence_selection(
         &mut self,
-        context: &crate::workbench_client::NativeContextTarget,
-        selection: &crate::workbench_client::workbench_projection::NativeMemberSelection,
+        context: &crate::workbench_client::ClientContextTarget,
+        selection: &crate::workbench_client::workbench_projection::ClientMemberSelection,
     ) {
         let Some(expected) = &selection.expected_host else {
             return;
         };
         self.entries.retain(|pixels| {
             let id = &pixels.identity;
-            id.site != context.site_id
+            id.session != context.session_id
                 || Some(&id.context) != context.location.terminal_context_id()
                 || id.tab != selection.member.tab
                 || id.panel != selection.member.panel
@@ -129,11 +129,11 @@ impl RetainedFrames {
             return;
         }
         for pane in panes {
-            if pane.status == NativeProjectionStatus::Blocked {
+            if pane.status == ClientProjectionStatus::Blocked {
                 self.invalidate(state, pane.key.pane().panel());
                 continue;
             }
-            if pane.status != NativeProjectionStatus::FrameAvailable
+            if pane.status != ClientProjectionStatus::FrameAvailable
                 || pane.viewport.is_some()
                 || !state.pane_projected(&pane.key)
             {
@@ -215,7 +215,7 @@ impl<'a> RetainedView<'a> {
     pub(super) fn title(
         &self,
         tab: &WorkbenchTabId,
-        panel: &crate::workbench_client::NativePanel,
+        panel: &crate::workbench_client::ClientPanel,
         epoch: Option<&orchbee_terminal_protocol::HostEpoch>,
     ) -> Option<&'a str> {
         if self

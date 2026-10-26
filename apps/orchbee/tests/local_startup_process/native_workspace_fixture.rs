@@ -1,4 +1,4 @@
-use super::tui_observer::{ModalRow, NativeHeader};
+use super::tui_observer::{ModalRow, WorkbenchHeader};
 use super::*;
 use orchbee_workbench_protocol::{
     ProtocolVersion, Snapshot, SnapshotReadIntent, WorkbenchRequest, WorkbenchRequestId,
@@ -27,7 +27,7 @@ pub(super) const DIRECTORY_ACCEPTED: &str = "Directory configured · ready to la
 pub(super) fn modal(
     client: &mut Client,
     checkpoint: usize,
-    header: NativeHeader<'_>,
+    header: WorkbenchHeader<'_>,
     rows: &[ModalRow<'_>],
 ) {
     client.wait_modal_prompt_after(
@@ -98,7 +98,7 @@ pub(super) fn seed_empty_workspace(fixture: &Fixture, client: &mut Client) -> Te
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        NativeHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
+        WorkbenchHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
         &[],
         &["Workbench navigator"],
         &[],
@@ -118,13 +118,13 @@ pub(super) fn submit_directory(client: &mut Client, path: &str) -> usize {
 }
 
 pub(super) fn edit_directory(client: &mut Client, path: &str) {
-    finish_modal_handoff(client, NativeHeader::empty(WORKSPACE_LOCATION), &[EMPTY]);
+    finish_modal_handoff(client, WorkbenchHeader::empty(WORKSPACE_LOCATION), &[EMPTY]);
     let checkpoint = client.checkpoint();
     client.send(b"\x02e");
     modal(
         client,
         checkpoint,
-        NativeHeader::empty(WORKSPACE_LOCATION),
+        WorkbenchHeader::empty(WORKSPACE_LOCATION),
         &[
             ModalRow::exact(DIRECTORY_PATH),
             ModalRow::exact(""),
@@ -145,7 +145,7 @@ pub(super) fn edit_directory(client: &mut Client, path: &str) {
     modal(
         client,
         checkpoint,
-        NativeHeader::empty(WORKSPACE_LOCATION),
+        WorkbenchHeader::empty(WORKSPACE_LOCATION),
         &[
             ModalRow::exact(DIRECTORY_PATH),
             ModalRow::exact(""),
@@ -165,7 +165,7 @@ pub(super) fn edit_directory(client: &mut Client, path: &str) {
 
 pub(super) fn finish_modal_handoff(
     client: &mut Client,
-    header: NativeHeader<'_>,
+    header: WorkbenchHeader<'_>,
     required: &[&str],
 ) {
     // ModalDecoder deliberately consumes unframed input for 50 ms after submit/cancel.
@@ -191,9 +191,9 @@ pub(super) struct SnapshotObserver {
 impl SnapshotObserver {
     pub(super) fn connect(fixture: &Fixture) -> Result<Self, Box<dyn Error>> {
         let deadline = Instant::now() + STARTUP_OR_CREATE_TIMEOUT;
-        let cohort = NativeCohort::load(&fixture.cohort, deadline)?;
+        let cohort = Cohort::load(&fixture.cohort, deadline)?;
         let admitted = ClientConnection::connect_before(
-            fixture.site().client_socket_path(),
+            fixture.session().client_socket_path(),
             cohort.identity(),
             deadline,
         )?;
@@ -254,7 +254,7 @@ pub(super) fn wait_empty(
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        NativeHeader::empty(WORKSPACE_LOCATION),
+        WorkbenchHeader::empty(WORKSPACE_LOCATION),
         &required,
         &["Workbench navigator"],
         &[],

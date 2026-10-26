@@ -8,7 +8,7 @@ use orchbee_workbench_protocol::{
 
 impl WorkbenchAuthority {
     /// Advances the projection with one failure fact after the creating request has settled. The
-    /// caller holds the Site gate across both steps, so no reader observes the settled failure
+    /// caller holds the Session gate across both steps, so no reader observes the settled failure
     /// without it. A rebinding, removal or exhausted projection budget leaves the request receipt
     /// as the only failure fact; nothing here retries or repeats a launch.
     pub fn record_terminal_launch_failure(

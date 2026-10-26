@@ -10,7 +10,7 @@ use ratatui::{Terminal, backend::TestBackend};
 use std::{io, time::Instant};
 
 fn halted_close(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     target_index: usize,
     status: orchbee_workbench_protocol::WorkbenchTabCloseStatus,
 ) -> (
@@ -464,17 +464,17 @@ fn close_set_keyboard_recovery_addresses_the_presented_background_member() {
 }
 
 struct Port<'a> {
-    ui: &'a mut NativeUi,
+    ui: &'a mut WorkbenchClientUi,
     forwarded: &'a mut Vec<u8>,
 }
 impl TerminalInputPort for Port<'_> {
-    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+    fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
         self.ui.capture_claims()
     }
     fn native_capture_context(
         &self,
-        owner: crate::tui_composition::NativeCaptureOwner,
-    ) -> Option<crate::workbench_client::NativeCaptureContext> {
+        owner: crate::tui_composition::CaptureOwner,
+    ) -> Option<crate::workbench_client::CaptureContext> {
         self.ui.capture_context(owner)
     }
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable> {
@@ -489,14 +489,14 @@ impl TerminalInputPort for Port<'_> {
     }
     fn capture_tab_confirmation_key_for(
         &mut self,
-        token: NativeCloseConfirmationToken,
+        token: CloseConfirmationToken,
         key: ClientKey,
     ) -> bool {
         self.ui.capture_tab_confirmation_key(token, key)
     }
     fn capture_panel_confirmation_key_for(
         &mut self,
-        token: NativePanelCloseConfirmationToken,
+        token: PanelCloseConfirmationToken,
         key: ClientKey,
     ) -> bool {
         self.ui.capture_panel_confirmation_key(token, key)
@@ -555,7 +555,7 @@ impl TerminalInputPort for Port<'_> {
 fn dispatch(
     dispatcher: &mut InputDispatcher,
     view: &mut ClientView,
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     forwarded: &mut Vec<u8>,
     bytes: &[u8],
 ) {
@@ -572,7 +572,7 @@ fn dispatch(
 }
 
 fn draw(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     locale: Locale,
     width: u16,
     height: u16,
@@ -589,7 +589,7 @@ fn draw(
 }
 
 fn draw_themed(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     locale: Locale,
     width: u16,
     height: u16,

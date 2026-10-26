@@ -120,7 +120,7 @@ fn editor_cli_native_pipe_checks_target_and_view_and_retains_one_submission()
             &WorkbenchResponse::ClientView(WorkbenchClientViewResult {
                 protocol_version: orchbee_workbench_protocol::ProtocolVersion,
                 request_id: request.request_id,
-                site_id: request.site_id,
+                session_id: request.session_id,
                 outcome,
             }),
         )

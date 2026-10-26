@@ -352,7 +352,7 @@ fn pre_host_mutation_is_joined_on_explicit_stop_and_server_disconnect() {
         read_message, write_message,
     };
     use orchbee_local_ipc::LocalStream;
-    use orchbee_local_site_runtime::{ModeCheckedLocalSiteRendezvous, NativeCohort};
+    use orchbee_local_runtime::{Cohort, ModeCheckedLocalSessionRendezvous};
     use std::num::NonZeroU64;
     for explicit_stop in [true, false] {
         let fixture = Fixture::new();
@@ -373,8 +373,7 @@ fn pre_host_mutation_is_joined_on_explicit_stop_and_server_disconnect() {
         }
         let digest = "396cfec2d1c795ce71dce2d9c92f29cddec638632050c17861d771936a99282d";
         fs::write(cohort_path.join("cohort.json"), format!(r#"{{"schemaVersion":1,"artifacts":{{"orchbee":"{digest}","orchbee-server":"{digest}","orchbee-worker":"{digest}","orchbee-terminal-host":"{digest}","agent-observation-adapters":"{digest}"}}}}"#)).unwrap();
-        let cohort =
-            NativeCohort::load(&cohort_path, Instant::now() + Duration::from_secs(3)).unwrap();
+        let cohort = Cohort::load(&cohort_path, Instant::now() + Duration::from_secs(3)).unwrap();
         let runtime = fixture.root.join("runtime");
         fs::create_dir(&runtime).unwrap();
         let worker_runtime = runtime.clone();
@@ -462,7 +461,7 @@ fn pre_host_mutation_is_joined_on_explicit_stop_and_server_disconnect() {
         fixture.uncertain.set(false);
         assert!(reached, "Git did not enter the controlled hook");
         assert_eq!(stopped, explicit_stop);
-        assert!(!ModeCheckedLocalSiteRendezvous::host_runtime_directory(&runtime).exists());
+        assert!(!ModeCheckedLocalSessionRendezvous::host_runtime_directory(&runtime).exists());
     }
 }
 

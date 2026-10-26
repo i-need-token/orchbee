@@ -1,6 +1,6 @@
-use super::field_window::{NativeFieldWindow, field_window};
+use super::field_window::{FieldWindow, field_window};
 use super::line_editor::{LengthLimit, LineEditor};
-use super::{AttachmentKey, ClientPhase, NativeContextTabs, PaneKey, WorkbenchClientState};
+use super::{AttachmentKey, ClientContextTabs, ClientPhase, PaneKey, WorkbenchClientState};
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 use orchbee_workbench_protocol::{MAXIMUM_LABEL_LENGTH, WorkbenchLabel};
 
@@ -15,7 +15,7 @@ pub(super) struct RenameDraftState {
 
 struct RenameDraft {
     token: RenameDraftToken,
-    baseline: NativeContextTabs,
+    baseline: ClientContextTabs,
     target: AttachmentKey,
     target_index: usize,
     editor: LineEditor,
@@ -64,7 +64,7 @@ impl<'a> RenameDraftView<'a> {
     pub(in crate::workbench_client) fn field_window(
         &self,
         field_width: usize,
-    ) -> Option<NativeFieldWindow<'a>> {
+    ) -> Option<FieldWindow<'a>> {
         field_window(&self.draft.editor, field_width)
     }
     pub(in crate::workbench_client) fn target_label(&self) -> std::borrow::Cow<'a, str> {
@@ -93,7 +93,7 @@ impl<'a> RenameDraftView<'a> {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::workbench_client) struct RenameDraftIntent {
     token: RenameDraftToken,
-    baseline: NativeContextTabs,
+    baseline: ClientContextTabs,
     target: AttachmentKey,
     label: WorkbenchLabel,
 }
@@ -102,7 +102,7 @@ impl RenameDraftIntent {
     pub(in crate::workbench_client) const fn token(&self) -> RenameDraftToken {
         self.token
     }
-    pub(in crate::workbench_client) const fn baseline(&self) -> &NativeContextTabs {
+    pub(in crate::workbench_client) const fn baseline(&self) -> &ClientContextTabs {
         &self.baseline
     }
     pub(in crate::workbench_client) const fn target(&self) -> &AttachmentKey {

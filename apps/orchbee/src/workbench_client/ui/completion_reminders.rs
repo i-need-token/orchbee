@@ -1,5 +1,5 @@
 //! Join a validated frame fact to its live pane; rendering never observes clocks or consumes events.
-use super::{NativeProjectionStatus, NativeUi, WorkbenchClientView};
+use super::{ClientProjectionStatus, WorkbenchClientUi, WorkbenchClientView};
 use crate::{
     terminal_text::{sanitize_terminal_text, truncate_display},
     workbench_client::{
@@ -13,7 +13,7 @@ impl WorkbenchClientView<'_> {
         self.completion_reminder
     }
 }
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(super) fn drive_completion_reminders(&mut self) -> bool {
         let now = self.clock.now();
         let mut changed = self.completion_reminders.tick(now);
@@ -36,7 +36,7 @@ impl NativeUi {
                     .map(|terminal| (*projection.value.epoch(), terminal))
             });
         for projection in &self.projections {
-            if projection.status != NativeProjectionStatus::FrameAvailable {
+            if projection.status != ClientProjectionStatus::FrameAvailable {
                 continue;
             }
             let Some(frame) = projection.value.frame() else {

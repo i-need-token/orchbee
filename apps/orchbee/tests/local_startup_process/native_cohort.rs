@@ -3,8 +3,8 @@ use nix::{
     poll::{PollFd, PollFlags, PollTimeout, poll},
     unistd::{Pid, geteuid},
 };
-use orchbee_local_site_runtime::{
-    HOST_ENDPOINT_ID, ModeCheckedLocalSiteRendezvous, NativeCohort, SiteScope,
+use orchbee_local_runtime::{
+    Cohort, HOST_ENDPOINT_ID, ModeCheckedLocalSessionRendezvous, SessionScope,
 };
 use rustix::process::{Pid as RustixPid, PidfdFlags, Signal, pidfd_open, pidfd_send_signal};
 use sha2::{Digest, Sha256};
@@ -207,7 +207,7 @@ impl Fixture {
         let binaries = Path::new(env!("CARGO_BIN_EXE_orchbee")).parent().unwrap();
         let staged = std::env::var_os("ORCHBEE_TEST_NATIVE_COHORT").map(PathBuf::from);
         if let Some(staged) = &staged {
-            NativeCohort::load(staged, Instant::now() + Duration::from_secs(20))
+            Cohort::load(staged, Instant::now() + Duration::from_secs(20))
                 .expect("valid staged test cohort");
         }
         for name in BINARIES {
@@ -259,7 +259,7 @@ impl Fixture {
                 .unwrap(),
         )
         .unwrap();
-        // NativeCohort rejects group/other-writable manifests; pin the
+        // Cohort rejects group/other-writable manifests; pin the
         // permissions independently of the inherited process umask.
         fs::set_permissions(&manifest, fs::Permissions::from_mode(0o600)).unwrap();
     }
@@ -276,10 +276,10 @@ impl Fixture {
         }
     }
 
-    pub(super) fn site(&self) -> ModeCheckedLocalSiteRendezvous {
-        ModeCheckedLocalSiteRendezvous::prepare_mode_checked(
+    pub(super) fn session(&self) -> ModeCheckedLocalSessionRendezvous {
+        ModeCheckedLocalSessionRendezvous::prepare_mode_checked(
             &self.base,
-            SiteScope::parse(&format!("orchbee-native-{}", geteuid())).unwrap(),
+            SessionScope::parse(&format!("orchbee-native-{}", geteuid())).unwrap(),
         )
         .unwrap()
     }
@@ -341,14 +341,14 @@ impl Fixture {
             .map(|runtime| match role {
                 ManagedRole::Server | ManagedRole::Worker => vec![
                     executable.clone(),
-                    OsString::from("--local-site"),
+                    OsString::from("--runtime-directory"),
                     runtime.as_os_str().to_owned(),
                 ],
                 ManagedRole::TerminalHost => vec![
                     executable.clone(),
                     OsString::from("serve"),
                     OsString::from("--runtime-directory"),
-                    ModeCheckedLocalSiteRendezvous::host_runtime_directory(runtime)
+                    ModeCheckedLocalSessionRendezvous::host_runtime_directory(runtime)
                         .into_os_string(),
                     OsString::from("--endpoint-id"),
                     OsString::from(HOST_ENDPOINT_ID),
@@ -646,7 +646,7 @@ mod tests {
         let executable = fixture.cohort.join("orchbee-server");
         let observed = encode_command(&[
             executable.as_os_str(),
-            OsStr::new("--local-site"),
+            OsStr::new("--runtime-directory"),
             alternate_runtime.as_os_str(),
         ]);
         let commands = fixture.expected_commands(ManagedRole::Server);
@@ -658,7 +658,7 @@ mod tests {
 
         let unregistered = encode_command(&[
             executable.as_os_str(),
-            OsStr::new("--local-site"),
+            OsStr::new("--runtime-directory"),
             root.join("unregistered").as_os_str(),
         ]);
         assert!(

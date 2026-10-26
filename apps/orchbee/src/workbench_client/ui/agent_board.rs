@@ -1,4 +1,4 @@
-//! The `NativeUi` side of the Agent board: the toggle, input capture,
+//! The `WorkbenchClientUi` side of the Agent board: the toggle, input capture,
 //! snapshot-index maintenance, the per-tick drive (lane drain, intent
 //! issue, jump stages), and the staged cross-context jump that reuses the
 //! existing context-selection, switch, and local panel-focus admissions.
@@ -13,21 +13,21 @@
 use super::super::agent_board::AgentBoardInputContext;
 use super::super::agent_board::{
     AgentBoardControlTarget, AgentBoardDraw, AgentBoardEpisodeToken, AgentBoardKeyAction,
-    AgentBoardRowTarget, AgentBoardToken, JumpStage, JumpStep, NativeAgentBoardView,
-    board_key_action, plan_jump_step,
+    AgentBoardRowTarget, AgentBoardToken, AgentBoardView, JumpStage, JumpStep, board_key_action,
+    plan_jump_step,
 };
 use super::super::agent_board::{AgentStartKeyAction, agent_start_key_action};
 use super::{
     ActionBuildError, Arc, CarrierFailure, ClientAction, ClientActionDisposition, ClientNotice,
-    ClientPhaseKind, NativeUi, OperationDeadlines, WorkbenchTabId, build_switch_for_panel,
+    ClientPhaseKind, OperationDeadlines, WorkbenchClientUi, WorkbenchTabId, build_switch_for_panel,
     finish_action,
 };
 use crate::client_view::KeyEvent;
-use crate::tui_composition::{NativeCaptureOwner, project_native_capture};
-use crate::workbench_client::workbench_projection::NativeContextLocation;
+use crate::tui_composition::{CaptureOwner, project_native_capture};
+use crate::workbench_client::workbench_projection::ClientContextLocation;
 use std::time::Instant;
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn set_agent_board_origin(
         &mut self,
         origin: crate::local_client::LocalClientOrigin,
@@ -233,9 +233,9 @@ impl NativeUi {
     }
 
     /// The renderer's read handle, `Some` only while the board is open.
-    pub(super) fn agent_board_view(&self) -> Option<NativeAgentBoardView<'_>> {
+    pub(super) fn agent_board_view(&self) -> Option<AgentBoardView<'_>> {
         self.board.is_open().then(|| {
-            let view = NativeAgentBoardView::new(&self.board, &self.agent_index);
+            let view = AgentBoardView::new(&self.board, &self.agent_index);
             let view = view.with_attention(&self.attention);
             view
         })
@@ -378,7 +378,7 @@ impl NativeUi {
 
     /// The jump's "current-tab usable" anchor: the active context's
     /// canonical location plus the active tab's stable identity.
-    fn agent_anchor(&self) -> (Option<NativeContextLocation>, Option<WorkbenchTabId>) {
+    fn agent_anchor(&self) -> (Option<ClientContextLocation>, Option<WorkbenchTabId>) {
         let Some(state) = self.state.as_ref() else {
             return (None, None);
         };
@@ -401,7 +401,7 @@ impl NativeUi {
         // move context, tab, panel, or presentation unless the compositor
         // still names the Board as the top native owner and its successful
         // frame visibility lease remains live.
-        if project_native_capture(self.capture_claims()) != Some(NativeCaptureOwner::AgentBoard)
+        if project_native_capture(self.capture_claims()) != Some(CaptureOwner::AgentBoard)
             || self
                 .board
                 .input_context()
@@ -436,7 +436,7 @@ impl NativeUi {
             return false;
         };
         let view = state.view();
-        let context_locations: Vec<NativeContextLocation> = (0..view.context_count())
+        let context_locations: Vec<ClientContextLocation> = (0..view.context_count())
             .filter_map(|index| view.context_at(index))
             .map(|context| context.location().clone())
             .collect();

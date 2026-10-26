@@ -1,6 +1,6 @@
 //! Complete Panel image contracts and bounded revision-pinned reads; no decoding or rendering effects.
 use crate::{
-    ContractError, ProtocolVersion, SiteId, TerminalPresentationId, WorkbenchClientId,
+    ContractError, ProtocolVersion, SessionId, TerminalPresentationId, WorkbenchClientId,
     WorkbenchPanelId, WorkbenchRequestId, WorkbenchRevision,
 };
 use serde::{Deserialize, Serialize};
@@ -195,7 +195,7 @@ pub struct PaneGraphicsRequest {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub action: PaneGraphicsAction,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -204,7 +204,7 @@ pub enum PaneGraphicsFailure {
     Denied,
     InvalidIntent,
     #[serde(rename = "session-mismatch")]
-    SiteMismatch,
+    SessionMismatch,
     Unavailable,
     Busy,
     NotFound,
@@ -305,7 +305,7 @@ pub struct PaneGraphicsResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
-    pub site_id: SiteId,
+    pub session_id: SessionId,
     pub outcome: PaneGraphicsOutcome,
 }
 impl PaneGraphicsRequest {

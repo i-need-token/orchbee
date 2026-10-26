@@ -1,4 +1,4 @@
-//! One observer-owned install point and bounded, non-evicting Site-lifetime receipts.
+//! One observer-owned install point and bounded, non-evicting Session-lifetime receipts.
 use super::{LocalTerminalService, ScreenDetector, Wake};
 use crate::agent_screen::updating::{self, CatalogUrl, Failure as UpdateFailure, UpdateReport};
 use orchbee_workbench_protocol::{
@@ -11,7 +11,7 @@ use orchbee_workbench_protocol::{
 use std::{collections::BTreeMap, path::PathBuf, sync::Mutex};
 mod scheduling;
 mod worker;
-use orchbee_local_site_runtime::WindowsUserSettings;
+use orchbee_local_runtime::UserSettings;
 use scheduling::Schedule;
 use std::time::Instant;
 pub(super) use worker::Worker;
@@ -65,7 +65,7 @@ impl Registry {
             state.as_ref().is_some_and(|state| state.schedule.is_some()),
         )
     }
-    pub(super) fn apply_configuration(&self, settings: &WindowsUserSettings) -> bool {
+    pub(super) fn apply_configuration(&self, settings: &UserSettings) -> bool {
         // Configuration publication already owns the coordinator. Manifest activation owns
         // this registry before installing into that coordinator, so waiting here would invert
         // the lock order. A busy maintenance transition refuses this reload atomically.
@@ -95,7 +95,7 @@ impl Registry {
     }
     pub(super) fn initialize_settings(
         &self,
-        settings: &WindowsUserSettings,
+        settings: &UserSettings,
         detector: &ScreenDetector,
         background: bool,
         release: bool,
@@ -295,7 +295,7 @@ impl Registry {
         id: Owner,
         loaded: Result<ScreenDetector, String>,
         maintenance: Option<AgentManifestMaintenance>,
-        settings: Option<WindowsUserSettings>,
+        settings: Option<UserSettings>,
         install: impl FnOnce(ScreenDetector) -> Result<(), Failure>,
     ) {
         let Ok(mut lock) = self.0.lock() else { return };
@@ -438,13 +438,13 @@ impl LocalTerminalService {
         &self,
         request: AgentManifestsRequest,
     ) -> AgentManifestsResult {
-        let outcome = match self.workbench_site_matches(&request.site_id) {
+        let outcome = match self.workbench_session_matches(&request.session_id) {
             Some(true) => self
                 .process_observer
                 .wake
                 .manifests
                 .execute(&request.action),
-            Some(false) => failed(Failure::SiteMismatch),
+            Some(false) => failed(Failure::SessionMismatch),
             None => failed(Failure::Unavailable),
         };
         if matches!(
@@ -456,7 +456,7 @@ impl LocalTerminalService {
         AgentManifestsResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
-            site_id: request.site_id,
+            session_id: request.session_id,
             outcome,
         }
     }

@@ -2,7 +2,7 @@ use super::*;
 use crate::{
     localization::Locale,
     tui_theme::{ColorLevel, Role},
-    workbench_client::{NativeViewportSurface, terminal_viewport::ViewportWindow},
+    workbench_client::{ViewportSurface, terminal_viewport::ViewportWindow},
 };
 use orchbee_terminal_protocol::{RowWindowDetail, TerminalRowWindowRoute};
 use ratatui::{Terminal, backend::TestBackend};
@@ -622,7 +622,7 @@ fn default_markers_follow_the_theme_without_recoloring_explicit_cells()
                         super::super::viewport::render(
                             surface,
                             area,
-                            NativeViewportSurface::Window {
+                            ViewportSurface::Window {
                                 window: &window,
                                 position: None,
                             },

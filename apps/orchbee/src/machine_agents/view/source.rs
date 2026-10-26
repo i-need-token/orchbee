@@ -1,6 +1,6 @@
 //! Raw canonical fields, separate from display metadata and terminal routing authority.
 use super::{
-    AgentViewSpec, Choice, Entry, NativeContextLocation, NativeContextTarget, PanelAgentState, Row,
+    AgentViewSpec, Choice, ClientContextLocation, ClientContextTarget, Entry, PanelAgentState, Row,
     View,
 };
 use orchbee_workbench_protocol::agent_view::evaluation::{self, Context, Entry as ViewEntry};
@@ -20,8 +20,8 @@ impl ViewEntry for Entry<'_> {
     }
     fn workspace_id(&self) -> Option<&str> {
         match &self.row.target.context.location {
-            NativeContextLocation::NoWorkspace => None,
-            NativeContextLocation::Workspace { workspace_id, .. } => Some(workspace_id.as_str()),
+            ClientContextLocation::NoWorkspace => None,
+            ClientContextLocation::Workspace { workspace_id, .. } => Some(workspace_id.as_str()),
         }
     }
     fn tab_id(&self) -> Option<&str> {
@@ -72,14 +72,14 @@ impl View {
         &self,
         candidates: impl IntoIterator<Item = Entry<'a>>,
         current: &Choice,
-        context: Option<&NativeContextTarget>,
-        member: Option<&crate::workbench_client::NativeMemberTarget>,
+        context: Option<&ClientContextTarget>,
+        member: Option<&crate::workbench_client::ClientMemberTarget>,
         spec: Option<&AgentViewSpec>,
     ) -> Vec<Entry<'a>> {
         let evaluation_context = Context {
             scope: scope(current),
             workspace_id: context.and_then(|c| match &c.location {
-                NativeContextLocation::Workspace { workspace_id, .. } => {
+                ClientContextLocation::Workspace { workspace_id, .. } => {
                     Some(workspace_id.as_str())
                 }
                 _ => None,

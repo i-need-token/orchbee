@@ -1,9 +1,9 @@
 //! One confirmed, frozen Tab set advances through existing single-Tab Close and membership owners.
 //! A halt stops new submissions, never cancels or discards a submitted Close's recovery facts.
 use super::{
-    CloseConfirmation, CloseConfirmationToken, CloseFlightKey, CloseIntent, CloseOperation,
-    CloseOperationKind, CloseResult, CloseSelection, CloseState, CloseStateError, CloseTarget,
-    NativeTerminalBinding, PaneKey, WorkbenchLabel, WorkbenchRequestId, WorkbenchRevision,
+    ClientTerminalBinding, CloseConfirmation, CloseConfirmationToken, CloseFlightKey, CloseIntent,
+    CloseOperation, CloseOperationKind, CloseResult, CloseSelection, CloseState, CloseStateError,
+    CloseTarget, PaneKey, WorkbenchLabel, WorkbenchRequestId, WorkbenchRevision,
     WorkbenchTabClosePublicationReason, WorkbenchTabCloseStatus, WorkbenchTabId,
 };
 use crate::workbench_client::state::{ClientPhase, PaneRef, WorkbenchClientState};
@@ -66,8 +66,8 @@ pub(in crate::workbench_client) fn close_set_targets(
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct LocalFocus {
     desired: Option<PaneKey>,
-    attached: Option<(PaneRef, NativeTerminalBinding)>,
-    presentation: Option<(TerminalPresentationId, Option<NativeTerminalBinding>)>,
+    attached: Option<(PaneRef, ClientTerminalBinding)>,
+    presentation: Option<(TerminalPresentationId, Option<ClientTerminalBinding>)>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -282,7 +282,7 @@ impl WorkbenchClientState {
             .cloned();
         Ok(CloseSelection::new(
             CloseTarget::new(
-                self.cache.site_id().clone(),
+                self.cache.session_id().clone(),
                 self.cache
                     .terminal_context_id()
                     .ok_or(CloseStateError::UnknownTarget)?
@@ -361,7 +361,7 @@ impl WorkbenchClientState {
 
     pub(super) fn close_set_capture_current(&self, capture: &CloseSetCapture) -> bool {
         self.cache.canonical_snapshot() == capture.source.as_ref()
-            && self.cache.site_id() == capture.first.target().site_id()
+            && self.cache.session_id() == capture.first.target().session_id()
             && self.cache.terminal_context_id()
                 == Some(capture.first.target().terminal_context_id())
             && self.close_set_focus() == capture.focus
@@ -432,7 +432,7 @@ impl WorkbenchClientState {
 
     fn close_set_premises_current(&self, set: &CloseSetRun) -> bool {
         self.cache.canonical_snapshot() == set.source.as_ref()
-            && self.cache.site_id() == set.capture.first.target().site_id()
+            && self.cache.session_id() == set.capture.first.target().session_id()
             && self.cache.terminal_context_id()
                 == Some(set.capture.first.target().terminal_context_id())
             && self.close_set_focus() == set.focus

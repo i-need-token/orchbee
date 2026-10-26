@@ -18,8 +18,8 @@ fn filter(kind: K) -> SemanticEventFilter {
         condition: SemanticEventMatch::Any {},
     }
 }
-fn journal() -> SiteEventJournal {
-    SiteEventJournal::with_epoch(
+fn journal() -> SessionEventJournal {
+    SessionEventJournal::with_epoch(
         &initial(),
         WorkbenchRequestId::parse(&format!("{:032x}", 3)).unwrap(),
     )

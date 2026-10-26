@@ -6,7 +6,7 @@ use crate::{
     terminal_copy_mode::{CopyModeCursor, CopyModeToken, CopyModeView, Surface},
     tui_pointer::{HitLayer, HitMapBuilder, HitTarget, ListScrollTarget},
     tui_theme::{Role, Theme},
-    workbench_client::{NativeViewportSurface, WorkbenchClientView},
+    workbench_client::{ViewportSurface, WorkbenchClientView},
 };
 
 pub(in crate::tui_render) fn paint_surface(
@@ -40,7 +40,7 @@ pub(in crate::tui_render) fn paint_surface(
         return;
     }
     let (rows, terminal_theme) = match native.pane_viewport(panel) {
-        Some(NativeViewportSurface::Window { window, .. }) => (
+        Some(ViewportSurface::Window { window, .. }) => (
             window.rows.as_slice(),
             theme.with_host_terminal_colors(window.foreground, window.background),
         ),

@@ -40,7 +40,7 @@ impl Fixture {
             command(10, 0, create("repo")),
         ));
         let grant =
-            WorkbenchGrant::manage_navigation_and_terminal_create(authority.site_id().clone())
+            WorkbenchGrant::manage_navigation_and_terminal_create(authority.session_id().clone())
                 .with_directory_association()
                 .with_terminal_lifecycle();
         let main = workspace(&mut authority, &grant, &project, 11, "C:/repo/subdir");
@@ -144,7 +144,7 @@ impl Fixture {
                 WorkbenchWorkspaceGroupCloseRequest {
                     protocol_version: ProtocolVersion,
                     request_id: id(900),
-                    site_id: self.authority.site_id().clone(),
+                    session_id: self.authority.session_id().clone(),
                     action,
                 },
                 Some(worker()),
@@ -615,7 +615,7 @@ fn authorization_worker_availability_and_changed_directory_fail_before_child_adm
     let request = WorkbenchWorkspaceGroupCloseRequest {
         protocol_version: ProtocolVersion,
         request_id: id(901),
-        site_id: fixture.authority.site_id().clone(),
+        session_id: fixture.authority.session_id().clone(),
         action: fixture.start(100),
     };
     assert_eq!(
@@ -625,7 +625,7 @@ fn authorization_worker_availability_and_changed_directory_fail_before_child_adm
             .outcome,
         Outcome::Denied {}
     );
-    let read_only = WorkbenchGrant::read_only(fixture.authority.site_id().clone());
+    let read_only = WorkbenchGrant::read_only(fixture.authority.session_id().clone());
     assert_eq!(
         fixture
             .authority
@@ -634,7 +634,7 @@ fn authorization_worker_availability_and_changed_directory_fail_before_child_adm
         Outcome::Denied {}
     );
     let mut foreign = request.clone();
-    foreign.site_id = orchbee_workbench_protocol::SiteId::parse(&identity(902)).unwrap();
+    foreign.session_id = orchbee_workbench_protocol::SessionId::parse(&identity(902)).unwrap();
     assert_eq!(
         fixture
             .authority
@@ -684,7 +684,7 @@ fn authorization_worker_availability_and_changed_directory_fail_before_child_adm
     let read = WorkbenchWorkspaceGroupCloseRequest {
         protocol_version: ProtocolVersion,
         request_id: id(903),
-        site_id: fixture.authority.site_id().clone(),
+        session_id: fixture.authority.session_id().clone(),
         action: Action::Read {
             operation_id: id(100),
         },

@@ -13,7 +13,7 @@ pub(crate) use preview::{WorkspaceCreationPhase, WorkspaceCreationPreview};
 pub(in crate::workbench_client) mod quick;
 use super::recovery_fence::RecoveryFence;
 use super::{
-    ClientPhase, NativeContextTabs, NavigatorRefreshStatus, OperationDeadlines, PreparedRefresh,
+    ClientContextTabs, ClientPhase, NavigatorRefreshStatus, OperationDeadlines, PreparedRefresh,
     SelectedTab, WorkbenchClientState, validate_canonical_refresh,
 };
 use crate::local_client::workbench::workspace_setup::{
@@ -21,13 +21,13 @@ use crate::local_client::workbench::workspace_setup::{
 };
 use crate::tui_presentation::PresentationPhase;
 use crate::workbench_client::workbench_projection::{
-    NativeContextLocation, project_native_context_tabs,
+    ClientContextLocation, project_native_context_tabs,
 };
-pub(in crate::workbench_client) use draft::NativeSetupIntent;
 use draft::SetupDraft;
+pub(in crate::workbench_client) use draft::SetupIntent;
 pub(crate) use draft::{
-    NativeLocationLabelStatus, NativeLocationLabelTarget, NativeSetupDraftView, NativeSetupEdit,
-    NativeSetupStage, NativeSetupStatus, NativeSetupToken,
+    LocationLabelStatus, LocationLabelTarget, SetupDraftView, SetupEdit, SetupStage, SetupStatus,
+    SetupToken,
 };
 use orchbee_workbench_protocol::{
     ProtocolVersion, Snapshot, WorkbenchAction, WorkbenchCommand, WorkbenchDirectoryPath,
@@ -54,7 +54,7 @@ pub(super) struct SetupState {
     not_applied: Option<SetupOperation>,
     retained_label: Option<labels::RetainedLabel>,
     uncertain: Option<SetupOperation>,
-    status: Option<NativeSetupStatus>,
+    status: Option<SetupStatus>,
     deadlines: Option<OperationDeadlines>,
     presentation: PresentationPhase,
 }
@@ -64,7 +64,7 @@ pub(in crate::workbench_client) struct SetupOperation {
     pub(in crate::workbench_client) generation: u64,
     pub(in crate::workbench_client) command: WorkbenchCommand,
     pub(in crate::workbench_client) request: WorkbenchSetupRequest,
-    baseline: NativeContextTabs,
+    baseline: ClientContextTabs,
     pub(in crate::workbench_client) deadlines: OperationDeadlines,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -177,7 +177,7 @@ impl WorkbenchClientState {
             .or_else(|| known.map(|known| &known.operation))
             .is_none_or(|operation| {
                 operation.baseline == self.cache
-                    && operation.command.site_id == *self.cache.site_id()
+                    && operation.command.session_id == *self.cache.session_id()
                     && operation.command.expected_revision == self.cache.revision()
                     && operation.request.request_id() == &operation.command.request_id
             })
@@ -216,7 +216,7 @@ impl WorkbenchClientState {
     pub(in crate::workbench_client) fn workspace_directory_unconfigured(&self) -> bool {
         matches!(
             self.cache.location(),
-            NativeContextLocation::Workspace { .. }
+            ClientContextLocation::Workspace { .. }
         ) && self.cache.directory().is_none()
     }
     /// Read-only projection of the existing first-directory draft admission.
@@ -225,7 +225,7 @@ impl WorkbenchClientState {
     ) -> Option<DirectoryConfigurationUnavailable> {
         if !matches!(
             self.cache.location(),
-            NativeContextLocation::Workspace { .. }
+            ClientContextLocation::Workspace { .. }
         ) {
             Some(DirectoryConfigurationUnavailable::WorkspaceRequired)
         } else if self.cache.directory().is_some() {
@@ -248,7 +248,7 @@ impl WorkbenchClientState {
     }
     pub(in crate::workbench_client) fn plan_setup(
         &self,
-        token: NativeSetupToken,
+        token: SetupToken,
         request_id: WorkbenchRequestId,
         generation: u64,
         deadlines: OperationDeadlines,
@@ -263,7 +263,7 @@ impl WorkbenchClientState {
             return None;
         }
         let action = match draft.stage {
-            NativeSetupStage::ChooseWorkspaceProject => {
+            SetupStage::ChooseWorkspaceProject => {
                 let organization::OrganizationTarget::Workspace(workspace) =
                     &draft.organization.as_ref()?.target
                 else {
@@ -277,7 +277,7 @@ impl WorkbenchClientState {
                     project_id: draft.project.clone(),
                 }
             }
-            NativeSetupStage::WorkspaceProjectName => {
+            SetupStage::WorkspaceProjectName => {
                 let organization::OrganizationTarget::Workspace(workspace) =
                     &draft.organization.as_ref()?.target
                 else {
@@ -288,7 +288,7 @@ impl WorkbenchClientState {
                     label: WorkbenchLabel::parse(draft.editor.text()).ok()?,
                 }
             }
-            NativeSetupStage::DissolveProject | NativeSetupStage::ProjectDeleteConfirm => {
+            SetupStage::DissolveProject | SetupStage::ProjectDeleteConfirm => {
                 let organization::OrganizationTarget::Project(project) =
                     &draft.organization.as_ref()?.target
                 else {
@@ -298,7 +298,7 @@ impl WorkbenchClientState {
                     project_id: project.project_id.clone(),
                 }
             }
-            NativeSetupStage::TabGroupName => {
+            SetupStage::TabGroupName => {
                 let mut operation = draft.tab_configuration.clone()?;
                 match &mut operation {
                     orchbee_workbench_protocol::TabConfiguration::CreateGroup { label, .. }
@@ -328,7 +328,7 @@ impl WorkbenchClientState {
                     operation,
                 }
             }
-            NativeSetupStage::QuickName | NativeSetupStage::QuickDirectory => {
+            SetupStage::QuickName | SetupStage::QuickDirectory => {
                 let plan = draft.quick.as_ref()?.plan()?;
                 let placement = match &plan.project {
                     quick::QuickProject::Ungrouped => {
@@ -359,8 +359,8 @@ impl WorkbenchClientState {
                     }),
                 }
             }
-            NativeSetupStage::DirectoryPath => {
-                let NativeContextLocation::Workspace { workspace_id, .. } = self.cache.location()
+            SetupStage::DirectoryPath => {
+                let ClientContextLocation::Workspace { workspace_id, .. } = self.cache.location()
                 else {
                     return None;
                 };
@@ -374,12 +374,12 @@ impl WorkbenchClientState {
                     path: WorkbenchDirectoryPath::parse(draft.editor.text()).ok()?,
                 }
             }
-            NativeSetupStage::ProjectRename => WorkbenchAction::ProjectRename {
+            SetupStage::ProjectRename => WorkbenchAction::ProjectRename {
                 project_id: draft.project.clone()?,
                 label: WorkbenchLabel::parse(draft.editor.text()).ok()?,
             },
-            NativeSetupStage::WorkspaceRename => {
-                let NativeContextLocation::Workspace { workspace_id, .. } =
+            SetupStage::WorkspaceRename => {
+                let ClientContextLocation::Workspace { workspace_id, .. } =
                     draft.baseline.location()
                 else {
                     return None;
@@ -390,12 +390,12 @@ impl WorkbenchClientState {
                     label,
                 }
             }
-            NativeSetupStage::QuickProject | NativeSetupStage::PreparingWorkspace => return None,
+            SetupStage::QuickProject | SetupStage::PreparingWorkspace => return None,
         };
         let command = WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id,
-            site_id: self.cache.site_id().clone(),
+            session_id: self.cache.session_id().clone(),
             expected_revision: self.cache.revision(),
             action,
         };
@@ -455,8 +455,8 @@ impl WorkbenchClientState {
                 }
                 self.setup.pending = None;
                 self.setup.status = Some(known.operation.status(
-                    NativeLocationLabelStatus::CommittedNeedRefresh,
-                    NativeSetupStatus::CommittedNeedRefresh,
+                    LocationLabelStatus::CommittedNeedRefresh,
+                    SetupStatus::CommittedNeedRefresh,
                 ));
                 self.setup.known = Some(known);
                 true
@@ -467,8 +467,8 @@ impl WorkbenchClientState {
                 }
                 self.cancel_project_quick_entry();
                 self.setup.status = Some(operation.status(
-                    NativeLocationLabelStatus::OutcomeUnknown,
-                    NativeSetupStatus::OutcomeUnknown,
+                    LocationLabelStatus::OutcomeUnknown,
+                    SetupStatus::OutcomeUnknown,
                 ));
                 self.setup.uncertain = Some(operation);
                 true
@@ -488,10 +488,8 @@ impl WorkbenchClientState {
         self.cancel_project_quick_entry();
         self.setup.not_applied = self.setup.pending.take();
         self.setup.deadlines = None;
-        self.setup.status = Some(operation.status(
-            NativeLocationLabelStatus::NotApplied,
-            NativeSetupStatus::NotApplied,
-        ));
+        self.setup.status =
+            Some(operation.status(LocationLabelStatus::NotApplied, SetupStatus::NotApplied));
         true
     }
     /// Settles a definite Server refusal of this setup flight. The flight read no
@@ -511,22 +509,22 @@ impl WorkbenchClientState {
         if stale {
             self.setup.retained_label = operation.retained_label();
             self.setup.status =
-                Some(operation.status(NativeLocationLabelStatus::Stale, NativeSetupStatus::Stale));
+                Some(operation.status(LocationLabelStatus::Stale, SetupStatus::Stale));
         }
         true
     }
-    pub(super) fn setup_target_matches(&self, target: &NativeContextLocation) -> bool {
+    pub(super) fn setup_target_matches(&self, target: &ClientContextLocation) -> bool {
         self.setup
             .known
             .as_ref()
             .is_some_and(|known| &self.setup_refresh_target(known) == target)
     }
 
-    fn setup_refresh_target(&self, known: &SetupKnownCommit) -> NativeContextLocation {
+    fn setup_refresh_target(&self, known: &SetupKnownCommit) -> ClientContextLocation {
         if matches!(known.commit, WorkbenchSetupCommit::WorkspaceLaunched(_)) {
             // NoWorkspace ceases to be a valid canonical location after the first launch.
             // Installing its verified member does not restore revoked UI return permission.
-            if matches!(self.cache.location(), NativeContextLocation::NoWorkspace) {
+            if matches!(self.cache.location(), ClientContextLocation::NoWorkspace) {
                 return known.target();
             }
             if matches!(
@@ -547,7 +545,7 @@ impl WorkbenchClientState {
         &self,
         known: &SetupKnownCommit,
         snapshot: &Snapshot,
-    ) -> Option<NativeContextTabs> {
+    ) -> Option<ClientContextTabs> {
         // Always prove the committed resources before choosing the Client's landing.
         let launched = known.validate(snapshot)?;
         if launched.location() == &self.setup_refresh_target(known) {
@@ -579,7 +577,7 @@ impl WorkbenchClientState {
             if let WorkbenchSetupCommit::WorkspaceLaunched(commit) = &known.commit
                 && self.setup_refresh_target(known) == known.target()
             {
-                let member = crate::workbench_client::NativeMemberTarget {
+                let member = crate::workbench_client::ClientMemberTarget {
                     tab: commit.tab_id.clone(),
                     panel: commit.panel_id.clone(),
                     presentation: commit.presentation_id.clone(),
@@ -600,36 +598,32 @@ impl WorkbenchClientState {
     }
     pub(super) fn prepare_setup_completion(
         &self,
-        candidate: &NativeContextTabs,
+        candidate: &ClientContextTabs,
     ) -> Option<Box<PreparedSetupCompletion>> {
         let known = self.setup.known.as_ref()?;
         if &self.validated_setup_candidate(known, candidate.canonical_snapshot())? != candidate {
             return None;
         }
         let status = match &known.commit {
-            WorkbenchSetupCommit::WorkspaceProjectChanged { .. } => {
-                NativeSetupStatus::WorkspaceOrganized
-            }
-            WorkbenchSetupCommit::ProjectDissolved { .. } => NativeSetupStatus::ProjectDissolved,
-            WorkbenchSetupCommit::WorkspaceLaunched(_) => NativeSetupStatus::WorkspaceCreated,
+            WorkbenchSetupCommit::WorkspaceProjectChanged { .. } => SetupStatus::WorkspaceOrganized,
+            WorkbenchSetupCommit::ProjectDissolved { .. } => SetupStatus::ProjectDissolved,
+            WorkbenchSetupCommit::WorkspaceLaunched(_) => SetupStatus::WorkspaceCreated,
             WorkbenchSetupCommit::WorkspaceOrder { .. } => return None,
-            WorkbenchSetupCommit::TabsConfigured { .. } => NativeSetupStatus::TabsConfigured,
-            WorkbenchSetupCommit::NavigationConfigured { .. } => {
-                NativeSetupStatus::NavigationConfigured
-            }
+            WorkbenchSetupCommit::TabsConfigured { .. } => SetupStatus::TabsConfigured,
+            WorkbenchSetupCommit::NavigationConfigured { .. } => SetupStatus::NavigationConfigured,
             WorkbenchSetupCommit::ProjectRenamed { unchanged, .. }
             | WorkbenchSetupCommit::WorkspaceRenamed { unchanged, .. } => known.operation.status(
                 if *unchanged {
-                    NativeLocationLabelStatus::Unchanged
+                    LocationLabelStatus::Unchanged
                 } else {
-                    NativeLocationLabelStatus::Renamed
+                    LocationLabelStatus::Renamed
                 },
-                NativeSetupStatus::NotApplied,
+                SetupStatus::NotApplied,
             ),
-            WorkbenchSetupCommit::ProjectCreated { .. } => NativeSetupStatus::ProjectCreated,
-            WorkbenchSetupCommit::WorkspaceCreated { .. } => NativeSetupStatus::WorkspaceCreated,
+            WorkbenchSetupCommit::ProjectCreated { .. } => SetupStatus::ProjectCreated,
+            WorkbenchSetupCommit::WorkspaceCreated { .. } => SetupStatus::WorkspaceCreated,
             WorkbenchSetupCommit::WorkspacePrimaryDirectoryAccepted { .. } => {
-                NativeSetupStatus::DirectoryAccepted
+                SetupStatus::DirectoryAccepted
             }
         };
         Some(Box::new(PreparedSetupCompletion {
@@ -670,5 +664,5 @@ impl WorkbenchClientState {
 #[derive(Clone, Debug)]
 pub(super) struct PreparedSetupCompletion {
     known: SetupKnownCommit,
-    status: NativeSetupStatus,
+    status: SetupStatus,
 }

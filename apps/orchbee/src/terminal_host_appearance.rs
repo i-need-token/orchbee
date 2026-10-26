@@ -15,9 +15,7 @@ const OSC_DRAIN_WINDOW: Duration = Duration::from_secs(1);
 pub(crate) fn system_fallback() -> HostAppearance {
     #[cfg(windows)]
     {
-        from_windows_apps_use_light_theme(
-            orchbee_local_site_runtime::read_windows_apps_use_light_theme(),
-        )
+        from_windows_apps_use_light_theme(orchbee_local_runtime::read_windows_apps_use_light_theme())
     }
     #[cfg(not(windows))]
     {

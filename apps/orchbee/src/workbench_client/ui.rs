@@ -8,7 +8,7 @@ mod tab_duplication;
 mod tab_groups;
 
 /// Display context for one local notice; it retains no executable text or launch authority.
-pub(crate) enum NativeNoticeContext {
+pub(crate) enum NoticeContext {
     /// A missing name is the localized built-in System default label.
     LaunchProfile(Option<String>),
     ConfiguredCommand(String),
@@ -26,12 +26,12 @@ use super::{
         SwitchMarker, Tagged, UiReply, ViewportOutcome, WorkerEvent,
     },
     state::{
-        AttachmentKey, CarrierFailure, ClientNotice, ClientPhaseKind, ControllerMode,
-        CreateOperation, CreateOperationKey, CreateProjectionDecision, CreateTerminalProvenance,
-        FrameIdentity, NativeTabView as StateTabView, NavigatorRefreshStatus, OperationDeadlines,
-        PaneKey, PaneRef, PanelRequestKind, PendingCreateCommit, PendingMoveCommit,
-        PendingPanelCommit, RefreshDecision, SelectionPlan, SetupEventDisposition,
-        WorkbenchClientState, WorkbenchClientView as ClientStateView,
+        AttachmentKey, CarrierFailure, ClientNotice, ClientPhaseKind,
+        ClientTabView as StateTabView, ControllerMode, CreateOperation, CreateOperationKey,
+        CreateProjectionDecision, CreateTerminalProvenance, FrameIdentity, NavigatorRefreshStatus,
+        OperationDeadlines, PaneKey, PaneRef, PanelRequestKind, PendingCreateCommit,
+        PendingMoveCommit, PendingPanelCommit, RefreshDecision, SelectionPlan,
+        SetupEventDisposition, WorkbenchClientState, WorkbenchClientView as ClientStateView,
     },
     terminal_viewport::{
         TerminalViewport, ViewportEffect, ViewportNav, ViewportStep, ViewportSurface,
@@ -93,8 +93,8 @@ pub(crate) use workspace_close::{
     WorkspaceCloseToken,
 };
 pub(crate) use workspace_setup::{
-    NativeLocationLabelStatus, NativeLocationLabelTarget, NativeSetupDraftView, NativeSetupEdit,
-    NativeSetupStage, NativeSetupStatus, NativeSetupToken,
+    LocationLabelStatus, LocationLabelTarget, SetupDraftView, SetupEdit, SetupStage, SetupStatus,
+    SetupToken,
 };
 pub(crate) use workspace_setup::{WorkspaceCreationPhase, WorkspaceCreationPreview};
 pub(crate) use worktree_launch::{
@@ -106,18 +106,17 @@ mod terminal_effects;
 mod terminal_selection;
 #[cfg(test)]
 pub(crate) use input_capture::WorktreeCaptureContext;
-pub(crate) use input_capture::{CaptureReadiness, NativeCaptureContext};
+pub(crate) use input_capture::{CaptureContext, CaptureReadiness};
 #[cfg(test)]
 pub(crate) use input_capture::{ConfirmationCaptureContext, SetupCaptureContext};
-pub(crate) use panel_close::{NativePanelCloseConfirmationToken, NativePanelCloseConfirmationView};
+pub(crate) use panel_close::{PanelCloseConfirmationToken, PanelCloseConfirmationView};
 pub(crate) use tab_close::{
-    ModalPresentation, NativeCloseConfirmationKind, NativeCloseConfirmationToken,
-    NativeCloseConfirmationView, NativeCloseStatusKind, NativeCloseStatusToken,
-    NativeCloseStatusView, NativeDrawReceipt,
+    CloseConfirmationKind, CloseConfirmationToken, CloseConfirmationView, CloseStatusKind,
+    CloseStatusToken, CloseStatusView, DrawReceipt, ModalPresentation,
 };
 #[cfg(test)]
-pub(crate) use tab_rename::NativeRenameInputContext;
-pub(crate) use tab_rename::{NativeRenameDraftToken, NativeRenameDraftView, NativeRenameEdit};
+pub(crate) use tab_rename::RenameInputContext;
+pub(crate) use tab_rename::{RenameDraftToken, RenameDraftView, RenameEdit};
 mod create_membership;
 mod direct_navigation;
 mod startup_preference;
@@ -128,13 +127,13 @@ pub(crate) use super::agent_board::AgentBoardInputContext;
 pub(crate) use super::agent_board::{
     AgentBoardActualDraw, AgentBoardControl, AgentBoardControlTarget, AgentBoardDraw,
     AgentBoardEpisodeToken, AgentBoardRead, AgentBoardReadFailure, AgentBoardRow,
-    AgentBoardRowTarget, AgentBoardSummary, AgentBoardToken, JumpFailure, NativeAgentBoardView,
+    AgentBoardRowTarget, AgentBoardSummary, AgentBoardToken, AgentBoardView, JumpFailure,
     PresentationPlacement,
 };
 pub(crate) use super::agent_board::{AgentStartCatalogStatus, AgentStartPhase};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum NativeDisplayPhase {
+pub(crate) enum DisplayPhase {
     Starting,
     Empty,
     Ready,
@@ -151,13 +150,13 @@ pub(crate) enum NativeDisplayPhase {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum NativeDisplayController {
+pub(crate) enum DisplayController {
     Controlling,
     ReadOnly,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum NativeDisplayProvenance {
+pub(crate) enum DisplayProvenance {
     Started,
     Pending,
     Unavailable,
@@ -242,7 +241,7 @@ const fn link_notice(notice: crate::terminal_link_activation::Notice) -> Workben
 /// and facts; the other cases overlay their own indicator and never hand
 /// out stale row data.
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum NativeViewportSurface<'a> {
+pub(crate) enum ViewportSurface<'a> {
     Window {
         window: &'a ViewportWindow,
         /// `(start_row, total_rows)` re-validated at the same instant the
@@ -255,14 +254,14 @@ pub(crate) enum NativeViewportSurface<'a> {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum NativeRefreshStatus {
+pub(crate) enum RefreshStatus {
     Refreshing,
     Success(u64),
     Failure(u64),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum NativeProjectionStatus {
+pub(crate) enum ClientProjectionStatus {
     Empty,
     FrameAvailable,
     WaitingForFullFrame,
@@ -270,19 +269,19 @@ pub(crate) enum NativeProjectionStatus {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum NativeDisplayRetirement {
+pub(crate) enum DisplayRetirement {
     Unavailable,
     OutcomeUnknown,
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct NativeTabView<'a> {
+pub(crate) struct ClientTabView<'a> {
     inner: StateTabView<'a>,
     observed_title: Option<&'a str>,
     resize: Option<&'a crate::tui_layout::ResizeProjection>,
 }
 
-impl<'a> NativeTabView<'a> {
+impl<'a> ClientTabView<'a> {
     pub(crate) fn group(&self) -> Option<&'a orchbee_workbench_protocol::TabGroup> {
         self.inner.group()
     }
@@ -339,7 +338,7 @@ impl<'a> NativeTabView<'a> {
         self.inner.panel_count()
     }
 
-    pub(crate) fn panel_tree(&self) -> &'a super::NativePanelTree {
+    pub(crate) fn panel_tree(&self) -> &'a super::ClientPanelTree {
         self.inner.panel_tree()
     }
 
@@ -347,7 +346,7 @@ impl<'a> NativeTabView<'a> {
         self.inner.active_panel()
     }
 
-    pub(crate) fn panel(&self, index: usize) -> Option<&'a super::NativePanel> {
+    pub(crate) fn panel(&self, index: usize) -> Option<&'a super::ClientPanel> {
         self.inner.panel(index)
     }
 
@@ -367,10 +366,10 @@ pub(crate) struct WorkbenchClientView<'a> {
     panes: &'a [KeyedProjection],
     retained_frames: Option<retained_frames::RetainedView<'a>>,
     focus: Option<&'a WorkbenchPanelId>,
-    projection_status: NativeProjectionStatus,
-    retirement: Option<NativeDisplayRetirement>,
+    projection_status: ClientProjectionStatus,
+    retirement: Option<DisplayRetirement>,
     retirement_requested: bool,
-    board: Option<NativeAgentBoardView<'a>>,
+    board: Option<AgentBoardView<'a>>,
     worktree: Option<&'a crate::workbench_client::state::worktree_launch::Launcher>,
     board_summary: Option<&'a AgentBoardSummary>,
     copy_mode: Option<&'a copy_mode::Coordinator>,
@@ -380,19 +379,19 @@ pub(crate) struct WorkbenchClientView<'a> {
     graphics_surface: Option<crate::tui_graphics::Surface>,
     popup_failed: bool,
     command_notice: Option<WorkbenchClientNotice>,
-    notice_context: Option<&'a NativeNoticeContext>,
+    notice_context: Option<&'a NoticeContext>,
     popup: Option<&'a super::independent_popup::Driver>,
 }
 
 /// Bounded launch facts for a failed member; no command arguments or environment.
 #[derive(Clone, Copy)]
-pub(crate) struct NativeLaunchFailure<'a> {
-    pub(crate) profile: NativeLaunchProfile<'a>,
+pub(crate) struct LaunchFailure<'a> {
+    pub(crate) profile: LaunchProfile<'a>,
     pub(crate) executable: Option<&'a str>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum NativeLaunchProfile<'a> {
+pub(crate) enum LaunchProfile<'a> {
     Named(&'a str),
     SystemDefault,
     Unknown,
@@ -401,8 +400,8 @@ pub(crate) enum NativeLaunchProfile<'a> {
 impl<'a> WorkbenchClientView<'a> {
     pub(crate) fn launch_failure(
         &self,
-        panel: &'a super::NativePanel,
-    ) -> Option<NativeLaunchFailure<'a>> {
+        panel: &'a super::ClientPanel,
+    ) -> Option<LaunchFailure<'a>> {
         let state = self.state.as_ref()?;
         let observed = state.selected_presentation(panel).launch_failure();
         let failed = observed.is_some()
@@ -410,26 +409,26 @@ impl<'a> WorkbenchClientView<'a> {
                 matches!(record.provenance(), CreateTerminalProvenance::Failed(_))
             })
             || (self.focus == Some(panel.panel_id())
-                && self.selected_provenance() == Some(NativeDisplayProvenance::Failed));
+                && self.selected_provenance() == Some(DisplayProvenance::Failed));
         if !failed || self.retirement.is_some() {
             return None;
         }
         // This Client's captured description names the profile; the Server fact names only
         // the executable, so a Tab created elsewhere never claims a profile identity.
         Some(match (state.launch_description(panel), observed) {
-            (Some(description), _) => NativeLaunchFailure {
-                profile: description.profile_name.as_deref().map_or(
-                    NativeLaunchProfile::SystemDefault,
-                    NativeLaunchProfile::Named,
-                ),
+            (Some(description), _) => LaunchFailure {
+                profile: description
+                    .profile_name
+                    .as_deref()
+                    .map_or(LaunchProfile::SystemDefault, LaunchProfile::Named),
                 executable: description.executable.as_deref(),
             },
-            (None, Some(observed)) => NativeLaunchFailure {
-                profile: NativeLaunchProfile::Unknown,
+            (None, Some(observed)) => LaunchFailure {
+                profile: LaunchProfile::Unknown,
                 executable: observed.executable.as_deref(),
             },
-            (None, None) => NativeLaunchFailure {
-                profile: NativeLaunchProfile::Unknown,
+            (None, None) => LaunchFailure {
+                profile: LaunchProfile::Unknown,
                 executable: None,
             },
         })
@@ -494,7 +493,7 @@ impl<'a> WorkbenchClientView<'a> {
             .focus_panel_id()
             .filter(|panel| {
                 self.retirement.is_none()
-                    && self.pane_projection_status(panel) == NativeProjectionStatus::FrameAvailable
+                    && self.pane_projection_status(panel) == ClientProjectionStatus::FrameAvailable
             })
             .and_then(|panel| self.pane_projection(panel))
             .and_then(|projection| projection.frame())
@@ -504,7 +503,7 @@ impl<'a> WorkbenchClientView<'a> {
         orchbee_workbench_protocol::WindowTitleContext::new(workspace, &label, manual, title)
     }
 
-    pub(crate) fn panel_report(&self, panel: &super::NativePanel) -> super::PanelReportView<'_> {
+    pub(crate) fn panel_report(&self, panel: &super::ClientPanel) -> super::PanelReportView<'_> {
         if self.retirement.is_some() {
             return super::PanelReportView::Unavailable;
         }
@@ -517,48 +516,38 @@ impl<'a> WorkbenchClientView<'a> {
             .as_ref()
             .map_or(0, ClientStateView::context_count)
     }
-    pub(crate) fn navigation_site(&self) -> Option<&orchbee_workbench_protocol::SiteId> {
-        self.state.as_ref().map(ClientStateView::navigation_site)
+    pub(crate) fn navigation_session(&self) -> Option<&orchbee_workbench_protocol::SessionId> {
+        self.state.as_ref().map(ClientStateView::navigation_session)
     }
 
     pub(crate) fn active_context_position(&self) -> Option<usize> {
         self.state.as_ref()?.active_context_position()
     }
 
-    pub(crate) fn context_at(&self, index: usize) -> Option<super::state::NativeContextView<'a>> {
+    pub(crate) fn context_at(&self, index: usize) -> Option<super::state::ClientContextView<'a>> {
         self.state.as_ref()?.context_at(index)
     }
 
-    pub(crate) const fn phase(&self) -> NativeDisplayPhase {
+    pub(crate) const fn phase(&self) -> DisplayPhase {
         let Some(state) = self.state.as_ref() else {
-            return NativeDisplayPhase::Starting;
+            return DisplayPhase::Starting;
         };
         match state.phase() {
-            ClientPhaseKind::Empty => NativeDisplayPhase::Empty,
-            ClientPhaseKind::Starting => NativeDisplayPhase::Starting,
-            ClientPhaseKind::Ready => NativeDisplayPhase::Ready,
-            ClientPhaseKind::Creating => NativeDisplayPhase::Creating,
-            ClientPhaseKind::CreateCommittedNeedDetach => {
-                NativeDisplayPhase::CreateCommittedNeedDetach
-            }
-            ClientPhaseKind::ProjectionUnavailable => NativeDisplayPhase::ProjectionUnavailable,
-            ClientPhaseKind::MoveProjectionUnavailable => {
-                NativeDisplayPhase::MoveProjectionUnavailable
-            }
-            ClientPhaseKind::PanelProjectionUnavailable => {
-                NativeDisplayPhase::PanelProjectionUnavailable
-            }
+            ClientPhaseKind::Empty => DisplayPhase::Empty,
+            ClientPhaseKind::Starting => DisplayPhase::Starting,
+            ClientPhaseKind::Ready => DisplayPhase::Ready,
+            ClientPhaseKind::Creating => DisplayPhase::Creating,
+            ClientPhaseKind::CreateCommittedNeedDetach => DisplayPhase::CreateCommittedNeedDetach,
+            ClientPhaseKind::ProjectionUnavailable => DisplayPhase::ProjectionUnavailable,
+            ClientPhaseKind::MoveProjectionUnavailable => DisplayPhase::MoveProjectionUnavailable,
+            ClientPhaseKind::PanelProjectionUnavailable => DisplayPhase::PanelProjectionUnavailable,
             ClientPhaseKind::RenameProjectionUnavailable => {
-                NativeDisplayPhase::RenameProjectionUnavailable
+                DisplayPhase::RenameProjectionUnavailable
             }
-            ClientPhaseKind::Switching => NativeDisplayPhase::Switching,
-            ClientPhaseKind::SelectedWithoutAttachment => {
-                NativeDisplayPhase::SelectedWithoutAttachment
-            }
-            ClientPhaseKind::RetryableAttachUnavailable => {
-                NativeDisplayPhase::RetryableAttachUnavailable
-            }
-            ClientPhaseKind::Retired => NativeDisplayPhase::Retired,
+            ClientPhaseKind::Switching => DisplayPhase::Switching,
+            ClientPhaseKind::SelectedWithoutAttachment => DisplayPhase::SelectedWithoutAttachment,
+            ClientPhaseKind::RetryableAttachUnavailable => DisplayPhase::RetryableAttachUnavailable,
+            ClientPhaseKind::Retired => DisplayPhase::Retired,
         }
     }
 
@@ -573,8 +562,8 @@ impl<'a> WorkbenchClientView<'a> {
         self.state.as_ref().map_or(0, ClientStateView::tab_count)
     }
 
-    pub(crate) fn tab(&self, index: usize) -> Option<NativeTabView<'a>> {
-        self.state.as_ref()?.tab(index).map(|inner| NativeTabView {
+    pub(crate) fn tab(&self, index: usize) -> Option<ClientTabView<'a>> {
+        self.state.as_ref()?.tab(index).map(|inner| ClientTabView {
             observed_title: inner
                 .active_panel()
                 .or(Some(0))
@@ -586,7 +575,7 @@ impl<'a> WorkbenchClientView<'a> {
                         .or_else(|| {
                             (self.retirement.is_none()
                                 && self.pane_projection_status(panel.panel_id())
-                                    == NativeProjectionStatus::FrameAvailable)
+                                    == ClientProjectionStatus::FrameAvailable)
                                 .then(|| self.pane_projection(panel.panel_id()))
                                 .flatten()
                                 .and_then(|projection| projection.frame())
@@ -598,8 +587,8 @@ impl<'a> WorkbenchClientView<'a> {
                                 && (!inner.active()
                                     || matches!(
                                         self.pane_projection_status(panel.panel_id()),
-                                        NativeProjectionStatus::Empty
-                                            | NativeProjectionStatus::WaitingForFullFrame
+                                        ClientProjectionStatus::Empty
+                                            | ClientProjectionStatus::WaitingForFullFrame
                                     )))
                             .then(|| {
                                 self.retained_frames.as_ref()?.title(
@@ -630,31 +619,31 @@ impl<'a> WorkbenchClientView<'a> {
         self.state.as_ref()?.active_position()
     }
 
-    pub(crate) fn controller(&self) -> Option<NativeDisplayController> {
+    pub(crate) fn controller(&self) -> Option<DisplayController> {
         self.state
             .as_ref()?
             .controller_mode()
             .map(|mode| match mode {
-                ControllerMode::Controlling(_) => NativeDisplayController::Controlling,
-                ControllerMode::ReadOnly => NativeDisplayController::ReadOnly,
+                ControllerMode::Controlling(_) => DisplayController::Controlling,
+                ControllerMode::ReadOnly => DisplayController::ReadOnly,
             })
     }
 
-    pub(crate) fn selected_provenance(&self) -> Option<NativeDisplayProvenance> {
+    pub(crate) fn selected_provenance(&self) -> Option<DisplayProvenance> {
         let state = self.state.as_ref()?;
         // The Server's committed failure also explains a Tab created by another Client.
         if state.selected_launch_failure().is_some() {
-            return Some(NativeDisplayProvenance::Failed);
+            return Some(DisplayProvenance::Failed);
         }
         state
             .selected_provenance()
             .map(|provenance| match provenance {
-                CreateTerminalProvenance::Started => NativeDisplayProvenance::Started,
-                CreateTerminalProvenance::Pending => NativeDisplayProvenance::Pending,
-                CreateTerminalProvenance::Unavailable(_) => NativeDisplayProvenance::Unavailable,
-                CreateTerminalProvenance::Failed(_) => NativeDisplayProvenance::Failed,
-                CreateTerminalProvenance::OutcomeUnknown => NativeDisplayProvenance::OutcomeUnknown,
-                CreateTerminalProvenance::BindingOnly => NativeDisplayProvenance::BindingOnly,
+                CreateTerminalProvenance::Started => DisplayProvenance::Started,
+                CreateTerminalProvenance::Pending => DisplayProvenance::Pending,
+                CreateTerminalProvenance::Unavailable(_) => DisplayProvenance::Unavailable,
+                CreateTerminalProvenance::Failed(_) => DisplayProvenance::Failed,
+                CreateTerminalProvenance::OutcomeUnknown => DisplayProvenance::OutcomeUnknown,
+                CreateTerminalProvenance::BindingOnly => DisplayProvenance::BindingOnly,
             })
     }
 
@@ -715,40 +704,40 @@ impl<'a> WorkbenchClientView<'a> {
     }
 
     /// Only the matching notice may use this retained operation context.
-    pub(crate) fn notice_context(&self) -> Option<&NativeNoticeContext> {
+    pub(crate) fn notice_context(&self) -> Option<&NoticeContext> {
         match (self.notice()?, self.notice_context?) {
             (
                 WorkbenchClientNotice::CommandAccepted
                 | WorkbenchClientNotice::CommandFailed
                 | WorkbenchClientNotice::CommandUnknown
                 | WorkbenchClientNotice::CommandRefused(_),
-                context @ NativeNoticeContext::ConfiguredCommand(_),
+                context @ NoticeContext::ConfiguredCommand(_),
             )
             | (
                 WorkbenchClientNotice::LaunchProfileSelected
                 | WorkbenchClientNotice::LaunchProfileUnavailable,
-                context @ NativeNoticeContext::LaunchProfile(_),
+                context @ NoticeContext::LaunchProfile(_),
             ) => Some(context),
             _ => None,
         }
     }
 
-    pub(crate) fn refresh_status(&self) -> Option<NativeRefreshStatus> {
+    pub(crate) fn refresh_status(&self) -> Option<RefreshStatus> {
         self.state
             .as_ref()?
             .refresh_status()
             .map(|status| match status {
-                NavigatorRefreshStatus::Refreshing => NativeRefreshStatus::Refreshing,
+                NavigatorRefreshStatus::Refreshing => RefreshStatus::Refreshing,
                 NavigatorRefreshStatus::Success(revision) => {
-                    NativeRefreshStatus::Success(revision.value())
+                    RefreshStatus::Success(revision.value())
                 }
                 NavigatorRefreshStatus::Failure(revision) => {
-                    NativeRefreshStatus::Failure(revision.value())
+                    RefreshStatus::Failure(revision.value())
                 }
             })
     }
 
-    pub(crate) const fn projection_status(&self) -> NativeProjectionStatus {
+    pub(crate) const fn projection_status(&self) -> ClientProjectionStatus {
         self.projection_status
     }
 
@@ -790,7 +779,7 @@ impl<'a> WorkbenchClientView<'a> {
         if self.retirement.is_some()
             || !matches!(
                 self.pane_projection_status(panel),
-                NativeProjectionStatus::Empty | NativeProjectionStatus::WaitingForFullFrame
+                ClientProjectionStatus::Empty | ClientProjectionStatus::WaitingForFullFrame
             )
         {
             return None;
@@ -835,17 +824,17 @@ impl<'a> WorkbenchClientView<'a> {
     pub(crate) fn pane_projection_status(
         &self,
         panel: &WorkbenchPanelId,
-    ) -> NativeProjectionStatus {
+    ) -> ClientProjectionStatus {
         let Some(state) = self.state.as_ref() else {
-            return NativeProjectionStatus::Empty;
+            return ClientProjectionStatus::Empty;
         };
         let Some(record) = state.pane_by_panel(panel) else {
-            return NativeProjectionStatus::Empty;
+            return ClientProjectionStatus::Empty;
         };
         self.panes
             .iter()
             .find(|projection| projection.key == record.pane_ref())
-            .map_or(NativeProjectionStatus::Empty, |projection| {
+            .map_or(ClientProjectionStatus::Empty, |projection| {
                 projection.status
             })
     }
@@ -854,10 +843,7 @@ impl<'a> WorkbenchClientView<'a> {
     /// Live. The returned window is already fenced to the pane's current
     /// generation and column geometry — the renderer only clips it to the
     /// leaf bounds.
-    pub(crate) fn pane_viewport(
-        &self,
-        panel: &WorkbenchPanelId,
-    ) -> Option<NativeViewportSurface<'_>> {
+    pub(crate) fn pane_viewport(&self, panel: &WorkbenchPanelId) -> Option<ViewportSurface<'_>> {
         let state = self.state.as_ref()?;
         let record = state.pane_by_panel(panel)?;
         let projection = self
@@ -869,13 +855,13 @@ impl<'a> WorkbenchClientView<'a> {
         }
         let viewport = projection.viewport.as_ref()?;
         Some(match viewport.surface() {
-            ViewportSurface::Window(window) => NativeViewportSurface::Window {
+            ViewportSurface::Window(window) => ViewportSurface::Window {
                 window,
                 position: viewport.position(),
             },
-            ViewportSurface::Entering => NativeViewportSurface::Entering,
-            ViewportSurface::AwaitingWindow => NativeViewportSurface::AwaitingWindow,
-            ViewportSurface::Recovering => NativeViewportSurface::Recovering,
+            ViewportSurface::Entering => ViewportSurface::Entering,
+            ViewportSurface::AwaitingWindow => ViewportSurface::AwaitingWindow,
+            ViewportSurface::Recovering => ViewportSurface::Recovering,
         })
     }
 
@@ -933,12 +919,12 @@ impl<'a> WorkbenchClientView<'a> {
                 .ok()?;
         let (screen, rows) = match self.pane_viewport(panel_id).or_else(|| {
             self.pane_tail_window(panel_id)
-                .map(|(window, _)| NativeViewportSurface::Window {
+                .map(|(window, _)| ViewportSurface::Window {
                     window,
                     position: None,
                 })
         }) {
-            Some(NativeViewportSurface::Window { window, .. }) => (
+            Some(ViewportSurface::Window { window, .. }) => (
                 TerminalScreen::Primary,
                 PaintedRows {
                     attachment: window.route.attachment_id,
@@ -955,9 +941,9 @@ impl<'a> WorkbenchClientView<'a> {
                 },
             ),
             Some(
-                NativeViewportSurface::Entering
-                | NativeViewportSurface::AwaitingWindow
-                | NativeViewportSurface::Recovering,
+                ViewportSurface::Entering
+                | ViewportSurface::AwaitingWindow
+                | ViewportSurface::Recovering,
             ) => return None,
             None => {
                 let frame = projection.frame()?;
@@ -973,7 +959,7 @@ impl<'a> WorkbenchClientView<'a> {
         Some(ContentSource {
             pane,
             member: SnapshotMember {
-                site: state.site_id().clone(),
+                session: state.session_id().clone(),
                 context: state.terminal_context_id()?.clone(),
                 tab: tab.tab_id().clone(),
                 panel: panel_id.clone(),
@@ -1018,7 +1004,7 @@ impl<'a> WorkbenchClientView<'a> {
     pub(crate) const fn focus_panel_id(&self) -> Option<&'a WorkbenchPanelId> {
         self.focus
     }
-    pub(crate) fn focused_member(&self) -> Option<super::NativeMemberTarget> {
+    pub(crate) fn focused_member(&self) -> Option<super::ClientMemberTarget> {
         if self.retirement.is_some() {
             return None;
         }
@@ -1026,7 +1012,7 @@ impl<'a> WorkbenchClientView<'a> {
         let panel = (0..tab.panel_count())
             .filter_map(|i| tab.panel(i))
             .find(|p| Some(p.panel_id()) == self.focus_panel_id())?;
-        Some(super::NativeMemberTarget {
+        Some(super::ClientMemberTarget {
             tab: tab.tab_id().clone(),
             panel: panel.panel_id().clone(),
             presentation: self.selected_presentation(panel).presentation_id().clone(),
@@ -1042,13 +1028,13 @@ impl<'a> WorkbenchClientView<'a> {
             .is_some_and(ClientStateView::zoom_active)
     }
 
-    pub(crate) const fn retirement(&self) -> Option<NativeDisplayRetirement> {
+    pub(crate) const fn retirement(&self) -> Option<DisplayRetirement> {
         self.retirement
     }
 
     /// The Agent board's read handle — `Some` only while the board is
     /// open, so a closed board never paints and never claims hits.
-    pub(crate) const fn agent_board(&self) -> Option<&NativeAgentBoardView<'a>> {
+    pub(crate) const fn agent_board(&self) -> Option<&AgentBoardView<'a>> {
         self.board.as_ref()
     }
 
@@ -1077,7 +1063,7 @@ impl<'a> WorkbenchClientView<'a> {
             panes: &[],
             retained_frames: None,
             focus: None,
-            projection_status: NativeProjectionStatus::Empty,
+            projection_status: ClientProjectionStatus::Empty,
             retirement: None,
             retirement_requested: false,
             board: None,
@@ -1101,7 +1087,7 @@ impl<'a> WorkbenchClientView<'a> {
     pub(super) fn test_view(
         state: &'a WorkbenchClientState,
         panes: &'a [KeyedProjection],
-        projection_status: NativeProjectionStatus,
+        projection_status: ClientProjectionStatus,
     ) -> Self {
         Self {
             worktree: None,
@@ -1136,7 +1122,7 @@ impl<'a> WorkbenchClientView<'a> {
 pub(crate) struct KeyedProjection {
     key: PaneRef,
     value: TerminalProjection,
-    status: NativeProjectionStatus,
+    status: ClientProjectionStatus,
     /// The retained-row lease for manual history or a verified automatic tail window.
     /// No core exists before its `Enter` step is admitted; `tail` identifies live-input use.
     viewport: Option<TerminalViewport>,
@@ -1164,7 +1150,7 @@ impl KeyedProjection {
     pub(super) fn for_test(
         key: PaneRef,
         value: TerminalProjection,
-        status: NativeProjectionStatus,
+        status: ClientProjectionStatus,
     ) -> Self {
         Self {
             effect_stream: super::terminal_effects::Stream::new(
@@ -1199,16 +1185,16 @@ enum ActionBuildError {
     Protocol,
 }
 
-pub(super) struct NativeUi {
+pub(super) struct WorkbenchClientUi {
     capabilities: crate::tui_capabilities::Capabilities,
     notice_timer: crate::transient_notice::NoticeTimer<ClientNotice>,
-    setup_notice_timer: crate::transient_notice::NoticeTimer<NativeSetupStatus>,
+    setup_notice_timer: crate::transient_notice::NoticeTimer<SetupStatus>,
     focus_new_panel: bool,
     settings: settings::Coordinator,
     launch_profiles: launch_profiles::Coordinator,
     preferences: orchbee_workbench_protocol::UserPreferencesValues,
     completion_reminders: super::completion_reminders::State,
-    notification_base: (u64, orchbee_local_site_runtime::NativeNotificationSettings),
+    notification_base: (u64, orchbee_local_runtime::NotificationSettings),
     menus: action_menus::Coordinator,
     mailbox: Option<Arc<CommandMailbox>>,
     clock: LocalOperationClock,
@@ -1224,7 +1210,7 @@ pub(super) struct NativeUi {
     copy_mode: copy_mode::Coordinator,
     popup: super::independent_popup::Driver,
     command_notice: Option<(WorkbenchClientNotice, std::time::Instant)>,
-    notice_context: Option<NativeNoticeContext>,
+    notice_context: Option<NoticeContext>,
     /// `presentation_id → workbench placement` over the freshest observed
     /// canonical snapshot — a pure function of that snapshot, rebuilt
     /// whole on every snapshot-bearing event.
@@ -1243,7 +1229,7 @@ pub(super) struct NativeUi {
     unbound_refresh_at: Option<std::time::Instant>,
     retirement_failure: Option<CarrierFailure>,
     retirement_finalized: bool,
-    retirement: Option<NativeDisplayRetirement>,
+    retirement: Option<DisplayRetirement>,
     retired_mailbox_seed: Option<super::mailbox::RetiredMailboxSeed>,
     retirement_poll_serial: Option<u64>,
     retired_peer: Option<super::state::retired_membership::RetiredMembershipOrigin>,
@@ -1261,7 +1247,7 @@ mod link_activation;
 mod navigation_draw;
 mod terminal_tail;
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(super) fn set_ui_wakeup(&self, wakeup: Option<super::UiWakeup>) {
         if let Some(mailbox) = &self.mailbox {
             mailbox.set_ui_wakeup(wakeup);
@@ -1337,10 +1323,7 @@ impl NativeUi {
             launch_profiles: launch_profiles::Coordinator::default(),
             preferences: orchbee_workbench_protocol::UserPreferencesValues::default(),
             completion_reminders: super::completion_reminders::State::default(),
-            notification_base: (
-                0,
-                orchbee_local_site_runtime::NativeNotificationSettings::default(),
-            ),
+            notification_base: (0, orchbee_local_runtime::NotificationSettings::default()),
             attention: super::agent_attention::AgentAttention::new(clock.clone()),
             reports: super::panel_reports::PanelReports::new(clock.clone()),
             graphics: super::pane_graphics::Driver::new(clock.clone()),
@@ -1404,7 +1387,7 @@ impl NativeUi {
                     .iter()
                     .find(|projection| projection.key == key)
             })
-            .map_or(NativeProjectionStatus::Empty, |projection| {
+            .map_or(ClientProjectionStatus::Empty, |projection| {
                 projection.status
             });
         WorkbenchClientView {
@@ -1470,12 +1453,12 @@ impl NativeUi {
         use super::TerminalStatus;
         let Some(state) = self.state.as_ref() else {
             return match self.retirement {
-                Some(NativeDisplayRetirement::OutcomeUnknown) => TerminalStatus::OutcomeUnknown,
-                Some(NativeDisplayRetirement::Unavailable) => TerminalStatus::Unavailable,
+                Some(DisplayRetirement::OutcomeUnknown) => TerminalStatus::OutcomeUnknown,
+                Some(DisplayRetirement::Unavailable) => TerminalStatus::Unavailable,
                 None => TerminalStatus::Connecting,
             };
         };
-        if self.view().projection_status() == NativeProjectionStatus::Blocked {
+        if self.view().projection_status() == ClientProjectionStatus::Blocked {
             return TerminalStatus::Blocked;
         }
         match (state.phase_kind(), state.controller_mode()) {
@@ -1492,8 +1475,8 @@ impl NativeUi {
                 Some(ControllerMode::ReadOnly),
             ) => TerminalStatus::ReadOnly,
             (ClientPhaseKind::Retired, _) => match self.retirement {
-                Some(NativeDisplayRetirement::OutcomeUnknown) => TerminalStatus::OutcomeUnknown,
-                Some(NativeDisplayRetirement::Unavailable) | None => TerminalStatus::Unavailable,
+                Some(DisplayRetirement::OutcomeUnknown) => TerminalStatus::OutcomeUnknown,
+                Some(DisplayRetirement::Unavailable) | None => TerminalStatus::Unavailable,
             },
             (
                 ClientPhaseKind::SelectedWithoutAttachment
@@ -1606,9 +1589,9 @@ impl NativeUi {
         self.clear_projections();
         self.retirement_finalized = true;
         self.retirement = Some(if failure == CarrierFailure::OutcomeUnknown {
-            NativeDisplayRetirement::OutcomeUnknown
+            DisplayRetirement::OutcomeUnknown
         } else {
-            NativeDisplayRetirement::Unavailable
+            DisplayRetirement::Unavailable
         });
         accepted
     }
@@ -1709,7 +1692,7 @@ impl NativeUi {
             let allow_agent_board_jump =
                 crate::tui_composition::project_capture(client_capture, self.capture_claims())
                     == Some(crate::tui_composition::CaptureOwner::Native(
-                        crate::tui_composition::NativeCaptureOwner::AgentBoard,
+                        crate::tui_composition::CaptureOwner::AgentBoard,
                     ));
             changed |= self.drive_agent_board(allow_agent_board_jump);
             {
@@ -2617,7 +2600,7 @@ impl NativeUi {
                         |panel| panel.right_click(),
                     ),
                 frame_available: view.pane_projection_status(record.pane().panel())
-                    == NativeProjectionStatus::FrameAvailable,
+                    == ClientProjectionStatus::FrameAvailable,
                 record,
                 attached,
                 controlling: mode.map(|mode| matches!(mode, ControllerMode::Controlling(_))),
@@ -2706,7 +2689,7 @@ impl NativeUi {
         ) && let Some(state) = self.state.as_mut()
             && matches!(
                 state.cache().location(),
-                super::NativeContextLocation::NoWorkspace
+                super::ClientContextLocation::NoWorkspace
             )
         {
             state.set_notice(ClientNotice::NoWorkspace);
@@ -2766,7 +2749,7 @@ impl NativeUi {
                         .clock
                         .now()
                         .checked_add(std::time::Duration::from_secs(30))?;
-                    let super::NativeContextLocation::Workspace { workspace_id, .. } =
+                    let super::ClientContextLocation::Workspace { workspace_id, .. } =
                         state.cache().location()
                     else {
                         return None;
@@ -2790,15 +2773,13 @@ impl NativeUi {
             ClientAction::RequestWorkspaceDirectory
             | ClientAction::RequestWorkspaceRename
             | ClientAction::RequestProjectRename => {
-                use super::state::workspace_setup::NativeSetupIntent;
+                use super::state::workspace_setup::SetupIntent;
                 let intent = match action {
-                    ClientAction::RequestWorkspaceDirectory => {
-                        NativeSetupIntent::ConfigureDirectory
-                    }
+                    ClientAction::RequestWorkspaceDirectory => SetupIntent::ConfigureDirectory,
                     ClientAction::RequestWorkspaceRename => {
-                        NativeSetupIntent::RenameLocation(NativeLocationLabelTarget::Workspace)
+                        SetupIntent::RenameLocation(LocationLabelTarget::Workspace)
                     }
-                    _ => NativeSetupIntent::RenameLocation(NativeLocationLabelTarget::Project),
+                    _ => SetupIntent::RenameLocation(LocationLabelTarget::Project),
                 };
                 self.request_setup_draft(intent);
                 ClientActionDisposition::KeepNavigator
@@ -3085,7 +3066,7 @@ impl NativeUi {
 
     pub(super) fn navigate_context(
         &mut self,
-        target: &super::NativeContextTarget,
+        target: &super::ClientContextTarget,
     ) -> super::ContextNavigationAdmission {
         self.remember_history_positions();
         use super::ContextNavigationAdmission;
@@ -3093,7 +3074,7 @@ impl NativeUi {
             return ContextNavigationAdmission::Unavailable;
         };
         let view = self.view();
-        if view.navigation_site() != Some(&target.site_id) || view.retirement().is_some() {
+        if view.navigation_session() != Some(&target.session_id) || view.retirement().is_some() {
             return ContextNavigationAdmission::Unavailable;
         }
         let Some(index) = (0..view.context_count()).find(|index| {
@@ -3742,7 +3723,7 @@ impl NativeUi {
                             ),
                             key,
                             value: projection,
-                            status: NativeProjectionStatus::Empty,
+                            status: ClientProjectionStatus::Empty,
                             viewport: None,
                             tail: None,
                             tail_attempted: None,
@@ -4153,7 +4134,7 @@ impl NativeUi {
             Ok(Some(feedback @ TerminalViewerAction::FrameApplied { .. })) => (
                 CausalSettlement::Feedback(feedback),
                 Some(FrameIdentity::new(poll_key.serial())),
-                NativeProjectionStatus::FrameAvailable,
+                ClientProjectionStatus::FrameAvailable,
             ),
             Ok(Some(feedback @ TerminalViewerAction::NeedSnapshot { .. })) => {
                 if self
@@ -4167,7 +4148,7 @@ impl NativeUi {
                 (
                     CausalSettlement::Feedback(feedback),
                     None,
-                    NativeProjectionStatus::WaitingForFullFrame,
+                    ClientProjectionStatus::WaitingForFullFrame,
                 )
             }
             Ok(None) => {
@@ -4182,7 +4163,7 @@ impl NativeUi {
                 (
                     CausalSettlement::NoFeedback,
                     None,
-                    NativeProjectionStatus::Blocked,
+                    ClientProjectionStatus::Blocked,
                 )
             }
             Err(()) => {
@@ -4195,7 +4176,7 @@ impl NativeUi {
             }
         };
         self.projections[index].status = status;
-        if status == NativeProjectionStatus::Blocked
+        if status == ClientProjectionStatus::Blocked
             && let Some(state) = self.state.as_ref()
         {
             self.retained_frames
@@ -4539,7 +4520,7 @@ fn build_create_launch(
     let key = CreateOperationKey::new(request_id.clone(), generation);
     let mut operation = CreateOperation::new(
         key,
-        state.cache().site_id().clone(),
+        state.cache().session_id().clone(),
         state.cache().revision(),
         state
             .cache()
@@ -4568,7 +4549,7 @@ fn build_create_launch(
     let command = WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id,
-        site_id: state.cache().site_id().clone(),
+        session_id: state.cache().session_id().clone(),
         expected_revision: state.cache().revision(),
         action: WorkbenchAction::TabCreate {
             placement,

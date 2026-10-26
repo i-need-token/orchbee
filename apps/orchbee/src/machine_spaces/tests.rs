@@ -114,7 +114,7 @@ fn peer(bad: u8, git_count: Arc<AtomicUsize>) -> io::Result<FakeServer> {
                         &WorkbenchResponse::WorkspaceMetadata(WorkspaceMetadataResult {
                             protocol_version: ProtocolVersion,
                             request_id: request.request_id,
-                            site_id: request.site_id,
+                            session_id: request.session_id,
                             outcome: WorkspaceMetadataOutcome::Read {
                                 workbench_revision: WorkbenchRevision::new(if bad == 5 {
                                     2
@@ -156,7 +156,7 @@ fn peer(bad: u8, git_count: Arc<AtomicUsize>) -> io::Result<FakeServer> {
                         &WorkbenchResponse::WorkspaceGit(WorkspaceGitResult {
                             protocol_version: ProtocolVersion,
                             request_id: request.request_id,
-                            site_id: request.site_id,
+                            session_id: request.session_id,
                             workspace_id: if bad == 3 {
                                 WorkbenchWorkspaceId::parse(&id(100)).unwrap()
                             } else {

@@ -7,12 +7,12 @@ use crate::{
 };
 use orchbee_capability_node_protocol::CapabilityNodeMessage;
 use orchbee_local_ipc::LocalStream as UnixStream;
-use orchbee_local_worker_protocol::WorkerId;
 #[cfg(unix)]
-use orchbee_local_site_runtime::HOST_ENDPOINT_ID;
-use orchbee_local_site_runtime::{
-    HOST_SCOPE_NAME, ModeCheckedLocalSiteRendezvous, NativeArtifact, NativeCohort, SiteScope,
+use orchbee_local_runtime::HOST_ENDPOINT_ID;
+use orchbee_local_runtime::{
+    Cohort, CohortArtifact, HOST_SCOPE_NAME, ModeCheckedLocalSessionRendezvous, SessionScope,
 };
+use orchbee_local_worker_protocol::WorkerId;
 #[cfg(unix)]
 use std::os::unix::fs::{FileTypeExt, MetadataExt};
 use std::{
@@ -30,10 +30,10 @@ pub(crate) fn run(
     server: UnixStream,
     worker_id: WorkerId,
     generation: NonZeroU64,
-    cohort: &NativeCohort,
+    cohort: &Cohort,
     runtime: &Path,
-    preferences: Option<&orchbee_local_site_runtime::UserPreferencesStore>,
-    #[cfg(windows)] shell: &orchbee_local_site_runtime::WindowsShellSettings,
+    preferences: Option<&orchbee_local_runtime::UserPreferencesStore>,
+    #[cfg(windows)] shell: &orchbee_local_runtime::ShellSettings,
 ) -> Result<(), Box<dyn Error>> {
     #[cfg(windows)]
     let mut server = server;
@@ -321,7 +321,7 @@ pub(crate) fn run(
                     mutation_slot: &mutation_slot,
                     #[cfg(windows)]
                     plugin_jobs: &plugin_jobs,
-                    site_runtime: Some(runtime),
+                    session_runtime: Some(runtime),
                     #[cfg(windows)]
                     managed_host: Some(&mut managed_host),
                 },
@@ -338,27 +338,21 @@ pub(crate) fn run(
 }
 
 fn start_host(
-    cohort: &NativeCohort,
+    cohort: &Cohort,
     runtime: &Path,
     drain: Rc<RefCell<AgentDrain>>,
-) -> Result<
-    (
-        HostBrokerConnection,
-        orchbee_local_site_runtime::RetainedChild,
-    ),
-    Box<dyn Error>,
-> {
+) -> Result<(HostBrokerConnection, orchbee_local_runtime::RetainedChild), Box<dyn Error>> {
     let deadline = Instant::now() + Duration::from_secs(5);
     // The Host binds `<id>.s` relatively inside `host/` — a 34-byte leaf that
     // always fits — while the Worker connects through the derived absolute
     // path. That absolute address can outgrow this platform's socket ABI, so
     // validate it before the Host directory or process can appear.
-    let endpoint = ModeCheckedLocalSiteRendezvous::host_endpoint_path(runtime);
+    let endpoint = ModeCheckedLocalSessionRendezvous::host_endpoint_path(runtime);
     #[cfg(unix)]
     nix::sys::socket::UnixAddr::new(&endpoint)?;
-    let directory = ModeCheckedLocalSiteRendezvous::prepare_mode_checked(
+    let directory = ModeCheckedLocalSessionRendezvous::prepare_mode_checked(
         runtime,
-        SiteScope::parse(HOST_SCOPE_NAME)?,
+        SessionScope::parse(HOST_SCOPE_NAME)?,
     )?;
     #[cfg(unix)]
     match std::fs::symlink_metadata(&endpoint) {
@@ -377,10 +371,10 @@ fn start_host(
         );
     }
     #[cfg(windows)]
-    let host_endpoint_id = ModeCheckedLocalSiteRendezvous::host_endpoint_id(runtime);
+    let host_endpoint_id = ModeCheckedLocalSessionRendezvous::host_endpoint_id(runtime);
     #[cfg(unix)]
     let host_endpoint_id = HOST_ENDPOINT_ID;
-    let executable = cohort.executable(NativeArtifact::TerminalHost);
+    let executable = cohort.executable(CohortArtifact::TerminalHost);
     let arguments = [
         std::ffi::OsStr::new("serve"),
         std::ffi::OsStr::new("--runtime-directory"),
@@ -389,18 +383,18 @@ fn start_host(
         std::ffi::OsStr::new(&host_endpoint_id),
     ];
     #[cfg(windows)]
-    let mut child = orchbee_local_site_runtime::spawn_windows_site_child(
+    let mut child = orchbee_local_runtime::spawn_session_child(
         &std::env::var_os("LOCALAPPDATA")
             .map(std::path::PathBuf::from)
             .ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))?,
         runtime,
-        orchbee_local_site_runtime::WindowsSiteChild::Host,
+        orchbee_local_runtime::SessionChild::Host,
         &executable,
         &arguments,
         deadline,
     )?;
     #[cfg(not(windows))]
-    let mut child = orchbee_local_site_runtime::spawn_retained(&executable, &arguments)?;
+    let mut child = orchbee_local_runtime::spawn_retained(&executable, &arguments)?;
     loop {
         if Instant::now() >= deadline {
             return Err(io::Error::from(io::ErrorKind::TimedOut).into());

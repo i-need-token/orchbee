@@ -1,6 +1,6 @@
 //! The only writer of the private saved-machine catalog.
 use super::{Catalog, Edit, Error};
-use orchbee_local_site_runtime::{WindowsPrivateCache, windows_user_settings_path};
+use orchbee_local_runtime::{PrivateCache, user_settings_path};
 use std::{io, path::PathBuf};
 
 const FILE: &str = "catalog.json";
@@ -11,7 +11,7 @@ pub(crate) struct Store {
 }
 impl Store {
     pub(crate) fn configured() -> Result<Self, Error> {
-        let path = windows_user_settings_path(|name| std::env::var_os(name))
+        let path = user_settings_path(|name| std::env::var_os(name))
             .map_err(|_| Error::Configuration)?
             .ok_or(Error::Configuration)?;
         let parent = path.parent().ok_or(Error::Configuration)?;
@@ -20,11 +20,11 @@ impl Store {
         })
     }
     pub(crate) fn read(&self) -> Result<Catalog, Error> {
-        decode(WindowsPrivateCache::read_existing(&self.root, FILE, MAX_BYTES).map_err(storage)?)
+        decode(PrivateCache::read_existing(&self.root, FILE, MAX_BYTES).map_err(storage)?)
     }
     /// Re-read while holding the writer lock, after remote preparation has ended.
     pub(crate) fn commit(&self, edit: &Edit) -> Result<(Catalog, bool), Error> {
-        let mut cache = WindowsPrivateCache::acquire(&self.root).map_err(storage)?;
+        let mut cache = PrivateCache::acquire(&self.root).map_err(storage)?;
         let current = decode(cache.read(FILE, MAX_BYTES).map_err(storage)?)?;
         let (next, changed) = current.edit(edit)?;
         if changed {

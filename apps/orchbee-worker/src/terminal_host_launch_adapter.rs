@@ -93,7 +93,7 @@ impl ObservedTerminalHostResponse {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum HostLaunchAdapterError {
     #[cfg(windows)]
-    InvalidSiteRoute,
+    InvalidSessionRoute,
     OperationKindMismatch,
     UnexpectedHostResponse,
     CreationIdentityMismatch,
@@ -109,7 +109,7 @@ impl fmt::Display for HostLaunchAdapterError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             #[cfg(windows)]
-            Self::InvalidSiteRoute => formatter.write_str(
+            Self::InvalidSessionRoute => formatter.write_str(
                 "managed Session route cannot be represented in the terminal environment",
             ),
             Self::OperationKindMismatch => {
@@ -139,7 +139,7 @@ impl std::error::Error for HostLaunchAdapterError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             #[cfg(windows)]
-            Self::InvalidSiteRoute => None,
+            Self::InvalidSessionRoute => None,
             Self::CapabilityProtocol(error) => Some(error),
             Self::HostIdentity(error) => Some(error),
             Self::HostProtocol(error) => Some(error),
@@ -171,7 +171,7 @@ impl From<HostProtocolError> for HostLaunchAdapterError {
     }
 }
 
-// Cross-owner convention with Server's private endpoint: the managed Site
+// Cross-owner convention with Server's private endpoint: the managed Session
 // runtime directory holds the Agent observation socket under this exact file
 // name. The Worker keeps its own literal copy; no Server code is imported.
 #[cfg(unix)]
@@ -185,9 +185,9 @@ const OBSERVATION_SOCKET_ENV: &str = "ORCHBEE_AGENT_OBSERVATION_SOCKET";
 pub(crate) fn map_launch_creation(
     dispatch: &AuthorizedHostDispatch,
     facts: ResolvedTerminalLaunchFacts,
-    site_runtime: Option<&Path>,
+    session_runtime: Option<&Path>,
 ) -> Result<TerminalCreationControl, HostLaunchAdapterError> {
-    let request = map_launch_dispatch(dispatch, facts, site_runtime)?;
+    let request = map_launch_dispatch(dispatch, facts, session_runtime)?;
     let AuthorizedHostOperation::Launch(launch) = dispatch.operation() else {
         return Err(HostLaunchAdapterError::OperationKindMismatch);
     };
@@ -215,7 +215,7 @@ pub(crate) fn map_launch_creation(
 pub(crate) fn map_launch_dispatch(
     dispatch: &AuthorizedHostDispatch,
     facts: ResolvedTerminalLaunchFacts,
-    site_runtime: Option<&Path>,
+    session_runtime: Option<&Path>,
 ) -> Result<CreateTerminal, HostLaunchAdapterError> {
     let AuthorizedHostOperation::Launch(launch) = dispatch.operation() else {
         return Err(HostLaunchAdapterError::OperationKindMismatch);
@@ -233,7 +233,7 @@ pub(crate) fn map_launch_dispatch(
     };
     let control = TerminalCreationControl::CreateTerminal(Box::new(CreateTerminal {
         creation_id: facts.creation_id,
-        environment_overlay: launch_overlay(launch, site_runtime)?,
+        environment_overlay: launch_overlay(launch, session_runtime)?,
         launch: TerminalLaunch {
             arguments: facts.arguments,
             configuration: facts.configuration,
@@ -256,30 +256,30 @@ pub(crate) fn map_launch_dispatch(
 
 fn launch_overlay(
     launch: &orchbee_capability_node_protocol::AuthorizedTerminalLaunch,
-    site_runtime: Option<&Path>,
+    session_runtime: Option<&Path>,
 ) -> Result<Vec<EnvironmentOverlayEntry>, HostLaunchAdapterError> {
-    let overlay = observation_overlay(site_runtime);
+    let overlay = observation_overlay(session_runtime);
     #[cfg(windows)]
     {
         let mut overlay = overlay;
-        if let Some(runtime) = site_runtime {
+        if let Some(runtime) = session_runtime {
             let base = runtime
                 .parent()
                 .filter(|base| base.is_absolute())
                 .and_then(|base| base.to_str())
-                .ok_or(HostLaunchAdapterError::InvalidSiteRoute)?;
+                .ok_or(HostLaunchAdapterError::InvalidSessionRoute)?;
             let scope = runtime
                 .file_name()
                 .and_then(|scope| scope.to_str())
-                .ok_or(HostLaunchAdapterError::InvalidSiteRoute)?;
-            orchbee_local_site_runtime::SiteScope::parse(scope)
-                .map_err(|_| HostLaunchAdapterError::InvalidSiteRoute)?;
+                .ok_or(HostLaunchAdapterError::InvalidSessionRoute)?;
+            orchbee_local_runtime::SessionScope::parse(scope)
+                .map_err(|_| HostLaunchAdapterError::InvalidSessionRoute)?;
             for (name, value) in [
                 ("ORCHBEE_RUNTIME_BASE", base),
                 ("ORCHBEE_RUNTIME_SCOPE", scope),
             ] {
                 if value.len() > MAXIMUM_ENVIRONMENT_OVERLAY_VALUE_BYTES {
-                    return Err(HostLaunchAdapterError::InvalidSiteRoute);
+                    return Err(HostLaunchAdapterError::InvalidSessionRoute);
                 }
                 overlay.push(EnvironmentOverlayEntry {
                     name: name.to_owned(),
@@ -381,12 +381,12 @@ fn map_terminal_created(
 }
 
 // The overlay admits only a live socket owned by this Worker's effective user.
-// A managed Site binds it before spawning the Worker, so a missing or
+// A managed Session binds it before spawning the Worker, so a missing or
 // unqualified candidate simply produces no variable — the launch keeps its
 // resolved facts and the producer runs without an observation channel.
 #[cfg(unix)]
-fn observation_overlay(site_runtime: Option<&Path>) -> Vec<EnvironmentOverlayEntry> {
-    let Some(runtime) = site_runtime else {
+fn observation_overlay(session_runtime: Option<&Path>) -> Vec<EnvironmentOverlayEntry> {
+    let Some(runtime) = session_runtime else {
         return Vec::new();
     };
     let candidate = runtime.join(OBSERVATION_SOCKET_NAME);
@@ -510,12 +510,12 @@ const fn protocol_geometry(
 mod tests;
 
 #[cfg(windows)]
-fn observation_overlay(site_runtime: Option<&Path>) -> Vec<EnvironmentOverlayEntry> {
-    let Some(runtime) = site_runtime else {
+fn observation_overlay(session_runtime: Option<&Path>) -> Vec<EnvironmentOverlayEntry> {
+    let Some(runtime) = session_runtime else {
         return Vec::new();
     };
     let candidate =
-        orchbee_local_site_runtime::ModeCheckedLocalSiteRendezvous::observation_endpoint_path(
+        orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::observation_endpoint_path(
             runtime,
         );
     if !orchbee_local_ipc::endpoint_exists(&candidate).unwrap_or(false) {

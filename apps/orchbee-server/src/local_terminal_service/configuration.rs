@@ -1,13 +1,13 @@
-//! One Site-lifetime configuration owner. Fallible candidate preparation precedes publication.
-use orchbee_local_site_runtime::{
-    WindowsSettingsDiagnosticDisposition, WindowsSettingsDiagnostics, WindowsUserSettings,
-    WindowsUserSettingsLoad, read_windows_user_settings_at,
+//! One Session-lifetime configuration owner. Fallible candidate preparation precedes publication.
+use orchbee_local_runtime::{
+    SettingsDiagnosticDisposition, SettingsDiagnostics, UserSettings, UserSettingsLoad,
+    read_user_settings_at,
 };
 use orchbee_workbench_protocol::{
     ConfigurationAction as Action, ConfigurationDiagnostic, ConfigurationDiagnosticDisposition,
     ConfigurationDiagnostics, ConfigurationFailure as Failure, ConfigurationOutcome as Outcome,
     ConfigurationRequest, ConfigurationResult, ConfigurationShellMode, ConfigurationSnapshot,
-    ContractError, MAXIMUM_CONFIGURATION_DIAGNOSTICS_OMITTED, ProtocolVersion, SiteId,
+    ContractError, MAXIMUM_CONFIGURATION_DIAGNOSTICS_OMITTED, ProtocolVersion, SessionId,
     WorkbenchRequestId, WorkbenchResponse, WorkbenchRevision,
 };
 use std::sync::Mutex;
@@ -16,14 +16,14 @@ use std::sync::Mutex;
 pub(super) struct Registry(Mutex<Option<State>>);
 pub(super) struct PreparedInitial(State);
 struct State {
-    startup: WindowsUserSettings,
-    current: WindowsUserSettings,
+    startup: UserSettings,
+    current: UserSettings,
     snapshot: ConfigurationSnapshot,
     reloading: bool,
 }
 struct FrozenState {
-    startup: WindowsUserSettings,
-    current: WindowsUserSettings,
+    startup: UserSettings,
+    current: UserSettings,
     snapshot: ConfigurationSnapshot,
 }
 struct ReloadAdmission<'a> {
@@ -49,26 +49,26 @@ impl Drop for ReloadAdmission<'_> {
 }
 impl Registry {
     #[cfg(test)]
-    pub(super) fn initialize(&self, settings: &WindowsUserSettings) -> std::io::Result<()> {
+    pub(super) fn initialize(&self, settings: &UserSettings) -> std::io::Result<()> {
         self.initialize_load(
             settings,
-            &WindowsUserSettingsLoad {
+            &UserSettingsLoad {
                 settings: settings.clone(),
-                diagnostics: WindowsSettingsDiagnostics::default(),
+                diagnostics: SettingsDiagnostics::default(),
             },
         )
     }
     #[cfg(test)]
     pub(super) fn initialize_load(
         &self,
-        startup: &WindowsUserSettings,
-        current: &WindowsUserSettingsLoad,
+        startup: &UserSettings,
+        current: &UserSettingsLoad,
     ) -> std::io::Result<()> {
         self.install_initial(Self::prepare_initial(startup, current)?)
     }
     pub(super) fn prepare_initial(
-        startup: &WindowsUserSettings,
-        current: &WindowsUserSettingsLoad,
+        startup: &UserSettings,
+        current: &UserSettingsLoad,
     ) -> std::io::Result<PreparedInitial> {
         let diagnostics = protocol_diagnostics(&current.diagnostics).ok_or_else(|| {
             std::io::Error::other("Configuration diagnostics exceed protocol bounds")
@@ -108,13 +108,11 @@ impl Registry {
     fn execute(
         &self,
         request: &ConfigurationRequest,
-        apply: impl FnOnce(&WindowsUserSettings) -> bool,
+        apply: impl FnOnce(&UserSettings) -> bool,
     ) -> Outcome {
         self.execute_with(
             request,
-            |path, explicit| {
-                read_windows_user_settings_at(path, explicit, |name| std::env::var_os(name))
-            },
+            |path, explicit| read_user_settings_at(path, explicit, |name| std::env::var_os(name)),
             apply,
         )
     }
@@ -126,10 +124,10 @@ impl Registry {
             Option<&std::path::Path>,
             bool,
         ) -> Result<
-            orchbee_local_site_runtime::WindowsUserSettingsLoad,
-            orchbee_local_site_runtime::WindowsSettingsError,
+            orchbee_local_runtime::UserSettingsLoad,
+            orchbee_local_runtime::SettingsError,
         >,
-        apply: impl FnOnce(&WindowsUserSettings) -> bool,
+        apply: impl FnOnce(&UserSettings) -> bool,
     ) -> Outcome {
         let Ok(mut slot) = self.0.try_lock() else {
             return Outcome::failed(Failure::Busy);
@@ -183,20 +181,18 @@ impl Registry {
             frozen.snapshot.clone()
         };
         // Prepare the exact bounded outbound representation before changing the live scheduler.
-        if orchbee_local_site_runtime::WindowsKeySettings::from_profile(&next.keys_profile).is_err()
+        if orchbee_local_runtime::KeySettings::from_profile(&next.keys_profile).is_err()
             || next.keys_profile.len() > 64 * 1024
-            || orchbee_local_site_runtime::WindowsSpaceSidebarSettings::from_profile(
+            || orchbee_local_runtime::SpaceSidebarSettings::from_profile(
                 &next.spaces_sidebar_profile,
             )
             .is_err()
-            || orchbee_local_site_runtime::WindowsAgentSidebarSettings::from_profile(
+            || orchbee_local_runtime::AgentSidebarSettings::from_profile(
                 &next.agent_sidebar_profile,
             )
             .is_err()
-            || orchbee_local_site_runtime::WindowsNotificationSettings::from_profile(
-                &next.notification_profile,
-            )
-            .is_err()
+            || orchbee_local_runtime::NotificationSettings::from_profile(&next.notification_profile)
+                .is_err()
         {
             return Outcome::failed(Failure::LoadFailed);
         }
@@ -234,7 +230,7 @@ fn publication_result(outcome: Outcome) -> ConfigurationResult {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse("00000000000000000000000000000001")
             .expect("fixed configuration preflight request id"),
-        site_id: SiteId::parse("00000000000000000000000000000002")
+        session_id: SessionId::parse("00000000000000000000000000000002")
             .expect("fixed configuration preflight Session id"),
         outcome,
     }
@@ -250,7 +246,7 @@ fn preflight_publication(outcome: &Outcome) -> Result<(), ContractError> {
 }
 
 fn snapshot(
-    current: &WindowsUserSettings,
+    current: &UserSettings,
     diagnostics: ConfigurationDiagnostics,
     revision: u64,
 ) -> ConfigurationSnapshot {
@@ -263,32 +259,28 @@ fn snapshot(
         agent_sidebar_profile: current.agent_sidebar.profile(),
         spaces_sidebar_profile: current.space_sidebar.profile(),
         theme_name: match current.theme {
-            orchbee_local_site_runtime::WindowsThemeName::TerminalNative => {
+            orchbee_local_runtime::ThemeName::TerminalNative => {
                 orchbee_workbench_protocol::ConfigurationThemeName::TerminalNative
             }
-            orchbee_local_site_runtime::WindowsThemeName::OneLight => {
+            orchbee_local_runtime::ThemeName::OneLight => {
                 orchbee_workbench_protocol::ConfigurationThemeName::OneLight
             }
-            orchbee_local_site_runtime::WindowsThemeName::OneDark => {
+            orchbee_local_runtime::ThemeName::OneDark => {
                 orchbee_workbench_protocol::ConfigurationThemeName::OneDark
             }
         },
         manifest_check: current.manifest_check,
         default_shell: current.shell.executable().into(),
         shell_mode: match current.shell.mode() {
-            orchbee_local_site_runtime::WindowsShellMode::Auto => ConfigurationShellMode::Auto,
-            orchbee_local_site_runtime::WindowsShellMode::Login => ConfigurationShellMode::Login,
-            orchbee_local_site_runtime::WindowsShellMode::NonLogin => {
-                ConfigurationShellMode::NonLogin
-            }
+            orchbee_local_runtime::ShellMode::Auto => ConfigurationShellMode::Auto,
+            orchbee_local_runtime::ShellMode::Login => ConfigurationShellMode::Login,
+            orchbee_local_runtime::ShellMode::NonLogin => ConfigurationShellMode::NonLogin,
         },
         restart_required: Vec::new(),
     }
 }
 
-fn protocol_diagnostics(
-    diagnostics: &WindowsSettingsDiagnostics,
-) -> Option<ConfigurationDiagnostics> {
+fn protocol_diagnostics(diagnostics: &SettingsDiagnostics) -> Option<ConfigurationDiagnostics> {
     let omitted_count = u32::try_from(diagnostics.omitted_count()).ok()?;
     if omitted_count > MAXIMUM_CONFIGURATION_DIAGNOSTICS_OMITTED {
         return None;
@@ -301,13 +293,13 @@ fn protocol_diagnostics(
                 field: item.field.clone(),
                 reason: item.reason.into(),
                 disposition: match item.disposition {
-                    WindowsSettingsDiagnosticDisposition::Defaulted => {
+                    SettingsDiagnosticDisposition::Defaulted => {
                         ConfigurationDiagnosticDisposition::Defaulted
                     }
-                    WindowsSettingsDiagnosticDisposition::Disabled => {
+                    SettingsDiagnosticDisposition::Disabled => {
                         ConfigurationDiagnosticDisposition::Disabled
                     }
-                    WindowsSettingsDiagnosticDisposition::Ignored => {
+                    SettingsDiagnosticDisposition::Ignored => {
                         ConfigurationDiagnosticDisposition::Ignored
                     }
                 },
@@ -322,7 +314,7 @@ impl super::LocalTerminalService {
     ) -> Result<
         (
             WorkbenchRevision,
-            Vec<orchbee_local_site_runtime::WindowsCustomCommandEntry>,
+            Vec<orchbee_local_runtime::CustomCommandEntry>,
         ),
         orchbee_workbench_protocol::ConfiguredCommandFailure,
     > {
@@ -342,8 +334,7 @@ impl super::LocalTerminalService {
     pub(crate) fn notifications_disabled(&self) -> Result<bool, ()> {
         let slot = self.configuration.0.try_lock().map_err(|_| ())?;
         Ok(slot.as_ref().is_some_and(|state| {
-            state.current.notifications.delivery
-                == orchbee_local_site_runtime::WindowsNotificationDelivery::Off
+            state.current.notifications.delivery == orchbee_local_runtime::NotificationDelivery::Off
         }))
     }
     pub(crate) fn window_title_configuration(&self) -> Result<String, ()> {
@@ -354,13 +345,13 @@ impl super::LocalTerminalService {
     }
 
     /// No fallible effect follows scheduler admission. Creation and reload share this lock.
-    pub(super) fn apply_configuration(&self, settings: &WindowsUserSettings) -> bool {
+    pub(super) fn apply_configuration(&self, settings: &UserSettings) -> bool {
         use orchbee_capability_node_protocol::{DefaultShellMode, DefaultShellSelection};
-        use orchbee_local_site_runtime::WindowsShellMode;
+        use orchbee_local_runtime::ShellMode;
         let mode = match settings.shell.mode() {
-            WindowsShellMode::Auto => DefaultShellMode::Auto,
-            WindowsShellMode::Login => DefaultShellMode::Login,
-            WindowsShellMode::NonLogin => DefaultShellMode::NonLogin,
+            ShellMode::Auto => DefaultShellMode::Auto,
+            ShellMode::Login => DefaultShellMode::Login,
+            ShellMode::NonLogin => DefaultShellMode::NonLogin,
         };
         let Ok(shell) = DefaultShellSelection::new(settings.shell.executable().into(), mode) else {
             return false;
@@ -378,9 +369,9 @@ impl super::LocalTerminalService {
         &self,
         request: ConfigurationRequest,
     ) -> ConfigurationResult {
-        let outcome = match self.workbench_site_matches(&request.site_id) {
+        let outcome = match self.workbench_session_matches(&request.session_id) {
             None => Outcome::failed(Failure::Unavailable),
-            Some(false) => Outcome::failed(Failure::SiteMismatch),
+            Some(false) => Outcome::failed(Failure::SessionMismatch),
             Some(true) => self
                 .configuration
                 .execute(&request, |settings| self.apply_configuration(settings)),
@@ -388,7 +379,7 @@ impl super::LocalTerminalService {
         ConfigurationResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
-            site_id: request.site_id,
+            session_id: request.session_id,
             outcome,
         }
     }

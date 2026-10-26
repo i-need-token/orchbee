@@ -1,4 +1,4 @@
-use super::tui_observer::NativeHeader;
+use super::tui_observer::WorkbenchHeader;
 use super::*;
 use nix::poll::{PollFd, PollFlags, PollTimeout, poll};
 use orchbee_workbench_protocol::{
@@ -83,9 +83,9 @@ pub(super) struct WorkbenchPeer {
 
 impl WorkbenchPeer {
     pub(super) fn connect(fixture: &Fixture, deadline: Instant) -> Result<Self, Box<dyn Error>> {
-        let cohort = NativeCohort::load(&fixture.cohort, deadline)?;
+        let cohort = Cohort::load(&fixture.cohort, deadline)?;
         let admitted = ClientConnection::connect_before(
-            fixture.site().client_socket_path(),
+            fixture.session().client_socket_path(),
             cohort.identity(),
             deadline,
         )?;
@@ -147,7 +147,7 @@ impl WorkbenchPeer {
         let request = WorkbenchRequest::Command(WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id: request_id.clone(),
-            site_id: snapshot.site_id,
+            session_id: snapshot.session_id,
             expected_revision: snapshot.revision,
             action,
         });
@@ -200,11 +200,11 @@ fn select_context(
     };
     let (header, required) = match expected {
         ExpectedContext::Ready => (
-            NativeHeader::active(location, 1, "1"),
+            WorkbenchHeader::active(location, 1, "1"),
             vec!["Tab 1 · Ready · controlling"],
         ),
         ExpectedContext::ConfiguredEmpty(_) => (
-            NativeHeader::empty(location),
+            WorkbenchHeader::empty(location),
             vec![
                 EMPTY,
                 directory_fact
@@ -214,7 +214,7 @@ fn select_context(
             ],
         ),
         ExpectedContext::UnconfiguredEmpty => (
-            NativeHeader::empty(location),
+            WorkbenchHeader::empty(location),
             vec![EMPTY, UNCONFIGURED_EMPTY_FACT, UNCONFIGURED_EMPTY_ACTION],
         ),
     };
@@ -242,7 +242,7 @@ fn observe_independent_initial_workspace(client: &mut Client, revision: u64, act
     client.wait_native_frame_text_after(
         checkpoint,
         deadline,
-        NativeHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
+        WorkbenchHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
         &["Workbench navigator", &refreshed, "  * 1 Workspace"],
         &[],
         &[],
@@ -253,7 +253,7 @@ fn observe_independent_initial_workspace(client: &mut Client, revision: u64, act
     client.wait_native_frame_text_after(
         checkpoint,
         deadline,
-        NativeHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
+        WorkbenchHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
         &["Tab 1 · Ready ·", "INITIAL_WORKSPACE_PEER_BINDING"],
         &[
             "Workbench navigator",
@@ -447,7 +447,7 @@ fn native_initial_workspace_panel_split_refreshes_and_moves_focus_between_live_l
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + CLOSE_TIMEOUT,
-        NativeHeader::empty(INITIAL_WORKSPACE_LOCATION),
+        WorkbenchHeader::empty(INITIAL_WORKSPACE_LOCATION),
         &["No terminal tabs", "Ctrl+b c create Tab"],
         &["Close Tab?", "Workbench navigator"],
         &[],
@@ -624,7 +624,7 @@ fn native_initial_workspace_panel_close_collapses_the_split_and_releases_only_th
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        NativeHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
+        WorkbenchHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
         &["Tab 1 · Ready"],
         &["Terminal 2 · Split peer", "Terminal disconnected"],
         &[],
@@ -1185,7 +1185,7 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
-        NativeHeader::active(CONFIGURED_LOCATION, 1, "1"),
+        WorkbenchHeader::active(CONFIGURED_LOCATION, 1, "1"),
         &["Tab 1 · Ready · controlling"],
         &[EMPTY],
         &[],
@@ -1291,7 +1291,7 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
     client.wait_native_frame_text_after(
         checkpoint,
         deadline,
-        NativeHeader::empty(CONFIGURED_LOCATION),
+        WorkbenchHeader::empty(CONFIGURED_LOCATION),
         &[EMPTY, &directory_fact, CONFIGURED_EMPTY_ACTION],
         &["Close Tab?", "Workbench navigator"],
         &[],
@@ -1344,7 +1344,7 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
-        NativeHeader::empty(UNCONFIGURED_LOCATION),
+        WorkbenchHeader::empty(UNCONFIGURED_LOCATION),
         &[
             EMPTY,
             UNCONFIGURED_EMPTY_FACT,

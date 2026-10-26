@@ -110,7 +110,7 @@ impl Drop for Root {
     }
 }
 #[test]
-fn actual_powershell_remote_program_preserves_literal_path_site_and_exit_code() {
+fn actual_powershell_remote_program_preserves_literal_path_session_and_exit_code() {
     let root = Root(std::env::temp_dir().join(format!(
         "orchbee-machine-test-{}",
         crate::machines::ProfileId::generate().unwrap().as_str()
@@ -160,7 +160,7 @@ fn actual_powershell_remote_program_preserves_literal_path_site_and_exit_code() 
             if status == 0 {
                 None
             } else {
-                Some(WindowsCommandFailure::ExitFailure)
+                Some(CommandFailure::ExitFailure)
             }
         );
         assert_eq!(result.exit_code, Some(status), "{result:?}");

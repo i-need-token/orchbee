@@ -47,7 +47,7 @@ fn default_config_precedes_configuration_discovery() -> Result<(), Box<dyn Error
     assert!(text.ends_with('\n'));
     let parsed: toml::Value = toml::from_str(&text)?;
     assert_eq!(parsed["keys"]["prefix"].as_str(), Some("ctrl+b"));
-    for action in orchbee_local_site_runtime::WindowsKeySettings::registered_actions() {
+    for action in orchbee_local_runtime::KeySettings::registered_actions() {
         let prefix = format!("# {action} = ");
         assert!(
             text.lines().any(|line| line.starts_with(prefix.as_str())),
@@ -130,8 +130,8 @@ fn emits_one_locale_neutral_version_line() -> Result<(), Box<dyn Error>> {
 
 #[cfg(target_os = "macos")]
 #[test]
-fn macos_agent_list_reaches_site_admission_instead_of_platform_stub() -> Result<(), Box<dyn Error>>
-{
+fn macos_agent_list_reaches_session_admission_instead_of_platform_stub()
+-> Result<(), Box<dyn Error>> {
     // The unadorned Cargo binary has no cohort sidecar, so the read must stop
     // at that real admission check rather than report unsupported-platform.
     let output = Command::new(env!("CARGO_BIN_EXE_orchbee"))
@@ -205,7 +205,7 @@ fn help_flag_aliases_match_the_help_command_at_every_recognized_path() -> Result
 {
     // `<path> --help` and `<path> -h` emit the identical document `help <path>`
     // emits, at the root and at every family and complete command path — all
-    // without touching a running Site.
+    // without touching a running Session.
     let root = run(["--help"], "en_US.UTF-8")?;
     assert_eq!(root.status.code(), Some(0));
     for arguments in [["-h"], ["help"]] {

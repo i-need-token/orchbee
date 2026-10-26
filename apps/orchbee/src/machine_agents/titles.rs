@@ -27,7 +27,7 @@ pub(super) fn read(
                 PanelAgentRequest {
                     protocol_version: ProtocolVersion,
                     request_id: request_id()?,
-                    site_id: snapshot.site_id.clone(),
+                    session_id: snapshot.session_id.clone(),
                     action: PanelAgentAction::Titles {
                         bindings: chunk.to_vec(),
                     },

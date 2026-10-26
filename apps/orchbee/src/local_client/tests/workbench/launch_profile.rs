@@ -300,7 +300,7 @@ fn profile_delete_commit_and_revision_mismatch_retire_the_session() -> TestResul
 
 #[test]
 fn catalog_read_returns_every_typed_outcome_and_retires_on_incompatible_response() -> TestResult {
-    let site_id = SiteId::parse(&id(20))?;
+    let session_id = SessionId::parse(&id(20))?;
     let server = FakeServer::start(move |mut stream| {
         expect_hello(&mut stream, COHORT)?;
         admit(&mut stream, 44)?;
@@ -308,7 +308,7 @@ fn catalog_read_returns_every_typed_outcome_and_retires_on_incompatible_response
             catalog_response(
                 FIRST_REQUEST_ID,
                 LaunchProfileCatalogOutcome::Catalog {
-                    site_id: site_id.clone(),
+                    session_id: session_id.clone(),
                     catalog_revision: LaunchProfileCatalogRevision::new(2),
                     entries: vec![profile_entry(1), profile_entry(2)],
                 },

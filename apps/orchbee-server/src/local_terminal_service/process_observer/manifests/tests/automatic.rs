@@ -13,8 +13,7 @@ fn automatic_real_update_avoids_the_manual_ledger_and_reload_changes_policy_atom
     let path = root.0.join("config.toml");
     std::fs::write(&path, "[update]\nmanifest_check=true").unwrap();
     let settings =
-        orchbee_local_site_runtime::read_windows_user_settings_at(Some(&path), true, |_| None)
-            .unwrap();
+        orchbee_local_runtime::read_user_settings_at(Some(&path), true, |_| None).unwrap();
     let http = Http::start(vec![
         INDEX.as_bytes().to_vec(),
         rules("codex", "2099.2").into_bytes(),

@@ -43,7 +43,7 @@ fn ready(tab_count: usize) -> WorkbenchClientState {
     ready_with_cache(projected(tab_count, 1))
 }
 
-pub(super) fn ready_with_cache(cache: NativeContextTabs) -> WorkbenchClientState {
+pub(super) fn ready_with_cache(cache: ClientContextTabs) -> WorkbenchClientState {
     let mut state = WorkbenchClientState::starting(cache, 1, geometry(80))
         .unwrap()
         .0;
@@ -134,7 +134,7 @@ fn bootstrap_uses_the_authoritative_first_tab_and_rejects_zero_generation() {
     let (state, target) = WorkbenchClientState::starting(cache, 1, geometry(80)).unwrap();
     assert_eq!(target.selected().key(), state.desired().unwrap());
     assert_eq!(target.selected().index(), 0);
-    assert_eq!(target.site_id(), state.cache().site_id());
+    assert_eq!(target.session_id(), state.cache().session_id());
     assert_eq!(target.binding(), state.tab(0).unwrap().binding());
     assert_eq!(
         target.selected().key().tab_id(),
@@ -1504,7 +1504,7 @@ fn switching_to_nonfirst_panel() -> (WorkbenchClientState, PaneRef, CreateTermin
         PaneRef::new(selected.key().clone(), target.incarnation),
         0,
         1,
-        state.cache().site_id().clone(),
+        state.cache().session_id().clone(),
         target.binding().unwrap().clone(),
         provenance.clone(),
         state.latest_geometry(),
@@ -2101,7 +2101,7 @@ fn stale_refresh_is_inert_and_divergence_retires() {
     );
     assert_eq!(state.pending_refresh_generation(), Some(4));
     let mut divergent = snapshot(1, 2, None);
-    divergent.site_id = site_id(99);
+    divergent.session_id = session_id(99);
     assert_eq!(
         finish_refresh(
             &mut state,
@@ -2154,7 +2154,7 @@ fn view_borrows_canonical_duplicate_labels_and_marks_one_active_row() {
     assert!(view.tab(0).unwrap().active());
     assert!(!view.tab(1).unwrap().active());
     assert_eq!(target.selected().key(), state.desired().unwrap());
-    assert_eq!(target.site_id(), state.cache().site_id());
+    assert_eq!(target.session_id(), state.cache().session_id());
     assert_eq!(target.binding(), state.tab(0).unwrap().binding());
 }
 
@@ -2166,7 +2166,7 @@ fn create_operation(
 ) -> CreateOperation {
     CreateOperation::new(
         CreateOperationKey::new(workbench_request_id(request), generation),
-        state.cache().site_id().clone(),
+        state.cache().session_id().clone(),
         state.cache().revision(),
         state.cache().terminal_context_id().unwrap().clone(),
         WorkbenchLabel::parse(label).unwrap(),
@@ -2232,7 +2232,7 @@ fn controlling() -> ControllerMode {
     ControllerMode::Controlling(ControllerId::parse(&id(700)).unwrap())
 }
 
-fn projected(tab_count: usize, revision: u64) -> NativeContextTabs {
+fn projected(tab_count: usize, revision: u64) -> ClientContextTabs {
     project_preferred_workspace(&snapshot(tab_count, revision, None)).unwrap()
 }
 
@@ -2275,7 +2275,7 @@ pub(super) fn snapshot(tab_count: usize, revision: u64, created_label: Option<&s
         },
         protocol_version: ProtocolVersion,
         revision: WorkbenchRevision::new(revision),
-        site_id: site_id(1),
+        session_id: session_id(1),
         terminal_contexts: vec![TerminalContext {
             groups: Vec::new(),
             tabs,
@@ -2319,8 +2319,8 @@ fn workbench_geometry(columns: u16) -> WorkbenchTerminalGeometry {
     WorkbenchTerminalGeometry::new(columns, 24, 8, 16).unwrap()
 }
 
-fn site_id(value: u128) -> SiteId {
-    SiteId::parse(&id(value)).unwrap()
+fn session_id(value: u128) -> SessionId {
+    SessionId::parse(&id(value)).unwrap()
 }
 
 fn context_id(value: u128) -> WorkbenchTerminalContextId {

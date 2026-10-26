@@ -6,7 +6,7 @@ use super::{
 use orchbee_agent_observation_protocol::{AgentReportSequence, normalize_agent_report_label};
 use orchbee_workbench_protocol::{
     PanelAgentReport, PanelAgentRequest, PanelAgentState, PresentationBinding, ProtocolVersion,
-    SiteId, TerminalId, WorkbenchPanelId, WorkbenchRequest, WorkbenchRequestId, WorkerId,
+    SessionId, TerminalId, WorkbenchPanelId, WorkbenchRequest, WorkbenchRequestId, WorkerId,
     write_workbench_request,
 };
 
@@ -193,7 +193,7 @@ fn preflight(
         &WorkbenchRequest::PanelAgent(PanelAgentRequest {
             protocol_version: ProtocolVersion,
             request_id: WorkbenchRequestId::parse(ID).expect("fixed identity"),
-            site_id: SiteId::parse(ID).expect("fixed identity"),
+            session_id: SessionId::parse(ID).expect("fixed identity"),
             action: command.action(
                 WorkbenchPanelId::parse(ID).expect("fixed identity"),
                 PresentationBinding {

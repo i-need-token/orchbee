@@ -8,7 +8,7 @@
 对应拒绝、结果未知或输出失败。缺失或畸形输出表示结果未知，绝不构成重放写入的许可。
 
 [共享偏好契约](../../schemas/workbench/README.zh-CN.md)负责值与传输语义。
-[`orchbee-local-site-runtime`](../../crates/local-site-runtime/README.zh-CN.md)负责配置作用域内的
+[`orchbee-local-runtime`](../../crates/local-runtime/README.zh-CN.md)负责配置作用域内的
 存储与原生初始来源准入。原生 会话 直接调用同一个所有者。
 
 独立的 `--system-shell-v1` 模式只接受已关闭输入的空 JSON 对象，
@@ -32,4 +32,4 @@ Desktop 为每个新终端解析系统 Shell；自定义配置绕过发现。
 在 out/settings-bridge 暂存可执行文件与 SHA-256 清单，打包复制完整资源目录。
 开发编译构建相同的匹配产物。
 
-<!-- documentation-pairing: english-sha256=56921c2fe4fabdeadaae952b8f6f8858da323dcc878e7530f5b1716526f61286 zh-cn-sha256=5b9f93440aac63a179451c06d48b891a9d0ad2effc82149763107ddafdb51c10 -->
+<!-- documentation-pairing: english-sha256=44a9f91249c904a9aac2b88aa5cdd23c8a168ec50b26f6a402f4be863f0d7d16 zh-cn-sha256=3d5b65f31d190f6048ff0f2f05bf34f3ce9cdcd904510a0b3bc9fb1c34fbb1f3 -->

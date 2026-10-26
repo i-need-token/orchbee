@@ -6,7 +6,7 @@
     )
 )]
 
-//! Local Site service composition for Client admission, Workbench authority, Worker coordination
+//! Local Session service composition for Client admission, Workbench authority, Worker coordination
 //! and owned checkpoint lifecycle. Domain modules own transitions; Worker and Terminal Host
 //! retain physical terminal execution and Clients retain presentation.
 
@@ -20,18 +20,20 @@ mod agent_service;
 mod client_connection_registry;
 #[cfg(any(windows, test))]
 mod client_view_registry;
+#[cfg(windows)]
+mod frame_directory;
 #[cfg(any(unix, windows))]
 mod local_client_service;
 #[cfg(any(unix, windows))]
-mod local_site_service;
-#[cfg(any(unix, windows))]
 mod local_terminal_service;
+#[cfg(any(unix, windows))]
+mod local_worker_service;
 #[cfg(windows)]
 mod notification_registry;
 #[cfg(any(unix, windows))]
-mod site_coordinator;
+mod session_coordinator;
 #[cfg(any(windows, test))]
-mod site_shutdown;
+mod session_shutdown;
 #[cfg(any(unix, windows))]
 mod terminal_coordinator;
 #[cfg(windows)]
@@ -49,7 +51,7 @@ use std::process::ExitCode;
 
 fn main() -> ExitCode {
     #[cfg(any(unix, windows))]
-    if local_site_service::run(env::args_os().skip(1), env!("CARGO_PKG_VERSION")).is_ok() {
+    if local_worker_service::run(env::args_os().skip(1), env!("CARGO_PKG_VERSION")).is_ok() {
         return ExitCode::SUCCESS;
     }
 

@@ -11,7 +11,7 @@ use crate::{
     tui_pointer::{FrameHitMap, HitMapBuilder, HitTarget, ListScrollTarget},
     tui_presentation::PresentationPhase,
     tui_theme::Theme,
-    workbench_client::{AgentBoardEpisodeToken, NativeDrawReceipt},
+    workbench_client::{AgentBoardEpisodeToken, DrawReceipt},
 };
 use orchbee_workbench_protocol::UserPreferencesValues;
 use ratatui::layout::Rect;
@@ -24,7 +24,7 @@ const REFUSED_HEIGHT: u16 = 8;
 struct RenderedFrame {
     terminal: Terminal<TestBackend>,
     hits: FrameHitMap,
-    receipt: NativeDrawReceipt,
+    receipt: DrawReceipt,
     width: u16,
     height: u16,
 }
@@ -55,7 +55,7 @@ impl RenderedFrame {
 }
 
 fn render(
-    ui: &NativeUi,
+    ui: &WorkbenchClientUi,
     shell: &ClientView,
     width: u16,
     height: u16,
@@ -64,7 +64,7 @@ fn render(
 ) -> RenderedFrame {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     let mut hits = HitMapBuilder::new();
-    let mut receipt = NativeDrawReceipt::default();
+    let mut receipt = DrawReceipt::default();
     terminal
         .draw(|frame| {
             receipt = crate::tui_render::render_terminal_shell(
@@ -96,7 +96,7 @@ fn board_hit(target: &HitTarget) -> bool {
 }
 
 fn admit_board(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     shell: &ClientView,
     locale: Locale,
     theme: &Theme,
@@ -113,7 +113,7 @@ fn admit_board(
     episode
 }
 
-fn open_loaded_settings(ui: &mut NativeUi) {
+fn open_loaded_settings(ui: &mut WorkbenchClientUi) {
     let token = ui.settings.editor.open().expect("Settings opens");
     assert!(ui.settings.editor.loaded(
         token,

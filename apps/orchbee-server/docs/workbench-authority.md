@@ -364,17 +364,17 @@ Prepared membership and terminal reservations are effect-free until their joint 
 
 An admitted local Client selects an exact Session/Worker/logical Terminal binding from a canonical snapshot through `attach-binding`. Workbench proves current exposure before runtime lookup; Session then checks the retained Worker generation and Host identity. Selection grants no create, navigation, input or resize authority. Missing membership, unavailable runtime and changed attachment identity remain distinct typed outcomes.
 
-| Field        | Contract                                                                                                                                                                                                                                                         |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem      | A Client reading shared product state must select its retained terminal without depending on an internal Create reference or silently following a different execution identity.                                                                                  |
-| Input        | An admitted Session and the exact Session/Worker/Server-terminal tuple. All three are independent opaque identity domains; none is a Host identity, generation, operation, lease or Create reference.                                                            |
-| Data         | Canonical exposed bindings, retained terminal authorization/phase, current Worker placement and Session-local attachment state.                                                                                                                                  |
-| Output       | Existing Attached scope, or a typed refusal/unavailability. Selection has no terminal creation, start, input, resize, controller grant or Workbench effect.                                                                                                      |
-| Invariants   | Resolve only a binding exposed by the active current Session; pin the retained exact Worker generation; never substitute a terminal or Worker; refuse before allocating attachment identities when target validation fails.                                      |
-| Ownership    | WorkbenchAuthority checks canonical membership; TerminalCoordinator resolves retained execution; SiteCoordinator composes those checks under the existing registry-then-Session lock order. ViewerSession owns attachment IPC and cleanup after releasing locks. |
-| Model        | Resolve a typed target, prepare an attachment, dispatch through the pinned handle, and commit the Session attachment at the existing current-Worker check.                                                                                                       |
-| Dependencies | Unpublished OBCS v1 values, unchanged OBCN/OBSR relay, existing OBWP snapshot read, and the native Client's existing absolute submission deadline.                                                                                                               |
-| Limits       | Same-user local target resolution and no takeover. The Selection model does not prove multiple viewer routes, remote authorization, persistence, restart adoption, selection UI or continuous Worker availability.                                               |
+| Field        | Contract                                                                                                                                                                                                                                                            |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem      | A Client reading shared product state must select its retained terminal without depending on an internal Create reference or silently following a different execution identity.                                                                                     |
+| Input        | An admitted Session and the exact Session/Worker/Server-terminal tuple. All three are independent opaque identity domains; none is a Host identity, generation, operation, lease or Create reference.                                                               |
+| Data         | Canonical exposed bindings, retained terminal authorization/phase, current Worker placement and Session-local attachment state.                                                                                                                                     |
+| Output       | Existing Attached scope, or a typed refusal/unavailability. Selection has no terminal creation, start, input, resize, controller grant or Workbench effect.                                                                                                         |
+| Invariants   | Resolve only a binding exposed by the active current Session; pin the retained exact Worker generation; never substitute a terminal or Worker; refuse before allocating attachment identities when target validation fails.                                         |
+| Ownership    | WorkbenchAuthority checks canonical membership; TerminalCoordinator resolves retained execution; SessionCoordinator composes those checks under the existing registry-then-Session lock order. ViewerSession owns attachment IPC and cleanup after releasing locks. |
+| Model        | Resolve a typed target, prepare an attachment, dispatch through the pinned handle, and commit the Session attachment at the existing current-Worker check.                                                                                                          |
+| Dependencies | Unpublished OBCS v1 values, unchanged OBCN/OBSR relay, existing OBWP snapshot read, and the native Client's existing absolute submission deadline.                                                                                                                  |
+| Limits       | Same-user local target resolution and no takeover. The Selection model does not prove multiple viewer routes, remote authorization, persistence, restart adoption, selection UI or continuous Worker availability.                                                  |
 
 The [Session routing owner](../README.md#accepted-connection-viewer-routing-modeling-record) first
 reaps exact known-Disposed entries and enforces its capacity bound. With capacity available, a
@@ -568,10 +568,10 @@ the same IDs without another effect. Labels and input policy survive materializa
 ratios, group assignment, pinning and physical launches are separate owners and are not implied by
 this receipt. An all-unbound Tab participates in checkpoint, selection and zero-terminal Close.
 
-[multi-leaf-tests]: ../src/site_coordinator/tests/multileaf_membership.rs
-[move-tests]: ../src/site_coordinator/tests/tab_create/tab_move.rs
-[create-tests]: ../src/site_coordinator/tests/tab_create.rs
-[failed-close-tests]: ../src/site_coordinator/tests/failed_launch_close.rs
+[multi-leaf-tests]: ../src/session_coordinator/tests/multileaf_membership.rs
+[move-tests]: ../src/session_coordinator/tests/tab_create/tab_move.rs
+[create-tests]: ../src/session_coordinator/tests/tab_create.rs
+[failed-close-tests]: ../src/session_coordinator/tests/failed_launch_close.rs
 [create-service-tests]: ../src/local_terminal_service/tab_create/tests.rs
 [multi-leaf-process]: ../tests/client_process/tab_create/multileaf.rs
 [panel-label-tests]: ../src/workbench_authority/tests/panel_labels.rs
@@ -579,9 +579,8 @@ this receipt. An all-unbound Tab participates in checkpoint, selection and zero-
 [authority-stateful]: ../src/workbench_authority/tests/stateful.rs
 [authority-process]: ../tests/client_process/workbench.rs
 [session-tests]: ../src/local_client_service/application_connection/tests/workbench.rs
-[Workspace-tests]: ../src/site_coordinator/tests/Workspace.rs
 [workspace-process]: ../tests/client_process/terminal_operations/workspace.rs
-[selection-tests]: ../src/site_coordinator/tests/terminal_selection.rs
+[selection-tests]: ../src/session_coordinator/tests/terminal_selection.rs
 [viewer-tests]: ../src/local_terminal_service/viewer_connection/tests.rs
 [placement-tests]: ../src/workbench_authority/terminal_tab_create/tests/placement.rs
 [rename-process]: ../tests/client_process/tab_create/tab_rename.rs

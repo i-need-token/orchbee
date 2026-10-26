@@ -1,6 +1,6 @@
 use super::*;
 use orchbee_workbench_protocol::{
-    MetadataState, MetadataTokenPatch, SiteId, TerminalId, WorkbenchProtocolDocument,
+    MetadataState, MetadataTokenPatch, SessionId, TerminalId, WorkbenchProtocolDocument,
     WorkbenchRequestId, WorkerId, parse_snapshot, serialize_document,
 };
 use serde_json::{Value, json};
@@ -425,7 +425,7 @@ fn invoke(authority: &mut WorkbenchAuthority, action: Action) -> PanelMetadataRe
     let request = PanelMetadataRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 7)).unwrap(),
-        site_id: authority.site_id().clone(),
+        session_id: authority.session_id().clone(),
         action,
     };
     let result = authority.panel_metadata(request.clone(), Instant::now());
@@ -436,7 +436,7 @@ fn invoke(authority: &mut WorkbenchAuthority, action: Action) -> PanelMetadataRe
 #[test]
 fn authority_resolves_primary_fences_swaps_and_keeps_metadata_while_child_remains() {
     let mut authority =
-        WorkbenchAuthority::new(SiteId::parse(&format!("{:032x}", 80)).unwrap()).unwrap();
+        WorkbenchAuthority::new(SessionId::parse(&format!("{:032x}", 80)).unwrap()).unwrap();
     let mut doc = tree();
     install(&mut authority, &doc);
     let report = |b| Action::Report {
@@ -548,7 +548,7 @@ fn metadata_revision_failure_prevents_the_companion_agent_exit_commit() {
     };
     use orchbee_workbench_protocol::{PanelAgentAction, PanelAgentRequest};
     let mut authority =
-        WorkbenchAuthority::new(SiteId::parse(&format!("{:032x}", 80)).unwrap()).unwrap();
+        WorkbenchAuthority::new(SessionId::parse(&format!("{:032x}", 80)).unwrap()).unwrap();
     install(&mut authority, &tree());
     invoke(
         &mut authority,
@@ -594,7 +594,7 @@ fn metadata_revision_failure_prevents_the_companion_agent_exit_commit() {
         PanelAgentRequest {
             protocol_version: ProtocolVersion,
             request_id: WorkbenchRequestId::parse(&"a".repeat(32)).unwrap(),
-            site_id: authority.site_id().clone(),
+            session_id: authority.session_id().clone(),
             action: PanelAgentAction::Read {
                 panel_ids: vec![panel(3)],
             },
@@ -616,7 +616,8 @@ fn metadata_revision_failure_prevents_the_companion_agent_exit_commit() {
 
 #[test]
 fn presentation_metadata_reads_exact_binding_without_primary_fallback() {
-    let mut a = WorkbenchAuthority::new(SiteId::parse(&format!("{:032x}", 80)).unwrap()).unwrap();
+    let mut a =
+        WorkbenchAuthority::new(SessionId::parse(&format!("{:032x}", 80)).unwrap()).unwrap();
     install(&mut a, &tree());
     let report = |n: u128, value: &str| Action::ReportPresentation {
         panel_id: panel(3),

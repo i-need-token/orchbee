@@ -17,16 +17,17 @@ use orchbee_capability_node_protocol::{
     TerminalFence, TerminalId as RuntimeTerminalId, WorkerGeneration, WorkerId as RuntimeWorkerId,
 };
 use orchbee_workbench_protocol::{
-    MAXIMUM_PANEL_NODE_DEPTH, Presentation, PresentationBinding, ProtocolVersion, SiteId,
+    MAXIMUM_PANEL_NODE_DEPTH, Presentation, PresentationBinding, ProtocolVersion, SessionId,
     TerminalId, WorkbenchLabel, WorkbenchProtocolDocument, WorkbenchRequestId,
     WorkbenchTerminalGeometry, WorkbenchTerminalOutcome, WorkerId, serialize_document,
 };
 
 fn authority() -> (WorkbenchAuthority, WorkbenchGrant) {
     let mut authority =
-        WorkbenchAuthority::workspace_fixture(SiteId::parse(&identity(100)).unwrap()).unwrap();
-    let grant = WorkbenchGrant::manage_navigation_and_terminal_create(authority.site_id().clone())
-        .with_terminal_lifecycle();
+        WorkbenchAuthority::workspace_fixture(SessionId::parse(&identity(100)).unwrap()).unwrap();
+    let grant =
+        WorkbenchGrant::manage_navigation_and_terminal_create(authority.session_id().clone())
+            .with_terminal_lifecycle();
     authority.append_fixture_tab(binding(700)).unwrap();
     (authority, grant)
 }
@@ -42,7 +43,7 @@ fn command(authority: &WorkbenchAuthority, id: u128, action: WorkbenchAction) ->
     WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&identity(id)).unwrap(),
-        site_id: authority.site_id().clone(),
+        session_id: authority.session_id().clone(),
         expected_revision: authority.projection.snapshot().revision,
         action,
     }
@@ -663,7 +664,7 @@ fn relocate_without_navigation_grant_is_denied() {
     let source_tab = member.tab_id().clone();
     let panel_a = member.panel_id().clone();
     let create_grant =
-        WorkbenchGrant::manage_navigation_and_terminal_create(authority.site_id().clone());
+        WorkbenchGrant::manage_navigation_and_terminal_create(authority.session_id().clone());
     split(
         &mut authority,
         &create_grant,
@@ -675,7 +676,7 @@ fn relocate_without_navigation_grant_is_denied() {
     let target_tab = create_tab(&mut authority, &create_grant, 200, "two", 800);
     let before = authority.projection.snapshot().clone();
     let retained = authority.ledger.len();
-    let read_only = WorkbenchGrant::read_only(authority.site_id().clone());
+    let read_only = WorkbenchGrant::read_only(authority.session_id().clone());
     let request = relocate_command(
         &authority,
         10,
@@ -701,7 +702,7 @@ fn relocate_without_navigation_grant_is_denied() {
     assert_eq!(authority.ledger.len(), retained);
 }
 
-/// The exact retained runtime association a Site owner supplies for `member`,
+/// The exact retained runtime association a Session owner supplies for `member`,
 /// matching the construction used by the Close authority tests.
 fn close_runtime(member: &WorkbenchTerminalTab) -> WorkbenchTabCloseRuntimeTarget {
     let terminal = u128::from_str_radix(member.binding().terminal_id.as_str(), 16).unwrap();

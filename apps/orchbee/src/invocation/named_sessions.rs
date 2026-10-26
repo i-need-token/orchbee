@@ -1,28 +1,28 @@
 use super::{
     ExpectedValue, FailureEnvelope, NO_OPTIONS, Options, OutputFormat, ParseFailure, Request,
-    Scope, SiteStopCommand, TUI_SCOPE, UsageContext, UsageReason, check_scope, missing_command,
+    Scope, ServerStopCommand, TUI_SCOPE, UsageContext, UsageReason, check_scope, missing_command,
     missing_required, reject_extras_scope, reject_filters, stop_command, unexpected_argument,
     usage_with,
 };
-use orchbee_local_site_runtime::WindowsSiteName;
+use orchbee_local_runtime::SessionName;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum NamedSessionCommand {
     List,
     Attach {
-        name: WindowsSiteName,
+        name: SessionName,
         mouse: bool,
     },
     Stop {
-        name: WindowsSiteName,
-        command: SiteStopCommand,
+        name: SessionName,
+        command: ServerStopCommand,
     },
     Delete {
-        name: WindowsSiteName,
+        name: SessionName,
     },
 }
 impl NamedSessionCommand {
-    pub(super) fn name(&self) -> Option<&WindowsSiteName> {
+    pub(super) fn name(&self) -> Option<&SessionName> {
         match self {
             Self::List => None,
             Self::Attach { name, .. } | Self::Stop { name, .. } | Self::Delete { name } => {
@@ -56,13 +56,13 @@ pub(super) fn parse(
                     unexpected_argument(context, rest[1], envelope)
                 });
             };
-            let name = WindowsSiteName::parse(value).map_err(|_| {
+            let name = SessionName::parse(value).map_err(|_| {
                 usage_with(
                     UsageReason::InvalidValue {
                         context,
                         option: "<name>",
                         value: (*value).to_owned(),
-                        expected: ExpectedValue::SiteName,
+                        expected: ExpectedValue::SessionName,
                     },
                     envelope,
                 )

@@ -1,6 +1,6 @@
 //! Bounded full-duplex pump with owned binary stdio/SSH children and explicit settlement.
 use orchbee_local_ipc::{ChildInputWriter, ChildOutputReader, LocalStream};
-use orchbee_local_site_runtime::WindowsCommandChild;
+use orchbee_local_runtime::CommandChild;
 use std::{
     io::{self, Read, Write},
     path::PathBuf,
@@ -71,7 +71,7 @@ pub(super) struct Lane {
     draining_stdout: Option<Instant>,
     output: ChildOutputReader,
     errors: Option<ChildOutputReader>,
-    children: Vec<WindowsCommandChild>,
+    children: Vec<CommandChild>,
     to_child: Buffer,
     to_local: Buffer,
     eof: bool,
@@ -83,7 +83,7 @@ impl Lane {
         let (output, stdout) = ChildOutputReader::pipe()?;
         let (errors, stderr) = ChildOutputReader::pipe()?;
         command.stdin(stdin).stdout(stdout).stderr(stderr);
-        let child = WindowsCommandChild::spawn(command).map_err(|e| e.error)?;
+        let child = CommandChild::spawn(command).map_err(|e| e.error)?;
         Ok(Self {
             local,
             input: Some(input),
@@ -107,12 +107,12 @@ impl Lane {
             .stdout(stdout)
             .stderr(Stdio::null());
         let mut writer = copier()?;
-        let mut reader = WindowsCommandChild::spawn(reader).map_err(|e| e.error)?;
+        let mut reader = CommandChild::spawn(reader).map_err(|e| e.error)?;
         writer
             .stdin(stdin)
             .stdout(Stdio::inherit())
             .stderr(Stdio::null());
-        let writer = match WindowsCommandChild::spawn(writer) {
+        let writer = match CommandChild::spawn(writer) {
             Ok(child) => child,
             Err(error) => {
                 let _settled = reader.settle();

@@ -3,14 +3,14 @@ use super::{
     AttachTarget, AttachmentKey, ClientPhase, CreateTerminalProvenance, OperationDeadlines,
     PaneRef, WorkbenchClientState, WorkbenchPanelId,
 };
-use crate::workbench_client::{NativePanel, NativePresentation};
+use crate::workbench_client::{ClientPanel, ClientPresentation};
 use orchbee_workbench_protocol::TerminalPresentationId;
 
 impl WorkbenchClientState {
     pub(in crate::workbench_client) fn selected_presentation<'a>(
         &self,
-        panel: &'a NativePanel,
-    ) -> &'a NativePresentation {
+        panel: &'a ClientPanel,
+    ) -> &'a ClientPresentation {
         if let ClientPhase::Switching(setup) = &self.phase
             && setup.target.selected.key().panel() == panel.panel_id()
             && let Some(member) = panel
@@ -42,8 +42,8 @@ impl WorkbenchClientState {
     pub(super) fn member_provenance(
         &self,
         tab_index: usize,
-        panel: &NativePanel,
-        member: &NativePresentation,
+        panel: &ClientPanel,
+        member: &ClientPresentation,
     ) -> CreateTerminalProvenance {
         if member.presentation_id() == panel.presentation_id() {
             self.provenance

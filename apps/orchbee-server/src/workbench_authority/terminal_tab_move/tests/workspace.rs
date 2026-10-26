@@ -426,7 +426,7 @@ fn indexed_workspace_move_preserves_complete_split_records_and_other_contexts() 
             let request = WorkbenchCommand {
                 protocol_version: orchbee_workbench_protocol::ProtocolVersion,
                 request_id: WorkbenchRequestId::parse(&identity(10)).unwrap(),
-                site_id: before.site_id.clone(),
+                session_id: before.session_id.clone(),
                 expected_revision: before.revision,
                 action: WorkbenchAction::TabMoveIndex {
                     terminal_context_id: before.terminal_contexts[1].terminal_context_id.clone(),

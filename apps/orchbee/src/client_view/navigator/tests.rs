@@ -1,12 +1,12 @@
 use super::*;
 
-fn initial_workspace() -> NativeContextLocation {
+fn initial_workspace() -> ClientContextLocation {
     {
         let fixture_context_id = orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(
             "00000000000000000000000000000001",
         )
         .unwrap();
-        NativeContextLocation::Workspace {
+        ClientContextLocation::Workspace {
             workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                 fixture_context_id.as_str(),
             )
@@ -19,7 +19,7 @@ fn initial_workspace() -> NativeContextLocation {
 fn catalog(revision: u64) -> Catalog {
     Catalog {
         source: Source {
-            site: SiteId::parse("00000000000000000000000000000001").unwrap(),
+            session: SessionId::parse("00000000000000000000000000000001").unwrap(),
             revision: WorkbenchRevision::new(revision),
             location: initial_workspace(),
         },
@@ -144,8 +144,8 @@ fn draw_sources_follow_the_catalog_revision_without_reopening_the_episode() {
 }
 
 #[test]
-fn site_or_location_changes_cancel_but_ordinary_output_preserves_paint_authority() {
-    for site_changed in [false, true] {
+fn session_or_location_changes_cancel_but_ordinary_output_preserves_paint_authority() {
+    for session_changed in [false, true] {
         let mut nav = Navigator::default();
         nav.open();
         nav.reconcile(Some(catalog(1)));
@@ -153,8 +153,8 @@ fn site_or_location_changes_cancel_but_ordinary_output_preserves_paint_authority
         assert_eq!(nav.reconcile(Some(catalog(1))), Reconcile::Unchanged);
         assert!(nav.accepts(&proof, true));
         let mut changed = catalog(1);
-        if site_changed {
-            changed.source.site = SiteId::parse(&format!("{:032x}", 2)).unwrap();
+        if session_changed {
+            changed.source.session = SessionId::parse(&format!("{:032x}", 2)).unwrap();
         } else {
             changed.source.location = {
                 let fixture_context_id =
@@ -163,7 +163,7 @@ fn site_or_location_changes_cancel_but_ordinary_output_preserves_paint_authority
                         2
                     ))
                     .unwrap();
-                NativeContextLocation::Workspace {
+                ClientContextLocation::Workspace {
                     workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                         fixture_context_id.as_str(),
                     )

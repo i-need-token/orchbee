@@ -32,6 +32,8 @@ mod native_settings;
 mod notifications;
 mod onboarding;
 mod presentation;
+#[cfg(windows)]
+mod release_store;
 mod startup_wait;
 mod terminal_buffer_text;
 mod terminal_content;
@@ -97,7 +99,7 @@ fn main() -> ExitCode {
     let locale = select_locale(|name| env::var_os(name));
     let parsed = selected.map(|selected| {
         #[cfg(windows)]
-        local_activation::select_site(selected.site);
+        local_activation::select_session(selected.session);
         selected.request
     });
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
@@ -222,7 +224,7 @@ fn main() -> ExitCode {
             Ok(invocation::Request::WorkspaceCreation { command, format }) => {
                 cli::workspace_creation::run(command, format, locale)
             }
-            Ok(invocation::Request::SiteStart { format }) => cli::site_start(format, locale),
+            Ok(invocation::Request::ServerStart { format }) => cli::session_start(format, locale),
             #[cfg(windows)]
             Ok(invocation::Request::Plugin { command, format }) => {
                 cli::plugins::run(command, format, locale)
@@ -256,8 +258,8 @@ fn main() -> ExitCode {
             Ok(invocation::Request::RuntimeStatus { scope, format }) => {
                 cli::runtime_status::run(scope, format, locale)
             }
-            Ok(invocation::Request::SiteStop { command, format }) => {
-                cli::site_stop(&command, format, locale)
+            Ok(invocation::Request::ServerStop { command, format }) => {
+                cli::server_stop(&command, format, locale)
             }
             Ok(invocation::Request::SchemaExport {
                 schema_id,
@@ -311,7 +313,9 @@ fn main() -> ExitCode {
             Ok(invocation::Request::AgentManifests { command, format }) => {
                 cli::agent_manifests::run(&command, format, locale)
             }
-            Ok(invocation::Request::SiteDiagnose { format }) => cli::site_diagnose(format, locale),
+            Ok(invocation::Request::ServerDiagnose { format }) => {
+                cli::server_diagnose(format, locale)
+            }
             Ok(invocation::Request::AgentStart { command, format }) => {
                 cli::run_agent_start(&command, format, locale)
             }

@@ -1,4 +1,4 @@
-use super::NativeUi;
+use super::WorkbenchClientUi;
 use crate::workbench_client::{
     mailbox::{
         CommandMailbox, DesiredInstall, MutationResult, PanelSettlement, UiReply, UiWaitKey,
@@ -10,7 +10,7 @@ use crate::workbench_client::{
 };
 use std::sync::Arc;
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(super) fn apply_panel_event(
         &mut self,
         mailbox: &Arc<CommandMailbox>,

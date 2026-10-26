@@ -3,9 +3,9 @@
 	"domain": "user-preferences",
 	"runtime": ["native"],
 	"stability": "experimental",
-	"responsibility": "Bounded one-request stdio adapter for the shared device-preference authority, consumed by Desktop through an exact verified artifact. The local-site-runtime library owns scope resolution, native initial-source admission, source comparison and atomic storage; the workbench-protocol library owns the closed values and request contract.",
+	"responsibility": "Bounded one-request stdio adapter for the shared device-preference authority, consumed by Desktop through an exact verified artifact. The local-runtime library owns scope resolution, native initial-source admission, source comparison and atomic storage; the workbench-protocol library owns the closed values and request contract.",
 	"nonGoals": [
 		"Owning settings UI, application configuration publication, terminal provisioning or notification delivery.",
-		"Accepting request-selected paths, starting a Site, remote transport, arbitrary commands, or daemon lifetime."
+		"Accepting request-selected paths, starting a Session, remote transport, arbitrary commands, or daemon lifetime."
 	]
 }

@@ -90,7 +90,7 @@ fn picker_preview_cancel_and_accept_keep_the_parent_draft_and_frozen_source() {
         matches!(editor.view(), Some(View::Draft(view)) if view.picker.is_none() && view.dirty && view.basis_source == "missing")
     );
     let submission = submit(&mut editor);
-    let NativeSettingsOperation::Save { changes, .. } = submission.operation else {
+    let SettingsOperation::Save { changes, .. } = submission.operation else {
         panic!("save")
     };
     assert_eq!(
@@ -150,7 +150,7 @@ fn every_picker_accepts_one_typed_leaf_and_refuses_a_stale_pointer_choice() {
         let token = editor.view().unwrap().token();
         editor.control(token, Control::Choose(choice));
         let submission = submit(&mut editor);
-        let NativeSettingsOperation::Save { changes, .. } = submission.operation else {
+        let SettingsOperation::Save { changes, .. } = submission.operation else {
             panic!("save")
         };
         assert_eq!(

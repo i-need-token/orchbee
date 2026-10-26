@@ -40,7 +40,7 @@ pub use geometry::{
 };
 pub use identity::{
     ControllerId, HostEpoch, HostTerminalId, IdentityError, PanelId, PresentationId, RequestId,
-    SiteId, TabId, TerminalContextId, TerminalId, ViewerId, WorkerId,
+    SessionId, TabId, TerminalContextId, TerminalId, ViewerId, WorkerId,
 };
 pub use launch_read::{
     LaunchProfileProvenance, TerminalLaunchBoundTo, TerminalLaunchFact, TerminalLaunchReadOutcome,

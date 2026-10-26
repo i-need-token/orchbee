@@ -248,7 +248,7 @@ fn link_resolve_cli_extends_both_token_ends_and_clips_an_explicit_history_viewpo
 }
 
 #[test]
-fn link_resolve_cli_rejects_bad_coordinates_options_and_offsets_before_site_discovery() {
+fn link_resolve_cli_rejects_bad_coordinates_options_and_offsets_before_session_discovery() {
     let fixture = Fixture::new();
     for (cursor, extra) in [
         ("65536:0", vec![]),

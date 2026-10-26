@@ -1,6 +1,6 @@
 //! Saved endpoint identity and catalog policy; enabled does not imply connected.
 mod store;
-use orchbee_local_site_runtime::WindowsSiteName;
+use orchbee_local_runtime::SessionName;
 use serde_json::{Value, json};
 pub(crate) use store::Store;
 
@@ -33,7 +33,7 @@ impl ProfileId {
 pub(crate) struct Draft {
     pub(crate) label: String,
     pub(crate) target: String,
-    pub(crate) session: WindowsSiteName,
+    pub(crate) session: SessionName,
 }
 impl Draft {
     pub(crate) fn parse(label: &str, target: &str, session: &str) -> Option<Self> {
@@ -43,7 +43,7 @@ impl Draft {
         Some(Self {
             label: label.into(),
             target: target.into(),
-            session: WindowsSiteName::parse(session).ok()?,
+            session: SessionName::parse(session).ok()?,
         })
     }
 }

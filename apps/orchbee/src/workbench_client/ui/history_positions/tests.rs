@@ -20,7 +20,7 @@ use orchbee_terminal_protocol::{
 use std::{num::NonZeroU64, sync::Arc};
 
 fn reading_ui() -> (
-    NativeUi,
+    WorkbenchClientUi,
     std::sync::Arc<super::super::CommandMailbox>,
     PaneRef,
 ) {
@@ -38,7 +38,7 @@ fn reading_ui() -> (
 fn returning_ui(
     bank: RetainedFrameBank,
 ) -> (
-    NativeUi,
+    WorkbenchClientUi,
     std::sync::Arc<super::super::CommandMailbox>,
     PaneRef,
 ) {
@@ -48,7 +48,7 @@ fn returning_ui(
     (ui, mailbox, key)
 }
 
-fn clipped_projection(ui: &mut NativeUi, physical_rows: u16) -> PaneRef {
+fn clipped_projection(ui: &mut WorkbenchClientUi, physical_rows: u16) -> PaneRef {
     let key = install_projection(ui, None, 0);
     let projection = ui.projections.last_mut().unwrap();
     let mut frame = frame(
@@ -86,7 +86,11 @@ fn take_viewport_step(mailbox: &CommandMailbox, key: &PaneRef) -> ViewportStep {
 }
 
 /// Serve the physical 36-row read at row 100 and commit only through the matching ACK.
-fn complete_clipped_history_entry(ui: &mut NativeUi, mailbox: &Arc<CommandMailbox>, key: &PaneRef) {
+fn complete_clipped_history_entry(
+    ui: &mut WorkbenchClientUi,
+    mailbox: &Arc<CommandMailbox>,
+    key: &PaneRef,
+) {
     assert_eq!(take_viewport_step(mailbox, key), ViewportStep::Enter);
     assert!(ui.apply_viewport_outcome(
         mailbox,

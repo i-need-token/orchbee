@@ -67,8 +67,8 @@ pub(super) fn discover(
             client,
             attach,
             TerminalViewerAction::AttachBinding {
-                site_id: orchbee_client_server_protocol::SiteId::parse(
-                    addressed.cache.site_id().as_str(),
+                session_id: orchbee_client_server_protocol::SessionId::parse(
+                    addressed.cache.session_id().as_str(),
                 )
                 .map_err(|_| WorktreeNotice::SourceUnavailable)?,
                 worker_id: orchbee_client_server_protocol::WorkerId::parse(
@@ -146,7 +146,7 @@ pub(super) fn discover(
                 WorkbenchWorktreeQuery {
                     protocol_version: ProtocolVersion,
                     request_id: query,
-                    site_id: addressed.cache.site_id().clone(),
+                    session_id: addressed.cache.session_id().clone(),
                     source: source.clone(),
                     trust_repository: false,
                 },
@@ -155,7 +155,7 @@ pub(super) fn discover(
             )
             .map_err(|_| WorktreeNotice::ListingUnavailable)?;
         let WorkbenchWorktreeQueryOutcome::Found {
-            site_id,
+            session_id,
             workbench_revision,
             worker_id,
             source: found,
@@ -164,7 +164,8 @@ pub(super) fn discover(
         else {
             return Err(WorktreeNotice::ListingUnavailable);
         };
-        if site_id != *addressed.cache.site_id() || workbench_revision < addressed.cache.revision()
+        if session_id != *addressed.cache.session_id()
+            || workbench_revision < addressed.cache.revision()
         {
             return Err(WorktreeNotice::SourceChanged);
         }

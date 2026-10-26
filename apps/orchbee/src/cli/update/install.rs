@@ -6,10 +6,9 @@ use super::{
     acquire::Source,
     manifest::{Artifact, Release},
 };
+use crate::release_store::{ReleaseStore, open_release_file};
 use base64::Engine;
-use orchbee_local_site_runtime::{
-    NativeCohort, WindowsReleaseStore, open_windows_release_file, run_windows_command,
-};
+use orchbee_local_runtime::{Cohort, run_windows_command};
 use sha2::{Digest, Sha256};
 use std::{
     io::{Read, Write},
@@ -40,7 +39,7 @@ pub(super) fn publish(
     report: &mut Report,
 ) -> Result<PathBuf, Error> {
     context.check()?;
-    let store = WindowsReleaseStore::acquire(root).map_err(|e| {
+    let store = ReleaseStore::acquire(root).map_err(|e| {
         if e.kind() == std::io::ErrorKind::WouldBlock {
             Error::Busy
         } else {
@@ -52,7 +51,7 @@ pub(super) fn publish(
         .map_err(|_| Error::Storage)?;
     if destination.try_exists().map_err(|_| Error::Storage)? {
         let mut stored = Vec::new();
-        open_windows_release_file(&destination, "release.json")
+        open_release_file(&destination, "release.json")
             .map_err(|_| Error::CohortInvalid)?
             .take(super::manifest::MANIFEST_LIMIT as u64 + 1)
             .read_to_end(&mut stored)
@@ -103,7 +102,7 @@ fn verify(root: &Path, release: &Release, context: &mut Context) -> Result<(), E
     for artifact in &release.files {
         verify_file(root, artifact, context)?;
     }
-    let cohort = NativeCohort::load(root, context.deadline).map_err(|_| Error::CohortInvalid)?;
+    let cohort = Cohort::load(root, context.deadline).map_err(|_| Error::CohortInvalid)?;
     let sidecar = cohort.observation_adapters_sidecar();
     if !crate::agent_integrations::verify_distribution_capsule(
         sidecar.directory(),
@@ -128,7 +127,7 @@ fn verify(root: &Path, release: &Release, context: &mut Context) -> Result<(), E
     Ok(())
 }
 fn verify_file(root: &Path, artifact: &Artifact, context: &mut Context) -> Result<(), Error> {
-    let mut file = open_windows_release_file(root, &artifact.path).map_err(|_| Error::Checksum)?;
+    let mut file = open_release_file(root, &artifact.path).map_err(|_| Error::Checksum)?;
     if file.metadata().map_err(|_| Error::Checksum)?.len() != artifact.size {
         return Err(Error::Checksum);
     }
@@ -150,7 +149,7 @@ fn verify_file(root: &Path, artifact: &Artifact, context: &mut Context) -> Resul
 
 pub(super) fn activate(root: &Path, release: &Path, context: &mut Context) -> Result<(), Error> {
     // The root publisher lock also serializes cooperating PATH activations.
-    let _store = WindowsReleaseStore::acquire(root).map_err(|_| Error::Busy)?;
+    let _store = ReleaseStore::acquire(root).map_err(|_| Error::Busy)?;
     context.check()?;
     let system = winsafe::GetSystemDirectory().map_err(|_| Error::Activation)?;
     let mut command =

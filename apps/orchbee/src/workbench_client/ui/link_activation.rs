@@ -1,13 +1,13 @@
 //! Native UI admission for exact link clicks; this adapter revalidates the current painted source
 //! and translates lane state into notices without resolving content or performing effects.
 
-use super::{NativeUi, WorkbenchClientNotice};
+use super::{WorkbenchClientNotice, WorkbenchClientUi};
 use crate::{
     terminal_input::{PointerLinkAdmission, PointerSelectionCell},
     terminal_link_activation::PaintedLinkSource,
 };
 
-impl NativeUi {
+impl WorkbenchClientUi {
     /// Revalidate and admit one pointer-owned source without changing focus or terminal control.
     pub(in crate::workbench_client) fn pointer_link(
         &mut self,

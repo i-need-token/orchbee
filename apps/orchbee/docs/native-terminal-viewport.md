@@ -109,7 +109,7 @@ checked addition; it never substitutes that sum for an unknown history window.
 A non-Shift wheel over readable untracked primary-screen content enters three rows
 before the tail instead of the keyboard entry's one page. The exact pane under the pointer owns
 this read-side operation, including an unfocused ReadOnly pane; keyboard focus and controller
-ownership stay unchanged. NativeUi rechecks the pane incarnation, current frame and retained rows
+ownership stay unchanged. WorkbenchClientUi rechecks the pane incarnation, current frame and retained rows
 or a clipped current grid before admitting Enter. Unfocused application mouse reporting and
 alternate-screen wheel input remain inert. Downward wheel at Live, absent retained rows without a clipped grid,
 missing frame or alternate screen does nothing and emits no unavailable notice. Further wheel
@@ -388,7 +388,7 @@ Thumb emphasis follows the same shell input ownership as pane titles.
 | Total rows, generation, attachment or geometry changes                                                                       | Cancel further drag intent on fresh-source check or draw. Output growth requires a new press; the old grab is never remapped to a new displayed thumb. Already admitted work keeps its original pane and ordinary completion rules. |
 | Resize, pane switch/close/remint, covered region, capture release, host focus loss, keyboard input or modified pointer event | Cancel capture; late motion/release cannot start another pane's gesture or reach application mouse reporting.                                                                                                                       |
 
-The pointer owns capture only. NativeUi rechecks exact focus, read readiness, selection admission,
+The pointer owns capture only. WorkbenchClientUi rechecks exact focus, read readiness, selection admission,
 copy-mode exclusion and source bounds before every intent. Pending windows can retain an existing
 capture but cannot authorize a new one. Changed facts totals reject further requests before the
 replacement window paints. Live output in history refreshes the committed anchor without issuing

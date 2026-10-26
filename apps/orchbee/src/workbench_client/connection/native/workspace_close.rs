@@ -1,5 +1,5 @@
 //! Submit the confirmed scope once, retain admission, and observe it without replaying effects.
-use super::{NativeExecutor, Result, closed, event};
+use super::{ClientExecutor, Result, closed, event};
 use crate::{
     local_client::workbench::{
         WorkbenchWorkspaceClosePrecommit, WorkbenchWorkspaceCloseRequest,
@@ -26,7 +26,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-impl NativeExecutor {
+impl ClientExecutor {
     pub(super) fn run_workspace_close(
         &mut self,
         lease: &CommandLease,
@@ -144,7 +144,7 @@ impl NativeExecutor {
                     .mailbox
                     .allocate_workbench_request_id()
                     .map_err(closed)?,
-                site_id: operation.baseline.site_id().clone(),
+                session_id: operation.baseline.session_id().clone(),
                 workspace_id: accepted.workspace_id.clone(),
             };
             let outcome = self
@@ -224,7 +224,7 @@ impl NativeExecutor {
                     .mailbox
                     .allocate_workbench_request_id()
                     .map_err(closed)?,
-                site_id: operation.baseline.site_id().clone(),
+                session_id: operation.baseline.session_id().clone(),
                 action: WorkspaceGroupCloseAction::Read {
                     operation_id: operation.request_id.clone(),
                 },

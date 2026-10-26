@@ -1245,7 +1245,7 @@ fn start_completion_rejects_changed_geometry_without_consuming_handoff() -> Test
 }
 
 #[test]
-fn rejects_zero_local_site_worker_identity_at_the_kernel_boundary() {
+fn rejects_zero_local_session_worker_identity_at_the_kernel_boundary() {
     let result =
         AuthorizedHostOperationKernel::new(LocalWorkerId::from_bytes([0; 16]), NonZeroU64::MIN);
     assert_eq!(result, Err(ProtocolError::InvalidIdentity));

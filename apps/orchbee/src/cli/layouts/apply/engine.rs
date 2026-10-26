@@ -82,7 +82,7 @@ impl<'a> Engine<'a> {
     fn refresh(&mut self, minimum: WorkbenchRevision) -> Result<(), Failure> {
         self.snapshot = query::refresh_snapshot(
             &mut self.client,
-            &self.snapshot.site_id,
+            &self.snapshot.session_id,
             minimum,
             self.deadline,
             self.signals,
@@ -122,7 +122,7 @@ impl<'a> Engine<'a> {
     fn committed(&mut self, revision: WorkbenchRevision) -> Result<(), Failure> {
         let fresh = query::refresh_snapshot(
             &mut self.client,
-            &self.snapshot.site_id,
+            &self.snapshot.session_id,
             revision,
             self.deadline,
             self.signals,
@@ -412,7 +412,7 @@ impl workflow::Port for Engine<'_> {
             self.check()?;
             let read = read.map_err(query::classify_launch_read)?;
             let TerminalLaunchReadOutcome::Found {
-                site_id,
+                session_id,
                 terminal,
                 launch,
                 ..
@@ -421,7 +421,7 @@ impl workflow::Port for Engine<'_> {
                 return Err(error(FailureKind::ServiceUnavailable, "launch-unavailable"));
             };
             let route = terminal.bound_to();
-            if site_id.as_str() != self.snapshot.site_id.as_str()
+            if session_id.as_str() != self.snapshot.session_id.as_str()
                 || terminal.worker_id().as_str() != binding.worker_id.as_str()
                 || terminal.terminal_id().as_str() != binding.terminal_id.as_str()
                 || route.presentation_id().as_str() != presentation.as_str()

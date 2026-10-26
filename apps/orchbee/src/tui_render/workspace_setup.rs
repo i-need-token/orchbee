@@ -17,8 +17,8 @@ use crate::{
     tui_pointer::{HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ModalControl},
     tui_theme::{GlyphMode, Role, Theme},
     workbench_client::{
-        ModalPresentation, NativeDisplayPhase, NativeLocationLabelStatus, NativeSetupDraftView,
-        NativeSetupStage, NativeSetupStatus, NativeSetupToken,
+        DisplayPhase, LocationLabelStatus, ModalPresentation, SetupDraftView, SetupStage,
+        SetupStatus, SetupToken,
     },
 };
 use ratatui::{
@@ -37,12 +37,12 @@ pub(super) struct DirectoryGuidance {
 
 pub(super) fn directory_guidance(
     locale: Locale,
-    phase: NativeDisplayPhase,
+    phase: DisplayPhase,
     retired: bool,
     path: Option<&str>,
     unconfigured: bool,
 ) -> Option<DirectoryGuidance> {
-    if retired || phase != NativeDisplayPhase::Empty {
+    if retired || phase != DisplayPhase::Empty {
         return None;
     }
     path.map(|path| DirectoryGuidance {
@@ -117,13 +117,13 @@ pub(super) fn render_directory_guidance(
 pub(super) fn render(
     frame: &mut Frame<'_>,
     locale: Locale,
-    draft: &NativeSetupDraftView<'_>,
-    status: Option<NativeSetupStatus>,
+    draft: &SetupDraftView<'_>,
+    status: Option<SetupStatus>,
     content_area: Rect,
     theme: &Theme,
     hits: &mut HitMapBuilder,
-) -> (Rect, ModalPresentation<NativeSetupToken>) {
-    if draft.stage() == NativeSetupStage::ProjectDeleteConfirm {
+) -> (Rect, ModalPresentation<SetupToken>) {
+    if draft.stage() == SetupStage::ProjectDeleteConfirm {
         return project_delete::render(
             frame,
             locale,
@@ -138,7 +138,7 @@ pub(super) fn render(
     }
     if matches!(
         draft.stage(),
-        NativeSetupStage::QuickProject | NativeSetupStage::ChooseWorkspaceProject
+        SetupStage::QuickProject | SetupStage::ChooseWorkspaceProject
     ) {
         return render_projects(
             frame,
@@ -167,13 +167,13 @@ pub(super) fn render(
     }
     if matches!(
         draft.stage(),
-        NativeSetupStage::QuickName | NativeSetupStage::QuickDirectory
+        SetupStage::QuickName | SetupStage::QuickDirectory
     ) {
         return render_quick(frame, locale, draft, content_area, theme, hits);
     }
     if matches!(
         draft.stage(),
-        NativeSetupStage::PreparingWorkspace | NativeSetupStage::DissolveProject
+        SetupStage::PreparingWorkspace | SetupStage::DissolveProject
     ) {
         let escape = modal_key_label(theme, &Binding::new(KeyCode::Esc, Modifiers::NONE));
         let hints = [];
@@ -242,8 +242,8 @@ pub(super) fn render(
         return (layout.area, ModalPresentation::Presented(draft.token()));
     }
     let rename = match draft.stage() {
-        NativeSetupStage::ProjectRename => Some(true),
-        NativeSetupStage::WorkspaceRename => Some(false),
+        SetupStage::ProjectRename => Some(true),
+        SetupStage::WorkspaceRename => Some(false),
         _ => None,
     };
     let title = locale.setup_title(draft.stage());
@@ -270,9 +270,9 @@ pub(super) fn render(
         }
         if matches!(
             draft.stage(),
-            NativeSetupStage::DirectoryPath
-                | NativeSetupStage::WorkspaceRename
-                | NativeSetupStage::WorkspaceProjectName
+            SetupStage::DirectoryPath
+                | SetupStage::WorkspaceRename
+                | SetupStage::WorkspaceProjectName
         ) && let Some(workspace) = draft.workspace_label()
         {
             lines.push(description_line(
@@ -291,22 +291,20 @@ pub(super) fn render(
         }
         // The field's one visible row is sized like the rest: the windowed
         // projection never takes more than the inner width it is given.
-        lines.push(Line::from(
-            if draft.stage() == NativeSetupStage::DirectoryPath {
-                locale.quick_workspace_directory()
-            } else {
-                locale.quick_workspace_name()
-            },
-        ));
+        lines.push(Line::from(if draft.stage() == SetupStage::DirectoryPath {
+            locale.quick_workspace_directory()
+        } else {
+            locale.quick_workspace_name()
+        }));
         field_index = Some(lines.len());
         lines.push(Line::from(""));
         lines.push(description_line(
             rename.map_or_else(
                 || {
-                    if draft.stage() == NativeSetupStage::TabGroupName {
+                    if draft.stage() == SetupStage::TabGroupName {
                         locale.setup_group_name_hint()
                     } else {
-                        locale.setup_input_hint(draft.stage() == NativeSetupStage::DirectoryPath)
+                        locale.setup_input_hint(draft.stage() == SetupStage::DirectoryPath)
                     }
                 },
                 |project| {
@@ -326,23 +324,23 @@ pub(super) fn render(
         lines.push(Line::from(""));
     }
     if let Some(
-        status @ (NativeSetupStatus::NotApplied
-        | NativeSetupStatus::CommittedNeedRefresh
-        | NativeSetupStatus::OutcomeUnknown
-        | NativeSetupStatus::LocationLabel {
+        status @ (SetupStatus::NotApplied
+        | SetupStatus::CommittedNeedRefresh
+        | SetupStatus::OutcomeUnknown
+        | SetupStatus::LocationLabel {
             status:
-                NativeLocationLabelStatus::NotApplied
-                | NativeLocationLabelStatus::CommittedNeedRefresh
-                | NativeLocationLabelStatus::OutcomeUnknown,
+                LocationLabelStatus::NotApplied
+                | LocationLabelStatus::CommittedNeedRefresh
+                | LocationLabelStatus::OutcomeUnknown,
             ..
         }),
     ) = status
     {
         let role = if matches!(
             status,
-            NativeSetupStatus::NotApplied
-                | NativeSetupStatus::LocationLabel {
-                    status: NativeLocationLabelStatus::NotApplied,
+            SetupStatus::NotApplied
+                | SetupStatus::LocationLabel {
+                    status: LocationLabelStatus::NotApplied,
                     ..
                 }
         ) {
@@ -472,8 +470,8 @@ pub(super) fn render(
 }
 
 struct ProjectPicker<'a> {
-    token: NativeSetupToken,
-    stage: NativeSetupStage,
+    token: SetupToken,
+    stage: SetupStage,
     workspace: &'a str,
     count: usize,
     selected: usize,
@@ -575,7 +573,7 @@ fn render_projects<'a>(
     theme: &Theme,
     hits: &mut HitMapBuilder,
     choice: impl Fn(usize) -> Option<ProjectChoice<'a>>,
-) -> (Rect, ModalPresentation<NativeSetupToken>) {
+) -> (Rect, ModalPresentation<SetupToken>) {
     let count = picker.count;
     let area = centered_overlay(
         content,
@@ -791,13 +789,13 @@ const QUICK_DIRECTORY_LABEL: usize = 6;
 fn render_quick(
     frame: &mut Frame<'_>,
     locale: Locale,
-    draft: &NativeSetupDraftView<'_>,
+    draft: &SetupDraftView<'_>,
     content_area: Rect,
     theme: &Theme,
     hits: &mut HitMapBuilder,
-) -> (Rect, ModalPresentation<NativeSetupToken>) {
+) -> (Rect, ModalPresentation<SetupToken>) {
     let project = draft.project_label().unwrap_or(locale.setup_ungrouped());
-    let directory_active = draft.stage() == NativeSetupStage::QuickDirectory;
+    let directory_active = draft.stage() == SetupStage::QuickDirectory;
     let title = locale.setup_title(draft.stage());
     let mut lines = vec![
         Line::from(""),

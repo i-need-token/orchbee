@@ -5,7 +5,7 @@ use crate::{
     invocation::{CreationKind, OutputFormat, plugins::panes::Open},
     localization::Locale,
 };
-use orchbee_local_site_runtime::{PluginPanePlacement, PluginRegistry};
+use orchbee_local_runtime::{PluginPanePlacement, PluginRegistry};
 use orchbee_workbench_protocol::WorkbenchLabel;
 
 pub(super) fn open(mut command: Open, format: OutputFormat, locale: Locale) -> Output {
@@ -54,11 +54,11 @@ pub(super) fn open(mut command: Open, format: OutputFormat, locale: Locale) -> O
                 if command.active_target_overrides || command.popup_geometry_override {
                     return Err(Reason::PopupTargetUnsupported.failure());
                 }
-                let size = |size: &orchbee_local_site_runtime::PluginPopupSize| match size {
-                    orchbee_local_site_runtime::PluginPopupSize::Cells(value) => {
+                let size = |size: &orchbee_local_runtime::PluginPopupSize| match size {
+                    orchbee_local_runtime::PluginPopupSize::Cells(value) => {
                         Some(orchbee_workbench_protocol::PluginPopupSize::Cells(*value))
                     }
-                    orchbee_local_site_runtime::PluginPopupSize::Percentage(value) => {
+                    orchbee_local_runtime::PluginPopupSize::Percentage(value) => {
                         orchbee_workbench_protocol::PluginPopupSize::parse(value)
                     }
                 };

@@ -1,4 +1,4 @@
-//! Bounded Site view requests with mutation handoff uncertainty retained in the receipt.
+//! Bounded Session view requests with mutation handoff uncertainty retained in the receipt.
 use super::{Failure, FailureKind, Output, failure_output, output, query};
 use crate::cli::source::{ArmedSignals, Finish, SignalWatch};
 use crate::local_client::workbench::metadata_exchange::MetadataExchangeReason;
@@ -37,7 +37,7 @@ impl Answer {
                 serde_json::json!({"kind":"exchange-failed","reason":reason.as_str()})
             }
         };
-        serde_json::json!({"schema":"orchbee.agent.view","version":1,"requestId":self.request.request_id,"sessionId":self.request.site_id,"operation":operation(&self.request.action),"result":result,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed})
+        serde_json::json!({"schema":"orchbee.agent.view","version":1,"requestId":self.request.request_id,"sessionId":self.request.session_id,"operation":operation(&self.request.action),"result":result,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed})
     }
     fn status(&self) -> u8 {
         let status = match &self.observation {
@@ -52,7 +52,7 @@ impl Answer {
                 AgentViewOutcome::Available { .. } => 0,
                 AgentViewOutcome::Failed { reason } => match reason {
                     AgentViewFailure::Denied
-                    | AgentViewFailure::SiteMismatch
+                    | AgentViewFailure::SessionMismatch
                     | AgentViewFailure::PluginNotFound
                     | AgentViewFailure::PluginDisabled => 3,
                     AgentViewFailure::Unavailable | AgentViewFailure::SourceUnavailable => 4,
@@ -145,7 +145,7 @@ fn submit(
     let request = AgentViewRequest {
         protocol_version: snapshot.protocol_version,
         request_id: query::request_id()?,
-        site_id: snapshot.site_id,
+        session_id: snapshot.session_id,
         action: action.clone(),
     };
     signals.check_before(deadline)?;

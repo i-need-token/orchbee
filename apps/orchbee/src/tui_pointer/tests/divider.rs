@@ -2,7 +2,7 @@
 use super::*;
 use crate::tui_layout::{DividerSource, DrawnDivider, divide_panes};
 use orchbee_workbench_protocol::{
-    ClientSplitRatio, PanelOrientation, SiteId, WorkbenchPanelSlotId, WorkbenchRevision,
+    ClientSplitRatio, PanelOrientation, SessionId, WorkbenchPanelSlotId, WorkbenchRevision,
     WorkbenchSplitId, WorkbenchTerminalContextId,
 };
 
@@ -49,7 +49,7 @@ fn target() -> DrawnDivider {
     let area = Rect::new(7, 9, 101, 30);
     DrawnDivider {
         source: DividerSource {
-            site: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
+            session: SessionId::parse(&format!("{:032x}", 1)).unwrap(),
             context: WorkbenchTerminalContextId::parse(&format!("{:032x}", 2)).unwrap(),
             tab: tab_id(3),
             focus: panel_id(4),

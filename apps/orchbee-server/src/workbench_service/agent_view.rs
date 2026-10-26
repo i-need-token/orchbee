@@ -1,4 +1,4 @@
-//! One ephemeral Site override; validation and plugin inspection precede commit.
+//! One ephemeral Session override; validation and plugin inspection precede commit.
 use super::WorkbenchService;
 use orchbee_workbench_protocol::{
     AgentViewAction, AgentViewFailure as Failure, AgentViewOutcome, AgentViewRequest,
@@ -75,17 +75,17 @@ impl Registry {
     }
 }
 fn plugin(id: &str) -> Result<(), Failure> {
-    use orchbee_local_site_runtime::{PluginRegistry, plugin_identifier};
+    use orchbee_local_runtime::{PluginRegistry, plugin_identifier};
     plugin_identifier(id).map_err(|_| Failure::InvalidRequest)?;
     let registry = PluginRegistry::from_environment(|name| std::env::var_os(name))
         .map_err(|_| Failure::SourceUnavailable)?;
     plugin_from_registry(&registry, id)
 }
 fn plugin_from_registry(
-    registry: &orchbee_local_site_runtime::PluginRegistry,
+    registry: &orchbee_local_runtime::PluginRegistry,
     id: &str,
 ) -> Result<(), Failure> {
-    use orchbee_local_site_runtime::PluginRegistryError;
+    use orchbee_local_runtime::PluginRegistryError;
     let catalog = registry.list(Some(id)).map_err(|error| match error {
         PluginRegistryError::PluginNotFound => Failure::PluginNotFound,
         _ => Failure::SourceUnavailable,
@@ -105,19 +105,22 @@ fn plugin_from_registry(
 }
 impl WorkbenchService {
     pub(super) fn agent_view(&self, request: &AgentViewRequest) -> AgentViewResult {
-        let outcome = match self.terminals.workbench_site_matches(&request.site_id) {
+        let outcome = match self
+            .terminals
+            .workbench_session_matches(&request.session_id)
+        {
             Some(true) => self
                 .agent_views
                 .lock()
                 .map_err(|_| Failure::Unavailable)
                 .and_then(|mut views| views.apply(&request.action, plugin)),
-            Some(false) => Err(Failure::SiteMismatch),
+            Some(false) => Err(Failure::SessionMismatch),
             None => Err(Failure::Unavailable),
         };
         AgentViewResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id.clone(),
-            site_id: request.site_id.clone(),
+            session_id: request.session_id.clone(),
             outcome: match outcome {
                 Ok(snapshot) => AgentViewOutcome::Available { snapshot },
                 Err(reason) => AgentViewOutcome::Failed { reason },

@@ -22,7 +22,7 @@ fn workspace_git_distinct_carriers_and_exact_context_correlation() {
     let request = WorkspaceGitRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap(),
-        site_id: SiteId::parse(&format!("{:032x}", 2)).unwrap(),
+        session_id: SessionId::parse(&format!("{:032x}", 2)).unwrap(),
         workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 3)).unwrap(),
     };
     let mut bytes = Vec::new();
@@ -35,7 +35,7 @@ fn workspace_git_distinct_carriers_and_exact_context_correlation() {
     let mut result = WorkspaceGitResult {
         protocol_version: ProtocolVersion,
         request_id: request.request_id.clone(),
-        site_id: request.site_id.clone(),
+        session_id: request.session_id.clone(),
         workspace_id: request.workspace_id.clone(),
         outcome: WorkspaceGitOutcome::Observed {
             workbench_revision: WorkbenchRevision::new(1),

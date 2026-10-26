@@ -5,8 +5,8 @@ use orchbee_workbench_protocol::{Project, WorkbenchProjectId, WorkbenchWorkspace
 fn exact_context_member_refuses_missing_or_rebound_child_before_cleanup_and_preserves_old_selection()
  {
     use crate::workbench_client::{
-        NativeMemberTarget,
-        workbench_projection::{NativeMemberSelection, project_native_context_tabs},
+        ClientMemberTarget,
+        workbench_projection::{ClientMemberSelection, project_native_context_tabs},
     };
     for change in 0..4 {
         let mut snapshot = contexts(2, 1);
@@ -31,8 +31,8 @@ fn exact_context_member_refuses_missing_or_rebound_child_before_cleanup_and_pres
         let target = project_native_context_tabs(&snapshot, &location).unwrap();
         let tab = &target.tabs()[1];
         let panel = tab.panel(0).unwrap();
-        let selection = NativeMemberSelection {
-            member: NativeMemberTarget {
+        let selection = ClientMemberSelection {
+            member: ClientMemberTarget {
                 tab: tab.tab_id().clone(),
                 panel: panel.panel_id().clone(),
                 presentation: child.presentation_id.clone(),
@@ -107,7 +107,7 @@ fn exact_context_member_refuses_missing_or_rebound_child_before_cleanup_and_pres
 
 #[test]
 fn worktree_entry_exact_primary_override_survives_cleanup_and_does_not_change_ordinary_memory() {
-    use crate::workbench_client::NativeMemberTarget;
+    use crate::workbench_client::ClientMemberTarget;
     use crate::workbench_client::workbench_projection::project_native_context_tabs;
     for exact in [false, true] {
         let mut snapshot = contexts(1, 1);
@@ -134,7 +134,7 @@ fn worktree_entry_exact_primary_override_survives_cleanup_and_does_not_change_or
         let target = project_native_context_tabs(&snapshot, &location).unwrap();
         let tab = &target.tabs()[0];
         let panel = tab.panel(0).unwrap();
-        let member = NativeMemberTarget {
+        let member = ClientMemberTarget {
             tab: tab.tab_id().clone(),
             panel: panel.panel_id().clone(),
             presentation: panel.primary().presentation_id().clone(),
@@ -267,7 +267,7 @@ fn peer_legacy_visibility_changes_preserve_selected_canonical_focus() {
     let mut snapshot = contexts(1, 1);
     let workspace = &snapshot.navigation.workspaces[1];
     let location =
-        crate::workbench_client::workbench_projection::NativeContextLocation::Workspace {
+        crate::workbench_client::workbench_projection::ClientContextLocation::Workspace {
             workspace_id: workspace.workspace_id.clone(),
             terminal_context_id: workspace.terminal_context_id.clone(),
         };

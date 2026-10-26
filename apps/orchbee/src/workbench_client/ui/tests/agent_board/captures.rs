@@ -106,16 +106,16 @@ fn admit_fake_client<Stream: Read + Write>(
     .map_err(io::Error::other)
 }
 
-fn install_capture_rows(ui: &mut NativeUi) {
+fn install_capture_rows(ui: &mut WorkbenchClientUi) {
     install_capture_read(ui, capture_rows(), 4);
 }
 
-fn install_capture_empty_read(ui: &mut NativeUi) {
+fn install_capture_empty_read(ui: &mut WorkbenchClientUi) {
     install_capture_read(ui, Vec::new(), 0);
 }
 
 fn install_capture_read(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     initial_rows: Vec<AgentSessionSummary>,
     expected_rows: usize,
 ) {
@@ -181,7 +181,7 @@ fn install_capture_read(
 struct CapturedBoardFrame {
     terminal: Terminal<TestBackend>,
     hits: crate::tui_pointer::FrameHitMap,
-    receipt: NativeDrawReceipt,
+    receipt: DrawReceipt,
     width: u16,
     height: u16,
 }
@@ -241,13 +241,13 @@ impl CapturedBoardFrame {
         self.terminal.backend().buffer()
     }
 
-    fn settle(&mut self, ui: &mut NativeUi) {
+    fn settle(&mut self, ui: &mut WorkbenchClientUi) {
         ui.after_close_draw(std::mem::take(&mut self.receipt));
     }
 }
 
 fn render_board_frame(
-    ui: &NativeUi,
+    ui: &WorkbenchClientUi,
     width: u16,
     height: u16,
     locale: crate::localization::Locale,
@@ -256,7 +256,7 @@ fn render_board_frame(
     let shell = crate::client_view::ClientView::new(width);
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     let mut hits = crate::tui_pointer::HitMapBuilder::new();
-    let mut receipt = NativeDrawReceipt::default();
+    let mut receipt = DrawReceipt::default();
     terminal
         .draw(|frame| {
             receipt = crate::tui_render::render_terminal_shell(
@@ -279,7 +279,7 @@ fn render_board_frame(
 }
 
 fn capture_board_frame(
-    ui: &NativeUi,
+    ui: &WorkbenchClientUi,
     width: u16,
     height: u16,
     locale: crate::localization::Locale,

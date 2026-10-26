@@ -1,8 +1,7 @@
 //! Offline installed release provenance, bound to an independently admitted native cohort.
 use super::manifest::{MANIFEST_LIMIT, Release};
-use orchbee_local_site_runtime::{
-    NativeArtifact, NativeCohort, WindowsUpdateChannel, open_windows_release_file,
-};
+use crate::release_store::open_release_file;
+use orchbee_local_runtime::{Cohort, CohortArtifact, UpdateChannel};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
@@ -15,7 +14,7 @@ pub(in crate::cli) enum Installation {
     Development,
     Unavailable,
     Verified {
-        channel: WindowsUpdateChannel,
+        channel: UpdateChannel,
         version: String,
         build_id: String,
         manifest: String,
@@ -53,7 +52,7 @@ impl Installation {
 /// Reads no preferences and starts no process. Call only with the current cohort's admission result.
 pub(in crate::cli) fn inspect(
     executable: &Path,
-    admitted: Option<&NativeCohort>,
+    admitted: Option<&Cohort>,
     version: &str,
 ) -> Installation {
     let Some(admitted) = admitted else {
@@ -62,7 +61,7 @@ pub(in crate::cli) fn inspect(
     let Some(root) = executable.parent() else {
         return Installation::Unavailable;
     };
-    let file = match open_windows_release_file(root, "release.json") {
+    let file = match open_release_file(root, "release.json") {
         Ok(file) => file,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Installation::Development,
         Err(_) => return Installation::Unavailable,
@@ -75,8 +74,8 @@ pub(in crate::cli) fn inspect(
     {
         return Installation::Unavailable;
     }
-    let Some(release) = Release::parse(&bytes, WindowsUpdateChannel::Stable)
-        .or_else(|| Release::parse(&bytes, WindowsUpdateChannel::Preview))
+    let Some(release) = Release::parse(&bytes, UpdateChannel::Stable)
+        .or_else(|| Release::parse(&bytes, UpdateChannel::Preview))
     else {
         return Installation::Unavailable;
     };
@@ -86,10 +85,10 @@ pub(in crate::cli) fn inspect(
         return Installation::Unavailable;
     }
     for artifact in [
-        NativeArtifact::Client,
-        NativeArtifact::Server,
-        NativeArtifact::Worker,
-        NativeArtifact::TerminalHost,
+        CohortArtifact::Client,
+        CohortArtifact::Server,
+        CohortArtifact::Worker,
+        CohortArtifact::TerminalHost,
     ] {
         if !release.files.iter().any(|file| {
             file.path.eq_ignore_ascii_case(artifact.file_name())
@@ -106,7 +105,7 @@ pub(in crate::cli) fn inspect(
         return Installation::Unavailable;
     };
     let mut cohort = Vec::new();
-    let Ok(file) = open_windows_release_file(root, &artifact.path) else {
+    let Ok(file) = open_release_file(root, &artifact.path) else {
         return Installation::Unavailable;
     };
     if file.take(16 * 1024 + 1).read_to_end(&mut cohort).is_err()

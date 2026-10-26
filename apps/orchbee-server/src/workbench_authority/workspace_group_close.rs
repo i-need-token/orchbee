@@ -61,8 +61,8 @@ impl WorkbenchAuthority {
     ) -> WorkbenchWorkspaceGroupCloseResult {
         let operation_id = request.action.operation_id().clone();
         let outcome = if !grant.is_some_and(|grant| {
-            grant.site_id == *self.site_id()
-                && request.site_id == *self.site_id()
+            grant.session_id == *self.session_id()
+                && request.session_id == *self.session_id()
                 && (matches!(request.action, Action::Read { .. }) || grant.close_terminal)
         }) {
             Outcome::Denied {}

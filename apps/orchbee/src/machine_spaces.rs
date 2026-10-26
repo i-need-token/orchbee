@@ -2,13 +2,13 @@
 use crate::{
     local_client::LocalClient,
     machine_observation::{check, request_id, snapshot},
-    workbench_client::{NativeContextLocation, NativeContextTarget},
+    workbench_client::{ClientContextLocation, ClientContextTarget},
 };
 use orchbee_workbench_protocol::{
-    GitDivergence, MAXIMUM_WORKSPACE_METADATA_READ_ROWS, MetadataTokens, ProtocolVersion, SiteId,
-    Snapshot, WorkbenchProjectId, WorkbenchRevision, WorkbenchWorkspaceId, WorkspaceGitFailure,
-    WorkspaceGitOutcome, WorkspaceGitRequest, WorkspaceMetadataAction, WorkspaceMetadataOutcome,
-    WorkspaceMetadataRequest, WorkspaceMetadataRow,
+    GitDivergence, MAXIMUM_WORKSPACE_METADATA_READ_ROWS, MetadataTokens, ProtocolVersion,
+    SessionId, Snapshot, WorkbenchProjectId, WorkbenchRevision, WorkbenchWorkspaceId,
+    WorkspaceGitFailure, WorkspaceGitOutcome, WorkspaceGitRequest, WorkspaceMetadataAction,
+    WorkspaceMetadataOutcome, WorkspaceMetadataRequest, WorkspaceMetadataRow,
 };
 use std::{
     collections::BTreeMap,
@@ -25,7 +25,7 @@ pub(crate) struct Git {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Row {
-    pub(crate) target: NativeContextTarget,
+    pub(crate) target: ClientContextTarget,
     /// Fenced with this checkpoint, independent of the stable terminal target.
     pub(crate) project_id: Option<WorkbenchProjectId>,
     pub(crate) label: Option<String>,
@@ -42,7 +42,7 @@ pub(crate) struct ProjectSummary {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Checkpoint {
-    pub(crate) site_id: SiteId,
+    pub(crate) session_id: SessionId,
     pub(crate) revision: WorkbenchRevision,
     pub(crate) metadata_revision: WorkbenchRevision,
     pub(crate) git_requested: bool,
@@ -56,7 +56,7 @@ impl Checkpoint {
     /// Missing reads retain facts only for the same exact Workspace and canonical source.
     pub(crate) fn retaining_git(&self, previous: &Self) -> Self {
         let mut checkpoint = self.clone();
-        if self.site_id != previous.site_id
+        if self.session_id != previous.session_id
             || self
                 .rows
                 .iter()
@@ -98,7 +98,7 @@ impl Reader<'_> {
                 WorkspaceMetadataRequest {
                     protocol_version: ProtocolVersion,
                     request_id: request_id()?,
-                    site_id: self.before.site_id.clone(),
+                    session_id: self.before.session_id.clone(),
                     action: WorkspaceMetadataAction::Read {
                         workspace_ids: ids.to_vec(),
                     },
@@ -150,7 +150,7 @@ impl Reader<'_> {
                 WorkspaceGitRequest {
                     protocol_version: ProtocolVersion,
                     request_id: request_id()?,
-                    site_id: self.before.site_id.clone(),
+                    session_id: self.before.session_id.clone(),
                     workspace_id: id.clone(),
                 },
                 self.deadline,
@@ -212,9 +212,9 @@ impl Reader<'_> {
                 None
             };
             rows.push(Row {
-                target: NativeContextTarget {
-                    site_id: self.before.site_id.clone(),
-                    location: NativeContextLocation::Workspace {
+                target: ClientContextTarget {
+                    session_id: self.before.session_id.clone(),
+                    location: ClientContextLocation::Workspace {
                         workspace_id: workspace.workspace_id.clone(),
                         terminal_context_id: workspace.terminal_context_id,
                     },
@@ -237,7 +237,7 @@ impl Reader<'_> {
         }
         check(self.deadline, self.cancel)?;
         Ok(Arc::new(Checkpoint {
-            site_id: self.before.site_id.clone(),
+            session_id: self.before.session_id.clone(),
             revision: self.before.revision,
             metadata_revision: self.metadata_revision.ok_or(())?,
             git_requested,

@@ -6,10 +6,10 @@ use crate::workbench_projection::{
 use orchbee_workbench_protocol::{
     ContractError, Delta, DeltaChange, MAXIMUM_DELTA_CHANGES, MAXIMUM_ENCODED_PROJECTION_BYTES,
     MAXIMUM_LABEL_LENGTH, MAXIMUM_RESULT_PUBLICATIONS, MAXIMUM_TERMINAL_CONTEXTS,
-    MAXIMUM_WORKSPACES_PER_PROJECT, Navigation, Project, SiteId, Snapshot, TabGroup, TabGroupColor,
-    TerminalContext, WorkbenchProjectId, WorkbenchProtocolDocument, WorkbenchRevision,
-    WorkbenchTabGroupId, WorkbenchTerminalContextId, WorkbenchWorkspaceId, Workspace,
-    apply_workbench_delta, parse_snapshot, serialize_document,
+    MAXIMUM_WORKSPACES_PER_PROJECT, Navigation, Project, SessionId, Snapshot, TabGroup,
+    TabGroupColor, TerminalContext, WorkbenchProjectId, WorkbenchProtocolDocument,
+    WorkbenchRevision, WorkbenchTabGroupId, WorkbenchTerminalContextId, WorkbenchWorkspaceId,
+    Workspace, apply_workbench_delta, parse_snapshot, serialize_document,
 };
 use serde_json::Value;
 
@@ -113,11 +113,11 @@ fn rejects_candidates_atomically() -> Result<(), Box<dyn Error>> {
     );
     assert_eq!(store.snapshot().clone(), initial);
 
-    let mut other_site = parse_snapshot(&document_bytes("snapshot-empty-r2")?)?;
-    other_site.site_id = SiteId::parse("22222222222222222222222222222222")?;
+    let mut other_session = parse_snapshot(&document_bytes("snapshot-empty-r2")?)?;
+    other_session.session_id = SessionId::parse("22222222222222222222222222222222")?;
     assert_eq!(
-        store.advance_projection(&encode_snapshot(&other_site)?),
-        Err(ProjectionAdvanceError::SiteMismatch)
+        store.advance_projection(&encode_snapshot(&other_session)?),
+        Err(ProjectionAdvanceError::SessionMismatch)
     );
     assert_eq!(store.snapshot().clone(), initial);
 
@@ -228,7 +228,7 @@ fn selects_snapshot_when_a_bounded_change_set_exceeds_the_encoded_limit()
         changes,
         protocol_version: candidate.protocol_version,
         revision: candidate.revision,
-        site_id: candidate.site_id.clone(),
+        session_id: candidate.session_id.clone(),
     };
     let encoded_delta = serde_json::to_vec(&WorkbenchProtocolDocument::Delta(expected_delta))?;
     assert!(encoded_delta.len() > MAXIMUM_ENCODED_PROJECTION_BYTES);
@@ -428,7 +428,7 @@ fn maximum_context_snapshot() -> Result<Snapshot, Box<dyn Error>> {
         },
         protocol_version: template.protocol_version,
         revision: WorkbenchRevision::new(1),
-        site_id: template.site_id,
+        session_id: template.session_id,
         terminal_contexts,
     })
 }

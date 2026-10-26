@@ -263,7 +263,7 @@ fn classify_outcome(
         WorkbenchCommandOutcome::Rejected { revision, reason }
             if matches!(
                 reason,
-                WorkbenchRejectionReason::SiteMismatch
+                WorkbenchRejectionReason::SessionMismatch
                     | WorkbenchRejectionReason::RevisionMismatch
                     | WorkbenchRejectionReason::TerminalContextUnavailable
                     | WorkbenchRejectionReason::TabUnavailable

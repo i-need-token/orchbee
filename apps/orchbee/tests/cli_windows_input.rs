@@ -1,6 +1,6 @@
 //! Windows public CLI source admission: real inherited pipes validate fully
 //! before runtime discovery. Deliberately invalid runtime configuration prevents
-//! any Site access; no fixture or user terminal can receive input.
+//! any Session access; no fixture or user terminal can receive input.
 #![cfg(windows)]
 
 use std::{

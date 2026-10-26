@@ -1,4 +1,4 @@
-use super::NativeUi;
+use super::WorkbenchClientUi;
 use crate::workbench_client::{
     mailbox::{CommandMailbox, DesiredInstall, MoveSettlement, MutationResult, UiReply, UiWaitKey},
     state::{
@@ -8,7 +8,7 @@ use crate::workbench_client::{
 };
 use std::sync::Arc;
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(super) fn apply_move_event(
         &mut self,
         mailbox: &Arc<CommandMailbox>,

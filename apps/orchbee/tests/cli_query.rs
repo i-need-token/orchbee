@@ -1,9 +1,9 @@
 //! Process-level query evidence: the real `orchbee` binary runs against a
-//! scripted local peer bound at the Site's client socket. The peer speaks the
+//! scripted local peer bound at the Session's client socket. The peer speaks the
 //! genuine OBLC admission and OBWP snapshot protocol, so every admitted
 //! outcome class — success, denied, unavailable, malformed, correlation
 //! mismatch, timeout, disconnect, capacity, incompatibility — is exercised
-//! against the production code path with no Site mutation.
+//! against the production code path with no Session mutation.
 #![cfg(target_os = "linux")]
 
 use std::{
@@ -30,7 +30,7 @@ use orchbee_client_server_protocol::{
 use orchbee_local_client_protocol::{
     LocalClientMessage, RejectionReason, read_message, write_message,
 };
-use orchbee_local_site_runtime::ModeCheckedLocalSiteRendezvous;
+use orchbee_local_runtime::ModeCheckedLocalSessionRendezvous;
 use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, MessageRole, PayloadEncoding,
     ProjectionBlockReason, ProjectionBlocked, ProjectionDemandControl, decode_terminal_text_frame,
@@ -53,7 +53,7 @@ type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 /// One cohort directory per test process: copies of the four build artifacts
 /// plus a `cohort.json` manifest, so the spawned CLI passes the real
-/// `NativeCohort::current` verification.
+/// `Cohort::current` verification.
 fn cohort() -> &'static Path {
     static COHORT: OnceLock<PathBuf> = OnceLock::new();
     COHORT
@@ -103,7 +103,7 @@ fn cohort() -> &'static Path {
                 serde_json::json!({"schemaVersion": 1, "artifacts": artifacts}).to_string(),
             )
             .expect("write cohort manifest");
-            // NativeCohort rejects group/other-writable manifests; pin the
+            // Cohort rejects group/other-writable manifests; pin the
             // permissions independently of the inherited process umask.
             fs::set_permissions(&manifest, fs::Permissions::from_mode(0o600))
                 .expect("chmod cohort manifest");
@@ -112,7 +112,7 @@ fn cohort() -> &'static Path {
         .as_path()
 }
 
-// ---- Site scope staging ---------------------------------------------------
+// ---- Session scope staging ---------------------------------------------------
 
 /// Thin wrapper over the shared minter: a long TMPDIR must not push the
 /// rendezvous socket path past `sun_path`, so names stay short and exclusive.
@@ -124,7 +124,7 @@ fn scope_dir(base: &Path) -> PathBuf {
     support::scope_dir(base)
 }
 
-/// Create the existing-only Site scope directory the rendezvous validator
+/// Create the existing-only Session scope directory the rendezvous validator
 /// expects (mode 0700, owned by the caller).
 fn stage_scope(base: &Path) -> PathBuf {
     support::stage_scope(base)
@@ -973,9 +973,9 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
 
     // Negative mutations prove the two new schema assertions are not vacuous.
     let status_schema = compiled_schema(&base, "orchbee.status");
-    let mut unreachable_site = documents[13].clone();
-    unreachable_site["result"]["server"]["reachable"] = serde_json::json!(false);
-    assert!(!status_schema.is_valid(&unreachable_site));
+    let mut unreachable_session = documents[13].clone();
+    unreachable_session["result"]["server"]["reachable"] = serde_json::json!(false);
+    assert!(!status_schema.is_valid(&unreachable_session));
     let mut extra_count = documents[13].clone();
     extra_count["result"]["counts"]["bogus"] = serde_json::json!(0);
     assert!(!status_schema.is_valid(&extra_count));
@@ -989,12 +989,12 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
     Ok(())
 }
 
-// ---- local-only surface (no Site required) ---------------------------------
+// ---- local-only surface (no Session required) ---------------------------------
 
 #[test]
 fn api_schema_is_local_and_embedded() -> TestResult {
     let base = base_dir("schema");
-    // No scope at all: schema answers must not touch the Site.
+    // No scope at all: schema answers must not touch the Session.
     let output = run(
         &base,
         &["api", "schema", "orchbee.status", "--format", "json"],
@@ -1183,7 +1183,7 @@ fn format_envelope_is_whole_argv() -> TestResult {
 // ---- filter scope (B2) -------------------------------------------------------
 //
 // A supplied filter outside the declared scope is a usage failure, never a
-// silently dropped condition. These cases must fail before any Site access.
+// silently dropped condition. These cases must fail before any Session access.
 
 #[test]
 fn out_of_scope_filters_fail_before_runtime_access() -> TestResult {
@@ -1254,7 +1254,7 @@ fn api_failures_follow_the_caller_format() -> TestResult {
     assert_eq!(envelope["source"]["kind"], "embedded");
     assert!(!json.stderr.is_empty());
 
-    // `api snapshot` is a Site query: with no Site it fails in the caller's
+    // `api snapshot` is a Session query: with no Session it fails in the caller's
     // format as well.
     let text = run(&base, &["api", "snapshot"]);
     assert_eq!(text.status.code(), Some(4));
@@ -1291,7 +1291,7 @@ fn emitted_documents_validate_and_rejected_variants_fail() -> TestResult {
 
     // Real failure envelopes validate.
     let denied = run(&base, &["project", "get", "x", "--format", "json"]);
-    // (no Site → service-unavailable, still a real envelope)
+    // (no Session → service-unavailable, still a real envelope)
     assert!(
         failure_schema.is_valid(&serde_json::from_slice::<serde_json::Value>(
             &denied.stdout
@@ -1677,7 +1677,7 @@ fn config_check_reports_established_path_facts() -> TestResult {
     assert_eq!(runtime_directory["status"], "not-applicable");
     assert_eq!(runtime_directory["details"], serde_json::json!({}));
 
-    // Healthy base without a Site scope: runtime-directory is not-applicable
+    // Healthy base without a Session scope: runtime-directory is not-applicable
     // with an established absence, not a guess.
     let base = base_dir("cfg-scope");
     let output = run(&base, &["config", "check", "--format", "json"]);
@@ -1700,9 +1700,9 @@ fn config_check_reports_established_path_facts() -> TestResult {
 }
 
 /// The derived Host endpoint under a staged scope — the deepest socket
-/// address the Site derives (`<scope>/host/<endpoint-id>.s`).
+/// address the Session derives (`<scope>/host/<endpoint-id>.s`).
 fn host_endpoint(scope: &Path) -> PathBuf {
-    ModeCheckedLocalSiteRendezvous::host_endpoint_path(scope)
+    ModeCheckedLocalSessionRendezvous::host_endpoint_path(scope)
 }
 
 /// Pad `base` with one extra path component so `measured` — an endpoint path
@@ -1776,7 +1776,7 @@ fn config_check_flags_a_derived_socket_path_that_cannot_fit() -> TestResult {
     for (name, derived) in [
         (
             "clientPending",
-            ModeCheckedLocalSiteRendezvous::client_pending_socket_path(&scope_dir(&over)),
+            ModeCheckedLocalSessionRendezvous::client_pending_socket_path(&scope_dir(&over)),
         ),
         ("host", host_endpoint(&scope_dir(&over))),
     ] {
@@ -1820,7 +1820,7 @@ fn config_check_flags_a_derived_socket_path_that_cannot_fit() -> TestResult {
     assert_eq!(host["reason"], "address-too-long");
     assert_eq!(host["addressBytes"], serde_json::json!(capacity + 1));
 
-    // No Site staged at all under an over-budget base: presence stays
+    // No Session staged at all under an over-budget base: presence stays
     // honestly unchecked while the address verdict is still exact.
     let base = base_dir("socknone");
     let over = padded_base(&base, &scope_dir(&base).join("client.sock"), capacity + 1);
@@ -3246,7 +3246,8 @@ fn launch_read_reply(
         &ServerMessage::TerminalLaunchReadResult(obcs::TerminalLaunchReadResult::new(
             request.request_id().clone(),
             obcs::TerminalLaunchReadOutcome::Found {
-                site_id: obcs::SiteId::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").expect("site id"),
+                session_id: obcs::SessionId::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+                    .expect("session id"),
                 workbench_revision: 7,
                 terminal: Box::new(route),
                 launch: Box::new(launch),
@@ -3440,11 +3441,11 @@ fn attach_with_fixture(stream: &UnixStream) -> ViewerId {
     let request = viewer_request(stream);
     match request.action() {
         TerminalViewerAction::AttachBinding {
-            site_id,
+            session_id,
             worker_id,
             terminal_id,
         } => {
-            assert_eq!(site_id.as_str(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+            assert_eq!(session_id.as_str(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
             assert_eq!(worker_id.as_str(), "6f7263686265652d6c6f63616c2d7631");
             assert_eq!(terminal_id.as_str(), TERMINAL_ID);
         }
@@ -6143,7 +6144,7 @@ fn project_rename_schema_is_strict_and_distinct() -> TestResult {
 
 /// The `orchbee.api.schema` catalog is its own versioned document: v8 now
 /// that the three Agent integration schemas join the closed dictionary
-/// alongside the v7 Agent wait/doctor and Site diagnose additions. The
+/// alongside the v7 Agent wait/doctor and Session diagnose additions. The
 /// listing self-validates, names exactly the
 /// registered ids, and every embedded document's `$id` equals its key; the
 /// older v1..v6 shapes are refused. Business schemas are untouched —
@@ -6267,7 +6268,7 @@ fn api_schema_catalog_is_closed_and_self_consistent() -> TestResult {
 // ---- worktree list document + failure envelope ------------------------------
 
 /// The `worktree list` success document and the dedicated failure envelope,
-/// validated against the embedded schemas. There is no fake-Site path to a
+/// validated against the embedded schemas. There is no fake-Session path to a
 /// real `found` answer in this suite, so the documents are hand-mirrored to
 /// the emitter's exact field set — the test pins the contract shape, and the
 /// emitter's own unit tests pin the bytes.

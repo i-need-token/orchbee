@@ -1,6 +1,6 @@
 //! The confirmed quick-launch fields and exact Project policy; I/O stays in the native executor.
 use super::super::line_editor::{LengthLimit, LineEditor};
-use super::NativeContextTabs;
+use super::ClientContextTabs;
 use crate::localization::Locale;
 use orchbee_workbench_protocol::{
     Project, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchProjectId,
@@ -9,7 +9,7 @@ use std::time::Instant;
 
 /// One accepted launch's local return; neither status nor a later visit can rearm it.
 pub(super) enum ProjectQuickEntry {
-    Preparing(NativeSetupToken),
+    Preparing(SetupToken),
     Submitted(u64),
     Entering {
         generation: u64,
@@ -70,7 +70,7 @@ pub(crate) struct ProjectQuickWorkspaceRequest {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::workbench_client) struct QuickWorkspaceTarget {
     project: Project,
-    source: NativeContextTabs,
+    source: ClientContextTabs,
     desired: Option<super::super::PaneKey>,
     focus: Option<super::super::PaneRef>,
 }
@@ -151,14 +151,14 @@ pub(in crate::workbench_client) struct QuickLaunchPlan {
 
 impl QuickWorkspaceFields {
     pub(in crate::workbench_client) fn new(
-        cache: &NativeContextTabs,
+        cache: &ClientContextTabs,
         cwd: WorkbenchDirectoryPath,
         locale: Locale,
     ) -> Self {
         Self::with_project(cache, QuickProject::Ungrouped, cwd, locale)
     }
     fn with_project(
-        cache: &NativeContextTabs,
+        cache: &ClientContextTabs,
         project: QuickProject,
         cwd: WorkbenchDirectoryPath,
         locale: Locale,
@@ -215,7 +215,7 @@ impl QuickWorkspaceFields {
     pub(in crate::workbench_client) fn select_project(
         &mut self,
         id: &WorkbenchProjectId,
-        cache: &NativeContextTabs,
+        cache: &ClientContextTabs,
     ) -> bool {
         if matches!(self.project, QuickProject::Targeted(_))
             || !cache
@@ -243,7 +243,7 @@ impl QuickWorkspaceFields {
             .iter()
             .position(|path| path.as_str().eq_ignore_ascii_case(self.directory()))
     }
-    pub(super) fn select_directory(&mut self, index: usize, cache: &NativeContextTabs) -> bool {
+    pub(super) fn select_directory(&mut self, index: usize, cache: &ClientContextTabs) -> bool {
         let Some(path) = self.directories.get(index) else {
             return false;
         };
@@ -251,7 +251,7 @@ impl QuickWorkspaceFields {
         self.refresh_name(cache);
         true
     }
-    pub(super) fn refresh_name(&mut self, cache: &NativeContextTabs) {
+    pub(super) fn refresh_name(&mut self, cache: &ClientContextTabs) {
         if self.automatic_name
             && let Some(path) = self
                 .normalized_path()
@@ -287,7 +287,7 @@ impl QuickWorkspaceFields {
     }
     fn normalized_path(&self) -> Option<String> {
         {
-            orchbee_local_site_runtime::normalize_windows_user_path(
+            orchbee_local_runtime::normalize_user_path(
                 self.directory(),
                 |name| {
                     self.environment
@@ -302,7 +302,7 @@ impl QuickWorkspaceFields {
     }
 }
 
-use super::{NativeSetupStage, NativeSetupToken, SetupDraft, WorkbenchClientState};
+use super::{SetupDraft, SetupStage, SetupToken, WorkbenchClientState};
 use crate::workbench_client::state::OperationDeadlines;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -310,8 +310,8 @@ pub(in crate::workbench_client) struct QuickPreparation {
     pub(in crate::workbench_client) review_directory: bool,
     pub(in crate::workbench_client) target: Option<Box<QuickWorkspaceTarget>>,
     pub(in crate::workbench_client) generation: u64,
-    pub(in crate::workbench_client) token: NativeSetupToken,
-    pub(in crate::workbench_client) baseline: NativeContextTabs,
+    pub(in crate::workbench_client) token: SetupToken,
+    pub(in crate::workbench_client) baseline: ClientContextTabs,
     pub(in crate::workbench_client) deadlines: OperationDeadlines,
 }
 
@@ -329,7 +329,7 @@ impl WorkbenchClientState {
         });
         if stale {
             self.setup.draft = None;
-            self.setup.status = Some(super::NativeSetupStatus::NotApplied);
+            self.setup.status = Some(super::SetupStatus::NotApplied);
         }
         stale
     }
@@ -391,7 +391,7 @@ impl WorkbenchClientState {
         {
             return None;
         }
-        let token = NativeSetupToken(self.setup.last_token.checked_add(1)?);
+        let token = SetupToken(self.setup.last_token.checked_add(1)?);
         let preparation = QuickPreparation {
             review_directory,
             target: request.map(|request| request.target),
@@ -416,7 +416,7 @@ impl WorkbenchClientState {
             project_rename: None,
             token,
             baseline: self.cache.clone(),
-            stage: NativeSetupStage::PreparingWorkspace,
+            stage: SetupStage::PreparingWorkspace,
             selected: 0,
             project: preparation
                 .target
@@ -462,11 +462,11 @@ impl WorkbenchClientState {
                 .as_ref()
                 .is_some_and(|target| !target.matches(self))
         {
-            self.setup.status = Some(super::NativeSetupStatus::NotApplied);
+            self.setup.status = Some(super::SetupStatus::NotApplied);
             return;
         }
         let Some(cwd) = cwd else {
-            self.setup.status = Some(super::NativeSetupStatus::NotApplied);
+            self.setup.status = Some(super::SetupStatus::NotApplied);
             return;
         };
         let Some(next) = self.setup.last_token.checked_add(1) else {
@@ -491,7 +491,7 @@ impl WorkbenchClientState {
                 .map(|context| &context.location),
         );
         for location in locations {
-            let crate::workbench_client::workbench_projection::NativeContextLocation::Workspace {
+            let crate::workbench_client::workbench_projection::ClientContextLocation::Workspace {
                 workspace_id,
                 ..
             } = location
@@ -519,11 +519,11 @@ impl WorkbenchClientState {
             }
         }
         let stage = if preparation.review_directory {
-            NativeSetupStage::QuickDirectory
+            SetupStage::QuickDirectory
         } else if fields.project() == &QuickProject::Choose {
-            NativeSetupStage::QuickProject
+            SetupStage::QuickProject
         } else {
-            NativeSetupStage::QuickName
+            SetupStage::QuickName
         };
         let project = match fields.project() {
             QuickProject::Existing(id) => Some(id.clone()),
@@ -533,14 +533,13 @@ impl WorkbenchClientState {
         self.setup.last_token = next;
         if matches!(self.setup.project_quick_entry, Some(ProjectQuickEntry::Preparing(token)) if token == preparation.token)
         {
-            self.setup.project_quick_entry =
-                Some(ProjectQuickEntry::Preparing(NativeSetupToken(next)));
+            self.setup.project_quick_entry = Some(ProjectQuickEntry::Preparing(SetupToken(next)));
         }
         self.setup.draft = Some(SetupDraft {
             organization: None,
             tab_configuration: None,
             project_rename: None,
-            token: NativeSetupToken(next),
+            token: SetupToken(next),
             baseline: self.cache.clone(),
             stage,
             selected: 0,
@@ -556,14 +555,11 @@ impl WorkbenchClientState {
     }
     pub(in crate::workbench_client) fn quick_continuation(
         &self,
-    ) -> Option<(NativeSetupToken, OperationDeadlines)> {
+    ) -> Option<(SetupToken, OperationDeadlines)> {
         let draft = self.setup.draft.as_ref()?;
         Some((draft.token, draft.continuation?))
     }
-    pub(in crate::workbench_client) fn abort_quick_continuation(
-        &mut self,
-        token: NativeSetupToken,
-    ) {
+    pub(in crate::workbench_client) fn abort_quick_continuation(&mut self, token: SetupToken) {
         if self
             .setup
             .draft
@@ -571,7 +567,7 @@ impl WorkbenchClientState {
             .is_some_and(|draft| draft.token == token && draft.continuation.is_some())
         {
             self.setup.draft = None;
-            self.setup.status = Some(super::NativeSetupStatus::NotApplied);
+            self.setup.status = Some(super::SetupStatus::NotApplied);
         }
     }
 }

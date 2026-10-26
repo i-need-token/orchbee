@@ -16,7 +16,7 @@ use super::*;
 use orchbee_client_server_protocol::{
     ClientMessage, ControlInput, ControlRejectedReason, ControlUnavailableReason, ControllerId,
     RequestId, SendRecord, SendRecords, SendText, SendTextInput, SendUnavailableReason,
-    ServerMessage, SiteId as ObcsSiteId, TerminalControlAction, TerminalControlOutcome,
+    ServerMessage, SessionId as ObcsSessionId, TerminalControlAction, TerminalControlOutcome,
     TerminalControlRequest, TerminalId as ObcsTerminalId, TerminalSendOutcome, TerminalSendRequest,
     TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, ViewerId,
     ViewerUnavailableReason, WorkerId as ObcsWorkerId, read_server_message, write_client_message,
@@ -411,7 +411,7 @@ fn collect_bounded(path: &Path, limit: u64) -> Result<Vec<u8>, String> {
 }
 
 /// One C1 real CLI invocation: `orchbee` from the staged cohort against the
-/// fixture site, owned end-to-end. `stem` names the per-invocation output
+/// fixture session, owned end-to-end. `stem` names the per-invocation output
 /// files under `output_dir`.
 fn c1_cli_json(
     fixture: &Fixture,
@@ -478,12 +478,12 @@ impl SessionPeer {
     /// load the workload itself does not produce.
     fn connect(
         fixture: &Fixture,
-        cohort: &NativeCohort,
+        cohort: &Cohort,
         tag: u32,
         deadline: Instant,
     ) -> Result<Self, String> {
         let admitted = ClientConnection::connect_before(
-            fixture.site().client_socket_path(),
+            fixture.session().client_socket_path(),
             cohort.identity(),
             deadline,
         )
@@ -568,7 +568,7 @@ impl SessionPeer {
 
     fn send(
         &mut self,
-        site: &ObcsSiteId,
+        session: &ObcsSessionId,
         binding: &Binding,
         records: SendRecords,
         deadline: Instant,
@@ -576,7 +576,7 @@ impl SessionPeer {
         let request_id = self.request_id()?;
         let message = ClientMessage::TerminalSend(TerminalSendRequest::new(
             request_id.clone(),
-            site.clone(),
+            session.clone(),
             binding.worker.clone(),
             binding.terminal.clone(),
             records,
@@ -634,13 +634,13 @@ impl SessionPeer {
 
     fn attach(
         &mut self,
-        site: &ObcsSiteId,
+        session: &ObcsSessionId,
         binding: &Binding,
         deadline: Instant,
     ) -> Result<Option<ViewerId>, String> {
         match self.viewer(
             TerminalViewerAction::AttachBinding {
-                site_id: site.clone(),
+                session_id: session.clone(),
                 worker_id: binding.worker.clone(),
                 terminal_id: binding.terminal.clone(),
             },
@@ -662,13 +662,13 @@ impl SessionPeer {
     /// `Unavailable(ServerBusy)` by the transport contract.
     fn attach_probe(
         &mut self,
-        site: &ObcsSiteId,
+        session: &ObcsSessionId,
         binding: &Binding,
         deadline: Instant,
     ) -> Result<AttachProbe, String> {
         match self.viewer(
             TerminalViewerAction::AttachBinding {
-                site_id: site.clone(),
+                session_id: session.clone(),
                 worker_id: binding.worker.clone(),
                 terminal_id: binding.terminal.clone(),
             },
@@ -698,7 +698,7 @@ impl SessionPeer {
     /// phase budget is never reset per retry.
     fn attach_until_saturated(
         &mut self,
-        site: &ObcsSiteId,
+        session: &ObcsSessionId,
         binding: &Binding,
         deadline: Instant,
         persistence: Duration,
@@ -706,7 +706,7 @@ impl SessionPeer {
         let mut first_refusal: Option<Instant> = None;
         loop {
             let per_op = (Instant::now() + EXCHANGE_TIMEOUT).min(deadline);
-            match self.attach_probe(site, binding, per_op)? {
+            match self.attach_probe(session, binding, per_op)? {
                 AttachProbe::Admitted(id) => return Ok(AttachProbe::Admitted(id)),
                 AttachProbe::Refused => {
                     let since = first_refusal.get_or_insert_with(Instant::now);
@@ -725,7 +725,7 @@ impl SessionPeer {
     /// proven refusal; `Ok(Some)` means the boundary admitted.
     fn attach_expect_refused(
         &mut self,
-        site: &ObcsSiteId,
+        session: &ObcsSessionId,
         binding: &Binding,
         deadline: Instant,
         persistence: Duration,
@@ -733,7 +733,7 @@ impl SessionPeer {
         let mut first_refusal: Option<Instant> = None;
         loop {
             let per_op = (Instant::now() + EXCHANGE_TIMEOUT).min(deadline);
-            match self.attach_probe(site, binding, per_op)? {
+            match self.attach_probe(session, binding, per_op)? {
                 AttachProbe::Admitted(id) => return Ok(Some(id)),
                 AttachProbe::Refused => {
                     let since = first_refusal.get_or_insert_with(Instant::now);
@@ -898,16 +898,17 @@ fn tab_bindings(snapshot: &Snapshot, tab_id: &WorkbenchTabId) -> Result<Vec<Bind
     Ok(rows)
 }
 
-fn site_id(snapshot: &Snapshot) -> Result<ObcsSiteId, String> {
-    ObcsSiteId::parse(snapshot.site_id.as_str()).map_err(|error| format!("site id: {error}"))
+fn session_id(snapshot: &Snapshot) -> Result<ObcsSessionId, String> {
+    ObcsSessionId::parse(snapshot.session_id.as_str())
+        .map_err(|error| format!("session id: {error}"))
 }
 
 /// Shared lane context: the same ambient references every participant lane
 /// needs, passed as one struct instead of repeated argument lists.
 struct LaneCtx<'a> {
     fixture: &'a Fixture,
-    cohort: &'a NativeCohort,
-    site: &'a ObcsSiteId,
+    cohort: &'a Cohort,
+    session: &'a ObcsSessionId,
     ready: &'a AtomicUsize,
     paused: &'a AtomicUsize,
     stop: &'a AtomicBool,
@@ -921,7 +922,7 @@ fn wait_like(slot: usize, index: usize, rows: &[Binding], ctx: &LaneCtx<'_>) -> 
     let &LaneCtx {
         fixture,
         cohort,
-        site,
+        session,
         ready,
         paused,
         stop,
@@ -951,7 +952,7 @@ fn wait_like(slot: usize, index: usize, rows: &[Binding], ctx: &LaneCtx<'_>) -> 
         acked = false;
         counters.mark_begin(slot);
         let deadline = Instant::now() + EXCHANGE_TIMEOUT;
-        match peer.attach(site, &rows[index % rows.len()], deadline)? {
+        match peer.attach(session, &rows[index % rows.len()], deadline)? {
             Some(attachment) => {
                 bump(&counters.attached);
                 bump(&counters.outstanding);
@@ -1015,7 +1016,7 @@ fn tui_like(
     let &LaneCtx {
         fixture,
         cohort,
-        site,
+        session,
         ready,
         stop,
         recovery,
@@ -1034,7 +1035,7 @@ fn tui_like(
     let setup_deadline = Instant::now() + PROBE_TIMEOUT;
     let mut held = Vec::new();
     for binding in rows.iter().take(3) {
-        match peer.attach_until_saturated(site, binding, setup_deadline, PRESSURE_RETRY)? {
+        match peer.attach_until_saturated(session, binding, setup_deadline, PRESSURE_RETRY)? {
             AttachProbe::Admitted(attachment) => {
                 bump(&counters.attached);
                 bump(&counters.outstanding);
@@ -1047,7 +1048,7 @@ fn tui_like(
     }
     // The dedicated terminal's viewer is the fourth standing attachment.
     let dedicated_viewer =
-        match peer.attach_until_saturated(site, dedicated, setup_deadline, PRESSURE_RETRY)? {
+        match peer.attach_until_saturated(session, dedicated, setup_deadline, PRESSURE_RETRY)? {
             AttachProbe::Admitted(attachment) => {
                 bump(&counters.attached);
                 bump(&counters.outstanding);
@@ -1161,7 +1162,7 @@ fn coordinator(slot: usize, dedicated: &Binding, ctx: &LaneCtx<'_>) -> Result<()
     let &LaneCtx {
         fixture,
         cohort,
-        site,
+        session,
         ready,
         paused,
         stop,
@@ -1184,7 +1185,7 @@ fn coordinator(slot: usize, dedicated: &Binding, ctx: &LaneCtx<'_>) -> Result<()
         counters.mark_begin(slot);
         let deadline = Instant::now() + EXCHANGE_TIMEOUT;
         peer.snapshot(deadline)?;
-        if let Some(attachment) = peer.attach(site, dedicated, deadline)? {
+        if let Some(attachment) = peer.attach(session, dedicated, deadline)? {
             bump(&counters.attached);
             bump(&counters.outstanding);
             // The dedicated terminal is exclusively this participant's, so a
@@ -1322,7 +1323,7 @@ fn burst(
 fn provision(
     fixture: &Fixture,
     tui: &mut Client,
-) -> Result<(WorkbenchPeer, ObcsSiteId, Vec<Binding>, Binding, Binding), String> {
+) -> Result<(WorkbenchPeer, ObcsSessionId, Vec<Binding>, Binding, Binding), String> {
     let deadline = Instant::now() + Duration::from_secs(60);
     let mut peer = WorkbenchPeer::connect(fixture, deadline).map_err(|error| error.to_string())?;
     let snapshot = peer.snapshot(deadline).map_err(|error| error.to_string())?;
@@ -1460,13 +1461,13 @@ fn provision(
     // Both dedicated leaves must be bound terminals before their tenants
     // attach — a missing binding means no live shell, not a slow one.
     let bind_deadline = Instant::now() + PROBE_TIMEOUT;
-    let (site, rows, dedicated) = loop {
+    let (session, rows, dedicated) = loop {
         let snapshot = peer.snapshot(deadline).map_err(|error| error.to_string())?;
         let dedicated = tab_bindings(&snapshot, &tab2_id)?;
         if dedicated.len() == 2 {
-            let site = site_id(&snapshot)?;
+            let session = session_id(&snapshot)?;
             let rows = tab_bindings(&snapshot, &tab_id)?;
-            break (site, rows, dedicated);
+            break (session, rows, dedicated);
         }
         if Instant::now() >= bind_deadline {
             return Err("dedicated terminals never bound".into());
@@ -1482,7 +1483,7 @@ fn provision(
     let mut dedicated = dedicated.into_iter();
     let dedicated_tui = dedicated.next().expect("two dedicated bindings");
     let dedicated_coordinator = dedicated.next().expect("two dedicated bindings");
-    Ok((peer, site, rows, dedicated_tui, dedicated_coordinator))
+    Ok((peer, session, rows, dedicated_tui, dedicated_coordinator))
 }
 
 /// Exactly one managed cohort process of `name`, retrying a transient scan.
@@ -1529,7 +1530,7 @@ fn c1_capacity_process_witness() -> TestResult {
     let worker = one_process(&fixture, "orchbee-worker");
     let host = one_process(&fixture, "orchbee-terminal-host");
 
-    let (_provisioner, site, rows, dedicated_tui, dedicated_coordinator) =
+    let (_provisioner, session, rows, dedicated_tui, dedicated_coordinator) =
         provision(&fixture, &mut tui).expect("provision terminals");
     let terminal_ids: Vec<String> = rows
         .iter()
@@ -1545,8 +1546,8 @@ fn c1_capacity_process_witness() -> TestResult {
     // The staged fixture cohort is private and immutable for the run — its
     // identity is loaded once and reused for every admission so the witness
     // does not re-hash ~170MiB of binaries per connect under load.
-    let cohort = NativeCohort::load(&fixture.cohort, Instant::now() + PROBE_TIMEOUT)
-        .expect("cohort identity");
+    let cohort =
+        Cohort::load(&fixture.cohort, Instant::now() + PROBE_TIMEOUT).expect("cohort identity");
     // Admit the probe before participants so session-cap arithmetic is exact
     // even when the map already sits at the boundary.
     let mut probe = SessionPeer::connect(&fixture, &cohort, 0x4000, Instant::now() + PROBE_TIMEOUT)
@@ -1566,12 +1567,12 @@ fn c1_capacity_process_witness() -> TestResult {
     // Private per-invocation stream files for the owned CLI children.
     let child_output = fixture.base.join("c1-cli-children");
     fs::create_dir_all(&child_output).expect("child output directory");
-    let socket = fixture.site().client_socket_path().to_owned();
+    let socket = fixture.session().client_socket_path().to_owned();
 
     let ctx = LaneCtx {
         fixture: &fixture,
         cohort: &cohort,
-        site: &site,
+        session: &session,
         ready: &ready,
         paused: &paused,
         stop: &stop,
@@ -1583,7 +1584,7 @@ fn c1_capacity_process_witness() -> TestResult {
         // so each thread captures a Copy handle instead of the owned value.
         let fixture = &fixture;
         let cohort = &cohort;
-        let site = &site;
+        let session = &session;
         let rows = &rows;
         let dedicated_tui = &dedicated_tui;
         let dedicated_coordinator = &dedicated_coordinator;
@@ -1817,7 +1818,7 @@ fn c1_capacity_process_witness() -> TestResult {
                  -> Result<(), String> {
                     for binding in rows.iter().take(count) {
                         match peer.attach_until_saturated(
-                            site,
+                            session,
                             binding,
                             deadline,
                             PRESSURE_RETRY,
@@ -1860,7 +1861,7 @@ fn c1_capacity_process_witness() -> TestResult {
                 // refusal that persists, so transient carrier pressure can
                 // never impersonate a full table.
                 if let Some(attachment) =
-                    probe.attach_expect_refused(site, dedicated_tui, deadline, PRESSURE_RETRY)?
+                    probe.attach_expect_refused(session, dedicated_tui, deadline, PRESSURE_RETRY)?
                 {
                     let _ = probe.detach(&attachment, deadline);
                     return Err("viewer table admitted past the authorized 24".into());
@@ -1879,7 +1880,7 @@ fn c1_capacity_process_witness() -> TestResult {
                     .map_err(|error| format!("send text input: {error}"))?,
                 )])
                 .map_err(|error| format!("send records: {error}"))?;
-                match probe.send(site, &rows[0], records, deadline)? {
+                match probe.send(session, &rows[0], records, deadline)? {
                     TerminalSendOutcome::Accepted { .. } => bump(&counters.send_accepted),
                     other => return Err(format!("send under full viewer table: {other:?}")),
                 }
@@ -1897,7 +1898,7 @@ fn c1_capacity_process_witness() -> TestResult {
                 probe.detach(&released, deadline)?;
                 counters.outstanding.fetch_sub(1, Ordering::Relaxed);
                 let AttachProbe::Admitted(readmitted) =
-                    probe.attach_until_saturated(site, &rows[3], deadline, PRESSURE_RETRY)?
+                    probe.attach_until_saturated(session, &rows[3], deadline, PRESSURE_RETRY)?
                 else {
                     return Err("released viewer slot did not readmit".into());
                 };
@@ -1918,7 +1919,7 @@ fn c1_capacity_process_witness() -> TestResult {
                 let mut leaver =
                     SessionPeer::connect(fixture, cohort, 0x7000, Instant::now() + PROBE_TIMEOUT)?;
                 let AttachProbe::Admitted(_abandoned) =
-                    leaver.attach_until_saturated(site, &rows[1], deadline, PRESSURE_RETRY)?
+                    leaver.attach_until_saturated(session, &rows[1], deadline, PRESSURE_RETRY)?
                 else {
                     return Err("abrupt witness leaver could not attach".into());
                 };
@@ -1926,7 +1927,7 @@ fn c1_capacity_process_witness() -> TestResult {
                 bump(&counters.outstanding);
                 // 24 known live again: a distinct valid overflow must refuse.
                 if let Some(attachment) =
-                    probe.attach_expect_refused(site, dedicated_tui, deadline, PRESSURE_RETRY)?
+                    probe.attach_expect_refused(session, dedicated_tui, deadline, PRESSURE_RETRY)?
                 {
                     let _ = probe.detach(&attachment, deadline);
                     return Err("abrupt-fill table admitted past 24".into());
@@ -1944,7 +1945,7 @@ fn c1_capacity_process_witness() -> TestResult {
                 let reattach_deadline = Instant::now() + RELEASE_WINDOW;
                 let reclaimed = loop {
                     let per_op = (Instant::now() + EXCHANGE_TIMEOUT).min(reattach_deadline);
-                    match probe.attach_probe(site, dedicated_tui, per_op)? {
+                    match probe.attach_probe(session, dedicated_tui, per_op)? {
                         AttachProbe::Admitted(attachment) => break attachment,
                         AttachProbe::Refused => {
                             if Instant::now() >= reattach_deadline {
@@ -1959,7 +1960,7 @@ fn c1_capacity_process_witness() -> TestResult {
                 // Exactly one slot was freed: a second distinct overflow
                 // must refuse again.
                 if let Some(attachment) = probe.attach_expect_refused(
-                    site,
+                    session,
                     dedicated_coordinator,
                     deadline,
                     PRESSURE_RETRY,
@@ -1987,7 +1988,7 @@ fn c1_capacity_process_witness() -> TestResult {
                 // viewer table, so no fill is possible — boundary evidence is
                 // one distinct valid overflow refused persistently.
                 if let Some(attachment) =
-                    probe.attach_expect_refused(site, dedicated_tui, deadline, PRESSURE_RETRY)?
+                    probe.attach_expect_refused(session, dedicated_tui, deadline, PRESSURE_RETRY)?
                 {
                     let _ = probe.detach(&attachment, deadline);
                     return Err("base viewer table admitted past its cap".into());
@@ -2257,7 +2258,7 @@ fn c1_capacity_process_witness() -> TestResult {
     assert_eq!(status.code(), Some(0), "post-load status: {document}");
     assert!(
         probe
-            .attach(&site, &rows[0], Instant::now() + EXCHANGE_TIMEOUT)
+            .attach(&session, &rows[0], Instant::now() + EXCHANGE_TIMEOUT)
             .map_err(|error| -> Box<dyn Error> { error.into() })?
             .is_some(),
         "post-load attach did not admit"
@@ -2317,17 +2318,16 @@ fn c1_burst_cli_timing_probe() -> TestResult {
         "1",
         ReadyMode::Controlling,
     );
-    let (_provisioner, site, rows, _dedicated_tui, _dedicated_coordinator) =
+    let (_provisioner, session, rows, _dedicated_tui, _dedicated_coordinator) =
         provision(&fixture, &mut tui).expect("provision terminals");
-    let cohort = NativeCohort::load(&fixture.cohort, Instant::now() + PROBE_TIMEOUT)
-        .expect("cohort identity");
+    let cohort =
+        Cohort::load(&fixture.cohort, Instant::now() + PROBE_TIMEOUT).expect("cohort identity");
     let terminal = rows[0].terminal.as_str().to_owned();
 
     // Phase A: the cohort-hash term every CLI process pays on startup.
     let hash_start = Instant::now();
-    let _ = NativeCohort::load(&fixture.cohort, Instant::now() + PROBE_TIMEOUT)
-        .expect("cohort identity");
-    eprintln!("probe: NativeCohort::load {:?}", hash_start.elapsed());
+    let _ = Cohort::load(&fixture.cohort, Instant::now() + PROBE_TIMEOUT).expect("cohort identity");
+    eprintln!("probe: Cohort::load {:?}", hash_start.elapsed());
 
     // Phase B: sequential baseline — one CLI cycle at a time.
     for round in 0..3 {
@@ -2377,7 +2377,7 @@ fn c1_burst_cli_timing_probe() -> TestResult {
     thread::scope(|scope| {
         let fixture = &fixture;
         let cohort = &cohort;
-        let site = &site;
+        let session = &session;
         let rows = &rows;
         let herd_stop = &herd_stop;
         let mut herd = Vec::new();
@@ -2393,7 +2393,7 @@ fn c1_burst_cli_timing_probe() -> TestResult {
                     if index < 9 {
                         let deadline = Instant::now() + EXCHANGE_TIMEOUT;
                         if let Some(attachment) =
-                            peer.attach(site, &rows[index as usize % rows.len()], deadline)?
+                            peer.attach(session, &rows[index as usize % rows.len()], deadline)?
                         {
                             let _ = peer.viewer(
                                 TerminalViewerAction::Poll {

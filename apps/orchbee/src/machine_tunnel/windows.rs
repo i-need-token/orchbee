@@ -9,7 +9,7 @@ mod tests;
 use super::admission_error;
 use crate::{local_client::LocalClient, machine_ssh, machines::Profile};
 use orchbee_local_ipc::{LocalListener, LocalStream};
-use orchbee_local_site_runtime::{ModeCheckedLocalSiteRendezvous, NativeCohort, SiteScope};
+use orchbee_local_runtime::{Cohort, ModeCheckedLocalSessionRendezvous, SessionScope};
 use std::{
     io,
     path::PathBuf,
@@ -36,7 +36,7 @@ impl Drop for Tunnel {
         }
     }
 }
-/// An admitted remote Site carrier. Cancellation belongs to the connection's owner.
+/// An admitted remote Session carrier. Cancellation belongs to the connection's owner.
 pub(crate) fn connect(
     profile: &Profile,
     deadline: Instant,
@@ -127,24 +127,24 @@ fn start(
         }),
     ))
 }
-/// Private binary helper: only the selected existing same-user Site is admitted.
+/// Private binary helper: only the selected existing same-user Session is admitted.
 pub(crate) fn serve(expected_cohort: &str) -> io::Result<()> {
     use std::io::IsTerminal;
     if io::stdin().is_terminal() || io::stdout().is_terminal() {
         return Err(io::ErrorKind::InvalidInput.into());
     }
     let deadline = Instant::now() + Duration::from_secs(20);
-    let cohort = NativeCohort::current(deadline)?;
+    let cohort = Cohort::current(deadline)?;
     if cohort.identity() != expected_cohort {
         return Err(io::ErrorKind::PermissionDenied.into());
     }
     let (base, scope) = crate::local_activation::runtime_location()?;
-    let site = ModeCheckedLocalSiteRendezvous::validate_mode_checked(
+    let session = ModeCheckedLocalSessionRendezvous::validate_mode_checked(
         &base,
-        SiteScope::parse(&scope).map_err(io::Error::other)?,
+        SessionScope::parse(&scope).map_err(io::Error::other)?,
     )
     .map_err(io::Error::other)?;
-    let stream = LocalStream::connect_before(site.client_socket_path(), deadline)?;
+    let stream = LocalStream::connect_before(session.client_socket_path(), deadline)?;
     stream.require_same_user()?;
     let mut lane = relay::Lane::stdio(stream)?;
     let result = loop {

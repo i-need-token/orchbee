@@ -164,7 +164,7 @@ fn failed_default_and_one_shot_launches_keep_their_exact_created_presentation_de
     use crate::workbench_client::mailbox::{EventDeadline, QueuedCommand, UiReply, WorkerEvent};
     use crate::workbench_client::state::CreateProjectionDecision;
     use crate::workbench_client::ui::tests::membership::snapshot;
-    use crate::workbench_client::{NativeLaunchProfile, ui::NativeDisplayPhase};
+    use crate::workbench_client::{LaunchProfile, ui::DisplayPhase};
     use orchbee_workbench_protocol::{
         PanelNode, WorkbenchSnapshotOutcome, WorkbenchTerminalFailureReason,
         WorkbenchTerminalOutcome,
@@ -280,17 +280,14 @@ fn failed_default_and_one_shot_launches_keep_their_exact_created_presentation_de
             Some(UiReply::Membership(_))
         ));
         mailbox.finish_lease(lease).unwrap();
-        assert_eq!(
-            ui.view().phase(),
-            NativeDisplayPhase::SelectedWithoutAttachment
-        );
+        assert_eq!(ui.view().phase(), DisplayPhase::SelectedWithoutAttachment);
         let state = ui.state.as_ref().unwrap();
         let old_panel = state.cache().tabs()[0].panel(0).unwrap();
         assert!(state.view().launch_description(old_panel).is_none());
         let created_panel = state.cache().tabs()[2].panel(0).unwrap();
         let view = ui.view();
         let failure = view.launch_failure(created_panel).unwrap();
-        assert_eq!(failure.profile, NativeLaunchProfile::Named(&expected_name));
+        assert_eq!(failure.profile, LaunchProfile::Named(&expected_name));
         assert_eq!(failure.executable, Some(expected_executable.as_str()));
         for locale in [Locale::EnUs, Locale::ZhCn] {
             let text = locale.terminal_launch_failure(failure);
@@ -303,7 +300,7 @@ fn failed_default_and_one_shot_launches_keep_their_exact_created_presentation_de
 
 #[test]
 fn unknown_launch_profile_is_distinct_from_known_system_default_in_both_locales() {
-    use crate::workbench_client::{NativeLaunchFailure, NativeLaunchProfile};
+    use crate::workbench_client::{LaunchFailure, LaunchProfile};
     for (locale, unknown_name, system_name, obsolete_guidance) in [
         (
             Locale::EnUs,
@@ -313,12 +310,12 @@ fn unknown_launch_profile_is_distinct_from_known_system_default_in_both_locales(
         ),
         (Locale::ZhCn, "启动配置：未知", "系统默认", "修复默认程序"),
     ] {
-        let unknown = locale.terminal_launch_failure(NativeLaunchFailure {
-            profile: NativeLaunchProfile::Unknown,
+        let unknown = locale.terminal_launch_failure(LaunchFailure {
+            profile: LaunchProfile::Unknown,
             executable: None,
         });
-        let known = locale.terminal_launch_failure(NativeLaunchFailure {
-            profile: NativeLaunchProfile::SystemDefault,
+        let known = locale.terminal_launch_failure(LaunchFailure {
+            profile: LaunchProfile::SystemDefault,
             executable: None,
         });
         assert!(unknown.contains(unknown_name));
@@ -370,7 +367,7 @@ fn command_refusals_keep_the_command_identity_and_distinct_localized_recovery() 
         for reason in [
             F::Denied,
             F::InvalidIntent,
-            F::SiteMismatch,
+            F::SessionMismatch,
             F::Unavailable,
             F::Busy,
             F::Conflict,

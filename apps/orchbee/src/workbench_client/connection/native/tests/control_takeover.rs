@@ -1,5 +1,5 @@
 //! Actual framed control and native UI; the Server stub never supplies a UI verdict.
-use super::super::{AttachedTerminal, NativeExecutor};
+use super::super::{AttachedTerminal, ClientExecutor};
 use super::setup::{TestResult, admit};
 use crate::{
     client_view::ClientAction,
@@ -157,7 +157,7 @@ fn exercise(cut: Cut) -> TestResult {
     let worker_mailbox = Arc::clone(&mailbox);
     let pane = operation.key.clone();
     let worker = thread::spawn(move || {
-        let mut executor = NativeExecutor::new(client, Arc::clone(&worker_mailbox));
+        let mut executor = ClientExecutor::new(client, Arc::clone(&worker_mailbox));
         executor.attachments.push(AttachedTerminal {
             key: pane,
             attachment_id: viewer,
@@ -203,9 +203,9 @@ fn exercise(cut: Cut) -> TestResult {
         assert_eq!(
             ui.view().controller(),
             Some(if cut == Cut::Complete {
-                crate::workbench_client::NativeDisplayController::Controlling
+                crate::workbench_client::DisplayController::Controlling
             } else {
-                crate::workbench_client::NativeDisplayController::ReadOnly
+                crate::workbench_client::DisplayController::ReadOnly
             })
         );
         assert!(

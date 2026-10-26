@@ -36,18 +36,18 @@ impl Port {
     }
 }
 impl TerminalInputPort for Port {
-    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
-        crate::tui_composition::NativeCaptureClaims::default().with_worktree(self.active)
+    fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
+        crate::tui_composition::CaptureClaims::default().with_worktree(self.active)
     }
 
     fn native_capture_context(
         &self,
-        owner: crate::tui_composition::NativeCaptureOwner,
-    ) -> Option<crate::workbench_client::NativeCaptureContext> {
-        if owner != crate::tui_composition::NativeCaptureOwner::Worktree || !self.active {
+        owner: crate::tui_composition::CaptureOwner,
+    ) -> Option<crate::workbench_client::CaptureContext> {
+        if owner != crate::tui_composition::CaptureOwner::Worktree || !self.active {
             return None;
         }
-        Some(crate::workbench_client::NativeCaptureContext::Worktree(
+        Some(crate::workbench_client::CaptureContext::Worktree(
             crate::workbench_client::WorktreeCaptureContext {
                 token: self.token(),
                 readiness: crate::workbench_client::CaptureReadiness::Interactive,

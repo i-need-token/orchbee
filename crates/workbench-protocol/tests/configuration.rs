@@ -3,7 +3,7 @@ fn request() -> ConfigurationRequest {
     ConfigurationRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap(),
-        site_id: SiteId::parse(&format!("{:032x}", 2)).unwrap(),
+        session_id: SessionId::parse(&format!("{:032x}", 2)).unwrap(),
         action: ConfigurationAction::Reload,
     }
 }
@@ -24,7 +24,7 @@ fn configuration_roundtrips_have_distinct_carrier_kinds_and_exact_correlation() 
     let result = ConfigurationResult {
         protocol_version: ProtocolVersion,
         request_id: request.request_id.clone(),
-        site_id: request.site_id.clone(),
+        session_id: request.session_id.clone(),
         outcome: ConfigurationOutcome::Reloaded {
             snapshot: ConfigurationSnapshot {
                 revision: WorkbenchRevision::new(1),
@@ -71,7 +71,7 @@ fn configuration_rejects_unknown_fields_oversize_and_invalid_failure_shapes() {
     let mut result = ConfigurationResult {
         protocol_version: ProtocolVersion,
         request_id: request.request_id,
-        site_id: request.site_id,
+        session_id: request.session_id,
         outcome: ConfigurationOutcome::Failed {
             reason: ConfigurationFailure::Busy,
             field: Some("file".into()),
@@ -193,7 +193,7 @@ fn configuration_notification_profile_has_a_closed_16_kib_wire_bound() {
     let result = |notification_profile| ConfigurationResult {
         protocol_version: ProtocolVersion,
         request_id: request.request_id.clone(),
-        site_id: request.site_id.clone(),
+        session_id: request.session_id.clone(),
         outcome: ConfigurationOutcome::Current {
             snapshot: ConfigurationSnapshot {
                 revision: WorkbenchRevision::new(1),
@@ -227,7 +227,7 @@ fn configuration_frame_fits_both_bounded_escaped_profiles_and_checks_header_befo
     let response = WorkbenchResponse::Configuration(ConfigurationResult {
         protocol_version: ProtocolVersion,
         request_id: request.request_id,
-        site_id: request.site_id,
+        session_id: request.session_id,
         outcome: ConfigurationOutcome::Current {
             snapshot: ConfigurationSnapshot {
                 revision: WorkbenchRevision::new(1),

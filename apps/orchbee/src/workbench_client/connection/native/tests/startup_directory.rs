@@ -1,6 +1,6 @@
 use super::{commands::drive_controlling_after_attach, setup::*};
 use crate::workbench_client::{
-    NativeStartupTarget, StartupDirectory, startup_directory::tests as fixtures,
+    ClientStartupTarget, StartupDirectory, startup_directory::tests as fixtures,
     state::CarrierFailure,
 };
 use orchbee_client_server_protocol::*;
@@ -18,7 +18,7 @@ fn harness_at(
     Harness::start_at(
         steps,
         fixture_geometry()?,
-        NativeStartupTarget::LocalDirectory {
+        ClientStartupTarget::LocalDirectory {
             position,
             fallback: Arc::new(AtomicBool::new(false)),
             directory: Box::new(directory),
@@ -54,11 +54,11 @@ fn launch(harness: &Harness) -> TestResult<WorkbenchCommand> {
     launch_from(harness, fixtures::empty())
 }
 fn launch_from(harness: &Harness, snapshot: Snapshot) -> TestResult<WorkbenchCommand> {
-    let site = snapshot.site_id.clone();
+    let session = snapshot.session_id.clone();
     let revision = snapshot.revision;
     read(harness, snapshot)?;
     let command = command(harness)?;
-    assert_eq!(command.site_id, site);
+    assert_eq!(command.session_id, session);
     assert_eq!(command.expected_revision, revision);
     assert!(
         matches!(&command.action,WorkbenchAction::WorkspaceLaunch {placement:WorkspacePlacement::Ungrouped {},label,launch:None,profile:None,options,..}
@@ -107,7 +107,7 @@ fn directory_startup_actual_carrier_creates_in_cwd_before_bootstrap_without_init
         let mut steps = vec![WireKind::Workbench; 3];
         steps.extend([WireKind::Obcs; 5]);
         let position = saved_empty.then(|| crate::workbench_client::startup_preference::Position {
-            location: crate::workbench_client::NativeContextLocation::NoWorkspace,
+            location: crate::workbench_client::ClientContextLocation::NoWorkspace,
             member: None,
         });
         let mut harness = harness_at(steps, fixtures::directory(), position)?;

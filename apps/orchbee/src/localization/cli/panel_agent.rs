@@ -147,8 +147,8 @@ impl Locale {
             Some(Outcome::Failed { reason }) => match (self, reason) {
                 (Self::EnUs, Failure::InvalidRequest) => "Invalid Agent report request",
                 (Self::ZhCn, Failure::InvalidRequest) => "智能体上报请求无效",
-                (Self::EnUs, Failure::SiteMismatch) => "Session identity changed",
-                (Self::ZhCn, Failure::SiteMismatch) => "会话身份已改变",
+                (Self::EnUs, Failure::SessionMismatch) => "Session identity changed",
+                (Self::ZhCn, Failure::SessionMismatch) => "会话身份已改变",
                 (Self::EnUs, Failure::Unbound) => "Target member has no bound terminal",
                 (Self::ZhCn, Failure::Unbound) => "目标成员未绑定终端",
                 (Self::EnUs, Failure::BindingChanged) => "Target terminal binding changed",

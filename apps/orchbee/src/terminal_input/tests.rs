@@ -91,20 +91,20 @@ fn modal_capture_keeps_the_packet_tail_after_cancel_and_preserves_prior_bytes() 
         forwarded: Vec<Vec<u8>>,
     }
     impl TerminalInputPort for ModalInput {
-        fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
-            crate::tui_composition::NativeCaptureClaims::default().with_tab_close(self.active)
+        fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
+            crate::tui_composition::CaptureClaims::default().with_tab_close(self.active)
         }
 
         fn native_capture_context(
             &self,
-            owner: crate::tui_composition::NativeCaptureOwner,
-        ) -> Option<crate::workbench_client::NativeCaptureContext> {
-            if owner != crate::tui_composition::NativeCaptureOwner::TabClose || !self.active {
+            owner: crate::tui_composition::CaptureOwner,
+        ) -> Option<crate::workbench_client::CaptureContext> {
+            if owner != crate::tui_composition::CaptureOwner::TabClose || !self.active {
                 return None;
             }
-            Some(crate::workbench_client::NativeCaptureContext::TabClose(
+            Some(crate::workbench_client::CaptureContext::TabClose(
                 crate::workbench_client::ConfirmationCaptureContext {
-                    token: crate::workbench_client::NativeCloseConfirmationToken::for_test(1),
+                    token: crate::workbench_client::CloseConfirmationToken::for_test(1),
                     phase: crate::tui_presentation::PresentationPhase::Admitted,
                     readiness: crate::workbench_client::CaptureReadiness::Interactive,
                 },
@@ -123,10 +123,10 @@ fn modal_capture_keeps_the_packet_tail_after_cancel_and_preserves_prior_bytes() 
         }
         fn capture_tab_confirmation_key_for(
             &mut self,
-            token: crate::workbench_client::NativeCloseConfirmationToken,
+            token: crate::workbench_client::CloseConfirmationToken,
             key: crate::client_view::ClientKey,
         ) -> bool {
-            if token != crate::workbench_client::NativeCloseConfirmationToken::for_test(1) {
+            if token != crate::workbench_client::CloseConfirmationToken::for_test(1) {
                 return false;
             }
             if !self.active {
@@ -180,20 +180,20 @@ fn a_confirmation_tail_sequence_started_in_the_decision_packet_stays_captured() 
         forwarded: Vec<Vec<u8>>,
     }
     impl TerminalInputPort for ConfirmTail {
-        fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
-            crate::tui_composition::NativeCaptureClaims::default().with_tab_close(self.active)
+        fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
+            crate::tui_composition::CaptureClaims::default().with_tab_close(self.active)
         }
 
         fn native_capture_context(
             &self,
-            owner: crate::tui_composition::NativeCaptureOwner,
-        ) -> Option<crate::workbench_client::NativeCaptureContext> {
-            if owner != crate::tui_composition::NativeCaptureOwner::TabClose || !self.active {
+            owner: crate::tui_composition::CaptureOwner,
+        ) -> Option<crate::workbench_client::CaptureContext> {
+            if owner != crate::tui_composition::CaptureOwner::TabClose || !self.active {
                 return None;
             }
-            Some(crate::workbench_client::NativeCaptureContext::TabClose(
+            Some(crate::workbench_client::CaptureContext::TabClose(
                 crate::workbench_client::ConfirmationCaptureContext {
-                    token: crate::workbench_client::NativeCloseConfirmationToken::for_test(1),
+                    token: crate::workbench_client::CloseConfirmationToken::for_test(1),
                     phase: crate::tui_presentation::PresentationPhase::Admitted,
                     readiness: crate::workbench_client::CaptureReadiness::Interactive,
                 },
@@ -212,10 +212,10 @@ fn a_confirmation_tail_sequence_started_in_the_decision_packet_stays_captured() 
         }
         fn capture_tab_confirmation_key_for(
             &mut self,
-            token: crate::workbench_client::NativeCloseConfirmationToken,
+            token: crate::workbench_client::CloseConfirmationToken,
             key: crate::client_view::ClientKey,
         ) -> bool {
-            if token != crate::workbench_client::NativeCloseConfirmationToken::for_test(1) {
+            if token != crate::workbench_client::CloseConfirmationToken::for_test(1) {
                 return false;
             }
             if !self.active {
@@ -575,19 +575,19 @@ fn popup_captures_prefix_escape_paste_and_retires_cross_packet_fragments() {
         close_attempts: Vec<WorkbenchRequestId>,
     }
     impl TerminalInputPort for PopupPort {
-        fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
-            crate::tui_composition::NativeCaptureClaims::default().with_popup(self.id.is_some())
+        fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
+            crate::tui_composition::CaptureClaims::default().with_popup(self.id.is_some())
         }
 
         fn native_capture_context(
             &self,
-            owner: crate::tui_composition::NativeCaptureOwner,
-        ) -> Option<crate::workbench_client::NativeCaptureContext> {
-            if owner != crate::tui_composition::NativeCaptureOwner::Popup {
+            owner: crate::tui_composition::CaptureOwner,
+        ) -> Option<crate::workbench_client::CaptureContext> {
+            if owner != crate::tui_composition::CaptureOwner::Popup {
                 return None;
             }
             self.id.clone().map(|id| {
-                crate::workbench_client::NativeCaptureContext::Popup(
+                crate::workbench_client::CaptureContext::Popup(
                     crate::workbench_client::PopupInputContext::for_test(id, self.interactive),
                 )
             })

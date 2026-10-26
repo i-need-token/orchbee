@@ -5,9 +5,7 @@ use super::{
     Scope, UsageContext, UsageReason, check_scope, missing_command, missing_required,
     selection_envelope, unexpected_argument, unknown_command, usage_with,
 };
-use orchbee_local_site_runtime::{
-    PluginRegistryMutation, WindowsUserPathOperand, plugin_identifier,
-};
+use orchbee_local_runtime::{PluginRegistryMutation, UserPathOperand, plugin_identifier};
 /// Admitted plugin grammar; path context remains owned by the executing CLI.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum PluginCommand {
@@ -18,7 +16,7 @@ pub(crate) enum PluginCommand {
     },
     PaneManage(Box<panes::Manage>),
     Install {
-        source: orchbee_local_site_runtime::PluginGithubSource,
+        source: orchbee_local_runtime::PluginGithubSource,
         reference: Option<String>,
         timeout_ms: u32,
     },
@@ -43,7 +41,7 @@ pub(crate) enum PluginCommand {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum PluginCatalogMutation {
     Link {
-        path: WindowsUserPathOperand,
+        path: UserPathOperand,
         enabled: bool,
     },
     Unlink {
@@ -206,13 +204,13 @@ pub(super) fn parse(
         let value = args
             .first()
             .ok_or_else(|| missing_required(context, "<owner/repo[/subdir]>", envelope))?;
-        let source = orchbee_local_site_runtime::PluginGithubSource::parse(value)
+        let source = orchbee_local_runtime::PluginGithubSource::parse(value)
             .map_err(|_| invalid("<source>", value, ExpectedValue::PluginGithubSource))?;
         if !options.plugin_yes {
             return Err(missing_required(context, "--yes", envelope));
         }
         if let Some(reference) = &options.plugin_ref
-            && !orchbee_local_site_runtime::plugin_git_reference(reference)
+            && !orchbee_local_runtime::plugin_git_reference(reference)
         {
             return Err(invalid(
                 "--ref",
@@ -237,7 +235,7 @@ pub(super) fn parse(
         let value = args
             .first()
             .ok_or_else(|| missing_required(context, "<plugin-id-or-source>", envelope))?;
-        let target = if orchbee_local_site_runtime::PluginGithubSource::parse(value).is_ok() {
+        let target = if orchbee_local_runtime::PluginGithubSource::parse(value).is_ok() {
             (*value).into()
         } else {
             id(value)?
@@ -322,7 +320,7 @@ pub(super) fn parse(
             )
         })?;
         if verb == "link" {
-            let path = WindowsUserPathOperand::parse(value).map_err(|_| {
+            let path = UserPathOperand::parse(value).map_err(|_| {
                 usage_with(
                     UsageReason::InvalidValue {
                         context,

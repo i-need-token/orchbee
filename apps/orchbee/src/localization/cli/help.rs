@@ -619,7 +619,7 @@ impl Locale {
             HelpTopic::Command(CommandPath::ConfigResetKeys) => {
                 ("Restore default keyboard shortcuts.", "恢复默认快捷键。")
             }
-            HelpTopic::Command(CommandPath::SiteStart) => (
+            HelpTopic::Command(CommandPath::ServerStart) => (
                 "Ensure a local terminal session is running.",
                 "确保本地终端会话已启动。",
             ),
@@ -647,19 +647,19 @@ impl Locale {
             HelpTopic::Command(CommandPath::SessionDelete) => {
                 ("Delete a stopped local session.", "删除已停止的本地会话。")
             }
-            HelpTopic::Command(CommandPath::SiteDiagnose) => (
+            HelpTopic::Command(CommandPath::ServerDiagnose) => (
                 "Inspect a local session without changing it.",
                 "检查本地会话，不作修改。",
             ),
-            HelpTopic::Command(CommandPath::SiteUpdateAgentManifests) => (
+            HelpTopic::Command(CommandPath::ServerUpdateAgentManifests) => (
                 "Download and apply Agent detection rules.",
                 "下载并应用智能体识别规则。",
             ),
-            HelpTopic::Command(CommandPath::SiteConfig) => (
+            HelpTopic::Command(CommandPath::ServerConfig) => (
                 "Show the running session's configuration.",
                 "显示运行中会话的配置。",
             ),
-            HelpTopic::Command(CommandPath::SiteReloadConfig) => (
+            HelpTopic::Command(CommandPath::ServerReloadConfig) => (
                 "Reload the running session's configuration.",
                 "重新加载会话配置。",
             ),
@@ -786,23 +786,23 @@ impl Locale {
                 "Show a notification in the terminal interface.",
                 "在终端界面显示通知。",
             ),
-            HelpTopic::Command(CommandPath::SiteAgentManifests) => (
+            HelpTopic::Command(CommandPath::ServerAgentManifests) => (
                 "Show the active Agent detection rules.",
                 "显示当前智能体识别规则。",
             ),
-            HelpTopic::Command(CommandPath::SiteReloadAgentManifests) => (
+            HelpTopic::Command(CommandPath::ServerReloadAgentManifests) => (
                 "Reload local Agent detection rules.",
                 "重新加载本地智能体识别规则。",
             ),
-            HelpTopic::Command(CommandPath::SiteAgentManifestsStatus) => (
+            HelpTopic::Command(CommandPath::ServerAgentManifestsStatus) => (
                 "Check an Agent detection rule update.",
                 "查看智能体识别规则的更新状态。",
             ),
-            HelpTopic::Command(CommandPath::SiteStop) => (
+            HelpTopic::Command(CommandPath::ServerStop) => (
                 "Stop the selected local session and its terminals; requires --confirm.",
                 "停止所选本地会话及其终端；必须提供 --confirm。",
             ),
-            HelpTopic::Command(CommandPath::SiteStopStatus) => {
+            HelpTopic::Command(CommandPath::ServerStopStatus) => {
                 ("Check a session stop request.", "查看会话停止请求的状态。")
             }
         };

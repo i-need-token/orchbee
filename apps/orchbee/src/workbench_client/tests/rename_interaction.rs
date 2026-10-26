@@ -381,7 +381,7 @@ fn draw_frame(
     dispatcher: Option<&mut InputDispatcher>,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let mut terminal = Terminal::new(TestBackend::new(width, height))?;
-    let mut receipt = NativeDrawReceipt::default();
+    let mut receipt = DrawReceipt::default();
     let mut hits = crate::tui_pointer::HitMapBuilder::new();
     terminal.draw(|frame| {
         receipt = render_terminal_shell(
@@ -914,7 +914,7 @@ fn actual_rename_outcomes_install_recover_or_retire_without_replay() -> TestResu
                 } else if matches!(response, RenameResponse::Successor) {
                     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
                         let view = workbench_client.view();
-                        view.phase() == NativeDisplayPhase::RetryableAttachUnavailable
+                        view.phase() == DisplayPhase::RetryableAttachUnavailable
                     }));
                     assert!(server.detached.load(Ordering::SeqCst));
                     assert!({
@@ -925,8 +925,7 @@ fn actual_rename_outcomes_install_recover_or_retire_without_replay() -> TestResu
                     assert!(server.detached.load(Ordering::SeqCst));
                     assert!({
                         let view = workbench_client.view();
-                        view.phase() == NativeDisplayPhase::Empty
-                            && view.active_position().is_none()
+                        view.phase() == DisplayPhase::Empty && view.active_position().is_none()
                     });
                 } else {
                     assert!(!server.detached.load(Ordering::SeqCst));
@@ -937,7 +936,7 @@ fn actual_rename_outcomes_install_recover_or_retire_without_replay() -> TestResu
         if matches!(response, RenameResponse::Recover) {
             assert!({
                 let view = workbench_client.view();
-                view.phase() == NativeDisplayPhase::RenameProjectionUnavailable
+                view.phase() == DisplayPhase::RenameProjectionUnavailable
             });
             assert!(workbench_client.rename_input_context().is_none());
             TerminalInputPort::apply_client_action(
@@ -946,7 +945,7 @@ fn actual_rename_outcomes_install_recover_or_retire_without_replay() -> TestResu
             );
             assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
                 let view = workbench_client.view();
-                view.phase() == NativeDisplayPhase::Ready
+                view.phase() == DisplayPhase::Ready
             }));
             assert_eq!(server.snapshots.load(Ordering::SeqCst), 2);
             let ClientBackend::Native(native) = &workbench_client.backend;
@@ -1061,7 +1060,7 @@ fn actual_navigator_to_rename_entry_dismisses_overlay_and_qualifies_only_the_edi
     );
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         let view = workbench_client.view();
-        matches!(view.refresh_status(), Some(NativeRefreshStatus::Success(_)))
+        matches!(view.refresh_status(), Some(RefreshStatus::Success(_)))
     }));
     {
         // Reconcile the completed refresh, then publish the actual navigator draw.

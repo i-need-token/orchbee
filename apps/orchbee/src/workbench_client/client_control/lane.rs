@@ -5,7 +5,7 @@ use orchbee_local_ipc::{AsLocalIo, LocalStream};
 use orchbee_workbench_protocol::{
     ClientViewAction, ClientViewCompletion, ClientViewControl, ClientViewControlReason as Reason,
     ClientViewIntent, ClientViewObservation, ClientViewOutcome, ClientViewSequence,
-    ProtocolVersion, SiteId, Snapshot, SnapshotReadIntent, WorkbenchClientViewRequest,
+    ProtocolVersion, SessionId, Snapshot, SnapshotReadIntent, WorkbenchClientViewRequest,
     WorkbenchRequestId, WorkbenchSnapshotOutcome,
 };
 use std::{
@@ -210,7 +210,7 @@ impl ClientControlLane {
     pub(super) fn spawn(
         origin: LocalClientOrigin,
         clock: LocalOperationClock,
-        site_id: SiteId,
+        session_id: SessionId,
     ) -> io::Result<Self> {
         let shared = Arc::new((Mutex::new(Handoff::default()), Condvar::new()));
         let (wake_read, wake) = LocalStream::pair()?;
@@ -218,7 +218,7 @@ impl ClientControlLane {
         let task = thread::Builder::new()
             .name("orchbee-client-control".into())
             .spawn(move || {
-                run(&worker_shared, origin, clock, site_id, &wake_read);
+                run(&worker_shared, origin, clock, session_id, &wake_read);
                 let (lock, signal) = &*worker_shared;
                 if let Ok(mut handoff) = lock.lock() {
                     handoff.failed = true;
@@ -289,7 +289,7 @@ fn run(
     shared: &Shared,
     origin: LocalClientOrigin,
     clock: LocalOperationClock,
-    site_id: SiteId,
+    session_id: SessionId,
     wake: &LocalStream,
 ) {
     let Ok(mut client) = admit_startup_with(&clock, |deadline| {
@@ -341,7 +341,7 @@ fn run(
         let request = WorkbenchClientViewRequest {
             protocol_version: ProtocolVersion,
             request_id,
-            site_id: site_id.clone(),
+            session_id: session_id.clone(),
             action: ClientViewAction::Synchronize {
                 heartbeat: sample.heartbeat,
                 view_revision: sample.revision,
@@ -374,7 +374,7 @@ fn run(
             let request = orchbee_workbench_protocol::PaneGraphicsRequest {
                 protocol_version: ProtocolVersion,
                 request_id,
-                site_id: site_id.clone(),
+                session_id: session_id.clone(),
                 action: orchbee_workbench_protocol::PaneGraphicsAction::Observe {
                     client_id: registered.client_id.clone(),
                     heartbeat: registered.heartbeat,
@@ -473,7 +473,7 @@ fn run(
                     Arc::clone(shared),
                     origin.clone(),
                     clock.clone(),
-                    site_id.clone(),
+                    session_id.clone(),
                     (*registered).clone(),
                     invocation,
                 )

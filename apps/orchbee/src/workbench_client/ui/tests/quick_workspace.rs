@@ -2,7 +2,12 @@ use super::super::tests::workspace_setup::{finish_preparation, finish_preparatio
 use super::super::*;
 use orchbee_workbench_protocol::Snapshot;
 
-fn no_workspace() -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
+fn no_workspace() -> (
+    WorkbenchClientUi,
+    Arc<CommandMailbox>,
+    LocalOperationClock,
+    Snapshot,
+) {
     let mut snapshot = super::super::tests::membership::snapshot(0, 1);
     snapshot.navigation.workspaces.clear();
     snapshot.navigation.workspace_order.clear();
@@ -16,7 +21,12 @@ fn no_workspace() -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapsh
 
 pub(in crate::workbench_client::ui) fn empty_ui(
     snapshot: Snapshot,
-) -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
+) -> (
+    WorkbenchClientUi,
+    Arc<CommandMailbox>,
+    LocalOperationClock,
+    Snapshot,
+) {
     let clock = crate::local_client::tests::server::adjustable_operation_clock(Arc::new(
         std::sync::atomic::AtomicU64::new(0),
     ));
@@ -24,7 +34,7 @@ pub(in crate::workbench_client::ui) fn empty_ui(
         10,
         Geometry::new(80, 24, 8, 16).unwrap(),
     ));
-    let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    let mut ui = WorkbenchClientUi::new(Arc::clone(&mailbox), clock.clone());
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {
@@ -90,12 +100,12 @@ fn directory_review_prepares_without_launching_and_submits_only_the_visible_edit
     );
     assert!(mailbox.try_recv().unwrap().is_none());
     let draft = ui.view().setup_draft().unwrap();
-    assert_eq!(draft.stage(), NativeSetupStage::QuickDirectory);
+    assert_eq!(draft.stage(), SetupStage::QuickDirectory);
     assert_eq!(draft.text(), "C:/旧目录 项目");
     let token = draft.token();
     ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
-    ui.edit_setup_draft(token, NativeSetupEdit::Clear);
-    ui.edit_setup_draft(token, NativeSetupEdit::Paste("C:/第二个 项目"));
+    ui.edit_setup_draft(token, SetupEdit::Clear);
+    ui.edit_setup_draft(token, SetupEdit::Paste("C:/第二个 项目"));
     ui.submit_setup_draft(token);
     let lease = mailbox.try_recv().unwrap().unwrap();
     let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
@@ -143,7 +153,7 @@ fn rendered_area(buffer: &ratatui::buffer::Buffer, area: ratatui::layout::Rect) 
 }
 
 fn after_last_workspace_close() -> (
-    NativeUi,
+    WorkbenchClientUi,
     Arc<CommandMailbox>,
     LocalOperationClock,
     Snapshot,
@@ -219,7 +229,7 @@ fn empty_create_tab_shell_tick_installs_and_enters_its_exact_workspace_unless_ne
         tui_theme::Theme,
         workbench_client::{
             ClientBackend, WorkbenchClient, state::workspace_setup::SetupWorkerEvidence,
-            workbench_projection::NativeContextLocation,
+            workbench_projection::ClientContextLocation,
         },
     };
     use ratatui::{Terminal, backend::TestBackend, layout::Rect};
@@ -234,7 +244,7 @@ fn empty_create_tab_shell_tick_installs_and_enters_its_exact_workspace_unless_ne
                     (ui, mailbox, clock, snapshot, 0)
                 };
                 let source = ui.state.as_ref().unwrap().cache().location().clone();
-                assert_eq!(source, NativeContextLocation::NoWorkspace);
+                assert_eq!(source, ClientContextLocation::NoWorkspace);
                 let (shutdown, _peer) = orchbee_local_ipc::LocalStream::pair().unwrap();
                 let mut workbench_client = WorkbenchClient {
                     position_writer: None,
@@ -319,7 +329,7 @@ fn empty_create_tab_shell_tick_installs_and_enters_its_exact_workspace_unless_ne
                 assert_eq!(committed.terminal_contexts[0].tabs.len(), 1);
                 assert_eq!(
                     state.cache().location(),
-                    &NativeContextLocation::Workspace {
+                    &ClientContextLocation::Workspace {
                         workspace_id: expected.workspace_id.clone(),
                         terminal_context_id: expected.terminal_context_id.clone(),
                     },
@@ -370,7 +380,7 @@ fn empty_create_tab_shell_tick_installs_and_enters_its_exact_workspace_unless_ne
                     "one terminal entry only"
                 );
                 assert!(native.state.as_ref().unwrap().invariant_holds());
-                assert_eq!(native.view().phase(), NativeDisplayPhase::Ready);
+                assert_eq!(native.view().phase(), DisplayPhase::Ready);
                 if !newer_focus {
                     let observed = native.control_observation(false).unwrap().1;
                     let selected = observed.selection.unwrap();
@@ -538,14 +548,12 @@ fn effective_create_binding_invokes_workspace_or_canonical_tab_with_guidance_onl
         tui_pointer::HitMapBuilder,
         tui_theme::Theme,
     };
-    use orchbee_local_site_runtime::{
-        WindowsKeyChord, WindowsKeyOverride, WindowsKeySettings, WindowsKeyTrigger,
-    };
+    use orchbee_local_runtime::{KeyChord, KeyOverride, KeySettings, KeyTrigger};
     use orchbee_workbench_protocol::{
         Directory, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkerId,
     };
     use ratatui::{Terminal, backend::TestBackend};
-    let chord = |key: &str, ctrl| WindowsKeyChord {
+    let chord = |key: &str, ctrl| KeyChord {
         key: key.into(),
         ctrl,
         alt: false,
@@ -575,12 +583,12 @@ fn effective_create_binding_invokes_workspace_or_canonical_tab_with_guidance_onl
             let (mut ui, mailbox, clock, snapshot) = empty_ui(snapshot);
             assert_eq!(ui.view().no_current_workspace(), !canonical);
             let mut view = ClientView::new(120);
-            view.configure_keys(&WindowsKeySettings {
+            view.configure_keys(&KeySettings {
                 commands: Vec::new(),
                 prefix: chord("a", true),
-                overrides: vec![WindowsKeyOverride {
+                overrides: vec![KeyOverride {
                     action: "new_tab",
-                    triggers: vec![WindowsKeyTrigger {
+                    triggers: vec![KeyTrigger {
                         prefix: true,
                         chord: chord("n", false),
                     }],
@@ -667,7 +675,7 @@ fn effective_create_binding_invokes_workspace_or_canonical_tab_with_guidance_onl
 }
 
 fn prepare(
-    ui: &mut NativeUi,
+    ui: &mut WorkbenchClientUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
     snapshot: &Snapshot,
@@ -728,10 +736,7 @@ fn quick_workspace_missing_prepared_directory_refuses_without_creating_or_leavin
     assert!(ui.request_quick_workspace());
     finish_preparation_with_directory(&mut ui, &mailbox, &clock, &snapshot, false, None);
     assert!(ui.view().setup_draft().is_none());
-    assert_eq!(
-        ui.view().setup_status(),
-        Some(NativeSetupStatus::NotApplied)
-    );
+    assert_eq!(ui.view().setup_status(), Some(SetupStatus::NotApplied));
     assert_eq!(ui.state.as_ref().unwrap().desired(), source.as_ref());
     assert!(mailbox.try_recv().unwrap().is_none());
 }
@@ -762,7 +767,7 @@ fn workspace_at_directory_launches_only_from_a_drawn_review_in_either_locale() {
                 .collect();
             let mut hits = HitMapBuilder::new();
             let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-            let mut receipt = NativeDrawReceipt::default();
+            let mut receipt = DrawReceipt::default();
             terminal
                 .draw(|frame| {
                     receipt = crate::tui_render::render_terminal_shell(

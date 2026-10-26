@@ -156,7 +156,7 @@ test('real workspace selection retains foreign fixture, resource, process and di
 test('shared PowerShell startup assets select the Host and its native process consumers', () => {
 	const actual = readVerificationGraph(path.resolve(import.meta.dirname, '..'));
 	for (const name of ['initialization', 'reader']) {
-		const asset = `crates/local-site-runtime/src/windows_powershell_${name}.ps1`;
+		const asset = `crates/local-runtime/src/directory/windows/${name}.ps1`;
 		const selected = selectVerificationScope(actual, [asset]);
 		assert.equal(selected.all, false, selected.reasons.join('\n'));
 		assert.ok(selected.pnpm.includes('@orchbee/terminal-host'), asset);

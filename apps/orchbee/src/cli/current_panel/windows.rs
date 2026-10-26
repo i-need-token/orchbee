@@ -75,7 +75,7 @@ fn collect(
     } else {
         let reply = exchange(
             &mut client,
-            &snapshot.site_id,
+            &snapshot.session_id,
             ClientViewAction::List {},
             deadline,
             signals,
@@ -189,7 +189,7 @@ fn collect(
             .map(|(source, document)| (source, results::Projection::PanelProcessInfo(document)))?;
             let final_snapshot = query::refresh_snapshot(
                 &mut client,
-                &snapshot.site_id,
+                &snapshot.session_id,
                 snapshot.revision,
                 deadline,
                 signals,

@@ -1,7 +1,7 @@
 //! Native keyboard-copy coordination over exact pane, viewport, query,
 //! selection-export and clipboard identities.
 
-use super::{NativeProjectionStatus, NativeUi};
+use super::{ClientProjectionStatus, WorkbenchClientUi};
 use crate::{
     client_view::{
         CopyModeKey, CopySearchCommand, KeyCode, KeyEvent, KeyKind, Modifiers, copy_mode_key,
@@ -222,7 +222,7 @@ impl Coordinator {
     }
 }
 
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn copy_mode_active(&self) -> bool {
         self.copy_mode.active()
     }
@@ -430,7 +430,7 @@ impl NativeUi {
             self.copy_notice(ClientNotice::CopyModeUnavailable);
             return ClientActionDisposition::KeepNavigator;
         };
-        if self.projections[index].status != NativeProjectionStatus::FrameAvailable {
+        if self.projections[index].status != ClientProjectionStatus::FrameAvailable {
             self.copy_notice(ClientNotice::CopyModeUnavailable);
             return ClientActionDisposition::KeepNavigator;
         }

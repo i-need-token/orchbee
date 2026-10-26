@@ -852,7 +852,7 @@ dependencies = [
  "orchbee-local-client-protocol",
  "orchbee-local-ipc",
  "orchbee-local-worker-protocol",
- "orchbee-local-site-runtime",
+ "orchbee-local-runtime",
  "orchbee-terminal-protocol",
  "orchbee-windows-console-host",
  "orchbee-workbench-protocol",
@@ -927,7 +927,7 @@ name = "orchbee-local-worker-protocol"
 version = "0.1.0"
 
 [[package]]
-name = "orchbee-local-site-runtime"
+name = "orchbee-local-runtime"
 version = "0.1.0"
 dependencies = [
  "exacl",
@@ -962,7 +962,7 @@ dependencies = [
  "orchbee-local-ipc",
  "orchbee-local-peer-credentials",
  "orchbee-local-worker-protocol",
- "orchbee-local-site-runtime",
+ "orchbee-local-runtime",
  "orchbee-terminal-protocol",
  "orchbee-workbench-protocol",
  "process-wrap",
@@ -979,7 +979,7 @@ dependencies = [
 name = "orchbee-settings"
 version = "0.1.0"
 dependencies = [
- "orchbee-local-site-runtime",
+ "orchbee-local-runtime",
  "orchbee-workbench-protocol",
  "serde_json",
 ]
@@ -1018,7 +1018,7 @@ dependencies = [
  "orchbee-local-ipc",
  "orchbee-local-peer-credentials",
  "orchbee-local-worker-protocol",
- "orchbee-local-site-runtime",
+ "orchbee-local-runtime",
  "orchbee-terminal-protocol",
  "rustix",
  "winsafe",

@@ -3,7 +3,7 @@ fn parse(words: &[&str]) -> Result<Request, ParseFailure> {
     super::super::parse_request(words.iter().map(std::ffi::OsString::from))
 }
 #[test]
-fn graphics_grammar_is_closed_before_any_source_or_site_effect() {
+fn graphics_grammar_is_closed_before_any_source_or_session_effect() {
     for verb in ["set", "clear", "info", "stream"] {
         let mut args = vec!["panel", "graphics", verb, "@panel:0x1", "--format=json"];
         if verb == "set" {

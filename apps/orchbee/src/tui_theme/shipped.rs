@@ -199,15 +199,12 @@ impl Theme {
             ],
         })
     }
-    pub(crate) fn selected(
-        name: orchbee_local_site_runtime::WindowsThemeName,
-        level: ColorLevel,
-    ) -> Self {
-        use orchbee_local_site_runtime::WindowsThemeName;
+    pub(crate) fn selected(name: orchbee_local_runtime::ThemeName, level: ColorLevel) -> Self {
+        use orchbee_local_runtime::ThemeName;
         match name {
-            WindowsThemeName::TerminalNative => Self::terminal_native(),
-            WindowsThemeName::OneLight => Self::one_light(),
-            WindowsThemeName::OneDark => Self::one_dark(),
+            ThemeName::TerminalNative => Self::terminal_native(),
+            ThemeName::OneLight => Self::one_light(),
+            ThemeName::OneDark => Self::one_dark(),
         }
         .quantize(level)
     }

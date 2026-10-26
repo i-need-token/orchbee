@@ -1,4 +1,4 @@
-use super::{NativeExecutor, NativeWorkerExit, WorkerExit};
+use super::{ClientConnectionExit, ClientExecutor, WorkerExit};
 use crate::{
     local_client::{LocalClientOrigin, LocalClientShutdown, LocalOperationClock},
     workbench_client::{mailbox::CommandMailbox, state::CarrierFailure},
@@ -52,13 +52,13 @@ pub(in crate::workbench_client) fn run_status_recovery(
     shutdown: RecoveryShutdown,
     deadline: Instant,
     membership: bool,
-) -> NativeWorkerExit {
+) -> ClientConnectionExit {
     let mut exit = WorkerExit::new(Arc::clone(&mailbox));
     let client = match origin.reconnect_before(deadline, clock) {
         Ok(client) => client,
         Err(_) => {
             exit.failure = CarrierFailure::Transport;
-            return NativeWorkerExit::new(None, None, None, None, None);
+            return ClientConnectionExit::new(None, None, None, None, None);
         }
     };
     if client
@@ -67,15 +67,15 @@ pub(in crate::workbench_client) fn run_status_recovery(
         .is_err()
     {
         exit.failure = CarrierFailure::Transport;
-        return NativeWorkerExit::new(None, None, None, None, None);
+        return ClientConnectionExit::new(None, None, None, None, None);
     }
-    let mut executor = NativeExecutor::new(client, mailbox);
+    let mut executor = ClientExecutor::new(client, mailbox);
     executor.status_only = !membership;
     executor.membership_recovery = membership;
     if let Err(failure) = executor.run_ready_queue() {
         exit.failure = failure;
     }
-    NativeWorkerExit::new(
+    ClientConnectionExit::new(
         executor.pending_create.take(),
         executor.pending_move.take(),
         executor.pending_panel.take(),

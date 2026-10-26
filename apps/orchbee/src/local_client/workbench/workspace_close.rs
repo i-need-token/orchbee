@@ -1,6 +1,6 @@
 use crate::local_client::{ExchangeAttempt, LocalClient, exchange_once};
 use orchbee_workbench_protocol::{
-    SiteId, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
+    SessionId, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
     WorkbenchCommandUnavailableReason, WorkbenchRejectionReason, WorkbenchRequest,
     WorkbenchRequestId, WorkbenchResponse, WorkbenchRevision, WorkbenchTabCloseAttemptGeneration,
     WorkbenchTerminalContextId, WorkbenchWireError, WorkbenchWorkspaceId, read_workbench_response,
@@ -200,7 +200,7 @@ fn classify_command_result(
                 && revision == command.expected_revision)
                 || matches!(
                     reason,
-                    WorkbenchRejectionReason::SiteMismatch
+                    WorkbenchRejectionReason::SessionMismatch
                         | WorkbenchRejectionReason::RevisionMismatch
                         | WorkbenchRejectionReason::ProjectUnavailable
                         | WorkbenchRejectionReason::WorkspaceUnavailable
@@ -306,9 +306,9 @@ pub(crate) enum WorkbenchWorkspaceCloseFailure {
         expected: WorkbenchRequestId,
         received: WorkbenchRequestId,
     },
-    SiteMismatch {
-        expected: SiteId,
-        received: SiteId,
+    SessionMismatch {
+        expected: SessionId,
+        received: SessionId,
     },
     WorkspaceMismatch {
         expected: WorkbenchWorkspaceId,
@@ -345,7 +345,7 @@ impl fmt::Display for WorkbenchWorkspaceCloseFailure {
                 f,
                 "expected Workbench request {expected} but received {received}"
             ),
-            Self::SiteMismatch { expected, received } => {
+            Self::SessionMismatch { expected, received } => {
                 write!(f, "expected Session {expected} but received {received}")
             }
             Self::WorkspaceMismatch { expected, received } => {
@@ -374,7 +374,7 @@ impl std::error::Error for WorkbenchWorkspaceCloseFailure {
             Self::UnexpectedResponse
             | Self::ActionIncompatible
             | Self::CorrelationMismatch { .. }
-            | Self::SiteMismatch { .. }
+            | Self::SessionMismatch { .. }
             | Self::WorkspaceMismatch { .. }
             | Self::OperationMismatch { .. }
             | Self::AcceptedRevisionMismatch { .. }

@@ -1,4 +1,4 @@
-use super::{ModalPresentation, NativeUi, WorkbenchClientView};
+use super::{ModalPresentation, WorkbenchClientUi, WorkbenchClientView};
 pub(crate) use crate::workbench_client::state::workspace_close::{
     WorkspaceCloseConfirmationView, WorkspaceCloseStatus, WorkspaceCloseStatusView,
     WorkspaceCloseToken,
@@ -28,7 +28,7 @@ impl<'a> WorkbenchClientView<'a> {
         self.state.as_ref()?.workspace_close_status()
     }
 }
-impl NativeUi {
+impl WorkbenchClientUi {
     pub(super) fn request_sidebar_workspace_delete(
         &mut self,
         request: &crate::workbench_client::WorkspaceDeleteRequest,
@@ -121,7 +121,7 @@ impl NativeUi {
         let Some(state) = self.state.as_ref() else {
             return ClientActionDisposition::KeepNavigator;
         };
-        let crate::workbench_client::workbench_projection::NativeContextLocation::Workspace {
+        let crate::workbench_client::workbench_projection::ClientContextLocation::Workspace {
             workspace_id,
             ..
         } = state.cache().location()
