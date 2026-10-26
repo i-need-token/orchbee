@@ -1,5 +1,6 @@
 use super::super::{
-    AttachmentKey, ClientAction, ControllerMode, FrameIdentity, Geometry, WorkerEvent,
+    AttachmentKey, ClientAction, CommandMailbox, ControllerMode, FrameIdentity, Geometry,
+    WorkerEvent,
 };
 use super::*;
 use orchbee_workbench_protocol::{

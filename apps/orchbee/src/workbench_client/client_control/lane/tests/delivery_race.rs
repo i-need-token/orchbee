@@ -2,7 +2,9 @@
 use super::*;
 use crate::local_client::tests::multiplex_peer::{Open, admit, read_open, respond};
 use orchbee_workbench_protocol::{
-    ClientViewCompletionOutcome, ClientViewControl, StreamMode, WorkbenchSnapshotOutcome,
+    ClientViewAvailability, ClientViewCompletionOutcome, ClientViewControl,
+    ClientViewControlReason, ClientViewRecord, StreamMode, WorkbenchClientId,
+    WorkbenchClientViewResult, WorkbenchResponse, WorkbenchSnapshotOutcome,
     WorkbenchSnapshotResult,
 };
 use std::{thread, time::Instant};
