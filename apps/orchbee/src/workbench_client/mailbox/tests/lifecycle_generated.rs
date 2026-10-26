@@ -733,7 +733,7 @@ fn replay(actions: &[TraceAction]) -> Result<Coverage, TraceFailure> {
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             trace.apply(action)?;
             require(
-                trace.session.invariant_holds(),
+                trace.workbench_client.invariant_holds(),
                 "WorkbenchClientState invariant failed",
             )?;
             trace.assert_pair_alignment()
@@ -801,7 +801,7 @@ impl Trace {
             base,
             clock: FixedClock(base),
             mailbox,
-            session,
+            workbench_client: session,
             authority,
             next_request: IDENTITY_SEED + 1,
             phase: TracePhase::Ready,
@@ -870,14 +870,14 @@ impl Trace {
                 "retired mailbox lost its close cause",
             )?;
             return require(
-                self.session.retired_failure() == Some(cause),
+                self.workbench_client.retired_failure() == Some(cause),
                 "retired state lost its retirement cause",
             );
         }
         require(self.mailbox.is_closed().is_none(), "mailbox closed early")?;
         let mailbox_desired = self.mailbox.lock().desired.key().cloned();
         require(
-            mailbox_desired.as_ref() == Some(self.session.desired().unwrap()),
+            mailbox_desired.as_ref() == Some(self.workbench_client.desired().unwrap()),
             "mailbox and state desired attachment diverged",
         )
     }
@@ -911,7 +911,7 @@ impl Trace {
         let base = self.base;
         let operation = observed(
             self.mailbox.try_enqueue_create_for(
-                &mut self.session,
+                &mut self.workbench_client,
                 |session, generation, request_id| {
                     let marker = create_marker(session, base, generation, request_id, "2")?;
                     if !session.begin_create(marker.operation().clone()) {
@@ -941,7 +941,7 @@ impl Trace {
         let before_refusal = cursor_snapshot(&self.mailbox);
         let builder_ran = Cell::new(false);
         let refused = self.mailbox.try_enqueue_create_for(
-            &mut self.session,
+            &mut self.workbench_client,
             |_session, _generation, _request_id| -> Result<CreateMarker, &'static str> {
                 builder_ran.set(true);
                 Err("full admission invoked builder")
@@ -1003,11 +1003,11 @@ impl Trace {
             "prelude left queued records",
         )?;
         require(
-            self.session.phase_kind() == ClientPhaseKind::Ready,
+            self.workbench_client.phase_kind() == ClientPhaseKind::Ready,
             "definite precommit did not restore Ready",
         )?;
         require(
-            self.session.notice() == Some(ClientNotice::CreateNotCreated),
+            self.workbench_client.notice() == Some(ClientNotice::CreateNotCreated),
             "definite precommit notice missing",
         )?;
         self.first_operation = Some(operation);
@@ -1141,7 +1141,7 @@ impl Trace {
         };
         require(event_matches, "Create precommit event changed")?;
 
-        let session = &mut self.session;
+        let session = &mut self.workbench_client;
         require(
             observed(
                 self.mailbox
@@ -1168,12 +1168,14 @@ impl Trace {
     }
 
     fn commit_second_create(&mut self) -> Result<(), ReplayFailure> {
-        self.mailbox
-            .apply_local_for(&mut self.session, WorkbenchClientState::clear_notice);
+        self.mailbox.apply_local_for(
+            &mut self.workbench_client,
+            WorkbenchClientState::clear_notice,
+        );
         let base = self.base;
         let operation = observed(
             self.mailbox.try_enqueue_create_for(
-                &mut self.session,
+                &mut self.workbench_client,
                 |session, generation, request_id| {
                     let marker = create_marker(session, base, generation, request_id, "2")?;
                     if !session.begin_create(marker.operation().clone()) {
@@ -1238,7 +1240,7 @@ impl Trace {
             } if actual_operation == operation && actual_commit == commit),
             "committed Create event changed",
         )?;
-        let session = &mut self.session;
+        let session = &mut self.workbench_client;
         let retained_commit = commit.clone();
         require(
             observed(
@@ -1283,16 +1285,18 @@ impl Trace {
             baseline,
             committed,
             projection,
-        } = self.session.prepare_create_snapshot(&operation, outcome)
+        } = self
+            .workbench_client
+            .prepare_create_snapshot(&operation, outcome)
         else {
             return violation("invalid committed candidate");
         };
         let prepared = observed(
-            self.session
+            self.workbench_client
                 .prepare_create_membership_candidate(&baseline, &committed, projection),
             "prepare Create membership",
         )?;
-        let session = &mut self.session;
+        let session = &mut self.workbench_client;
         require(
             observed(
                 self.mailbox
@@ -1334,11 +1338,11 @@ impl Trace {
             "cleanup identity changed",
         )?;
         let prepared = observed(
-            self.session
+            self.workbench_client
                 .prepare_cleaned_membership_candidate(&cleanup, cleanup.old()),
             "prepare cleaned candidate",
         )?;
-        let session = &mut self.session;
+        let session = &mut self.workbench_client;
         require(observed(self.mailbox.deposit_ui_reply_before_using(&wait, &self.clock, |transaction| {
             let desired = transaction.prepare_desired_install(super::super::membership::DesiredInstall::ReuseReserved { key: committed.committed_key().clone(), panel: prepared.focus_panel_id().cloned().ok_or(CarrierFailure::Protocol)? })?;
             let plan = session.prepare_cleaned_membership_install(&cleanup, prepared, desired.desired().map(|pane| pane.anchor().clone()))?;
@@ -1356,11 +1360,11 @@ impl Trace {
         observed(self.mailbox.finish_lease(lease), "finish second Create")?;
 
         require(
-            self.session.phase_kind() == ClientPhaseKind::SelectedWithoutAttachment,
+            self.workbench_client.phase_kind() == ClientPhaseKind::SelectedWithoutAttachment,
             "Pending Create selected the wrong phase",
         )?;
         let active = self
-            .session
+            .workbench_client
             .active()
             .ok_or_else(|| violation_error("Pending Create has no active tab"))?;
         require(
@@ -1368,13 +1372,13 @@ impl Trace {
             "Pending Create did not select appended tab",
         )?;
         require(
-            active.key() == self.session.desired().unwrap()
+            active.key() == self.workbench_client.desired().unwrap()
                 && active.key().generation() == operation.reserved_generation(),
             "Pending Create selected the wrong identity",
         )?;
         require(
-            self.session.provenance(0) == Some(&CreateTerminalProvenance::BindingOnly)
-                && self.session.provenance(1) == Some(&CreateTerminalProvenance::Pending),
+            self.workbench_client.provenance(0) == Some(&CreateTerminalProvenance::BindingOnly)
+                && self.workbench_client.provenance(1) == Some(&CreateTerminalProvenance::Pending),
             "Pending Create provenance partition changed",
         )?;
         self.coverage.pending_commits += 1;
@@ -1383,7 +1387,7 @@ impl Trace {
     }
 
     fn refresh_append(&mut self, extra_tabs: u8, control: u8) -> Result<(), ReplayFailure> {
-        let old_count = self.session.cache().tabs().len();
+        let old_count = self.workbench_client.cache().tabs().len();
         let appended = 1 + usize::from(extra_tabs) % 3;
         for _ in 0..appended {
             self.authority.append_tab();
@@ -1396,7 +1400,7 @@ impl Trace {
             .map(|tab| tab.tab_id.clone())
             .collect::<Vec<_>>();
         let old_active = self
-            .session
+            .workbench_client
             .active()
             .cloned()
             .ok_or_else(|| violation_error("refresh has no active tab"))?;
@@ -1406,7 +1410,7 @@ impl Trace {
         )?;
         let old_provenance = (0..old_count)
             .map(|index| {
-                self.session
+                self.workbench_client
                     .provenance(index)
                     .cloned()
                     .ok_or_else(|| violation_error("missing pre-refresh provenance"))
@@ -1415,7 +1419,7 @@ impl Trace {
         let deadline = self.base + Duration::from_secs(30);
         let generation = observed(
             self.mailbox.try_enqueue_refresh_for(
-                &mut self.session,
+                &mut self.workbench_client,
                 deadline,
                 |session, generation| {
                     session
@@ -1429,7 +1433,7 @@ impl Trace {
         )?;
         require(
             self.mailbox.pending_refresh_stage() == Some((generation, PendingRefreshStage::Queued))
-                && self.session.pending_refresh_generation() == Some(generation),
+                && self.workbench_client.pending_refresh_generation() == Some(generation),
             "Refresh did not enter both queued states",
         )?;
         self.coverage.refresh_stages[0] += 1;
@@ -1437,7 +1441,7 @@ impl Trace {
         let before_refusal = cursor_snapshot(&self.mailbox);
         let prepare_ran = Cell::new(false);
         let duplicate = self.mailbox.try_enqueue_refresh_for(
-            &mut self.session,
+            &mut self.workbench_client,
             deadline,
             |_session, _generation| -> Result<(), &'static str> {
                 prepare_ran.set(true);
@@ -1511,8 +1515,8 @@ impl Trace {
             } if actual_generation == generation && actual_outcome == outcome),
             "Refresh event changed",
         )?;
-        let prepared = self.session.prepare_refresh(generation, outcome);
-        let session = &mut self.session;
+        let prepared = self.workbench_client.prepare_refresh(generation, outcome);
+        let session = &mut self.workbench_client;
         require(
             observed(
                 self.mailbox
@@ -1535,7 +1539,7 @@ impl Trace {
         require(
             matches!(self.take_reply(&wait)?, UiReply::Refresh(settlement)
                 if settlement.decision() == &RefreshDecision::Continue
-                    && settlement.desired() == self.session.desired()),
+                    && settlement.desired() == self.workbench_client.desired()),
             "Refresh settlement changed",
         )?;
         observed(self.mailbox.finish_lease(lease), "finish Refresh lease")?;
@@ -1552,15 +1556,15 @@ impl Trace {
         )?;
 
         require(
-            self.session.active() == Some(&old_active),
+            self.workbench_client.active() == Some(&old_active),
             "append Refresh changed active selection",
         )?;
         require(
-            self.session.cache().tabs().len() == old_count + appended,
+            self.workbench_client.cache().tabs().len() == old_count + appended,
             "append Refresh published the wrong tab count",
         )?;
         require(
-            self.session
+            self.workbench_client
                 .cache()
                 .tabs()
                 .iter()
@@ -1570,20 +1574,21 @@ impl Trace {
         )?;
         for (index, provenance) in old_provenance.iter().enumerate() {
             require(
-                self.session.provenance(index) == Some(provenance),
+                self.workbench_client.provenance(index) == Some(provenance),
                 "append Refresh changed prior provenance",
             )?;
         }
-        for index in old_count..self.session.cache().tabs().len() {
+        for index in old_count..self.workbench_client.cache().tabs().len() {
             require(
-                self.session.provenance(index) == Some(&CreateTerminalProvenance::BindingOnly),
+                self.workbench_client.provenance(index)
+                    == Some(&CreateTerminalProvenance::BindingOnly),
                 "append Refresh assigned non-default provenance",
             )?;
         }
         require(
-            self.session.refresh_status()
+            self.workbench_client.refresh_status()
                 == Some(NavigatorRefreshStatus::Success(refresh_revision))
-                && self.session.pending_refresh_generation().is_none()
+                && self.workbench_client.pending_refresh_generation().is_none()
                 && self.mailbox.pending_refresh_stage().is_none(),
             "Refresh did not settle both pending records",
         )?;
@@ -1595,7 +1600,7 @@ impl Trace {
     }
 
     fn supersede_switch(&mut self, target_hint: u8) -> Result<(), ReplayFailure> {
-        let tab_count = self.session.cache().tabs().len();
+        let tab_count = self.workbench_client.cache().tabs().len();
         require(tab_count >= 2, "Switch trace needs a second tab")?;
         let first_target = 0;
         let second_target = if tab_count == 2 {
@@ -1605,7 +1610,7 @@ impl Trace {
         };
         let old_provenance = (0..tab_count)
             .map(|index| {
-                self.session
+                self.workbench_client
                     .provenance(index)
                     .cloned()
                     .ok_or_else(|| violation_error("missing pre-Switch provenance"))
@@ -1634,7 +1639,7 @@ impl Trace {
         )?;
         require(
             first.selected().key() != second.selected().key()
-                && self.session.desired().unwrap() == second.selected().key(),
+                && self.workbench_client.desired().unwrap() == second.selected().key(),
             "second Switch did not supersede the first",
         )?;
 
@@ -1675,12 +1680,12 @@ impl Trace {
         )?;
         for (index, provenance) in old_provenance.iter().enumerate() {
             require(
-                self.session.provenance(index) == Some(provenance),
+                self.workbench_client.provenance(index) == Some(provenance),
                 "Switch supersession changed provenance",
             )?;
         }
         let active = self
-            .session
+            .workbench_client
             .active()
             .ok_or_else(|| violation_error("current Switch has no active tab"))?;
         require(
@@ -1692,7 +1697,7 @@ impl Trace {
             "current Switch did not keep a non-first selection",
         )?;
         require(
-            self.session.phase_kind() == ClientPhaseKind::Ready,
+            self.workbench_client.phase_kind() == ClientPhaseKind::Ready,
             "current Switch did not reach Ready",
         )?;
         self.coverage.switch_supersessions += 1;
@@ -1706,7 +1711,7 @@ impl Trace {
         let mut built = None;
         observed(
             self.mailbox.try_enqueue_switch_for(
-                &mut self.session,
+                &mut self.workbench_client,
                 |session, generation| {
                     let tab_id = session
                         .tab(index)
@@ -1750,8 +1755,8 @@ impl Trace {
         // This reducer trace models a validated Snapshot at the common installation cut.
         // The scripted executor suite owns Snapshot invocation and exact reply receipts.
         let prepared = observed(
-            self.session.prepare_membership_candidate(
-                self.session.cache().clone(),
+            self.workbench_client.prepare_membership_candidate(
+                self.workbench_client.cache().clone(),
                 Some(marker.selected().key().tab_id()),
                 Some(marker.selected().index()),
                 None,
@@ -1772,7 +1777,7 @@ impl Trace {
             "prepare fresh Switch successor",
         )?;
         let plan = observed(
-            self.session.prepare_switch_membership_install_k(
+            self.workbench_client.prepare_switch_membership_install_k(
                 marker.selected().key(),
                 prepared,
                 desired.desired().map(|pane| pane.anchor().clone()),
@@ -1796,12 +1801,12 @@ impl Trace {
         marker: &AttachTarget,
         lease: &CommandLease,
     ) -> Result<AttachTarget, ReplayFailure> {
-        if self.session.attached_key().is_none() {
+        if self.workbench_client.attached_key().is_none() {
             return self.install_unattached_switch_candidate(marker);
         }
         let prepared = observed(
-            self.session.prepare_membership_candidate(
-                self.session.cache().clone(),
+            self.workbench_client.prepare_membership_candidate(
+                self.workbench_client.cache().clone(),
                 Some(marker.selected().key().tab_id()),
                 Some(marker.selected().index()),
                 None,
@@ -1810,7 +1815,7 @@ impl Trace {
             "prepare attached Switch candidate",
         )?;
         let cleanup = observed(
-            self.session.stage_switch_membership_cleanup_k(
+            self.workbench_client.stage_switch_membership_cleanup_k(
                 marker.selected().key(),
                 prepared,
                 marker.deadlines(),
@@ -1882,11 +1887,11 @@ impl Trace {
         self.coverage.panel_membership_detachments += 1;
 
         let prepared = observed(
-            self.session
+            self.workbench_client
                 .prepare_cleaned_membership_candidate(&cleanup, cleanup.old()),
             "prepare cleaned switch candidate",
         )?;
-        let session = &mut self.session;
+        let session = &mut self.workbench_client;
         let marker_key = marker.selected().key().clone();
         require(
             observed(
@@ -1977,7 +1982,7 @@ impl Trace {
                 && target_provenance == *target.provenance()),
             "Switch setup event changed",
         )?;
-        let session = &mut self.session;
+        let session = &mut self.workbench_client;
         let key = target.selected().key().clone();
         let index = target.selected().index();
         let provenance = target.provenance().clone();
@@ -2004,25 +2009,28 @@ impl Trace {
     fn drive_switch_ready(&mut self, target: &AttachTarget) -> Result<(), ReplayFailure> {
         let key = target.selected().key();
         require(
-            self.session.install_projection_t(key),
+            self.workbench_client.install_projection_t(key),
             "Switch projection install",
         )?;
         require(
-            self.session
-                .record_setup_configuration_t(key, controlling(), Some(geometry())),
+            self.workbench_client.record_setup_configuration_t(
+                key,
+                controlling(),
+                Some(geometry()),
+            ),
             "Switch setup configuration",
         )?;
         let frame = FrameIdentity::new(2);
         require(
-            self.session.stage_drawn_frame_t(key, frame),
+            self.workbench_client.stage_drawn_frame_t(key, frame),
             "Switch frame stage",
         )?;
         require(
-            self.session.mark_feedback_accepted_t(key, frame),
+            self.workbench_client.mark_feedback_accepted_t(key, frame),
             "Switch frame feedback",
         )?;
         require(
-            self.session
+            self.workbench_client
                 .publish_ready_t(key, frame, controlling(), Some(geometry())),
             "Switch Ready publication",
         )
@@ -2032,12 +2040,12 @@ impl Trace {
         &mut self,
         later_failure: LaterFailure,
     ) -> Result<(), ReplayFailure> {
-        let tab_count = self.session.cache().tabs().len();
+        let tab_count = self.workbench_client.cache().tabs().len();
         let label = (tab_count + 1).to_string();
         let base = self.base;
         let operation = observed(
             self.mailbox.try_enqueue_create_for(
-                &mut self.session,
+                &mut self.workbench_client,
                 |session, generation, request_id| {
                     let marker = create_marker(session, base, generation, request_id, &label)?;
                     if !session.begin_create(marker.operation().clone()) {
@@ -2095,12 +2103,12 @@ impl Trace {
             "close retained queued control storage",
         )?;
         require(
-            self.session
+            self.workbench_client
                 .finalize_retirement(CarrierFailure::IdentityExhausted, Some(pending)),
             "retirement rejected exact worker-known commit",
         )?;
         let retained = self
-            .session
+            .workbench_client
             .committed_target()
             .ok_or_else(|| violation_error("retirement dropped worker-known commit"))?;
         require(
@@ -2109,7 +2117,7 @@ impl Trace {
             "retirement changed worker-known commit identity or provenance",
         )?;
         require(
-            self.session
+            self.workbench_client
                 .finalize_retirement(later_failure.failure(), None),
             "repeated retirement finalization rejected empty handoff",
         )?;
@@ -2119,7 +2127,7 @@ impl Trace {
             "mailbox replaced its first close cause",
         )?;
         require(
-            self.session.retired_failure() == Some(CarrierFailure::IdentityExhausted),
+            self.workbench_client.retired_failure() == Some(CarrierFailure::IdentityExhausted),
             "state replaced its first retirement cause",
         )?;
         require(
@@ -2148,7 +2156,7 @@ impl Trace {
     ) -> Result<(), ReplayFailure> {
         self.coverage.panel_cycles += 1;
         let deadline = self.base + Duration::from_secs(30);
-        let active_index = self.session.active().map(|active| active.index());
+        let active_index = self.workbench_client.active().map(|active| active.index());
         let requested = panel_kind(kind_sel);
         let mut operation = None;
         let mut kind = requested;
@@ -2174,7 +2182,7 @@ impl Trace {
             }
             let before = cursor_snapshot(&self.mailbox);
             match self.mailbox.try_enqueue_panel_for_using(
-                &mut self.session,
+                &mut self.workbench_client,
                 deadline,
                 &self.clock,
                 |session, request_id| {
@@ -2218,7 +2226,7 @@ impl Trace {
         self.coverage.panel_admissions += 1;
         self.coverage.panel_kinds[kind_index(kind)] += 1;
         require(
-            self.session.pending_panel() == Some(&operation),
+            self.workbench_client.pending_panel() == Some(&operation),
             "state did not record the admitted Panel operation",
         )?;
         let flight_serial = {
@@ -2240,7 +2248,7 @@ impl Trace {
 
         let before = cursor_snapshot(&self.mailbox);
         let duplicate = self.mailbox.try_enqueue_panel_for_using(
-            &mut self.session,
+            &mut self.workbench_client,
             deadline,
             &self.clock,
             |session, request_id| session.plan_panel(request_id, kind, deadline).ok_or("dup"),
@@ -2256,7 +2264,7 @@ impl Trace {
             "a second Panel was admitted while the first was pending",
         )?;
         let refresh = self.mailbox.try_enqueue_refresh_for(
-            &mut self.session,
+            &mut self.workbench_client,
             deadline,
             |session, generation| {
                 session
@@ -2271,7 +2279,7 @@ impl Trace {
             "Refresh was admitted while a Panel mutation was pending",
         )?;
         let switch = self.mailbox.try_enqueue_switch_for(
-            &mut self.session,
+            &mut self.workbench_client,
             |_, _| -> Result<SwitchMarker, &'static str> {
                 Err("switch built during Panel flight")
             },
@@ -2449,12 +2457,12 @@ impl Trace {
 
         // Mirrors `NativeUi::apply_panel_event`: prepare outside the reply mutex, then settle
         // inside the exact reply transaction with the same membership cleanup/install pairing.
-        let prepared = self.session.prepare_panel(&operation, outcome);
+        let prepared = self.workbench_client.prepare_panel(&operation, outcome);
         let membership = prepared.membership_candidate().is_some();
         let deadlines = membership
             .then(|| OperationDeadlines::from_sample(self.base))
             .flatten();
-        let session = &mut self.session;
+        let session = &mut self.workbench_client;
         require(
             observed(
                 self.mailbox
@@ -2569,11 +2577,11 @@ impl Trace {
             | OutcomeClass::Denied
             | OutcomeClass::Unavailable => {
                 require(
-                    self.session.notice() == Some(ClientNotice::PanelNotApplied),
+                    self.workbench_client.notice() == Some(ClientNotice::PanelNotApplied),
                     "non-committed Panel lost its PanelNotApplied notice",
                 )?;
                 require(
-                    self.session
+                    self.workbench_client
                         .retained_panel_for_test()
                         .is_none_or(|pending| pending.operation() != &operation),
                     "non-committed Panel retained a commit",
@@ -2587,11 +2595,11 @@ impl Trace {
             }
             OutcomeClass::Unchanged => {
                 require(
-                    self.session.notice().is_none(),
+                    self.workbench_client.notice().is_none(),
                     "Unchanged Panel left a notice",
                 )?;
                 require(
-                    self.session
+                    self.workbench_client
                         .retained_panel_for_test()
                         .is_none_or(|pending| pending.operation() != &operation),
                     "Unchanged Panel retained a commit",
@@ -2599,11 +2607,11 @@ impl Trace {
             }
             OutcomeClass::CommittedKeep => {
                 require(
-                    self.session.notice().is_none(),
+                    self.workbench_client.notice().is_none(),
                     "committed Panel left a notice",
                 )?;
                 require(
-                    self.session
+                    self.workbench_client
                         .retained_panel_for_test()
                         .is_some_and(|pending| pending.operation() == &operation),
                     "committed Panel did not retain its commit",
@@ -2611,17 +2619,17 @@ impl Trace {
             }
             OutcomeClass::CommittedNoSnapshot => {
                 require(
-                    self.session.notice().is_none(),
+                    self.workbench_client.notice().is_none(),
                     "snapshot-less commit left a notice",
                 )?;
                 require(
-                    self.session
+                    self.workbench_client
                         .retained_panel_for_test()
                         .is_some_and(|pending| pending.operation() == &operation),
                     "snapshot-less commit did not retain its commit",
                 )?;
                 require(
-                    self.session.panel_recovery_for_test().is_some(),
+                    self.workbench_client.panel_recovery_for_test().is_some(),
                     "snapshot-less commit did not arm panel recovery",
                 )?;
                 self.coverage.panel_recovery_arms += 1;
@@ -2629,11 +2637,11 @@ impl Trace {
             }
             OutcomeClass::CloseAccepted => {
                 require(
-                    self.session.notice().is_none(),
+                    self.workbench_client.notice().is_none(),
                     "accepted close left a notice",
                 )?;
                 require(
-                    self.session.publication_debt_pending(),
+                    self.workbench_client.publication_debt_pending(),
                     "CloseAccepted did not arm publication debt",
                 )?;
                 // The receipt latches session-side debt only; the mailbox's own
@@ -2649,11 +2657,11 @@ impl Trace {
                 // The membership path retains the commit's pending record; the notice
                 // stays clear.
                 require(
-                    self.session.notice().is_none(),
+                    self.workbench_client.notice().is_none(),
                     "membership commit left a notice",
                 )?;
                 require(
-                    self.session
+                    self.workbench_client
                         .retained_panel_for_test()
                         .is_some_and(|pending| pending.operation() == &operation),
                     "membership commit did not retain its commit",
@@ -2673,7 +2681,7 @@ impl Trace {
             }
             PanelDecision::SettledWithoutAttachment => {
                 require(
-                    self.session.attached_key().is_none(),
+                    self.workbench_client.attached_key().is_none(),
                     "SettledWithoutAttachment left an attachment",
                 )?;
             }
@@ -2700,7 +2708,7 @@ impl Trace {
             "Panel cycle left a structural mutation pending",
         )?;
         require(
-            self.session.pending_panel().is_none(),
+            self.workbench_client.pending_panel().is_none(),
             "Panel cycle left a pending operation",
         )?;
         Ok(())
@@ -2721,12 +2729,12 @@ impl Trace {
         // detachment must both refuse while the cleanup is still pending.
         if let MembershipResultKey::Panel(request_id) = cleanup.result() {
             let prepared = observed(
-                self.session
+                self.workbench_client
                     .prepare_cleaned_membership_candidate(&cleanup, cleanup.old()),
                 "duplicate cleaned candidate",
             )?;
             require(
-                self.session
+                self.workbench_client
                     .prepare_panel_membership_install(request_id, prepared, None, None)
                     .is_err(),
                 "panel membership install was admitted before cleanup settled",
@@ -2738,7 +2746,7 @@ impl Trace {
             cleanup.old().tab_id().clone(),
         );
         require(
-            self.session
+            self.workbench_client
                 .prepare_cleaned_membership_candidate(&cleanup, &wrong_detached)
                 .is_err(),
             "cleaned candidate accepted a mismatched detachment",
@@ -2772,11 +2780,11 @@ impl Trace {
         self.coverage.panel_membership_detachments += 1;
 
         let prepared = observed(
-            self.session
+            self.workbench_client
                 .prepare_cleaned_membership_candidate(&cleanup, cleanup.old()),
             "prepare cleaned membership candidate",
         )?;
-        let session = &mut self.session;
+        let session = &mut self.workbench_client;
         let detached_cleanup = cleanup.clone();
         require(
             observed(
@@ -2842,7 +2850,7 @@ impl Trace {
             }
             RefreshDecision::SettledWithoutAttachment => {
                 require(
-                    self.session.attached_key().is_none(),
+                    self.workbench_client.attached_key().is_none(),
                     "membership install left an attachment after parking",
                 )?;
             }
@@ -2882,7 +2890,7 @@ impl Trace {
                 && matches!(event, WorkerEvent::Attached { key: actual, .. } if actual == key),
             "Attached event changed",
         )?;
-        let session = &mut self.session;
+        let session = &mut self.workbench_client;
         let settled_key = key.clone();
         require(
             observed(
@@ -2924,7 +2932,7 @@ impl Trace {
                     if actual == key),
             "SetupConfigured event changed",
         )?;
-        let session = &mut self.session;
+        let session = &mut self.workbench_client;
         let settled_key = key.clone();
         require(
             observed(
@@ -2952,7 +2960,7 @@ impl Trace {
         )?;
 
         require(
-            self.session.stage_drawn_frame_t(&key, frame),
+            self.workbench_client.stage_drawn_frame_t(&key, frame),
             "attach frame did not stage",
         )?;
         let wait = observed(
@@ -2973,7 +2981,7 @@ impl Trace {
                     if actual == key && actual_frame == frame),
             "FeedbackAccepted event changed",
         )?;
-        let session = &mut self.session;
+        let session = &mut self.workbench_client;
         let settled_key = key.clone();
         require(
             observed(
@@ -3016,7 +3024,7 @@ impl Trace {
                     if actual == key),
             "ReadyCandidate event changed",
         )?;
-        let session = &mut self.session;
+        let session = &mut self.workbench_client;
         let settled_key = key.clone();
         require(
             observed(
@@ -3043,7 +3051,7 @@ impl Trace {
             "ReadyCandidate decision changed",
         )?;
         require(
-            self.session.attached_key() == Some(&key),
+            self.workbench_client.attached_key() == Some(&key),
             "attach drive did not settle the new attachment",
         )?;
         self.coverage.panel_attaches += 1;
@@ -3057,7 +3065,7 @@ impl Trace {
         let deadline = self.base + Duration::from_secs(30);
         let generation = observed(
             self.mailbox.try_enqueue_refresh_for(
-                &mut self.session,
+                &mut self.workbench_client,
                 deadline,
                 |session, generation| {
                     session
@@ -3084,7 +3092,7 @@ impl Trace {
             "drain Refresh mark was stale",
         )?;
         self.allocate_read()?;
-        let armed_recovery = self.session.panel_recovery_for_test().is_some();
+        let armed_recovery = self.workbench_client.panel_recovery_for_test().is_some();
         let outcome = WorkbenchSnapshotOutcome::Available {
             snapshot: self.authority.snapshot(),
         };
@@ -3108,7 +3116,7 @@ impl Trace {
         )?;
 
         // Mirrors `NativeUi::apply_refresh_event`'s membership arms.
-        let prepared = self.session.prepare_refresh(generation, outcome);
+        let prepared = self.workbench_client.prepare_refresh(generation, outcome);
         let recovery_deadlines =
             match &prepared {
                 crate::workbench_client::state::PreparedRefresh::Membership {
@@ -3119,7 +3127,7 @@ impl Trace {
                 ),
                 _ => None,
             };
-        let session = &mut self.session;
+        let session = &mut self.workbench_client;
         require(
             observed(
                 self.mailbox
@@ -3214,13 +3222,13 @@ impl Trace {
         observed(self.mailbox.finish_lease(lease), "finish drain Refresh")?;
         if armed_recovery {
             require(
-                self.session.panel_recovery_for_test().is_none(),
+                self.workbench_client.panel_recovery_for_test().is_none(),
                 "drain Refresh left an armed panel recovery",
             )?;
             self.coverage.panel_recovery_clears += 1;
         }
         require(
-            !self.session.publication_debt_pending(),
+            !self.workbench_client.publication_debt_pending(),
             "drain Refresh left publication debt pending",
         )?;
         Ok(())
@@ -3269,7 +3277,7 @@ impl Trace {
         } else {
             index - 1
         };
-        self.session
+        self.workbench_client
             .provenance(reselected)
             .is_some_and(|provenance| !provenance.attachable())
     }
@@ -3295,7 +3303,7 @@ impl Trace {
             .iter()
             .position(|tab| tab.tab_id == *operation.target().tab_id());
         let target_attachable = target_index
-            .and_then(|index| self.session.provenance(index))
+            .and_then(|index| self.workbench_client.provenance(index))
             .is_none_or(|provenance| provenance.attachable());
         let legal = |class: OutcomeClass| match class {
             // `Unchanged` is adapter-legal on Move but unreachable on this finite
@@ -3328,7 +3336,7 @@ impl Trace {
         // never fired.
         let supported = |candidate: OutcomeClass| table.contains(&candidate) && legal(candidate);
         let mut steered = None;
-        if self.session.has_attachments() {
+        if self.workbench_client.has_attachments() {
             if self.coverage.panel_decisions[1] == 0 {
                 steered = [OutcomeClass::CommittedDrop, OutcomeClass::CommittedTabGone]
                     .into_iter()
@@ -3402,7 +3410,7 @@ impl Trace {
         // provenance allows it.
         let expected_decision = match class {
             OutcomeClass::CommittedDrop | OutcomeClass::CommittedTabGone => {
-                if self.session.has_attachments() {
+                if self.workbench_client.has_attachments() {
                     1
                 } else {
                     let attachable = if class == OutcomeClass::CommittedDrop {
@@ -3566,7 +3574,7 @@ impl Trace {
             )?;
             require(error == CarrierFailure::Protocol, "wrong close failure")?;
             require(
-                sandbox.session.pending_panel() == Some(&operation),
+                sandbox.workbench_client.pending_panel() == Some(&operation),
                 "queued-stage publish probe disturbed the pending operation",
             )?;
             self.coverage.panel_negative_probes += 1;
@@ -3602,7 +3610,7 @@ impl Trace {
                 "forged publish wrong failure",
             )?;
             require(
-                sandbox.session.pending_panel() == Some(&operation),
+                sandbox.workbench_client.pending_panel() == Some(&operation),
                 "forged publish disturbed the pending operation",
             )?;
             self.coverage.panel_negative_probes += 1;
@@ -3666,7 +3674,7 @@ impl Trace {
                 .clone()
                 .ok_or_else(|| violation_error("sandbox outcome missing"))?;
             let mailbox = &sandbox.mailbox;
-            let session = &mut sandbox.session;
+            let session = &mut sandbox.workbench_client;
             let clock = &sandbox.clock;
             let publisher_operation = operation.clone();
             let deadline = EventDeadline::PlacementOnly(publisher_operation.deadline());
@@ -3889,7 +3897,9 @@ impl Trace {
         {
             let mut sandbox = PanelSandbox::new()?;
             let (operation, lease) = sandbox.admit_split_inflight()?;
-            sandbox.session.retire(CarrierFailure::OutcomeUnknown);
+            sandbox
+                .workbench_client
+                .retire(CarrierFailure::OutcomeUnknown);
             require(
                 sandbox
                     .mailbox
@@ -3899,7 +3909,7 @@ impl Trace {
                 "ambiguous abandon recorded the wrong close cause",
             )?;
             require(
-                sandbox.session.pending_panel() == Some(&operation),
+                sandbox.workbench_client.pending_panel() == Some(&operation),
                 "ambiguous abandon dropped the pending operation",
             )?;
             require(
@@ -3923,12 +3933,13 @@ impl Trace {
                 "divergent commit did not retire",
             )?;
             require(
-                sandbox.session.retired_failure() == Some(CarrierFailure::AuthorityDivergence),
+                sandbox.workbench_client.retired_failure()
+                    == Some(CarrierFailure::AuthorityDivergence),
                 "divergent commit recorded the wrong retirement",
             )?;
             require(
                 sandbox
-                    .session
+                    .workbench_client
                     .retained_panel_for_test()
                     .is_some_and(|pending| pending.operation() == &operation),
                 "divergent commit dropped the retained commit",
@@ -3969,11 +3980,12 @@ impl Trace {
                 "foreign-revision Unchanged did not retire",
             )?;
             require(
-                sandbox.session.retired_failure() == Some(CarrierFailure::AuthorityDivergence),
+                sandbox.workbench_client.retired_failure()
+                    == Some(CarrierFailure::AuthorityDivergence),
                 "foreign Unchanged recorded the wrong retirement",
             )?;
             require(
-                sandbox.session.retained_panel_for_test().is_none(),
+                sandbox.workbench_client.retained_panel_for_test().is_none(),
                 "uncommitted divergence retained a commit",
             )?;
             self.coverage.panel_negative_probes += 1;
@@ -3988,7 +4000,7 @@ impl Trace {
     fn terminal_panel_probe(&mut self, select: u8) -> Result<(), ReplayFailure> {
         let deadline = self.base + Duration::from_secs(30);
         let operation = match self.mailbox.try_enqueue_panel_for_using(
-            &mut self.session,
+            &mut self.workbench_client,
             deadline,
             &self.clock,
             |session, request_id| {
@@ -4032,7 +4044,7 @@ impl Trace {
                     error == CarrierFailure::Protocol,
                     "unattached reply probe closed with the wrong cause",
                 )?;
-                self.session.retire(CarrierFailure::Protocol);
+                self.workbench_client.retire(CarrierFailure::Protocol);
                 self.retire_cause = Some(CarrierFailure::Protocol);
                 self.coverage.panel_terminal_probes += 1;
                 return Ok(());
@@ -4166,10 +4178,10 @@ impl Trace {
             "terminal probe mailbox did not close with Protocol",
         )?;
         require(
-            self.session.pending_panel() == Some(&operation),
+            self.workbench_client.pending_panel() == Some(&operation),
             "terminal probe dropped the pending operation",
         )?;
-        self.session.retire(CarrierFailure::Protocol);
+        self.workbench_client.retire(CarrierFailure::Protocol);
         drop(lease);
         self.retire_cause = Some(CarrierFailure::Protocol);
         self.coverage.panel_terminal_probes += 1;
@@ -5272,13 +5284,13 @@ fn graft_move(
     }
 }
 
-/// A second mailbox/session pair for protocol-negative probes: each probe runs on a fresh pair
+/// A second mailbox/Client pair for protocol-negative probes: each probe runs on a fresh pair
 /// so a protocol close never bleeds into the live trace.
 struct PanelSandbox {
     base: Instant,
     clock: FixedClock,
     mailbox: CommandMailbox,
-    session: WorkbenchClientState,
+    workbench_client: WorkbenchClientState,
     authority: Authority,
     published: Option<PanelResult>,
 }
@@ -5330,7 +5342,7 @@ impl PanelSandbox {
             base,
             clock: FixedClock(base),
             mailbox,
-            session,
+            workbench_client: session,
             authority,
             published: None,
         })
@@ -5345,7 +5357,7 @@ impl PanelSandbox {
         let deadline = self.base + Duration::from_secs(30);
         let operation = observed(
             self.mailbox.try_enqueue_panel_for_using(
-                &mut self.session,
+                &mut self.workbench_client,
                 deadline,
                 &self.clock,
                 |session, request_id| {
@@ -5489,7 +5501,7 @@ impl PanelSandbox {
             .published
             .take()
             .ok_or_else(|| violation_error("sandbox has no published outcome"))?;
-        let session = &mut self.session;
+        let session = &mut self.workbench_client;
         require(
             observed(
                 self.mailbox

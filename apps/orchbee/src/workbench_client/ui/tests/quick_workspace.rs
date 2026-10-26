@@ -457,7 +457,6 @@ fn no_workspace_screen_keeps_content_blank_and_creation_controls_available_acros
         localization::Locale,
         tui_pointer::{HitMapBuilder, HitTarget},
         tui_theme::Theme,
-        workbench_client::WorkbenchClientView,
     };
     use ratatui::{Terminal, backend::TestBackend, layout::Rect};
     let (ui, mailbox, _, _) = no_workspace();
@@ -554,7 +553,6 @@ fn effective_create_binding_invokes_workspace_or_canonical_tab_with_guidance_onl
         localization::Locale,
         tui_pointer::HitMapBuilder,
         tui_theme::Theme,
-        workbench_client::WorkbenchClientView,
     };
     use orchbee_local_site_runtime::{
         WindowsKeyChord, WindowsKeyOverride, WindowsKeySettings, WindowsKeyTrigger,
@@ -752,10 +750,7 @@ fn quick_workspace_missing_prepared_directory_refuses_without_creating_or_leavin
 
 #[test]
 fn workspace_at_directory_launches_only_from_a_drawn_review_in_either_locale() {
-    use crate::{
-        client_view::ClientView, localization::Locale, tui_pointer::HitMapBuilder,
-        workbench_client::WorkbenchClientView,
-    };
+    use crate::{client_view::ClientView, localization::Locale, tui_pointer::HitMapBuilder};
     use ratatui::{Terminal, backend::TestBackend};
     for locale in [Locale::EnUs, Locale::ZhCn] {
         // A host too small for the review creates nothing; Enter cannot accept unseen defaults.

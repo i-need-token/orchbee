@@ -442,7 +442,7 @@ struct TraceState {
     /// re-derivable from a real Snapshot.
     server_tabs: Vec<Tab>,
     server_revision: u64,
-    /// Wire tabs of the candidate the Client last adopted; equals `session.cache()`.
+    /// Wire tabs of the candidate the Client last adopted; equals `workbench_client.cache()`.
     delivered_tabs: Vec<Tab>,
     /// `server_revision` while a committed panel op is still unobserved (`panel_recovery`).
     recovery_revision: Option<u64>,
@@ -1013,7 +1013,7 @@ fn new_trace() -> TraceState {
     let mut session = ready(3);
     session.configure_panel_focus(false);
     TraceState {
-        session,
+        workbench_client: session,
         generation: 1,
         request: 10_000,
         frame: 1,
@@ -1038,7 +1038,9 @@ fn replay(actions: &[TraceAction]) -> Result<Coverage, TraceFailure> {
         let result =
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| apply(&mut trace, action)));
         let oracle = match result {
-            Ok(Ok(())) if trace.session.invariant_holds() && shadow_holds(&trace) => continue,
+            Ok(Ok(())) if trace.workbench_client.invariant_holds() && shadow_holds(&trace) => {
+                continue;
+            }
             Ok(Ok(())) => "invariant or shadow failed".to_owned(),
             Ok(Err(error)) => error.to_owned(),
             Err(payload) => {
@@ -1066,7 +1068,7 @@ fn apply(trace: &mut TraceState, action: TraceAction) -> Result<(), &'static str
         TraceAction::ObserveGeometry(delta) => {
             trace.geometry_columns = 40 + u16::from(delta % 81);
             trace
-                .session
+                .workbench_client
                 .observe_geometry(geometry(trace.geometry_columns));
         }
         TraceAction::SelectPosition(position) => exercise_selection(trace, position),
@@ -1095,7 +1097,7 @@ fn apply(trace: &mut TraceState, action: TraceAction) -> Result<(), &'static str
         TraceAction::ControllerBusyReadOnly => exercise_controller_busy_read_only(trace)?,
         TraceAction::Cleanup(class) => exercise_cleanup(trace, class)?,
         TraceAction::Retire(class) => exercise_retirement(trace, class)?,
-        TraceAction::ClearNotice => trace.session.clear_notice(),
+        TraceAction::ClearNotice => trace.workbench_client.clear_notice(),
         TraceAction::PanelFocus {
             direction,
             generation_step,
@@ -1127,27 +1129,31 @@ fn switch_to_attachable(
     generation_step: u8,
 ) -> Result<(), &'static str> {
     if !matches!(
-        trace.session.phase_kind(),
+        trace.workbench_client.phase_kind(),
         ClientPhaseKind::Ready
             | ClientPhaseKind::SelectedWithoutAttachment
             | ClientPhaseKind::RetryableAttachUnavailable
-    ) || trace.session.mutation_blocks_structure()
+    ) || trace.workbench_client.mutation_blocks_structure()
     {
         return Ok(());
     }
-    let active_index = trace.session.active().ok_or("missing active")?.index();
-    let mut candidates: Vec<_> = (0..trace.session.cache().tabs().len())
+    let active_index = trace
+        .workbench_client
+        .active()
+        .ok_or("missing active")?
+        .index();
+    let mut candidates: Vec<_> = (0..trace.workbench_client.cache().tabs().len())
         .filter(|index| {
             *index != active_index
                 && trace
-                    .session
+                    .workbench_client
                     .provenance(*index)
                     .is_some_and(CreateTerminalProvenance::attachable)
         })
         .collect();
     if candidates.is_empty()
         && trace
-            .session
+            .workbench_client
             .provenance(active_index)
             .is_some_and(CreateTerminalProvenance::attachable)
     {
@@ -1160,46 +1166,46 @@ fn switch_to_attachable(
     let key = AttachmentKey::new(
         generation,
         trace
-            .session
+            .workbench_client
             .tab(target_index)
             .ok_or("target")?
             .tab_id()
             .clone(),
     );
     let target = trace
-        .session
+        .workbench_client
         .target_for_switch(
             target_index,
             key.clone(),
             OperationDeadlines::from_sample(Instant::now()).ok_or("deadline")?,
         )
         .ok_or("switch target")?;
-    if !trace.session.begin_switch(target) {
+    if !trace.workbench_client.begin_switch(target) {
         return Err("begin switch");
     }
-    let key = prepare_and_install_switch_candidate(&mut trace.session, &key)
+    let key = prepare_and_install_switch_candidate(&mut trace.workbench_client, &key)
         .map_err(|_| "Switch candidate install")?;
     trace.generation = key.generation();
-    if !trace.session.install_projection_t(&key)
-        || !trace.session.record_setup_configuration_t(
+    if !trace.workbench_client.install_projection_t(&key)
+        || !trace.workbench_client.record_setup_configuration_t(
             &key,
             controlling(),
-            Some(trace.session.latest_geometry()),
+            Some(trace.workbench_client.latest_geometry()),
         )
     {
         return Err("setup");
     }
     trace.frame = trace.frame.checked_add(1).ok_or("frame")?;
     let frame = FrameIdentity::new(trace.frame);
-    if !trace.session.stage_drawn_frame_t(&key, frame)
-        || !trace.session.mark_feedback_accepted_t(&key, frame)
+    if !trace.workbench_client.stage_drawn_frame_t(&key, frame)
+        || !trace.workbench_client.mark_feedback_accepted_t(&key, frame)
         || trace
-            .session
+            .workbench_client
             .settle_ready_candidate_t(
                 &key,
                 frame,
                 controlling(),
-                Some(trace.session.latest_geometry()),
+                Some(trace.workbench_client.latest_geometry()),
             )
             .map_err(|_| "ready")?
             != ReadyDecision::Ready
@@ -1215,17 +1221,17 @@ fn settle_switch_unavailable(
     target_hint: u8,
     generation_step: u8,
 ) -> Result<(), &'static str> {
-    if trace.session.phase_kind() != ClientPhaseKind::Ready
-        || trace.session.mutation_blocks_structure()
+    if trace.workbench_client.phase_kind() != ClientPhaseKind::Ready
+        || trace.workbench_client.mutation_blocks_structure()
     {
         return Ok(());
     }
-    let active = trace.session.active().ok_or("active")?.index();
-    let candidates = (0..trace.session.cache().tabs().len())
+    let active = trace.workbench_client.active().ok_or("active")?.index();
+    let candidates = (0..trace.workbench_client.cache().tabs().len())
         .filter(|index| {
             *index != active
                 && trace
-                    .session
+                    .workbench_client
                     .provenance(*index)
                     .is_some_and(CreateTerminalProvenance::attachable)
         })
@@ -1234,7 +1240,7 @@ fn settle_switch_unavailable(
         .get(usize::from(target_hint) % candidates.len().max(1))
         .ok_or("no unavailable target")?;
     let provenance = trace
-        .session
+        .workbench_client
         .provenance(target_index)
         .ok_or("unavailable provenance")?
         .clone();
@@ -1242,28 +1248,28 @@ fn settle_switch_unavailable(
     let key = AttachmentKey::new(
         generation,
         trace
-            .session
+            .workbench_client
             .tab(target_index)
             .ok_or("target")?
             .tab_id()
             .clone(),
     );
     let target = trace
-        .session
+        .workbench_client
         .target_for_switch(
             target_index,
             key.clone(),
             OperationDeadlines::from_sample(Instant::now()).ok_or("deadline")?,
         )
         .ok_or("target")?;
-    if !trace.session.begin_switch(target) {
+    if !trace.workbench_client.begin_switch(target) {
         return Err("begin unavailable switch");
     }
-    let key = prepare_and_install_switch_candidate(&mut trace.session, &key)
+    let key = prepare_and_install_switch_candidate(&mut trace.workbench_client, &key)
         .map_err(|_| "unavailable Switch candidate install")?;
     trace.generation = key.generation();
     if trace
-        .session
+        .workbench_client
         .settle_unattached_setup_t(&key, target_index, &provenance)
         != Some(CleanupContinuation::Stable)
     {
@@ -1281,21 +1287,23 @@ fn note_human_create(trace: &mut TraceState) {
 }
 
 fn create_precommit(trace: &mut TraceState, generation_step: u8) -> Result<(), &'static str> {
-    if trace.session.phase_kind() != ClientPhaseKind::Ready
-        || trace.session.mutation_blocks_structure()
+    if trace.workbench_client.phase_kind() != ClientPhaseKind::Ready
+        || trace.workbench_client.mutation_blocks_structure()
     {
         return Ok(());
     }
-    trace.session.clear_notice();
+    trace.workbench_client.clear_notice();
     let generation = advance_generation(trace, generation_step)?;
     trace.request = trace.request.checked_add(1).ok_or("request")?;
-    let label = (trace.session.cache().tabs().len() + 1).to_string();
-    let operation = create_operation(&trace.session, generation, trace.request, &label);
+    let label = (trace.workbench_client.cache().tabs().len() + 1).to_string();
+    let operation = create_operation(&trace.workbench_client, generation, trace.request, &label);
     let key = operation.key().clone();
     let applied = trace
-        .session
-        .last_accepted_geometry_t(trace.session.desired().unwrap());
-    if !trace.session.begin_create(operation) || !trace.session.restore_precommit(&key, applied) {
+        .workbench_client
+        .last_accepted_geometry_t(trace.workbench_client.desired().unwrap());
+    if !trace.workbench_client.begin_create(operation)
+        || !trace.workbench_client.restore_precommit(&key, applied)
+    {
         return Err("precommit");
     }
     note_human_create(trace);
@@ -1312,22 +1320,22 @@ fn create_committed_then_reselect(
     // The freshness clause: a stale-baseline create is honestly rejected with
     // RevisionMismatch before admission — the commit path is only exercised
     // while the session is current (any refresh re-syncs and reopens it).
-    if trace.session.phase_kind() != ClientPhaseKind::Ready
-        || trace.session.mutation_blocks_structure()
-        || trace.session.cache().tabs().len() >= 64
-        || trace.session.cache().revision().value() < trace.server_revision
+    if trace.workbench_client.phase_kind() != ClientPhaseKind::Ready
+        || trace.workbench_client.mutation_blocks_structure()
+        || trace.workbench_client.cache().tabs().len() >= 64
+        || trace.workbench_client.cache().revision().value() < trace.server_revision
     {
         return Ok(());
     }
-    trace.session.clear_notice();
+    trace.workbench_client.clear_notice();
     let generation = advance_generation(trace, generation_step)?;
     trace.request = trace.request.checked_add(1).ok_or("request")?;
-    let prior_provenance = provenance_snapshot(&trace.session)?;
-    let new_count = trace.session.cache().tabs().len() + 1;
+    let prior_provenance = provenance_snapshot(&trace.workbench_client)?;
+    let new_count = trace.workbench_client.cache().tabs().len() + 1;
     let label = new_count.to_string();
-    let operation = create_operation(&trace.session, generation, trace.request, &label);
+    let operation = create_operation(&trace.workbench_client, generation, trace.request, &label);
     let operation_key = operation.key().clone();
-    if !trace.session.begin_create(operation) {
+    if !trace.workbench_client.begin_create(operation) {
         return Err("pending begin");
     }
     // The Server appends exactly one fresh Tab to the committed history; identities that
@@ -1425,17 +1433,20 @@ fn create_committed_then_reselect(
             CreateTerminalProvenance::OutcomeUnknown,
         ),
     };
-    if !trace.session.retain_create_commit(&operation_key, commit) {
+    if !trace
+        .workbench_client
+        .retain_create_commit(&operation_key, commit)
+    {
         return Err("commit retention/detach");
     }
-    let decision = trace.session.settle_create_snapshot(
+    let decision = trace.workbench_client.settle_create_snapshot(
         &operation_key,
         WorkbenchSnapshotOutcome::Available {
             snapshot: candidate,
         },
     );
-    require_provenance_prefix(&trace.session, &prior_provenance)?;
-    if trace.session.provenance(new_count - 1) != Some(&expected_provenance) {
+    require_provenance_prefix(&trace.workbench_client, &prior_provenance)?;
+    if trace.workbench_client.provenance(new_count - 1) != Some(&expected_provenance) {
         return Err("created provenance");
     }
     trace.delivered_tabs = trace.server_tabs.clone();
@@ -1448,27 +1459,27 @@ fn create_committed_then_reselect(
         if !matches!(decision, CreateProjectionDecision::Attach(_)) {
             return Err("started create did not attach");
         }
-        let key = trace.session.desired().unwrap().clone();
-        if !trace.session.install_projection_t(&key)
-            || !trace.session.record_setup_configuration_t(
+        let key = trace.workbench_client.desired().unwrap().clone();
+        if !trace.workbench_client.install_projection_t(&key)
+            || !trace.workbench_client.record_setup_configuration_t(
                 &key,
                 controlling(),
-                Some(trace.session.latest_geometry()),
+                Some(trace.workbench_client.latest_geometry()),
             )
         {
             return Err("created setup");
         }
         trace.frame = trace.frame.checked_add(1).ok_or("frame")?;
         let frame = FrameIdentity::new(trace.frame);
-        if !trace.session.stage_drawn_frame_t(&key, frame)
-            || !trace.session.mark_feedback_accepted_t(&key, frame)
+        if !trace.workbench_client.stage_drawn_frame_t(&key, frame)
+            || !trace.workbench_client.mark_feedback_accepted_t(&key, frame)
             || trace
-                .session
+                .workbench_client
                 .settle_ready_candidate_t(
                     &key,
                     frame,
                     controlling(),
-                    Some(trace.session.latest_geometry()),
+                    Some(trace.workbench_client.latest_geometry()),
                 )
                 .map_err(|_| "created ready")?
                 != ReadyDecision::Ready
@@ -1586,7 +1597,7 @@ fn reject_reused_committed_tuple(trace: &mut TraceState) -> Result<(), &'static 
 fn provenance_snapshot(
     session: &WorkbenchClientState,
 ) -> Result<Vec<CreateTerminalProvenance>, &'static str> {
-    (0..session.cache().tabs().len())
+    (0..workbench_client.cache().tabs().len())
         .map(|index| session.provenance(index).cloned().ok_or("provenance"))
         .collect()
 }
@@ -1611,23 +1622,23 @@ fn refresh(
     available: bool,
     generation_step: u8,
 ) -> Result<(), &'static str> {
-    if !trace.session.phase_allows_refresh() {
+    if !trace.workbench_client.phase_allows_refresh() {
         return Ok(());
     }
     trace.refresh = trace
         .refresh
         .checked_add(u64::from(generation_step.max(1)))
         .ok_or("refresh")?;
-    if !trace.session.start_pending_refresh(trace.refresh) {
+    if !trace.workbench_client.start_pending_refresh(trace.refresh) {
         return Err("refresh admission");
     }
-    let old_count = trace.session.cache().tabs().len();
-    let prior_provenance = provenance_snapshot(&trace.session)?;
-    let active = trace.session.active().cloned();
-    let desired = trace.session.desired().unwrap().clone();
-    let attached = trace.session.attached_key().cloned();
-    let projection = trace.session.projection_key().cloned();
-    let mode = trace.session.controller_mode().cloned();
+    let old_count = trace.workbench_client.cache().tabs().len();
+    let prior_provenance = provenance_snapshot(&trace.workbench_client)?;
+    let active = trace.workbench_client.active().cloned();
+    let desired = trace.workbench_client.desired().unwrap().clone();
+    let attached = trace.workbench_client.attached_key().cloned();
+    let projection = trace.workbench_client.projection_key().cloned();
+    let mode = trace.workbench_client.controller_mode().cloned();
     let outcome = if available {
         // The Server folds one appended Tab into the next revision; during
         // panel_recovery the same candidate also carries the still-unobserved graft.
@@ -1640,33 +1651,36 @@ fn refresh(
     } else {
         WorkbenchSnapshotOutcome::Denied {}
     };
-    let prepared = trace.session.prepare_refresh(trace.refresh, outcome);
+    let prepared = trace
+        .workbench_client
+        .prepare_refresh(trace.refresh, outcome);
     let decision = trace
-        .session
+        .workbench_client
         .apply_prepared_refresh(prepared, std::time::Instant::now());
     if decision != RefreshDecision::Continue {
         return Err("refresh settlement");
     }
     if available {
-        require_provenance_prefix(&trace.session, &prior_provenance)?;
+        require_provenance_prefix(&trace.workbench_client, &prior_provenance)?;
         // A recovery-folding merge may re-index the selected leaf; the identity and Tab
         // slot must still be preserved. Unobserved peer commits (stale-rejection
         // paths) may already sit in `server_tabs`, so adoption is checked against
         // the delivered Server state — not the old count plus this append alone.
         let active_after = trace
-            .session
+            .workbench_client
             .active()
             .map(|selected| (selected.key(), selected.index()));
         let active_before = active
             .as_ref()
             .map(|selected| (selected.key(), selected.index()));
-        if trace.session.cache().tabs().len() != trace.server_tabs.len()
-            || trace.session.provenance(old_count) != Some(&CreateTerminalProvenance::BindingOnly)
+        if trace.workbench_client.cache().tabs().len() != trace.server_tabs.len()
+            || trace.workbench_client.provenance(old_count)
+                != Some(&CreateTerminalProvenance::BindingOnly)
             || active_after != active_before
-            || trace.session.desired().unwrap() != &desired
-            || trace.session.attached_key() != attached.as_ref()
-            || trace.session.projection_key() != projection.as_ref()
-            || trace.session.controller_mode() != mode.as_ref()
+            || trace.workbench_client.desired().unwrap() != &desired
+            || trace.workbench_client.attached_key() != attached.as_ref()
+            || trace.workbench_client.projection_key() != projection.as_ref()
+            || trace.workbench_client.controller_mode() != mode.as_ref()
         {
             return Err("refresh append did not preserve live state");
         }
@@ -1685,36 +1699,36 @@ fn refresh_stale_then_current(
     trace: &mut TraceState,
     generation_step: u8,
 ) -> Result<(), &'static str> {
-    if !trace.session.phase_allows_refresh() {
+    if !trace.workbench_client.phase_allows_refresh() {
         return Ok(());
     }
     let current = trace
         .refresh
         .checked_add(u64::from(generation_step.max(2)))
         .ok_or("refresh")?;
-    if !trace.session.start_pending_refresh(current) {
+    if !trace.workbench_client.start_pending_refresh(current) {
         return Err("stale refresh admission");
     }
     let stale = current.checked_sub(1).ok_or("stale generation")?;
     let prepared = trace
-        .session
+        .workbench_client
         .prepare_refresh(stale, WorkbenchSnapshotOutcome::Denied {});
     if trace
-        .session
+        .workbench_client
         .apply_prepared_refresh(prepared, std::time::Instant::now())
         != RefreshDecision::Continue
-        || trace.session.pending_refresh_generation() != Some(current)
+        || trace.workbench_client.pending_refresh_generation() != Some(current)
     {
         return Err("stale refresh changed current");
     }
-    let count = trace.session.cache().tabs().len();
-    let prior_provenance = provenance_snapshot(&trace.session)?;
-    let active = trace.session.active().cloned();
-    let desired = trace.session.desired().unwrap().clone();
+    let count = trace.workbench_client.cache().tabs().len();
+    let prior_provenance = provenance_snapshot(&trace.workbench_client)?;
+    let active = trace.workbench_client.active().cloned();
+    let desired = trace.workbench_client.desired().unwrap().clone();
     let appended = fresh_tab(trace);
     trace.server_tabs.push(appended);
     trace.server_revision = trace.server_revision.checked_add(1).ok_or("revision")?;
-    let prepared = trace.session.prepare_refresh(
+    let prepared = trace.workbench_client.prepare_refresh(
         current,
         WorkbenchSnapshotOutcome::Available {
             snapshot: snapshot_with_tabs(trace.server_tabs.clone(), trace.server_revision),
@@ -1723,23 +1737,23 @@ fn refresh_stale_then_current(
     // Unobserved peer commits (stale-rejection paths) may already sit in
     // `server_tabs`; adoption is checked against the delivered Server state.
     if trace
-        .session
+        .workbench_client
         .apply_prepared_refresh(prepared, std::time::Instant::now())
         != RefreshDecision::Continue
-        || trace.session.cache().tabs().len() != trace.server_tabs.len()
-        || trace.session.provenance(count) != Some(&CreateTerminalProvenance::BindingOnly)
+        || trace.workbench_client.cache().tabs().len() != trace.server_tabs.len()
+        || trace.workbench_client.provenance(count) != Some(&CreateTerminalProvenance::BindingOnly)
         || trace
-            .session
+            .workbench_client
             .active()
             .map(|selected| (selected.key(), selected.index()))
             != active
                 .as_ref()
                 .map(|selected| (selected.key(), selected.index()))
-        || trace.session.desired().unwrap() != &desired
+        || trace.workbench_client.desired().unwrap() != &desired
     {
         return Err("current refresh after stale");
     }
-    require_provenance_prefix(&trace.session, &prior_provenance)?;
+    require_provenance_prefix(&trace.workbench_client, &prior_provenance)?;
     trace.delivered_tabs = trace.server_tabs.clone();
     if trace.recovery_revision.take().is_some() {
         trace.coverage.panel_recovery_resolutions += 1;
@@ -1751,16 +1765,20 @@ fn refresh_stale_then_current(
 }
 
 fn historical_ready_create(trace: &mut TraceState, cut: ReadyFrameCut) -> Result<(), &'static str> {
-    if trace.session.phase_kind() != ClientPhaseKind::Ready
-        || trace.session.mutation_blocks_structure()
+    if trace.workbench_client.phase_kind() != ClientPhaseKind::Ready
+        || trace.workbench_client.mutation_blocks_structure()
     {
         return Ok(());
     }
-    let key = trace.session.desired().unwrap().clone();
-    let active = trace.session.active().cloned().ok_or("active")?;
-    let mode = trace.session.controller_mode().cloned().ok_or("mode")?;
+    let key = trace.workbench_client.desired().unwrap().clone();
+    let active = trace.workbench_client.active().cloned().ok_or("active")?;
+    let mode = trace
+        .workbench_client
+        .controller_mode()
+        .cloned()
+        .ok_or("mode")?;
     let provenance = trace
-        .session
+        .workbench_client
         .provenance(active.index())
         .cloned()
         .ok_or("provenance")?;
@@ -1768,7 +1786,7 @@ fn historical_ready_create(trace: &mut TraceState, cut: ReadyFrameCut) -> Result
         ReadyFrameCut::StagedAwaitingFeedback => {
             trace.frame = trace.frame.checked_add(1).ok_or("frame")?;
             if !trace
-                .session
+                .workbench_client
                 .stage_drawn_frame_t(&key, FrameIdentity::new(trace.frame))
             {
                 return Err("stage newer frame");
@@ -1776,27 +1794,27 @@ fn historical_ready_create(trace: &mut TraceState, cut: ReadyFrameCut) -> Result
             trace.coverage.staged_frame_creates += 1;
         }
         ReadyFrameCut::ProjectionProofInvalidated => {
-            if !trace.session.invalidate_projection_frame_t(&key) {
+            if !trace.workbench_client.invalidate_projection_frame_t(&key) {
                 return Err("invalidate projection proof");
             }
             trace.coverage.invalidated_frame_creates += 1;
         }
     }
-    if trace.session.feedback_accepted() {
+    if trace.workbench_client.feedback_accepted() {
         return Err("transient frame cut retained current proof");
     }
     let generation = advance_generation(trace, 1)?;
     trace.request = trace.request.checked_add(1).ok_or("request")?;
-    let operation = create_operation(&trace.session, generation, trace.request, "probe");
+    let operation = create_operation(&trace.workbench_client, generation, trace.request, "probe");
     let operation_key = operation.key().clone();
-    let applied_geometry = trace.session.last_accepted_geometry_t(&key);
-    if !trace.session.begin_create(operation)
-        || trace.session.phase_kind() != ClientPhaseKind::Creating
-        || trace.session.active() != Some(&active)
-        || trace.session.controller_mode() != Some(&mode)
-        || trace.session.provenance(active.index()) != Some(&provenance)
+    let applied_geometry = trace.workbench_client.last_accepted_geometry_t(&key);
+    if !trace.workbench_client.begin_create(operation)
+        || trace.workbench_client.phase_kind() != ClientPhaseKind::Creating
+        || trace.workbench_client.active() != Some(&active)
+        || trace.workbench_client.controller_mode() != Some(&mode)
+        || trace.workbench_client.provenance(active.index()) != Some(&provenance)
         || !trace
-            .session
+            .workbench_client
             .restore_precommit(&operation_key, applied_geometry)
     {
         return Err("historical Ready Create/precommit");
@@ -1806,8 +1824,8 @@ fn historical_ready_create(trace: &mut TraceState, cut: ReadyFrameCut) -> Result
     trace.coverage.precommit_restores += 1;
     trace.frame = trace.frame.checked_add(1).ok_or("frame")?;
     let frame = FrameIdentity::new(trace.frame);
-    if !trace.session.stage_drawn_frame_t(&key, frame)
-        || !trace.session.mark_feedback_accepted_t(&key, frame)
+    if !trace.workbench_client.stage_drawn_frame_t(&key, frame)
+        || !trace.workbench_client.mark_feedback_accepted_t(&key, frame)
     {
         return Err("recover frame");
     }
@@ -1816,7 +1834,7 @@ fn historical_ready_create(trace: &mut TraceState, cut: ReadyFrameCut) -> Result
 
 fn exercise_selection(trace: &mut TraceState, position: u8) {
     match trace
-        .session
+        .workbench_client
         .plan_selection(ClientAction::SelectTab(position))
     {
         SelectionPlan::NoOp | SelectionPlan::Switch { .. } => {
@@ -1970,10 +1988,10 @@ fn snapshot_with_tabs(tabs: Vec<Tab>, revision: u64) -> Snapshot {
 fn shadow_holds(trace: &TraceState) -> bool {
     let snapshot = snapshot_with_tabs(
         trace.delivered_tabs.clone(),
-        trace.session.cache().revision().value(),
+        trace.workbench_client.cache().revision().value(),
     );
     project_preferred_workspace(&snapshot)
-        .is_ok_and(|projected| projected == *trace.session.cache())
+        .is_ok_and(|projected| projected == *trace.workbench_client.cache())
 }
 
 fn next_identity(trace_identity: &mut u128) -> u128 {
@@ -2373,12 +2391,13 @@ fn panel_submit(trace: &mut TraceState, kind: u8, direction: u8) -> Result<(), &
         },
     };
     trace.request = trace.request.checked_add(1).ok_or("request")?;
-    match trace
-        .session
-        .plan_panel(workbench_request_id(trace.request), kind, Instant::now())
-    {
+    match trace.workbench_client.plan_panel(
+        workbench_request_id(trace.request),
+        kind,
+        Instant::now(),
+    ) {
         Some(operation) => {
-            if !trace.session.begin_panel(operation) {
+            if !trace.workbench_client.begin_panel(operation) {
                 return Err("panel begin");
             }
             trace.coverage.panel_submissions += 1;
@@ -2393,7 +2412,7 @@ fn panel_settle(
     class: PanelSettleClass,
     tier: SettleTier,
 ) -> Result<(), &'static str> {
-    let Some(operation) = trace.session.pending_panel().cloned() else {
+    let Some(operation) = trace.workbench_client.pending_panel().cloned() else {
         return Ok(());
     };
     if !settle_class_legal(&operation, trace.server_revision, class, tier) {
@@ -2402,21 +2421,23 @@ fn panel_settle(
     // While a panel operation is in flight every other structural admission must refuse:
     // this is the pending-op/refresh/switch/panel interleave the witness must reach.
     if trace
-        .session
+        .workbench_client
         .plan_panel(
             workbench_request_id(u128::from(u64::MAX)),
             PanelRequestKind::Close,
             Instant::now(),
         )
         .is_some()
-        || trace.session.begin_panel(operation.clone())
-        || trace.session.phase_allows_refresh()
+        || trace.workbench_client.begin_panel(operation.clone())
+        || trace.workbench_client.phase_allows_refresh()
         || trace
-            .session
+            .workbench_client
             .plan_panel_focus_local(PanelDirection::Left)
             .is_some()
         || !matches!(
-            trace.session.plan_selection(ClientAction::SelectTab(1)),
+            trace
+                .workbench_client
+                .plan_selection(ClientAction::SelectTab(1)),
             SelectionPlan::Busy
         )
     {
@@ -2726,7 +2747,7 @@ fn apply_panel_result(
         .ok_or("baseline tab")?;
     let baseline_count = baseline_tab.panel_count();
     let baseline_leaf_index = baseline_tab.panel_index(operation.panel_id());
-    let prepared = trace.session.prepare_panel(operation, result);
+    let prepared = trace.workbench_client.prepare_panel(operation, result);
     if prepared.membership_candidate().is_some() {
         return install_panel_membership(
             trace,
@@ -2735,7 +2756,7 @@ fn apply_panel_result(
             class == PanelSettleClass::CommittedLeafRepair,
         );
     }
-    let decision = trace.session.apply_prepared_panel(prepared);
+    let decision = trace.workbench_client.apply_prepared_panel(prepared);
     if decision != PanelDecision::Continue {
         return Err("panel settlement");
     }
@@ -2745,14 +2766,16 @@ fn apply_panel_result(
         | PanelSettleClass::RejectedStale
         | PanelSettleClass::Denied
         | PanelSettleClass::Unavailable => {
-            if trace.session.notice() != Some(ClientNotice::PanelNotApplied)
-                || trace.session.pending_panel().is_some()
+            if trace.workbench_client.notice() != Some(ClientNotice::PanelNotApplied)
+                || trace.workbench_client.pending_panel().is_some()
             {
                 return Err("not-applied settlement");
             }
         }
         PanelSettleClass::Unchanged => {
-            if trace.session.notice().is_some() || trace.session.pending_panel().is_some() {
+            if trace.workbench_client.notice().is_some()
+                || trace.workbench_client.pending_panel().is_some()
+            {
                 return Err("unchanged settlement");
             }
         }
@@ -2760,33 +2783,37 @@ fn apply_panel_result(
             // A close acceptance is only a receipt: the leaf stays put until a later
             // snapshot folds the removal in, and the pending debt is published.
             let index = trace
-                .session
+                .workbench_client
                 .cache()
                 .tab_index(operation.target().tab_id())
                 .ok_or("close tab")?;
-            if trace.session.notice().is_some()
-                || trace.session.pending_panel().is_some()
-                || trace.session.publication_debt_kind() != PublicationDebt::Pending
+            if trace.workbench_client.notice().is_some()
+                || trace.workbench_client.pending_panel().is_some()
+                || trace.workbench_client.publication_debt_kind() != PublicationDebt::Pending
                 || trace
-                    .session
+                    .workbench_client
                     .tab(index)
                     .and_then(|tab| tab.panel_index(operation.panel_id()))
                     .is_none()
-                || trace.session.tab(index).map_or(0, |tab| tab.panel_count()) != baseline_count
+                || trace
+                    .workbench_client
+                    .tab(index)
+                    .map_or(0, |tab| tab.panel_count())
+                    != baseline_count
             {
                 return Err("close receipt treated as removal");
             }
         }
         PanelSettleClass::CommittedMerge => {
             let index = trace
-                .session
+                .workbench_client
                 .cache()
                 .tab_index(operation.target().tab_id())
                 .ok_or("merged tab")?;
-            let merged = trace.session.tab(index).ok_or("merged tab")?;
-            if trace.session.notice().is_some()
-                || trace.session.pending_panel().is_some()
-                || trace.session.retained_panel_for_test().is_none()
+            let merged = trace.workbench_client.tab(index).ok_or("merged tab")?;
+            if trace.workbench_client.notice().is_some()
+                || trace.workbench_client.pending_panel().is_some()
+                || trace.workbench_client.retained_panel_for_test().is_none()
             {
                 return Err("committed merge settlement");
             }
@@ -2809,11 +2836,12 @@ fn apply_panel_result(
             trace.coverage.panel_merges += 1;
         }
         PanelSettleClass::CommittedRecovery => {
-            if trace.session.notice().is_some()
-                || trace.session.pending_panel().is_some()
-                || trace.session.retained_panel_for_test().is_none()
-                || trace.session.panel_recovery_for_test().is_none()
-                || trace.session.phase_kind() != ClientPhaseKind::PanelProjectionUnavailable
+            if trace.workbench_client.notice().is_some()
+                || trace.workbench_client.pending_panel().is_some()
+                || trace.workbench_client.retained_panel_for_test().is_none()
+                || trace.workbench_client.panel_recovery_for_test().is_none()
+                || trace.workbench_client.phase_kind()
+                    != ClientPhaseKind::PanelProjectionUnavailable
             {
                 return Err("recovery entry");
             }
@@ -2836,7 +2864,7 @@ fn install_panel_membership(
     committed: bool,
 ) -> Result<(), &'static str> {
     let (consumed, candidate) = trace
-        .session
+        .workbench_client
         .retain_prepared_panel_membership(prepared)
         .map_err(|_| "panel membership retain")?;
     if consumed != *operation {
@@ -2845,10 +2873,12 @@ fn install_panel_membership(
     // A Committed result retains the exact commit fact for diagnostics and raises no
     // notice; a refusal carries no commit, so the receipt is a not-applied notice.
     if committed {
-        if trace.session.retained_panel_for_test().is_none() || trace.session.notice().is_some() {
+        if trace.workbench_client.retained_panel_for_test().is_none()
+            || trace.workbench_client.notice().is_some()
+        {
             return Err("membership dropped the committed fact");
         }
-    } else if trace.session.notice() != Some(ClientNotice::PanelNotApplied) {
+    } else if trace.workbench_client.notice() != Some(ClientNotice::PanelNotApplied) {
         return Err("membership retain notice");
     }
     let deadlines = OperationDeadlines::from_sample(Instant::now()).ok_or("deadline")?;
@@ -2858,24 +2888,24 @@ fn install_panel_membership(
             tab.clone(),
         )
     });
-    let decision = if trace.session.has_attachments() {
+    let decision = if trace.workbench_client.has_attachments() {
         let cleanup = trace
-            .session
+            .workbench_client
             .stage_panel_membership_cleanup(operation.request_id(), candidate, deadlines)
             .map_err(|_| "panel membership cleanup")?;
         trace.coverage.panel_membership_cleanups += 1;
         let cleaned = trace
-            .session
+            .workbench_client
             .prepare_cleaned_membership_candidate(&cleanup, cleanup.old())
             .map_err(|_| "cleaned candidate")?;
         trace
-            .session
+            .workbench_client
             .prepare_cleaned_membership_install(&cleanup, cleaned, fresh)
             .map_err(|_| "cleaned install")?
             .commit()
     } else {
         trace
-            .session
+            .workbench_client
             .prepare_panel_membership_install(
                 operation.request_id(),
                 candidate,
@@ -2891,15 +2921,15 @@ fn install_panel_membership(
         MembershipInstallDecision::Attach(target) => {
             let key = target.selected().key().clone();
             trace.generation = trace.generation.max(key.generation());
-            settle_attached_ready(&mut trace.session, key.anchor(), &mut trace.frame)?;
+            settle_attached_ready(&mut trace.workbench_client, key.anchor(), &mut trace.frame)?;
         }
         MembershipInstallDecision::SelectedWithoutAttachment => {
-            if trace.session.phase_kind() != ClientPhaseKind::SelectedWithoutAttachment {
+            if trace.workbench_client.phase_kind() != ClientPhaseKind::SelectedWithoutAttachment {
                 return Err("membership did not settle unattached");
             }
         }
         MembershipInstallDecision::Empty => {
-            if trace.session.phase_kind() != ClientPhaseKind::Empty {
+            if trace.workbench_client.phase_kind() != ClientPhaseKind::Empty {
                 return Err("membership did not settle empty");
             }
         }
@@ -2911,12 +2941,15 @@ fn install_panel_membership(
         // The leaf the commit left selected was folded away, so the membership install
         // must retarget onto a surviving leaf of the same Tab.
         let index = trace
-            .session
+            .workbench_client
             .cache()
             .tab_index(operation.target().tab_id())
             .ok_or("leaf-repair tab")?;
-        let tab = trace.session.tab(index).ok_or("leaf-repair tab")?;
-        let active = trace.session.active().ok_or("leaf-repair active")?;
+        let tab = trace.workbench_client.tab(index).ok_or("leaf-repair tab")?;
+        let active = trace
+            .workbench_client
+            .active()
+            .ok_or("leaf-repair active")?;
         if tab.panel_index(operation.panel_id()).is_some()
             || active.index() != index
             || tab.panel(active.panel_index()).is_none()
@@ -2924,7 +2957,7 @@ fn install_panel_membership(
             return Err("leaf repair did not retarget selection");
         }
     }
-    if trace.session.pending_panel().is_some() {
+    if trace.workbench_client.pending_panel().is_some() {
         return Err("membership left a pending panel");
     }
     Ok(())
@@ -2934,17 +2967,19 @@ fn install_panel_membership(
 /// committed graft (alongside any later peer history), so the projection
 /// validator must match it at a revision ≥ `commit_revision`.
 fn panel_recovery_refresh(trace: &mut TraceState, generation_step: u8) -> Result<(), &'static str> {
-    if trace.session.panel_recovery_for_test().is_none() || trace.recovery_revision.is_none() {
+    if trace.workbench_client.panel_recovery_for_test().is_none()
+        || trace.recovery_revision.is_none()
+    {
         return Ok(());
     }
-    if !trace.session.phase_allows_refresh() {
+    if !trace.workbench_client.phase_allows_refresh() {
         return Err("panel recovery blocked refresh admission");
     }
     trace.refresh = trace
         .refresh
         .checked_add(u64::from(generation_step.max(1)))
         .ok_or("refresh")?;
-    if !trace.session.start_pending_refresh(trace.refresh) {
+    if !trace.workbench_client.start_pending_refresh(trace.refresh) {
         return Err("recovery refresh admission");
     }
     // The candidate is stamped at the CURRENT authority revision: peer commits
@@ -2952,7 +2987,7 @@ fn panel_recovery_refresh(trace: &mut TraceState, generation_step: u8) -> Result
     // have advanced it past `recovery_revision`, and stamping earlier would
     // misattribute their content to the commit revision.
     let revision = trace.server_revision;
-    let prepared = trace.session.prepare_refresh(
+    let prepared = trace.workbench_client.prepare_refresh(
         trace.refresh,
         WorkbenchSnapshotOutcome::Available {
             snapshot: snapshot_with_tabs(trace.server_tabs.clone(), revision),
@@ -2962,15 +2997,18 @@ fn panel_recovery_refresh(trace: &mut TraceState, generation_step: u8) -> Result
         return Err("recovery refresh did not classify as append");
     }
     if trace
-        .session
+        .workbench_client
         .apply_prepared_refresh(prepared, std::time::Instant::now())
         != RefreshDecision::Continue
     {
         return Err("recovery refresh settlement");
     }
-    if trace.session.panel_recovery_for_test().is_some()
-        || trace.session.pending_refresh_generation().is_some()
-        || trace.session.refresh_status()
+    if trace.workbench_client.panel_recovery_for_test().is_some()
+        || trace
+            .workbench_client
+            .pending_refresh_generation()
+            .is_some()
+        || trace.workbench_client.refresh_status()
             != Some(NavigatorRefreshStatus::Success(WorkbenchRevision::new(
                 revision,
             )))
@@ -2986,13 +3024,13 @@ fn panel_recovery_refresh(trace: &mut TraceState, generation_step: u8) -> Result
 /// A peer close folds the selected leaf away while the Tab keeps its identity — the real
 /// refresh-side selected-leaf-loss repair through the paired membership path.
 fn refresh_leaf_repair(trace: &mut TraceState, generation_step: u8) -> Result<(), &'static str> {
-    if !trace.session.phase_allows_refresh() {
+    if !trace.workbench_client.phase_allows_refresh() {
         return Ok(());
     }
-    let Some(active) = trace.session.active().cloned() else {
+    let Some(active) = trace.workbench_client.active().cloned() else {
         return Ok(());
     };
-    let Some(tab) = trace.session.tab(active.index()) else {
+    let Some(tab) = trace.workbench_client.tab(active.index()) else {
         return Ok(());
     };
     if tab.panel_count() < 2 {
@@ -3021,10 +3059,10 @@ fn refresh_leaf_repair(trace: &mut TraceState, generation_step: u8) -> Result<()
         .refresh
         .checked_add(u64::from(generation_step.max(1)))
         .ok_or("refresh")?;
-    if !trace.session.start_pending_refresh(trace.refresh) {
+    if !trace.workbench_client.start_pending_refresh(trace.refresh) {
         return Err("repair refresh admission");
     }
-    let prepared = trace.session.prepare_refresh(
+    let prepared = trace.workbench_client.prepare_refresh(
         trace.refresh,
         WorkbenchSnapshotOutcome::Available {
             snapshot: snapshot_with_tabs(trace.server_tabs.clone(), trace.server_revision),
@@ -3039,7 +3077,7 @@ fn refresh_leaf_repair(trace: &mut TraceState, generation_step: u8) -> Result<()
     };
     let deadlines = OperationDeadlines::from_sample(Instant::now()).ok_or("deadline")?;
     let fresh_generation = trace
-        .session
+        .workbench_client
         .desired()
         .map(|desired| desired.generation())
         .unwrap_or(0)
@@ -3048,24 +3086,24 @@ fn refresh_leaf_repair(trace: &mut TraceState, generation_step: u8) -> Result<()
     let fresh = prepared
         .selected_tab_id()
         .map(|tab| AttachmentKey::new(fresh_generation, tab.clone()));
-    let decision = if trace.session.has_attachments() {
+    let decision = if trace.workbench_client.has_attachments() {
         let cleanup = trace
-            .session
+            .workbench_client
             .stage_refresh_membership_cleanup(generation, prepared, deadlines)
             .map_err(|_| "repair cleanup")?;
         trace.coverage.panel_membership_cleanups += 1;
         let cleaned = trace
-            .session
+            .workbench_client
             .prepare_cleaned_membership_candidate(&cleanup, cleanup.old())
             .map_err(|_| "cleaned candidate")?;
         trace
-            .session
+            .workbench_client
             .prepare_cleaned_membership_install(&cleanup, cleaned, fresh)
             .map_err(|_| "cleaned install")?
             .commit()
     } else {
         trace
-            .session
+            .workbench_client
             .prepare_refresh_membership_install(generation, prepared, fresh, Some(deadlines))
             .map_err(|_| "repair install")?
             .commit()
@@ -3077,15 +3115,15 @@ fn refresh_leaf_repair(trace: &mut TraceState, generation_step: u8) -> Result<()
         MembershipInstallDecision::Attach(target) => {
             let key = target.selected().key().clone();
             trace.generation = trace.generation.max(key.generation());
-            settle_attached_ready(&mut trace.session, key.anchor(), &mut trace.frame)?;
+            settle_attached_ready(&mut trace.workbench_client, key.anchor(), &mut trace.frame)?;
         }
         MembershipInstallDecision::SelectedWithoutAttachment => {
-            if trace.session.phase_kind() != ClientPhaseKind::SelectedWithoutAttachment {
+            if trace.workbench_client.phase_kind() != ClientPhaseKind::SelectedWithoutAttachment {
                 return Err("repair did not settle unattached");
             }
         }
         MembershipInstallDecision::Empty => {
-            if trace.session.phase_kind() != ClientPhaseKind::Empty {
+            if trace.workbench_client.phase_kind() != ClientPhaseKind::Empty {
                 return Err("repair did not settle empty");
             }
         }
@@ -3093,7 +3131,12 @@ fn refresh_leaf_repair(trace: &mut TraceState, generation_step: u8) -> Result<()
             return Err("leaf repair preserved selection");
         }
     }
-    if trace.session.active().map(SelectedTab::panel_index) != Some(expected_panel_index) {
+    if trace
+        .workbench_client
+        .active()
+        .map(SelectedTab::panel_index)
+        != Some(expected_panel_index)
+    {
         return Err("leaf repair landed on wrong index");
     }
     trace.coverage.refresh_leaf_repairs += 1;
@@ -3106,7 +3149,7 @@ fn panel_focus(
     generation_step: u8,
 ) -> Result<(), &'static str> {
     if !matches!(
-        trace.session.phase_kind(),
+        trace.workbench_client.phase_kind(),
         ClientPhaseKind::Ready
             | ClientPhaseKind::SelectedWithoutAttachment
             | ClientPhaseKind::RetryableAttachUnavailable
@@ -3114,27 +3157,32 @@ fn panel_focus(
         return Ok(());
     }
     let direction = panel_direction(direction);
-    let active = trace.session.active().cloned().ok_or("active")?;
+    let active = trace.workbench_client.active().cloned().ok_or("active")?;
     let expected = trace
-        .session
+        .workbench_client
         .tab(active.index())
         .and_then(|tab| tab.panel_focus_target(active.panel_index(), direction));
     let _ = advance_generation(trace, generation_step)?;
     // Mirror the UI install pipeline: every leaf the workbench renders carries an
     // attached viewer, so leaves the last commit introduced are installed and
     // attached before a local focus move is planned.
-    attach_missing_leaves(&mut trace.session);
-    let Some(pane) = trace.session.plan_panel_focus_local(direction) else {
+    attach_missing_leaves(&mut trace.workbench_client);
+    let Some(pane) = trace.workbench_client.plan_panel_focus_local(direction) else {
         trace.coverage.panel_plan_refusals += 1;
         return Ok(());
     };
     if expected.is_none() {
         return Err("focus planned without a neighbor");
     }
-    if !trace.session.move_panel_focus_local(pane) {
+    if !trace.workbench_client.move_panel_focus_local(pane) {
         return Err("focus move");
     }
-    if trace.session.active().map(SelectedTab::panel_index) != expected {
+    if trace
+        .workbench_client
+        .active()
+        .map(SelectedTab::panel_index)
+        != expected
+    {
         return Err("focus landed on wrong leaf");
     }
     trace.coverage.panel_focuses += 1;
@@ -4456,7 +4504,7 @@ fn stale_unavailable_reasons_are_stage_checked() {
         .expect("seed split commit");
         apply(&mut trace, TraceAction::PanelSubmit { kind, direction: 1 }).expect("intent submit");
         let operation = trace
-            .session
+            .workbench_client
             .pending_panel()
             .cloned()
             .expect("pending panel op");

@@ -790,8 +790,8 @@ fn native_create_action_renders_before_feedback_and_captures_wire_intent() -> Te
     assert!(
         !render_workbench_client(&workbench_client, &client_view)?.contains("Ready · controlling")
     );
-    let ready = render_prefix_session(&workbench_client, &client_view)?;
-    assert_ready_prefix_session(&workbench_client, &ready, 1, TerminalStatus::Controlling);
+    let ready = render_prefix_client(&workbench_client, &client_view)?;
+    assert_ready_prefix_client(&workbench_client, &ready, 1, TerminalStatus::Controlling);
 
     // The Windows navigator captures prefix actions; dispatch from the terminal surface.
     #[cfg(not(windows))]
@@ -1069,7 +1069,7 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
         let rendered = if unavailable {
             render_workbench_client(&workbench_client, &view)?
         } else {
-            render_prefix_session(&workbench_client, &view)?
+            render_prefix_client(&workbench_client, &view)?
         };
         if unavailable {
             assert!(
@@ -1078,7 +1078,7 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
             );
             assert!(rendered.contains("Ctrl+b w refresh"), "{rendered}");
         } else {
-            assert_ready_prefix_session(
+            assert_ready_prefix_client(
                 &workbench_client,
                 &rendered,
                 2,
@@ -2130,8 +2130,8 @@ fn workspace_geometry_changes_require_a_separate_controller_grant() -> TestResul
             #[cfg(not(windows))]
             assert!(!rendered.contains("Ctrl+b t"), "{rendered}");
         }
-        let prefixed = render_prefix_session(&workbench_client, &client_view)?;
-        assert_ready_prefix_session(&workbench_client, &prefixed, 1, expected);
+        let prefixed = render_prefix_client(&workbench_client, &client_view)?;
+        assert_ready_prefix_client(&workbench_client, &prefixed, 1, expected);
         open_navigator(&mut client_view);
         let navigator = render_workbench_client(&workbench_client, &client_view)?;
         assert!(navigator.contains("* 1 initial_workspace"), "{navigator}");

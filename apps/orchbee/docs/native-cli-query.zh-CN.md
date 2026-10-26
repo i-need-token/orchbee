@@ -2241,7 +2241,7 @@ Windows Job。上述检查不证明 provider 任务完成、身份认证或原�
 
 `panel process-info [<panel-id> | --current] [--client <id>]` 读取精确 Terminal 的 Windows Job。位置 Panel 目标与 `--current` 互斥；完整 ID 和 `@panel:0x<hex>` 使用现有 Panel 解析器及主绑定。没有显式选择器时，有效的 `ORCHBEE_TERMINAL_ID` 和 `ORCHBEE_WORKER_ID` 保留调用者的精确主终端或子终端；部分或过期元数据失败。调用者元数据缺席时要求唯一当前 Client；`--client` 指定精确当前 Client 并忽略调用者元数据。Client 选择被动解析实际成员，并在发布前验证同一绑定及本地附着标识。[当前 Panel 契约](native-current-panel.zh-CN.md) 负责修订栅栏、期限和取消。成员不可用时不回退到主终端。
 
-一次仅接入既有 Session 的 Client Connection 与一个绝对五秒预算覆盖快照、临时只读 viewer 接入、一次进程读取及尽力 detach。会话 drop 回收剩余 viewer。Server 再验证 Worker generation 与物理终端绑定；Worker 和 Host 保留进程事实授权边界。成功时发布确切的类型化 Windows Job 样本、Panel/Terminal 路由上下文和相关联的读取来源。顺序获取的快照与样本不宣称跨所有者原子观察。Host 失败保持明确，不转为空进程成功，也不重试。文本中的字符串经过转义，机器输出的创建时间保留十进制字符串。响应描述归属终端的进程，不代表 Windows 前台进程组或 Agent 的交互就绪状态。
+一次仅接入既有 Session 的 Client Connection 与一个绝对五秒预算覆盖快照、临时只读 viewer 接入、一次进程读取及尽力 detach。客户端连接 drop 回收剩余 viewer。Server 再验证 Worker generation 与物理终端绑定；Worker 和 Host 保留进程事实授权边界。成功时发布确切的类型化 Windows Job 样本、Panel/Terminal 路由上下文和相关联的读取来源。顺序获取的快照与样本不宣称跨所有者原子观察。Host 失败保持明确，不转为空进程成功，也不重试。文本中的字符串经过转义，机器输出的创建时间保留十进制字符串。响应描述归属终端的进程，不代表 Windows 前台进程组或 Agent 的交互就绪状态。
 
 JSON 封套为 `orchbee.panel.process-info` v2，schema 目录及双语帮助、补全与命令共同交付。证据覆盖隐式和显式目标、I/O 前的冲突拒绝、主与子终端选择、主绑定缺失、读取拒绝、响应身份错误、Host 错误保留、输出限额、viewer 回收，以及真实 Windows Session/Worker/Host 进程路由。共享类型化读取也是后续 Agent 启动和就绪工作的实际依赖，本身不关闭这些义务。
 
