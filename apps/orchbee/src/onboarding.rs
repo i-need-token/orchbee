@@ -15,6 +15,18 @@ pub(crate) enum Action {
     Help,
     Dismiss,
 }
+impl From<Action> for crate::localization::OnboardingLabel {
+    fn from(action: Action) -> Self {
+        match action {
+            Action::Workspace => Self::Workspace,
+            Action::Agent => Self::Agent,
+            Action::Menu => Self::Menu,
+            Action::Help => Self::Help,
+            Action::Dismiss => Self::Dismiss,
+        }
+    }
+}
+
 impl Action {
     pub(crate) const ALL: [Self; 5] = [
         Self::Workspace,

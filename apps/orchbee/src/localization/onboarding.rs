@@ -1,6 +1,18 @@
+//! Copy for selected onboarding actions; input and persistent dismissal remain outside text.
+
 //! Localized welcome guide actions and persistence feedback; does not own guide state.
 
 use super::Locale;
+
+/// Label for an available onboarding action; dismiss/storage policy stays with onboarding.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum OnboardingLabel {
+    Workspace,
+    Agent,
+    Menu,
+    Help,
+    Dismiss,
+}
 
 impl Locale {
     pub(crate) fn onboarding_title(self) -> &'static str {
@@ -19,9 +31,9 @@ impl Locale {
         }
     }
 
-    pub(crate) fn onboarding_label(self, action: crate::onboarding::Action) -> &'static str {
-        use crate::onboarding::Action::*;
-        match (self, action) {
+    pub(crate) fn onboarding_label(self, action: impl Into<OnboardingLabel>) -> &'static str {
+        use OnboardingLabel::*;
+        match (self, action.into()) {
             (Self::EnUs, Workspace) => "New workspace",
             (Self::ZhCn, Workspace) => "新建工作区",
             (Self::EnUs, Agent) => "Start an Agent",

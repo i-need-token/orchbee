@@ -25,31 +25,7 @@ pub(crate) fn selected_session_name() -> Option<&'static str> {
     None
 }
 
-/// The single local-startup verdict vocabulary, owned here by the shared
-/// activation core so the core never depends on the TUI adapter. The core
-/// itself only ever emits `Cohort`, `Runtime`, `SocketPathTooLong`,
-/// `RecoveryRequired`, `Incompatible`, `Admission`, or `TimedOut`;
-/// `Terminal`, `TerminalUnavailable`, `OutcomeUnknown`, and `Interface` are
-/// produced exclusively by the TUI adapter's own terminal stages and live
-/// in this one enum so both callers classify the same verdict type.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum StartupFailure {
-    #[cfg(windows)]
-    AlreadyInSession,
-    Terminal,
-    Cohort,
-    Runtime,
-    SocketPathTooLong,
-    RecoveryRequired,
-    Incompatible,
-    Admission,
-    TimedOut,
-    TerminalUnavailable,
-    OutcomeUnknown,
-    Interface,
-    #[cfg(windows)]
-    Configuration,
-}
+pub(crate) use crate::startup_status::StartupFailure;
 
 /// The shared activation verdict. `failure` is exactly the `StartupFailure`
 /// the TUI adapter has always derived; `cause` retains the raw typed error

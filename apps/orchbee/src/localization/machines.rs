@@ -1,4 +1,61 @@
+//! Localized machine and sidebar descriptions; navigation/filter/drop owners select the facts.
+
 use super::Locale;
+/// Description of one sidebar command selected by its navigation owner.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum SidebarActionLabel {
+    MoveUp,
+    MoveDown,
+    NewWorkspace,
+    Search,
+    Previous,
+    Next,
+    First,
+    Last,
+    Expand,
+    Collapse,
+    Activate,
+    OpenMenu,
+    Narrower,
+    Wider,
+    ResetWidth,
+    Help,
+    Exit,
+}
+
+/// Geometric drop description selected after the owning sidebar validates its candidate.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum SidebarPlacementLabel {
+    Before,
+    After,
+    Into,
+    Ungrouped,
+    End,
+}
+
+/// Already-selected Agent filter/control label; filter choices remain in machine_picker.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum MachineControlLabel {
+    Done,
+    Clear,
+    AllStates,
+    Blocked,
+    DoneState,
+    Error,
+    Working,
+    Idle,
+    Unknown,
+    AllScope,
+    MachineScope,
+    ContextScope,
+    PlacementOrder,
+    PriorityOrder,
+    ProviderOrder,
+    TitleOrder,
+    SequenceOrder,
+    Search,
+}
+
 impl Locale {
     pub(crate) const fn sidebar_drop_zone(self, workspace: bool) -> &'static str {
         match (self, workspace) {
@@ -10,9 +67,9 @@ impl Locale {
     }
     pub(crate) fn sidebar_reorder_hint(
         self,
-        destination: Option<(crate::tui_pointer::SidebarDropPlacement, &str)>,
+        destination: Option<(SidebarPlacementLabel, &str)>,
     ) -> String {
-        use crate::tui_pointer::SidebarDropPlacement::*;
+        use SidebarPlacementLabel::*;
         let Some((placement, label)) = destination else {
             return match self {
                 Self::EnUs => "Drag to a row or the bottom drop area · Esc cancel".to_owned(),
@@ -41,10 +98,10 @@ impl Locale {
     }
     pub(crate) fn sidebar_navigation_action(
         self,
-        action: crate::machine_picker::SidebarCommand,
+        action: impl Into<SidebarActionLabel>,
     ) -> &'static str {
-        use crate::machine_picker::SidebarCommand;
-        match (self, action) {
+        use SidebarActionLabel as SidebarCommand;
+        match (self, action.into()) {
             (Self::EnUs, SidebarCommand::NewWorkspace) => "New workspace",
             (Self::ZhCn, SidebarCommand::NewWorkspace) => "新建工作区",
             (Self::EnUs, SidebarCommand::Search) => "Search",
@@ -229,51 +286,38 @@ impl Locale {
         }
     }
 
-    pub(crate) fn machine_agent_control(
-        self,
-        control: crate::machine_picker::Control,
-        view: &crate::machine_agents::view::View,
-    ) -> String {
-        use crate::machine_agents::view::{Order, Scope};
-        use crate::machine_picker::Control;
-        use orchbee_workbench_protocol::MetadataState as State;
+    pub(crate) fn machine_agent_control(self, control: MachineControlLabel) -> String {
         let label = match control {
-            Control::Done => {
+            MachineControlLabel::Done => {
                 return match self {
                     Self::EnUs => "Done",
                     Self::ZhCn => "完成",
                 }
                 .into();
             }
-            Control::Clear => {
+            MachineControlLabel::Clear => {
                 return match self {
                     Self::EnUs => "Clear",
                     Self::ZhCn => "清空",
                 }
                 .into();
             }
-            Control::State => match view.state {
-                None => "agent-all-states",
-                Some(State::Blocked) => "agent-blocked",
-                Some(State::Done) => "agent-done",
-                Some(State::Error) => "agent-error",
-                Some(State::Working) => "agent-working",
-                Some(State::Idle) => "agent-idle",
-                Some(State::Unknown) => "agent-unknown",
-            },
-            Control::Scope => match view.scope {
-                Scope::All => "agent-scope-all",
-                Scope::Machine => "agent-scope-machine",
-                Scope::Context => "agent-scope-context",
-            },
-            Control::Order => match view.order {
-                Order::Placement => "agent-order-placement",
-                Order::Priority => "agent-order-priority",
-                Order::Provider => "agent-order-provider",
-                Order::Title => "agent-order-title",
-                Order::Sequence => "agent-order-sequence",
-            },
-            Control::Search => "agent-search",
+            MachineControlLabel::AllStates => "agent-all-states",
+            MachineControlLabel::Blocked => "agent-blocked",
+            MachineControlLabel::DoneState => "agent-done",
+            MachineControlLabel::Error => "agent-error",
+            MachineControlLabel::Working => "agent-working",
+            MachineControlLabel::Idle => "agent-idle",
+            MachineControlLabel::Unknown => "agent-unknown",
+            MachineControlLabel::AllScope => "agent-scope-all",
+            MachineControlLabel::MachineScope => "agent-scope-machine",
+            MachineControlLabel::ContextScope => "agent-scope-context",
+            MachineControlLabel::PlacementOrder => "agent-order-placement",
+            MachineControlLabel::PriorityOrder => "agent-order-priority",
+            MachineControlLabel::ProviderOrder => "agent-order-provider",
+            MachineControlLabel::TitleOrder => "agent-order-title",
+            MachineControlLabel::SequenceOrder => "agent-order-sequence",
+            MachineControlLabel::Search => "agent-search",
         };
         self.machine_picker_text(label).to_owned()
     }

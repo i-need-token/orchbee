@@ -35,6 +35,7 @@ mod notifications;
 mod onboarding;
 mod presentation;
 mod release_store;
+mod startup_status;
 mod startup_wait;
 mod terminal_buffer_text;
 mod terminal_content;

@@ -10,6 +10,8 @@ mod control_takeover;
 pub(crate) use control_takeover::TakeoverStatus;
 mod directory_startup;
 mod machines;
+pub(crate) use machines::SidebarActionLabel;
+pub(crate) use machines::{MachineControlLabel, SidebarPlacementLabel};
 mod navigator;
 mod notification;
 mod operation;
@@ -36,6 +38,7 @@ mod cli;
 pub(crate) use cli::{HelpDetails, HelpText};
 mod configured_commands;
 mod copy_mode;
+pub(crate) use copy_mode::{CopyHintLabel, CopyModeStatus};
 mod events;
 mod pane_graphics;
 mod panel_reports;
@@ -49,6 +52,7 @@ pub(crate) use agent_board::{
 mod location_labels;
 pub(crate) use location_labels::{LocationLabelStatus, LocationLabelTarget};
 mod onboarding;
+pub(crate) use onboarding::OnboardingLabel;
 #[cfg(any(unix, windows))]
 mod panel_close;
 mod prefix;

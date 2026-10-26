@@ -26,8 +26,8 @@ fn drag_feedback_replaces_the_complete_previous_notice_and_footer() {
                     SidebarDropPlacement::Before,
                     "Workspace 5".to_owned(),
                 );
-                let hint =
-                    locale.sidebar_reorder_hint(Some((destination.1, destination.2.as_str())));
+                let hint = locale
+                    .sidebar_reorder_hint(Some((destination.1.into(), destination.2.as_str())));
                 let preview = SidebarReorderDraw {
                     grabbed: None,
                     destination: Some(destination),

@@ -125,16 +125,7 @@ pub(crate) struct CopyModeCursor {
     pub(crate) row: u16,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum CopyModeStatus {
-    Entering,
-    Ready,
-    Selecting,
-    Moving,
-    Querying,
-    Exporting,
-    Clipboard,
-}
+pub(crate) use crate::localization::CopyModeStatus;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct CopyModeSearchView<'a> {

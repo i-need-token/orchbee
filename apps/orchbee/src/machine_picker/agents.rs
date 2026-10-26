@@ -481,7 +481,7 @@ impl Picker {
             {
                 locale.machine_picker_text("agent-source-sort").to_owned()
             } else {
-                locale.machine_agent_control(control, &self.agent_view)
+                locale.machine_agent_control(control_label(control, &self.agent_view))
             };
             let label = crate::terminal_text::truncate_display(
                 &label,
@@ -520,7 +520,7 @@ impl Picker {
             if control == Control::Done && !self.editing_query {
                 continue;
             }
-            let label = locale.machine_agent_control(control, &self.agent_view);
+            let label = locale.machine_agent_control(control_label(control, &self.agent_view));
             let state = component_state(
                 PointerPresentation::Rest,
                 NavigationState::None,
@@ -638,5 +638,40 @@ impl Picker {
         {
             hits.record_interaction(HitLayer::Overlay, rect, rect, target, interaction);
         }
+    }
+}
+
+fn control_label(
+    control: Control,
+    view: &crate::machine_agents::view::View,
+) -> crate::localization::MachineControlLabel {
+    use crate::machine_agents::view::{Order, Scope};
+    use crate::machine_picker::Control;
+    use orchbee_workbench_protocol::MetadataState as State;
+    match control {
+        Control::Done => crate::localization::MachineControlLabel::Done,
+        Control::Clear => crate::localization::MachineControlLabel::Clear,
+        Control::State => match view.state {
+            None => crate::localization::MachineControlLabel::AllStates,
+            Some(State::Blocked) => crate::localization::MachineControlLabel::Blocked,
+            Some(State::Done) => crate::localization::MachineControlLabel::DoneState,
+            Some(State::Error) => crate::localization::MachineControlLabel::Error,
+            Some(State::Working) => crate::localization::MachineControlLabel::Working,
+            Some(State::Idle) => crate::localization::MachineControlLabel::Idle,
+            Some(State::Unknown) => crate::localization::MachineControlLabel::Unknown,
+        },
+        Control::Scope => match view.scope {
+            Scope::All => crate::localization::MachineControlLabel::AllScope,
+            Scope::Machine => crate::localization::MachineControlLabel::MachineScope,
+            Scope::Context => crate::localization::MachineControlLabel::ContextScope,
+        },
+        Control::Order => match view.order {
+            Order::Placement => crate::localization::MachineControlLabel::PlacementOrder,
+            Order::Priority => crate::localization::MachineControlLabel::PriorityOrder,
+            Order::Provider => crate::localization::MachineControlLabel::ProviderOrder,
+            Order::Title => crate::localization::MachineControlLabel::TitleOrder,
+            Order::Sequence => crate::localization::MachineControlLabel::SequenceOrder,
+        },
+        Control::Search => crate::localization::MachineControlLabel::Search,
     }
 }

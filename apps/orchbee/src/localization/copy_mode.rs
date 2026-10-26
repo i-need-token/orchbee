@@ -1,5 +1,32 @@
+//! Copy-mode labels and already-selected display status; selection and clipboard effects stay owned.
+
 use super::Locale;
-use crate::{client_view::CopyHintLabel, terminal_copy_mode::CopyModeStatus};
+
+/// Semantic label paired with one locally effective Copy-mode binding group.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum CopyHintLabel {
+    Exit,
+    Copy,
+    Select,
+    Search,
+    Repeat,
+    Help,
+    Move,
+    Find,
+    Back,
+    Reverse,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum CopyModeStatus {
+    Entering,
+    Ready,
+    Selecting,
+    Moving,
+    Querying,
+    Exporting,
+    Clipboard,
+}
 
 impl Locale {
     pub(crate) const fn copy_action_label(self) -> &'static str {

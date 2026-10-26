@@ -377,6 +377,29 @@ pub(crate) enum SidebarCommand {
     Help,
     Exit,
 }
+impl From<SidebarCommand> for crate::localization::SidebarActionLabel {
+    fn from(action: SidebarCommand) -> Self {
+        match action {
+            SidebarCommand::MoveUp => Self::MoveUp,
+            SidebarCommand::MoveDown => Self::MoveDown,
+            SidebarCommand::NewWorkspace => Self::NewWorkspace,
+            SidebarCommand::Search => Self::Search,
+            SidebarCommand::Previous => Self::Previous,
+            SidebarCommand::Next => Self::Next,
+            SidebarCommand::First => Self::First,
+            SidebarCommand::Last => Self::Last,
+            SidebarCommand::Expand => Self::Expand,
+            SidebarCommand::Collapse => Self::Collapse,
+            SidebarCommand::Activate => Self::Activate,
+            SidebarCommand::OpenMenu => Self::OpenMenu,
+            SidebarCommand::Narrower => Self::Narrower,
+            SidebarCommand::Wider => Self::Wider,
+            SidebarCommand::ResetWidth => Self::ResetWidth,
+            SidebarCommand::Help => Self::Help,
+            SidebarCommand::Exit => Self::Exit,
+        }
+    }
+}
 
 pub(crate) const SIDEBAR_BINDINGS: &[(Binding, SidebarCommand)] = &[
     (

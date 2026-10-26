@@ -63,7 +63,7 @@ pub(crate) fn render_sidebar_reorder_preview(
             preview
                 .destination
                 .as_ref()
-                .map(|(_, placement, label)| (*placement, label.as_str())),
+                .map(|(_, placement, label)| ((*placement).into(), label.as_str())),
         );
         // Paragraph paints text and styles, but does not erase an older notice's tail.
         frame.render_widget(Clear, status);

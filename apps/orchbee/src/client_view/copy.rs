@@ -27,20 +27,7 @@ pub(crate) enum CopySearchCommand {
     Reverse,
 }
 
-/// Semantic label paired with one locally effective Copy-mode binding group.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum CopyHintLabel {
-    Exit,
-    Copy,
-    Select,
-    Search,
-    Repeat,
-    Help,
-    Move,
-    Find,
-    Back,
-    Reverse,
-}
+pub(crate) use crate::localization::CopyHintLabel;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum LocalBinding {

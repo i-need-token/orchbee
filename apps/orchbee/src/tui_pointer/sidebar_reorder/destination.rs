@@ -31,6 +31,17 @@ pub(crate) enum Placement {
     Ungrouped,
     End,
 }
+impl From<Placement> for crate::localization::SidebarPlacementLabel {
+    fn from(placement: Placement) -> Self {
+        match placement {
+            Placement::Before => Self::Before,
+            Placement::After => Self::After,
+            Placement::Into => Self::Into,
+            Placement::Ungrouped => Self::Ungrouped,
+            Placement::End => Self::End,
+        }
+    }
+}
 
 pub(super) struct Drop {
     pub(super) operation: NavigationConfiguration,

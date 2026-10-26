@@ -30,9 +30,9 @@ impl Locale {
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(crate) const fn startup_failure(
         self,
-        failure: crate::local_activation::StartupFailure,
+        failure: crate::startup_status::StartupFailure,
     ) -> &'static str {
-        use crate::local_activation::StartupFailure;
+        use crate::startup_status::StartupFailure;
         match (self, failure) {
             #[cfg(windows)]
             (Self::EnUs, StartupFailure::AlreadyInSession) => {
