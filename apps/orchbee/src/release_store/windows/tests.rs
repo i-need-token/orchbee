@@ -1,18 +1,7 @@
 //! Immutable publication, writer exclusion and disposal of unpublished files.
+use super::super::ReleaseStore;
 use super::*;
 use std::io::Write;
-
-#[test]
-fn release_paths_reject_windows_aliases_and_escape() {
-    for value in [
-        "../x", "/x", "x\\y", "C:/x", "x:stream", "nul.exe", "a/COM1", "x.", "a//b", ".", "a/../b",
-    ] {
-        assert!(!valid_release_path(value), "{value}");
-    }
-    assert!(valid_release_path(
-        "agent-observation-adapters/bundle/package.json"
-    ));
-}
 
 #[test]
 fn release_publication_is_exclusive_immutable_and_cleans_staging() {

@@ -280,7 +280,7 @@ orchbee update --format json
 
 独立版本目录同时保存经过接纳的原始 `release.json`；该保留文件不属于文件清单条目，复用时核对其未改变。`status client` v1 将清单绑定到目录标识和已验证 cohort 后再投影实际安装来源，不以当前配置偏好替代。
 
-CLI 私有的 `release_store` 模块拥有不可变发布。`ReleaseStore` 获取已有私有缓存写锁并固定安装目录祖先。暂存区借用该锁，只创建经过验证的可移植路径与独占私有文件，再通过不替换目录重命名发布到小写 SHA-256 标识。应用拥有清单校验、下载、cohort 接纳、启动检查、用户 PATH 激活及保留版本。显式清理只删除自身未发布暂存区；子进程结束未确认时使用 `retain_for_recovery` 并报告保留路径。`open_release_file` 拒绝不安全祖先、重解析点、外部 ACL 和硬链接。确定性 Windows 测试覆盖写入互斥、独立发布、别名拒绝和暂存清理。
+CLI 私有的 `release_store` 模块拥有不可变发布。`ReleaseStore` 获取已有私有缓存写锁并固定安装目录祖先。暂存区借用该锁，只创建经过验证的可移植路径与独占私有文件，再通过不替换目录重命名发布到小写 SHA-256 标识。应用拥有清单校验、下载、cohort 接纳、启动检查、用户 PATH 激活及保留版本。显式清理只删除自身未发布暂存区；子进程结束未确认时使用 `retain_for_recovery` 并报告保留路径。`open_release_file` 拒绝不安全祖先、重解析点、外部 ACL 和硬链接。路径准入、暂存区所有权及发布／恢复决策在所有宿主平台参与编译；暂存区分配与文件系统变更使用具名平台端口，已有私有文件端口拥有锁和句柄准入。Unix 端口在文件系统效果前返回类型化 Unsupported，不能创建成功的存储或暂存区。既有路径准入测试在所有宿主平台运行；原生 Windows 测试覆盖写入互斥、不可变发布和暂存清理。
 
 ## Windows Agent 侧栏布局
 
@@ -343,4 +343,4 @@ Git 在所属 Worker 上读取已提交的 Workspace 目录，显示相对本地
 
 `terminal.focus_new_panel` 接受布尔值，默认为 `true`。原生 Client 分屏选中刚提交的新窗格；`false` 保留原窗格。Client 在启动时读取该偏好，编辑此字段后需重启。类型无效时产生字段级诊断并使用默认值。CLI `panel split --focus` 保留显式命令策略。
 
-<!-- documentation-pairing: english-sha256=a9037c6d5defc3462141b645344ab4f2989b1886c2d1c5ee9e27f6a50c0f4e5f zh-cn-sha256=4fa27b9c28f78f9f6813e20baa08f2849c37a1e80d3dfc985680cf2ebcbb7022 -->
+<!-- documentation-pairing: english-sha256=43b1b9558bf50319e98ce9c6453850b40ffadf6a027f67cdb64f1501bd76c466 zh-cn-sha256=4a2927cfb13a359efb715b6b859dd44bc67443357a1171fecb3e083c5e304540 -->
