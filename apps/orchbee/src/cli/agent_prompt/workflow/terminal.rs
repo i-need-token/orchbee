@@ -1,8 +1,7 @@
 //! Submit once to a verified physical Agent; preserve delivery when later observation fails.
 use super::{
     AgentTarget, ArmedSignals, Completion, Failure, FailureKind, Instant, Locale, Map, Output,
-    OutputFormat, READ_BUDGET, ResolvedWait, Sent, SignalWatch, Value, WaitDeadline, json, output,
-    query, send,
+    OutputFormat, READ_BUDGET, ResolvedWait, Sent, Value, WaitDeadline, json, output, query, send,
 };
 use crate::cli::processes::{Selection, interpret};
 use crate::cli::query::terminal_agent::{TerminalAgentRead, failure as error};

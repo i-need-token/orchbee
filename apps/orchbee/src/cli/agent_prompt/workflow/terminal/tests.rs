@@ -1,5 +1,5 @@
 use super::*;
-use crate::cli::agent_prompt::active::settle;
+use crate::cli::agent_prompt::workflow::settle;
 use orchbee_client_server_protocol::{SendCleanupStatus, SendProgress, TerminalSendOutcome};
 
 fn binding() -> AgentLaunchBinding {

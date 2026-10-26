@@ -733,6 +733,14 @@ These repair stale schema projections; wire and receipt versions remain unchange
 
 ## Agent prompt submission
 
+The prompt workflow compiles on every host. Capability admission precedes deadline creation,
+signal registration and Session access. Linux retains its canonical sampled observation;
+Windows retains physical targets, journal history and Client evidence. The common INT/TERM
+port delegates to each existing native guard, and the Client Connection is dropped before
+signal finalization and receipt projection. Unsupported hosts return the existing platform
+failure without acquiring those resources; Unix prompt results keep their existing
+unsupported journal and Client fields.
+
 `agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms>]`
 uses the same Session/name/Panel selectors as other Agent commands. Windows also accepts
 `@agent:<kind>` and complete-list `@agent:<n>` through the shared projection resolver above.

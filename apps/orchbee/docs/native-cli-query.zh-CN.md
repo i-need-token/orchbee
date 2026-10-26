@@ -587,6 +587,12 @@ Server 仍验证终端当前绑定。
 
 ## Agent 提示提交
 
+提示工作流在所有宿主上编译。能力准入先于创建期限、注册信号和访问 Session。
+Linux 保留规范会话的采样观察；Windows 保留物理目标、journal 历史和 Client 证据。
+共用 INT/TERM 端口委托各平台既有原生 guard，Client Connection 在信号收尾和回执投影
+之前释放。不支持的宿主返回既有平台失败且不获取这些资源；Unix 提示结果继续保留
+journal 和 Client 字段原有的 unsupported 表达。
+
 `agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms>]`
 与其他 Agent 命令使用相同 ID/名称选择器。Windows 也通过上述共享投影解析器接受
 `@agent:<kind>` 和完整列表中的 `@agent:<n>`。文字为非空 UTF-8，受 256 KiB paste 上限和
@@ -2509,4 +2515,4 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=012e3ebfb15054e3b6327209a6a7f375b1bcd6af4fbecd1867d9f64327bfdb2f zh-cn-sha256=b17415c267ad7560b58b6fd2203e21dddf78024d6b169b37553fd9e834d94efd -->
+<!-- documentation-pairing: english-sha256=25ac0a006e11b63d12b111acdc87ac65be48b019e41f2f781ab4ecf66ca404cb zh-cn-sha256=9ea218515ede791078278cb59571d927fa365b68c0c4def919c4cd10c11add62 -->

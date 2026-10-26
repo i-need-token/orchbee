@@ -13,7 +13,7 @@ use crate::localization::Locale;
 pub(crate) const TERMINAL_SEND_ID: &str = "orchbee.terminal.send";
 pub(crate) use crate::agent_runtime::SendVerdict;
 mod workflow;
-#[cfg(all(test, any(target_os = "linux", windows)))]
+#[cfg(test)]
 pub(super) use workflow::test_receipt;
 pub(crate) use workflow::{
     Receipt, receipt_output, submit_prompt_on_session, submit_prompt_on_session_cancellable,

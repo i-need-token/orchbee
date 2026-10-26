@@ -63,7 +63,6 @@ pub(crate) use process_info::{primary_terminal, read_terminal_processes_cancella
 
 mod agent_terminal;
 pub(crate) use agent_terminal::resolve_agent_terminal;
-#[cfg(windows)]
 pub(in crate::cli) use agent_terminal::resolve_session_terminal;
 pub(crate) use agent_terminal::verify_agent_terminal;
 pub(crate) use agent_terminal::{AgentObservationRead, read_agent_observation};
@@ -115,9 +114,7 @@ use std::time::{Duration, Instant};
 
 mod agent_list_unarmed;
 mod agent_wait;
-#[cfg(any(target_os = "linux", windows))]
 pub(crate) use agent_wait::condition_matches;
-#[cfg(windows)]
 pub(crate) use agent_wait::status_matches;
 pub(crate) use agent_wait::{agent_wait, wait_backoff};
 
