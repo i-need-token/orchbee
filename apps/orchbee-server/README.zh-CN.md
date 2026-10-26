@@ -561,6 +561,53 @@ OBCS/OBWP prefix 分派给不同语义 handler，只导入其契约及标准库 
 载体，不会伪造命令结果。尚未发布的 application library 暴露权威、会话 grant 和内部
 membership/exposure/preparation 的 typed result；整份 projection 写入保持私有。
 
+## Client 多路复用交付
+
+TUI 将已准入的 OBLC v1 连接升级为一条 OBWP v1 carrier。请求和订阅 stream ID 非零、
+仅在连接内有效且不复用，与 graphics producer ID 独立。逻辑 lane ID 表示资源作用域，
+不是另一个已认证 Client。终端 viewer 与 popup owner 共用 `(connection generation, lane ID)`；
+关闭 lane 只释放其 attachment／popup。最后一个 lane owner 释放与显式取消使用同一清理路径。
+已执行的完成可能先于取消返回，但排队的 lane 关闭随后回收准确 owner，不能回收兄弟 lane。
+
+每条 carrier 有一个标准库 reader 和一个 writer／dispatcher。reader 最多接纳 64 条排队记录；
+dispatcher 执行有限请求，并在 mailbox 和业务锁外写入。最多 64 条活跃 stream 和 64 个显式
+lane，另有根 lane 1。保留请求／响应的 reservation 共用 32 MiB 预算，保守计入编码副本。
+每条内部记录最多 24 MiB 加 12 字节 header。decoder 存储和当前解码记录另有有界临时分配；
+reservation 计数不是精确进程堆上限。Client 命令队列和输出队列也有固定上限。
+预算耗尽返回类型化 Capacity 失败，不会无界缓存。
+
+提交信号先于快照捕获注册。捕获期间并发提交会留下更高的信号 revision，dispatcher 在休眠
+前再次求值。状态 stream 先发快照，再发送变化后的完整值；Client 将待消费状态合并为一个值。
+失效提示 stream 先发语义快照，再发送合并后的八字节提交提示。事件 stream 在 Client 每条
+最多保留 32 条待消费记录。语义 journal 订阅分别保留 Subscribe 定义与 Read continuation，
+立即续读 `more` 页，并使用既有 journal epoch／cursor。journal 丢失或 Client inbox 溢出
+都会先发送 Gap，再捕获新快照；不把丢失事件冒充为完整历史。连续超限之间间隔小于 30 秒时，
+第三次消费者 resnapshot 以 SlowConsumer 终止该连接。每条输出记录写入上限为两秒。
+无响应 socket 会关闭；仅在 socket 还能接收完整 frame 时才能交付类型化 disconnect。
+其他 Client 和提交发布不等待该 socket。多路复用 dispatcher 不支持长语义 Wait；
+直接 CLI Wait 保留原有有界契约。
+
+Client actor 同时 poll carrier 与本地命令唤醒 stream，拥有物理重连、取消、ID 和订阅重建。
+交接前取消的请求为未提交；一旦写入可能开始，传输丢失即为 OutcomeUnknown，绝不重放请求。
+重连丢弃旧 decoder／队列，只重建订阅；stream 取消会隔离排队和在途交付。
+类型化超限断连为终态，不能通过重连规避上限。逻辑终端 attachment 不通过重放 Attach 重建。
+一次性 CLI 连接继续使用直接协议路径。
+
+`ClientSubscriptionDelivery.tla/.cfg` 是新增边界的最小并发模型：两个 Client、队列容量二、
+两个发布 revision 和两代连接。独立在途 frame 跨 Cancel／Reconnect 保留，在交付处检查。
+模型检查先快照后 update、先 gap 后替代快照、代次／取消约束、队列长度上限，以及发布是否
+独立于 Client 队列占用仍可执行。最后一项以非阻塞发布为假设，不证明 OS 调度、socket 进展、
+字节／stream 预算、codec、终端所有权或端到端活性。`Overflow` 是必需的正向可达证据。
+维护中的负对照将 FenceGeneration 或 FenceCancellation 置 FALSE，并要求对应不变量反例。
+既有 relay／所有权模型没有覆盖这个连接／订阅新边界。
+
+`local_client_service/multiplex/tests.rs` 的受控实现轨迹检查捕获期间提交、不读取的 peer 与
+仍进展的 peer 并存，以及迟到 lane 清理保留兄弟 owner。Client 传输轨迹检查取消后的迟到
+回复、真实事件溢出／gap／快照交付和总 reservation 拒绝；配置恢复检查不重放结果未知的
+reload。协议 codec 测试拒绝不可信长度、版本、身份和 tag。修改这些声明时运行
+`node scripts/tla/run-models.mjs --models client-subscription-delivery --jobs 1`、两个
+`client-subscription-delivery` 变异用例及受影响的 Rust host gate。
+
 ## 验证
 
 从仓库根目录运行：
@@ -715,8 +762,8 @@ context／Tab／Panel／Presentation／binding 来源、同连接拥有的只读
 不宣称子进程退出。EOF 将已接纳清理移交现有 会话 维护。来源只读 attachment
 保留到最后捕获消费者结束后 detach；popup 进程／文档清理仍归 Host。
 
-串行应用分发器通过本地 RefCell 在 OBCS 与编辑器 OBWP 请求间共用连接 viewer
-连接，每次请求一次借用，不存在重入回调或跨线程访问。授权／会话／来源／编辑器
+串行应用分发器通过本地 RefCell map 在 OBCS 与编辑器 OBWP 请求间共用每条逻辑 lane 的
+viewer owner，每次请求一次借用，不存在重入回调或跨线程访问。授权／会话／来源／编辑器
 拒绝均在 Create 前发生。相关协议及原生 Windows 管道轨迹验证来源约束、延迟
 顺序、字面参数、未知结果、旧 plugin 行为、规范状态保持及物理清理；不构成部署后
 GUI、TUI／模拟器或完整 cohort 验收。Client overlay 和公开 CLI 入口需单独验证，

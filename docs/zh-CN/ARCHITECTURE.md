@@ -17,6 +17,7 @@ apps/*（Rust）                 -> crates/*   -> 外部依赖
 
 产品角色与身份边界使用[术语表](GLOSSARY.md)。TUI Workbench Client 拥有本地交互运行时；
 每条已接受的 Client–Server 传输对应一个 Client Connection。这两种生命周期均不是 Session 身份。
+TUI 的 OBWP v1 请求／订阅 stream 共用一条已准入 OBLC 物理连接；逻辑 lane 不取得额外 Client 身份。Server 提交所有者向连接的标准库 reader／writer 对发布失效提示。
 
 ```mermaid
 flowchart TB
@@ -75,4 +76,4 @@ const payload = rawPayload as RequestPayload;
 const payload = RequestPayloadSchema.parse(rawPayload);
 ```
 
-<!-- documentation-pairing: english-sha256=a67863acbf260084f520a2072be1750e0af57033ae36420231a3daac82e29de8 zh-cn-sha256=143e2c9035ce3b6d97ad81cd08745d53f11fbfa1024a0b9aa4fe461f8c9ef08c -->
+<!-- documentation-pairing: english-sha256=74bf802a8993233e0214a454ef1ef77246af7cdab053ddcdb255e1c1066cd194 zh-cn-sha256=6329d9ce078523d402f30eb48d273b4fc6a12c2538590e391640dfa4ef5839e7 -->

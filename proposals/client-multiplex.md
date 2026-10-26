@@ -40,7 +40,8 @@ remain authoritative.
 The small shared protocol model covers independently ordered publication, delivery,
 overflow, resnapshot, cancellation and reconnect. Its claims are snapshot before
 increment, no delivery after cancellation or from an old generation, bounded queues,
-and isolation of a slow Client. Existing models do not cover this new carrier
+and publication enabled independently of Client queue occupancy. This last property assumes
+nonblocking publication and does not prove OS socket progress or byte/stream budgets. Existing models do not cover this new carrier
 boundary; ordinary request codec tests cannot explore these competing transitions.
 The model abstracts payload validation and operating-system scheduling; controlled
 implementation traces check the mapping and malformed/bounded frame admission.
@@ -48,8 +49,9 @@ implementation traces check the mapping and malformed/bounded frame admission.
 Performance comparison uses the same Windows host and private runtime, one idle
 Workspace/PowerShell, ten seconds of warm-up and three thirty-second samples of
 Client/Server/Worker CPU time, thread context-switch counts, thread counts and OBLC
-connections. Baseline source is d17d2b5e6; the final candidate uses the same workload
-and tools. Context switches are a scheduling proxy, not hardware wakeups. Native
+connections. Baseline measurement must use a compiling frozen main revision after baseline repairs; the
+original d17d2b5e6 source is not a measured baseline. Record the actual baseline/candidate hashes
+with the same workload and tools. Context switches are a scheduling proxy, not hardware wakeups. Native
 measurement and final verification remain explicit evidence, never inferred from
 source. OS process sampling and Host screen sampling without a notification source
 remain bounded and explain their missing event source beside the polling code.

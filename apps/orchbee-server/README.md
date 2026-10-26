@@ -643,6 +643,66 @@ the mixed carrier without fabricating a command result. The unpublished applicat
 exposes the authority, Session grants and typed internal membership/exposure/preparation results; whole-projection writing
 remains private.
 
+## Multiplexed Client delivery
+
+A TUI promotes its admitted OBLC v1 connection into one OBWP v1 carrier. Request and
+subscription stream IDs are connection-local, nonzero and never reused. They are independent
+of graphics producer IDs. Logical lane IDs name resource scopes, not additional authenticated
+Clients. Terminal viewers and popup owners use the same `(connection generation, lane ID)`;
+closing one lane releases only its attachments/popups. The final lane owner and explicit
+cancellation use the same cleanup. A completion already executing may finish before cancellation,
+but queued lane closure then reclaims that exact owner; it cannot reclaim a sibling lane.
+
+Each carrier has one standard-library reader and one writer/dispatcher. The reader admits at
+most 64 queued records; the dispatcher executes finite requests and writes outside mailbox and
+business locks. There are at most 64 active streams and 64 explicit lanes, plus root lane 1.
+Retained request/response reservations share a 32 MiB budget; they conservatively include
+encoded copies. Individual inner records are at most 24 MiB plus their 12-byte header. Decoder
+storage and one currently decoded record have separate bounded transient allocations; the
+reservation count is not an exact process heap bound. A Client command queue and output queue
+also have fixed bounds. A full budget produces a typed Capacity failure, never unbounded buffering.
+
+The commit signal is registered before snapshot capture. A commit concurrent with capture leaves
+a newer signal revision, so the dispatcher reevaluates before sleeping. State streams send a
+snapshot followed by changed full values; the Client coalesces pending state to one value.
+Invalidation streams send the initial semantic snapshot then coalesced eight-byte commit hints.
+Event streams retain at most 32 pending records per Client stream. Semantic journal subscriptions
+retain their Subscribe definition separately from the Read continuation, immediately drain pages
+whose `more` flag is set, and use the existing journal epoch/cursor. Journal loss or Client inbox
+overflow sends Gap before a fresh snapshot; lost events are never presented as complete history.
+The third consumer resnapshot within a rolling 30-second sequence terminates that connection as
+SlowConsumer. Each output record has a two-second write bound. An unresponsive socket is closed;
+a typed disconnect is delivered only when the socket can still accept a complete frame. Other
+Clients and commit publication do not wait for that socket. Long semantic Wait requests are
+unsupported on the multiplexed dispatcher; direct CLI Wait retains its existing bounded contract.
+
+The Client actor polls its carrier and a local command wake stream together. It owns physical
+reconnect, cancellation, IDs and subscription reconstruction. A request cancelled before handoff
+is not submitted. Once its write may have begun, transport loss is OutcomeUnknown and the request
+is never replayed. Reconnect discards the old decoder/queues and recreates only subscriptions;
+stream cancellation fences queued and in-flight delivery. Typed overload disconnects are terminal,
+so reconnect cannot evade the limit. Logical terminal attachments are not reconstructed by replaying
+Attach. One-shot CLI connections keep their direct protocol path.
+
+`ClientSubscriptionDelivery.tla/.cfg` is the minimal new concurrency model: two Clients, queue
+capacity two, two publication revisions and two connection generations. An independent in-flight
+frame survives Cancel/Reconnect and is checked at delivery. It checks snapshot-before-update,
+gap-before-replacement-snapshot, generation/cancellation fences, queue-length bounds and publication
+being enabled independently of Client queue occupancy. This last property assumes nonblocking
+publication; it does not prove OS scheduling, socket progress, byte/stream budgets, codecs, terminal
+ownership, or end-to-end liveness. `Overflow` is a required positive reachability witness. The
+maintained negative controls set FenceGeneration or FenceCancellation to FALSE and require the
+corresponding invariant counterexample. Existing relay/ownership models do not cover this new
+connection/subscription boundary.
+
+Controlled implementation traces in `local_client_service/multiplex/tests.rs` check a commit during
+capture, an undrained peer alongside a progressing peer, and late lane cleanup preserving a sibling.
+Client transport traces check cancelled late replies, actual event overflow/gap/snapshot delivery
+and aggregate reservation refusal; configuration recovery checks that an uncertain reload is not
+replayed. The protocol codec tests reject untrusted lengths, versions, identifiers and tags.
+Run `node scripts/tla/run-models.mjs --models client-subscription-delivery --jobs 1`, the two
+`client-subscription-delivery` mutation cases, and the affected Rust host gate when these claims change.
+
 ## Verification
 
 Run from the repository root:
@@ -817,8 +877,8 @@ also disposable without claiming child exit. EOF transfers accepted cleanup to
 existing Session maintenance. Source read attachments remain owned until their last
 capture consumer, then detach; popup process/document cleanup remains Host-owned.
 
-The serial application dispatcher shares its connection viewer owner between
-OBCS and editor OBWP requests through a local RefCell, with one borrow per request
+The serial application dispatcher shares each logical lane's viewer owner between
+OBCS and editor OBWP requests through a local RefCell map, with one borrow per request
 and no reentrant callback or cross-thread access. Grant/site/source/editor refusal
 precedes Create. Focused protocol and native Windows pipe traces judge source
 fences, deferred ordering, literal argv, unknown results, existing plugin behavior,

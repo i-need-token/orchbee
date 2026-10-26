@@ -18,6 +18,22 @@ await provisionJar(inventory.tool, jar, process.env.ORCHBEE_TLA2TOOLS_JAR === un
 // The full baseline gate supplies the positive controls from the exact same modules/configs.
 const cases = [
 	[
+		'client-subscription-delivery',
+		'old generation completion enters a replacement subscription',
+		'FenceGeneration = TRUE',
+		'FenceGeneration = FALSE',
+		/Invariant CurrentGeneration is violated/u,
+		'config',
+	],
+	[
+		'client-subscription-delivery',
+		'in-flight delivery survives cancellation without its fence',
+		'FenceCancellation = TRUE',
+		'FenceCancellation = FALSE',
+		/Invariant CancellationFence is violated/u,
+		'config',
+	],
+	[
 		'native-settings-save',
 		'stale file overwrite',
 		'/\\ s.phase[c] = "owned" /\\ s.owner = c /\\ Fresh(c)',
@@ -62,10 +78,10 @@ const cases = [
 ];
 
 describe('protocol mutation counterexamples', { concurrency: 3 }, () => {
-	for (const [id, fault, before, after, counterexample] of cases) {
+	for (const [id, fault, before, after, counterexample, target = 'module'] of cases) {
 		test(`${id}: ${fault}`, async (t) => {
 			const model = inventory.models.find((entry) => entry.id === id);
-			const source = (await readFile(path.join(repositoryRoot, model.module), 'utf8')).replaceAll(
+			const source = (await readFile(path.join(repositoryRoot, model[target]), 'utf8')).replaceAll(
 				'\r\n',
 				'\n',
 			);
@@ -74,10 +90,17 @@ describe('protocol mutation counterexamples', { concurrency: 3 }, () => {
 			t.after(() => rm(directory, { recursive: true, force: true }));
 			const module = path.basename(model.module);
 			const config = path.basename(model.config);
-			await writeFile(path.join(directory, module), source.replace(before, after));
+			await writeFile(
+				path.join(directory, module),
+				target === 'module'
+					? source.replace(before, after)
+					: await readFile(path.join(repositoryRoot, model.module)),
+			);
 			await writeFile(
 				path.join(directory, config),
-				await readFile(path.join(repositoryRoot, model.config)),
+				target === 'config'
+					? source.replace(before, after)
+					: await readFile(path.join(repositoryRoot, model.config)),
 			);
 			const result = await runChild(
 				process.env.ORCHBEE_TLA_JAVA ?? 'java',

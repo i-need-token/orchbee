@@ -18,7 +18,7 @@ use std::sync::atomic::AtomicU64;
 /// leased, its result is published carrying the hint the publication probe
 /// observed, the UI applies it, and the causal settlement the UI deposits is
 /// taken so the next poll can publish.
-/// Resolve the exact incarnation the mailbox admitted for `anchor` â€” the UI
+/// Resolve the exact incarnation the mailbox admitted for `anchor` — the UI
 /// seeds the pane set from real state, so fabricated keys are never admitted.
 fn pane_ref(mailbox: &CommandMailbox, anchor: &AttachmentKey) -> PaneRef {
     mailbox.pane_ref_for_anchor(anchor).expect("admitted pane")
@@ -939,7 +939,7 @@ fn panel_focus_silent_poll_finish_restores_anchor_and_readmits_one_fresh_poll() 
 
     // Selecting the second tab admits a Switch to a fresh generation key; the
     // queued K1 Poll record survives admission untouched while the UI drops its
-    // observed serial â€” the old anchor's projections are hidden until a proven
+    // observed serial — the old anchor's projections are hidden until a proven
     // restore.
     ui.apply_client_action(ClientAction::SelectTab(2));
     assert_eq!(
@@ -949,7 +949,7 @@ fn panel_focus_silent_poll_finish_restores_anchor_and_readmits_one_fresh_poll() 
 
     // The executor leases the stale K1 Poll and finishes it silently: its
     // attachment is no longer the desired key, so run_poll returns before any
-    // read or publish â€” no PollResult event and no switch-discard record, the
+    // read or publish — no PollResult event and no switch-discard record, the
     // exact pre-entry staleness path the real executor takes.
     let stale_poll = mailbox.try_recv().unwrap().expect("queued K1 Poll");
     let stale_key = stale_poll.poll_key().expect("ordinary Poll key");
@@ -1014,7 +1014,7 @@ fn panel_focus_silent_poll_finish_restores_anchor_and_readmits_one_fresh_poll() 
 
 /// B3 counterexample: a pending draw whose pane left the desired membership
 /// before the draw drained must settle `NoFeedback`. The causal settlement
-/// claims this draw's proof â€” forwarding `FrameApplied` for a frame no live
+/// claims this draw's proof — forwarding `FrameApplied` for a frame no live
 /// leaf staged lets the worker report a frame that never reached the screen,
 /// and the departing incarnation stays admitted until the reconcile lands,
 /// so the lie is observable on the wire.
@@ -1071,7 +1071,7 @@ fn departed_pane_pending_draw_settles_no_feedback_not_frame_applied() {
     assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
 
     // A real setup-poll key for the peer, minted under the reconcile lease
-    // the observation queued â€” the same path the executor's background
+    // the observation queued — the same path the executor's background
     // attach/poll pipeline takes.
     let lease = loop {
         let lease = mailbox.try_recv().unwrap().expect("queued commands");
@@ -1110,7 +1110,7 @@ fn departed_pane_pending_draw_settles_no_feedback_not_frame_applied() {
     );
 
     // The leaf vanishes before the draw drains: the record turns departing
-    // while its incarnation is still admitted â€” the reconcile that abandons
+    // while its incarnation is still admitted — the reconcile that abandons
     // the causal slot is a separate step that has not landed yet.
     ui.state
         .as_mut()
@@ -1118,7 +1118,7 @@ fn departed_pane_pending_draw_settles_no_feedback_not_frame_applied() {
         .sync_pane_set(&[(focus_panel, 0, geometry)], clock.now());
     ui.after_draw();
 
-    // The frame never reached the screen, so the settlement is NoFeedback â€”
+    // The frame never reached the screen, so the settlement is NoFeedback —
     // forwarding the poll-time FrameApplied would ack an undrawn frame.
     assert_eq!(
         mailbox

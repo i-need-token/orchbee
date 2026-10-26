@@ -50,7 +50,7 @@ impl WorkbenchClientUi {
     /// Workbench index best-effort; `DismissNavigator` reports the open
     /// so the client clears whatever overlay held the slot before it.
     /// A modal surface or armed confirmation owning input refuses the
-    /// open â€” the apply-layer check backs the dispatcher's capture order.
+    /// open — the apply-layer check backs the dispatcher's capture order.
     pub(super) fn toggle_agent_board(&mut self) -> ClientActionDisposition {
         if self.retirement_failure.is_some() {
             return ClientActionDisposition::KeepNavigator;
@@ -72,7 +72,7 @@ impl WorkbenchClientUi {
     }
 
     /// Whether a modal surface or armed confirmation currently owns the
-    /// input layer â€” the same surfaces the dispatcher's confirmation and
+    /// input layer — the same surfaces the dispatcher's confirmation and
     /// draft capture arms serve before the board layer is ever reached.
     pub(super) fn modal_owns_input(&mut self) -> bool {
         if self.settings_active() {
@@ -100,7 +100,7 @@ impl WorkbenchClientUi {
         self.board.input_context()
     }
 
-    /// Close the lane's thread before the mailbox retires â€” the wake
+    /// Close the lane's thread before the mailbox retires — the wake
     /// write interrupts any in-flight exchange so the join stays bounded.
     /// On non-Linux there is no lane; the call is a no-op.
     pub(in crate::workbench_client) fn release_agent_lane(&mut self) {
@@ -117,7 +117,7 @@ impl WorkbenchClientUi {
         self.copy_mode.close();
     }
 
-    /// One key under board capture. Consumed regardless â€” the capture
+    /// One key under board capture. Consumed regardless — the capture
     /// layer guarantees nothing typed here ever reaches the pane.
     pub(in crate::workbench_client) fn capture_agent_board_key(
         &mut self,
@@ -254,7 +254,7 @@ impl WorkbenchClientUi {
 
     /// A best-effort Workbench refresh at open time so the presentation
     /// index the jump resolves against is as fresh as the canonical
-    /// snapshot machinery can make it. Silent finish â€” failures surface
+    /// snapshot machinery can make it. Silent finish — failures surface
     /// through the ordinary refresh-status path, never as board notices.
     fn enqueue_board_snapshot_refresh(&mut self) {
         let Some(deadline) = self
@@ -286,7 +286,7 @@ impl WorkbenchClientUi {
     }
 
     /// `select_tab` carrying the stable panel identity the jump wants
-    /// focused after the switch lands â€” identical admission machinery,
+    /// focused after the switch lands — identical admission machinery,
     /// only the builder resolves `panel_id` instead of `panel(0)`.
     pub(super) fn select_tab_for_panel(
         &mut self,
@@ -348,7 +348,7 @@ impl WorkbenchClientUi {
         let now = self.clock.now();
         let mut changed = self.board.expire_jump(now);
         // The Get path's deterministic pick asks which attachments already
-        // resolve into the caller's active context+tab â€” read once here,
+        // resolve into the caller's active context+tab — read once here,
         // live at the moment the lane outcome is applied.
         let (location, tab) = self.agent_anchor();
         changed |= self.board.drain_lane(now, |attachment| {
@@ -394,7 +394,7 @@ impl WorkbenchClientUi {
     /// One stage attempt of an accepted jump. The pure planner decides
     /// the next step from live facts; each arm reuses an existing
     /// admission (`select_context_at`, `select_tab`, the local
-    /// panel-focus path) and the next tick re-plans â€” stages never cache
+    /// panel-focus path) and the next tick re-plans — stages never cache
     /// positions and never block.
     fn drive_agent_jump(&mut self, _now: Instant) -> bool {
         // The accepted lane may settle while a child covers the Board or
@@ -417,7 +417,7 @@ impl WorkbenchClientUi {
             return false;
         };
         if !self.agent_index.ready() {
-            // No canonical snapshot has fed the index yet â€” resolving
+            // No canonical snapshot has fed the index yet — resolving
             // anything now could only guess, and guessing reports `Gone`
             // for sessions that exist. The jump waits inside its own
             // deadline while the refresh machinery keeps trying; expiry
@@ -430,7 +430,7 @@ impl WorkbenchClientUi {
         };
         let Some(placement) = self.agent_index.placement(attachment).cloned() else {
             // This attachment's presentation identity no longer resolves
-            // to any live panel â€” try the next candidate, never a guess.
+            // to any live panel — try the next candidate, never a guess.
             return self.board.advance_jump_candidate();
         };
         let Some(state) = self.state.as_ref() else {
@@ -456,7 +456,7 @@ impl WorkbenchClientUi {
         let switching = state.phase_kind() == ClientPhaseKind::Switching;
         // `Landed` must name a live viewer: resolved placement plus an
         // attached, projected, non-departing record under the current
-        // anchor â€” a dead viewer routes to the same-tab reattach instead.
+        // anchor — a dead viewer routes to the same-tab reattach instead.
         let target_live = state.panel_viewer_live(&placement.panel_id);
         match plan_jump_step(
             &placement,
@@ -477,7 +477,7 @@ impl WorkbenchClientUi {
             }
             JumpStep::SelectTab(position) => {
                 // The jump's switch carries the target panel's stable
-                // identity â€” the landing pane re-resolves inside the
+                // identity — the landing pane re-resolves inside the
                 // admission, never the `panel(0)` fallback.
                 let _disposition = self.select_tab_for_panel(position, placement.panel_id.clone());
                 true

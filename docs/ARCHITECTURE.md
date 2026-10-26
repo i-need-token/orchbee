@@ -19,6 +19,7 @@ apps/* (Rust)                  -> crates/*   -> external dependencies
 Product roles and identity boundaries use the [Glossary](GLOSSARY.md). A TUI Workbench Client owns
 its local interaction runtime; each accepted Client–Server transport is one Client Connection.
 Neither lifecycle is a Session identity.
+A TUI uses one admitted OBLC physical connection for its OBWP v1 request/subscription streams; logical lanes share it without acquiring additional Client identities. Server commit owners publish invalidations to the connection's standard-library reader/writer pair.
 
 ```mermaid
 flowchart TB

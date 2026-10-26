@@ -930,7 +930,7 @@ struct DeadlineIo<'a> {
     clock: &'a dyn MonotonicClock,
     deadline: SubmissionDeadline,
     io_chunk_limits: IoChunkLimits,
-    /// The signal owner's borrowed wake descriptor â€” only ever polled, never
+    /// The signal owner's borrowed wake descriptor — only ever polled, never
     /// owned, read, drained, or closed here.
     wake: Option<BorrowedFd<'a>>,
     write_began: bool,
@@ -938,7 +938,7 @@ struct DeadlineIo<'a> {
 
 /// Provisional wake observation private to the Client exchange path: the
 /// borrowed descriptor reported readable data. The armed signal owner still
-/// performs the sole arbitration read â€” this marker is never a verdict.
+/// performs the sole arbitration read — this marker is never a verdict.
 #[derive(Debug)]
 struct ExchangeWakeReady;
 
@@ -951,7 +951,7 @@ impl fmt::Display for ExchangeWakeReady {
 impl std::error::Error for ExchangeWakeReady {}
 
 /// The borrowed wake descriptor reported a fault flag with no readable data
-/// left â€” the owner's arbitration read could never observe a capture, so
+/// left — the owner's arbitration read could never observe a capture, so
 /// the observation is a source fault, not readiness.
 #[derive(Debug)]
 struct ExchangeWakeFault(PollFlags);
@@ -968,7 +968,7 @@ impl fmt::Display for ExchangeWakeFault {
 
 impl std::error::Error for ExchangeWakeFault {}
 
-/// Whether an exchange I/O error carries the private wake-ready marker â€”
+/// Whether an exchange I/O error carries the private wake-ready marker —
 /// the armed owner's discriminator for "descriptor readable, no signal
 /// read yet" once the span ends clear.
 pub(crate) fn exchange_wake_ready(error: &io::Error) -> bool {

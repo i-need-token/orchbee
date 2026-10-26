@@ -293,9 +293,11 @@ fn dispatch(
                     }
                     // These listeners belong to the authenticated Client, not to independent
                     // foreground identities. Replacement retires the old evaluation first.
-                    subscriptions.retain(|_, current: &mut Subscription| {
-                        !current.request.same_subscription_owner(&parsed)
-                    });
+                    if mode != StreamMode::Request {
+                        subscriptions.retain(|_, current: &mut Subscription| {
+                            !current.request.same_subscription_owner(&parsed)
+                        });
+                    }
                     // Registration precedes capture: publication during capture changes the signal
                     // revision and forces another evaluation before this connection can sleep.
                     let captured_at = signal.revision();
@@ -568,3 +570,6 @@ impl<S: Write> Write for PrefixedStream<'_, S> {
         self.stream.flush()
     }
 }
+
+#[cfg(test)]
+mod tests;

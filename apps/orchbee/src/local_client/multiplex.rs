@@ -135,6 +135,15 @@ impl Delivery {
         }
         let overflow = mode == StreamMode::Events && state.events.len() >= EVENT_RECORDS;
         if matches!(mode, StreamMode::State | StreamMode::Invalidations) || overflow {
+            let barrier = matches!(&event, StreamEvent::Record(_))
+                .then(|| {
+                    state.events.iter().rev().find_map(|event| match event {
+                        StreamEvent::Gap => Some(StreamEvent::Gap),
+                        StreamEvent::Disconnected => Some(StreamEvent::Disconnected),
+                        StreamEvent::Record(_) => None,
+                    })
+                })
+                .flatten();
             self.budget.fetch_sub(state.bytes, Ordering::AcqRel);
             state.bytes = 0;
             state.events.clear();
@@ -143,6 +152,9 @@ impl Delivery {
                 drop(state);
                 self.signal();
                 return Ok(true);
+            }
+            if let Some(barrier) = barrier {
+                state.events.push_back(barrier);
             }
         }
         if self
@@ -691,8 +703,17 @@ fn actor(
                         }
                     }
                 }
-                Err(_) => {
+                Err(error) if retryable_admission(&error) => {
                     reconnect_at = Instant::now() + Duration::from_millis(250);
+                }
+                Err(_) => {
+                    shared.stopped.store(true, Ordering::Release);
+                    for item in active.values() {
+                        item.delivery.fail(
+                            orchbee_workbench_protocol::MultiplexDisconnectReason::Unavailable,
+                        );
+                    }
+                    break;
                 }
             }
         }
@@ -729,15 +750,21 @@ fn actor(
         let mut bytes = [0; 256];
         while matches!((&wake).read(&mut bytes), Ok(count) if count > 0) {}
         if let Err(error) = result {
-            if let Some(Disconnect(reason)) = error
+            let failure = error
                 .get_ref()
                 .and_then(|error| error.downcast_ref::<Disconnect>())
-            {
+                .map(|failure| failure.0)
+                .or_else(|| {
+                    (error.kind() == io::ErrorKind::InvalidData).then_some(
+                        orchbee_workbench_protocol::MultiplexDisconnectReason::InvalidStream,
+                    )
+                });
+            if let Some(reason) = failure {
                 // A typed admission/budget violation is terminal. Reconnecting would evade the
                 // peer's sustained-overload policy; ordinary transport loss still rebuilds reads.
                 shared.stopped.store(true, Ordering::Release);
                 for item in active.values() {
-                    item.delivery.fail(*reason);
+                    item.delivery.fail(reason);
                 }
                 break;
             }
@@ -768,6 +795,25 @@ fn actor(
                 delivery.close();
             }
         }
+    }
+}
+
+fn retryable_admission(error: &orchbee_local_client_protocol::ConnectClientError) -> bool {
+    use orchbee_local_client_protocol::ConnectClientError;
+    match error {
+        ConnectClientError::CancellationReady => true,
+        ConnectClientError::ConnectFailed(error) | ConnectClientError::Io(error) => matches!(
+            error.kind(),
+            io::ErrorKind::NotFound
+                | io::ErrorKind::ConnectionRefused
+                | io::ErrorKind::ConnectionReset
+                | io::ErrorKind::ConnectionAborted
+                | io::ErrorKind::UnexpectedEof
+                | io::ErrorKind::TimedOut
+                | io::ErrorKind::Interrupted
+                | io::ErrorKind::WouldBlock
+        ),
+        _ => false,
     }
 }
 
@@ -903,8 +949,11 @@ fn deliver(
                 active.remove(&stream_id);
             }
         }
-        MultiplexMessage::Gap { stream_id, .. } => {
+        MultiplexMessage::Gap { stream_id, through } => {
             if let Some(item) = active.get_mut(&stream_id) {
+                if item.mode == StreamMode::Request || through.get() < item.sequence {
+                    return Err(io::ErrorKind::InvalidData.into());
+                }
                 item.needs_snapshot = true;
                 item.delivery
                     .publish(StreamEvent::Gap, StreamMode::Events)?;

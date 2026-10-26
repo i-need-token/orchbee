@@ -150,11 +150,19 @@ impl ApplicationRequest {
                 request.action,
                 orchbee_workbench_protocol::SemanticEventsAction::Subscribe { .. }
             ),
+            ApplicationRequestKind::Workbench(WorkbenchRequest::PaneGraphics(request))
+                if matches!(
+                    request.action,
+                    orchbee_workbench_protocol::PaneGraphicsAction::Observe { .. }
+                ) =>
+            {
+                false
+            }
             ApplicationRequestKind::Workbench(request) => {
                 crate::workbench_service::subscription_request(request)
             }
             ApplicationRequestKind::Agent(request) => {
-                matches!(request, AgentRequest::Read(_) | AgentRequest::Changes(_))
+                matches!(request, AgentRequest::Read(_))
             }
             ApplicationRequestKind::Terminal(ClientMessage::TerminalViewer(request)) => matches!(
                 request.action(),

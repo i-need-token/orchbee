@@ -538,6 +538,35 @@ interleaving、post-read viewport/resize failure 与 lifecycle fault injection�
 关闭后的 `EIO` 是正常 hangup，并且 linked public binary 不包含 `/dev/tty` 或 `tput` fallback token。
 这些进程见证描述 Unix 适配器。Windows 适配器及其独立的 Console、ConPTY 证据见上文。
 
+## TUI 共享连接
+
+`WorkbenchClient::start` 将引导 OBLC 准入升级为一条共享 OBWP v1 carrier。所有功能 origin
+引用同一个连接 actor。创建逻辑 lane 只分配资源作用域和取消 handle，不会新建 Server socket
+或 OBLC 身份。actor 拥有重连并恢复订阅；一次性 mutation 在可能写入后绝不重放。
+本地唤醒 stream 让命令／取消准入与传入 frame 中断同一次 readiness 等待，不通过轮询 channel
+的 timer 交付。[Server 交付契约](../orchbee-server/README.zh-CN.md#client-多路复用交付)
+负责 frame、上限、gap 恢复和有限模型的准确声明与排除范围。
+
+| 消费者                                                                             | 共享 carrier 行为                                                                                                            |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| 窗口标题、配置、Settings                                                           | UI 拥有状态订阅；配置 reload 和偏好写入是异步一次性请求，没有转发线程。                                                      |
+| 通知                                                                               | UI 拥有有界事件订阅；取消只结束该 listener。                                                                                 |
+| Client control                                                                     | 事件订阅加显式 completion、配置命令和布局请求。domain worker 协调快照／控制顺序，不拥有 socket、准入重试或 heartbeat timer。 |
+| Workbench 成员、Worktree 操作、Agent registry／保留的物理 report、graphics catalog | 提交失效提示调度既有有界读取。空／无 attachment 视图不再周期读取成员。                                                       |
+| Worktree 发现、popup、Plugin、copy、link 和 Agent read job                         | 既有有界 domain job 使用同一 carrier 的逻辑作用域。取消只释放其自身终端资源。                                                |
+
+Host 终端输出、标题／进程诊断、Plugin／Popup 进程退出、close disposal 和外部 Git／文件系统
+状态没有事件源时仍需既有有界采样，原因在采样位置说明。启动偏好锁竞争和拥有明确生命周期的
+OS 可执行文件查找是有限本地 job，不是 Server 订阅轮询。UI 渲染频率和语义恢复期限不代表
+额外网络读取。
+
+正确性证据包括取消与迟到回复、事件溢出与 resnapshot、待决 mutation 与另一条 stream，以及
+不重放的配置恢复等真实 carrier 轨迹。性能必须在同一 Windows 主机、私有开发 runtime 上另测：
+一个空闲 Workspace／PowerShell，预热十秒，再取三段各三十秒的 Client／Server／Worker CPU
+时间、线程数、已准入 OBLC 连接及线程上下文切换。冻结可编译基线、候选、工作负载、工具链和
+采样脚本；测量窗口排除构建和其他测量。上下文切换只是调度代理指标，不是硬件唤醒次数。
+这些命令和源码改动本身不能证明 CPU 改善或 macOS／Linux 结果。
+
 ## 原生终端投影
 
 `run_connected` 接收已准入的 `LocalClient` 并启动 Native Workbench 客户端。shell 拥有终端模式与绘制；

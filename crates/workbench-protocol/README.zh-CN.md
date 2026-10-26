@@ -8,6 +8,30 @@
 共享响应规则，包括恢复尝试代次和各意图允许的进度。`WorkbenchCommand::admits_creation_outcome`
 仅接受布局／终端创建回执，并校验修订号与目标。Client 另外校验连接代次和操作对应的状态后置条件。
 
+## OBWP v1 多路复用 stream
+
+[原生 Client／Server 交付契约](../../apps/orchbee-server/README.zh-CN.md#client-多路复用交付)
+使用同一个 12 字节 OBWP header：magic、大端 u16 版本 1、u16 kind 和 u32 payload 长度。
+kind 64–71 承载完整、有界的内部 OBCS／OBWP／OBAP 记录，不改变其语义版本或 codec。
+该命名空间与 graphics producer stream 身份独立。
+
+| Kind           | Payload                                                                                                                           |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| 64 StreamOpen  | 非零 u64 stream ID、非零 u64 逻辑 lane ID、u8 mode、内部请求。mode：Request 0、State 1、Events 2、Invalidations 3。               |
+| 65 StreamFrame | 非零 u64 stream ID 和 sequence、u8 frame kind、内部响应。kind：Result 0、Snapshot 1、Update 2。失效提示 update 含八字节提交提示。 |
+| 66 StreamClose | 非零 u64 stream ID、u8 reason：Complete 0、Cancelled 1、Unsupported 2、Capacity 3、InvalidRequest 4。                             |
+| 67 Gap         | 非零 u64 stream ID 和丢失边界前最后的 Server sequence，之后是替代 Snapshot。                                                      |
+| 68 Disconnect  | u8 reason：SlowConsumer 0、Capacity 1、InvalidStream 2、Unavailable 3。                                                           |
+| 69 Resnapshot  | 非零 u64 stream ID；Client 本地事件 inbox 溢出后请求先 Gap 再新 Snapshot。                                                        |
+| 70 LaneOpen    | 非零 u64 lane ID，在连接内单调递增。根 lane 1 隐式存在。                                                                          |
+| 71 LaneClose   | 非零 u64 lane ID；仅释放该 lane 的逻辑资源。不能独立关闭根 lane。                                                                 |
+
+stream ID 跨 lane 递增，在同一物理连接内不复用。每代订阅从 sequence 1 的 Snapshot 开始，
+后续 sequence 递增。请求 stream 只接受一个 Result。显式 lane 和 stream 各最多 64，另有根 lane 1；共享保留
+字节预算为 32 MiB，每条内部记录最多 24 MiB 加 12 字节 header。未知版本、kind、长度、
+tag 和零身份均拒绝。增量解码限制部分输入，避免等待不完整 frame 时阻塞取消／命令唤醒。
+`src/multiplex/tests.rs` 检查部分／相邻 frame 和畸形准入，不证明 Server 资源所有权或交付顺序。
+
 ## 共享用户偏好
 
 [通用偏好契约](docs/user-preferences.zh-CN.md) 拥有 GUI/TUI 清单、默认值、校验、
@@ -207,4 +231,4 @@ Windows cohort 的整链见证。
 
 `CloseOperationRead` 与 `CloseOperationResult` 在既有 intent 大小上限内使用 OBWP 61/62。它们按原始请求 ID 读取保留 Close，精确关联 会话／request／operation，并使用封闭的 Workspace／Tab／Panel 目标。此读取不创建状态，并保留墓碑。Rust、TypeScript 和 JSON Schema 共享命令语料；[CLI 操作状态](../../apps/orchbee/docs/native-operation-status.zh-CN.md) 负责调用及恢复。
 
-<!-- documentation-pairing: english-sha256=ef52dabf79ccaded82dd93632749414ace1fe1b762185079c59b22c73bfeb5dc zh-cn-sha256=5cc6eebe6d606ec51cd4fd2e999b65481662441722ec1da28eae439212c0c8a0 -->
+<!-- documentation-pairing: english-sha256=d9f8e5f0656762338bdc6c9529651e5d0c17b97a3fc77c6eb134aa72b70c68ac zh-cn-sha256=3a142c4f2f091ef206f5b307036ff921a4cb8a33142d002ff10fc7487596a47b -->

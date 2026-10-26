@@ -610,6 +610,39 @@ leave terminal modes untouched, that Linux PTY-master `EIO` after the final slav
 hangup, and that the linked public binary contains no `/dev/tty` or `tput` fallback token. These process witnesses describe the Unix adapter. The Windows adapter and its
 separate console and ConPTY evidence are described above.
 
+## Shared TUI connection
+
+`WorkbenchClient::start` promotes the bootstrap OBLC admission into one shared OBWP v1 carrier.
+All feature origins refer to its connection actor. Creating a logical lane allocates a resource
+scope and cancellation handle, never another Server socket or OBLC identity. The actor owns
+reconnect and restores subscriptions; one-shot mutations are never replayed after possible write.
+A local wake stream makes command/cancel admission interrupt the same readiness wait as incoming
+frames. No channel polling timer is used for delivery. The [Server delivery contract](../orchbee-server/README.md#multiplexed-client-delivery)
+owns framing, bounds, gap recovery and the finite model's exact claims and exclusions.
+
+| Consumer                                                                                              | Shared-carrier behavior                                                                                                                                                                              |
+| ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Window title, configuration, Settings                                                                 | UI-owned state subscriptions; configuration reload and preference writes are asynchronous one-shot requests. No forwarding thread.                                                                   |
+| Notifications                                                                                         | UI-owned bounded event subscription; cancellation stops only that listener.                                                                                                                          |
+| Client control                                                                                        | Event subscription plus explicit completion, configured-command and layout requests. Its domain worker coordinates snapshot/control ordering; it owns no socket, admission retry or heartbeat timer. |
+| Workbench membership, Worktree operations, Agent registry/retained physical reports, graphics catalog | Commit invalidations schedule existing bounded reads. Empty/unbound views no longer issue periodic membership reads.                                                                                 |
+| Worktree discovery, popup, Plugin, copy, link and Agent read jobs                                     | Existing bounded domain jobs use logical scopes on the same carrier. Scope cancellation releases only their own terminal resources.                                                                  |
+
+Host terminal output, title/process diagnostics, Plugin/Popup process exit, close disposal and
+external Git/filesystem state still require their existing bounded samples where no event source
+exists. The reason is recorded at the sampling site. Startup preference lock contention and owned
+OS executable lookup are finite local jobs, not Server subscription polling. UI rendering cadence
+and semantic recovery deadlines do not imply additional network reads.
+
+Correctness evidence includes actual carrier traces for cancellation versus late reply, event
+overflow versus resnapshot, pending mutation versus another stream, and configuration recovery
+without replay. Measure performance separately on the same Windows host and private development
+runtime: one idle Workspace/PowerShell, ten-second warm-up, then three thirty-second samples of
+Client/Server/Worker CPU time, thread count, admitted OBLC connections and thread context switches.
+Freeze a compiling baseline and candidate, workload, toolchain and sampling script; exclude builds
+and other measurements from those windows. Context switches are a scheduling proxy, not hardware
+wakeups. These commands and source changes alone establish no CPU improvement or macOS/Linux result.
+
 ## Native terminal projection
 
 `run_connected` receives an admitted `LocalClient` and starts the Native workbench session. The

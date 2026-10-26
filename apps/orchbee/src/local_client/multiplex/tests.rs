@@ -165,6 +165,20 @@ fn state_coalescing_releases_the_connection_budget_and_overrun_is_typed() {
     assert_eq!(budget.load(Ordering::Acquire), 4);
     assert!(matches!(state.take().unwrap(), Some(StreamEvent::Record(bytes)) if bytes == [2; 4]));
     assert_eq!(budget.load(Ordering::Acquire), 0);
+    state
+        .publish(StreamEvent::Disconnected, StreamMode::State)
+        .unwrap();
+    state
+        .publish(StreamEvent::Record(vec![4]), StreamMode::State)
+        .unwrap();
+    state
+        .publish(StreamEvent::Record(vec![5]), StreamMode::State)
+        .unwrap();
+    assert!(matches!(
+        state.take().unwrap(),
+        Some(StreamEvent::Disconnected)
+    ));
+    assert!(matches!(state.take().unwrap(), Some(StreamEvent::Record(bytes)) if bytes == [5]));
     budget.store(MAXIMUM_MULTIPLEX_BYTES - 1, Ordering::Release);
     let error = state
         .publish(StreamEvent::Record(vec![3; 2]), StreamMode::Events)

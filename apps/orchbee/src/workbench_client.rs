@@ -336,9 +336,8 @@ impl WorkbenchClient {
             clock,
             crate::tui_capabilities::Capabilities::for_host(),
         );
-        // The Agent board's read lane reconnects on its own admitted
-        // session so an OBAP ambiguity retires the lane, never the
-        // primary carrier.
+        // Every feature uses a logical scope on this carrier. An ambiguous Agent read
+        // retires that scope; only the shared connection actor owns physical reconnect.
         native.set_agent_board_origin(origin.clone());
         Ok(Self {
             position_writer: None,

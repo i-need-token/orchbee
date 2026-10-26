@@ -245,6 +245,8 @@ fn write(path: &std::path::Path, position: Position) -> std::io::Result<()> {
                 if error.kind() == std::io::ErrorKind::WouldBlock
                     && std::time::Instant::now() < deadline =>
             {
+                // The OS cache lock exposes contention, not a release notification. This
+                // one-second persistence job samples only while another writer owns the file.
                 std::thread::sleep(std::time::Duration::from_millis(10));
             }
             Err(error) => return Err(error),

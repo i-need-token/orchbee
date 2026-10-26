@@ -27,7 +27,7 @@ use crate::local_client::{
     LocalClient, LocalClientOrigin, LocalOperationClock, agent::AgentExchangeError,
 };
 
-/// 512 sessions at 100 items per page, rounded up â€” the walk's page bound.
+/// 512 sessions at 100 items per page, rounded up — the walk's page bound.
 /// A cursor that outlives the bound yields `complete: false`, never a
 /// silently truncated listing presented as whole.
 const MAXIMUM_LIST_PAGES: usize = 6;
@@ -99,7 +99,7 @@ pub(super) enum LaneOutcome {
     },
 }
 
-/// One completed list walk â€” `complete` is false when the page bound or
+/// One completed list walk — `complete` is false when the page bound or
 /// the restart budget was hit; the accumulated pages are still canonical
 /// and may be shown with the incomplete marker.
 pub(super) struct ListRound {
@@ -113,7 +113,7 @@ pub(super) enum LaneFailure {
     /// The runtime answered `unavailable` for the operation.
     Unavailable,
     Denied,
-    /// Connect, transport, or post-submission ambiguity â€” the session
+    /// Connect, transport, or post-submission ambiguity — the session
     /// logical lane is already dropped; the connection actor owns any reconnect.
     Transport,
 }
@@ -121,7 +121,7 @@ pub(super) enum LaneFailure {
 /// The board's lane handle: command channel, outcome drain, the wake
 /// pipe's write end, and the thread join for bounded shutdown. The
 /// sender is optional so `close` can drop it (waking `recv`) before
-/// joining â€” a `Drop` type cannot move fields out otherwise.
+/// joining — a `Drop` type cannot move fields out otherwise.
 pub(super) struct AgentReadLane {
     commands: Option<SyncSender<LaneCommand>>,
     outcomes: Receiver<LaneOutcome>,
@@ -164,7 +164,7 @@ impl AgentReadLane {
     }
 
     /// A lane whose thread already exited, carrying a pre-queued outcome
-    /// stream â€” tests drain real `LaneOutcome`s and exercise the
+    /// stream — tests drain real `LaneOutcome`s and exercise the
     /// `finished()` witness without a socket or a live thread. The
     /// command receiver is deliberately leaked so `send` still reports
     /// success: that is exactly a dead lane holding an issued credit.
@@ -189,7 +189,7 @@ impl AgentReadLane {
 
     /// Non-blocking liveness probe: the spawn path defers while a
     /// predecessor thread is still exiting so at most one lane thread is
-    /// alive at a time â€” the UI never blocks on a join outside `close`.
+    /// alive at a time — the UI never blocks on a join outside `close`.
     pub(super) fn finished(&self) -> bool {
         self.join.as_ref().is_none_or(JoinHandle::is_finished)
     }
@@ -201,7 +201,7 @@ impl AgentReadLane {
     /// Ask the thread to exit: the shutdown flag ends the loop at its
     /// next boundary, the wake byte interrupts any in-flight exchange,
     /// and the dropped sender ends `recv` even when the thread is idle.
-    /// Used by board close â€” the handle then lives in `dying_lanes` until
+    /// Used by board close — the handle then lives in `dying_lanes` until
     /// the thread has actually exited.
     pub(super) fn interrupt(&mut self) {
         self.shutdown.store(true, Ordering::SeqCst);
@@ -211,7 +211,7 @@ impl AgentReadLane {
 
     /// Bounded close: the wake byte interrupts any in-flight exchange and
     /// the dropped command channel ends the loop after the current
-    /// operation â€” `join` returns without waiting out a full deadline.
+    /// operation — `join` returns without waiting out a full deadline.
     pub(super) fn close(mut self) {
         self.shutdown.store(true, Ordering::SeqCst);
         let _ = signal_wake(&self.wake);
@@ -345,7 +345,7 @@ fn run(
 
 /// Walk the full list within the caller's deadline: bounded pages, all
 /// pages on one revision, cursor rejections and revision splices restart
-/// the walk once â€” a second failure yields `complete: false` rather than
+/// the walk once — a second failure yields `complete: false` rather than
 /// a spliced or truncated listing passed off as whole.
 fn list_round(
     origin: &LocalClientOrigin,
@@ -434,7 +434,7 @@ fn list_round(
                 }
             }
         }
-        // Page bound reached with a live cursor â€” honest truncation.
+        // Page bound reached with a live cursor — honest truncation.
         return Ok(ListRound {
             items,
             complete: false,
@@ -464,8 +464,8 @@ fn get_session(
 }
 
 /// One exchange on the shared carrier, acquiring a logical scope when its handle
-/// is empty (startup, or after a failure retired it). Any submit error â€”
-/// pre-handoff or the ambiguous post-submission kind â€” drops the handle
+/// is empty (startup, or after a failure retired it). Any submit error —
+/// pre-handoff or the ambiguous post-submission kind — drops the handle
 /// so the next request re-admits cleanly.
 fn submit(
     origin: &LocalClientOrigin,
@@ -497,7 +497,7 @@ fn submit(
     }
 }
 
-/// 16 bytes of operating-system entropy rendered as 32 lowercase hex characters â€”
+/// 16 bytes of operating-system entropy rendered as 32 lowercase hex characters —
 /// the same request-id discipline the CLI uses.
 fn mint_request_id() -> Result<ObapRequestId, LaneFailure> {
     let mut bytes = [0_u8; 16];
