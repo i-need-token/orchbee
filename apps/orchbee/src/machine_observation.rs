@@ -245,8 +245,7 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
                     }
                 }
             }
-            loop {
-                let Some(watch) = &entry.watch else { break };
+            while let Some(watch) = &entry.watch {
                 match watch.poll() {
                     Ok(Some(ChangeEvent::Published)) => {
                         entry.watch_failures = 0;

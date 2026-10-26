@@ -67,10 +67,7 @@ impl Subscription {
                 stream,
             });
         }
-        loop {
-            let Some(active) = &state.active else {
-                break;
-            };
+        while let Some(active) = &state.active {
             match active.stream.poll()? {
                 Some(StreamEvent::Record(bytes)) => {
                     let WorkbenchResponse::Notification(reply) =

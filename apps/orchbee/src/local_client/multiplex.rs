@@ -593,6 +593,12 @@ struct Outgoing {
     deadline: Instant,
     _reservation: Option<Arc<Reservation>>,
 }
+// Buffered frame bytes and their partial-frame deadline belong to the same carrier.
+#[derive(Default)]
+struct Incoming {
+    decoder: MultiplexDecoder,
+    partial_at: Option<Instant>,
+}
 
 fn actor(
     connection: ClientConnection,
@@ -605,9 +611,8 @@ fn actor(
     let mut active = BTreeMap::<MultiplexStreamId, Active>::new();
     let mut lanes = BTreeSet::from([MultiplexLaneId::ROOT]);
     let mut outgoing = VecDeque::new();
-    let mut decoder = MultiplexDecoder::default();
+    let mut incoming = Incoming::default();
     let mut reconnect_at = Instant::now();
-    let mut partial_at = None;
     let mut health = health::Health::new(timing, Instant::now());
     loop {
         if shared.stopped.load(Ordering::Acquire) {
@@ -694,21 +699,19 @@ fn actor(
                     outgoing.retain(|item| item.id != Some(id) || item.offset != 0);
                     if let Some(removed) = active.remove(&id)
                         && connection.is_some()
-                    {
-                        if let Ok(bytes) =
+                        && let Ok(bytes) =
                             encode_multiplex_message(&MultiplexMessage::StreamClose {
                                 stream_id: id,
                                 reason: StreamCloseReason::Cancelled,
                             })
-                        {
-                            outgoing.push_back(Outgoing {
-                                id: Some(id),
-                                bytes,
-                                offset: 0,
-                                deadline: Instant::now() + Duration::from_secs(2),
-                                _reservation: Some(removed._reservation),
-                            });
-                        }
+                    {
+                        outgoing.push_back(Outgoing {
+                            id: Some(id),
+                            bytes,
+                            offset: 0,
+                            deadline: Instant::now() + Duration::from_secs(2),
+                            _reservation: Some(removed._reservation),
+                        });
                     }
                 }
                 Command::LaneOpen(id) => {
@@ -810,8 +813,7 @@ fn actor(
                         &wake,
                         &mut active,
                         &mut outgoing,
-                        &mut decoder,
-                        &mut partial_at,
+                        &mut incoming,
                         &mut health,
                         probing,
                     )
@@ -858,8 +860,7 @@ fn actor(
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
             outgoing.clear();
-            decoder = MultiplexDecoder::default();
-            partial_at = None;
+            incoming = Incoming::default();
             active.retain(|_, item| {
                 if item.mode == StreamMode::Request {
                     item.delivery.close();
@@ -914,11 +915,14 @@ fn drive(
     wake: &LocalStream,
     active: &mut BTreeMap<MultiplexStreamId, Active>,
     outgoing: &mut VecDeque<Outgoing>,
-    decoder: &mut MultiplexDecoder,
-    partial_at: &mut Option<Instant>,
+    incoming: &mut Incoming,
     health: &mut health::Health,
     probing: bool,
 ) -> io::Result<()> {
+    let Incoming {
+        decoder,
+        partial_at,
+    } = incoming;
     connection.set_nonblocking(true)?;
     let interest = if outgoing.is_empty() {
         PollFlags::POLLIN

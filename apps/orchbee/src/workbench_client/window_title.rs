@@ -90,10 +90,7 @@ impl Subscription {
                 stream,
             });
         }
-        loop {
-            let Some(active) = &state.active else {
-                break;
-            };
+        while let Some(active) = &state.active {
             let event = active.stream.poll()?;
             match event {
                 Some(StreamEvent::Record(bytes)) => {

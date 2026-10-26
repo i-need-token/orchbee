@@ -138,12 +138,10 @@ fn sample_change_during_control_transfer_preserves_completion_and_next_command()
             }
             reply(&mut peer, &open, request, None)?;
         }
-        loop {
-            match read_open(&mut peer) {
-                Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => return Ok(()),
-                Err(error) => return Err(error),
-                Ok(open) => panic!("no further request before shutdown: {:?}", open.mode),
-            }
+        match read_open(&mut peer) {
+            Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => Ok(()),
+            Err(error) => Err(error),
+            Ok(open) => panic!("no further request before shutdown: {:?}", open.mode),
         }
     })
     .unwrap();

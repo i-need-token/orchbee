@@ -287,7 +287,7 @@ fn configured_command_actor_cancels_and_joins_with_truthful_delivery_receipt() {
     let ClientViewOutcome::Found { client: registered } = reply.outcome else {
         panic!()
     };
-    for during_admission in [false] {
+    {
         let (reached_tx, reached_rx) = mpsc::sync_channel(1);
         let server = FakeServer::start_connections(1, move |_, stream| {
             let mut stream = crate::local_client::tests::multiplex_peer::Peer::new(stream);
@@ -295,22 +295,18 @@ fn configured_command_actor_cancels_and_joins_with_truthful_delivery_receipt() {
                 read_message(&mut stream).map_err(io::Error::other)?,
                 LocalClientMessage::ClientHello(_)
             ));
-            if !during_admission {
-                write_message(
-                    &mut stream,
-                    &LocalClientMessage::ClientAccepted {
-                        generation: NonZeroU64::new(1).unwrap(),
-                    },
-                )
-                .map_err(io::Error::other)?;
-            }
+            write_message(
+                &mut stream,
+                &LocalClientMessage::ClientAccepted {
+                    generation: NonZeroU64::new(1).unwrap(),
+                },
+            )
+            .map_err(io::Error::other)?;
             {
-                if !during_admission {
-                    assert!(matches!(
-                        read_workbench_request(&mut stream).map_err(io::Error::other)?,
-                        WorkbenchRequest::ConfiguredCommand(_)
-                    ));
-                }
+                assert!(matches!(
+                    read_workbench_request(&mut stream).map_err(io::Error::other)?,
+                    WorkbenchRequest::ConfiguredCommand(_)
+                ));
                 reached_tx.send(()).unwrap();
                 assert_eq!(stream.read(&mut [0])?, 0);
             }
@@ -350,11 +346,7 @@ fn configured_command_actor_cancels_and_joins_with_truthful_delivery_receipt() {
         assert!(!handoff.invocation_pending);
         assert_eq!(
             handoff.invocation_result.take().unwrap().reply,
-            Err(if during_admission {
-                CommandFailure::NotSubmitted
-            } else {
-                CommandFailure::OutcomeUnknown
-            })
+            Err(CommandFailure::OutcomeUnknown)
         );
         drop(handoff);
         server.finish().unwrap();
