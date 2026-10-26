@@ -3,9 +3,8 @@ use super::workbench_peer::WorkbenchPeer;
 use super::*;
 use nix::poll::{PollFd, PollFlags, PollTimeout, poll};
 use orchbee_workbench_protocol::{
-    PanelNode, Snapshot, WorkbenchAction, WorkbenchCommandOutcome, WorkbenchDirectoryPath,
-    WorkbenchLabel, WorkbenchPanelSplitDirection, WorkbenchPublicationOutcome,
-    WorkbenchTerminalGeometry,
+    PanelNode, WorkbenchAction, WorkbenchCommandOutcome, WorkbenchDirectoryPath, WorkbenchLabel,
+    WorkbenchPanelSplitDirection, WorkbenchPublicationOutcome, WorkbenchTerminalGeometry,
 };
 use rustix::process::{Pid, PidfdFlags, pidfd_open};
 use std::os::fd::AsFd;
