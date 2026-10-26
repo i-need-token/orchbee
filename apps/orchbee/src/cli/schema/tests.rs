@@ -591,9 +591,9 @@ fn configuration_admits_bounded_warnings_and_requires_current_fields() {
     let pass = json!({"name":"user-config","status":"pass","details":details});
     assert!(validator.is_valid(&pass));
     let mut all_action_overrides = pass.clone();
-    all_action_overrides["details"]["keyOverrides"] = json!(33);
+    all_action_overrides["details"]["keyOverrides"] = json!(37);
     assert!(validator.is_valid(&all_action_overrides));
-    all_action_overrides["details"]["keyOverrides"] = json!(34);
+    all_action_overrides["details"]["keyOverrides"] = json!(38);
     assert!(!validator.is_valid(&all_action_overrides));
     let mut warning = pass.clone();
     warning["status"] = json!("warning");
@@ -652,7 +652,7 @@ fn configuration_admits_bounded_warnings_and_requires_current_fields() {
         ("file", "invalid-boolean"),
         ("terminal.new_cwd", "invalid-path"),
         ("worktrees.directory", "invalid-path"),
-        ("ORCHBEE_CONFIG_FILE", "invalid-path"),
+        ("ORCHBEE_CONFIG_FILE", "invalid-boolean"),
     ] {
         fatal["result"]["checks"][5]["details"] = json!({"field":field,"reason":reason});
         assert!(
@@ -660,12 +660,7 @@ fn configuration_admits_bounded_warnings_and_requires_current_fields() {
             "field-local or mismatched fatal pair admitted: {field}: {reason}"
         );
     }
-    for field in [
-        "resumeAgentsOnRestore",
-        "resumeAgentsOnRestoreSource",
-        "manifestCheck",
-        "manifestCheckSource",
-    ] {
+    for field in ["manifestCheck", "manifestCheckSource"] {
         let mut missing = pass.clone();
         missing["details"].as_object_mut().unwrap().remove(field);
         assert!(!validator.is_valid(&missing), "missing {field}");

@@ -567,7 +567,7 @@ owner/storage guards pass. See the
 Pending deletion also survives loss of temporary metadata and remains resumable by the same delete
 command. Listing remains read-only. The runtime base itself is not implicitly recreated.
 
-Background and clean-stop checkpoints preserve layouts, Launch Profiles, sampled per-terminal cwd. Startup selects the newest valid copy, retains corrupt bytes,
+Background and clean-stop checkpoints preserve layouts, Launch Profiles and sampled per-terminal cwd. Startup selects the newest valid copy, retains corrupt bytes,
 and warns when it falls back or opens an empty workspace. Live Agent state, terminal history and
 screen contents are excluded. Live Host adoption remains separate work.
 

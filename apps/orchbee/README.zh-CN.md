@@ -97,7 +97,7 @@ Windows `agent explain` 也会将名称和 Panel 解析为精确的物理终端�
 屏幕规则评估。结果包含清单来源/版本、同优先级首条胜出规则、所有规则匹配及有界区域证据。
 一次准入与 5 秒 CLI 总预算
 覆盖解析和读取；Server 队列/读取预算为 4 秒。绑定或上报上下文变化时拒绝，不重试。
-不发送输入、申请控制器或改变焦点。Windows 启动依次选择本地覆盖、符合条件的远程缓存及内置规则。物理 v3 增加实际路径、缓存版本、覆盖状态及类型化警告；v2 对旧版或无清单结果保持封闭。Windows `server agent-manifests`、`server reload-agent-manifests` 和 `server agent-manifests-status` 暴露已安装快照及保留的热重载回执。显式 `server update-agent-manifests` 下载并启用经过校验的缓存规则，分别保留逐 provider 缓存结果和启用回执。启用 `update.manifest_check` 时，托管发布版 Session 在启动时及每三十分钟自动检查；调试／测试及独立端点不调度。
+不发送输入、申请控制器或改变焦点。Windows 启动依次选择本地覆盖、符合条件的远程缓存及内置规则。物理诊断包含实际路径、缓存版本、覆盖状态及类型化警告。Windows `server agent-manifests`、`server reload-agent-manifests` 和 `server agent-manifests-status` 暴露已安装快照及保留的热重载回执。显式 `server update-agent-manifests` 下载并启用经过校验的缓存规则，分别保留逐 provider 缓存结果和启用回执。启用 `update.manifest_check` 时，托管发布版 Session 在启动时及每三十分钟自动检查；调试／测试及独立端点不调度。
 参见[屏幕模型](../orchbee-server/docs/agent-screen-model.zh-CN.md)。
 
 Windows `panel create-terminal` 启动未绑定主项或精确成员，或追加子项，不分割 Panel。

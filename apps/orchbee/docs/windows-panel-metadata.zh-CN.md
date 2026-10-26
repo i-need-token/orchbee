@@ -80,8 +80,7 @@ Agent Get 使用唯一且存活的主绑定；Agent 已结束、未绑定、多�
 样本一起丢弃两者。上报不会替换独立观察到的 OSC 标题、规范 label、状态或就绪性。Host 进程观察、名称与 TUI 发布各自由其真实所有者维护。
 
 Windows Panel list/get 输出 v1，current 输出 v1，Agent Get 输出 v1（带 `--client` 时为 v1）。
-每个 Panel 行和非 null 的 Agent terminal 必须包含 metadata 与 reportedAgent。前序元数据版本
-保留 null 守卫上下文并拒绝 reportedAgent；更早版本同时拒绝 metadata，原有闭合形状仍被接受。
+每个 Panel 行和非 null 的 Agent terminal 必须包含 metadata 与 reportedAgent。
 本地化文本转义有效元数据、上报详情和消息。目录列出当前文档与命令路径。
 
 接纳时将元数据与上报编码行的合计大小限制在既有 CLI 8 MiB 输出预算内。元数据接纳后，上报
