@@ -92,7 +92,7 @@ pub(crate) fn root(locale: Locale) -> String {
         ),
         row("--skill", locale.cli_help_text(HelpText::ShowSkill)),
     ];
-    if cfg!(windows) {
+    if true {
         options.extend([
             row("--session <name>", locale.cli_help_text(HelpText::Session)),
             row(
@@ -224,7 +224,6 @@ pub(crate) fn directory(topic: HelpTopic, locale: Locale) -> Document {
             },
         );
     }
-    #[cfg(windows)]
     {
         let notes = match topic {
             HelpTopic::Family(Family::Server | Family::Session) => Some(HelpText::SessionRules),

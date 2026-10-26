@@ -1,8 +1,8 @@
 //! Windows portable-layout grammar; no runtime discovery while parsing.
 use super::{
-    ClientLayoutTarget, FailureEnvelope, NO_OPTIONS, Options, OutputFormat, ParseFailure, Request,
-    Resource, Scope, TabContext, Target, UsageContext, UsageReason, WorkbenchLabel, check_scope,
-    client_control, label_option, missing_required, target, usage_with, wait_timeout_option,
+    ClientLayoutTarget, FailureEnvelope, Options, OutputFormat, ParseFailure, Request, Resource,
+    TabContext, Target, UsageContext, UsageReason, WorkbenchLabel, check_scope, client_control,
+    label_option, missing_required, target, usage_with, wait_timeout_option,
 };
 use orchbee_workbench_protocol::WorkbenchClientId;
 
@@ -34,24 +34,7 @@ pub(crate) struct LayoutApplyCommand {
 
 pub(super) fn apply(options: &Options, envelope: FailureEnvelope) -> Result<Request, ParseFailure> {
     let context = UsageContext::Path("layout apply");
-    check_scope(
-        options,
-        Scope {
-            file: true,
-            stdin: true,
-            tab: true,
-            workspace: true,
-            confirm: true,
-            label: true,
-            focus: true,
-            no_focus: true,
-            client: true,
-            timeout: true,
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     for choices in [
         vec![
             ("--file", options.file.is_some()),
@@ -127,19 +110,7 @@ pub(super) fn export(
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
     let context = UsageContext::Path("layout export");
-    check_scope(
-        options,
-        Scope {
-            tab: true,
-            panel: true,
-            current: true,
-            client: true,
-            timeout: true,
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     let selected: Vec<_> = [
         ("--tab", options.tab.is_some()),
         ("--panel", options.panel.is_some()),

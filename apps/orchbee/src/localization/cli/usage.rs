@@ -22,113 +22,79 @@ impl Locale {
             UsageContext::Root | UsageContext::Literal(_) => "orchbee --help".to_owned(),
         };
         let expected = |expected: ExpectedValue| match (self, expected) {
-            #[cfg(windows)]
             (Self::EnUs, ExpectedValue::TerminalViewportPoint) => {
                 "viewport ROW:COL (row/column 0..65535)"
             }
-            #[cfg(windows)]
             (Self::ZhCn, ExpectedValue::TerminalViewportPoint) => "视口 ROW:COL（行／列 0..65535）",
-            #[cfg(windows)]
             (Self::EnUs, ExpectedValue::TerminalSelectionPoint) => {
                 "ROW:COL (row 0..4294967295, column 0..65535)"
             }
-            #[cfg(windows)]
             (Self::ZhCn, ExpectedValue::TerminalSelectionPoint) => {
                 "ROW:COL（行 0..4294967295，列 0..65535）"
             }
-            #[cfg(windows)]
             (Self::EnUs, ExpectedValue::TerminalSelectionSpan) => {
                 "a selection spanning at most 4096 rows"
             }
-            #[cfg(windows)]
             (Self::ZhCn, ExpectedValue::TerminalSelectionSpan) => "最多跨 4096 行的选区",
-            #[cfg(windows)]
             (_, ExpectedValue::TerminalContentRevision) => "0..18446744073709551615",
-            #[cfg(windows)]
             (_, ExpectedValue::TerminalContentGeneration) => "1..18446744073709551615",
-            #[cfg(windows)]
             (Self::EnUs, ExpectedValue::TerminalCopyMotion) => {
                 "one of the ten motions listed by help terminal copy-motion"
             }
-            #[cfg(windows)]
             (Self::ZhCn, ExpectedValue::TerminalCopyMotion) => {
                 "help terminal copy-motion 列出的十种移动之一"
             }
-            #[cfg(windows)]
             (Self::EnUs, ExpectedValue::TerminalCopyQuery) => {
                 "a literal query of at most 4096 UTF-8 bytes"
             }
-            #[cfg(windows)]
             (Self::ZhCn, ExpectedValue::TerminalCopyQuery) => "最多 4096 UTF-8 字节的字面量查询",
-            #[cfg(windows)]
             (_, ExpectedValue::TerminalCopyDirection) => "forward|backward",
-            #[cfg(windows)]
             (Self::EnUs, ExpectedValue::TerminalCopyPrevious) => {
                 "ROW:COL-ROW:COL (inclusive buffer endpoints)"
             }
-            #[cfg(windows)]
             (Self::ZhCn, ExpectedValue::TerminalCopyPrevious) => {
                 "ROW:COL-ROW:COL（包含缓冲区端点）"
             }
 
-            #[cfg(windows)]
             (Self::EnUs, ExpectedValue::PluginActionId) => {
                 "an action ID or plugin.action ID (up to 241 ASCII characters)"
             }
-            #[cfg(windows)]
             (Self::ZhCn, ExpectedValue::PluginActionId) => {
                 "action ID 或 plugin.action ID（最多 241 个 ASCII 字符）"
             }
-            #[cfg(windows)]
             (Self::EnUs, ExpectedValue::GraphicsSpecification) => {
                 "a closed graphics spec JSON object, @regular-file path, or - for noninteractive stdin"
             }
-            #[cfg(windows)]
             (Self::ZhCn, ExpectedValue::GraphicsSpecification) => {
                 "封闭图形 spec JSON 对象、@普通文件路径，或用于非交互 stdin 的 -"
             }
-            #[cfg(windows)]
             (Self::EnUs, ExpectedValue::EventsSpecification) => {
                 "a valid event name, closed filter/cursor JSON, or the documented bounded event option"
             }
-            #[cfg(windows)]
             (Self::ZhCn, ExpectedValue::EventsSpecification) => {
                 "有效事件名、封闭 filter/cursor JSON，或帮助中声明的有界事件参数"
             }
-            #[cfg(windows)]
             (Self::EnUs, ExpectedValue::ConfiguredCommandId) => {
                 "an installed opaque command ID from command list"
             }
-            #[cfg(windows)]
             (Self::ZhCn, ExpectedValue::ConfiguredCommandId) => {
                 "command list 显示的已安装不透明命令 ID"
             }
-            #[cfg(windows)]
             (Self::EnUs, ExpectedValue::PluginContext) => {
                 "a bounded plugin context JSON object (16 KiB)"
             }
-            #[cfg(windows)]
             (Self::ZhCn, ExpectedValue::PluginContext) => "有界插件上下文 JSON 对象（16 KiB）",
-            #[cfg(windows)]
             (_, ExpectedValue::PluginLogLimit) => "1..200",
-            #[cfg(windows)]
             (_, ExpectedValue::PluginPopupSize) => "0..65535 | 1%..100%",
-            #[cfg(windows)]
             (_, ExpectedValue::PluginPanePlacement) => "tab|split|zoomed|overlay|popup",
-            #[cfg(windows)]
             (_, ExpectedValue::PluginPaneDirection) => "left|right|up|down",
-            #[cfg(windows)]
             (_, ExpectedValue::PluginGithubSource) => "owner/repo[/subdir]",
-            #[cfg(windows)]
             (Self::EnUs, ExpectedValue::PluginGitReference) => "a Git branch, tag or commit",
-            #[cfg(windows)]
             (Self::ZhCn, ExpectedValue::PluginGitReference) => "Git 分支、标签或提交",
 
-            #[cfg(windows)]
             (Self::EnUs, ExpectedValue::PluginId) => {
                 "1-120 ASCII letters, digits, colon, dot, underscore or hyphen"
             }
-            #[cfg(windows)]
             (Self::ZhCn, ExpectedValue::PluginId) => {
                 "1-120 个 ASCII 字母、数字、冒号、点、下划线或连字符"
             }
@@ -326,34 +292,26 @@ impl Locale {
             }
             (Self::EnUs, ExpectedValue::SendKey) => "one of the accepted '--key' names",
             (Self::ZhCn, ExpectedValue::SendKey) => "'--key' 接受的按键名之一",
-            #[cfg(windows)]
             (Self::EnUs, ExpectedValue::MachineId) => {
                 "a nonzero 32-character lowercase hexadecimal machine profile ID"
             }
-            #[cfg(windows)]
             (Self::ZhCn, ExpectedValue::MachineId) => "非零、32 字符的小写十六进制机器配置 ID",
-            #[cfg(windows)]
             (Self::EnUs, ExpectedValue::MachineLabel) => {
                 "a nonblank label of at most 128 UTF-8 bytes without control characters"
             }
-            #[cfg(windows)]
             (Self::ZhCn, ExpectedValue::MachineLabel) => {
                 "非空白、不含控制字符且最多 128 UTF-8 字节的标签"
             }
-            #[cfg(windows)]
             (Self::EnUs, ExpectedValue::SshTarget) => {
                 "an SSH alias, [user@]host, or ssh://[user@]host[:port] without a password"
             }
-            #[cfg(windows)]
             (Self::ZhCn, ExpectedValue::SshTarget) => {
                 "不含密码的 SSH 别名、[user@]host 或 ssh://[user@]host[:port]"
             }
-            #[cfg(windows)]
-            (Self::EnUs, ExpectedValue::SessionName) => {
+            (Self::EnUs, ExpectedValue::SiteName) => {
                 "1–64 ASCII letters, digits, '.', '_' or '-'; excluding '.' and '..'"
             }
-            #[cfg(windows)]
-            (Self::ZhCn, ExpectedValue::SessionName) => {
+            (Self::ZhCn, ExpectedValue::SiteName) => {
                 "1–64 个 ASCII 字母、数字、'.'、'_' 或 '-'；排除 '.' 和 '..'"
             }
             (Self::EnUs, ExpectedValue::MouseMode) => "'off' or 'on'",
@@ -425,14 +383,14 @@ impl Locale {
             (Self::EnUs, ExpectedValue::AgentListLimit) => "a decimal integer from 1 to 100",
             (Self::ZhCn, ExpectedValue::AgentListLimit) => "1–100 的十进制整数",
             (Self::EnUs, ExpectedValue::AgentCursor) => {
-                if cfg!(windows) {
+                if true {
                     "a Windows 'u1.<base64url>' Agent list cursor (at most 1024 characters)"
                 } else {
                     "a 'v1.<payload>.<tag>' list cursor from a previous page"
                 }
             }
             (Self::ZhCn, ExpectedValue::AgentCursor) => {
-                if cfg!(windows) {
+                if true {
                     "Windows 智能体列表游标 'u1.<base64url>'（最多 1024 个字符）"
                 } else {
                     "上一页返回的 'v1.<payload>.<tag>' 列表游标"
@@ -530,8 +488,8 @@ impl Locale {
             ),
             UsageReason::UnknownOption { context, option } => (
                 match self {
-                    Self::EnUs if cfg!(windows) && (option == "--machine" || option.starts_with("--machine=")) => "The --machine routing option must be first: orchbee --machine <target> <command>.".to_owned(),
-                    Self::ZhCn if cfg!(windows) && (option == "--machine" || option.starts_with("--machine=")) => "--machine 路由选项必须放在第一个位置：orchbee --machine <target> <command>。".to_owned(),
+                    Self::EnUs if true && (option == "--machine" || option.starts_with("--machine=")) => "The --machine routing option must be first: orchbee --machine <target> <command>.".to_owned(),
+                    Self::ZhCn if true && (option == "--machine" || option.starts_with("--machine=")) => "--machine 路由选项必须放在第一个位置：orchbee --machine <target> <command>。".to_owned(),
                     Self::EnUs => format!("Unknown option {}.", echo(option)),
                     Self::ZhCn => format!("未知选项 {}。", echo(option)),
                 },

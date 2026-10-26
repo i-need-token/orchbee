@@ -1,6 +1,6 @@
 use super::{
-    ExpectedValue, FailureEnvelope, MutationCommand, NO_OPTIONS, Options, ParseFailure, Request,
-    Resource, Scope, UsageContext, UsageReason, check_scope, missing_required, mutation, target,
+    ExpectedValue, FailureEnvelope, MutationCommand, Options, ParseFailure, Request, Resource,
+    UsageContext, UsageReason, check_scope, missing_required, mutation, target,
     unexpected_argument, usage_with,
 };
 use orchbee_workbench_protocol::PanelRightClickTarget;
@@ -30,16 +30,7 @@ pub(super) fn parse(
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
     let context = UsageContext::Path("panel input");
-    check_scope(
-        options,
-        Scope {
-            right_click: true,
-            current: true,
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     if let [_, extra, ..] = operands {
         return Err(unexpected_argument(context, extra, envelope));
     }

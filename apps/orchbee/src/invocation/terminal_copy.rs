@@ -1,8 +1,8 @@
 //! Closed public copy requests preserve literals and require their content fences.
 use super::{
-    CopyMotion, CopySearchDirection, ExpectedValue, FailureEnvelope, NO_OPTIONS, Options,
-    OutputFormat, ParseFailure, Request, Resource, Scope, Target, TerminalTextPoint,
-    TerminalTextRange, UsageContext, check_scope, missing_required, target, terminal_buffer,
+    CopyMotion, CopySearchDirection, ExpectedValue, FailureEnvelope, Options, OutputFormat,
+    ParseFailure, Request, Resource, Target, TerminalTextPoint, TerminalTextRange, UsageContext,
+    check_scope, missing_required, target, terminal_buffer,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -51,21 +51,7 @@ pub(super) fn parse(
     } else {
         "terminal copy-motion"
     });
-    check_scope(
-        options,
-        Scope {
-            copy_query: search,
-            copy_previous: search,
-            search_direction: search,
-            copy_motion: !search,
-            cursor: true,
-            content_revision: true,
-            generation: true,
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     let cursor = terminal_buffer::point(options.cursor.as_deref(), "--cursor", context, envelope)?;
     let revision = options
         .content_revision

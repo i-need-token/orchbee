@@ -60,19 +60,7 @@ pub(super) const HELP_PANEL_CLOSE_ZH: crate::localization::HelpDetails =
         "关闭一个由完整类型化 ID 或 @panel:0x<hex> 选择的面板。'--confirm' 为必填。accepted\n结果携带已接受修订与关闭请求 ID；会话异步完成关闭。",
     );
 
-#[cfg(not(windows))]
-pub(super) const HELP_PANEL_MOVE_EN: crate::localization::HelpDetails =
-    crate::localization::HelpDetails::new(
-        "orchbee panel move <panel> (--into-tab <tab> | --new-tab) [--target-panel <panel>] [--direction left|right|up|down] [--label <text>] [--format text|json]",
-        "Move a leaf panel within its current Workspace. --into-tab selects an existing tab and requires --direction. Add --target-panel to place it beside an exact panel in that tab, including its current tab. --new-tab appends a new tab and requires --label.\n\nTerminal identity, process and working directory remain unchanged. A committed result returns the new revision; unchanged means the layout already matched.",
-    );
 
-#[cfg(not(windows))]
-pub(super) const HELP_PANEL_MOVE_ZH: crate::localization::HelpDetails =
-    crate::localization::HelpDetails::new(
-        "orchbee panel move <panel> (--into-tab <tab> | --new-tab) [--target-panel <panel>] [--direction left|right|up|down] [--label <text>] [--format text|json]",
-        "在当前工作区中移动叶子面板。--into-tab 选择已有标签页，并要求 --direction。添加 --target-panel 可将其放到该标签页中的精确面板旁，也可选择当前标签页。--new-tab 追加新标签页，并要求 --label。\n\n终端标识、进程和工作目录保持不变。committed 返回新修订；unchanged 表示布局已符合要求。",
-    );
 
 pub(super) const HELP_PANEL_CURRENT_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
@@ -122,14 +110,12 @@ pub(super) const HELP_PANEL_INPUT_ZH: crate::localization::HelpDetails =
         "Windows：设置共享面板右键策略，不改变焦点。--current 校验调用者\nTerminal/Worker 上下文；显式目标绕过该上下文。orchbee 将右键保留给\nClient；panel 允许无修饰键的右键在启用鼠标上报的终端内容中透传。现有控制权及就绪约束仍适用，策略改变作用于下一个手势。\nconfigured 或 unchanged 确认规范状态，不确认所有客户端已绘制。未知结果不会自动重试。",
     );
 
-#[cfg(windows)]
 pub(super) const HELP_PANEL_MOVE_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee panel move <panel> --into-tab <tab> --direction left|right|up|down [--target-panel <panel>] [--ratio <n>] [--focus|--no-focus] [--client <id>] [--timeout <ms>] [--format text|json]\norchbee panel move <panel> --new-tab [--workspace <workspace>] [--label <text>] [--focus|--no-focus] [--client <id>] [--timeout <ms>] [--format text|json]\norchbee panel move <panel> --new-workspace [--project <project>] [--label <text>] [--tab-label <text>] [--focus|--no-focus] [--client <id>] [--timeout <ms>] [--format text|json]",
         "Move a panel while keeping its terminal and process running. An existing destination tab can belong to any workspace. Its target defaults to the selected client's focused panel.\n\nFocus is on by default. With no client, use --no-focus and omit --ratio; the first target leaf and default ratio are used. Ratios are finite and clamped to 0.1..0.9. Timeout defaults to 30000 ms. Zoomed tabs leave the layout unchanged. Selecting the current tab reorders its panels through the same --into-tab form.\n\nA new workspace follows the terminal's working directory, falling back to the CLI working directory when unavailable. Moving the last panel removes the empty source tab and, across contexts, its empty workspace.\n\nDirectory, ratio and focus results are recorded separately from the move. Partial failure preserves committed changes; an uncertain submission is never replayed.",
     );
 
-#[cfg(windows)]
 pub(super) const HELP_PANEL_MOVE_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee panel move <panel> --into-tab <tab> --direction left|right|up|down [--target-panel <panel>] [--ratio <n>] [--focus|--no-focus] [--client <id>] [--timeout <ms>] [--format text|json]\norchbee panel move <panel> --new-tab [--workspace <workspace>] [--label <text>] [--focus|--no-focus] [--client <id>] [--timeout <ms>] [--format text|json]\norchbee panel move <panel> --new-workspace [--project <project>] [--label <text>] [--tab-label <text>] [--focus|--no-focus] [--client <id>] [--timeout <ms>] [--format text|json]",

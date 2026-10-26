@@ -1,9 +1,9 @@
 //! Pure plugin grammar retains unresolved user paths for the final business process.
 pub(crate) mod panes;
 use super::{
-    ExpectedValue, FailureEnvelope, NO_OPTIONS, Options, OutputFormat, ParseFailure, Request,
-    Scope, UsageContext, UsageReason, check_scope, missing_command, missing_required,
-    selection_envelope, unexpected_argument, unknown_command, usage_with,
+    ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, Request, UsageContext,
+    UsageReason, check_scope, missing_command, missing_required, selection_envelope,
+    unexpected_argument, unknown_command, usage_with,
 };
 use orchbee_local_runtime::{PluginRegistryMutation, UserPathOperand, plugin_identifier};
 /// Admitted plugin grammar; path context remains owned by the executing CLI.
@@ -147,21 +147,7 @@ pub(super) fn parse(
             ));
         }
     });
-    check_scope(
-        options,
-        Scope {
-            plugin: verb == "link",
-            plugin_install: verb == "install",
-            timeout: verb == "install",
-            plugin_select: matches!(verb, "list" | "action list" | "action invoke" | "log list"),
-            plugin_context: verb == "action invoke",
-            client: verb == "action invoke",
-            limit: verb == "log list",
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     if options.plugin_enabled && options.plugin_disabled {
         return Err(usage_with(
             UsageReason::ConflictingOptions {

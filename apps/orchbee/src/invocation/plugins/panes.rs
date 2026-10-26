@@ -1,8 +1,8 @@
 use super::super::{
-    CreationCommand, CreationDirectory, CreationKind, ExpectedValue, FailureEnvelope, NO_OPTIONS,
-    Options, OutputFormat, ParseFailure, Request, Resource, Scope, TabContext, UsageContext,
-    UsageReason, check_scope, client_control, geometry_option, launch_options_with_directory,
-    missing_command, missing_required, target, unexpected_argument, unknown_command, usage_with,
+    CreationCommand, CreationDirectory, CreationKind, ExpectedValue, FailureEnvelope, Options,
+    OutputFormat, ParseFailure, Request, Resource, TabContext, UsageContext, UsageReason,
+    check_scope, client_control, geometry_option, launch_options_with_directory, missing_command,
+    missing_required, target, unexpected_argument, unknown_command, usage_with,
     wait_timeout_option,
 };
 use orchbee_local_runtime::PluginPanePlacement;
@@ -38,16 +38,7 @@ pub(super) fn parse(
         } else {
             "plugin pane close"
         });
-        check_scope(
-            options,
-            Scope {
-                client: focus,
-                timeout: true,
-                ..NO_OPTIONS
-            },
-            context,
-            envelope,
-        )?;
+        check_scope(options, context, envelope)?;
         let value = rest
             .first()
             .ok_or_else(|| missing_required(context, "<pane-id>", envelope))?;
@@ -86,25 +77,7 @@ pub(super) fn parse(
         }
         _ => unreachable!(),
     }
-    check_scope(
-        options,
-        Scope {
-            plugin_select: true,
-            plugin_pane: true,
-            workspace: true,
-            direction: true,
-            client: true,
-            focus: true,
-            no_focus: true,
-            geometry: true,
-            cwd: true,
-            environment: true,
-            timeout: true,
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     let invalid = |option, value: &str, expected| {
         usage_with(
             UsageReason::InvalidValue {
@@ -255,16 +228,7 @@ pub(in crate::invocation) fn parse_close(
         }
         _ => unreachable!("popup family routed here"),
     }
-    check_scope(
-        options,
-        Scope {
-            client: true,
-            timeout: true,
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     Ok(Request::Plugin {
         command: super::PluginCommand::PopupClose {
             client: client_control::client_id(options, context, envelope)?,

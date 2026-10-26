@@ -1,5 +1,4 @@
 use super::Locale;
-#[cfg(windows)]
 use orchbee_workbench_protocol::{AgentViewFailure as F, AgentViewOutcome};
 impl Locale {
     #[cfg(windows)]
@@ -9,7 +8,6 @@ impl Locale {
             Self::ZhCn => "智能体视图请求交换失败\n",
         }
     }
-    #[cfg(windows)]
     pub(crate) fn agent_view_help(
         self,
         path: crate::invocation::CommandPath,

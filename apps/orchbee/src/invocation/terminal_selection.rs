@@ -1,8 +1,7 @@
 //! Public screen-buffer coordinates are admitted before runtime discovery.
 use super::{
-    ExpectedValue, FailureEnvelope, NO_OPTIONS, Options, OutputFormat, ParseFailure, Request,
-    Resource, Scope, Target, TerminalTextPoint, UsageContext, UsageReason, check_scope, target,
-    usage_with,
+    ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, Request, Resource, Target,
+    TerminalTextPoint, UsageContext, UsageReason, check_scope, target, usage_with,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -21,18 +20,7 @@ pub(super) fn parse(
     options: &Options,
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
-    check_scope(
-        options,
-        Scope {
-            selection_anchor: true,
-            content_revision: true,
-            cursor: true,
-            generation: true,
-            ..NO_OPTIONS
-        },
-        CONTEXT,
-        envelope,
-    )?;
+    check_scope(options, CONTEXT, envelope)?;
     let anchor = super::terminal_buffer::point(
         options.selection_anchor.as_deref(),
         "--anchor",

@@ -3,33 +3,19 @@
 use super::Locale;
 use crate::cli::Failure;
 
-#[cfg(windows)]
-pub(super) const HELP_SERVER_START_EN: crate::localization::HelpDetails =
+pub(super) const HELP_SITE_START_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee server start [--format text|json]",
         "Ensure the selected local session is running within one 20-second budget.\nTUI startup uses the same activation and recovery path. Complete current catalog\nregistration permits automatic cold recovery only after all exact PID/creation\nidentities are gone, locks are free and endpoints absent. Background and\nclean-stop checkpoints restore layouts, Launch Profiles, sampled per-terminal\ncwd. Unreadable snapshots are retained;\nstartup falls back to an older valid copy or opens an empty workspace and warns\non stderr. Live Host, unknown/incomplete identity and unreadable records\nrefuse without deleting data. Run server diagnose with the same --session selection\nor use orchbee --session recovery-work server start for another name. New activation\npublishes the current version 1 catalog before checkpoint storage. Other record\nversions and shapes remain unreadable without migration. Live Host adoption remains separate.\n\nJSON uses orchbee.server.start: started means this invocation spawned Server;\nalready-running means an existing session admitted it. Live Agent state, terminal history and screen contents are not restored.",
     );
 
-#[cfg(not(windows))]
-pub(super) const HELP_SERVER_START_EN: crate::localization::HelpDetails =
-    crate::localization::HelpDetails::new(
-        "orchbee server start [--format text|json]",
-        "Ensure the implicit per-user local session is running. When no admitted\nsession answers, this invocation performs the existing activation sequence\n— the same locks, marker, Server spawn, and readiness admission the TUI\nstartup uses — and reports 'started'. On Windows, background and clean-stop\ncheckpoints restore layouts, Launch Profiles and sampled per-terminal cwd. Unreadable snapshots\nare retained; startup falls back to an older valid copy or opens an empty\nworkspace and warns on stderr. Live Agent state, terminal history and screen\ncontents are not restored.\nWhen a running session admits the readiness probe,\nit reports 'already-running'. One absolute 20-second budget covers the whole\ninvocation.\n\n'--format json' emits the orchbee.server.start envelope. An interrupted\nor timed-out start may leave activation state behind; a later invocation\nthen answers refused with a recovery-required reason. The command never\nrepairs, stops, or deletes runtime state.",
-    );
 
-#[cfg(windows)]
-pub(super) const HELP_SERVER_START_ZH: crate::localization::HelpDetails =
+pub(super) const HELP_SITE_START_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee server start [--format text|json]",
         "在一个 20 秒总预算内确保选中的本地会话正在运行。TUI 使用相同激活和恢复路径。仅当当前清单登记完整、所有确切 PID／创建时间身份消失、锁空闲且端点缺席时，才自动冷恢复。后台及正常停止 checkpoint 会恢复布局、Launch Profile、采样所得的逐终端 cwd。不可读存档会保留；启动会回退到较早的有效副本，或打开空工作区并在 stderr 警告。活 Host、未知／不完整身份和不可读记录均拒绝且不删除数据。请用相同 --session 选择执行 server diagnose，或用\norchbee --session recovery-work server start 另开命名会话。新激活会先发布当前版本 1 catalog\n再使用检查点存储；其他记录版本和形状保持不可读，不迁移。活 Host 接管仍另行实现。\n\nJSON 使用 orchbee.server.start：started 表示本次拉起了 Server；\nalready-running 表示既有会话准入了本次调用。不恢复存活智能体状态、终端历史或屏幕内容。",
     );
 
-#[cfg(not(windows))]
-pub(super) const HELP_SERVER_START_ZH: crate::localization::HelpDetails =
-    crate::localization::HelpDetails::new(
-        "orchbee server start [--format text|json]",
-        "确保隐式的每用户本地会话正在运行。若没有已准入的会话应答，本次调用执行既有的激活序列——与 TUI 启动相同的锁、标记、Server 拉起与就绪准入——并报告 'started'。Windows 会从后台及正常停止 checkpoint 恢复布局、Launch Profile、采样所得的逐终端 cwd。不可读存档会保留；启动会回退到较早的有效副本，或打开空工作区并在 stderr 警告。不恢复存活智能体状态、终端历史或屏幕内容。若运行中的会话准入了就绪探针，则报告 'already-running'。整个调用共享一个 20 秒绝对预算。\n\n'--format json' 输出 orchbee.server.start 封套。被中断或超时的启动可能遗留激活状态；后续调用将以拒绝加 recovery-required 原因应答。本命令绝不修复、停止或删除运行时状态。",
-    );
 
 pub(super) const HELP_SERVER_DIAGNOSE_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(

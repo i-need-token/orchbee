@@ -1,9 +1,8 @@
 //! Shared request identity grammar; resource creation and operation observation stay separate.
 use super::{
-    ClientCommand, ExpectedValue, FailureEnvelope, NO_OPTIONS, Options, OutputFormat, ParseFailure,
-    Request, Scope, UsageContext, UsageReason, WorkspaceGroupCloseCommand, check_scope,
-    close_generation_option, missing_required, unexpected_argument, usage_with,
-    wait_timeout_option,
+    ClientCommand, ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, Request,
+    UsageContext, UsageReason, WorkspaceGroupCloseCommand, check_scope, close_generation_option,
+    missing_required, unexpected_argument, usage_with, wait_timeout_option,
 };
 use orchbee_workbench_protocol::WorkbenchRequestId;
 
@@ -44,18 +43,7 @@ pub(super) fn parse(
         _ => "server status",
     });
     let resume = verb == "resume";
-    check_scope(
-        options,
-        Scope {
-            confirm: resume,
-            generation: resume,
-            detach: resume && family == "project",
-            timeout: resume && family == "project",
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     let [value] = operands else {
         return Err(if operands.is_empty() {
             missing_required(context, "<request-id>", envelope)

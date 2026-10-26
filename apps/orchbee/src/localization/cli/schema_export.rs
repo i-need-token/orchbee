@@ -2,6 +2,7 @@ use super::Locale;
 use crate::cli::escape::diagnostic_token;
 
 impl Locale {
+    #[cfg(windows)]
     pub(crate) fn schema_export_failure(
         self,
         stage: &str,

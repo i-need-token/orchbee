@@ -1,8 +1,8 @@
 //! Installed command IDs and hierarchical source selectors, parsed before effects.
 use super::{
-    ExpectedValue, FailureEnvelope, NO_OPTIONS, Options, OutputFormat, ParseFailure, Request,
-    Resource, Scope, Target, UsageContext, UsageReason, check_scope, missing_command,
-    missing_required, target, unknown_command, usage_with, wait_timeout_option,
+    ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, Request, Resource, Target,
+    UsageContext, UsageReason, check_scope, missing_command, missing_required, target,
+    unknown_command, usage_with, wait_timeout_option,
 };
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Command {
@@ -44,23 +44,7 @@ pub(super) fn parse(
         "command invoke"
     });
     let invoke = verb == "invoke";
-    check_scope(
-        options,
-        Scope {
-            client: invoke,
-            workspace: invoke,
-            tab: invoke,
-            panel: invoke,
-            plugin_context: invoke,
-            timeout: invoke,
-            selection_anchor: invoke,
-            cursor: invoke,
-            content_revision: invoke,
-            ..NO_OPTIONS
-        },
-        usage,
-        envelope,
-    )?;
+    check_scope(options, usage, envelope)?;
     if args.len() > usize::from(invoke) {
         return Err(usage_with(
             UsageReason::UnexpectedArgument {

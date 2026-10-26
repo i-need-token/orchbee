@@ -71,24 +71,19 @@ impl Locale {
                 "按请求 ID 读取一项保留操作。",
             ),
 
-            #[cfg(windows)]
             HelpTopic::Family(Family::PanelGraphics) => (
                 "Display and inspect graphics in a panel.",
                 "在面板中显示和查看图像。",
             ),
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::PanelGraphicsSet) => {
                 ("Display graphics in a panel.", "在面板中显示图像。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::PanelGraphicsClear) => {
                 ("Clear a panel's graphics.", "清除面板中的图像。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::PanelGraphicsInfo) => {
                 ("Show a panel's graphics state.", "查看面板图像状态。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::PanelGraphicsStream) => (
                 "Stream graphics updates to a panel.",
                 "向面板持续发送图像更新。",
@@ -127,12 +122,10 @@ impl Locale {
             HelpTopic::Command(CommandPath::LayoutSetSplitRatio) => {
                 ("Set the size ratio of a split.", "设置分屏比例。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::LayoutExport) => (
                 "Export a reusable terminal layout.",
                 "导出可复用的终端布局。",
             ),
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::LayoutApply) => {
                 ("Apply a saved terminal layout.", "应用已保存的终端布局。")
             }
@@ -167,21 +160,17 @@ impl Locale {
                 "Find, run and interact with AI Agents.",
                 "查找、启动并操作 AI 智能体。",
             ),
-            #[cfg(windows)]
             HelpTopic::Family(Family::AgentView) => (
                 "Choose which Agents appear in the sidebar.",
                 "选择侧边栏显示的智能体。",
             ),
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::AgentViewGet) => {
                 ("Show the Agent view settings.", "显示智能体视图设置。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::AgentViewSet) => (
                 "Save Agent filters, grouping and sorting.",
                 "保存智能体筛选、分组和排序设置。",
             ),
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::AgentViewClear) => {
                 ("Restore the default Agent view.", "恢复默认智能体视图。")
             }
@@ -305,48 +294,37 @@ impl Locale {
                 "Check, import and restore settings.",
                 "检查、导入和恢复设置。",
             ),
-            #[cfg(windows)]
             HelpTopic::Family(Family::Channel) => ("Choose the release channel.", "选择更新频道。"),
-            #[cfg(windows)]
             HelpTopic::Family(Family::Machine) => (
                 "Manage saved remote SSH machines.",
                 "管理已保存的远程 SSH 机器。",
             ),
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::MachineList) => {
                 ("List saved remote machines.", "列出已保存的远程机器。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::MachineAdd) => (
                 "Save an SSH machine for remote commands.",
                 "保存用于远程命令的 SSH 机器。",
             ),
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::MachineRename) => {
                 ("Rename a saved remote machine.", "重命名已保存的远程机器。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::MachineRemove) => {
                 ("Remove a saved remote machine.", "移除已保存的远程机器。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::MachineEnable) => {
                 ("Enable a saved remote machine.", "启用已保存的远程机器。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::MachineDisable) => {
                 ("Disable a saved remote machine.", "停用已保存的远程机器。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::ChannelShow) => {
                 ("Show the configured release channel.", "显示当前更新频道。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::ChannelSet) => (
                 "Save the release channel and update.",
                 "保存更新频道并执行更新。",
             ),
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::Update) => {
                 ("Install the configured release.", "安装所选频道的版本。")
             }
@@ -485,7 +463,6 @@ impl Locale {
             HelpTopic::Command(CommandPath::PanelProcessInfo) => {
                 ("Show the process running in a panel.", "查看面板中的进程。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::PanelCreateTerminal) => (
                 "Open another terminal in a panel.",
                 "在面板中打开另一个终端。",
@@ -510,36 +487,29 @@ impl Locale {
                 "Read visible output or retained history.",
                 "读取可见输出或保留的历史。",
             ),
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::TerminalSelectionRead) => {
                 ("Read the terminal's selected text.", "读取终端选中的文本。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::TerminalCopyMotion) => (
                 "Move or extend the terminal selection.",
                 "移动或扩展终端选区。",
             ),
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::TerminalCopySearch) => (
                 "Search output and move the selection.",
                 "搜索输出并移动选区。",
             ),
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::TerminalLinkResolve) => (
                 "Resolve a link from terminal output.",
                 "识别终端输出中的链接。",
             ),
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::TerminalLinkActivate) => (
                 "Open a link from terminal output.",
                 "打开终端输出中的链接。",
             ),
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::TerminalClear) => (
                 "Clear output while preserving the current prompt.",
                 "清除输出并保留当前提示行。",
             ),
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::TerminalEditScrollback) => (
                 "Open terminal history in an editor.",
                 "在编辑器中打开终端历史。",
@@ -623,27 +593,22 @@ impl Locale {
                 "Ensure a local terminal session is running.",
                 "确保本地终端会话已启动。",
             ),
-            #[cfg(windows)]
             HelpTopic::Family(Family::Session) => (
                 "Find and reconnect to named local sessions.",
                 "查找和重新连接命名的本地会话。",
             ),
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::SessionList) => (
                 "List named local terminal sessions.",
                 "列出命名的本地终端会话。",
             ),
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::SessionAttach) => (
                 "Open a named local terminal session.",
                 "打开命名的本地终端会话。",
             ),
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::SessionStop) => (
                 "Stop a named local terminal session.",
                 "停止命名的本地终端会话。",
             ),
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::SessionDelete) => {
                 ("Delete a stopped local session.", "删除已停止的本地会话。")
             }
@@ -675,106 +640,80 @@ impl Locale {
                 "Restore the outer terminal's original title.",
                 "恢复外层终端的原始标题。",
             ),
-            #[cfg(windows)]
             HelpTopic::Family(Family::Plugin) => (
                 "Install, configure and use plugins.",
                 "安装、配置和使用插件。",
             ),
-            #[cfg(windows)]
             HelpTopic::Family(Family::Command) => (
                 "Find and run your configured commands.",
                 "查找并运行已配置的命令。",
             ),
-            #[cfg(windows)]
             HelpTopic::Family(Family::Events) => (
                 "Observe events from a running session.",
                 "观察运行中会话的事件。",
             ),
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::EventsSubscribe) => (
                 "Stream events from a running session.",
                 "持续读取运行中会话的事件。",
             ),
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::EventsWait) => {
                 ("Wait for a matching session event.", "等待匹配的会话事件。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::CommandList) => {
                 ("List configured commands.", "列出已配置的命令。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::CommandInvoke) => {
                 ("Run a configured command.", "运行已配置的命令。")
             }
-            #[cfg(windows)]
             HelpTopic::Family(Family::PluginAction) => {
                 ("Find and invoke plugin actions.", "查找并执行插件操作。")
             }
-            #[cfg(windows)]
             HelpTopic::Family(Family::PluginLog) => ("Read plugin logs.", "读取插件日志。"),
-            #[cfg(windows)]
             HelpTopic::Family(Family::PluginPane) => {
                 ("Open and manage plugin panels.", "打开并管理插件面板。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::PluginPaneOpen) => {
                 ("Open a plugin panel.", "打开插件面板。")
             }
-            #[cfg(windows)]
             HelpTopic::Family(Family::Popup) => ("Manage open popups.", "管理已打开的弹出窗口。"),
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::PopupClose) => {
                 ("Close an open popup.", "关闭已打开的弹出窗口。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::PluginPaneFocus) => {
                 ("Focus a plugin panel.", "聚焦插件面板。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::PluginPaneClose) => {
                 ("Close a plugin panel.", "关闭插件面板。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::PluginActionInvoke) => {
                 ("Run a plugin action.", "运行插件操作。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::PluginLogList) => {
                 ("Read a plugin's logs.", "读取插件日志。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::PluginInstall) => ("Install a plugin.", "安装插件。"),
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::PluginUninstall) => {
                 ("Uninstall a plugin.", "卸载插件。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::PluginLink) => {
                 ("Use a local plugin directory.", "使用本地插件目录。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::PluginUnlink) => {
                 ("Unlink a local plugin directory.", "解除本地插件目录关联。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::PluginEnable) => {
                 ("Enable an installed plugin.", "启用已安装的插件。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::PluginDisable) => {
                 ("Disable an installed plugin.", "停用已安装的插件。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::PluginList) => {
                 ("List installed plugins.", "列出已安装的插件。")
             }
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::PluginConfigDir) => (
                 "Show a plugin's configuration directory.",
                 "显示插件的配置目录。",
             ),
-            #[cfg(windows)]
             HelpTopic::Command(CommandPath::PluginActionList) => {
                 ("List available plugin actions.", "列出可用的插件操作。")
             }
@@ -846,21 +785,17 @@ pub(crate) enum HelpText {
     Reference,
     Completion,
     CompletionExample,
-    #[cfg(windows)]
     SessionRules,
-    #[cfg(windows)]
     MachineRules,
 }
 
 impl Locale {
     pub(crate) const fn cli_help_text(self, text: HelpText) -> &'static str {
         let (english, chinese) = match text {
-            #[cfg(windows)]
             HelpText::SessionRules => (
                 "Windows: --session <name> selects a local session (default: default). Names use 1..64 ASCII letters, digits, dot, underscore or hyphen; . and .. are invalid. Explicit --session overrides inherited routing and ORCHBEE_SESSION.",
                 "Windows：--session <name> 选择本地会话，默认 default。名称为 1..64 个 ASCII 字母、数字、点、下划线或连字符；不能是 . 或 ..。显式 --session 覆盖继承的路由和 ORCHBEE_SESSION。",
             ),
-            #[cfg(windows)]
             HelpText::MachineRules => (
                 "Use orchbee --machine <name-or-id> <command> for a saved SSH machine. Duplicate names and disabled profiles are refused. --file/--stdin read locally; --cwd names a remote path. TUI and terminal streams are not routed. Removing or disabling a profile leaves remote sessions running.",
                 "使用 orchbee --machine <name-or-id> <command> 选择已保存的 SSH 机器。拒绝重名和已禁用配置。--file/--stdin 在本地读取，--cwd 指向远端路径。不转发 TUI 或终端流。移除或禁用配置不会停止远端会话。",
@@ -875,8 +810,8 @@ impl Locale {
             HelpText::Options => ("Options", "选项"),
             HelpText::Arguments => ("Arguments", "参数"),
             HelpText::Notes => ("Details and constraints", "说明与限制"),
-            HelpText::Examples if cfg!(windows) => ("Examples (PowerShell)", "示例（PowerShell）"),
-            HelpText::Examples => ("Examples (POSIX shell)", "示例（POSIX Shell）"),
+            HelpText::Examples => ("Examples (PowerShell)", "示例（PowerShell）"),
+
             HelpText::GlobalOptions => ("Global options", "全局选项"),
             HelpText::Terminals => ("Terminals and layout", "终端与布局"),
             HelpText::Agents => ("Agents and workflows", "智能体与工作流程"),
@@ -913,20 +848,9 @@ impl Locale {
                 "Use --format text|json where supported; see each command for its output form.",
                 "支持时可使用 --format text|json；输出形式见具体命令帮助。",
             ),
-            #[cfg(windows)]
             HelpText::ConfigLocation => (
-                "Config: %APPDATA%\\Orchbee\\config.toml; ORCHBEE_CONFIG_FILE overrides it. `orchbee config check` shows the file in use. Orchbee writes no log file; `orchbee server diagnose` reports runtime facts.",
-                "配置：%APPDATA%\\Orchbee\\config.toml；ORCHBEE_CONFIG_FILE 可覆盖。`orchbee config check` 显示正在使用的文件。Orchbee 不写日志文件；`orchbee server diagnose` 报告运行时事实。",
-            ),
-            #[cfg(target_os = "macos")]
-            HelpText::ConfigLocation => (
-                "Config: ~/Library/Application Support/Orchbee/config.toml; ORCHBEE_CONFIG_FILE overrides it. `orchbee config check` shows the file in use. Orchbee writes no log file; `orchbee server diagnose` reports runtime facts.",
-                "配置：~/Library/Application Support/Orchbee/config.toml；ORCHBEE_CONFIG_FILE 可覆盖。`orchbee config check` 显示正在使用的文件。Orchbee 不写日志文件；`orchbee server diagnose` 报告运行时事实。",
-            ),
-            #[cfg(not(any(windows, target_os = "macos")))]
-            HelpText::ConfigLocation => (
-                "Config: $XDG_CONFIG_HOME/Orchbee/config.toml (default ~/.config); ORCHBEE_CONFIG_FILE overrides it. `orchbee config check` shows the file in use. Orchbee writes no log file; `orchbee server diagnose` reports runtime facts.",
-                "配置：$XDG_CONFIG_HOME/Orchbee/config.toml（默认 ~/.config）；ORCHBEE_CONFIG_FILE 可覆盖。`orchbee config check` 显示正在使用的文件。Orchbee 不写日志文件；`orchbee server diagnose` 报告运行时事实。",
+                "Configuration: Windows %APPDATA%\\Orchbee\\config.toml; macOS ~/Library/Application Support/Orchbee/config.toml; Linux $XDG_CONFIG_HOME/Orchbee/config.toml (default ~/.config). ORCHBEE_CONFIG_FILE overrides the path. Use orchbee config check to inspect it and orchbee server diagnose for runtime facts.",
+                "配置：Windows 为 %APPDATA%\\Orchbee\\config.toml；macOS 为 ~/Library/Application Support/Orchbee/config.toml；Linux 为 $XDG_CONFIG_HOME/Orchbee/config.toml（默认 ~/.config）。ORCHBEE_CONFIG_FILE 覆盖路径。使用 orchbee config check 检查配置，使用 orchbee server diagnose 查看运行时事实。",
             ),
             HelpText::Reference => (
                 "Offline guide: orchbee --skill. Command help: orchbee help <command>.",

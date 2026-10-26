@@ -1,7 +1,7 @@
 use super::{
-    AgentTarget, ExpectedValue, FailureEnvelope, NO_OPTIONS, Options, ParseFailure, Request,
-    Resource, Scope, Target, UsageContext, UsageReason, agent_selector, agent_wait_timeout_option,
-    check_scope, missing_required, target, unexpected_argument, usage_with,
+    AgentTarget, ExpectedValue, FailureEnvelope, Options, ParseFailure, Request, Resource, Target,
+    UsageContext, UsageReason, agent_selector, agent_wait_timeout_option, check_scope,
+    missing_required, target, unexpected_argument, usage_with,
 };
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct TerminalObserveCommand {
@@ -38,21 +38,7 @@ pub(super) fn attach(
     } else {
         "terminal attach"
     });
-    check_scope(
-        options,
-        Scope {
-            takeover: true,
-            mouse: true,
-            timeout: true,
-            name: agent,
-            session: agent,
-            panel: agent,
-            terminal: agent,
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     let selected = if agent {
         AttachTarget::Agent(agent_selector(operands, options, context, envelope)?)
     } else {
@@ -110,17 +96,7 @@ fn stream(
     } else {
         "terminal session observe"
     });
-    check_scope(
-        options,
-        Scope {
-            takeover: control,
-            geometry: true,
-            timeout: true,
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     for (present, flag) in [
         (options.cell_width.is_some(), "--cell-width"),
         (options.cell_height.is_some(), "--cell-height"),

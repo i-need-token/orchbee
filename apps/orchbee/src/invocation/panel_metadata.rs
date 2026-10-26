@@ -1,7 +1,7 @@
 //! Panel display reports are normalized and validated before runtime admission.
 use super::{
-    ExpectedValue, FailureEnvelope, NO_OPTIONS, OutputFormat, ParseFailure, Request, Resource,
-    Scope, Target, UsageContext, UsageReason, check_scope, target, usage_with,
+    ExpectedValue, FailureEnvelope, OutputFormat, ParseFailure, Request, Resource, Target,
+    UsageContext, UsageReason, check_scope, target, usage_with,
 };
 use orchbee_workbench_protocol::{
     MetadataSource, MetadataState, MetadataTokenValue, PanelMetadataPatch, WorkbenchRevision,
@@ -79,17 +79,7 @@ pub(super) fn parse(
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
     let context = UsageContext::Path("panel report-metadata");
-    check_scope(
-        options,
-        Scope {
-            metadata: true,
-            panel_metadata: true,
-            output_source: true,
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     let invalid = |option, value: &str, expected| {
         usage_with(
             UsageReason::InvalidValue {

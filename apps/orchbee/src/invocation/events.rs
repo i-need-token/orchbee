@@ -1,8 +1,7 @@
 //! Closed event filters and ergonomic selectors are admitted before joining an existing Session.
 use super::{
-    ExpectedValue, FailureEnvelope, NO_OPTIONS, OutputFormat, ParseFailure, Request, Resource,
-    Scope, Target, UsageContext, UsageReason, check_scope, missing_command, target,
-    unknown_command, usage_with,
+    ExpectedValue, FailureEnvelope, OutputFormat, ParseFailure, Request, Resource, Target,
+    UsageContext, UsageReason, check_scope, missing_command, target, unknown_command, usage_with,
 };
 use orchbee_workbench_protocol::{
     PanelAgentState, SemanticEventCursor, SemanticEventFilter, SemanticEventKind,
@@ -95,27 +94,7 @@ pub(super) fn parse(
     } else {
         "events subscribe"
     });
-    check_scope(
-        options,
-        Scope {
-            events: true,
-            workspace: true,
-            tab: true,
-            panel: true,
-            client: true,
-            wait: true,
-            regex: true,
-            output_source: true,
-            lines: true,
-            plain: true,
-            ansi: true,
-            until: true,
-            timeout: true,
-            ..NO_OPTIONS
-        },
-        usage,
-        envelope,
-    )?;
+    check_scope(options, usage, envelope)?;
     let invalid = |option, value: &str| {
         usage_with(
             UsageReason::InvalidValue {

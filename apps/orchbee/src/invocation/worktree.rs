@@ -1,8 +1,8 @@
 use super::{
-    ExpectedValue, FailureEnvelope, NO_OPTIONS, Options, OutputFormat, ParseFailure, Request,
-    Resource, Scope, Target, UsageContext, UsageReason, WorkbenchDirectoryPath, WorkbenchLabel,
-    WorkbenchRequestId, WorkbenchTerminalGeometry, check_scope, geometry_option, label_option,
-    missing_required, target, usage_with, wait_timeout_option,
+    ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, Request, Resource, Target,
+    UsageContext, UsageReason, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchRequestId,
+    WorkbenchTerminalGeometry, check_scope, geometry_option, label_option, missing_required,
+    target, usage_with, wait_timeout_option,
 };
 use orchbee_workbench_protocol::{WorkbenchClientId, WorktreeReference};
 
@@ -74,31 +74,7 @@ pub(super) fn start(
         _ => "worktree remove",
     });
     let remove = verb == "remove";
-    check_scope(
-        options,
-        Scope {
-            project: !remove,
-            workspace: true,
-            cwd: !remove,
-            client: !remove,
-            focus: !remove,
-            no_focus: !remove,
-            label: !remove,
-            geometry: !remove,
-            branch: !remove,
-            base: verb == "create",
-            path: !remove,
-            force: remove,
-            confirm: remove,
-            trust_repository: true,
-            request_id: true,
-            detach: true,
-            timeout: true,
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     if remove && !options.confirm {
         return Err(missing_required(context, "'--confirm'", envelope));
     }
@@ -248,18 +224,7 @@ pub(super) fn observe(
     } else {
         "worktree status"
     });
-    check_scope(
-        options,
-        Scope {
-            confirm: resume,
-            generation: resume,
-            detach: resume,
-            timeout: resume,
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     let operation_id = operation_id(value, context, "<operation-id>", envelope)?;
     let command = if resume {
         if !options.confirm {
@@ -352,7 +317,7 @@ pub(crate) struct WorktreeQueryCommand<P = WorkbenchDirectoryPath> {
 pub(super) fn list(options: &Options, envelope: FailureEnvelope) -> Result<Request, ParseFailure> {
     let context = UsageContext::Path("worktree list");
     if options.directory.is_some() {
-        check_scope(options, super::WORKTREE_LIST_SCOPE, context, envelope)?;
+        check_scope(options, context, envelope)?;
         return Ok(super::query(
             super::QueryCommand::WorktreeList {
                 directory: super::directory_option(options, context, envelope)?,
@@ -360,18 +325,7 @@ pub(super) fn list(options: &Options, envelope: FailureEnvelope) -> Result<Reque
             options,
         ));
     }
-    check_scope(
-        options,
-        Scope {
-            workspace: true,
-            cwd: true,
-            client: true,
-            trust_repository: true,
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     if options.workspace.is_some() && options.cwd.is_some() {
         return Err(usage_with(
             UsageReason::ConflictingOptions {

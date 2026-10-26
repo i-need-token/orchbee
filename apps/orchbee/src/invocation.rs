@@ -1,11 +1,8 @@
-#[cfg(windows)]
 mod agent_view_spec;
 pub(crate) mod operation;
 mod panel_agent;
 mod panel_metadata;
-#[cfg(windows)]
 pub(crate) mod panel_terminal_creation;
-#[cfg(windows)]
 pub(crate) mod plugins;
 mod report_target;
 pub(crate) use panel_agent::PanelAgentCommand;
@@ -13,91 +10,60 @@ mod workspace_metadata;
 pub(crate) use panel_metadata::PanelMetadataCommand;
 pub(crate) use workspace_metadata::WorkspaceMetadataCommand;
 mod client_control;
-#[cfg(windows)]
 pub(crate) mod configured_commands;
-#[cfg(windows)]
 pub(crate) mod events;
-#[cfg(windows)]
 mod layouts;
-#[cfg(windows)]
 mod named_sessions;
-#[cfg(windows)]
 pub(crate) mod pane_graphics;
 mod send_key;
-#[cfg(windows)]
 pub(crate) use layouts::{LayoutApplyCommand, LayoutDestination, LayoutExportCommand};
-#[cfg(windows)]
 pub(crate) use named_sessions::NamedSessionCommand;
-#[cfg(windows)]
 pub(crate) mod machine_routing;
-#[cfg(windows)]
 mod machines;
-#[cfg(windows)]
 pub(crate) use machines::MachineCommand;
 mod creation;
 pub(crate) mod program;
-#[cfg(windows)]
 mod workspace_creation;
-#[cfg(windows)]
 pub(crate) use workspace_creation::{ParsedWorkspaceCreationCommand, WorkspaceCreationCommand};
-#[cfg(windows)]
 mod panel_relocation;
-#[cfg(windows)]
 pub(crate) use panel_relocation::{PanelRelocationCommand, PanelRelocationDestination};
 mod panel_input;
 pub(crate) use creation::{CreationCommand, CreationDirectory, CreationKind};
 mod schema_export;
 mod terminal_output;
-#[cfg(windows)]
 mod terminal_selection;
-#[cfg(windows)]
 pub(crate) use terminal_selection::TerminalSelectionCommand;
-#[cfg(windows)]
 mod terminal_buffer;
-#[cfg(windows)]
 mod terminal_copy;
-#[cfg(windows)]
 mod terminal_links;
-#[cfg(windows)]
 pub(crate) use crate::terminal_copy::{
     CopyMotion, CopySearchDirection, TerminalTextPoint, TerminalTextRange,
 };
-#[cfg(windows)]
 pub(crate) use terminal_copy::{TerminalCopyAction, TerminalCopyCommand};
-#[cfg(windows)]
 pub(crate) use terminal_links::TerminalLinkCommand;
 mod terminal_run;
 mod terminal_stream;
 mod terminal_target;
 pub(crate) use client_control::{ClientCommand, LayoutQuery};
-#[cfg(any(windows, test))]
 pub(crate) use client_control::{ClientLayoutTarget, ClientNavigationTarget, ZoomMode};
-#[cfg(windows)]
 pub(crate) use client_control::{PanelSwapCommand, PanelSwapDestination};
 pub(crate) use terminal_output::{OutputSelection, OutputSource, OutputTarget};
 mod output_cursor;
 pub(crate) use output_cursor::{OutputAfter, OutputCursor};
-#[cfg(windows)]
 pub(crate) use terminal_stream::AttachTarget;
 pub(crate) use terminal_stream::{
     TerminalAttachCommand, TerminalControlCommand, TerminalObserveCommand,
 };
 mod workspace_group_close;
 pub(crate) use workspace_group_close::WorkspaceGroupCloseCommand;
-#[cfg(windows)]
 pub(crate) mod user_path_windows;
 mod worktree;
 use std::{ffi::OsString, path::PathBuf};
-#[cfg(windows)]
 pub(crate) use worktree::WorktreeQueryCommand;
 pub(crate) use worktree::{ParsedWorktreeCommand, ParsedWorktreeQueryCommand, WorktreeCommand};
-#[cfg(any(windows, test))]
 pub(crate) use worktree::{WorktreeOpenSelector, WorktreeStartCommand, WorktreeStartKind};
 
-#[cfg(windows)]
 use crate::agent_projection::cursor::Cursor as AgentListCursor;
-#[cfg(not(windows))]
-use orchbee_agent_observation_protocol::AgentListCursor;
 use orchbee_agent_observation_protocol::{
     AgentName, AgentSafeInteger, AgentSessionId, DEFAULT_LIST_LIMIT, MAXIMUM_LIST_LIMIT,
     MAXIMUM_SAFE_INTEGER,
@@ -165,34 +131,19 @@ impl Target {
 /// Parsed Agent targets keep Workbench Panel selectors out of OBAP DTOs.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum AgentTarget {
-    Session {
-        session_id: AgentSessionId,
-    },
-    Name {
-        name: AgentName,
-    },
-    Auto {
-        target: AgentSessionId,
-    },
-    Panel {
-        target: Target,
-    },
-    Terminal {
-        target: Target,
-    },
-    #[cfg(windows)]
-    Projection {
-        selector: AgentSelector,
-    },
+    Session { session_id: AgentSessionId },
+    Name { name: AgentName },
+    Auto { target: AgentSessionId },
+    Panel { target: Target },
+    Terminal { target: Target },
+    Projection { selector: AgentSelector },
 }
 
-#[cfg(windows)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum AgentSelector {
     Kind(String),
     Ordinal(usize),
 }
-#[cfg(windows)]
 impl AgentSelector {
     pub(crate) fn token(&self) -> String {
         match self {
@@ -256,574 +207,9 @@ pub(crate) enum HelpTopic {
     Command(CommandPath),
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum Family {
-    #[cfg(windows)]
-    Events,
-    #[cfg(windows)]
-    Command,
-    #[cfg(windows)]
-    Machine,
-    #[cfg(windows)]
-    Plugin,
-    #[cfg(windows)]
-    PluginAction,
-    #[cfg(windows)]
-    PluginLog,
-    #[cfg(windows)]
-    PluginPane,
-    #[cfg(windows)]
-    Popup,
-    TerminalTitle,
-    Notification,
-    #[cfg(windows)]
-    Session,
-    Client,
-    Agent,
-    #[cfg(windows)]
-    AgentView,
-    #[cfg(windows)]
-    PanelGraphics,
-    /// `agent integration`: the provider-onboarding sub-family under Agent.
-    AgentIntegration,
-    Project,
-    Workspace,
-    Tab,
-    Panel,
-    Layout,
-    Terminal,
-    WorkbenchClient,
-    Worktree,
-    LaunchProfile,
-    Server,
-    Api,
-    Config,
-    #[cfg(windows)]
-    Channel,
-    Completion,
-}
+pub(crate) mod grammar;
+pub(crate) use grammar::{CommandPath, Family};
 
-impl Family {
-    /// The family's real help-path spelling, as `help_topic` recognizes it.
-    pub(crate) const fn as_str(self) -> &'static str {
-        match self {
-            #[cfg(windows)]
-            Self::Command => "command",
-            #[cfg(windows)]
-            Self::Events => "events",
-            #[cfg(windows)]
-            Self::Session => "session",
-            Self::Client => "client",
-            Self::Agent => "agent",
-            #[cfg(windows)]
-            Self::AgentView => "agent view",
-            #[cfg(windows)]
-            Self::PanelGraphics => "panel graphics",
-            Self::AgentIntegration => "agent integration",
-            Self::Project => "project",
-            Self::Workspace => "workspace",
-            Self::Tab => "tab",
-            Self::Panel => "panel",
-            Self::Layout => "layout",
-            Self::Terminal => "terminal",
-            Self::WorkbenchClient => "terminal session",
-            Self::Worktree => "worktree",
-            Self::LaunchProfile => "launch-profile",
-            Self::TerminalTitle => "terminal title",
-            #[cfg(windows)]
-            Self::Plugin => "plugin",
-            #[cfg(windows)]
-            Self::PluginAction => "plugin action",
-            #[cfg(windows)]
-            Self::PluginLog => "plugin log",
-            #[cfg(windows)]
-            Self::PluginPane => "plugin pane",
-            #[cfg(windows)]
-            Self::Popup => "popup",
-            Self::Notification => "notification",
-            Self::Server => "server",
-            Self::Api => "api",
-            Self::Config => "config",
-            #[cfg(windows)]
-            Self::Channel => "channel",
-            #[cfg(windows)]
-            Self::Machine => "machine",
-            Self::Completion => "completion",
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum CommandPath {
-    WorkspaceStatus,
-    WorkspaceResume,
-    TabStatus,
-    TabResume,
-    PanelStatus,
-    PanelResume,
-    ProjectStatus,
-    ProjectResume,
-    ClientStatus,
-    ServerStatus,
-
-    #[cfg(windows)]
-    EventsSubscribe,
-    #[cfg(windows)]
-    PanelGraphicsSet,
-    #[cfg(windows)]
-    PanelGraphicsClear,
-    #[cfg(windows)]
-    PanelGraphicsInfo,
-    #[cfg(windows)]
-    PanelGraphicsStream,
-    #[cfg(windows)]
-    EventsWait,
-    #[cfg(windows)]
-    CommandList,
-    #[cfg(windows)]
-    CommandInvoke,
-    #[cfg(windows)]
-    MachineList,
-    #[cfg(windows)]
-    MachineAdd,
-    #[cfg(windows)]
-    MachineRename,
-    #[cfg(windows)]
-    MachineRemove,
-    #[cfg(windows)]
-    MachineEnable,
-    #[cfg(windows)]
-    MachineDisable,
-
-    #[cfg(windows)]
-    PluginInstall,
-    #[cfg(windows)]
-    PluginUninstall,
-    #[cfg(windows)]
-    PluginLink,
-    #[cfg(windows)]
-    PluginUnlink,
-    #[cfg(windows)]
-    PluginEnable,
-    #[cfg(windows)]
-    PluginDisable,
-    #[cfg(windows)]
-    PluginList,
-    #[cfg(windows)]
-    PluginConfigDir,
-    #[cfg(windows)]
-    PluginActionList,
-    #[cfg(windows)]
-    PluginActionInvoke,
-    #[cfg(windows)]
-    PluginLogList,
-    #[cfg(windows)]
-    PluginPaneOpen,
-    #[cfg(windows)]
-    PopupClose,
-    #[cfg(windows)]
-    PluginPaneFocus,
-    #[cfg(windows)]
-    PluginPaneClose,
-
-    #[cfg(windows)]
-    SessionList,
-    #[cfg(windows)]
-    SessionAttach,
-    #[cfg(windows)]
-    SessionStop,
-    #[cfg(windows)]
-    SessionDelete,
-    ClientList,
-    ClientGet,
-    ClientControlStatus,
-    WorkspaceFocus,
-    TabFocus,
-    PanelFocus,
-    PanelResize,
-    LayoutSetSplitRatio,
-    #[cfg(windows)]
-    LayoutExport,
-    #[cfg(windows)]
-    LayoutApply,
-    PanelZoom,
-    PanelLayout,
-    PanelNeighbor,
-    PanelEdges,
-
-    Tui,
-    Status,
-    StatusServer,
-    StatusClient,
-    #[cfg(windows)]
-    AgentViewGet,
-    #[cfg(windows)]
-    AgentViewSet,
-    #[cfg(windows)]
-    AgentViewClear,
-    AgentList,
-    AgentChanges,
-    AgentGet,
-    AgentFocus,
-    AgentAttention,
-    AgentRead,
-    AgentStart,
-    AgentPrompt,
-    AgentSendKeys,
-    AgentExplain,
-    AgentWait,
-    AgentDoctor,
-    AgentNames,
-    AgentResolve,
-    AgentRename,
-    AgentIntegrationList,
-    AgentIntegrationExplain,
-    AgentIntegrationEnable,
-    AgentIntegrationDisable,
-    ProjectList,
-    ProjectGet,
-    ProjectCreate,
-    ProjectDissolve,
-    ProjectCloseAll,
-    ProjectCloseStatus,
-    ProjectCloseResume,
-    ProjectRename,
-    WorkspaceList,
-    WorkspaceGet,
-    WorkspaceCreate,
-    WorkspaceRename,
-    WorkspaceSetProject,
-    WorkspaceCreateProject,
-    WorkspaceUngroup,
-    WorkspaceReportMetadata,
-    PanelReportMetadata,
-    PanelReportAgent,
-    PanelClearAgentAuthority,
-    PanelReleaseAgent,
-
-    WorkspaceMove,
-    WorkspaceMoveBlock,
-    WorkspaceAcceptDirectory,
-    WorkspaceClose,
-    WorkspaceCloseStatus,
-    WorkspaceCloseResume,
-    TabList,
-    TabGet,
-    TabCreate,
-    TabRename,
-    PanelRename,
-    PanelInput,
-    PanelSwap,
-    TabMove,
-    TabClose,
-    PanelList,
-    PanelCurrent,
-    PanelGet,
-    PanelProcessInfo,
-    #[cfg(windows)]
-    PanelCreateTerminal,
-    PanelSplit,
-    PanelClose,
-    PanelMove,
-    TerminalList,
-    TerminalGet,
-    TerminalAttach,
-    AgentAttach,
-    TerminalObserve,
-    TerminalControl,
-    TerminalRead,
-    #[cfg(windows)]
-    TerminalSelectionRead,
-    #[cfg(windows)]
-    TerminalCopyMotion,
-    #[cfg(windows)]
-    TerminalCopySearch,
-    #[cfg(windows)]
-    TerminalLinkResolve,
-    #[cfg(windows)]
-    TerminalLinkActivate,
-    #[cfg(windows)]
-    TerminalClear,
-    #[cfg(windows)]
-    TerminalEditScrollback,
-    TerminalWaitOutput,
-    TerminalSend,
-    TerminalRun,
-    WorktreeList,
-    WorktreeCreate,
-    WorktreeOpen,
-    WorktreeRemove,
-    WorktreeStatus,
-    WorktreeResume,
-    LaunchProfileList,
-    LaunchProfileGet,
-    LaunchProfileCreate,
-    LaunchProfileDelete,
-
-    ApiSnapshot,
-    ApiSchema,
-    ConfigCheck,
-    ConfigResetKeys,
-    #[cfg(windows)]
-    ChannelShow,
-    #[cfg(windows)]
-    ChannelSet,
-    #[cfg(windows)]
-    Update,
-    ServerStart,
-    ServerDiagnose,
-    ServerConfig,
-    ServerReloadConfig,
-    TerminalTitleSet,
-    TerminalTitleClear,
-    NotificationShow,
-    ServerAgentManifests,
-    ServerReloadAgentManifests,
-    ServerUpdateAgentManifests,
-    ServerAgentManifestsStatus,
-    ServerStop,
-    ServerStopStatus,
-}
-
-impl CommandPath {
-    /// The command's real help-path spelling, as `help_topic` recognizes it.
-    pub(crate) const fn as_str(self) -> &'static str {
-        match self {
-            Self::ClientList => "client list",
-            Self::ClientGet => "client get",
-            Self::WorkspaceStatus => "workspace status",
-            Self::WorkspaceResume => "workspace resume",
-            Self::TabStatus => "tab status",
-            Self::TabResume => "tab resume",
-            Self::PanelStatus => "panel status",
-            Self::PanelResume => "panel resume",
-            Self::ProjectStatus => "project status",
-            Self::ProjectResume => "project resume",
-            Self::ClientStatus => "client status",
-            Self::ServerStatus => "server status",
-            Self::ClientControlStatus => "client control-status",
-            #[cfg(windows)]
-            Self::SessionList => "session list",
-            #[cfg(windows)]
-            Self::SessionAttach => "session attach",
-            #[cfg(windows)]
-            Self::SessionStop => "session stop",
-            #[cfg(windows)]
-            Self::SessionDelete => "session delete",
-            Self::WorkspaceFocus => "workspace focus",
-            Self::TabFocus => "tab focus",
-            Self::PanelFocus => "panel focus",
-            Self::PanelResize => "panel resize",
-            Self::LayoutSetSplitRatio => "layout set-split-ratio",
-            #[cfg(windows)]
-            Self::LayoutExport => "layout export",
-            #[cfg(windows)]
-            Self::LayoutApply => "layout apply",
-            Self::PanelZoom => "panel zoom",
-            Self::PanelLayout => "panel layout",
-            Self::PanelNeighbor => "panel neighbor",
-            Self::PanelEdges => "panel edges",
-
-            Self::Tui => "tui",
-            Self::Status => "status",
-            Self::StatusServer => "status server",
-            Self::StatusClient => "status client",
-            #[cfg(windows)]
-            Self::AgentViewGet => "agent view get",
-            #[cfg(windows)]
-            Self::AgentViewSet => "agent view set",
-            #[cfg(windows)]
-            Self::AgentViewClear => "agent view clear",
-            Self::AgentList => "agent list",
-            Self::AgentChanges => "agent changes",
-            Self::AgentGet => "agent get",
-            Self::AgentFocus => "agent focus",
-            Self::AgentAttention => "agent attention",
-            Self::AgentRead => "agent read",
-            Self::AgentStart => "agent start",
-            Self::AgentPrompt => "agent prompt",
-            Self::AgentSendKeys => "agent send-keys",
-            Self::AgentExplain => "agent explain",
-            Self::AgentWait => "agent wait",
-            Self::AgentDoctor => "agent doctor",
-            Self::AgentNames => "agent names",
-            Self::AgentResolve => "agent resolve",
-            Self::AgentRename => "agent rename",
-            Self::AgentIntegrationList => "agent integration list",
-            Self::AgentIntegrationExplain => "agent integration explain",
-            Self::AgentIntegrationEnable => "agent integration enable",
-            Self::AgentIntegrationDisable => "agent integration disable",
-            Self::ProjectList => "project list",
-            Self::ProjectGet => "project get",
-            Self::ProjectDissolve => "project dissolve",
-            Self::ProjectCloseAll => "project close-all",
-            Self::ProjectCloseStatus => "project close-status",
-            Self::ProjectCloseResume => "project close-resume",
-            Self::WorkspaceSetProject => "workspace set-project",
-            Self::WorkspaceCreateProject => "workspace create-project",
-            Self::WorkspaceUngroup => "workspace ungroup",
-            Self::ProjectCreate => "project create",
-            Self::ProjectRename => "project rename",
-            Self::WorkspaceList => "workspace list",
-            Self::WorkspaceGet => "workspace get",
-            Self::WorkspaceCreate => "workspace create",
-            Self::WorkspaceRename => "workspace rename",
-            Self::PanelReportMetadata => "panel report-metadata",
-            Self::PanelReportAgent => "panel report-agent",
-            Self::PanelClearAgentAuthority => "panel clear-agent-authority",
-            Self::PanelReleaseAgent => "panel release-agent",
-
-            Self::WorkspaceReportMetadata => "workspace report-metadata",
-            Self::WorkspaceMove => "workspace move",
-            Self::WorkspaceMoveBlock => "workspace move-block",
-            Self::WorkspaceAcceptDirectory => "workspace accept-directory",
-            Self::WorkspaceClose => "workspace close",
-            Self::WorkspaceCloseStatus => "workspace close-status",
-            Self::WorkspaceCloseResume => "workspace close-resume",
-            Self::TabList => "tab list",
-            Self::TabGet => "tab get",
-            Self::TabCreate => "tab create",
-            Self::TabRename => "tab rename",
-            Self::PanelRename => "panel rename",
-            Self::PanelInput => "panel input",
-            Self::PanelSwap => "panel swap",
-            Self::TabMove => "tab move",
-            Self::TabClose => "tab close",
-            Self::PanelList => "panel list",
-            Self::PanelCurrent => "panel current",
-            Self::PanelGet => "panel get",
-            Self::PanelProcessInfo => "panel process-info",
-            #[cfg(windows)]
-            Self::PanelCreateTerminal => "panel create-terminal",
-            Self::PanelSplit => "panel split",
-            Self::PanelClose => "panel close",
-            Self::PanelMove => "panel move",
-            Self::TerminalList => "terminal list",
-            Self::TerminalGet => "terminal get",
-            Self::TerminalAttach => "terminal attach",
-            Self::AgentAttach => "agent attach",
-            Self::TerminalObserve => "terminal session observe",
-            Self::TerminalControl => "terminal session control",
-            Self::TerminalRead => "terminal read",
-            #[cfg(windows)]
-            Self::TerminalSelectionRead => "terminal selection-read",
-            #[cfg(windows)]
-            Self::TerminalCopyMotion => "terminal copy-motion",
-            #[cfg(windows)]
-            Self::TerminalCopySearch => "terminal copy-search",
-            #[cfg(windows)]
-            Self::TerminalLinkResolve => "terminal link-resolve",
-            #[cfg(windows)]
-            Self::TerminalLinkActivate => "terminal link-activate",
-            #[cfg(windows)]
-            Self::TerminalClear => "terminal clear",
-            #[cfg(windows)]
-            Self::TerminalEditScrollback => "terminal edit-scrollback",
-            #[cfg(windows)]
-            Self::CommandList => "command list",
-            #[cfg(windows)]
-            Self::EventsSubscribe => "events subscribe",
-            #[cfg(windows)]
-            Self::PanelGraphicsSet => "panel graphics set",
-            #[cfg(windows)]
-            Self::PanelGraphicsClear => "panel graphics clear",
-            #[cfg(windows)]
-            Self::PanelGraphicsInfo => "panel graphics info",
-            #[cfg(windows)]
-            Self::PanelGraphicsStream => "panel graphics stream",
-            #[cfg(windows)]
-            Self::EventsWait => "events wait",
-            #[cfg(windows)]
-            Self::CommandInvoke => "command invoke",
-            Self::TerminalWaitOutput => "terminal wait-output",
-            Self::TerminalSend => "terminal send",
-            Self::TerminalRun => "terminal run",
-            Self::WorktreeList => "worktree list",
-            Self::WorktreeCreate => "worktree create",
-            Self::WorktreeOpen => "worktree open",
-            Self::WorktreeRemove => "worktree remove",
-            Self::WorktreeStatus => "worktree status",
-            Self::WorktreeResume => "worktree resume",
-            Self::LaunchProfileList => "launch-profile list",
-            Self::LaunchProfileGet => "launch-profile get",
-            Self::LaunchProfileCreate => "launch-profile create",
-            Self::LaunchProfileDelete => "launch-profile delete",
-
-            Self::ApiSnapshot => "api snapshot",
-            Self::ApiSchema => "api schema",
-            Self::ConfigCheck => "config check",
-            Self::ConfigResetKeys => "config reset-keys",
-            #[cfg(windows)]
-            Self::ChannelShow => "channel show",
-            #[cfg(windows)]
-            Self::MachineList => "machine list",
-            #[cfg(windows)]
-            Self::MachineAdd => "machine add",
-            #[cfg(windows)]
-            Self::MachineRename => "machine rename",
-            #[cfg(windows)]
-            Self::MachineRemove => "machine remove",
-            #[cfg(windows)]
-            Self::MachineEnable => "machine enable",
-            #[cfg(windows)]
-            Self::MachineDisable => "machine disable",
-
-            #[cfg(windows)]
-            Self::ChannelSet => "channel set",
-            #[cfg(windows)]
-            Self::Update => "update",
-            Self::ServerStart => "server start",
-            Self::ServerDiagnose => "server diagnose",
-            Self::ServerConfig => "server config",
-            Self::ServerReloadConfig => "server reload-config",
-            Self::TerminalTitleSet => "terminal title set",
-            Self::TerminalTitleClear => "terminal title clear",
-            #[cfg(windows)]
-            Self::PluginInstall => "plugin install",
-            #[cfg(windows)]
-            Self::PluginUninstall => "plugin uninstall",
-            #[cfg(windows)]
-            Self::PluginLink => "plugin link",
-            #[cfg(windows)]
-            Self::PluginUnlink => "plugin unlink",
-            #[cfg(windows)]
-            Self::PluginEnable => "plugin enable",
-            #[cfg(windows)]
-            Self::PluginDisable => "plugin disable",
-            #[cfg(windows)]
-            Self::PluginList => "plugin list",
-            #[cfg(windows)]
-            Self::PluginConfigDir => "plugin config-dir",
-            #[cfg(windows)]
-            Self::PluginActionList => "plugin action list",
-            #[cfg(windows)]
-            Self::PluginActionInvoke => "plugin action invoke",
-            #[cfg(windows)]
-            Self::PluginLogList => "plugin log list",
-            #[cfg(windows)]
-            Self::PluginPaneOpen => "plugin pane open",
-            #[cfg(windows)]
-            Self::PopupClose => "popup close",
-            #[cfg(windows)]
-            Self::PluginPaneFocus => "plugin pane focus",
-            #[cfg(windows)]
-            Self::PluginPaneClose => "plugin pane close",
-            Self::NotificationShow => "notification show",
-            Self::ServerAgentManifests => "server agent-manifests",
-            Self::ServerUpdateAgentManifests => "server update-agent-manifests",
-            Self::ServerReloadAgentManifests => "server reload-agent-manifests",
-            Self::ServerAgentManifestsStatus => "server agent-manifests-status",
-            Self::ServerStop => "server stop",
-            Self::ServerStopStatus => "server stop-status",
-        }
-    }
-}
-
-/// One canonical `agent wait` condition: the fourteen-value vocabulary the
-/// CLI wait schema admits — eleven fresh-gated status conditions plus
-/// the three direct freshness conditions. `as_str` is the canonical
-/// kebab-case name used on the command line, inside `matchedConditions`,
-/// and in the emitted wait document's `until` echo.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum AgentWaitCondition {
     Blocked,
@@ -885,26 +271,14 @@ impl AgentWaitCondition {
 
 /// The canonical default condition set `agent wait` applies when `--until`
 /// is absent: the seven conditions, verbatim and in canonical order.
-#[cfg(not(windows))]
-pub(crate) const DEFAULT_AGENT_WAIT_CONDITIONS: [AgentWaitCondition; 7] = [
-    AgentWaitCondition::NeedsAttention,
-    AgentWaitCondition::Failed,
-    AgentWaitCondition::Succeeded,
-    AgentWaitCondition::Canceled,
-    AgentWaitCondition::Interrupted,
-    AgentWaitCondition::Idle,
-    AgentWaitCondition::Ended,
-];
 
-#[cfg(windows)]
 pub(crate) const DEFAULT_AGENT_WAIT_CONDITIONS: [AgentWaitCondition; 3] = [
     AgentWaitCondition::Idle,
     AgentWaitCondition::Done,
     AgentWaitCondition::Blocked,
 ];
 
-pub(crate) const DEFAULT_AGENT_WAIT_TIMEOUT: Option<u32> =
-    if cfg!(windows) { None } else { Some(600_000) };
+pub(crate) const DEFAULT_AGENT_WAIT_TIMEOUT: Option<u32> = if true { None } else { Some(600_000) };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum PanelQueryTarget {
@@ -1157,7 +531,6 @@ pub(crate) enum MutationCommand {
         target: Target,
         label: WorkbenchLabel,
     },
-    #[cfg(not(windows))]
     WorkspaceCreate {
         project: Target,
         label: WorkbenchLabel,
@@ -1426,62 +799,49 @@ pub(crate) enum Request {
         operation_id: WorkbenchRequestId,
         format: OutputFormat,
     },
-    #[cfg(windows)]
     PaneGraphics {
         command: pane_graphics::Command,
         format: OutputFormat,
     },
-    #[cfg(windows)]
     Events {
         command: events::Command,
         format: OutputFormat,
     },
-    #[cfg(windows)]
     ConfiguredCommand {
         command: configured_commands::Command,
         format: OutputFormat,
     },
-    #[cfg(windows)]
     TerminalEditor {
         target: Target,
         client: Option<orchbee_workbench_protocol::WorkbenchClientId>,
         timeout_ms: u32,
         format: OutputFormat,
     },
-    #[cfg(windows)]
     TerminalClear {
         target: Target,
         format: OutputFormat,
     },
-    #[cfg(windows)]
     TerminalLink {
         command: TerminalLinkCommand,
         format: OutputFormat,
     },
-    #[cfg(windows)]
     TerminalCopy {
         command: TerminalCopyCommand,
         format: OutputFormat,
     },
-    #[cfg(windows)]
     TerminalSelection {
         command: TerminalSelectionCommand,
         format: OutputFormat,
     },
-    #[cfg(windows)]
     AgentView {
         action: orchbee_workbench_protocol::AgentViewAction,
         format: OutputFormat,
     },
-    #[cfg(windows)]
     MachineRoute(machine_routing::Route),
-    #[cfg(windows)]
     MachineRelay,
-    #[cfg(windows)]
     MachineTunnel {
         cohort: String,
     },
-    #[cfg(windows)]
     Machine {
         command: MachineCommand,
         format: OutputFormat,
@@ -1498,17 +858,14 @@ pub(crate) enum Request {
         command: WorkspaceMetadataCommand,
         format: OutputFormat,
     },
-    #[cfg(windows)]
     LayoutApply {
         command: LayoutApplyCommand,
         format: OutputFormat,
     },
-    #[cfg(windows)]
     LayoutExport {
         command: LayoutExportCommand,
         format: OutputFormat,
     },
-    #[cfg(windows)]
     NamedSession {
         command: NamedSessionCommand,
         format: OutputFormat,
@@ -1522,12 +879,10 @@ pub(crate) enum Request {
     TerminalControl {
         command: TerminalControlCommand,
     },
-    #[cfg(windows)]
     PanelRelocation {
         command: PanelRelocationCommand,
         format: OutputFormat,
     },
-    #[cfg(windows)]
     WorkspaceCreation {
         command: ParsedWorkspaceCreationCommand,
         format: OutputFormat,
@@ -1536,7 +891,6 @@ pub(crate) enum Request {
         scope: RuntimeStatusScope,
         format: OutputFormat,
     },
-    #[cfg(windows)]
     PanelTerminalCreation {
         command: panel_terminal_creation::PanelTerminalCreationCommand<program::ParsedLaunch>,
         format: OutputFormat,
@@ -1579,13 +933,11 @@ pub(crate) enum Request {
     Version,
     /// The embedded, locale-selected Agent guide; no runtime capabilities.
     Skill,
-    #[cfg(windows)]
     /// The canonical Windows user configuration template; no runtime discovery.
     DefaultConfig,
     RootHelp,
     Help(HelpTopic),
     Completion(CompletionShell),
-    #[cfg(windows)]
     ClientQuery {
         command: QueryCommand,
         client: WorkbenchClientId,
@@ -1604,21 +956,17 @@ pub(crate) enum Request {
     ServerStart {
         format: OutputFormat,
     },
-    #[cfg(windows)]
     Plugin {
         command: plugins::PluginCommand,
         format: OutputFormat,
     },
-    #[cfg(windows)]
     ChannelShow {
         format: OutputFormat,
     },
-    #[cfg(windows)]
     Update {
         channel: Option<orchbee_local_runtime::UpdateChannel>,
         format: OutputFormat,
     },
-    #[cfg(windows)]
     ConfigResetKeys {
         format: OutputFormat,
     },
@@ -1663,8 +1011,7 @@ pub(crate) enum Request {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct SelectedRequest {
     pub(crate) request: Request,
-    #[cfg(windows)]
-    pub(crate) session: Option<orchbee_local_runtime::SessionName>,
+    pub(crate) site: Option<orchbee_local_site_runtime::WindowsSiteName>,
 }
 
 /// How a parse failure is allowed to answer on stdout.
@@ -1699,55 +1046,31 @@ pub(crate) enum UsageContext {
 /// expect; rendered per locale, never serialized.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ExpectedValue {
-    #[cfg(windows)]
     GraphicsSpecification,
-    #[cfg(windows)]
     EventsSpecification,
-    #[cfg(windows)]
     TerminalViewportPoint,
-    #[cfg(windows)]
     TerminalCopyMotion,
-    #[cfg(windows)]
     TerminalCopyQuery,
-    #[cfg(windows)]
     TerminalCopyPrevious,
-    #[cfg(windows)]
     TerminalCopyDirection,
-    #[cfg(windows)]
     TerminalSelectionPoint,
-    #[cfg(windows)]
     TerminalSelectionSpan,
-    #[cfg(windows)]
     TerminalContentRevision,
-    #[cfg(windows)]
     TerminalContentGeneration,
     AgentViewSpec,
     AgentViewSource,
-    #[cfg(windows)]
     MachineId,
-    #[cfg(windows)]
     MachineLabel,
-    #[cfg(windows)]
     SshTarget,
-    #[cfg(windows)]
     PluginId,
-    #[cfg(windows)]
     PluginActionId,
-    #[cfg(windows)]
     ConfiguredCommandId,
-    #[cfg(windows)]
     PluginContext,
-    #[cfg(windows)]
     PluginLogLimit,
-    #[cfg(windows)]
     PluginPanePlacement,
-    #[cfg(windows)]
     PluginPopupSize,
-    #[cfg(windows)]
     PluginPaneDirection,
-    #[cfg(windows)]
     PluginGithubSource,
-    #[cfg(windows)]
     PluginGitReference,
     WindowTitle,
     NotificationTitle,
@@ -1766,8 +1089,7 @@ pub(crate) enum ExpectedValue {
     MetadataPatchSize,
     MetadataSequence,
     MetadataTtl,
-    #[cfg(windows)]
-    SessionName,
+    SiteName,
     RightClick,
     PanelLabel,
     OutputFilePath,
@@ -1982,14 +1304,13 @@ enum Token {
     HelpFlag(&'static str),
     VersionFlag(&'static str),
     SkillFlag,
-    #[cfg(windows)]
     DefaultConfigFlag,
 }
 
 #[derive(Default)]
 struct Options {
+    seen: Vec<&'static str>,
     dry_run: bool,
-    #[cfg(windows)]
     events: events::Options,
     link_offset: Option<String>,
     copy_motion: Option<String>,
@@ -2019,8 +1340,7 @@ struct Options {
     panel_agent: panel_agent::Options,
     metadata: workspace_metadata::Options,
     panel_metadata: panel_metadata::Options,
-    #[cfg(windows)]
-    session: Option<String>,
+    site: Option<String>,
     output: Option<String>,
     client: Option<String>,
     focus: bool,
@@ -2028,7 +1348,6 @@ struct Options {
     zoom_on: bool,
     zoom_off: bool,
     zoom_toggle: bool,
-    group: bool,
     branch: Option<String>,
     base: Option<String>,
     force: bool,
@@ -2129,103 +1448,13 @@ struct Options {
 /// Every named option that owns the next argv token as its value, used by
 /// both the format-envelope walk and the option scan so ownership is decided
 /// identically in the two passes.
-const VALUE_FLAGS: &[&str] = &[
-    "--after",
-    #[cfg(windows)]
-    "--event",
-    #[cfg(windows)]
-    "--filter",
-    #[cfg(windows)]
-    "--after-cursor",
-    "--offset-from-bottom",
-    "--motion",
-    "--query",
-    "--previous",
-    "--anchor",
-    "--content-revision",
-    "--spec",
-    #[cfg(windows)]
-    "--remote-session",
-    "--entrypoint",
-    "--placement",
-    "--width",
-    "--height",
-    "--target-pane",
-    "--ref",
-    "--body",
-    "--position",
-    "--sound",
-    "--presentation",
-    "--agent",
-    "--applies-to-source",
-    "--title",
-    "--display-agent",
-    "--state-label",
-    "--state",
-    "--message",
-    "--token",
-    "--clear-token",
-    "--seq",
-    "--ttl-ms",
-    #[cfg(windows)]
-    "--session",
-    "--output",
-    "--client",
-    "--branch",
-    "--base",
-    "--request-id",
-    "--adapter-source",
-    "--after-revision",
-    "--arg",
-    "--asset-root",
-    "--cell-height",
-    "--cell-width",
-    "--cols",
-    "--cursor",
-    "--direction",
-    "--order",
-    "--search-direction",
-    "--terminal",
-    "--insert-index",
-    "--before",
-    "--amount",
-    "--ratio",
-    "--right-click",
-    "--directory",
-    "--exec",
-    "--cwd",
-    "--env",
-    "--file",
-    "--generation",
-    "--into-tab",
-    "--tab-label",
-    "--with",
-    "--key",
-    "--label",
-    "--plugin",
-    "--context",
-    "--limit",
-    "--source",
-    "--lines",
-    "--path",
-    "--match",
-    "--mouse",
-    "--name",
-    "--agent-session",
-    "--project",
-    "--provider",
-    "--profile",
-    "--regex",
-    "--request",
-    "--rows",
-    "--tab",
-    "--panel",
-    "--target-panel",
-    "--timeout",
-    "--text",
-    "--until",
-    "--workspace",
-];
+static VALUE_FLAGS: std::sync::LazyLock<Vec<&'static str>> = std::sync::LazyLock::new(|| {
+    grammar::OPTIONS
+        .iter()
+        .filter(|option| option.value.is_some())
+        .map(|option| option.spelling)
+        .collect()
+});
 
 const MAXIMUM_LABEL_SCALARS: usize = 512;
 const ZERO_IDENTITY: &str = "00000000000000000000000000000000";
@@ -2349,14 +1578,7 @@ pub(crate) fn parse_selected_request(
         }
         tokens.push(text.to_owned());
     }
-    #[cfg(windows)]
-    {
-        machine_routing::parse(tokens)
-    }
-    #[cfg(not(windows))]
-    {
-        scan(tokens)
-    }
+    { machine_routing::parse(tokens) }
 }
 
 #[cfg(test)]
@@ -2434,7 +1656,6 @@ fn format_envelope(tokens: &[String]) -> Result<Option<OutputFormat>, ParseFailu
         let token = tokens[index].as_str();
         match token {
             "--" => break,
-            #[cfg(windows)]
             "--json" => {
                 if format.replace(OutputFormat::Json).is_some() {
                     return Err(duplicate());
@@ -2485,223 +1706,26 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
         ..Options::default()
     };
     let envelope = selection_envelope(options.format);
-    let mut positionals: Vec<Token> = Vec::new();
+    let mut positionals = Vec::new();
     let mut ended = false;
     let mut index = 0;
-    while index < tokens.len() {
-        let token = &tokens[index];
+    while let Some(token) = tokens.get(index) {
         if ended {
             positionals.push(Token::Word(token.clone()));
             index += 1;
             continue;
         }
         match token.as_str() {
-            "--dry-run" => {
-                if options.dry_run {
-                    return Err(usage_with(
-                        UsageReason::DuplicateOption {
-                            option: "--dry-run",
-                        },
-                        envelope,
-                    ));
-                }
-                options.dry_run = true;
-                index += 1;
-            }
-            #[cfg(windows)]
-            "--json" => {
-                options.machine_json = true;
-                index += 1;
-            }
             "--" => {
                 ended = true;
                 index += 1;
             }
-            // The envelope phase already proved every selector is valid and
-            // unique; the option walk only applies token ownership.
-            "--format" => index += 2,
-            _ if token.starts_with("--format=") => index += 1,
-            // `--mouse` is a TUI-scoped on/off switch; it parses eagerly so a
-            // malformed value fails here rather than at command resolution.
-            // Like every declared value option it admits both spellings —
-            // `--mouse off|on` and `--mouse=off|on` — but its value is the
-            // closed {off,on} vocabulary validated here, so the joined form
-            // enters this arm rather than the generic business-flag one.
-            _ if token == "--mouse" || token.starts_with("--mouse=") => {
-                let (value, width) = if token == "--mouse" {
-                    match tokens.get(index + 1) {
-                        Some(value) if value != "--" => (value.as_str(), 2),
-                        _ => {
-                            return Err(usage_with(
-                                UsageReason::MissingValue { option: "--mouse" },
-                                envelope,
-                            ));
-                        }
-                    }
-                } else {
-                    (&token["--mouse=".len()..], 1)
-                };
-                let Some(selected) = mouse_option(value) else {
-                    return Err(usage_with(
-                        UsageReason::InvalidValue {
-                            context: UsageContext::Root,
-                            option: "--mouse",
-                            value: value.to_owned(),
-                            expected: ExpectedValue::MouseMode,
-                        },
-                        envelope,
-                    ));
-                };
-                if options.mouse.replace(selected).is_some() {
-                    return Err(usage_with(
-                        UsageReason::DuplicateOption { option: "--mouse" },
-                        envelope,
-                    ));
-                }
-                index += width;
-            }
-            _ if VALUE_FLAGS.contains(&token.as_str()) => {
-                // The guard admitted this spelling, so the static name exists.
-                let option = VALUE_FLAGS
-                    .iter()
-                    .copied()
-                    .find(|flag| *flag == token.as_str())
-                    .expect("flag admitted by guard");
-                let value = match tokens.get(index + 1) {
-                    Some(value) if value != "--" => value.clone(),
-                    _ => {
-                        return Err(usage_with(UsageReason::MissingValue { option }, envelope));
-                    }
-                };
-                apply_value_flag(&mut options, option, value, envelope)?;
+            "--format" => {
+                options.seen.push("--format");
                 index += 2;
             }
-            // The joined spelling `--name=<value>` is the declared twin of
-            // `--name <value>` for every value option (command-surface
-            // Options.Values): the token splits at the FIRST `=` and the
-            // remainder is the verbatim value — embedded `=`, spaces,
-            // Unicode, and leading `-` are all data, so `--arg=--` keeps
-            // its literal terminator value and `--arg=` keeps the empty
-            // argv element. `--mouse=<off|on>` is already claimed by its
-            // own arm above and `--format=` is consumed by the envelope
-            // phase; any other `--x=y` falls through to the unknown-option
-            // rejection below.
-            _ if joined_value_option(token).is_some() => {
-                let option = joined_value_option(token).expect("admitted by guard");
-                let value = token[option.len() + 1..].to_owned();
-                apply_value_flag(&mut options, option, value, envelope)?;
-                index += 1;
-            }
-            "--clear-title"
-            | "--clear-display-agent"
-            | "--clear-state-labels"
-            | "--group"
-            | "--confirm"
-            | "--enter"
-            | "--stdin"
-            | "--yes"
-            | "--enabled"
-            | "--disabled"
-            | "--outdated-only"
-            | "--include-ended"
-            | "--new-tab"
-            | "--new-workspace"
-            | "--paste"
-            | "--current"
-            | "--plain"
-            | "--ansi"
-            | "--clear"
-            | "--wait"
-            | "--forever"
-            | "--detach"
-            | "--retry"
-            | "--force"
-            | "--takeover"
-            | "--trust-repository"
-            | "--on"
-            | "--off"
-            | "--toggle"
-            | "--child"
-            | "--focus"
-            | "--no-focus" => {
-                let (seen, option) = if token == "--enabled" {
-                    (&mut options.plugin_enabled, "--enabled")
-                } else if token == "--yes" {
-                    (&mut options.plugin_yes, "--yes")
-                } else if token == "--disabled" {
-                    (&mut options.plugin_disabled, "--disabled")
-                } else if token == "--clear-title" {
-                    (&mut options.panel_metadata.clear_title, "--clear-title")
-                } else if token == "--clear-display-agent" {
-                    (
-                        &mut options.panel_metadata.clear_display_agent,
-                        "--clear-display-agent",
-                    )
-                } else if token == "--clear-state-labels" {
-                    (
-                        &mut options.panel_metadata.clear_state_labels,
-                        "--clear-state-labels",
-                    )
-                } else if token == "--plain" {
-                    (&mut options.plain, "--plain")
-                } else if token == "--ansi" {
-                    (&mut options.ansi, "--ansi")
-                } else if token == "--child" {
-                    (&mut options.child, "--child")
-                } else if token == "--focus" {
-                    (&mut options.focus, "--focus")
-                } else if token == "--no-focus" {
-                    (&mut options.no_focus, "--no-focus")
-                } else if token == "--on" {
-                    (&mut options.zoom_on, "--on")
-                } else if token == "--off" {
-                    (&mut options.zoom_off, "--off")
-                } else if token == "--toggle" {
-                    (&mut options.zoom_toggle, "--toggle")
-                } else if token == "--takeover" {
-                    (&mut options.takeover, "--takeover")
-                } else if token == "--force" {
-                    (&mut options.force, "--force")
-                } else if token == "--trust-repository" {
-                    (&mut options.trust_repository, "--trust-repository")
-                } else if token == "--current" {
-                    (&mut options.current, "--current")
-                } else if token == "--forever" {
-                    (&mut options.forever, "--forever")
-                } else if token == "--wait" {
-                    (&mut options.prompt_wait, "--wait")
-                } else if token == "--clear" {
-                    (&mut options.clear, "--clear")
-                } else if token == "--group" {
-                    (&mut options.group, "--group")
-                } else if token == "--confirm" {
-                    (&mut options.confirm, "--confirm")
-                } else if token == "--detach" {
-                    (&mut options.detach, "--detach")
-                } else if token == "--retry" {
-                    (&mut options.retry, "--retry")
-                } else if token == "--stdin" {
-                    (&mut options.stdin, "--stdin")
-                } else if token == "--outdated-only" {
-                    (&mut options.outdated_only, "--outdated-only")
-                } else if token == "--include-ended" {
-                    (&mut options.include_ended, "--include-ended")
-                } else if token == "--new-workspace" {
-                    (&mut options.new_workspace, "--new-workspace")
-                } else if token == "--new-tab" {
-                    (&mut options.new_tab, "--new-tab")
-                } else if token == "--paste" {
-                    (&mut options.paste, "--paste")
-                } else {
-                    (&mut options.enter, "--enter")
-                };
-                if *seen {
-                    return Err(usage_with(
-                        UsageReason::DuplicateOption { option },
-                        envelope,
-                    ));
-                }
-                *seen = true;
+            _ if token.starts_with("--format=") => {
+                options.seen.push("--format");
                 index += 1;
             }
             "--help" | "-h" => {
@@ -2724,34 +1748,72 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
                 positionals.push(Token::SkillFlag);
                 index += 1;
             }
-            #[cfg(windows)]
             "--default-config" => {
                 positionals.push(Token::DefaultConfigFlag);
                 index += 1;
             }
-            _ if token.starts_with('-') && token.len() > 1 => {
-                return Err(usage_with(
-                    UsageReason::UnknownOption {
-                        context: help_context(
-                            &positionals
-                                .iter()
-                                .filter_map(word_literal)
-                                .collect::<Vec<_>>(),
-                        ),
-                        option: token.clone(),
-                    },
-                    envelope,
-                ));
-            }
             _ => {
-                positionals.push(Token::Word(token.clone()));
-                index += 1;
+                let (spelling, joined) = token
+                    .split_once('=')
+                    .map_or((token.as_str(), None), |(flag, value)| (flag, Some(value)));
+                if let Some(spec) = grammar::option(spelling)
+                    .filter(|spec| joined.is_none() || spec.value.is_some())
+                {
+                    let value = if spec.value.is_some() {
+                        if let Some(value) = joined {
+                            index += 1;
+                            value.to_owned()
+                        } else {
+                            let value = tokens
+                                .get(index + 1)
+                                .filter(|value| value.as_str() != "--")
+                                .ok_or_else(|| {
+                                    usage_with(
+                                        UsageReason::MissingValue {
+                                            option: spec.spelling,
+                                        },
+                                        envelope,
+                                    )
+                                })?;
+                            index += 2;
+                            value.clone()
+                        }
+                    } else {
+                        index += 1;
+                        String::new()
+                    };
+                    if !spec.repeatable && options.seen.contains(&spec.spelling) {
+                        return Err(usage_with(
+                            UsageReason::DuplicateOption {
+                                option: spec.spelling,
+                            },
+                            envelope,
+                        ));
+                    }
+                    (spec.apply)(&mut options, value, envelope)?;
+                    options.seen.push(spec.spelling);
+                } else if token.starts_with('-') && token.len() > 1 {
+                    return Err(usage_with(
+                        UsageReason::UnknownOption {
+                            context: help_context(
+                                &positionals
+                                    .iter()
+                                    .filter_map(word_literal)
+                                    .collect::<Vec<_>>(),
+                            ),
+                            option: token.clone(),
+                        },
+                        envelope,
+                    ));
+                } else {
+                    positionals.push(Token::Word(token.clone()));
+                    index += 1;
+                }
             }
         }
     }
-    #[cfg(windows)]
-    let mut session = options
-        .session
+    let mut site = options
+        .site
         .take()
         .map(|name| {
             orchbee_local_runtime::SessionName::parse(&name).map_err(|_| {
@@ -2768,8 +1830,7 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
         })
         .transpose()?;
     let request = resolve(positionals, options)?;
-    #[cfg(windows)]
-    if matches!(&request, Request::DefaultConfig) && session.is_some() {
+    if matches!(&request, Request::DefaultConfig) && site.is_some() {
         return Err(usage_with(
             UsageReason::UnexpectedOption {
                 context: UsageContext::Literal("orchbee --default-config"),
@@ -2778,7 +1839,6 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
             envelope,
         ));
     }
-    #[cfg(windows)]
     if let Request::NamedSession { command, .. } = &request
         && let Some(name) = command.name()
     {
@@ -2794,189 +1854,11 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
         }
         session = Some(name.clone());
     }
-    Ok(SelectedRequest {
-        request,
-        #[cfg(windows)]
-        session,
-    })
-}
-
-/// The joined-spelling counterpart of `VALUE_FLAGS`: returns the declared
-/// value flag when `token` is `--<flag>=<value>` — the `=` immediately
-/// follows the flag name so a name that is merely a flag prefix
-/// (`--argx=v`) never matches. `--mouse` is excluded because its own
-/// earlier arm already claims `--mouse=<off|on>` for its closed-vocabulary
-/// validation; it must never fall into a generic slot. `--format` is
-/// absent from `VALUE_FLAGS` by construction, so the envelope-phase
-/// spelling never reaches here.
-fn joined_value_option(token: &str) -> Option<&'static str> {
-    if !token.starts_with("--") {
-        return None;
-    }
-    VALUE_FLAGS.iter().copied().find(|flag| {
-        *flag != "--mouse"
-            && token.len() > flag.len()
-            && token.starts_with(flag)
-            && token.as_bytes()[flag.len()] == b'='
-    })
-}
-
-/// Apply one collected value-option occurrence from either spelling: the
-/// repeatable options append one verbatim value each and every other slot
-/// is single-use — a second occurrence in either spelling is the same
-/// duplicate usage failure. The repeatable value options: every occurrence
-/// appends one verbatim argv value in order — `--arg` builds the launch
-/// argv; `--provider`/`--asset-root` build the doctor's two declared
-/// selector lists. `--provider` is additionally mirrored into the
-/// single-use `provider` slot read by the `agent integration` commands,
-/// whose single-use contract is enforced at resolve time from the list's
-/// length. Value validation itself belongs to resolve; this layer only
-/// assigns.
-fn apply_value_flag(
-    options: &mut Options,
-    option: &'static str,
-    value: String,
-    envelope: FailureEnvelope,
-) -> Result<(), ParseFailure> {
-    #[cfg(windows)]
-    if matches!(option, "--event" | "--filter") {
-        if option == "--event" {
-            options.events.events.push(value);
-        } else {
-            options.events.filters.push(value);
-        }
-        return Ok(());
-    }
-    if matches!(option, "--arg" | "--provider" | "--asset-root" | "--env") {
-        match option {
-            "--arg" => options.args.push(value),
-            "--env" => options.environment.push(value),
-            "--provider" => {
-                options.provider = Some(value.clone());
-                options.providers.push(value);
-            }
-            _ => options.asset_roots.push(value),
-        }
-        return Ok(());
-    }
-    if matches!(option, "--token" | "--clear-token") {
-        options.metadata.updates.push((option, value));
-        return Ok(());
-    }
-    if option == "--state-label" {
-        options.panel_metadata.state_labels.push(value);
-        return Ok(());
-    }
-    if option == "--key" {
-        options.keys.push(value);
-        return Ok(());
-    }
-    if option == "--until" {
-        options.until.push(value);
-        return Ok(());
-    }
-    let slot = match option {
-        "--spec" => &mut options.agent_view_spec,
-        "--presentation" => &mut options.report_presentation,
-        "--agent" => &mut options.panel_metadata.agent,
-        "--state" => &mut options.panel_agent.state,
-        "--body" => &mut options.notification_body,
-        "--position" => &mut options.notification_position,
-        "--sound" => &mut options.notification_sound,
-        "--message" => &mut options.panel_agent.message,
-        "--applies-to-source" => &mut options.panel_metadata.applies_to_source,
-        "--title" => &mut options.panel_metadata.title,
-        "--display-agent" => &mut options.panel_metadata.display_agent,
-        "--seq" => &mut options.metadata.sequence,
-        "--ttl-ms" => &mut options.metadata.ttl,
-        #[cfg(windows)]
-        "--session" => &mut options.session,
-        "--output" => &mut options.output,
-        "--branch" => &mut options.branch,
-        "--base" => &mut options.base,
-        "--project" => &mut options.project,
-        "--directory" => &mut options.directory,
-        "--workspace" => &mut options.workspace,
-        "--tab" => &mut options.tab,
-        "--label" => &mut options.label,
-        "--direction" => &mut options.direction,
-        "--order" => &mut options.order,
-        "--search-direction" => &mut options.search_direction,
-        "--terminal" => &mut options.terminal,
-        "--insert-index" => &mut options.insert_index,
-        "--before" => &mut options.before,
-        "--amount" => &mut options.amount,
-        "--ratio" => &mut options.ratio,
-        "--right-click" => &mut options.right_click,
-        "--cols" => &mut options.cols,
-        "--rows" => &mut options.rows,
-        "--cell-width" => &mut options.cell_width,
-        "--cell-height" => &mut options.cell_height,
-        "--path" => &mut options.path,
-        "--match" => &mut options.match_text,
-        "--timeout" => &mut options.timeout,
-        "--text" => &mut options.text,
-        "--file" => &mut options.file,
-        "--exec" => &mut options.exec,
-        "--cwd" => &mut options.cwd,
-        "--plugin" => &mut options.plugin_id,
-        "--context" => &mut options.plugin_context,
-        #[cfg(windows)]
-        "--after-cursor" => &mut options.events.after,
-        "--entrypoint" => &mut options.plugin_entrypoint,
-        "--placement" => &mut options.plugin_placement,
-        "--width" => &mut options.plugin_width,
-        "--height" => &mut options.plugin_height,
-        "--target-pane" => &mut options.plugin_target,
-        "--ref" => &mut options.plugin_ref,
-        "--limit" => &mut options.limit,
-        "--offset-from-bottom" => &mut options.link_offset,
-        "--motion" => &mut options.copy_motion,
-        "--query" => &mut options.copy_query,
-        "--previous" => &mut options.copy_previous,
-        "--anchor" => &mut options.selection_anchor,
-        "--content-revision" => &mut options.content_revision,
-        "--cursor" => &mut options.cursor,
-        "--after-revision" => &mut options.after_revision,
-        "--after" => &mut options.output_after,
-        "--name" => &mut options.name,
-        "--agent-session" => &mut options.agent_session,
-        #[cfg(windows)]
-        "--remote-session" => &mut options.remote_session,
-        "--profile" => &mut options.profile,
-        "--adapter-source" => &mut options.adapter_source,
-        "--regex" => &mut options.regex,
-        "--request" => &mut options.request,
-        "--request-id" => &mut options.request_id,
-        "--client" => &mut options.client,
-        "--generation" => &mut options.generation,
-        "--source" => &mut options.output_source,
-        "--lines" => &mut options.lines,
-        "--panel" => &mut options.panel,
-        "--target-panel" => &mut options.target_panel,
-        "--into-tab" => &mut options.into_tab,
-        "--tab-label" => &mut options.tab_label,
-        "--with" => &mut options.swap_target,
-
-        // Every reachable `option` is a `VALUE_FLAGS` member and the match
-        // is total over that list — `--mouse` is the sole member diverted
-        // to its own validated arm upstream. A future member missing its
-        // slot arm must fail loudly here, not assign into an unrelated
-        // field.
-        _ => unreachable!("value option {option} lacks a slot arm"),
-    };
-    if slot.replace(value).is_some() {
-        return Err(usage_with(
-            UsageReason::DuplicateOption { option },
-            envelope,
-        ));
-    }
-    Ok(())
+    Ok(SelectedRequest { request, site })
 }
 
 fn resolve(positionals: Vec<Token>, options: Options) -> Result<Request, ParseFailure> {
     let envelope = selection_envelope(options.format);
-    #[cfg(windows)]
     if positionals.len() == 1 && matches!(positionals[0], Token::DefaultConfigFlag) {
         reject_extras(
             &options,
@@ -3024,11 +1906,23 @@ fn resolve(positionals: Vec<Token>, options: Options) -> Result<Request, ParseFa
             Token::HelpFlag(_) | Token::VersionFlag(_) | Token::SkillFlag => {
                 unreachable!("flags excluded above")
             }
-            #[cfg(windows)]
             Token::DefaultConfigFlag => unreachable!("flags excluded above"),
         })
         .collect();
-    resolve_words(&words, &options, envelope)
+    let request = resolve_words(&words, &options, envelope)?;
+    if let Some(command) = grammar::COMMANDS
+        .iter()
+        .filter(|command| words.starts_with(command.words))
+        .max_by_key(|command| command.words.len())
+        && let Some(extra) = words.get(command.words.len() + command.maximum_operands)
+    {
+        return Err(unexpected_argument(
+            UsageContext::Path(command.id.as_str()),
+            extra,
+            envelope,
+        ));
+    }
+    Ok(request)
 }
 
 fn flag_literal(token: &Token) -> Option<&'static str> {
@@ -3036,7 +1930,6 @@ fn flag_literal(token: &Token) -> Option<&'static str> {
         Token::HelpFlag(literal) => Some(literal),
         Token::VersionFlag(literal) => Some(literal),
         Token::SkillFlag => Some("--skill"),
-        #[cfg(windows)]
         Token::DefaultConfigFlag => Some("--default-config"),
         Token::Word(_) => None,
     }
@@ -3046,7 +1939,6 @@ fn word_literal(token: &Token) -> Option<&str> {
     match token {
         Token::Word(word) => Some(word.as_str()),
         Token::HelpFlag(_) | Token::VersionFlag(_) | Token::SkillFlag => None,
-        #[cfg(windows)]
         Token::DefaultConfigFlag => None,
     }
 }
@@ -3116,23 +2008,14 @@ fn resolve_words(
             verb @ "status",
             operands @ ..,
         ] => operation::parse(family, verb, operands, options, envelope),
-        #[cfg(windows)]
         ["command", ..] => configured_commands::parse(words, options, envelope),
-        #[cfg(windows)]
         ["events", ..] => events::parse(words, options, envelope),
-        #[cfg(windows)]
         ["panel", "graphics", ..] => pane_graphics::parse(words, options, envelope),
-        #[cfg(windows)]
         ["plugin", ..] => plugins::parse(words, options, envelope),
-        #[cfg(windows)]
         ["popup", ..] => plugins::panes::parse_close(words, options, envelope),
-        #[cfg(windows)]
         ["layout", "export"] => layouts::export(options, envelope),
-        #[cfg(windows)]
         ["layout", "apply"] => layouts::apply(options, envelope),
-        #[cfg(windows)]
         ["session", ..] => named_sessions::parse(words, options, envelope),
-        #[cfg(windows)]
         ["machine", ..] => machines::parse(words, options, envelope),
         ["client", ..]
         | ["layout", ..]
@@ -3159,10 +2042,11 @@ fn resolve_words(
             }
             Ok(Request::Tui { mouse: true })
         }
-        ["tui"] => reject_extras_scope(options, TUI_SCOPE, UsageContext::Path("tui"), envelope)
-            .map(|()| Request::Tui {
+        ["tui"] => reject_extras_scope(options, UsageContext::Path("tui"), envelope).map(|()| {
+            Request::Tui {
                 mouse: options.mouse.unwrap_or(true),
-            }),
+            }
+        }),
         ["help", rest @ ..] => resolve_help_path(rest, options, envelope),
         ["status"] => {
             reject_filters(options, UsageContext::Path("status"), envelope)?;
@@ -3180,13 +2064,12 @@ fn resolve_words(
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
-        #[cfg(windows)]
         ["agent", "view", verb @ ("get" | "set" | "clear")] => {
             agent_view_spec::parse(verb, options, envelope)
         }
         ["agent", "changes"] => {
             let context = UsageContext::Path("agent changes");
-            check_scope(options, AGENT_CHANGES_SCOPE, context, envelope)?;
+            check_scope(options, context, envelope)?;
             let cursor = options
                 .cursor
                 .as_ref()
@@ -3215,12 +2098,7 @@ fn resolve_words(
             ))
         }
         ["agent", "list"] => {
-            check_scope(
-                options,
-                AGENT_LIST_SCOPE,
-                UsageContext::Path("agent list"),
-                envelope,
-            )?;
+            check_scope(options, UsageContext::Path("agent list"), envelope)?;
             let context = UsageContext::Path("agent list");
             Ok(query(
                 QueryCommand::AgentList {
@@ -3238,15 +2116,7 @@ fn resolve_words(
             } else {
                 "agent explain"
             });
-            check_scope(
-                options,
-                Scope {
-                    client: *verb == "get",
-                    ..AGENT_TARGET_SCOPE
-                },
-                context,
-                envelope,
-            )?;
+            check_scope(options, context, envelope)?;
             let target = agent_selector(rest, options, context, envelope)?;
             Ok(query(
                 if *verb == "get" {
@@ -3263,18 +2133,7 @@ fn resolve_words(
         }
         ["agent", "read", rest @ ..] => {
             let context = UsageContext::Path("agent read");
-            check_scope(
-                options,
-                Scope {
-                    name: true,
-                    session: true,
-                    panel: true,
-                    terminal: true,
-                    ..TERMINAL_READ_SCOPE
-                },
-                context,
-                envelope,
-            )?;
+            check_scope(options, context, envelope)?;
             terminal_output::request(
                 OutputTarget::Agent(agent_selector(rest, options, context, envelope)?),
                 options,
@@ -3284,19 +2143,7 @@ fn resolve_words(
         }
         ["agent", "start", rest @ ..] => {
             let context = UsageContext::Path("agent start");
-            check_scope(
-                options,
-                Scope {
-                    panel: true,
-                    current: true,
-                    provider: true,
-                    timeout: true,
-                    args: true,
-                    ..NO_OPTIONS
-                },
-                context,
-                envelope,
-            )?;
+            check_scope(options, context, envelope)?;
             let invalid = |option, value: &str, expected| {
                 usage_with(
                     UsageReason::InvalidValue {
@@ -3382,19 +2229,7 @@ fn resolve_words(
         }
         ["agent", "prompt", rest @ ..] => {
             let context = UsageContext::Path("agent prompt");
-            check_scope(
-                options,
-                Scope {
-                    prompt_wait: true,
-                    client: true,
-                    forever: true,
-                    until: true,
-                    timeout: true,
-                    ..AGENT_TARGET_SCOPE
-                },
-                context,
-                envelope,
-            )?;
+            check_scope(options, context, envelope)?;
             let selector_len = usize::from(
                 options.name.is_none()
                     && options.agent_session.is_none()
@@ -3454,7 +2289,7 @@ fn resolve_words(
         }
         ["agent", "send-keys", rest @ ..] => {
             let context = UsageContext::Path("agent send-keys");
-            check_scope(options, AGENT_TARGET_SCOPE, context, envelope)?;
+            check_scope(options, context, envelope)?;
             let selector_len = usize::from(
                 options.name.is_none()
                     && options.agent_session.is_none()
@@ -3500,7 +2335,7 @@ fn resolve_words(
         }
         ["agent", "wait", rest @ ..] => {
             let context = UsageContext::Path("agent wait");
-            check_scope(options, AGENT_WAIT_SCOPE, context, envelope)?;
+            check_scope(options, context, envelope)?;
             Ok(query(
                 QueryCommand::AgentWait {
                     session: agent_selector(rest, options, context, envelope)?,
@@ -3521,7 +2356,7 @@ fn resolve_words(
         }
         ["agent", "resolve", rest @ ..] => {
             let context = UsageContext::Path("agent resolve");
-            check_scope(options, AGENT_TARGET_SCOPE, context, envelope)?;
+            check_scope(options, context, envelope)?;
             Ok(Request::AgentNames {
                 command: AgentNamesCommand::Resolve(agent_selector(
                     rest, options, context, envelope,
@@ -3531,15 +2366,7 @@ fn resolve_words(
         }
         ["agent", "rename", rest @ ..] => {
             let context = UsageContext::Path("agent rename");
-            check_scope(
-                options,
-                Scope {
-                    clear: true,
-                    ..AGENT_TARGET_SCOPE
-                },
-                context,
-                envelope,
-            )?;
+            check_scope(options, context, envelope)?;
             let command = if options.clear {
                 AgentNamesCommand::Release(agent_selector(rest, options, context, envelope)?)
             } else {
@@ -3564,7 +2391,7 @@ fn resolve_words(
         }
         ["agent", "doctor"] => {
             let context = UsageContext::Path("agent doctor");
-            check_scope(options, AGENT_DOCTOR_SCOPE, context, envelope)?;
+            check_scope(options, context, envelope)?;
             Ok(query(
                 QueryCommand::AgentDoctor {
                     providers: doctor_providers_option(options, context, envelope)?,
@@ -3575,7 +2402,7 @@ fn resolve_words(
         }
         ["agent", "integration", "list"] => {
             let context = UsageContext::Path("agent integration list");
-            check_scope(options, INTEGRATION_LIST_SCOPE, context, envelope)?;
+            check_scope(options, context, envelope)?;
             Ok(Request::AgentIntegration {
                 command: AgentIntegrationCommand::List {
                     outdated_only: options.outdated_only,
@@ -3587,7 +2414,7 @@ fn resolve_words(
         }
         ["agent", "integration", "explain"] => {
             let context = UsageContext::Path("agent integration explain");
-            check_scope(options, INTEGRATION_SCOPE, context, envelope)?;
+            check_scope(options, context, envelope)?;
             Ok(Request::AgentIntegration {
                 command: AgentIntegrationCommand::Explain {
                     provider: required_provider(options, context, envelope)?,
@@ -3598,7 +2425,7 @@ fn resolve_words(
         }
         ["agent", "integration", "enable"] => {
             let context = UsageContext::Path("agent integration enable");
-            check_scope(options, INTEGRATION_SCOPE, context, envelope)?;
+            check_scope(options, context, envelope)?;
             Ok(Request::AgentIntegration {
                 command: AgentIntegrationCommand::Enable {
                     provider: required_provider(options, context, envelope)?,
@@ -3609,7 +2436,7 @@ fn resolve_words(
         }
         ["agent", "integration", "disable"] => {
             let context = UsageContext::Path("agent integration disable");
-            check_scope(options, INTEGRATION_SCOPE, context, envelope)?;
+            check_scope(options, context, envelope)?;
             Ok(Request::AgentIntegration {
                 command: AgentIntegrationCommand::Disable {
                     provider: required_provider(options, context, envelope)?,
@@ -3630,12 +2457,7 @@ fn resolve_words(
             ))
         }
         ["project", "dissolve", value] => {
-            check_scope(
-                options,
-                NO_OPTIONS,
-                UsageContext::Path("project dissolve"),
-                envelope,
-            )?;
+            check_scope(options, UsageContext::Path("project dissolve"), envelope)?;
             Ok(mutation(
                 MutationCommand::ProjectDissolve {
                     target: target((*value).to_owned(), Resource::Project, envelope)?,
@@ -3645,15 +2467,7 @@ fn resolve_words(
         }
         ["workspace", "set-project", value] => {
             let context = UsageContext::Path("workspace set-project");
-            check_scope(
-                options,
-                Scope {
-                    project: true,
-                    ..NO_OPTIONS
-                },
-                context,
-                envelope,
-            )?;
+            check_scope(options, context, envelope)?;
             let project = required(&options.project, context, "'--project'", envelope)?;
             Ok(mutation(
                 MutationCommand::WorkspaceSetProject {
@@ -3665,15 +2479,7 @@ fn resolve_words(
         }
         ["workspace", "create-project", value] => {
             let context = UsageContext::Path("workspace create-project");
-            check_scope(
-                options,
-                Scope {
-                    label: true,
-                    ..NO_OPTIONS
-                },
-                context,
-                envelope,
-            )?;
+            check_scope(options, context, envelope)?;
             Ok(mutation(
                 MutationCommand::WorkspaceCreateProject {
                     target: target((*value).to_owned(), Resource::Workspace, envelope)?,
@@ -3683,12 +2489,7 @@ fn resolve_words(
             ))
         }
         ["workspace", "ungroup", value] => {
-            check_scope(
-                options,
-                NO_OPTIONS,
-                UsageContext::Path("workspace ungroup"),
-                envelope,
-            )?;
+            check_scope(options, UsageContext::Path("workspace ungroup"), envelope)?;
             Ok(mutation(
                 MutationCommand::WorkspaceSetProject {
                     target: target((*value).to_owned(), Resource::Workspace, envelope)?,
@@ -3698,12 +2499,7 @@ fn resolve_words(
             ))
         }
         ["project", "create"] => {
-            check_scope(
-                options,
-                LABEL_SCOPE,
-                UsageContext::Path("project create"),
-                envelope,
-            )?;
+            check_scope(options, UsageContext::Path("project create"), envelope)?;
             Ok(mutation(
                 MutationCommand::ProjectCreate {
                     label: label_option(options, UsageContext::Path("project create"), envelope)?,
@@ -3712,12 +2508,7 @@ fn resolve_words(
             ))
         }
         ["project", "rename", value] => {
-            check_scope(
-                options,
-                LABEL_SCOPE,
-                UsageContext::Path("project rename"),
-                envelope,
-            )?;
+            check_scope(options, UsageContext::Path("project rename"), envelope)?;
             Ok(mutation(
                 MutationCommand::ProjectRename {
                     target: target((*value).to_owned(), Resource::Project, envelope)?,
@@ -3727,12 +2518,7 @@ fn resolve_words(
             ))
         }
         ["workspace", "list"] => {
-            check_scope(
-                options,
-                WORKSPACE_LIST_SCOPE,
-                UsageContext::Path("workspace list"),
-                envelope,
-            )?;
+            check_scope(options, UsageContext::Path("workspace list"), envelope)?;
             let project = options
                 .project
                 .clone()
@@ -3746,15 +2532,7 @@ fn resolve_words(
             )
         }
         ["workspace", "get", value] => {
-            check_scope(
-                options,
-                Scope {
-                    client: cfg!(windows),
-                    ..NO_OPTIONS
-                },
-                UsageContext::Path("workspace get"),
-                envelope,
-            )?;
+            check_scope(options, UsageContext::Path("workspace get"), envelope)?;
             client_query(
                 QueryCommand::WorkspaceGet(target(
                     (*value).to_owned(),
@@ -3766,65 +2544,10 @@ fn resolve_words(
                 envelope,
             )
         }
-        ["workspace", "create"] => {
-            #[cfg(windows)]
-            {
-                workspace_creation::parse(options, envelope)
-            }
-            #[cfg(not(windows))]
-            {
-                let context = UsageContext::Path("workspace create");
-                if options.cwd.is_some() {
-                    check_scope(options, WORKSPACE_LAUNCH_SCOPE, context, envelope)?;
-                    let project = target(
-                        required(&options.project, context, "'--project'", envelope)?,
-                        Resource::Project,
-                        envelope,
-                    )?;
-                    let label = label_option(options, context, envelope)?;
-                    let geometry = geometry_option(options, context, envelope)?;
-                    reject_launch_profile_conflict(options, context, envelope)?;
-                    let launch = launch_option(options, context, envelope)?;
-                    let profile = profile_option(options, context, envelope)?;
-                    let launch_options = launch_options(options, context, envelope)?;
-                    Ok(mutation(
-                        MutationCommand::WorkspaceLaunch {
-                            project: Some(project),
-                            label,
-                            geometry,
-                            launch,
-                            profile,
-                            options: launch_options,
-                        },
-                        options,
-                    ))
-                } else {
-                    check_scope(options, WORKSPACE_CREATE_SCOPE, context, envelope)?;
-                    Ok(mutation(
-                        MutationCommand::WorkspaceCreate {
-                            project: target(
-                                required(&options.project, context, "'--project'", envelope)?,
-                                Resource::Project,
-                                envelope,
-                            )?,
-                            label: label_option(options, context, envelope)?,
-                        },
-                        options,
-                    ))
-                }
-            }
-        }
+        ["workspace", "create"] => workspace_creation::parse(options, envelope),
         ["workspace", "move", value] => {
             let context = UsageContext::Path("workspace move");
-            check_scope(
-                options,
-                Scope {
-                    insert_index: true,
-                    ..NO_OPTIONS
-                },
-                context,
-                envelope,
-            )?;
+            check_scope(options, context, envelope)?;
             let raw = required(&options.insert_index, context, "'--insert-index'", envelope)?;
             let insert_index = (!raw.is_empty() && raw.bytes().all(|b| b.is_ascii_digit()))
                 .then(|| raw.parse::<usize>().ok())
@@ -3853,17 +2576,9 @@ fn resolve_words(
         }
         ["workspace", "move-block", values @ ..] => {
             let context = UsageContext::Path("workspace move-block");
-            check_scope(
-                options,
-                Scope {
-                    before: true,
-                    ..NO_OPTIONS
-                },
-                context,
-                envelope,
-            )?;
+            check_scope(options, context, envelope)?;
             if values.is_empty()
-                || values.len() > orchbee_workbench_protocol::MAXIMUM_WORKSPACE_ORDER_LENGTH
+                || values.len() > grammar::specification(CommandPath::WorkspaceMoveBlock).maximum_operands
             {
                 return Err(usage_with(
                     UsageReason::InvalidValue {
@@ -3899,12 +2614,7 @@ fn resolve_words(
             workspace_metadata::parse(value, options, envelope)
         }
         ["workspace", "rename", value] => {
-            check_scope(
-                options,
-                LABEL_SCOPE,
-                UsageContext::Path("workspace rename"),
-                envelope,
-            )?;
+            check_scope(options, UsageContext::Path("workspace rename"), envelope)?;
             Ok(mutation(
                 MutationCommand::WorkspaceRename {
                     target: target((*value).to_owned(), Resource::Workspace, envelope)?,
@@ -3916,7 +2626,6 @@ fn resolve_words(
         ["workspace", "accept-directory", value] => {
             check_scope(
                 options,
-                ACCEPT_DIRECTORY_SCOPE,
                 UsageContext::Path("workspace accept-directory"),
                 envelope,
             )?;
@@ -3949,7 +2658,6 @@ fn resolve_words(
         ["workspace", "close-status"] => {
             check_scope(
                 options,
-                WORKSPACE_CLOSE_STATUS_SCOPE,
                 UsageContext::Path("workspace close-status"),
                 envelope,
             )?;
@@ -3967,7 +2675,6 @@ fn resolve_words(
         ["workspace", "close-resume"] => {
             check_scope(
                 options,
-                WORKSPACE_CLOSE_RESUME_SCOPE,
                 UsageContext::Path("workspace close-resume"),
                 envelope,
             )?;
@@ -3988,12 +2695,7 @@ fn resolve_words(
             ))
         }
         ["tab", "list"] => {
-            check_scope(
-                options,
-                TAB_LIST_SCOPE,
-                UsageContext::Path("tab list"),
-                envelope,
-            )?;
+            check_scope(options, UsageContext::Path("tab list"), envelope)?;
             let workspace = options
                 .workspace
                 .clone()
@@ -4007,15 +2709,7 @@ fn resolve_words(
             )
         }
         ["tab", "get", value] => {
-            check_scope(
-                options,
-                Scope {
-                    client: cfg!(windows),
-                    ..NO_OPTIONS
-                },
-                UsageContext::Path("tab get"),
-                envelope,
-            )?;
+            check_scope(options, UsageContext::Path("tab get"), envelope)?;
             client_query(
                 QueryCommand::TabGet(target((*value).to_owned(), Resource::Tab, envelope)?),
                 options,
@@ -4027,15 +2721,7 @@ fn resolve_words(
         ["panel", "input", operands @ ..] => panel_input::parse(operands, options, envelope),
         ["panel", "rename", value] => {
             let context = UsageContext::Path("panel rename");
-            check_scope(
-                options,
-                Scope {
-                    clear: true,
-                    ..LABEL_SCOPE
-                },
-                context,
-                envelope,
-            )?;
+            check_scope(options, context, envelope)?;
             if options.clear && options.label.is_some() {
                 return Err(usage_with(
                     UsageReason::ConflictingOptions {
@@ -4075,12 +2761,7 @@ fn resolve_words(
             ))
         }
         ["tab", "rename", value] => {
-            check_scope(
-                options,
-                LABEL_SCOPE,
-                UsageContext::Path("tab rename"),
-                envelope,
-            )?;
+            check_scope(options, UsageContext::Path("tab rename"), envelope)?;
             Ok(mutation(
                 MutationCommand::TabRename {
                     target: target((*value).to_owned(), Resource::Tab, envelope)?,
@@ -4090,12 +2771,7 @@ fn resolve_words(
             ))
         }
         ["tab", "move", value] => {
-            check_scope(
-                options,
-                TAB_MOVE_SCOPE,
-                UsageContext::Path("tab move"),
-                envelope,
-            )?;
+            check_scope(options, UsageContext::Path("tab move"), envelope)?;
             Ok(mutation(
                 tab_move_command(value, options, envelope)?,
                 options,
@@ -4112,12 +2788,7 @@ fn resolve_words(
             ))
         }
         ["panel", "list"] => {
-            check_scope(
-                options,
-                PANEL_LIST_SCOPE,
-                UsageContext::Path("panel list"),
-                envelope,
-            )?;
+            check_scope(options, UsageContext::Path("panel list"), envelope)?;
             if options.tab.is_some() && options.workspace.is_some() {
                 return Err(usage_with(
                     UsageReason::ConflictingOptions {
@@ -4147,7 +2818,7 @@ fn resolve_words(
         }
         ["panel", "process-info", operands @ ..] => {
             let context = UsageContext::Path("panel process-info");
-            check_scope(options, PANEL_CURRENT_SCOPE, context, envelope)?;
+            check_scope(options, context, envelope)?;
             if let [_, extra, ..] = operands {
                 return Err(unexpected_argument(context, extra, envelope));
             }
@@ -4171,7 +2842,7 @@ fn resolve_words(
         }
         ["panel", "current", operands @ ..] => {
             let context = UsageContext::Path("panel current");
-            check_scope(options, PANEL_CURRENT_SCOPE, context, envelope)?;
+            check_scope(options, context, envelope)?;
             if let [_, extra, ..] = operands {
                 return Err(unexpected_argument(context, extra, envelope));
             }
@@ -4193,15 +2864,7 @@ fn resolve_words(
             Ok(query(QueryCommand::PanelCurrent(target), options))
         }
         ["panel", "get", value] => {
-            check_scope(
-                options,
-                Scope {
-                    client: cfg!(windows),
-                    ..NO_OPTIONS
-                },
-                UsageContext::Path("panel get"),
-                envelope,
-            )?;
+            check_scope(options, UsageContext::Path("panel get"), envelope)?;
             client_query(
                 QueryCommand::PanelGet(target((*value).to_owned(), Resource::Panel, envelope)?),
                 options,
@@ -4209,18 +2872,12 @@ fn resolve_words(
                 envelope,
             )
         }
-        #[cfg(windows)]
         ["panel", "create-terminal", rest @ ..] => {
             panel_terminal_creation::parse(rest, options, envelope)
         }
         ["panel", "split", rest @ ..] => creation::parse(Some(rest), options, envelope),
         ["panel", "close", value] => {
-            check_scope(
-                options,
-                CONFIRM_SCOPE,
-                UsageContext::Path("panel close"),
-                envelope,
-            )?;
+            check_scope(options, UsageContext::Path("panel close"), envelope)?;
             if !options.confirm {
                 return Err(missing_required(
                     UsageContext::Path("panel close"),
@@ -4236,16 +2893,10 @@ fn resolve_words(
             ))
         }
         ["panel", "move", value] => {
-            #[cfg(windows)]
             if options.into_tab.is_some() || options.new_tab || options.new_workspace {
                 return panel_relocation::parse(value, options, envelope);
             }
-            check_scope(
-                options,
-                PANEL_MOVE_SCOPE,
-                UsageContext::Path("panel move"),
-                envelope,
-            )?;
+            check_scope(options, UsageContext::Path("panel move"), envelope)?;
             Ok(mutation(
                 MutationCommand::PanelMove {
                     target: target((*value).to_owned(), Resource::Panel, envelope)?,
@@ -4256,7 +2907,7 @@ fn resolve_words(
         }
         ["terminal", "list"] => {
             let context = UsageContext::Path("terminal list");
-            check_scope(options, TERMINAL_LIST_SCOPE, context, envelope)?;
+            check_scope(options, context, envelope)?;
             let filters = [
                 (
                     "--workspace",
@@ -4314,32 +2965,16 @@ fn resolve_words(
         ["terminal", "session", "observe", operands @ ..] => {
             terminal_stream::observe(operands, options, envelope)
         }
-        #[cfg(windows)]
         ["terminal", "clear", value] => {
-            check_scope(
-                options,
-                NO_OPTIONS,
-                UsageContext::Path("terminal clear"),
-                envelope,
-            )?;
+            check_scope(options, UsageContext::Path("terminal clear"), envelope)?;
             Ok(Request::TerminalClear {
                 target: target((*value).to_owned(), Resource::Terminal, envelope)?,
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
-        #[cfg(windows)]
         ["terminal", "edit-scrollback", value] => {
             let context = UsageContext::Path("terminal edit-scrollback");
-            check_scope(
-                options,
-                Scope {
-                    client: true,
-                    timeout: true,
-                    ..NO_OPTIONS
-                },
-                context,
-                envelope,
-            )?;
+            check_scope(options, context, envelope)?;
             Ok(Request::TerminalEditor {
                 target: target((*value).to_owned(), Resource::Terminal, envelope)?,
                 client: client_control::client_id(options, context, envelope)?,
@@ -4347,25 +2982,20 @@ fn resolve_words(
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
-        #[cfg(windows)]
         ["terminal", "link-resolve", value] => {
             terminal_links::parse(value, options, envelope, false)
         }
-        #[cfg(windows)]
         ["terminal", "link-activate", value] => {
             terminal_links::parse(value, options, envelope, true)
         }
-        #[cfg(windows)]
         ["terminal", "copy-motion", value] => terminal_copy::parse(value, options, false, envelope),
-        #[cfg(windows)]
         ["terminal", "copy-search", value] => terminal_copy::parse(value, options, true, envelope),
-        #[cfg(windows)]
         ["terminal", "selection-read", value] => {
             terminal_selection::parse(value, options, envelope)
         }
         ["terminal", "read", operands @ ..] => {
             let context = UsageContext::Path("terminal read");
-            check_scope(options, TERMINAL_READ_SCOPE, context, envelope)?;
+            check_scope(options, context, envelope)?;
             terminal_output::request(
                 OutputTarget::Terminal(terminal_target::parse(
                     operands,
@@ -4380,7 +3010,7 @@ fn resolve_words(
         }
         ["terminal", "wait-output", operands @ ..] => {
             let context = UsageContext::Path("terminal wait-output");
-            check_scope(options, TERMINAL_WAIT_OUTPUT_SCOPE, context, envelope)?;
+            check_scope(options, context, envelope)?;
             terminal_output::wait_request(
                 terminal_target::parse(
                     operands,
@@ -4395,12 +3025,7 @@ fn resolve_words(
         }
         ["terminal", "run", operands @ ..] => terminal_run::request(operands, options, envelope),
         ["terminal", "send", operands @ ..] => {
-            check_scope(
-                options,
-                TERMINAL_SEND_SCOPE,
-                UsageContext::Path("terminal send"),
-                envelope,
-            )?;
+            check_scope(options, UsageContext::Path("terminal send"), envelope)?;
             let context = UsageContext::Path("terminal send");
             Ok(mutation(
                 MutationCommand::TerminalSend {
@@ -4449,7 +3074,7 @@ fn resolve_words(
         }
         ["launch-profile", "create"] => {
             let context = UsageContext::Path("launch-profile create");
-            check_scope(options, LAUNCH_PROFILE_CREATE_SCOPE, context, envelope)?;
+            check_scope(options, context, envelope)?;
             Ok(mutation(
                 MutationCommand::LaunchProfileCreate {
                     name: profile_name_option(options, context, envelope)?,
@@ -4481,21 +3106,18 @@ fn resolve_words(
         }
         ["api", "schema"] => schema_export::request(None, options, envelope),
         ["api", "schema", schema_id] => schema_export::request(Some(schema_id), options, envelope),
-        #[cfg(windows)]
         ["config", "reset-keys"] => {
             reject_filters(options, UsageContext::Path("config reset-keys"), envelope)?;
             Ok(Request::ConfigResetKeys {
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
-        #[cfg(windows)]
         ["channel", "show"] => {
             reject_filters(options, UsageContext::Path("channel show"), envelope)?;
             Ok(Request::ChannelShow {
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
-        #[cfg(windows)]
         ["update"] => {
             reject_filters(options, UsageContext::Path("update"), envelope)?;
             Ok(Request::Update {
@@ -4503,7 +3125,6 @@ fn resolve_words(
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
-        #[cfg(windows)]
         ["channel", "set", channel @ ("stable" | "preview")] => {
             reject_filters(options, UsageContext::Path("channel set"), envelope)?;
             Ok(Request::Update {
@@ -4585,15 +3206,7 @@ fn resolve_words(
                 Notification, NotificationPosition as Position, NotificationSound as Sound,
             };
             let context = UsageContext::Path("notification show");
-            check_scope(
-                options,
-                Scope {
-                    notification: true,
-                    ..NO_OPTIONS
-                },
-                context,
-                envelope,
-            )?;
+            check_scope(options, context, envelope)?;
             let invalid = |option, value: &str, expected| {
                 usage_with(
                     UsageReason::InvalidValue {
@@ -4677,15 +3290,7 @@ fn resolve_words(
             } else {
                 "server reload-agent-manifests"
             });
-            check_scope(
-                options,
-                Scope {
-                    request_id: true,
-                    ..NO_OPTIONS
-                },
-                context,
-                envelope,
-            )?;
+            check_scope(options, context, envelope)?;
             let operation_id = options
                 .request_id
                 .as_deref()
@@ -5173,29 +3778,23 @@ fn resolve_words(
             envelope,
         )),
         ["api", verb, ..] => Err(unknown_command(UsageContext::Path("api"), verb, envelope)),
-        #[cfg(windows)]
         ["update", extra, ..] => Err(unexpected_argument(
             UsageContext::Path("update"),
             extra,
             envelope,
         )),
-        #[cfg(windows)]
         ["channel", "set"] => Err(missing_command(UsageContext::Path("channel set"), envelope)),
-        #[cfg(windows)]
         ["channel", "set", extra, ..] => Err(unexpected_argument(
             UsageContext::Path("channel set"),
             extra,
             envelope,
         )),
-        #[cfg(windows)]
         ["channel"] => Err(missing_command(UsageContext::Path("channel"), envelope)),
-        #[cfg(windows)]
         ["channel", "show", extra, ..] => Err(unexpected_argument(
             UsageContext::Path("channel show"),
             extra,
             envelope,
         )),
-        #[cfg(windows)]
         ["channel", verb, ..] => Err(unknown_command(
             UsageContext::Path("channel"),
             verb,
@@ -5314,7 +3913,6 @@ fn client_query(
     context: UsageContext,
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
-    #[cfg(windows)]
     if let Some(client) = client_control::client_id(options, context, envelope)? {
         return Ok(Request::ClientQuery {
             command,
@@ -5322,8 +3920,6 @@ fn client_query(
             format: options.format.unwrap_or(OutputFormat::Text),
         });
     }
-    #[cfg(not(windows))]
-    let _ = (context, envelope);
     Ok(query(command, options))
 }
 
@@ -5367,1010 +3963,43 @@ fn mutation(command: MutationCommand, options: &Options) -> Request {
 /// The named-option set one command admits; anything seen outside it is usage.
 /// `geometry` covers all four dimension flags together: a terminal geometry
 /// is only meaningful whole.
-#[derive(Clone, Copy)]
-struct Scope {
-    #[cfg(windows)]
-    graphics: bool,
-    #[cfg(windows)]
-    events: bool,
-    link_offset: bool,
-    copy_motion: bool,
-    copy_query: bool,
-    copy_previous: bool,
-    selection_anchor: bool,
-    content_revision: bool,
-    agent_view_spec: bool,
-    remote_session: bool,
-    machine_json: bool,
-    plugin: bool,
-    plugin_select: bool,
-    plugin_context: bool,
-    plugin_pane: bool,
-    plugin_install: bool,
-    notification: bool,
-    panel_terminal: bool,
-    metadata: bool,
-    panel_metadata: bool,
-    panel_agent: bool,
-    output: bool,
-    client: bool,
-    focus: bool,
-    no_focus: bool,
-    zoom_on: bool,
-    zoom_off: bool,
-    zoom_toggle: bool,
-    group: bool,
-    branch: bool,
-    base: bool,
-    force: bool,
-    takeover: bool,
-    trust_repository: bool,
-    request_id: bool,
-    detach: bool,
-    dry_run: bool,
-    retry: bool,
-    project: bool,
-    /// `worktree list --directory <id>`: admits the strict directory-ID
-    /// selector; it is an ID flag, never a path.
-    directory: bool,
-    workspace: bool,
-    tab: bool,
-
-    label: bool,
-    direction: bool,
-    order: bool,
-    search_direction: bool,
-    terminal: bool,
-    insert_index: bool,
-    before: bool,
-    amount: bool,
-    ratio: bool,
-    right_click: bool,
-    geometry: bool,
-    confirm: bool,
-    panel: bool,
-    current: bool,
-    target_panel: bool,
-    swap_target: bool,
-    /// `panel move --into-tab <t>`: admits the existing-Tab placement
-    /// destination selector.
-    into_tab: bool,
-    /// `panel move --new-tab`: admits the new-Tab relocation destination
-    /// flag.
-    new_tab: bool,
-    new_workspace: bool,
-    tab_label: bool,
-    /// `terminal read --lines <n>`: admits the presentation tail option.
-    lines: bool,
-    output_source: bool,
-    plain: bool,
-    ansi: bool,
-    /// `workspace accept-directory --path <p>`: admits the literal directory
-    /// path value option.
-    path: bool,
-    /// `terminal wait-output --match <t> [--rows <n>] [--timeout <ms>]`:
-    /// admits all three flags and the wait-window meaning of `--rows`.
-    wait: bool,
-    /// `terminal wait-output --after <cursor>`: the fresh-output fence. Event
-    /// waits share `wait` but use `--after-cursor`, so they never admit it.
-    output_after: bool,
-    /// `terminal wait-output --regex <pattern>`: admits the compiled-pattern
-    /// alternative to `--match`.
-    regex: bool,
-    /// `terminal send --text <t>`: the literal input-bytes value option.
-    text: bool,
-    /// `terminal send --enter`: the text form's same-record CR modifier.
-    enter: bool,
-    /// `terminal send --key <name>`: the semantic-key value option.
-    key: bool,
-    /// `terminal send --file <path>`: the declared regular-file source.
-    file: bool,
-    /// `terminal send --stdin`: the declared noninteractive input stream.
-    stdin: bool,
-    /// `terminal send --paste`: the paste-record modifier of a file or stdin
-    /// source. Layout input also reads files and stdin but never pastes.
-    paste: bool,
-    /// `tui --mouse off|on`: admits the TUI-only pointer-capture switch.
-    mouse: bool,
-    /// `tab create|panel split --exec <abs>`: the explicit launch executable.
-    exec: bool,
-    cwd: bool,
-    environment: bool,
-    /// `tab create|panel split --arg <v>`: the repeatable launch-argv option.
-    args: bool,
-    /// `agent list --include-ended`: admits the lifecycle filter flag.
-    outdated_only: bool,
-    include_ended: bool,
-    /// `agent list --limit <n>`: admits the page-size value option.
-    limit: bool,
-    /// `agent list --cursor <c>`: admits the page cursor value option.
-    cursor: bool,
-    /// `agent wait --until <c>`: admits the repeatable wait-condition value
-    /// option.
-    until: bool,
-    /// `agent wait --after-revision <n>`: admits the revision-fence value
-    /// option.
-    after_revision: bool,
-    /// `agent wait --timeout <ms>`: admits the shared `--timeout` flag under
-    /// the wait meaning alone — never `terminal wait-output`'s `--match`
-    /// or `--rows` peers.
-    timeout: bool,
-    /// `agent doctor --provider <id>` / `agent integration * --provider
-    /// <id>`: the provider selector — repeatable on doctor; a filter on
-    /// integration `list` and a required selector on explain/enable/disable.
-    provider: bool,
-    /// `agent doctor --asset-root <path>`: admits the repeatable declared
-    /// asset-root selector.
-    asset_root: bool,
-    /// `launch-profile create --name <n>`: the required catalog name.
-    name: bool,
-    session: bool,
-    clear: bool,
-    prompt_wait: bool,
-    forever: bool,
-    /// `tab create|panel split --profile <sel>`: the catalog-launch
-    /// selector, exclusive with the explicit `--exec`/`--arg` form.
-    profile: bool,
-    /// `agent integration * --adapter-source <abs>`: the development/test
-    /// capsule-source override (literal absolute path).
-    adapter_source: bool,
-    /// `workspace close-resume --request <id>`: the close operation's own
-    /// request ID.
-    request: bool,
-    /// `workspace close-resume --generation <n>`: the attempt fence.
-    generation: bool,
-}
-
-const NO_OPTIONS: Scope = Scope {
-    #[cfg(windows)]
-    graphics: false,
-    #[cfg(windows)]
-    events: false,
-    link_offset: false,
-    copy_motion: false,
-    copy_query: false,
-    copy_previous: false,
-    selection_anchor: false,
-    content_revision: false,
-    agent_view_spec: false,
-    remote_session: false,
-    machine_json: false,
-    plugin: false,
-    plugin_select: false,
-    plugin_context: false,
-    plugin_pane: false,
-    plugin_install: false,
-    notification: false,
-    panel_terminal: false,
-    metadata: false,
-    panel_metadata: false,
-    panel_agent: false,
-    output: false,
-    client: false,
-    focus: false,
-    no_focus: false,
-    zoom_on: false,
-    zoom_off: false,
-    zoom_toggle: false,
-    group: false,
-    branch: false,
-    base: false,
-    force: false,
-    takeover: false,
-    trust_repository: false,
-    request_id: false,
-    detach: false,
-    dry_run: false,
-    retry: false,
-    project: false,
-    directory: false,
-    workspace: false,
-    tab: false,
-
-    label: false,
-    direction: false,
-    order: false,
-    search_direction: false,
-    terminal: false,
-    insert_index: false,
-    before: false,
-    amount: false,
-    ratio: false,
-    right_click: false,
-    geometry: false,
-    confirm: false,
-    panel: false,
-    current: false,
-    target_panel: false,
-    swap_target: false,
-    into_tab: false,
-    new_tab: false,
-    new_workspace: false,
-    tab_label: false,
-    lines: false,
-    output_source: false,
-    plain: false,
-    ansi: false,
-    path: false,
-    wait: false,
-    output_after: false,
-    regex: false,
-    text: false,
-    enter: false,
-    key: false,
-    file: false,
-    stdin: false,
-    paste: false,
-    mouse: false,
-    exec: false,
-    cwd: false,
-    environment: false,
-    args: false,
-    outdated_only: false,
-    include_ended: false,
-    limit: false,
-    cursor: false,
-    until: false,
-    after_revision: false,
-    timeout: false,
-    provider: false,
-    asset_root: false,
-    name: false,
-    session: false,
-    clear: false,
-    prompt_wait: false,
-    forever: false,
-    profile: false,
-    adapter_source: false,
-    request: false,
-    generation: false,
-};
-
-/// The explicit `tui` route: only `--mouse` is admitted on top of the
-/// shared option grammar.
-const TUI_SCOPE: Scope = Scope {
-    mouse: true,
-    ..NO_OPTIONS
-};
-
-/// `agent list`: the three pagination/filter options of the read grammar.
-const AGENT_TARGET_SCOPE: Scope = Scope {
-    panel: true,
-    terminal: true,
-    name: true,
-    session: true,
-    ..NO_OPTIONS
-};
-
-const AGENT_CHANGES_SCOPE: Scope = Scope {
-    limit: true,
-    cursor: true,
-    ..NO_OPTIONS
-};
-
-const AGENT_LIST_SCOPE: Scope = Scope {
-    client: true,
-    include_ended: true,
-    limit: true,
-    cursor: true,
-    ..NO_OPTIONS
-};
-
-/// `agent wait`: the condition list, the revision fence, and the shared
-/// timeout flag under the canonical wait meaning — the sole Agent scope
-/// that admits `--timeout`.
-const AGENT_WAIT_SCOPE: Scope = Scope {
-    client: true,
-    panel: true,
-    terminal: true,
-    forever: true,
-    name: true,
-    session: true,
-    until: true,
-    after_revision: true,
-    timeout: true,
-    ..NO_OPTIONS
-};
-
-/// `agent doctor`: the two repeatable declared selectors — provider ids and
-/// supplied asset roots.
-const AGENT_DOCTOR_SCOPE: Scope = Scope {
-    provider: true,
-    asset_root: true,
-    ..NO_OPTIONS
-};
-
-const WORKSPACE_LIST_SCOPE: Scope = Scope {
-    client: cfg!(windows),
-    project: true,
-    ..NO_OPTIONS
-};
-
-const TAB_LIST_SCOPE: Scope = Scope {
-    client: cfg!(windows),
-    workspace: true,
-
-    ..NO_OPTIONS
-};
-
-const PANEL_CURRENT_SCOPE: Scope = Scope {
-    current: true,
-    client: true,
-    ..NO_OPTIONS
-};
-
-const PANEL_LIST_SCOPE: Scope = Scope {
-    client: cfg!(windows),
-    tab: true,
-    workspace: true,
-    ..NO_OPTIONS
-};
-
-const TERMINAL_LIST_SCOPE: Scope = Scope {
-    workspace: true,
-    tab: true,
-    panel: true,
-    ..NO_OPTIONS
-};
-
-#[cfg(not(windows))]
-const WORKSPACE_LAUNCH_SCOPE: Scope = Scope {
-    project: true,
-    label: true,
-    geometry: true,
-    exec: true,
-    cwd: true,
-    environment: true,
-    args: true,
-    profile: true,
-    ..NO_OPTIONS
-};
-
-#[cfg(not(windows))]
-const WORKSPACE_CREATE_SCOPE: Scope = Scope {
-    project: true,
-    label: true,
-    ..NO_OPTIONS
-};
-
-const LABEL_SCOPE: Scope = Scope {
-    label: true,
-    ..NO_OPTIONS
-};
-
-const ACCEPT_DIRECTORY_SCOPE: Scope = Scope {
-    path: true,
-    ..NO_OPTIONS
-};
-
-const TAB_CREATE_SCOPE: Scope = Scope {
-    client: true,
-    focus: true,
-    no_focus: true,
-    timeout: true,
-    workspace: true,
-
-    label: true,
-    geometry: true,
-    exec: true,
-    cwd: true,
-    environment: true,
-    args: true,
-    profile: true,
-    ..NO_OPTIONS
-};
-
-const TAB_MOVE_SCOPE: Scope = Scope {
-    order: true,
-    insert_index: true,
-    ..NO_OPTIONS
-};
-
-const CONFIRM_SCOPE: Scope = Scope {
-    confirm: true,
-    ..NO_OPTIONS
-};
-
-/// `workspace close-status`: the stable-ID scope — the operation record is
-/// addressed by the exact Project and Workspace IDs, never a positional
-/// target.
-const WORKSPACE_CLOSE_STATUS_SCOPE: Scope = Scope {
-    workspace: true,
-    ..NO_OPTIONS
-};
-
-/// `workspace close-resume`: the stable-ID scope plus the close operation's
-/// own request ID, the attempt-generation fence, and the explicit confirm.
-const WORKSPACE_CLOSE_RESUME_SCOPE: Scope = Scope {
-    workspace: true,
-    request: true,
-    generation: true,
-    confirm: true,
-    ..NO_OPTIONS
-};
-
-const PANEL_SPLIT_SCOPE: Scope = Scope {
-    right_click: true,
-    current: true,
-    ratio: true,
-    client: true,
-    focus: true,
-    no_focus: true,
-    timeout: true,
-    label: true,
-    direction: true,
-    geometry: true,
-    exec: true,
-    cwd: true,
-    environment: true,
-    args: true,
-    profile: true,
-    ..NO_OPTIONS
-};
-
-const PANEL_MOVE_SCOPE: Scope = Scope {
-    direction: true,
-    target_panel: true,
-    into_tab: true,
-    new_tab: true,
-    label: true,
-    ..NO_OPTIONS
-};
-
-/// `terminal read`: the paired history selector plus the two read-only
-/// presentation transforms — logical-line joining and the entry tail.
-const TERMINAL_READ_SCOPE: Scope = Scope {
-    panel: true,
-    output_source: true,
-    plain: true,
-    ansi: true,
-    lines: true,
-    ..NO_OPTIONS
-};
-
-const TERMINAL_WAIT_OUTPUT_SCOPE: Scope = Scope {
-    panel: true,
-    output_source: true,
-    lines: true,
-    forever: true,
-    wait: true,
-    output_after: true,
-    regex: true,
-    ..NO_OPTIONS
-};
-
-const TERMINAL_SEND_SCOPE: Scope = Scope {
-    panel: true,
-    text: true,
-    enter: true,
-    key: true,
-    file: true,
-    stdin: true,
-    paste: true,
-    ..NO_OPTIONS
-};
-
-const WORKTREE_LIST_SCOPE: Scope = Scope {
-    directory: true,
-    ..NO_OPTIONS
-};
-
-/// `launch-profile create --name <n> --exec <abs> [--arg <v>]...`: the
-/// catalog entry's name plus the same explicit launch selection grammar.
-const LAUNCH_PROFILE_CREATE_SCOPE: Scope = Scope {
-    name: true,
-    exec: true,
-    args: true,
-    ..NO_OPTIONS
-};
-
-/// `agent integration *`: the provider selector plus the development/test
-/// adapter-source override — the only integration-scoped options.
-const INTEGRATION_LIST_SCOPE: Scope = Scope {
-    outdated_only: true,
-    ..INTEGRATION_SCOPE
-};
-const INTEGRATION_SCOPE: Scope = Scope {
-    provider: true,
-    adapter_source: true,
-    ..NO_OPTIONS
-};
-
-/// Any mutation-only option seen outside a mutation command.
 fn business_options(options: &Options) -> bool {
-    options.link_offset.is_some()
-        || options.copy_motion.is_some()
-        || options.copy_query.is_some()
-        || options.copy_previous.is_some()
-        || options.selection_anchor.is_some()
-        || options.content_revision.is_some()
-        || options.remote_session.is_some()
-        || options.machine_json
-        || options.plugin_target.is_some()
-        || options.plugin_entrypoint.is_some()
-        || options.plugin_placement.is_some()
-        || options.plugin_width.is_some()
-        || options.plugin_height.is_some()
-        || options.plugin_id.is_some()
-        || options.plugin_context.is_some()
-        || {
-            #[cfg(windows)]
-            {
-                options.events.first_option().is_some()
-            }
-            #[cfg(not(windows))]
-            {
-                false
-            }
-        }
-        || options.plugin_ref.is_some()
-        || options.plugin_yes
-        || options.plugin_enabled
-        || options.plugin_disabled
-        || options.notification_body.is_some()
-        || options.notification_position.is_some()
-        || options.notification_sound.is_some()
-        || options.child
-        || options.report_presentation.is_some()
-        || options.panel_agent.first_option().is_some()
-        || options.panel_metadata.first_option().is_some()
-        || options.metadata.first_option().is_some()
-        || options.output.is_some()
-        || options.client.is_some()
-        || options.focus
-        || options.no_focus
-        || options.zoom_on
-        || options.zoom_off
-        || options.zoom_toggle
-        || options.request_id.is_some()
-        || options.detach
-        || options.retry
-        || options.directory.is_some()
-        || options.label.is_some()
-        || options.direction.is_some()
-        || options.order.is_some()
-        || options.search_direction.is_some()
-        || options.terminal.is_some()
-        || options.amount.is_some()
-        || options.ratio.is_some()
-        || options.cols.is_some()
-        || options.rows.is_some()
-        || options.cell_width.is_some()
-        || options.cell_height.is_some()
-        || options.confirm
-        || options.group
-        || options.target_panel.is_some()
-        || options.swap_target.is_some()
-        || options.into_tab.is_some()
-        || options.new_tab
-        || options.new_workspace
-        || options.tab_label.is_some()
-        || options.output_source.is_some()
-        || options.plain
-        || options.ansi
-        || options.lines.is_some()
-        || options.path.is_some()
-        || options.match_text.is_some()
-        || options.regex.is_some()
-        || options.timeout.is_some()
-        || options.text.is_some()
-        || options.enter
-        || !options.keys.is_empty()
-        || options.file.is_some()
-        || options.stdin
-        || options.paste
-        || options.exec.is_some()
-        || !options.args.is_empty()
-        || options.outdated_only
-        || options.include_ended
-        || options.limit.is_some()
-        || options.cursor.is_some()
-        || !options.until.is_empty()
-        || options.after_revision.is_some()
-        || !options.providers.is_empty()
-        || !options.asset_roots.is_empty()
-        || options.name.is_some()
-        || options.agent_session.is_some()
-        || options.clear
-        || options.profile.is_some()
-        || options.provider.is_some()
-        || options.adapter_source.is_some()
-        || options.request.is_some()
-        || options.generation.is_some()
+    options.seen.iter().any(|name| {
+        grammar::option(name).is_some_and(|spec| spec.role == grammar::OptionRole::Business)
+    })
 }
 
-/// The first named option present but outside `scope`, in the fixed `Options`
-/// declaration order — deterministic without any argv-order state.
-fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
-    if options.dry_run && !scope.dry_run {
-        return Some("--dry-run");
+fn first_out_of_scope(options: &Options, context: UsageContext) -> Option<&'static str> {
+    let admitted = match context {
+        UsageContext::Path(path) => grammar::command(path).map(|command| command.flags()),
+        _ => None,
     }
-    if options.link_offset.is_some() && !scope.link_offset {
-        return Some("--offset-from-bottom");
-    }
-    if options.copy_motion.is_some() && !scope.copy_motion {
-        return Some("--motion");
-    }
-    if options.copy_query.is_some() && !scope.copy_query {
-        return Some("--query");
-    }
-    if options.copy_previous.is_some() && !scope.copy_previous {
-        return Some("--previous");
-    }
-    if options.selection_anchor.is_some() && !scope.selection_anchor {
-        return Some("--anchor");
-    }
-    if options.content_revision.is_some() && !scope.content_revision {
-        return Some("--content-revision");
-    }
-    if options.remote_session.is_some() && !scope.remote_session {
-        return Some("--remote-session");
-    }
-    if options.machine_json && !scope.machine_json {
-        return Some("--json");
-    }
-    if !scope.plugin_install {
-        if options.plugin_yes {
-            return Some("--yes");
-        }
-        if options.plugin_ref.is_some() {
-            return Some("--ref");
-        }
-    }
-    if !scope.plugin_pane && options.plugin_target.is_some() {
-        return Some("--target-pane");
-    }
-    if !scope.plugin_pane && options.plugin_entrypoint.is_some() {
-        return Some("--entrypoint");
-    }
-    if !scope.plugin_pane && options.plugin_width.is_some() {
-        return Some("--width");
-    }
-    if !scope.plugin_pane && options.plugin_height.is_some() {
-        return Some("--height");
-    }
-    if !scope.plugin_pane && options.plugin_placement.is_some() {
-        return Some("--placement");
-    }
-    if !scope.plugin_select && options.plugin_id.is_some() {
-        return Some("--plugin");
-    }
-    if !scope.plugin_context && options.plugin_context.is_some() {
-        return Some("--context");
-    }
-    #[cfg(windows)]
-    if !scope.events
-        && let Some(option) = options.events.first_option()
-    {
-        return Some(option);
-    }
-    if !scope.plugin {
-        if options.plugin_enabled {
-            return Some("--enabled");
-        }
-        if options.plugin_disabled {
-            return Some("--disabled");
-        }
-    }
-    if !scope.notification {
-        if options.notification_body.is_some() {
-            return Some("--body");
-        }
-        if options.notification_position.is_some() {
-            return Some("--position");
-        }
-        if options.notification_sound.is_some() {
-            return Some("--sound");
-        }
-    }
-    if options.child && !scope.panel_terminal {
-        return Some("--child");
-    }
-    if options.report_presentation.is_some()
-        && !(scope.panel_agent || scope.panel_metadata || scope.panel_terminal || {
-            #[cfg(windows)]
-            {
-                scope.graphics
-            }
-            #[cfg(not(windows))]
-            {
-                false
-            }
+    .unwrap_or(&[]);
+    grammar::OPTIONS
+        .iter()
+        .find(|spec| {
+            spec.role == grammar::OptionRole::Business
+                && options.seen.contains(&spec.spelling)
+                && !admitted.contains(&spec.spelling)
         })
-    {
-        return Some("--presentation");
-    }
-    if !scope.panel_agent
-        && let Some(option) = options.panel_agent.first_option()
-    {
-        return Some(option);
-    }
-    if !scope.panel_metadata
-        && let Some(option) = options
-            .panel_metadata
-            .first_option_with_agent(!scope.panel_agent)
-    {
-        return Some(option);
-    }
-    if !scope.metadata
-        && let Some(option) = options
-            .metadata
-            .first_option_with_sequence(!scope.panel_agent)
-    {
-        return Some(option);
-    }
-
-    if options.right_click.is_some() && !scope.right_click {
-        return Some("--right-click");
-    }
-    if options.amount.is_some() && !scope.amount {
-        return Some("--amount");
-    }
-    if options.ratio.is_some() && !scope.ratio {
-        return Some("--ratio");
-    }
-    if options.output.is_some() && !scope.output {
-        return Some("--output");
-    }
-    if options.branch.is_some() && !scope.branch {
-        return Some("--branch");
-    }
-    if options.base.is_some() && !scope.base {
-        return Some("--base");
-    }
-    if options.takeover && !scope.takeover {
-        return Some("--takeover");
-    }
-    if options.force && !scope.force {
-        return Some("--force");
-    }
-    if options.trust_repository && !scope.trust_repository {
-        return Some("--trust-repository");
-    }
-    if options.client.is_some() && !scope.client {
-        return Some("--client");
-    }
-    if options.focus && !scope.focus {
-        return Some("--focus");
-    }
-    if options.no_focus && !scope.no_focus {
-        return Some("--no-focus");
-    }
-    if options.zoom_on && !scope.zoom_on {
-        return Some("--on");
-    }
-    if options.zoom_off && !scope.zoom_off {
-        return Some("--off");
-    }
-    if options.zoom_toggle && !scope.zoom_toggle {
-        return Some("--toggle");
-    }
-    if options.request_id.is_some() && !scope.request_id {
-        return Some("--request-id");
-    }
-    if options.detach && !scope.detach {
-        return Some("--detach");
-    }
-    if options.retry && !scope.retry {
-        return Some("--retry");
-    }
-    if options.project.is_some() && !scope.project {
-        return Some("--project");
-    }
-    if options.directory.is_some() && !scope.directory {
-        return Some("--directory");
-    }
-    if options.workspace.is_some() && !scope.workspace {
-        return Some("--workspace");
-    }
-    if options.tab.is_some() && !scope.tab {
-        return Some("--tab");
-    }
-    if options.label.is_some() && !scope.label {
-        return Some("--label");
-    }
-    if options.before.is_some() && !scope.before {
-        return Some("--before");
-    }
-    if options.insert_index.is_some() && !scope.insert_index {
-        return Some("--insert-index");
-    }
-    if options.terminal.is_some() && !scope.terminal {
-        return Some("--terminal");
-    }
-    if options.order.is_some() && !scope.order {
-        return Some("--order");
-    }
-    if options.search_direction.is_some() && !scope.search_direction {
-        return Some("--search-direction");
-    }
-    if options.direction.is_some() && !scope.direction {
-        return Some("--direction");
-    }
-    if options.cols.is_some() && !scope.geometry {
-        return Some("--cols");
-    }
-    // `--rows` belongs only to the geometry option group.
-    if options.rows.is_some() && !scope.geometry {
-        return Some("--rows");
-    }
-    if options.cell_width.is_some() && !scope.geometry {
-        return Some("--cell-width");
-    }
-    if options.cell_height.is_some() && !scope.geometry {
-        return Some("--cell-height");
-    }
-    if options.group && !scope.group {
-        return Some("--group");
-    }
-    if options.confirm && !scope.confirm {
-        return Some("--confirm");
-    }
-    if options.panel.is_some() && !scope.panel {
-        return Some("--panel");
-    }
-    if options.current && !scope.current {
-        return Some("--current");
-    }
-    if options.target_panel.is_some() && !scope.target_panel {
-        return Some("--target-panel");
-    }
-    if options.swap_target.is_some() && !scope.swap_target {
-        return Some("--with");
-    }
-    if options.into_tab.is_some() && !scope.into_tab {
-        return Some("--into-tab");
-    }
-    if options.new_workspace && !scope.new_workspace {
-        return Some("--new-workspace");
-    }
-    if options.tab_label.is_some() && !scope.tab_label {
-        return Some("--tab-label");
-    }
-    if options.new_tab && !scope.new_tab {
-        return Some("--new-tab");
-    }
-    if options.agent_view_spec.is_some() && !scope.agent_view_spec {
-        return Some("--spec");
-    }
-    if options.output_source.is_some() && !scope.output_source {
-        return Some("--source");
-    }
-    if options.ansi && !scope.ansi {
-        return Some("--ansi");
-    }
-    if options.plain && !scope.plain {
-        return Some("--plain");
-    }
-    if options.lines.is_some() && !scope.lines {
-        return Some("--lines");
-    }
-    if options.path.is_some() && !scope.path {
-        return Some("--path");
-    }
-    if options.match_text.is_some() && !scope.wait {
-        return Some("--match");
-    }
-    if options.regex.is_some() && !scope.regex {
-        return Some("--regex");
-    }
-    if options.output_after.is_some() && !scope.output_after {
-        return Some("--after");
-    }
-    // `--timeout` belongs to `terminal wait-output` through `wait` scope and
-    // to `agent wait` through its own `timeout` scope; the two never share
-    // their other flags.
-    if options.timeout.is_some() && !scope.wait && !scope.timeout {
-        return Some("--timeout");
-    }
-    if options.text.is_some() && !scope.text {
-        return Some("--text");
-    }
-    if options.enter && !scope.enter {
-        return Some("--enter");
-    }
-    if !options.keys.is_empty() && !scope.key {
-        return Some("--key");
-    }
-    if options.file.is_some() && !scope.file {
-        return Some("--file");
-    }
-    if options.stdin && !scope.stdin {
-        return Some("--stdin");
-    }
-    if options.paste && !scope.paste {
-        return Some("--paste");
-    }
-    if options.mouse.is_some() && !scope.mouse {
-        return Some("--mouse");
-    }
-    if options.cwd.is_some() && !scope.cwd {
-        return Some("--cwd");
-    }
-    if !options.environment.is_empty() && !scope.environment {
-        return Some("--env");
-    }
-    if options.exec.is_some() && !scope.exec {
-        return Some("--exec");
-    }
-    if !options.args.is_empty() && !scope.args {
-        return Some("--arg");
-    }
-    if options.outdated_only && !scope.outdated_only {
-        return Some("--outdated-only");
-    }
-    if options.include_ended && !scope.include_ended {
-        return Some("--include-ended");
-    }
-    if options.limit.is_some() && !scope.limit {
-        return Some("--limit");
-    }
-    if options.cursor.is_some() && !scope.cursor {
-        return Some("--cursor");
-    }
-    if !options.until.is_empty() && !scope.until {
-        return Some("--until");
-    }
-    if options.after_revision.is_some() && !scope.after_revision {
-        return Some("--after-revision");
-    }
-    if !options.providers.is_empty() && !scope.provider {
-        return Some("--provider");
-    }
-    if !options.asset_roots.is_empty() && !scope.asset_root {
-        return Some("--asset-root");
-    }
-    if options.agent_session.is_some() && !scope.session {
-        return Some("--agent-session");
-    }
-    if options.forever && !scope.forever {
-        return Some("--forever");
-    }
-    if options.prompt_wait && !scope.prompt_wait {
-        return Some("--wait");
-    }
-    if options.clear && !scope.clear {
-        return Some("--clear");
-    }
-    if options.name.is_some() && !scope.name {
-        return Some("--name");
-    }
-    if options.profile.is_some() && !scope.profile {
-        return Some("--profile");
-    }
-    if options.provider.is_some() && !scope.provider {
-        return Some("--provider");
-    }
-    if options.adapter_source.is_some() && !scope.adapter_source {
-        return Some("--adapter-source");
-    }
-    if options.request.is_some() && !scope.request {
-        return Some("--request");
-    }
-    if options.generation.is_some() && !scope.generation {
-        return Some("--generation");
-    }
-    None
+        .map(|spec| spec.spelling)
 }
 
-/// Reject every named option outside the command's admitted set, naming the
-/// first out-of-scope flag. `--format` is orthogonal and never scope-checked.
 fn check_scope(
     options: &Options,
-    scope: Scope,
     context: UsageContext,
     envelope: FailureEnvelope,
 ) -> Result<(), ParseFailure> {
-    match first_out_of_scope(options, scope) {
-        Some(option) => Err(usage_with(
+    if let Some(option) = first_out_of_scope(options, context) {
+        return Err(usage_with(
             UsageReason::UnknownOption {
                 context,
                 option: option.to_owned(),
             },
             envelope,
-        )),
-        None => Ok(()),
+        ));
     }
+    Ok(())
 }
 
 fn required(
@@ -6395,14 +4024,6 @@ fn mouse_option(value: &str) -> Option<bool> {
 }
 
 /// Per-launch overrides are independent of the program/profile selection.
-#[cfg(not(windows))]
-fn launch_options(
-    options: &Options,
-    context: UsageContext,
-    envelope: FailureEnvelope,
-) -> Result<LaunchOptions, ParseFailure> {
-    launch_options_with_directory(options, options.cwd.as_deref(), context, envelope)
-}
 
 fn launch_options_with_directory(
     options: &Options,
@@ -7620,7 +5241,7 @@ fn reject_extras(
     context: UsageContext,
     envelope: FailureEnvelope,
 ) -> Result<(), ParseFailure> {
-    reject_extras_scope(options, NO_OPTIONS, context, envelope)
+    reject_extras_scope(options, context, envelope)
 }
 
 /// `reject_extras` against an explicit admitted set: `--format` stays
@@ -7628,11 +5249,10 @@ fn reject_extras(
 /// pass through.
 fn reject_extras_scope(
     options: &Options,
-    scope: Scope,
     context: UsageContext,
     envelope: FailureEnvelope,
 ) -> Result<(), ParseFailure> {
-    match first_out_of_scope(options, scope)
+    match first_out_of_scope(options, context)
         .or_else(|| options.format.is_some().then_some("--format"))
     {
         Some(option) => Err(usage_with(
@@ -7649,7 +5269,7 @@ fn reject_filters(
     context: UsageContext,
     envelope: FailureEnvelope,
 ) -> Result<(), ParseFailure> {
-    check_scope(options, NO_OPTIONS, context, envelope)
+    check_scope(options, context, envelope)
 }
 
 #[cfg(test)]
@@ -7716,7 +5336,6 @@ fn agent_selector(
         });
     }
     if let Some(value) = words.first() {
-        #[cfg(windows)]
         if let Some(value) = value.strip_prefix("@agent:") {
             let selector = if value.bytes().all(|b| b.is_ascii_digit()) {
                 value
@@ -7793,18 +5412,7 @@ fn close_wait(
     context: UsageContext,
     envelope: FailureEnvelope,
 ) -> Result<CloseWait, ParseFailure> {
-    check_scope(
-        options,
-        Scope {
-            confirm: true,
-            detach: true,
-            dry_run: true,
-            timeout: true,
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     let conflict = |first, second| {
         usage_with(
             UsageReason::ConflictingOptions {
@@ -7842,20 +5450,8 @@ fn stop_command(
     options: &Options,
     context: UsageContext,
     envelope: FailureEnvelope,
-) -> Result<ServerStopCommand, ParseFailure> {
-    check_scope(
-        options,
-        Scope {
-            confirm: true,
-            request_id: true,
-            detach: true,
-            retry: true,
-            timeout: true,
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+) -> Result<SiteStopCommand, ParseFailure> {
+    check_scope(options, context, envelope)?;
     if !options.confirm {
         return Err(missing_required(context, "'--confirm'", envelope));
     }

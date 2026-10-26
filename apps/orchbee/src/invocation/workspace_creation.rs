@@ -1,9 +1,9 @@
 //! Every Windows Workspace creation uses one launch workflow and explicit focus policy.
 use super::{
     CreationDirectory, ExpectedValue, FailureEnvelope, LaunchOptions, LaunchProfileSelector,
-    LaunchSelection, NO_OPTIONS, Options, OutputFormat, ParseFailure, Request, Resource, Scope,
-    Target, UsageContext, UsageReason, WorkbenchLabel, WorkbenchTerminalGeometry, check_scope,
-    client_control, geometry_option, label_option, launch_options_with_directory, profile_option,
+    LaunchSelection, Options, OutputFormat, ParseFailure, Request, Resource, Target, UsageContext,
+    UsageReason, WorkbenchLabel, WorkbenchTerminalGeometry, check_scope, client_control,
+    geometry_option, label_option, launch_options_with_directory, profile_option,
     reject_launch_profile_conflict, selection_envelope, target, usage_with, wait_timeout_option,
 };
 use orchbee_local_runtime::UserPathOperand;
@@ -115,27 +115,7 @@ fn path_failure(
 
 pub(super) fn parse(options: &Options, envelope: FailureEnvelope) -> Result<Request, ParseFailure> {
     let context = UsageContext::Path("workspace create");
-    check_scope(
-        options,
-        Scope {
-            project: true,
-            workspace: true,
-            label: true,
-            cwd: true,
-            client: true,
-            focus: true,
-            no_focus: true,
-            timeout: true,
-            geometry: true,
-            exec: true,
-            args: true,
-            profile: true,
-            environment: true,
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     if options.focus && options.no_focus {
         return Err(usage_with(
             UsageReason::ConflictingOptions {

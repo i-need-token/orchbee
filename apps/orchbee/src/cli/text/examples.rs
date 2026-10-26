@@ -35,13 +35,9 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::ClientStatus => &["00000000000000000000000000000001"],
         CommandPath::ServerStatus => &["00000000000000000000000000000001"],
 
-        #[cfg(windows)]
         CommandPath::PanelGraphicsSet => &["@panel:0xabcd", "--spec", "@graphics.png"],
-        #[cfg(windows)]
         CommandPath::PanelGraphicsClear => &["@panel:0xabcd"],
-        #[cfg(windows)]
         CommandPath::PanelGraphicsInfo => &["@panel:0xabcd"],
-        #[cfg(windows)]
         CommandPath::PanelGraphicsStream => &["@panel:0xabcd"],
         CommandPath::ClientList => &[],
         CommandPath::ClientGet => &["00000000000000000000000000000001"],
@@ -51,9 +47,7 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::PanelFocus => &["--current"],
         CommandPath::PanelResize => &["--current", "--direction", "right", "--amount", "0.05"],
         CommandPath::LayoutSetSplitRatio => &["--current", "--path", "root", "--ratio", "0.5"],
-        #[cfg(windows)]
         CommandPath::LayoutExport => &["--current"],
-        #[cfg(windows)]
         CommandPath::LayoutApply => &["--file", "layout.json", "--workspace", "work"],
         CommandPath::PanelZoom => &["--current", "--toggle"],
         CommandPath::PanelLayout => &["--current"],
@@ -63,14 +57,11 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::Status => &[],
         CommandPath::StatusServer => &[],
         CommandPath::StatusClient => &[],
-        #[cfg(windows)]
         CommandPath::AgentViewGet => &[],
-        #[cfg(windows)]
         CommandPath::AgentViewSet => &[
             "--spec",
             "{\"source\":\"cli\",\"filter\":{\"op\":\"eq\",\"field\":\"status\",\"value\":\"idle\"}}",
         ],
-        #[cfg(windows)]
         CommandPath::AgentViewClear => &["--source", "cli"],
         CommandPath::AgentList => &[],
         CommandPath::AgentChanges => &["--limit", "20"],
@@ -95,23 +86,14 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::AgentAttach => &["review"],
         CommandPath::TerminalObserve => &["@terminal:0xabcd"],
         CommandPath::TerminalControl => &["@terminal:0xabcd"],
-        #[cfg(windows)]
         CommandPath::MachineList => &[],
-        #[cfg(windows)]
         CommandPath::MachineAdd => &["user@host", "--label", "remote"],
-        #[cfg(windows)]
         CommandPath::MachineRename => &["00000000000000000000000000000001", "--label", "remote"],
-        #[cfg(windows)]
         CommandPath::MachineRemove => &["00000000000000000000000000000001"],
-        #[cfg(windows)]
         CommandPath::MachineEnable => &["00000000000000000000000000000001"],
-        #[cfg(windows)]
         CommandPath::MachineDisable => &["00000000000000000000000000000001"],
-        #[cfg(windows)]
         CommandPath::ChannelShow => &[],
-        #[cfg(windows)]
         CommandPath::ChannelSet => &["stable"],
-        #[cfg(windows)]
         CommandPath::Update => &[],
         CommandPath::ProjectList => &[],
         CommandPath::ProjectGet => &["app"],
@@ -154,7 +136,7 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::WorkspaceMove => &["work", "--insert-index", "0"],
         CommandPath::WorkspaceMoveBlock => &["work", "review", "--before", "main"],
         CommandPath::WorkspaceAcceptDirectory => {
-            if cfg!(windows) {
+            if true {
                 &["work", "--path", "C:/src/project"]
             } else {
                 &["work", "--path", "/src/project"]
@@ -184,12 +166,11 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::PanelCurrent => &[],
         CommandPath::PanelGet => &["@panel:0xabcd"],
         CommandPath::PanelProcessInfo => &["--current"],
-        #[cfg(windows)]
         CommandPath::PanelCreateTerminal => &["--current", "--child", "--label", "review"],
         CommandPath::PanelSplit => &["--current", "--direction", "right"],
         CommandPath::PanelClose => &["@panel:0xabcd", "--confirm"],
         CommandPath::PanelMove => {
-            if cfg!(windows) {
+            if true {
                 &[
                     "@panel:0xabcd",
                     "--new-tab",
@@ -204,11 +185,9 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::TerminalList => &[],
         CommandPath::TerminalGet => &["@terminal:0xabcd"],
         CommandPath::TerminalRead => &["@terminal:0xabcd", "--source", "recent", "--lines", "40"],
-        #[cfg(windows)]
         CommandPath::TerminalSelectionRead => {
             &["@terminal:0xabcd", "--anchor", "0:0", "--cursor", "0:10"]
         }
-        #[cfg(windows)]
         CommandPath::TerminalCopyMotion => &[
             "@terminal:0xabcd",
             "--cursor",
@@ -216,7 +195,6 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
             "--motion",
             "line-end",
         ],
-        #[cfg(windows)]
         CommandPath::TerminalCopySearch => &[
             "@terminal:0xabcd",
             "--cursor",
@@ -228,13 +206,9 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
             "--content-revision",
             "1",
         ],
-        #[cfg(windows)]
         CommandPath::TerminalLinkResolve => &["@terminal:0xabcd", "--cursor", "0:0"],
-        #[cfg(windows)]
         CommandPath::TerminalLinkActivate => &["@terminal:0xabcd", "--cursor", "0:0"],
-        #[cfg(windows)]
         CommandPath::TerminalClear => &["@terminal:0xabcd"],
-        #[cfg(windows)]
         CommandPath::TerminalEditScrollback => &["@terminal:0xabcd"],
         CommandPath::TerminalWaitOutput => {
             &["@terminal:0xabcd", "--match", "ready", "--timeout", "30000"]
@@ -255,7 +229,7 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::LaunchProfileList => &[],
         CommandPath::LaunchProfileGet => &["review"],
         CommandPath::LaunchProfileCreate => {
-            if cfg!(windows) {
+            if true {
                 &[
                     "--name",
                     "review",
@@ -280,14 +254,10 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::ApiSchema => &["orchbee.status"],
         CommandPath::ConfigCheck => &[],
         CommandPath::ConfigResetKeys => &[],
-        CommandPath::ServerStart => &[],
-        #[cfg(windows)]
+        CommandPath::SiteStart => &[],
         CommandPath::SessionList => &[],
-        #[cfg(windows)]
         CommandPath::SessionAttach => &["work"],
-        #[cfg(windows)]
         CommandPath::SessionStop => &["work", "--confirm"],
-        #[cfg(windows)]
         CommandPath::SessionDelete => &["work", "--confirm"],
         CommandPath::ServerDiagnose => &[],
         CommandPath::ServerUpdateAgentManifests => &[],
@@ -295,9 +265,7 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::ServerReloadConfig => &[],
         CommandPath::TerminalTitleSet => &["Review"],
         CommandPath::TerminalTitleClear => &[],
-        #[cfg(windows)]
         CommandPath::EventsSubscribe => &["--event", "workspace.created", "--timeout", "30000"],
-        #[cfg(windows)]
         CommandPath::EventsWait => &[
             "--event",
             "panel.output_matched",
@@ -306,43 +274,26 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
             "--match",
             "ready",
         ],
-        #[cfg(windows)]
         CommandPath::CommandList => &[],
-        #[cfg(windows)]
         CommandPath::CommandInvoke => &["cmd_example"],
-        #[cfg(windows)]
         CommandPath::PluginPaneOpen => &["--plugin", "example.plugin", "--entrypoint", "main"],
-        #[cfg(windows)]
         CommandPath::PopupClose => &[],
-        #[cfg(windows)]
         CommandPath::PluginPaneFocus => &["00000000000000000000000000000001"],
-        #[cfg(windows)]
         CommandPath::PluginPaneClose => &["00000000000000000000000000000001"],
-        #[cfg(windows)]
         CommandPath::PluginActionInvoke => &[
             "example.plugin.action",
             "--context",
             "{\"selectedText\":\"example\"}",
         ],
-        #[cfg(windows)]
         CommandPath::PluginLogList => &["--plugin", "example.plugin", "--limit", "20"],
-        #[cfg(windows)]
         CommandPath::PluginInstall => &["owner/plugin", "--yes"],
-        #[cfg(windows)]
         CommandPath::PluginUninstall => &["owner/plugin"],
-        #[cfg(windows)]
         CommandPath::PluginLink => &["./plugin"],
-        #[cfg(windows)]
         CommandPath::PluginUnlink => &["example.plugin"],
-        #[cfg(windows)]
         CommandPath::PluginEnable => &["example.plugin"],
-        #[cfg(windows)]
         CommandPath::PluginDisable => &["example.plugin"],
-        #[cfg(windows)]
         CommandPath::PluginList => &[],
-        #[cfg(windows)]
         CommandPath::PluginConfigDir => &["example.plugin"],
-        #[cfg(windows)]
         CommandPath::PluginActionList => &["--plugin", "example.plugin"],
         CommandPath::NotificationShow => &["Ready", "--body", "Review is complete"],
         CommandPath::ServerAgentManifests => &[],

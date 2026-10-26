@@ -4,6 +4,7 @@ use crate::{
     terminal_copy::{CopySearchResult, TerminalTextPoint},
 };
 impl Locale {
+    #[cfg(windows)]
     pub(crate) fn cli_terminal_copy_motion(
         self,
         terminal: &str,
@@ -23,6 +24,7 @@ impl Locale {
             ),
         }
     }
+    #[cfg(windows)]
     pub(crate) fn cli_terminal_copy_search(
         self,
         terminal: &str,

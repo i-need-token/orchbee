@@ -1,8 +1,8 @@
 //! Explicit group confirmation and identity-based retained reads; ordinary Close grammar stays separate.
 use super::{
-    ExpectedValue, FailureEnvelope, NO_OPTIONS, Options, OutputFormat, ParseFailure, Request,
-    Resource, Scope, Target, UsageContext, UsageReason, check_scope, close_generation_option,
-    close_request_option, missing_required, target, usage_with, wait_timeout_option,
+    ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, Request, Resource, Target,
+    UsageContext, UsageReason, check_scope, close_generation_option, close_request_option,
+    missing_required, target, usage_with, wait_timeout_option,
 };
 use orchbee_workbench_protocol::WorkbenchRequestId;
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -29,18 +29,7 @@ pub(super) fn start(
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
     let context = UsageContext::Path("project close-all");
-    check_scope(
-        options,
-        Scope {
-            confirm: true,
-            request_id: true,
-            detach: true,
-            timeout: true,
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     if !options.confirm {
         return Err(missing_required(context, "'--confirm'", envelope));
     }
@@ -82,19 +71,7 @@ pub(super) fn retained(
     } else {
         "project close-status"
     });
-    check_scope(
-        options,
-        Scope {
-            request: true,
-            confirm: resume,
-            generation: resume,
-            detach: resume,
-            timeout: resume,
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     let operation_id = close_request_option(options, context, envelope)?;
     let command = if resume {
         if !options.confirm {

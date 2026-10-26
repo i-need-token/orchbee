@@ -8,25 +8,19 @@ mod help;
 mod help_arguments;
 mod help_options;
 pub(crate) use help::{HelpDetails, HelpText};
-#[cfg(windows)]
 mod config_reset;
 mod details;
-#[cfg(windows)]
 mod layouts;
-#[cfg(windows)]
 mod named_sessions;
 mod organization;
 mod panel_agent;
 mod panel_metadata;
-#[cfg(windows)]
 mod panel_relocation;
-#[cfg(windows)]
 mod panel_terminal_creation;
 mod readable;
 mod receipt;
 pub(crate) use details::DetailLabel;
 mod runtime_status;
-#[cfg(windows)]
 mod schema_export;
 mod workspace_metadata;
 use super::Locale;
@@ -49,18 +43,13 @@ mod server;
 mod tab;
 mod terminal;
 mod terminal_attach;
-#[cfg(windows)]
 mod terminal_clear;
-#[cfg(windows)]
 mod terminal_copy;
-#[cfg(windows)]
 mod terminal_editor;
-#[cfg(windows)]
 mod terminal_links;
 mod usage;
 mod workbench;
 mod workspace;
-#[cfg(windows)]
 mod workspace_creation;
 mod workspace_group_close;
 mod worktree;

@@ -1,10 +1,9 @@
 //! Direct terminal-member launch inputs, fully admitted before runtime discovery.
 use super::{
-    CreationDirectory, FailureEnvelope, NO_OPTIONS, Options, OutputFormat, ParseFailure, Request,
-    Resource, Scope, Target, UsageContext, UsageReason, check_scope, client_control,
-    geometry_option, label_option, launch_options_with_directory, profile_option,
-    reject_launch_profile_conflict, report_target, target, unexpected_argument, usage_with,
-    wait_timeout_option,
+    CreationDirectory, FailureEnvelope, Options, OutputFormat, ParseFailure, Request, Resource,
+    Target, UsageContext, UsageReason, check_scope, client_control, geometry_option, label_option,
+    launch_options_with_directory, profile_option, reject_launch_profile_conflict, report_target,
+    target, unexpected_argument, usage_with, wait_timeout_option,
 };
 use orchbee_workbench_protocol::{
     LaunchOptions, LaunchProfileSelector, LaunchSelection, TerminalPresentationId,
@@ -36,25 +35,7 @@ pub(super) fn parse(
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
     let context = UsageContext::Path("panel create-terminal");
-    check_scope(
-        options,
-        Scope {
-            panel_terminal: true,
-            current: true,
-            client: true,
-            label: true,
-            geometry: true,
-            exec: true,
-            args: true,
-            profile: true,
-            cwd: true,
-            environment: true,
-            timeout: true,
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     if let [_, extra, ..] = operands {
         return Err(unexpected_argument(context, extra, envelope));
     }

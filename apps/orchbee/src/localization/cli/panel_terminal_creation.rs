@@ -7,6 +7,7 @@ pub(super) const HELP_ZH: crate::localization::HelpDetails = crate::localization
     "启动空主终端位；--presentation 绑定精确空成员；--child 追加新子终端（最多 16 个）。\n--label 仅命名新子项。显式面板目标无需 TUI，省略目标使用经过验证的调用者或唯一 Ready 客户端；--client 指定该客户端。不改变客户端焦点。--exec 接受绝对路径或在最终 CLI 的 PATH 中解析程序名。参数和环境变量保持字面值，总超时默认 30000 ms。Pending 表示已接受，尚未确认启动。不确定请求不会重试；JSON 回执保留精确请求及成员身份。仅支持 Windows。",
 );
 impl super::Locale {
+    #[cfg(windows)]
     pub(crate) fn cli_panel_terminal_create(self, document: &serde_json::Value) -> String {
         let outcome = document["result"]["kind"].as_str().unwrap_or_default();
         let terminal = document["result"]["terminalOutcome"]["kind"].as_str();

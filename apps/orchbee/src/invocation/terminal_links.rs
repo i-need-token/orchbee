@@ -1,7 +1,7 @@
 //! Viewport coordinates and immutable history offsets are admitted before effects.
 use super::{
-    ExpectedValue, FailureEnvelope, NO_OPTIONS, Options, OutputFormat, ParseFailure, Request,
-    Resource, Scope, Target, TerminalTextPoint, UsageContext, check_scope, target, terminal_buffer,
+    ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, Request, Resource, Target,
+    TerminalTextPoint, UsageContext, check_scope, target, terminal_buffer,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -24,18 +24,7 @@ pub(super) fn parse(
     } else {
         "terminal link-resolve"
     });
-    check_scope(
-        options,
-        Scope {
-            cursor: true,
-            link_offset: true,
-            content_revision: true,
-            generation: true,
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     let viewport_error = || {
         terminal_buffer::invalid(
             options.cursor.as_deref().unwrap_or_default(),

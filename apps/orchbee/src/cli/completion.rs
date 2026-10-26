@@ -17,1779 +17,130 @@ mod scope;
 use crate::invocation::CompletionShell;
 use orchbee_agent_observation_protocol::AgentReportProvider;
 
-/// Runtime selectors are distinct from command-scoped Agent targets.
-const GLOBAL_FLAGS: &[&str] = &[
-    #[cfg(windows)]
-    "--session",
-];
+use crate::invocation::grammar as authority;
+use authority::values::{
+    COPY_MOTION_VALUES, CWD_VALUES, FORMAT_VALUES, KEY_VALUES, ORDER_VALUES, OUTPUT_SOURCES,
+    PROVIDER_VALUES, RIGHT_CLICK_VALUES, SEARCH_DIRECTION_VALUES, SHELLS, UNTIL_VALUES,
+};
+use std::sync::LazyLock;
 
-/// Root-only option modes the shell adapters offer before a command path.
-#[derive(Clone, Copy)]
-struct RootModeFlag {
-    spelling: &'static str,
-    /// PowerShell offers this mode only before any flag has been consumed.
-    requires_no_seen_flags: bool,
-}
-
-const ROOT_MODE_FLAGS: &[RootModeFlag] = &[
-    RootModeFlag {
-        spelling: "--help",
-        requires_no_seen_flags: false,
-    },
-    RootModeFlag {
-        spelling: "--version",
-        requires_no_seen_flags: false,
-    },
-    RootModeFlag {
-        spelling: "-v",
-        requires_no_seen_flags: false,
-    },
-    RootModeFlag {
-        spelling: "-V",
-        requires_no_seen_flags: false,
-    },
-    RootModeFlag {
-        spelling: "--skill",
-        requires_no_seen_flags: false,
-    },
-    #[cfg(windows)]
-    RootModeFlag {
-        spelling: "--default-config",
-        requires_no_seen_flags: true,
-    },
-];
-
-/// Prefix selectors are consumed before the ordinary invocation grammar.
-const PREFIX_FLAGS: &[&str] = &[
-    #[cfg(windows)]
-    "--machine",
-];
-
-/// Top-level words the grammar accepts before any option.
-const ROOT_WORDS: &[&str] = &[
-    #[cfg(windows)]
-    "events",
-    #[cfg(windows)]
-    "command",
-    #[cfg(windows)]
-    "plugin",
-    #[cfg(windows)]
-    "popup",
-    "notification",
-    "layout",
-    "client",
-    "agent",
-    "api",
-    "completion",
-    "config",
-    #[cfg(windows)]
-    "machine",
-    #[cfg(windows)]
-    "channel",
-    #[cfg(windows)]
-    "update",
-    "help",
-    "panel",
-    "project",
-    #[cfg(windows)]
-    "session",
-    "server",
-    "status",
-    "tab",
-    "terminal",
-    "tui",
-    "workspace",
-    "worktree",
-    "launch-profile",
-];
-
-/// Root words that still parse when a `--format` selection was consumed:
-/// every data command family accepts it; `help`/`completion`/`tui`/`--version`
-/// reject it.
-const FORMAT_ROOT_WORDS: &[&str] = &[
-    #[cfg(windows)]
-    "events",
-    #[cfg(windows)]
-    "command",
-    #[cfg(windows)]
-    "plugin",
-    #[cfg(windows)]
-    "popup",
-    "notification",
-    "layout",
-    "client",
-    "agent",
-    "api",
-    "config",
-    #[cfg(windows)]
-    "machine",
-    #[cfg(windows)]
-    "channel",
-    #[cfg(windows)]
-    "update",
-    "panel",
-    "project",
-    #[cfg(windows)]
-    "session",
-    "server",
-    "status",
-    "tab",
-    "terminal",
-    "workspace",
-    "worktree",
-    "launch-profile",
-];
-
-/// family → the verbs it implements.
-const FAMILY_VERBS: &[(&str, &[&str])] = &[
-    #[cfg(windows)]
-    ("events", &["subscribe", "wait"]),
-    #[cfg(windows)]
-    ("command", &["list", "invoke"]),
-    #[cfg(windows)]
-    ("popup", &["close"]),
-    #[cfg(windows)]
-    (
-        "plugin",
-        &[
-            "install",
-            "uninstall",
-            "link",
-            "unlink",
-            "enable",
-            "disable",
-            "list",
-            "config-dir",
-            "action",
-            "pane",
-            "log",
-        ],
-    ),
-    ("notification", &["show"]),
-    (
-        "agent",
-        &[
-            "attach",
-            "attention",
-            #[cfg(windows)]
-            "view",
-            "changes",
-            "doctor",
-            "explain",
-            "focus",
-            "get",
-            "list",
-            "names",
-            "prompt",
-            "read",
-            "rename",
-            "resolve",
-            "send-keys",
-            "start",
-            "wait",
-        ],
-    ),
-    ("api", &["schema", "snapshot"]),
-    ("client", &["status", "control-status", "get", "list"]),
-    #[cfg(windows)]
-    ("layout", &["apply", "export", "set-split-ratio"]),
-    #[cfg(not(windows))]
-    ("layout", &["set-split-ratio"]),
-    ("launch-profile", &["create", "delete", "get", "list"]),
-    ("config", &["check", "reset-keys"]),
-    #[cfg(windows)]
-    ("channel", &["show", "set"]),
-    #[cfg(windows)]
-    (
-        "machine",
-        &["list", "add", "rename", "remove", "enable", "disable"],
-    ),
-    (
-        "panel",
-        &[
-            "status",
-            "resume",
-            #[cfg(windows)]
-            "graphics",
-            #[cfg(windows)]
-            "create-terminal",
-            "report-agent",
-            "clear-agent-authority",
-            "release-agent",
-            "close",
-            "current",
-            "get",
-            "list",
-            "move",
-            "report-metadata",
-            "process-info",
-            "split",
-            "focus",
-            "zoom",
-            "layout",
-            "neighbor",
-            "edges",
-            "resize",
-            "rename",
-            "swap",
-            "input",
-        ],
-    ),
-    (
-        "project",
-        &[
-            "status",
-            "resume",
-            "create",
-            "get",
-            "list",
-            "rename",
-            "dissolve",
-            "close-all",
-            "close-status",
-            "close-resume",
-        ],
-    ),
-    #[cfg(windows)]
-    ("session", &["list", "attach", "stop", "delete"]),
-    (
-        "server",
-        &[
-            "status",
-            "diagnose",
-            "start",
-            "stop",
-            "stop-status",
-            "agent-manifests",
-            "config",
-            "reload-config",
-            "reload-agent-manifests",
-            "update-agent-manifests",
-            "agent-manifests-status",
-        ],
-    ),
-    ("status", &["client", "server"]),
-    (
-        "tab",
-        &[
-            "status", "resume", "close", "create", "focus", "get", "list", "move", "rename",
-        ],
-    ),
-    (
-        "terminal",
-        &[
-            "title",
-            "attach",
-            "get",
-            "list",
-            "read",
-            #[cfg(windows)]
-            "selection-read",
-            #[cfg(windows)]
-            "copy-motion",
-            #[cfg(windows)]
-            "copy-search",
-            #[cfg(windows)]
-            "link-resolve",
-            #[cfg(windows)]
-            "link-activate",
-            #[cfg(windows)]
-            "clear",
-            #[cfg(windows)]
-            "edit-scrollback",
-            "run",
-            "send",
-            "session",
-            "wait-output",
-        ],
-    ),
-    (
-        "workspace",
-        &[
-            "status",
-            "resume",
-            "set-project",
-            "create-project",
-            "ungroup",
-            "accept-directory",
-            "report-metadata",
-            "move",
-            "move-block",
-            "close",
-            "close-resume",
-            "close-status",
-            "create",
-            "focus",
-            "get",
-            "list",
-            "rename",
-        ],
-    ),
-    (
-        "worktree",
-        &["create", "list", "open", "remove", "resume", "status"],
-    ),
-];
-
-/// Every business flag the grammar admits (`--format` is orthogonal), in the
-/// order the state machine records them.
-const BUSINESS_FLAGS: &[&str] = &[
-    "--dry-run",
-    #[cfg(windows)]
-    "--event",
-    #[cfg(windows)]
-    "--filter",
-    #[cfg(windows)]
-    "--after-cursor",
-    "--offset-from-bottom",
-    "--motion",
-    "--query",
-    "--previous",
-    "--anchor",
-    "--content-revision",
-    "--spec",
-    #[cfg(windows)]
-    "--remote-session",
-    #[cfg(windows)]
-    "--json",
-    "--yes",
-    "--entrypoint",
-    "--placement",
-    "--width",
-    "--height",
-    "--target-pane",
-    "--ref",
-    "--plugin",
-    "--context",
-    "--enabled",
-    "--disabled",
-    "--body",
-    "--position",
-    "--sound",
-    #[cfg(windows)]
-    "--child",
-    "--presentation",
-    "--agent",
-    "--state",
-    "--message",
-    "--applies-to-source",
-    "--title",
-    "--display-agent",
-    "--state-label",
-    "--clear-title",
-    "--clear-display-agent",
-    "--clear-state-labels",
-    "--token",
-    "--clear-token",
-    "--seq",
-    "--ttl-ms",
-    "--right-click",
-    "--focus",
-    "--no-focus",
-    "--amount",
-    "--ratio",
-    "--output",
-    "--client",
-    "--on",
-    "--off",
-    "--toggle",
-    "--branch",
-    "--base",
-    "--force",
-    "--takeover",
-    "--trust-repository",
-    "--request-id",
-    "--retry",
-    "--detach",
-    "--project",
-    "--workspace",
-    "--tab",
-    "--label",
-    "--direction",
-    "--order",
-    "--search-direction",
-    "--terminal",
-    "--insert-index",
-    "--before",
-    "--cols",
-    "--rows",
-    "--cell-width",
-    "--cell-height",
-    "--confirm",
-    "--panel",
-    "--current",
-    "--with",
-    "--target-panel",
-    "--into-tab",
-    "--new-tab",
-    "--new-workspace",
-    "--tab-label",
-    "--path",
-    "--match",
-    "--regex",
-    "--source",
-    "--plain",
-    "--ansi",
-    "--lines",
-    "--timeout",
-    "--text",
-    "--enter",
-    "--key",
-    "--file",
-    "--stdin",
-    "--paste",
-    "--directory",
-    "--exec",
-    "--cwd",
-    "--env",
-    "--arg",
-    "--outdated-only",
-    "--include-ended",
-    "--limit",
-    "--cursor",
-    "--until",
-    "--after-revision",
-    "--after",
-    "--provider",
-    "--asset-root",
-    "--profile",
-    "--name",
-    "--agent-session",
-    "--clear",
-    "--wait",
-    "--forever",
-    "--adapter-source",
-    "--request",
-    "--generation",
-];
-
-/// The business flags every `agent integration <verb>` admits — also the
-/// union scope checked when the `agent integration` sub-family itself lands.
-const INTEGRATION_COMMAND_FLAGS: &[&str] = &["--provider", "--adapter-source", "--outdated-only"];
-
-/// `agent integration`'s third-level verbs, offered at the `deep` state.
-const INTEGRATION_VERBS: &[&str] = &["disable", "enable", "explain", "list"];
-
-/// Business flags whose seen bit never makes a repeat `done` — they stay
-/// offerable and keep consuming values while remaining scope-tracked.
-const REPEATABLE_FLAGS: &[&str] = &[
-    #[cfg(windows)]
-    "--event",
-    #[cfg(windows)]
-    "--filter",
-    "--state-label",
-    "--token",
-    "--clear-token",
-    "--env",
-    "--arg",
-    "--asset-root",
-    "--provider",
-    "--until",
-    "--key",
-];
-
-/// `<family>:<verb>` (or `agent:integration:<verb>`) → the business flags
-/// that command admits. Commands not listed here admit none.
-const CONTROL_FLAGS: &[&str] = &["--cols", "--rows", "--timeout", "--takeover"];
-const OBSERVE_FLAGS: &[&str] = &["--cols", "--rows", "--timeout"];
-const COMMAND_FLAGS: &[(&str, &[&str])] = &[
-    ("workspace:status", &[]),
-    ("workspace:resume", &["--generation", "--confirm"]),
-    ("tab:status", &[]),
-    ("tab:resume", &["--generation", "--confirm"]),
-    ("panel:status", &[]),
-    ("panel:resume", &["--generation", "--confirm"]),
-    ("project:status", &[]),
-    (
-        "project:resume",
-        &["--generation", "--confirm", "--timeout", "--detach"],
-    ),
-    ("client:status", &[]),
-    ("server:status", &[]),
-    #[cfg(windows)]
-    (
-        "panel:graphics:set",
-        &["--spec", "--presentation", "--timeout"],
-    ),
-    #[cfg(windows)]
-    (
-        "panel:graphics:clear",
-        &["--spec", "--presentation", "--timeout"],
-    ),
-    #[cfg(windows)]
-    (
-        "panel:graphics:info",
-        &["--client", "--presentation", "--timeout"],
-    ),
-    #[cfg(windows)]
-    (
-        "panel:graphics:stream",
-        &["--spec", "--presentation", "--timeout"],
-    ),
-    #[cfg(windows)]
-    (
-        "events:subscribe",
-        &[
-            "--event",
-            "--filter",
-            "--after-cursor",
-            "--workspace",
-            "--tab",
-            "--panel",
-            "--client",
-            "--match",
-            "--regex",
-            "--source",
-            "--lines",
-            "--plain",
-            "--ansi",
-            "--until",
-            "--timeout",
-        ],
-    ),
-    #[cfg(windows)]
-    (
-        "events:wait",
-        &[
-            "--event",
-            "--filter",
-            "--after-cursor",
-            "--workspace",
-            "--tab",
-            "--panel",
-            "--client",
-            "--match",
-            "--regex",
-            "--source",
-            "--lines",
-            "--plain",
-            "--ansi",
-            "--until",
-            "--timeout",
-        ],
-    ),
-    #[cfg(windows)]
-    ("command:list", &[]),
-    #[cfg(windows)]
-    (
-        "command:invoke",
-        &[
-            "--workspace",
-            "--tab",
-            "--panel",
-            "--client",
-            "--context",
-            "--anchor",
-            "--cursor",
-            "--content-revision",
-            "--timeout",
-        ],
-    ),
-    #[cfg(windows)]
-    ("terminal:edit-scrollback", &["--client", "--timeout"]),
-    #[cfg(windows)]
-    (
-        "terminal:link-resolve",
-        &[
-            "--cursor",
-            "--offset-from-bottom",
-            "--content-revision",
-            "--generation",
-        ],
-    ),
-    #[cfg(windows)]
-    (
-        "terminal:link-activate",
-        &[
-            "--cursor",
-            "--offset-from-bottom",
-            "--content-revision",
-            "--generation",
-        ],
-    ),
-    #[cfg(windows)]
-    (
-        "terminal:copy-motion",
-        &["--cursor", "--motion", "--content-revision", "--generation"],
-    ),
-    #[cfg(windows)]
-    (
-        "terminal:copy-search",
-        &[
-            "--cursor",
-            "--query",
-            "--search-direction",
-            "--previous",
-            "--content-revision",
-            "--generation",
-        ],
-    ),
-    #[cfg(windows)]
-    ("agent:view:get", &[]),
-    #[cfg(windows)]
-    ("agent:view:set", &["--spec"]),
-    #[cfg(windows)]
-    ("agent:view:clear", &["--source"]),
-    #[cfg(windows)]
-    ("machine:list", &["--json"]),
-    #[cfg(windows)]
-    ("machine:add", &["--label", "--remote-session"]),
-    #[cfg(windows)]
-    ("machine:rename", &["--label"]),
-    #[cfg(windows)]
-    ("plugin:pane:focus", &["--client", "--timeout"]),
-    #[cfg(windows)]
-    ("plugin:pane:close", &["--timeout"]),
-    #[cfg(windows)]
-    ("popup:close", &["--client", "--timeout"]),
-    #[cfg(windows)]
-    ("plugin:install", &["--yes", "--ref", "--timeout"]),
-    #[cfg(windows)]
-    ("plugin:link", &["--enabled", "--disabled"]),
-    #[cfg(windows)]
-    ("plugin:list", &["--plugin"]),
-    #[cfg(windows)]
-    ("plugin:action:list", &["--plugin"]),
-    #[cfg(windows)]
-    (
-        "plugin:action:invoke",
-        &["--plugin", "--client", "--context"],
-    ),
-    #[cfg(windows)]
-    (
-        "plugin:pane:open",
-        &[
-            "--plugin",
-            "--entrypoint",
-            "--placement",
-            "--width",
-            "--height",
-            "--workspace",
-            "--target-pane",
-            "--direction",
-            "--cwd",
-            "--env",
-            "--client",
-            "--focus",
-            "--no-focus",
-            "--cols",
-            "--rows",
-            "--cell-width",
-            "--cell-height",
-            "--timeout",
-        ],
-    ),
-    #[cfg(windows)]
-    ("plugin:log:list", &["--plugin", "--limit"]),
-    ("notification:show", &["--body", "--position", "--sound"]),
-    #[cfg(windows)]
-    (
-        "layout:apply",
-        &[
-            "--file",
-            "--stdin",
-            "--tab",
-            "--confirm",
-            "--workspace",
-            "--label",
-            "--client",
-            "--focus",
-            "--no-focus",
-            "--timeout",
-        ],
-    ),
-    #[cfg(windows)]
-    (
-        "layout:export",
-        &["--tab", "--panel", "--current", "--client", "--timeout"],
-    ),
-    #[cfg(windows)]
-    ("session:attach", &["--mouse"]),
-    #[cfg(windows)]
-    ("session:delete", &["--confirm"]),
-    #[cfg(windows)]
-    (
-        "session:stop",
-        &[
-            "--confirm",
-            "--request-id",
-            "--retry",
-            "--detach",
-            "--timeout",
-        ],
-    ),
-    ("terminal:attach", &["--takeover", "--timeout", "--mouse"]),
-    (
-        "agent:attach",
-        &[
-            "--takeover",
-            "--timeout",
-            "--mouse",
-            "--name",
-            "--agent-session",
-            "--panel",
-            "--terminal",
-        ],
-    ),
-    ("terminal:session", CONTROL_FLAGS),
-    ("terminal:session:observe", OBSERVE_FLAGS),
-    ("terminal:session:control", CONTROL_FLAGS),
-    (
-        "panel:resize",
-        &[
-            "--current",
-            "--direction",
-            "--amount",
-            "--client",
-            "--request-id",
-            "--detach",
-            "--timeout",
-        ],
-    ),
-    (
-        "layout:set-split-ratio",
-        &[
-            "--tab",
-            "--panel",
-            "--current",
-            "--path",
-            "--ratio",
-            "--client",
-            "--request-id",
-            "--timeout",
-        ],
-    ),
-    ("panel:layout", &["--client", "--timeout", "--current"]),
-    (
-        "panel:neighbor",
-        &["--client", "--timeout", "--current", "--direction"],
-    ),
-    ("panel:edges", &["--client", "--timeout", "--current"]),
-    ("api:schema", &["--output"]),
-    ("client:list", &[]),
-    ("client:get", &[]),
-    ("client:control-status", &[]),
-    (
-        "workspace:focus",
-        &["--client", "--request-id", "--detach", "--timeout"],
-    ),
-    (
-        "tab:focus",
-        &["--client", "--request-id", "--detach", "--timeout"],
-    ),
-    (
-        "panel:focus",
-        &[
-            "--direction",
-            "--client",
-            "--request-id",
-            "--detach",
-            "--timeout",
-            "--current",
-        ],
-    ),
-    (
-        "panel:zoom",
-        &[
-            "--client",
-            "--request-id",
-            "--detach",
-            "--timeout",
-            "--current",
-            "--on",
-            "--off",
-            "--toggle",
-        ],
-    ),
-    ("server:reload-agent-manifests", &["--request-id"]),
-    ("server:update-agent-manifests", &["--request-id"]),
-    (
-        "server:stop",
-        &[
-            "--confirm",
-            "--request-id",
-            "--retry",
-            "--detach",
-            "--timeout",
-        ],
-    ),
-    (
-        "agent:start",
-        &["--provider", "--panel", "--current", "--timeout", "--arg"],
-    ),
-    (
-        "agent:list",
-        &["--include-ended", "--limit", "--cursor", "--client"],
-    ),
-    ("agent:changes", &["--limit", "--cursor"]),
-    (
-        "agent:get",
-        &[
-            "--agent-session",
-            "--name",
-            "--panel",
-            "--terminal",
-            "--client",
-        ],
-    ),
-    (
-        "agent:focus",
-        &[
-            "--agent-session",
-            "--name",
-            "--panel",
-            "--terminal",
-            "--client",
-            "--request-id",
-            "--detach",
-            "--timeout",
-        ],
-    ),
-    (
-        "agent:attention",
-        &[
-            "--agent-session",
-            "--name",
-            "--panel",
-            "--terminal",
-            "--client",
-            "--request-id",
-            "--detach",
-            "--timeout",
-        ],
-    ),
-    (
-        "agent:read",
-        &[
-            "--agent-session",
-            "--panel",
-            "--terminal",
-            "--name",
-            "--lines",
-            "--source",
-            "--plain",
-            "--ansi",
-        ],
-    ),
-    (
-        "agent:send-keys",
-        &["--agent-session", "--name", "--panel", "--terminal"],
-    ),
-    (
-        "agent:prompt",
-        &[
-            "--agent-session",
-            "--panel",
-            "--terminal",
-            "--name",
-            "--client",
-            "--wait",
-            "--until",
-            "--timeout",
-            "--forever",
-        ],
-    ),
-    (
-        "agent:explain",
-        &["--agent-session", "--name", "--panel", "--terminal"],
-    ),
-    (
-        "agent:resolve",
-        &["--agent-session", "--name", "--panel", "--terminal"],
-    ),
-    (
-        "agent:rename",
-        &[
-            "--agent-session",
-            "--name",
-            "--panel",
-            "--terminal",
-            "--clear",
-        ],
-    ),
-    ("agent:doctor", &["--provider", "--asset-root"]),
-    (
-        "agent:wait",
-        &[
-            "--agent-session",
-            "--client",
-            "--panel",
-            "--terminal",
-            "--name",
-            "--until",
-            "--after-revision",
-            "--forever",
-            "--timeout",
-        ],
-    ),
-    (
-        "agent:integration:list",
-        &["--provider", "--adapter-source", "--outdated-only"],
-    ),
-    (
-        "agent:integration:explain",
-        &["--provider", "--adapter-source"],
-    ),
-    (
-        "agent:integration:enable",
-        &["--provider", "--adapter-source"],
-    ),
-    (
-        "agent:integration:disable",
-        &["--provider", "--adapter-source"],
-    ),
-    ("project:create", &["--label"]),
-    (
-        "project:close-all",
-        &["--confirm", "--request-id", "--detach", "--timeout"],
-    ),
-    ("project:close-status", &["--request"]),
-    (
-        "project:close-resume",
-        &[
-            "--request",
-            "--generation",
-            "--confirm",
-            "--detach",
-            "--timeout",
-        ],
-    ),
-    ("workspace:set-project", &["--project"]),
-    ("workspace:create-project", &["--label"]),
-    ("project:rename", &["--label"]),
-    ("workspace:accept-directory", &["--path"]),
-    #[cfg(not(windows))]
-    ("workspace:list", &["--project"]),
-    #[cfg(windows)]
-    ("workspace:list", &["--project", "--client"]),
-    #[cfg(windows)]
-    ("workspace:get", &["--client"]),
-    (
-        "workspace:create",
-        &[
-            "--workspace",
-            "--client",
-            "--focus",
-            "--no-focus",
-            "--timeout",
-            "--project",
-            "--label",
-            "--cwd",
-            "--env",
-            "--exec",
-            "--arg",
-            "--profile",
-            "--cols",
-            "--rows",
-            "--cell-width",
-            "--cell-height",
-        ],
-    ),
-    ("workspace:rename", &["--label"]),
-    (
-        "workspace:report-metadata",
-        &["--source", "--token", "--clear-token", "--seq", "--ttl-ms"],
-    ),
-    ("workspace:move", &["--insert-index"]),
-    ("workspace:move-block", &["--before"]),
-    (
-        "workspace:close",
-        &["--confirm", "--dry-run", "--detach", "--timeout"],
-    ),
-    ("workspace:close-status", &["--workspace"]),
-    (
-        "workspace:close-resume",
-        &["--workspace", "--request", "--generation", "--confirm"],
-    ),
-    #[cfg(not(windows))]
-    ("tab:list", &["--workspace"]),
-    #[cfg(windows)]
-    ("tab:list", &["--workspace", "--client"]),
-    #[cfg(windows)]
-    ("tab:get", &["--client"]),
-    (
-        "tab:create",
-        &[
-            "--focus",
-            "--no-focus",
-            "--client",
-            "--timeout",
-            "--workspace",
-            "--label",
-            "--cols",
-            "--rows",
-            "--cell-width",
-            "--cell-height",
-            "--exec",
-            "--cwd",
-            "--env",
-            "--arg",
-            "--profile",
-        ],
-    ),
-    ("tab:rename", &["--label"]),
-    #[cfg(windows)]
-    (
-        "panel:create-terminal",
-        &[
-            "--current",
-            "--client",
-            "--child",
-            "--presentation",
-            "--label",
-            "--exec",
-            "--arg",
-            "--profile",
-            "--cwd",
-            "--env",
-            "--cols",
-            "--rows",
-            "--cell-width",
-            "--cell-height",
-            "--timeout",
-        ],
-    ),
-    ("panel:input", &["--current", "--right-click"]),
-    (
-        "panel:report-agent",
-        &[
-            "--presentation",
-            "--source",
-            "--agent",
-            "--state",
-            "--message",
-            "--seq",
-        ],
-    ),
-    (
-        "panel:clear-agent-authority",
-        &["--presentation", "--source", "--seq"],
-    ),
-    (
-        "panel:release-agent",
-        &["--presentation", "--source", "--agent", "--seq"],
-    ),
-    (
-        "panel:report-metadata",
-        &[
-            "--presentation",
-            "--source",
-            "--agent",
-            "--applies-to-source",
-            "--title",
-            "--display-agent",
-            "--state-label",
-            "--clear-title",
-            "--clear-display-agent",
-            "--clear-state-labels",
-            "--token",
-            "--clear-token",
-            "--seq",
-            "--ttl-ms",
-        ],
-    ),
-    ("panel:rename", &["--label", "--clear"]),
-    (
-        "panel:swap",
-        &[
-            "--with",
-            "--direction",
-            "--current",
-            "--client",
-            "--timeout",
-        ],
-    ),
-    ("tab:move", &["--order", "--insert-index"]),
-    (
-        "tab:close",
-        &["--confirm", "--dry-run", "--detach", "--timeout"],
-    ),
-    ("panel:current", &["--current", "--client"]),
-    ("panel:process-info", &["--current", "--client"]),
-    #[cfg(not(windows))]
-    ("panel:list", &["--tab", "--workspace"]),
-    #[cfg(windows)]
-    ("panel:list", &["--tab", "--workspace", "--client"]),
-    ("terminal:list", &["--workspace", "--tab", "--panel"]),
-    #[cfg(windows)]
-    ("panel:get", &["--client"]),
-    (
-        "panel:split",
-        &[
-            "--right-click",
-            "--current",
-            "--ratio",
-            "--focus",
-            "--no-focus",
-            "--client",
-            "--timeout",
-            "--direction",
-            "--label",
-            "--cols",
-            "--rows",
-            "--cell-width",
-            "--cell-height",
-            "--exec",
-            "--cwd",
-            "--env",
-            "--arg",
-            "--profile",
-        ],
-    ),
-    ("panel:close", &["--confirm"]),
-    (
-        "panel:move",
-        &[
-            "--target-panel",
-            "--into-tab",
-            "--new-tab",
-            "--new-workspace",
-            "--tab-label",
-            "--direction",
-            "--label",
-            "--workspace",
-            "--project",
-            "--ratio",
-            "--focus",
-            "--no-focus",
-            "--client",
-            "--timeout",
-        ],
-    ),
-    #[cfg(windows)]
-    (
-        "terminal:selection-read",
-        &["--anchor", "--cursor", "--content-revision", "--generation"],
-    ),
-    (
-        "terminal:read",
-        &["--panel", "--lines", "--source", "--plain", "--ansi"],
-    ),
-    (
-        "terminal:send",
-        &[
-            "--panel", "--text", "--enter", "--key", "--file", "--stdin", "--paste",
-        ],
-    ),
-    ("terminal:run", &["--panel", "--wait", "--timeout"]),
-    (
-        "terminal:wait-output",
-        &[
-            "--panel",
-            "--after",
-            "--match",
-            "--regex",
-            "--timeout",
-            "--source",
-            "--lines",
-            "--forever",
-        ],
-    ),
-    (
-        "worktree:list",
-        &[
-            "--directory",
-            "--workspace",
-            "--cwd",
-            "--client",
-            "--trust-repository",
-        ],
-    ),
-    (
-        "worktree:create",
-        &[
-            "--project",
-            "--workspace",
-            "--cwd",
-            "--client",
-            "--branch",
-            "--base",
-            "--path",
-            "--label",
-            "--cols",
-            "--rows",
-            "--cell-width",
-            "--cell-height",
-            "--trust-repository",
-            "--request-id",
-            "--detach",
-            "--focus",
-            "--no-focus",
-            "--timeout",
-        ],
-    ),
-    (
-        "worktree:open",
-        &[
-            "--project",
-            "--workspace",
-            "--cwd",
-            "--client",
-            "--branch",
-            "--path",
-            "--label",
-            "--cols",
-            "--rows",
-            "--cell-width",
-            "--cell-height",
-            "--trust-repository",
-            "--request-id",
-            "--detach",
-            "--focus",
-            "--no-focus",
-            "--timeout",
-        ],
-    ),
-    (
-        "worktree:remove",
-        &[
-            "--workspace",
-            "--force",
-            "--trust-repository",
-            "--confirm",
-            "--request-id",
-            "--detach",
-            "--timeout",
-        ],
-    ),
-    (
-        "worktree:resume",
-        &["--generation", "--confirm", "--detach", "--timeout"],
-    ),
-    ("launch-profile:create", &["--name", "--exec", "--arg"]),
-];
-
-/// `<family>:<verb>` → the words its `--direction` flag accepts. Only
-/// direction-admitting commands appear.
-const DIRECTION_VALUES: &[(&str, &[&str])] = &[
-    #[cfg(windows)]
-    ("plugin:pane:open", &["left", "right", "up", "down"]),
-    ("panel:focus", &["left", "right", "up", "down"]),
-    ("panel:resize", &["left", "right", "up", "down"]),
-    ("panel:swap", &["left", "right", "up", "down"]),
-    ("panel:neighbor", &["left", "right", "up", "down"]),
-    ("panel:split", &["left", "right", "up", "down"]),
-    ("panel:move", &["left", "right", "up", "down"]),
-];
-
-const ORDER_VALUES: &[&str] = &["previous", "next", "first", "last"];
-const SEARCH_DIRECTION_VALUES: &[&str] = &["forward", "backward"];
-
-const CWD_VALUES: &[&str] = &["follow", "home", "current", "workspace"];
-const OUTPUT_SOURCES: &[&str] = &["visible", "recent", "recent-unwrapped", "detection"];
-const RIGHT_CLICK_VALUES: &[&str] = &["orchbee", "panel"];
-
-/// Discoverable examples; arbitrary printable scalar keys are also accepted.
-const KEY_VALUES: &[&str] = &[
-    "enter",
-    "escape",
-    "tab",
-    "backspace",
-    "delete",
-    "up",
-    "down",
-    "left",
-    "right",
-    "home",
-    "end",
-    "page-up",
-    "page-down",
-    "ctrl+c",
-    "ctrl+d",
-    "space",
-    "insert",
-    "f1",
-    "f2",
-    "f3",
-    "f4",
-    "f5",
-    "f6",
-    "f7",
-    "f8",
-    "f9",
-    "f10",
-    "f11",
-    "f12",
-    "f13",
-    "f14",
-    "f15",
-    "f16",
-    "f17",
-    "f18",
-    "f19",
-    "f20",
-    "f21",
-    "f22",
-    "f23",
-    "f24",
-    "f25",
-    "plus",
-    "minus",
-    "semicolon",
-    "slash",
-    "ctrl+shift+a",
-    "super+c",
-    "alt+enter",
-];
-
-/// The fourteen `agent wait --until` condition names — the same
-/// vocabulary `invocation::AgentWaitCondition` parses.
-const UNTIL_VALUES: &[&str] = &[
-    "blocked",
-    "done",
-    "needs-attention",
-    "failed",
-    "succeeded",
-    "canceled",
-    "interrupted",
-    "working",
-    "idle",
-    "unknown",
-    "ended",
-    "fresh",
-    "stale",
-    "disconnected",
-];
-
-/// The canonical provider ids `agent doctor --provider` accepts — the same
-/// closed vocabulary `invocation` validates.
-const PROVIDER_VALUES: &[&str] = &[
-    "claude-code",
-    "codex",
-    "gemini",
-    "github-copilot",
-    "grok",
-    "cline",
-    "opencode",
-    "kilo",
-    "cursor",
-    "qodercli",
-    "antigravity",
-    "mastracode",
-    "droid",
-    "kimi",
-    "letta",
-    "devin",
-    "hermes",
-    "pi",
-    "omp",
-    "qwen-code",
-];
-
-const AGENT_TARGET_PATHS: &[&str] = &[
-    "agent:get",
-    "agent:focus",
-    "agent:read",
-    "agent:send-keys",
-    "agent:prompt",
-    "agent:wait",
-];
+static GLOBAL_FLAGS: LazyLock<Vec<&'static str>> = LazyLock::new(|| {
+    authority::OPTIONS
+        .iter()
+        .filter(|option| option.role == authority::OptionRole::Global)
+        .map(|option| option.spelling)
+        .collect()
+});
+const PREFIX_FLAGS: &[&str] = authority::PREFIX_FLAGS;
+const ROOT_MODE_FLAGS: &[authority::RootModeFlag] = authority::ROOT_MODES;
+static HELP_TOPICS: LazyLock<Vec<&'static str>> = LazyLock::new(|| {
+    let mut words = authority::FAMILIES
+        .iter()
+        .map(|family| family.words)
+        .chain(authority::COMMANDS.iter().map(|command| command.words))
+        .filter(|words| words.len() == 1)
+        .map(|words| words[0])
+        .collect::<Vec<_>>();
+    words.sort_unstable();
+    words.dedup();
+    words
+});
+static ROOT_WORDS: LazyLock<Vec<&'static str>> = LazyLock::new(|| {
+    let mut words = HELP_TOPICS.to_vec();
+    words.push("help");
+    words
+});
+static FORMAT_ROOT_WORDS: LazyLock<Vec<&'static str>> = LazyLock::new(|| {
+    let mut words = authority::COMMANDS
+        .iter()
+        .filter(|command| command.format)
+        .map(|command| command.words[0])
+        .collect::<Vec<_>>();
+    words.sort_unstable();
+    words.dedup();
+    words
+});
+static FAMILY_VERBS: LazyLock<Vec<(&'static str, &'static [&'static str])>> = LazyLock::new(|| {
+    HELP_TOPICS
+        .iter()
+        .copied()
+        .filter(|path| !authority::children(path).is_empty())
+        .map(|path| (path, authority::children(path)))
+        .collect()
+});
+static HELP_CHILDREN: LazyLock<Vec<(&'static str, &'static [&'static str])>> =
+    LazyLock::new(|| FAMILY_VERBS.to_vec());
+static HELP_LEVEL3: LazyLock<Vec<(&'static str, &'static [&'static str])>> = LazyLock::new(|| {
+    authority::FAMILIES
+        .iter()
+        .filter(|family| family.words.len() == 2)
+        .map(|family| (family.key, authority::children(family.key)))
+        .collect()
+});
+static BUSINESS_FLAGS: LazyLock<Vec<&'static str>> = LazyLock::new(|| {
+    authority::OPTIONS
+        .iter()
+        .filter(|option| {
+            option.role == authority::OptionRole::Business && option.spelling != "--mouse"
+        })
+        .map(|option| option.spelling)
+        .collect()
+});
+static REPEATABLE_FLAGS: LazyLock<Vec<&'static str>> = LazyLock::new(|| {
+    authority::OPTIONS
+        .iter()
+        .filter(|option| option.repeatable)
+        .map(|option| option.spelling)
+        .collect()
+});
+static COMMAND_FLAGS: LazyLock<Vec<(&'static str, &'static [&'static str])>> =
+    LazyLock::new(|| {
+        authority::COMMANDS
+            .iter()
+            .map(|command| (command.key, command.flags()))
+            .collect()
+    });
+static OPERAND_PATHS: LazyLock<Vec<&'static str>> = LazyLock::new(|| {
+    authority::COMMANDS
+        .iter()
+        .filter(|command| command.maximum_operands > 0)
+        .map(|command| command.key)
+        .collect()
+});
+static AGENT_TARGET_PATHS: LazyLock<Vec<&'static str>> = LazyLock::new(|| {
+    authority::COMMANDS
+        .iter()
+        .filter(|command| command.target == authority::TargetRule::Agent)
+        .map(|command| command.key)
+        .collect()
+});
+static DIRECTION_VALUES: LazyLock<Vec<(&'static str, &'static [&'static str])>> =
+    LazyLock::new(|| {
+        authority::COMMANDS
+            .iter()
+            .filter(|command| command.flags().contains(&"--direction"))
+            .map(|command| (command.key, authority::CARDINAL_DIRECTIONS))
+            .collect()
+    });
+static INTEGRATION_COMMAND_FLAGS: LazyLock<Vec<&'static str>> = LazyLock::new(|| {
+    let mut flags = authority::COMMANDS
+        .iter()
+        .filter(|command| command.words.starts_with(&["agent", "integration"]))
+        .flat_map(|command| command.flags().iter().copied())
+        .collect::<Vec<_>>();
+    flags.sort_unstable();
+    flags.dedup();
+    flags
+});
+static INTEGRATION_VERBS: LazyLock<&'static [&'static str]> =
+    LazyLock::new(|| authority::children("agent:integration"));
 
 fn agent_target_values() -> Vec<String> {
-    if cfg!(windows) {
-        AgentReportProvider::ALL
-            .into_iter()
-            .map(|provider| format!("@agent:{}", provider.native_provider_id()))
-            .collect()
-    } else {
-        Vec::new()
-    }
+    AgentReportProvider::ALL
+        .into_iter()
+        .map(|provider| format!("@agent:{}", provider.native_provider_id()))
+        .collect()
 }
-
-/// `<family>:<verb>` paths that consume one positional operand.
-const OPERAND_PATHS: &[&str] = &[
-    "workspace:status",
-    "workspace:resume",
-    "tab:status",
-    "tab:resume",
-    "panel:status",
-    "panel:resume",
-    "project:status",
-    "project:resume",
-    "client:status",
-    "server:status",
-    #[cfg(windows)]
-    "panel:graphics:set",
-    #[cfg(windows)]
-    "panel:graphics:clear",
-    #[cfg(windows)]
-    "panel:graphics:info",
-    #[cfg(windows)]
-    "panel:graphics:stream",
-    #[cfg(windows)]
-    "command:invoke",
-    #[cfg(windows)]
-    "terminal:link-resolve",
-    #[cfg(windows)]
-    "terminal:link-activate",
-    #[cfg(windows)]
-    "terminal:clear",
-    #[cfg(windows)]
-    "terminal:edit-scrollback",
-    #[cfg(windows)]
-    "terminal:copy-motion",
-    #[cfg(windows)]
-    "terminal:copy-search",
-    #[cfg(windows)]
-    "machine:add",
-    #[cfg(windows)]
-    "machine:rename",
-    #[cfg(windows)]
-    "machine:remove",
-    #[cfg(windows)]
-    "machine:enable",
-    #[cfg(windows)]
-    "machine:disable",
-    #[cfg(windows)]
-    "channel:set",
-    #[cfg(windows)]
-    "plugin:pane:focus",
-    #[cfg(windows)]
-    "plugin:pane:close",
-    #[cfg(windows)]
-    "plugin:install",
-    #[cfg(windows)]
-    "plugin:uninstall",
-    #[cfg(windows)]
-    "plugin:link",
-    #[cfg(windows)]
-    "plugin:unlink",
-    #[cfg(windows)]
-    "plugin:enable",
-    #[cfg(windows)]
-    "plugin:disable",
-    #[cfg(windows)]
-    "plugin:list",
-    #[cfg(windows)]
-    "plugin:config-dir",
-    #[cfg(windows)]
-    "plugin:action:list",
-    #[cfg(windows)]
-    "plugin:action:invoke",
-    #[cfg(windows)]
-    "plugin:log:list",
-    "terminal:title:set",
-    "notification:show",
-    #[cfg(windows)]
-    "panel:create-terminal",
-    "panel:report-metadata",
-    "panel:report-agent",
-    "panel:clear-agent-authority",
-    "panel:release-agent",
-    "terminal:attach",
-    "agent:attach",
-    "terminal:session:observe",
-    "terminal:session:control",
-    "panel:input",
-    "panel:resize",
-    "panel:swap",
-    "client:get",
-    "client:control-status",
-    "workspace:focus",
-    "tab:focus",
-    "panel:focus",
-    "panel:zoom",
-    "panel:layout",
-    "panel:neighbor",
-    "panel:edges",
-    "worktree:resume",
-    "worktree:status",
-    #[cfg(windows)]
-    "session:attach",
-    #[cfg(windows)]
-    "session:stop",
-    #[cfg(windows)]
-    "session:delete",
-    "server:stop-status",
-    "server:agent-manifests-status",
-    "agent:start",
-    "agent:explain",
-    "agent:get",
-    "agent:focus",
-    "agent:attention",
-    "agent:read",
-    "agent:send-keys",
-    "agent:prompt",
-    "agent:wait",
-    "agent:resolve",
-    "agent:rename",
-    "api:schema",
-    "launch-profile:delete",
-    "launch-profile:get",
-    "panel:close",
-    "panel:get",
-    "panel:process-info",
-    "panel:move",
-    "panel:split",
-    "project:close-all",
-    "project:dissolve",
-    "workspace:set-project",
-    "workspace:create-project",
-    "workspace:ungroup",
-    "project:get",
-    "project:rename",
-    "tab:close",
-    "tab:get",
-    "tab:move",
-    "tab:rename",
-    "panel:rename",
-    "terminal:get",
-    "terminal:read",
-    #[cfg(windows)]
-    "terminal:selection-read",
-    "terminal:send",
-    "terminal:run",
-    "terminal:wait-output",
-    "workspace:accept-directory",
-    "workspace:close",
-    "workspace:get",
-    "workspace:rename",
-    "workspace:report-metadata",
-    "workspace:move",
-    "workspace:move-block",
-    "panel:current",
-];
-
-/// Help topics that lead anywhere (`help <word>`); leaf topics accept no
-/// deeper word.
-const HELP_TOPICS: &[&str] = &[
-    #[cfg(windows)]
-    "events",
-    #[cfg(windows)]
-    "command",
-    #[cfg(windows)]
-    "plugin",
-    #[cfg(windows)]
-    "popup",
-    "notification",
-    "layout",
-    "client",
-    "agent",
-    "api",
-    "completion",
-    "config",
-    #[cfg(windows)]
-    "machine",
-    #[cfg(windows)]
-    "channel",
-    #[cfg(windows)]
-    "update",
-    "panel",
-    "project",
-    #[cfg(windows)]
-    "session",
-    "server",
-    "status",
-    "tab",
-    "terminal",
-    "tui",
-    "workspace",
-    "worktree",
-    "launch-profile",
-];
-
-/// `help <topic>` → the deeper words that complete a help path.
-const HELP_CHILDREN: &[(&str, &[&str])] = &[
-    #[cfg(windows)]
-    ("events", &["subscribe", "wait"]),
-    #[cfg(windows)]
-    ("command", &["list", "invoke"]),
-    #[cfg(windows)]
-    ("popup", &["close"]),
-    #[cfg(windows)]
-    (
-        "plugin",
-        &[
-            "install",
-            "uninstall",
-            "link",
-            "unlink",
-            "enable",
-            "disable",
-            "list",
-            "config-dir",
-            "action",
-            "pane",
-            "log",
-        ],
-    ),
-    ("notification", &["show"]),
-    (
-        "agent",
-        &[
-            "attach",
-            "attention",
-            #[cfg(windows)]
-            "view",
-            "changes",
-            "doctor",
-            "explain",
-            "focus",
-            "get",
-            "integration",
-            "list",
-            "names",
-            "prompt",
-            "read",
-            "rename",
-            "resolve",
-            "send-keys",
-            "start",
-            "wait",
-        ],
-    ),
-    ("api", &["schema", "snapshot"]),
-    ("client", &["status", "control-status", "get", "list"]),
-    #[cfg(windows)]
-    ("layout", &["apply", "export", "set-split-ratio"]),
-    #[cfg(not(windows))]
-    ("layout", &["set-split-ratio"]),
-    ("launch-profile", &["create", "delete", "get", "list"]),
-    ("config", &["check", "reset-keys"]),
-    #[cfg(windows)]
-    ("channel", &["show", "set"]),
-    #[cfg(windows)]
-    (
-        "machine",
-        &["list", "add", "rename", "remove", "enable", "disable"],
-    ),
-    (
-        "panel",
-        &[
-            #[cfg(windows)]
-            "graphics",
-            #[cfg(windows)]
-            "create-terminal",
-            "report-agent",
-            "clear-agent-authority",
-            "release-agent",
-            "close",
-            "current",
-            "get",
-            "list",
-            "move",
-            "report-metadata",
-            "process-info",
-            "split",
-            "focus",
-            "zoom",
-            "layout",
-            "neighbor",
-            "edges",
-            "resize",
-            "rename",
-            "swap",
-            "input",
-        ],
-    ),
-    (
-        "project",
-        &[
-            "create",
-            "get",
-            "list",
-            "rename",
-            "dissolve",
-            "close-all",
-            "close-status",
-            "close-resume",
-        ],
-    ),
-    #[cfg(windows)]
-    ("session", &["list", "attach", "stop", "delete"]),
-    (
-        "server",
-        &[
-            "diagnose",
-            "start",
-            "stop",
-            "stop-status",
-            "agent-manifests",
-            "config",
-            "reload-config",
-            "reload-agent-manifests",
-            "update-agent-manifests",
-            "agent-manifests-status",
-        ],
-    ),
-    ("status", &["client", "server"]),
-    (
-        "tab",
-        &["close", "create", "focus", "get", "list", "move", "rename"],
-    ),
-    (
-        "terminal",
-        &[
-            "title",
-            "attach",
-            "get",
-            "list",
-            "read",
-            #[cfg(windows)]
-            "selection-read",
-            #[cfg(windows)]
-            "copy-motion",
-            #[cfg(windows)]
-            "copy-search",
-            #[cfg(windows)]
-            "link-resolve",
-            #[cfg(windows)]
-            "link-activate",
-            #[cfg(windows)]
-            "clear",
-            #[cfg(windows)]
-            "edit-scrollback",
-            "run",
-            "send",
-            "session",
-            "wait-output",
-        ],
-    ),
-    (
-        "workspace",
-        &[
-            "set-project",
-            "create-project",
-            "ungroup",
-            "accept-directory",
-            "move",
-            "move-block",
-            "close",
-            "close-resume",
-            "close-status",
-            "create",
-            "focus",
-            "get",
-            "list",
-            "rename",
-        ],
-    ),
-    (
-        "worktree",
-        &["create", "list", "open", "remove", "resume", "status"],
-    ),
-];
-
-/// `help <topic> <child>` → third-level words. Nested command families
-/// reach a third help level.
-const HELP_LEVEL3: &[(&str, &[&str])] = &[
-    #[cfg(windows)]
-    ("panel:graphics", &["set", "clear", "info", "stream"]),
-    #[cfg(windows)]
-    ("agent:view", &["get", "set", "clear"]),
-    #[cfg(windows)]
-    ("plugin:action", &["list", "invoke"]),
-    #[cfg(windows)]
-    ("plugin:pane", &["open", "focus", "close"]),
-    #[cfg(windows)]
-    ("plugin:log", &["list"]),
-    ("agent:integration", INTEGRATION_VERBS),
-    ("terminal:title", &["set", "clear"]),
-    ("terminal:session", &["observe", "control"]),
-];
-
-const SHELLS: &[&str] = &["bash", "elvish", "fish", "powershell", "zsh"];
-const FORMAT_VALUES: &[&str] = &["text", "json"];
 
 fn root_mode_flags(separator: &str) -> String {
     ROOT_MODE_FLAGS
@@ -1864,183 +215,17 @@ pub(crate) fn render(shell: CompletionShell) -> String {
         )
 }
 
-/// `flag` → the walker's one-shot seen bit for it.
-const COPY_MOTION_VALUES: &[&str] = &[
-    "line-end",
-    "first-non-blank",
-    "next-word-start",
-    "previous-word-start",
-    "next-word-end",
-    "next-big-word-start",
-    "previous-big-word-start",
-    "next-big-word-end",
-    "previous-paragraph",
-    "next-paragraph",
-];
-
 fn flag_bit(flag: &str) -> &'static str {
-    match flag {
-        "--dry-run" => "seen_dry_run",
-        "--remote-session" => "seen_remote_session",
-        "--json" => "seen_json",
-        "--format" => "seen_format",
-        "--entrypoint" => "seen_plugin_entrypoint",
-        "--placement" => "seen_plugin_placement",
-        "--width" => "seen_popup_width",
-        "--height" => "seen_popup_height",
-        "--target-pane" => "seen_plugin_target",
-        "--plugin" => "seen_plugin_id",
-        "--context" => "seen_plugin_context",
-        #[cfg(windows)]
-        "--event" => "seen_event",
-        #[cfg(windows)]
-        "--filter" => "seen_event_filter",
-        #[cfg(windows)]
-        "--after-cursor" => "seen_event_cursor",
-        "--yes" => "seen_plugin_yes",
-        "--ref" => "seen_plugin_ref",
-        "--enabled" => "seen_plugin_enabled",
-        "--disabled" => "seen_plugin_disabled",
-        "--child" => "seen_child",
-        "--mouse" => "seen_mouse",
-        "--output" => "seen_output",
-        "--client" => "seen_client",
-        "--on" => "seen_zoom_on",
-        "--off" => "seen_zoom_off",
-        "--toggle" => "seen_zoom_toggle",
-        "--branch" => "seen_branch",
-        "--base" => "seen_base",
-        "--focus" => "seen_focus",
-        "--no-focus" => "seen_no_focus",
-        "--force" => "seen_force",
-        "--takeover" => "seen_takeover",
-        "--trust-repository" => "seen_trust_repository",
-        "--project" => "seen_project",
-        "--panel" => "seen_panel",
-        "--current" => "seen_current",
-        "--workspace" => "seen_workspace",
-        "--tab" => "seen_tab",
-
-        "--label" => "seen_label",
-        "--body" => "seen_notification_body",
-        "--position" => "seen_notification_position",
-        "--sound" => "seen_notification_sound",
-        "--right-click" => "seen_right_click",
-        "--spec" => "seen_agent_view_spec",
-        "--source" => "seen_output_source",
-        "--state" => "seen_panel_agent_state",
-        "--message" => "seen_panel_agent_message",
-        "--agent" => "seen_panel_metadata_agent",
-        "--applies-to-source" => "seen_panel_metadata_applies_to_source",
-        "--title" => "seen_panel_metadata_title",
-        "--display-agent" => "seen_panel_metadata_display_agent",
-        "--presentation" => "seen_report_presentation",
-        "--state-label" => "seen_panel_metadata_state_label",
-        "--clear-title" => "seen_panel_metadata_clear_title",
-        "--clear-display-agent" => "seen_panel_metadata_clear_display_agent",
-        "--clear-state-labels" => "seen_panel_metadata_clear_state_labels",
-        "--token" => "seen_metadata_token",
-        "--clear-token" => "seen_metadata_clear_token",
-        "--seq" => "seen_metadata_sequence",
-        "--ttl-ms" => "seen_metadata_ttl",
-        "--plain" => "seen_plain",
-        "--ansi" => "seen_ansi",
-        "--direction" => "seen_direction",
-        "--order" => "seen_order",
-        "--search-direction" => "seen_search_direction",
-        "--terminal" => "seen_terminal",
-        "--insert-index" => "seen_insert_index",
-        "--before" => "seen_before",
-        "--amount" => "seen_amount",
-        "--ratio" => "seen_ratio",
-        "--cols" => "seen_cols",
-        "--rows" => "seen_rows",
-        "--cell-width" => "seen_cell_width",
-        "--cell-height" => "seen_cell_height",
-        "--confirm" => "seen_confirm",
-        "--with" => "seen_with",
-        "--target-panel" => "seen_target_panel",
-        "--into-tab" => "seen_into_tab",
-        "--new-tab" => "seen_new_tab",
-        "--new-workspace" => "seen_new_workspace",
-        "--tab-label" => "seen_tab_label",
-        "--path" => "seen_path",
-        "--match" => "seen_match",
-        "--regex" => "seen_regex",
-        "--lines" => "seen_lines",
-        "--timeout" => "seen_timeout",
-        "--text" => "seen_text",
-        "--enter" => "seen_enter",
-        "--key" => "seen_key",
-        "--file" => "seen_file",
-        "--stdin" => "seen_stdin",
-        "--paste" => "seen_paste",
-        "--directory" => "seen_directory",
-        "--exec" => "seen_exec",
-        "--cwd" => "seen_cwd",
-        "--env" => "seen_env",
-        "--arg" => "seen_arg",
-        "--outdated-only" => "seen_outdated_only",
-        "--include-ended" => "seen_include_ended",
-        "--limit" => "seen_limit",
-        "--motion" => "seen_copy_motion",
-        "--query" => "seen_copy_query",
-        "--previous" => "seen_copy_previous",
-        "--offset-from-bottom" => "seen_link_offset",
-        "--anchor" => "seen_selection_anchor",
-        "--content-revision" => "seen_content_revision",
-        "--cursor" => "seen_cursor",
-        "--until" => "seen_until",
-        "--after-revision" => "seen_after_revision",
-        "--after" => "seen_output_after",
-        "--provider" => "seen_provider",
-        "--asset-root" => "seen_asset_root",
-        "--profile" => "seen_profile",
-        "--name" => "seen_name",
-        "--agent-session" => "seen_session",
-        "--clear" => "seen_clear",
-        "--wait" => "seen_prompt_wait",
-        "--forever" => "seen_forever",
-        "--adapter-source" => "seen_adapter_source",
-        "--request" => "seen_request",
-        "--request-id" => "seen_request_id",
-        "--retry" => "seen_retry",
-        "--detach" => "seen_detach",
-        "--generation" => "seen_generation",
-        other => unreachable!("flag {other} lacks a seen bit"),
+    if flag == "--format" {
+        return "seen_format";
     }
+    authority::option(flag)
+        .expect("every projected flag has a descriptor")
+        .seen_bit
 }
 
-/// `flag` → the value kind it leaves pending: `direction` candidates are
-/// per-command, `provider`/`key` have closed vocabularies; every other
-/// owned value stays opaque (`filter`).
 fn flag_value(flag: &str) -> Option<&'static str> {
-    match flag {
-        "--json" | "--enabled" | "--disabled" | "--dry-run" | "--yes" | "--child" => None,
-        "--on" | "--off" | "--toggle" | "--focus" | "--no-focus" => None,
-        "--cwd" => Some("cwd"),
-        "--right-click" => Some("right_click"),
-        "--spec" => Some("agent_view_spec"),
-        "--source" => Some("output_source"),
-        "--token" | "--clear-token" | "--seq" | "--ttl-ms" => Some("filter"),
-        "--clear-title"
-        | "--clear-display-agent"
-        | "--clear-state-labels"
-        | "--plain"
-        | "--ansi" => None,
-        "--direction" => Some("direction"),
-        "--order" => Some("order"),
-        "--search-direction" => Some("search_direction"),
-        "--motion" => Some("copy_motion"),
-        "--key" => Some("key"),
-        "--until" => Some("until"),
-        "--provider" => Some("provider"),
-        "--confirm" | "--new-tab" | "--new-workspace" | "--enter" | "--stdin"
-        | "--outdated-only" | "--include-ended" | "--paste" | "--current" | "--clear"
-        | "--wait" | "--forever" | "--retry" | "--detach" | "--force" | "--takeover"
-        | "--trust-repository" => None,
-        _ => Some("filter"),
-    }
+    authority::option(flag).and_then(|option| option.value)
 }
 
 /// `<family>:<verb>` → the business flags it admits (`--format` excluded).
@@ -2062,8 +247,7 @@ pub(super) fn help_flags(path: crate::invocation::CommandPath) -> Vec<&'static s
     } else {
         command_flags(&path.as_str().replace(' ', ":")).to_vec()
     };
-    #[cfg(windows)]
-    flags.extend(GLOBAL_FLAGS);
+    flags.extend(GLOBAL_FLAGS.iter().copied());
     let accepts_format =
         grammar::accepts_format(&path.as_str().split_whitespace().collect::<Vec<_>>());
     if accepts_format {
@@ -2771,7 +955,7 @@ fn direction_cases_bash() -> String {
 
 /// Root information actions are available only before scoped options.
 fn no_options_bash() -> &'static str {
-    if cfg!(windows) {
+    if true {
         "!seen_machine && !seen_local_session && !seen_format && !seen_mouse && !${#seen_flags[@]}"
     } else {
         "!seen_format && !seen_mouse && !${#seen_flags[@]}"
@@ -3125,11 +1309,11 @@ fn bash() -> String {
             .map(|(family, _)| *family)
             .collect::<Vec<_>>()
             .join("|"),
-        paths = path_patterns(FAMILY_VERBS),
+        paths = path_patterns(&FAMILY_VERBS),
         operand_paths = OPERAND_PATHS.join("|"),
         topics = HELP_TOPICS.join("|"),
         topic_words = HELP_TOPICS.join(" "),
-        help_paths = path_patterns(HELP_CHILDREN),
+        help_paths = path_patterns(&HELP_CHILDREN),
         format_values = FORMAT_VALUES.join(" "),
         cwd_values = CWD_VALUES.join(" "),
         right_click_values = RIGHT_CLICK_VALUES.join(" "),
@@ -3153,7 +1337,7 @@ fn bash() -> String {
         deep_flag_patterns = deep_flag_patterns(),
         deep_verb_patterns = deep_verb_patterns(),
         deep_landing = deep_landing_bash(),
-        update_landing = if cfg!(windows) {
+        update_landing = if true {
             "                            update) if ((${#seen_flags[@]} || seen_mouse)); then done=1; else leaf=update; state=leaf; fi ;;\n"
         } else {
             ""
@@ -3513,11 +1697,11 @@ fn zsh() -> String {
             .map(|(family, _)| *family)
             .collect::<Vec<_>>()
             .join("|"),
-        paths = path_patterns(FAMILY_VERBS),
+        paths = path_patterns(&FAMILY_VERBS),
         operand_paths = OPERAND_PATHS.join("|"),
         topics = HELP_TOPICS.join("|"),
         topic_words = HELP_TOPICS.join(" "),
-        help_paths = path_patterns(HELP_CHILDREN),
+        help_paths = path_patterns(&HELP_CHILDREN),
         format_values = FORMAT_VALUES.join(" "),
         cwd_values = CWD_VALUES.join(" "),
         right_click_values = RIGHT_CLICK_VALUES.join(" "),
@@ -3541,7 +1725,7 @@ fn zsh() -> String {
         deep_flag_patterns = deep_flag_patterns(),
         deep_verb_patterns = deep_verb_patterns(),
         deep_landing = deep_landing_bash(),
-        update_landing = if cfg!(windows) {
+        update_landing = if true {
             "                            update) if ((${#seen_flags[@]} || seen_mouse)); then done=1; else leaf=update; state=leaf; fi ;;\n"
         } else {
             ""
@@ -4010,7 +2194,7 @@ fn joined_offer_cases_fish() -> String {
 
 /// Root information actions require an untouched scoped option set.
 fn no_options_fish() -> &'static str {
-    if cfg!(windows) {
+    if true {
         "$seen_machine -eq 0 -a $seen_local_session -eq 0 -a (count $seen_flags) -eq 0 -a $seen_format -eq 0 -a $seen_mouse -eq 0"
     } else {
         "(count $seen_flags) -eq 0 -a $seen_format -eq 0 -a $seen_mouse -eq 0"
@@ -4357,10 +2541,10 @@ fn fish() -> String {
             .map(|(family, _)| *family)
             .collect::<Vec<_>>()
             .join(" "),
-        paths = path_patterns(FAMILY_VERBS).replace('|', " "),
+        paths = path_patterns(&FAMILY_VERBS).replace('|', " "),
         operand_paths = OPERAND_PATHS.join(" "),
         topics = HELP_TOPICS.join(" "),
-        help_paths = path_patterns(HELP_CHILDREN).replace('|', " "),
+        help_paths = path_patterns(&HELP_CHILDREN).replace('|', " "),
         format_values = FORMAT_VALUES.join(" "),
         cwd_values = CWD_VALUES.join(" "),
         right_click_values = RIGHT_CLICK_VALUES.join(" "),
@@ -4388,7 +2572,7 @@ fn fish() -> String {
         deep_flag_cases = deep_flag_cases_fish(),
         deep_verb_cases = deep_verb_cases_fish(),
         deep_landing = deep_landing_fish(),
-        update_landing = if cfg!(windows) {
+        update_landing = if true {
             "                            case update; if test (count $seen_flags) -gt 0 -o $seen_mouse -eq 1; set done 1; else; set leaf update; set state leaf; end\n"
         } else {
             ""
@@ -4449,113 +2633,7 @@ fn command_conflict_pairs(
 }
 
 fn command_flag_conflicts(command: &str, flag: &str) -> &'static [&'static str] {
-    if command.starts_with("agent:") && command_flags(command).contains(&"--terminal") {
-        match flag {
-            "--terminal" => return &["--panel", "--name", "--agent-session"],
-            "--panel" => return &["--terminal", "--name", "--agent-session"],
-            "--name" => return &["--terminal", "--panel", "--agent-session"],
-            "--agent-session" => return &["--terminal", "--panel", "--name"],
-            _ => {}
-        }
-    }
-    match (command, flag) {
-        ("machine:list", "--json") => &["--format"],
-        ("machine:list", "--format") => &["--json"],
-        ("plugin:link", "--enabled") => &["--disabled"],
-        ("plugin:link", "--disabled") => &["--enabled"],
-        ("panel:create-terminal", "--child") => &["--presentation"],
-        ("panel:create-terminal", "--presentation") => &["--child", "--label"],
-        ("panel:create-terminal", "--label") => &["--presentation"],
-        ("panel:create-terminal", "--profile") => &["--exec", "--arg"],
-        ("panel:create-terminal", "--exec" | "--arg") => &["--profile"],
-        ("panel:report-metadata", "--title") => &["--clear-title"],
-        ("panel:report-metadata", "--clear-title") => &["--title"],
-        ("panel:report-metadata", "--display-agent") => &["--clear-display-agent"],
-        ("panel:report-metadata", "--clear-display-agent") => &["--display-agent"],
-        ("panel:report-metadata", "--state-label") => &["--clear-state-labels"],
-        ("panel:report-metadata", "--clear-state-labels") => &["--state-label"],
-
-        ("layout:apply", "--file") => &["--stdin"],
-        ("layout:apply", "--stdin") => &["--file"],
-        ("layout:apply", "--tab") => &["--workspace"],
-        ("layout:apply", "--workspace") => &["--tab", "--confirm"],
-        ("layout:apply", "--confirm") => &["--workspace"],
-        ("layout:apply", "--focus") => &["--no-focus"],
-        ("layout:apply", "--no-focus") => &["--focus"],
-        ("layout:export", "--tab") => &["--panel", "--current"],
-        ("layout:export", "--panel") => &["--tab", "--current"],
-        ("layout:export", "--current") => &["--tab", "--panel"],
-        ("panel:move", "--into-tab") => &[
-            "--new-tab",
-            "--new-workspace",
-            "--workspace",
-            "--project",
-            "--label",
-            "--tab-label",
-        ],
-        ("panel:move", "--new-tab") => &[
-            "--into-tab",
-            "--new-workspace",
-            "--target-panel",
-            "--direction",
-            "--ratio",
-            "--project",
-            "--tab-label",
-        ],
-        ("panel:move", "--new-workspace") => &[
-            "--into-tab",
-            "--new-tab",
-            "--target-panel",
-            "--direction",
-            "--ratio",
-            "--workspace",
-        ],
-        ("panel:move", "--target-panel" | "--direction" | "--ratio") => {
-            &["--new-tab", "--new-workspace"]
-        }
-        ("panel:move", "--label") => &["--into-tab"],
-        ("panel:move", "--workspace") => {
-            &["--into-tab", "--new-workspace", "--project", "--tab-label"]
-        }
-        ("panel:move", "--project" | "--tab-label") => &["--into-tab", "--new-tab", "--workspace"],
-        ("panel:move", "--focus") => &["--no-focus"],
-        ("panel:move", "--no-focus") => &["--focus"],
-        ("agent:attach", "--name") => &["--agent-session", "--panel"],
-        ("agent:attach", "--agent-session") => &["--name", "--panel"],
-        ("agent:attach", "--panel") => &["--name", "--agent-session"],
-        ("worktree:create" | "worktree:open", "--focus") => &["--no-focus", "--detach"],
-        ("worktree:create" | "worktree:open", "--no-focus" | "--detach") => &["--focus"],
-        ("worktree:create" | "worktree:open", "--project") => &["--workspace"],
-        ("worktree:create" | "worktree:open", "--workspace") => &["--project", "--cwd"],
-        ("worktree:list", "--client") => &["--directory"],
-        ("worktree:list", "--project" | "--directory") => &["--client"],
-        ("panel:current" | "panel:process-info", "--panel") => &["--current", "--client"],
-        ("panel:current" | "panel:process-info", "--client" | "--current") => &["--panel"],
-        ("terminal:wait-output", "--forever") => &["--timeout"],
-        ("terminal:wait-output", "--timeout") => &["--forever"],
-        ("terminal:read" | "agent:read", "--plain") => &["--ansi"],
-        ("terminal:read" | "agent:read", "--ansi") => &["--plain"],
-        ("tab:create" | "panel:split" | "workspace:create", "--focus") => &["--no-focus"],
-        ("tab:create" | "panel:split" | "workspace:create", "--no-focus") => &["--focus"],
-        ("tab:create" | "panel:split", "--profile") => &["--exec", "--arg"],
-        ("tab:create" | "panel:split", "--exec" | "--arg") => &["--profile"],
-        ("panel:input" | "panel:split", "--panel") => &["--current"],
-        ("panel:input" | "panel:split", "--current") => &["--panel"],
-        ("tab:move", "--order") => &["--insert-index"],
-        ("tab:move", "--insert-index") => &["--order"],
-        ("panel:swap", "--with") => &["--direction"],
-        ("panel:swap", "--direction") => &["--with"],
-        ("panel:rename", "--label") => &["--clear"],
-        ("panel:rename", "--clear") => &["--label"],
-        ("layout:set-split-ratio", "--tab") => &["--panel", "--current"],
-        ("layout:set-split-ratio", "--panel") => &["--tab", "--current"],
-        ("layout:set-split-ratio", "--current") => &["--tab", "--panel"],
-        ("panel:zoom", "--on") => &["--off", "--toggle"],
-        ("panel:zoom", "--off") => &["--on", "--toggle"],
-        ("panel:zoom", "--toggle") => &["--on", "--off"],
-
-        _ => &[],
-    }
+    authority::command(command).map_or(&[], |command| command.conflicts(flag))
 }
 
 #[cfg(test)]

@@ -1,6 +1,7 @@
 use super::Locale;
 use serde_json::Value;
 impl Locale {
+    #[cfg(windows)]
     pub(crate) fn cli_panel_relocation(self, document: &Value) -> String {
         let outcome = match (self, document["outcome"].as_str()) {
             (Self::EnUs, Some("completed")) => "Panel moved",

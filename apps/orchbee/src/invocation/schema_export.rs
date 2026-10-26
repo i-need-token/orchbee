@@ -1,8 +1,8 @@
 //! Offline schema export grammar: validate the destination without filesystem effects.
 use super::OutputFormat;
 use super::{
-    ExpectedValue, FailureEnvelope, NO_OPTIONS, Options, ParseFailure, QueryCommand, Request,
-    Resource, Scope, UsageContext, UsageReason, check_scope, identifier, query, usage_with,
+    ExpectedValue, FailureEnvelope, Options, ParseFailure, QueryCommand, Request, Resource,
+    UsageContext, UsageReason, check_scope, identifier, query, usage_with,
 };
 
 pub(super) fn request(
@@ -11,15 +11,7 @@ pub(super) fn request(
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
     let context = UsageContext::Path("api schema");
-    check_scope(
-        options,
-        Scope {
-            output: true,
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     if schema_id.is_some_and(str::is_empty) {
         return Err(identifier(Resource::Schema, String::new(), envelope));
     }
@@ -60,7 +52,6 @@ fn valid_path(value: &str) -> bool {
     {
         return false;
     }
-    #[cfg(windows)]
     {
         use std::path::{Component, Prefix};
         if let Some(Component::Prefix(prefix)) = path.components().next() {

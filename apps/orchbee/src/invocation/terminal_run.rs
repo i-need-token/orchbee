@@ -1,6 +1,6 @@
 //! Opaque command submission through the existing ordered paste/Enter path.
 use super::{
-    ExpectedValue, FailureEnvelope, MAXIMUM_SEND_PASTE_BYTES, MutationCommand, NO_OPTIONS, Options,
+    ExpectedValue, FailureEnvelope, MAXIMUM_SEND_PASTE_BYTES, MutationCommand, Options,
     ParseFailure, Request, TerminalSendInput, UsageContext, UsageReason, check_scope,
     missing_required, mutation, unexpected_argument, usage_with,
 };
@@ -11,17 +11,7 @@ pub(super) fn request(
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
     let context = UsageContext::Path("terminal run");
-    check_scope(
-        options,
-        super::Scope {
-            prompt_wait: true,
-            panel: true,
-            timeout: true,
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     if options.timeout.is_some() && !options.prompt_wait {
         return Err(missing_required(context, "--wait", envelope));
     }

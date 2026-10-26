@@ -1,7 +1,6 @@
 use super::{
-    ExpectedValue, FailureEnvelope, NO_OPTIONS, Options, OutputFormat, ParseFailure, Request,
-    Scope, UsageContext, UsageReason, check_scope, missing_command, missing_required,
-    unexpected_argument, usage_with,
+    ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, Request, UsageContext,
+    UsageReason, check_scope, missing_command, missing_required, unexpected_argument, usage_with,
 };
 use crate::machines::{Draft, ProfileId, valid_label, valid_target};
 use orchbee_local_runtime::SessionName;
@@ -52,17 +51,7 @@ pub(super) fn parse(
         }
     };
     let context = UsageContext::Path(path);
-    check_scope(
-        options,
-        Scope {
-            label: matches!(verb, "add" | "rename"),
-            remote_session: verb == "add",
-            machine_json: verb == "list",
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     let invalid = |option, value: &str, expected| {
         usage_with(
             UsageReason::InvalidValue {

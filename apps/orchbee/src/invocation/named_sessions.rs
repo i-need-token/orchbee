@@ -1,8 +1,7 @@
 use super::{
-    ExpectedValue, FailureEnvelope, NO_OPTIONS, Options, OutputFormat, ParseFailure, Request,
-    Scope, ServerStopCommand, TUI_SCOPE, UsageContext, UsageReason, check_scope, missing_command,
-    missing_required, reject_extras_scope, reject_filters, stop_command, unexpected_argument,
-    usage_with,
+    ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, Request, SiteStopCommand,
+    UsageContext, UsageReason, check_scope, missing_command, missing_required, reject_extras_scope,
+    reject_filters, stop_command, unexpected_argument, usage_with,
 };
 use orchbee_local_runtime::SessionName;
 
@@ -69,7 +68,7 @@ pub(super) fn parse(
             })?;
             match *verb {
                 "attach" => {
-                    reject_extras_scope(options, TUI_SCOPE, context, envelope)?;
+                    reject_extras_scope(options, context, envelope)?;
                     NamedSessionCommand::Attach {
                         name,
                         mouse: options.mouse.unwrap_or(true),
@@ -80,15 +79,7 @@ pub(super) fn parse(
                     command: stop_command(options, context, envelope)?,
                 },
                 _ => {
-                    check_scope(
-                        options,
-                        Scope {
-                            confirm: true,
-                            ..NO_OPTIONS
-                        },
-                        context,
-                        envelope,
-                    )?;
+                    check_scope(options, context, envelope)?;
                     if !options.confirm {
                         return Err(missing_required(context, "'--confirm'", envelope));
                     }

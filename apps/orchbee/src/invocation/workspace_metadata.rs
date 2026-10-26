@@ -1,7 +1,7 @@
 //! Normalize the whole report before opening any runtime connection.
 use super::{
-    ExpectedValue, FailureEnvelope, NO_OPTIONS, OutputFormat, ParseFailure, Request, Resource,
-    Scope, Target, UsageContext, UsageReason, check_scope, missing_required, target, usage_with,
+    ExpectedValue, FailureEnvelope, OutputFormat, ParseFailure, Request, Resource, Target,
+    UsageContext, UsageReason, check_scope, missing_required, target, usage_with,
 };
 use orchbee_workbench_protocol::{
     MAXIMUM_METADATA_TTL_MILLISECONDS, MetadataSource, MetadataTokenKey, MetadataTokenPatch,
@@ -48,16 +48,7 @@ pub(super) fn parse(
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
     let context = UsageContext::Path("workspace report-metadata");
-    check_scope(
-        options,
-        Scope {
-            metadata: true,
-            output_source: true,
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     let report = fields(options, context, envelope, true)?;
     let ReportFields {
         source,

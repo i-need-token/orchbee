@@ -1,8 +1,8 @@
 //! Client discovery and exact, acknowledged navigation grammar.
 use super::{
-    ExpectedValue, FailureEnvelope, NO_OPTIONS, Options, OutputFormat, ParseFailure, Request,
-    Resource, Scope, Target, UsageContext, UsageReason, check_scope, missing_required, target,
-    usage_with, wait_timeout_option,
+    ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, Request, Resource, Target,
+    UsageContext, UsageReason, check_scope, missing_required, target, usage_with,
+    wait_timeout_option,
 };
 use orchbee_workbench_protocol::{
     ClientPanelDirection, ClientResizeAmount, ClientSplitPath, ClientSplitRatio, WorkbenchClientId,
@@ -111,22 +111,7 @@ pub(super) fn parse(
             } else {
                 "agent attention"
             });
-            check_scope(
-                options,
-                Scope {
-                    session: true,
-                    name: true,
-                    panel: true,
-                    terminal: true,
-                    client: true,
-                    request_id: true,
-                    detach: true,
-                    timeout: true,
-                    ..NO_OPTIONS
-                },
-                context,
-                envelope,
-            )?;
+            check_scope(options, context, envelope)?;
             navigation(
                 if *verb == "focus" {
                     ClientNavigationTarget::Agent(super::agent_selector(
@@ -202,17 +187,12 @@ pub(super) fn parse(
         }
 
         ["client", "list"] => {
-            check_scope(
-                options,
-                NO_OPTIONS,
-                UsageContext::Path("client list"),
-                envelope,
-            )?;
+            check_scope(options, UsageContext::Path("client list"), envelope)?;
             ClientCommand::List
         }
         ["client", "get", value] => {
             let context = UsageContext::Path("client get");
-            check_scope(options, NO_OPTIONS, context, envelope)?;
+            check_scope(options, context, envelope)?;
             ClientCommand::Get(WorkbenchClientId::parse(value).map_err(|_| {
                 invalid(
                     value,
@@ -225,7 +205,7 @@ pub(super) fn parse(
         }
         ["client", "control-status", value] => {
             let context = UsageContext::Path("client control-status");
-            check_scope(options, NO_OPTIONS, context, envelope)?;
+            check_scope(options, context, envelope)?;
             ClientCommand::ControlStatus(WorkbenchRequestId::parse(value).map_err(|_| {
                 invalid(
                     value,
@@ -263,25 +243,7 @@ pub(super) fn parse(
                 }
             };
             let context = UsageContext::Path(path);
-            check_scope(
-                options,
-                Scope {
-                    direction: matches!(*verb, "neighbor" | "resize")
-                        || (panel && *verb == "focus"),
-                    amount: *verb == "resize",
-                    client: true,
-                    request_id: !matches!(*verb, "layout" | "neighbor" | "edges"),
-                    detach: !matches!(*verb, "layout" | "neighbor" | "edges"),
-                    timeout: true,
-                    current: panel,
-                    zoom_on: zoom,
-                    zoom_off: zoom,
-                    zoom_toggle: zoom,
-                    ..NO_OPTIONS
-                },
-                context,
-                envelope,
-            )?;
+            check_scope(options, context, envelope)?;
             if rest.len() > 1 {
                 return Err(usage_with(
                     UsageReason::UnexpectedArgument {
@@ -515,23 +477,7 @@ fn parse_ratio(
     envelope: FailureEnvelope,
 ) -> Result<ClientCommand, ParseFailure> {
     let context = UsageContext::Path("layout set-split-ratio");
-    check_scope(
-        options,
-        Scope {
-            tab: true,
-            panel: true,
-            current: true,
-            path: true,
-            ratio: true,
-            client: true,
-            request_id: true,
-            detach: false,
-            timeout: true,
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     let selected: Vec<_> = [
         ("--tab", options.tab.is_some()),
         ("--panel", options.panel.is_some()),
@@ -627,19 +573,7 @@ fn parse_swap(
     envelope: FailureEnvelope,
 ) -> Result<ClientCommand, ParseFailure> {
     let context = UsageContext::Path("panel swap");
-    check_scope(
-        options,
-        Scope {
-            current: true,
-            swap_target: true,
-            direction: true,
-            client: true,
-            timeout: true,
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     if rest.len() > 1 {
         return Err(usage_with(
             UsageReason::UnexpectedArgument {

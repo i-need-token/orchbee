@@ -149,7 +149,7 @@ fn example_with_options(path: CommandPath, options: &[&str]) -> String {
             words.push(format!("'{argument}'"));
         }
     }
-    let continuation = if cfg!(windows) { '`' } else { '\\' };
+    let continuation = '`';
     let mut output = String::new();
     let mut line = String::new();
     // Reserve four indentation cells and two cells for the shell continuation.

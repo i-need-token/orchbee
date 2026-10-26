@@ -24,7 +24,6 @@ impl Locale {
                 .unwrap_or("");
             return self.cli_plugin_preparation_failure(reason).to_owned();
         }
-        #[cfg(windows)]
         if failure.failure_schema == Some("orchbee.cli.failure.layout-apply")
             && matches!(
                 failure
@@ -93,7 +92,6 @@ impl Locale {
                 ),
             };
         }
-        #[cfg(windows)]
         if failure.failure_schema.is_none()
             && failure
                 .details
@@ -128,7 +126,6 @@ impl Locale {
         if failure.failure_schema == Some(crate::cli::schema::AGENT_FAILURE_ID) {
             return self.cli_agent_failure(failure);
         }
-        #[cfg(windows)]
         if failure.failure_schema == Some("orchbee.cli.failure.agent-projection") {
             return self.cli_projection_failure(failure);
         }

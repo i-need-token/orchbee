@@ -38,33 +38,9 @@ pub(super) const HELP_TERMINAL_GET_ZH: crate::localization::HelpDetails =
         "按完整类型化 ID 或 @terminal:0x<hex> 显示一个已绑定终端：worker id 及其唯一 boundTo 位置（presentation、panel、tab、context）。",
     );
 
-#[cfg(not(windows))]
-pub(super) const HELP_TERMINAL_READ_EN: crate::localization::HelpDetails =
-    crate::localization::HelpDetails::new(
-        "orchbee terminal read (<target>|--panel <panel>) [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--plain|--ansi] [--format text|json]",
-        "Targets: terminal ID / @terminal:, or Panel ID / @panel: / --panel. Panels select the primary terminal; children require a terminal identity. Bare IDs that name different resources refuse; use a typed handle.\nRead a bound terminal through one temporary read-only viewer. Default source: recent, 80 physical rows including history and the live screen. --source visible reads the screen; recent-unwrapped joins verified soft wraps; detection reads a cursor-centered screen-height window. --lines accepts 0..4294967295 and clamps to 1000. No input, focus or resize effect. --plain emits UTF-8 and conflicts with --format json. --ansi emits styled SGR text; JSON always uses orchbee.terminal.output v1 with explicit text/ansi encoding. A nullable output cursor can fence a later --after wait. The cursor is not a command completion marker. Sources never silently widen after a stale sample.",
-    );
 
-#[cfg(not(windows))]
-pub(super) const HELP_TERMINAL_READ_ZH: crate::localization::HelpDetails =
-    crate::localization::HelpDetails::new(
-        "orchbee terminal read (<target>|--panel <panel>) [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--plain|--ansi] [--format text|json]",
-        "目标：终端 ID／@terminal:，或面板 ID／@panel:／--panel。面板选择主终端，子终端需终端身份。裸 ID 指向不同资源时拒绝，请使用带类型的句柄。\n通过一个临时只读 viewer 读取已绑定终端。默认来源 recent，包含历史及当前屏幕的 80 个物理行。--source visible 读取屏幕；recent-unwrapped 拼接已验证软换行；detection 读取光标附近一个屏幕高度的窗口。--lines 接受 0..4294967295 并钳制到 1000。不输入、不改焦点或尺寸。--plain 输出 UTF-8，与 --format json 互斥。--ansi 输出带 SGR 样式的文本，JSON 均使用 orchbee.terminal.output v1，并明确 text/ansi 编码。可空输出游标可用于后续 --after 等待，但不表示命令完成。样本陈旧时不会悄悄扩大来源范围。",
-    );
 
-#[cfg(not(windows))]
-pub(super) const HELP_TERMINAL_WAIT_OUTPUT_EN: crate::localization::HelpDetails =
-    crate::localization::HelpDetails::new(
-        "orchbee terminal wait-output (<target>|--panel <panel>) (--match <text>|--regex <pattern>) [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--after <cursor|now>] [--timeout <ms>|--forever] [--format text|json]",
-        "Targets: terminal ID / @terminal:, or Panel ID / @panel: / --panel. Panels select the primary terminal; children require a terminal identity. Bare IDs that name different resources refuse; use a typed handle.\nWait for selected output with a 30000 ms default deadline. --timeout accepts 1..3600000 ms; --forever explicitly removes the total deadline and conflicts with --timeout. Each I/O stays bounded and Ctrl+C releases the read-only viewer. Default source: recent, 80 physical rows. --lines clamps to 1000; zero never matches. --match is a case-sensitive literal of 1..4096 UTF-8 bytes; --regex is at most 1024 bytes and compiles before connection. Existing content can match unless --after supplies a read cursor or now. Fresh waits exclude the captured boundary and prompt/input rows; reset, eviction or a lost selected window fails explicitly. No input, resize or focus change. Exit 0 on match, 7 on timeout, 130 on cancellation. JSON uses orchbee.terminal.wait-output v1 with a nullable after member.",
-    );
 
-#[cfg(not(windows))]
-pub(super) const HELP_TERMINAL_WAIT_OUTPUT_ZH: crate::localization::HelpDetails =
-    crate::localization::HelpDetails::new(
-        "orchbee terminal wait-output (<target>|--panel <panel>) (--match <text>|--regex <pattern>) [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--after <cursor|now>] [--timeout <ms>|--forever] [--format text|json]",
-        "目标：终端 ID／@terminal:，或面板 ID／@panel:／--panel。面板选择主终端，子终端需终端身份。裸 ID 指向不同资源时拒绝，请使用带类型的句柄。\n等待所选输出，默认总期限 30000 ms。--timeout 接受 1..3600000 毫秒；--forever 显式取消总期限，与 --timeout 互斥。每次 I/O 仍有界，Ctrl+C 释放只读 viewer。默认来源 recent、80 个物理行。--lines 钳制到 1000，零行永不匹配。--match 是区分大小写的 1..4096 UTF-8 字节字面值；--regex 最多 1024 字节，连接前编译。除非 --after 指定读取游标或 now，否则既有内容也可匹配。新输出等待排除捕获边界及提示符／输入行；重置、逐出或选定窗口丢失会明确失败。不输入、不改尺寸或焦点。匹配退出 0，超时退出 7，取消退出 130。JSON 使用 orchbee.terminal.wait-output v1，after 成员始终存在且可空。",
-    );
 
 pub(super) const HELP_TERMINAL_RUN_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
@@ -114,42 +90,36 @@ pub(super) const HELP_TERMINAL_ATTACH_ZH: crate::localization::HelpDetails =
         "Windows 交互终端附着，需要终端 stdin/stdout。使用既有终端 ID 或\n@terminal:0x<hex>，不启动会话，也不聚焦 Workbench 面板。采用控制台尺寸，取得独占输入/尺寸控制权。--takeover 撤销旧控制者；失败也可能撤销旧权限。\nCtrl+B 后按 q 脱离；连续两次 Ctrl+B 发送字面 Ctrl+B。Ctrl+C 交付应用。粘贴使用语义操作；普通翻页键和滚轮使用历史或应用鼠标/光标模式。默认启用鼠标。--timeout 为 1..3600000 毫秒，默认不限总时长；单次交换最多 5 秒、清理最多 2 秒。不重连或重放输入。输出诊断前恢复终端模式。两种 --format 均显示交互画面；NDJSON 请使用 terminal session observe/control。",
     );
 
-#[cfg(windows)]
 pub(super) const HELP_TERMINAL_READ_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal read (<target>|--panel <panel>) [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--plain|--ansi] [--format text|json]",
         "Targets: terminal ID / @terminal:, or Panel ID / @panel: / --panel. Panels select the primary terminal; children require a terminal identity. Bare IDs that name different resources refuse; use a typed handle.\nRead a bound terminal through one temporary read-only viewer. Default source: recent, 80 physical rows including history and the live screen. --source visible reads the screen; recent-unwrapped joins verified soft wraps; detection reads a cursor-centered screen-height window. --lines accepts 0..4294967295 and clamps to 1000. No input, focus or resize effect. --plain emits UTF-8 and conflicts with --format json. --ansi emits styled SGR text; JSON always uses orchbee.terminal.output v1 with explicit text/ansi encoding. A nullable output cursor can fence a later --after wait. The cursor is not a command completion marker. Sources never silently widen after a stale sample.",
     );
 
-#[cfg(windows)]
 pub(super) const HELP_TERMINAL_READ_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal read (<target>|--panel <panel>) [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--plain|--ansi] [--format text|json]",
         "目标：终端 ID／@terminal:，或面板 ID／@panel:／--panel。面板选择主终端，子终端需终端身份。裸 ID 指向不同资源时拒绝，请使用带类型的句柄。\n通过一个临时只读 viewer 读取已绑定终端。默认来源 recent，包含历史及当前屏幕的 80 个物理行。--source visible 读取屏幕；recent-unwrapped 拼接已验证软换行；detection 读取光标附近一个屏幕高度的窗口。--lines 接受 0..4294967295 并钳制到 1000。不输入、不改焦点或尺寸。--plain 输出 UTF-8，与 --format json 互斥。--ansi 输出带 SGR 样式的文本，JSON 均使用 orchbee.terminal.output v1，并明确 text/ansi 编码。可空输出游标可用于后续 --after 等待，但不表示命令完成。样本陈旧时不会悄悄扩大来源范围。",
     );
 
-#[cfg(windows)]
 pub(super) const HELP_TERMINAL_WAIT_OUTPUT_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal wait-output (<target>|--panel <panel>) (--match <text>|--regex <pattern>) [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--after <cursor|now>] [--timeout <ms>|--forever] [--format text|json]",
         "Targets: terminal ID / @terminal:, or Panel ID / @panel: / --panel. Panels select the primary terminal; children require a terminal identity. Bare IDs that name different resources refuse; use a typed handle.\nWait for selected output with a 30000 ms default deadline. --timeout accepts 1..3600000 ms; --forever explicitly removes the total deadline and conflicts with --timeout. Each I/O stays bounded and Ctrl+C releases the read-only viewer. Default source: recent, 80 physical rows. --lines clamps to 1000; zero never matches. --match is a case-sensitive literal of 1..4096 UTF-8 bytes; --regex is at most 1024 bytes and compiles before connection. Existing content can match unless --after supplies a read cursor or now. Fresh waits exclude the captured boundary and prompt/input rows; reset, eviction or a lost selected window fails explicitly. No input, resize or focus change. Exit 0 on match, 7 on timeout, 130 on cancellation. JSON uses orchbee.terminal.wait-output v1 with a nullable after member.",
     );
 
-#[cfg(windows)]
 pub(super) const HELP_TERMINAL_WAIT_OUTPUT_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal wait-output (<target>|--panel <panel>) (--match <text>|--regex <pattern>) [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--after <cursor|now>] [--timeout <ms>|--forever] [--format text|json]",
         "目标：终端 ID／@terminal:，或面板 ID／@panel:／--panel。面板选择主终端，子终端需终端身份。裸 ID 指向不同资源时拒绝，请使用带类型的句柄。\n等待所选输出，默认总期限 30000 ms。--timeout 接受 1..3600000 毫秒；--forever 显式取消总期限，与 --timeout 互斥。每次 I/O 仍有界，Ctrl+C 释放只读 viewer。默认来源 recent、80 个物理行。--lines 钳制到 1000，零行永不匹配。--match 是区分大小写的 1..4096 UTF-8 字节字面值；--regex 最多 1024 字节，连接前编译。除非 --after 指定读取游标或 now，否则既有内容也可匹配。新输出等待排除捕获边界及提示符／输入行；重置、逐出或选定窗口丢失会明确失败。不输入、不改尺寸或焦点。匹配退出 0，超时退出 7，取消退出 130。JSON 使用 orchbee.terminal.wait-output v1，after 成员始终存在且可空。",
     );
 
-#[cfg(windows)]
 pub(super) const HELP_TERMINAL_SELECTION_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal selection-read <terminal> --anchor ROW:COL --cursor ROW:COL [--content-revision N] [--generation N] [--format text|json]",
         "Windows: read one inclusive screen-buffer selection, independent of Client viewport.\nUse a complete terminal ID or @terminal:0x<hex>. Coordinates are zero-based;\nrow 0..4294967295, column 0..65535, at most 4096 selected rows and an 8 MiB\nrow window. Reversed endpoints are ordered. Wide/combining glyphs remain whole;\nverified soft wraps join, hard-line padding is trimmed.\nContent revision is optional full-u64; generation is optional positive full-u64.\nBoth pin expected content before reading. Changed/evicted content fails whole.\nOne cancellable five-second existing-session read; no input, clipboard or user\nselection changes. JSON: orchbee.terminal.selection v1; text escapes controls.",
     );
 
-#[cfg(windows)]
 pub(super) const HELP_TERMINAL_SELECTION_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal selection-read <terminal> --anchor ROW:COL --cursor ROW:COL [--content-revision N] [--generation N] [--format text|json]",

@@ -1,11 +1,10 @@
 //! Optional creation inputs, before any canonical target or Client is resolved.
 use super::{
     FailureEnvelope, LaunchOptions, LaunchProfileSelector, LaunchSelection, Options, OutputFormat,
-    PANEL_SPLIT_SCOPE, ParseFailure, Request, Resource, TAB_CREATE_SCOPE, TabContext, Target,
-    UsageContext, UsageReason, WorkbenchLabel, WorkbenchPanelSplitDirection,
-    WorkbenchTerminalGeometry, check_scope, client_control, geometry_option, label_option,
-    launch_options_with_directory, panel_direction, profile_option, reject_launch_profile_conflict,
-    target, unexpected_argument, usage_with, wait_timeout_option,
+    ParseFailure, Request, Resource, TabContext, Target, UsageContext, UsageReason, WorkbenchLabel,
+    WorkbenchPanelSplitDirection, WorkbenchTerminalGeometry, check_scope, client_control,
+    geometry_option, label_option, launch_options_with_directory, panel_direction, profile_option,
+    reject_launch_profile_conflict, target, unexpected_argument, usage_with, wait_timeout_option,
 };
 use orchbee_workbench_protocol::{ClientSplitRatio, WorkbenchClientId};
 
@@ -58,16 +57,7 @@ pub(super) fn parse(
     } else {
         "tab create"
     });
-    check_scope(
-        options,
-        if split_operands.is_some() {
-            PANEL_SPLIT_SCOPE
-        } else {
-            TAB_CREATE_SCOPE
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     if options.focus && options.no_focus {
         return Err(usage_with(
             UsageReason::ConflictingOptions {

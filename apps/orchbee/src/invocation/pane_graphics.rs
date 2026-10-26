@@ -1,8 +1,8 @@
 //! Closed graphics inputs are admitted before discovery or visual writes.
 use super::{
-    ExpectedValue, FailureEnvelope, NO_OPTIONS, Options, OutputFormat, ParseFailure, Request,
-    Resource, Scope, Target, UsageContext, UsageReason, check_scope, missing_command,
-    missing_required, target, unknown_command, usage_with,
+    ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, Request, Resource, Target,
+    UsageContext, UsageReason, check_scope, missing_command, missing_required, target,
+    unknown_command, usage_with,
 };
 use orchbee_workbench_protocol::{
     MAXIMUM_GRAPHICS_SET_BYTES, PaneGraphicsFrame, TerminalPresentationId, WorkbenchClientId,
@@ -112,18 +112,7 @@ pub(super) fn parse(
         "info" => "panel graphics info",
         _ => "panel graphics stream",
     });
-    check_scope(
-        options,
-        Scope {
-            graphics: true,
-            agent_view_spec: verb != "info",
-            client: verb == "info",
-            timeout: true,
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     let [operand] = operands else {
         return Err(if operands.is_empty() {
             missing_required(context, "<panel>", envelope)

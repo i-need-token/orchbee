@@ -2,7 +2,8 @@ use crate::{cli::escape::quoted, localization::Locale};
 use orchbee_local_runtime::{KeysResetOutcome, KeysResetReport};
 
 impl Locale {
-    pub(crate) fn cli_config_reset(self, report: &KeysResetReport) -> String {
+    #[cfg(windows)]
+    pub(crate) fn cli_config_reset(self, report: &WindowsKeysResetReport) -> String {
         let path = report
             .path
             .as_deref()

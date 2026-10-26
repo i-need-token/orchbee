@@ -21,30 +21,19 @@ enum Argument {
     Client,
     Operation,
     Request,
-    #[cfg(windows)]
     Ssh,
-    #[cfg(windows)]
     Machine,
-    #[cfg(windows)]
     Channel,
     Profile,
     Schema,
-    #[cfg(windows)]
-    Session,
+    Site,
     Title,
-    #[cfg(windows)]
     ConfiguredCommand,
-    #[cfg(windows)]
     Pane,
-    #[cfg(windows)]
     Action,
-    #[cfg(windows)]
     Repository,
-    #[cfg(windows)]
     InstalledRepository,
-    #[cfg(windows)]
     Path,
-    #[cfg(windows)]
     Plugin,
 }
 
@@ -62,13 +51,9 @@ impl Locale {
             CommandPath::ClientStatus => &[Argument::Request],
             CommandPath::ServerStatus => &[Argument::Request],
 
-            #[cfg(windows)]
             CommandPath::PanelGraphicsSet => &[Argument::Panel],
-            #[cfg(windows)]
             CommandPath::PanelGraphicsClear => &[Argument::Panel],
-            #[cfg(windows)]
             CommandPath::PanelGraphicsInfo => &[Argument::Panel],
-            #[cfg(windows)]
             CommandPath::PanelGraphicsStream => &[Argument::Panel],
             CommandPath::ClientList => &[],
             CommandPath::ClientGet => &[Argument::Client],
@@ -78,9 +63,7 @@ impl Locale {
             CommandPath::PanelFocus => &[Argument::Panel],
             CommandPath::PanelResize => &[Argument::Panel],
             CommandPath::LayoutSetSplitRatio => &[],
-            #[cfg(windows)]
             CommandPath::LayoutExport => &[],
-            #[cfg(windows)]
             CommandPath::LayoutApply => &[],
             CommandPath::PanelZoom => &[Argument::Panel],
             CommandPath::PanelLayout => &[Argument::Panel],
@@ -90,11 +73,8 @@ impl Locale {
             CommandPath::Status => &[],
             CommandPath::StatusServer => &[],
             CommandPath::StatusClient => &[],
-            #[cfg(windows)]
             CommandPath::AgentViewGet => &[],
-            #[cfg(windows)]
             CommandPath::AgentViewSet => &[],
-            #[cfg(windows)]
             CommandPath::AgentViewClear => &[],
             CommandPath::AgentList => &[],
             CommandPath::AgentChanges => &[],
@@ -119,23 +99,14 @@ impl Locale {
             CommandPath::AgentAttach => &[Argument::Agent],
             CommandPath::TerminalObserve => &[Argument::Terminal],
             CommandPath::TerminalControl => &[Argument::Terminal],
-            #[cfg(windows)]
             CommandPath::MachineList => &[],
-            #[cfg(windows)]
             CommandPath::MachineAdd => &[Argument::Ssh],
-            #[cfg(windows)]
             CommandPath::MachineRename => &[Argument::Machine],
-            #[cfg(windows)]
             CommandPath::MachineRemove => &[Argument::Machine],
-            #[cfg(windows)]
             CommandPath::MachineEnable => &[Argument::Machine],
-            #[cfg(windows)]
             CommandPath::MachineDisable => &[Argument::Machine],
-            #[cfg(windows)]
             CommandPath::ChannelShow => &[],
-            #[cfg(windows)]
             CommandPath::ChannelSet => &[Argument::Channel],
-            #[cfg(windows)]
             CommandPath::Update => &[],
             CommandPath::ProjectList => &[],
             CommandPath::ProjectGet => &[Argument::Project],
@@ -176,7 +147,6 @@ impl Locale {
             CommandPath::PanelCurrent => &[Argument::Panel],
             CommandPath::PanelGet => &[Argument::Panel],
             CommandPath::PanelProcessInfo => &[Argument::Panel],
-            #[cfg(windows)]
             CommandPath::PanelCreateTerminal => &[Argument::Panel],
             CommandPath::PanelSplit => &[Argument::Panel],
             CommandPath::PanelClose => &[Argument::Panel],
@@ -184,19 +154,12 @@ impl Locale {
             CommandPath::TerminalList => &[],
             CommandPath::TerminalGet => &[Argument::Terminal],
             CommandPath::TerminalRead => &[Argument::TerminalOrPanel],
-            #[cfg(windows)]
             CommandPath::TerminalSelectionRead => &[Argument::Terminal],
-            #[cfg(windows)]
             CommandPath::TerminalCopyMotion => &[Argument::Terminal],
-            #[cfg(windows)]
             CommandPath::TerminalCopySearch => &[Argument::Terminal],
-            #[cfg(windows)]
             CommandPath::TerminalLinkResolve => &[Argument::Terminal],
-            #[cfg(windows)]
             CommandPath::TerminalLinkActivate => &[Argument::Terminal],
-            #[cfg(windows)]
             CommandPath::TerminalClear => &[Argument::Terminal],
-            #[cfg(windows)]
             CommandPath::TerminalEditScrollback => &[Argument::Terminal],
             CommandPath::TerminalWaitOutput => &[Argument::TerminalOrPanel],
             CommandPath::TerminalSend => &[Argument::TerminalOrPanel],
@@ -215,58 +178,35 @@ impl Locale {
             CommandPath::ApiSchema => &[Argument::Schema],
             CommandPath::ConfigCheck => &[],
             CommandPath::ConfigResetKeys => &[],
-            CommandPath::ServerStart => &[],
-            #[cfg(windows)]
+            CommandPath::SiteStart => &[],
             CommandPath::SessionList => &[],
-            #[cfg(windows)]
-            CommandPath::SessionAttach => &[Argument::Session],
-            #[cfg(windows)]
-            CommandPath::SessionStop => &[Argument::Session],
-            #[cfg(windows)]
-            CommandPath::SessionDelete => &[Argument::Session],
-            CommandPath::ServerDiagnose => &[],
-            CommandPath::ServerUpdateAgentManifests => &[],
-            CommandPath::ServerConfig => &[],
-            CommandPath::ServerReloadConfig => &[],
+            CommandPath::SessionAttach => &[Argument::Site],
+            CommandPath::SessionStop => &[Argument::Site],
+            CommandPath::SessionDelete => &[Argument::Site],
+            CommandPath::SiteDiagnose => &[],
+            CommandPath::SiteUpdateAgentManifests => &[],
+            CommandPath::SiteConfig => &[],
+            CommandPath::SiteReloadConfig => &[],
             CommandPath::TerminalTitleSet => &[Argument::Title],
             CommandPath::TerminalTitleClear => &[],
-            #[cfg(windows)]
             CommandPath::EventsSubscribe => &[],
-            #[cfg(windows)]
             CommandPath::EventsWait => &[],
-            #[cfg(windows)]
             CommandPath::CommandList => &[],
-            #[cfg(windows)]
             CommandPath::CommandInvoke => &[Argument::ConfiguredCommand],
-            #[cfg(windows)]
             CommandPath::PluginPaneOpen => &[],
-            #[cfg(windows)]
             CommandPath::PopupClose => &[],
-            #[cfg(windows)]
             CommandPath::PluginPaneFocus => &[Argument::Pane],
-            #[cfg(windows)]
             CommandPath::PluginPaneClose => &[Argument::Pane],
-            #[cfg(windows)]
             CommandPath::PluginActionInvoke => &[Argument::Action],
-            #[cfg(windows)]
             CommandPath::PluginLogList => &[Argument::Plugin],
-            #[cfg(windows)]
             CommandPath::PluginInstall => &[Argument::Repository],
-            #[cfg(windows)]
             CommandPath::PluginUninstall => &[Argument::InstalledRepository],
-            #[cfg(windows)]
             CommandPath::PluginLink => &[Argument::Path],
-            #[cfg(windows)]
             CommandPath::PluginUnlink => &[Argument::Plugin],
-            #[cfg(windows)]
             CommandPath::PluginEnable => &[Argument::Plugin],
-            #[cfg(windows)]
             CommandPath::PluginDisable => &[Argument::Plugin],
-            #[cfg(windows)]
             CommandPath::PluginList => &[Argument::Plugin],
-            #[cfg(windows)]
             CommandPath::PluginConfigDir => &[Argument::Plugin],
-            #[cfg(windows)]
             CommandPath::PluginActionList => &[Argument::Plugin],
             CommandPath::NotificationShow => &[Argument::Title],
             CommandPath::ServerAgentManifests => &[],
@@ -294,30 +234,19 @@ impl Locale {
                 Argument::Client => ("<client-id>", "Full client ID returned by orchbee client list.", "orchbee client list 返回的完整客户端 ID。"),
                 Argument::Request => ("<request-id>", "Exact retained request ID returned by the operation.", "操作返回的精确保留请求 ID。"),
                 Argument::Operation => ("<operation-id>", "Complete operation ID returned by the original request.", "原请求返回的完整操作 ID。"),
-                #[cfg(windows)]
                 Argument::Ssh => ("<ssh-target>", "OpenSSH destination, such as user@host; batch authentication must already work.", "OpenSSH 目标，例如 user@host；须已能进行批处理认证。"),
-                #[cfg(windows)]
                 Argument::Machine => ("<profile-id>", "Exact saved machine ID from orchbee machine list.", "orchbee machine list 中保存的精确机器 ID。"),
-                #[cfg(windows)]
                 Argument::Channel => ("<stable|preview>", "Release channel to save and install.", "要保存并安装的发布频道。"),
                 Argument::Profile => ("<selector>", "Launch profile ID or an unambiguous saved name.", "启动配置 ID 或无歧义的保存名称。"),
                 Argument::Schema => ("[<schema-id>]", "Optional schema ID; omit to print the schema dictionary.", "可选 Schema ID；省略时输出结构字典。"),
-                #[cfg(windows)]
-                Argument::Session => ("<name>", "Case-sensitive local session name. An explicit --session must match.", "区分大小写的本地会话名称；显式 --session 必须与其一致。"),
+                Argument::Site => ("<name>", "Case-sensitive local session name. An explicit --session must match.", "区分大小写的本地会话名称；显式 --session 必须与其一致。"),
                 Argument::Title => ("<title>", "Display title as one argument.", "作为一个参数传入的显示标题。"),
-                #[cfg(windows)]
                 Argument::ConfiguredCommand => ("<command-id>", "Exact ID returned by orchbee command list; starts with cmd_.", "orchbee command list 返回的精确 ID，以 cmd_ 开头。"),
-                #[cfg(windows)]
                 Argument::Pane => ("<pane-id>", "Exact pane ID belonging to a plugin.", "属于插件的精确面板 ID。"),
-                #[cfg(windows)]
                 Argument::Action => ("<action-id>", "Local action ID or qualified plugin.action ID.", "本地操作 ID，或 plugin.action 完整 ID。"),
-                #[cfg(windows)]
                 Argument::Repository => ("<owner/repo[/subdir]>", "GitHub repository, optionally with a plugin subdirectory.", "GitHub 仓库，可带插件子目录。"),
-                #[cfg(windows)]
                 Argument::InstalledRepository => ("<plugin-id|owner/repo[/subdir]>", "Installed plugin ID or its managed repository reference.", "已安装的插件 ID，或其托管仓库引用。"),
-                #[cfg(windows)]
                 Argument::Path => ("<path>", "Local plugin manifest file or plugin directory.", "本地插件清单文件或插件目录。"),
-                #[cfg(windows)]
                 Argument::Plugin => ("<plugin-id>", "Registered plugin ID; optional only where usage shows brackets.", "已注册的插件 ID；仅当用法中带方括号时可省略。"),
             };
             (label, match self { Self::EnUs => english, Self::ZhCn => chinese })

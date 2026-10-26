@@ -87,9 +87,7 @@ impl Locale {
                 self.operation_help("orchbee server status <request-id> [--format text|json]", false)
             }
 
-            #[cfg(windows)]
             (_, CommandPath::EventsSubscribe | CommandPath::EventsWait) => self.events_help(path),
-            #[cfg(windows)]
             (
                 _,
                 CommandPath::PanelGraphicsSet
@@ -97,14 +95,12 @@ impl Locale {
                 | CommandPath::PanelGraphicsInfo
                 | CommandPath::PanelGraphicsStream,
             ) => self.pane_graphics_help(path),
-            #[cfg(windows)]
             (_, CommandPath::CommandList | CommandPath::CommandInvoke) => {
                 self.configured_command_help(path)
             }
             (_, CommandPath::TerminalTitleSet | CommandPath::TerminalTitleClear) => {
                 self.window_title_help(path)
             }
-            #[cfg(windows)]
             (
                 _,
                 CommandPath::PluginLink
@@ -144,13 +140,9 @@ impl Locale {
             (Self::EnUs, CommandPath::PanelResize) => super::client_control::HELP_PANEL_RESIZE_EN,
             (Self::ZhCn, CommandPath::PanelResize) => super::client_control::HELP_PANEL_RESIZE_ZH,
             (Self::EnUs, CommandPath::LayoutSetSplitRatio) => super::client_control::HELP_LAYOUT_RATIO_EN,
-            #[cfg(windows)]
             (Self::EnUs, CommandPath::LayoutExport) => super::layouts::EXPORT_EN,
-            #[cfg(windows)]
             (Self::EnUs, CommandPath::LayoutApply) => super::layouts::APPLY_EN,
-            #[cfg(windows)]
             (Self::ZhCn, CommandPath::LayoutApply) => super::layouts::APPLY_ZH,
-            #[cfg(windows)]
             (Self::ZhCn, CommandPath::LayoutExport) => super::layouts::EXPORT_ZH,
             (Self::ZhCn, CommandPath::LayoutSetSplitRatio) => super::client_control::HELP_LAYOUT_RATIO_ZH,
             (Self::EnUs, CommandPath::PanelFocus) => super::client_control::HELP_PANEL_FOCUS_EN,
@@ -239,9 +231,7 @@ impl Locale {
             (Self::ZhCn, CommandPath::TabCreate) => super::tab::HELP_TAB_CREATE_ZH,
             (Self::EnUs, CommandPath::PanelSwap) => super::panel::HELP_PANEL_SWAP_EN,
             (Self::ZhCn, CommandPath::PanelSwap) => super::panel::HELP_PANEL_SWAP_ZH,
-            #[cfg(windows)]
             (Self::EnUs, CommandPath::PanelCreateTerminal) => super::panel_terminal_creation::HELP_EN,
-            #[cfg(windows)]
             (Self::ZhCn, CommandPath::PanelCreateTerminal) => super::panel_terminal_creation::HELP_ZH,
             (Self::EnUs, CommandPath::PanelInput) => super::panel::HELP_PANEL_INPUT_EN,
             (Self::ZhCn, CommandPath::PanelInput) => super::panel::HELP_PANEL_INPUT_ZH,
@@ -281,33 +271,19 @@ impl Locale {
             (Self::ZhCn, CommandPath::TerminalObserve) => super::terminal::HELP_TERMINAL_OBSERVE_ZH,
             (Self::EnUs, CommandPath::TerminalRead) => super::terminal::HELP_TERMINAL_READ_EN,
             (Self::ZhCn, CommandPath::TerminalRead) => super::terminal::HELP_TERMINAL_READ_ZH,
-            #[cfg(windows)]
             (Self::EnUs, CommandPath::TerminalSelectionRead) => super::terminal::HELP_TERMINAL_SELECTION_EN,
-            #[cfg(windows)]
             (Self::ZhCn, CommandPath::TerminalSelectionRead) => super::terminal::HELP_TERMINAL_SELECTION_ZH,
-            #[cfg(windows)]
             (Self::EnUs, CommandPath::TerminalLinkResolve) => super::terminal_links::HELP_EN,
-            #[cfg(windows)]
             (Self::ZhCn, CommandPath::TerminalLinkResolve) => super::terminal_links::HELP_ZH,
-            #[cfg(windows)]
             (Self::EnUs, CommandPath::TerminalClear) => super::terminal_clear::HELP_EN,
-            #[cfg(windows)]
             (Self::ZhCn, CommandPath::TerminalClear) => super::terminal_clear::HELP_ZH,
-            #[cfg(windows)]
             (Self::EnUs, CommandPath::TerminalEditScrollback) => super::terminal_editor::HELP_EN,
-            #[cfg(windows)]
             (Self::ZhCn, CommandPath::TerminalEditScrollback) => super::terminal_editor::HELP_ZH,
-            #[cfg(windows)]
             (Self::EnUs, CommandPath::TerminalLinkActivate) => super::terminal_links::ACTIVATE_EN,
-            #[cfg(windows)]
             (Self::ZhCn, CommandPath::TerminalLinkActivate) => super::terminal_links::ACTIVATE_ZH,
-            #[cfg(windows)]
             (Self::EnUs, CommandPath::TerminalCopyMotion) => super::terminal_copy::HELP_MOTION_EN,
-            #[cfg(windows)]
             (Self::ZhCn, CommandPath::TerminalCopyMotion) => super::terminal_copy::HELP_MOTION_ZH,
-            #[cfg(windows)]
             (Self::EnUs, CommandPath::TerminalCopySearch) => super::terminal_copy::HELP_SEARCH_EN,
-            #[cfg(windows)]
             (Self::ZhCn, CommandPath::TerminalCopySearch) => super::terminal_copy::HELP_SEARCH_ZH,
 
             (Self::EnUs, CommandPath::TerminalWaitOutput) => super::terminal::HELP_TERMINAL_WAIT_OUTPUT_EN,
@@ -342,7 +318,6 @@ impl Locale {
                 "orchbee agent changes [--cursor <c>] [--limit <n>] [--format text|json]",
                 "Windows：读取一页有界智能体变更（limit 1-100，默认 50）。省略 cursor 建立当前头部检查点，再使用其 cursor 继续观察。\nreset-required 表示历史丢失，必须重建基线；先前会话启动实例或无效\ncursor 会被拒绝。不订阅、不自动重试。总读取期限 5 秒。\nJSON schema：orchbee.agent.changes。",
             ),
-            #[cfg(windows)]
             (
                 locale,
                 CommandPath::AgentViewGet | CommandPath::AgentViewSet | CommandPath::AgentViewClear,
@@ -357,8 +332,8 @@ impl Locale {
                 "orchbee agent start <name> --provider <provider> [--panel <id|@panel:0x<hex>>|--current] [--timeout <ms>] [--format text|json] [--arg <value>]... [-- <args>...]",
                 "Windows：在空闲终端启动交互式智能体，确认就绪后绑定名称。默认目标为调用者面板。超时范围 3001–300000 毫秒，默认 30000。可重复使用 --arg=<value> 代替尾随参数。启动输入只提交一次。取消或超时在确认后释放名称，但不会终止智能体。提供方 hook 必须能报告就绪；可用 agent integration 和 agent doctor 检查配置。\nstart、integration 和 doctor 统一使用 --provider antigravity。",
             ),
-            (Self::EnUs, CommandPath::AgentPrompt) if cfg!(windows) => super::agent::HELP_AGENT_PROMPT_WINDOWS_EN,
-            (Self::ZhCn, CommandPath::AgentPrompt) if cfg!(windows) => super::agent::HELP_AGENT_PROMPT_WINDOWS_ZH,
+            (Self::EnUs, CommandPath::AgentPrompt) if true => super::agent::HELP_AGENT_PROMPT_WINDOWS_EN,
+            (Self::ZhCn, CommandPath::AgentPrompt) if true => super::agent::HELP_AGENT_PROMPT_WINDOWS_ZH,
             (Self::EnUs, CommandPath::AgentPrompt) => crate::localization::HelpDetails::new(
                 "orchbee agent prompt (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) <text> [--wait] [--until <condition>]... [--timeout <ms> | --forever] [--format text|json]",
                 "Send a prompt to one running Agent. Use --wait to observe its next state.\nFind targets with orchbee agent list; use --panel to select an Agent by its Panel.\n--until, --timeout and --forever require --wait. Inspect the terminal before retrying uncertain input.",
@@ -367,8 +342,8 @@ impl Locale {
                 "orchbee agent prompt (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) <text> [--wait] [--until <condition>]... [--timeout <ms> | --forever] [--format text|json]",
                 "向正在运行的智能体发送提示。使用 --wait 观察其后续状态。\n用 orchbee agent list 查找目标，或用 --panel 按面板选择智能体。\n--until、--timeout 和 --forever 要求 --wait。投递结果不确定时，重试前先检查终端。",
             ),
-            (Self::EnUs, CommandPath::AgentRead) if cfg!(windows) => super::agent::HELP_AGENT_OUTPUT_EN,
-            (Self::ZhCn, CommandPath::AgentRead) if cfg!(windows) => super::agent::HELP_AGENT_OUTPUT_ZH,
+            (Self::EnUs, CommandPath::AgentRead) if true => super::agent::HELP_AGENT_OUTPUT_EN,
+            (Self::ZhCn, CommandPath::AgentRead) if true => super::agent::HELP_AGENT_OUTPUT_ZH,
             (Self::EnUs, CommandPath::AgentRead) => crate::localization::HelpDetails::new(
                 "orchbee agent read (<target>|--agent-session <id>|--name <name>|--panel <panel>|--terminal <terminal>) [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--plain|--ansi] [--format text|json]",
                 "Read a bound terminal through one temporary read-only viewer. Default source: recent, 80 physical rows including history and the live screen. --source visible reads the screen; recent-unwrapped joins verified soft wraps; detection reads a cursor-centered screen-height window. --lines accepts 0..4294967295 and clamps to 1000. No input, focus or resize effect. --plain emits UTF-8 and conflicts with --format json. --ansi emits styled SGR text; JSON always uses orchbee.terminal.output v1 with explicit text/ansi encoding. A nullable output cursor can fence a later --after wait. The cursor is not a command completion marker. Sources never silently widen after a stale sample.",
@@ -377,10 +352,10 @@ impl Locale {
                 "orchbee agent read (<target>|--agent-session <id>|--name <name>|--panel <panel>|--terminal <terminal>) [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--plain|--ansi] [--format text|json]",
                 "通过一个临时只读 viewer 读取已绑定终端。默认来源 recent，包含历史及当前屏幕的 80 个物理行。--source visible 读取屏幕；recent-unwrapped 拼接已验证软换行；detection 读取光标附近一个屏幕高度的窗口。--lines 接受 0..4294967295 并钳制到 1000。不输入、不改焦点或尺寸。--plain 输出 UTF-8，与 --format json 互斥。--ansi 输出带 SGR 样式的文本，JSON 均使用 orchbee.terminal.output v1，并明确 text/ansi 编码。可空输出游标可用于后续 --after 等待，但不表示命令完成。样本陈旧时不会悄悄扩大来源范围。",
             ),
-            (Self::EnUs, CommandPath::AgentSendKeys) if cfg!(windows) => {
+            (Self::EnUs, CommandPath::AgentSendKeys) if true => {
                 super::agent::HELP_AGENT_SEND_KEYS_WINDOWS_EN
             }
-            (Self::ZhCn, CommandPath::AgentSendKeys) if cfg!(windows) => {
+            (Self::ZhCn, CommandPath::AgentSendKeys) if true => {
                 super::agent::HELP_AGENT_SEND_KEYS_WINDOWS_ZH
             }
             (Self::EnUs, CommandPath::AgentSendKeys) => crate::localization::HelpDetails::new(
@@ -424,14 +399,14 @@ impl Locale {
                 "为存活智能体命名或原子重命名。名称格式为 [a-z][a-z0-9_-]{0,31}，拒绝重名。--clear 只释放名称。可将 <target> 替换成 --agent-session <id> 或 --name <alias>。会话结束或会话停止后名称释放。",
             ),
             (Self::EnUs, CommandPath::AgentWait) => {
-                if cfg!(windows) {
+                if true {
                     super::agent::HELP_AGENT_WAIT_WINDOWS_EN
                 } else {
                     super::agent::HELP_AGENT_WAIT_EN
                 }
             }
             (Self::ZhCn, CommandPath::AgentWait) => {
-                if cfg!(windows) {
+                if true {
                     super::agent::HELP_AGENT_WAIT_WINDOWS_ZH
                 } else {
                     super::agent::HELP_AGENT_WAIT_ZH
@@ -453,51 +428,38 @@ impl Locale {
             (Self::ZhCn, CommandPath::ApiSchema) => HELP_API_SCHEMA_ZH,
             (Self::EnUs, CommandPath::ConfigResetKeys) => super::configuration::HELP_CONFIG_RESET_KEYS_EN,
             (Self::ZhCn, CommandPath::ConfigResetKeys) => super::configuration::HELP_CONFIG_RESET_KEYS_ZH,
-            #[cfg(windows)]
             (_, CommandPath::MachineList) => self.cli_machine_help(path),
-            #[cfg(windows)]
             (_, CommandPath::MachineAdd) => self.cli_machine_help(path),
-            #[cfg(windows)]
             (_, CommandPath::MachineRename) => self.cli_machine_help(path),
-            #[cfg(windows)]
             (_, CommandPath::MachineRemove) => self.cli_machine_help(path),
-            #[cfg(windows)]
             (_, CommandPath::MachineEnable) => self.cli_machine_help(path),
-            #[cfg(windows)]
             (_, CommandPath::MachineDisable) => self.cli_machine_help(path),
-            #[cfg(windows)]
             (Self::EnUs, CommandPath::ChannelShow) => crate::localization::HelpDetails::new(
                 "orchbee channel show [--format text|json]",
                 "Read the Windows update.channel preference (stable or preview). Defaults to stable.\nValidates the complete config; a missing explicit ORCHBEE_CONFIG_FILE fails.\nDoes not write files, connect to a session, download, or change the installed cohort.",
             ),
-            #[cfg(windows)]
             (Self::ZhCn, CommandPath::ChannelShow) => crate::localization::HelpDetails::new(
                 "orchbee channel show [--format text|json]",
                 "读取 Windows update.channel 偏好（stable 或 preview），默认 stable。校验完整配置；显式 ORCHBEE_CONFIG_FILE 不存在时失败。不写文件、不连接会话、不下载，也不改变已安装 cohort。",
             ),
-            #[cfg(windows)]
             (Self::EnUs, CommandPath::ChannelSet) => crate::localization::HelpDetails::new(
                 "orchbee channel set <stable|preview> [--format text|json]",
                 "Save the channel and immediately run update. Update failure retains the saved channel.\nUses ORCHBEE_UPDATE_MANIFEST; see orchbee update --help.",
             ),
-            #[cfg(windows)]
             (Self::ZhCn, CommandPath::ChannelSet) => crate::localization::HelpDetails::new(
                 "orchbee channel set <stable|preview> [--format text|json]",
                 "保存频道后立即更新；更新失败仍保留已保存的频道。使用 ORCHBEE_UPDATE_MANIFEST；参见 orchbee update --help。",
             ),
-            #[cfg(windows)]
             (Self::EnUs, CommandPath::Update) => crate::localization::HelpDetails::new(
                 "orchbee update [--format text|json]",
                 "Install the configured channel as a complete immutable Windows cohort.\nORCHBEE_UPDATE_MANIFEST: explicit HTTPS URL or absolute local manifest path; {channel} expands to stable or preview.\nORCHBEE_INSTALL_DIR defaults to %LOCALAPPDATA%/Programs/Orchbee.\nValidates every file, publishes a release, then updates user PATH. Existing sessions keep their version.\nTotal deadline: 600 seconds. Ctrl+C cancels; receipts retain published paths and cleanup obligations.",
             ),
-            #[cfg(windows)]
             (Self::ZhCn, CommandPath::Update) => crate::localization::HelpDetails::new(
                 "orchbee update [--format text|json]",
                 "按配置的频道安装完整、独立的 Windows cohort。\nORCHBEE_UPDATE_MANIFEST：显式 HTTPS URL 或本地清单绝对路径；{channel} 替换为 stable 或 preview。\nORCHBEE_INSTALL_DIR 默认为 %LOCALAPPDATA%/Programs/Orchbee。逐文件校验并发布版本，再更新用户 PATH；现有会话保留原版本。总时限 600 秒。Ctrl+C 取消；回执保留已发布路径和待清理项。",
             ),
             (Self::EnUs, CommandPath::ConfigCheck) => super::configuration::HELP_CONFIG_CHECK_EN,
             (Self::ZhCn, CommandPath::ConfigCheck) => super::configuration::HELP_CONFIG_CHECK_ZH,
-            #[cfg(windows)]
             (
                 _,
                 path @ (CommandPath::SessionList

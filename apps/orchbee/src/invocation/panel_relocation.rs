@@ -1,9 +1,8 @@
 //! One retained-Panel placement grammar for existing and new destinations.
 use super::{
-    FailureEnvelope, Options, OutputFormat, PANEL_MOVE_SCOPE, ParseFailure, Request, Resource,
-    Scope, TabContext, Target, UsageContext, UsageReason, WorkbenchLabel,
-    WorkbenchPanelSplitDirection, check_scope, client_control, missing_required, panel_direction,
-    target, usage_with, wait_timeout_option,
+    FailureEnvelope, Options, OutputFormat, ParseFailure, Request, Resource, TabContext, Target,
+    UsageContext, UsageReason, WorkbenchLabel, WorkbenchPanelSplitDirection, check_scope,
+    client_control, missing_required, panel_direction, target, usage_with, wait_timeout_option,
 };
 use orchbee_workbench_protocol::{ClientSplitRatio, WorkbenchClientId};
 
@@ -48,23 +47,7 @@ pub(super) fn parse(
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
     let context = UsageContext::Path("panel move");
-    check_scope(
-        options,
-        Scope {
-            new_workspace: true,
-            tab_label: true,
-            workspace: true,
-            project: true,
-            ratio: true,
-            focus: true,
-            no_focus: true,
-            client: true,
-            timeout: true,
-            ..PANEL_MOVE_SCOPE
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     let conflict = |first, second| {
         usage_with(
             UsageReason::ConflictingOptions {

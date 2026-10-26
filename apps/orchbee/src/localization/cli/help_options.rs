@@ -41,7 +41,6 @@ impl Locale {
                 "Deadline: 1..3600000 ms; default: 120000.",
                 "时限：1..3600000 毫秒；默认 120000。",
             ),
-            #[cfg(windows)]
             (
                 CommandPath::CommandInvoke
                 | CommandPath::PluginPaneFocus
@@ -53,19 +52,16 @@ impl Locale {
                 "Deadline: 1..3600000 ms; default: 30000.",
                 "时限：1..3600000 毫秒；默认 30000。",
             ),
-            #[cfg(windows)]
             (CommandPath::EventsSubscribe, "--timeout") => (
                 "<ms>",
                 "Overall deadline: 0..3600000 ms; omitted by default.",
                 "总时限：0..3600000 毫秒；默认不设置。",
             ),
-            #[cfg(windows)]
             (CommandPath::PanelGraphicsSet, "--spec") => (
                 "<json|@file|->",
                 "Graphics input: JSON, a file, or noninteractive stdin (-).",
                 "图像输入：JSON、文件或非交互标准输入（-）。",
             ),
-            #[cfg(windows)]
             (CommandPath::EventsWait | CommandPath::EventsSubscribe, "--source") => (
                 "<source>",
                 "Output scope: recent, recent-unwrapped, visible or detection.",
@@ -171,7 +167,6 @@ impl Locale {
                 "Split-tree path; root selects the top-level split.",
                 "分屏树路径；root 选择最上层分屏。",
             ),
-            #[cfg(windows)]
             (
                 CommandPath::TerminalCopyMotion
                 | CommandPath::TerminalCopySearch

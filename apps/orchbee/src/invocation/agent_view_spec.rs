@@ -1,7 +1,7 @@
 //! Whole-spec validation precedes Session discovery or any view mutation.
 use super::{
-    ExpectedValue, FailureEnvelope, NO_OPTIONS, Options, OutputFormat, ParseFailure, Request,
-    Scope, UsageContext, UsageReason, check_scope, missing_required, usage_with,
+    ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, Request, UsageContext,
+    UsageReason, check_scope, missing_required, usage_with,
 };
 use orchbee_workbench_protocol::{AgentViewAction, parse_agent_view_spec};
 pub(super) fn parse(
@@ -14,16 +14,7 @@ pub(super) fn parse(
         "clear" => "agent view clear",
         _ => "agent view get",
     });
-    check_scope(
-        options,
-        Scope {
-            agent_view_spec: verb == "set",
-            output_source: verb == "clear",
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
+    check_scope(options, context, envelope)?;
     let invalid = |option, value: String, expected| {
         usage_with(
             UsageReason::InvalidValue {

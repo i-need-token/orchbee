@@ -3,6 +3,7 @@ use crate::{
     localization::Locale, terminal_buffer_text::TerminalTextPoint, terminal_links::ResolvedLink,
 };
 impl Locale {
+    #[cfg(windows)]
     pub(crate) fn cli_terminal_link_activation(
         self,
         state: &str,
@@ -30,6 +31,7 @@ impl Locale {
         }
         text
     }
+    #[cfg(windows)]
     pub(crate) fn cli_terminal_link(
         self,
         terminal: &str,
