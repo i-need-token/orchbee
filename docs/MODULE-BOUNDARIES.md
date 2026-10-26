@@ -59,6 +59,12 @@ authority; relative-path reachability alone does not make another native subtree
 crate and module visibility follows [`docs/RUST.md`](RUST.md#modules-and-visibility); Zig visibility
 follows [`docs/ZIG.md`](ZIG.md#naming-and-modules).
 
+An application-internal Rust crate is a compilation boundary within its owning application,
+admitted under [Rust](RUST.md#placement-and-workspace-ownership). Its library root explicitly
+re-exports only the contracts consumed by the application or sibling internal crates. Moving a
+module does not authorize wider state access, a callback into the application, or a dependency
+cycle; preserve the semantic owner and break cycles before extraction.
+
 ## Structural component groups
 
 | Concern                         | Contract                                                                                                                                                                                                              |

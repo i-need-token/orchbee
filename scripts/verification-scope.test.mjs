@@ -63,6 +63,47 @@ test('manifests, unknown/global paths and unsupported graphs select all rather t
 		assert.equal(selectVerificationScope(invalid, []).all, true);
 });
 
+test('internal Cargo source selects its exact owner and dependent siblings before the enclosing application', () => {
+	const internal = [
+		{
+			root: 'apps/client',
+			name: 'client',
+			kind: 'cargo',
+			dependencies: ['apps/client/crates/view'],
+		},
+		{ root: 'apps/client/crates/io', name: 'client-io', kind: 'cargo', dependencies: [] },
+		{
+			root: 'apps/client/crates/view',
+			name: 'client-view',
+			kind: 'cargo',
+			dependencies: ['apps/client/crates/io'],
+		},
+		{
+			root: 'apps/client/crates/independent',
+			name: 'client-independent',
+			kind: 'cargo',
+			dependencies: [],
+		},
+	];
+	for (const ordering of [internal, internal.toReversed()]) {
+		const selected = selectVerificationScope(ordering, ['apps/client/crates/io/src/lib.rs']);
+		assert.equal(selected.all, false, selected.reasons.join('\n'));
+		assert.deepEqual(selected.cargo, ['client', 'client-io', 'client-view']);
+		assert.deepEqual(selected.unaffected, ['apps/client/crates/independent']);
+		assert.deepEqual(selectVerificationScope(ordering, ['apps/client/src/main.rs']).cargo, [
+			'client',
+		]);
+	}
+	assert.equal(selectVerificationScope(internal.slice(1), []).all, true);
+	assert.equal(
+		selectVerificationScope(
+			internal.map((entry, index) => (index === 1 ? { ...entry, kind: 'pnpm' } : entry)),
+			[],
+		).all,
+		true,
+	);
+});
+
 test('real workspace selection retains foreign fixture, resource, process and discovery consumers', () => {
 	const actual = readVerificationGraph(path.resolve(import.meta.dirname, '..'));
 	const host = selectVerificationScope(actual, ['apps/terminal-host/src/main.zig']);

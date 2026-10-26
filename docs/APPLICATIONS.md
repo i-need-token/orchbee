@@ -6,6 +6,7 @@
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Runnable or deployable entry    | Put it in `apps/*`; both end-user products and development applications use this location.                                                                                           |
 | Imported reusable capability    | Put JavaScript and TypeScript libraries in `packages/*`; put reusable Rust libraries in `crates/*`.                                                                                  |
+| Application-internal Rust seam  | Put an admitted private library in `apps/<app>/crates/<seam>` under [Rust](RUST.md#placement-and-workspace-ownership); it has no independent application lifecycle.                  |
 | Repository automation           | Put it in `scripts/*` when it has no independent application lifecycle.                                                                                                              |
 | Product/development distinction | Keep one `apps/*` root; express the distinction through workspace identity, package privacy, `project.json` responsibility and non-goals, and release configuration when one exists. |
 | Product application name        | Name its user-facing surface or runtime role, not an internal process such as `main` or `renderer`.                                                                                  |
@@ -66,6 +67,9 @@ Rust-specific placement, dependency, safety, and command rules are authoritative
 - Applications consume JavaScript and TypeScript packages only through declared exports and Rust
   crates only through declared Cargo dependencies.
 - Packages, crates, and applications never import another application's source tree.
+- An application may consume its own internal Rust crates through their declared Cargo boundaries;
+  only that application and sibling internal crates may depend on them. Shared crates and other
+  applications cannot consume these private boundaries.
 - Runtime workspaces never depend on development applications.
 - Cross-workspace discovery of non-runtime artifacts requires an authoritative format and ownership contract; Storybook follows [`docs/frontend/storybook.md`](frontend/storybook.md).
 

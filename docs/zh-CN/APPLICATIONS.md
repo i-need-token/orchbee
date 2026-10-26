@@ -6,6 +6,7 @@
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------ |
 | 可运行或部署的入口 | 放在 `apps/*` 中；最终用户产品和开发应用都使用该位置。                                                                   |
 | 通过导入使用的能力 | JavaScript 和 TypeScript 库放在 `packages/*`；可复用 Rust 库放在 `crates/*`。                                            |
+| 应用内部 Rust 边界 | 按 [Rust](RUST.md#放置和工作区所有权)将已准入的私有库放在 `apps/<app>/crates/<seam>`；它没有独立应用生命周期。           |
 | 仓库自动化         | 没有独立应用生命周期时放在 `scripts/*` 中。                                                                              |
 | 产品/开发区别      | 只保留一个 `apps/*` 根目录；通过工作区身份、package privacy、`project.json` 职责与非目标，以及存在时的发布配置表达区别。 |
 | 产品应用名称       | 使用它拥有的用户界面或运行时角色，不使用 `main` 或 `renderer` 等内部进程名。                                             |
@@ -65,6 +66,8 @@ Rust 专属位置、依赖、安全和命令规则以 [`docs/RUST.md`](RUST.md) 
 - 应用只能通过声明的导出来使用 JavaScript 和 TypeScript 包，只能通过声明的 Cargo dependency
   使用 Rust crate。
 - 包、crate 和应用绝不能导入另一个应用的源码树。
+- 应用可以通过已声明的 Cargo 边界使用自己的内部 Rust crate；只有该应用和同级内部 crate
+  可以依赖它们。共享 crate 和其他应用不能使用这些私有边界。
 - 运行时工作区绝不能依赖开发应用。
 - 跨工作区发现非运行时产物需要权威的格式和所有权契约；Storybook 遵循 [`docs/frontend/storybook.md`](frontend/storybook.md)。
 
@@ -90,4 +93,4 @@ Rust 专属位置、依赖、安全和命令规则以 [`docs/RUST.md`](RUST.md) 
 日常影响范围选择和构建触发条件由[验证规范](VERIFICATION.md#合并门禁)管理。
 应用构建输出在本地或 CI 中生成，并保持未跟踪状态。
 
-<!-- documentation-pairing: english-sha256=cab81af6ee740bb7dd9e57dc2cb9a26f81879fb6d804555be05032c8e503bd14 zh-cn-sha256=3daa2a8358535ca257fe955ab486fffaded370962aa8c824c4bd7979651e701b -->
+<!-- documentation-pairing: english-sha256=cabb1f403e71f4a41c0b26d4fc04cdaf129b6763edaf6781354433c85dd3e4c6 zh-cn-sha256=1305559d5073c629df053d1cec62bb75a8b17d973031446510e9493f829d3a08 -->

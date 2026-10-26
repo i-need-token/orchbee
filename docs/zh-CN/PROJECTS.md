@@ -2,15 +2,15 @@
 
 ## 目的
 
-| 关注点   | 契约                                                                                                                                    |
-| -------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| 位置     | `apps/*`、`packages/*` 或 `crates/*` 下的每个直接工作区都在其 `package.json` 或 `Cargo.toml` workspace manifest 旁保存 `project.json`。 |
-| 用途     | 为 Agent 提供放置变更所需的局部上下文，无需加载整个仓库。                                                                               |
-| 应用规则 | 放置和生命周期遵循 [`docs/APPLICATIONS.md`](APPLICATIONS.md)。                                                                          |
-| 包规则   | JavaScript 和 TypeScript 包契约遵循 [`docs/PACKAGES.md`](PACKAGES.md)；Rust crate 契约遵循 [`docs/RUST.md`](RUST.md)。                  |
-| 内容     | 只保留无法从路径或所属 manifest 可靠推导的事实；身份、命令、依赖、导出、target 与实现语言仍保存在该 manifest 中。                       |
-| Schema   | `schemas/project-contract.schema.json` 提供编辑器验证。                                                                                 |
-| 验证     | `pnpm lint:projects` 使用 Zod 解析契约，并拒绝缺失、过期或无效的 metadata。                                                             |
+| 关注点   | 契约                                                                                                                                                     |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 位置     | `apps/*`、`packages/*` 或 `crates/*` 下的每个直接工作区，以及 `apps/*/crates/*` 下的每个内部 Rust crate，都在 workspace manifest 旁保存 `project.json`。 |
+| 用途     | 为 Agent 提供放置变更所需的局部上下文，无需加载整个仓库。                                                                                                |
+| 应用规则 | 放置和生命周期遵循 [`docs/APPLICATIONS.md`](APPLICATIONS.md)。                                                                                           |
+| 包规则   | JavaScript 和 TypeScript 包契约遵循 [`docs/PACKAGES.md`](PACKAGES.md)；Rust crate 契约遵循 [`docs/RUST.md`](RUST.md)。                                   |
+| 内容     | 只保留无法从路径或所属 manifest 可靠推导的事实；身份、命令、依赖、导出、target 与实现语言仍保存在该 manifest 中。                                        |
+| Schema   | `schemas/project-contract.schema.json` 提供编辑器验证。                                                                                                  |
+| 验证     | `pnpm lint:projects` 使用 Zod 解析契约，并拒绝缺失、过期或无效的 metadata。                                                                              |
 
 ## 必需字段
 
@@ -24,6 +24,9 @@
 
 职责和非目标是架构放置规则。只在所有权确实发生转移时更新它们；不要仅仅为了证明某项实现合理就扩大它们。
 
+应用内部 crate 在 `responsibility` 中写明所属应用，在 `nonGoals` 中排除独立应用生命周期和
+供其他应用使用。其路径和 Cargo manifest 仍是应用归属与依赖的权威；不需要重复的 owner 字段。
+
 ## 变更规则
 
 - 在创建工作区的同一个变更中添加 `project.json`。
@@ -36,11 +39,11 @@
 
 ## 验证
 
-`pnpm lint:projects` 验证每个直接 application、package 与 crate 契约，并让 JSON Schema 与其
+`pnpm lint:projects` 验证每个直接 application、package、共享 crate 与应用内部 crate 契约，并让 JSON Schema 与其
 Zod 源保持同步。对于 `packages/*`，它还会验证 `@orchbee/<directory>` 名称以及
-[`docs/PACKAGES.md`](PACKAGES.md#必需的包结构) 所要求的标准库脚本。对于 `crates/*`，它要求
+[`docs/PACKAGES.md`](PACKAGES.md#必需的包结构) 所要求的标准库脚本。对于 `crates/*` 和 `apps/*/crates/*`，它要求
 Cargo manifest；根 Rust 门禁验证 workspace membership、工具链与 Cargo 工作。
 
 验证器刻意不对文字打分、不统计源码行数、不限制依赖数量，也不复制导出映射。依赖方向和源码可见性仍由架构 lint 规则强制执行。
 
-<!-- documentation-pairing: english-sha256=bd53cb8ef5d076c8422a326c7ec924559908ebcd4af9a2a185e52f7fad813ea6 zh-cn-sha256=9ae8cffdb2950ba0daff551f33818e1e858d8b3ca031ac2b2a089bcbbbeea343 -->
+<!-- documentation-pairing: english-sha256=e91ab48b3e14626ad6a698cad7778c27cb5c70ac2d12fd1edc4010da1a948f08 zh-cn-sha256=725e208c24f4569e621cd96147bc13e58862dd45ffc1af9d27d2cae2429be88d -->

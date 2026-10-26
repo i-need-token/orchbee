@@ -211,12 +211,17 @@ function validateGraph(graph) {
 	for (const entry of graph) {
 		if (
 			!packageName.test(entry.name) ||
-			!/^(?:apps|packages|crates)\/[a-z\d-]+$/u.test(entry.root) ||
+			!/^(?:(?:apps|packages|crates)\/[a-z\d-]+|apps\/[a-z\d-]+\/crates\/[a-z\d-]+)$/u.test(
+				entry.root,
+			) ||
 			!['pnpm', 'cargo'].includes(entry.kind) ||
 			!Array.isArray(entry.dependencies) ||
 			entry.dependencies.some((dependency) => !roots.has(dependency))
 		)
 			throw new Error(`Unsupported workspace owner ${entry.root}`);
+		const application = /^(apps\/[a-z\d-]+)\/crates\/[a-z\d-]+$/u.exec(entry.root)?.[1];
+		if (application && (entry.kind !== 'cargo' || !roots.has(application)))
+			throw new Error(`Missing application owner for internal crate ${entry.root}`);
 	}
 	const complete = new Set();
 	function visit(root, active) {
@@ -235,6 +240,8 @@ export function selectVerificationScope(graph, paths) {
 		validateGraph(graph);
 		const selected = new Set();
 		const reasons = [];
+		// Nested Cargo members own their source before the enclosing application's prefix.
+		const owners = graph.toSorted((left, right) => right.root.length - left.root.length);
 		for (const changed of paths) {
 			if (manifestName.test(changed)) throw new Error(`Dependency manifest changed: ${changed}`);
 			if (rootToolInputs.has(changed)) {
@@ -254,7 +261,7 @@ export function selectVerificationScope(graph, paths) {
 				}
 				continue;
 			}
-			const owner = graph.find((entry) =>
+			const owner = owners.find((entry) =>
 				tuiStandards.has(changed)
 					? entry.root === 'apps/orchbee'
 					: changed.startsWith(`${entry.root}/`),

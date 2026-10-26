@@ -41,6 +41,10 @@
 原生子树成为公共边界。Rust crate 和 module 可见性遵循 [`docs/RUST.md`](RUST.md#模块和可见性)；
 Zig 可见性遵循 [`docs/ZIG.md`](ZIG.md#命名和模块)。
 
+应用内部 Rust crate 是所属应用内的编译边界，按 [Rust](RUST.md#放置和工作区所有权)准入。
+其 library root 只显式 re-export 应用或同级内部 crate 使用的契约。移动模块不代表允许扩大
+状态访问、回调应用或引入依赖环；保留语义所有者，并在提取之前断开环。
+
 ## 结构化组件分组
 
 | 关注点           | 契约                                                                                                                                                                |
@@ -116,4 +120,4 @@ import { createA1 as hiddenA1 } from '../../a/a1'; // 禁止：A1 对 B1 隐藏�
 - `import/no-cycle` 以 `ignoreTypes: false` 运行；仅类型和运行时循环依赖都会失败。
 - 通过把共享契约移动到双方都可见的最近模块、在接口后反转依赖或引入专用同级模块来打破循环；绝不能抑制或降级规则。
 
-<!-- documentation-pairing: english-sha256=7ad51ef67d4bc536a08a85eb7facfe3a0ec995dc92ba75cb96784bd19b9ac943 zh-cn-sha256=c629f737348d17ab6d2862f9da9632641d344c70946ed5d350428b690e6ead23 -->
+<!-- documentation-pairing: english-sha256=bdd9b03284adf5a150d3fa126a215916eb4c7b32cf42dee356ac655b1251c2d6 zh-cn-sha256=db2743e030ee18cef9f3679e0e386bd1af3bfdd12bdf29fdccc047aed1b81840 -->

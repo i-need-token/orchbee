@@ -4,7 +4,7 @@
 
 | Concern          | Contract                                                                                                                                                                        |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Location         | Every direct `apps/*`, `packages/*`, or `crates/*` workspace keeps `project.json` beside its `package.json` or `Cargo.toml` workspace manifest.                                 |
+| Location         | Every direct `apps/*`, `packages/*`, or `crates/*` workspace and every `apps/*/crates/*` internal Rust crate keeps `project.json` beside its workspace manifest.                |
 | Purpose          | Give an agent enough local context to place a change without loading the repository.                                                                                            |
 | Application rule | Placement and lifecycle follow [`docs/APPLICATIONS.md`](APPLICATIONS.md).                                                                                                       |
 | Package rule     | JavaScript and TypeScript package contracts follow [`docs/PACKAGES.md`](PACKAGES.md); Rust crate contracts follow [`docs/RUST.md`](RUST.md).                                    |
@@ -24,6 +24,11 @@
 
 Responsibility and non-goals are architectural placement rules. Update them only when ownership genuinely moves; do not broaden them merely to justify an implementation.
 
+An application-internal crate names its owning application in `responsibility` and excludes
+independent application lifecycle and use by other applications in `nonGoals`. Its path and Cargo
+manifest remain the authorities for application membership and dependencies; no duplicate owner
+field is needed.
+
 ## Change rules
 
 - Add `project.json` in the same change that creates a workspace.
@@ -36,10 +41,10 @@ Responsibility and non-goals are architectural placement rules. Update them only
 
 ## Validation
 
-`pnpm lint:projects` verifies every direct application, package, and crate contract and keeps the
+`pnpm lint:projects` verifies every direct application, package, shared crate, and application-internal crate contract and keeps the
 JSON Schema synchronized with its Zod source. For `packages/*`, it also verifies the
 `@orchbee/<directory>` name and the standard library scripts required by
-[`docs/PACKAGES.md`](PACKAGES.md#required-package-shape). For `crates/*`, it requires a Cargo
+[`docs/PACKAGES.md`](PACKAGES.md#required-package-shape). For `crates/*` and `apps/*/crates/*`, it requires a Cargo
 manifest; the root Rust gate validates workspace membership, the toolchain, and Cargo work.
 
 The validator deliberately does not score prose, count source lines, cap dependency quantities, or duplicate export maps. Dependency direction and source visibility remain enforced by the architecture lint rules.

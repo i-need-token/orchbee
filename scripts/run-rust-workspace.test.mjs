@@ -162,6 +162,68 @@ function lintDependencyFixture(root) {
 	return runTask(root, 'lint');
 }
 
+test('application-internal Cargo boundaries allow their owner and siblings but reject foreign consumers and publishing', () => {
+	withFixture((root) => {
+		const rootManifest = join(root, 'Cargo.toml');
+		writeFileSync(
+			rootManifest,
+			readFileSync(rootManifest, 'utf8').replace(
+				'members = ["fixture"]',
+				'members = ["fixture", "apps/demo", "apps/*/crates/*"]',
+			),
+		);
+		const manifest = (name, dependencies = '') =>
+			`[package]\nname = "${name}"\nversion = "0.0.0"\nedition.workspace = true\nrust-version.workspace = true\npublish = false\n[lints]\nworkspace = true\n${dependencies}`;
+		for (const [directory, name, source, dependencies] of [
+			[
+				'apps/demo',
+				'demo',
+				'pub fn value() -> u8 { demo_view::value() }',
+				'[dependencies]\ndemo-view = { path = "crates/view" }\n',
+			],
+			[
+				'apps/demo/crates/view',
+				'demo-view',
+				'pub fn value() -> u8 { demo_io::value() }',
+				'[dependencies]\ndemo-io = { path = "../io" }\n',
+			],
+			['apps/demo/crates/io', 'demo-io', 'pub fn value() -> u8 { 1 }', ''],
+		]) {
+			mkdirSync(join(root, directory, 'src'), { recursive: true });
+			writeFileSync(join(root, directory, 'Cargo.toml'), manifest(name, dependencies));
+			writeFileSync(join(root, directory, 'src/lib.rs'), source + '\n');
+		}
+		const admitted = lintDependencyFixture(root);
+		assert.equal(admitted.status, 0, admitted.output);
+		const privateManifest = join(root, 'apps/demo/crates/io/Cargo.toml');
+		writeFileSync(privateManifest, manifest('demo-io').replace('publish = false\n', ''));
+		const publishable = lintDependencyFixture(root);
+		assert.notEqual(publishable.status, 0);
+		assert.match(publishable.output, /internal crates require publish = false/u);
+		writeFileSync(privateManifest, manifest('misnamed'));
+		const sibling = join(root, 'apps/demo/crates/view/Cargo.toml');
+		const siblingManifest = readFileSync(sibling, 'utf8');
+		writeFileSync(
+			sibling,
+			siblingManifest.replace('demo-io = { path', 'demo-io = { package = "misnamed", path'),
+		);
+		const misnamed = lintDependencyFixture(root);
+		assert.notEqual(misnamed.status, 0);
+		assert.match(misnamed.output, /internal crate name must be demo-io/u);
+		writeFileSync(privateManifest, manifest('demo-io'));
+		writeFileSync(sibling, siblingManifest);
+		const outsider = join(root, 'fixture/Cargo.toml');
+		writeFileSync(
+			outsider,
+			readFileSync(outsider, 'utf8') +
+				'\n[dependencies]\ndemo-io = { path = "../apps/demo/crates/io" }\n',
+		);
+		const foreign = lintDependencyFixture(root);
+		assert.notEqual(foreign.status, 0);
+		assert.match(foreign.output, /internal crate cannot be consumed by fixture/u);
+	});
+});
+
 for (const [scope, declaration, inherited] of [
 	[
 		'normal',

@@ -92,6 +92,7 @@ if (task === 'lint') {
 	const workspacePackages = metadata.packages.filter((entry) =>
 		metadata.workspace_members.includes(entry.id),
 	);
+	enforceApplicationCratePolicy(workspacePackages);
 	enforceDependencyPolicy(workspacePackages);
 	enforceAuthoredUnsafePolicy(workspacePackages);
 	const legacyModules = workspacePackages
@@ -164,6 +165,46 @@ function legacySourceModules(directory) {
 		if (entry.isDirectory()) return legacySourceModules(path);
 		return entry.name === 'mod.rs' ? [path] : [];
 	});
+}
+
+function enforceApplicationCratePolicy(workspacePackages) {
+	const byRoot = new Map(
+		workspacePackages.map((entry) => [relativeSource(dirname(entry.manifest_path)), entry]),
+	);
+	for (const [root, entry] of byRoot) {
+		const internal = /^(apps\/([a-z\d-]+))\/crates\/([a-z\d-]+)$/u.exec(root);
+		if (!internal && /^apps\/[^/]+\/crates(?:\/|$)/u.test(root))
+			throw new Error(
+				`${root}/Cargo.toml: internal crates use apps/<app>/crates/<seam>; see docs/RUST.md#placement-and-workspace-ownership`,
+			);
+		if (!internal) continue;
+		const [, application, name, seam] = internal;
+		const isSibling = (candidate) =>
+			/^(apps\/[a-z\d-]+)\/crates\/[a-z\d-]+$/u.exec(candidate)?.[1] === application;
+		const fail = (reason) => {
+			throw new Error(
+				`${root}/Cargo.toml: ${reason}; see docs/RUST.md#placement-and-workspace-ownership`,
+			);
+		};
+		if (!byRoot.has(application)) fail(`missing owning application ${application}`);
+		if (entry.name !== `${name}-${seam}`) fail(`internal crate name must be ${name}-${seam}`);
+		if (!Array.isArray(entry.publish) || entry.publish.length !== 0)
+			fail('internal crates require publish = false');
+		for (const [consumerRoot, consumer] of byRoot) {
+			const consumes = consumer.dependencies.some(
+				(dependency) =>
+					dependency.path !== undefined && samePath(dependency.path, dirname(entry.manifest_path)),
+			);
+			if (consumes && consumerRoot !== application && !isSibling(consumerRoot))
+				fail(`internal crate cannot be consumed by ${consumerRoot}`);
+		}
+		for (const dependency of entry.dependencies) {
+			if (dependency.path === undefined) continue;
+			const provider = relativeSource(dependency.path);
+			if (provider.startsWith('apps/') && !isSibling(provider))
+				fail(`internal crate cannot depend on application target ${provider}`);
+		}
+	}
 }
 
 function enforceDependencyPolicy(workspacePackages) {

@@ -142,6 +142,16 @@ async function main() {
 			directories: await workspaceDirectories(collection),
 		})),
 	);
+	const applications = projects.find((project) => project.collection === 'apps');
+	const internalCrates = await Promise.all(
+		applications.directories.map(async (application) => ({
+			collection: 'crates',
+			directories: await workspaceDirectories(
+				join(relative(REPOSITORY_ROOT, application), 'crates'),
+			),
+		})),
+	);
+	projects.push(...internalCrates);
 	await Promise.all(
 		projects.flatMap(({ collection, directories }) =>
 			directories.map((directory) => verifyProject(directory, collection)),

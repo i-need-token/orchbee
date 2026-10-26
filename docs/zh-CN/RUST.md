@@ -19,19 +19,30 @@
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | 可执行应用                  | 放在 `apps/<name>`，直接包含 `Cargo.toml` 与 `project.json`；在根 `workspace.members` 中显式列出。                        |
 | 可复用 Rust 库              | 放在 `crates/<name>`，直接包含 `Cargo.toml` 与 `project.json`；只有至少两个真实使用方，或一个刻意独立的稳定契约时才准入。 |
-| 应用私有代码                | 作为所属应用 crate 内的 module 保留；文件数量、测试访问和可能的未来复用都不足以证明需要共享 crate。                       |
+| 应用私有代码                | 保留在所属应用中；位于 `apps/<app>/crates/<seam>` 的内部 crate 必须具备内聚边界和实测的增量编译收益。                     |
 | JavaScript 或 TypeScript 库 | 保留在 `packages/*` 并遵循[包](PACKAGES.md)标准；不要仅为复用 npm namespace 就把 Cargo crate 放进去。                     |
 
 Cargo package 名使用 kebab-case。可执行文件名与安装后的进程名一致。`crates/<name>` 下的内部库
 使用 `orchbee-<name>`，除非目录本身已命名为 `orchbee`。每个仓库自有 crate 都设置
 `publish = false`，直到已接受的发布设计明确将其公开。
 
+应用内部库使用 `<app>-<seam>` 名称、设置 `publish = false`，并通过 `apps/*/crates/*` 加入根
+workspace。它们不是共享 crate，不适用 `crates/*` 的使用方准入规则。在 `project.json` 的
+responsibility 中写明所属应用，并遵守下方必需的 crate 形态。只有所属应用和同级内部 crate
+可以通过显式 Cargo dependency 和窄 re-export 使用它们。内部 crate 可依赖共享库及同级内部
+crate，但不得依赖应用 target；依赖图保持无环。调用解析和进程组合保留在应用中。
+
+保留拆分前，在同一机器上使用相同命令、profile 和已预热的依赖图，对真实源码修改后的增量检查
+与测试编译进行比较。在已有审查记录中写明修改输入、耗时、已接受的收益/退化界限，以及保留或
+回退结果。机制试点可以收益中性；文件数量、测试访问和可能的未来复用本身不足以证明需要 crate。
+后续每次拆分独立测量。
+
 `project.json.runtime` 描述生成代码在哪里运行，而不是实现语言。因此 Rust executable 使用
 `native`；`Cargo.toml` 是语言权威。不要在 `project.json` 中添加重复的 language 字段。
 
-应用 crate 可以通过 workspace dependency 依赖 `crates/*`。crate 绝不依赖 application crate，
-一个应用也绝不导入另一个应用的源码或 Cargo target。只有在行为具备稳定语义 owner 和真实
-consumer 后，才把它移到共享边界。
+应用 crate 可以通过 Cargo dependency 依赖 `crates/*` 及自己的内部库。共享 crate 绝不依赖
+应用或应用内部 crate，一个应用也绝不导入另一个应用的源码或 Cargo target。只有在行为具备
+稳定语义 owner 和真实 consumer 后，才把它移到共享边界。
 
 ## 必需的 crate 形态
 
@@ -68,9 +79,10 @@ consumer 后，才把它移到共享边界。
 - `target/` 和生成的构建输出保持未跟踪。生成的 protocol binding 标明其来源，并由所属契约
   检查是否陈旧。
 
-`pnpm lint:rust` 在 Clippy 前强制检查共享第三方依赖的 workspace 继承与默认 feature 关闭。
+`pnpm lint:rust` 在 Clippy 前强制检查内部 crate 的身份、发布限制和应用归属，以及共享第三方
+依赖的 workspace 继承与默认 feature 关闭。
 Runner 复用锁定的 Cargo metadata 获取 package identity、dependency kind、target 与有效 feature，
-并读取清单 key 来检查继承和未使用的 workspace 声明。这两项检查不覆盖仓库 path dependency
+并读取清单 key 来检查继承和未使用的 workspace 声明。第三方依赖检查不覆盖仓库 path dependency
 和非 member 的第三方清单。Version requirement 的原因以及所选 feature 是否保留行为仍须评审。
 真实 Cargo 正反夹具位于
 [`scripts/run-rust-workspace.test.mjs`](../../scripts/run-rust-workspace.test.mjs)。
@@ -255,12 +267,12 @@ Workspace 还拒绝 `clippy::wildcard_imports`，使普通生产模块导入保�
 `clippy::allow_attributes_without_reason` 未启用，启用它属于 lint 策略变更，且必须在同一变更中
 修复每个现有例外。
 
-| 关注点              | 证据与限制                                                                                                                                          |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 工具链与 Cargo 执行 | 根 runner 检查编译器固定版本和 locked Cargo metadata，再执行所选 workspace task。                                                                   |
-| 编译器与 lint 诊断  | 成员继承 workspace lint；rustfmt 检查格式，Clippy 拒绝已启用的告警。这不证明全部源码策略义务。                                                      |
-| 清单与架构策略      | Lint runner 检查共享第三方依赖的 workspace 继承与默认 feature 关闭。评审成员注册、依赖方向、精确版本原因、feature 行为、嵌套 workspace 和路径边界。 |
-| 语义安全与测试价值  | 评审受检构造、不变量证明、取消、关闭和对应主张的证据；编译与测试文件数量无法判断它们。                                                              |
+| 关注点              | 证据与限制                                                                                                                                                                          |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 工具链与 Cargo 执行 | 根 runner 检查编译器固定版本和 locked Cargo metadata，再执行所选 workspace task。                                                                                                   |
+| 编译器与 lint 诊断  | 成员继承 workspace lint；rustfmt 检查格式，Clippy 拒绝已启用的告警。这不证明全部源码策略义务。                                                                                      |
+| 清单与架构策略      | Lint runner 检查应用内部归属、包身份与发布、共享第三方依赖的 workspace 继承与默认 feature 关闭。评审成员注册、其余依赖方向、精确版本原因、feature 行为、嵌套 workspace 和路径边界。 |
+| 语义安全与测试价值  | 评审受检构造、不变量证明、取消、关闭和对应主张的证据；编译与测试文件数量无法判断它们。                                                                                              |
 
 ## 跨语言契约
 
@@ -346,4 +358,4 @@ workspace 构建统一后的依赖 feature，不能证明独立交付的 package
 cohort。它绝不把 `target/` 下碰巧已有的文件视为 release input。Supported target、signing、
 install path、update cohort 与 rollback 仍由每个已接受的应用发布切片负责。
 
-<!-- documentation-pairing: english-sha256=f1213e857b6685eecaaf215f5548f5aa86d965e642cb129ef7258b06e4ad9829 zh-cn-sha256=9b438c0ec9952511e926bb397f94b1374761dfc0ce38ba0e3bd47391201d7e41 -->
+<!-- documentation-pairing: english-sha256=fa4619d8d3724c0edd93c359fff318bf33b48261d1637d9ef8d78a07bac95824 zh-cn-sha256=ee37c3ae68ea75ef7ab35dc42e51b2222a484211d463a90e1759701f71a718d7 -->

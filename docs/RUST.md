@@ -23,7 +23,7 @@ Keep explicitly owned per-package optimization overrides.
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Executable application           | `apps/<name>` with a direct `Cargo.toml` and `project.json`; list it explicitly in root `workspace.members`.                                                  |
 | Reusable Rust library            | `crates/<name>` with a direct `Cargo.toml` and `project.json`; admit it only for at least two real consumers or one deliberately independent stable contract. |
-| Application-private code         | Keep it as modules inside the owning application crate; file count, test access, and possible future reuse do not justify a shared crate.                     |
+| Application-private code         | Keep it in the owning application; an internal crate at `apps/<app>/crates/<seam>` requires a cohesive boundary and measured incremental compilation benefit. |
 | JavaScript or TypeScript library | Keep it under `packages/*` and follow [Packages](PACKAGES.md); do not place a Cargo crate there merely to reuse the npm namespace.                            |
 
 Cargo package names use kebab-case. An executable name matches its installed process name. An
@@ -31,13 +31,28 @@ internal library under `crates/<name>` uses `orchbee-<name>` unless the director
 `orchbee`. Every repository-owned crate sets `publish = false` until an accepted release design
 explicitly makes it public.
 
+Application-internal libraries use `<app>-<seam>`, set `publish = false`, and participate in the
+root workspace through `apps/*/crates/*`. They are not shared crates and do not use the `crates/*`
+consumer-admission rule. Record the owning application in their `project.json` responsibility;
+keep the required crate shape below. Only that application and its sibling internal crates may
+consume them, through explicit Cargo dependencies and narrow re-exports. Internal crates may
+depend on shared libraries and sibling internal crates, never on the application target; the
+dependency graph stays acyclic. Keep invocation parsing and process composition in the application.
+
+Before retaining an extraction, compare real source-edit incremental checks and test compilation
+on the same machine with the same commands, profile, and warmed dependency graph. Record the
+changed inputs, elapsed times, accepted benefit/regression bounds, and retained or reverted result
+in the existing review. A mechanism pilot may be neutral; file count, test access, and possible
+future reuse alone do not justify a crate. Measure later extractions independently.
+
 `project.json.runtime` describes where emitted code runs, not its implementation language. A Rust
 executable therefore uses `native`; `Cargo.toml` is the language authority. Do not add a duplicate
 language field to `project.json`.
 
-Application crates may depend on `crates/*` through workspace dependencies. A crate never depends
-on an application crate, and one application never imports another application's source or Cargo
-target. Shared behavior moves only after it has a stable semantic owner and real consumers.
+Application crates may depend on `crates/*` and their own internal libraries through Cargo
+dependencies. Shared crates never depend on applications or application-internal crates, and one
+application never imports another application's source or Cargo target. Shared behavior moves only
+after it has a stable semantic owner and real consumers.
 
 ## Required crate shape
 
@@ -79,11 +94,12 @@ real `crates/*` library when a second consumer appears.
 - Keep `target/` and generated build output untracked. Generated protocol bindings identify their
   source and are checked for staleness by their owning contract.
 
-`pnpm lint:rust` enforces shared third-party workspace inheritance and disabled default features
-before Clippy. The runner reuses locked Cargo metadata for package identity, dependency kind,
+`pnpm lint:rust` enforces internal-crate identity, publishing restrictions, and application ownership,
+as well as shared third-party workspace inheritance and disabled default features before Clippy.
+The runner reuses locked Cargo metadata for package identity, dependency kind,
 target, and effective features, and reads manifest keys to verify inheritance and unused workspace
-declarations. Repository path dependencies and nonmember third-party manifests are outside these
-two checks. Version-requirement rationale and whether the selected features preserve behavior
+declarations. Repository path dependencies and nonmember third-party manifests are outside the
+third-party dependency checks. Version-requirement rationale and whether the selected features preserve behavior
 remain review obligations. Real positive and negative Cargo fixtures live in
 [`scripts/run-rust-workspace.test.mjs`](../scripts/run-rust-workspace.test.mjs).
 
@@ -301,12 +317,12 @@ The `reason` requirement is a review obligation: `clippy::allow_attributes_witho
 enabled, and enabling it is a lint policy change that must fix every existing exception in the
 same change.
 
-| Concern                          | Evidence and limits                                                                                                                                                                                                                 |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Toolchain and Cargo execution    | The root runner checks the compiler pin and locked Cargo metadata, then invokes the selected workspace task.                                                                                                                        |
-| Compiler and lint diagnostics    | Members inherit workspace lints; rustfmt checks formatting and Clippy denies enabled warnings. This does not prove all source-policy obligations.                                                                                   |
-| Manifest and architecture policy | The lint runner checks shared third-party workspace inheritance and disabled default features. Review member registration, dependency direction, exact-version rationale, feature behavior, nested workspaces, and path boundaries. |
-| Semantic safety and test value   | Review checked construction, invariant proofs, cancellation, shutdown, and claim-mapped evidence; compilation and a test-file count cannot judge them.                                                                              |
+| Concern                          | Evidence and limits                                                                                                                                                                                                                                                                                             |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Toolchain and Cargo execution    | The root runner checks the compiler pin and locked Cargo metadata, then invokes the selected workspace task.                                                                                                                                                                                                    |
+| Compiler and lint diagnostics    | Members inherit workspace lints; rustfmt checks formatting and Clippy denies enabled warnings. This does not prove all source-policy obligations.                                                                                                                                                               |
+| Manifest and architecture policy | The lint runner checks application-internal ownership, package identity and publishing, shared third-party workspace inheritance, and disabled default features. Review member registration, remaining dependency direction, exact-version rationale, feature behavior, nested workspaces, and path boundaries. |
+| Semantic safety and test value   | Review checked construction, invariant proofs, cancellation, shutdown, and claim-mapped evidence; compilation and a test-file count cannot judge them.                                                                                                                                                          |
 
 ## Cross-language contracts
 
