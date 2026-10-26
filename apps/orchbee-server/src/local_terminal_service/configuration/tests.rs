@@ -174,7 +174,7 @@ fn startup_and_reload_reject_an_accepted_source_whose_composed_response_is_overs
     );
     let diagnostics = protocol_diagnostics(&candidate.diagnostics).unwrap();
     assert!(diagnostics.validate().is_ok());
-    let candidate_snapshot = snapshot(&candidate.settings, &candidate.settings, diagnostics, 0);
+    let candidate_snapshot = snapshot(&candidate.settings, diagnostics, 0);
     let publication = Outcome::Current {
         snapshot: candidate_snapshot,
     };

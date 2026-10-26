@@ -137,7 +137,6 @@ fn restart_rebinds_children_and_grouped_pinned_tabs_before_open_reuses_first_ter
         coordinator
             .complete(pending, completion, Some(worker))
             .unwrap();
-        coordinator.seed_checkpoint_agent_sessions().unwrap();
     }
 
     let after = coordinator.workbench.as_ref().unwrap().snapshot();

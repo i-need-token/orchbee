@@ -86,6 +86,7 @@ pub(super) fn run(
             owners.site.client_socket_path(),
             cohort,
             Arc::clone(&owners.terminals),
+            Arc::clone(&owners.agents),
             Arc::clone(&shutdown),
         )
     })();

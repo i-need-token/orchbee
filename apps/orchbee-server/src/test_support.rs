@@ -155,14 +155,22 @@ impl WorkbenchFixture for WorkbenchAuthority {
         let committed = self.prepare_fixture_tab(binding)?.commit();
         let metadata = committed.metadata().clone();
         let pending = committed.into_pending();
-        self.prepare_terminal_tab_settlement(
-            pending,
-            orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started {
-                geometry: metadata.geometry(),
-            },
-        )
-        .unwrap()
-        .commit();
+        let settled = self
+            .prepare_terminal_tab_settlement(
+                pending,
+                orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started {
+                    geometry: metadata.geometry(),
+                },
+            )
+            .unwrap()
+            .commit();
+        assert!(matches!(
+            settled.outcome,
+            WorkbenchCommandOutcome::TabCreated {
+                terminal_outcome: WorkbenchTerminalOutcome::Started { .. },
+                ..
+            }
+        ));
         Ok(metadata)
     }
 }
