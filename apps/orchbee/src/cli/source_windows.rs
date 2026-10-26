@@ -18,7 +18,6 @@ use std::{
 mod input;
 pub(crate) use input::{InputSource, SourceFailure, materialize, source_details};
 use input::{limit_for, usage};
-pub(crate) type SignalError = io::Error;
 
 pub(crate) trait SignalWatch {
     fn poll_fd(&self) -> Option<orchbee_local_ipc::LocalIo<'_>>;

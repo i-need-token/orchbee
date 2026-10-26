@@ -1,4 +1,5 @@
 //! Retained status uses receipt identity; resume submits once with an explicit generation.
+use super::command_interrupt::{ArmedSignals, Finish};
 use super::{Failure, FailureKind, Output, failure_output, output};
 use crate::{
     invocation::{OutputFormat, operation::CloseFamily},
@@ -14,8 +15,12 @@ pub(crate) fn run_close(
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
-    #[cfg(any(target_os = "linux", windows))]
-    let mut signals = match super::source::ArmedSignals::arm_interrupts() {
+    if let Err(failure) =
+        super::execution::admit(super::execution::Capability::RetainedCloseOperation)
+    {
+        return failure_output(failure, Some(format), locale);
+    }
+    let mut signals = match ArmedSignals::arm_interrupts() {
         Ok(signals) => signals,
         Err(_) => {
             return failure_output(
@@ -25,15 +30,7 @@ pub(crate) fn run_close(
             );
         }
     };
-    #[cfg(any(target_os = "linux", windows))]
     let answer = observe_close(family, operation_id, generation, &mut signals);
-    #[cfg(not(any(target_os = "linux", windows)))]
-    let answer: Result<(Value, u8), Failure> = {
-        let _ = (family, operation_id, generation);
-        Err(Failure::new(FailureKind::ServiceUnavailable).details(
-            crate::cli::stage_reason_details("platform", "unsupported-platform"),
-        ))
-    };
     let mut output = match answer {
         Ok((result, status)) => {
             let bytes = match format {
@@ -58,10 +55,9 @@ pub(crate) fn run_close(
         }
         Err(failure) => failure_output(failure, Some(format), locale),
     };
-    #[cfg(any(target_os = "linux", windows))]
     match signals.finish() {
-        Ok(super::source::Finish::Clear) => {}
-        Ok(super::source::Finish::Cancelled { finalization, .. }) => {
+        Ok(Finish::Clear) => {}
+        Ok(Finish::Cancelled { finalization, .. }) => {
             output.status = 130;
             output.finalization = Some(finalization);
         }
@@ -72,12 +68,11 @@ pub(crate) fn run_close(
     output
 }
 
-#[cfg(any(target_os = "linux", windows))]
 fn observe_close(
     family: CloseFamily,
     operation_id: &WorkbenchRequestId,
     generation: Option<WorkbenchTabCloseAttemptGeneration>,
-    signals: &mut super::source::ArmedSignals,
+    signals: &mut ArmedSignals,
 ) -> Result<(Value, u8), Failure> {
     use crate::local_client::workbench::{
         WorkbenchTabCloseResumeSubmission as Tab,
@@ -127,7 +122,7 @@ fn observe_close(
     let Some(generation) = generation else {
         return Ok((result, 0));
     };
-    use super::source::SignalWatch;
+    use super::console_interrupt::SignalWatch;
     match signals.take() {
         Ok(None) => {}
         Ok(Some(_)) => return Ok((result, 130)),

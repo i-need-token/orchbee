@@ -4,6 +4,13 @@ use crate::invocation::{
     UsageReason,
 };
 
+#[cfg(windows)]
+#[path = "agent_request/windows.rs"]
+mod platform;
+#[cfg(not(windows))]
+#[path = "agent_request/unix.rs"]
+mod platform;
+
 pub(super) fn list_cursor<Cursor, Error>(
     value: Option<&str>,
     format: OutputFormat,
@@ -27,36 +34,14 @@ pub(super) fn list_cursor<Cursor, Error>(
 }
 
 pub(super) fn wait_conditions(requested: Option<&[AgentWaitCondition]>) -> &[AgentWaitCondition] {
-    use AgentWaitCondition::*;
-    #[cfg(windows)]
-    const DEFAULT: &[AgentWaitCondition] = &[Idle, Done, Blocked];
-    #[cfg(not(windows))]
-    const DEFAULT: &[AgentWaitCondition] = &[
-        NeedsAttention,
-        Failed,
-        Succeeded,
-        Canceled,
-        Interrupted,
-        Idle,
-        Ended,
-    ];
-    requested.unwrap_or(DEFAULT)
+    requested.unwrap_or(platform::DEFAULT_CONDITIONS)
 }
 
 pub(super) fn wait_timeout(requested: Option<AgentWaitTimeout>) -> Option<u32> {
     match requested {
         Some(AgentWaitTimeout::Milliseconds(value)) => Some(value),
         Some(AgentWaitTimeout::Forever) => None,
-        None => {
-            #[cfg(windows)]
-            {
-                None
-            }
-            #[cfg(not(windows))]
-            {
-                Some(600_000)
-            }
-        }
+        None => platform::DEFAULT_TIMEOUT,
     }
 }
 

@@ -27,7 +27,7 @@ use super::{
     agent_session_until, agent_unavailable_details, classify_agent_read, classify_connect,
     is_deadline_elapsed, obap_request_id,
 };
-use crate::cli::agent_interrupt::{ArmedSignals, Finish};
+use crate::cli::command_interrupt::{ArmedSignals, Finish};
 use crate::cli::results::{AgentWaitDoc, AgentWaitHistory, Projection, agent_source};
 use crate::cli::wait_deadline::WaitDeadline;
 use crate::cli::{Failure, FailureKind};

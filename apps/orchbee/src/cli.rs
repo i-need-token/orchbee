@@ -2,9 +2,9 @@
 //! structured failures, and process outcomes. It does not own command grammar, canonical
 //! Workbench state, or physical terminal execution.
 
-mod agent_interrupt;
 pub(crate) mod agent_manifests;
 pub(crate) mod agent_view_spec;
+mod command_interrupt;
 mod console_interrupt;
 mod execution;
 mod input_source;

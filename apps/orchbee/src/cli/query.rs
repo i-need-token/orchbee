@@ -89,7 +89,6 @@ mod agent_journal;
 pub(crate) use agent_journal::{AgentJournal, JournalError};
 mod agent_explanation;
 mod agent_focus;
-#[cfg(any(target_os = "linux", windows))]
 mod agent_names;
 mod agent_names_failure;
 #[cfg(not(any(target_os = "linux", windows)))]
@@ -202,7 +201,7 @@ use orchbee_workbench_protocol::{
     WorktreeListUnavailableReason,
 };
 
-use super::agent_interrupt::{ArmedSignals as AgentSignals, Finish as AgentFinish};
+use super::command_interrupt::{ArmedSignals as AgentSignals, Finish as AgentFinish};
 #[cfg(any(target_os = "linux", windows))]
 use super::results::Projection;
 #[cfg(any(target_os = "linux", windows))]
@@ -3047,21 +3046,11 @@ pub(crate) fn agent_get(
     ))
 }
 
-#[cfg(any(target_os = "linux", windows))]
 pub(super) fn names_command(
     command: &crate::invocation::AgentNamesCommand,
 ) -> super::agent_names::Execution {
     agent_names::execute(command)
 }
-#[cfg(not(any(target_os = "linux", windows)))]
-pub(super) fn names_command(
-    _command: &crate::invocation::AgentNamesCommand,
-) -> super::agent_names::Execution {
-    super::agent_names::Execution::failed(Failure::new(FailureKind::ServiceUnavailable).details(
-        crate::cli::stage_reason_details("platform", "unsupported-platform"),
-    ))
-}
-
 pub(crate) fn agent_changes(
     limit: u64,
     cursor: Option<orchbee_agent_observation_protocol::AgentChangesCursor>,

@@ -4,16 +4,21 @@
 
 use super::agent_names_failure::exchange_failure;
 use super::{
-    AGENT_TOTAL_BUDGET, AgentAdmissionError, AgentExchangeError, ArmedSignals, BorrowedFd, Failure,
-    FailureKind, Finish, Instant, SignalWatch, agent_session_until, classify_connect,
-    deadline_after, obap_request_id,
+    AGENT_TOTAL_BUDGET, AgentAdmissionError, AgentExchangeError, BorrowedFd, Failure, FailureKind,
+    Instant, agent_session_until, classify_connect, deadline_after, obap_request_id,
 };
 use crate::cli::agent_names::{Execution, FAILURE_SCHEMA};
+use crate::cli::command_interrupt::{ArmedSignals, Finish};
 use crate::invocation::AgentNamesCommand;
 use orchbee_agent_observation_protocol::{AgentNamesRequest, AgentNamesResult};
 use serde_json::{Map, json};
 
 pub(super) fn execute(command: &AgentNamesCommand) -> Execution {
+    if let Err(failure) =
+        crate::cli::execution::admit(crate::cli::execution::Capability::AgentNames)
+    {
+        return Execution::failed(failure);
+    }
     let total = match deadline_after(AGENT_TOTAL_BUDGET) {
         Ok(total) => total,
         Err(failure) => return Execution::failed(failure),
@@ -22,7 +27,7 @@ pub(super) fn execute(command: &AgentNamesCommand) -> Execution {
         Ok(armed) => armed,
         Err(_) => return Execution::failed(Failure::new(FailureKind::InternalFailure)),
     };
-    let attempt = span(total, SignalWatch::poll_fd(&armed), command);
+    let attempt = span(total, armed.poll_fd(), command);
     let finish = armed.finish();
     settle(command, attempt, finish)
 }
@@ -85,7 +90,7 @@ fn span(total: Instant, wake: Option<BorrowedFd<'_>>, command: &AgentNamesComman
 fn settle(
     command: &AgentNamesCommand,
     attempt: Attempt,
-    finish: Result<Finish, crate::cli::source::SignalError>,
+    finish: std::io::Result<Finish>,
 ) -> Execution {
     let (cancelled, fault, finalization) = match finish {
         Ok(Finish::Clear) => (false, false, None),

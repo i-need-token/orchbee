@@ -44,10 +44,9 @@ use nix::{
 use super::{Failure, FailureKind, SourceFinalization};
 #[path = "source/input.rs"]
 mod input;
+use crate::invocation::SendSourceCause;
 pub(crate) use input::{InputSource, SourceFailure, materialize, source_details};
 use input::{limit_for, usage};
-pub(crate) type SignalError = Errno;
-use crate::invocation::SendSourceCause;
 
 /// The captured-signal channel polled beside the source descriptor. `take`
 /// distinguishes all three outcomes — a captured signal, no pending signal,

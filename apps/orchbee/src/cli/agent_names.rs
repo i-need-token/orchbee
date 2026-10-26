@@ -27,7 +27,6 @@ impl Execution {
     }
 }
 
-#[cfg(any(target_os = "linux", windows))]
 impl AgentNamesCommand {
     pub(crate) const fn operation(&self) -> &'static str {
         match self {

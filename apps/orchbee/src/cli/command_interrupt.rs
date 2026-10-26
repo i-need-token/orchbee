@@ -1,17 +1,17 @@
-//! Agent reads borrow the existing native interrupt owner through one finish arbitration.
+//! Admitted CLI commands borrow the existing INT/TERM owner through one finish arbitration.
 //! The port preserves Linux signal-mask policy and Windows console-handler lifetime.
 use super::SourceFinalization;
 use orchbee_local_ipc::LocalIo;
 use std::io;
 
 #[cfg(target_os = "linux")]
-#[path = "agent_interrupt/linux.rs"]
+#[path = "command_interrupt/linux.rs"]
 mod platform;
 #[cfg(windows)]
-#[path = "agent_interrupt/windows.rs"]
+#[path = "command_interrupt/windows.rs"]
 mod platform;
 #[cfg(not(any(target_os = "linux", windows)))]
-#[path = "agent_interrupt/unsupported.rs"]
+#[path = "command_interrupt/unsupported.rs"]
 mod platform;
 
 trait NativeSignals {
