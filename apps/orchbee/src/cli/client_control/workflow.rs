@@ -1,4 +1,4 @@
-//! Submits exact Windows Client controls and observes their correlated monotonic status under
+//! Submits exact admitted Client controls and observes their correlated monotonic status under
 //! one cancellable deadline. It does not activate an OS window or undo an admitted control
 //! when the caller stops waiting.
 
@@ -11,8 +11,8 @@ use crate::{
     cli::{
         Failure, FailureKind, Output,
         caller_context::PanelTarget,
+        console_interrupt::{ArmedSignals, Finish},
         failure_output, query,
-        source::{ArmedSignals, Finish, SignalWatch},
     },
     invocation::{ClientCommand, ClientNavigationTarget, OutputFormat},
     localization::Locale,

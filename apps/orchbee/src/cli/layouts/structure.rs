@@ -2,8 +2,9 @@
 mod ratio;
 use crate::{
     cli::{
-        Failure, FailureKind, Output, failure_output, output, query, results,
-        source::{ArmedSignals, Finish, SignalWatch},
+        Failure, FailureKind, Output,
+        console_interrupt::{ArmedSignals, Finish, SignalWatch},
+        failure_output, output, query, results,
     },
     invocation::{ClientLayoutTarget, ClientNavigationTarget, LayoutQuery, OutputFormat, Resource},
     localization::Locale,
@@ -120,6 +121,11 @@ pub(in crate::cli) fn run(
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
+    if let Err(failure) =
+        crate::cli::execution::admit(crate::cli::execution::Capability::ClientControl)
+    {
+        return crate::cli::failure_output(failure, Some(format), locale);
+    }
     let deadline = Instant::now() + Duration::from_millis(u64::from(timeout_ms));
     let mut signals = match ArmedSignals::arm_interrupts() {
         Ok(signals) => signals,

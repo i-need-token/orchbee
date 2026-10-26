@@ -170,9 +170,6 @@ fn main() -> ExitCode {
                 | invocation::Request::TerminalCopy { format, .. }
                 | invocation::Request::TerminalSelection { format, .. }
                 | invocation::Request::ClientQuery { format, .. }
-                | invocation::Request::PanelTerminalCreation { format, .. }
-                | invocation::Request::LayoutExport { format, .. }
-                | invocation::Request::LayoutApply { format, .. }
                 | invocation::Request::Plugin { format, .. }
                 | invocation::Request::ConfiguredCommand { format, .. }
                 | invocation::Request::PaneGraphics { format, .. }
@@ -240,7 +237,6 @@ fn main() -> ExitCode {
             Ok(invocation::Request::Mutation { command, format }) => {
                 cli::mutation(command, format, locale)
             }
-            #[cfg(windows)]
             Ok(invocation::Request::PanelTerminalCreation { command, format }) => {
                 cli::panel_terminal_creation::run_parsed(&command, format, locale)
             }
@@ -250,11 +246,9 @@ fn main() -> ExitCode {
             Ok(invocation::Request::PanelRelocation { command, format }) => {
                 cli::panel_relocation::run(&command, format, locale)
             }
-            #[cfg(windows)]
             Ok(invocation::Request::LayoutExport { command, format }) => {
                 cli::layouts::export(&command, format, locale)
             }
-            #[cfg(windows)]
             Ok(invocation::Request::LayoutApply { command, format }) => {
                 cli::layouts::apply(&command, format, locale)
             }

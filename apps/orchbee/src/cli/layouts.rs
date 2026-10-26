@@ -1,4 +1,4 @@
-//! Windows reusable-layout workflows. Canonical membership and Client view keep separate owners.
+//! Admitted reusable-layout workflows. Canonical membership and Client view keep separate owners.
 mod apply;
 mod export;
 mod launch;
@@ -7,14 +7,15 @@ pub(in crate::cli) mod structure;
 mod template;
 mod workflow;
 use super::{
-    Failure, FailureKind, Output, failure_output, output,
-    source::{ArmedSignals, Finish},
+    Failure, FailureKind, Output,
+    console_interrupt::{ArmedSignals, Finish},
+    failure_output, output,
 };
 use crate::{
     invocation::{LayoutExportCommand, OutputFormat},
     localization::Locale,
 };
-/// Create or replace a Windows layout with bounded recovery and retained effect receipts.
+/// Create or replace an admitted layout with bounded recovery and retained effect receipts.
 pub(crate) use apply::run as apply;
 use serde_json::{Map, json};
 use std::time::{Duration, Instant};
@@ -29,6 +30,9 @@ pub(crate) fn export(
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
+    if let Err(failure) = crate::cli::execution::admit(crate::cli::execution::Capability::Layout) {
+        return crate::cli::failure_output(failure, Some(format), locale);
+    }
     let deadline = Instant::now() + Duration::from_millis(u64::from(command.timeout_ms));
     let mut signals = match ArmedSignals::arm_interrupts() {
         Ok(signals) => signals,

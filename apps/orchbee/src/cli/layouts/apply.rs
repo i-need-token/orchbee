@@ -1,4 +1,4 @@
-//! Bounded Windows layout application; retained effects survive incomplete composition.
+//! Bounded admitted layout application; retained effects survive incomplete composition.
 mod engine;
 mod exchange;
 mod ownership;
@@ -10,8 +10,8 @@ use crate::{
         Failure, FailureKind, Output,
         caller_context::PanelTarget,
         client_control::{exchange as control, selection},
+        console_interrupt::{self as source, ArmedSignals, Finish, SignalWatch, SourceFailure},
         query,
-        source::{self, ArmedSignals, Finish, SignalWatch, SourceFailure},
     },
     invocation::{LayoutApplyCommand, LayoutDestination, OutputFormat},
     localization::Locale,
@@ -28,6 +28,9 @@ pub(super) fn error(kind: FailureKind, reason: &'static str) -> Failure {
 
 /// Apply a fully admitted template and retain every known effect when later phases fail.
 pub(crate) fn run(command: &LayoutApplyCommand, format: OutputFormat, locale: Locale) -> Output {
+    if let Err(failure) = crate::cli::execution::admit(crate::cli::execution::Capability::Layout) {
+        return crate::cli::failure_output(failure, Some(format), locale);
+    }
     let total = Duration::from_millis(u64::from(command.timeout_ms));
     let deadline = Instant::now() + total;
     let work_deadline = deadline - total.div_f32(5.0).min(Duration::from_secs(2));

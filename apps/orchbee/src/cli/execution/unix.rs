@@ -2,5 +2,14 @@
 use super::{Capability, Unsupported};
 
 pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
-    Err(Unsupported(capability))
+    match capability {
+        Capability::WorkbenchMutation if cfg!(target_os = "linux") => Ok(()),
+        Capability::WorkbenchMutation
+        | Capability::AgentProjection
+        | Capability::WorkspaceGroupClose
+        | Capability::WorktreeOperation
+        | Capability::ClientControl
+        | Capability::Layout
+        | Capability::TerminalCreation => Err(Unsupported(capability)),
+    }
 }

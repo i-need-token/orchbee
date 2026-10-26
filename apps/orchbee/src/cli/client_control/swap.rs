@@ -4,8 +4,8 @@ use crate::{
     cli::{
         Failure, FailureKind, Output,
         caller_context::PanelTarget,
+        console_interrupt::{ArmedSignals, Finish},
         failure_output, query,
-        source::{ArmedSignals, Finish, SignalWatch},
     },
     invocation::{
         ClientNavigationTarget, OutputFormat, PanelSwapCommand, PanelSwapDestination, Target,

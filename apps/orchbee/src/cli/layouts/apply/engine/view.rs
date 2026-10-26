@@ -3,8 +3,8 @@ use super::{Engine, error, internal, ownership};
 use crate::cli::{
     Failure, FailureKind,
     client_control::{Answer, exchange as control},
+    console_interrupt::SignalWatch,
     query,
-    source::SignalWatch,
 };
 use orchbee_workbench_protocol::{
     ClientPanelLayout, ClientViewAction, ClientViewAvailability, ClientViewControl,

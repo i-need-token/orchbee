@@ -1,9 +1,6 @@
 //! Resolve a creation directory before the single canonical submission.
 use crate::{
-    cli::{
-        Failure, FailureKind, query,
-        source::{ArmedSignals, SignalWatch},
-    },
+    cli::{Failure, FailureKind, console_interrupt::SignalWatch, query},
     invocation::{CreationCommand, CreationDirectory, MutationCommand, TabContext, Target},
     local_client::LocalClient,
 };
@@ -32,7 +29,7 @@ pub(super) fn resolve(
     origin: (Option<&Target>, Option<&ClientViewRecord>),
     client: &mut LocalClient,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<Resolution, Failure> {
     if command.options.plugin_pane.is_some() && command.options.cwd.is_none() {
         return Ok(Resolution {
@@ -73,7 +70,7 @@ pub(in crate::cli) fn resolve_options(
     panel: Option<&Target>,
     client: &mut LocalClient,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<Resolution, Failure> {
     let policy = match directory {
         CreationDirectory::Explicit => "explicit",
@@ -125,7 +122,7 @@ pub(in crate::cli) fn resolve_options(
                 signals.poll_fd(),
             );
             // A wake is provisional inside transport. Only the signal owner consumes it.
-            super::windows::check(signals, deadline)?;
+            signals.check_before(deadline)?;
             match sample {
                 Ok((_, sample)) => {
                     result.path = root_directory(&sample.info);

@@ -20,7 +20,6 @@ pub(super) const APPLY_ZH: crate::localization::HelpDetails = crate::localizatio
 
 impl crate::localization::Locale {
     /// Render the application outcome and retained recovery identities in the selected locale.
-    #[cfg(windows)]
     pub(crate) fn cli_layout_apply(self, document: &serde_json::Value) -> String {
         let result = &document["result"];
         let complete = result["outcome"] == "completed";

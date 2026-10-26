@@ -154,7 +154,6 @@ mod process_info;
 #[cfg(target_os = "linux")]
 pub(crate) use process_info::panel_process_info;
 pub(crate) use process_info::read_terminal_processes;
-#[cfg(windows)]
 pub(crate) use process_info::{primary_terminal, read_terminal_processes_cancellable};
 
 #[cfg(not(any(target_os = "linux", windows)))]
@@ -269,7 +268,6 @@ const COHORT_BUDGET: Duration = Duration::from_secs(5);
 /// the single OBAP exchange — never refreshed between stages.
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 const AGENT_TOTAL_BUDGET: Duration = Duration::from_secs(5);
-#[cfg(any(target_os = "linux", windows))]
 const NETWORK_BUDGET: Duration = Duration::from_secs(5);
 /// An `Empty` poll answer is retried inside the shared network budget; the
 /// cadence stays coarse enough that a quiet host is never hammered.
@@ -894,7 +892,6 @@ fn classify_launch_profile_catalog_read(error: LaunchProfileCatalogReadError) ->
 /// existing-only rendezvous, socket validation, one admission, one snapshot
 /// read — all under the single network deadline. On success the caller owns
 /// the still admitted session; on any failure the session is already dropped.
-#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn snapshot_session() -> Result<(LocalClient, Instant, Snapshot), Failure> {
     let cohort_deadline = deadline_after(COHORT_BUDGET)?;
     let (cohort, session) = session_preamble(cohort_deadline, || Ok(()))?;
@@ -1103,7 +1100,6 @@ pub(in crate::cli) fn refresh_snapshot(
 }
 
 /// One checked deadline `budget` out from now.
-#[cfg(any(target_os = "linux", windows))]
 fn deadline_after(budget: Duration) -> Result<Instant, Failure> {
     Instant::now()
         .checked_add(budget)

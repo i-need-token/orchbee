@@ -7,6 +7,10 @@ pub(super) enum Capability {
     AgentProjection,
     WorkspaceGroupClose,
     WorktreeOperation,
+    ClientControl,
+    Layout,
+    TerminalCreation,
+    WorkbenchMutation,
 }
 
 pub(super) struct Unsupported(Capability);
@@ -22,7 +26,11 @@ pub(super) fn admit(capability: Capability) -> Result<(), Failure> {
     platform::admit(capability).map_err(|Unsupported(capability)| match capability {
         Capability::AgentProjection
         | Capability::WorkspaceGroupClose
-        | Capability::WorktreeOperation => Failure::new(FailureKind::ServiceUnavailable)
+        | Capability::WorktreeOperation
+        | Capability::ClientControl
+        | Capability::Layout
+        | Capability::TerminalCreation
+        | Capability::WorkbenchMutation => Failure::new(FailureKind::ServiceUnavailable)
             .details(stage_reason_details("platform", "unsupported-platform")),
     })
 }

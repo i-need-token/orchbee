@@ -4,7 +4,6 @@ use crate::invocation::LayoutQuery;
 use orchbee_workbench_protocol::{ClientCellRect, ClientPanelDirection, ClientPanelLayout};
 
 impl Locale {
-    #[cfg(windows)]
     pub(crate) fn cli_shared_layout(self, document: &serde_json::Value) -> String {
         let heading = match self {
             Self::EnUs => "Shared layout (session scope)",

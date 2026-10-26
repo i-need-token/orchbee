@@ -8,7 +8,6 @@ use crate::{
 };
 use orchbee_workbench_protocol::WorkbenchLabel;
 
-#[cfg(windows)]
 pub(super) mod directory;
 #[cfg(windows)]
 mod receipt;

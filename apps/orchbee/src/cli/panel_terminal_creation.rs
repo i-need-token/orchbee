@@ -5,9 +5,9 @@ use super::{
     Failure, FailureKind, Output,
     caller_context::PanelTarget,
     client_control::{exchange::exchange, selection},
+    console_interrupt::{ArmedSignals, Finish, SignalWatch},
     creation::directory,
     failure_output, query,
-    source::{ArmedSignals, Finish, SignalWatch},
 };
 use crate::{
     invocation::{OutputFormat, Target, panel_terminal_creation::PanelTerminalCreationCommand},
@@ -26,6 +26,11 @@ pub(crate) fn run_parsed(
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
+    if let Err(failure) =
+        crate::cli::execution::admit(crate::cli::execution::Capability::TerminalCreation)
+    {
+        return crate::cli::failure_output(failure, Some(format), locale);
+    }
     let named = matches!(
         command.launch,
         Some(crate::invocation::program::ParsedLaunch::Path { .. })

@@ -11,8 +11,7 @@ use orchbee_workbench_protocol::{
 use serde_json::{Map, Value, json};
 
 use super::Output;
-#[cfg(not(any(target_os = "linux", windows)))]
-use super::{Failure, FailureKind, failure_output, stage_reason_details};
+use super::failure_output;
 use crate::invocation::{MutationCommand, OutputFormat};
 use crate::localization::Locale;
 
@@ -70,7 +69,6 @@ pub(super) struct Closing {
 }
 
 impl Receipt {
-    #[cfg(windows)]
     pub(super) fn close_request_id(&self) -> Option<&str> {
         self.close_request_id.as_deref()
     }
@@ -312,24 +310,15 @@ fn command_source(session_id: &str, request_id: &str, base: WorkbenchRevision) -
     })
 }
 
-#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn run(command: &MutationCommand, format: OutputFormat, locale: Locale) -> Output {
-    linux::run(command, format, locale)
-}
-
-#[cfg(not(any(target_os = "linux", windows)))]
-pub(crate) fn run(command: &MutationCommand, format: OutputFormat, locale: Locale) -> Output {
-    let _ = command;
-    failure_output(
-        Failure::new(FailureKind::ServiceUnavailable)
-            .details(stage_reason_details("platform", "unsupported-platform")),
-        Some(format),
-        locale,
-    )
+    if let Err(failure) = super::execution::admit(super::execution::Capability::WorkbenchMutation) {
+        return failure_output(failure, Some(format), locale);
+    }
+    workflow::run(command, format, locale)
 }
 
 #[cfg(target_os = "linux")]
-pub(super) use linux::create_workspace;
+pub(super) use workflow::create_workspace;
 #[cfg(not(any(target_os = "linux", windows)))]
 pub(super) fn create_workspace(
     _project: &crate::invocation::Target,
@@ -340,11 +329,11 @@ pub(super) fn create_workspace(
     super::unsupported_platform(Some(format), locale)
 }
 
+pub(super) use workflow::submit_action;
 #[cfg(windows)]
-pub(super) use linux::{submit_action, submit_creation, success_output};
+pub(super) use workflow::{submit_creation, success_output};
 
-#[cfg(any(target_os = "linux", windows))]
-mod linux {
+mod workflow {
     use std::time::Instant;
 
     use orchbee_workbench_protocol::{
@@ -1330,7 +1319,6 @@ mod linux {
     }
 
     /// Submit an already resolved action from a phased CLI workflow on the same snapshot.
-    #[cfg(windows)]
     pub(in crate::cli) fn submit_action(
         client: &mut LocalClient,
         snapshot: &Snapshot,

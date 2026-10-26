@@ -14,6 +14,8 @@ Agent projection reads, exact terminal metadata, Client attention interpretation
 
 Workspace-group closure, Worktree operations and source queries keep request preparation, retained observation and post-open focus receipts in shared workflows. Their capability admission runs before literal-path resolution or operation ID generation. Windows path decoding remains explicit operand grammar; compiling that decoder on another host does not enable filesystem or Git operations there. A completed canonical operation is not erased by a failed or cancelled Client-focus observation.
 
+Client navigation/swap, reusable layouts and direct terminal-member creation share selection, protocol exchanges, recovery and receipt presentation. Native document input and executable lookup stay behind their Windows ports, with unavailable commands rejected before preparation effects. The existing Linux Workbench mutation route remains admitted; sharing its receipt engine does not admit that route on macOS.
+
 ## Sessions and background services
 
 An **Orchbee Session** is one independent work environment containing Workspaces, Tabs,

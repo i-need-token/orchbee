@@ -14,10 +14,8 @@ use serde_json::json;
 pub(super) mod exchange;
 mod layout;
 pub(super) mod selection;
-#[cfg(windows)]
 mod swap;
-#[cfg(windows)]
-pub(super) mod windows;
+mod workflow;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum Wait {
@@ -125,22 +123,12 @@ fn outcome_exit(outcome: &ClientViewOutcome) -> u8 {
     }
 }
 pub(crate) fn run(command: &ClientCommand, format: OutputFormat, locale: Locale) -> Output {
-    #[cfg(windows)]
-    {
-        windows::run(command, format, locale)
+    if let Err(failure) = super::execution::admit(super::execution::Capability::ClientControl) {
+        return failure_output(failure, Some(format), locale);
     }
-    #[cfg(not(windows))]
-    {
-        let _ = command;
-        failure_output(
-            Failure::new(FailureKind::ServiceUnavailable).details(
-                crate::cli::stage_reason_details("platform", "unsupported-platform"),
-            ),
-            Some(format),
-            locale,
-        )
-    }
+    workflow::run(command, format, locale)
 }
+
 pub(super) fn emit(answer: &Answer, format: OutputFormat, locale: Locale) -> Output {
     let document = if answer.operation_id.is_some() {
         answer.document()

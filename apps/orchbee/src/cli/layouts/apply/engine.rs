@@ -5,9 +5,9 @@ use super::{error, exchange, ownership, receipt::Receipt, targeting::Destination
 use crate::{
     cli::{
         Failure, FailureKind,
+        console_interrupt::{ArmedSignals, SignalWatch},
         layouts::{export, launch, template, workflow},
         mutation, query,
-        source::{ArmedSignals, SignalWatch},
     },
     invocation::{ClientLayoutTarget, LayoutApplyCommand, LayoutExportCommand, Target},
     local_client::LocalClient,

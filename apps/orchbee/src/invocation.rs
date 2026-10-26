@@ -20,7 +20,6 @@ mod layouts;
 mod named_sessions;
 pub(crate) mod pane_graphics;
 mod send_key;
-#[cfg(windows)]
 pub(crate) use layouts::LayoutDestination;
 pub(crate) use layouts::{LayoutApplyCommand, LayoutExportCommand};
 pub(crate) use named_sessions::NamedSessionCommand;
@@ -57,7 +56,6 @@ mod terminal_target;
 pub(crate) use client_control::ClientLayoutTarget;
 pub(crate) use client_control::{ClientCommand, LayoutQuery};
 pub(crate) use client_control::{ClientNavigationTarget, ZoomMode};
-#[cfg(windows)]
 pub(crate) use client_control::{PanelSwapCommand, PanelSwapDestination};
 pub(crate) use terminal_output::{OutputSelection, OutputSource, OutputTarget};
 mod output_cursor;

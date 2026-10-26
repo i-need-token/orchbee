@@ -14,7 +14,6 @@ pub(crate) mod operation;
 pub(crate) mod panel_agent;
 pub(crate) mod panel_metadata;
 mod panel_metadata_query;
-#[cfg(windows)]
 pub(crate) mod panel_terminal_creation;
 #[cfg(windows)]
 pub(crate) mod plugins;
@@ -77,7 +76,6 @@ pub(crate) mod config_reset;
 mod configuration;
 pub(crate) mod escape;
 pub(crate) mod integration;
-#[cfg(windows)]
 pub(crate) mod layouts;
 mod mutation;
 #[cfg(windows)]

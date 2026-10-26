@@ -1,16 +1,23 @@
 //! Resolve all local launch intents before any canonical creation.
 use super::{apply::error, template};
 use crate::{
-    cli::{Failure, FailureKind, source::ArmedSignals},
+    cli::{
+        Failure, FailureKind,
+        console_interrupt::{ArmedSignals, SignalWatch},
+    },
     invocation::user_path_windows,
 };
 use orchbee_workbench_protocol::LaunchOptions;
 use orchbee_workbench_protocol::LaunchSelection;
-use std::{
-    ffi::OsString,
-    path::{Path, PathBuf},
-    time::Instant,
-};
+use std::{ffi::OsString, time::Instant};
+
+#[cfg(windows)]
+#[path = "launch/windows.rs"]
+mod platform;
+#[cfg(not(windows))]
+#[path = "launch/unix.rs"]
+mod platform;
+use platform::resolve;
 
 pub(super) struct Prepared {
     pub(super) launch: Option<LaunchSelection>,
@@ -89,38 +96,4 @@ pub(super) fn prepare(
         prepared.push(members);
     }
     Ok(prepared)
-}
-
-fn resolve(
-    program: &str,
-    search: Option<&std::ffi::OsStr>,
-    current: &Path,
-) -> Result<String, Failure> {
-    let failure = || error(FailureKind::CheckFailed, "program-unavailable");
-    let path = Path::new(program);
-    let candidates = if path.is_absolute() {
-        vec![path.to_path_buf()]
-    } else if program.contains(['/', '\\']) {
-        vec![current.join(path)]
-    } else {
-        std::env::split_paths(search.ok_or_else(failure)?)
-            .take(256)
-            .filter(|directory| directory.is_absolute() && directory.as_os_str().len() <= 4096)
-            .map(|directory| {
-                directory.join(if path.extension().is_none() {
-                    format!("{program}.exe")
-                } else {
-                    program.to_owned()
-                })
-            })
-            .collect::<Vec<PathBuf>>()
-    };
-    for candidate in candidates {
-        if candidate.is_file() {
-            // Consistent Windows executable spelling also avoids cmd.exe treating '/' in argv0 as switches.
-            let value = candidate.to_str().ok_or_else(failure)?.replace('/', "\\");
-            return Ok(value);
-        }
-    }
-    Err(failure())
 }
