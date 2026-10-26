@@ -653,10 +653,10 @@ mod workflow {
             MutationCommand::TabMoveIndex { .. }
                 | MutationCommand::WorkspaceMove { .. }
                 | MutationCommand::WorkspaceMoveBlock { .. }
-        ) && !cfg!(windows)
-        {
-            return Err(Failure::new(FailureKind::ServiceUnavailable)
-                .details(stage_reason_details("platform", "unsupported-platform")));
+        ) {
+            crate::cli::execution::admit(
+                crate::cli::execution::Capability::ExtendedWorkbenchMutation,
+            )?;
         }
         // `close-resume` is a retained-lifecycle request, not a Workbench
         // command — it takes its own exchange on the same session
@@ -670,10 +670,9 @@ mod workflow {
             return execute_close_resume(workspace, request, *generation);
         }
         let caller = if let MutationCommand::PanelInput { target, .. } = command {
-            if !cfg!(windows) {
-                return Err(Failure::new(FailureKind::ServiceUnavailable)
-                    .details(stage_reason_details("platform", "unsupported-platform")));
-            }
+            crate::cli::execution::admit(
+                crate::cli::execution::Capability::ExtendedWorkbenchMutation,
+            )?;
             Some(super::super::caller_context::PanelTarget::prepare(
                 target.as_ref(),
                 |name| std::env::var_os(name),

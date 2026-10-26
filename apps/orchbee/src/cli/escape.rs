@@ -64,14 +64,15 @@ pub(crate) fn native_path(value: &str) -> String {
         }
         _ => value,
     };
-    let drive =
-        matches!(value.as_bytes(), [drive, b':', b'/' | b'\\', ..] if drive.is_ascii_alphabetic());
-    if cfg!(windows) && (drive || value.starts_with("//")) {
-        unquoted(&value.replace('/', "\\"))
-    } else {
-        unquoted(value)
-    }
+    platform::native_path(value)
 }
+
+#[cfg(windows)]
+#[path = "escape/windows.rs"]
+mod platform;
+#[cfg(not(windows))]
+#[path = "escape/unix.rs"]
+mod platform;
 
 /// `value` as a quoted, escaped text value.
 pub(crate) fn quoted(value: &str) -> String {

@@ -53,12 +53,14 @@ pub(super) fn canonical_list(
 
 /// Keep optional query members present without changing any observed value.
 pub(in crate::cli) fn complete(command: &QueryCommand, mut result: Value) -> Value {
-    let capability = if cfg!(windows) {
+    let projected =
+        crate::cli::execution::admit(crate::cli::execution::Capability::AgentProjection).is_ok();
+    let capability = if projected {
         json!("unknown")
     } else {
         unsupported()
     };
-    let selection = if cfg!(windows) {
+    let selection = if projected {
         Value::Null
     } else {
         unsupported()

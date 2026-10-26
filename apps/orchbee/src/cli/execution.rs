@@ -22,6 +22,7 @@ pub(super) enum Capability {
     TerminalCreation,
     ExtendedCreation,
     WorkbenchMutation,
+    ExtendedWorkbenchMutation,
     WorkbenchInspection,
     CanonicalPanelProcess,
     Reports,
@@ -71,6 +72,7 @@ pub(super) fn admit(capability: Capability) -> Result<(), Failure> {
         | Capability::TerminalCreation
         | Capability::ExtendedCreation
         | Capability::WorkbenchMutation
+        | Capability::ExtendedWorkbenchMutation
         | Capability::WorkbenchInspection
         | Capability::CanonicalPanelProcess
         | Capability::Reports
