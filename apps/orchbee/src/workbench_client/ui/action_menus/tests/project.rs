@@ -1201,7 +1201,7 @@ fn project_quick_return_consumes_once_and_preserves_newer_surface_intent() {
     ] {
         let mut view = ClientView::new(80);
         apply(&mut view, ClientAction::ToggleBusinessSidebar);
-        apply(&mut view, action.clone());
+        apply(&mut view, action.intent());
         assert!(view.project_quick_entry_pending());
         match newer {
             "hide_reopen" => {
@@ -1246,7 +1246,7 @@ fn project_quick_return_consumes_once_and_preserves_newer_surface_intent() {
         if surface == "help" || surface == "navigator" {
             apply(&mut view, ClientAction::ToggleBusinessSidebar);
         }
-        apply(&mut view, action.clone());
+        apply(&mut view, action.intent());
         if surface == "help" {
             apply(&mut view, ClientAction::OpenShortcutHelp);
         } else if surface == "navigator" {

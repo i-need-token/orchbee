@@ -454,7 +454,7 @@ fn shortcut_lines(
         // once.
         matching.sort_by_key(|entry| {
             (
-                entry.group.order(),
+                crate::tui_shortcut_help::group_order(entry.group),
                 !crate::tui_shortcut_help::shortcut_filter_matches(query, &entry.title),
             )
         });

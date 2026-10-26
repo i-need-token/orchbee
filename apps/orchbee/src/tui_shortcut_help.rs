@@ -31,7 +31,8 @@ impl ShortcutHelpEntry {
     }
 }
 
-const fn group_order(group: ShortcutHelpGroup) -> u8 {
+/// The stable feature-owned order shared by discovery and filtered rendering.
+pub(crate) const fn group_order(group: ShortcutHelpGroup) -> u8 {
     match group {
         ShortcutHelpGroup::Common => 0,
         ShortcutHelpGroup::Workspace => 1,
@@ -573,7 +574,7 @@ mod tests {
     #[test]
     fn help_entries_merge_workspace_creation_aliases_and_localize_groups() {
         let view = view_with_help();
-        let entries = entries(Locale::EnUs, &view, true, KeyLabelGlyphs::Unicode);
+        let entries = super::entries(Locale::EnUs, &view, true, KeyLabelGlyphs::Unicode);
         let workspace = entries
             .iter()
             .filter(|entry| entry.title == "New Workspace")
@@ -594,7 +595,7 @@ mod tests {
             );
         }
 
-        let entries_zh = entries(Locale::ZhCn, &view, true, KeyLabelGlyphs::Unicode);
+        let entries_zh = super::entries(Locale::ZhCn, &view, true, KeyLabelGlyphs::Unicode);
         let rename_workspace = entries
             .iter()
             .find(|entry| entry.key.contains("Ctrl+b r"))
@@ -767,7 +768,7 @@ mod tests {
         ));
         view.commit(transition, ClientActionDisposition::KeepNavigator);
 
-        let entries = entries(Locale::EnUs, &view, true, KeyLabelGlyphs::Unicode);
+        let entries = super::entries(Locale::EnUs, &view, true, KeyLabelGlyphs::Unicode);
         let workspace = entries
             .iter()
             .filter(|entry| entry.title == "New Workspace")
@@ -813,7 +814,7 @@ mod tests {
             Some(crate::client_view::Overlay::ShortcutHelp)
         );
         let copy_rows = copy.copy_help_rows();
-        let copy_entries = entries(Locale::EnUs, &copy, true, KeyLabelGlyphs::Unicode);
+        let copy_entries = super::entries(Locale::EnUs, &copy, true, KeyLabelGlyphs::Unicode);
         let move_key = copy_rows
             .iter()
             .find(|(_, description)| *description == PrefixDesc::CopyMove)
@@ -822,7 +823,7 @@ mod tests {
             .as_str();
         assert!(copy_entries.iter().any(|entry| entry.key == move_key));
         assert!(!copy_entries.iter().any(|entry| entry.key == "Esc"));
-        let copy_entries_zh = entries(Locale::ZhCn, &copy, true, KeyLabelGlyphs::Unicode);
+        let copy_entries_zh = super::entries(Locale::ZhCn, &copy, true, KeyLabelGlyphs::Unicode);
         assert!(
             copy_entries_zh
                 .iter()
@@ -835,7 +836,7 @@ mod tests {
         press(&mut resize, KeyCode::Char('?'), Modifiers::NONE);
         assert!(resize.resize_mode());
         let resize_rows = resize.resize_help_rows_with_glyphs(KeyLabelGlyphs::Unicode);
-        let resize_entries = entries(Locale::EnUs, &resize, true, KeyLabelGlyphs::Unicode);
+        let resize_entries = super::entries(Locale::EnUs, &resize, true, KeyLabelGlyphs::Unicode);
         let coarse_key = resize_rows
             .iter()
             .find(|(_, description)| *description == PrefixDesc::ResizeCoarse)
@@ -850,7 +851,7 @@ mod tests {
         assert!(sidebar.machines.enter_sidebar_navigation());
         open_help(&mut sidebar);
         assert!(sidebar.machines.sidebar_navigation_active());
-        let sidebar_entries = entries(Locale::EnUs, &sidebar, true, KeyLabelGlyphs::Unicode);
+        let sidebar_entries = super::entries(Locale::EnUs, &sidebar, true, KeyLabelGlyphs::Unicode);
         let search_key =
             sidebar_binding_label(SidebarCommand::Search, KeyLabelGlyphs::Unicode).unwrap();
         assert!(sidebar_entries.iter().any(|entry| entry.key == search_key));
@@ -866,7 +867,7 @@ mod tests {
     #[test]
     fn shared_machine_action_uses_the_action_menu_name() {
         let view = view_with_help();
-        let entry = entries(Locale::EnUs, &view, true, KeyLabelGlyphs::Unicode)
+        let entry = super::entries(Locale::EnUs, &view, true, KeyLabelGlyphs::Unicode)
             .into_iter()
             .find(|entry| {
                 entry.title == Locale::EnUs.menu_action(&crate::action_menu::MenuAction::Machines)
@@ -878,7 +879,7 @@ mod tests {
     #[test]
     fn disconnected_session_actions_explain_their_unavailability() {
         let view = view_with_help();
-        let entries = entries(Locale::EnUs, &view, false, KeyLabelGlyphs::Unicode);
+        let entries = super::entries(Locale::EnUs, &view, false, KeyLabelGlyphs::Unicode);
         let create_tab = entries
             .iter()
             .find(|entry| entry.key.contains("Ctrl+b c"))

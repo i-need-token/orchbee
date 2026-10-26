@@ -518,7 +518,8 @@ fn configured_discovery_and_snapshot_follow_the_dispatch_registry() {
         crate::localization::Locale::EnUs,
         crate::localization::Locale::ZhCn,
     ] {
-        let bound = locale.shell().bind(&view);
+        let shell_text = locale.shell();
+        let bound = shell_text.bind(&view.bindings().shell_bindings(shell_text.binding_unbound));
         let text = bound.text();
         assert!(text.hint_short.contains("F1"));
         assert!(!text.hint_short.contains("Ctrl+b"));

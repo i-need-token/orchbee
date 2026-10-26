@@ -1293,7 +1293,12 @@ fn render_native_workbench(
         workspace_creation::render(frame, areas, preview, locale, theme);
         return;
     }
-    let bound_text = locale.shell().bind(client_view);
+    let shell_text = locale.shell();
+    let bound_text = shell_text.bind(
+        &client_view
+            .bindings()
+            .shell_bindings(shell_text.binding_unbound),
+    );
     let text = bound_text.text();
     let history_key = client_view
         .bindings()

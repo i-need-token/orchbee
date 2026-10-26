@@ -9,7 +9,7 @@ mod action;
 pub(in crate::workbench_client) use action::CapturedRequest;
 pub(crate) use action::{CapturedClientAction, InputAction};
 
-use crate::client_view::{ClientActionDisposition, ClientKey};
+use crate::client_view::{ClientAction, ClientActionDisposition, ClientKey};
 use crate::terminal_events::{DecodedItem, MouseEvent};
 use crate::tui_composition::{CaptureClaims, WorkbenchCaptureOwner};
 use orchbee_client_server_protocol::Geometry;
