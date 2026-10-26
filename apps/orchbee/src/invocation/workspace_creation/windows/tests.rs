@@ -1,4 +1,5 @@
 use super::super::*;
+use crate::invocation::selection_envelope;
 use std::ffi::OsString;
 fn parse(words: &[&str]) -> Result<Request, ParseFailure> {
     crate::invocation::parse_request(words.iter().map(OsString::from))
