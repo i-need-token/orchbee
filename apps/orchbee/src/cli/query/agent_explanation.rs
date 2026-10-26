@@ -120,7 +120,7 @@ impl AgentReadExchange for ExplainRead {
                         explanation,
                     } => {
                         if workbench_revision != snapshot.revision {
-                            return Err(crate::cli::workbench_agents::failure("workbench-changed"));
+                            return Err(crate::cli::query::workbench_failure("workbench-changed"));
                         }
                         Ok((
                             serde_json::json!({"kind":"panel-agent-explain","sessionId":snapshot.session_id,"workbenchRevision":workbench_revision,"reportRevision":report_revision,"requestId":id}),

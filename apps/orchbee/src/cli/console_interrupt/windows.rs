@@ -47,3 +47,12 @@ impl SignalWatch for super::ArmedSignals {
         self.take()
     }
 }
+
+impl super::SignalWatch for ArmedSignals {
+    fn poll_fd(&self) -> Option<LocalIo<'_>> {
+        SignalWatch::poll_fd(self)
+    }
+    fn take(&mut self) -> io::Result<Option<i32>> {
+        SignalWatch::take(self)
+    }
+}

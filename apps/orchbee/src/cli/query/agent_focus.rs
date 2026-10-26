@@ -12,7 +12,6 @@ use crate::{
 };
 use orchbee_agent_observation_protocol::{AgentLifecycle, AgentSessionDetail};
 
-#[cfg(windows)]
 pub(crate) fn agent_attention_target(
     client: &mut LocalClient,
     snapshot: &Snapshot,
@@ -37,7 +36,6 @@ pub(crate) fn agent_attention_target(
 
 /// The Client observation is not a Server-authoritative boot identity. Authenticate
 /// its opaque checkpoint on this admitted Server before publishing seen/unseen.
-#[cfg(windows)]
 pub(crate) fn authenticate_attention(
     client: &mut LocalClient,
     attention: &orchbee_workbench_protocol::ClientAgentAttentionSnapshot,
@@ -48,7 +46,6 @@ pub(crate) fn authenticate_attention(
         .map_err(|failure| failure.failure_schema(super::super::schema::AGENT_FAILURE_ID))
 }
 
-#[cfg(windows)]
 fn authenticate_attention_read(
     client: &mut LocalClient,
     attention: &orchbee_workbench_protocol::ClientAgentAttentionSnapshot,
@@ -113,7 +110,6 @@ fn authenticate_attention_read(
 
 /// Equal provider counters cannot fence server-derived freshness changes. Prove
 /// no target event intervened between the authenticated Client checkpoint and Get.
-#[cfg(windows)]
 pub(crate) fn attention_covers_observation(
     client: &mut LocalClient,
     attention: &orchbee_workbench_protocol::ClientAgentAttentionSnapshot,
@@ -132,7 +128,6 @@ pub(crate) fn attention_covers_observation(
     .map(|changed| changed.is_some_and(|changed| changed.is_empty()))
 }
 
-#[cfg(windows)]
 pub(crate) fn attention_changed_sessions(
     client: &mut LocalClient,
     attention: &orchbee_workbench_protocol::ClientAgentAttentionSnapshot,

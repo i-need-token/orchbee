@@ -94,7 +94,7 @@ fn execute(
         signals,
     )?;
     if refreshed.revision != snapshot.revision {
-        return Err(super::workbench_agents::failure("workbench-changed"));
+        return Err(super::query::workbench_failure("workbench-changed"));
     }
     signals.check_before(deadline)?;
     Ok((
@@ -229,10 +229,10 @@ fn read_reports(
                 presentations,
             } => {
                 if workbench_revision != snapshot.revision || presentations.len() != chunk.len() {
-                    return Err(super::workbench_agents::failure("workbench-changed"));
+                    return Err(super::query::workbench_failure("workbench-changed"));
                 }
                 if report_revision.is_some_and(|revision| revision != current_report_revision) {
-                    return Err(super::workbench_agents::failure("metadata-changed"));
+                    return Err(super::query::workbench_failure("metadata-changed"));
                 }
                 report_revision = Some(current_report_revision);
                 let expected: BTreeMap<_, _> = chunk
@@ -310,7 +310,7 @@ fn verify_reports(
         } => Err(Failure::new(FailureKind::ServiceUnavailable)),
         PanelAgentOutcome::Failed { reason } => Err(panel_agent_failure(reason)),
         // This query consumes only its requested metadata/report payload; other receipt classes cannot answer that query.
-        _ => Err(super::workbench_agents::failure("metadata-changed")),
+        _ => Err(super::query::workbench_failure("metadata-changed")),
     }
 }
 

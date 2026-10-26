@@ -1,29 +1,24 @@
 //! Native Client discovery and one-shot control submission with retained status reads.
-#[cfg(any(windows, test))]
 use super::output;
 use super::{Failure, FailureKind, Output, failure_output};
 use crate::{
     invocation::{ClientCommand, OutputFormat},
     localization::Locale,
 };
-#[cfg(any(windows, test))]
 use orchbee_workbench_protocol::{
     ClientViewControlStatus, ClientViewOutcome, SessionId, WorkbenchClientViewResult,
     WorkbenchRequestId,
 };
-#[cfg(any(windows, test))]
 use serde_json::json;
 
-#[cfg(any(windows, test))]
+pub(super) mod exchange;
 mod layout;
-#[cfg(any(windows, test))]
 pub(super) mod selection;
 #[cfg(windows)]
 mod swap;
 #[cfg(windows)]
 pub(super) mod windows;
 
-#[cfg(any(windows, test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum Wait {
     Detached,
@@ -32,7 +27,6 @@ pub(super) enum Wait {
     TransportLost,
     ObservationFailed,
 }
-#[cfg(any(windows, test))]
 pub(super) struct Answer {
     status_only: bool,
     operation_id: Option<WorkbenchRequestId>,
@@ -41,7 +35,6 @@ pub(super) struct Answer {
     unknown: bool,
     wait: Option<Wait>,
 }
-#[cfg(any(windows, test))]
 impl Answer {
     pub(super) fn retain_matching_command(
         &mut self,
@@ -93,7 +86,6 @@ impl Answer {
             .map_or(4, |reply| outcome_exit(&reply.outcome))
     }
 }
-#[cfg(any(windows, test))]
 fn outcome_exit(outcome: &ClientViewOutcome) -> u8 {
     match outcome {
         ClientViewOutcome::Listed { .. } | ClientViewOutcome::Found { .. } => 0,
@@ -149,7 +141,6 @@ pub(crate) fn run(command: &ClientCommand, format: OutputFormat, locale: Locale)
         )
     }
 }
-#[cfg(any(windows, test))]
 pub(super) fn emit(answer: &Answer, format: OutputFormat, locale: Locale) -> Output {
     let document = if answer.operation_id.is_some() {
         answer.document()

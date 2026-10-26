@@ -83,7 +83,7 @@ fn execute(
     } else {
         None
     };
-    let listed = client_control::windows::exchange(
+    let listed = client_control::exchange::exchange(
         &mut client,
         &snapshot.session_id,
         ClientViewAction::List {},
@@ -147,7 +147,7 @@ fn execute(
     } else {
         ClientViewIntent::PopupClose {}
     };
-    let current = client_control::windows::exchange(
+    let current = client_control::exchange::exchange(
         &mut client,
         &snapshot.session_id,
         ClientViewAction::Get {
@@ -162,7 +162,7 @@ fn execute(
     {
         return Err(Reason::ClientChanged.failure());
     }
-    let answer = client_control::windows::submit_control(
+    let answer = client_control::exchange::submit_control(
         &mut client,
         &snapshot.session_id,
         ClientViewControl {

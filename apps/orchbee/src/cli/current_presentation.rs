@@ -45,7 +45,7 @@ pub(super) fn read_with_receipt(
             panel_id: panel_id.clone(),
         },
     };
-    let answer = client_control::windows::submit_control(
+    let answer = client_control::exchange::submit_control(
         client,
         &snapshot.session_id,
         command.clone(),
@@ -73,7 +73,7 @@ pub(super) fn read_with_receipt(
         return Err(Failure::new(FailureKind::ProtocolInvalid));
     };
     if presentation.workbench_revision != snapshot.revision || view != selected.view {
-        return Err(super::workbench_agents::failure("client-changed"));
+        return Err(super::query::workbench_failure("client-changed"));
     }
     if !presentation.answers(panel_id, &view, snapshot.revision) {
         return Err(Failure::new(FailureKind::ProtocolInvalid));

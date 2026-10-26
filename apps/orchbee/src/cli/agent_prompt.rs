@@ -309,7 +309,7 @@ mod active {
         }
         #[cfg(windows)]
         if let Some(client_id) = wait.and_then(|wait| wait.client.as_ref()) {
-            crate::cli::agent_view::windows::read(
+            crate::cli::agent_view::workflow::read(
                 &mut client,
                 &snapshot,
                 client_id,
@@ -471,7 +471,7 @@ mod active {
             #[cfg(windows)]
             let attention = if let Some(client_id) = &options.client {
                 Some(
-                    crate::cli::agent_view::windows::read(
+                    crate::cli::agent_view::workflow::read(
                         client,
                         snapshot,
                         client_id,

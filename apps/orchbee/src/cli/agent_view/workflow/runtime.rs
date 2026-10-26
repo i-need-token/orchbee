@@ -1,7 +1,7 @@
 //! Reuse a bounded Host sample and revalidate the Agent binding before publishing it.
 use super::{
-    AgentObservationFreshness, AgentSemanticStatus, ArmedSignals, Failure, FailureKind, Instant,
-    QueryCommand, SignalWatch, Snapshot, check, query, results, view_failure,
+    AgentObservationFreshness, AgentSemanticStatus, Failure, FailureKind, Instant, QueryCommand,
+    SignalWatch, Snapshot, check, query, results, view_failure,
 };
 use crate::cli::{results::AgentRuntimeDoc, terminal_observation::Observation};
 use orchbee_agent_observation_protocol::{
@@ -14,7 +14,7 @@ pub(super) fn read(
     snapshot: &Snapshot,
     initial: query::AgentObservationRead,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<(query::AgentObservationRead, AgentRuntimeDoc, Option<Value>), Failure> {
     if initial.session.snapshot.lifecycle != AgentLifecycle::Live {
         return Ok((initial, AgentRuntimeDoc::Unavailable("session-ended"), None));

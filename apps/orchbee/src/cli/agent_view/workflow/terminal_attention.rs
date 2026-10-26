@@ -1,7 +1,7 @@
 //! Corroborate one selected Client's acknowledgement against the physical report owner.
 use super::{
-    ArmedSignals, ClientViewControlStatus, ClientViewIntent, ClientViewObservation, Failure,
-    FailureKind, Instant, Snapshot, WorkbenchClientId, WorkbenchRequestId, read_control,
+    ClientViewControlStatus, ClientViewIntent, ClientViewObservation, Failure, FailureKind,
+    Instant, SignalWatch, Snapshot, WorkbenchClientId, WorkbenchRequestId, read_control,
     view_failure,
 };
 use crate::{cli::query::terminal_agent::TerminalAgentRead, local_client::LocalClient};
@@ -42,7 +42,7 @@ pub(in crate::cli) fn read(
     selected: &WorkbenchClientId,
     binding: &AgentLaunchBinding,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<Read, Failure> {
     let (operation, status) = read_control(
         client,

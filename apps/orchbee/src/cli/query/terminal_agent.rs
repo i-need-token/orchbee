@@ -71,7 +71,7 @@ pub(in crate::cli) fn read(
             observation,
         } => {
             if workbench_revision != snapshot.revision {
-                return Err(crate::cli::workbench_agents::failure("workbench-changed"));
+                return Err(crate::cli::query::workbench_failure("workbench-changed"));
             }
             Ok(TerminalAgentRead {
                 report_revision,

@@ -2,11 +2,11 @@
 //! received result remains authoritative even if cancellation races it;
 //! an ambiguous mutation is always outcome-unknown, including on Ctrl-C.
 
+use super::agent_names_failure::exchange_failure;
 use super::{
-    AGENT_TOTAL_BUDGET, AgentAdmissionError, AgentExchangeError, AgentExchangeFailure,
-    ArmedSignals, BorrowedFd, Failure, FailureKind, Finish, Instant, SignalWatch,
-    agent_session_until, classify_connect, deadline_after, is_deadline_elapsed, obap_request_id,
-    wake_marker_failure,
+    AGENT_TOTAL_BUDGET, AgentAdmissionError, AgentExchangeError, ArmedSignals, BorrowedFd, Failure,
+    FailureKind, Finish, Instant, SignalWatch, agent_session_until, classify_connect,
+    deadline_after, obap_request_id,
 };
 use crate::cli::agent_names::{Execution, FAILURE_SCHEMA};
 use crate::invocation::AgentNamesCommand;
@@ -127,35 +127,6 @@ fn settle(
     };
     execution.finalization = finalization;
     execution
-}
-
-pub(super) fn exchange_failure(error: AgentExchangeError) -> Failure {
-    let kind = match error {
-        AgentExchangeError::ConnectionUnavailable | AgentExchangeError::RequestEncoding(_) => {
-            FailureKind::InternalFailure
-        }
-        AgentExchangeError::RequestNotSubmitted(error) => io_failure_kind(&error),
-        AgentExchangeError::Failed { reason, .. } => match reason {
-            AgentExchangeFailure::Write(error)
-            | AgentExchangeFailure::ResponseDeadline(error)
-            | AgentExchangeFailure::Response(
-                orchbee_agent_observation_protocol::AgentWireError::Io(error),
-            ) => io_failure_kind(&error),
-            // Only the explicitly recognized protocol failures have a more specific transport classification here.
-            _ => FailureKind::ProtocolInvalid,
-        },
-    };
-    Failure::new(kind).failure_schema(FAILURE_SCHEMA)
-}
-
-fn io_failure_kind(error: &std::io::Error) -> FailureKind {
-    if wake_marker_failure(error).is_some() {
-        FailureKind::InternalFailure
-    } else if is_deadline_elapsed(error) {
-        FailureKind::Timeout
-    } else {
-        FailureKind::TransportLoss
-    }
 }
 
 #[cfg(test)]

@@ -1,9 +1,6 @@
 //! Read explicit reports under the enclosing metadata query's deadline and aggregate budget.
 use super::{Failure, FailureKind, changed, expected};
-use crate::cli::{
-    query,
-    source::{ArmedSignals, SignalWatch},
-};
+use crate::cli::{console_interrupt::SignalWatch, query};
 use crate::local_client::{LocalClient, workbench::metadata_exchange::MetadataExchangeReason};
 use orchbee_workbench_protocol::{
     MAXIMUM_PANEL_AGENT_READ_ROWS, PanelAgentAction, PanelAgentFailure, PanelAgentOutcome,
@@ -26,7 +23,7 @@ fn send(
     snapshot: &Snapshot,
     action: PanelAgentAction,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<(WorkbenchRequestId, PanelAgentOutcome), Failure> {
     signals.check_before(deadline)?;
     let request_id = query::request_id()?;
@@ -67,7 +64,7 @@ fn observe(
             panels,
         } => {
             if workbench_revision != snapshot.revision {
-                return Err(crate::cli::workbench_agents::failure("workbench-changed"));
+                return Err(crate::cli::query::workbench_failure("workbench-changed"));
             }
             for row in &panels {
                 if row.binding != expected(snapshot, &row.panel_id)? {
@@ -81,7 +78,7 @@ fn observe(
                 PanelAgentFailure::NotFound
                 | PanelAgentFailure::SessionMismatch
                 | PanelAgentFailure::BindingChanged,
-        } => Err(crate::cli::workbench_agents::failure("workbench-changed")),
+        } => Err(crate::cli::query::workbench_failure("workbench-changed")),
         PanelAgentOutcome::Failed { reason } => Err(Failure::new(match reason {
             PanelAgentFailure::Denied => FailureKind::Denied,
             PanelAgentFailure::Unavailable => FailureKind::ServiceUnavailable,
@@ -107,7 +104,7 @@ fn exchange(
     snapshot: &Snapshot,
     ids: &[WorkbenchPanelId],
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<(WorkbenchRequestId, WorkbenchRevision, Vec<PanelAgentRow>), Failure> {
     let (id, outcome) = send(
         client,
@@ -128,7 +125,7 @@ pub(super) fn read_presentation(
     member: &crate::cli::current_presentation::Resolved,
     byte_limit: usize,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<Document, Failure> {
     let (id, outcome) = send(
         client,
@@ -151,7 +148,7 @@ pub(super) fn read_presentation(
         }
     };
     if workbench_revision != snapshot.revision {
-        return Err(crate::cli::workbench_agents::failure("workbench-changed"));
+        return Err(crate::cli::query::workbench_failure("workbench-changed"));
     }
     if rows.len() != 1 {
         return Err(Failure::new(FailureKind::ProtocolInvalid));
@@ -180,7 +177,7 @@ pub(super) fn read(
     ids: &[WorkbenchPanelId],
     byte_limit: usize,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<Document, Failure> {
     let chunks = if ids.is_empty() {
         vec![&[][..]]
@@ -235,7 +232,7 @@ impl Document {
         client: &mut LocalClient,
         snapshot: &Snapshot,
         deadline: Instant,
-        signals: &mut ArmedSignals,
+        signals: &mut impl SignalWatch,
     ) -> Result<(), Failure> {
         let (id, revision, rows) = exchange(client, snapshot, &[], deadline, signals)?;
         self.admit(id, revision, rows)

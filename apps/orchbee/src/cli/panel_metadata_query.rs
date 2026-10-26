@@ -2,9 +2,9 @@
 mod reports;
 use super::{
     Failure, FailureKind,
+    console_interrupt::SignalWatch,
     output::{Bounded, TooLarge},
     query,
-    source::{ArmedSignals, SignalWatch},
 };
 use crate::{
     local_client::{LocalClient, workbench::metadata_exchange::MetadataExchangeReason},
@@ -60,7 +60,7 @@ fn expected(
         .ok_or_else(|| Failure::new(FailureKind::NotFound))
 }
 fn changed() -> Failure {
-    super::workbench_agents::failure("metadata-changed")
+    super::query::workbench_failure("metadata-changed")
 }
 fn observe(
     snapshot: &Snapshot,
@@ -73,7 +73,7 @@ fn observe(
             panels,
         } => {
             if workbench_revision != snapshot.revision {
-                return Err(super::workbench_agents::failure("workbench-changed"));
+                return Err(super::query::workbench_failure("workbench-changed"));
             }
             for row in &panels {
                 if row.binding != expected(snapshot, &row.panel_id)? {
@@ -87,7 +87,7 @@ fn observe(
                 PanelMetadataFailure::NotFound
                 | PanelMetadataFailure::SessionMismatch
                 | PanelMetadataFailure::BindingChanged,
-        } => Err(super::workbench_agents::failure("workbench-changed")),
+        } => Err(super::query::workbench_failure("workbench-changed")),
         PanelMetadataOutcome::Failed { reason } => Err(Failure::new(match reason {
             PanelMetadataFailure::Denied => FailureKind::Denied,
             PanelMetadataFailure::Unavailable => FailureKind::ServiceUnavailable,
@@ -113,7 +113,7 @@ fn send(
     snapshot: &Snapshot,
     action: PanelMetadataAction,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<(WorkbenchRequestId, PanelMetadataOutcome), Failure> {
     signals.check_before(deadline)?;
     let request_id = query::request_id()?;
@@ -148,7 +148,7 @@ fn exchange(
     snapshot: &Snapshot,
     ids: &[WorkbenchPanelId],
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<(WorkbenchRequestId, WorkbenchRevision, Vec<PanelMetadataRow>), Failure> {
     let (id, outcome) = send(
         client,
@@ -168,7 +168,7 @@ pub(super) fn read_presentation(
     snapshot: &Snapshot,
     member: &crate::cli::current_presentation::Resolved,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<Document, Failure> {
     let (id, outcome) = send(
         client,
@@ -191,7 +191,7 @@ pub(super) fn read_presentation(
         }
     };
     if workbench_revision != snapshot.revision {
-        return Err(crate::cli::workbench_agents::failure("workbench-changed"));
+        return Err(crate::cli::query::workbench_failure("workbench-changed"));
     }
     if rows.len() != 1 {
         return Err(Failure::new(FailureKind::ProtocolInvalid));
@@ -229,7 +229,7 @@ pub(super) fn read(
     snapshot: &Snapshot,
     ids: &[WorkbenchPanelId],
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<Document, Failure> {
     if ids.iter().collect::<BTreeSet<_>>().len() != ids.len() {
         return Err(Failure::new(FailureKind::InternalFailure));
@@ -301,7 +301,7 @@ impl Document {
         client: &mut LocalClient,
         snapshot: &Snapshot,
         deadline: Instant,
-        signals: &mut ArmedSignals,
+        signals: &mut impl SignalWatch,
     ) -> Result<(), Failure> {
         let (id, revision, rows) = exchange(client, snapshot, &[], deadline, signals)?;
         self.admit(id, revision, rows)?;

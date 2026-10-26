@@ -4,7 +4,7 @@ mod targeting;
 use super::{
     Failure, FailureKind, Output,
     caller_context::PanelTarget,
-    client_control::{selection, windows::exchange},
+    client_control::{exchange::exchange, selection},
     creation::directory,
     failure_output, query,
     source::{ArmedSignals, Finish, SignalWatch},

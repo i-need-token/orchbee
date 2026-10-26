@@ -115,7 +115,7 @@ fn execute_admitted(
     } else {
         None
     };
-    let listed = client_control::windows::exchange(
+    let listed = client_control::exchange::exchange(
         client,
         &snapshot.session_id,
         ClientViewAction::List {},
@@ -159,7 +159,7 @@ fn execute_admitted(
     };
     spec.validate()
         .map_err(|_| Failure::new(FailureKind::Rejected))?;
-    let current = client_control::windows::exchange(
+    let current = client_control::exchange::exchange(
         client,
         &snapshot.session_id,
         ClientViewAction::Get {
@@ -183,7 +183,7 @@ fn execute_admitted(
             spec: Box::new(spec),
         },
     };
-    let mut answer = client_control::windows::submit_control(
+    let mut answer = client_control::exchange::submit_control(
         client,
         &snapshot.session_id,
         command.clone(),

@@ -5,8 +5,8 @@
 use super::AgentSessionId;
 use super::{
     BorrowedFd, Failure, FailureKind, Instant, LocalClient, Projection, ProtocolVersion, Resource,
-    Snapshot, SnapshotReadIntent, Target, WorkbenchSnapshotOutcome, agent_names, classify_read,
-    obap_request_id, request_id, stage_details,
+    Snapshot, SnapshotReadIntent, Target, WorkbenchSnapshotOutcome, agent_names_failure,
+    classify_read, obap_request_id, request_id, stage_details,
 };
 use crate::invocation::{AgentTarget, QueryCommand};
 use orchbee_agent_observation_protocol::{
@@ -54,8 +54,8 @@ pub(super) fn prepare(
         AgentTarget::Name { name } => {
             return Ok(plain(AgentSessionSelector::Name { name: name.clone() }));
         }
-        #[cfg(windows)]
         AgentTarget::Projection { selector } => {
+            crate::cli::execution::admit(crate::cli::execution::Capability::AgentProjection)?;
             let owned;
             let snapshot = match snapshot {
                 Some(s) => s,
@@ -73,12 +73,6 @@ pub(super) fn prepare(
                 AgentNameTarget::Terminal { binding } => AgentSessionSelector::Terminal { binding },
             }));
         }
-        #[cfg(not(windows))]
-        AgentTarget::Projection { .. } => {
-            return Err(Failure::new(FailureKind::ServiceUnavailable).details(
-                crate::cli::stage_reason_details("platform", "unsupported-platform"),
-            ));
-        }
         AgentTarget::Terminal { target } => {
             let owned;
             let snapshot = match snapshot {
@@ -89,20 +83,26 @@ pub(super) fn prepare(
                 }
             };
             let terminal = crate::cli::results::terminal_select(snapshot, target)?;
-            #[cfg(windows)]
-            let selector = match crate::cli::agent_projection::terminal(
-                client, snapshot, &terminal, total, wake,
-            )? {
-                AgentNameTarget::Session { session_id } => {
-                    AgentSessionSelector::Session { session_id }
-                }
-                AgentNameTarget::Terminal { binding } => AgentSessionSelector::Terminal { binding },
-            };
-            #[cfg(not(windows))]
-            let selector = AgentSessionSelector::Presentation {
-                presentation_id: AgentPresentationId::parse(&terminal.presentation_id)
-                    .map_err(|_| Failure::new(FailureKind::ProtocolInvalid))?,
-            };
+            let selector =
+                if crate::cli::execution::admit(crate::cli::execution::Capability::AgentProjection)
+                    .is_ok()
+                {
+                    match crate::cli::agent_projection::terminal(
+                        client, snapshot, &terminal, total, wake,
+                    )? {
+                        AgentNameTarget::Session { session_id } => {
+                            AgentSessionSelector::Session { session_id }
+                        }
+                        AgentNameTarget::Terminal { binding } => {
+                            AgentSessionSelector::Terminal { binding }
+                        }
+                    }
+                } else {
+                    AgentSessionSelector::Presentation {
+                        presentation_id: AgentPresentationId::parse(&terminal.presentation_id)
+                            .map_err(|_| Failure::new(FailureKind::ProtocolInvalid))?,
+                    }
+                };
             return Ok(PreparedTarget {
                 selector,
                 presentation: Some(terminal.presentation_id.clone()),
@@ -110,7 +110,8 @@ pub(super) fn prepare(
             });
         }
         AgentTarget::Panel { target } => {
-            #[cfg(windows)]
+            if crate::cli::execution::admit(crate::cli::execution::Capability::AgentProjection)
+                .is_ok()
             {
                 let owned;
                 let snapshot = match snapshot {
@@ -135,7 +136,6 @@ pub(super) fn prepare(
                     resolved: None,
                 });
             }
-            #[cfg(not(windows))]
             target.clone()
         }
         AgentTarget::Auto { target } => {
@@ -293,7 +293,7 @@ pub(super) fn resolve(
             total,
             wake,
         )
-        .map_err(agent_names::exchange_failure)?;
+        .map_err(agent_names_failure::exchange_failure)?;
     if Instant::now() >= total {
         return Err(Failure::new(FailureKind::Timeout)
             .failure_schema(crate::cli::agent_names::FAILURE_SCHEMA));

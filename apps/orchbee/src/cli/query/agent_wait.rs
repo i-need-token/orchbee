@@ -54,6 +54,7 @@ pub(crate) fn agent_wait(
     timeout_ms: Option<u32>,
     selected: Option<&orchbee_workbench_protocol::WorkbenchClientId>,
 ) -> Result<(serde_json::Value, Projection), AgentQueryError> {
+    crate::cli::execution::admit_agent_target(target).map_err(AgentQueryError::Admission)?;
     #[cfg(not(windows))]
     if selected.is_some() {
         return Err(AgentQueryError::Admission(
@@ -364,7 +365,7 @@ fn agent_wait_span(
         let attention = if let (Some(selected), Some(snapshot)) = (selected, snapshot.as_ref()) {
             let client_start = Instant::now();
             let client_deadline = read_deadline.min(client_start + Duration::from_secs(2));
-            match crate::cli::agent_view::windows::read(
+            match crate::cli::agent_view::workflow::read(
                 &mut client,
                 snapshot,
                 selected,

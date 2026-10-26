@@ -72,13 +72,13 @@ fn exchange(
             workspaces,
         } => {
             if workbench_revision != snapshot.revision {
-                return Err(super::workbench_agents::failure("workbench-changed"));
+                return Err(super::query::workbench_failure("workbench-changed"));
             }
             Ok((request_id, metadata_revision, workspaces))
         }
         Outcome::Failed {
             reason: Reason::NotFound | Reason::SessionMismatch,
-        } => Err(super::workbench_agents::failure("workbench-changed")),
+        } => Err(super::query::workbench_failure("workbench-changed")),
         Outcome::Failed { reason } => Err(Failure::new(match reason {
             Reason::Denied => FailureKind::Denied,
             Reason::Unavailable => FailureKind::ServiceUnavailable,
@@ -126,7 +126,7 @@ pub(super) fn read(
         let doc = document.get_or_insert_with(|| Document { rows: BTreeMap::new(), revision, request_ids: vec![],
             source: json!({"sessionId":snapshot.session_id,"workbenchRevision":snapshot.revision,"metadataRevision":revision}) });
         if doc.revision != revision {
-            return Err(super::workbench_agents::failure("metadata-changed"));
+            return Err(super::query::workbench_failure("metadata-changed"));
         }
         doc.request_ids.push(request_id);
         doc.rows
@@ -144,7 +144,7 @@ impl Document {
     ) -> Result<(), Failure> {
         let (id, revision, _) = exchange(client, snapshot, vec![], deadline, signals)?;
         if self.revision != revision {
-            return Err(super::workbench_agents::failure("metadata-changed"));
+            return Err(super::query::workbench_failure("metadata-changed"));
         }
         self.request_ids.push(id);
         Ok(())

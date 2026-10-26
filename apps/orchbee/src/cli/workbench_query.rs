@@ -1,5 +1,5 @@
 //! Read-only Workbench queries with Agent facts and optional exact-Client memory.
-use super::client_control::windows as control;
+use super::client_control::exchange as control;
 use super::{
     Failure, FailureKind, Output, failure_output,
     output::{Bounded, TooLarge},
@@ -248,7 +248,7 @@ fn execute(
             if initial.view_revision != final_client.view_revision
                 || initial.view != final_client.view
             {
-                return Err(super::workbench_agents::failure("client-changed"));
+                return Err(super::query::workbench_failure("client-changed"));
             }
         }
         let mut document = Document::new(projection);
@@ -460,7 +460,7 @@ pub(super) fn collect(
         signals,
     )?;
     if final_snapshot.revision != snapshot.revision {
-        return Err(super::workbench_agents::failure("workbench-changed"));
+        return Err(super::query::workbench_failure("workbench-changed"));
     }
     if let (Some(original), Some(member), Some(first)) = (
         &document.client,
@@ -479,7 +479,7 @@ pub(super) fn collect(
             signals,
         )?;
         if !first.member.same_member(&last.member) {
-            return Err(super::workbench_agents::failure("client-changed"));
+            return Err(super::query::workbench_failure("client-changed"));
         }
         document.operations.push(last.operation_id);
     } else if let Some(original) = &document.client {
@@ -494,7 +494,7 @@ pub(super) fn collect(
         if final_client.view_revision != original.view_revision
             || final_client.view != original.view
         {
-            return Err(super::workbench_agents::failure("client-changed"));
+            return Err(super::query::workbench_failure("client-changed"));
         }
     }
     signals.check_before(deadline)?;

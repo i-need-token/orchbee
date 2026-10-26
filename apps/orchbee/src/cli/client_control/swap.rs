@@ -1,5 +1,5 @@
 //! One canonical leaf exchange followed by independently acknowledged source focus.
-use super::{Answer, selection, windows};
+use super::{Answer, exchange, selection};
 use crate::{
     cli::{
         Failure, FailureKind, Output,
@@ -139,7 +139,7 @@ fn execute(
     let (mut client, _, snapshot) = query::snapshot_session_until(deadline)?;
     let caller = caller.map(|caller| caller.resolve(&snapshot)).transpose()?;
     check_wait(signals, deadline)?;
-    let reply = windows::exchange(
+    let reply = exchange::exchange(
         &mut client,
         &snapshot.session_id,
         ClientViewAction::List {},
@@ -242,7 +242,7 @@ fn execute(
         minimum_workbench_revision: revision,
         intent: receipt.source.intent(),
     };
-    receipt.focus = Some(windows::submit_control(
+    receipt.focus = Some(exchange::submit_control(
         &mut client,
         &receipt.session_id,
         control,
@@ -344,7 +344,7 @@ fn resolve_neighbor(
             panel_id: receipt.source.panel_id.clone(),
         },
     };
-    let answer = windows::submit_control(client, &receipt.session_id, control, deadline, signals)?;
+    let answer = exchange::submit_control(client, &receipt.session_id, control, deadline, signals)?;
     let layout = answer.reply.as_ref().and_then(|reply| {
         let ClientViewOutcome::Operation { operation } = &reply.outcome else {
             return None;
@@ -473,7 +473,7 @@ fn observe_client(
 ) -> Result<ClientViewRecord, Failure> {
     loop {
         check_wait(signals, deadline)?;
-        let reply = windows::exchange(
+        let reply = exchange::exchange(
             client,
             &receipt.session_id,
             ClientViewAction::Get {

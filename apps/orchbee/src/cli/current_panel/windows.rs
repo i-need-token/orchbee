@@ -5,7 +5,7 @@ use super::{
 use crate::cli::{
     Failure, FailureKind,
     caller_context::PanelTarget,
-    client_control::{selection, windows::exchange},
+    client_control::{exchange::exchange, selection},
     query, results,
     source::{ArmedSignals, Finish, SignalWatch},
     stage_details, workbench_query,
@@ -195,7 +195,7 @@ fn collect(
                 signals,
             )?;
             if final_snapshot.revision != snapshot.revision {
-                return Err(crate::cli::workbench_agents::failure("workbench-changed"));
+                return Err(crate::cli::query::workbench_failure("workbench-changed"));
             }
             if let (Some(selected), Some(panel_id), Some(original)) =
                 (&selected, &panel_id, &member)
@@ -209,7 +209,7 @@ fn collect(
                     signals,
                 )?;
                 if !original.same_member(&final_member) {
-                    return Err(crate::cli::workbench_agents::failure("client-changed"));
+                    return Err(crate::cli::query::workbench_failure("client-changed"));
                 }
             }
             Ok(result)

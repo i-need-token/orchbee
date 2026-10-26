@@ -2,21 +2,18 @@
 use super::Locale;
 use crate::cli::{Failure, FailureKind};
 impl Locale {
-    #[cfg(windows)]
     pub(crate) fn cli_panel_table_headers(self) -> [&'static str; 6] {
         match self {
             Self::EnUs => ["#", "HANDLE", "TITLE", "AGENT", "STATE", "CWD"],
             Self::ZhCn => ["#", "句柄", "标题", "智能体", "状态", "目录"],
         }
     }
-    #[cfg(windows)]
     pub(crate) fn cli_projection_headers(self) -> [&'static str; 6] {
         match self {
             Self::EnUs => ["#", "HANDLE", "AGENT", "STATE", "SOURCE", "CWD"],
             Self::ZhCn => ["#", "句柄", "智能体", "状态", "来源", "目录"],
         }
     }
-    #[cfg(windows)]
     pub(crate) fn cli_projection_source(self, value: &str) -> &'static str {
         match (self, value) {
             (Self::EnUs, "canonical") => "Canonical",
@@ -27,7 +24,6 @@ impl Locale {
             (Self::ZhCn, _) => "两者",
         }
     }
-    #[cfg(windows)]
     pub(crate) fn cli_projection_status(self, value: &str) -> &'static str {
         match (self, value) {
             (Self::EnUs, "idle") => "Idle",

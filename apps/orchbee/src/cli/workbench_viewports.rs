@@ -113,7 +113,7 @@ pub(super) fn read(
                 panel_ids: ids.clone(),
             },
         };
-        let outcome = super::client_control::windows::submit_control(
+        let outcome = super::client_control::exchange::submit_control(
             client,
             &snapshot.session_id,
             command.clone(),
@@ -142,7 +142,7 @@ pub(super) fn read(
             return Err(invalid());
         };
         if viewport.workbench_revision != snapshot.revision || view != selected.view {
-            return Err(super::workbench_agents::failure("client-changed"));
+            return Err(super::query::workbench_failure("client-changed"));
         }
         if !viewport.answers(&ids, &view, snapshot.revision)
             || viewport.panels.iter().zip(batch).any(|(actual, expected)| {

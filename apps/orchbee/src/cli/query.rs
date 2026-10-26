@@ -82,19 +82,13 @@ struct WaitSample {
     capacity_omitted: Option<u64>,
 }
 
-#[cfg(windows)]
 pub(in crate::cli) mod named_terminal;
-#[cfg(windows)]
 pub(crate) use named_terminal::named_terminal_target;
-#[cfg(windows)]
 mod agent_management;
-#[cfg(windows)]
 pub(in crate::cli) mod terminal_agent;
 #[cfg(windows)]
 pub(in crate::cli) mod terminal_agent_wait;
-#[cfg(windows)]
 pub(super) mod terminal_metadata;
-#[cfg(windows)]
 pub(in crate::cli) use agent_management::read_agent_management;
 #[cfg(windows)]
 mod agent_journal;
@@ -102,15 +96,49 @@ mod agent_journal;
 pub(crate) use agent_journal::{AgentJournal, JournalError};
 #[cfg(windows)]
 mod agent_explanation;
-#[cfg(windows)]
 mod agent_focus;
 #[cfg(windows)]
 pub(crate) use agent_explanation::agent_explain;
 #[cfg(any(target_os = "linux", windows))]
 mod agent_names;
-#[cfg(any(target_os = "linux", windows))]
+mod agent_names_failure;
+#[cfg(not(any(target_os = "linux", windows)))]
+use super::{results::Projection, stage_reason_details, target_details};
+#[cfg(not(any(target_os = "linux", windows)))]
+use crate::invocation::{Resource, Target};
+#[cfg(not(any(target_os = "linux", windows)))]
+use crate::local_client::{
+    LocalClient, OutcomeUnknownReason, SubmissionError,
+    workbench::{SnapshotReadError, SnapshotReadFailure},
+};
+#[cfg(not(any(target_os = "linux", windows)))]
+use crate::terminal_projection::TerminalProjection;
+#[cfg(not(any(target_os = "linux", windows)))]
+use orchbee_agent_observation_protocol::{
+    AgentGetOutcome, AgentReadRequest, AgentReadResult, AgentSafeInteger, AgentSessionId,
+};
+#[cfg(not(any(target_os = "linux", windows)))]
+use orchbee_client_server_protocol::{
+    RequestId as ObcsRequestId, SessionId as ObcsSessionId, TerminalId as ObcsTerminalId,
+    TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, ViewerId,
+    ViewerRejectedReason, WorkerId as ObcsWorkerId,
+};
+#[cfg(not(any(target_os = "linux", windows)))]
+use orchbee_local_ipc::LocalIo as BorrowedFd;
+#[cfg(not(any(target_os = "linux", windows)))]
+use orchbee_local_runtime::Cohort;
+#[cfg(not(any(target_os = "linux", windows)))]
+use orchbee_terminal_protocol::{
+    AttachmentId, HostEpoch, TerminalId as HostTerminalId, TerminalTextFrame,
+};
+#[cfg(not(any(target_os = "linux", windows)))]
+use orchbee_workbench_protocol::{
+    ProtocolVersion, Snapshot, SnapshotReadIntent, WorkbenchSnapshotOutcome,
+};
+#[cfg(not(any(target_os = "linux", windows)))]
+use std::time::Instant;
+
 mod agent_target;
-#[cfg(windows)]
 pub(in crate::cli) fn read_agent_snapshot(
     client: &mut LocalClient,
     deadline: Instant,
@@ -118,19 +146,16 @@ pub(in crate::cli) fn read_agent_snapshot(
 ) -> Result<Snapshot, Failure> {
     agent_target::read_snapshot(client, deadline, wake)
 }
-#[cfg(windows)]
 pub(crate) use agent_focus::{
     agent_attention_target, agent_focus_target, attention_changed_sessions,
     attention_covers_observation, authenticate_attention,
 };
-#[cfg(any(target_os = "linux", windows))]
 mod process_info;
 #[cfg(target_os = "linux")]
 pub(crate) use process_info::panel_process_info;
+pub(crate) use process_info::read_terminal_processes;
 #[cfg(windows)]
-pub(crate) use process_info::{
-    primary_terminal, read_terminal_processes, read_terminal_processes_cancellable,
-};
+pub(crate) use process_info::{primary_terminal, read_terminal_processes_cancellable};
 
 #[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn panel_process_info(
@@ -142,15 +167,12 @@ pub(crate) fn panel_process_info(
         ),
     )
 }
-#[cfg(any(target_os = "linux", windows))]
 mod agent_terminal;
 #[cfg(target_os = "linux")]
 pub(crate) use agent_terminal::resolve_agent_terminal;
 #[cfg(windows)]
 pub(in crate::cli) use agent_terminal::resolve_session_terminal;
-#[cfg(windows)]
 pub(crate) use agent_terminal::verify_agent_terminal;
-#[cfg(any(target_os = "linux", windows))]
 pub(crate) use agent_terminal::{AgentObservationRead, read_agent_observation};
 
 #[cfg(any(target_os = "linux", windows))]
@@ -251,7 +273,6 @@ const AGENT_TOTAL_BUDGET: Duration = Duration::from_secs(5);
 const NETWORK_BUDGET: Duration = Duration::from_secs(5);
 /// An `Empty` poll answer is retried inside the shared network budget; the
 /// cadence stays coarse enough that a quiet host is never hammered.
-#[cfg(any(target_os = "linux", windows))]
 const EMPTY_POLL_INTERVAL: Duration = Duration::from_millis(10);
 /// A quiet wait backs off on consecutive `Empty` answers up to this ceiling;
 /// any real frame record resets the cadence to `EMPTY_POLL_INTERVAL`.
@@ -876,7 +897,7 @@ fn classify_launch_profile_catalog_read(error: LaunchProfileCatalogReadError) ->
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) fn snapshot_session() -> Result<(LocalClient, Instant, Snapshot), Failure> {
     let cohort_deadline = deadline_after(COHORT_BUDGET)?;
-    let (cohort, session) = session_preamble(cohort_deadline, None)?;
+    let (cohort, session) = session_preamble(cohort_deadline, || Ok(()))?;
     // Query and read callers keep their accepted budget: a fresh network
     // deadline sampled only after the preamble completes.
     let deadline = deadline_after(NETWORK_BUDGET)?;
@@ -884,12 +905,12 @@ pub(crate) fn snapshot_session() -> Result<(LocalClient, Instant, Snapshot), Fai
 }
 
 /// Existing-only stream admission and Snapshot read under one cancellable budget.
-#[cfg(windows)]
 pub(crate) fn stream_snapshot(
     deadline: Instant,
     wake: Option<BorrowedFd<'_>>,
 ) -> Result<(LocalClient, Snapshot), Failure> {
-    let (cohort, session) = session_preamble(deadline.min(Instant::now() + COHORT_BUDGET), None)?;
+    let (cohort, session) =
+        session_preamble(deadline.min(Instant::now() + COHORT_BUDGET), || Ok(()))?;
     let mut client = LocalClient::connect_before_cancellable(
         session.client_socket_path(),
         cohort.identity(),
@@ -944,7 +965,7 @@ pub(crate) fn snapshot_session_until(
     deadline: Instant,
 ) -> Result<(LocalClient, Instant, Snapshot), Failure> {
     let cohort_deadline = bounded_deadline(Instant::now(), COHORT_BUDGET, deadline)?;
-    let (cohort, session) = session_preamble(cohort_deadline, None)?;
+    let (cohort, session) = session_preamble(cohort_deadline, || Ok(()))?;
     admit_snapshot(&cohort, &session, deadline, None)
 }
 
@@ -961,7 +982,7 @@ pub(crate) fn snapshot_session_until(
 fn snapshot_session_before(
     gate: &WaitGate<'_>,
 ) -> Result<(LocalClient, Instant, Snapshot), Failure> {
-    let (cohort, session) = session_preamble(gate.budget(COHORT_BUDGET)?, Some(gate))?;
+    let (cohort, session) = session_preamble(gate.budget(COHORT_BUDGET)?, || gate.settle())?;
     // A slow filesystem step may already have spent the whole wait budget;
     // the network deadline is priced only from what remains.
     admit_snapshot(&cohort, &session, gate.budget(NETWORK_BUDGET)?, Some(gate))
@@ -980,23 +1001,22 @@ fn settle(gate: Option<&WaitGate<'_>>) -> Result<(), Failure> {
 /// deadline, then existing-only rendezvous and socket validation. Under a
 /// wait gate every step's return — success *and* failure — is settled
 /// against the total deadline and the pending termination signal first.
-#[cfg(any(target_os = "linux", windows))]
 fn session_preamble(
     cohort_deadline: Instant,
-    gate: Option<&WaitGate<'_>>,
+    settle: impl Fn() -> Result<(), Failure>,
 ) -> Result<(Cohort, ModeCheckedLocalSessionRendezvous), Failure> {
     let cohort = Cohort::current_with_diagnostic(cohort_deadline);
-    settle(gate)?;
+    settle()?;
     let cohort = cohort.map_err(|error| {
         Failure::new(FailureKind::CheckFailed)
             .details(stage_details("cohort"))
             .io_diagnostic(&error)
     })?;
     let session = rendezvous();
-    settle(gate)?;
+    settle()?;
     let session = session?;
     let socket_exists = session.client_socket_exists();
-    settle(gate)?;
+    settle()?;
     match socket_exists {
         Ok(true) => Ok((cohort, session)),
         Ok(false) => {
@@ -1059,13 +1079,12 @@ fn admit_snapshot(
 }
 
 /// Refresh an existing admitted session without rebinding its Session or replaying a read.
-#[cfg(windows)]
 pub(in crate::cli) fn refresh_snapshot(
     client: &mut LocalClient,
     session: &orchbee_workbench_protocol::SessionId,
     minimum: orchbee_workbench_protocol::WorkbenchRevision,
     deadline: Instant,
-    signals: &mut super::source::ArmedSignals,
+    signals: &mut impl super::console_interrupt::SignalWatch,
 ) -> Result<Snapshot, Failure> {
     signals.check_before(deadline)?;
     let result = client.submit_workbench_snapshot_read_before(
@@ -1215,7 +1234,6 @@ fn attach_viewer(
     attach_viewer_cancellable(client, deadline, snapshot, target, None)
 }
 
-#[cfg(any(target_os = "linux", windows))]
 pub(super) fn attach_viewer_cancellable(
     client: &mut LocalClient,
     deadline: Instant,
@@ -1239,7 +1257,6 @@ pub(super) fn attach_viewer_cancellable(
     )
 }
 
-#[cfg(any(target_os = "linux", windows))]
 pub(super) fn attach_viewer_cancellable_with_host(
     client: &mut LocalClient,
     deadline: Instant,
@@ -1569,7 +1586,6 @@ fn classify_rows_rejected(
 
 /// Row-read failure details: the typed reason the Host carried, under the
 /// viewer stage and the operation the read belongs to.
-#[cfg(any(target_os = "linux", windows))]
 fn rows_details(operation: &str, reason: &str) -> serde_json::Map<String, serde_json::Value> {
     serde_json::Map::from_iter([
         ("stage".to_owned(), serde_json::json!("viewer")),
@@ -1594,7 +1610,6 @@ fn poll_terminal_frame(
     poll_terminal_frame_cancellable(client, deadline, viewer_id, projection, None)
 }
 
-#[cfg(any(target_os = "linux", windows))]
 fn poll_terminal_frame_cancellable(
     client: &mut LocalClient,
     deadline: Instant,
@@ -1611,7 +1626,6 @@ fn poll_terminal_frame_cancellable(
 /// Poll until one record applies to the borrowed projection. The projection
 /// keeps the applied frame as the base later delta frames require, so a read
 /// that abandons an aged pin can acknowledge it and poll for the next one.
-#[cfg(any(target_os = "linux", windows))]
 fn poll_applied_frame(
     client: &mut LocalClient,
     deadline: Instant,
@@ -2148,7 +2162,6 @@ pub(in crate::cli) fn classify_launch_read(error: SubmissionError) -> Failure {
     }
 }
 
-#[cfg(any(target_os = "linux", windows))]
 pub(super) fn classify_viewer(error: SubmissionError) -> Failure {
     match error {
         SubmissionError::ConnectionUnavailable | SubmissionError::RequestEncoding(_) => {
@@ -2176,7 +2189,6 @@ pub(super) fn classify_viewer(error: SubmissionError) -> Failure {
 /// A rejected viewer action means the read observation could not be kept:
 /// contention or a dead terminal is unavailability, while a feedback-state
 /// contradiction is a protocol violation.
-#[cfg(any(target_os = "linux", windows))]
 pub(super) fn classify_viewer_rejected(reason: ViewerRejectedReason) -> Failure {
     match reason {
         ViewerRejectedReason::AlreadyAttached | ViewerRejectedReason::TerminalUnavailable => {
@@ -2189,12 +2201,10 @@ pub(super) fn classify_viewer_rejected(reason: ViewerRejectedReason) -> Failure 
     }
 }
 
-#[cfg(any(target_os = "linux", windows))]
 fn viewer_unavailable() -> Failure {
     Failure::new(FailureKind::ServiceUnavailable).details(stage_details("viewer"))
 }
 
-#[cfg(any(target_os = "linux", windows))]
 fn viewer_protocol_invalid() -> Failure {
     Failure::new(FailureKind::ProtocolInvalid).details(stage_details("viewer"))
 }
@@ -2297,7 +2307,6 @@ pub(crate) fn classify_connect(error: crate::local_client::LocalClientConnectErr
     }
 }
 
-#[cfg(any(target_os = "linux", windows))]
 fn classify_read(error: SnapshotReadError) -> Failure {
     use orchbee_workbench_protocol::WorkbenchWireError;
     match error {
@@ -2342,7 +2351,6 @@ pub(crate) fn request_id() -> Result<orchbee_workbench_protocol::WorkbenchReques
         .map_err(|_| Failure::new(FailureKind::InternalFailure))
 }
 
-#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn obcs_request_id() -> Result<ObcsRequestId, Failure> {
     ObcsRequestId::parse(&fresh_request_id()?)
         .map_err(|_| Failure::new(FailureKind::InternalFailure))
@@ -2582,7 +2590,7 @@ fn agent_session_until(
     let cohort_deadline = bounded_deadline(Instant::now(), COHORT_BUDGET, total)
         .map_err(AgentAdmissionError::Preamble)?;
     let (cohort, session) =
-        session_preamble(cohort_deadline, None).map_err(AgentAdmissionError::Preamble)?;
+        session_preamble(cohort_deadline, || Ok(())).map_err(AgentAdmissionError::Preamble)?;
     LocalClient::connect_before_cancellable(
         session.client_socket_path(),
         cohort.identity(),
@@ -2689,7 +2697,6 @@ fn listed_outcome(
 }
 
 /// Bounded list read for compositions that already own admission and signals.
-#[cfg(windows)]
 pub(in crate::cli) fn read_agent_list(
     client: &mut LocalClient,
     include_ended: bool,
@@ -2748,6 +2755,7 @@ fn agent_session_read(
     operation: AgentReadOperation,
     target: &crate::invocation::AgentTarget,
 ) -> Result<(serde_json::Value, Projection), AgentQueryError> {
+    super::execution::admit_agent_target(target).map_err(AgentQueryError::Admission)?;
     let mut resolved = None;
     let (request_id, attempt) = agent_armed_run(operation, |client, request_id, total, wake| {
         let session_id =
@@ -2827,7 +2835,6 @@ fn agent_session_read(
 /// The `get`/`explain` refusal mapping: `not-found` names the session, while
 /// `read-denied` carries only the typed reason — both under the common
 /// `agent-read` stage.
-#[cfg(any(target_os = "linux", windows))]
 fn agent_session_rejection(
     operation: AgentReadOperation,
     reason: orchbee_agent_observation_protocol::AgentSessionRejectionReason,
@@ -2858,7 +2865,6 @@ fn agent_read_details(operation: AgentReadOperation) -> serde_json::Map<String, 
     details
 }
 
-#[cfg(any(target_os = "linux", windows))]
 fn agent_session_details(
     operation: AgentReadOperation,
     session_id: &str,
@@ -3196,4 +3202,14 @@ pub(crate) fn agent_changes(
             "unsupported-platform",
         )),
     ))
+}
+
+pub(in crate::cli) fn workbench_failure(reason: &'static str) -> Failure {
+    Failure::new(if reason == "agent-page-invalid" {
+        FailureKind::ProtocolInvalid
+    } else {
+        FailureKind::Rejected
+    })
+    .failure_schema("orchbee.cli.failure.workbench-query")
+    .details(super::stage_reason_details("workbench-query", reason))
 }

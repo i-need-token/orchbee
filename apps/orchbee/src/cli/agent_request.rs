@@ -4,18 +4,14 @@ use crate::invocation::{
     UsageReason,
 };
 
-#[cfg(windows)]
-type ListCursor = crate::agent_projection::cursor::Cursor;
-#[cfg(not(windows))]
-type ListCursor = orchbee_agent_observation_protocol::AgentListCursor;
-
-pub(super) fn list_cursor(
+pub(super) fn list_cursor<Cursor, Error>(
     value: Option<&str>,
     format: OutputFormat,
-) -> Result<Option<ListCursor>, ParseFailure> {
+    parse: impl Fn(&str) -> Result<Cursor, Error>,
+) -> Result<Option<Cursor>, ParseFailure> {
     value
         .map(|value| {
-            ListCursor::parse(value).map_err(|_| {
+            parse(value).map_err(|_| {
                 crate::invocation::usage_with(
                     UsageReason::InvalidValue {
                         context: UsageContext::Path("agent list"),
@@ -73,8 +69,12 @@ mod tests {
             "v1.short.tag",
             "v2.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ",
         ] {
-            let failure = super::list_cursor(Some(value), super::OutputFormat::Json)
-                .expect_err("malformed cursor");
+            let failure = super::list_cursor(
+                Some(value),
+                super::OutputFormat::Json,
+                orchbee_agent_observation_protocol::AgentListCursor::parse,
+            )
+            .expect_err("malformed cursor");
             assert!(matches!(
                 failure.usage,
                 Some(super::UsageReason::InvalidValue {

@@ -1,8 +1,9 @@
 //! CLI adapters consume one complete projection for pagination, selectors, and panel tables.
 use super::{
-    Failure, FailureKind, Output, failure_output, query,
+    Failure, FailureKind, Output,
+    console_interrupt::{ArmedSignals, Finish, SignalWatch},
+    failure_output, query,
     results::{self, Projection},
-    source::{ArmedSignals, Finish, SignalWatch},
     success_output,
 };
 use crate::{
@@ -236,6 +237,9 @@ pub(super) fn inspection_row(
 }
 
 pub(super) fn run(command: &QueryCommand, format: OutputFormat, locale: Locale) -> Output {
+    if let Err(failure) = super::execution::admit(super::execution::Capability::AgentProjection) {
+        return failure_output(failure, Some(format), locale);
+    }
     let QueryCommand::AgentList {
         client: selected,
         include_ended,
@@ -245,7 +249,7 @@ pub(super) fn run(command: &QueryCommand, format: OutputFormat, locale: Locale) 
     else {
         return failure_output(classify(Error::Invalid), Some(format), locale);
     };
-    let cursor = match super::agent_request::list_cursor(cursor.as_deref(), format) {
+    let cursor = match super::agent_request::list_cursor(cursor.as_deref(), format, Cursor::parse) {
         Ok(cursor) => cursor,
         Err(failure) => return super::parse_failure(failure, locale),
     };
@@ -416,7 +420,7 @@ fn client_memory(
     deadline: Instant,
     signals: &mut ArmedSignals,
 ) -> Result<(), Failure> {
-    use super::agent_view::windows as attention;
+    use super::agent_view::workflow as attention;
     let initial = attention::current_client(client, snapshot, selected, deadline, signals)?;
     let summaries = items
         .iter()

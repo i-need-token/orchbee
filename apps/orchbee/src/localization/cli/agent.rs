@@ -656,7 +656,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) const fn cli_agent_terminal_heading(self) -> &'static str {
         match self {
             Self::EnUs => "Terminal title / directory",

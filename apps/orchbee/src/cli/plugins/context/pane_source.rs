@@ -241,7 +241,7 @@ impl Memory {
             return Err(invalid());
         };
         if view != record.view || navigation.workbench_revision != snapshot.revision {
-            return Err(workbench_agents::failure("client-changed"));
+            return Err(query::workbench_failure("client-changed"));
         }
         if !navigation.answers(std::slice::from_ref(context), &view, snapshot.revision) {
             return Err(invalid());
@@ -277,7 +277,7 @@ impl Memory {
                 return Err(invalid());
             };
             if view != record.view || layout.workbench_revision != snapshot.revision {
-                return Err(workbench_agents::failure("client-changed"));
+                return Err(query::workbench_failure("client-changed"));
             }
             if layout.validate().is_err()
                 || layout.terminal_context_id != *context
@@ -326,7 +326,7 @@ impl Fence {
                 signals,
             )?;
             if fresh != memory {
-                return Err(workbench_agents::failure("client-changed"));
+                return Err(query::workbench_failure("client-changed"));
             }
         }
         let response = control::exchange(
@@ -342,7 +342,7 @@ impl Fence {
             if client.availability == ClientViewAvailability::Current
                 && client.view_revision == self.record.view_revision && client.view == self.record.view)
         {
-            return Err(workbench_agents::failure("client-changed"));
+            return Err(query::workbench_failure("client-changed"));
         }
         Ok(())
     }

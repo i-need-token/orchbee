@@ -10,10 +10,9 @@ use super::{
 };
 use crate::cli::{
     Failure, FailureKind,
-    client_control::windows::{exchange, submit_control},
-    query, results,
-    source::{ArmedSignals, Finish, SignalWatch},
-    success_output,
+    client_control::exchange::{exchange, submit_control},
+    console_interrupt::{ArmedSignals, Finish, SignalWatch},
+    query, results, success_output,
 };
 use orchbee_agent_observation_protocol::{
     AgentObservationFreshness, AgentSemanticStatus, AgentSessionId,
@@ -192,7 +191,7 @@ pub(in crate::cli) fn read(
     selected: &WorkbenchClientId,
     session: &AgentSessionId,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<ClientAgentRead, Failure> {
     read_many(
         client,
@@ -208,7 +207,7 @@ pub(in crate::cli) fn current_client(
     snapshot: &Snapshot,
     selected: &WorkbenchClientId,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<Box<orchbee_workbench_protocol::ClientViewRecord>, Failure> {
     check(deadline, signals)?;
     let result = exchange(
@@ -258,7 +257,7 @@ pub(in crate::cli) fn read_many(
     selected: &WorkbenchClientId,
     sessions: &[AgentSessionId],
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<ClientAgentRead, Failure> {
     let (operation_id, status) = read_control(
         client,
@@ -305,7 +304,7 @@ fn read_control(
     selected: &WorkbenchClientId,
     intent: ClientViewIntent,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<(WorkbenchRequestId, ClientViewControlStatus), Failure> {
     let record = current_client(client, snapshot, selected, deadline, signals)?;
     let command = ClientViewControl {
@@ -372,7 +371,7 @@ impl ClientAgentRead {
         revision: orchbee_agent_observation_protocol::AgentSafeInteger,
         items: &[&orchbee_agent_observation_protocol::AgentSessionSummary],
         deadline: Instant,
-        signals: &mut ArmedSignals,
+        signals: &mut impl SignalWatch,
     ) -> Result<Vec<results::AgentClientViewDoc>, Failure> {
         let ids = items
             .iter()
@@ -408,7 +407,7 @@ impl ClientAgentRead {
         snapshot: &Snapshot,
         canonical: &query::AgentObservationRead,
         deadline: Instant,
-        signals: &mut ArmedSignals,
+        signals: &mut impl SignalWatch,
     ) -> Result<results::AgentClientViewDoc, Failure> {
         let unchanged = query::attention_covers_observation(
             client,
@@ -566,7 +565,7 @@ fn projected_status(facts: &AgentViewFacts<'_>) -> Option<&'static str> {
     }
 }
 
-fn check(deadline: Instant, signals: &mut ArmedSignals) -> Result<(), Failure> {
+fn check(deadline: Instant, signals: &mut impl SignalWatch) -> Result<(), Failure> {
     if signals
         .take()
         .map_err(|_| view_failure(FailureKind::InternalFailure))?

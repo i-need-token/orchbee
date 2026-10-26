@@ -123,7 +123,7 @@ fn execute(
     } else {
         None
     };
-    let reply = client_control::windows::exchange(
+    let reply = client_control::exchange::exchange(
         &mut client,
         &snapshot.session_id,
         ClientViewAction::List {},
@@ -144,7 +144,7 @@ fn execute(
     };
     let selected =
         client_control::selection::select(&clients, command.client.as_ref(), caller.as_ref())?;
-    let answer = client_control::windows::submit_control(
+    let answer = client_control::exchange::submit_control(
         &mut client,
         &snapshot.session_id,
         ClientViewControl {

@@ -10,6 +10,8 @@ Syntax and discovery are identical on Windows, Linux and macOS. Unsupported exec
 
 Agent startup, saved-machine management and relay, and configuration reporting keep preparation, settlement and presentation in shared CLI owners. Capability admission precedes environment reads, signal registration, connections and persistence for unavailable operations. Named native ports retain Windows interrupt arbitration, SSH process ownership and bounded input acquisition; Unix refusal does not change existing supported query or configuration-check results.
 
+Agent projection reads, exact terminal metadata, Client attention interpretation and retained Client exchanges share their protocol and rendering owners. Native interrupt borrowing does not register another handler or replace Unix cancellation. Projection admission precedes effects; canonical Unix Agent reads keep their current selectors and `AgentListCursor`, while the projection backend decodes its own cursor.
+
 ## Sessions and background services
 
 An **Orchbee Session** is one independent work environment containing Workspaces, Tabs,

@@ -56,7 +56,6 @@ mod terminal_stream;
 mod terminal_target;
 pub(crate) use client_control::ClientLayoutTarget;
 pub(crate) use client_control::{ClientCommand, LayoutQuery};
-#[cfg(any(windows, test))]
 pub(crate) use client_control::{ClientNavigationTarget, ZoomMode};
 #[cfg(windows)]
 pub(crate) use client_control::{PanelSwapCommand, PanelSwapDestination};

@@ -258,7 +258,7 @@ fn execute(
                 .as_ref()
                 .is_some_and(|member| pinned.same_member(member))
         {
-            return Err(crate::cli::workbench_agents::failure("client-changed"));
+            return Err(crate::cli::query::workbench_failure("client-changed"));
         }
         if let Some(original) = &selected {
             let fresh = control::exchange(
@@ -274,7 +274,7 @@ fn execute(
                 if client.availability == ClientViewAvailability::Current
                     && client.view_revision == original.view_revision && client.view == original.view)
             {
-                return Err(crate::cli::workbench_agents::failure("client-changed"));
+                return Err(crate::cli::query::workbench_failure("client-changed"));
             }
         }
         match &mut canonical {

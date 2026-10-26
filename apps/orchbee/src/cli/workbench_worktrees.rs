@@ -53,7 +53,7 @@ fn classify(
         };
         let kind = match reason {
             WorktreeQueryFailure::NotFound {} | WorktreeQueryFailure::SourceChanged {} => {
-                return Err(super::workbench_agents::failure("workbench-changed"));
+                return Err(super::query::workbench_failure("workbench-changed"));
             }
             WorktreeQueryFailure::Denied {} => Some(FailureKind::Denied),
             WorktreeQueryFailure::MalformedListing {} => Some(FailureKind::ProtocolInvalid),
@@ -73,7 +73,7 @@ fn classify(
         };
     };
     if session_id != snapshot.session_id || workbench_revision != snapshot.revision {
-        return Err(super::workbench_agents::failure("workbench-changed"));
+        return Err(super::query::workbench_failure("workbench-changed"));
     }
     let directory = snapshot
         .navigation

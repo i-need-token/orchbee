@@ -919,16 +919,13 @@ pub(crate) fn render(
         // leave the query layer as failures before projection.
         #[cfg(not(windows))]
         Projection::AgentList(outcome) => agent_list(out, outcome, text, locale),
-        #[cfg(windows)]
         Projection::UnifiedAgentList(doc) => super::agent_projection::render_list(out, doc, locale),
-        #[cfg(windows)]
         Projection::UnifiedAgentInspection(doc) => {
             super::agent_projection::render_inspection(out, doc, command, locale)
         }
         Projection::AgentChanges(outcome) => agent_changes(out, outcome, locale),
         #[cfg(not(windows))]
         Projection::AgentGet(outcome) => agent_get(out, outcome, text, locale),
-        #[cfg(windows)]
         Projection::AgentTerminalInspection {
             terminal,
             semantic,
@@ -964,7 +961,6 @@ pub(crate) fn render(
             if let Some(client) = &doc.client {
                 out.push(&locale.cli_agent_client_view(client))?;
             }
-            #[cfg(windows)]
             if let Some(terminal) = &doc.terminal {
                 super::terminal_observation::render(out, terminal, locale)?;
                 super::panel_metadata_query::render_report(

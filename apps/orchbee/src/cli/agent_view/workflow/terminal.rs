@@ -1,7 +1,7 @@
 //! Inspect a named physical terminal without synthesizing a canonical session.
 use super::{
-    ArmedSignals, Failure, FailureKind, Instant, QueryCommand, SignalWatch, Snapshot,
-    WorkbenchClientId, check, query, results, view_failure,
+    Failure, FailureKind, Instant, QueryCommand, SignalWatch, Snapshot, WorkbenchClientId, check,
+    query, results, view_failure,
 };
 use crate::cli::terminal_observation::Observation;
 use orchbee_agent_observation_protocol::AgentLaunchBinding;
@@ -13,7 +13,7 @@ pub(super) fn read(
     binding: AgentLaunchBinding,
     selected: Option<&WorkbenchClientId>,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<(serde_json::Value, results::Projection), Failure> {
     let row = query::named_terminal::terminal_row(snapshot, &binding)?;
     let read = query::terminal_metadata::read(
@@ -77,7 +77,7 @@ pub(super) fn read(
     if let Some(report) = fields.get("reportedAgent")
         && report["source"]["reportRevision"] != semantic.source["reportRevision"]
     {
-        return Err(crate::cli::workbench_agents::failure("workbench-changed"));
+        return Err(crate::cli::query::workbench_failure("workbench-changed"));
     }
     query::named_terminal::verify_named_binding(client, &binding, deadline, signals.poll_fd())?;
     let latest = query::refresh_snapshot(
@@ -88,7 +88,7 @@ pub(super) fn read(
         signals,
     )?;
     if latest.revision != snapshot.revision {
-        return Err(crate::cli::workbench_agents::failure("workbench-changed"));
+        return Err(crate::cli::query::workbench_failure("workbench-changed"));
     }
     check(deadline, signals)?;
     Ok((

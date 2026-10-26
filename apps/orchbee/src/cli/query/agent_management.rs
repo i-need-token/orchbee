@@ -6,7 +6,6 @@ use super::{
 };
 
 /// Startup ownership is a separate read, with its own sampled revision and source.
-#[cfg(windows)]
 pub(in crate::cli) fn read_agent_management(
     client: &mut LocalClient,
     session_id: &AgentSessionId,

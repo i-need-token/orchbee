@@ -3,14 +3,15 @@
 
 #[cfg(not(windows))]
 use super::agent_target;
+#[cfg(windows)]
+use super::named_terminal_target;
+use super::read_terminal_processes;
 use super::{
     AgentGetOutcome, AgentReadOperation, AgentReadRequest, AgentReadResult, AgentSessionId,
     BorrowedFd, Failure, FailureKind, Instant, LocalClient, Resource, Snapshot, Target,
     agent_protocol_invalid, agent_session_rejection, agent_unavailable_details,
     classify_agent_read, obap_request_id,
 };
-#[cfg(windows)]
-use super::{named_terminal_target, read_terminal_processes};
 use crate::invocation::AgentTarget;
 use orchbee_agent_observation_protocol::{AgentLifecycle, AgentSessionDetail};
 
@@ -40,7 +41,6 @@ pub(crate) struct ResolvedAgentTerminal {
 }
 
 /// A read-only preflight, not an atomic process lease over the later send.
-#[cfg(windows)]
 pub(crate) fn verify_agent_terminal(
     client: &mut LocalClient,
     snapshot: &Snapshot,

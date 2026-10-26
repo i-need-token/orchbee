@@ -2,7 +2,7 @@
 use super::{
     Failure, FailureKind, Output,
     caller_context::PanelTarget,
-    client_control::{self, selection, windows::exchange},
+    client_control::{self, exchange::exchange, selection},
     failure_output, output, query,
     source::{ArmedSignals, Finish, SignalWatch},
 };
@@ -147,7 +147,7 @@ fn execute(
             &snapshot,
         )?;
         if let Some(intent) = intent {
-            let answer = client_control::windows::submit_control(
+            let answer = client_control::exchange::submit_control(
                 &mut client,
                 &snapshot.session_id,
                 ClientViewControl {
@@ -257,7 +257,7 @@ fn execute(
     let mut followup = None;
     let mut complete = true;
     if let Outcome::PopupControl { result, .. } = &reply.outcome {
-        let answer = client_control::windows::wait_submitted(
+        let answer = client_control::exchange::wait_submitted(
             &mut client,
             (**result).clone(),
             deadline,
@@ -284,7 +284,7 @@ fn execute(
         } = &result.outcome
         && let Some(selected) = selected
     {
-        let answer = client_control::windows::submit_control(
+        let answer = client_control::exchange::submit_control(
             &mut client,
             &snapshot.session_id,
             ClientViewControl {

@@ -6,8 +6,7 @@ use crate::{
 };
 use orchbee_workbench_protocol::WorkbenchClientId;
 
-#[cfg(windows)]
-pub(in crate::cli) mod windows;
+pub(in crate::cli) mod workflow;
 
 pub(super) fn run(
     command: &QueryCommand,
@@ -16,34 +15,13 @@ pub(super) fn run(
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
-    #[cfg(windows)]
-    {
-        windows::run(command, target, client, format, locale)
+    if let Err(failure) = super::execution::admit(super::execution::Capability::AgentProjection) {
+        return failure_output(failure, Some(format), locale);
     }
-    #[cfg(not(windows))]
-    {
-        let _ = (command, target, client);
-        failure_output(
-            super::Failure::new(super::FailureKind::ServiceUnavailable).details(
-                super::stage_reason_details("platform", "unsupported-platform"),
-            ),
-            Some(format),
-            locale,
-        )
-    }
+    workflow::run(command, target, client, format, locale)
 }
 
 #[cfg(not(windows))]
 pub(super) fn list(command: &QueryCommand, format: OutputFormat, locale: Locale) -> Output {
-    #[cfg(not(windows))]
-    {
-        let _ = command;
-        failure_output(
-            super::Failure::new(super::FailureKind::ServiceUnavailable).details(
-                super::stage_reason_details("platform", "unsupported-platform"),
-            ),
-            Some(format),
-            locale,
-        )
-    }
+    super::agent_projection::run(command, format, locale)
 }

@@ -44,7 +44,7 @@ pub(super) fn span(
     let expected = provider(&before)?;
     if let Some(selected) = selected.as_ref() {
         // Selected-Client admission fails before input, even when only later observation needs it.
-        crate::cli::agent_view::windows::terminal_attention::read(
+        crate::cli::agent_view::workflow::terminal_attention::read(
             client, &snapshot, selected, &binding, deadline, signals,
         )?;
     }

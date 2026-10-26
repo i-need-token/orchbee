@@ -236,7 +236,6 @@ fn canonical_agent_inspection(with_client: bool) -> Box<crate::cli::results::Age
         session: Box::new(session),
         client,
         runtime: AgentRuntimeDoc::Unavailable("unbound"),
-        #[cfg(windows)]
         terminal: None,
         management: AgentManagementDoc {
             source: json!({"kind":"agent-read","requestId":id}),

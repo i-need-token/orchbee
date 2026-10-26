@@ -1,7 +1,7 @@
 //! Agent observations joined to canonical primary Presentation membership.
 use super::{
     Failure, FailureKind,
-    agent_view::windows as attention,
+    agent_view::workflow as attention,
     output::{Bounded, TooLarge},
     query,
     results::{self, AgentClientViewDoc, Projection},
@@ -23,15 +23,7 @@ const MAXIMUM_SESSIONS: usize = 512;
 const PAGE_SIZE: usize = 100;
 const MAXIMUM_PAGES: usize = MAXIMUM_SESSIONS.div_ceil(PAGE_SIZE);
 
-pub(super) fn failure(reason: &'static str) -> Failure {
-    Failure::new(if reason == "agent-page-invalid" {
-        FailureKind::ProtocolInvalid
-    } else {
-        FailureKind::Rejected
-    })
-    .failure_schema("orchbee.cli.failure.workbench-query")
-    .details(super::stage_reason_details("workbench-query", reason))
-}
+use super::query::workbench_failure as failure;
 
 #[derive(Debug)]
 struct Session {

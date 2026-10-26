@@ -22,7 +22,7 @@ const READ_BUDGET: Duration = Duration::from_secs(5);
 #[derive(Debug)]
 pub(crate) struct Matched {
     pub(in crate::cli) client_view:
-        Option<crate::cli::agent_view::windows::terminal_attention::Projection>,
+        Option<crate::cli::agent_view::workflow::terminal_attention::Projection>,
     pub(in crate::cli) read: TerminalAgentRead,
     pub(in crate::cli) conditions: Vec<AgentWaitCondition>,
     pub(in crate::cli) change: Option<TerminalAgentChange>,
@@ -154,7 +154,7 @@ pub(in crate::cli) fn observe(
             .map(|selected| {
                 let snapshot =
                     super::agent_target::read_snapshot(client, deadline, signals.poll_fd())?;
-                crate::cli::agent_view::windows::terminal_attention::read(
+                crate::cli::agent_view::workflow::terminal_attention::read(
                     client,
                     &snapshot,
                     selected,

@@ -1120,18 +1120,15 @@ pub(crate) enum Projection {
     /// The typed `listed` outcome, verbatim from the wire.
     #[cfg(not(windows))]
     AgentList(AgentListOutcome),
-    #[cfg(windows)]
     UnifiedAgentList(Box<super::agent_projection::List>),
-    #[cfg(windows)]
     UnifiedAgentInspection(Box<super::agent_projection::Inspection>),
     AgentChanges(orchbee_agent_observation_protocol::AgentChangesOutcome),
     /// The typed `found` outcome, verbatim from the wire.
     #[cfg(not(windows))]
     AgentGet(AgentGetOutcome),
     AgentInspection(Box<AgentInspectionDoc>),
-    #[cfg(windows)]
     AgentTerminalInspection {
-        client_view: Option<super::agent_view::windows::terminal_attention::Projection>,
+        client_view: Option<super::agent_view::workflow::terminal_attention::Projection>,
         binding: orchbee_agent_observation_protocol::AgentLaunchBinding,
         terminal: Value,
         semantic: super::query::terminal_agent::TerminalAgentRead,
@@ -1219,7 +1216,6 @@ pub(crate) struct AgentInspectionDoc {
     pub(crate) session: Box<AgentSessionDetail>,
     pub(crate) client: Option<Box<AgentClientViewDoc>>,
     pub(crate) runtime: AgentRuntimeDoc,
-    #[cfg(windows)]
     pub(crate) terminal: Option<Value>,
     pub(crate) management: AgentManagementDoc,
 }
@@ -1345,14 +1341,11 @@ impl Projection {
             // Preserve source facts while using the same current public row shape.
             #[cfg(not(windows))]
             Self::AgentList(outcome) => shape::canonical_list(outcome),
-            #[cfg(windows)]
             Self::UnifiedAgentList(doc) => doc.document(),
-            #[cfg(windows)]
             Self::UnifiedAgentInspection(doc) => doc.document(),
             Self::AgentChanges(outcome) => json!(outcome),
             #[cfg(not(windows))]
             Self::AgentGet(outcome) => json!(outcome),
-            #[cfg(windows)]
             Self::AgentTerminalInspection {
                 binding,
                 terminal,
@@ -1370,10 +1363,7 @@ impl Projection {
             }
             Self::AgentInspection(doc) => {
                 let mut result = json!({"kind":"found","revision":doc.revision,"session":doc.session,"runtime":doc.runtime.document(),"management":doc.management.document()});
-                #[cfg(windows)]
-                {
-                    result["terminal"] = json!(doc.terminal);
-                }
+                result["terminal"] = json!(doc.terminal);
                 result["client"] = doc
                     .client
                     .as_ref()

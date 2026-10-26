@@ -1,8 +1,8 @@
 //! Scoped console interrupts for commands admitted to the Windows execution capability.
 //! Shared command workflows own arbitration; only the native port registers a handler.
 
-use super::SourceFinalization;
 pub(super) use super::input_source::SourceFailure;
+use super::{Failure, FailureKind, SourceFinalization};
 use orchbee_local_ipc::LocalIo;
 use std::{io, time::Instant};
 
@@ -21,6 +21,34 @@ trait NativeSignals {
 }
 
 pub(super) struct ArmedSignals(Box<dyn NativeSignals>);
+
+/// Borrow cancellation from its real owner; observing a workflow never re-registers signals.
+pub(super) trait SignalWatch {
+    fn poll_fd(&self) -> Option<LocalIo<'_>>;
+    fn take(&mut self) -> io::Result<Option<i32>>;
+    fn check_before(&mut self, deadline: Instant) -> Result<(), Failure> {
+        if self
+            .take()
+            .map_err(|_| Failure::new(FailureKind::InternalFailure))?
+            .is_some()
+        {
+            Err(Failure::new(FailureKind::Cancelled))
+        } else if Instant::now() >= deadline {
+            Err(Failure::new(FailureKind::Timeout))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+impl SignalWatch for ArmedSignals {
+    fn poll_fd(&self) -> Option<LocalIo<'_>> {
+        self.poll_fd()
+    }
+    fn take(&mut self) -> io::Result<Option<i32>> {
+        self.take()
+    }
+}
 
 pub(super) enum Finish {
     Clear,

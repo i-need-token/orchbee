@@ -6,13 +6,13 @@ pub(crate) mod agent_manifests;
 #[cfg(windows)]
 pub(crate) mod agent_view_spec;
 mod console_interrupt;
+mod execution;
 mod input_source;
 pub(crate) mod machines;
 pub(crate) mod notification;
 pub(crate) mod operation;
 pub(crate) mod panel_agent;
 pub(crate) mod panel_metadata;
-#[cfg(windows)]
 mod panel_metadata_query;
 #[cfg(windows)]
 pub(crate) mod panel_terminal_creation;
@@ -36,7 +36,6 @@ pub(crate) mod pane_graphics;
 mod windows_stdin;
 pub(crate) use client_control::run as run_client_control;
 pub(crate) mod agent_names;
-#[cfg(windows)]
 mod agent_projection;
 mod agent_prompt;
 mod agent_start;
@@ -113,7 +112,6 @@ pub(crate) mod agent_start_runtime {
 mod server;
 mod server_diagnose;
 mod server_stop;
-#[cfg(windows)]
 mod terminal_observation;
 #[cfg(windows)]
 pub(crate) mod update;
@@ -786,7 +784,11 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
             limit,
             cursor,
             client: None,
-        } => match agent_request::list_cursor(cursor.as_deref(), format) {
+        } => match agent_request::list_cursor(
+            cursor.as_deref(),
+            format,
+            orchbee_agent_observation_protocol::AgentListCursor::parse,
+        ) {
             Ok(cursor) => agent_output(
                 query::agent_list(*include_ended, *limit, cursor),
                 &command,
