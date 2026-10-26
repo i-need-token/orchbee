@@ -19,6 +19,12 @@ use orchbee_client_server_protocol::{Geometry, TerminalControlAction, TerminalCo
 use orchbee_terminal_protocol::{MouseTracking, TerminalTextFrame};
 use std::io::{self, Write};
 mod input;
+#[cfg(windows)]
+#[path = "attach/windows.rs"]
+mod native_input;
+#[cfg(not(windows))]
+#[path = "attach/unix.rs"]
+mod native_input;
 #[cfg(test)]
 mod tests;
 
@@ -190,8 +196,7 @@ fn run_console(
         let application_cursor = controller
             .frame()
             .is_some_and(|frame| frame.interaction.application_cursor_keys());
-        let actions = match inherited
-            .next_input(Duration::from_millis(10))
+        let actions = match native_input::next_input(inherited, Duration::from_millis(10))
             .map_err(io_failure)?
         {
             Some(bytes) => input.read(&bytes, Instant::now(), size.rows(), application_cursor),

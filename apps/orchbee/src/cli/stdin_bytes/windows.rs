@@ -1,5 +1,5 @@
 //! Invocation-owned Windows stdin helper; caller bytes remain pipe data.
-use super::{NativeReader, Poll};
+use super::NativeReader;
 use orchbee_local_ipc::ChildOutputReader;
 use std::{
     io::{self, Read},
