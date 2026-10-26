@@ -81,7 +81,6 @@ use crate::local_client::workbench::{
     WorkbenchWorkspaceCloseReadError, WorktreeListReadError, WorktreeListReadFailure,
 };
 use crate::local_client::{LocalClient, OutcomeUnknownReason, SubmissionError};
-#[cfg(any(target_os = "linux", windows))]
 use crate::local_client::{exchange_wake_fault, exchange_wake_ready};
 use crate::terminal_projection::TerminalProjection;
 use crate::termination_signal::{TerminationSignal, TerminationSource};
@@ -114,8 +113,7 @@ use orchbee_workbench_protocol::{
 };
 use std::time::{Duration, Instant};
 
-#[cfg(target_os = "macos")]
-mod agent_list_macos;
+mod agent_list_unarmed;
 mod agent_wait;
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) use agent_wait::condition_matches;
@@ -123,12 +121,10 @@ pub(crate) use agent_wait::condition_matches;
 pub(crate) use agent_wait::status_matches;
 pub(crate) use agent_wait::{agent_wait, wait_backoff};
 
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 const COHORT_BUDGET: Duration = Duration::from_secs(5);
 /// The Agent read's whole-command budget: one absolute deadline sampled
 /// once at invocation entry and shared by the preamble, the admission, and
 /// the single OBAP exchange — never refreshed between stages.
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 const AGENT_TOTAL_BUDGET: Duration = Duration::from_secs(5);
 const NETWORK_BUDGET: Duration = Duration::from_secs(5);
 /// An `Empty` poll answer is retried inside the shared network budget; the
@@ -2013,7 +2009,6 @@ fn viewer_protocol_invalid() -> Failure {
     Failure::new(FailureKind::ProtocolInvalid).details(stage_details("viewer"))
 }
 
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn rendezvous() -> Result<ModeCheckedLocalSessionRendezvous, Failure> {
     let (base, scope_text) = crate::local_activation::runtime_location()
         .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
@@ -2028,7 +2023,6 @@ fn rendezvous() -> Result<ModeCheckedLocalSessionRendezvous, Failure> {
 /// unsafe Session scope belongs to `runtime-directory`, while anything rooted
 /// above it belongs to `runtime-base`. A scope ENOENT is service-unavailable
 /// discovery, never a configuration failure.
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub(crate) fn classify_rendezvous(
     error: RendezvousError,
     scope_directory: &std::path::Path,
@@ -2048,7 +2042,6 @@ pub(crate) fn classify_rendezvous(
     Failure::new(FailureKind::CheckFailed).details(stage_details(stage))
 }
 
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn rendezvous_path(error: &RendezvousError) -> Option<&std::path::Path> {
     match error {
         RendezvousError::InvalidSessionScope => None,
@@ -2066,7 +2059,6 @@ fn rendezvous_path(error: &RendezvousError) -> Option<&std::path::Path> {
     }
 }
 
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub(crate) fn classify_connect(error: crate::local_client::LocalClientConnectError) -> Failure {
     use orchbee_local_client_protocol::{ProtocolError, RejectionReason};
     match error {
@@ -2431,12 +2423,16 @@ fn classify_attempt<Response>(
 /// session is dropped before any output work. The `listed` outcome is the
 /// only success path; every semantic refusal maps to its fixed failure kind
 /// and carries the correlated request identity as the honest source.
-#[cfg(target_os = "linux")]
 pub(crate) fn agent_list(
     include_ended: bool,
     limit: u64,
     cursor: Option<orchbee_agent_observation_protocol::AgentListCursor>,
 ) -> Result<(serde_json::Value, Projection), AgentQueryError> {
+    super::execution::admit(super::execution::Capability::CanonicalAgentList)
+        .map_err(AgentQueryError::Admission)?;
+    if super::execution::admit(super::execution::Capability::CanonicalAgentRead).is_err() {
+        return agent_list_unarmed::run(include_ended, limit, cursor);
+    }
     let (request_id, attempt) =
         agent_armed_run(AgentReadOperation::List, |_, request_id, _, _| {
             Ok(AgentReadRequest::List {
@@ -2459,7 +2455,6 @@ pub(crate) fn agent_list(
     ))
 }
 
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn listed_outcome(
     outcome: AgentListOutcome,
     request_id: &ObapRequestId,
@@ -2523,10 +2518,11 @@ pub(in crate::cli) fn read_agent_list(
 }
 
 /// `agent get`: one OBAP get request, same admission/exchange discipline.
-#[cfg(target_os = "linux")]
 pub(crate) fn agent_get(
     target: &crate::invocation::AgentTarget,
 ) -> Result<(serde_json::Value, Projection), AgentQueryError> {
+    super::execution::admit(super::execution::Capability::CanonicalAgentRead)
+        .map_err(AgentQueryError::Admission)?;
     agent_session_read(AgentReadOperation::Get, target)
 }
 
@@ -2647,7 +2643,6 @@ fn agent_session_rejection(
 
 /// Common `agent-read` details: the stage plus the operation, as the failure
 /// schema closes them. Session-targeted failures add `sessionId`.
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn agent_read_details(operation: AgentReadOperation) -> serde_json::Map<String, serde_json::Value> {
     let mut details = serde_json::Map::new();
     details.insert("stage".to_owned(), serde_json::json!("agent-read"));
@@ -2667,7 +2662,6 @@ fn agent_session_details(
     details
 }
 
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn agent_rejection_details(
     operation: AgentReadOperation,
     reason: &str,
@@ -2677,7 +2671,6 @@ fn agent_rejection_details(
     details
 }
 
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn agent_unavailable_details(
     operation: AgentReadOperation,
 ) -> serde_json::Map<String, serde_json::Value> {
@@ -2686,7 +2679,6 @@ fn agent_unavailable_details(
 
 /// The fixed `timeoutMs` the agent-read failure schema publishes: the shared
 /// absolute command budget in milliseconds.
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn agent_timeout_details(
     operation: AgentReadOperation,
 ) -> serde_json::Map<String, serde_json::Value> {
@@ -2698,7 +2690,6 @@ fn agent_timeout_details(
     details
 }
 
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn agent_protocol_invalid(operation: AgentReadOperation) -> Failure {
     Failure::new(FailureKind::ProtocolInvalid).details(agent_read_details(operation))
 }
@@ -2706,7 +2697,6 @@ fn agent_protocol_invalid(operation: AgentReadOperation) -> Failure {
 /// A deadline-elapsed transport error is the command's own timeout, never a
 /// transport loss: `TimedOut` only arises from the shared deadline inside the
 /// exchange machinery.
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn is_deadline_elapsed(error: &std::io::Error) -> bool {
     error.kind() == std::io::ErrorKind::TimedOut
 }
@@ -2715,27 +2705,20 @@ fn is_deadline_elapsed(error: &std::io::Error) -> bool {
 /// contradiction — the descriptor reported readiness or a fault yet the
 /// owner read no signal. Both map to `internal-failure`, never cancellation
 /// or a transport verdict.
-#[cfg(any(target_os = "linux", windows))]
 fn wake_marker_failure(error: &std::io::Error) -> Option<Failure> {
-    if exchange_wake_ready(error) || exchange_wake_fault(error) {
+    if super::execution::admit(super::execution::Capability::CanonicalAgentRead).is_ok()
+        && (exchange_wake_ready(error) || exchange_wake_fault(error))
+    {
         Some(Failure::new(FailureKind::InternalFailure))
     } else {
         None
     }
 }
 
-/// The macOS read lane does not install a pollable signal wake descriptor;
-/// its local exchange therefore cannot produce provisional wake markers.
-#[cfg(target_os = "macos")]
-fn wake_marker_failure(_error: &std::io::Error) -> Option<Failure> {
-    None
-}
-
 /// Post-admission Agent read failures: a semantic answer maps to its fixed
 /// kind, an expired deadline to timeout, a transport fault to transport-loss,
 /// and any malformed/correlated violation to protocol-invalid — every
 /// document under the common `agent-read` stage, none with a source.
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub(in crate::cli) fn classify_agent_read(
     error: AgentExchangeError,
     operation: AgentReadOperation,
@@ -2757,7 +2740,6 @@ pub(in crate::cli) fn classify_agent_read(
     }
 }
 
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn classify_agent_failure(reason: AgentExchangeFailure, operation: AgentReadOperation) -> Failure {
     match reason {
         AgentExchangeFailure::Write(error)
@@ -2779,10 +2761,8 @@ fn classify_agent_failure(reason: AgentExchangeFailure, operation: AgentReadOper
 
 /// The OBAP request identity minted per command: sixteen fresh bytes as
 /// canonical 32-lowercase-hex, never reused.
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub(crate) use crate::agent_runtime::startup::obap_request_id;
 
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn rejection_reason_text(
     reason: &orchbee_agent_observation_protocol::AgentListRejectionReason,
 ) -> &'static str {
@@ -2810,39 +2790,6 @@ pub(crate) fn read_terminal(
             super::stage_reason_details("platform", "unsupported-platform"),
         ),
     )
-}
-
-#[cfg(target_os = "macos")]
-pub(crate) fn agent_list(
-    include_ended: bool,
-    limit: u64,
-    cursor: Option<orchbee_agent_observation_protocol::AgentListCursor>,
-) -> Result<(serde_json::Value, super::results::Projection), AgentQueryError> {
-    agent_list_macos::run(include_ended, limit, cursor)
-}
-
-#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
-pub(crate) fn agent_list(
-    _include_ended: bool,
-    _limit: u64,
-    _cursor: Option<orchbee_agent_observation_protocol::AgentListCursor>,
-) -> Result<(serde_json::Value, super::results::Projection), AgentQueryError> {
-    Err(AgentQueryError::Admission(
-        super::Failure::new(super::FailureKind::ServiceUnavailable).details(
-            super::stage_reason_details("platform", "unsupported-platform"),
-        ),
-    ))
-}
-
-#[cfg(not(any(target_os = "linux", windows)))]
-pub(crate) fn agent_get(
-    _target: &crate::invocation::AgentTarget,
-) -> Result<(serde_json::Value, super::results::Projection), AgentQueryError> {
-    Err(AgentQueryError::Admission(
-        super::Failure::new(super::FailureKind::ServiceUnavailable).details(
-            super::stage_reason_details("platform", "unsupported-platform"),
-        ),
-    ))
 }
 
 pub(super) fn names_command(

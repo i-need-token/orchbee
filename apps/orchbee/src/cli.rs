@@ -412,7 +412,6 @@ pub(crate) fn failure_output(
 /// yet. The caller's selected format still decides whether stdout carries
 /// the document; the status is explicit since a handled source interruption
 /// exits with the conventional `128 + signo`, not a kind-derived code.
-#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn source_failure_output(
     failure: Failure,
     status: u8,
@@ -625,38 +624,35 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
             format,
             locale,
         ),
-        #[cfg(not(windows))]
-        QueryCommand::AgentList {
-            client: Some(_), ..
-        } => agent_view::list(&command, format, locale),
-        #[cfg(windows)]
-        QueryCommand::AgentList { .. } => agent_projection::run(&command, format, locale),
-        #[cfg(not(windows))]
         QueryCommand::AgentList {
             include_ended,
             limit,
             cursor,
-            client: None,
-        } => match agent_request::list_cursor(
-            cursor.as_deref(),
-            format,
-            orchbee_agent_observation_protocol::AgentListCursor::parse,
-        ) {
-            Ok(cursor) => agent_output(
-                query::agent_list(*include_ended, *limit, cursor),
-                &command,
-                format,
-                locale,
-            ),
-            Err(failure) => parse_failure(failure, locale),
-        },
-        QueryCommand::AgentGet(session_id) => {
-            #[cfg(windows)]
+            client,
+        } => {
+            if client.is_some() || execution::admit(execution::Capability::AgentProjection).is_ok()
             {
-                agent_view::run(&command, session_id, None, format, locale)
+                agent_projection::run(&command, format, locale)
+            } else {
+                match agent_request::list_cursor(
+                    cursor.as_deref(),
+                    format,
+                    orchbee_agent_observation_protocol::AgentListCursor::parse,
+                ) {
+                    Ok(cursor) => agent_output(
+                        query::agent_list(*include_ended, *limit, cursor),
+                        &command,
+                        format,
+                        locale,
+                    ),
+                    Err(failure) => parse_failure(failure, locale),
+                }
             }
-            #[cfg(not(windows))]
-            {
+        }
+        QueryCommand::AgentGet(session_id) => {
+            if execution::admit(execution::Capability::AgentProjection).is_ok() {
+                agent_view::run(&command, session_id, None, format, locale)
+            } else {
                 agent_output(query::agent_get(session_id), &command, format, locale)
             }
         }

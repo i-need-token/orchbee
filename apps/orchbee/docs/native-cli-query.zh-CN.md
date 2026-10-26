@@ -26,7 +26,7 @@ Workbench 与终端列表补充信息共用有界 canonical／physical 读取、
 
 终端观察、控制、附着和 Pane 图像共用协议、分帧、确认与清理流程。Windows 适配器拥有 stdin helper 与 stdout relay 进程；共享轮询解释它们实际返回的字节、EOF 和退出观察。不支持的 host 在终端准入、信号注册或 helper 创建前拒绝。原生中断观察委托现有 Windows guard，不替换 Unix 取消所有权。
 
-Agent 变更、解释、等待、命名及保留关闭操作共用交换、取消结算和展示所有者。省略的等待选项由具名平台策略所有者提供既有默认值。CLI 中断对端口委托现有 Linux 或 Windows 信号生产者；持有的 Client Connection 仍在唯一一次 finish 仲裁前释放。Windows 等待保留连续历史与可选 Client 证据，Linux 等待保留规范状态采样及其既有输出字段。macOS 保留独立的有界规范列表所有者；不可用的读取能力在信号或 Session 副作用前拒绝。
+Agent 变更、解释、等待、命名及保留关闭操作共用交换、取消结算和展示所有者。省略的等待选项由具名平台策略所有者提供既有默认值。CLI 中断对端口委托现有 Linux 或 Windows 信号生产者；持有的 Client Connection 仍在唯一一次 finish 仲裁前释放。Windows 等待保留连续历史与可选 Client 证据，Linux 等待保留规范状态采样及其既有输出字段。List/Get 路由与规范结果渲染在所有 host 上通过同一所有者编译。macOS 保留不注册信号的有界规范列表路径；不可用的读取能力在信号或 Session 副作用前拒绝。
 
 事件订阅／等待、精确终端清理、Agent 视图规格和离线频道报告共用既有协议、保留结果和渲染流程。不支持的 host 在信号注册、请求标识生成和偏好读取之前执行能力准入。事件清理仍先释放 relay，再由原控制台 guard 进行唯一一次最终仲裁；丢失清理或视图 mutation 的结果继续保留为不确定收据。
 
@@ -2509,4 +2509,4 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=7d550c07fad6eed18337d32ec4fd8d7f108f04b6aa2cc87c9f0dd146e9a12702 zh-cn-sha256=d04fdd20ee36fa24f0ce23b1ee81e174c0876e5f423ed87dc9914dce64cd9134 -->
+<!-- documentation-pairing: english-sha256=012e3ebfb15054e3b6327209a6a7f375b1bcd6af4fbecd1867d9f64327bfdb2f zh-cn-sha256=b17415c267ad7560b58b6fd2203e21dddf78024d6b169b37553fd9e834d94efd -->

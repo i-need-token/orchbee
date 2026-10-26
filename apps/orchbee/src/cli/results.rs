@@ -2,7 +2,6 @@
 //! model. Everything here is total over a snapshot the transport already
 //! verified; no fabricated fields appear where no authoritative source exists.
 
-#[cfg(not(windows))]
 use orchbee_agent_observation_protocol::AgentListOutcome;
 use std::collections::HashMap;
 
@@ -1117,7 +1116,6 @@ pub(crate) enum Projection {
     WorkbenchQuery(Box<super::workbench_query::Document>),
     Status(StatusDoc),
     /// The typed `listed` outcome, verbatim from the wire.
-    #[cfg(not(windows))]
     AgentList(AgentListOutcome),
     UnifiedAgentList(Box<super::agent_projection::List>),
     UnifiedAgentInspection(Box<super::agent_projection::Inspection>),
@@ -1339,7 +1337,6 @@ impl Projection {
         match self {
             Self::WorkbenchQuery(doc) => doc.result(),
             // Preserve source facts while using the same current public row shape.
-            #[cfg(not(windows))]
             Self::AgentList(outcome) => shape::canonical_list(outcome),
             Self::UnifiedAgentList(doc) => doc.document(),
             Self::UnifiedAgentInspection(doc) => doc.document(),

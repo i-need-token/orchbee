@@ -6,6 +6,7 @@ use super::{Failure, FailureKind, stage_reason_details};
 pub(super) enum Capability {
     AgentProjection,
     CanonicalAgentRead,
+    CanonicalAgentList,
     AgentNames,
     RetainedCloseOperation,
     CanonicalWorkbenchRead,
@@ -52,6 +53,7 @@ pub(super) fn admit(capability: Capability) -> Result<(), Failure> {
     platform::admit(capability).map_err(|Unsupported(capability)| match capability {
         Capability::AgentProjection
         | Capability::CanonicalAgentRead
+        | Capability::CanonicalAgentList
         | Capability::AgentNames
         | Capability::RetainedCloseOperation
         | Capability::CanonicalWorkbenchRead

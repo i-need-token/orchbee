@@ -6,7 +6,6 @@
 use serde_json::Value;
 mod agent_screen;
 
-#[cfg(not(windows))]
 use orchbee_agent_observation_protocol::AgentListOutcome;
 use orchbee_agent_observation_protocol::{
     AgentExplainOutcome, AgentGetOutcome, AgentSessionDetail, AgentSessionExplanation,
@@ -915,7 +914,6 @@ pub(crate) fn render(
         }
         // Agent text renders only ever see the success outcome — refusals
         // leave the query layer as failures before projection.
-        #[cfg(not(windows))]
         Projection::AgentList(outcome) => agent_list(out, outcome, text, locale),
         Projection::UnifiedAgentList(doc) => super::agent_projection::render_list(out, doc, locale),
         Projection::UnifiedAgentInspection(doc) => {
@@ -1038,7 +1036,6 @@ fn agent_wait(out: &mut Bounded, doc: &AgentWaitDoc, locale: Locale) -> Result<(
 /// `agent list`: the SESSION/PROVIDER/STATUS/FRESHNESS/LOCATION table, an
 /// empty notice instead of an empty table, and a pagination hint whenever the
 /// page is not the last one.
-#[cfg(not(windows))]
 fn agent_list(
     out: &mut Bounded,
     outcome: &AgentListOutcome,

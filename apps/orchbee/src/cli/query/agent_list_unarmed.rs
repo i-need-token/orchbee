@@ -1,8 +1,4 @@
-//! The Apple Silicon development cohort's read-only `agent list` route.
-//!
-//! This intentionally admits only the no-Client OBAP list query. Other
-//! platform-specific query surfaces keep their existing platform gates.
-
+//! Bounded canonical list without signal registration; admission selects the existing host route.
 use std::time::Instant;
 
 use orchbee_agent_observation_protocol::{

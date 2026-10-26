@@ -4,6 +4,9 @@ use super::{Capability, Unsupported};
 
 pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
     match capability {
+        Capability::CanonicalAgentList if cfg!(any(target_os = "linux", target_os = "macos")) => {
+            Ok(())
+        }
         Capability::WorkbenchMutation
         | Capability::CanonicalPanelProcess
         | Capability::CanonicalAgentRead
@@ -25,6 +28,7 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         | Capability::RuntimeInspection
         | Capability::TerminalInput
         | Capability::TerminalRun
+        | Capability::CanonicalAgentList
         | Capability::Reports
         | Capability::AgentManifests
         | Capability::RuntimeStatus

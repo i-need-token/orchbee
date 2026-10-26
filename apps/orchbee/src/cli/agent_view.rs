@@ -20,8 +20,3 @@ pub(super) fn run(
     }
     workflow::run(command, target, client, format, locale)
 }
-
-#[cfg(not(windows))]
-pub(super) fn list(command: &QueryCommand, format: OutputFormat, locale: Locale) -> Output {
-    super::agent_projection::run(command, format, locale)
-}

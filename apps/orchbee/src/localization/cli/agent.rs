@@ -115,7 +115,6 @@ impl Locale {
     // ---- agent read rendering ------------------------------------------------
 
     /// The notice printed instead of an empty agent table.
-    #[cfg(not(windows))]
     pub(crate) const fn cli_agent_empty(self) -> &'static str {
         match self {
             Self::EnUs => "No agent sessions.\n",

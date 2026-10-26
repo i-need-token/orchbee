@@ -17,7 +17,6 @@ fn missing(value: &mut Value, keys: &[&str], fallback: &Value) {
     }
 }
 
-#[cfg(not(windows))]
 pub(super) fn canonical_list(
     outcome: &orchbee_agent_observation_protocol::AgentListOutcome,
 ) -> Value {
