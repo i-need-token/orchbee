@@ -92,7 +92,7 @@ fn deferred_path_failures_preserve_the_usage_envelope_and_context_redaction() {
         );
         assert_eq!(
             context_failure.kind,
-            super::super::ParseFailureKind::InvalidUsage
+            crate::invocation::ParseFailureKind::InvalidUsage
         );
         assert_eq!(context_failure.envelope, selection_envelope(Some(format)));
         let operand = "x".repeat(4096);

@@ -1,4 +1,5 @@
 use super::*;
+use orchbee_workbench_protocol::PanelAgentState;
 use std::ffi::OsString;
 fn parse(args: &[&str]) -> Result<Request, ParseFailure> {
     super::super::parse_request(args.iter().map(OsString::from))

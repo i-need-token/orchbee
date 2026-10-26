@@ -4,8 +4,8 @@ use super::{
     UsageContext, UsageReason, check_scope, missing_command, target, unknown_command, usage_with,
 };
 use orchbee_workbench_protocol::{
-    SemanticEventCursor, SemanticEventFilter, SemanticEventKind, SemanticOutputMatch,
-    SemanticOutputSource, WorkbenchClientId,
+    PanelAgentState, SemanticEventCursor, SemanticEventFilter, SemanticEventKind,
+    SemanticOutputMatch, SemanticOutputSource, WorkbenchClientId,
 };
 
 /// The CLI vocabulary is independent of the private event protocol's historical noun.
