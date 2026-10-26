@@ -215,7 +215,8 @@ impl ApplicationRequest {
     pub(super) fn external_preferences_interval(&self) -> Option<std::time::Duration> {
         // Desktop and other Sessions write the shared store through its OS lock. That file
         // owner currently has no cross-process notification, so semantic snapshots retain
-        // the previous one-second observation bound on the Server, not on every Client lane.
+        // a one-second sampling deadline on the Server. Dispatcher scheduling can delay
+        // the actual read and delivery; this is not a real-time observation guarantee.
         matches!(self.workbench(), Some(WorkbenchRequest::Settings(request))
             if matches!(request.operation, orchbee_workbench_protocol::SettingsOperation::Open {}))
         .then_some(std::time::Duration::from_secs(1))

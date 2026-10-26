@@ -251,7 +251,8 @@ on its existing tick, whose input wait is at most 50 ms; neither observer polls 
 Same-Server preference commits invalidate immediately. Desktop and other Sessions can write
 the shared preferences file without a Server notification, so the Server retains a separate
 one-second sampling deadline for that snapshot subscription. Unrelated carrier traffic and
-Host sampling neither advance nor postpone that deadline.
+Host sampling neither advance nor postpone that deadline. Existing dispatcher work and scheduling
+can delay the due sample and its delivery; this is not a strict one-second observation guarantee.
 Neither publication is an acknowledgment from every connected Client.
 
 | Admitted native configuration or Client state                                                                                  | Actual application policy                                                                                                                                 |

@@ -714,9 +714,11 @@ retrying a past deadline. Pure metadata consumers therefore need no periodic rea
 
 Shared-preferences snapshot subscriptions separately retain an absolute one-second file-sampling
 deadline. Desktop and other Sessions use the shared store's OS lock but expose no cross-process
-change signal. Same-Server commits still trigger immediate reads; ordinary carrier frames and
+change signal. Same-Server commits still notify the dispatcher immediately; ordinary carrier frames and
 Host sampling cannot advance or postpone the file deadline. The dispatcher waits for the earliest
 Host sample, metadata expiry or file sample, and cancellation removes that subscription's deadline.
+The deadline makes a sample due; existing dispatcher work and scheduling can delay the read and
+delivery, so it is not a strict one-second observation guarantee.
 Invalidation mode carries Server commit hints only; external-file sampling belongs to subscriptions
 that deliver semantic snapshots. No Client polling timer or additional connection is involved.
 

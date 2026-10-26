@@ -613,9 +613,10 @@ socket I/O 和等待期间不持业务锁。即便仅 TTL 改变、token 值相�
 不会不断重试已过去的期限。因此纯 metadata 消费者无需用周期读取驱动过期。
 
 共享偏好快照订阅单独保留一秒的绝对文件采样期限。Desktop 和其他 Session 使用共享
-存储的 OS 锁，但没有跨进程变更信号。同一 Server 内的提交仍立即触发读取；普通载体
+存储的 OS 锁，但没有跨进程变更信号。同一 Server 内的提交仍立即通知 dispatcher；普通载体
 frame 和 Host 采样不能提前触发或推迟文件期限。dispatcher 等待 Host 采样、metadata
-过期和文件采样中最早的期限；取消订阅会移除其期限。Invalidations 模式只传递 Server
+过期和文件采样中最早的期限；取消订阅会移除其期限。期限表示采样已到期；dispatcher
+已有工作和调度可能延后实际读取与交付，因此不保证严格在一秒内观察到变化。Invalidations 模式只传递 Server
 提交提示；外部文件采样属于交付语义快照的订阅。不增加 Client 轮询定时器或连接。
 
 Client actor 同时 poll carrier 与本地命令唤醒 stream，拥有物理重连、取消、ID 和订阅重建。
@@ -817,4 +818,4 @@ GUI、TUI／模拟器或完整 cohort 验收。Client overlay 和公开 CLI 入�
 
 规范分割比例由原生 Client 共享并保存在 checkpoint v6，catalog v5 负责准入。[检查点契约](docs/workbench-checkpoint.zh-CN.md) 负责版本 1–5 的严格迁移；[共享比例契约](docs/shared-split-ratios.zh-CN.md) 负责比例修改、投影与兼容性。
 
-<!-- documentation-pairing: english-sha256=7ca00a0e3a500dd5dabfa75f44513ccbe4106f611737eb201fc287dac64959ee zh-cn-sha256=2e4afa758a31a6c2b6a73a6e2593b923e4f799675c1ac2e74aa8172fd9cd906b -->
+<!-- documentation-pairing: english-sha256=0052177e543ba8ac7a900aaf8b9208aa8a2e3e3e6149384b08dcc2c40d1f182d zh-cn-sha256=bf83754035970384f46fdeae5c186569a773223c2c06cebbcc345836542730ec -->
