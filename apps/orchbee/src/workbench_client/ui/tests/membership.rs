@@ -626,9 +626,10 @@ fn removed_context_refresh_cleans_every_pending_viewer_then_lands_on_initial_wor
     assert_eq!(state.cache().location(), &{
         let fixture_context_id = removal_context();
         NativeContextLocation::Workspace {
-            workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
-                fixture_context_id.as_str(),
-            )
+            workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(&format!(
+                "{:032x}",
+                2
+            ))
             .unwrap(),
             terminal_context_id: fixture_context_id,
         }

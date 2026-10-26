@@ -278,7 +278,7 @@ fn workspace_list_uses_global_order_and_preserves_filtered_ownership() {
         rows.iter()
             .map(|r| r.workspace_id.as_str())
             .collect::<Vec<_>>(),
-        vec![hex(0x41), hex(0x40)]
+        vec![hex(0x41), hex(0x40), hex(0x01)]
     );
     assert_eq!(rows[0].project_id, Some(hex(0x11)));
     let Projection::WorkspaceList(rows) = project(
@@ -621,7 +621,7 @@ fn terminal_io_panel_targets_resolve_primary_and_preserve_missing_results() {
         );
     }
     for (target, kind) in [
-        ("@panel:0xff", FailureKind::NotFound),
+        ("@panel:0xf1", FailureKind::NotFound),
         ("@panel:0xfedc", FailureKind::NotFound),
     ] {
         assert_eq!(

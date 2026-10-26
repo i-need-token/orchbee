@@ -107,18 +107,7 @@ fn directory_startup_actual_carrier_creates_in_cwd_before_bootstrap_without_init
         let mut steps = vec![WireKind::Workbench; 3];
         steps.extend([WireKind::Obcs; 5]);
         let position = saved_empty.then(|| crate::workbench_client::startup_preference::Position {
-            location: {
-                let fixture_context_id = fixtures::empty().navigation.workspaces[0]
-                    .terminal_context_id
-                    .clone();
-                crate::workbench_client::NativeContextLocation::Workspace {
-                    workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
-                        fixture_context_id.as_str(),
-                    )
-                    .unwrap(),
-                    terminal_context_id: fixture_context_id,
-                }
-            },
+            location: crate::workbench_client::NativeContextLocation::NoWorkspace,
             member: None,
         });
         let mut harness = harness_at(steps, fixtures::directory(), position)?;

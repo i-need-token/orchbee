@@ -81,7 +81,8 @@ fn navigation_receipt_requires_membership_and_order_together_and_preserves_conte
     let mut exact = baseline.clone();
     exact.revision = WorkbenchRevision::new(2);
     exact.navigation.workspaces[1].project_id = Some(project(901));
-    exact.navigation.workspace_order = vec![workspace(911), workspace(910), workspace(912)];
+    exact.navigation.workspace_order =
+        vec![workspace(2), workspace(911), workspace(910), workspace(912)];
     assert!(matches!(
         state.prepare_setup_refresh(1, &exact),
         PreparedRefresh::Membership { .. }

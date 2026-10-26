@@ -27,7 +27,7 @@ fn snapshot(empty: bool, unbound: bool) -> Snapshot {
     });
     snapshot.navigation.workspaces.extend(vec![Workspace {
         project_id: Some((WorkbenchProjectId::parse(&format!("{:032x}", 70)).unwrap()).clone()),
-        workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 71)).unwrap(),
+        workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 271)).unwrap(),
         label: "Workspace".into(),
         primary_directory_id: None,
         terminal_context_id: context,

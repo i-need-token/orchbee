@@ -690,9 +690,10 @@ fn move_ui_retirement_preserves_known_commit_until_worker_join() -> TestResult {
 #[test]
 fn move_commit_survives_shared_snapshot_identity_exhaustion_without_replay() -> TestResult {
     let geometry = fixture_geometry()?;
-    // Seven startup exchanges consume IDs through MAX-1; Move reserves the last one.
+    // Snapshot, Attach, Acquire, Resize, Poll and Feedback consume IDs through
+    // MAX-1; Move reserves the last one.
     let mut harness =
-        Harness::start_with_identity_seed(steps(&[WireKind::Workbench]), geometry, u128::MAX - 8)?;
+        Harness::start_with_identity_seed(steps(&[WireKind::Workbench]), geometry, u128::MAX - 7)?;
     drive_controlling_ready_from_snapshot(&mut harness, snapshot(2, 1), geometry)?;
     let operation = harness
         .ui

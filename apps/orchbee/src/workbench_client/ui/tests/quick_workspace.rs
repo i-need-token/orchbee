@@ -234,6 +234,7 @@ fn empty_create_tab_shell_tick_installs_and_enters_its_exact_workspace_unless_ne
                     (ui, mailbox, clock, snapshot, 0)
                 };
                 let source = ui.state.as_ref().unwrap().cache().location().clone();
+                assert_eq!(source, NativeContextLocation::NoWorkspace);
                 let (shutdown, _peer) = orchbee_local_ipc::LocalStream::pair().unwrap();
                 let mut workbench_client = WorkbenchClient {
                     position_writer: None,
@@ -281,6 +282,14 @@ fn empty_create_tab_shell_tick_installs_and_enters_its_exact_workspace_unless_ne
                 let expected = expected.clone();
                 let known = marker.0.known_commit(receipt.clone()).unwrap();
                 if newer_focus {
+                    let transition = view.decide_action(ClientAction::OpenWorkbenchNavigator);
+                    let disposition = workbench_client
+                        .backend
+                        .native_mut()
+                        .unwrap()
+                        .apply_client_action(transition.action().unwrap());
+                    view.commit(transition, disposition);
+                    assert!(view.navigator_active());
                     // Even a refused action in the empty location is newer focus intent.
                     let transition = view.decide_action(ClientAction::SelectNextContext);
                     let disposition = workbench_client
@@ -306,67 +315,47 @@ fn empty_create_tab_shell_tick_installs_and_enters_its_exact_workspace_unless_ne
                 let state = native.state.as_mut().unwrap();
                 assert_eq!(state.cache().canonical_snapshot(), &committed);
                 assert_eq!(committed.navigation.workspaces.len(), 1);
-                assert!(
-                    committed
-                        .terminal_contexts
-                        .iter()
-                        .find(|context| context.terminal_context_id
-                            == committed.navigation.workspaces[0]
-                                .terminal_context_id
-                                .clone())
-                        .unwrap()
-                        .tabs
-                        .is_empty()
+                assert_eq!(committed.terminal_contexts.len(), 1);
+                assert_eq!(committed.terminal_contexts[0].tabs.len(), 1);
+                assert_eq!(
+                    state.cache().location(),
+                    &NativeContextLocation::Workspace {
+                        workspace_id: expected.workspace_id.clone(),
+                        terminal_context_id: expected.terminal_context_id.clone(),
+                    },
+                    "the first launch replaces the now-invalid NoWorkspace location"
                 );
-                if newer_focus {
-                    assert_eq!(settlement.decision(), &RefreshDecision::Continue);
-                    assert_eq!(state.cache().location(), &source);
-                    assert!(state.desired().is_none());
-                    assert!(!view.project_quick_entry_pending());
-                } else {
-                    assert_eq!(
-                        state.cache().location(),
-                        &NativeContextLocation::Workspace {
-                            workspace_id: expected.workspace_id.clone(),
-                            terminal_context_id: expected.terminal_context_id.clone(),
-                        },
-                        "retained Close={retained_close}: membership existence alone is not entry"
-                    );
-                    assert!(matches!(
-                        settlement.decision(),
-                        RefreshDecision::AttachRecovered(_)
-                    ));
-                    let key = state.desired().unwrap().clone();
-                    assert_eq!(key.anchor().tab_id(), &expected.tab_id);
-                    assert_eq!(key.panel(), &expected.panel_id);
-                    assert_eq!(
-                        state
-                            .selected_presentation(state.cache().tabs()[0].panel(0).unwrap())
-                            .presentation_id(),
-                        &expected.presentation_id
-                    );
-                    assert!(
-                        state.attached_key().is_none(),
-                        "no inherited Controller grant"
-                    );
-                    assert!(state.install_projection_t(&key));
-                    assert!(state.record_setup_configuration_t(
-                        &key,
-                        ControllerMode::ReadOnly,
-                        None
-                    ));
-                    assert!(state.stage_drawn_frame_t(&key, FrameIdentity::new(1)));
-                    assert!(state.mark_feedback_accepted_t(&key, FrameIdentity::new(1)));
-                    assert!(state.publish_ready_t(
-                        &key,
-                        FrameIdentity::new(1),
-                        ControllerMode::ReadOnly,
-                        None
-                    ));
-                    assert!(state.workspace_close_status().is_none());
-                    assert!(state.retain_setup_worker(SetupWorkerEvidence::Known(known)));
-                    assert!(view.project_quick_entry_pending());
-                }
+                assert!(matches!(
+                    settlement.decision(),
+                    RefreshDecision::AttachRecovered(_)
+                ));
+                let key = state.desired().unwrap().clone();
+                assert_eq!(key.anchor().tab_id(), &expected.tab_id);
+                assert_eq!(key.panel(), &expected.panel_id);
+                assert_eq!(
+                    state
+                        .selected_presentation(state.cache().tabs()[0].panel(0).unwrap())
+                        .presentation_id(),
+                    &expected.presentation_id
+                );
+                assert!(
+                    state.attached_key().is_none(),
+                    "no inherited Controller grant"
+                );
+                assert!(state.install_projection_t(&key));
+                assert!(state.record_setup_configuration_t(&key, ControllerMode::ReadOnly, None));
+                assert!(state.stage_drawn_frame_t(&key, FrameIdentity::new(1)));
+                assert!(state.mark_feedback_accepted_t(&key, FrameIdentity::new(1)));
+                assert!(state.publish_ready_t(
+                    &key,
+                    FrameIdentity::new(1),
+                    ControllerMode::ReadOnly,
+                    None
+                ));
+                assert!(state.workspace_close_status().is_none());
+                assert!(state.retain_setup_worker(SetupWorkerEvidence::Known(known)));
+                assert_eq!(view.project_quick_entry_pending(), !newer_focus);
+                assert_eq!(view.navigator_active(), newer_focus);
                 mailbox.finish_lease(lease).unwrap();
                 workbench_client.client_control_tick(
                     &mut view,
@@ -374,14 +363,15 @@ fn empty_create_tab_shell_tick_installs_and_enters_its_exact_workspace_unless_ne
                     Locale::EnUs,
                 );
                 assert!(!view.project_quick_entry_pending());
+                assert_eq!(view.navigator_active(), newer_focus);
                 let native = workbench_client.backend.native_mut().unwrap();
                 assert!(
                     !native.take_project_quick_terminal_entry(),
                     "one terminal entry only"
                 );
                 assert!(native.state.as_ref().unwrap().invariant_holds());
+                assert_eq!(native.view().phase(), NativeDisplayPhase::Ready);
                 if !newer_focus {
-                    assert_eq!(native.view().phase(), NativeDisplayPhase::Ready);
                     let observed = native.control_observation(false).unwrap().1;
                     let selected = observed.selection.unwrap();
                     assert_eq!(selected.terminal_context_id, expected.terminal_context_id);
@@ -571,12 +561,16 @@ fn effective_create_binding_invokes_workspace_or_canonical_tab_with_guidance_onl
             };
             if canonical {
                 let directory_id = WorkbenchDirectoryId::parse(&format!("{:032x}", 7100)).unwrap();
-                snapshot.navigation.workspaces[1].primary_directory_id = Some(directory_id.clone());
+                snapshot.navigation.workspaces[0].primary_directory_id = Some(directory_id.clone());
                 snapshot.navigation.directories.push(Directory {
                     directory_id,
                     worker_id: WorkerId::parse(&format!("{:032x}", 7101)).unwrap(),
                     path: WorkbenchDirectoryPath::parse("C:/workspace").unwrap(),
                 });
+            } else {
+                snapshot.navigation.workspaces.clear();
+                snapshot.navigation.workspace_order.clear();
+                snapshot.terminal_contexts.clear();
             }
             let (mut ui, mailbox, clock, snapshot) = empty_ui(snapshot);
             assert_eq!(ui.view().no_current_workspace(), !canonical);

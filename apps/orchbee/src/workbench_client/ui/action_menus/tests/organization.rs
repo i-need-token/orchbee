@@ -38,7 +38,7 @@ fn leaving_noncurrent_workspace_submits_exact_organization_without_navigating() 
         .cache()
         .navigation()
         .iter()
-        .find(|context| matches!(context.location, NativeContextLocation::Workspace { .. }))
+        .find(|context| context.location != original)
         .unwrap()
         .location
         .clone();
@@ -106,7 +106,7 @@ fn right_clicking_noncurrent_ungrouped_workspace_keeps_canonical_focus_and_exact
         menu.unavailable[action_row(&ui, MenuAction::RenameWorkspace)],
         None
     );
-    assert_eq!(menu.unavailable[action_row(&ui, MenuAction::NewTab)], None);
+    assert!(!menu.actions.contains(&MenuAction::NewTab));
     assert_eq!(Origin::capture(ui.state.as_ref()), original);
     assert_eq!(ui.state.as_ref().unwrap().focus_pane_ref(), current_pane);
     assert!(mailbox.try_recv().unwrap().is_none());
@@ -127,7 +127,7 @@ fn deleting_noncurrent_workspace_submits_only_conditional_admission_without_navi
         .cache()
         .navigation()
         .iter()
-        .find(|context| matches!(context.location, NativeContextLocation::Workspace { .. }))
+        .find(|context| context.location != original)
         .unwrap()
         .location
         .clone();

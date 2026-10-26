@@ -91,11 +91,12 @@ fn workspace_replacement_requires_fresh_presentation_and_terminal_and_retains_wo
     };
     primary_presentation.presentation_id = presentation_id(9000);
     primary_presentation.binding.as_mut().unwrap().terminal_id = terminal_id(9001);
+    // The first Workspace follows the same replacement contract as every other one.
     assert!(
         validate_canonical_refresh(
             &project_preferred_workspace(&snapshot(2, 10)).unwrap(),
             project_preferred_workspace(&initial_workspace).unwrap()
         )
-        .is_err()
+        .is_ok()
     );
 }

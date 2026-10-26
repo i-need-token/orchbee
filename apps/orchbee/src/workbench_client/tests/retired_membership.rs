@@ -144,7 +144,9 @@ fn arm_uncommitted_panel_close(
     poll_sighted: &Receiver<String>,
     release: &SyncSender<()>,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    let poll = poll_sighted.recv_timeout(Duration::from_secs(2))?;
+    let poll = poll_sighted
+        .recv_timeout(Duration::from_secs(2))
+        .map_err(|error| io::Error::other(format!("ordinary Poll handoff: {error}")))?;
     assert_eq!(workbench_client.status(), TerminalStatus::Controlling);
     workbench_client.apply_client_action(ClientAction::ClosePanel);
     let view = ClientView::new(120);
@@ -552,7 +554,11 @@ fn recover_neighbor(mode: u8) -> TestResult {
         assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
             workbench_client.task.is_none()
         }));
-        received.recv_timeout(Duration::from_secs(2))?;
+        received
+            .recv_timeout(Duration::from_secs(2))
+            .map_err(|error| {
+                io::Error::other(format!("neighbor setup refusal handoff: {error}"))
+            })?;
     }
     let ClientBackend::Native(native) = &workbench_client.backend;
     let view = native.view();

@@ -148,8 +148,9 @@ fn selected_queries_publish_global_focus_and_client_memory_with_closed_schemas()
                 assert_eq!(value["activeTabId"], id(13));
             }
             if key == "workspaces" {
-                assert_eq!(value[0]["activeTabId"], id(13));
-                assert_eq!(value[1]["activeTabId"], Value::Null);
+                assert_eq!(value[0]["activeTabId"], id(5));
+                assert_eq!(value[1]["activeTabId"], id(13));
+                assert_eq!(value[2]["activeTabId"], Value::Null);
             }
             if key == "tabs" || key == "panels" {
                 assert_eq!(
@@ -245,7 +246,7 @@ fn client_query_refuses_false_empty_stale_tab_and_wrong_panel_membership() {
             .iter()
             .map(ToString::to_string)
             .collect::<Vec<_>>(),
-        vec![id(9), id(19), id(4)]
+        vec![id(4), id(9), id(19)]
     );
     doc.contexts[1].active_tab_id = None;
     assert!(verify_membership(&state, &doc.client.as_ref().unwrap().view, &doc.contexts).is_err());

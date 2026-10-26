@@ -826,7 +826,10 @@ fn closed_receipt_survives_exact_automatic_canonical_landing_but_not_manual_navi
     let mut published = close_snapshot();
     published.revision = WorkbenchRevision::new(2);
     published.navigation.workspaces.remove(1);
-    published.navigation.workspace_order.remove(0);
+    published
+        .navigation
+        .workspace_order
+        .retain(|workspace| workspace != &workspace_id(0));
     published.terminal_contexts.remove(1);
     let PreparedRefresh::Membership { prepared, .. } = state.prepare_refresh(
         operation.generation,
@@ -862,7 +865,7 @@ fn closed_receipt_survives_exact_automatic_canonical_landing_but_not_manual_navi
     assert_eq!(view.workspace_id(), Some(&workspace_id(0)));
     assert!(state.desired().is_none());
     assert!(state.attached_key().is_none());
-    // The compatibility row is nonempty in this fixture, so surviving canonical
+    // The initial Workspace is nonempty in this fixture, so the other surviving
     // Workspaces occupy indices one and two. Navigation uses the real owner.
     for (generation, index) in [(3, 2), (4, 1), (5, 0), (6, 1)] {
         assert!(state.start_context_selection_at(

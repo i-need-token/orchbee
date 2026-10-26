@@ -45,7 +45,7 @@ impl TerminalInputPort for Port {
 }
 fn fixture() -> (PointerState, ClientView, Port, FrameHitMap) {
     let navigation = {
-        let fixture_context_id = WorkbenchTerminalContextId::parse(&identity(500)).unwrap();
+        let fixture_context_id = WorkbenchTerminalContextId::parse(&identity(10)).unwrap();
         let fixture_workspace_id =
             orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(fixture_context_id.as_str())
                 .unwrap();
@@ -175,9 +175,6 @@ fn fixture() -> (PointerState, ClientView, Port, FrameHitMap) {
                     .workspaces
                     .iter()
                     .map(|workspace| workspace.terminal_context_id.clone())
-                    .chain(std::iter::once(
-                        navigation.workspaces[0].terminal_context_id.clone(),
-                    ))
                     .map(|terminal_context_id| TerminalContext {
                         terminal_context_id,
                         groups: vec![],

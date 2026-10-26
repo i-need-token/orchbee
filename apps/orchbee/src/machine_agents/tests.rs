@@ -50,11 +50,13 @@ fn regrouping_changes_placement_labels_without_changing_agent_terminal_targets()
         primary_directory_id: None,
         terminal_context_id: context.terminal_context_id,
     };
-    snapshot
-        .navigation
-        .workspace_order
-        .push(workspace.workspace_id.clone());
     snapshot.navigation.workspaces.push(workspace);
+    snapshot.navigation.workspace_order = snapshot
+        .navigation
+        .workspaces
+        .iter()
+        .map(|workspace| workspace.workspace_id.clone())
+        .collect();
     let before = placements(&snapshot).unwrap();
     assert_eq!(before.len(), 4);
     assert!(before.iter().all(|row| row.workspace == "feature"));

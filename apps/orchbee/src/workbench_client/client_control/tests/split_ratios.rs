@@ -333,10 +333,18 @@ fn inactive_and_unvisited_shared_changes_acknowledge_without_selection_attachmen
             value["navigation"]["projects"] = serde_json::json!([
                 {"projectId":format!("{:032x}",992),"label":"new"}
             ]);
-            value["navigation"]["workspaces"] = serde_json::json!([
-                {"workspaceId":format!("{:032x}",993),"projectId":format!("{:032x}",992),"label":"unvisited","primaryDirectoryId":null,"terminalContextId":context}
-            ]);
-            value["navigation"]["workspaceOrder"] = serde_json::json!([format!("{:032x}", 993)]);
+            value["navigation"]["workspaces"]
+                .as_array_mut()
+                .unwrap()
+                .push(serde_json::json!({"workspaceId":format!("{:032x}",993),"projectId":format!("{:032x}",992),"label":"unvisited","primaryDirectoryId":null,"terminalContextId":context}));
+            value["navigation"]["workspaceOrder"] = serde_json::Value::Array(
+                value["navigation"]["workspaces"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|workspace| workspace["workspaceId"].clone())
+                    .collect(),
+            );
             context
         } else {
             value["terminalContexts"][0]["tabs"]

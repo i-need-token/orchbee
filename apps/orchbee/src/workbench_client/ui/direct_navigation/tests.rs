@@ -162,10 +162,12 @@ fn direct_cross_context_agent_installs_exact_child_without_intermediate_default_
         workspace_id: workspace_id.clone(),
         terminal_context_id: workspace.terminal_context_id.clone(),
     });
-    snapshot
+    snapshot.navigation.workspace_order = snapshot
         .navigation
-        .workspace_order
-        .push(workspace_id.clone());
+        .workspaces
+        .iter()
+        .map(|workspace| workspace.workspace_id.clone())
+        .collect();
     snapshot.terminal_contexts.push(workspace.clone());
     let (mut ui, mailbox, clock, _) = ready_ui_with_snapshot(snapshot.clone());
     let mut target = crate::machine_agents::tests::target();

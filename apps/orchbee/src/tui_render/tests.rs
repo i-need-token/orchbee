@@ -977,7 +977,7 @@ fn overlays_never_cover_the_status_row() {
     // The buffer text helper includes wide-glyph continuation cells as spaces.
     let status_text = rows[11].replace(' ', "");
     assert!(
-        status_text.contains("快捷键") || status_text.contains("会话"),
+        status_text.contains(Locale::ZhCn.status().navigator),
         "status row: {:?}",
         rows[11]
     );

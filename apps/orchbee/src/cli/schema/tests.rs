@@ -725,7 +725,7 @@ fn text_catalog_lists_every_schema_and_explicit_requests_keep_documents() {
         }
         assert!(
             text.lines()
-                .any(|line| line.starts_with("orchbee.worktree.list ") && line.contains(" 2 ")),
+                .any(|line| line.starts_with("orchbee.worktree.list ") && line.contains(" 1 ")),
             "{text}"
         );
     }

@@ -8,7 +8,14 @@ use ratatui::{Terminal, backend::TestBackend};
 
 #[test]
 fn an_empty_workspace_publishes_its_exact_position_even_while_a_status_notice_is_visible() {
-    let snapshot = super::super::tests::context_selection::snapshot(true);
+    let mut snapshot = super::super::tests::context_selection::snapshot(true);
+    snapshot.navigation.workspace_order = snapshot
+        .navigation
+        .workspaces
+        .iter()
+        .rev()
+        .map(|workspace| workspace.workspace_id.clone())
+        .collect();
     let (mut ui, _, _, snapshot) = super::super::tests::quick_workspace::empty_ui(snapshot);
     assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
     let saved = Position {

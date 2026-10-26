@@ -142,14 +142,19 @@ fn ux_menu_directory_refusal_query_preserves_original_draft_admission() {
     empty_snapshot.navigation.workspaces.clear();
     empty_snapshot.navigation.workspace_order.clear();
     empty_snapshot.terminal_contexts.clear();
-    let mut initial_workspace =
-        ready_with_cache(project_preferred_workspace(&empty_snapshot).unwrap());
+    let mut no_workspace = WorkbenchClientState::starting(
+        project_preferred_workspace(&empty_snapshot).unwrap(),
+        1,
+        geometry(80),
+    )
+    .unwrap()
+    .0;
     assert_eq!(
-        initial_workspace.directory_configuration_unavailable(),
+        no_workspace.directory_configuration_unavailable(),
         Some(DirectoryConfigurationUnavailable::WorkspaceRequired)
     );
     assert!(
-        initial_workspace
+        no_workspace
             .open_setup_draft(NativeSetupIntent::ConfigureDirectory)
             .is_none()
     );

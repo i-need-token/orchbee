@@ -30,7 +30,7 @@ fn workspace_snapshot() -> Snapshot {
         project_id: Some(
             (WorkbenchProjectId::parse("00000000000000000000000000000070").unwrap()).clone(),
         ),
-        workspace_id: WorkbenchWorkspaceId::parse("00000000000000000000000000000071").unwrap(),
+        workspace_id: WorkbenchWorkspaceId::parse("0000000000000000000000000000010f").unwrap(),
         label: "Original Workspace".into(),
         primary_directory_id: None,
         terminal_context_id: context,

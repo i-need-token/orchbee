@@ -1106,7 +1106,7 @@ fn compact_sidebar_visual_rows_and_mouse_bounds_match_the_painted_window() {
     let (rows, hits) = paint(&view, Locale::EnUs, &theme, 60, 12);
     assert!(rows[1].contains("[ New workspace ]"), "{rows:?}");
     assert!(rows[2].contains("[ Search ]"), "{rows:?}");
-    assert!(rows[3].contains("Workspace 1"), "{rows:?}");
+    assert!(rows[3].contains("Ungrouped 1"), "{rows:?}");
     assert!(rows[4].contains("Workspace"), "{rows:?}");
     assert!(!rows[4].contains(theme.glyphs.ellipsis), "{rows:?}");
     assert!(

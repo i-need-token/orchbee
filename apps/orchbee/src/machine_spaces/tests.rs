@@ -49,11 +49,13 @@ fn fixture() -> Snapshot {
         worker_id: WorkerId::parse(&id(99)).unwrap(),
         path: WorkbenchDirectoryPath::parse("C:/repo").unwrap(),
     }];
-    snapshot.navigation.workspace_order = workspaces
+    snapshot.navigation.workspaces.extend(workspaces);
+    snapshot.navigation.workspace_order = snapshot
+        .navigation
+        .workspaces
         .iter()
         .map(|workspace| workspace.workspace_id.clone())
         .collect();
-    snapshot.navigation.workspaces = workspaces;
     snapshot.navigation.projects.push(Project {
         project_id: WorkbenchProjectId::parse(&id(71)).unwrap(),
         label: "Empty Repo".into(),
@@ -91,7 +93,7 @@ fn peer(bad: u8, git_count: Arc<AtomicUsize>) -> io::Result<FakeServer> {
                     let WorkspaceMetadataAction::Read { workspace_ids } = request.action else {
                         panic!("read only");
                     };
-                    assert_eq!(workspace_ids.len(), if metadata == 1 { 2 } else { 0 });
+                    assert_eq!(workspace_ids.len(), if metadata == 1 { 3 } else { 0 });
                     let tokens = MetadataTokens::new(
                         [(
                             MetadataTokenKey::parse("branch").unwrap(),

@@ -3187,10 +3187,25 @@ fn resolve_words(
         ["agent", "changes"] => {
             let context = UsageContext::Path("agent changes");
             check_scope(options, AGENT_CHANGES_SCOPE, context, envelope)?;
-            let cursor = agent_cursor_option(options, context, envelope)?.map(|value| {
-                orchbee_agent_observation_protocol::AgentChangesCursor::parse(value.as_str())
-                    .expect("shared bounded cursor encoding")
-            });
+            let cursor = options
+                .cursor
+                .as_ref()
+                .map(|value| {
+                    orchbee_agent_observation_protocol::AgentChangesCursor::parse(value).map_err(
+                        |_| {
+                            usage_with(
+                                UsageReason::InvalidValue {
+                                    context,
+                                    option: "--cursor",
+                                    value: value.clone(),
+                                    expected: ExpectedValue::AgentCursor,
+                                },
+                                envelope,
+                            )
+                        },
+                    )
+                })
+                .transpose()?;
             Ok(query(
                 QueryCommand::AgentChanges {
                     limit: agent_limit_option(options, context, envelope)?,

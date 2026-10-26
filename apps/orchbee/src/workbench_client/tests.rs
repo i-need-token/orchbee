@@ -810,7 +810,7 @@ fn native_create_action_renders_before_feedback_and_captures_wire_intent() -> Te
         )),
         "{before_feedback}"
     );
-    assert!(before_feedback.contains("initial_workspace · Connecting"));
+    assert!(before_feedback.contains("Workspace · Connecting"));
     assert!(workbench_client.startup_draw_ready());
     workbench_client.after_draw();
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {

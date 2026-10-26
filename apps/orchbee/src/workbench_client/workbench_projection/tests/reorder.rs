@@ -192,8 +192,8 @@ fn workspace_order_changes_navigation_without_changing_selected_context() {
     source.revision = WorkbenchRevision::new(11);
     let after = project_native_context_tabs(&source, &selected).unwrap();
     assert_eq!(after.location, before.location);
-    assert_eq!(after.navigation[1].location, old.navigation[2].location);
-    assert_eq!(after.navigation[2].location, selected);
+    assert_eq!(after.navigation[0].location, old.navigation[2].location);
+    assert_eq!(after.navigation[1].location, selected);
     assert_eq!(after.projects, before.projects);
     assert_eq!(after.tabs, before.tabs);
     assert_eq!(

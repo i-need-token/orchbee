@@ -524,6 +524,11 @@ impl WorkbenchClientState {
 
     fn setup_refresh_target(&self, known: &SetupKnownCommit) -> NativeContextLocation {
         if matches!(known.commit, WorkbenchSetupCommit::WorkspaceLaunched(_)) {
+            // NoWorkspace ceases to be a valid canonical location after the first launch.
+            // Installing its verified member does not restore revoked UI return permission.
+            if matches!(self.cache.location(), NativeContextLocation::NoWorkspace) {
+                return known.target();
+            }
             if matches!(
                 self.setup.project_quick_entry,
                 Some(quick::ProjectQuickEntry::Submitted(generation))

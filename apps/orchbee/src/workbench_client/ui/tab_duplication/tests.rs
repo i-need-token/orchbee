@@ -50,10 +50,12 @@ fn ready() -> (
         project_id: WorkbenchProjectId::parse(&format!("{:032x}", 9002)).unwrap(),
         label: "Other project".into(),
     });
-    snapshot
+    snapshot.navigation.workspace_order = snapshot
         .navigation
-        .workspace_order
-        .push(snapshot.navigation.workspaces[1].workspace_id.clone());
+        .workspaces
+        .iter()
+        .map(|workspace| workspace.workspace_id.clone())
+        .collect();
     snapshot.terminal_contexts.push(TerminalContext {
         terminal_context_id: other_context,
         tabs: vec![other_tab],

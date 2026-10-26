@@ -162,10 +162,10 @@ fn removed_origin_context_lands_on_the_surviving_context_and_consumes_the_permit
         let state = ui.state.as_ref().unwrap();
         assert_eq!(
             state.cache().terminal_context_id().unwrap(),
-            &WorkbenchTerminalContextId::parse(&format!("{:032x}", if canonical { 74 } else { 9 }))
+            &WorkbenchTerminalContextId::parse(&format!("{:032x}", if canonical { 2 } else { 9 }))
                 .unwrap()
         );
-        if canonical || count == 0 {
+        if count == 0 {
             assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
             assert!(state.desired().is_none());
         } else {

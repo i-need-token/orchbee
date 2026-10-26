@@ -43,13 +43,7 @@
 						}
 					}
 				}
-			],
-			"type": "object",
-			"properties": {
-				"clientId": {
-					"type": "null"
-				}
-			}
+			]
 		},
 		"result": {
 			"type": "object",

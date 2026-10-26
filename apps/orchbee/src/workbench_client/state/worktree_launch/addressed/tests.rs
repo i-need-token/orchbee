@@ -70,7 +70,12 @@ pub(in crate::workbench_client) fn fixture() -> Snapshot {
             groups: Vec::new(),
         });
     }
-    value.navigation.workspace_order = vec![workspace(80), workspace(81)];
+    value.navigation.workspace_order = value
+        .navigation
+        .workspaces
+        .iter()
+        .map(|workspace| workspace.workspace_id.clone())
+        .collect();
     value
 }
 

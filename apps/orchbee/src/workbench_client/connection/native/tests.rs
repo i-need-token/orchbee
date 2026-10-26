@@ -435,7 +435,7 @@ fn run_geometry_catch_up_cut(cut: GeometryCatchUpCut) -> TestResult {
     if needs_catch_up {
         steps.extend([WireKind::Obcs, WireKind::Obcs, WireKind::Obcs]);
     }
-    steps.insert(7, WireKind::Workbench);
+    steps.insert(6, WireKind::Workbench);
     let mut harness = Harness::start(steps, initial)?;
     let old_key = drive_controlling_startup(&mut harness, initial, 2)?;
     let switch = harness.ui.admit_switch(1)?;
@@ -1150,7 +1150,7 @@ fn run_switch_supersession_cut(cut: SwitchSupersessionCut) -> TestResult {
     }
     steps.push(WireKind::Workbench);
     steps.push(WireKind::Obcs);
-    steps.insert(7, WireKind::Workbench);
+    steps.insert(6, WireKind::Workbench);
     let mut harness = Harness::start(steps, geometry)?;
     let old_key = drive_controlling_startup(&mut harness, geometry, 3)?;
     let first = harness.ui.admit_switch(1)?;
@@ -1545,7 +1545,7 @@ fn run_taken_setup_supersession_cut(cut: TakenSetupSupersessionCut) -> TestResul
     if matches!(cut, TakenSetupSupersessionCut::Feedback) {
         steps.extend([WireKind::Obcs, WireKind::Obcs]);
     }
-    steps.insert(7, WireKind::Workbench);
+    steps.insert(6, WireKind::Workbench);
     steps.extend([WireKind::Obcs, WireKind::Workbench, WireKind::Obcs]);
     let mut harness = Harness::start(steps, geometry)?;
     drive_controlling_startup(&mut harness, geometry, 3)?;

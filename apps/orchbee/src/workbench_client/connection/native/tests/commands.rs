@@ -422,7 +422,7 @@ fn create_drains_busy_input_resize_and_drawn_feedback_before_one_submission() ->
         return Err(test_error("accepted Input must reach the carrier"));
     };
     assert_control_input(&first_input, &controller, 2, &input)?;
-    assert_eq!(first_input.request_id().as_str(), identity(0x108));
+    assert_eq!(first_input.request_id().as_str(), identity(0x107));
 
     harness.ui.admit_resize(resized)?;
     harness
@@ -434,7 +434,7 @@ fn create_drains_busy_input_resize_and_drawn_feedback_before_one_submission() ->
         .map_err(|error| test_error(&format!("failed to enqueue Poll: {error:?}")))?;
     let create = harness.ui.admit_create()?;
     assert_eq!(create.reserved_generation(), 2);
-    assert_eq!(create.request_id().as_str(), identity(0x109));
+    assert_eq!(create.request_id().as_str(), identity(0x108));
     assert_eq!(harness.ui.state().phase_kind(), ClientPhaseKind::Creating);
 
     harness
@@ -452,7 +452,7 @@ fn create_drains_busy_input_resize_and_drawn_feedback_before_one_submission() ->
         return Err(test_error("ServerBusy Input must retry on the same lease"));
     };
     assert_control_input(&retried_input, &controller, 3, &input)?;
-    assert_eq!(retried_input.request_id().as_str(), identity(0x10a));
+    assert_eq!(retried_input.request_id().as_str(), identity(0x109));
     harness
         .carrier
         .respond_obcs(ServerMessage::TerminalControlResult(
@@ -478,7 +478,7 @@ fn create_drains_busy_input_resize_and_drawn_feedback_before_one_submission() ->
     assert_eq!(controller_id, &controller);
     assert_eq!(sequence.get(), 4);
     assert_eq!(*requested_geometry, resized);
-    assert_eq!(resize.request_id().as_str(), identity(0x10b));
+    assert_eq!(resize.request_id().as_str(), identity(0x10a));
     harness
         .carrier
         .respond_obcs(ServerMessage::TerminalControlResult(
@@ -505,7 +505,7 @@ fn create_drains_busy_input_resize_and_drawn_feedback_before_one_submission() ->
             attachment_id: attached_viewer_id()?,
         }
     );
-    assert_eq!(poll.request_id().as_str(), identity(0x10c));
+    assert_eq!(poll.request_id().as_str(), identity(0x10b));
     harness
         .carrier
         .respond_obcs(ServerMessage::TerminalViewerResult(
@@ -527,7 +527,7 @@ fn create_drains_busy_input_resize_and_drawn_feedback_before_one_submission() ->
         return Err(test_error("drawn old frame must send causal feedback"));
     };
     assert_eq!(feedback_request.action(), &feedback);
-    assert_eq!(feedback_request.request_id().as_str(), identity(0x10d));
+    assert_eq!(feedback_request.request_id().as_str(), identity(0x10c));
     harness
         .carrier
         .respond_obcs(ServerMessage::TerminalViewerResult(
@@ -647,7 +647,7 @@ fn historical_ready_allows_create_after_blocked_frame_and_drains_a_second_blocke
             attachment_id: attached_viewer_id()?,
         }
     );
-    assert_eq!(first_poll.request_id().as_str(), identity(0x108));
+    assert_eq!(first_poll.request_id().as_str(), identity(0x107));
     harness
         .carrier
         .respond_obcs(ServerMessage::TerminalViewerResult(
@@ -699,7 +699,7 @@ fn historical_ready_allows_create_after_blocked_frame_and_drains_a_second_blocke
             attachment_id: attached_viewer_id()?,
         }
     );
-    assert_eq!(second_poll.request_id().as_str(), identity(0x109));
+    assert_eq!(second_poll.request_id().as_str(), identity(0x108));
     harness
         .carrier
         .respond_obcs(ServerMessage::TerminalViewerResult(
@@ -711,7 +711,7 @@ fn historical_ready_allows_create_after_blocked_frame_and_drains_a_second_blocke
 
     let create = harness.ui.admit_create()?;
     assert_eq!(create.reserved_generation(), 2);
-    assert_eq!(create.request_id().as_str(), identity(0x10a));
+    assert_eq!(create.request_id().as_str(), identity(0x109));
     assert_eq!(harness.ui.state().phase_kind(), ClientPhaseKind::Creating);
     // NativeUi forwards Input only through `state.ready()`. The marker atomically moved the
     // canonical state to Creating, so the production admission guard now refuses later Input.
@@ -1563,7 +1563,7 @@ fn refresh_uses_one_pending_generation_and_ui_settles_after_transport_deadline()
     );
 
     let read = harness.carrier.take_read()?;
-    assert_eq!(read.request_id().as_str(), identity(0x108));
+    assert_eq!(read.request_id().as_str(), identity(0x107));
     assert_eq!(
         harness.mailbox.pending_refresh_stage(),
         Some((generation, PendingRefreshStage::InFlight))
@@ -2866,7 +2866,7 @@ fn drive_started_create_to_projection_unavailable(
     let WorkbenchRequest::Command(command) = harness.carrier.take_workbench()? else {
         return Err(test_error("Create admission must submit tab.create"));
     };
-    assert_eq!(command.request_id.as_str(), identity(0x108));
+    assert_eq!(command.request_id.as_str(), identity(0x107));
     let WorkbenchAction::TabCreate {
         geometry: captured_geometry,
         ..
@@ -2909,7 +2909,7 @@ fn drive_started_create_to_projection_unavailable(
     ));
 
     let read = harness.carrier.take_read()?;
-    assert_eq!(read.request_id().as_str(), identity(0x109));
+    assert_eq!(read.request_id().as_str(), identity(0x108));
     harness
         .carrier
         .respond_read(&read, WorkbenchSnapshotOutcome::Denied {})?;

@@ -71,7 +71,7 @@ fn panel_relocation_preserves_unaffected_selection_and_restricts_removal_repair(
     ));
     let workspace_before = selected(12, 13, 14);
     snapshot.terminal_contexts.remove(1);
-    snapshot.navigation.workspaces.clear();
+    snapshot.navigation.workspaces.remove(1);
     assert!(follows_original(
         Some(&workspace_before),
         Some(&other),

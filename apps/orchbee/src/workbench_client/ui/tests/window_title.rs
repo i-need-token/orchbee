@@ -15,7 +15,7 @@ fn window_title_context_uses_current_view_manual_name_and_exact_live_frame() {
     let context = ui.view().window_title_context();
     assert_eq!(context.tab, "Tab 0");
     assert_eq!(context.pane, "Manual");
-    assert_eq!(context.workspace, "");
+    assert_eq!(context.workspace, "Workspace");
     assert_eq!(context.terminal_title, "");
     let key = ui.state.as_ref().unwrap().focus_pane_ref().unwrap();
     let mut projection = TerminalProjection::new(

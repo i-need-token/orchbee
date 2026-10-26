@@ -1060,7 +1060,7 @@ fn ux_menu_configured_workspace_directory_refuses_before_navigation() {
             .0,
     );
     let origin = Origin::capture(ui.state.as_ref());
-    let location = ui.state.as_ref().unwrap().cache().navigation()[0]
+    let location = ui.state.as_ref().unwrap().cache().navigation()[1]
         .location
         .clone();
     assert!(ui.open_action_menu(MenuTarget::Workspace(location), None, false));

@@ -3535,6 +3535,8 @@ fn mutation_targets_follow_each_resource_rule() {
                 ID,
                 "--target-panel",
                 "by-label",
+                "--into-tab",
+                ID2,
                 "--direction",
                 "left",
             ][..],
@@ -3548,6 +3550,8 @@ fn mutation_targets_follow_each_resource_rule() {
                 ID,
                 "--target-panel",
                 ZERO,
+                "--into-tab",
+                ID2,
                 "--direction",
                 "left",
             ][..],
@@ -3897,9 +3901,9 @@ fn usage_failures_carry_their_concrete_reason() {
         ),
         (
             &["help", "status", "--project", "x"],
-            UsageReason::UnknownOption {
+            UsageReason::UnexpectedOption {
                 context: path("status"),
-                option: "--project".to_owned(),
+                option: "--project",
             },
         ),
         (
@@ -4126,6 +4130,8 @@ fn usage_failures_carry_their_concrete_reason() {
                 ID,
                 "--direction",
                 "next",
+                "--into-tab",
+                ID2,
             ],
             UsageReason::InvalidValue {
                 context: path("panel move"),
@@ -4138,7 +4144,7 @@ fn usage_failures_carry_their_concrete_reason() {
             &["panel", "move", ID, "--direction", "left"],
             UsageReason::MissingRequired {
                 context: path("panel move"),
-                requirement: "'--target-panel', '--into-tab', or '--new-tab'",
+                requirement: "'--into-tab', '--new-tab', or '--new-workspace'",
             },
         ),
         (
@@ -7221,6 +7227,8 @@ fn current_panel_queries_accept_explicit_clients_and_refuse_ignored_selectors() 
 
 #[test]
 fn agent_changes_grammar_requires_bounded_explicit_continuation() {
+    #[cfg(windows)]
+    assert!(parse(&["agent", "changes", "--cursor", AGENT_CURSOR]).is_err());
     assert_eq!(
         parse(&["agent", "changes"]),
         Ok(query(

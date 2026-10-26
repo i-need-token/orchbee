@@ -69,7 +69,12 @@ fn case_with_mode(mode: WorktreeMode) -> (NativeUi, Plan, Snapshot) {
         primary_directory_id: Some(directory),
         terminal_context_id: context.clone(),
     });
-    snapshot.navigation.workspace_order.push(workspace.clone());
+    snapshot.navigation.workspace_order = snapshot
+        .navigation
+        .workspaces
+        .iter()
+        .map(|workspace| workspace.workspace_id.clone())
+        .collect();
     snapshot.terminal_contexts.push(TerminalContext {
         terminal_context_id: context,
         groups: Vec::new(),

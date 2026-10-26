@@ -27,8 +27,8 @@ under the Workspace. [Worktree launch](native-worktrees.md) owns checkout creati
 ## Creation defaults and result ownership
 
 Read-only preparation captures the exact initiating context, revision and token. The directory is
-the focused Workspace's recorded directory. Without one, as in an empty Session or a compatibility
-context, it is the directory the Client was launched from. A terminal's later working directory,
+the focused Workspace's recorded directory. Without one, including an empty Session,
+it is the directory the Client was launched from. A terminal's later working directory,
 including a `cd` inside that Workspace, never moves this default, and preparation samples no
 terminal. A missing or invalid directory refuses preparation; the Client does not invent one.
 The directory basename supplies the initial name,
@@ -48,7 +48,9 @@ receipt is saved before any fallible snapshot read or UI handoff. Exact Session,
 context and terminal member proofs precede cleanup, attachment and first-frame readiness. Other
 Clients keep their selection. A newer explicit focus or surface intent revokes the originating
 Client's automatic entry/return permission; a delayed receipt still validates the committed
-resources and remains inspectable.
+resources and remains inspectable. When the first launch replaces `NoWorkspace`, the Client still
+installs the verified Workspace and member because the empty location is no longer valid. This
+canonical repair does not restore revoked return permission or dismiss the newer Navigator surface.
 
 The compact sidebar is hidden only after the matching terminal reaches accepted first-frame Ready
 and the original return permission still holds. Wide, hidden and other-overlay cases consume that

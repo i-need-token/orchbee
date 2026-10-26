@@ -70,7 +70,7 @@ fn native_ui_move_expiry_returns_while_the_contended_mailbox_remains_locked() ->
     assert!(mailbox.is_closed().is_none());
     assert_eq!(
         mailbox.allocate_workbench_request_id().unwrap().as_str(),
-        native_identity(0x109)
+        native_identity(0x108)
     );
     drop(workbench_client);
     server.finish()?;

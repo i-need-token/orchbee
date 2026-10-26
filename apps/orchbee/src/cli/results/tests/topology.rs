@@ -31,6 +31,7 @@ fn workspace_numbers_survive_filtering_and_counts_exclude_child_presentations() 
     state.navigation.workspace_order = vec![
         state.navigation.workspaces[2].workspace_id.clone(),
         state.navigation.workspaces[1].workspace_id.clone(),
+        state.navigation.workspaces[0].workspace_id.clone(),
     ];
     let all = project(&QueryCommand::WorkspaceList { project: None }, &state)
         .unwrap()
@@ -274,7 +275,7 @@ fn workspace_grouping_is_nullable_metadata_and_global_scope_survives_regrouping(
             .as_array()
             .unwrap()
             .len(),
-        2
+        3
     );
     assert_eq!(
         resolve_workspace(&state, &Target::Label("ws".into()))

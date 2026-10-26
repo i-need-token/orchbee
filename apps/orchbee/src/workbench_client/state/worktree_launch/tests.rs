@@ -424,7 +424,12 @@ fn worktree_default_names_consider_newer_workspace_labels_across_groups() {
                 primary_directory_id: None,
                 terminal_context_id: context.clone(),
             });
-            snapshot.navigation.workspace_order.push(workspace);
+            snapshot.navigation.workspace_order = snapshot
+                .navigation
+                .workspaces
+                .iter()
+                .map(|workspace| workspace.workspace_id.clone())
+                .collect();
             snapshot.terminal_contexts.push(TerminalContext {
                 terminal_context_id: context,
                 tabs: vec![],

@@ -402,7 +402,7 @@ fn agent_children_default_expanded_keep_projection_order_and_independent_disclos
             })
             .collect::<Vec<_>>()
     };
-    assert_eq!(agents(&picker), members(&[26, 23, 25, 24]));
+    assert_eq!(agents(&picker), members(&[23, 25, 24, 26]));
     let first = SidebarTarget::Context {
         machine: Choice::Local,
         target: first,
@@ -414,7 +414,7 @@ fn agent_children_default_expanded_keep_projection_order_and_independent_disclos
     assert!(picker.sidebar_context_agents_expanded(&first));
     assert!(picker.sidebar_context_agents_expanded(&initial_workspace));
     assert!(picker.toggle_sidebar_context_agents(&first));
-    assert_eq!(agents(&picker), members(&[26, 24]));
+    assert_eq!(agents(&picker), members(&[24, 26]));
     assert!(picker.sidebar_context_agents_expanded(&initial_workspace));
     assert!(picker.toggle_sidebar_context_agents(&initial_workspace));
     assert_eq!(agents(&picker), members(&[24]));

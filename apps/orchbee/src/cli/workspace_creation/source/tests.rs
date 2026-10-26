@@ -55,7 +55,7 @@ fn automatic_label_is_unicode_bounded_and_roots_are_localized() {
             Locale::EnUs
         )
         .as_str(),
-        "Workspace"
+        "Workspace (2)"
     );
     assert_eq!(
         automatic_label(

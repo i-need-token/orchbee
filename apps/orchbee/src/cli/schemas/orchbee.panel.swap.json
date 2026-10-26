@@ -21,8 +21,7 @@
 				{
 					"type": "null"
 				}
-			],
-			"type": "null"
+			]
 		},
 		"baseRevision": {
 			"$ref": "#/$defs/revision"
@@ -48,8 +47,7 @@
 				{
 					"type": "null"
 				}
-			],
-			"type": "null"
+			]
 		},
 		"layoutOperationId": {
 			"anyOf": [
@@ -59,8 +57,7 @@
 				{
 					"type": "null"
 				}
-			],
-			"type": "null"
+			]
 		},
 		"layoutRevision": {
 			"anyOf": [
@@ -70,8 +67,7 @@
 				{
 					"type": "null"
 				}
-			],
-			"type": "null"
+			]
 		},
 		"requestId": {
 			"anyOf": [
@@ -380,8 +376,7 @@
 				{
 					"type": "null"
 				}
-			],
-			"type": "null"
+			]
 		},
 		"stage": {
 			"enum": ["resolution", "exchange", "client-observation", "focus", "complete"]
