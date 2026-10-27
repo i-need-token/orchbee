@@ -63,15 +63,16 @@ Windows `config check` 版本 1 为 `user-config` 检查增加已接纳的警告
 
 `[update] manifest_check` 是 TOML 布尔值，默认 true，来源为 `default`／`file`。
 Windows `config check` v1 增加 `manifestCheck` 和 `manifestCheckSource`。
-Client 激活将已校验的检查值、来源、配置路径和显式文件标志传递。
-托管 Server 将其接纳为启动策略快照，随后在冻结位置读取完整的权威版本 0 候选。
-直接启动通过同一设置所有者建立这两种角色。cohort 必须匹配。
+Client 激活校验文件后只传递配置路径和显式文件标志。托管 Server 在任何进程或持久副作用之前，
+于该冻结位置读取一次完整的权威版本 0 候选；直接启动通过同一设置所有者确定位置并读取一次。
+cohort 必须匹配。
 `read_user_settings_at` 在冻结位置支持有界显式重载，保留默认文件缺失与显式文件缺失的
 差别，不创建配置文件。
 
 持久托管发布版 Session 在启动时及每三十分钟检查规则。调试／测试构建和独立端点关闭自动网络任务。
-`server agent-manifests` 暴露实际策略及最近自动结果。`server reload-agent-manifests` 验证完整配置，
-并将规则检查开关与检测器原子刷新。致命文件/TOML 错误保留两者；字段警告应用已接纳的回退设置。关闭检查停止调度；重新开启立即安排检查。
+`server agent-manifests` 暴露实际策略及最近自动结果。`server reload-agent-manifests` 只重载规则，从不读取
+`config.toml`；`server reload-config` 将规则检查开关与其他配置一起发布。致命文件/TOML 错误保留原开关；
+字段警告应用已接纳的回退设置。关闭检查停止调度；重新开启立即安排检查。
 活动更新期间重载返回忙碌。此命令不热重载其他运行中设置及键位。自动检查关闭时仍可显式更新。
 参见[屏幕模型](../../orchbee-server/docs/agent-screen-model.zh-CN.md#自动检查与配置快照)。
 发布版验收夹具若不以公开网络访问为测试目标，须显式关闭自动检查。回退到不认识此键的读取器时，
@@ -335,4 +336,4 @@ Git 在所属 Worker 上读取已提交的 Workspace 目录，显示相对本地
 
 `terminal.focus_new_panel` 接受布尔值，默认为 `true`。原生 Client 分屏选中刚提交的新窗格；`false` 保留原窗格。Client 在启动时读取该偏好，编辑此字段后需重启。类型无效时产生字段级诊断并使用默认值。CLI `panel split --focus` 保留显式命令策略。
 
-<!-- documentation-pairing: english-sha256=cd4c6b131e99b340ef95c5ec1d2f004fd04c1c439a482f728382c5db1a2a2c12 zh-cn-sha256=0a28808bbeefca6377c86b74dc5afda98873abccb02f2620721305feb456d8d8 -->
+<!-- documentation-pairing: english-sha256=0d416d4d843a6cfeb5c6556ff47ed1927a3fc756f5d783177033e39a8677b363 zh-cn-sha256=c60d771288255b96f8a6a00b8e356425439bbead6f89b2239e9036e1b2277874 -->

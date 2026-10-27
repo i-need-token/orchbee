@@ -57,7 +57,6 @@ impl ProcessObserver {
     fn start(
         &self,
         service: &Arc<LocalTerminalService>,
-        startup: orchbee_local_runtime::UserSettings,
         current: orchbee_local_runtime::UserSettingsLoad,
         background: bool,
     ) -> io::Result<()> {
@@ -72,7 +71,7 @@ impl ProcessObserver {
             return Err(io::ErrorKind::AlreadyExists.into());
         }
         let settings = &current.settings;
-        let scope = match startup.path.as_deref() {
+        let scope = match settings.path.as_deref() {
             Some(path) => orchbee_local_runtime::UserPreferencesScope::for_configuration(path),
             None => orchbee_local_runtime::UserPreferencesScope::from_environment(|name| {
                 std::env::var_os(name)
@@ -85,7 +84,7 @@ impl ProcessObserver {
         // Validate the complete authoritative rev0 response before manifest policy or its schedule
         // can become visible. Installation remains after manifest initialization so a later
         // manifest failure cannot leave the configuration owner half-started.
-        let configuration = super::configuration::Registry::prepare_initial(&startup, &current)?;
+        let configuration = super::configuration::Registry::prepare_initial(&current)?;
         self.wake.manifests.initialize_settings(
             settings,
             &detector,
@@ -191,27 +190,20 @@ impl LocalTerminalService {
     }
     /// Starts the sole periodic sampler; a stopped or already running owner cannot restart.
     pub(crate) fn start_process_observer(self: &Arc<Self>) -> io::Result<()> {
-        let startup = orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name))
-            .map_err(io::Error::other)?
-            .settings;
-        self.start_process_observer_with_settings(startup, false)
+        let configuration =
+            orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name))
+                .map_err(io::Error::other)?;
+        self.start_process_observer_with_configuration(configuration, false)
     }
-    pub(crate) fn start_process_observer_with_settings(
+    /// `configuration` is the Server's single startup read. Revision zero, diagnostics, every
+    /// live profile and the frozen reload location all come from it; nothing rereads the file
+    /// until an explicit reload.
+    pub(crate) fn start_process_observer_with_configuration(
         self: &Arc<Self>,
-        startup: orchbee_local_runtime::UserSettings,
+        configuration: orchbee_local_runtime::UserSettingsLoad,
         background: bool,
     ) -> io::Result<()> {
-        // Restore policy was consumed from `startup`; the Server rereads one complete candidate
-        // at that frozen location so revision zero, diagnostics and every live profile share one
-        // authoritative generation for all Clients.
-        let current = orchbee_local_runtime::read_user_settings_at(
-            startup.path.as_deref(),
-            startup.explicit,
-            |name| std::env::var_os(name),
-        )
-        .map_err(io::Error::other)?;
-        self.process_observer
-            .start(self, startup, current, background)
+        self.process_observer.start(self, configuration, background)
     }
     /// Stops new sampling and joins admitted work; unresolved viewer cleanup transfers to Session shutdown.
     pub(crate) fn stop_process_observer_before(&self, deadline: Instant) -> io::Result<()> {

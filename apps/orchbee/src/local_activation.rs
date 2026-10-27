@@ -243,6 +243,8 @@ fn connect_or_activate(
                 {
                     return Err(ActivationFailure::bare(StartupFailure::RecoveryRequired));
                 }
+                // Activation rejects an unreadable file and freezes its location; the Server
+                // reads that location itself as the single configuration authority.
                 #[cfg(windows)]
                 let settings =
                     orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name))
@@ -269,18 +271,6 @@ fn connect_or_activate(
                 let arguments = [
                     std::ffi::OsStr::new("--runtime-directory"),
                     session.runtime_directory().as_os_str(),
-                    #[cfg(windows)]
-                    std::ffi::OsStr::new("--manifest-check"),
-                    #[cfg(windows)]
-                    std::ffi::OsStr::new(if settings.manifest_check {
-                        "true"
-                    } else {
-                        "false"
-                    }),
-                    #[cfg(windows)]
-                    std::ffi::OsStr::new("--manifest-check-source"),
-                    #[cfg(windows)]
-                    std::ffi::OsStr::new(settings.manifest_check_source),
                     #[cfg(windows)]
                     std::ffi::OsStr::new("--configuration-file"),
                     #[cfg(windows)]

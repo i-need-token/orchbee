@@ -66,19 +66,19 @@ The shared Windows settings reader owns bounded file inspection, deterministic f
 
 `[update] manifest_check` is a TOML boolean, default true, with `default`/`file` provenance.
 Windows `config check` v1 adds `manifestCheck` and `manifestCheckSource`.
-Client activation passes the validated check value/provenance and configuration path/explicit-file
-flag. The managed Server admits these private values as its
-startup-policy snapshot, then reads the complete authoritative revision-0 candidate at the
-frozen location. Direct startup establishes both
-roles through the same settings owner. Cohorts must match.
+Client activation validates the file and passes only its configuration path/explicit-file flag. The
+managed Server reads the complete authoritative revision-0 candidate at that frozen location once,
+before any process or durable effect; direct startup resolves the location through the same settings
+owner and reads it once. Cohorts must match.
 `read_user_settings_at` supports bounded explicit reload at the frozen location, retaining
 missing-default versus missing-explicit semantics. It does not create configuration files.
 
 Persistent managed release Sessions check rules at startup and every thirty minutes. Debug/test builds
 and standalone endpoints disable automatic network work. `server agent-manifests` exposes effective
-policy and latest automatic results. `server reload-agent-manifests` validates the complete file and
-atomically refreshes the rule-check switch with the detector. A fatal file/TOML error retains both;
-field warnings apply the admitted fallback settings.
+policy and latest automatic results. `server reload-agent-manifests` reloads rules only and never
+reads `config.toml`; `server reload-config` publishes the rule-check switch with the rest of the
+configuration. A fatal file/TOML error retains the previous switch; field warnings apply the admitted
+fallback settings.
 Turning checks off removes scheduling; turning them back on schedules an immediate check. An
 active update returns busy for reload. Other running settings and keybindings are not hot-reloaded
 by this command. Explicit updates remain available when automatic checks are disabled. See the

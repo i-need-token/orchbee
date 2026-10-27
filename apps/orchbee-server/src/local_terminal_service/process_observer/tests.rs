@@ -116,14 +116,13 @@ fn oversized_initial_publication_does_not_install_manifest_policy_or_schedule() 
     let current =
         orchbee_local_runtime::read_user_settings_at(Some(&fixture.file()), true, |_| None)
             .unwrap();
-    let startup = current.settings.clone();
     let service = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
         WorkerRegistry::new(),
     ))));
 
     let error = service
         .process_observer
-        .start(&service, startup, current, false)
+        .start(&service, current, false)
         .unwrap_err();
 
     assert_eq!(error.kind(), io::ErrorKind::InvalidData);

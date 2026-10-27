@@ -1,41 +1,59 @@
 use super::*;
+use orchbee_local_runtime::UserSettings;
 
-#[test]
-fn immutable_snapshot_does_not_reread_mutable_file_or_environment() {
-    for (text, expected) in [("true", true), ("false", false)] {
-        let settings = resolve(
-            [
-                "--manifest-check",
-                text,
-                "--manifest-check-source",
-                "file",
-                "--configuration-file",
-                "C:/snapshot/config.toml",
-                "--configuration-file-explicit",
-                "false",
-            ]
-            .map(OsString::from)
-            .into_iter(),
-            || panic!("committed startup must not reload configuration"),
-        )
-        .unwrap();
-        assert_eq!(settings.manifest_check, expected);
+fn located(path: Option<&Path>, explicit: bool) -> UserSettingsLoad {
+    UserSettingsLoad {
+        settings: UserSettings {
+            path: path.map(Path::to_owned),
+            explicit,
+            ..UserSettings::default()
+        },
+        ..UserSettingsLoad::default()
     }
 }
 
 #[test]
-fn direct_startup_validates_the_shared_settings_owner() {
+fn frozen_location_is_read_once_without_resolving_the_environment() {
+    for (text, explicit) in [("true", true), ("false", false)] {
+        let load = resolve(
+            [
+                "--configuration-file",
+                "C:/snapshot/config.toml",
+                "--configuration-file-explicit",
+                text,
+            ]
+            .map(OsString::from)
+            .into_iter(),
+            || panic!("a frozen location must not resolve the environment"),
+            |path, explicit| Ok(located(path, explicit)),
+        )
+        .unwrap();
+        assert_eq!(
+            load.settings.path.as_deref(),
+            Some(Path::new("C:/snapshot/config.toml"))
+        );
+        assert_eq!(load.settings.explicit, explicit);
+    }
+}
+
+#[test]
+fn direct_startup_reads_through_the_shared_settings_owner() {
     assert!(
-        !resolve(std::iter::empty(), || Ok(UserSettings {
-            manifest_check: false,
-            ..UserSettings::default()
-        }))
+        resolve(
+            std::iter::empty(),
+            || Ok(located(None, false)),
+            |_, _| panic!("direct startup resolves its own location")
+        )
         .unwrap()
-        .manifest_check
+        .settings
+        .path
+        .is_none()
     );
-    let error = resolve(std::iter::empty(), || {
-        Err(SettingsError::new("file", "invalid-toml"))
-    })
+    let error = resolve(
+        std::iter::empty(),
+        || Err(SettingsError::new("file", "invalid-toml")),
+        |_, _| panic!("direct startup resolves its own location"),
+    )
     .unwrap_err();
     assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
     assert!(error.to_string().contains("invalid-toml"));
@@ -45,16 +63,35 @@ fn direct_startup_validates_the_shared_settings_owner() {
 fn private_argument_is_closed_and_never_falls_back() {
     for args in [
         vec!["--unknown", "true"],
-        vec!["--manifest-check"],
-        vec!["--manifest-check", "FALSE"],
-        vec!["--manifest-check", ""],
-        vec!["--manifest-check", " false "],
-        vec!["--manifest-check", "false", "extra"],
+        vec!["--manifest-check", "true"],
+        vec!["--configuration-file"],
+        vec!["--configuration-file", "", "--configuration-file-explicit"],
+        vec![
+            "--configuration-file",
+            "",
+            "--configuration-file-explicit",
+            "TRUE",
+        ],
+        vec![
+            "--configuration-file",
+            "",
+            "--configuration-file-explicit",
+            "true",
+        ],
+        vec![
+            "--configuration-file",
+            "C:/config.toml",
+            "--configuration-file-explicit",
+            "false",
+            "extra",
+        ],
     ] {
         assert_eq!(
-            resolve(args.into_iter().map(OsString::from), || panic!(
-                "no fallback"
-            ))
+            resolve(
+                args.into_iter().map(OsString::from),
+                || panic!("no fallback"),
+                |_, _| panic!("no fallback")
+            )
             .unwrap_err()
             .kind(),
             io::ErrorKind::InvalidInput
@@ -64,11 +101,12 @@ fn private_argument_is_closed_and_never_falls_back() {
     assert!(
         resolve(
             [
-                OsString::from("--manifest-check"),
+                OsString::from("--configuration-file"),
                 OsString::from_wide(&[0xd800])
             ]
             .into_iter(),
-            || panic!("no fallback")
+            || panic!("no fallback"),
+            |_, _| panic!("no fallback")
         )
         .is_err()
     );

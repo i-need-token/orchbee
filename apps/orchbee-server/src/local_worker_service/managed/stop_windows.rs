@@ -63,7 +63,7 @@ pub(super) fn run(
     cohort: &str,
     restored: crate::local_terminal_service::CheckpointRestore,
     startup_deadline: Instant,
-    settings: orchbee_local_runtime::UserSettings,
+    configuration: orchbee_local_runtime::UserSettingsLoad,
 ) -> io::Result<()> {
     let shutdown = Arc::new(SessionShutdown::default());
     let started = (|| {
@@ -74,7 +74,7 @@ pub(super) fn run(
             .launch_checkpoint_terminals(restored, startup_deadline)?;
         owners
             .terminals
-            .start_process_observer_with_settings(settings, true)?;
+            .start_process_observer_with_configuration(configuration, true)?;
         let worker = checkpoint_worker(&owners.handle)?;
         owners.checkpoint_saver = Some(super::checkpoint_windows::autosave::Saver::start(
             Arc::clone(&owners.checkpoint_store),

@@ -37,11 +37,11 @@
 
 ## Client 最小读取集
 
-| 读取方            | 设置                                  | 原因                                     |
-| ----------------- | ------------------------------------- | ---------------------------------------- |
-| 本地 Session 激活 | 配置文件位置、`update.manifest_check` | 在任何 Server 存在之前选择并启动运行时   |
-| 更新通道与更新    | `update.channel`                      | 发布相关操作不依赖 Session               |
-| `config check`    | 整个文件                              | 校验用户编辑的文件，不应用任何运行时策略 |
+| 读取方            | 设置                     | 原因                                               |
+| ----------------- | ------------------------ | -------------------------------------------------- |
+| 本地 Session 激活 | 配置文件位置及文件有效性 | 拒绝无法读取的文件，并冻结 Server 只读取一次的位置 |
+| 更新通道与更新    | `update.channel`         | 发布相关操作不依赖 Session                         |
+| `config check`    | 整个文件                 | 校验用户编辑的文件，不应用任何运行时策略           |
 
 ## 交付
 
@@ -57,4 +57,4 @@
 每个步骤都通过受影响的 Rust 检查和现有配置测试。本 issue 在 `pnpm verify:changed` 与
 `pnpm verify:rust-native` 通过后关闭。
 
-<!-- documentation-pairing: english-sha256=4a9d82e98d0d9b0df25905b1e1d11ec41cc7e6537609012f2b41a27c25ada1ff zh-cn-sha256=3ee3504b8ee90b00dd135c6c8bbb7fd2e7abaf8167caa1510cb99a2e666d08ab -->
+<!-- documentation-pairing: english-sha256=0e4d6b2c10f379bc4da82059864a786df6a629a6cb841d67907ecfe6139c51fd zh-cn-sha256=b4bfba1fbe8330163baeb2d28c37da7c0964de89220950aea4c322c5c8268783 -->

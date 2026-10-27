@@ -29,7 +29,7 @@ mod stop_windows;
 
 pub(super) fn run(
     runtime: &Path,
-    #[cfg(windows)] settings: orchbee_local_runtime::UserSettings,
+    #[cfg(windows)] configuration: orchbee_local_runtime::UserSettingsLoad,
 ) -> io::Result<()> {
     let deadline = Instant::now() + Duration::from_secs(20);
     let cohort = Cohort::current(deadline)?;
@@ -205,7 +205,7 @@ pub(super) fn run(
             cohort.identity(),
             pending,
             deadline,
-            settings,
+            configuration,
         )
     }
     #[cfg(not(windows))]

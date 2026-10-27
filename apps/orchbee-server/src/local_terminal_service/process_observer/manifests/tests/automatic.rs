@@ -8,7 +8,7 @@ fn id(n: u64) -> WorkbenchRequestId {
     WorkbenchRequestId::parse(&format!("{n:032x}")).unwrap()
 }
 #[test]
-fn automatic_real_update_avoids_the_manual_ledger_and_reload_changes_policy_atomically() {
+fn automatic_real_update_avoids_the_manual_ledger_and_only_configuration_changes_policy() {
     let root = Root::new();
     let path = root.0.join("config.toml");
     std::fs::write(&path, "[update]\nmanifest_check=true").unwrap();
@@ -86,37 +86,30 @@ fn automatic_real_update_avoids_the_manual_ledger_and_reload_changes_policy_atom
     assert!(
         matches!(wake.manifests.execute(&Action::Current {}),Outcome::Current {snapshot} if snapshot.revision==revision && matches!(snapshot.maintenance.as_ref().unwrap().automatic.as_ref().unwrap().last_operation.as_deref(),Some(Operation::Updated {report,activation:Activation::NotAttempted {}}) if report.successful()))
     );
-    std::fs::write(&path, "[update]\nmanifest_check=false").unwrap();
+    let disabled = orchbee_local_runtime::UserSettings {
+        manifest_check: false,
+        ..settings.settings.clone()
+    };
+    assert!(wake.manifests.apply_configuration(&disabled));
+    // Rule reload never reads config.toml, so an edited file cannot bypass configuration publication.
+    std::fs::write(&path, "[update\nmanifest_check=true").unwrap();
     wake.manifests.execute(&Action::Reload {
         operation_id: id(2),
     });
     worker.serve(Some(&service), wake, &mut detector);
-    assert!(
-        matches!(wake.manifests.execute(&Action::Current {}),Outcome::Current {snapshot} if !snapshot.maintenance.as_ref().unwrap().automatic.as_ref().unwrap().enabled)
-    );
-    let before = wake.manifests.execute(&Action::Current {});
-    std::fs::write(&path, "[update\nmanifest_check=false").unwrap();
-    wake.manifests.execute(&Action::Reload {
-        operation_id: id(3),
-    });
-    worker.serve(Some(&service), wake, &mut detector);
-    assert_eq!(wake.manifests.execute(&Action::Current {}), before);
     assert!(matches!(
         wake.manifests.execute(&Action::Operation {
-            operation_id: id(3)
+            operation_id: id(2)
         }),
         Outcome::Operation {
-            status: Operation::Failed {
-                reason: Failure::LoadFailed
-            },
+            status: Operation::Applied { .. },
             ..
         }
     ));
-    std::fs::write(&path, "[update]\nmanifest_check=true").unwrap();
-    wake.manifests.execute(&Action::Reload {
-        operation_id: id(4),
-    });
-    worker.serve(Some(&service), wake, &mut detector);
+    assert!(
+        matches!(wake.manifests.execute(&Action::Current {}),Outcome::Current {snapshot} if !snapshot.maintenance.as_ref().unwrap().automatic.as_ref().unwrap().enabled)
+    );
+    assert!(wake.manifests.apply_configuration(&settings));
     // Re-enable becomes due immediately; admission itself performs no network or cache write.
     wake.manifests.schedule(Instant::now());
     assert!(matches!(

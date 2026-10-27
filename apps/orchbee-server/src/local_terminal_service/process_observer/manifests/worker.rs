@@ -59,29 +59,10 @@ impl Worker {
             return;
         };
         if work.kind == Kind::Reload {
-            let settings = work
-                .configuration
-                .as_ref()
-                .map(|(path, explicit)| {
-                    orchbee_local_runtime::read_user_settings_at(
-                        path.as_deref(),
-                        *explicit,
-                        |name| std::env::var_os(name),
-                    )
-                })
-                .transpose()
-                .map(|settings| settings.map(|load| load.settings));
-            let settings = match settings {
-                Ok(settings) => settings,
-                Err(_) => {
-                    wake.manifests.refuse_work(work.id, Failure::LoadFailed);
-                    return;
-                }
-            };
             let next = ScreenDetector::load(work.root.as_deref());
             let maintenance = updating::maintenance(work.root.as_deref(), &work.source);
             wake.manifests
-                .complete_reload(work.id, next, Some(maintenance), settings, |next| {
+                .complete_reload(work.id, next, Some(maintenance), |next| {
                     install(service, detector, next)
                 });
             return;

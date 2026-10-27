@@ -21,10 +21,11 @@ impl Fixture {
     pub(super) fn write(&self, text: &str) {
         std::fs::write(self.file(), text).unwrap();
     }
+    pub(super) fn load(&self, explicit: bool) -> UserSettingsLoad {
+        read_user_settings_at(Some(&self.file()), explicit, |_| None).unwrap()
+    }
     pub(super) fn settings(&self, explicit: bool) -> UserSettings {
-        read_user_settings_at(Some(&self.file()), explicit, |_| None)
-            .unwrap()
-            .settings
+        self.load(explicit).settings
     }
 }
 impl Drop for Fixture {
@@ -128,9 +129,7 @@ fn startup_and_reload_reject_an_accepted_source_whose_composed_response_is_overs
     );
 
     let startup = Registry::default();
-    let error = startup
-        .initialize_load(&candidate.settings, &candidate)
-        .unwrap_err();
+    let error = startup.initialize_load(&candidate).unwrap_err();
     assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
     assert!(matches!(
         startup.execute(&request(Action::Current), |_| panic!(
@@ -243,7 +242,7 @@ fn sidebar_reload_publishes_valid_profiles_and_defaults_only_invalid_profiles() 
 }
 
 #[test]
-fn managed_startup_rereads_one_complete_authoritative_server_baseline() {
+fn managed_startup_publishes_its_single_read_without_rereading_the_file() {
     use crate::{local_terminal_service::LocalTerminalService, worker_registry::WorkerRegistry};
     use std::{
         sync::{Arc, Mutex},
@@ -259,9 +258,9 @@ fn managed_startup_rereads_one_complete_authoritative_server_baseline() {
     }
 
     let fixture = Fixture::new();
-    fixture.write("[keys]\nprefix='ctrl+a'");
-    let startup = fixture.settings(true);
     fixture.write("[keys]\nprefix='ctrl+x'\n[update]\nchannel='invalid'");
+    let startup = fixture.load(true);
+    fixture.write("[keys]\nprefix='ctrl+a'");
     let current = request(Action::Current);
     let owner = Owner(Arc::new(LocalTerminalService::from_identity(
         Arc::new(Mutex::new(WorkerRegistry::new())),
@@ -269,7 +268,7 @@ fn managed_startup_rereads_one_complete_authoritative_server_baseline() {
     )));
     owner
         .0
-        .start_process_observer_with_settings(startup, false)
+        .start_process_observer_with_configuration(startup, false)
         .unwrap();
     let Outcome::Current { snapshot } = owner.0.execute_configuration(current).outcome else {
         panic!("current startup configuration")
@@ -306,7 +305,7 @@ fn real_configuration_owner_publishes_and_failed_apply_retains_the_snapshot() {
     )));
     owner
         .0
-        .start_process_observer_with_settings(fixture.settings(true), false)
+        .start_process_observer_with_configuration(fixture.load(true), false)
         .unwrap();
     fixture.write("[keys]\nprefix='ctrl+d'");
     let Outcome::Reloaded {

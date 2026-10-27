@@ -164,13 +164,13 @@ monotonic time. Busy maintenance defers the due check until the shared slot is f
 uses the same downloader, cache, activation and Stop lifecycle as explicit Update. It has a distinct
 owner and one retained latest result; it never consumes or evicts the manual operation ledger.
 
-Client activation passes an immutable validated settings snapshot (check value and
-provenance, configuration path and explicit-location status). Direct managed startup validates once.
-The observer does not reread mutable configuration during committed startup. Explicit rule Reload
-validates the full bounded configuration at that frozen path, then applies only the manifest-check
-setting together with the loaded detector and status. Failed validation/installation retains the old
-policy and detector. Disabling clears the next check; re-enabling schedules immediately. This is
-rule-maintenance reload, not a general settings or keybinding reload. An active Update owns the slot
+Client activation passes only the validated configuration path and explicit-location status. The
+Server reads that file once at startup; the check value and provenance come from that read, and the
+observer never rereads configuration. Only a committed configuration publication (`server
+reload-config`) changes the manifest-check setting. Explicit rule Reload never reads `config.toml`:
+it loads the detector and status from the startup configuration parent, and a failed installation
+retains the old detector. Disabling clears the next check; re-enabling schedules immediately. This
+is rule-maintenance reload, not a general settings or keybinding reload. An active Update owns the slot
 until settled. Current metadata exposes check/provenance, background/build gates, effective enabled
 state and the latest automatic operation; native v3 retains closed v1/v2. Automatic panic disables
 future updates for that Session; known failures retain the next interval. Stop cancels and joins the

@@ -15,14 +15,13 @@ use std::sync::Mutex;
 #[derive(Default)]
 pub(super) struct Registry(Mutex<Option<State>>);
 pub(super) struct PreparedInitial(State);
+/// `current` also carries the frozen startup location: every read at that location reports it.
 struct State {
-    startup: UserSettings,
     current: UserSettings,
     snapshot: ConfigurationSnapshot,
     reloading: bool,
 }
 struct FrozenState {
-    startup: UserSettings,
     current: UserSettings,
     snapshot: ConfigurationSnapshot,
 }
@@ -50,26 +49,16 @@ impl Drop for ReloadAdmission<'_> {
 impl Registry {
     #[cfg(test)]
     pub(super) fn initialize(&self, settings: &UserSettings) -> std::io::Result<()> {
-        self.initialize_load(
-            settings,
-            &UserSettingsLoad {
-                settings: settings.clone(),
-                diagnostics: SettingsDiagnostics::default(),
-            },
-        )
+        self.initialize_load(&UserSettingsLoad {
+            settings: settings.clone(),
+            diagnostics: SettingsDiagnostics::default(),
+        })
     }
     #[cfg(test)]
-    pub(super) fn initialize_load(
-        &self,
-        startup: &UserSettings,
-        current: &UserSettingsLoad,
-    ) -> std::io::Result<()> {
-        self.install_initial(Self::prepare_initial(startup, current)?)
+    pub(super) fn initialize_load(&self, current: &UserSettingsLoad) -> std::io::Result<()> {
+        self.install_initial(Self::prepare_initial(current)?)
     }
-    pub(super) fn prepare_initial(
-        startup: &UserSettings,
-        current: &UserSettingsLoad,
-    ) -> std::io::Result<PreparedInitial> {
+    pub(super) fn prepare_initial(current: &UserSettingsLoad) -> std::io::Result<PreparedInitial> {
         let diagnostics = protocol_diagnostics(&current.diagnostics).ok_or_else(|| {
             std::io::Error::other("Configuration diagnostics exceed protocol bounds")
         })?;
@@ -84,7 +73,6 @@ impl Registry {
             )
         })?;
         Ok(PreparedInitial(State {
-            startup: startup.clone(),
             current: current.settings.clone(),
             snapshot: initial,
             reloading: false,
@@ -145,7 +133,6 @@ impl Registry {
         }
         state.reloading = true;
         let frozen = FrozenState {
-            startup: state.startup.clone(),
             current: state.current.clone(),
             snapshot: state.snapshot.clone(),
         };
@@ -155,7 +142,7 @@ impl Registry {
             active: true,
         };
         // File I/O and TOML preparation run without the committed-state mutex.
-        let candidate = match load(frozen.startup.path.as_deref(), frozen.startup.explicit) {
+        let candidate = match load(frozen.current.path.as_deref(), frozen.current.explicit) {
             Ok(candidate) => candidate,
             Err(error) => {
                 return Outcome::Failed {

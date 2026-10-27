@@ -38,11 +38,11 @@ English remains canonical.
 
 ## Client minimal read set
 
-| Reader                    | Settings                                        | Reason                                                       |
-| ------------------------- | ----------------------------------------------- | ------------------------------------------------------------ |
-| Local Session activation  | Configuration location, `update.manifest_check` | Selects and starts the runtime before any Server exists      |
-| Update channel and update | `update.channel`                                | Release operations run without a Session                     |
-| `config check`            | The whole file                                  | Validates the file the user edits; applies no runtime policy |
+| Reader                    | Settings                                 | Reason                                                                    |
+| ------------------------- | ---------------------------------------- | ------------------------------------------------------------------------- |
+| Local Session activation  | Configuration location and file validity | Rejects an unreadable file and freezes the location the Server reads once |
+| Update channel and update | `update.channel`                         | Release operations run without a Session                                  |
+| `config check`            | The whole file                           | Validates the file the user edits; applies no runtime policy              |
 
 ## Delivery
 

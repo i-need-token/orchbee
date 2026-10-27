@@ -38,7 +38,6 @@ enum Owner {
 }
 struct Work {
     id: Owner,
-    configuration: Option<(Option<PathBuf>, bool)>,
     kind: Kind,
     root: Option<PathBuf>,
     source: Result<CatalogUrl, UpdateFailure>,
@@ -272,10 +271,6 @@ impl Registry {
         state.taken = true;
         Some(Work {
             id,
-            configuration: state
-                .schedule
-                .as_ref()
-                .map(|s| (s.path.clone(), s.explicit)),
             kind,
             root: state.root.clone(),
             source: state.source.clone(),
@@ -288,14 +283,13 @@ impl Registry {
         loaded: Result<ScreenDetector, String>,
         install: impl FnOnce(ScreenDetector) -> Result<(), Failure>,
     ) {
-        self.complete_reload(Owner::Manual(id), loaded, None, None, install);
+        self.complete_reload(Owner::Manual(id), loaded, None, install);
     }
     fn complete_reload(
         &self,
         id: Owner,
         loaded: Result<ScreenDetector, String>,
         maintenance: Option<AgentManifestMaintenance>,
-        settings: Option<UserSettings>,
         install: impl FnOnce(ScreenDetector) -> Result<(), Failure>,
     ) {
         let Ok(mut lock) = self.0.lock() else { return };
@@ -303,15 +297,9 @@ impl Registry {
         if state.stopped || state.active.as_ref() != Some(&id) {
             return;
         }
+        // Rule reload never reads `config.toml`; only configuration publication changes the schedule.
         let status = match activate(state, loaded, install) {
-            Ok(revision) => {
-                if let Some(settings) = settings
-                    && let Some(schedule) = &mut state.schedule
-                {
-                    schedule.apply(&settings, Instant::now());
-                }
-                Operation::Applied { revision }
-            }
+            Ok(revision) => Operation::Applied { revision },
             Err(reason) => Operation::Failed { reason },
         };
         if let Some(maintenance) = maintenance {

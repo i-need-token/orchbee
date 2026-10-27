@@ -2922,8 +2922,8 @@ local/cache/bundled selection. Local overrides continue to take precedence. Cata
 `https://herdr.dev/agent-detection/index.toml`; invalid overrides disable Update while local rules
 remain usable. The source is frozen at Session startup. Managed release Sessions automatically check at startup and
 every thirty minutes when `update.manifest_check` is true (default). Debug/test and standalone
-execution do not schedule checks. Rule Reload also refreshes this switch from the frozen config
-path; malformed configuration preserves the previous policy and detector. Automatic results use
+execution do not schedule checks. Only `server reload-config` changes this switch; rule Reload never
+reads `config.toml`, and a failed rule installation preserves the previous detector. Automatic results use
 a separate latest-result slot without consuming manual receipts.
 `server agent-manifests-status <operation-id>` reads either retained receipt without resubmitting.
 These commands require an already running Session and do not focus a Client or send terminal input.

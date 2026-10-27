@@ -1,12 +1,10 @@
 //! Automatic checks share the maintenance slot but never consume manual retry receipts.
-use super::{Operation, PathBuf};
+use super::Operation;
 use orchbee_local_runtime::UserSettings;
 use orchbee_workbench_protocol::{AgentManifestAutomatic, AgentManifestCheckSource};
 use std::time::{Duration, Instant};
 const INTERVAL: Duration = Duration::from_secs(30 * 60);
 pub(super) struct Schedule {
-    pub(super) path: Option<PathBuf>,
-    pub(super) explicit: bool,
     check: bool,
     source: AgentManifestCheckSource,
     background: bool,
@@ -22,8 +20,6 @@ impl Schedule {
         now: Instant,
     ) -> Self {
         let mut schedule = Self {
-            path: settings.path.clone(),
-            explicit: settings.explicit,
             check: false,
             source: AgentManifestCheckSource::Default,
             background,

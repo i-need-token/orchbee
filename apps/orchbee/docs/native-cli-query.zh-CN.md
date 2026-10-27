@@ -2485,8 +2485,8 @@ provider 的实际来源、版本、路径、缓存和警告，也显示启动�
 本地覆盖继续优先。目录源由 `ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL` 指定，默认
 `https://herdr.dev/agent-detection/index.toml`；无效覆盖值停用 Update，但本地规则仍可使用。
 来源在 Session 启动时冻结。`update.manifest_check` 为 true（默认）时，托管发布版 Session 在启动时及
-每三十分钟自动检查；调试／测试及独立端点不调度。规则 Reload 也从冻结配置路径刷新此开关，
-配置无效保留旧策略与检测器。自动结果使用独立的最近结果槽，不消耗手动回执。
+每三十分钟自动检查；调试／测试及独立端点不调度。只有 `server reload-config` 改变此开关；
+规则 Reload 从不读取 `config.toml`，规则安装失败保留旧检测器。自动结果使用独立的最近结果槽，不消耗手动回执。
 `server agent-manifests-status <operation-id>` 读取重载或更新回执，不重新提交。
 这些命令要求 Session 已运行，不会聚焦 Client 或发送终端输入。
 
@@ -2538,4 +2538,4 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=07f0cb2d529d6f2173b206f5abb5edfce0609ace8ddc57df504bd38db8e6fe9c zh-cn-sha256=2b5f98a830da14079987cb397ad651bcae667c8a198af719e551acf365a73d4c -->
+<!-- documentation-pairing: english-sha256=6b2f51ceb8edeb7b4ad3f3ef2545eecdbf23e6b7dc32620d683124712ebfb974 zh-cn-sha256=83d1f1a8ed721b08b0149820385f0c5701e2fd06f23d433f018c3d3d52f00329 -->

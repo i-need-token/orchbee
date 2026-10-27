@@ -20,13 +20,13 @@ impl super::CliText {
             (Locale::EnUs, CommandPath::ServerReloadAgentManifests) => {
                 crate::cli_text::HelpDetails::new(
                     "orchbee server reload-agent-manifests [--request-id <operation-id>] [--format text|json]",
-                    "Reload local detection rules and update.manifest_check from the frozen configuration path in the running Windows session; reset screen stabilization. Invalid configuration retains the previous policy and rules. Wait up to five seconds; pending/unknown returns exit 8 and retains the operation ID. Query server agent-manifests-status <id> after interruption. Reusing an accepted ID never reloads again. Receipts last for this session generation (maximum 1,024); no remote fetch.",
+                    "Reload local detection rules from the configuration directory in the running Windows session; reset screen stabilization. update.manifest_check changes only through server reload-config. Invalid rules retain the previous rules. Wait up to five seconds; pending/unknown returns exit 8 and retains the operation ID. Query server agent-manifests-status <id> after interruption. Reusing an accepted ID never reloads again. Receipts last for this session generation (maximum 1,024); no remote fetch.",
                 )
             }
             (Locale::ZhCn, CommandPath::ServerReloadAgentManifests) => {
                 crate::cli_text::HelpDetails::new(
                     "orchbee server reload-agent-manifests [--request-id <operation-id>] [--format text|json]",
-                    "在运行中 Windows 会话从冻结配置路径重载本地识别规则和 update.manifest_check，并重置屏幕稳定状态。配置无效时保留旧策略和规则。最多等待五秒；待处理或结果未知时退出码为 8，并保留操作 ID。中断后使用 server agent-manifests-status <id> 查询。复用已接纳的 ID 不会再次重载。回执保留至此会话代次结束（最多 1,024 条）；不会远程下载。",
+                    "在运行中 Windows 会话从配置目录重载本地识别规则，并重置屏幕稳定状态。update.manifest_check 只随 server reload-config 变化。规则无效时保留旧规则。最多等待五秒；待处理或结果未知时退出码为 8，并保留操作 ID。中断后使用 server agent-manifests-status <id> 查询。复用已接纳的 ID 不会再次重载。回执保留至此会话代次结束（最多 1,024 条）；不会远程下载。",
                 )
             }
             (Locale::EnUs, CommandPath::ServerUpdateAgentManifests) => {

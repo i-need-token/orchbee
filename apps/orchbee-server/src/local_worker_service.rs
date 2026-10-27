@@ -61,10 +61,15 @@ pub(crate) fn run(
             io::Error::new(io::ErrorKind::InvalidInput, "missing Session runtime")
         })?;
         #[cfg(windows)]
-        let settings = configuration_windows::resolve(arguments, || {
-            orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name))
-                .map(|load| load.settings)
-        })?;
+        let configuration = configuration_windows::resolve(
+            arguments,
+            || orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name)),
+            |path, explicit| {
+                orchbee_local_runtime::read_user_settings_at(path, explicit, |name| {
+                    std::env::var_os(name)
+                })
+            },
+        )?;
         #[cfg(not(windows))]
         if arguments.next().is_some() {
             return Err(io::ErrorKind::InvalidInput.into());
@@ -72,7 +77,7 @@ pub(crate) fn run(
         return managed::run(
             &runtime,
             #[cfg(windows)]
-            settings,
+            configuration,
         );
     }
     let endpoints = parse_endpoints(arguments)?;
