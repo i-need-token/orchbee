@@ -22,6 +22,8 @@ fn snapshot(revision: u64, profile: &str) -> ConfigurationSnapshot {
         spaces_sidebar_profile: orchbee_local_runtime::SpaceSidebarSettings::default().profile(),
         window_title: "{hostname}: {workspace}".into(),
         manifest_check: true,
+        focus_new_panel: true,
+        worktrees_directory: None,
     }
 }
 
@@ -37,6 +39,7 @@ fn native_reload_keeps_shared_appearance_while_updating_hints_and_sidebars() {
         revision: None,
         applied_snapshot: None,
         notification_update: None,
+        creation_update: None,
     };
     let mut view = ClientView::new(120);
     let preferences = UserPreferencesValues {
@@ -92,6 +95,7 @@ fn bad_sidebar_publication_retains_keys_notifications_layout_and_revision_atomic
         revision: None,
         applied_snapshot: None,
         notification_update: None,
+        creation_update: None,
     };
     let mut view = ClientView::new(120);
     let before = view.clone();
@@ -147,6 +151,7 @@ fn authoritative_server_baseline_applies_once_then_revision_order_is_strict() {
         revision: None,
         applied_snapshot: None,
         notification_update: None,
+        creation_update: None,
     };
     let mut view = ClientView::new(120);
     view.configure_keys(&KeySettings::from_profile("[keys]\nprefix='ctrl+a'").unwrap());
@@ -221,6 +226,7 @@ fn diagnostics_follow_only_a_complete_newer_snapshot_and_clean_publication_clear
         revision: None,
         applied_snapshot: None,
         notification_update: None,
+        creation_update: None,
     };
     let mut view = ClientView::new(120);
     let mut warning = snapshot(1, "[keys]\nprefix='ctrl+a'");
@@ -534,7 +540,11 @@ fn unchanged_reload_catches_up_a_lagging_client_once_before_reporting_success() 
                 request_id: reload.request_id,
                 session_id: reload.session_id,
                 outcome: ConfigurationOutcome::Reloaded {
-                    snapshot: snapshot(2, "[keys]\nprefix='ctrl+x'"),
+                    snapshot: ConfigurationSnapshot {
+                        focus_new_panel: false,
+                        worktrees_directory: Some("C:/trees".into()),
+                        ..snapshot(2, "[keys]\nprefix='ctrl+x'")
+                    },
                     changed: false,
                 },
             }),
@@ -587,8 +597,12 @@ fn unchanged_reload_catches_up_a_lagging_client_once_before_reporting_success() 
             .map(|(revision, _)| revision),
         Some(2)
     );
+    let defaults = watcher.take_creation_update().unwrap();
+    assert!(!defaults.focus_new_panel);
+    assert_eq!(defaults.worktrees_directory.as_deref(), Some("C:/trees"));
     assert!(!watcher.tick(&mut view));
     assert!(watcher.take_notification_update().is_none());
+    assert!(watcher.take_creation_update().is_none());
     watcher.close();
     server.finish().unwrap();
 }
@@ -723,6 +737,7 @@ fn notification_policy_and_keys_are_applied_as_one_valid_publication() {
         revision: None,
         applied_snapshot: None,
         notification_update: None,
+        creation_update: None,
     };
     let mut view = ClientView::new(100);
     let mut next = snapshot(1, "[keys]\nprefix='ctrl+a'");

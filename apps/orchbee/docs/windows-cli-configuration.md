@@ -422,4 +422,4 @@ keys, notifications and both sidebar profiles before publishing any of them.
 Each profile caps at 32 KiB; the matched-cohort configuration frame caps at 256 KiB
 including escaping.
 
-`terminal.focus_new_panel` accepts a boolean and defaults to `true`. Native Client splits select the newly committed pane; `false` preserves the original pane. The Client reads this preference at startup, so restart it after editing this field. Invalid types produce a field-local diagnostic and use the default. CLI `panel split --focus` retains its explicit command policy.
+`terminal.focus_new_panel` accepts a boolean and defaults to `true`. Native Client splits select the newly committed pane; `false` preserves the original pane. The Client applies this preference from each published configuration snapshot, so the next split after a publication uses it. Invalid types produce a field-local diagnostic and use the default. CLI `panel split --focus` retains its explicit command policy.

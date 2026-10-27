@@ -236,7 +236,6 @@ fn run_with_client(
 ) -> Result<(), TuiFailure> {
     let inherited = InheritedTerminal::admit().map_err(TuiFailure::Admission)?;
     let dimensions = inherited.window_dimensions().map_err(TuiFailure::Runtime)?;
-    let server_configuration = connection.is_some();
     let terminal_input: Box<dyn TerminalSurface> = match connection {
         Some(client) => {
             let geometry =
@@ -254,15 +253,7 @@ fn run_with_client(
         }
         None => Box::new(UnavailableTerminalInputPort),
     };
-    run_prepared_surface(
-        locale,
-        inherited,
-        dimensions,
-        terminal_input,
-        mouse,
-        None,
-        server_configuration,
-    )
+    run_prepared_surface(locale, inherited, dimensions, terminal_input, mouse, None)
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
@@ -281,7 +272,6 @@ pub(crate) fn run_prepared(
         Box::new(workbench_client),
         mouse,
         notice,
-        true,
     )
 }
 
@@ -292,14 +282,12 @@ fn run_prepared_surface(
     terminal_input: Box<dyn TerminalSurface>,
     mouse: bool,
     notice: Option<crate::client_view::Notice>,
-    server_configuration: bool,
 ) -> Result<(), TuiFailure> {
     let measurement_recorder =
         measurement::Recorder::open(std::env::var_os("ORCHBEE_TUI_MEASUREMENTS"), locale)
             .map_err(TuiFailure::Runtime)?;
     let measurements = measurement_recorder.measurements();
 
-    let mut terminal_input = terminal_input;
     let mut initial_view = ClientView::with_capabilities(
         dimensions.columns,
         crate::tui_capabilities::Capabilities::for_host(),
@@ -331,34 +319,11 @@ fn run_prepared_surface(
         ));
     }
     {
+        // `config.toml` reaches the Client only through the Server's configuration snapshot; the
+        // watcher applies the startup baseline before the first creation can read it.
         if crate::tui_capabilities::Capability::ConfigurationFile.available() {
             initial_view.onboarding = crate::onboarding::State::load();
             initial_view.configure_theme(crate::tui_theme::ThemeName::TerminalNative);
-            let load = orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name));
-            if let Err(error) = &load
-                && !server_configuration
-            {
-                return Err(TuiFailure::Runtime(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    error.to_string(),
-                )));
-            }
-            if let Ok(load) = load {
-                if !load.diagnostics.is_empty() {
-                    initial_view.configuration_warning(true);
-                }
-                let settings = load.settings;
-                initial_view.configure_keys(&settings.keys);
-                terminal_input.configure_panel_focus(settings.focus_new_panel);
-                terminal_input.configure_agent_notifications(0, &settings.notifications);
-                initial_view.notifications.configure(settings.notifications);
-                initial_view
-                    .machines
-                    .configure_agent_sidebar(settings.agent_sidebar);
-                initial_view
-                    .machines
-                    .configure_space_sidebar(settings.space_sidebar);
-            }
         }
     }
     let termination = TerminationSignal::install().map_err(TuiFailure::Runtime)?;
@@ -1556,13 +1521,6 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
         true
     }
 
-    fn configure_panel_focus(&mut self, _focus_new_panel: bool) {}
-    fn configure_agent_notifications(
-        &mut self,
-        _revision: u64,
-        _settings: &orchbee_local_runtime::NotificationSettings,
-    ) {
-    }
     fn client_control_tick(
         &mut self,
         _view: &mut ClientView,
@@ -1631,17 +1589,6 @@ impl TerminalSurface for crate::workbench_client::WorkbenchClient {
     fn observe_client_viewport(&mut self, view: &ClientView, viewport: Rect) {
         self.observe_client_viewport(view, viewport);
     }
-    fn configure_panel_focus(&mut self, focus_new_panel: bool) {
-        self.configure_panel_focus(focus_new_panel);
-    }
-    fn configure_agent_notifications(
-        &mut self,
-        revision: u64,
-        settings: &orchbee_local_runtime::NotificationSettings,
-    ) {
-        self.configure_agent_notifications(revision, settings);
-    }
-
     fn popup_surface(&mut self, area: Rect, pixels: (u16, u16)) {
         self.observe_popup_surface(area, pixels);
     }

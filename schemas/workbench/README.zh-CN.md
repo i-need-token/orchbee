@@ -596,7 +596,7 @@ Server 负责原子分配和发布；物理成员创建仍是独立的保留命�
 
 [Windows 配置归属契约](../../apps/orchbee/docs/windows-cli-configuration.zh-CN.md#在线配置重载) 负责授权、冻结路径、候选校验、发布、Client 应用和关闭。发布不表示所有 Client 已确认。已提交重载丢失响应仍为未知，不自动重试。不新增 Desktop 命令；匹配的私有版本整套交付，不迁移持久化格式。
 
-快照不携带启动程序或主题：共享偏好拥有默认启动配置和应用外观。匹配的私有 cohort 一同升级，唯一的版本 1 公开 CLI configuration 文档映射相同字段。
+快照还携带原生 Client 使用的创建默认值：必需布尔值 `focusNewPanel`（`terminal.focus_new_panel`）和必需可空的 `worktreesDirectory`（`worktrees.directory`，非空、无控制字符、最多 4096 UTF-8 字节的绝对路径；null 表示同级检出）。快照不携带启动程序或主题：共享偏好拥有默认启动配置和应用外观。匹配的私有 cohort 一同升级，唯一的版本 1 公开 CLI configuration 文档映射相同字段。
 
 ## Client 临时通知
 
@@ -663,4 +663,4 @@ Workspace 侧栏发布增加必需非空 `spacesSidebarProfile`，独立于 `age
 
 [设置](v1/workbench-settings.schema.json) 定义匹配 Windows cohort 的闭合 Open/Save 请求及结果。三个必需但可空的字段区分未修改设置与明确的主题／提醒／声音修改；全部为空的补丁非法。来源令牌区分文件不存在与规范 SHA-256 内容摘要。Save 同时约束发布 revision；结果区分磁盘持久化、在线应用与写入前拒绝。共享语料在 Rust、TypeScript 和 JSON Schema 中检查额外字段拒绝、全宽 revision、完整快照及独立的 4 KiB 请求／256 KiB 结果限制。[原生设置所有者](../../apps/orchbee/docs/native-settings.zh-CN.md) 负责写入、输入捕获、不确定结果和恢复。
 
-<!-- documentation-pairing: english-sha256=0dddabee9eeb4414819c58a48c574276a49b9bd671ec4f8e822550367b7ecc77 zh-cn-sha256=e4c656470025bf1c19c2a8f7149cca7eaffe7101f3c0afa21a999a861886e6b3 -->
+<!-- documentation-pairing: english-sha256=f5f69381fea846b388929e4235caedbc5993de26738966832ba2b11cb18ec68e zh-cn-sha256=30acd75daa9bf88616a0f9bb834bf144c52fe1479f448c1fa98d5605f4697a05 -->

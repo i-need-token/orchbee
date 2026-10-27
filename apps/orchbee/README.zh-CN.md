@@ -213,7 +213,7 @@ Windows Session 中没有 Workspace 或终端内容时，`cd <project>; orchbee`
 及[启动位置](docs/native-context-selection.zh-CN.md#windows-启动偏好)。
 
 前缀键为 `Ctrl+B`，随后按 `|` 左右分屏、`-` 上下分屏、`h/j/k/l` 切换窗格，或 `d` 脱离。
-分屏默认聚焦新窗格；设置 `terminal.focus_new_panel = false` 并重启 Client 后可保留当前焦点。再次运行可执行文件即可重新连接保留的 Session。脱离后 Shell 继续运行；退出的 Shell
+分屏默认聚焦新窗格；设置 `terminal.focus_new_panel = false` 并由 Session 发布后可保留当前焦点。再次运行可执行文件即可重新连接保留的 Session。脱离后 Shell 继续运行；退出的 Shell
 仍可观察，直至显式关闭其 Tab/Panel。全部已登记的 Session 进程退出后，再次运行可执行文件会自动开始
 新代，并恢复已有 checkpoint。旧 owner 仍活着或无法证明退出时拒绝启动；当前恢复不接管活 Host。
 `session list` v2 用 `recoverable` 报告受 guard 保护的冷恢复资格。持续 Workbench checkpoint
@@ -933,4 +933,4 @@ Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin acti
 
 Windows 首次运行引导在终端可继续输入时提供 Workspace 创建、Agent 选择、操作与帮助入口，关闭状态按原生配置档案保存。参见[原生首次运行引导](docs/native-onboarding.zh-CN.md)。
 
-<!-- documentation-pairing: english-sha256=fe7caf8d08d8402148fe46515ce944247993528496fbedfe7ad98be7e6324ffb zh-cn-sha256=80d5c25c75cc3374a719d555811c5f2c445da8d145fc3a17156ff69d65386fcb -->
+<!-- documentation-pairing: english-sha256=50db44897813d353a62add424f3fc3940db0fb4075515146f543011153d3fc76 zh-cn-sha256=528c76f850bc74676868b64c47d7aca0c7c3133e7d49c8fda14f791b6760c039 -->

@@ -426,12 +426,6 @@ impl WorkbenchClient {
         }
     }
 
-    pub(crate) fn configure_panel_focus(&mut self, focus_new_panel: bool) {
-        if let Some(native) = self.backend.native_mut() {
-            native.configure_panel_focus(focus_new_panel);
-        }
-    }
-
     pub(crate) fn automatic_notifications_tick(
         &mut self,
         view: &mut crate::client_view::ClientView,
@@ -504,6 +498,11 @@ impl WorkbenchClient {
                         native.cancel_copy_mode();
                         view.settle_copy_mode(false);
                         native.configure_agent_notifications(revision, &notifications);
+                    }
+                    if let Some(defaults) = watcher.take_creation_update() {
+                        native.configure_panel_focus(defaults.focus_new_panel);
+                        native
+                            .configure_worktrees_directory(defaults.worktrees_directory.as_deref());
                     }
                 }
                 if self.notifications.is_none()

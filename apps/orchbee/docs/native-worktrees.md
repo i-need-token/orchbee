@@ -12,7 +12,10 @@ Default creation gives the Workspace a short localized name (Worktree 1, Worktre
 choosing the first unused name across the current snapshot. The generated Git branch retains its
 unique operation identity. Renaming the Workspace later does not rename the branch or move files.
 
-The directory follows the [CLI Worktree policy](windows-worktrees.md). A worktree-backed Workspace
+The directory follows the [CLI Worktree policy](windows-worktrees.md). The native Client takes
+`worktrees.directory` from the Session's applied configuration snapshot and never reads
+`config.toml`; before the first snapshot is applied, Worktree launch reports configuration as
+unavailable. A worktree-backed Workspace
 is a peer of ordinary Workspaces. Creating from an ungrouped source Workspace atomically creates
 a Project containing source and new Workspace; a grouped source uses its current Project at
 the authoritative commit. An existing linked source creates another peer. Opening a checkout

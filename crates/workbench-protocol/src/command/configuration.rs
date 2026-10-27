@@ -6,6 +6,7 @@ pub const MAXIMUM_CONFIGURATION_DIAGNOSTICS: usize = 128;
 pub const MAXIMUM_CONFIGURATION_DIAGNOSTIC_FIELD_BYTES: usize = 256;
 pub const MAXIMUM_CONFIGURATION_DIAGNOSTIC_REASON_BYTES: usize = 64;
 pub const MAXIMUM_CONFIGURATION_DIAGNOSTICS_OMITTED: u32 = 65_536;
+pub const MAXIMUM_CONFIGURATION_PATH_BYTES: usize = 4096;
 pub const MAXIMUM_NOTIFICATION_PROFILE_BYTES: usize = 16 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -96,6 +97,11 @@ pub struct ConfigurationSnapshot {
     pub agent_sidebar_profile: String,
     pub spaces_sidebar_profile: String,
     pub manifest_check: bool,
+    /// `terminal.focus_new_panel`: whether a split moves focus to its new Panel.
+    pub focus_new_panel: bool,
+    /// `worktrees.directory` as an admitted absolute path; null selects the sibling checkout.
+    #[serde(deserialize_with = "super::agent_manifests::nullable")]
+    pub worktrees_directory: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -181,6 +187,11 @@ impl ConfigurationResult {
                     && snapshot.spaces_sidebar_profile.len() <= 32 * 1024
                     && !snapshot.agent_sidebar_profile.is_empty()
                     && snapshot.agent_sidebar_profile.len() <= 32 * 1024
+                    && snapshot.worktrees_directory.as_deref().is_none_or(|path| {
+                        !path.is_empty()
+                            && path.len() <= MAXIMUM_CONFIGURATION_PATH_BYTES
+                            && !path.chars().any(char::is_control)
+                    })
             }
             ConfigurationOutcome::Failed {
                 reason,

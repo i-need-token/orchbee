@@ -339,6 +339,6 @@ Git 在所属 Worker 上读取已提交的 Workspace 目录，显示相对本地
 配置失败 v1 接纳 `ui.sidebar.spaces`。Session／Client 重载先验证键位、通知及两个侧栏 profile，
 再统一发布。每个 profile 最多 32 KiB；匹配 cohort 的配置帧包括转义最多 256 KiB。
 
-`terminal.focus_new_panel` 接受布尔值，默认为 `true`。原生 Client 分屏选中刚提交的新窗格；`false` 保留原窗格。Client 在启动时读取该偏好，编辑此字段后需重启。类型无效时产生字段级诊断并使用默认值。CLI `panel split --focus` 保留显式命令策略。
+`terminal.focus_new_panel` 接受布尔值，默认为 `true`。原生 Client 分屏选中刚提交的新窗格；`false` 保留原窗格。Client 从每次发布的配置快照应用该偏好，发布后的下一次分屏即使用新值。类型无效时产生字段级诊断并使用默认值。CLI `panel split --focus` 保留显式命令策略。
 
-<!-- documentation-pairing: english-sha256=1406ff5ed1efc9ebda958f9bab42fa193954a31058aa050f0a916ebf96042eab zh-cn-sha256=afef4e5b6f4990ef4ade2ed4e77cd2ef134ea49e51cf686bd9b571d39b2d8c49 -->
+<!-- documentation-pairing: english-sha256=9d198c43723f1600c36b79ddbefe94a00c99fa25431c599290ed599595420750 zh-cn-sha256=9f5ace8657d038029f693af6c960ed4c7d8c29ac89cb24331f162e8a2d65bc55 -->

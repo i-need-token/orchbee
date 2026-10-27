@@ -8,7 +8,7 @@ pub(crate) use crate::workbench_client::state::worktree_launch::{
 };
 use crate::workbench_client::{
     state::worktree_launch::{Launcher, Origin, Plan, Preparation, addressed::SidebarDiscovery},
-    worktree_lane::{Action, Exchange, Job, Lane, Reply},
+    worktree_lane::{Action, ConfiguredRoot, Exchange, Job, Lane, Reply},
 };
 use orchbee_workbench_protocol::WorkbenchRequestId;
 use std::sync::Arc;
@@ -35,6 +35,8 @@ pub(super) struct Coordinator {
     changes_dirty: bool,
     observation_until: Option<Instant>,
     entry: Option<Entry>,
+    /// Absent until the first Server configuration snapshot is applied.
+    configured_root: Option<ConfiguredRoot>,
 }
 impl Coordinator {
     pub(super) fn remove_sidebar(&mut self, origin: Origin, discovery: SidebarDiscovery) -> bool {
@@ -122,6 +124,14 @@ impl<'a> WorkbenchClientView<'a> {
     }
 }
 impl WorkbenchClientUi {
+    pub(in crate::workbench_client) fn configure_worktrees_directory(
+        &mut self,
+        directory: Option<&str>,
+    ) {
+        self.worktrees.configured_root = Some(
+            crate::workbench_client::worktree_lane::configured_root(directory),
+        );
+    }
     pub(in crate::workbench_client) fn choose_worktree(
         &mut self,
         token: WorktreeToken,
@@ -372,6 +382,11 @@ impl WorkbenchClientUi {
                 requests: [a, b, c, d, e],
                 viewers: [v1, v2, v3, v4],
                 deadline,
+                configured_root: self
+                    .worktrees
+                    .configured_root
+                    .clone()
+                    .unwrap_or(Err(WorktreeNotice::ConfigurationUnavailable)),
             })
         })
     }

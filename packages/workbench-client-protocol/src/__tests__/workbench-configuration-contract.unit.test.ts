@@ -49,6 +49,8 @@ const configurationResult = (notificationProfile: string) => ({
 			agentSidebarProfile: '{}',
 			spacesSidebarProfile: '{}',
 			manifestCheck: true,
+			focusNewPanel: true,
+			worktreesDirectory: null,
 		},
 	},
 });
@@ -85,6 +87,8 @@ describe('Session configuration publication', () => {
 			agentSidebarProfile: profile('agent'),
 			spacesSidebarProfile: profile('workspace'),
 			manifestCheck: true,
+			focusNewPanel: true,
+			worktreesDirectory: null,
 		};
 		const document = {
 			kind: 'workbench.configuration.result',
@@ -116,6 +120,8 @@ describe('Session configuration publication', () => {
 						agentSidebarProfile: '{}',
 						spacesSidebarProfile: '{}',
 						manifestCheck: true,
+						focusNewPanel: true,
+						worktreesDirectory: null,
 					},
 				},
 			}).success,

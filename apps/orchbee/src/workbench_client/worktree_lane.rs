@@ -45,7 +45,11 @@ pub(super) struct Job {
     pub requests: [WorkbenchRequestId; 5],
     pub viewers: [orchbee_client_server_protocol::RequestId; 4],
     pub deadline: Instant,
+    /// `worktrees.directory` from the applied Server configuration snapshot at submission.
+    pub configured_root: ConfiguredRoot,
 }
+/// The Client never reads `config.toml`; an unapplied or unusable snapshot value stays unavailable.
+pub(super) type ConfiguredRoot = Result<Option<WorkbenchDirectoryPath>, WorktreeNotice>;
 pub(super) enum Reply {
     SidebarQuery {
         episode: u64,
@@ -214,12 +218,8 @@ fn snapshot(
         }
     }
 }
-fn settings() -> Result<Option<WorkbenchDirectoryPath>, WorktreeNotice> {
-    let settings = orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name))
-        .map_err(|_| WorktreeNotice::ConfigurationUnavailable)?;
-    settings
-        .worktree_root
-        .as_deref()
+pub(super) fn configured_root(directory: Option<&str>) -> ConfiguredRoot {
+    directory
         .map(WorkbenchDirectoryPath::parse)
         .transpose()
         .map_err(|_| WorktreeNotice::ConfigurationUnavailable)
@@ -231,6 +231,7 @@ fn execute(
     wake: &LocalStream,
 ) -> Reply {
     let [first, second, third, fourth, fifth] = job.requests;
+    let root = job.configured_root;
     match job.action {
         Action::SidebarQuery { episode, source } => {
             let result = sidebar::discover(
@@ -240,6 +241,7 @@ fn execute(
                     requests: [first, second, third],
                     viewers: job.viewers,
                     expected: None,
+                    configured_root: root,
                 },
                 job.deadline,
                 clock,
@@ -255,7 +257,7 @@ fn execute(
         } => {
             let result = (|| {
                 let client = client.as_mut().ok_or(WorktreeNotice::SourceUnavailable)?;
-                let root = settings()?;
+                let root = root?;
                 let reply = client
                     .query_worktrees(
                         WorkbenchWorktreeQuery {
@@ -314,6 +316,7 @@ fn execute(
                         requests: [first.clone(), second.clone(), third.clone()],
                         viewers: job.viewers,
                         expected: Some(addressed.sample.clone()),
+                        configured_root: root.clone(),
                     },
                     job.deadline,
                     clock,
@@ -355,7 +358,7 @@ fn execute(
                         .project_snapshot(&fresh)
                         .ok()
                         .is_none_or(|current| current.directory() != plan.origin.cache.directory())
-                        || settings().map_err(|_| false)? != plan.discovery.configured_root
+                        || root.map_err(|_| false)? != plan.discovery.configured_root
                     {
                         return Err(false);
                     }

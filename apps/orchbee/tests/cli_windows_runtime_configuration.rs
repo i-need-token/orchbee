@@ -69,6 +69,8 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
                 }
                 .into(),
                 manifest_check: false,
+                focus_new_panel: true,
+                worktrees_directory: None,
             };
             let outcome = match case {
                 "denied" => ConfigurationOutcome::failed(ConfigurationFailure::Denied),
@@ -217,6 +219,7 @@ fn public_configuration_requires_complete_current_snapshots() {
                 "outcome":{"kind":"current","snapshot":{"revision":"0","keysProfile":"[keys]","manifestCheck":true,
                     "windowTitle":"{tab}","notificationProfile":"[ui.toast]",
                     "agentSidebarProfile":"{}","spacesSidebarProfile":"{}",
+                    "focusNewPanel":true,"worktreesDirectory":null,
                     "diagnostics":{"items":[{"field":"keys.help","reason":"invalid-keybinding","disposition":"disabled"}],"omittedCount":0}}}}}
     });
     assert!(validator.is_valid(&document));
@@ -225,6 +228,8 @@ fn public_configuration_requires_complete_current_snapshots() {
         "notificationProfile",
         "agentSidebarProfile",
         "spacesSidebarProfile",
+        "focusNewPanel",
+        "worktreesDirectory",
         "diagnostics",
     ] {
         let mut missing = document.clone();

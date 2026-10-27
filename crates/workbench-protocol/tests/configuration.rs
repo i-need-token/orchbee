@@ -31,6 +31,8 @@ fn configuration_roundtrips_have_distinct_carrier_kinds_and_exact_correlation() 
                 diagnostics: ConfigurationDiagnostics::default(),
                 keys_profile: format!("[keys]\n#{}", "x".repeat(20_000)),
                 manifest_check: true,
+                focus_new_panel: true,
+                worktrees_directory: Some("C:/trees".into()),
                 notification_profile: "[ui.toast]\ndelivery='off'\n".into(),
                 agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
                 spaces_sidebar_profile: r#"{"rows":[],"row_gap":0}"#.into(),
@@ -52,8 +54,15 @@ fn configuration_roundtrips_have_distinct_carrier_kinds_and_exact_correlation() 
     assert_eq!(u16::from_be_bytes([bytes[6], bytes[7]]), 40);
     assert_eq!(
         read_workbench_response(&mut bytes.as_slice()).unwrap(),
-        WorkbenchResponse::Configuration(result)
+        WorkbenchResponse::Configuration(result.clone())
     );
+    for path in [String::new(), "C:/\u{7}trees".into(), "x".repeat(4097)] {
+        let mut invalid = result.clone();
+        if let ConfigurationOutcome::Reloaded { snapshot, .. } = &mut invalid.outcome {
+            snapshot.worktrees_directory = Some(path);
+        }
+        assert!(invalid.validate().is_err());
+    }
 }
 #[test]
 fn configuration_rejects_unknown_fields_oversize_and_invalid_failure_shapes() {
@@ -84,6 +93,8 @@ fn configuration_rejects_unknown_fields_oversize_and_invalid_failure_shapes() {
             agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
             spaces_sidebar_profile: r#"{"rows":[],"row_gap":0}"#.into(),
             manifest_check: false,
+            focus_new_panel: true,
+            worktrees_directory: None,
             window_title: "{hostname}: {workspace}".into(),
         },
     };
@@ -195,6 +206,8 @@ fn configuration_notification_profile_has_a_closed_16_kib_wire_bound() {
                 agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
                 spaces_sidebar_profile: r#"{"rows":[],"row_gap":0}"#.into(),
                 manifest_check: true,
+                focus_new_panel: true,
+                worktrees_directory: None,
                 window_title: String::new(),
             },
         },
@@ -226,6 +239,8 @@ fn configuration_frame_fits_both_bounded_escaped_profiles_and_checks_header_befo
                 spaces_sidebar_profile: space,
                 window_title: String::new(),
                 manifest_check: true,
+                focus_new_panel: true,
+                worktrees_directory: None,
             },
         },
     });

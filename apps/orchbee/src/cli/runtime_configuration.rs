@@ -116,9 +116,16 @@ pub(crate) fn run(action: ConfigurationAction, format: OutputFormat, locale: Loc
                             &super::escape::escape(&snapshot.window_title),
                         ));
                         text.push_str(&format!(
-                            "spacesSidebarProfile={}\n",
-                            super::escape::escape(&snapshot.spaces_sidebar_profile)
+                            "spacesSidebarProfile={}\nfocusNewPanel={}\n",
+                            super::escape::escape(&snapshot.spaces_sidebar_profile),
+                            snapshot.focus_new_panel,
                         ));
+                        if let Some(directory) = &snapshot.worktrees_directory {
+                            text.push_str(&format!(
+                                "worktreesDirectory={}\n",
+                                super::escape::escape(directory)
+                            ));
+                        }
                         text.push_str(&CliText::new(locale).cli_configuration_sidebar(
                             &super::escape::escape(&snapshot.agent_sidebar_profile),
                         ));

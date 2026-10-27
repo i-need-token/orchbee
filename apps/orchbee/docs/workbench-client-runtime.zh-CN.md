@@ -1843,6 +1843,6 @@ Client 独立于附着保留精确 Presentation ID。选中的空成员使用 `S
 不存在虚构附着副作用。渲染测试覆盖空状态和普通成员控件。这些测试不证明真实 provider
 或多 Client 视觉验收；后者仍属最终 Windows 验证义务。不引入新线协议、持久化或物理进程所有者。
 
-原生分屏默认聚焦已提交的新 Panel。操作冻结此偏好，首次有效快照和后续恢复均按新 Panel ID 通过配对的成员清理／安装流程切换；新 Panel 已消失时执行普通的存续叶子修复。对端分屏保留本地焦点。Windows 启动设置 `terminal.focus_new_panel = false` 保留原选择，修改后需重启 Client。
+原生分屏默认聚焦已提交的新 Panel。操作冻结此偏好，首次有效快照和后续恢复均按新 Panel ID 通过配对的成员清理／安装流程切换；新 Panel 已消失时执行普通的存续叶子修复。对端分屏保留本地焦点。Windows 设置 `terminal.focus_new_panel = false` 保留原选择；Client 从 Session 的配置快照应用该设置，发布后改变之后的分屏。
 
-<!-- documentation-pairing: english-sha256=1a07314fcc704e59019e7a14478921dfdf1524d2df6d75713eda637f96a95d56 zh-cn-sha256=c58e4bd85eb2036ddc0e192d0f63f75776cd5fc106b27db09cddf4ba27240bec -->
+<!-- documentation-pairing: english-sha256=5f03c4b5f65da06c9797c6d0c93cd7e06e229e0aeafd3c2d56ce984b8fbd912c zh-cn-sha256=84c2603ac9646b802346e28b713bfb21c8006c55ab5b990b1bc8c539a600fae9 -->

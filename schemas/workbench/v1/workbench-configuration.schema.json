@@ -86,7 +86,9 @@
 				"windowTitle",
 				"notificationProfile",
 				"agentSidebarProfile",
-				"spacesSidebarProfile"
+				"spacesSidebarProfile",
+				"focusNewPanel",
+				"worktreesDirectory"
 			],
 			"additionalProperties": false,
 			"properties": {
@@ -126,6 +128,16 @@
 					"type": "string",
 					"minLength": 1,
 					"maxLength": 32768
+				},
+				"focusNewPanel": {
+					"type": "boolean"
+				},
+				"worktreesDirectory": {
+					"type": ["string", "null"],
+					"minLength": 1,
+					"maxLength": 4096,
+					"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
+					"$comment": "Bindings additionally enforce the 4096-byte UTF-8 limit."
 				}
 			}
 		},

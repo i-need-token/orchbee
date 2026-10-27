@@ -370,6 +370,8 @@ fn snapshot(
         agent_sidebar_profile: current.agent_sidebar.profile(),
         spaces_sidebar_profile: current.space_sidebar.profile(),
         manifest_check: current.manifest_check,
+        focus_new_panel: current.focus_new_panel,
+        worktrees_directory: current.worktree_root.clone(),
     }
 }
 

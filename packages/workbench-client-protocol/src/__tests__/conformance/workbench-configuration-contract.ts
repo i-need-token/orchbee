@@ -66,6 +66,10 @@ const ConfigurationSnapshotSchema = z.strictObject({
 	agentSidebarProfile: bounded(32768),
 	spacesSidebarProfile: bounded(32768),
 	manifestCheck: z.boolean(),
+	focusNewPanel: z.boolean(),
+	worktreesDirectory: bounded(4096)
+		.refine((value) => !/\p{Cc}/u.test(value))
+		.nullable(),
 });
 const failure = z
 	.strictObject({

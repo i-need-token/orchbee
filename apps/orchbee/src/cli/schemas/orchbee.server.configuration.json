@@ -71,7 +71,9 @@
 														"windowTitle",
 														"notificationProfile",
 														"agentSidebarProfile",
-														"spacesSidebarProfile"
+														"spacesSidebarProfile",
+														"focusNewPanel",
+														"worktreesDirectory"
 													],
 													"additionalProperties": false,
 													"properties": {
@@ -144,6 +146,14 @@
 																	"maximum": 65536
 																}
 															}
+														},
+														"focusNewPanel": {
+															"type": "boolean"
+														},
+														"worktreesDirectory": {
+															"type": ["string", "null"],
+															"minLength": 1,
+															"maxLength": 4096
 														}
 													}
 												}
@@ -167,7 +177,9 @@
 														"windowTitle",
 														"notificationProfile",
 														"agentSidebarProfile",
-														"spacesSidebarProfile"
+														"spacesSidebarProfile",
+														"focusNewPanel",
+														"worktreesDirectory"
 													],
 													"additionalProperties": false,
 													"properties": {
@@ -240,6 +252,14 @@
 																	"maximum": 65536
 																}
 															}
+														},
+														"focusNewPanel": {
+															"type": "boolean"
+														},
+														"worktreesDirectory": {
+															"type": ["string", "null"],
+															"minLength": 1,
+															"maxLength": 4096
 														}
 													}
 												},

@@ -11,7 +11,8 @@ Project 选择器和分支／名称表单不再阻塞这个意图。显式分支
 使用当前快照中第一个未占用的名称。自动 Git 分支保留唯一操作身份。
 之后重命名 Workspace 不会重命名分支或移动文件。
 
-目录遵循 [CLI Worktree 策略](windows-worktrees.zh-CN.md)。基于 worktree 的 Workspace 与普通 Workspace 同级。
+目录遵循 [CLI Worktree 策略](windows-worktrees.zh-CN.md)。原生 Client 从 Session 已应用的配置快照获取
+`worktrees.directory`，从不读取 `config.toml`；首个快照应用前，Worktree 启动报告配置不可用。基于 worktree 的 Workspace 与普通 Workspace 同级。
 从未分组的来源 Workspace 创建时，原子创建包含来源和新 Workspace 的 Project；
 已有分组的来源使用权威提交时的当前 Project。来源本身为 linked worktree 时也创建同级成员。
 打开已关联一个 Workspace 的检出目录会复用它，不重复创建。多重关联仍明确失败。
@@ -166,4 +167,4 @@ Server 重启遵循[现有保留限制](windows-worktrees.zh-CN.md#保留续执�
 
 Windows 原生工作树表单使用反斜杠显示检出路径。这仅是显示投影；选择和操作保留精确的规范路径。
 
-<!-- documentation-pairing: english-sha256=a2e888e37a7ad6fc440e172f38f290e0d22e15c1d12669fc97eb35c3e1534499 zh-cn-sha256=d886528a24717c07ae35438c74ca81a7b3b00ba3e668aa7da64e725cda00df60 -->
+<!-- documentation-pairing: english-sha256=886e3f5cabb58ea245ff1f91a1173fc7d97f6814a930ad1e7e12440472f5d9d6 zh-cn-sha256=5b5dabbf2c7005ed09d41fe64572dbe23bf7db8a59c51897913fa152293ea8db -->

@@ -45,16 +45,25 @@
 
 ## 交付
 
-| 步骤 | 结果                                                                                                                                           |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | 删除两处重叠；Worker 不再读取 `config.toml`。                                                                                                  |
-| 2    | Server 在启动时和每次重载时各读取一次 `config.toml`；Agent manifest 重载与进程观测使用已提交的配置。                                           |
-| 3    | Server 采样冻结的 `config.toml` 位置，文件变化时按显式重载的语义重载并发布。                                                                   |
-| 4    | Server 准入从 `preferences.json` 捕获 launch 默认值；Worker 不再打开它。                                                                       |
-| 5    | Configuration 快照携带 `terminal.focus_new_panel`、`terminal.new_cwd` 与 `worktrees.directory`；TUI 启动、Worktree 与 CLI 创建的读取改用快照。 |
-| 6    | 现行权威描述已交付的行为；删除本提案。                                                                                                         |
+| 步骤 | 结果                                                                                                                                           | 状态                                                                                           |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| 1    | 删除两处重叠；Worker 不再读取 `config.toml`。                                                                                                  | 已交付                                                                                         |
+| 2    | Server 在启动时和每次重载时各读取一次 `config.toml`；Agent manifest 重载与进程观测使用已提交的配置。                                           | 已交付                                                                                         |
+| 3    | Server 采样冻结的 `config.toml` 位置，文件变化时按显式重载的语义重载并发布。                                                                   | 已交付                                                                                         |
+| 4    | Server 准入从 `preferences.json` 捕获 launch 默认值；Worker 不再打开它。                                                                       | 未开始                                                                                         |
+| 5    | Configuration 快照携带 `terminal.focus_new_panel`、`terminal.new_cwd` 与 `worktrees.directory`；TUI 启动、Worktree 与 CLI 创建的读取改用快照。 | 部分交付：快照携带 `focusNewPanel` 与 `worktreesDirectory`，原生 Client 不再读取 `config.toml` |
+| 6    | 现行权威描述已交付的行为；删除本提案。                                                                                                         | 未开始                                                                                         |
 
 每个步骤都通过受影响的 Rust 检查和现有配置测试。本 issue 在 `pnpm verify:changed` 与
 `pnpm verify:rust-native` 通过后关闭。
 
-<!-- documentation-pairing: english-sha256=0e4d6b2c10f379bc4da82059864a786df6a629a6cb841d67907ecfe6139c51fd zh-cn-sha256=b4bfba1fbe8330163baeb2d28c37da7c0964de89220950aea4c322c5c8268783 -->
+### 剩余工作
+
+- 第 4 步需要修改 launch 准入线协议，携带捕获的程序、参数、环境、回滚缓冲与颜色。launch 配置与系统 Shell
+  解析按设备区分，因此 Server 捕获对本地 Worker 正确，但在出现远程 Worker 之前必须重新评估。Server
+  从冻结的配置位置推导偏好作用域，而 Worker 从环境推导；第 4 步须统一采用 Server 的作用域。
+- 第 5 步仍让 CLI 的 Workspace、Tab、Panel 与 `worktree` 创建为 `terminal.new_cwd` 和
+  `worktrees.directory` 读取 `config.toml`。迁移需要在快照中加入 `terminal.new_cwd`，并让每个创建命令
+  在首个副作用前请求当前快照。
+
+<!-- documentation-pairing: english-sha256=b2e2dd0d78f97d40e385a1b5a1920196e2c4bc79b509db17f0c73a08482ff20f zh-cn-sha256=ff79b4ed7fda807ee5c72d064ba6ebfcd68ab47e8e5553bb59ea1f695ec1b104 -->

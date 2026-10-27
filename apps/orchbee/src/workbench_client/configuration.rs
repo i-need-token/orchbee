@@ -59,6 +59,12 @@ pub(super) struct Watcher {
     revision: Option<u64>,
     applied_snapshot: Option<ConfigurationSnapshot>,
     notification_update: Option<(u64, NotificationSettings)>,
+    creation_update: Option<CreationDefaults>,
+}
+/// Creation defaults the native Workbench owner consumes outside the shared Client view.
+pub(super) struct CreationDefaults {
+    pub(super) focus_new_panel: bool,
+    pub(super) worktrees_directory: Option<String>,
 }
 struct Connection {
     origin: LocalClientOrigin,
@@ -103,6 +109,7 @@ impl Watcher {
             revision: None,
             applied_snapshot: None,
             notification_update: None,
+            creation_update: None,
         })
     }
     pub(super) fn reload(&self) -> bool {
@@ -120,6 +127,7 @@ impl Watcher {
     pub(super) fn tick(&mut self, view: &mut ClientView) -> bool {
         self.poll_connection();
         self.notification_update = None;
+        self.creation_update = None;
         let Ok(mut state) = self.shared.0.lock() else {
             return false;
         };
@@ -148,6 +156,10 @@ impl Watcher {
                         view.machines.configure_agent_sidebar(sidebar);
                         view.notifications.configure(notifications.clone());
                         self.notification_update = Some((snapshot.revision.value(), notifications));
+                        self.creation_update = Some(CreationDefaults {
+                            focus_new_panel: snapshot.focus_new_panel,
+                            worktrees_directory: snapshot.worktrees_directory.clone(),
+                        });
                         view.configure_keys(&keys);
                         view.configuration_warning(
                             !snapshot.diagnostics.items.is_empty()
@@ -181,6 +193,9 @@ impl Watcher {
     }
     pub(super) fn take_notification_update(&mut self) -> Option<(u64, NotificationSettings)> {
         self.notification_update.take()
+    }
+    pub(super) fn take_creation_update(&mut self) -> Option<CreationDefaults> {
+        self.creation_update.take()
     }
     pub(super) fn close(&mut self) {
         if let Ok(mut state) = self.shared.0.lock() {

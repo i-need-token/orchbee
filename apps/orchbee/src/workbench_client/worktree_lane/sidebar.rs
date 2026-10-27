@@ -2,7 +2,7 @@
 use super::{
     AddressedWorktreeSource, AsLocalIo, Discovery, Duration, Instant, LocalClient,
     LocalOperationClock, LocalStream, ProtocolVersion, SidebarDiscovery, WorkbenchRequestId,
-    WorkbenchWorktreeQuery, WorkbenchWorktreeQueryOutcome, WorktreeNotice, settings, snapshot,
+    WorkbenchWorktreeQuery, WorkbenchWorktreeQueryOutcome, WorktreeNotice, snapshot,
 };
 use crate::workbench_client::primary_directory::{RootDirectory, decode_root};
 use orchbee_client_server_protocol::{
@@ -35,6 +35,7 @@ pub(super) struct DiscoveryRequest {
     pub requests: [WorkbenchRequestId; 3],
     pub viewers: [RequestId; 4],
     pub expected: Option<RootDirectory>,
+    pub configured_root: super::ConfiguredRoot,
 }
 
 pub(super) fn discover(
@@ -49,6 +50,7 @@ pub(super) fn discover(
         requests,
         viewers,
         expected,
+        configured_root,
     } = input;
     let client = slot.as_mut().ok_or(WorktreeNotice::SourceUnavailable)?;
     let [before, query, after] = requests;
@@ -140,7 +142,7 @@ pub(super) fn discover(
         let source = addressed
             .resolve_sample(sample.clone())
             .ok_or(WorktreeNotice::SourceUnavailable)?;
-        let root = settings()?;
+        let root = configured_root?;
         let reply = client
             .query_worktrees(
                 WorkbenchWorktreeQuery {

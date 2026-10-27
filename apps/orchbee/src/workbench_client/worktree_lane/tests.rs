@@ -38,6 +38,7 @@ fn job(action: Action) -> Job {
                 .unwrap()
         }),
         deadline: Instant::now() + Duration::from_secs(3),
+        configured_root: Ok(None),
     }
 }
 fn lane(server: &FakeServer) -> Lane {
@@ -283,8 +284,7 @@ fn known_worktree_receipt_survives_a_lost_followup_snapshot() {
 
 #[test]
 fn uncertain_start_reconnects_for_read_without_replaying_start() {
-    let mut plan = plan();
-    plan.discovery.configured_root = settings().unwrap();
+    let plan = plan();
     let expected = plan.clone();
     let server = FakeServer::start_connections(3, move |index, mut stream| {
         handshake(&mut stream, index as u64 + 1)?;

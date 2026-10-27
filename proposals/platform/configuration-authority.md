@@ -46,14 +46,25 @@ English remains canonical.
 
 ## Delivery
 
-| Step | Result                                                                                                                                                             |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1    | Delete both overlaps; Workers stop reading `config.toml`.                                                                                                          |
-| 2    | The Server reads `config.toml` once at startup and once per reload; Agent manifest reload and process observation consume the committed configuration.             |
-| 3    | The Server samples the frozen `config.toml` location and reloads and publishes a changed file with explicit-reload semantics.                                      |
-| 4    | Server admission captures launch defaults from `preferences.json`; Workers stop opening it.                                                                        |
-| 5    | Configuration snapshots carry `terminal.focus_new_panel`, `terminal.new_cwd`, and `worktrees.directory`; TUI startup, Worktree, and CLI creation reads move to it. |
-| 6    | Current authorities describe the delivered behavior; this proposal is deleted.                                                                                     |
+| Step | Result                                                                                                                                                             | Status                                                                                                                 |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| 1    | Delete both overlaps; Workers stop reading `config.toml`.                                                                                                          | Delivered                                                                                                              |
+| 2    | The Server reads `config.toml` once at startup and once per reload; Agent manifest reload and process observation consume the committed configuration.             | Delivered                                                                                                              |
+| 3    | The Server samples the frozen `config.toml` location and reloads and publishes a changed file with explicit-reload semantics.                                      | Delivered                                                                                                              |
+| 4    | Server admission captures launch defaults from `preferences.json`; Workers stop opening it.                                                                        | Open                                                                                                                   |
+| 5    | Configuration snapshots carry `terminal.focus_new_panel`, `terminal.new_cwd`, and `worktrees.directory`; TUI startup, Worktree, and CLI creation reads move to it. | Partial: snapshots carry `focusNewPanel` and `worktreesDirectory`, and the native Client no longer reads `config.toml` |
+| 6    | Current authorities describe the delivered behavior; this proposal is deleted.                                                                                     | Open                                                                                                                   |
 
 Each step passes the affected Rust checks and existing configuration tests. The issue closes after
 `pnpm verify:changed` and `pnpm verify:rust-native` pass.
+
+### Remaining work
+
+- Step 4 needs a launch-admission wire change that carries the captured program, arguments,
+  environment, scrollback, and colors. Launch profiles and system-shell resolution are per-device,
+  so Server capture is correct for the local Worker but must be revisited before a remote Worker
+  exists. The Server derives the preferences scope from the frozen configuration location, while
+  Workers derive it from the environment; step 4 must settle on the Server's scope.
+- Step 5 still leaves CLI Workspace, Tab, Panel, and `worktree` creation reading `config.toml` for
+  `terminal.new_cwd` and `worktrees.directory`. Moving them adds `terminal.new_cwd` to the snapshot
+  and makes each creation command request the current snapshot before its first effect.
