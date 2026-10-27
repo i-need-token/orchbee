@@ -7263,13 +7263,12 @@ fn named_session_selection_preserves_complete_grammar_and_value_ownership() {
     ));
     // A runtime selector alone must not become an Agent target.
     assert!(parse(&["--session", "work", "agent", "get"]).is_err());
-    for words in [
-        vec!["--session", "work", "status"],
-        vec!["session", "start"],
-        vec!["help", "session"],
-    ] {
-        assert!(parse(&words).is_err(), "retired spelling: {words:?}");
-    }
+    // The global selector applies to Workbench queries; it is not the retired status filter.
+    let status = parse(&["--session", "work", "status"]).unwrap();
+    assert_eq!(status.session.unwrap().as_str(), "work");
+    assert!(parse(&["session", "start"]).is_err(), "retired spelling");
+    // `session` now names the admitted named-Session family, so it has a help topic.
+    assert!(parse(&["help", "session"]).is_ok());
 }
 
 #[cfg(windows)]

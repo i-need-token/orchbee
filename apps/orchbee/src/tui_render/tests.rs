@@ -932,7 +932,7 @@ fn renders_backend_action_results_as_no_command_sent() {
     let chinese = rendered_text(120, 40, &view, Locale::ZhCn);
 
     assert!(english.contains("Tab creation unavailable · no command was sent"));
-    assert!(without_cell_padding(&chinese).contains("无法创建Tab·未发送命令"));
+    assert!(without_cell_padding(&chinese).contains("无法创建标签页·未发送命令"));
 }
 
 #[test]

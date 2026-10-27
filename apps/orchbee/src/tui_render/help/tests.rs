@@ -94,7 +94,7 @@ fn grouped_help_localizes_and_fits_standard_terminal_sizes() {
             ),
             (
                 Locale::ZhCn,
-                ["工作区", "标签页", "面板", "Agent", "客户端", "其他"],
+                ["工作区", "标签页", "面板", "智能体", "客户端", "其他"],
             ),
         ] {
             let mut view = ClientView::new(width);

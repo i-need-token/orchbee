@@ -1038,6 +1038,13 @@ mod lane_outcomes {
         board.issue_list_round(t0);
         assert!(matches!(board.read, AgentBoardRead::InFlight));
         assert!(matches!(board.inflight, Some(BoardInflight::ListRound)));
+        // The bounded lane admits the next round only after delivering this one, so wait for the
+        // real delivery and substitute its content.
+        let delivered = Instant::now() + Duration::from_secs(5);
+        while board.lane.as_mut().unwrap().take_outcome().is_none() {
+            assert!(Instant::now() < delivered, "the lane never delivered");
+            std::thread::yield_now();
+        }
         let epoch = board.epoch;
         board.apply_list_outcome(
             epoch,

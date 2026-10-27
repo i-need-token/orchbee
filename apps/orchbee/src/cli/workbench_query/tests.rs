@@ -304,7 +304,10 @@ fn client_query_failure_is_schema_valid_and_localized() {
             assert!(output.stdout.is_empty());
             assert!(!output.stderr.is_empty());
             assert!(!output.stderr.contains("()"));
-            assert!(output.stderr.contains("Client"));
+            assert!(output.stderr.contains(match locale {
+                Locale::EnUs => "Client",
+                Locale::ZhCn => "客户端",
+            }));
         }
     }
 }

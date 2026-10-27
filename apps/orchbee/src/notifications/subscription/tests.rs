@@ -23,6 +23,7 @@ fn notification_subscription_uses_one_admission_and_cancels_its_stream() {
     .unwrap();
     let expected = message.clone();
     let (sent, ready) = mpsc::sync_channel(1);
+    let (closed, cancelled) = mpsc::sync_channel(1);
     let server = FakeServer::start(move |mut peer| {
         admit(&mut peer, 1)?;
         let accepted = loop {
@@ -59,6 +60,7 @@ fn notification_subscription_uses_one_admission_and_cancels_its_stream() {
                 break;
             }
         }
+        closed.send(()).unwrap();
         Ok(())
     })
     .unwrap();
@@ -83,6 +85,8 @@ fn notification_subscription_uses_one_admission_and_cancels_its_stream() {
     assert_eq!(delivered, Some(expected));
     assert_eq!(listener.poll(true), None);
     listener.close();
+    // Closing the carrier may discard a queued cancellation, so observe it first.
+    cancelled.recv_timeout(Duration::from_secs(2)).unwrap();
     drop(client);
     server.finish().unwrap();
 }

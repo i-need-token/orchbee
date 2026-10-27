@@ -209,6 +209,13 @@ impl QuickWorkspaceFields {
     pub(in crate::workbench_client) fn directory_editor(&mut self) -> &mut LineEditor {
         &mut self.directory
     }
+    #[cfg(test)]
+    pub(in crate::workbench_client) fn set_environment(
+        &mut self,
+        environment: Vec<(String, std::ffi::OsString)>,
+    ) {
+        self.environment = environment;
+    }
     pub(in crate::workbench_client) fn project(&self) -> &QuickProject {
         &self.project
     }

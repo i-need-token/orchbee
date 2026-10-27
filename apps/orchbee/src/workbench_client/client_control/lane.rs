@@ -619,10 +619,13 @@ pub(super) fn random_request_id() -> Option<WorkbenchRequestId> {
 #[cfg(test)]
 impl ClientControlLane {
     pub(super) fn for_test() -> Self {
-        let (_reader, wake) = LocalStream::pair().unwrap();
+        // Without a task, change notifications drain into the retained wake endpoint, so a write
+        // never observes a closed peer.
+        let (wake, changed) = LocalStream::pair().unwrap();
+        changed.set_nonblocking(true).unwrap();
         Self {
             shared: Arc::new((Mutex::new(Handoff::default()), Condvar::new())),
-            changed: wake.try_clone().unwrap(),
+            changed,
             wake,
             task: None,
         }

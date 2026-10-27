@@ -201,7 +201,7 @@ fn real_powershell_completes_scoped_grammar_without_runtime() {
         ("orchbee --session work server st", "start", true),
         ("orchbee help ser", "server", true),
         ("orchbee si", "session", false),
-        ("orchbee --session work status --f", "--format", false),
+        ("orchbee --session work status --f", "--format", true),
         (
             "orchbee tab move alpha --insert-index 2 --f",
             "--format",
