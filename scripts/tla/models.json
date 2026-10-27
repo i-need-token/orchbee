@@ -241,7 +241,9 @@
 				"apps/orchbee-server/src/semantic_events/changes.rs",
 				"apps/orchbee/crates/local-client/src/local_client/multiplex.rs",
 				"apps/orchbee/crates/local-client/src/local_client/multiplex/**",
-				"crates/workbench-protocol/src/multiplex.rs"
+				"crates/workbench-protocol/src/multiplex.rs",
+				"apps/orchbee-server/README.zh-CN.md",
+				"apps/orchbee/README.zh-CN.md"
 			],
 			"requiredCoverage": [
 				"Publish",
