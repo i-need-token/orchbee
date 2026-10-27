@@ -10,10 +10,21 @@ use orchbee_workbench_protocol::{
     MAXIMUM_CONFIGURATION_DIAGNOSTICS_OMITTED, ProtocolVersion, SessionId, WorkbenchRequestId,
     WorkbenchResponse, WorkbenchRevision,
 };
-use std::sync::Mutex;
+use std::{
+    path::PathBuf,
+    sync::Mutex,
+    time::{Duration, Instant, SystemTime},
+};
+
+/// The single sampler checks the frozen file at most this often.
+const SAMPLE_INTERVAL: Duration = Duration::from_secs(1);
 
 #[derive(Default)]
-pub(super) struct Registry(Mutex<Option<State>>);
+pub(super) struct Registry {
+    state: Mutex<Option<State>>,
+    /// Sampled publications have no requesting connection; this wakes every subscriber.
+    changes: orchbee_server::SessionChangeSource,
+}
 pub(super) struct PreparedInitial(State);
 /// `current` also carries the frozen startup location: every read at that location reports it.
 struct State {
@@ -24,6 +35,41 @@ struct State {
 struct FrozenState {
     current: UserSettings,
     snapshot: ConfigurationSnapshot,
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Publication {
+    /// The first explicit publication replaces Client startup-only keys, even if otherwise equal.
+    Explicit,
+    /// A changed file publishes only a changed candidate and never reapplies an equal one.
+    Sampled,
+}
+/// Metadata that changes whenever an editor replaces or rewrites the file.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Observation {
+    Missing,
+    File {
+        length: u64,
+        modified: Option<SystemTime>,
+    },
+    Unreadable,
+}
+impl Observation {
+    fn of(path: &std::path::Path) -> Self {
+        match std::fs::metadata(path) {
+            Ok(metadata) => Self::File {
+                length: metadata.len(),
+                modified: metadata.modified().ok(),
+            },
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Self::Missing,
+            Err(_) => Self::Unreadable,
+        }
+    }
+}
+/// Owned by the process observer thread, so sampling needs no lock of its own.
+#[derive(Default)]
+pub(super) struct Sampler {
+    observed: Option<Observation>,
+    due: Option<Instant>,
 }
 struct ReloadAdmission<'a> {
     registry: &'a Registry,
@@ -39,7 +85,7 @@ impl Drop for ReloadAdmission<'_> {
         if !self.active {
             return;
         }
-        if let Ok(mut slot) = self.registry.0.lock()
+        if let Ok(mut slot) = self.registry.state.lock()
             && let Some(state) = slot.as_mut()
         {
             state.reloading = false;
@@ -80,7 +126,7 @@ impl Registry {
     }
     pub(super) fn install_initial(&self, prepared: PreparedInitial) -> std::io::Result<()> {
         let mut slot = self
-            .0
+            .state
             .lock()
             .map_err(|_| std::io::Error::other("Configuration owner poisoned"))?;
         if slot.is_some() {
@@ -91,7 +137,7 @@ impl Registry {
     }
     #[cfg(test)]
     pub(super) fn initialized_for_test(&self) -> bool {
-        self.0.lock().unwrap().is_some()
+        self.state.lock().unwrap().is_some()
     }
     fn execute(
         &self,
@@ -117,17 +163,39 @@ impl Registry {
         >,
         apply: impl FnOnce(&UserSettings) -> bool,
     ) -> Outcome {
-        let Ok(mut slot) = self.0.try_lock() else {
+        if request.action == Action::Current {
+            let Ok(slot) = self.state.try_lock() else {
+                return Outcome::failed(Failure::Busy);
+            };
+            return slot
+                .as_ref()
+                .map_or(Outcome::failed(Failure::Unavailable), |state| {
+                    Outcome::Current {
+                        snapshot: state.snapshot.clone(),
+                    }
+                });
+        }
+        self.reload_with(Publication::Explicit, load, apply)
+    }
+
+    fn reload_with(
+        &self,
+        publication: Publication,
+        load: impl FnOnce(
+            Option<&std::path::Path>,
+            bool,
+        ) -> Result<
+            orchbee_local_runtime::UserSettingsLoad,
+            orchbee_local_runtime::SettingsError,
+        >,
+        apply: impl FnOnce(&UserSettings) -> bool,
+    ) -> Outcome {
+        let Ok(mut slot) = self.state.try_lock() else {
             return Outcome::failed(Failure::Busy);
         };
         let Some(state) = slot.as_mut() else {
             return Outcome::failed(Failure::Unavailable);
         };
-        if request.action == Action::Current {
-            return Outcome::Current {
-                snapshot: state.snapshot.clone(),
-            };
-        }
         if state.reloading {
             return Outcome::failed(Failure::Busy);
         }
@@ -152,13 +220,19 @@ impl Registry {
                 };
             }
         };
-        // The first explicit publication replaces Client startup-only keys, even if otherwise equal.
         let Some(diagnostics) = protocol_diagnostics(&candidate.diagnostics) else {
             return Outcome::failed(Failure::LoadFailed);
         };
-        let changed = frozen.snapshot.revision.value() == 0
+        let changed = (publication == Publication::Explicit
+            && frozen.snapshot.revision.value() == 0)
             || candidate.settings != frozen.current
             || diagnostics != frozen.snapshot.diagnostics;
+        if !changed && publication == Publication::Sampled {
+            return Outcome::Reloaded {
+                snapshot: frozen.snapshot,
+                changed,
+            };
+        }
         let next = if changed {
             let Some(revision) = frozen.snapshot.revision.value().checked_add(1) else {
                 return Outcome::failed(Failure::RevisionExhausted);
@@ -190,7 +264,7 @@ impl Registry {
         if preflight_publication(&reply).is_err() {
             return Outcome::failed(Failure::LoadFailed);
         }
-        let Ok(mut slot) = self.0.lock() else {
+        let Ok(mut slot) = self.state.lock() else {
             return Outcome::failed(Failure::Unavailable);
         };
         let Some(state) = slot.as_mut() else {
@@ -209,6 +283,56 @@ impl Registry {
         state.reloading = false;
         admission.complete();
         reply
+    }
+
+    /// The frozen startup location, once startup has installed configuration.
+    fn location(&self) -> Option<PathBuf> {
+        self.state
+            .try_lock()
+            .ok()?
+            .as_ref()
+            .and_then(|state| state.current.path.clone())
+    }
+
+    fn sample(
+        &self,
+        sampler: &mut Sampler,
+        now: Instant,
+        load: impl FnOnce(
+            Option<&std::path::Path>,
+            bool,
+        ) -> Result<
+            orchbee_local_runtime::UserSettingsLoad,
+            orchbee_local_runtime::SettingsError,
+        >,
+        apply: impl FnOnce(&UserSettings) -> bool,
+    ) {
+        if sampler.due.is_some_and(|due| now < due) {
+            return;
+        }
+        sampler.due = now.checked_add(SAMPLE_INTERVAL);
+        let Some(path) = self.location() else {
+            return;
+        };
+        let observed = Observation::of(&path);
+        if sampler.observed == Some(observed) {
+            return;
+        }
+        // The first observation also reloads: an edit between the startup read and this sample
+        // would otherwise be missed. An unchanged candidate publishes nothing.
+        match self.reload_with(Publication::Sampled, load, apply) {
+            // Another reload or busy manifest maintenance; observe the same file again next time.
+            Outcome::Failed {
+                reason: Failure::Busy | Failure::Unavailable,
+                ..
+            } => {}
+            outcome => {
+                sampler.observed = Some(observed);
+                if matches!(outcome, Outcome::Reloaded { changed: true, .. }) {
+                    self.changes.notify();
+                }
+            }
+        }
     }
 }
 
@@ -289,7 +413,7 @@ impl super::LocalTerminalService {
     > {
         let slot = self
             .configuration
-            .0
+            .state
             .try_lock()
             .map_err(|_| orchbee_workbench_protocol::ConfiguredCommandFailure::Busy)?;
         let state = slot
@@ -301,13 +425,13 @@ impl super::LocalTerminalService {
         ))
     }
     pub(crate) fn notifications_disabled(&self) -> Result<bool, ()> {
-        let slot = self.configuration.0.try_lock().map_err(|_| ())?;
+        let slot = self.configuration.state.try_lock().map_err(|_| ())?;
         Ok(slot.as_ref().is_some_and(|state| {
             state.current.notifications.delivery == orchbee_local_runtime::NotificationDelivery::Off
         }))
     }
     pub(crate) fn window_title_configuration(&self) -> Result<String, ()> {
-        let slot = self.configuration.0.try_lock().map_err(|_| ())?;
+        let slot = self.configuration.state.try_lock().map_err(|_| ())?;
         Ok(slot
             .as_ref()
             .map_or_else(String::new, |state| state.current.window_title.clone()))
@@ -316,6 +440,22 @@ impl super::LocalTerminalService {
     /// No fallible effect follows scheduler admission.
     pub(super) fn apply_configuration(&self, settings: &UserSettings) -> bool {
         self.process_observer.apply_configuration(settings)
+    }
+    /// Samples the frozen `config.toml` location and publishes a changed file with explicit-reload
+    /// semantics: a fatal file error keeps the previous snapshot until the file changes again.
+    pub(super) fn sample_configuration(&self, sampler: &mut Sampler, now: Instant) {
+        self.configuration.sample(
+            sampler,
+            now,
+            |path, explicit| read_user_settings_at(path, explicit, |name| std::env::var_os(name)),
+            |settings| self.apply_configuration(settings),
+        );
+    }
+    pub(crate) fn watch_configuration(
+        &self,
+        signal: &std::sync::Arc<orchbee_server::SessionChangeSignal>,
+    ) {
+        self.configuration.changes.watch(signal);
     }
     pub(crate) fn execute_configuration(
         &self,

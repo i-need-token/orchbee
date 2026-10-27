@@ -926,6 +926,8 @@ impl WorkbenchClientConnection<'_> {
         if let Some(journal) = self.service.terminals.event_journal() {
             journal.watch(signal);
         }
+        #[cfg(windows)]
+        self.service.terminals.watch_configuration(signal);
     }
     /// Metadata expiry is an owner deadline; the carrier waits without holding the Session gate.
     pub(crate) fn maintain_subscription_deadline(

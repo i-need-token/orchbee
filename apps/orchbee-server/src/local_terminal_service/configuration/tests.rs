@@ -242,7 +242,7 @@ fn sidebar_reload_publishes_valid_profiles_and_defaults_only_invalid_profiles() 
 }
 
 #[test]
-fn managed_startup_publishes_its_single_read_without_rereading_the_file() {
+fn managed_startup_publishes_its_single_read_as_revision_zero() {
     use crate::{local_terminal_service::LocalTerminalService, worker_registry::WorkerRegistry};
     use std::{
         sync::{Arc, Mutex},
@@ -260,7 +260,6 @@ fn managed_startup_publishes_its_single_read_without_rereading_the_file() {
     let fixture = Fixture::new();
     fixture.write("[keys]\nprefix='ctrl+x'\n[update]\nchannel='invalid'");
     let startup = fixture.load(true);
-    fixture.write("[keys]\nprefix='ctrl+a'");
     let current = request(Action::Current);
     let owner = Owner(Arc::new(LocalTerminalService::from_identity(
         Arc::new(Mutex::new(WorkerRegistry::new())),
@@ -275,14 +274,13 @@ fn managed_startup_publishes_its_single_read_without_rereading_the_file() {
     };
     assert_eq!(snapshot.revision.value(), 0);
     assert!(snapshot.keys_profile.contains("ctrl+x"));
-    assert!(!snapshot.keys_profile.contains("ctrl+a"));
     assert_eq!(snapshot.diagnostics.items.len(), 1);
     assert_eq!(snapshot.diagnostics.items[0].field, "update.channel");
     assert_eq!(snapshot.diagnostics.items[0].reason, "invalid-channel");
 }
 
 #[test]
-fn real_configuration_owner_publishes_and_failed_apply_retains_the_snapshot() {
+fn real_session_sampler_publishes_edits_and_failed_apply_retains_the_snapshot() {
     use crate::{local_terminal_service::LocalTerminalService, worker_registry::WorkerRegistry};
     use std::{
         sync::{Arc, Mutex},
@@ -307,20 +305,33 @@ fn real_configuration_owner_publishes_and_failed_apply_retains_the_snapshot() {
         .0
         .start_process_observer_with_configuration(fixture.load(true), false)
         .unwrap();
-    fixture.write("[keys]\nprefix='ctrl+d'");
-    let Outcome::Reloaded {
-        snapshot,
-        changed: true,
-    } = owner.0.execute_configuration(reload.clone()).outcome
-    else {
-        panic!("reload");
+    // No explicit reload: the Session's sampler publishes the edit.
+    fixture.write("[keys]\nprefix='ctrl+d'\n");
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let snapshot = loop {
+        if let Outcome::Current { snapshot } = owner
+            .0
+            .execute_configuration(request(Action::Current))
+            .outcome
+            && snapshot.keys_profile.contains("ctrl+d")
+        {
+            break snapshot;
+        }
+        assert!(Instant::now() < deadline, "sampled publication");
+        std::thread::sleep(Duration::from_millis(20));
     };
-    assert!(snapshot.keys_profile.contains("ctrl+d"));
-    fixture.write("[keys]\nprefix='ctrl+x'");
+    // The fixture's startup read ignores the environment, so the sampler's first real-environment
+    // observation may publish its own revision before the edit.
+    assert!(snapshot.revision.value() >= 1);
+    assert!(matches!(
+        owner.0.execute_configuration(reload.clone()).outcome,
+        Outcome::Reloaded { snapshot: ref explicit, changed: false } if *explicit == snapshot
+    ));
     owner
         .0
         .stop_process_observer_before(Instant::now() + Duration::from_secs(3))
         .unwrap();
+    fixture.write("[keys]\nprefix='ctrl+x'");
     assert!(matches!(
         owner.0.execute_configuration(reload).outcome,
         Outcome::Failed { .. }
@@ -407,7 +418,7 @@ fn busy_exhaustion_and_uninitialized_owner_never_apply_settings() {
     fixture.write("");
     registry.initialize(&fixture.settings(true)).unwrap();
     {
-        let mut lock = registry.0.lock().unwrap();
+        let mut lock = registry.state.lock().unwrap();
         assert!(matches!(
             registry.execute(&request(Action::Reload), |_| panic!()),
             Outcome::Failed {
@@ -440,7 +451,7 @@ fn reload_releases_committed_state_while_loading_the_configuration_file() {
         &request(Action::Reload),
         |_, _| {
             let state = registry
-                .0
+                .state
                 .try_lock()
                 .expect("configuration file loading must not own committed state");
             assert!(state.as_ref().unwrap().reloading);
@@ -454,7 +465,7 @@ fn reload_releases_committed_state_while_loading_the_configuration_file() {
         |_| true,
     );
     assert!(matches!(outcome, Outcome::Reloaded { .. }));
-    assert!(!registry.0.lock().unwrap().as_ref().unwrap().reloading);
+    assert!(!registry.state.lock().unwrap().as_ref().unwrap().reloading);
 }
 
 #[test]
@@ -595,4 +606,44 @@ fn warning_record_changes_advance_revision_when_effective_settings_are_equal() {
     assert!(clean.diagnostics.items.is_empty());
     assert_eq!(clean.keys_profile, warning.keys_profile);
     assert_eq!(clean.notification_profile, warning.notification_profile);
+}
+
+#[test]
+fn sampler_publishes_only_changed_files_and_retains_fatal_edits() {
+    let fixture = Fixture::new();
+    fixture.write("[keys]\nprefix='ctrl+a'");
+    let registry = Registry::default();
+    registry.initialize_load(&fixture.load(true)).unwrap();
+    let signal = std::sync::Arc::new(orchbee_server::SessionChangeSignal::default());
+    registry.changes.watch(&signal);
+    let load =
+        |path: Option<&std::path::Path>, explicit| read_user_settings_at(path, explicit, |_| None);
+    let mut sampler = Sampler::default();
+    let at = |samples: u32| Instant::now() + SAMPLE_INTERVAL * samples;
+    // The first observation rereads the startup file but publishes nothing equal.
+    registry.sample(&mut sampler, at(0), load, |_| panic!("equal candidate"));
+    assert_eq!(current(&registry).revision.value(), 0);
+    // Lengths differ so coarse modification times cannot hide an edit.
+    fixture.write("[keys]\nprefix='ctrl+d'\n");
+    registry.sample(&mut sampler, at(0), load, |_| panic!("sample is not due"));
+    registry.sample(&mut sampler, at(1), load, |_| true);
+    let published = current(&registry);
+    assert_eq!(published.revision.value(), 1);
+    assert!(published.keys_profile.contains("ctrl+d"));
+    assert_eq!(signal.revision(), 1);
+
+    fixture.write("[keys\nprefix='ctrl+x'");
+    registry.sample(&mut sampler, at(2), load, |_| panic!("fatal file"));
+    registry.sample(&mut sampler, at(3), load, |_| {
+        panic!("unchanged fatal file")
+    });
+    assert_eq!(current(&registry), published);
+
+    // Refused application, such as busy manifest maintenance, retries the same file.
+    fixture.write("[keys]\nprefix='ctrl+x'");
+    registry.sample(&mut sampler, at(4), load, |_| false);
+    assert_eq!(current(&registry), published);
+    registry.sample(&mut sampler, at(5), load, |_| true);
+    assert!(current(&registry).keys_profile.contains("ctrl+x"));
+    assert_eq!(signal.revision(), 2);
 }

@@ -342,6 +342,7 @@ fn run(service: Weak<LocalTerminalService>, wake: Arc<Wake>, mut detector: Scree
     let _manifest_lifetime = manifests::Lifetime(&wake.manifests);
     let mut schedule = Schedule::default();
     let mut updates = manifests::Worker::default();
+    let mut configuration = super::configuration::Sampler::default();
     loop {
         let started = Instant::now();
         let mut interval = DISCOVERY_INTERVAL;
@@ -360,6 +361,7 @@ fn run(service: Weak<LocalTerminalService>, wake: Arc<Wake>, mut detector: Scree
             }
         } else if let Some(service) = service.as_deref() {
             explanation::serve(service, &wake, &detector);
+            service.sample_configuration(&mut configuration, Instant::now());
             interval = turn(service, &wake, &mut schedule, &detector);
         }
         drop(service);

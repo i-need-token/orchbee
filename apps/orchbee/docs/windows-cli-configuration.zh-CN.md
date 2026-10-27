@@ -114,7 +114,7 @@ Windows `config reset-keys [--format text|json]` 是离线配置修复操作，�
 ## Windows Client 按键配置
 
 有界共享设置读取器在 Client 启动前接纳 `[keys]`。每个 Client 在在线发布前持有不可变绑定快照；
-编辑文件或重置在下一个 Client 或显式在线重载后生效。Client 将已实现的语义动作映射到默认注册表。
+编辑文件或重置通过 Session 的配置采样或显式在线重载到达运行中的 Client。Client 将已实现的语义动作映射到默认注册表。
 用户覆盖替换该动作的默认绑定，并取代冲突的默认按键。无效的显式动作仍保留为显式禁用覆盖，
 不会静默恢复内置默认；其他动作及同一动作里的有效候选仍可使用。未知动作会警告并忽略。多个显式动作占用同一按键时，固定动作注册表顺序选择第一项并
 报告后续冲突。诊断不保留原始按键或命令。
@@ -202,6 +202,11 @@ Windows `server reload-config` 请求运行中 Session 重载；`server config` 
 设置或诊断任一变化，版本就递增。这也包括回退值与后来合法显式值
 相同但警告已清除的情况。另一重载持有接纳权时读取可返回忙。提交后丢失响应属于结果未知；
 Client 不自动重发变更，可通过读取当前状态恢复判断。
+
+Server 还会约每秒采样一次冻结位置。文件大小或修改时间变化时，按与 `server reload-config` 相同的接纳、
+预检和提交流程重载，但候选未变化时不发布。致命文件或 TOML 错误保留原版本，直到文件再次变化；提交被拒时，
+下次采样重试同一文件。启动后的首次采样会重载一次，避免遗漏 Session 启动期间的编辑。采样发布会唤醒所有
+配置订阅者；它没有应答，除配置警告摘要外不显示提示。需要立即确认发布时仍使用 `server reload-config`。
 
 64 KiB 源文件限额和各 profile 的独立边界都是接纳输入；组合后的响应还必须满足不变的
 256 KiB 配置响应上限。安装版本 0 或应用任何在线策略前，以及每次重载提交前，Server 使用同一个精确
@@ -336,4 +341,4 @@ Git 在所属 Worker 上读取已提交的 Workspace 目录，显示相对本地
 
 `terminal.focus_new_panel` 接受布尔值，默认为 `true`。原生 Client 分屏选中刚提交的新窗格；`false` 保留原窗格。Client 在启动时读取该偏好，编辑此字段后需重启。类型无效时产生字段级诊断并使用默认值。CLI `panel split --focus` 保留显式命令策略。
 
-<!-- documentation-pairing: english-sha256=0d416d4d843a6cfeb5c6556ff47ed1927a3fc756f5d783177033e39a8677b363 zh-cn-sha256=c60d771288255b96f8a6a00b8e356425439bbead6f89b2239e9036e1b2277874 -->
+<!-- documentation-pairing: english-sha256=1406ff5ed1efc9ebda958f9bab42fa193954a31058aa050f0a916ebf96042eab zh-cn-sha256=afef4e5b6f4990ef4ade2ed4e77cd2ef134ea49e51cf686bd9b571d39b2d8c49 -->

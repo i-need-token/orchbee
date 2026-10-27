@@ -152,7 +152,7 @@ package-marker partitions cover this implementation; no ARM64 hardware acceptanc
 ## Windows Client key configuration
 
 The bounded shared settings reader admits `[keys]` before Client startup. Each Client owns an
-immutable binding snapshot until publication; file edits/reset affect the next Client or an explicit live reload. The Client resolves implemented
+immutable binding snapshot until publication; file edits/reset reach running Clients through the Session's configuration sampler or an explicit live reload. The Client resolves implemented
 semantic actions against its default registry. User overrides replace that action's defaults and
 conflicting default chords. An invalid explicit action remains an explicit disabled override, so its
 built-in default cannot silently return; other actions and valid alternatives in the same action remain
@@ -255,6 +255,15 @@ successful reload publishes revision 1; later revisions advance when either admi
 This includes clearing a warning whose fallback value equals the newly valid explicit value. Readers may observe busy
 while another reload owns admission. A submitted request with a lost reply is outcome-unknown;
 Clients do not automatically resubmit mutations and can read current state for recovery.
+
+The Server also samples the frozen location about once per second. A changed size or modification
+time reloads the file with the same admission, preflight and commit as `server reload-config`, except
+that an unchanged candidate publishes nothing. A fatal file or TOML error keeps the previous revision
+until the file changes again; a refused commit retries the same file at the next sample. The first
+sample after startup reloads once, so an edit made while the Session started is not missed. Sampled
+publications wake every configuration subscriber; they have no reply and show no notice beyond the
+configuration-warning summary. `server reload-config` remains the way to confirm a publication
+immediately.
 
 The 64 KiB source limit and each profile's individual bound are admission inputs; the composed
 response must also fit the unchanged 256 KiB configuration-response limit. Before installing
