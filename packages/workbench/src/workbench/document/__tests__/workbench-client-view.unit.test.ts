@@ -88,6 +88,8 @@ describe('Workbench Client View', () => {
 		expect(reconcileWorkbenchClientView(document, stale)).toEqual(
 			createDefaultWorkbenchClientView(document),
 		);
-		expect(() => parseWorkbenchClientView({ ...stale, attachmentId: 'forbidden' })).toThrow(/attachmentId/u);
+		expect(() => parseWorkbenchClientView({ ...stale, attachmentId: 'forbidden' })).toThrow(
+			/attachmentId/u,
+		);
 	});
 });

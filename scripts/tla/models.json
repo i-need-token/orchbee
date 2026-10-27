@@ -1,627 +1,604 @@
 {
-  "schemaVersion": 1,
-  "tool": {
-    "version": "1.7.4",
-    "downloadUrl": "https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar",
-    "sha256": "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88"
-  },
-  "defaultTimeoutMilliseconds": 20000,
-  "sharedTriggers": [
-    ".github/workflows/verify.yml",
-    "docs/MODELING-AND-CORRECTNESS.md",
-    "docs/VERIFICATION.md",
-    "docs/zh-CN/MODELING-AND-CORRECTNESS.md",
-    "docs/zh-CN/VERIFICATION.md",
-    "scripts/tla/**"
-  ],
-  "models": [
-    {
-      "id": "projected-terminal-ipc-reliability",
-      "owner": "@orchbee/desktop",
-      "workspace": "apps/desktop",
-      "module": "apps/desktop/formal/tla/ProjectedTerminalIpcReliability.tla",
-      "config": "apps/desktop/formal/tla/ProjectedTerminalIpcReliability.cfg",
-      "claims": [
-        "apps/desktop/docs/multi-client-session-coordinator.md",
-        "apps/web/README.md",
-        "packages/workbench-client-protocol/README.md"
-      ],
-      "triggers": [
-        "apps/desktop/src/main/broker/**",
-        "apps/desktop/src/main/host/**",
-        "apps/desktop/src/main/terminal-projection-control/**",
-        "apps/web/src/desktop-client/terminal-projection-control/**",
-        "apps/web/src/workbench-client/projected-terminal-actions/**",
-        "apps/web/src/workbench-client/projected-terminal-renderer/**",
-        "apps/web/src/workbench-client/projected-terminal-surface/**",
-        "apps/web/src/workbench-client/terminal-find-surface/**",
-        "apps/web/src/workbench-client/terminal-projection/**",
-        "crates/terminal-protocol/src/**",
-        "packages/workbench-client-protocol/src/**",
-        "apps/desktop/docs/multi-client-session-coordinator.zh-CN.md",
-        "apps/web/README.zh-CN.md",
-        "packages/workbench-client-protocol/README.zh-CN.md",
-        "schemas/terminal/v1/**"
-      ],
-      "requiredCoverage": [
-        "BeginOpen",
-        "ClientRelease",
-        "DeliverReleaseCommand",
-        "ServiceAttach",
-        "PublishOpen",
-        "DeliverExpectedOpen",
-        "DiscardLateOpen",
-        "BeginDetach",
-        "DetachFails",
-        "DeliverCleanupFailure",
-        "RetireControl",
-        "RetirementCleanupSucceeds",
-        "DetachSucceeds",
-        "DeliverReleaseAck",
-        "ServiceOpenFailsAfterRelease",
-        "EndRequestTransport",
-        "SettleConnectionCleanup",
-        "ObserveDuplicateConnectionCleanup",
-        "QueueAttachResponse",
-        "QueueFirstFrame",
-        "QueueHostClose",
-        "DeliverAttachResponse",
-        "InstallProjectionContinuation",
-        "ResumeInbound",
-        "DeliverFirstFrame",
-        "InitializeRenderer",
-        "AcknowledgeFirstFrame",
-        "DeliverHostClose",
-        "StartSurface",
-        "ResolveProjection",
-        "CandidatePaintsFrame",
-        "PromoteCandidate",
-        "IssueSelection",
-        "ForwardSelection",
-        "HostCompletesSelection",
-        "DeliverSelection",
-        "OpenFindWithSelection",
-        "OpenFindWithoutSelection",
-        "ForwardSearchRead",
-        "CompleteSearch",
-        "TransportUnavailable",
-        "FireRetryTimer",
-        "CandidateUnavailable",
-        "FramedCandidateUnavailable",
-        "FailOpenAttempt",
-        "ExhaustRecoveryBudget"
-      ],
-      "variants": [
-        {
-          "name": "release-race",
-          "constants": {
-            "Scenario": "release-race"
-          }
-        },
-        {
-          "name": "attach-order",
-          "constants": {
-            "Scenario": "attach-order"
-          }
-        },
-        {
-          "name": "recovery-operations",
-          "constants": {
-            "Scenario": "recovery-operations"
-          }
-        }
-      ]
-    },
-    {
-      "id": "native-client-pane-membership",
-      "owner": "orchbee",
-      "workspace": "apps/orchbee",
-      "module": "apps/orchbee/formal/tla/PaneIncarnationFencing.tla",
-      "config": "apps/orchbee/formal/tla/PaneIncarnationFencing.cfg",
-      "claims": [
-        "apps/orchbee/docs/native-panel-lifecycle.md"
-      ],
-      "triggers": [
-        "apps/orchbee/src/workbench_client.rs",
-        "apps/orchbee/src/workbench_client/state*",
-        "apps/orchbee/src/workbench_client/state/**",
-        "apps/orchbee/src/workbench_client/mailbox*",
-        "apps/orchbee/src/workbench_client/mailbox/**",
-        "apps/orchbee/src/workbench_client/connection*",
-        "apps/orchbee/src/workbench_client/connection/**",
-        "apps/orchbee/src/workbench_client/workbench_projection*",
-        "apps/orchbee/src/workbench_client/workbench_projection/**",
-        "apps/orchbee/src/terminal_projection*",
-        "apps/orchbee/src/terminal_projection/**",
-        "apps/orchbee/src/local_client*",
-        "apps/orchbee/crates/local-client/src/**",
-        "crates/client-server-protocol/src/**",
-        "crates/workbench-protocol/src/**",
-        "apps/orchbee/docs/native-panel-lifecycle.zh-CN.md"
-      ],
-      "requiredCoverage": [
-        "Mint",
-        "Depart",
-        "Cleanup",
-        "Select",
-        "AdvanceAnchor",
-        "Admit",
-        "Start",
-        "Complete",
-        "Draw"
-      ]
-    },
-    {
-      "id": "native-settings-save",
-      "owner": "orchbee",
-      "workspace": "apps/orchbee",
-      "module": "apps/orchbee/formal/tla/SettingsCommitPublication.tla",
-      "config": "apps/orchbee/formal/tla/SettingsCommitPublication.cfg",
-      "claims": [
-        "apps/orchbee/docs/native-settings.md"
-      ],
-      "triggers": [
-        "apps/orchbee/src/native_settings*",
-        "apps/orchbee/src/native_settings/**",
-        "apps/orchbee/crates/local-client/src/local_client/workbench/settings*",
-        "apps/orchbee/crates/local-client/src/local_client/workbench/settings/**",
-        "apps/orchbee/src/workbench_client/settings_lane*",
-        "apps/orchbee/src/workbench_client/ui/settings*",
-        "apps/orchbee-settings/**",
-        "apps/desktop/src/main/user-preferences/**",
-        "apps/web/src/user-preferences/**",
-        "crates/local-runtime/src/user_preferences*",
-        "crates/local-runtime/src/user_preferences/**",
-        "crates/workbench-protocol/src/user_preferences*",
-        "crates/workbench-protocol/src/user_preferences/**",
-        "packages/workbench-client-protocol/src/user-preferences-contract.ts",
-        "schemas/workbench/v1/user-preferences*",
-        "apps/orchbee/src/workbench_client/configuration*",
-        "apps/orchbee-server/src/local_terminal_service/configuration*",
-        "apps/orchbee-server/src/local_terminal_service/configuration/**",
-        "crates/local-runtime/src/user_settings/settings*",
-        "crates/local-runtime/src/user_settings/settings/**",
-        "crates/local-runtime/src/private_cache.rs",
-        "crates/local-runtime/src/private_cache/**",
-        "crates/workbench-protocol/src/command/settings.rs",
-        "packages/workbench-client-protocol/src/workbench-settings-contract.ts",
-        "schemas/workbench/v1/workbench-settings*",
-        "apps/orchbee/docs/native-settings.zh-CN.md"
-      ],
-      "requiredCoverage": [
-        "Prepare",
-        "Acquire",
-        "Reject",
-        "Write",
-        "Publish",
-        "ApplyFails",
-        "LoseReply",
-        "ExternalEdit"
-      ]
-    },
-    {
-      "id": "native-terminal-viewport",
-      "owner": "orchbee",
-      "workspace": "apps/orchbee",
-      "module": "apps/orchbee/formal/tla/TerminalViewportCoordination.tla",
-      "config": "apps/orchbee/formal/tla/TerminalViewportCoordination.cfg",
-      "claims": [
-        "apps/orchbee/docs/native-terminal-viewport.md"
-      ],
-      "triggers": [
-        "apps/orchbee/src/workbench_client.rs",
-        "apps/orchbee/src/workbench_client/terminal_viewport*",
-        "apps/orchbee/src/workbench_client/terminal_viewport/**",
-        "apps/orchbee/src/workbench_client/mailbox*",
-        "apps/orchbee/src/workbench_client/mailbox/**",
-        "apps/orchbee/src/terminal_projection*",
-        "apps/orchbee/src/terminal_projection/**",
-        "apps/orchbee/src/workbench_client/connection*",
-        "apps/orchbee/src/workbench_client/connection/**",
-        "crates/terminal-protocol/src/**",
-        "crates/client-server-protocol/src/**",
-        "apps/orchbee/docs/native-terminal-viewport.zh-CN.md"
-      ],
-      "requiredCoverage": [
-        "Enter",
-        "Input",
-        "Read",
-        "Recover",
-        "Admit",
-        "Execute",
-        "Consume",
-        "CorruptWindow",
-        "Detach"
-      ]
-    },
-    {
-      "id": "client-subscription-delivery",
-      "owner": "orchbee-server",
-      "workspace": "apps/orchbee-server",
-      "module": "apps/orchbee-server/formal/tla/ClientSubscriptionDelivery.tla",
-      "config": "apps/orchbee-server/formal/tla/ClientSubscriptionDelivery.cfg",
-      "claims": [
-        "apps/orchbee-server/README.md",
-        "apps/orchbee/README.md"
-      ],
-      "triggers": [
-        "apps/orchbee-server/src/local_client_service/multiplex.rs",
-        "apps/orchbee-server/src/local_client_service/application_connection.rs",
-        "apps/orchbee-server/src/semantic_events/changes.rs",
-        "apps/orchbee/crates/local-client/src/local_client/multiplex.rs",
-        "apps/orchbee/crates/local-client/src/local_client/multiplex/**",
-        "crates/workbench-protocol/src/multiplex.rs"
-      ],
-      "requiredCoverage": [
-        "Publish",
-        "Capture",
-        "Enqueue",
-        "Overflow",
-        "Resnapshot",
-        "Take",
-        "Deliver",
-        "Cancel",
-        "Reconnect"
-      ]
-    },
-    {
-      "id": "connection-viewer-routing",
-      "owner": "orchbee-server",
-      "workspace": "apps/orchbee-server",
-      "module": "apps/orchbee-server/formal/tla/ConnectionViewerOwnership.tla",
-      "config": "apps/orchbee-server/formal/tla/ConnectionViewerOwnership.cfg",
-      "claims": [
-        "apps/orchbee-server/README.md"
-      ],
-      "triggers": [
-        "apps/orchbee-server/src/local_terminal_service.rs",
-        "apps/orchbee-server/src/local_terminal_service/viewer*",
-        "apps/orchbee-server/src/local_terminal_service/viewer*/**",
-        "apps/orchbee-server/src/local_terminal_service/controller*",
-        "apps/orchbee-server/src/local_terminal_service/controller*/**",
-        "apps/orchbee-server/src/local_client_service*",
-        "apps/orchbee-server/src/local_client_service/**",
-        "apps/orchbee-server/src/worker_obcn_carrier*",
-        "apps/orchbee-server/src/worker_obcn_carrier/**",
-        "crates/client-server-protocol/src/**",
-        "schemas/client-server/**",
-        "apps/orchbee-server/README.zh-CN.md"
-      ],
-      "requiredCoverage": [
-        "Attach",
-        "Acquire",
-        "Control",
-        "Close",
-        "ReleaseController",
-        "ReleaseViewer",
-        "LateCleanup",
-        "Dispose",
-        "ReplaceWorker"
-      ]
-    },
-    {
-      "id": "local-terminal-coordinator",
-      "owner": "orchbee-server",
-      "workspace": "apps/orchbee-server",
-      "module": "apps/orchbee-server/formal/tla/LocalTerminalCoordinator.tla",
-      "config": "apps/orchbee-server/formal/tla/LocalTerminalCoordinator.cfg",
-      "claims": [
-        "apps/orchbee-server/README.md"
-      ],
-      "triggers": [
-        "apps/orchbee-server/src/terminal_coordinator.rs",
-        "apps/orchbee-server/src/terminal_coordinator/**",
-        "apps/orchbee-server/src/local_terminal_service.rs",
-        "apps/orchbee-server/tests/client_process/terminal_operations.rs",
-        "apps/orchbee-server/README.zh-CN.md"
-      ],
-      "requiredCoverage": [
-        "IssueCreate",
-        "IssueStart",
-        "RejectConcurrent",
-        "CompleteExact",
-        "CompleteUnknown",
-        "CompleteNotDelivered",
-        "CompleteStale",
-        "Publish",
-        "AbandonPublication",
-        "Disconnect",
-        "ReplaceWorker",
-        "CompleteRejected"
-      ]
-    },
-    {
-      "id": "local-terminal-relay",
-      "owner": "orchbee-server",
-      "workspace": "apps/orchbee-server",
-      "module": "apps/orchbee-server/formal/tla/RelayDeliveryIsolation.tla",
-      "config": "apps/orchbee-server/formal/tla/RelayDeliveryIsolation.cfg",
-      "claims": [
-        "apps/orchbee-server/README.md",
-        "schemas/terminal/references/protocol.md",
-        "apps/orchbee-worker/README.md"
-      ],
-      "triggers": [
-        "apps/orchbee-server/src/local_terminal_service.rs",
-        "apps/orchbee-server/src/local_terminal_service/viewer*",
-        "apps/orchbee-server/src/local_terminal_service/viewer*/**",
-        "apps/orchbee-server/src/worker_obcn_carrier*",
-        "apps/orchbee-server/src/worker_obcn_carrier/**",
-        "apps/orchbee-worker/src/terminal_viewer_operation*",
-        "apps/orchbee-worker/src/terminal_viewer_operation/**",
-        "apps/orchbee-worker/src/host_connection/viewers*",
-        "apps/orchbee-worker/src/host_connection/viewers/**",
-        "crates/terminal-protocol/src/**",
-        "crates/client-server-protocol/src/**",
-        "crates/capability-node-protocol/src/**",
-        "schemas/client-server/**",
-        "apps/orchbee-server/README.zh-CN.md",
-        "schemas/terminal/references/protocol.zh-CN.md",
-        "apps/orchbee-worker/README.zh-CN.md",
-        "schemas/terminal/v1/**"
-      ],
-      "requiredCoverage": [
-        "Frame",
-        "History",
-        "DeliverFrame",
-        "DeliverHistory",
-        "FrameObserved",
-        "HistoryObserved",
-        "Close",
-        "WorkerProgress"
-      ]
-    },
-    {
-      "id": "worker-send-transaction",
-      "owner": "orchbee-worker",
-      "workspace": "apps/orchbee-worker",
-      "module": "apps/orchbee-worker/formal/tla/WorkerSendTransaction.tla",
-      "config": "apps/orchbee-worker/formal/tla/WorkerSendTransaction.cfg",
-      "claims": [
-        "apps/orchbee-worker/docs/worker-send-transaction.md",
-        "crates/capability-node-protocol/README.md",
-        "schemas/terminal/references/protocol.md"
-      ],
-      "triggers": [
-        "apps/orchbee-worker/docs/worker-send-transaction.md",
-        "apps/orchbee-worker/docs/worker-send-transaction.zh-CN.md",
-        "apps/orchbee-worker/formal/tla/WorkerSendTransaction.cfg",
-        "apps/orchbee-worker/formal/tla/WorkerSendTransaction.tla",
-        "apps/orchbee-worker/src/host_connection/**",
-        "apps/orchbee-worker/src/terminal_send_operation.rs",
-        "apps/orchbee-worker/tests/process/terminal_operations/send.rs",
-        "crates/capability-node-protocol/src/**",
-        "crates/terminal-protocol/src/**",
-        "crates/capability-node-protocol/README.zh-CN.md",
-        "schemas/terminal/references/protocol.zh-CN.md",
-        "schemas/terminal/v1/**"
-      ],
-      "requiredCoverage": [
-        "SendAttach",
-        "SendInput",
-        "SendDetach",
-        "HostApplyAttach",
-        "HostApplyInput",
-        "HostApplyDetach",
-        "HostTeardown",
-        "AttachExact",
-        "AttachRefused",
-        "AttachDesync",
-        "AttachMalformed",
-        "AttachLost",
-        "AttachLocalFault",
-        "InputExact",
-        "InputRefused",
-        "InputDesync",
-        "InputMalformed",
-        "InputLost",
-        "InputLocalFault",
-        "DetachExact",
-        "DetachRefused",
-        "DetachUnreachable",
-        "DetachLocalFault",
-        "ServerLostBeforeInputFact",
-        "ServerLostAfterInputFact",
-        "ServerLostAtResult",
-        "CarrierLost",
-        "PostAttachAbort",
-        "DrainHostEvent",
-        "DeliverResult",
-        "AbandonResult"
-      ]
-    },
-    {
-      "id": "terminal-host-delivery",
-      "owner": "@orchbee/terminal-host",
-      "workspace": "apps/terminal-host",
-      "module": "apps/terminal-host/formal/tla/TerminalHostDelivery.tla",
-      "config": "apps/terminal-host/formal/tla/TerminalHostDelivery.cfg",
-      "claims": [
-        "apps/terminal-host/docs/runtime-model.md"
-      ],
-      "triggers": [
-        "apps/terminal-host/src/**",
-        "apps/terminal-host/build.zig",
-        "apps/terminal-host/docs/runtime-model.zh-CN.md"
-      ],
-      "requiredCoverage": [
-        "Connect",
-        "Attach",
-        "Activate",
-        "MutateTerminal",
-        "Prepare",
-        "AbortBatch",
-        "HandoffBatch",
-        "HandoffFullPrefix",
-        "WriteSucceeded",
-        "WriteFailed",
-        "Disconnect",
-        "Acknowledge",
-        "Pause",
-        "Detach",
-        "BlockOversize"
-      ]
-    },
-    {
-      "id": "terminal-host-process-identity",
-      "owner": "@orchbee/terminal-host",
-      "workspace": "apps/terminal-host",
-      "module": "apps/terminal-host/formal/tla/TerminalHostProcessIdentity.tla",
-      "config": "apps/terminal-host/formal/tla/TerminalHostProcessIdentity.cfg",
-      "claims": [
-        "apps/terminal-host/docs/runtime-model.md"
-      ],
-      "triggers": [
-        "apps/terminal-host/src/**",
-        "apps/terminal-host/build.zig",
-        "apps/terminal-host/docs/runtime-model.zh-CN.md"
-      ],
-      "requiredCoverage": [
-        "ChildExited",
-        "RecycleMemberPid",
-        "ConfirmContainment",
-        "ReleaseIdentity",
-        "RebindSession",
-        "CancelSignal",
-        "RetrySignal",
-        "AdmitPidDispatch",
-        "AdmitScanDispatch",
-        "AcquirePidMemberRef",
-        "AcquireScanMemberRef",
-        "ObservePidMembership",
-        "ObserveScanMembership",
-        "EmitPidSignal",
-        "AttemptScanSignal",
-        "ObservePidLiveness",
-        "ObserveScanLiveness",
-        "ReleaseScannedMember"
-      ]
-    },
-    {
-      "id": "local-session-startup",
-      "owner": "orchbee-local-runtime",
-      "workspace": "crates/local-runtime",
-      "module": "crates/local-runtime/formal/tla/LocalSessionStartup.tla",
-      "config": "crates/local-runtime/formal/tla/LocalSessionStartup.cfg",
-      "claims": [
-        "crates/local-runtime/README.md"
-      ],
-      "triggers": [
-        "crates/local-runtime/src/**",
-        "apps/orchbee/src/local_startup*",
-        "apps/orchbee/src/local_startup/**",
-        "apps/orchbee/src/local_activation*",
-        "apps/orchbee/tests/local_startup*",
-        "apps/orchbee-server/src/local_worker_service*",
-        "apps/orchbee-server/src/local_worker_service/**",
-        "apps/orchbee-worker/src/worker_connection*",
-        "apps/orchbee-worker/src/terminal_operations/lazy*",
-        "apps/orchbee-worker/src/host_connection*",
-        "apps/orchbee-worker/src/host_connection/**",
-        "scripts/stage-local-runtime.mjs",
-        "apps/orchbee-server/src/local_client_service*",
-        "crates/local-runtime/README.zh-CN.md"
-      ],
-      "requiredCoverage": [
-        "Acquire",
-        "Commit",
-        "Wait",
-        "Recovery",
-        "WorkerReady",
-        "Connect",
-        "Authorize",
-        "StartHost",
-        "HostReady",
-        "Open",
-        "FirstFrame",
-        "Timeout",
-        "Disconnect",
-        "ServerLoss",
-        "WorkerLoss",
-        "HostLoss",
-        "Spawn",
-        "AcquireLifetime",
-        "Reject",
-        "Handoff",
-        "ExpireDispatch",
-        "ClientLoss"
-      ]
-    },
-    {
-      "id": "session-crash-recovery",
-      "owner": "orchbee-local-runtime",
-      "workspace": "crates/local-runtime",
-      "module": "crates/local-runtime/formal/tla/SessionCrashRecovery.tla",
-      "config": "crates/local-runtime/formal/tla/SessionCrashRecovery.cfg",
-      "claims": [
-        "crates/local-runtime/docs/windows-crash-recovery.md"
-      ],
-      "triggers": [
-        "crates/local-runtime/**",
-        "apps/orchbee/src/local_activation.rs",
-        "apps/orchbee/src/cli/server.rs",
-        "apps/orchbee/src/cli/named_sessions.rs",
-        "apps/orchbee/src/cli/schemas/orchbee.session.list.json",
-        "apps/orchbee-server/src/local_worker_service/managed/**",
-        "apps/orchbee-server/src/local_worker_service/managed.rs",
-        "apps/orchbee-worker/src/terminal_operations/lazy.rs",
-        "crates/local-runtime/docs/windows-crash-recovery.zh-CN.md"
-      ],
-      "requiredCoverage": [
-        "Acquire",
-        "CommitMarker",
-        "ReserveChild",
-        "CreateSuspended",
-        "PublishIdentity",
-        "ResumeChild",
-        "CreationFails",
-        "CleanupChild",
-        "ProcessLoss",
-        "Recover",
-        "ClearPreviousMarker",
-        "PublishCrashMarker",
-        "BeginGeneration",
-        "Refuse",
-        "Ready",
-        "Abort",
-        "Retry"
-      ]
-    },
-    {
-      "id": "windows-checkpoint-storage",
-      "owner": "orchbee-local-runtime",
-      "workspace": "crates/local-runtime",
-      "module": "crates/local-runtime/formal/tla/WindowsCheckpointStorage.tla",
-      "config": "crates/local-runtime/formal/tla/WindowsCheckpointStorage.cfg",
-      "claims": [
-        "crates/local-runtime/docs/windows-checkpoint-storage.md"
-      ],
-      "triggers": [
-        "crates/local-runtime/src/session_store.rs",
-        "crates/local-runtime/src/session_store/**",
-        "crates/local-runtime/src/checkpoint_rotation.rs",
-        "crates/local-runtime/src/checkpoint_rotation/**",
-        "crates/local-runtime/src/durable_sessions.rs",
-        "crates/local-runtime/src/durable_sessions/**",
-        "crates/local-runtime/src/session_catalog.rs",
-        "crates/local-runtime/src/session_catalog/**",
-        "crates/local-runtime/src/tests.rs",
-        "crates/local-runtime/src/tests/**",
-        "crates/local-runtime/docs/windows-checkpoint-storage*",
-        "crates/local-runtime/formal/tla/WindowsCheckpointStorage.*",
-        "apps/orchbee-server/src/local_worker_service/managed/**",
-        "crates/local-runtime/docs/windows-checkpoint-storage.zh-CN.md"
-      ],
-      "requiredCoverage": [
-        "Prepare",
-        "Flush",
-        "PreserveInvalid",
-        "Commit",
-        "WriteFailure",
-        "Interrupt",
-        "CorruptSlot",
-        "Load"
-      ]
-    }
-  ]
+	"schemaVersion": 1,
+	"tool": {
+		"version": "1.7.4",
+		"downloadUrl": "https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar",
+		"sha256": "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88"
+	},
+	"defaultTimeoutMilliseconds": 20000,
+	"sharedTriggers": [
+		".github/workflows/verify.yml",
+		"docs/MODELING-AND-CORRECTNESS.md",
+		"docs/VERIFICATION.md",
+		"docs/zh-CN/MODELING-AND-CORRECTNESS.md",
+		"docs/zh-CN/VERIFICATION.md",
+		"scripts/tla/**"
+	],
+	"models": [
+		{
+			"id": "projected-terminal-ipc-reliability",
+			"owner": "@orchbee/desktop",
+			"workspace": "apps/desktop",
+			"module": "apps/desktop/formal/tla/ProjectedTerminalIpcReliability.tla",
+			"config": "apps/desktop/formal/tla/ProjectedTerminalIpcReliability.cfg",
+			"claims": [
+				"apps/desktop/docs/multi-client-session-coordinator.md",
+				"apps/web/README.md",
+				"packages/workbench-client-protocol/README.md"
+			],
+			"triggers": [
+				"apps/desktop/src/main/broker/**",
+				"apps/desktop/src/main/host/**",
+				"apps/desktop/src/main/terminal-projection-control/**",
+				"apps/web/src/desktop-client/terminal-projection-control/**",
+				"apps/web/src/workbench-client/projected-terminal-actions/**",
+				"apps/web/src/workbench-client/projected-terminal-renderer/**",
+				"apps/web/src/workbench-client/projected-terminal-surface/**",
+				"apps/web/src/workbench-client/terminal-find-surface/**",
+				"apps/web/src/workbench-client/terminal-projection/**",
+				"crates/terminal-protocol/src/**",
+				"packages/workbench-client-protocol/src/**",
+				"apps/desktop/docs/multi-client-session-coordinator.zh-CN.md",
+				"apps/web/README.zh-CN.md",
+				"packages/workbench-client-protocol/README.zh-CN.md",
+				"schemas/terminal/v1/**"
+			],
+			"requiredCoverage": [
+				"BeginOpen",
+				"ClientRelease",
+				"DeliverReleaseCommand",
+				"ServiceAttach",
+				"PublishOpen",
+				"DeliverExpectedOpen",
+				"DiscardLateOpen",
+				"BeginDetach",
+				"DetachFails",
+				"DeliverCleanupFailure",
+				"RetireControl",
+				"RetirementCleanupSucceeds",
+				"DetachSucceeds",
+				"DeliverReleaseAck",
+				"ServiceOpenFailsAfterRelease",
+				"EndRequestTransport",
+				"SettleConnectionCleanup",
+				"ObserveDuplicateConnectionCleanup",
+				"QueueAttachResponse",
+				"QueueFirstFrame",
+				"QueueHostClose",
+				"DeliverAttachResponse",
+				"InstallProjectionContinuation",
+				"ResumeInbound",
+				"DeliverFirstFrame",
+				"InitializeRenderer",
+				"AcknowledgeFirstFrame",
+				"DeliverHostClose",
+				"StartSurface",
+				"ResolveProjection",
+				"CandidatePaintsFrame",
+				"PromoteCandidate",
+				"IssueSelection",
+				"ForwardSelection",
+				"HostCompletesSelection",
+				"DeliverSelection",
+				"OpenFindWithSelection",
+				"OpenFindWithoutSelection",
+				"ForwardSearchRead",
+				"CompleteSearch",
+				"TransportUnavailable",
+				"FireRetryTimer",
+				"CandidateUnavailable",
+				"FramedCandidateUnavailable",
+				"FailOpenAttempt",
+				"ExhaustRecoveryBudget"
+			],
+			"variants": [
+				{
+					"name": "release-race",
+					"constants": {
+						"Scenario": "release-race"
+					}
+				},
+				{
+					"name": "attach-order",
+					"constants": {
+						"Scenario": "attach-order"
+					}
+				},
+				{
+					"name": "recovery-operations",
+					"constants": {
+						"Scenario": "recovery-operations"
+					}
+				}
+			]
+		},
+		{
+			"id": "native-client-pane-membership",
+			"owner": "orchbee",
+			"workspace": "apps/orchbee",
+			"module": "apps/orchbee/formal/tla/PaneIncarnationFencing.tla",
+			"config": "apps/orchbee/formal/tla/PaneIncarnationFencing.cfg",
+			"claims": ["apps/orchbee/docs/native-panel-lifecycle.md"],
+			"triggers": [
+				"apps/orchbee/src/workbench_client.rs",
+				"apps/orchbee/src/workbench_client/state*",
+				"apps/orchbee/src/workbench_client/state/**",
+				"apps/orchbee/src/workbench_client/mailbox*",
+				"apps/orchbee/src/workbench_client/mailbox/**",
+				"apps/orchbee/src/workbench_client/connection*",
+				"apps/orchbee/src/workbench_client/connection/**",
+				"apps/orchbee/src/workbench_client/workbench_projection*",
+				"apps/orchbee/src/workbench_client/workbench_projection/**",
+				"apps/orchbee/src/terminal_projection*",
+				"apps/orchbee/src/terminal_projection/**",
+				"apps/orchbee/src/local_client*",
+				"apps/orchbee/crates/local-client/src/**",
+				"crates/client-server-protocol/src/**",
+				"crates/workbench-protocol/src/**",
+				"apps/orchbee/docs/native-panel-lifecycle.zh-CN.md"
+			],
+			"requiredCoverage": [
+				"Mint",
+				"Depart",
+				"Cleanup",
+				"Select",
+				"AdvanceAnchor",
+				"Admit",
+				"Start",
+				"Complete",
+				"Draw"
+			]
+		},
+		{
+			"id": "native-settings-save",
+			"owner": "orchbee",
+			"workspace": "apps/orchbee",
+			"module": "apps/orchbee/formal/tla/SettingsCommitPublication.tla",
+			"config": "apps/orchbee/formal/tla/SettingsCommitPublication.cfg",
+			"claims": ["apps/orchbee/docs/native-settings.md"],
+			"triggers": [
+				"apps/orchbee/src/native_settings*",
+				"apps/orchbee/src/native_settings/**",
+				"apps/orchbee/crates/local-client/src/local_client/workbench/settings*",
+				"apps/orchbee/crates/local-client/src/local_client/workbench/settings/**",
+				"apps/orchbee/src/workbench_client/settings_lane*",
+				"apps/orchbee/src/workbench_client/ui/settings*",
+				"apps/orchbee-settings/**",
+				"apps/desktop/src/main/user-preferences/**",
+				"apps/web/src/user-preferences/**",
+				"crates/local-runtime/src/user_preferences*",
+				"crates/local-runtime/src/user_preferences/**",
+				"crates/workbench-protocol/src/user_preferences*",
+				"crates/workbench-protocol/src/user_preferences/**",
+				"packages/workbench-client-protocol/src/user-preferences-contract.ts",
+				"schemas/workbench/v1/user-preferences*",
+				"apps/orchbee/src/workbench_client/configuration*",
+				"apps/orchbee-server/src/local_terminal_service/configuration*",
+				"apps/orchbee-server/src/local_terminal_service/configuration/**",
+				"crates/local-runtime/src/user_settings/settings*",
+				"crates/local-runtime/src/user_settings/settings/**",
+				"crates/local-runtime/src/private_cache.rs",
+				"crates/local-runtime/src/private_cache/**",
+				"crates/workbench-protocol/src/command/settings.rs",
+				"packages/workbench-client-protocol/src/workbench-settings-contract.ts",
+				"schemas/workbench/v1/workbench-settings*",
+				"apps/orchbee/docs/native-settings.zh-CN.md"
+			],
+			"requiredCoverage": [
+				"Prepare",
+				"Acquire",
+				"Reject",
+				"Write",
+				"Publish",
+				"ApplyFails",
+				"LoseReply",
+				"ExternalEdit"
+			]
+		},
+		{
+			"id": "native-terminal-viewport",
+			"owner": "orchbee",
+			"workspace": "apps/orchbee",
+			"module": "apps/orchbee/formal/tla/TerminalViewportCoordination.tla",
+			"config": "apps/orchbee/formal/tla/TerminalViewportCoordination.cfg",
+			"claims": ["apps/orchbee/docs/native-terminal-viewport.md"],
+			"triggers": [
+				"apps/orchbee/src/workbench_client.rs",
+				"apps/orchbee/src/workbench_client/terminal_viewport*",
+				"apps/orchbee/src/workbench_client/terminal_viewport/**",
+				"apps/orchbee/src/workbench_client/mailbox*",
+				"apps/orchbee/src/workbench_client/mailbox/**",
+				"apps/orchbee/src/terminal_projection*",
+				"apps/orchbee/src/terminal_projection/**",
+				"apps/orchbee/src/workbench_client/connection*",
+				"apps/orchbee/src/workbench_client/connection/**",
+				"crates/terminal-protocol/src/**",
+				"crates/client-server-protocol/src/**",
+				"apps/orchbee/docs/native-terminal-viewport.zh-CN.md"
+			],
+			"requiredCoverage": [
+				"Enter",
+				"Input",
+				"Read",
+				"Recover",
+				"Admit",
+				"Execute",
+				"Consume",
+				"CorruptWindow",
+				"Detach"
+			]
+		},
+		{
+			"id": "client-subscription-delivery",
+			"owner": "orchbee-server",
+			"workspace": "apps/orchbee-server",
+			"module": "apps/orchbee-server/formal/tla/ClientSubscriptionDelivery.tla",
+			"config": "apps/orchbee-server/formal/tla/ClientSubscriptionDelivery.cfg",
+			"claims": ["apps/orchbee-server/README.md", "apps/orchbee/README.md"],
+			"triggers": [
+				"apps/orchbee-server/src/local_client_service/multiplex.rs",
+				"apps/orchbee-server/src/local_client_service/application_connection.rs",
+				"apps/orchbee-server/src/semantic_events/changes.rs",
+				"apps/orchbee/crates/local-client/src/local_client/multiplex.rs",
+				"apps/orchbee/crates/local-client/src/local_client/multiplex/**",
+				"crates/workbench-protocol/src/multiplex.rs"
+			],
+			"requiredCoverage": [
+				"Publish",
+				"Capture",
+				"Enqueue",
+				"Overflow",
+				"Resnapshot",
+				"Take",
+				"Deliver",
+				"Cancel",
+				"Reconnect"
+			]
+		},
+		{
+			"id": "connection-viewer-routing",
+			"owner": "orchbee-server",
+			"workspace": "apps/orchbee-server",
+			"module": "apps/orchbee-server/formal/tla/ConnectionViewerOwnership.tla",
+			"config": "apps/orchbee-server/formal/tla/ConnectionViewerOwnership.cfg",
+			"claims": ["apps/orchbee-server/README.md"],
+			"triggers": [
+				"apps/orchbee-server/src/local_terminal_service.rs",
+				"apps/orchbee-server/src/local_terminal_service/viewer*",
+				"apps/orchbee-server/src/local_terminal_service/viewer*/**",
+				"apps/orchbee-server/src/local_terminal_service/controller*",
+				"apps/orchbee-server/src/local_terminal_service/controller*/**",
+				"apps/orchbee-server/src/local_client_service*",
+				"apps/orchbee-server/src/local_client_service/**",
+				"apps/orchbee-server/src/worker_obcn_carrier*",
+				"apps/orchbee-server/src/worker_obcn_carrier/**",
+				"crates/client-server-protocol/src/**",
+				"schemas/client-server/**",
+				"apps/orchbee-server/README.zh-CN.md"
+			],
+			"requiredCoverage": [
+				"Attach",
+				"Acquire",
+				"Control",
+				"Close",
+				"ReleaseController",
+				"ReleaseViewer",
+				"LateCleanup",
+				"Dispose",
+				"ReplaceWorker"
+			]
+		},
+		{
+			"id": "local-terminal-coordinator",
+			"owner": "orchbee-server",
+			"workspace": "apps/orchbee-server",
+			"module": "apps/orchbee-server/formal/tla/LocalTerminalCoordinator.tla",
+			"config": "apps/orchbee-server/formal/tla/LocalTerminalCoordinator.cfg",
+			"claims": ["apps/orchbee-server/README.md"],
+			"triggers": [
+				"apps/orchbee-server/src/terminal_coordinator.rs",
+				"apps/orchbee-server/src/terminal_coordinator/**",
+				"apps/orchbee-server/src/local_terminal_service.rs",
+				"apps/orchbee-server/tests/client_process/terminal_operations.rs",
+				"apps/orchbee-server/README.zh-CN.md"
+			],
+			"requiredCoverage": [
+				"IssueCreate",
+				"IssueStart",
+				"RejectConcurrent",
+				"CompleteExact",
+				"CompleteUnknown",
+				"CompleteNotDelivered",
+				"CompleteStale",
+				"Publish",
+				"AbandonPublication",
+				"Disconnect",
+				"ReplaceWorker",
+				"CompleteRejected"
+			]
+		},
+		{
+			"id": "local-terminal-relay",
+			"owner": "orchbee-server",
+			"workspace": "apps/orchbee-server",
+			"module": "apps/orchbee-server/formal/tla/RelayDeliveryIsolation.tla",
+			"config": "apps/orchbee-server/formal/tla/RelayDeliveryIsolation.cfg",
+			"claims": [
+				"apps/orchbee-server/README.md",
+				"schemas/terminal/references/protocol.md",
+				"apps/orchbee-worker/README.md"
+			],
+			"triggers": [
+				"apps/orchbee-server/src/local_terminal_service.rs",
+				"apps/orchbee-server/src/local_terminal_service/viewer*",
+				"apps/orchbee-server/src/local_terminal_service/viewer*/**",
+				"apps/orchbee-server/src/worker_obcn_carrier*",
+				"apps/orchbee-server/src/worker_obcn_carrier/**",
+				"apps/orchbee-worker/src/terminal_viewer_operation*",
+				"apps/orchbee-worker/src/terminal_viewer_operation/**",
+				"apps/orchbee-worker/src/host_connection/viewers*",
+				"apps/orchbee-worker/src/host_connection/viewers/**",
+				"crates/terminal-protocol/src/**",
+				"crates/client-server-protocol/src/**",
+				"crates/capability-node-protocol/src/**",
+				"schemas/client-server/**",
+				"apps/orchbee-server/README.zh-CN.md",
+				"schemas/terminal/references/protocol.zh-CN.md",
+				"apps/orchbee-worker/README.zh-CN.md",
+				"schemas/terminal/v1/**"
+			],
+			"requiredCoverage": [
+				"Frame",
+				"History",
+				"DeliverFrame",
+				"DeliverHistory",
+				"FrameObserved",
+				"HistoryObserved",
+				"Close",
+				"WorkerProgress"
+			]
+		},
+		{
+			"id": "worker-send-transaction",
+			"owner": "orchbee-worker",
+			"workspace": "apps/orchbee-worker",
+			"module": "apps/orchbee-worker/formal/tla/WorkerSendTransaction.tla",
+			"config": "apps/orchbee-worker/formal/tla/WorkerSendTransaction.cfg",
+			"claims": [
+				"apps/orchbee-worker/docs/worker-send-transaction.md",
+				"crates/capability-node-protocol/README.md",
+				"schemas/terminal/references/protocol.md"
+			],
+			"triggers": [
+				"apps/orchbee-worker/docs/worker-send-transaction.md",
+				"apps/orchbee-worker/docs/worker-send-transaction.zh-CN.md",
+				"apps/orchbee-worker/formal/tla/WorkerSendTransaction.cfg",
+				"apps/orchbee-worker/formal/tla/WorkerSendTransaction.tla",
+				"apps/orchbee-worker/src/host_connection/**",
+				"apps/orchbee-worker/src/terminal_send_operation.rs",
+				"apps/orchbee-worker/tests/process/terminal_operations/send.rs",
+				"crates/capability-node-protocol/src/**",
+				"crates/terminal-protocol/src/**",
+				"crates/capability-node-protocol/README.zh-CN.md",
+				"schemas/terminal/references/protocol.zh-CN.md",
+				"schemas/terminal/v1/**"
+			],
+			"requiredCoverage": [
+				"SendAttach",
+				"SendInput",
+				"SendDetach",
+				"HostApplyAttach",
+				"HostApplyInput",
+				"HostApplyDetach",
+				"HostTeardown",
+				"AttachExact",
+				"AttachRefused",
+				"AttachDesync",
+				"AttachMalformed",
+				"AttachLost",
+				"AttachLocalFault",
+				"InputExact",
+				"InputRefused",
+				"InputDesync",
+				"InputMalformed",
+				"InputLost",
+				"InputLocalFault",
+				"DetachExact",
+				"DetachRefused",
+				"DetachUnreachable",
+				"DetachLocalFault",
+				"ServerLostBeforeInputFact",
+				"ServerLostAfterInputFact",
+				"ServerLostAtResult",
+				"CarrierLost",
+				"PostAttachAbort",
+				"DrainHostEvent",
+				"DeliverResult",
+				"AbandonResult"
+			]
+		},
+		{
+			"id": "terminal-host-delivery",
+			"owner": "@orchbee/terminal-host",
+			"workspace": "apps/terminal-host",
+			"module": "apps/terminal-host/formal/tla/TerminalHostDelivery.tla",
+			"config": "apps/terminal-host/formal/tla/TerminalHostDelivery.cfg",
+			"claims": ["apps/terminal-host/docs/runtime-model.md"],
+			"triggers": [
+				"apps/terminal-host/src/**",
+				"apps/terminal-host/build.zig",
+				"apps/terminal-host/docs/runtime-model.zh-CN.md"
+			],
+			"requiredCoverage": [
+				"Connect",
+				"Attach",
+				"Activate",
+				"MutateTerminal",
+				"Prepare",
+				"AbortBatch",
+				"HandoffBatch",
+				"HandoffFullPrefix",
+				"WriteSucceeded",
+				"WriteFailed",
+				"Disconnect",
+				"Acknowledge",
+				"Pause",
+				"Detach",
+				"BlockOversize"
+			]
+		},
+		{
+			"id": "terminal-host-process-identity",
+			"owner": "@orchbee/terminal-host",
+			"workspace": "apps/terminal-host",
+			"module": "apps/terminal-host/formal/tla/TerminalHostProcessIdentity.tla",
+			"config": "apps/terminal-host/formal/tla/TerminalHostProcessIdentity.cfg",
+			"claims": ["apps/terminal-host/docs/runtime-model.md"],
+			"triggers": [
+				"apps/terminal-host/src/**",
+				"apps/terminal-host/build.zig",
+				"apps/terminal-host/docs/runtime-model.zh-CN.md"
+			],
+			"requiredCoverage": [
+				"ChildExited",
+				"RecycleMemberPid",
+				"ConfirmContainment",
+				"ReleaseIdentity",
+				"RebindSession",
+				"CancelSignal",
+				"RetrySignal",
+				"AdmitPidDispatch",
+				"AdmitScanDispatch",
+				"AcquirePidMemberRef",
+				"AcquireScanMemberRef",
+				"ObservePidMembership",
+				"ObserveScanMembership",
+				"EmitPidSignal",
+				"AttemptScanSignal",
+				"ObservePidLiveness",
+				"ObserveScanLiveness",
+				"ReleaseScannedMember"
+			]
+		},
+		{
+			"id": "local-session-startup",
+			"owner": "orchbee-local-runtime",
+			"workspace": "crates/local-runtime",
+			"module": "crates/local-runtime/formal/tla/LocalSessionStartup.tla",
+			"config": "crates/local-runtime/formal/tla/LocalSessionStartup.cfg",
+			"claims": ["crates/local-runtime/README.md"],
+			"triggers": [
+				"crates/local-runtime/src/**",
+				"apps/orchbee/src/local_startup*",
+				"apps/orchbee/src/local_startup/**",
+				"apps/orchbee/src/local_activation*",
+				"apps/orchbee/tests/local_startup*",
+				"apps/orchbee-server/src/local_worker_service*",
+				"apps/orchbee-server/src/local_worker_service/**",
+				"apps/orchbee-worker/src/worker_connection*",
+				"apps/orchbee-worker/src/terminal_operations/lazy*",
+				"apps/orchbee-worker/src/host_connection*",
+				"apps/orchbee-worker/src/host_connection/**",
+				"scripts/stage-local-runtime.mjs",
+				"apps/orchbee-server/src/local_client_service*",
+				"crates/local-runtime/README.zh-CN.md"
+			],
+			"requiredCoverage": [
+				"Acquire",
+				"Commit",
+				"Wait",
+				"Recovery",
+				"WorkerReady",
+				"Connect",
+				"Authorize",
+				"StartHost",
+				"HostReady",
+				"Open",
+				"FirstFrame",
+				"Timeout",
+				"Disconnect",
+				"ServerLoss",
+				"WorkerLoss",
+				"HostLoss",
+				"Spawn",
+				"AcquireLifetime",
+				"Reject",
+				"Handoff",
+				"ExpireDispatch",
+				"ClientLoss"
+			]
+		},
+		{
+			"id": "session-crash-recovery",
+			"owner": "orchbee-local-runtime",
+			"workspace": "crates/local-runtime",
+			"module": "crates/local-runtime/formal/tla/SessionCrashRecovery.tla",
+			"config": "crates/local-runtime/formal/tla/SessionCrashRecovery.cfg",
+			"claims": ["crates/local-runtime/docs/windows-crash-recovery.md"],
+			"triggers": [
+				"crates/local-runtime/**",
+				"apps/orchbee/src/local_activation.rs",
+				"apps/orchbee/src/cli/server.rs",
+				"apps/orchbee/src/cli/named_sessions.rs",
+				"apps/orchbee/src/cli/schemas/orchbee.session.list.json",
+				"apps/orchbee-server/src/local_worker_service/managed/**",
+				"apps/orchbee-server/src/local_worker_service/managed.rs",
+				"apps/orchbee-worker/src/terminal_operations/lazy.rs",
+				"crates/local-runtime/docs/windows-crash-recovery.zh-CN.md"
+			],
+			"requiredCoverage": [
+				"Acquire",
+				"CommitMarker",
+				"ReserveChild",
+				"CreateSuspended",
+				"PublishIdentity",
+				"ResumeChild",
+				"CreationFails",
+				"CleanupChild",
+				"ProcessLoss",
+				"Recover",
+				"ClearPreviousMarker",
+				"PublishCrashMarker",
+				"BeginGeneration",
+				"Refuse",
+				"Ready",
+				"Abort",
+				"Retry"
+			]
+		},
+		{
+			"id": "windows-checkpoint-storage",
+			"owner": "orchbee-local-runtime",
+			"workspace": "crates/local-runtime",
+			"module": "crates/local-runtime/formal/tla/WindowsCheckpointStorage.tla",
+			"config": "crates/local-runtime/formal/tla/WindowsCheckpointStorage.cfg",
+			"claims": ["crates/local-runtime/docs/windows-checkpoint-storage.md"],
+			"triggers": [
+				"crates/local-runtime/src/session_store.rs",
+				"crates/local-runtime/src/session_store/**",
+				"crates/local-runtime/src/checkpoint_rotation.rs",
+				"crates/local-runtime/src/checkpoint_rotation/**",
+				"crates/local-runtime/src/durable_sessions.rs",
+				"crates/local-runtime/src/durable_sessions/**",
+				"crates/local-runtime/src/session_catalog.rs",
+				"crates/local-runtime/src/session_catalog/**",
+				"crates/local-runtime/src/tests.rs",
+				"crates/local-runtime/src/tests/**",
+				"crates/local-runtime/docs/windows-checkpoint-storage*",
+				"crates/local-runtime/formal/tla/WindowsCheckpointStorage.*",
+				"apps/orchbee-server/src/local_worker_service/managed/**",
+				"crates/local-runtime/docs/windows-checkpoint-storage.zh-CN.md"
+			],
+			"requiredCoverage": [
+				"Prepare",
+				"Flush",
+				"PreserveInvalid",
+				"Commit",
+				"WriteFailure",
+				"Interrupt",
+				"CorruptSlot",
+				"Load"
+			]
+		}
+	]
 }
