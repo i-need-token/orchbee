@@ -16,6 +16,7 @@ use orchbee_workbench_protocol::{Navigation, NavigationConfiguration, SessionId,
 use ratatui::layout::Rect;
 use std::time::{Duration, Instant};
 mod destination;
+#[cfg(test)]
 pub(crate) use destination::Placement;
 use destination::{Drop, Item};
 #[cfg(test)]

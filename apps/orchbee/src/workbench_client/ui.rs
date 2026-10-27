@@ -89,10 +89,9 @@ pub(in crate::workbench_client) mod tests;
 mod workspace_close;
 mod workspace_setup;
 mod worktree_launch;
-pub(crate) use workspace_close::{
-    WorkspaceCloseConfirmationView, WorkspaceCloseStatus, WorkspaceCloseStatusView,
-    WorkspaceCloseToken,
-};
+#[cfg(test)]
+pub(crate) use workspace_close::WorkspaceCloseStatus;
+pub(crate) use workspace_close::{WorkspaceCloseConfirmationView, WorkspaceCloseToken};
 pub(crate) use workspace_setup::{
     LocationLabelStatus, LocationLabelTarget, SetupDraftView, SetupEdit, SetupStage, SetupStatus,
     SetupToken,
@@ -111,9 +110,10 @@ pub(crate) use input_capture::{CaptureContext, CaptureReadiness};
 #[cfg(test)]
 pub(crate) use input_capture::{ConfirmationCaptureContext, SetupCaptureContext};
 pub(crate) use panel_close::{PanelCloseConfirmationToken, PanelCloseConfirmationView};
+#[cfg(test)]
+pub(crate) use tab_close::{CloseConfirmationKind, CloseStatusKind};
 pub(crate) use tab_close::{
-    CloseConfirmationKind, CloseConfirmationToken, CloseConfirmationView, CloseStatusKind,
-    CloseStatusToken, CloseStatusView, DrawReceipt, ModalPresentation,
+    CloseConfirmationToken, CloseConfirmationView, CloseStatusToken, DrawReceipt, ModalPresentation,
 };
 #[cfg(test)]
 pub(crate) use tab_rename::RenameInputContext;
@@ -127,9 +127,8 @@ mod switch_membership;
 pub(crate) use super::agent_board::AgentBoardInputContext;
 pub(crate) use super::agent_board::{
     AgentBoardActualDraw, AgentBoardControl, AgentBoardControlTarget, AgentBoardDraw,
-    AgentBoardEpisodeToken, AgentBoardRead, AgentBoardReadFailure, AgentBoardRow,
-    AgentBoardRowTarget, AgentBoardSummary, AgentBoardToken, AgentBoardView, JumpFailure,
-    PresentationPlacement,
+    AgentBoardEpisodeToken, AgentBoardRead, AgentBoardRow, AgentBoardRowTarget, AgentBoardSummary,
+    AgentBoardToken, AgentBoardView, PresentationPlacement,
 };
 pub(crate) use super::agent_board::{AgentStartCatalogStatus, AgentStartPhase};
 
