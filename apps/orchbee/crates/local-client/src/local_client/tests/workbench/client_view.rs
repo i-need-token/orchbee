@@ -8,7 +8,7 @@ use orchbee_workbench_protocol::{
 #[test]
 fn view_exchange_correlates_owner_sample_and_session_and_never_replays() -> TestResult {
     let corpus: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../../schemas/workbench/v1/workbench-client-view-conformance-v1.json"
+        "../../../../../../../../schemas/workbench/v1/workbench-client-view-conformance-v1.json"
     ))
     .unwrap();
     for fault in 0..9 {

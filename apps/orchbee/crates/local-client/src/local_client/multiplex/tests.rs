@@ -487,7 +487,7 @@ fn an_offline_request_correlates_with_the_generation_that_first_writes_it() {
         "new admission is still withheld"
     );
     let corpus: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../schemas/workbench/v1/workbench-client-view-conformance-v1.json"
+        "../../../../../../../schemas/workbench/v1/workbench-client-view-conformance-v1.json"
     ))
     .unwrap();
     let WorkbenchRequest::ClientView(request) =

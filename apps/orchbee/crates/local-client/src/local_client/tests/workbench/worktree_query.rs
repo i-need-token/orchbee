@@ -7,7 +7,7 @@ use orchbee_workbench_protocol::{
 #[test]
 fn query_correlates_session_source_and_request_without_replay() -> TestResult {
     let corpus: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../../schemas/workbench/v1/workbench-worktree-query-conformance-v1.json"
+        "../../../../../../../../schemas/workbench/v1/workbench-worktree-query-conformance-v1.json"
     ))
     .unwrap();
     let document = &corpus["valid"]
