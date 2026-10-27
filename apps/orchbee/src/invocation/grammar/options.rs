@@ -2484,7 +2484,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         role: OptionRole::Business,
         value: Some("mouse"),
         repeatable: false,
-        joined: false,
+        joined: true,
         help: None,
         apply: |options, value, envelope| {
             options.mouse = Some(super::super::mouse_option(&value).ok_or_else(|| {

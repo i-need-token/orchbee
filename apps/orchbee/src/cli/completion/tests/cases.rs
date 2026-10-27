@@ -422,12 +422,12 @@ pub(crate) const CASES: &[(&str, &str, bool)] = &[
         "attach",
         true,
     ),
-    ("orchbee --takeover --mouse=", "--mouse=off", false),
+    ("orchbee --takeover --mouse=", "--mouse=off", true),
     ("orchbee terminal attach target --m", "--mouse", true),
     (
         "orchbee terminal attach target --mouse=",
         "--mouse=off",
-        false,
+        true,
     ),
     (
         "orchbee terminal attach target --mouse off --m",
