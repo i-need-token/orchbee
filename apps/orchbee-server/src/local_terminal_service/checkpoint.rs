@@ -2,9 +2,7 @@
 //! facts, and dispatches prepared restoration launches outside the state lock. It does not
 //! define the checkpoint format or own filesystem storage publication.
 
-use super::{
-    LocalTerminalService, create_reference, lease_expiry, placement, random_session_id, submit,
-};
+use super::{LocalTerminalService, create_reference, lease_expiry, placement, random_session_id};
 use crate::{
     terminal_coordinator::{Completion, PendingOperation},
     worker_registry::WorkerRegistry,
@@ -125,7 +123,7 @@ impl LocalTerminalService {
                 Completion::Unavailable
             } else {
                 handle.as_ref().map_or(Completion::Unavailable, |handle| {
-                    submit(handle, terminal.command())
+                    self.submit(handle, terminal.command())
                 })
             };
             let workers = self

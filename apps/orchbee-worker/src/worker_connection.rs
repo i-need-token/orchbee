@@ -48,16 +48,6 @@ pub(crate) fn run(
     cohort: &str,
 ) -> Result<(), Box<dyn Error>> {
     let mut arguments = arguments.peekable();
-    let scope = orchbee_local_runtime::UserPreferencesScope::from_environment(|name| {
-        std::env::var_os(name)
-    })
-    .map_err(|_| {
-        io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "Shared terminal preferences scope is unavailable",
-        )
-    })?;
-    let preferences = orchbee_local_runtime::UserPreferencesStore::new(scope);
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     if arguments
         .peek()
@@ -90,7 +80,6 @@ pub(crate) fn run(
             generation,
             &cohort,
             &runtime,
-            Some(&preferences),
         );
     }
     let options = WorkerOptions::parse(arguments)?;
@@ -107,7 +96,6 @@ pub(crate) fn run(
         server.worker_id,
         server.generation(),
         &drain,
-        Some(&preferences),
     )
 }
 

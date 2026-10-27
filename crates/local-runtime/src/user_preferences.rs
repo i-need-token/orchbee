@@ -3,7 +3,7 @@ mod launch_admission;
 mod terminal_colors;
 pub use terminal_colors::UserTerminalColors;
 mod terminal_defaults;
-pub use terminal_defaults::UserTerminalLaunchDefaults;
+pub use terminal_defaults::UserTerminalLaunchIntent;
 mod scope;
 pub use scope::UserPreferencesScope;
 mod storage;

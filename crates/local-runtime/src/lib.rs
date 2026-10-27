@@ -7,7 +7,7 @@ mod notification_policy;
 pub use notification_policy::{AgentSoundSetting, NotificationDelivery, NotificationSettings};
 mod user_preferences;
 pub use user_preferences::{
-    UserPreferencesScope, UserPreferencesStore, UserTerminalColors, UserTerminalLaunchDefaults,
+    UserPreferencesScope, UserPreferencesStore, UserTerminalColors, UserTerminalLaunchIntent,
 };
 mod plugins;
 pub use plugins::{

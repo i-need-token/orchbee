@@ -698,24 +698,128 @@ fn maximum_launch_remains_inside_the_frame_bound() -> Result<(), Box<dyn std::er
         args[0] = "x".repeat(MAXIMUM_LAUNCH_SELECTION_BYTES - "/bin/sh".len());
         args
     })?;
-    let message = CapabilityNodeMessage::AuthorizedTerminalLaunch(
+    // A default launch carries the Session's selected program under the same bound instead.
+    let maximum_program = crate::DefaultLaunchProgram::Custom(crate::DefaultCustomProgram::new(
+        maximum_selection.executable().to_owned(),
+        maximum_selection.arguments().to_vec(),
+    )?);
+    for (selection, program) in [
+        (Some(maximum_selection), None),
+        (None, Some(maximum_program)),
+    ] {
+        let message = CapabilityNodeMessage::AuthorizedTerminalLaunch(
+            AuthorizedTerminalLaunch::new(
+                authorization(TERMINAL_LAUNCH_CAPABILITY_VERSION)?,
+                Some(maximum_cwd.clone()),
+                TerminalLaunchMode::Immediate(geometry()?),
+                selection,
+            )
+            .with_environment({
+                let mut pairs: Vec<_> = (0..32).map(|n| (format!("K{n}"), String::new())).collect();
+                let names: usize = pairs.iter().map(|(name, _)| name.len()).sum();
+                pairs[0].1 = "x".repeat(crate::MAXIMUM_LAUNCH_ENVIRONMENT_BYTES - names);
+                crate::LaunchEnvironment::new(pairs)?
+            })
+            .with_preferences(crate::LaunchPreferences::Available(
+                crate::TerminalLaunchPreferences::new(
+                    crate::MAXIMUM_LAUNCH_SCROLLBACK_BYTES,
+                    Some(crate::TerminalLaunchColors {
+                        foreground: 0xff_ffff,
+                        background: 0,
+                        dark: true,
+                    }),
+                    program,
+                )?,
+            ))?,
+        );
+        let encoded = encode(&message)?;
+        let payload_length = usize::from(u16::from_be_bytes([encoded[6], encoded[7]]));
+        assert!(payload_length <= MAXIMUM_FRAME_PAYLOAD_BYTES);
+        assert_eq!(decode_message(&encoded)?, message);
+    }
+    Ok(())
+}
+
+#[test]
+fn launch_preferences_pair_with_the_launch_kind_and_decode_closed()
+-> Result<(), Box<dyn std::error::Error>> {
+    use crate::{
+        DefaultCustomProgram, DefaultLaunchProgram, LaunchPreferences, TerminalLaunchColors,
+        TerminalLaunchPreferences,
+    };
+    let launch = |selection| {
         AuthorizedTerminalLaunch::new(
             authorization(TERMINAL_LAUNCH_CAPABILITY_VERSION)?,
-            Some(maximum_cwd),
-            TerminalLaunchMode::Immediate(geometry()?),
-            Some(maximum_selection),
+            None,
+            TerminalLaunchMode::Deferred,
+            selection,
         )
-        .with_environment({
-            let mut pairs: Vec<_> = (0..32).map(|n| (format!("K{n}"), String::new())).collect();
-            let names: usize = pairs.iter().map(|(name, _)| name.len()).sum();
-            pairs[0].1 = "x".repeat(crate::MAXIMUM_LAUNCH_ENVIRONMENT_BYTES - names);
-            crate::LaunchEnvironment::new(pairs)?
-        }),
+        .with_preferences(LaunchPreferences::Absent)
+    };
+    let available = |program| {
+        TerminalLaunchPreferences::new(
+            0,
+            Some(TerminalLaunchColors {
+                foreground: 0xd4d4d4,
+                background: 0x1e1e1e,
+                dark: true,
+            }),
+            program,
+        )
+        .map(LaunchPreferences::Available)
+    };
+    let explicit = Some(LaunchSelection::new("/bin/sh".to_owned(), Vec::new())?);
+    let relative = DefaultLaunchProgram::Custom(DefaultCustomProgram::new(
+        "pwsh".to_owned(),
+        vec![String::new(), "-NoLogo".to_owned()],
+    )?);
+    let messages = [
+        launch(None)?.with_preferences(LaunchPreferences::Unavailable)?,
+        launch(None)?.with_preferences(available(Some(relative.clone()))?)?,
+        launch(None)?.with_preferences(available(Some(DefaultLaunchProgram::SystemShell {
+            login: true,
+        }))?)?,
+        launch(explicit.clone())?.with_preferences(available(None)?)?,
+    ];
+    for message in messages {
+        let message = CapabilityNodeMessage::AuthorizedTerminalLaunch(message);
+        assert_eq!(decode_message(&encode(&message)?)?, message);
+    }
+
+    // The default program accompanies exactly the launches without an explicit selection.
+    assert!(
+        launch(explicit)?
+            .with_preferences(available(Some(relative))?)
+            .is_err()
     );
-    let encoded = encode(&message)?;
-    let payload_length = usize::from(u16::from_be_bytes([encoded[6], encoded[7]]));
-    assert!(payload_length <= MAXIMUM_FRAME_PAYLOAD_BYTES);
-    assert_eq!(decode_message(&encoded)?, message);
+    assert!(launch(None)?.with_preferences(available(None)?).is_err());
+    assert!(
+        TerminalLaunchPreferences::new(crate::MAXIMUM_LAUNCH_SCROLLBACK_BYTES + 1, None, None)
+            .is_err()
+    );
+    assert!(DefaultCustomProgram::new(String::new(), Vec::new()).is_err());
+
+    // The block sits between cwd and start mode; unknown tags and values fail closed.
+    let shell = encode(&CapabilityNodeMessage::AuthorizedTerminalLaunch(
+        launch(None)?.with_preferences(available(Some(DefaultLaunchProgram::SystemShell {
+            login: false,
+        }))?)?,
+    ))?;
+    let block = encode(&CapabilityNodeMessage::AuthorizedTerminalLaunch(launch(
+        None,
+    )?))?
+    .len()
+        - 5;
+    assert_eq!(shell[block..block + 6], [2, 0, 0, 0, 0, 2]);
+    for (offset, value) in [(0, 3), (5, 3), (6, 0xff), (14, 3), (15, 2)] {
+        let mut invalid = shell.clone();
+        invalid[block + offset] = value;
+        assert_eq!(
+            decode_message(&invalid),
+            Err(ProtocolError::InvalidPayload),
+            "byte {offset} = {value}"
+        );
+    }
     Ok(())
 }
 

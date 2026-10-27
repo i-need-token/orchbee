@@ -12,14 +12,25 @@ fn automatic_and_explicit_launches_reach_real_host_launch_preparation() -> Resul
     let automatic = resolve_default_interactive_launch()?.executable;
     let cwd = AbsoluteCwd::new(std::env::temp_dir().to_str().unwrap())?;
     for (explicit, shared) in [(false, false), (true, false), (false, true), (true, true)] {
-        let defaults = shared.then(|| orchbee_local_runtime::UserTerminalLaunchDefaults {
-            launch: Some(orchbee_local_runtime::DefaultInteractiveLaunch {
-                executable: "C:/shared/default.exe".into(),
-                arguments: vec!["literal && shared value".into()],
-                environment: default_launch_environment(),
-            }),
-            scrollback_bytes: 4321,
-            colors: Some(orchbee_local_runtime::UserTerminalColors::DARK),
+        let defaults = shared.then(|| {
+            TerminalLaunchPreferences::new(
+                4321,
+                Some(TerminalLaunchColors {
+                    foreground: 0xd4d4d4,
+                    background: 0x1e1e1e,
+                    dark: true,
+                }),
+                (!explicit).then(|| {
+                    DefaultLaunchProgram::Custom(
+                        DefaultCustomProgram::new(
+                            "C:/shared/default.exe".into(),
+                            vec!["literal && shared value".into()],
+                        )
+                        .unwrap(),
+                    )
+                }),
+            )
+            .unwrap()
         });
         let selection = explicit.then(|| {
             LaunchSelection::new(

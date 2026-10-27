@@ -214,9 +214,12 @@ bracketed-paste mode；commit 在 Core 二次授权后于独立的 input-admissi
 
 ## 默认交互式 launch 解析
 
-生产启动冻结共享偏好作用域。每次授权的新启动在 Host 副作用前一起捕获确认的滚动历史、终端默认色与默认配置。
-显式程序绕过默认 Shell 发现。自定义配置使用字面 argv；系统 Shell 使用下述解析器及可选 POSIX 登录模式。
-共享存储拒绝只让该次操作失败。已有缓存启动事实及延迟 Start 不重新读取偏好。
+Worker 从不打开共享偏好存储或 `config.toml`。Session 在分发每次创建时读取其冻结的存储，并在
+[启动偏好快照](../../crates/capability-node-protocol/README.zh-CN.md#启动偏好快照)中发送确认的
+滚动历史、终端默认色，以及默认启动时所选配置的命令。因此保存的修改只影响之后的创建；运行中的终端、
+已缓存的启动事实与延迟 Start 保留其快照。设备事实由 Worker 自行解析：显式程序绕过默认 Shell 发现，
+自定义配置使用字面 argv，系统 Shell 使用下述解析器及可选 POSIX 登录模式。`Unavailable` 快照只在
+Host 副作用前拒绝该次创建。`Absent` 快照保留系统 Shell、Host 颜色与 Host 滚动历史大小。
 
 共享 `UserTerminalColors` 解析器按显式应用外观提供 Host 默认浅色／深色，系统保留已有 Host
 基线。显式终端浅色／深色／自定义保持更高优先级。启动适配器只安装这些前景／背景默认色及
@@ -808,14 +811,6 @@ controller，等待 DetachTerminalAccepted，然后 attach 新 input/resize cont
 Windows 可运行的本地管道测试覆盖真实协议交换，不代表打包 Worker/Host 进程验收。
 [Server 交接模型](../orchbee-server/docs/terminal-controller-takeover.zh-CN.md)拥有联合契约。
 
-## Windows 默认 Shell 配置
-
-旧 Windows Shell 配置为未声明的共享启动配置字段提供初始值。
-生产新终端策略来自共享设备快照，包括 Desktop 编辑；后续 TOML 重载不能覆盖已声明配置。
-已有请求携带的 Windows Shell 策略只为无共享存储的隔离适配器保留兼容输入。
-显式程序及缓存重放保持原有优先级。
-参见[共享清单](../../crates/workbench-protocol/docs/user-preferences.zh-CN.md)。
-
 ## Windows 插件进程归属
 
 受理请求循环在 Host 创建前后处理有界插件任务 start/list/get/cancel 记录。`plugin_jobs` 保留最多 32 个命令 owner 和 200 条日志；共享 `orchbee-local-runtime` Windows 命令所有者 复用 Git 的 Job 清理方式。CLI 断开后已受理任务继续运行。显式停止 会话 时，必须先通知、清理并等待所有插件 owner 结束，才能报告成功。[原生插件行为](../orchbee/docs/windows-plugins.zh-CN.md) 管理调用、分页、输出上限及剩余集成。
@@ -858,4 +853,4 @@ Windows 可运行的本地管道测试覆盖真实协议交换，不代表打包
 启动前后均可用。[所属模型](docs/windows-server-handoff.zh-CN.md) 定义精确票据、截止点、
 回滚及证据边界。公开 Server 状态／端点交接仍需独立集成；传输回执不是最终 CLI 成功。
 
-<!-- documentation-pairing: english-sha256=5a5fda0561d8eed6cc2db9689e58893409e7aa04a54c77f7e4c00e2aadbe0aad zh-cn-sha256=02103490bedcfbc1515da07f6c1a2169d478c339c3dccb2da0741ee97311fb84 -->
+<!-- documentation-pairing: english-sha256=b4403150deb9a05bb77dddca09d87c7e786b46543ecac5e784914d9cd18b6c1f zh-cn-sha256=a7dda4a3ea3662e916021adf2426019e42d864423bb86f980481d38e22f2c2fd -->

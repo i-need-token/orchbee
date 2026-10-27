@@ -1,5 +1,5 @@
 use super::*;
-use orchbee_workbench_protocol::UserPreferencesPatch;
+use orchbee_workbench_protocol::{UserLaunchCommand, UserPreferencesPatch};
 use serde_json::json;
 use std::{
     fs,
@@ -15,7 +15,7 @@ fn new_terminal_defaults_capture_shared_changes_without_mutating_existing_facts(
     assert!(
         fixture
             .store
-            .terminal_launch_defaults(false)
+            .terminal_launch_intent(false)
             .unwrap()
             .colors
             .is_none(),
@@ -28,7 +28,7 @@ fn new_terminal_defaults_capture_shared_changes_without_mutating_existing_facts(
         .to_owned();
     let profiles = json!({ "version": 1, "defaultProfileId": "custom", "profiles": [
         { "id": "custom", "name": "Shared launch", "command": {
-            "kind": "custom-executable", "executable": executable,
+            "kind": "custom-executable", "executable": &executable,
             "arguments": ["one argument", "literal && $ value", ""]
         }}
     ]});
@@ -38,10 +38,17 @@ fn new_terminal_defaults_capture_shared_changes_without_mutating_existing_facts(
         PreferenceKey::ApplicationTheme,
         json!("light"),
     );
-    let before = fixture.store.terminal_launch_defaults(true).unwrap();
+    let before = fixture.store.terminal_launch_intent(true).unwrap();
     assert_eq!(
-        before.launch.as_ref().unwrap().arguments,
-        ["one argument", "literal && $ value", ""]
+        before.program,
+        Some(UserLaunchCommand::CustomExecutable {
+            executable,
+            arguments: vec![
+                "one argument".into(),
+                "literal && $ value".into(),
+                String::new()
+            ],
+        })
     );
     assert_eq!(before.scrollback_bytes, 10_000_000);
     let other_process = UserPreferencesStore::new(fixture.store.scope().clone());
@@ -49,19 +56,19 @@ fn new_terminal_defaults_capture_shared_changes_without_mutating_existing_facts(
         source: snapshot.source,
         changes: UserPreferencesPatch::set(PreferenceKey::ScrollbackBytes, json!(0)).unwrap(),
     }));
-    let after = fixture.store.terminal_launch_defaults(true).unwrap();
+    let after = fixture.store.terminal_launch_intent(true).unwrap();
     assert_eq!(after.scrollback_bytes, 0);
     assert_eq!(before.scrollback_bytes, 10_000_000);
-    assert_eq!(before.launch, after.launch);
-    let explicit = fixture.store.terminal_launch_defaults(false).unwrap();
-    assert!(explicit.launch.is_none());
+    assert_eq!(before.program, after.program);
+    let explicit = fixture.store.terminal_launch_intent(false).unwrap();
+    assert!(explicit.program.is_none());
     assert_eq!(explicit.scrollback_bytes, 0);
     let saved = accepted(fixture.store.execute(&UserPreferencesRequest::Read {}));
     let dark = accepted(fixture.store.execute(&UserPreferencesRequest::Update {
         source: saved.source,
         changes: UserPreferencesPatch::set(PreferenceKey::ApplicationTheme, json!("dark")).unwrap(),
     }));
-    let next = fixture.store.terminal_launch_defaults(false).unwrap();
+    let next = fixture.store.terminal_launch_intent(false).unwrap();
     assert_eq!(next.colors.unwrap().rgb(), (0xd4d4d4, 0x1e1e1e));
     assert_eq!(before.colors.unwrap().rgb(), (0x141414, 0xfcfcfc));
     assert_eq!(after.colors, before.colors);
@@ -73,7 +80,7 @@ fn new_terminal_defaults_capture_shared_changes_without_mutating_existing_facts(
     assert!(
         fixture
             .store
-            .terminal_launch_defaults(false)
+            .terminal_launch_intent(false)
             .unwrap()
             .colors
             .is_none()
@@ -84,7 +91,7 @@ fn new_terminal_defaults_capture_shared_changes_without_mutating_existing_facts(
     )
     .unwrap();
     assert!(matches!(
-        fixture.store.terminal_launch_defaults(false),
+        fixture.store.terminal_launch_intent(false),
         Err(PreferencesFailure::InvalidSource)
     ));
 }

@@ -71,6 +71,16 @@ impl UserTerminalColors {
         }
     }
 
+    /// A pair whose scheme an earlier capture already resolved. Callers supply 24-bit RGB values.
+    #[must_use]
+    pub const fn with_scheme(foreground: u32, background: u32, dark: bool) -> Self {
+        Self {
+            foreground,
+            background,
+            dark,
+        }
+    }
+
     /// Returns foreground then background, each within the 24-bit RGB range.
     pub const fn rgb(self) -> (u32, u32) {
         (self.foreground, self.background)

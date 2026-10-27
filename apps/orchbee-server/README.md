@@ -722,6 +722,13 @@ delivery, so it is not a strict one-second observation guarantee.
 Invalidation mode carries Server commit hints only; external-file sampling belongs to subscriptions
 that deliver semantic snapshots. No Client polling timer or additional connection is involved.
 
+Each authorized creation dispatch reads the same frozen store once and attaches its
+[launch preference capture](../../crates/capability-node-protocol/README.md#launch-preference-capture)
+to the Worker request: scrollback, terminal default colors and, for a default launch, the selected
+profile's command. A missing store, refused read or program beyond the selection budget sends
+`Unavailable`, which refuses only that creation; a capture that would exceed the frame is not
+delivered. A saved change reaches only later creations, and running terminals keep their capture.
+
 The Client actor polls its carrier and a local command wake stream together. It owns physical
 reconnect, cancellation, IDs and subscription reconstruction. A request cancelled before handoff
 is not submitted. Once its write may have begun, transport loss is OutcomeUnknown and the request

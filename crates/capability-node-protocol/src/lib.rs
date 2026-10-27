@@ -6,6 +6,11 @@ mod agent_drain;
 mod codec;
 mod error;
 mod identity;
+mod launch_preferences;
+pub use launch_preferences::{
+    DefaultCustomProgram, DefaultLaunchProgram, LaunchPreferences, MAXIMUM_LAUNCH_SCROLLBACK_BYTES,
+    TerminalLaunchColors, TerminalLaunchPreferences,
+};
 mod plugin_job;
 pub use plugin_job::{
     ConfiguredCommandIntent, MAXIMUM_PLUGIN_INTENT_BYTES, MAXIMUM_PLUGIN_LOG_PAGE,

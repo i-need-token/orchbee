@@ -87,15 +87,15 @@ fn editor_source_kind_refuses_invalid_tail_identity_geometry_and_ambiguous_launc
     let len = (bad.len() - 8) as u16;
     bad[6..8].copy_from_slice(&len.to_be_bytes());
     assert!(decode_message(&bad).is_err());
-    assert_eq!(frame[101], 2);
+    assert_eq!(frame[102], 2);
     let mut immediate = frame.clone();
-    immediate[101] = 1;
-    immediate.splice(102..102, [0, 80, 0, 24, 0, 8, 0, 16]);
+    immediate[102] = 1;
+    immediate.splice(103..103, [0, 80, 0, 24, 0, 8, 0, 16]);
     let len = (immediate.len() - 8) as u16;
     immediate[6..8].copy_from_slice(&len.to_be_bytes());
     assert!(decode_message(&immediate).is_err());
     let mut unknown = frame.clone();
-    unknown[102] = 5;
+    unknown[103] = 5;
     assert!(decode_message(&unknown).is_err());
     let no_program = AuthorizedTerminalLaunch::new(
         base.authorization(),

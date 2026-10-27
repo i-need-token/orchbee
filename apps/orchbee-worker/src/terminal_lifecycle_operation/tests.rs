@@ -542,7 +542,6 @@ fn real_dispatch_loop_bypasses_unrelated_closed_viewer_cleanup_for_one_lifecycle
         nz(7),
         kernel,
         crate::terminal_operations::AdmittedAux {
-            preferences: None,
             drain: &fixture.drain,
             worktree_slot: &worktree_slot,
             #[cfg(windows)]

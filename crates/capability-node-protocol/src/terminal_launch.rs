@@ -277,35 +277,8 @@ impl LaunchSelection {
     pub fn new(executable: String, arguments: Vec<String>) -> Result<Self, ProtocolError> {
         if executable.is_empty()
             || !is_absolute_path(executable.as_bytes())
-            || executable.as_bytes().contains(&0)
+            || !program_within_bounds(&executable, &arguments)
         {
-            return Err(ProtocolError::InvalidPayload);
-        }
-        if arguments.len() > MAXIMUM_LAUNCH_SELECTION_ARGUMENTS {
-            return Err(ProtocolError::InvalidPayload);
-        }
-        let mut bytes = executable.len();
-        for argument in &arguments {
-            if argument.as_bytes().contains(&0) {
-                return Err(ProtocolError::InvalidPayload);
-            }
-            bytes = bytes
-                .checked_add(argument.len())
-                .ok_or(ProtocolError::InvalidPayload)?;
-        }
-        if bytes > MAXIMUM_LAUNCH_SELECTION_BYTES {
-            return Err(ProtocolError::InvalidPayload);
-        }
-        let encoded = std::iter::once(executable.as_str())
-            .chain(arguments.iter().map(String::as_str))
-            .flat_map(str::bytes)
-            .map(|b| match b {
-                0..=31 => 6,
-                b'"' | b'\\' => 2,
-                _ => 1,
-            })
-            .sum::<usize>();
-        if encoded > MAXIMUM_LAUNCH_SELECTION_BYTES {
             return Err(ProtocolError::InvalidPayload);
         }
         Ok(Self {
@@ -325,6 +298,29 @@ impl LaunchSelection {
     }
 }
 
+/// NUL-free program text within the shared argument count, byte and JSON-content budgets.
+pub(crate) fn program_within_bounds(executable: &str, arguments: &[String]) -> bool {
+    if executable.as_bytes().contains(&0)
+        || arguments.len() > MAXIMUM_LAUNCH_SELECTION_ARGUMENTS
+        || arguments
+            .iter()
+            .any(|argument| argument.as_bytes().contains(&0))
+    {
+        return false;
+    }
+    let program = || std::iter::once(executable).chain(arguments.iter().map(String::as_str));
+    let bytes = program().map(str::len).sum::<usize>();
+    let encoded = program()
+        .flat_map(str::bytes)
+        .map(|b| match b {
+            0..=31 => 6,
+            b'"' | b'\\' => 2,
+            _ => 1,
+        })
+        .sum::<usize>();
+    bytes <= MAXIMUM_LAUNCH_SELECTION_BYTES && encoded <= MAXIMUM_LAUNCH_SELECTION_BYTES
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AuthorizedTerminalLaunch {
     authorization: TerminalOperationAuthorization,
@@ -334,6 +330,7 @@ pub struct AuthorizedTerminalLaunch {
     environment: crate::LaunchEnvironment,
     plugin_environment: Option<crate::PluginTerminalEnvironment>,
     editor_source: Option<crate::TerminalEditorSource>,
+    preferences: crate::LaunchPreferences,
 }
 
 impl AuthorizedTerminalLaunch {
@@ -352,6 +349,7 @@ impl AuthorizedTerminalLaunch {
             environment: crate::LaunchEnvironment::empty(),
             plugin_environment: None,
             editor_source: None,
+            preferences: crate::LaunchPreferences::Absent,
         }
     }
 
@@ -422,6 +420,28 @@ impl AuthorizedTerminalLaunch {
     #[must_use]
     pub const fn editor_source(&self) -> Option<crate::TerminalEditorSource> {
         self.editor_source
+    }
+
+    /// Attaches the Session's preference capture for this creation.
+    ///
+    /// # Errors
+    /// Refuses a default program beside an explicit selection, or a default launch without one.
+    pub fn with_preferences(
+        mut self,
+        preferences: crate::LaunchPreferences,
+    ) -> Result<Self, ProtocolError> {
+        if let crate::LaunchPreferences::Available(available) = &preferences
+            && available.program().is_some() == self.launch.is_some()
+        {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        self.preferences = preferences;
+        Ok(self)
+    }
+
+    #[must_use]
+    pub const fn preferences(&self) -> &crate::LaunchPreferences {
+        &self.preferences
     }
 }
 

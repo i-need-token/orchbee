@@ -1,5 +1,5 @@
 //! One connection owns a popup; EOF transfers accepted physical ownership to Session maintenance.
-use super::{LocalTerminalService, lease_expiry, placement, submit};
+use super::{LocalTerminalService, lease_expiry, placement};
 use crate::{
     session_coordinator::ProcessObservationTarget,
     terminal_coordinator::{BindingViewerTarget, PreparedOperation},
@@ -242,7 +242,7 @@ impl LocalTerminalService {
             PreparedOperation::Dispatch(pending) => {
                 let completion = handle.map_or(
                     crate::terminal_coordinator::Completion::Unavailable,
-                    |handle| submit(handle, pending.command()),
+                    |handle| self.submit(handle, pending.command()),
                 );
                 let workers = self.workers.lock().map_err(|_| Failure::PhysicalUnknown)?;
                 self.coordinator

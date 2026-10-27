@@ -36,7 +36,6 @@ pub(crate) fn run(
     generation: NonZeroU64,
     cohort: &Cohort,
     runtime: &Path,
-    preferences: Option<&orchbee_local_runtime::UserPreferencesStore>,
 ) -> Result<(), Box<dyn Error>> {
     #[cfg(windows)]
     let mut server = server;
@@ -261,8 +260,7 @@ pub(crate) fn run(
                 let _no_host = server_transport::send(&server, None, &result)?;
                 continue;
             }
-            let prepared =
-                super::prepare_or_fail(&mut kernel, &dispatch, Some(runtime), preferences, None)?;
+            let prepared = super::prepare_or_fail(&mut kernel, &dispatch, Some(runtime), None)?;
             let Some(prepared) = prepared else {
                 let result = super::take_result(&mut kernel)?;
                 let _no_host = server_transport::send(&server, None, &result)?;
@@ -308,7 +306,6 @@ pub(crate) fn run(
                 generation,
                 kernel,
                 super::AdmittedAux {
-                    preferences,
                     drain: &drain,
                     worktree_slot: &worktree_slot,
                     #[cfg(windows)]

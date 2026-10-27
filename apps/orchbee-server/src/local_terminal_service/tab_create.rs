@@ -2,7 +2,7 @@
 //! settlement while keeping I/O outside canonical locks. It does not allocate a second
 //! membership plan or retry unknown launch delivery.
 
-use super::{LocalTerminalService, lease_expiry, placement, submit};
+use super::{LocalTerminalService, lease_expiry, placement};
 use crate::session_coordinator::{PostcommitCoordinationError, PreparedTerminalTabCreate};
 use orchbee_capability_node_protocol::LeaseExpiresAtUnixMilliseconds;
 use orchbee_client_server_protocol::RequestId;
@@ -64,7 +64,7 @@ impl LocalTerminalService {
             PreparedTerminalTabCreate::Dispatch(pending) => pending,
         };
         let completion = handle.map_or(super::Completion::Unavailable, |handle| {
-            submit(&handle, pending.command())
+            self.submit(&handle, pending.command())
         });
 
         // Reacquire registry -> Session and retain both gates through the no-fail joint settlement.

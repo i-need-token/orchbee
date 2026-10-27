@@ -225,12 +225,12 @@ other versions return `UnsupportedCapability`. Construction and decoding reject
 The matched native cohort follows the repository
 [pre-release version rule](../../docs/ARCHITECTURE.md#data-boundaries).
 
-| Message                    | Direction                 | Closed semantic payload                                                                                                                                                                            |
-| -------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AuthorizedTerminalLaunch` | Server -> Capability Node | Complete operation authorization, optional bounded node-local current directory, either `Immediate` with complete pixel geometry or `Deferred`, and an optional bounded explicit launch selection. |
-| `TerminalLaunchResult`     | Capability Node -> Server | The exact authorization plus `HostAccepted`, `Rejected`, `Failed`, or `OutcomeUnknown`; every post-handoff outcome preserves the observed Host epoch.                                              |
-| `AuthorizedTerminalStart`  | Server -> Capability Node | A separately fenced and leased authorization, complete target Host terminal identity, and complete pixel geometry for a previously deferred terminal.                                              |
-| `TerminalStartResult`      | Capability Node -> Server | The exact authorization and target Host identity plus `HostAccepted`, `Rejected`, `Failed`, or `OutcomeUnknown`; success is explicitly `Started` or `AlreadyStarted`.                              |
+| Message                    | Direction                 | Closed semantic payload                                                                                                                                                                                                                     |
+| -------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AuthorizedTerminalLaunch` | Server -> Capability Node | Complete operation authorization, optional bounded node-local current directory, the Session's launch preference capture, either `Immediate` with complete pixel geometry or `Deferred`, and an optional bounded explicit launch selection. |
+| `TerminalLaunchResult`     | Capability Node -> Server | The exact authorization plus `HostAccepted`, `Rejected`, `Failed`, or `OutcomeUnknown`; every post-handoff outcome preserves the observed Host epoch.                                                                                       |
+| `AuthorizedTerminalStart`  | Server -> Capability Node | A separately fenced and leased authorization, complete target Host terminal identity, and complete pixel geometry for a previously deferred terminal.                                                                                       |
+| `TerminalStartResult`      | Capability Node -> Server | The exact authorization and target Host identity plus `HostAccepted`, `Rejected`, `Failed`, or `OutcomeUnknown`; success is explicitly `Started` or `AlreadyStarted`.                                                                       |
 
 Every authorization binds the product terminal ID, operation ID, protocol-owned Worker ID,
 nonzero Worker generation, nonzero per-terminal monotonic fence, stateful lease ID and nonzero
@@ -256,9 +256,27 @@ unknown), never mixed. The grid is at most 262,144 cells, and each total pixel e
 imports or re-exports of Terminal Host wire payloads; a future Worker adapter must convert them
 explicitly and preserve validation.
 
-Every launch carries one required u8 kind immediately after the launch mode: 0 uses the Worker default, 1 carries an explicit selection, 2 carries a default-shell selection, 3 carries an explicit plugin selection, and 4 carries an explicit editor selection. Each kind includes the caller environment, including a zero entry count when empty. Kinds are alternatives in the current layout, not payload versions. Missing kinds, unknown kinds, truncation and trailing bytes are rejected.
+Every launch carries one required u8 kind immediately after the launch mode: 0 uses the default program, 1 carries an explicit selection, 3 carries an explicit plugin selection, and 4 carries an explicit editor selection; kind 2 is [retired](#retired-launch-kind-2). Each kind includes the caller environment, including a zero entry count when empty. Kinds are alternatives in the current layout, not payload versions. Missing kinds, unknown kinds, truncation and trailing bytes are rejected.
 
 An explicit selection contains a `u16` executable length, executable bytes, a `u16` argument count and `u16`-length-prefixed argument strings. The executable is a nonempty absolute UTF-8 path without NUL; arguments are NUL-free UTF-8 strings (empty and dash-leading values allowed), at most 128 entries and at most 30,720 UTF-8 bytes across executable and arguments. The selection carries `argv[1..]`; Host synthesizes `argv[0]` from the executable. Kind 0 remains distinct from kind 1 with an empty argument list.
+
+### Launch preference capture
+
+Every launch carries one u8 preference tag between the optional current directory and the launch
+mode. Tag 0 (`Absent`) leaves the System shell, Host colors and Host scrollback to the Capability
+Node; it serves adapters without a Session preference owner. Tag 1 (`Unavailable`) states that the
+Session could not read or bound its confirmed snapshot, and the Worker refuses that creation before
+Host effects. Tag 2 (`Available`) is followed by `u32` scrollback bytes of at most 1,000,000,000,
+a u8 color tag and a u8 program tag. Color tag 0 follows the Host's colors; tags 1 (light scheme)
+and 2 (dark scheme) add `u32` foreground and background values within 24-bit RGB. Program tag 0
+accompanies every explicit kind. Kind 0 requires program tag 1, the System shell followed by a u8
+login flag of 0 or 1, or tag 2, a custom program encoded like an explicit selection. A custom
+program keeps the preference store's literal path and shares the 30 KiB selection budget. Unknown
+tags, out-of-range values and a program tag that disagrees with the launch kind are rejected.
+
+The capture is user intent only. The Capability Node never opens the preference store; it resolves
+device facts such as System shell discovery and `PATH` itself, so the same capture suits a Worker
+on another device.
 
 ## Read-only viewer messages
 
@@ -464,14 +482,14 @@ reject these identity and epoch contradictions, so canonical encoding cannot emi
 constructors. The Worker refinement additionally requires a successful Start observation to retain
 the exact authorized geometry before it constructs a result.
 
-Every launch kind carries a bounded literal `LaunchEnvironment`: a `u16` entry count followed by `u16`-length-prefixed UTF-8 name/value pairs. Kind 0 carries it directly; kinds 1–4 carry it after their selection fields. Empty and nonempty environments use this same layout.
+Every launch kind carries a bounded literal `LaunchEnvironment`: a `u16` entry count followed by `u16`-length-prefixed UTF-8 name/value pairs. Kind 0 carries it directly; kinds 1, 3 and 4 carry it after their selection fields. Empty and nonempty environments use this same layout.
 
 An environment has at most 32 entries and 1,024 combined UTF-8 name/value bytes. Names match
 `[A-Za-z_][A-Za-z0-9_]*`, are at most 128 bytes, and are unique ignoring ASCII case. NUL values,
 `ORCHBEE_*`, `TERM`, `COLORTERM` and `TERM_PROGRAM` are rejected; empty values are preserved.
-Validation precedes admission; Debug output omits values. The combined maximum cwd, selection,
-argument count and environment still fit the 40 KiB frame. There are no Project, Checkout,
-Worktree, Agent or Launch Profile fields. Cohort validation requires matching deployed binaries;
+Validation precedes admission; Debug output omits values. The combined maximum cwd, preference
+capture, selection or default program, argument count and environment still fit the 40 KiB frame.
+There are no Project, Checkout, Worktree, Agent or Launch Profile identity fields. Cohort validation requires matching deployed binaries;
 this extension does not promise mixed-version operation.
 
 ## Carrier and ownership boundaries

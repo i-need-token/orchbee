@@ -255,11 +255,15 @@ codec/schema/process-test evidence, not model claims.
 
 ## Default interactive launch resolution
 
-Production freezes the shared preference scope at startup. Each authorized new launch captures the
-confirmed scrollback, terminal default colors and selected default profile together before Host effects. Explicit programs
-bypass default-shell discovery. A custom profile uses literal argv; System shell uses the resolver
-below with optional POSIX login. Shared storage refusal fails only that operation. Existing cached
-launch facts and deferred Start never reread preferences.
+The Worker never opens the shared preference store or `config.toml`. The Session reads its frozen
+store when it dispatches each creation and sends the confirmed scrollback, terminal default colors
+and, for a default launch, the selected profile's command in the
+[launch preference capture](../../crates/capability-node-protocol/README.md#launch-preference-capture).
+A saved change therefore reaches only later creations; running terminals, cached launch facts and
+deferred Start keep their capture. The Worker resolves device facts itself: explicit programs
+bypass default-shell discovery, a custom profile uses its literal argv, and the System shell uses
+the resolver below with optional POSIX login. An `Unavailable` capture refuses only that creation
+before Host effects. An `Absent` capture keeps the System shell, Host colors and Host scrollback.
 
 The shared `UserTerminalColors` resolver supplies Host-default Light/Dark from explicit application
 appearance, while System keeps the existing Host baseline. Explicit terminal Light/Dark/Custom win.
@@ -913,10 +917,6 @@ the replacement. Host refusal after detach leaves the old grant revoked. Missing
 ends the operation with a broker error and never attempts new Attach. Windows-capable local-pipe
 tests exercise real protocol exchanges, not a packaged Worker/Host process acceptance. The
 [Server transfer model](../orchbee-server/docs/terminal-controller-takeover.md) owns the joint contract.
-
-## Configured Windows default shell
-
-Legacy Windows shell configuration seeds an unclaimed shared launch-profile leaf. Production new-terminal policy comes from the shared device snapshot, including Desktop edits; later TOML reloads cannot override a claimed profile. Existing request-carried Windows shell policy remains a compatibility input for isolated adapters without a shared store. Explicit programs and cached replay retain their existing precedence. See the [shared inventory](../../crates/workbench-protocol/docs/user-preferences.md).
 
 ## Windows plugin process ownership
 

@@ -382,6 +382,7 @@ fn encode_authorized_terminal_launch(value: &AuthorizedTerminalLaunch) -> Vec<u8
     payload.push(AUTHORIZED_TERMINAL_LAUNCH_KIND);
     encode_authorization(&mut payload, value.authorization());
     encode_cwd(&mut payload, value.cwd());
+    encode_launch_preferences(&mut payload, value.preferences());
     encode_launch_mode(&mut payload, value.mode());
     if let Some(source) = value.editor_source() {
         payload.push(4);
@@ -424,6 +425,7 @@ fn decode_authorized_terminal_launch(
     let mut reader = PayloadReader::after_kind(payload, AUTHORIZED_TERMINAL_LAUNCH_KIND)?;
     let authorization = decode_authorization(&mut reader)?;
     let cwd = decode_cwd(&mut reader)?;
+    let preferences = decode_launch_preferences(&mut reader)?;
     let mode = decode_launch_mode(&mut reader)?;
     let mut plugin_environment = None;
     let mut editor_source = None;
@@ -465,7 +467,77 @@ fn decode_authorized_terminal_launch(
     AuthorizedTerminalLaunch::new(authorization, cwd, mode, launch)
         .with_environment(environment)
         .with_plugin_environment(plugin_environment)?
-        .with_editor_source(editor_source)
+        .with_editor_source(editor_source)?
+        .with_preferences(preferences)
+}
+
+fn encode_launch_preferences(payload: &mut Vec<u8>, preferences: &crate::LaunchPreferences) {
+    let available = match preferences {
+        crate::LaunchPreferences::Absent => return payload.push(0),
+        crate::LaunchPreferences::Unavailable => return payload.push(1),
+        crate::LaunchPreferences::Available(available) => available,
+    };
+    payload.push(2);
+    payload.extend_from_slice(&available.scrollback_bytes().to_be_bytes());
+    match available.colors() {
+        None => payload.push(0),
+        Some(colors) => {
+            payload.push(if colors.dark { 2 } else { 1 });
+            payload.extend_from_slice(&colors.foreground.to_be_bytes());
+            payload.extend_from_slice(&colors.background.to_be_bytes());
+        }
+    }
+    match available.program() {
+        None => payload.push(0),
+        Some(crate::DefaultLaunchProgram::SystemShell { login }) => {
+            payload.push(1);
+            payload.push(u8::from(*login));
+        }
+        Some(crate::DefaultLaunchProgram::Custom(program)) => {
+            payload.push(2);
+            encode_program(payload, program.executable(), program.arguments());
+        }
+    }
+}
+
+fn decode_launch_preferences(
+    reader: &mut PayloadReader<'_>,
+) -> Result<crate::LaunchPreferences, ProtocolError> {
+    match reader.read_u8()? {
+        0 => return Ok(crate::LaunchPreferences::Absent),
+        1 => return Ok(crate::LaunchPreferences::Unavailable),
+        2 => {}
+        _ => return Err(ProtocolError::InvalidPayload),
+    }
+    let scrollback_bytes = reader.read_u32()?;
+    let colors = match reader.read_u8()? {
+        0 => None,
+        scheme @ (1 | 2) => Some(crate::TerminalLaunchColors {
+            foreground: reader.read_u32()?,
+            background: reader.read_u32()?,
+            dark: scheme == 2,
+        }),
+        _ => return Err(ProtocolError::InvalidPayload),
+    };
+    let program = match reader.read_u8()? {
+        0 => None,
+        1 => Some(crate::DefaultLaunchProgram::SystemShell {
+            login: match reader.read_u8()? {
+                0 => false,
+                1 => true,
+                _ => return Err(ProtocolError::InvalidPayload),
+            },
+        }),
+        2 => {
+            let (executable, arguments) = decode_program(reader)?;
+            Some(crate::DefaultLaunchProgram::Custom(
+                crate::DefaultCustomProgram::new(executable, arguments)?,
+            ))
+        }
+        _ => return Err(ProtocolError::InvalidPayload),
+    };
+    crate::TerminalLaunchPreferences::new(scrollback_bytes, colors, program)
+        .map(crate::LaunchPreferences::Available)
 }
 
 fn encode_terminal_launch_result(value: TerminalLaunchResult) -> Vec<u8> {
@@ -678,7 +750,11 @@ fn decode_launch_mode(reader: &mut PayloadReader<'_>) -> Result<TerminalLaunchMo
 }
 
 fn encode_launch_selection(payload: &mut Vec<u8>, selection: &crate::LaunchSelection) {
-    let executable = selection.executable().as_bytes();
+    encode_program(payload, selection.executable(), selection.arguments());
+}
+
+fn encode_program(payload: &mut Vec<u8>, executable: &str, arguments: &[String]) {
+    let executable = executable.as_bytes();
     payload.extend_from_slice(
         &u16::try_from(executable.len())
             .expect("bounded launch selection")
@@ -686,11 +762,11 @@ fn encode_launch_selection(payload: &mut Vec<u8>, selection: &crate::LaunchSelec
     );
     payload.extend_from_slice(executable);
     payload.extend_from_slice(
-        &u16::try_from(selection.arguments().len())
+        &u16::try_from(arguments.len())
             .expect("bounded launch selection")
             .to_be_bytes(),
     );
-    for argument in selection.arguments() {
+    for argument in arguments {
         let bytes = argument.as_bytes();
         payload.extend_from_slice(
             &u16::try_from(bytes.len())
@@ -711,6 +787,19 @@ fn decode_launch_selection_body(
     reader: &mut PayloadReader<'_>,
     executable_length: usize,
 ) -> Result<crate::LaunchSelection, ProtocolError> {
+    let (executable, arguments) = decode_program_body(reader, executable_length)?;
+    crate::LaunchSelection::new(executable, arguments)
+}
+
+fn decode_program(reader: &mut PayloadReader<'_>) -> Result<(String, Vec<String>), ProtocolError> {
+    let executable_length = usize::from(reader.read_u16()?);
+    decode_program_body(reader, executable_length)
+}
+
+fn decode_program_body(
+    reader: &mut PayloadReader<'_>,
+    executable_length: usize,
+) -> Result<(String, Vec<String>), ProtocolError> {
     let executable = String::from_utf8(reader.read_slice(executable_length)?.to_vec())
         .map_err(|_error| ProtocolError::InvalidPayload)?;
     let argument_count = usize::from(reader.read_u16()?);
@@ -722,7 +811,7 @@ fn decode_launch_selection_body(
                 .map_err(|_error| ProtocolError::InvalidPayload)?,
         );
     }
-    crate::LaunchSelection::new(executable, arguments)
+    Ok((executable, arguments))
 }
 
 fn encode_launch_environment(payload: &mut Vec<u8>, environment: &crate::LaunchEnvironment) {

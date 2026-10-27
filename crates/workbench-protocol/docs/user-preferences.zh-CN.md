@@ -43,6 +43,8 @@ Rust 配置集合校验还通过准入所用的同一套检查，投影可选的
 Desktop 与 Worker 使用相同的原生自动 Shell 解析器。自定义启动不依赖自动
 Shell 发现。新的默认启动会重新发现系统 Shell；失败会拒绝此次创建，
 不会编造替代可执行文件或重写配置集合。已有终端保留原启动信息。
+原生 Session 在分发每次创建时读取其存储，并向 Worker 发送生效的滚动历史、默认色与所选配置命令。
+Worker 从不打开该存储，因此 Session 冻结的配置身份是唯一作用域，保存的修改只影响之后的创建。
 
 ## 作用域与持久化
 
@@ -97,4 +99,4 @@ Schema 语料检查 Rust/TypeScript 词汇、边界和非法输入。本地运�
 检查两个写入者、重置、不确定回执和发布。可见同步及宿主特有
 效果仍要求真实 GUI/TUI 验收；交叉编译不能替代运行时验收。
 
-<!-- documentation-pairing: english-sha256=febc120776a833dc4a8bade9fa0f12ece9d705bb4d24e1b3fcdac212892f1b56 zh-cn-sha256=892e270f92fa4b784f3d97406eb827bd6647a934e05f85996a3921d110e1a77d -->
+<!-- documentation-pairing: english-sha256=a02376fe6f20fce55d23ce77dc242c7f48ee4db605433080fd9366282a499afe zh-cn-sha256=c7cf6a4fb3ad7bea11724f94ef88395162d3f4028a1dd036e1e49632cc608e0d -->

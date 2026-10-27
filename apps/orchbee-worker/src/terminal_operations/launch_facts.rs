@@ -12,7 +12,9 @@ mod powershell;
 
 #[cfg(unix)]
 use nix::unistd::{Uid, User};
-use orchbee_capability_node_protocol::AbsoluteCwd;
+use orchbee_capability_node_protocol::{
+    AbsoluteCwd, DefaultLaunchProgram, TerminalLaunchPreferences,
+};
 use orchbee_terminal_protocol::{
     ColorScheme, CreationId, CursorShape, DeviceAttributes, LaunchEnvironmentEntry, TerminalProfile,
 };
@@ -28,7 +30,7 @@ pub(super) fn resolve(
     selection: Option<&orchbee_capability_node_protocol::LaunchSelection>,
     environment: &orchbee_capability_node_protocol::LaunchEnvironment,
     plugin_environment: Option<&orchbee_capability_node_protocol::PluginTerminalEnvironment>,
-    defaults: Option<&orchbee_local_runtime::UserTerminalLaunchDefaults>,
+    preferences: Option<&TerminalLaunchPreferences>,
     host_colors: orchbee_local_runtime::UserTerminalColors,
     // Windows editor launches keep their literal argument list.
     #[cfg(windows)] editor_launch: bool,
@@ -49,13 +51,24 @@ pub(super) fn resolve(
             selection.executable().to_owned(),
             selection.arguments().to_vec(),
         ),
-        None => {
-            let launch = match defaults.and_then(|defaults| defaults.launch.as_ref()) {
-                Some(launch) => launch.clone(),
-                None => resolve_default_interactive_launch()?,
-            };
-            (launch.executable, launch.arguments)
-        }
+        // The Session supplies only the selected profile; this device resolves its System shell.
+        None => match preferences.and_then(TerminalLaunchPreferences::program) {
+            Some(DefaultLaunchProgram::Custom(program)) => (
+                program.executable().to_owned(),
+                program.arguments().to_vec(),
+            ),
+            Some(&DefaultLaunchProgram::SystemShell { login }) => {
+                let mut launch = resolve_default_interactive_launch()?;
+                if login {
+                    launch.arguments.push("-l".into());
+                }
+                (launch.executable, launch.arguments)
+            }
+            None => {
+                let launch = resolve_default_interactive_launch()?;
+                (launch.executable, launch.arguments)
+            }
+        },
     };
     #[cfg(windows)]
     let arguments = if editor_launch {
@@ -81,13 +94,19 @@ pub(super) fn resolve(
         launch_environment(environment, plugin_environment),
         cwd,
         terminal_profile(
-            defaults
-                .and_then(|defaults| defaults.colors)
-                .unwrap_or(host_colors),
+            preferences
+                .and_then(TerminalLaunchPreferences::colors)
+                .map_or(host_colors, |colors| {
+                    orchbee_local_runtime::UserTerminalColors::with_scheme(
+                        colors.foreground,
+                        colors.background,
+                        colors.dark,
+                    )
+                }),
         ),
-        defaults.map(
-            |defaults| orchbee_terminal_protocol::TerminalConfiguration {
-                scrollback_bytes: defaults.scrollback_bytes,
+        preferences.map(
+            |preferences| orchbee_terminal_protocol::TerminalConfiguration {
+                scrollback_bytes: preferences.scrollback_bytes(),
             },
         ),
     ))

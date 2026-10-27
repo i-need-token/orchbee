@@ -254,7 +254,7 @@ impl LocalTerminalService {
             PreparedOperation::Dispatch(pending) => pending,
         };
         let completion = handle.map_or(Completion::Unavailable, |handle| {
-            submit(&handle, pending.command())
+            self.submit(&handle, pending.command())
         });
         // Retain registry ownership through commit, so a replacement cannot race this snapshot.
         let Ok(workers) = self.workers.lock() else {
@@ -320,17 +320,26 @@ fn create_reference() -> Option<RequestId> {
 #[cfg(test)]
 mod tests;
 
-fn submit(handle: &WorkerRequestHandle, message: &CapabilityNodeMessage) -> Completion {
-    let request = match message {
-        CapabilityNodeMessage::AuthorizedTerminalLaunch(request) => {
-            WorkerOperationRequest::Launch(request.clone())
-        }
-        CapabilityNodeMessage::AuthorizedTerminalStart(request) => {
-            WorkerOperationRequest::Start(*request)
-        }
-        // This coordinator path handles only authorized Create/Start operations; other OBCN families use their dedicated paths.
-        _ => return Completion::Unavailable,
-    };
+impl LocalTerminalService {
+    fn submit(&self, handle: &WorkerRequestHandle, message: &CapabilityNodeMessage) -> Completion {
+        let request = match message {
+            CapabilityNodeMessage::AuthorizedTerminalLaunch(request) => {
+                let Some(request) = self.with_launch_preferences(request) else {
+                    return Completion::Unavailable;
+                };
+                WorkerOperationRequest::Launch(request)
+            }
+            CapabilityNodeMessage::AuthorizedTerminalStart(request) => {
+                WorkerOperationRequest::Start(*request)
+            }
+            // This coordinator path handles only authorized Create/Start operations; other OBCN families use their dedicated paths.
+            _ => return Completion::Unavailable,
+        };
+        submit_request(handle, request)
+    }
+}
+
+fn submit_request(handle: &WorkerRequestHandle, request: WorkerOperationRequest) -> Completion {
     match handle.request(request) {
         #[cfg(any(windows, test))]
         Ok(WorkerOperationResult::Handoff(_)) => Completion::Unknown,

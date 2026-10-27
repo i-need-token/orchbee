@@ -198,12 +198,12 @@ Worker 授权内核只接纳精确匹配的当前能力；其他版本返回 `Un
 构造与解码会拒绝回显授权未使用当前能力的 `CapacityExceeded`。
 配套原生 cohort 遵循仓库的[发布前版本规则](../../docs/zh-CN/ARCHITECTURE.md#数据边界)。
 
-| Message                    | 方向                      | 闭合 semantic payload                                                                                                                                            |
-| -------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AuthorizedTerminalLaunch` | Server -> Capability Node | 完整 operation authorization、可选的有界 node-local current directory、带完整 pixel geometry 的 `Immediate` 或 `Deferred`，以及可选的有界显式 launch selection。 |
-| `TerminalLaunchResult`     | Capability Node -> Server | 确切 authorization，加 `HostAccepted`、`Rejected`、`Failed` 或 `OutcomeUnknown`；每个 post-handoff outcome 都保留 observed Host epoch。                          |
-| `AuthorizedTerminalStart`  | Server -> Capability Node | 单独 fenced 且 leased 的 authorization、完整 target Host terminal identity，以及 previously deferred terminal 的完整 pixel geometry。                            |
-| `TerminalStartResult`      | Capability Node -> Server | 确切 authorization 与 target Host identity，加 `HostAccepted`、`Rejected`、`Failed` 或 `OutcomeUnknown`；success 显式区分 `Started` 与 `AlreadyStarted`。        |
+| Message                    | 方向                      | 闭合 semantic payload                                                                                                                                                                    |
+| -------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AuthorizedTerminalLaunch` | Server -> Capability Node | 完整 operation authorization、可选的有界 node-local current directory、Session 的启动偏好快照、带完整 pixel geometry 的 `Immediate` 或 `Deferred`，以及可选的有界显式 launch selection。 |
+| `TerminalLaunchResult`     | Capability Node -> Server | 确切 authorization，加 `HostAccepted`、`Rejected`、`Failed` 或 `OutcomeUnknown`；每个 post-handoff outcome 都保留 observed Host epoch。                                                  |
+| `AuthorizedTerminalStart`  | Server -> Capability Node | 单独 fenced 且 leased 的 authorization、完整 target Host terminal identity，以及 previously deferred terminal 的完整 pixel geometry。                                                    |
+| `TerminalStartResult`      | Capability Node -> Server | 确切 authorization 与 target Host identity，加 `HostAccepted`、`Rejected`、`Failed` 或 `OutcomeUnknown`；success 显式区分 `Started` 与 `AlreadyStarted`。                                |
 
 每条 authorization 都绑定 product terminal ID、operation ID、protocol-owned Worker ID、nonzero
 Worker generation、nonzero per-terminal monotonic fence、stateful lease ID 与 nonzero absolute
@@ -227,9 +227,23 @@ authority 正确签发为前提，并不声称能够遏制违反 invariant 的 i
 是 Capability Node refinement，不 import 或 re-export Terminal Host wire payload；未来 Worker
 adapter 必须显式转换并保留 validation。
 
-每次启动在 launch mode 后携带一个必填 u8 种类：0 使用 Worker 默认值，1 携带显式启动选择，2 携带默认 Shell 选择，3 携带显式插件选择，4 携带显式编辑器选择。每个种类都包含调用者环境，空环境也写入零条目数。种类是当前布局中的互斥选项，不是载荷版本。缺失或未知种类、截断及尾随字节均被拒绝。
+每次启动在 launch mode 后携带一个必填 u8 种类：0 使用默认程序，1 携带显式启动选择，3 携带显式插件选择，4 携带显式编辑器选择；种类 2 [已退役](#已退役的启动种类-2)。每个种类都包含调用者环境，空环境也写入零条目数。种类是当前布局中的互斥选项，不是载荷版本。缺失或未知种类、截断及尾随字节均被拒绝。
 
 显式启动选择包含 `u16` 程序长度、程序字节、`u16` 参数数量及带 `u16` 长度前缀的参数字符串。程序是无 NUL 的非空绝对 UTF-8 路径；参数是无 NUL 的 UTF-8 字符串（允许空值及 dash 前导值），至多 128 项，程序和参数合计至多 30,720 UTF-8 字节。选择携带 `argv[1..]`；Host 从程序路径合成 `argv[0]`。种类 0 与参数列表为空的种类 1 仍有区别。
+
+### 启动偏好快照
+
+每次启动在可选当前目录与 launch mode 之间携带一个 u8 偏好标签。标签 0（`Absent`）把 System
+shell、Host 颜色与 Host 回滚大小交给 Capability Node 决定，用于没有 Session 偏好所有者的适配器。
+标签 1（`Unavailable`）表示 Session 无法读取或约束其已确认快照，Worker 在任何 Host 效果前拒绝该次
+创建。标签 2（`Available`）后接至多 1,000,000,000 的 `u32` 回滚字节数、u8 颜色标签与 u8 程序
+标签。颜色标签 0 跟随 Host 颜色；标签 1（浅色方案）与 2（深色方案）再附 24 位 RGB 范围内的 `u32`
+前景与背景值。所有显式种类都使用程序标签 0。种类 0 要求程序标签 1，即 System shell 并后接取值 0
+或 1 的 u8 登录标志；或标签 2，即按显式选择布局编码的自定义程序。自定义程序保留偏好存储中的逐字
+路径，并与显式选择共享 30 KiB 预算。未知标签、越界值以及与启动种类不一致的程序标签均被拒绝。
+
+该快照只表达用户意图。Capability Node 从不打开偏好存储；System shell 发现与 `PATH` 等设备事实由它
+自行解析，因此同一快照也适用于另一台设备上的 Worker。
 
 ## 只读查看附件消息
 
@@ -419,13 +433,13 @@ identity 完全相同。其 `HostRejected` 与 `HostReportedFailure` epoch 必�
 constructor 发出矛盾的 canonical encoding。Worker refinement 还要求 successful Start observation
 在构造 result 前保留确切 authorized geometry。
 
-每个启动种类都携带有界、逐字的 `LaunchEnvironment`：`u16` 条目数，随后是带 `u16` 长度前缀的 UTF-8 名称和值。种类 0 直接携带环境；种类 1–4 将其放在各自选择字段之后。空环境和非空环境使用同一布局。
+每个启动种类都携带有界、逐字的 `LaunchEnvironment`：`u16` 条目数，随后是带 `u16` 长度前缀的 UTF-8 名称和值。种类 0 直接携带环境；种类 1、3、4 将其放在各自选择字段之后。空环境和非空环境使用同一布局。
 
 环境至多 32 项，名称和值合计不超过 1,024 UTF-8 字节。名称匹配
 `[A-Za-z_][A-Za-z0-9_]*`，至多 128 字节，忽略 ASCII 大小写后必须唯一。拒绝含 NUL 的值、
 `ORCHBEE_*`、`TERM`、`COLORTERM` 和 `TERM_PROGRAM`；空值逐字保留。
-准入前完成校验；Debug 不输出值。cwd、selection、参数数量与环境均取最大值时仍满足
-40 KiB 帧上限。不含 Project、Checkout、Worktree、Agent 或 Launch Profile 字段。
+准入前完成校验；Debug 不输出值。cwd、偏好快照、selection 或默认程序、参数数量与环境均取最大值
+时仍满足 40 KiB 帧上限。不含 Project、Checkout、Worktree、Agent 或 Launch Profile 身份字段。
 Cohort 校验要求部署匹配的二进制；本扩展不承诺混合版本运行。
 
 ## Carrier 与 ownership 边界
@@ -683,4 +697,4 @@ Worker 将缺失的 Host 元数据映射为 unknown；保留的启动、终端�
 空闲证据。独立字节 golden、Worker 回执测试及 Server 条件关闭见证覆盖这些细化。配套原生
 cohort 一同升级／回滚；不支持混用版本绕过安全门禁。
 
-<!-- documentation-pairing: english-sha256=8ee16c07aed0c0d444cf12a3d5096b21cccf26ef1c869f8695fa3ef9af42ba8d zh-cn-sha256=f340113ae363c7a9ea0df6b0cf9d43252545c26c79d4c40403ca812715d35ad3 -->
+<!-- documentation-pairing: english-sha256=c88bc6c77194af8f256b848022df3d654954e2fce47c3edd3b7a43afb527084a zh-cn-sha256=44c7c6c14e2b07295e1f5e4f3f28a8d824a72cf4f6eaa4b374b07e948d52ee5a -->

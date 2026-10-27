@@ -3,7 +3,7 @@
 //! failed Git mutation or overwrite its physical outcome.
 
 use super::{Driver, absolute};
-use crate::local_terminal_service::{create_reference, lease_expiry, placement, submit};
+use crate::local_terminal_service::{create_reference, lease_expiry, placement};
 use orchbee_capability_node_protocol::WorktreeMutation;
 use orchbee_workbench_protocol::{
     WorkbenchRequestId, WorktreeOperationFailure as Failure, WorktreeOperationPhase,
@@ -121,7 +121,7 @@ impl Driver<'_> {
                 )?;
                 (pending, handle)
             };
-            let completion = submit(&handle, pending.command());
+            let completion = self.service.submit(&handle, pending.command());
             let workers = self
                 .service
                 .workers

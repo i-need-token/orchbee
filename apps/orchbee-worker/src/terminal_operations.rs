@@ -12,7 +12,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use orchbee_capability_node_protocol::{CapabilityNodeMessage, HostEpoch};
+use orchbee_capability_node_protocol::{CapabilityNodeMessage, HostEpoch, LaunchPreferences};
 use orchbee_local_worker_protocol::WorkerId;
 use orchbee_terminal_protocol::CorrelationId;
 
@@ -51,7 +51,6 @@ pub(crate) fn run(
     worker_id: WorkerId,
     generation: NonZeroU64,
     drain: &Rc<RefCell<AgentDrain>>,
-    preferences: Option<&orchbee_local_runtime::UserPreferencesStore>,
 ) -> Result<(), Box<dyn Error>> {
     server.set_nonblocking(true)?;
     host.stream().set_nonblocking(true)?;
@@ -70,7 +69,6 @@ pub(crate) fn run(
         generation,
         kernel,
         AdmittedAux {
-            preferences,
             drain,
             worktree_slot: &worktree_slot,
             #[cfg(windows)]
@@ -93,7 +91,6 @@ pub(crate) fn run(
 /// drain, the WorktreeJob discovery slot, and the managed session runtime
 /// directory (`None` for unmanaged launches).
 pub(crate) struct AdmittedAux<'a> {
-    pub(crate) preferences: Option<&'a orchbee_local_runtime::UserPreferencesStore>,
     pub(crate) drain: &'a Rc<RefCell<AgentDrain>>,
     pub(crate) worktree_slot: &'a crate::worktree_discovery_job::WorktreeDiscoverySlot,
     #[cfg(windows)]
@@ -449,22 +446,19 @@ fn run_admitted_with_handoff(
         };
         let observed_colors = host.host_colors.borrow().latest();
         let disposition = match admission {
-            HostOperationAdmission::Dispatch(dispatch) => match prepare_or_fail(
-                &mut kernel,
-                &dispatch,
-                aux.session_runtime,
-                aux.preferences,
-                observed_colors,
-            )? {
-                Some(prepared) => prepared.execute(
-                    &mut kernel,
-                    host,
-                    &server,
-                    unix_milliseconds,
-                    HOST_OPERATION_BUDGET,
-                )?,
-                None => HostOperationDisposition::ResultReady,
-            },
+            HostOperationAdmission::Dispatch(dispatch) => {
+                match prepare_or_fail(&mut kernel, &dispatch, aux.session_runtime, observed_colors)?
+                {
+                    Some(prepared) => prepared.execute(
+                        &mut kernel,
+                        host,
+                        &server,
+                        unix_milliseconds,
+                        HOST_OPERATION_BUDGET,
+                    )?,
+                    None => HostOperationDisposition::ResultReady,
+                }
+            }
             HostOperationAdmission::ResultReady => HostOperationDisposition::ResultReady,
             HostOperationAdmission::SlotOccupied => {
                 return Err(io::Error::other("Worker operation slot is still occupied").into());
@@ -543,10 +537,9 @@ fn prepare_or_fail(
     kernel: &mut AuthorizedHostOperationKernel,
     dispatch: &AuthorizedHostDispatch,
     session_runtime: Option<&std::path::Path>,
-    preferences: Option<&orchbee_local_runtime::UserPreferencesStore>,
     observed_colors: Option<orchbee_local_runtime::UserTerminalColors>,
 ) -> Result<Option<PreparedHostOperation>, Box<dyn Error>> {
-    match prepare(dispatch, session_runtime, preferences, observed_colors) {
+    match prepare(dispatch, session_runtime, observed_colors) {
         Ok(prepared) => Ok(Some(prepared)),
         Err(_) => {
             kernel.record_pre_handoff_failure(dispatch, unix_milliseconds())?;
@@ -558,26 +551,24 @@ fn prepare_or_fail(
 fn prepare(
     dispatch: &AuthorizedHostDispatch,
     session_runtime: Option<&std::path::Path>,
-    preferences: Option<&orchbee_local_runtime::UserPreferencesStore>,
     observed_colors: Option<orchbee_local_runtime::UserTerminalColors>,
 ) -> Result<PreparedHostOperation, Box<dyn Error>> {
     let correlation = CorrelationId::from_bytes(crate::worker_identity::fresh_identity()?)?;
     match dispatch.operation() {
         AuthorizedHostOperation::Launch(launch) => {
-            // Admission has already retired duplicates. Capture one snapshot for this
-            // creation, before Host startup or any effect, and never replay on failure.
-            let defaults = preferences
-                .map(|store| {
-                    store
-                        .terminal_launch_defaults(launch.launch().is_none())
-                        .map_err(|_| {
-                            io::Error::new(
-                                io::ErrorKind::InvalidData,
-                                "Shared terminal launch preferences are unavailable",
-                            )
-                        })
-                })
-                .transpose()?;
+            // Admission has already retired duplicates. The Session captured this creation's
+            // preferences before dispatch; an unavailable capture fails before any effect.
+            let preferences = match launch.preferences() {
+                LaunchPreferences::Absent => None,
+                LaunchPreferences::Unavailable => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "Shared terminal launch preferences are unavailable",
+                    )
+                    .into());
+                }
+                LaunchPreferences::Available(preferences) => Some(preferences),
+            };
             #[cfg(not(windows))]
             if launch.editor_source().is_some() {
                 return Err(io::Error::new(
@@ -587,9 +578,7 @@ fn prepare(
                 .into());
             }
             // Host display mode follows the most recent Client's outer terminal, then the OS.
-            let follows_host = defaults
-                .as_ref()
-                .is_none_or(|defaults| defaults.colors.is_none());
+            let follows_host = preferences.is_none_or(|preferences| preferences.colors().is_none());
             let host_colors = if follows_host {
                 observed_colors.unwrap_or_else(system_terminal_colors)
             } else {
@@ -602,7 +591,7 @@ fn prepare(
                     launch.launch(),
                     launch.environment(),
                     launch.plugin_environment(),
-                    defaults.as_ref(),
+                    preferences,
                     host_colors,
                     #[cfg(windows)]
                     launch.editor_source().is_some(),
