@@ -364,6 +364,7 @@ impl WorkbenchPanelRelocateAdmission<'_> {
                 WorkbenchRejectionReason::ResourceLimit,
             ));
         }
+        candidate.revision = revision;
         let encoded = serialize_document(&WorkbenchProtocolDocument::Snapshot(candidate)).map_err(
             |error| match error {
                 ContractError::EncodedValueTooLarge { .. } => {
