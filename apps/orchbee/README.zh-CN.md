@@ -625,9 +625,10 @@ Authored help 与 diagnostic 同时提供 `en-US` 和 `zh-CN`。Locale selection
 `LC_ALL`、`LC_MESSAGES` 与 `LANG`；以 `zh` 开头的 language prefix 选择 `zh-CN`，其他 value
 均 fallback 到 canonical `en-US`。Locale data 只影响 presentation，绝不会持久化或用作 authority。
 
-`src/localization.rs` 负责语言选择和显式本地化边界；功能文案位于
-`src/localization/<feature>.rs`。CLI 文案位于 `src/localization/cli/<feature>.rs`，
-`src/localization/cli.rs` 只声明模块和共享类型。新增文案应归入本地化目录树内对应的功能模块；
+`src/localization.rs` 负责语言选择，以及仅接收普通展示参数的共享文案；功能文案位于
+`src/localization/<feature>.rs`。各功能先选择状态、菜单、快捷键和设置的描述，再调用此下层；
+下层不读取 Workbench 视图、设置草稿、CLI 命令或输入分发。CLI 文案及命令／结果格式化位于
+`src/cli_text/<feature>.rs`，`CliText` 保留已选择的 `Locale`。新增文案归入其所属的文案模块；
 领域模块继续返回类型化结果。
 
 只有 help/version/usage 一次性路径仅依赖标准库参数、环境和流。Windows、Linux 与 macOS 的 bare invocation 组合共享 runtime、私有 Client transport 与 TUI；platform adapter 负责 console 与 transport effect。原生应用拥有当前开发中的 CLI/TUI 界面。
@@ -933,4 +934,4 @@ Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin acti
 
 Windows 首次运行引导在终端可继续输入时提供 Workspace 创建、Agent 选择、操作与帮助入口，关闭状态按原生配置档案保存。参见[原生首次运行引导](docs/native-onboarding.zh-CN.md)。
 
-<!-- documentation-pairing: english-sha256=d23215cf108e10c25e239db8e70f3767751513f111d3d42ce83753c0fb9b8de1 zh-cn-sha256=12ebab70a01b932671c108026d7366b7f1a792f0ca8feca8b971c232eb9c7f50 -->
+<!-- documentation-pairing: english-sha256=7796f8abc8ae5fab162afa11c5722bae1d0eaa205685a82cc628f4e853b2536f zh-cn-sha256=bbb5d7c089c4861a919c48c0e4ffce0d7152a67590d6a620a709d4295d936d4c -->
