@@ -3,9 +3,10 @@
 //! unpresented confirmation.
 
 use super::{ModalPresentation, WorkbenchClientUi, WorkbenchClientView};
+#[cfg(test)]
+pub(crate) use crate::workbench_client::state::workspace_close::WorkspaceCloseStatus;
 pub(crate) use crate::workbench_client::state::workspace_close::{
-    WorkspaceCloseConfirmationView, WorkspaceCloseStatus, WorkspaceCloseStatusView,
-    WorkspaceCloseToken,
+    WorkspaceCloseConfirmationView, WorkspaceCloseStatusView, WorkspaceCloseToken,
 };
 use crate::{
     client_view::{ClientActionDisposition, ClientKey},
