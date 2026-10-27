@@ -233,7 +233,7 @@ fn empty_workspace_close_publishes_without_lifecycle_and_preserves_project_direc
     };
     let workspace_id = workspace_id.clone();
     let before = authority.projection.snapshot().clone();
-    let context_id = before.navigation.workspaces[1].terminal_context_id.clone();
+    let context_id = before.navigation.workspaces[2].terminal_context_id.clone();
 
     let primary = primary_workspace(&mut authority, &grant, close.clone());
     assert!(primary.members().is_empty());
@@ -356,7 +356,7 @@ fn populated_workspace_close_lifecycles_every_member_then_removes_scope() {
         panic!()
     };
     let workspace_id = workspace_id.clone();
-    let context_id = authority.projection.snapshot().navigation.workspaces[1]
+    let context_id = authority.projection.snapshot().navigation.workspaces[2]
         .terminal_context_id
         .clone();
     let accepted = accept_workspace(&mut authority, &grant, close.clone(), now);
@@ -396,9 +396,9 @@ fn populated_workspace_close_lifecycles_every_member_then_removes_scope() {
             .iter()
             .any(|workspace| workspace.workspace_id == workspace_id)
     );
-    // Project, Directory, sibling Workspace, and initial_workspace Context are untouched.
+    // Projects, Directories, the sibling Workspace, and the fixture Context are untouched.
     assert_eq!(snapshot.navigation.projects.len(), 2);
-    assert_eq!(snapshot.navigation.directories.len(), 2);
+    assert_eq!(snapshot.navigation.directories.len(), 3);
     assert_eq!(snapshot.terminal_contexts.len(), 2);
     assert!(matches!(
         workspace_status(&authority, &grant, &workspace_id),
@@ -416,7 +416,7 @@ fn scope_join_replays_acceptance_member_conflict_is_busy_and_disjoint_scope_proc
     let now = Instant::now();
     let close = workspace_close_command(&authority, 10000, 1, 0);
     let accepted = accept_workspace(&mut authority, &grant, close.clone(), now);
-    let context_id = authority.projection.snapshot().navigation.workspaces[1]
+    let context_id = authority.projection.snapshot().navigation.workspaces[2]
         .terminal_context_id
         .clone();
 
@@ -477,7 +477,7 @@ fn scope_join_replays_acceptance_member_conflict_is_busy_and_disjoint_scope_proc
 fn member_close_first_then_workspace_close_is_busy() {
     let (mut authority, grant) = workspace_fixture(1);
     let now = Instant::now();
-    let context_id = authority.projection.snapshot().navigation.workspaces[1]
+    let context_id = authority.projection.snapshot().navigation.workspaces[2]
         .terminal_context_id
         .clone();
     let member = authority
@@ -517,7 +517,7 @@ fn open_context_close_fences_create_move_split_and_member_close() {
     let (mut authority, grant) = workspace_fixture(2);
     let now = Instant::now();
     let close = workspace_close_command(&authority, 10000, 1, 0);
-    let context_id = authority.projection.snapshot().navigation.workspaces[1]
+    let context_id = authority.projection.snapshot().navigation.workspaces[2]
         .terminal_context_id
         .clone();
     accept_workspace(&mut authority, &grant, close.clone(), now);
@@ -637,7 +637,7 @@ fn open_context_close_fences_create_move_split_and_member_close() {
     assert_eq!(authority.ledger.len(), retained);
 
     // The sibling context is untouched by the fence.
-    let other_context = authority.projection.snapshot().navigation.workspaces[0]
+    let other_context = authority.projection.snapshot().navigation.workspaces[1]
         .terminal_context_id
         .clone();
     let other_create = command(
@@ -663,7 +663,7 @@ fn open_context_close_fences_create_move_split_and_member_close() {
 #[test]
 fn pending_create_covers_context_and_blocks_workspace_close_admission() {
     let (mut authority, grant) = workspace_fixture(1);
-    let context_id = authority.projection.snapshot().navigation.workspaces[1]
+    let context_id = authority.projection.snapshot().navigation.workspaces[2]
         .terminal_context_id
         .clone();
     let create = command(

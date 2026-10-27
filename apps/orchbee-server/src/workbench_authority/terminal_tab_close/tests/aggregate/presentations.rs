@@ -471,8 +471,9 @@ fn panel_tab_and_workspace_close_capture_all_children_and_preserve_survivors() {
                 terminal_context_id: context_id.clone(),
                 tab_id: first.tab_id().clone(),
             },
+            // The fixture Workspace precedes the scenario's first project Workspace.
             _ => WorkbenchAction::WorkspaceClose {
-                workspace_id: before.navigation.workspaces[0].workspace_id.clone(),
+                workspace_id: before.navigation.workspaces[1].workspace_id.clone(),
             },
         };
         let close = command(&authority, 50000, action);
@@ -504,7 +505,7 @@ fn panel_tab_and_workspace_close_capture_all_children_and_preserve_survivors() {
                 expected.terminal_contexts[0].tabs.remove(0);
             }
             _ => {
-                let removed = expected.navigation.workspaces.remove(0);
+                let removed = expected.navigation.workspaces.remove(1);
                 expected
                     .navigation
                     .workspace_order

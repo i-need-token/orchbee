@@ -6,6 +6,8 @@ use orchbee_workbench_protocol::{
     WorkbenchProjectId, WorkbenchWorkspaceId, Workspace,
 };
 
+/// Two project Workspaces with `count` members each follow the fixture Workspace, so they
+/// occupy navigation Workspaces and Terminal Contexts 1 and 2.
 pub(super) fn workspace_fixture(count: u128) -> (WorkbenchAuthority, WorkbenchGrant) {
     let (mut authority, grant) = fixture(1);
     let mut snapshot = authority.projection.snapshot().clone();

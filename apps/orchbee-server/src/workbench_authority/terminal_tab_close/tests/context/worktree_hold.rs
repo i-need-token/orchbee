@@ -32,7 +32,7 @@ fn held_publication_preserves_zero_and_multi_terminal_layout_and_fences_stale_at
         for explicit_close in [false, true] {
             let (mut authority, grant) = workspace_fixture(count);
             let before = authority.snapshot().clone();
-            let workspace = before.navigation.workspaces[0].workspace_id.clone();
+            let workspace = before.navigation.workspaces[1].workspace_id.clone();
             assert!(matches!(
                 apply(
                     &mut authority,
@@ -182,7 +182,7 @@ fn held_publication_preserves_zero_and_multi_terminal_layout_and_fences_stale_at
                 authority
                     .snapshot()
                     .navigation
-                    .workspace(&before.navigation.workspaces[0].workspace_id)
+                    .workspace(&before.navigation.workspaces[1].workspace_id)
                     .is_none()
             );
         }
@@ -194,7 +194,7 @@ fn recovery_rebind_preserves_slots_and_cancels_only_the_owned_quiescent_close() 
     for count in [0, 2] {
         let (mut authority, grant) = workspace_fixture(count);
         let before = authority.snapshot().clone();
-        let workspace = &before.navigation.workspaces[0];
+        let workspace = &before.navigation.workspaces[1];
         let context = workspace.terminal_context_id.clone();
         let members = authority
             .terminal_tree_membership(&context)

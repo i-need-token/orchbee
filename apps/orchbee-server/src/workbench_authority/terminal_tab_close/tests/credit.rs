@@ -30,11 +30,25 @@ fn every_ordinary_writer_preserves_reserved_removal_credit_and_noops_still_settl
         else {
             panic!()
         };
+        // The equal-text rename below must fix an implicit automatic Tab name.
+        let mut snapshot = authority.projection.snapshot().clone();
+        snapshot.terminal_contexts[0].tabs[0].automatic_label = true;
+        authority.projection = WorkbenchProjectionStore::load(
+            &orchbee_workbench_protocol::serialize_document(
+                &orchbee_workbench_protocol::WorkbenchProtocolDocument::Snapshot(snapshot),
+            )
+            .unwrap(),
+        )
+        .unwrap();
         set_revision(&mut authority, u64::MAX - 1);
         let now = Instant::now();
         let close = close_command(&authority, 10000, 0);
         accept(&mut authority, &grant, close.clone(), now);
         let member = authority.fixture_membership().unwrap().members()[0].clone();
+        assert_eq!(
+            member.tab_id(),
+            &authority.snapshot().terminal_contexts[0].tabs[0].tab_id
+        );
         let context = authority
             .fixture_membership()
             .unwrap()

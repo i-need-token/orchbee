@@ -81,6 +81,10 @@ pub(super) fn fixture(count: u128) -> (WorkbenchAuthority, WorkbenchGrant) {
             .with_terminal_lifecycle();
     if count > 0 {
         authority.append_fixture_tab(binding(700)).unwrap();
+        // Close accounting starts like a restored Session: the first Tab exists without a
+        // retained TabCreate, so only the scenario's own requests occupy the ledger.
+        authority.ledger.clear();
+        authority.ledger_bytes = 0;
     }
     for index in 1..count {
         let command = create_command(&authority, 500 + index, &format!("tab {index}"));

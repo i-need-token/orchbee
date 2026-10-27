@@ -214,7 +214,7 @@ fn tab_create(owner: &WorkbenchAuthority, id: u128) -> WorkbenchCommand {
         WorkbenchAction::TabCreate {
             placement: None,
             automatic_label: false,
-            terminal_context_id: owner.snapshot().navigation.workspaces[1]
+            terminal_context_id: owner.snapshot().navigation.workspaces[2]
                 .terminal_context_id
                 .clone(),
             label: WorkbenchLabel::parse("peer create").unwrap(),
@@ -348,7 +348,7 @@ fn committed_but_unsettled_create_blocks_both_idle_actions_at_the_current_revisi
             before.revision.value() + 1,
             "Create commits canonical membership before installing its unsettled entry"
         );
-        let context = &committed.navigation.workspaces[1]
+        let context = &committed.navigation.workspaces[2]
             .terminal_context_id
             .clone();
         assert_eq!(
@@ -418,7 +418,7 @@ fn dropping_uncommitted_create_preserves_empty_scope_without_a_pending_reservati
         }
         assert_eq!(owner.snapshot(), &before);
         assert!(!owner.pending_terminal_covers_context(
-            &before.navigation.workspaces[1].terminal_context_id.clone()
+            &before.navigation.workspaces[2].terminal_context_id.clone()
         ));
         let request = conditional(&owner, 11211);
         let primary = primary_workspace(&mut owner, &grant, request);
@@ -436,7 +436,7 @@ fn idle_dissolve_preserves_all_resources_and_checks_complete_project_not_first_w
         let (mut owner, grant) = workspace_fixture(1);
         let mut snapshot = owner.snapshot().clone();
         let project = snapshot.navigation.projects[1].project_id.clone();
-        snapshot.navigation.workspaces[0].project_id = Some(project.clone());
+        snapshot.navigation.workspaces[1].project_id = Some(project.clone());
         owner.projection = WorkbenchProjectionStore::load(
             &orchbee_workbench_protocol::serialize_document(
                 &orchbee_workbench_protocol::WorkbenchProtocolDocument::Snapshot(snapshot),
