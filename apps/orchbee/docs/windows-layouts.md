@@ -1,8 +1,7 @@
 # Windows reusable layouts
 
 The native Windows CLI owns portable layout export and composition of canonical Workbench
-membership, Client view state and read-only terminal facts. The pinned Herdr reference is
-`e0507237ad8d41f60aece10d00ef29ce2339ca34`, `src/app/api/layouts.rs` (R053/R054).
+membership, Client view state and read-only terminal facts.
 
 ## Export
 

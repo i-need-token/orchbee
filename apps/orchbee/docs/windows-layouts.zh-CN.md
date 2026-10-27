@@ -1,7 +1,6 @@
 # Windows 可复用布局
 
 原生 Windows CLI 负责可移植布局导出，以及规范 Workbench 成员关系、Client 视图状态和只读终端事实的组合。
-固定 Herdr 参考为 `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 `src/app/api/layouts.rs`（R053／R054）。
 
 ## 导出
 
@@ -85,4 +84,4 @@ Windows 适配器负责精确绑定关联、单次提交、所有权围栏、取
 
 每个已知共享比例回执仅以该有身份的比例变化推进流程拥有的 Tab 副本。下一次 Server 读取仍围住完整新 Tab 和被替换 Tab，包括其他比例、标签、绑定及有序身份。未知结果不扩大或刷新所有权；不把并发修改吸收为流程的一部分。
 
-<!-- documentation-pairing: english-sha256=a0f8a2b77c256a685705dd44f4573fe2ac339c5e5a72742e9d54ffd192bbd4b2 zh-cn-sha256=af1d809654889103f617320ed48096dcf65a2d757827073798188dd0060af2f3 -->
+<!-- documentation-pairing: english-sha256=daa71b884342c691ca8145aa3e824f4f993d816ee53fb19001aa8f40036485eb zh-cn-sha256=ef5573e523a710bfb39ec0660a377484fe1aa472e219dd19881c4a228e3ec129 -->
