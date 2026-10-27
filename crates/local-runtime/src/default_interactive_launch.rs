@@ -46,11 +46,10 @@ impl fmt::Display for DefaultInteractiveLaunchError {
 
 impl std::error::Error for DefaultInteractiveLaunchError {}
 
-pub fn resolve_default_interactive_launch(
-    #[cfg(windows)] shell: &crate::ShellSettings,
-) -> Result<DefaultInteractiveLaunch, DefaultInteractiveLaunchError> {
+pub fn resolve_default_interactive_launch()
+-> Result<DefaultInteractiveLaunch, DefaultInteractiveLaunchError> {
     #[cfg(windows)]
-    return windows::resolve(shell, |name| std::env::var_os(name));
+    return windows::resolve(|name| std::env::var_os(name));
     #[cfg(not(windows))]
     select_default_interactive_launch(unix::usable_shell_candidates())
 }

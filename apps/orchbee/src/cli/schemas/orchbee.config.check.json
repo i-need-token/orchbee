@@ -152,8 +152,6 @@
 							"worktreeDirectory",
 							"manifestCheck",
 							"manifestCheckSource",
-							"defaultShell",
-							"shellMode",
 							"keyPrefix",
 							"keyOverrides",
 							"windowTitle",
@@ -167,8 +165,7 @@
 							"notificationSoundEnabled",
 							"notificationAgentSounds",
 							"diagnostics",
-							"diagnosticsOmitted",
-							"themeName"
+							"diagnosticsOmitted"
 						],
 						"additionalProperties": false,
 						"properties": {
@@ -195,13 +192,6 @@
 							},
 							"manifestCheckSource": {
 								"enum": ["default", "file"]
-							},
-							"defaultShell": {
-								"type": "string",
-								"maxLength": 4096
-							},
-							"shellMode": {
-								"enum": ["auto", "login", "non_login"]
 							},
 							"keyPrefix": {
 								"type": "string",
@@ -288,9 +278,6 @@
 								"type": "integer",
 								"minimum": 0,
 								"maximum": 65536
-							},
-							"themeName": {
-								"enum": ["terminal-native", "one-light", "one-dark"]
 							}
 						}
 					}

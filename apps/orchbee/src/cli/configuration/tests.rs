@@ -37,7 +37,7 @@ fn shared_path_budget_matches_wire_and_cli_failure_preserves_field() {
 }
 
 #[test]
-fn named_theme_config_check_is_required_and_closed() {
+fn config_check_details_satisfy_the_closed_schema_without_retired_fields() {
     use serde_json::{Value, json};
     let mut schema: Value =
         serde_json::from_str(include_str!("../schemas/orchbee.config.check.json")).unwrap();
@@ -51,19 +51,15 @@ fn named_theme_config_check_is_required_and_closed() {
         diagnostics: Default::default(),
     };
     let details = super::project(load).unwrap().check_details();
-    let mut check = json!({"name":"user-config","status":"pass","details":details});
+    let check = json!({"name":"user-config","status":"pass","details":details});
     assert!(validator.is_valid(&check));
-    for name in ["terminal-native", "one-light", "one-dark"] {
-        check["details"]["themeName"] = json!(name);
-        assert!(validator.is_valid(&check));
+    for (field, value) in [
+        ("themeName", json!("terminal-native")),
+        ("defaultShell", json!("")),
+        ("shellMode", json!("auto")),
+    ] {
+        let mut retired = check.clone();
+        retired["details"][field] = value;
+        assert!(!validator.is_valid(&retired), "retired {field}");
     }
-    for invalid in [json!("custom"), json!("One-Light"), json!(null), json!(1)] {
-        check["details"]["themeName"] = invalid;
-        assert!(!validator.is_valid(&check));
-    }
-    check["details"]
-        .as_object_mut()
-        .unwrap()
-        .remove("themeName");
-    assert!(!validator.is_valid(&check));
 }

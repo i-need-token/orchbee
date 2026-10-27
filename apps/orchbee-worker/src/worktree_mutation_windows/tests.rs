@@ -392,7 +392,6 @@ fn pre_host_mutation_is_joined_on_explicit_stop_and_server_disconnect() {
                 &cohort,
                 &worker_runtime,
                 None,
-                &Default::default(),
             )
             .is_ok()
         });

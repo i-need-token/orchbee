@@ -1,16 +1,11 @@
-//! Resolves configured or automatic Windows shell policy into a usable literal executable and
-//! supported login arguments, structurally checking automatic PowerShell candidates. It does
-//! not launch a shell or alter persisted shell settings.
+//! Resolves the automatic Windows shell into a usable literal executable, structurally checking
+//! PowerShell candidates. It does not launch a shell.
 
 use super::{
-    DefaultInteractiveLaunch, DefaultInteractiveLaunchError, UsableShellCandidates, default_launch,
+    DefaultInteractiveLaunch, DefaultInteractiveLaunchError, UsableShellCandidates,
     select_default_interactive_launch,
 };
-use crate::{ShellMode, ShellSettings};
-use std::{
-    ffi::OsString,
-    path::{Path, PathBuf},
-};
+use std::{ffi::OsString, path::Path};
 
 #[path = "windows/pe.rs"]
 mod pe;
@@ -51,20 +46,9 @@ fn usable_automatic_shell(path: &Path, machine: u16) -> Option<String> {
 }
 
 pub(super) fn resolve(
-    shell: &ShellSettings,
     env: impl Fn(&str) -> Option<OsString>,
 ) -> Result<DefaultInteractiveLaunch, DefaultInteractiveLaunchError> {
-    let mut launch = if shell.executable().is_empty() {
-        select_default_interactive_launch(usable_shell_candidates(&env, native_machine()))?
-    } else {
-        let executable = resolve_configured(shell.executable(), env("PATH"))
-            .ok_or(DefaultInteractiveLaunchError::NoUsableShell)?;
-        default_launch(&executable)
-    };
-    if shell.mode() == ShellMode::Login && login_supported(&launch.executable) {
-        launch.arguments.push("-l".to_owned());
-    }
-    Ok(launch)
+    select_default_interactive_launch(usable_shell_candidates(&env, native_machine()))
 }
 
 fn native_machine() -> u16 {
@@ -77,35 +61,6 @@ fn native_machine() -> u16 {
     } else {
         0x8664
     }
-}
-
-fn resolve_configured(executable: &str, path: Option<OsString>) -> Option<String> {
-    let selected = Path::new(executable);
-    if selected.is_absolute() {
-        return usable(selected);
-    }
-    let names: Vec<PathBuf> = if selected.extension().is_none() {
-        vec![selected.to_owned(), selected.with_extension("exe")]
-    } else {
-        vec![selected.to_owned()]
-    };
-    path.as_deref()
-        .into_iter()
-        .flat_map(std::env::split_paths)
-        .filter(|directory| directory.is_absolute())
-        .find_map(|directory| names.iter().find_map(|name| usable(&directory.join(name))))
-}
-
-fn login_supported(executable: &str) -> bool {
-    let name = executable
-        .rsplit(['/', '\\'])
-        .next()
-        .unwrap_or(executable)
-        .to_ascii_lowercase();
-    matches!(
-        name.strip_suffix(".exe").unwrap_or(&name),
-        "sh" | "bash" | "zsh" | "ksh" | "dash" | "ash" | "mksh" | "fish" | "csh" | "tcsh"
-    )
 }
 
 fn usable(path: &Path) -> Option<String> {

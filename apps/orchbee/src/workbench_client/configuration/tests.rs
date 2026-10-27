@@ -17,14 +17,10 @@ fn snapshot(revision: u64, profile: &str) -> ConfigurationSnapshot {
         revision: WorkbenchRevision::new(revision),
         diagnostics: Default::default(),
         keys_profile: profile.into(),
-        theme_name: orchbee_workbench_protocol::ConfigurationThemeName::TerminalNative,
         notification_profile: "[ui.toast]\ndelivery='off'\n".into(),
         agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
         spaces_sidebar_profile: orchbee_local_runtime::SpaceSidebarSettings::default().profile(),
         window_title: "{hostname}: {workspace}".into(),
-        restart_required: Vec::new(),
-        default_shell: String::new(),
-        shell_mode: orchbee_workbench_protocol::ConfigurationShellMode::Auto,
         manifest_check: true,
     }
 }
@@ -52,7 +48,6 @@ fn native_reload_keeps_shared_appearance_while_updating_hints_and_sidebars() {
     view.settle_pointer_released(true);
     let theme = view.configured_theme();
     let mut published = snapshot(1, "[keys]\nprefix='ctrl+a'\nreload_config='prefix+f6'");
-    published.theme_name = orchbee_workbench_protocol::ConfigurationThemeName::OneLight;
     published.agent_sidebar_profile = r#"{"rows":[],"rows_by_agent":{},"row_gap":2}"#.into();
     published.spaces_sidebar_profile = r#"{"rows":[],"row_gap":3}"#.into();
     published.notification_profile = "[ui.toast]\ndelivery='orchbee'".into();
@@ -101,7 +96,6 @@ fn bad_sidebar_publication_retains_keys_notifications_layout_and_revision_atomic
     let mut view = ClientView::new(120);
     let before = view.clone();
     let mut candidate = snapshot(1, "[keys]\nprefix='ctrl+a'");
-    candidate.theme_name = orchbee_workbench_protocol::ConfigurationThemeName::OneLight;
     candidate.notification_profile = "[ui.toast]\ndelivery='orchbee'".into();
     candidate.agent_sidebar_profile = "{}".into();
     watcher.shared.0.lock().unwrap().snapshot = Some(candidate.clone());
@@ -124,7 +118,7 @@ fn bad_sidebar_publication_retains_keys_notifications_layout_and_revision_atomic
     watcher.shared.0.lock().unwrap().snapshot = Some(candidate);
     assert!(watcher.tick(&mut view));
     assert_eq!(watcher.revision, Some(1));
-    assert_eq!(view.configured_theme().unwrap().name, "one-light");
+    assert_eq!(view.configured_theme(), before.configured_theme());
     assert!(
         view.bindings()
             .prefix
@@ -164,7 +158,6 @@ fn authoritative_server_baseline_applies_once_then_revision_order_is_strict() {
     view.commit(prefix, ClientActionDisposition::KeepNavigator);
     assert!(view.prefix_active());
     let mut baseline = snapshot(0, "[keys]\nprefix='ctrl+x'");
-    baseline.theme_name = orchbee_workbench_protocol::ConfigurationThemeName::OneDark;
     baseline.diagnostics = ConfigurationDiagnostics {
         items: vec![ConfigurationDiagnostic {
             field: "keys.help".into(),
@@ -176,7 +169,6 @@ fn authoritative_server_baseline_applies_once_then_revision_order_is_strict() {
     watcher.shared.0.lock().unwrap().snapshot = Some(baseline);
     assert!(watcher.tick(&mut view));
     assert_eq!(watcher.revision, Some(0));
-    assert_eq!(view.configured_theme().unwrap().name, "one-dark");
     assert!(!view.prefix_active());
     assert!(view.pointer_released());
     assert!(
@@ -203,8 +195,7 @@ fn authoritative_server_baseline_applies_once_then_revision_order_is_strict() {
     assert_eq!(retained, view);
     {
         let mut state = watcher.shared.0.lock().unwrap();
-        let mut rejected = snapshot(2, "[keys]\nhelp='ctrl+c'");
-        rejected.theme_name = orchbee_workbench_protocol::ConfigurationThemeName::OneDark;
+        let rejected = snapshot(2, "[keys]\nhelp='ctrl+c'");
         state.snapshot = Some(rejected);
         state.notice = Some(PendingNotice {
             revision: Some(2),
@@ -388,10 +379,9 @@ fn warning_reload_keeps_the_agent_notification_surface_available() {
 }
 
 #[test]
-fn warning_reload_reports_restart_then_restores_warning_and_notification_availability() {
+fn unchanged_reload_reports_publication_without_reapplying_the_existing_snapshot() {
     use orchbee_workbench_protocol::{
-        ConfigurationDiagnostic, ConfigurationDiagnosticDisposition, ConfigurationDiagnostics,
-        ConfigurationRestart, ConfigurationResult, WorkbenchResponse, write_workbench_response,
+        ConfigurationResult, WorkbenchResponse, write_workbench_response,
     };
     let server = FakeServer::start_connections(1, move |index, stream| {
         let mut stream = crate::local_client::test_support::multiplex_peer::Peer::new(stream);
@@ -412,133 +402,7 @@ fn warning_reload_reports_restart_then_restores_warning_and_notification_availab
             panic!("configuration current");
         };
         assert_eq!(current.action, ConfigurationAction::Current);
-        write_workbench_response(
-            &mut stream,
-            &WorkbenchResponse::Configuration(ConfigurationResult {
-                protocol_version: ProtocolVersion,
-                request_id: current.request_id,
-                session_id: current.session_id,
-                outcome: ConfigurationOutcome::Current {
-                    snapshot: snapshot(0, "[keys]\nprefix='ctrl+b'"),
-                },
-            }),
-        )
-        .map_err(io::Error::other)?;
-        let WorkbenchRequest::Configuration(reload) =
-            read_workbench_request(&mut stream).map_err(io::Error::other)?
-        else {
-            panic!("configuration reload");
-        };
-        assert_eq!(reload.action, ConfigurationAction::Reload);
-        let mut warning = snapshot(1, "[keys]\nprefix='ctrl+b'");
-        warning.diagnostics = ConfigurationDiagnostics {
-            items: vec![ConfigurationDiagnostic {
-                field: "keys.help".into(),
-                reason: "unsafe-binding".into(),
-                disposition: ConfigurationDiagnosticDisposition::Disabled,
-            }],
-            omitted_count: 0,
-        };
-        warning.restart_required = vec![ConfigurationRestart::DefaultShell];
-        write_workbench_response(
-            &mut stream,
-            &WorkbenchResponse::Configuration(ConfigurationResult {
-                protocol_version: ProtocolVersion,
-                request_id: reload.request_id,
-                session_id: reload.session_id,
-                outcome: ConfigurationOutcome::Reloaded {
-                    snapshot: warning,
-                    changed: true,
-                },
-            }),
-        )
-        .map_err(io::Error::other)?;
-        assert_eq!(stream.read(&mut [0])?, 0);
-        Ok(())
-    })
-    .unwrap();
-    let client = LocalClient::connect(server.endpoint(), "test-cohort")
-        .unwrap()
-        .into_multiplexed()
-        .unwrap();
-    let mut watcher = Watcher::spawn(
-        client.origin(),
-        client.operation_clock(),
-        SessionId::parse(&format!("{:032x}", 2)).unwrap(),
-    )
-    .unwrap();
-    drop(client);
-    let mut view = ClientView::new(120);
-    let deadline = std::time::Instant::now() + Duration::from_secs(3);
-    while watcher.revision != Some(0) {
-        assert!(
-            std::time::Instant::now() < deadline,
-            "initial snapshot deadline"
-        );
-        watcher.tick(&mut view);
-        thread::sleep(Duration::from_millis(5));
-    }
-    assert!(watcher.reload());
-    let deadline = std::time::Instant::now() + Duration::from_secs(3);
-    while watcher.revision != Some(1) {
-        assert!(
-            std::time::Instant::now() < deadline,
-            "warning restart reload deadline"
-        );
-        watcher.tick(&mut view);
-        thread::sleep(Duration::from_millis(5));
-    }
-    assert_eq!(view.notice(), Some(Notice::ConfigurationRestart));
-    assert!(crate::notifications::available(
-        &view,
-        Some(crate::workbench_client::WorkbenchClientView::notification_test_view(),),
-    ));
-
-    let prefix = view.decide(PrefixInput::Key(KeyEvent::press(
-        KeyCode::Char('b'),
-        Modifiers::CTRL,
-    )));
-    view.commit(prefix, ClientActionDisposition::KeepNavigator);
-    let dismiss = view.decide(PrefixInput::Key(KeyEvent::press(
-        KeyCode::Char('c'),
-        Modifiers::NONE,
-    )));
-    view.commit(dismiss, ClientActionDisposition::KeepNavigator);
-    assert_eq!(view.notice(), Some(Notice::ConfigurationWarning));
-    assert!(crate::notifications::available(
-        &view,
-        Some(crate::workbench_client::WorkbenchClientView::notification_test_view(),),
-    ));
-    watcher.close();
-    server.finish().unwrap();
-}
-
-#[test]
-fn unchanged_reload_reports_restart_without_reapplying_the_existing_snapshot() {
-    use orchbee_workbench_protocol::{
-        ConfigurationRestart, ConfigurationResult, WorkbenchResponse, write_workbench_response,
-    };
-    let server = FakeServer::start_connections(1, move |index, stream| {
-        let mut stream = crate::local_client::test_support::multiplex_peer::Peer::new(stream);
-        assert!(matches!(
-            read_message(&mut stream).map_err(io::Error::other)?,
-            LocalClientMessage::ClientHello(_)
-        ));
-        write_message(
-            &mut stream,
-            &LocalClientMessage::ClientAccepted {
-                generation: NonZeroU64::new(u64::try_from(index + 1).unwrap()).unwrap(),
-            },
-        )
-        .map_err(io::Error::other)?;
-        let WorkbenchRequest::Configuration(current) =
-            read_workbench_request(&mut stream).map_err(io::Error::other)?
-        else {
-            panic!("configuration current");
-        };
-        assert_eq!(current.action, ConfigurationAction::Current);
-        let mut baseline = snapshot(1, "[keys]\nprefix='ctrl+b'");
-        baseline.restart_required = vec![ConfigurationRestart::DefaultShell];
+        let baseline = snapshot(1, "[keys]\nprefix='ctrl+b'");
         write_workbench_response(
             &mut stream,
             &WorkbenchResponse::Configuration(ConfigurationResult {
@@ -603,7 +467,7 @@ fn unchanged_reload_reports_restart_without_reapplying_the_existing_snapshot() {
     assert!(view.prefix_active());
     assert!(watcher.reload());
     let deadline = std::time::Instant::now() + Duration::from_secs(3);
-    while view.notice() != Some(Notice::ConfigurationRestart) {
+    while view.notice() != Some(Notice::ConfigurationPublished) {
         assert!(
             std::time::Instant::now() < deadline,
             "unchanged reload receipt deadline"

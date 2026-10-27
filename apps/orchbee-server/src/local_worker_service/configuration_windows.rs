@@ -38,15 +38,12 @@ pub(super) fn resolve(
     };
     flag_value(&mut arguments, "--configuration-file-explicit")?;
     let explicit = boolean(arguments.next())?;
-    let shell = orchbee_local_runtime::ShellSettings::from_private_arguments(&mut arguments)
-        .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
     if arguments.next().is_some()
         || (path.is_none() && (explicit || manifest_check_source == "file"))
     {
         return Err(io::ErrorKind::InvalidInput.into());
     }
     Ok(UserSettings {
-        shell,
         path,
         explicit,
         manifest_check,

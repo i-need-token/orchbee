@@ -1,7 +1,7 @@
 use super::super::*;
 use orchbee_capability_node_protocol::{self as node, *};
 use orchbee_local_ipc::{LocalListener, LocalStream};
-use orchbee_local_runtime::{Cohort, ShellSettings};
+use orchbee_local_runtime::Cohort;
 use orchbee_terminal_protocol::{
     self as terminal, ConnectionControl, Envelope, HelloAccepted, PayloadEncoding,
     TerminalCreationControl, decode_connection_control, decode_terminal_creation_control,
@@ -35,12 +35,8 @@ fn launch(id: u8, executable: &str) -> AuthorizedTerminalLaunch {
         ),
         Some(AbsoluteCwd::new(std::env::temp_dir().to_str().unwrap()).unwrap()),
         TerminalLaunchMode::Deferred,
-        None,
+        Some(LaunchSelection::new(executable.into(), Vec::new()).unwrap()),
     )
-    .with_default_shell(Some(
-        DefaultShellSelection::new(executable.into(), DefaultShellMode::NonLogin).unwrap(),
-    ))
-    .unwrap()
 }
 
 fn editor_source() -> TerminalEditorSource {
@@ -53,7 +49,7 @@ fn editor_source() -> TerminalEditorSource {
     }
 }
 fn editor_launch(id: u8, source: TerminalEditorSource) -> AuthorizedTerminalLaunch {
-    let ordinary = launch(id, "unused.exe");
+    let ordinary = launch(id, "C:/unused.exe");
     AuthorizedTerminalLaunch::new(
         ordinary.authorization(),
         ordinary.cwd().cloned(),
@@ -333,15 +329,7 @@ fn editor_source_launch_reaches_host_capture_with_literal_argv_and_retains_known
             );
             peer.shutdown(std::net::Shutdown::Both).unwrap();
         });
-        let result = run(
-            &server,
-            &mut host,
-            WORKER,
-            NonZeroU64::MIN,
-            &drain,
-            None,
-            &ShellSettings::default(),
-        );
+        let result = run(&server, &mut host, WORKER, NonZeroU64::MIN, &drain, None);
         driver.join().unwrap();
         assert!(result.is_err());
     }
@@ -365,15 +353,7 @@ fn editor_source_missing_viewer_fails_before_host_create_or_lazy_startup() {
         );
         peer.shutdown(std::net::Shutdown::Both).unwrap();
     });
-    let result = run(
-        &server,
-        &mut host,
-        WORKER,
-        NonZeroU64::MIN,
-        &drain,
-        None,
-        &ShellSettings::default(),
-    );
+    let result = run(&server, &mut host, WORKER, NonZeroU64::MIN, &drain, None);
     driver.join().unwrap();
     assert!(result.is_err());
     let fixture = CohortFixture::new();
@@ -389,15 +369,7 @@ fn editor_source_missing_viewer_fails_before_host_create_or_lazy_startup() {
         );
         peer.shutdown(std::net::Shutdown::Both).unwrap();
     });
-    let result = lazy::run(
-        server,
-        WORKER,
-        NonZeroU64::MIN,
-        &cohort,
-        &runtime,
-        None,
-        &ShellSettings::default(),
-    );
+    let result = lazy::run(server, WORKER, NonZeroU64::MIN, &cohort, &runtime, None);
     driver.join().unwrap();
     assert!(result.is_err());
     assert!(
@@ -487,18 +459,18 @@ fn connected_host() -> (HostBrokerConnection, Rc<RefCell<AgentDrain>>, LocalStre
 }
 
 #[test]
-fn admitted_worker_survives_invalid_defaults_then_launches_fresh_policy_and_fences_replay() {
+fn admitted_worker_survives_failed_preparation_then_launches_and_fences_replay() {
     let (mut host, drain, mut host_peer) = connected_host();
     let (server, mut peer) = LocalStream::pair().unwrap();
     timeout(&peer);
     let driver = thread::spawn(move || {
-        let bad = launch(1, "orchbee-nonexistent-default-shell.exe");
+        let bad = editor_launch(1, editor_source());
         send(&mut peer, &bad);
         let failed = outcome(&mut peer);
         assert!(matches!(failed, TerminalLaunchOutcome::Failed(_)));
         send(&mut peer, &bad);
         assert_eq!(outcome(&mut peer), failed);
-        let good = launch(2, "cmd.exe");
+        let good = launch(2, "C:/Windows/System32/cmd.exe");
         send(&mut peer, &good);
         let bytes = record(&mut host_peer);
         let envelope = decode_transport_envelope(&bytes).unwrap();
@@ -529,7 +501,7 @@ fn admitted_worker_survives_invalid_defaults_then_launches_fresh_policy_and_fenc
         assert!(matches!(accepted, TerminalLaunchOutcome::HostAccepted(_)));
         send(&mut peer, &good);
         assert_eq!(outcome(&mut peer), accepted);
-        let conflicting = launch(2, "changed.exe");
+        let conflicting = launch(2, "C:/changed.exe");
         send(&mut peer, &conflicting);
         assert_eq!(
             outcome(&mut peer),
@@ -549,7 +521,6 @@ fn admitted_worker_survives_invalid_defaults_then_launches_fresh_policy_and_fenc
     let mutations = crate::worktree_mutation_job::WorktreeMutationSlot::new(
         crate::worktree_mutation_windows::run,
     );
-    let fallback = ShellSettings::new("unavailable-startup.exe", "auto").unwrap();
     assert!(
         run_admitted(
             server,
@@ -559,7 +530,6 @@ fn admitted_worker_survives_invalid_defaults_then_launches_fresh_policy_and_fenc
             AuthorizedHostOperationKernel::new(WORKER, NonZeroU64::MIN).unwrap(),
             AdmittedAux {
                 preferences: None,
-                shell: &fallback,
                 drain: &drain,
                 worktree_slot: &worktrees,
                 mutation_slot: &mutations,
@@ -632,7 +602,7 @@ fn lazy_worker_retains_invalid_launch_receipt_and_answers_next_request_without_s
     let (server, mut peer) = LocalStream::pair().unwrap();
     timeout(&peer);
     let driver = thread::spawn(move || {
-        let bad = launch(1, "relative/shell.exe");
+        let bad = editor_launch(1, editor_source());
         send(&mut peer, &bad);
         let failed = outcome(&mut peer);
         assert!(matches!(failed, TerminalLaunchOutcome::Failed(_)));
@@ -653,18 +623,7 @@ fn lazy_worker_retains_invalid_launch_receipt_and_answers_next_request_without_s
         );
         peer.shutdown(std::net::Shutdown::Both).unwrap();
     });
-    assert!(
-        lazy::run(
-            server,
-            WORKER,
-            NonZeroU64::MIN,
-            &cohort,
-            &runtime,
-            None,
-            &ShellSettings::default()
-        )
-        .is_err()
-    );
+    assert!(lazy::run(server, WORKER, NonZeroU64::MIN, &cohort, &runtime, None,).is_err());
     driver.join().unwrap();
     assert!(
         !orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::host_runtime_directory(&runtime)
@@ -782,15 +741,7 @@ fn lazy_handoff_retains_ticket_history_and_worker_identity_without_starting_host
         );
         assert_eq!(peer.read(&mut [0]).unwrap(), 0);
     });
-    let result = lazy::run(
-        server,
-        WORKER,
-        NonZeroU64::MIN,
-        &cohort,
-        &runtime,
-        None,
-        &ShellSettings::default(),
-    );
+    let result = lazy::run(server, WORKER, NonZeroU64::MIN, &cohort, &runtime, None);
     original.join().unwrap();
     next.join().unwrap();
     assert!(
@@ -857,15 +808,7 @@ fn lazy_editor_command_query_echoes_refusals_and_current_resolution_without_star
         }
         peer.shutdown(std::net::Shutdown::Both).unwrap();
     });
-    let result = lazy::run(
-        server,
-        WORKER,
-        NonZeroU64::MIN,
-        &cohort,
-        &runtime,
-        None,
-        &ShellSettings::default(),
-    );
+    let result = lazy::run(server, WORKER, NonZeroU64::MIN, &cohort, &runtime, None);
     driver.join().unwrap();
     assert!(result.is_err());
     assert!(
@@ -898,15 +841,7 @@ fn admitted_editor_command_query_uses_no_host_request_or_terminal_effect() {
         assert_eq!(result.request, request);
         peer.shutdown(std::net::Shutdown::Both).unwrap();
     });
-    let outcome = run(
-        &server,
-        &mut host,
-        WORKER,
-        NonZeroU64::MIN,
-        &drain,
-        None,
-        &ShellSettings::default(),
-    );
+    let outcome = run(&server, &mut host, WORKER, NonZeroU64::MIN, &drain, None);
     driver.join().unwrap();
     assert!(outcome.is_err());
     host_peer

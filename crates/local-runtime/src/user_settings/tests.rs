@@ -82,73 +82,23 @@ fn update_channel_is_strict_and_independent_of_manifest_checks() {
 }
 
 #[test]
-fn configured_shell_is_strict_literal_and_keeps_directory_settings() {
-    for mode in ["auto", "login", "non_login"] {
-        let settings = parse(
-            &format!("[terminal]\ndefault_shell=' pwsh.exe '\nshell_mode='{mode}'\nnew_cwd='home'"),
-            Path::new(r"C:\config.toml"),
-            &|_| None,
-        )
-        .unwrap();
-        assert_eq!(settings.shell.executable(), "pwsh.exe");
-        assert_eq!(settings.shell.mode().as_str(), mode);
-        assert_eq!(settings.cwd, Some((DirectoryPolicy::Home, None)));
-    }
-    for (field, value) in [
-        ("default_shell", "42"),
-        ("shell_mode", "false"),
-        ("shell_mode", "'LOGIN'"),
-        ("default_shell", "'C:relative.exe'"),
-        ("default_shell", "'./shell.exe'"),
-    ] {
-        let admitted = parse(
-            &format!("[terminal]\n{field}={value}"),
-            Path::new(r"C:\config.toml"),
-            &|_| None,
-        )
-        .unwrap();
-        assert_eq!(admitted.shell, ShellSettings::default());
-        assert_eq!(
-            admitted.diagnostics.items()[0].field,
-            format!("terminal.{field}")
-        );
-    }
-    assert!(ShellSettings::new(&"x".repeat(4096), "auto").is_ok());
-    assert!(ShellSettings::new(&"x".repeat(4097), "auto").is_err());
-    for invalid in [
-        "a\0b",
-        "a\nb",
-        r"\\server\share\shell.exe",
-        r"\\?\C:\shell.exe",
-    ] {
-        assert!(ShellSettings::new(invalid, "auto").is_err(), "{invalid:?}");
-    }
-}
-
-#[test]
-fn private_shell_snapshot_is_complete_and_does_not_consume_other_arguments() {
-    let mut args = [
-        "--default-shell",
-        "C:/shell with spaces/pwsh.exe",
-        "--shell-mode",
-        "login",
-        "remaining",
-    ]
-    .map(OsString::from)
-    .into_iter();
-    let shell = ShellSettings::from_private_arguments(&mut args).unwrap();
-    assert_eq!(shell.mode(), ShellMode::Login);
-    assert!(shell.executable().ends_with("pwsh.exe"));
-    assert_eq!(args.next(), Some("remaining".into()));
-    for words in [
-        vec![],
-        vec!["--default-shell", "pwsh"],
-        vec!["--shell-mode", "login", "--default-shell", "pwsh"],
-        vec!["--default-shell", "", "--shell-mode", "bad"],
-    ] {
+fn retired_shell_keys_are_ignored_and_keep_directory_settings() {
+    let settings = parse(
+        "[terminal]\ndefault_shell='pwsh.exe'\nshell_mode='login'\nnew_cwd='home'",
+        Path::new(r"C:\config.toml"),
+        &|_| None,
+    )
+    .unwrap();
+    assert_eq!(settings.cwd, Some((DirectoryPolicy::Home, None)));
+    for field in ["terminal.default_shell", "terminal.shell_mode"] {
         assert!(
-            ShellSettings::from_private_arguments(&mut words.into_iter().map(OsString::from))
-                .is_err()
+            settings
+                .diagnostics
+                .items()
+                .iter()
+                .any(|item| item.field == field
+                    && item.reason == "unknown-key"
+                    && item.disposition == SettingsDiagnosticDisposition::Ignored)
         );
     }
 }
@@ -391,7 +341,6 @@ fn unknown_fields_and_partial_key_failures_are_bounded_warnings() {
         &|_| None,
     )
     .unwrap();
-    assert_eq!(admitted.settings.theme, ThemeName::TerminalNative);
     assert!(
         admitted
             .diagnostics
@@ -581,7 +530,6 @@ fn printed_default_configuration_roundtrips_without_freezing_action_defaults() {
     let defaults = UserSettings::default();
     assert!(admitted.diagnostics.is_empty());
     assert_eq!(admitted.keys, defaults.keys);
-    assert_eq!(admitted.shell, defaults.shell);
     assert_eq!(admitted.notifications, defaults.notifications);
     assert_eq!(admitted.agent_sidebar, defaults.agent_sidebar);
     assert_eq!(admitted.space_sidebar, defaults.space_sidebar);

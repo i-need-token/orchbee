@@ -1,6 +1,7 @@
 use super::*;
 use std::{
     fs,
+    path::PathBuf,
     sync::atomic::{AtomicU64, Ordering},
 };
 
@@ -35,74 +36,6 @@ impl Drop for Fixture {
         );
         fs::remove_dir_all(path).unwrap();
     }
-}
-
-#[test]
-fn configured_shell_resolves_absolute_or_path_names_without_fallback() {
-    let fixture = Fixture::new();
-    let path = fixture.file("pwsh.exe");
-    let search = std::env::join_paths([Path::new("relative"), fixture.0.as_path()]).unwrap();
-    for name in [path.to_str().unwrap(), "pwsh.exe", "pwsh"] {
-        let shell = ShellSettings::new(name, "auto").unwrap();
-        let launch = resolve(&shell, |name| (name == "PATH").then(|| search.clone())).unwrap();
-        assert_eq!(Path::new(&launch.executable), path);
-        assert!(launch.arguments.is_empty());
-    }
-    let missing = ShellSettings::new("missing.exe", "auto").unwrap();
-    assert_eq!(
-        resolve(&missing, |name| match name {
-            "PATH" => Some(search.clone()),
-            "COMSPEC" => Some(path.clone().into_os_string()),
-            _ => None,
-        }),
-        Err(DefaultInteractiveLaunchError::NoUsableShell)
-    );
-    assert!(resolve_configured("pwsh", Some("relative".into())).is_none());
-    let original = fixture.file("pwsh");
-    assert_eq!(
-        Path::new(&resolve_configured("pwsh", Some(fixture.0.clone().into_os_string())).unwrap()),
-        original
-    );
-}
-
-#[test]
-fn windows_login_modes_follow_the_shell_name_partition() {
-    let fixture = Fixture::new();
-    for name in [
-        "sh",
-        "bash",
-        "zsh",
-        "ksh",
-        "dash",
-        "ash",
-        "mksh",
-        "fish",
-        "csh",
-        "tcsh",
-        "pwsh",
-        "powershell",
-        "cmd",
-        "nu",
-        "notbash",
-    ] {
-        let path = fixture.file(&format!("{}.EXE", name.to_ascii_uppercase()));
-        for mode in ["auto", "login", "non_login"] {
-            let shell = ShellSettings::new(path.to_str().unwrap(), mode).unwrap();
-            let launch = resolve(&shell, |_| None).unwrap();
-            let login =
-                mode == "login" && !["pwsh", "powershell", "cmd", "nu", "notbash"].contains(&name);
-            assert_eq!(
-                launch.arguments,
-                if login { vec!["-l"] } else { vec![] },
-                "{name}/{mode}"
-            );
-        }
-    }
-    let launch = resolve(&ShellSettings::default(), |name| {
-        (name == "SystemRoot").then(|| std::env::var_os("SystemRoot").unwrap())
-    })
-    .unwrap();
-    assert!(launch.executable.ends_with("powershell.exe"));
 }
 
 fn image(machine: u16) -> Vec<u8> {
@@ -209,7 +142,7 @@ fn pe_candidate_admission_checks_header_bounds_flags_and_architectures() {
 }
 
 #[test]
-fn automatic_powershell_skips_packaged_images_without_overriding_configured_shells() {
+fn automatic_powershell_skips_packaged_images() {
     for nested in [false, true] {
         let package = Fixture::new();
         let ordinary = Fixture::new();
@@ -230,15 +163,10 @@ fn automatic_powershell_skips_packaged_images_without_overriding_configured_shel
             "SystemRoot" => std::env::var_os("SystemRoot"),
             _ => None,
         };
-        let automatic = resolve(&ShellSettings::default(), environment).unwrap();
+        let automatic = resolve(environment).unwrap();
         assert_eq!(Path::new(&automatic.executable), unpackaged);
-        for executable in [packaged.to_str().unwrap(), "pwsh.exe"] {
-            let configured = ShellSettings::new(executable, "auto").unwrap();
-            let selected = resolve(&configured, environment).unwrap();
-            assert_eq!(Path::new(&selected.executable), packaged);
-        }
         let only_packaged = std::env::join_paths([directory]).unwrap();
-        let automatic = resolve(&ShellSettings::default(), |name| match name {
+        let automatic = resolve(|name| match name {
             "PATH" => Some(only_packaged.clone()),
             "SystemRoot" => std::env::var_os("SystemRoot"),
             _ => None,

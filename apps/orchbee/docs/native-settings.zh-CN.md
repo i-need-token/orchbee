@@ -203,7 +203,6 @@ Client 共享载体上的状态订阅，设置关闭期间也继续观察。UI �
 | `ui.sidebar.agents.rows`、`rows_by_agent`、`row_gap`；`ui.sidebar.spaces.rows`、`row_gap` 及其已准入的 token／规则字段 | 完整重载改变现有侧栏投影；布局和交互仍由侧栏所有者负责                                       |
 | `ui.window_title`                                                                                                      | 重载后实时标题订阅使用已准入模板；外层宿主标题交付仍是一项能力                               |
 | `ui.toast.delivery`、`delay_seconds`、`overlay.position`；`ui.sound.agents`                                            | 重载更新手动交付和后续自动反馈；已确认的共享 Agent 模式／全局声音仍具权威，保留各 Agent 静音 |
-| `terminal.default_shell`、`terminal.shell_mode`                                                                        | 重载仅改变后续启动准备；已确认的共享启动配置优先，Windows 通用配置拒绝登录 Shell             |
 | `terminal.focus_new_panel`                                                                                             | 重启原生 Client 后应用分屏焦点偏好，默认为 true                                              |
 | `terminal.new_cwd`、`worktrees.directory`                                                                              | Windows CLI 在下一次相关创建调用中读取；不移动现有进程                                       |
 | `update.manifest_check`                                                                                                | 重载更新既有规则检查调度器；自动检查仍遵循受管发布／能力限制                                 |
@@ -261,4 +260,4 @@ Cargo/TypeScript 检查。受影响的根门禁仍为必需。
 
 Shell 保留启动时是否由非空 `NO_COLOR` 禁用了颜色，并将该原因传入已提交主题及预览主题。应用／终端主题和可编辑颜色的说明以两种语言解释颜色抑制。校验、确认和未知保存结果的恢复信息优先。提示不会仅由单色模式推断 `NO_COLOR`，不会在渲染时读取环境，也不会更改已保存的主题选项。
 
-<!-- documentation-pairing: english-sha256=e292d2e1d3dd5922e632098de1ba10126d807b51d9a96acee03e2b017d6c237e zh-cn-sha256=59fae8e80c39b1c84555e0f24444c9e7896a06fd6a6d3e8aa6fd8cc081e66a0c -->
+<!-- documentation-pairing: english-sha256=fd8667b4715cb8252325e6e8f7780cf93b517583d53fdbac3c5c8a01dbd08c92 zh-cn-sha256=98762f1bc04f59d4f582611f2db7e4752c4333d3b0d82be093280482102057f6 -->

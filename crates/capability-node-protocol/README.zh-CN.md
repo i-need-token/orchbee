@@ -598,11 +598,10 @@ Control request action tag 5 表示 Takeover，后接预期旧 controller ID（�
 
 启动选择另将最坏 JSON 字符串内容限制为 30 KiB：ASCII 控制字符计六字节，引号和反斜杠计两字节，其他 UTF-8 字节计一字节。原有 2 KiB 输入域全部保留，同时约束更大的恢复命令。扩大上限后必须使用匹配 cohort。
 
-## 每次启动的 Windows Shell 默认值
+## 已退役的启动种类 2
 
-授权默认启动可携带 `DefaultShellSelection`：0–4096 个 UTF-8 字节、无控制字符的字面程序和 Auto/Login/NonLogin 模式。空程序表示平台默认；缺省表示 Worker 启动回退。Worker 在效果前另外校验 Windows 程序语法。显式 `LaunchSelection` 与默认覆盖互斥。该值参与精确重放身份比较。
-
-启动种类 2 携带 u8 模式（0 Auto、1 Login、2 NonLogin）、u16 程序字节长度、程序 UTF-8 字节，随后是环境编码（允许空）。它不含显式程序／参数选择。未知模式、截断、尾随字节和无效有界值均被拒绝。OBCN 帧版本 1 及 40 KiB 负载上限不变。匹配的私有 cohort 整套交付或回退；该线协议不引入广播、持久化或重试。
+授权启动种类 2 曾携带每次启动的默认 shell 覆盖。默认程序现由共享启动配置选择，解码器把种类 2
+作为无效负载拒绝。
 
 ## 插件任务记录
 
@@ -684,4 +683,4 @@ Worker 将缺失的 Host 元数据映射为 unknown；保留的启动、终端�
 空闲证据。独立字节 golden、Worker 回执测试及 Server 条件关闭见证覆盖这些细化。配套原生
 cohort 一同升级／回滚；不支持混用版本绕过安全门禁。
 
-<!-- documentation-pairing: english-sha256=e8474fd86599b8908f11a3ad951d735d74bf2d555fa118fb2db0f33895653226 zh-cn-sha256=0c5691227e17a56cfaec589fb3c78b1d2a9d8aaa10886551a16c20ce459b3702 -->
+<!-- documentation-pairing: english-sha256=8ee16c07aed0c0d444cf12a3d5096b21cccf26ef1c869f8695fa3ef9af42ba8d zh-cn-sha256=f340113ae363c7a9ea0df6b0cf9d43252545c26c79d4c40403ca812715d35ad3 -->

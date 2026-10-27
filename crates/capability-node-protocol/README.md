@@ -663,11 +663,10 @@ Existing tags remain unchanged; mixed private cohorts are unsupported.
 
 Launch selections additionally cap worst-case JSON string-content bytes at 30 KiB: ASCII controls count as six, quotes and backslashes as two, and other UTF-8 bytes as one. This preserves the previous 2 KiB input domain while bounding the larger resume commands. Matching cohorts are required for the enlarged limits.
 
-## Per-launch Windows shell defaults
+## Retired launch kind 2
 
-An authorized default launch may carry `DefaultShellSelection`: a literal executable of 0–4096 UTF-8 bytes without control characters and mode Auto/Login/NonLogin. Empty executable means platform default; absence means Worker startup fallback. The Worker separately validates Windows executable syntax before effects. Explicit `LaunchSelection` and a default override are mutually exclusive. This value participates in exact replay identity.
-
-Launch kind 2 carries u8 mode (0 Auto, 1 Login, 2 NonLogin), u16 executable byte length, executable UTF-8 bytes, then the environment encoding (including empty). It has no explicit executable/argv selection. Unknown modes, truncation, trailing bytes and invalid bounded values are refused. OBCN frame version 1 and the 40 KiB payload limit remain unchanged. Matched private cohorts ship or roll back together; this wire adds no broadcast, persistence or retry.
+Authorized launch kind 2 carried a per-launch default-shell override. Shared launch profiles now
+select the default program, so decoders refuse kind 2 as invalid payload.
 
 ## Plugin job records
 

@@ -199,11 +199,13 @@ impl Theme {
             ],
         })
     }
-    pub(crate) fn selected(name: orchbee_local_runtime::ThemeName, level: ColorLevel) -> Self {
-        use orchbee_local_runtime::ThemeName;
+    pub(crate) fn selected(name: super::ThemeName, level: ColorLevel) -> Self {
+        use super::ThemeName;
         match name {
             ThemeName::TerminalNative => Self::terminal_native(),
+            #[cfg(test)]
             ThemeName::OneLight => Self::one_light(),
+            #[cfg(test)]
             ThemeName::OneDark => Self::one_dark(),
         }
         .quantize(level)

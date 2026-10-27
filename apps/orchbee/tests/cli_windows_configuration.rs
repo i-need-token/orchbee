@@ -524,16 +524,10 @@ fn field_errors_warn_default_or_disable_only_the_affected_setting() {
             "defaulted",
         ),
         (
-            "[terminal]\ndefault_shell='C:relative.exe'",
+            "[terminal]\ndefault_shell='pwsh.exe'",
             "terminal.default_shell",
-            "invalid-executable",
-            "defaulted",
-        ),
-        (
-            "[terminal]\nshell_mode='INVALID'",
-            "terminal.shell_mode",
-            "invalid-mode",
-            "defaulted",
+            "unknown-key",
+            "ignored",
         ),
         (
             "[keys]\nhelp='ctrl+d'",
@@ -595,8 +589,6 @@ fn config_check_reports_the_actual_file_without_creating_it() {
     let doc = document(fixture.run(&["config", "check", "--format=json"]));
     validate(&doc, schema);
     let check = &doc["result"]["checks"][5];
-    assert_eq!(check["details"]["defaultShell"], "");
-    assert_eq!(check["details"]["shellMode"], "auto");
     assert_eq!(check["details"]["manifestCheck"], true);
     assert_eq!(check["details"]["manifestCheckSource"], "default");
     assert_eq!(check["details"]["exists"], false);
@@ -604,7 +596,7 @@ fn config_check_reports_the_actual_file_without_creating_it() {
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     std::fs::write(
         &config,
-        "[terminal]\nnew_cwd='home'\ndefault_shell='pwsh.exe'\nshell_mode='login'\n[worktrees]\ndirectory='../trees'\n[update]\nmanifest_check=false",
+        "[terminal]\nnew_cwd='home'\n[worktrees]\ndirectory='../trees'\n[update]\nmanifest_check=false",
     )
     .unwrap();
     let doc = document(fixture.run(&["config", "check", "--format=json"]));
@@ -612,8 +604,6 @@ fn config_check_reports_the_actual_file_without_creating_it() {
     let check = &doc["result"]["checks"][5];
     assert_eq!(check["status"], "pass");
     assert_eq!(check["details"]["newCwd"], "home");
-    assert_eq!(check["details"]["defaultShell"], "pwsh.exe");
-    assert_eq!(check["details"]["shellMode"], "login");
     assert_eq!(check["details"]["manifestCheck"], false);
     assert_eq!(check["details"]["manifestCheckSource"], "file");
     assert_eq!(

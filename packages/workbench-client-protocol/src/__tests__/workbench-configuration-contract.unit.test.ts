@@ -44,15 +44,11 @@ const configurationResult = (notificationProfile: string) => ({
 			revision: '1',
 			diagnostics: { items: [], omittedCount: 0 },
 			keysProfile: '[keys]',
-			themeName: 'terminal-native',
 			windowTitle: '',
 			notificationProfile,
 			agentSidebarProfile: '{}',
 			spacesSidebarProfile: '{}',
 			manifestCheck: true,
-			defaultShell: '',
-			shellMode: 'auto',
-			restartRequired: [],
 		},
 	},
 });
@@ -84,15 +80,11 @@ describe('Session configuration publication', () => {
 			revision: '1',
 			diagnostics: { items: [], omittedCount: 0 },
 			keysProfile: 'x'.repeat(20000),
-			themeName: 'terminal-native',
 			windowTitle: '',
 			notificationProfile: '[ui.toast]',
 			agentSidebarProfile: profile('agent'),
 			spacesSidebarProfile: profile('workspace'),
 			manifestCheck: true,
-			defaultShell: '',
-			shellMode: 'auto',
-			restartRequired: [],
 		};
 		const document = {
 			kind: 'workbench.configuration.result',
@@ -106,7 +98,7 @@ describe('Session configuration publication', () => {
 		snapshot.spacesSidebarProfile = 'x'.repeat(32769);
 		expect(WorkbenchResponseSchema.safeParse(document).success).toBe(false);
 	});
-	it('rejects unpaired Unicode before admitting a shell snapshot', () => {
+	it('rejects unpaired Unicode before admitting a snapshot', () => {
 		expect(
 			WorkbenchResponseSchema.safeParse({
 				kind: 'workbench.configuration.result',
@@ -119,15 +111,11 @@ describe('Session configuration publication', () => {
 						revision: '0',
 						diagnostics: { items: [], omittedCount: 0 },
 						keysProfile: '[keys]',
-						themeName: 'terminal-native',
-						windowTitle: '',
+						windowTitle: '\ud800',
 						notificationProfile: '[ui.toast]',
 						agentSidebarProfile: '{}',
 						spacesSidebarProfile: '{}',
 						manifestCheck: true,
-						restartRequired: [],
-						defaultShell: '\ud800',
-						shellMode: 'auto',
 					},
 				},
 			}).success,

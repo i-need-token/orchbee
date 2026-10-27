@@ -282,8 +282,6 @@ pub(crate) enum RetainedBindingResolution<'coordinator> {
 
 #[derive(Debug)]
 pub(crate) struct TerminalCoordinator {
-    #[cfg(windows)]
-    default_shell: Option<orchbee_capability_node_protocol::DefaultShellSelection>,
     bindings: BTreeMap<RequestId, TerminalBinding>,
     next_identity: Option<u128>,
 }
@@ -291,19 +289,9 @@ pub(crate) struct TerminalCoordinator {
 impl TerminalCoordinator {
     pub(crate) const fn new() -> Self {
         Self {
-            #[cfg(windows)]
-            default_shell: None,
             bindings: BTreeMap::new(),
             next_identity: Some(1),
         }
-    }
-
-    #[cfg(windows)]
-    pub(crate) fn set_default_shell(
-        &mut self,
-        shell: orchbee_capability_node_protocol::DefaultShellSelection,
-    ) {
-        self.default_shell = Some(shell);
     }
 
     pub(crate) fn viewer_target(
@@ -745,22 +733,6 @@ impl TerminalCoordinator {
         let launch_selection = request.launch().cloned();
         let command = AuthorizedTerminalLaunch::new(authorization, cwd, mode, launch)
             .with_environment(environment);
-        #[cfg(windows)]
-        let command = {
-            let shell = if command.launch().is_none() {
-                self.default_shell.clone()
-            } else {
-                None
-            };
-            match command.with_default_shell(shell) {
-                Ok(command) => command,
-                Err(_) => {
-                    return Err(ready(CreateOutcome::Failed {
-                        reason: CreateFailureReason::TerminalCreateFailed,
-                    }));
-                }
-            }
-        };
         let plugin_environment = match request
             .plugin_environment()
             .map(|environment| {

@@ -307,8 +307,6 @@ fn admitted_request_replies_with_host_observed_event() -> TestResult {
         kernel,
         super::super::AdmittedAux {
             preferences: None,
-            #[cfg(windows)]
-            shell: &Default::default(),
             drain: &drain,
             worktree_slot: &worktree_slot,
             #[cfg(windows)]

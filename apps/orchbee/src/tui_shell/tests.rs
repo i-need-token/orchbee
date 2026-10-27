@@ -1108,8 +1108,8 @@ mod window_title;
 #[test]
 fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forwarding_input() {
     use crate::terminal_text::display_width;
+    use crate::tui_theme::ThemeName;
     use crate::tui_theme::{ColorLevel, Role, Theme};
-    use orchbee_local_runtime::ThemeName;
     for (width, height) in [(80, 24), (120, 40), (70, 18), (40, 10), (18, 4)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             let mut terminal = test_terminal(dimensions(width, height));

@@ -83,14 +83,10 @@
 				"diagnostics",
 				"keysProfile",
 				"manifestCheck",
-				"restartRequired",
-				"defaultShell",
-				"shellMode",
 				"windowTitle",
 				"notificationProfile",
 				"agentSidebarProfile",
-				"spacesSidebarProfile",
-				"themeName"
+				"spacesSidebarProfile"
 			],
 			"additionalProperties": false,
 			"properties": {
@@ -111,23 +107,6 @@
 				"manifestCheck": {
 					"type": "boolean"
 				},
-				"restartRequired": {
-					"type": "array",
-					"maxItems": 3,
-					"uniqueItems": true,
-					"items": {
-						"enum": ["terminal.default_shell", "terminal.shell_mode"]
-					}
-				},
-				"defaultShell": {
-					"type": "string",
-					"maxLength": 4096,
-					"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
-					"$comment": "Bindings additionally enforce the 4096 UTF-8 byte limit and Unicode scalar strings."
-				},
-				"shellMode": {
-					"enum": ["auto", "login", "non_login"]
-				},
 				"windowTitle": {
 					"type": "string",
 					"maxLength": 4096
@@ -147,9 +126,6 @@
 					"type": "string",
 					"minLength": 1,
 					"maxLength": 32768
-				},
-				"themeName": {
-					"enum": ["terminal-native", "one-light", "one-dark"]
 				}
 			}
 		},

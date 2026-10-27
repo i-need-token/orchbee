@@ -673,11 +673,11 @@ not establish the public CLI export/apply roundtrip.
 
 ## Session configuration publication
 
-`workbench.configuration` (OBWP kind 39) carries `current` or `reload`; `workbench.configuration.result` (kind 40) carries a closed current/reloaded/failed outcome. Each frame is capped at 256 KiB. The [configuration schema](v1/workbench-configuration.schema.json) owns the closed structural shape and code-point ceilings; the shared corpus checks structural and UTF-8 semantic boundaries, while the independent Rust/TypeScript bindings additionally enforce the stated UTF-8 byte limits. Snapshot revision 0 denotes the startup baseline; positive revisions denote explicit publications. Every successful snapshot includes a required, closed `diagnostics` record with at most 128 entries in strict ascending `(field, reason)` order by Unicode scalar value and no duplicate pair; `omittedCount` is 0–65536. Each nonempty field is control-free and at most 256 UTF-8 bytes, each reason is a lowercase ASCII kebab token of at most 64 bytes, and disposition is one of `defaulted`, `disabled` or `ignored`. The canonical keys-only profile is capped at 64 KiB, restart requirements are unique, and optional failure diagnostics are required nullable paired values (128 UTF-8 bytes, no controls, only for load failure). Request and Session identities must match; a successful result must match the requested action.
+`workbench.configuration` (OBWP kind 39) carries `current` or `reload`; `workbench.configuration.result` (kind 40) carries a closed current/reloaded/failed outcome. Each frame is capped at 256 KiB. The [configuration schema](v1/workbench-configuration.schema.json) owns the closed structural shape and code-point ceilings; the shared corpus checks structural and UTF-8 semantic boundaries, while the independent Rust/TypeScript bindings additionally enforce the stated UTF-8 byte limits. Snapshot revision 0 denotes the startup baseline; positive revisions denote explicit publications. Every successful snapshot includes a required, closed `diagnostics` record with at most 128 entries in strict ascending `(field, reason)` order by Unicode scalar value and no duplicate pair; `omittedCount` is 0–65536. Each nonempty field is control-free and at most 256 UTF-8 bytes, each reason is a lowercase ASCII kebab token of at most 64 bytes, and disposition is one of `defaulted`, `disabled` or `ignored`. The canonical keys-only profile is capped at 64 KiB, and optional failure diagnostics are required nullable paired values (128 UTF-8 bytes, no controls, only for load failure). Request and Session identities must match; a successful result must match the requested action.
 
 The [Windows configuration owner](../../apps/orchbee/docs/windows-cli-configuration.md#live-configuration-reload) owns authorization, frozen path, candidate validation, publication, Client installation and shutdown. A publication is not an acknowledgement from every Client. Lost submitted reload replies remain unknown and are not retried automatically. No Desktop command is added; matched private cohorts roll out together without a persisted migration.
 
-Required `defaultShell` and `shellMode` expose admitted defaults for subsequent terminal preparation, not resolved Worker facts. The executable is empty for platform default or a control-free literal of at most 4096 UTF-8 bytes; mode is `auto`, `login` or `non_login`. Matched private cohorts change together. The sole version-1 public CLI configuration document projects these fields.
+Snapshots carry no launch program or theme: shared preferences own the default launch profile and application appearance. Matched private cohorts change together, and the sole version-1 public CLI configuration document projects the same fields.
 
 ## Transient Client notifications
 
@@ -743,17 +743,6 @@ The shared corpus admits that receipt and rejects unknown reasons or extra rejec
 does not add conditional commands to configured input or widen unrelated CLI failure contracts.
 
 Canonical split `ratio` is optional with an equal default and finite 0.1–0.9 bounds. `layout.set-split-ratio` carries exact ordered identities, revision and previous/new ratios; its result is `split-ratio-configured`. See [shared ratio ownership](../../apps/orchbee-server/docs/shared-split-ratios.md) for cohort and durable compatibility.
-
-## Named chrome theme publications
-
-The matched configuration snapshot requires `themeName`, exactly `terminal-native`,
-`one-light` or `one-dark`. Missing, wrong-type and unknown values reject the entire
-snapshot in Rust, TypeScript and JSON Schema. Clients admit all four profiles and
-the named selection before installing any field; duplicate, stale or malformed
-snapshots retain the installed palette. Theme-only changes use the existing complete
-settings publication revision. The [native theme owner](../../apps/orchbee/docs/native-themes.md)
-defines startup projection, color capabilities, full-frame application and rollback.
-This matched-cohort wire addition does not migrate checkpoints. Public Session configuration, configuration check and catalog documents use version 1.
 
 ## Native Settings wire contract
 

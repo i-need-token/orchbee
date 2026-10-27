@@ -4,16 +4,13 @@ use crate::{
     terminal_host_launch_adapter::map_launch_dispatch,
 };
 use orchbee_capability_node_protocol::*;
-use orchbee_local_runtime::ShellSettings;
 use std::num::NonZeroU64;
 
 #[test]
-fn configured_and_explicit_shells_reach_real_host_launch_preparation() -> Result<(), Box<dyn Error>>
+fn automatic_and_explicit_launches_reach_real_host_launch_preparation() -> Result<(), Box<dyn Error>>
 {
-    let powershell = std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap())
-        .join("System32/WindowsPowerShell/v1.0/powershell.exe");
+    let automatic = resolve_default_interactive_launch()?.executable;
     let cwd = AbsoluteCwd::new(std::env::temp_dir().to_str().unwrap())?;
-    let configured = ShellSettings::new(powershell.to_str().unwrap(), "login")?;
     for (explicit, shared) in [(false, false), (true, false), (false, true), (true, true)] {
         let defaults = shared.then(|| orchbee_local_runtime::UserTerminalLaunchDefaults {
             launch: Some(orchbee_local_runtime::DefaultInteractiveLaunch {
@@ -31,11 +28,6 @@ fn configured_and_explicit_shells_reach_real_host_launch_preparation() -> Result
             )
             .unwrap()
         });
-        let snapshot = if explicit {
-            ShellSettings::new("definitely-missing-shell.exe", "login")?
-        } else {
-            configured.clone()
-        };
         let environment =
             LaunchEnvironment::new(vec![("USER_MARKER".into(), "literal $ value".into())])?;
         let plugin = explicit.then(|| {
@@ -54,10 +46,7 @@ fn configured_and_explicit_shells_reach_real_host_launch_preparation() -> Result
             plugin.as_ref(),
             defaults.as_ref(),
             orchbee_local_runtime::UserTerminalColors::LIGHT,
-            ShellLaunchPolicy {
-                editor_launch: false,
-                settings: &snapshot,
-            },
+            false,
         )?;
         let n = NonZeroU64::MIN;
         let authorization = TerminalOperationAuthorization::new(
@@ -153,19 +142,12 @@ fn configured_and_explicit_shells_reach_real_host_launch_preparation() -> Result
             assert_eq!(host.launch.executable, "C:/shared/default.exe");
             assert_eq!(host.launch.arguments, ["literal && shared value"]);
         } else {
-            assert_eq!(std::path::Path::new(&host.launch.executable), powershell);
+            assert_eq!(host.launch.executable, automatic);
             assert!(
                 host.launch
                     .arguments
                     .iter()
                     .any(|argument| argument == "-Command")
-            );
-            assert!(
-                !host
-                    .launch
-                    .arguments
-                    .iter()
-                    .any(|argument| argument == "-l")
             );
         }
     }

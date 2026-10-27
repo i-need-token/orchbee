@@ -407,20 +407,6 @@ fn encode_authorized_terminal_launch(value: &AuthorizedTerminalLaunch) -> Vec<u8
         );
         encode_launch_environment(&mut payload, value.environment());
         encode_environment_entries(&mut payload, plugin.entries());
-    } else if let Some(shell) = value.default_shell() {
-        payload.push(2);
-        payload.push(match shell.mode() {
-            crate::DefaultShellMode::Auto => 0,
-            crate::DefaultShellMode::Login => 1,
-            crate::DefaultShellMode::NonLogin => 2,
-        });
-        payload.extend_from_slice(
-            &u16::try_from(shell.executable().len())
-                .expect("bounded shell")
-                .to_be_bytes(),
-        );
-        payload.extend_from_slice(shell.executable().as_bytes());
-        encode_launch_environment(&mut payload, value.environment());
     } else if let Some(launch) = value.launch() {
         payload.push(1);
         encode_launch_selection(&mut payload, launch);
@@ -441,7 +427,7 @@ fn decode_authorized_terminal_launch(
     let mode = decode_launch_mode(&mut reader)?;
     let mut plugin_environment = None;
     let mut editor_source = None;
-    let (launch, environment, shell) = match reader.read_u8()? {
+    let (launch, environment) = match reader.read_u8()? {
         4 => {
             let launch = decode_launch_selection(&mut reader)?;
             let environment = decode_launch_environment(&mut reader)?;
@@ -453,7 +439,7 @@ fn decode_authorized_terminal_launch(
                     .ok_or(ProtocolError::InvalidPayload)?,
                 revision: reader.read_u64()?,
             });
-            (Some(launch), environment, None)
+            (Some(launch), environment)
         }
         3 => {
             let launch = decode_launch_selection(&mut reader)?;
@@ -465,36 +451,19 @@ fn decode_authorized_terminal_launch(
                     crate::MAXIMUM_PLUGIN_TERMINAL_ENVIRONMENT_BYTES,
                 )?,
             )?);
-            (Some(launch), environment, None)
+            (Some(launch), environment)
         }
-        2 => {
-            let mode = match reader.read_u8()? {
-                0 => crate::DefaultShellMode::Auto,
-                1 => crate::DefaultShellMode::Login,
-                2 => crate::DefaultShellMode::NonLogin,
-                _ => return Err(ProtocolError::InvalidPayload),
-            };
-            let length = usize::from(reader.read_u16()?);
-            if length > 4096 {
-                return Err(ProtocolError::InvalidPayload);
-            }
-            let executable = String::from_utf8(reader.read_slice(length)?.to_vec())
-                .map_err(|_| ProtocolError::InvalidPayload)?;
-            let shell = crate::DefaultShellSelection::new(executable, mode)?;
-            (None, decode_launch_environment(&mut reader)?, Some(shell))
-        }
+        // Tag 2 carried the retired default-shell override.
         1 => {
-            let launch = Some(decode_launch_selection(&mut reader)?);
-            let environment = decode_launch_environment(&mut reader)?;
-            (launch, environment, None)
+            let launch = decode_launch_selection(&mut reader)?;
+            (Some(launch), decode_launch_environment(&mut reader)?)
         }
-        0 => (None, decode_launch_environment(&mut reader)?, None),
+        0 => (None, decode_launch_environment(&mut reader)?),
         _ => return Err(ProtocolError::InvalidPayload),
     };
     reader.finish()?;
     AuthorizedTerminalLaunch::new(authorization, cwd, mode, launch)
         .with_environment(environment)
-        .with_default_shell(shell)?
         .with_plugin_environment(plugin_environment)?
         .with_editor_source(editor_source)
 }

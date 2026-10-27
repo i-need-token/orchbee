@@ -244,8 +244,7 @@ pub use command::agent_manifest_update::{
 pub use command::configuration::{
     ConfigurationAction, ConfigurationDiagnostic, ConfigurationDiagnosticDisposition,
     ConfigurationDiagnostics, ConfigurationFailure, ConfigurationOutcome, ConfigurationRequest,
-    ConfigurationRestart, ConfigurationResult, ConfigurationShellMode, ConfigurationSnapshot,
-    ConfigurationThemeName, MAXIMUM_CONFIGURATION_BYTES,
+    ConfigurationResult, ConfigurationSnapshot, MAXIMUM_CONFIGURATION_BYTES,
     MAXIMUM_CONFIGURATION_DIAGNOSTIC_FIELD_BYTES, MAXIMUM_CONFIGURATION_DIAGNOSTIC_REASON_BYTES,
     MAXIMUM_CONFIGURATION_DIAGNOSTICS, MAXIMUM_CONFIGURATION_DIAGNOSTICS_OMITTED,
 };

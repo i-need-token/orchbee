@@ -592,11 +592,11 @@ Server 负责原子分配和发布；物理成员创建仍是独立的保留命�
 
 ## 会话 配置发布
 
-`workbench.configuration`（OBWP 类型 39）携带 `current` 或 `reload`；`workbench.configuration.result`（类型 40）携带封闭的 current/reloaded/failed 结果。每帧上限 256 KiB。[配置 schema](v1/workbench-configuration.schema.json) 负责封闭的结构形状与码点数量上限；共享语料检查结构边界与 UTF-8 语义边界，独立 Rust/TypeScript 绑定另行执行所述 UTF-8 字节上限。快照版本 0 表示启动基线，正版本表示显式发布。每个成功快照都包含必需且封闭的 `diagnostics` 记录；它至多含 128 个条目，按 Unicode 标量值将 `(field, reason)` 严格升序排列且二元组不重复，`omittedCount` 范围为 0–65536。每个非空 field 不含控制字符且至多 256 个 UTF-8 字节；每个 reason 是至多 64 字节的小写 ASCII kebab token；disposition 只能是 `defaulted`、`disabled` 或 `ignored`。仅含键位的规范配置上限 64 KiB；重启字段不可重复；可选失败诊断为必需但可空的成对字段（128 个 UTF-8 字节、无控制字符，仅载入失败允许）。请求和 会话 标识必须匹配，成功结果必须对应请求动作。
+`workbench.configuration`（OBWP 类型 39）携带 `current` 或 `reload`；`workbench.configuration.result`（类型 40）携带封闭的 current/reloaded/failed 结果。每帧上限 256 KiB。[配置 schema](v1/workbench-configuration.schema.json) 负责封闭的结构形状与码点数量上限；共享语料检查结构边界与 UTF-8 语义边界，独立 Rust/TypeScript 绑定另行执行所述 UTF-8 字节上限。快照版本 0 表示启动基线，正版本表示显式发布。每个成功快照都包含必需且封闭的 `diagnostics` 记录；它至多含 128 个条目，按 Unicode 标量值将 `(field, reason)` 严格升序排列且二元组不重复，`omittedCount` 范围为 0–65536。每个非空 field 不含控制字符且至多 256 个 UTF-8 字节；每个 reason 是至多 64 字节的小写 ASCII kebab token；disposition 只能是 `defaulted`、`disabled` 或 `ignored`。仅含键位的规范配置上限 64 KiB；可选失败诊断为必需但可空的成对字段（128 个 UTF-8 字节、无控制字符，仅载入失败允许）。请求和 会话 标识必须匹配，成功结果必须对应请求动作。
 
 [Windows 配置归属契约](../../apps/orchbee/docs/windows-cli-configuration.zh-CN.md#在线配置重载) 负责授权、冻结路径、候选校验、发布、Client 应用和关闭。发布不表示所有 Client 已确认。已提交重载丢失响应仍为未知，不自动重试。不新增 Desktop 命令；匹配的私有版本整套交付，不迁移持久化格式。
 
-必需 `defaultShell` 和 `shellMode` 暴露后续终端准备所用的已接纳默认值，不是 Worker 解析后的事实。可执行文件为空表示平台默认，否则为最多 4096 UTF-8 字节、无控制字符的字面量；模式为 `auto`、`login` 或 `non_login`。匹配的私有 cohort 一同升级。唯一的版本 1 公开 CLI configuration 文档映射这两个字段。
+快照不携带启动程序或主题：共享偏好拥有默认启动配置和应用外观。匹配的私有 cohort 一同升级，唯一的版本 1 公开 CLI configuration 文档映射相同字段。
 
 ## Client 临时通知
 
@@ -659,17 +659,8 @@ Workspace 侧栏发布增加必需非空 `spacesSidebarProfile`，独立于 `age
 
 规范分割 `ratio` 可省略为等比例默认值，有限数值限制为 0.1–0.9。`layout.set-split-ratio` 携带确切有序身份、修订及原／新比例，结果为 `split-ratio-configured`。cohort 及持久兼容性见[共享比例归属](../../apps/orchbee-server/docs/shared-split-ratios.zh-CN.md)。
 
-## 命名 chrome 主题发布
-
-匹配 cohort 的配置快照必需 `themeName`，精确取值为 `terminal-native`、`one-light` 或 `one-dark`。
-Rust、TypeScript 和 JSON Schema 在缺失、类型错误或未知值时拒绝整份快照。
-Client 先准入全部四个 profile 及命名选择再安装任何字段；重复、过期或错误快照保留已安装调色板。
-仅主题变化沿用完整设置发布的既有修订。[原生主题所有者](../../apps/orchbee/docs/native-themes.zh-CN.md)
-定义启动投影、颜色能力、整帧应用及回退。此匹配 cohort 线协议增量不迁移 checkpoint。
-公开会话配置、配置检查和目录文档使用版本 1。
-
 ## 原生设置协议契约
 
 [设置](v1/workbench-settings.schema.json) 定义匹配 Windows cohort 的闭合 Open/Save 请求及结果。三个必需但可空的字段区分未修改设置与明确的主题／提醒／声音修改；全部为空的补丁非法。来源令牌区分文件不存在与规范 SHA-256 内容摘要。Save 同时约束发布 revision；结果区分磁盘持久化、在线应用与写入前拒绝。共享语料在 Rust、TypeScript 和 JSON Schema 中检查额外字段拒绝、全宽 revision、完整快照及独立的 4 KiB 请求／256 KiB 结果限制。[原生设置所有者](../../apps/orchbee/docs/native-settings.zh-CN.md) 负责写入、输入捕获、不确定结果和恢复。
 
-<!-- documentation-pairing: english-sha256=86a8f3464df944eb922f848065dbfb8c44ef97718d72db427f1d774897185fff zh-cn-sha256=8e44d24512bdec578e12a6f22e6f4ac5a7b7639420ee8888234bc8dee6100759 -->
+<!-- documentation-pairing: english-sha256=0dddabee9eeb4414819c58a48c574276a49b9bd671ec4f8e822550367b7ecc77 zh-cn-sha256=e4c656470025bf1c19c2a8f7149cca7eaffe7101f3c0afa21a999a861886e6b3 -->

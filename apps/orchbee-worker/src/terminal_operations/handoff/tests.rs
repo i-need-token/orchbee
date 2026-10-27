@@ -487,7 +487,6 @@ fn handoff_actual_admitted_loop_preserves_host_and_cached_terminal_binding_on_ne
             kernel,
             super::super::AdmittedAux {
                 preferences: None,
-                shell: &Default::default(),
                 drain: &drain,
                 worktree_slot: &jobs,
                 mutation_slot: &mutations,

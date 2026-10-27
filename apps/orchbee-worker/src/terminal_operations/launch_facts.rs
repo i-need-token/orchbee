@@ -1,4 +1,4 @@
-//! Resolves literal per-launch cwd, environment, shell policy, and terminal profile facts for
+//! Resolves literal per-launch cwd, environment, program, and terminal profile facts for
 //! the Host adapter on the current platform. It does not issue authorization, start a Host, or
 //! submit a terminal creation request.
 
@@ -23,13 +23,6 @@ use crate::{
     worker_identity::fresh_identity,
 };
 
-/// Captured Windows shell policy; editor launches keep their literal argument list.
-#[cfg(windows)]
-pub(super) struct ShellLaunchPolicy<'a> {
-    pub(super) editor_launch: bool,
-    pub(super) settings: &'a orchbee_local_runtime::ShellSettings,
-}
-
 pub(super) fn resolve(
     explicit_cwd: Option<&AbsoluteCwd>,
     selection: Option<&orchbee_capability_node_protocol::LaunchSelection>,
@@ -37,7 +30,8 @@ pub(super) fn resolve(
     plugin_environment: Option<&orchbee_capability_node_protocol::PluginTerminalEnvironment>,
     defaults: Option<&orchbee_local_runtime::UserTerminalLaunchDefaults>,
     host_colors: orchbee_local_runtime::UserTerminalColors,
-    #[cfg(windows)] shell: ShellLaunchPolicy<'_>,
+    // Windows editor launches keep their literal argument list.
+    #[cfg(windows)] editor_launch: bool,
 ) -> Result<ResolvedTerminalLaunchFacts, Box<dyn Error>> {
     if plugin_environment.is_some() && (!cfg!(windows) || selection.is_none()) {
         return Err(io::Error::new(
@@ -58,16 +52,13 @@ pub(super) fn resolve(
         None => {
             let launch = match defaults.and_then(|defaults| defaults.launch.as_ref()) {
                 Some(launch) => launch.clone(),
-                None => resolve_default_interactive_launch(
-                    #[cfg(windows)]
-                    shell.settings,
-                )?,
+                None => resolve_default_interactive_launch()?,
             };
             (launch.executable, launch.arguments)
         }
     };
     #[cfg(windows)]
-    let arguments = if shell.editor_launch {
+    let arguments = if editor_launch {
         arguments
     } else {
         powershell::interactive_arguments(&executable, arguments)

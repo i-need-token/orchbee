@@ -333,7 +333,7 @@ fn run_prepared_surface(
     {
         if crate::tui_capabilities::Capability::ConfigurationFile.available() {
             initial_view.onboarding = crate::onboarding::State::load();
-            initial_view.configure_theme(orchbee_local_runtime::ThemeName::TerminalNative);
+            initial_view.configure_theme(crate::tui_theme::ThemeName::TerminalNative);
             let load = orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name));
             if let Err(error) = &load
                 && !server_configuration
@@ -348,7 +348,6 @@ fn run_prepared_surface(
                     initial_view.configuration_warning(true);
                 }
                 let settings = load.settings;
-                initial_view.configure_theme(settings.theme);
                 initial_view.configure_keys(&settings.keys);
                 terminal_input.configure_panel_focus(settings.focus_new_panel);
                 terminal_input.configure_agent_notifications(0, &settings.notifications);

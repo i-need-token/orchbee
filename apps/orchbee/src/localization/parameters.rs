@@ -53,7 +53,6 @@ pub(crate) enum Notice {
     CheckpointEmpty,
     ConfigurationPublished,
     ConfigurationWarning,
-    ConfigurationRestart,
     ConfigurationFailed,
     ConfigurationUnknown,
     WindowTitleUnavailable,

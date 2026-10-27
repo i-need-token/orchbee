@@ -224,9 +224,9 @@ node scripts/stage-local-runtime.mjs --output "$env:LOCALAPPDATA\OrchbeeNative"
 The directory contains the four exact `.exe` siblings, a hash manifest, and the observation-adapter
 capsule. Keep them together. This is a native development cohort using Windows named pipes and
 ConPTY. Windows Terminal is the interactive host; WSL is not required. New terminals capture the shared launch profile and scrollback default. The built-in System shell
-selects the first compatible PowerShell 7 on absolute PATH or system Windows PowerShell;
-explicit legacy `terminal.default_shell` seeds only an unclaimed shared profile. See [Windows configuration](docs/windows-cli-configuration.md#configured-windows-shell)
-for shell mode and startup lifetime. `server start --format json` also works without an interactive console.
+selects the first compatible PowerShell 7 on absolute PATH or system Windows PowerShell.
+See [Windows configuration](docs/windows-cli-configuration.md#automatic-windows-shell)
+for candidate selection. `server start --format json` also works without an interactive console.
 
 On a Windows Session with no Workspace or terminal content, `cd <project>; orchbee` creates
 an ungrouped Workspace named after the current directory and its first terminal in that directory.

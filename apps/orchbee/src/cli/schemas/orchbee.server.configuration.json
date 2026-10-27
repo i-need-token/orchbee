@@ -67,15 +67,11 @@
 														"revision",
 														"diagnostics",
 														"keysProfile",
-														"restartRequired",
 														"manifestCheck",
-														"defaultShell",
-														"shellMode",
 														"windowTitle",
 														"notificationProfile",
 														"agentSidebarProfile",
-														"spacesSidebarProfile",
-														"themeName"
+														"spacesSidebarProfile"
 													],
 													"additionalProperties": false,
 													"properties": {
@@ -88,24 +84,8 @@
 															"minLength": 1,
 															"maxLength": 65536
 														},
-														"restartRequired": {
-															"type": "array",
-															"uniqueItems": true,
-															"maxItems": 3,
-															"items": {
-																"enum": ["terminal.default_shell", "terminal.shell_mode"]
-															}
-														},
 														"manifestCheck": {
 															"type": "boolean"
-														},
-														"defaultShell": {
-															"type": "string",
-															"maxLength": 4096,
-															"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$"
-														},
-														"shellMode": {
-															"enum": ["auto", "login", "non_login"]
 														},
 														"windowTitle": {
 															"type": "string",
@@ -164,9 +144,6 @@
 																	"maximum": 65536
 																}
 															}
-														},
-														"themeName": {
-															"enum": ["terminal-native", "one-light", "one-dark"]
 														}
 													}
 												}
@@ -186,15 +163,11 @@
 														"revision",
 														"diagnostics",
 														"keysProfile",
-														"restartRequired",
 														"manifestCheck",
-														"defaultShell",
-														"shellMode",
 														"windowTitle",
 														"notificationProfile",
 														"agentSidebarProfile",
-														"spacesSidebarProfile",
-														"themeName"
+														"spacesSidebarProfile"
 													],
 													"additionalProperties": false,
 													"properties": {
@@ -207,24 +180,8 @@
 															"minLength": 1,
 															"maxLength": 65536
 														},
-														"restartRequired": {
-															"type": "array",
-															"uniqueItems": true,
-															"maxItems": 3,
-															"items": {
-																"enum": ["terminal.default_shell", "terminal.shell_mode"]
-															}
-														},
 														"manifestCheck": {
 															"type": "boolean"
-														},
-														"defaultShell": {
-															"type": "string",
-															"maxLength": 4096,
-															"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$"
-														},
-														"shellMode": {
-															"enum": ["auto", "login", "non_login"]
 														},
 														"windowTitle": {
 															"type": "string",
@@ -283,9 +240,6 @@
 																	"maximum": 65536
 																}
 															}
-														},
-														"themeName": {
-															"enum": ["terminal-native", "one-light", "one-dark"]
 														}
 													}
 												},

@@ -203,9 +203,8 @@ node scripts/stage-local-runtime.mjs --output "$env:LOCALAPPDATA\OrchbeeNative"
 
 目录包含四个精确的同级 `.exe`、摘要清单和观察适配器 capsule，必须保存在一起。这是使用 Windows
 命名管道和 ConPTY 的原生开发 cohort；交互宿主为 Windows Terminal，无需 WSL。新终端捕获共享启动配置与滚动历史默认值。
-内置系统 Shell 选择绝对 PATH 中首个兼容 PowerShell 7 或系统 Windows PowerShell；显式旧
-`terminal.default_shell` 只为未声明共享配置提供初值。
-Shell 模式及启动生命周期见 [Windows 配置](docs/windows-cli-configuration.zh-CN.md#windows-配置-shell)。
+内置系统 Shell 选择绝对 PATH 中首个兼容 PowerShell 7 或系统 Windows PowerShell。
+候选选择见 [Windows 配置](docs/windows-cli-configuration.zh-CN.md#windows-自动-shell)。
 `server start --format json` 也可在非交互控制台中运行。
 
 Windows Session 中没有 Workspace 或终端内容时，`cd <project>; orchbee` 创建以当前目录命名的
@@ -934,4 +933,4 @@ Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin acti
 
 Windows 首次运行引导在终端可继续输入时提供 Workspace 创建、Agent 选择、操作与帮助入口，关闭状态按原生配置档案保存。参见[原生首次运行引导](docs/native-onboarding.zh-CN.md)。
 
-<!-- documentation-pairing: english-sha256=6ae804ee17abe57aa6ee9060cb741ec4eff04b3ba611656764bd16cd67d8a30f zh-cn-sha256=8b50dfe19a26c40c1e11a90110e9e04eaa72c5d32c3a09097a2e76e837755990 -->
+<!-- documentation-pairing: english-sha256=fe7caf8d08d8402148fe46515ce944247993528496fbedfe7ad98be7e6324ffb zh-cn-sha256=80d5c25c75cc3374a719d555811c5f2c445da8d145fc3a17156ff69d65386fcb -->

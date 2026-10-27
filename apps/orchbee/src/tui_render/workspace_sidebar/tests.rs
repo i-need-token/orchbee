@@ -1712,7 +1712,7 @@ fn alignment_sidebar_tree_keeps_current_focus_children_and_whole_shell_evidence(
     ] {
         let mut view = view(width, height);
         view.configure_color_level(crate::tui_theme::ColorLevel::Truecolor);
-        view.configure_theme(orchbee_local_runtime::ThemeName::default());
+        view.configure_theme(crate::tui_theme::ThemeName::default());
         configure(
             &mut view,
             serde_json::json!([[token("state_icon"), token("workspace")], [token("branch")]]),

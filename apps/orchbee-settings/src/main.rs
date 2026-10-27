@@ -70,12 +70,9 @@ fn serve_system_shell() -> ExitCode {
     {
         return ExitCode::from(1);
     }
-    let executable = orchbee_local_runtime::resolve_default_interactive_launch(
-        #[cfg(windows)]
-        &orchbee_local_runtime::ShellSettings::default(),
-    )
-    .ok()
-    .map(|launch| launch.executable);
+    let executable = orchbee_local_runtime::resolve_default_interactive_launch()
+        .ok()
+        .map(|launch| launch.executable);
     let Ok(mut bytes) = serde_json::to_vec(&executable) else {
         return ExitCode::from(1);
     };

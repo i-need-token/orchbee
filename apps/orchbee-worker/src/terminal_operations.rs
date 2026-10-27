@@ -52,7 +52,6 @@ pub(crate) fn run(
     generation: NonZeroU64,
     drain: &Rc<RefCell<AgentDrain>>,
     preferences: Option<&orchbee_local_runtime::UserPreferencesStore>,
-    #[cfg(windows)] shell: &orchbee_local_runtime::ShellSettings,
 ) -> Result<(), Box<dyn Error>> {
     server.set_nonblocking(true)?;
     host.stream().set_nonblocking(true)?;
@@ -72,8 +71,6 @@ pub(crate) fn run(
         kernel,
         AdmittedAux {
             preferences,
-            #[cfg(windows)]
-            shell,
             drain,
             worktree_slot: &worktree_slot,
             #[cfg(windows)]
@@ -97,8 +94,6 @@ pub(crate) fn run(
 /// directory (`None` for unmanaged launches).
 pub(crate) struct AdmittedAux<'a> {
     pub(crate) preferences: Option<&'a orchbee_local_runtime::UserPreferencesStore>,
-    #[cfg(windows)]
-    pub(crate) shell: &'a orchbee_local_runtime::ShellSettings,
     pub(crate) drain: &'a Rc<RefCell<AgentDrain>>,
     pub(crate) worktree_slot: &'a crate::worktree_discovery_job::WorktreeDiscoverySlot,
     #[cfg(windows)]
@@ -460,8 +455,6 @@ fn run_admitted_with_handoff(
                 aux.session_runtime,
                 aux.preferences,
                 observed_colors,
-                #[cfg(windows)]
-                aux.shell,
             )? {
                 Some(prepared) => prepared.execute(
                     &mut kernel,
@@ -552,16 +545,8 @@ fn prepare_or_fail(
     session_runtime: Option<&std::path::Path>,
     preferences: Option<&orchbee_local_runtime::UserPreferencesStore>,
     observed_colors: Option<orchbee_local_runtime::UserTerminalColors>,
-    #[cfg(windows)] shell: &orchbee_local_runtime::ShellSettings,
 ) -> Result<Option<PreparedHostOperation>, Box<dyn Error>> {
-    match prepare(
-        dispatch,
-        session_runtime,
-        preferences,
-        observed_colors,
-        #[cfg(windows)]
-        shell,
-    ) {
+    match prepare(dispatch, session_runtime, preferences, observed_colors) {
         Ok(prepared) => Ok(Some(prepared)),
         Err(_) => {
             kernel.record_pre_handoff_failure(dispatch, unix_milliseconds())?;
@@ -575,7 +560,6 @@ fn prepare(
     session_runtime: Option<&std::path::Path>,
     preferences: Option<&orchbee_local_runtime::UserPreferencesStore>,
     observed_colors: Option<orchbee_local_runtime::UserTerminalColors>,
-    #[cfg(windows)] shell: &orchbee_local_runtime::ShellSettings,
 ) -> Result<PreparedHostOperation, Box<dyn Error>> {
     let correlation = CorrelationId::from_bytes(crate::worker_identity::fresh_identity()?)?;
     match dispatch.operation() {
@@ -595,25 +579,13 @@ fn prepare(
                 })
                 .transpose()?;
             #[cfg(not(windows))]
-            if launch.default_shell().is_some() || launch.editor_source().is_some() {
+            if launch.editor_source().is_some() {
                 return Err(io::Error::new(
                     io::ErrorKind::Unsupported,
-                    "Windows shell policy is unsupported",
+                    "Windows editor launch is unsupported",
                 )
                 .into());
             }
-            #[cfg(windows)]
-            let selected = launch
-                .default_shell()
-                .map(|policy| {
-                    orchbee_local_runtime::ShellSettings::new(
-                        policy.executable(),
-                        policy.mode().as_str(),
-                    )
-                })
-                .transpose()?;
-            #[cfg(windows)]
-            let shell = selected.as_ref().unwrap_or(shell);
             // Host display mode follows the most recent Client's outer terminal, then the OS.
             let follows_host = defaults
                 .as_ref()
@@ -633,10 +605,7 @@ fn prepare(
                     defaults.as_ref(),
                     host_colors,
                     #[cfg(windows)]
-                    launch_facts::ShellLaunchPolicy {
-                        editor_launch: launch.editor_source().is_some(),
-                        settings: shell,
-                    },
+                    launch.editor_source().is_some(),
                 )?,
                 correlation,
                 session_runtime,

@@ -6,9 +6,9 @@ use orchbee_local_runtime::{
 use orchbee_workbench_protocol::{
     ConfigurationAction as Action, ConfigurationDiagnostic, ConfigurationDiagnosticDisposition,
     ConfigurationDiagnostics, ConfigurationFailure as Failure, ConfigurationOutcome as Outcome,
-    ConfigurationRequest, ConfigurationResult, ConfigurationShellMode, ConfigurationSnapshot,
-    ContractError, MAXIMUM_CONFIGURATION_DIAGNOSTICS_OMITTED, ProtocolVersion, SessionId,
-    WorkbenchRequestId, WorkbenchResponse, WorkbenchRevision,
+    ConfigurationRequest, ConfigurationResult, ConfigurationSnapshot, ContractError,
+    MAXIMUM_CONFIGURATION_DIAGNOSTICS_OMITTED, ProtocolVersion, SessionId, WorkbenchRequestId,
+    WorkbenchResponse, WorkbenchRevision,
 };
 use std::sync::Mutex;
 
@@ -258,25 +258,7 @@ fn snapshot(
         notification_profile: current.notifications.profile(),
         agent_sidebar_profile: current.agent_sidebar.profile(),
         spaces_sidebar_profile: current.space_sidebar.profile(),
-        theme_name: match current.theme {
-            orchbee_local_runtime::ThemeName::TerminalNative => {
-                orchbee_workbench_protocol::ConfigurationThemeName::TerminalNative
-            }
-            orchbee_local_runtime::ThemeName::OneLight => {
-                orchbee_workbench_protocol::ConfigurationThemeName::OneLight
-            }
-            orchbee_local_runtime::ThemeName::OneDark => {
-                orchbee_workbench_protocol::ConfigurationThemeName::OneDark
-            }
-        },
         manifest_check: current.manifest_check,
-        default_shell: current.shell.executable().into(),
-        shell_mode: match current.shell.mode() {
-            orchbee_local_runtime::ShellMode::Auto => ConfigurationShellMode::Auto,
-            orchbee_local_runtime::ShellMode::Login => ConfigurationShellMode::Login,
-            orchbee_local_runtime::ShellMode::NonLogin => ConfigurationShellMode::NonLogin,
-        },
-        restart_required: Vec::new(),
     }
 }
 
@@ -344,26 +326,9 @@ impl super::LocalTerminalService {
             .map_or_else(String::new, |state| state.current.window_title.clone()))
     }
 
-    /// No fallible effect follows scheduler admission. Creation and reload share this lock.
+    /// No fallible effect follows scheduler admission.
     pub(super) fn apply_configuration(&self, settings: &UserSettings) -> bool {
-        use orchbee_capability_node_protocol::{DefaultShellMode, DefaultShellSelection};
-        use orchbee_local_runtime::ShellMode;
-        let mode = match settings.shell.mode() {
-            ShellMode::Auto => DefaultShellMode::Auto,
-            ShellMode::Login => DefaultShellMode::Login,
-            ShellMode::NonLogin => DefaultShellMode::NonLogin,
-        };
-        let Ok(shell) = DefaultShellSelection::new(settings.shell.executable().into(), mode) else {
-            return false;
-        };
-        let Ok(mut coordinator) = self.coordinator.lock() else {
-            return false;
-        };
-        if !self.process_observer.apply_configuration(settings) {
-            return false;
-        }
-        coordinator.set_default_shell(shell);
-        true
+        self.process_observer.apply_configuration(settings)
     }
     pub(crate) fn execute_configuration(
         &self,

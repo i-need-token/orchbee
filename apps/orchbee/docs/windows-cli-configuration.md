@@ -7,8 +7,6 @@ Windows CLI creation reads `APPDATA/Orchbee/config.toml`, or the absolute file n
 ```toml
 [terminal]
 new_cwd = "follow"
-default_shell = "pwsh.exe"
-shell_mode = "auto"
 focus_new_panel = true
 
 [worktrees]
@@ -38,10 +36,9 @@ terminal-native contrast when no host background is observed. Shared preferences
 appearance. See [native themes](native-themes.md) for polarity, color capabilities, all chrome
 consumers, shared reload and rollback.
 
-`config check` v1 adds required `themeName` to admitted Windows user-config details;
-its fatal shapes remain unchanged . Session configuration
-v1 adds required `themeName` to successful snapshots.
-The offline catalog lists the current documents and command paths.
+The native configuration file has no theme setting: a `[theme]` table is an unknown section that
+warns and is ignored, and neither `config check` v1 details nor Session configuration v1
+snapshots carry a theme field.
 
 ## Creation policy
 
@@ -55,7 +52,7 @@ The offline catalog lists the current documents and command paths.
 
 Branch slugs lowercase ASCII letters, collapse nonalphanumeric runs to a hyphen, trim hyphens and use `worktree` if empty. Generated branches remain `worktree/<operation-id>` and are fixed in the submitted intent. The read-only repository query uses the same source and trust policy as creation. The Server still rechecks the source and owns every Git and canonical Workspace effect; the query is not a filesystem transaction. Explicit path avoids the extra query. Configuration is read once per invocation, including validation before an explicit override is applied.
 
-The creation settings govern Windows CLI creation. The legacy explicit empty-Workspace command, TUI direct creation, existing terminals, Server configuration reload and keybindings retain their own contracts; the shell policy below also covers TUI creation.
+The creation settings govern Windows CLI creation. The legacy explicit empty-Workspace command, TUI direct creation, existing terminals, Server configuration reload and keybindings retain their own contracts; every creation surface takes its default program from the shared launch profile described below.
 
 ## Check and correctness
 
@@ -123,36 +120,19 @@ Pure transformation tests, exclusive-file/backup checks, injected write/recovery
 and real Windows CLI processes cover this contract. Full keybindings, complete reload parity and final
 Windows replacement acceptance remain separate obligations.
 
-## Configured Windows shell
+## Automatic Windows shell
 
-`terminal.default_shell` is one literal executable, not a command line: an absolute local
-Windows path or bare executable name, at most 4,096 UTF-8 bytes, without control characters.
-Outer whitespace is trimmed; empty selects the existing platform default. Relative paths with
-separators, drive-relative, UNC and device paths are rejected. Bare names resolve on the Worker's
-absolute PATH directories, checking the literal name and then `.exe` when no extension was given;
-no current-directory, PATHEXT or script fallback occurs. A configured missing executable fails
-launch and never falls back. Empty configuration prefers the first compatible `pwsh.exe` in absolute PATH directories, then
-the absolute `SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe`. COMSPEC/SHELL and
-current-directory lookup do not override this policy. Selection never executes a probe.
+The shared [launch profile preference](../../../crates/workbench-protocol/docs/user-preferences.md)
+selects the program for every default terminal launch. The built-in System shell profile resolves
+the first compatible `pwsh.exe` in absolute PATH directories, then the absolute
+`SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe`. COMSPEC/SHELL and current-directory
+lookup do not override this policy, and selection never executes a probe. Existing PowerShell
+prompt integration runs after selection. Explicit executables and other launch profiles retain
+their exact arguments.
 
-`terminal.shell_mode` accepts exactly `auto` (default), `login`, or `non_login`. On Windows,
-auto/non_login add no arguments; login adds `-l` only for sh, bash, zsh, ksh, dash, ash, mksh,
-fish, csh and tcsh, case-insensitive with optional `.exe`. Other shells have no login flag.
-Existing PowerShell prompt integration runs after shell selection. Explicit executables and
-Launch Profiles retain their exact arguments and bypass configured default selection.
-
-Client activation freezes these values alongside existing settings before commitment. The matched
-Server forwards this private snapshot to Worker without rereading configuration. Worker owns the
-snapshot as a fallback across lazy Host startup and later terminal preparation. Server-authorized
-CLI/TUI/default-shell restore preparations capture the latest published defaults as described below.
-Direct unmanaged Worker startup validates its configuration once before admission. Prepared
-operations and replay retain their resolved launch facts. Editing the file alone does not publish
-settings or change live shells; explicit reload updates defaults for subsequent preparations.
-Windows `config check` v1 reports `defaultShell` and `shellMode`. Shell-specific creation errors use configuration failure v1. These are configured values, not a claim that a binary can launch.
-
-The shared parser and private snapshot admission, Worker launch resolver, explicit-override and
-owned-loop tests, and actual Windows CLI checks cover this contract. No public wire shape or
-persisted checkpoint changes; deployment and rollback use the whole matched cohort.
+`terminal.default_shell` and `terminal.shell_mode` are retired: the native configuration file
+does not select a launch program, so an existing key warns as unknown and is ignored. No private
+startup argument, Server admission value or Configuration snapshot field carries a shell.
 
 Automatic PATH candidates require bounded DOS/PE/COFF and optional-header inspection,
 nonempty section headers within the file, executable-image/not-DLL flags and compatible
@@ -160,12 +140,12 @@ x86/x64/ARM64 machine type. Malformed, missing, inaccessible or incompatible can
 skipped. Discovery resolves each candidate's canonical path and excludes images under an ancestor
 containing an `AppxManifest.xml` file: Store/AppX activation rejects the Host's atomic Job-list launch.
 This selection precedes terminal creation and continues through PATH or the system fallback;
-it never retries creation or relaxes Job containment. Configured selections remain literal.
+it never retries creation or relaxes Job containment. Explicit launch-profile programs remain literal.
 These checks prove a structural candidate, not that its dependencies load. The existing pinned
 `winsafe` kernel wrapper supplies system architecture without authored unsafe code.
 [GetNativeSystemInfo](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getnativesysteminfo)
 reports emulated architecture for x86/x64 processes on ARM64; native ARM64 preference through an
-emulated Worker is not claimed. Explicit configuration
+emulated Worker is not claimed. An explicit launch-profile program
 still selects that executable. Real x64 selection and synthetic header/architecture and direct/nested
 package-marker partitions cover this implementation; no ARM64 hardware acceptance is claimed.
 
@@ -256,7 +236,7 @@ these keys still depends on the terminal host.
 The sidebar profile participates in the same admission/publication transition:
 `ui.sidebar.agents.rows`, `rows_by_agent` and `row_gap` are validated by the shared
 Windows settings owner, then published as a bounded canonical profile. A Client
-validates keys, notifications, both sidebars and the named theme before installing any field. A bad
+validates keys, notifications and both sidebars before installing any field. A bad
 private wire profile leaves the whole previous Client configuration intact. Startup applies
 the Server's complete admitted baseline after the first snapshot arrives; a local projection shown
 while connecting is provisional. Configuration checking reports the supported layout and its bounds.
@@ -285,7 +265,7 @@ profiles and diagnostics exceed that response bound is rejected without truncati
 settings. Startup installs no configuration state or live policy; reload retains the complete prior
 snapshot and live policy.
 
-Server commits the supported live manifest-check policy and publishes keys, profiles, the named theme and the bounded
+Server commits the supported live manifest-check policy and publishes keys, profiles and the bounded
 warning record for connected main-TUI Clients. Publication is not an acknowledgement from every
 Client. Each Client owns a cancellable configuration watcher, rejects stale or duplicate revisions and
 applies one complete validated snapshot between input packets. Pending prefix state is cleared;
@@ -296,9 +276,9 @@ a checkpoint-recovery notice wins the first startup display, then the warning re
 is dismissed; the warning does not suppress Agent notification cards. Reload failure keeps current settings and warning record and produces a
 localized failure notice. The reload action itself is configurable through `reload_config`. The native default is prefix F5; prefix Shift+R is the existing native Project rename default. A profile such as `reload_config = "prefix+shift+r"` explicitly replaces that conflicting default.
 
-Default shell and mode apply to subsequent preparations without a restart. CLI directory/worktree defaults are caller reads on the next invocation. Other configuration families and Client-specific profile policy remain unfinished. The wire key profile is capped at 64 KiB; up to 144 expanded triggers per action preserve the user file limit of 16 indexed alternatives. A cancellable state subscription uses the shared Client carrier and publishes the latest committed configuration. Reload remains a one-shot request with a two-second exchange limit; an uncertain reload is not replayed, and a fresh subscription recovers the current state. A successful reload is published state, not an acknowledgement that every Client has applied it.
+CLI directory/worktree defaults are caller reads on the next invocation. Other configuration families and Client-specific profile policy remain unfinished. The wire key profile is capped at 64 KiB; up to 144 expanded triggers per action preserve the user file limit of 16 indexed alternatives. A cancellable state subscription uses the shared Client carrier and publishes the latest committed configuration. Reload remains a one-shot request with a two-second exchange limit; an uncertain reload is not replayed, and a fresh subscription recovers the current state. A successful reload is published state, not an acknowledgement that every Client has applied it.
 
-No persisted configuration migration or automatic retry is introduced. Deterministic tests cover provisional startup, initial complete application, fatal preservation, atomic settings/diagnostic generations, monotonic later application and warning publication/clearing. The admitted payload includes `themeName`; a theme-only change uses the same publication owner, and Clients resolve their cached palette after complete admission. Connection tests cover propagation without assuming delivery fairness. Authorization, bounded serialization, no-change reload and shutdown remain implementation obligations. The settings commit/publication core has a narrower writer/CAS scope and does not prove this whole reload workflow.
+No persisted configuration migration or automatic retry is introduced. Deterministic tests cover provisional startup, initial complete application, fatal preservation, atomic settings/diagnostic generations, monotonic later application and warning publication/clearing. Connection tests cover propagation without assuming delivery fairness. Authorization, bounded serialization, no-change reload and shutdown remain implementation obligations. The settings commit/publication core has a narrower writer/CAS scope and does not prove this whole reload workflow.
 
 `server config` and `server reload-config` version 1 add the required `diagnostics` object to every
 successful snapshot. Text output prints the visible count, exact omitted count and each bounded
@@ -308,17 +288,15 @@ field/reason/disposition record.
 
 Production now reads the [shared device launch profile](../../../crates/workbench-protocol/docs/user-preferences.md)
 and scrollback from one confirmed snapshot before each new Host launch. An absent record uses
-canonical launch defaults. The configuration receipts below describe the admitted native
-configuration, not the effective shared catalog. The request-carried override path remains
-for adapters without a shared store.
+canonical launch defaults. Configuration receipts carry no launch program.
 
-Reload commits a validated `DefaultShellSelection` into the existing Server TerminalCoordinator. Its creation admission captures that immutable value in each new default `AuthorizedTerminalLaunch`; explicit executable/Profile requests carry no default override. The Worker validates the Windows shell syntax and resolves its own executable/PATH and mode flags before Host handoff. An absent override retains the Worker's startup fallback for unmanaged/legacy private requests. Existing PTYs, prepared launches, exact replay and deferred Start never acquire later defaults. New CLI/TUI/restore creation uses the same coordinator admission.
+Existing PTYs, prepared launches, exact replay and deferred Start never acquire later defaults.
+Configuration reload commits the registry, then manifest scheduling; candidate validation precedes
+commit, and scheduler admission refusal leaves publication unchanged. No Worker IPC or distributed
+acknowledgement occurs under these locks. Successful reload confirms configuration admission, not
+executable availability.
 
-The commit lock order is configuration registry, Session coordinator, then manifest scheduling. Candidate validation and wire-value construction precede commit; scheduler admission refusal leaves both launch policy and publication unchanged. No Worker IPC or distributed acknowledgement occurs under these locks. Shell/mode changes apply to subsequent creation and cease to require Session restart; restore-on-start remains a startup-only requirement. Successful reload confirms configuration admission, not executable availability.
-
-Launch preparation failure records the existing known pre-handoff failure, retains the Worker/Server connection and creates no Host terminal. The same failed request replays its failure; corrected settings require a fresh creation identity. The lazy loop also remains available before any Host exists. Host startup/transport uncertainty retains its prior retirement and no-retry policy. Evidence covers private framing, default/explicit/absent selection, preparation across reload, exact/conflicting replay, failure retention and real Windows pipe exchanges; full provider/multi-Client/visual acceptance remains deferred. Matching private cohorts deploy or roll back together without a durable migration.
-
-`server config` and reload receipts expose the admitted `defaultShell` and `shellMode` for subsequent default preparations, including after a lost reload reply. Empty shell means the platform default; these values are not Worker executable-resolution or launch-success evidence. CLI receipt v1 requires both fields. Matched private Workbench snapshots require the same bounded literal (4096 UTF-8 bytes, no controls) and `auto`/`login`/`non_login` mode. Human output escapes the literal and localizes the empty-shell label.
+Launch preparation failure records the existing known pre-handoff failure, retains the Worker/Server connection and creates no Host terminal. The same failed request replays its failure; corrected settings require a fresh creation identity. The lazy loop also remains available before any Host exists. Host startup/transport uncertainty retains its prior retirement and no-retry policy. Evidence covers failure retention, exact/conflicting replay and real Windows pipe exchanges; full provider/multi-Client/visual acceptance remains deferred. Matching private cohorts deploy or roll back together without a durable migration.
 
 ## Outer window titles
 

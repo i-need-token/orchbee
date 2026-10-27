@@ -293,14 +293,6 @@ fn connect_or_activate(
                     std::ffi::OsStr::new("--configuration-file-explicit"),
                     #[cfg(windows)]
                     std::ffi::OsStr::new(if settings.explicit { "true" } else { "false" }),
-                    #[cfg(windows)]
-                    std::ffi::OsStr::new("--default-shell"),
-                    #[cfg(windows)]
-                    std::ffi::OsStr::new(settings.shell.executable()),
-                    #[cfg(windows)]
-                    std::ffi::OsStr::new("--shell-mode"),
-                    #[cfg(windows)]
-                    std::ffi::OsStr::new(settings.shell.mode().as_str()),
                 ];
                 #[cfg(windows)]
                 let child = match catalog {

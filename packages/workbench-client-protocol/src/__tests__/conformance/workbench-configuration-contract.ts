@@ -65,15 +65,7 @@ const ConfigurationSnapshotSchema = z.strictObject({
 	notificationProfile: bounded(MAXIMUM_NOTIFICATION_PROFILE_BYTES),
 	agentSidebarProfile: bounded(32768),
 	spacesSidebarProfile: bounded(32768),
-	themeName: z.enum(['terminal-native', 'one-light', 'one-dark']),
 	manifestCheck: z.boolean(),
-	defaultShell: bounded(4096, 0).refine((value) => !/\p{Cc}/u.test(value)),
-	shellMode: z.enum(['auto', 'login', 'non_login']),
-	restartRequired: z
-		.array(z.enum(['terminal.default_shell', 'terminal.shell_mode']))
-		.max(3)
-		.refine((values) => new Set(values).size === values.length)
-		.readonly(),
 });
 const failure = z
 	.strictObject({

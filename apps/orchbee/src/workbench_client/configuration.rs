@@ -144,17 +144,6 @@ impl Watcher {
                         agents: sidebar,
                         spaces,
                     }) => {
-                        view.configure_theme(match snapshot.theme_name {
-                            orchbee_workbench_protocol::ConfigurationThemeName::TerminalNative => {
-                                orchbee_local_runtime::ThemeName::TerminalNative
-                            }
-                            orchbee_workbench_protocol::ConfigurationThemeName::OneLight => {
-                                orchbee_local_runtime::ThemeName::OneLight
-                            }
-                            orchbee_workbench_protocol::ConfigurationThemeName::OneDark => {
-                                orchbee_local_runtime::ThemeName::OneDark
-                            }
-                        });
                         view.machines.configure_space_sidebar(spaces);
                         view.machines.configure_agent_sidebar(sidebar);
                         view.notifications.configure(notifications.clone());
@@ -295,11 +284,7 @@ fn publish_outcome(
             if reload {
                 let warning = !snapshot.diagnostics.items.is_empty()
                     || snapshot.diagnostics.omitted_count > 0;
-                let notice = if snapshot.restart_required.is_empty() {
-                    (!warning).then_some(Notice::ConfigurationPublished)
-                } else {
-                    Some(Notice::ConfigurationRestart)
-                };
+                let notice = (!warning).then_some(Notice::ConfigurationPublished);
                 state.notice = notice.map(|notice| PendingNotice {
                     revision: Some(snapshot.revision.value()),
                     needs_application: changed,

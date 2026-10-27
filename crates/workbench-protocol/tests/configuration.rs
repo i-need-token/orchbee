@@ -30,15 +30,11 @@ fn configuration_roundtrips_have_distinct_carrier_kinds_and_exact_correlation() 
                 revision: WorkbenchRevision::new(1),
                 diagnostics: ConfigurationDiagnostics::default(),
                 keys_profile: format!("[keys]\n#{}", "x".repeat(20_000)),
-                theme_name: orchbee_workbench_protocol::ConfigurationThemeName::TerminalNative,
-                default_shell: String::new(),
-                shell_mode: orchbee_workbench_protocol::ConfigurationShellMode::Auto,
                 manifest_check: true,
                 notification_profile: "[ui.toast]\ndelivery='off'\n".into(),
                 agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
                 spaces_sidebar_profile: r#"{"rows":[],"row_gap":0}"#.into(),
                 window_title: "{hostname}: {workspace}".into(),
-                restart_required: vec![],
             },
             changed: true,
         },
@@ -62,7 +58,7 @@ fn configuration_roundtrips_have_distinct_carrier_kinds_and_exact_correlation() 
 #[test]
 fn configuration_rejects_unknown_fields_oversize_and_invalid_failure_shapes() {
     // Keep malformed Unicode outside the corpus container: serde_json rejects it before DTO admission.
-    let invalid = br#"{"kind":"workbench.configuration.result","protocolVersion":1,"requestId":"00000000000000000000000000000001","sessionId":"00000000000000000000000000000002","outcome":{"kind":"current","snapshot":{"revision":"0","keysProfile":"[keys]","manifestCheck":true,"restartRequired":[],"defaultShell":"\ud800","shellMode":"auto"}}}"#;
+    let invalid = br#"{"kind":"workbench.configuration.result","protocolVersion":1,"requestId":"00000000000000000000000000000001","sessionId":"00000000000000000000000000000002","outcome":{"kind":"current","snapshot":{"revision":"0","keysProfile":"[keys]","manifestCheck":true,"windowTitle":"\ud800"}}}"#;
     assert!(parse_workbench_response(invalid).is_err());
     let request = request();
     let mut value = serde_json::to_value(&request).unwrap();
@@ -84,15 +80,11 @@ fn configuration_rejects_unknown_fields_oversize_and_invalid_failure_shapes() {
             revision: WorkbenchRevision::new(1),
             diagnostics: ConfigurationDiagnostics::default(),
             keys_profile: "x".repeat(65537),
-            theme_name: orchbee_workbench_protocol::ConfigurationThemeName::TerminalNative,
             notification_profile: "[ui.toast]".into(),
             agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
             spaces_sidebar_profile: r#"{"rows":[],"row_gap":0}"#.into(),
-            default_shell: String::new(),
-            shell_mode: orchbee_workbench_protocol::ConfigurationShellMode::Auto,
             manifest_check: false,
             window_title: "{hostname}: {workspace}".into(),
-            restart_required: vec![],
         },
     };
     assert!(serialize_workbench_response(&WorkbenchResponse::Configuration(result)).is_err());
@@ -199,15 +191,11 @@ fn configuration_notification_profile_has_a_closed_16_kib_wire_bound() {
                 revision: WorkbenchRevision::new(1),
                 diagnostics: ConfigurationDiagnostics::default(),
                 keys_profile: "[keys]".into(),
-                theme_name: orchbee_workbench_protocol::ConfigurationThemeName::TerminalNative,
                 notification_profile,
                 agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
                 spaces_sidebar_profile: r#"{"rows":[],"row_gap":0}"#.into(),
-                default_shell: String::new(),
-                shell_mode: ConfigurationShellMode::Auto,
                 manifest_check: true,
                 window_title: String::new(),
-                restart_required: vec![],
             },
         },
     };
@@ -233,15 +221,11 @@ fn configuration_frame_fits_both_bounded_escaped_profiles_and_checks_header_befo
                 revision: WorkbenchRevision::new(1),
                 diagnostics: ConfigurationDiagnostics::default(),
                 keys_profile: "x".repeat(20000),
-                theme_name: orchbee_workbench_protocol::ConfigurationThemeName::TerminalNative,
                 notification_profile: "[ui.toast]".into(),
                 agent_sidebar_profile: agent,
                 spaces_sidebar_profile: space,
                 window_title: String::new(),
                 manifest_check: true,
-                default_shell: String::new(),
-                shell_mode: ConfigurationShellMode::Auto,
-                restart_required: vec![],
             },
         },
     });

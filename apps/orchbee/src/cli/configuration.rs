@@ -11,12 +11,10 @@ use std::path::PathBuf;
 
 #[derive(Debug)]
 pub(super) struct Settings {
-    theme: orchbee_local_runtime::ThemeName,
     window_title: String,
     agent_sidebar: orchbee_local_runtime::AgentSidebarSettings,
     space_sidebar: orchbee_local_runtime::SpaceSidebarSettings,
     notifications: orchbee_local_runtime::NotificationSettings,
-    shell: orchbee_local_runtime::ShellSettings,
     keys: orchbee_local_runtime::KeySettings,
     pub(super) path: Option<PathBuf>,
     pub(super) exists: bool,
@@ -65,12 +63,10 @@ fn project(load: UserSettingsLoad) -> Result<Settings, Error> {
         WorkbenchDirectoryPath::parse(&value).map_err(|_| Error::new(field, "invalid-path"))
     };
     Ok(Settings {
-        theme: raw.theme,
         window_title: raw.window_title,
         agent_sidebar: raw.agent_sidebar,
         space_sidebar: raw.space_sidebar,
         notifications: raw.notifications,
-        shell: raw.shell,
         keys: raw.keys,
         path: raw.path,
         exists: raw.exists,
@@ -116,7 +112,6 @@ impl Settings {
     }
     pub(super) fn check_details(&self) -> serde_json::Map<String, serde_json::Value> {
         let mut details = serde_json::Map::from_iter([
-            ("themeName".into(), self.theme.as_str().into()),
             (
                 "spacesSidebarProfile".into(),
                 self.space_sidebar.profile().into(),
@@ -166,8 +161,6 @@ impl Settings {
                 let bindings = crate::client_view::Bindings::configured(&self.keys);
                 crate::client_view::format_configuration_binding(&bindings.prefix).into()
             }),
-            ("defaultShell".into(), self.shell.executable().into()),
-            ("shellMode".into(), self.shell.mode().as_str().into()),
             ("manifestCheck".into(), self.manifest_check.into()),
             (
                 "manifestCheckSource".into(),

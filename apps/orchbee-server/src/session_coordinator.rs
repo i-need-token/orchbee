@@ -73,13 +73,6 @@ pub(crate) struct SessionCoordinator {
 mod tests;
 
 impl SessionCoordinator {
-    #[cfg(windows)]
-    pub(crate) fn set_default_shell(
-        &mut self,
-        shell: orchbee_capability_node_protocol::DefaultShellSelection,
-    ) {
-        self.terminals.set_default_shell(shell);
-    }
     pub(crate) const fn new(workbench: Option<WorkbenchAuthority>) -> Self {
         Self {
             terminals: TerminalCoordinator::new(),

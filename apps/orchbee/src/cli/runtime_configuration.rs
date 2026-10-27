@@ -59,57 +59,51 @@ pub(crate) fn run(action: ConfigurationAction, format: OutputFormat, locale: Loc
     let mut result = match submitted {
         Err(failure) => failure_output(failure, Some(format), locale),
         Ok(reply) => {
-            let (status, message, revision, restart) =
-                match reply.as_ref().map(|reply| &reply.outcome) {
-                    None => (
-                        if action == ConfigurationAction::Reload {
-                            8
-                        } else {
-                            4
-                        },
-                        "unknown",
-                        None,
-                        0,
-                    ),
-                    Some(
-                        ConfigurationOutcome::Current { snapshot }
-                        | ConfigurationOutcome::Reloaded { snapshot, .. },
-                    ) => (
-                        0,
-                        if !snapshot.diagnostics.items.is_empty()
-                            || snapshot.diagnostics.omitted_count > 0
-                        {
-                            "warning"
-                        } else if snapshot.revision.value() == 0 {
-                            "startup"
-                        } else if snapshot.restart_required.is_empty() {
-                            "published"
-                        } else {
-                            "restart"
-                        },
-                        Some(snapshot.revision.value()),
-                        snapshot.restart_required.len(),
-                    ),
-                    Some(ConfigurationOutcome::Failed { reason, .. }) => (
-                        match reason {
-                            ConfigurationFailure::Denied
-                            | ConfigurationFailure::SessionMismatch
-                            | ConfigurationFailure::Busy => 3,
-                            ConfigurationFailure::Unavailable => 4,
-                            ConfigurationFailure::LoadFailed
-                            | ConfigurationFailure::RevisionExhausted => 1,
-                        },
-                        "failed",
-                        None,
-                        0,
-                    ),
-                };
+            let (status, message, revision) = match reply.as_ref().map(|reply| &reply.outcome) {
+                None => (
+                    if action == ConfigurationAction::Reload {
+                        8
+                    } else {
+                        4
+                    },
+                    "unknown",
+                    None,
+                ),
+                Some(
+                    ConfigurationOutcome::Current { snapshot }
+                    | ConfigurationOutcome::Reloaded { snapshot, .. },
+                ) => (
+                    0,
+                    if !snapshot.diagnostics.items.is_empty()
+                        || snapshot.diagnostics.omitted_count > 0
+                    {
+                        "warning"
+                    } else if snapshot.revision.value() == 0 {
+                        "startup"
+                    } else {
+                        "published"
+                    },
+                    Some(snapshot.revision.value()),
+                ),
+                Some(ConfigurationOutcome::Failed { reason, .. }) => (
+                    match reason {
+                        ConfigurationFailure::Denied
+                        | ConfigurationFailure::SessionMismatch
+                        | ConfigurationFailure::Busy => 3,
+                        ConfigurationFailure::Unavailable => 4,
+                        ConfigurationFailure::LoadFailed
+                        | ConfigurationFailure::RevisionExhausted => 1,
+                    },
+                    "failed",
+                    None,
+                ),
+            };
             let document = serde_json::json!({"schema":"orchbee.server.configuration","version":1,"source":{"kind":"local-runtime"},"result":{"action":action,"reply":reply,"interrupted":interrupted,"cleanupFailed":cleanup_failed}});
             let encoded = match format {
                 OutputFormat::Json => output::encode_document(&document),
                 OutputFormat::Text => {
                     let mut text =
-                        CliText::new(locale).cli_runtime_configuration(message, revision, restart);
+                        CliText::new(locale).cli_runtime_configuration(message, revision);
                     if let Some(
                         ConfigurationOutcome::Current { snapshot }
                         | ConfigurationOutcome::Reloaded { snapshot, .. },
@@ -118,10 +112,6 @@ pub(crate) fn run(action: ConfigurationAction, format: OutputFormat, locale: Loc
                         text.push_str(&CliText::new(locale).cli_configuration_notifications(
                             &super::escape::escape(&snapshot.notification_profile),
                         ));
-                        text.push_str(&CliText::new(locale).cli_configuration_shell(
-                            &super::escape::escape(&snapshot.default_shell),
-                            snapshot.shell_mode.as_str(),
-                        ));
                         text.push_str(&CliText::new(locale).cli_configuration_title(
                             &super::escape::escape(&snapshot.window_title),
                         ));
@@ -129,7 +119,6 @@ pub(crate) fn run(action: ConfigurationAction, format: OutputFormat, locale: Loc
                             "spacesSidebarProfile={}\n",
                             super::escape::escape(&snapshot.spaces_sidebar_profile)
                         ));
-                        text.push_str(&format!("themeName={}\n", snapshot.theme_name.as_str()));
                         text.push_str(&CliText::new(locale).cli_configuration_sidebar(
                             &super::escape::escape(&snapshot.agent_sidebar_profile),
                         ));

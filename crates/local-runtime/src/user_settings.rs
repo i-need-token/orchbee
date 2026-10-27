@@ -24,11 +24,8 @@ pub use notifications::{
     MAXIMUM_AGENT_SOUND_OVERRIDES, MAXIMUM_NOTIFICATION_DELAY_SECONDS,
     MAXIMUM_NOTIFICATION_PROFILE_BYTES, NotificationSettings,
 };
-mod reset_keys;
-mod shell;
-mod theme;
-pub use theme::ThemeName;
 mod reference;
+mod reset_keys;
 mod window_title;
 use crate::user_path::{USER_PATH_LIMIT, normalize_user_path};
 pub use keys::{
@@ -41,7 +38,6 @@ pub use reference::{
     default_user_settings_toml_with_actions,
 };
 pub use reset_keys::{KeysResetOutcome, KeysResetReport, reset_keybindings};
-pub use shell::{ShellMode, ShellSettings};
 use std::{
     ffi::OsString,
     io::Read,
@@ -54,13 +50,11 @@ mod channel;
 pub use channel::set_update_channel;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UserSettings {
-    pub theme: ThemeName,
     pub window_title: String,
     pub agent_sidebar: AgentSidebarSettings,
     pub space_sidebar: SpaceSidebarSettings,
     pub notifications: NotificationSettings,
     pub keys: KeySettings,
-    pub shell: ShellSettings,
     pub focus_new_panel: bool,
     pub path: Option<PathBuf>,
     pub exists: bool,
@@ -108,13 +102,11 @@ impl UpdateChannel {
 impl Default for UserSettings {
     fn default() -> Self {
         Self {
-            theme: ThemeName::default(),
             window_title: DEFAULT_WINDOW_TITLE.into(),
             agent_sidebar: AgentSidebarSettings::default(),
             space_sidebar: SpaceSidebarSettings::default(),
             notifications: NotificationSettings::default(),
             keys: KeySettings::default(),
-            shell: ShellSettings::default(),
             focus_new_panel: true,
             path: None,
             exists: false,
@@ -488,40 +480,6 @@ fn parse_terminal(
             ),
         }
     }
-    let mut executable = String::new();
-    if let Some(value) = table.get("default_shell") {
-        match value.as_str() {
-            Some(value) => match ShellSettings::new(value, "auto") {
-                Ok(shell) => executable = shell.executable().to_owned(),
-                Err(error) => {
-                    diagnostics.push_error(&error, SettingsDiagnosticDisposition::Defaulted)
-                }
-            },
-            None => diagnostics.push(
-                "terminal.default_shell",
-                "wrong-type",
-                SettingsDiagnosticDisposition::Defaulted,
-            ),
-        }
-    }
-    let mut mode = "auto";
-    if let Some(value) = table.get("shell_mode") {
-        match value.as_str() {
-            Some(value) => match ShellSettings::new("", value) {
-                Ok(_) => mode = value,
-                Err(error) => {
-                    diagnostics.push_error(&error, SettingsDiagnosticDisposition::Defaulted)
-                }
-            },
-            None => diagnostics.push(
-                "terminal.shell_mode",
-                "wrong-type",
-                SettingsDiagnosticDisposition::Defaulted,
-            ),
-        }
-    }
-    settings.shell =
-        ShellSettings::new(&executable, mode).expect("independently admitted shell leaves compose");
     let Some(value) = table.get("new_cwd") else {
         return;
     };

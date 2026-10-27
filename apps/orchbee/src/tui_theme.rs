@@ -10,9 +10,11 @@ use ratatui::{
     widgets::BorderType,
 };
 mod host_colors;
+mod name;
 mod shipped;
 mod tab_groups;
 pub(crate) use host_colors::resolve_color_level;
+pub(crate) use name::ThemeName;
 pub(crate) use tab_groups::TabGroupPalette;
 
 /// One semantic color role. Rendering code references roles only;

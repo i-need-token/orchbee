@@ -13,10 +13,6 @@ fn immutable_snapshot_does_not_reread_mutable_file_or_environment() {
                 "C:/snapshot/config.toml",
                 "--configuration-file-explicit",
                 "false",
-                "--default-shell",
-                "C:/snapshot/shell.exe",
-                "--shell-mode",
-                "login",
             ]
             .map(OsString::from)
             .into_iter(),
@@ -24,11 +20,6 @@ fn immutable_snapshot_does_not_reread_mutable_file_or_environment() {
         )
         .unwrap();
         assert_eq!(settings.manifest_check, expected);
-        assert_eq!(settings.shell.mode().as_str(), "login");
-        assert_eq!(
-            std::path::Path::new(settings.shell.executable()),
-            std::path::Path::new("C:/snapshot/shell.exe")
-        );
     }
 }
 

@@ -2,7 +2,6 @@
 
 mod control;
 mod cwd_validation;
-mod default_shell;
 mod graphics_decode;
 mod lifecycle;
 mod plugin_terminal_environment;

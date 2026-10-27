@@ -12,7 +12,6 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
         "startup",
         "current",
         "reload",
-        "restart",
         "warning",
         "warning-en",
         "warning-zh",
@@ -59,7 +58,6 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
                     Default::default()
                 },
                 keys_profile: "[keys]\nprefix='ctrl+a'\n".into(),
-                theme_name: orchbee_workbench_protocol::ConfigurationThemeName::TerminalNative,
                 notification_profile: "[ui.toast]\ndelivery='off'\n".into(),
                 agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
                 spaces_sidebar_profile: orchbee_local_runtime::SpaceSidebarSettings::default()
@@ -70,17 +68,6 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
                     "{hostname}: {workspace}"
                 }
                 .into(),
-                restart_required: if case == "restart" {
-                    vec![ConfigurationRestart::DefaultShell]
-                } else {
-                    Vec::new()
-                },
-                default_shell: if case == "en" {
-                    "C:\\tools\\\u{202e}shell.exe".into()
-                } else {
-                    String::new()
-                },
-                shell_mode: orchbee_workbench_protocol::ConfigurationShellMode::Auto,
                 manifest_check: false,
             };
             let outcome = match case {
@@ -152,9 +139,7 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
             } else {
                 "Configuration published"
             }));
-            assert!(text.contains("mode=auto"));
             if matches!(case, "zh" | "warning-zh") {
-                assert!(text.contains("（平台默认）"));
                 assert!(text.contains("窗口标题模板：\"{hostname}: {workspace}\""));
             } else {
                 assert!(text.contains(if case == "en" {
@@ -162,9 +147,6 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
                 } else {
                     r#"Window title template: "{hostname}: {workspace}""#
                 }));
-                if case == "en" {
-                    assert!(text.contains(r"C:\\tools\\\u{202e}shell.exe"));
-                }
                 assert!(!text.contains('\u{202e}'));
             }
             if case.starts_with("warning") {
@@ -178,17 +160,10 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
                 include_str!("../src/cli/schemas/orchbee.server.configuration.json"),
             );
             assert_eq!(document["version"], 1);
-            if matches!(
-                case,
-                "startup" | "current" | "reload" | "restart" | "warning"
-            ) {
+            if matches!(case, "startup" | "current" | "reload" | "warning") {
                 assert_eq!(
-                    document["result"]["reply"]["outcome"]["snapshot"]["defaultShell"],
-                    ""
-                );
-                assert_eq!(
-                    document["result"]["reply"]["outcome"]["snapshot"]["shellMode"],
-                    "auto"
+                    document["result"]["reply"]["outcome"]["snapshot"]["manifestCheck"],
+                    false
                 );
             }
             if case == "warning" {
@@ -239,20 +214,17 @@ fn public_configuration_requires_complete_current_snapshots() {
         "schema":"orchbee.server.configuration","version":1,"source":{"kind":"local-runtime"},
         "result":{"action":"current","interrupted":false,"cleanupFailed":false,
             "reply":{"protocolVersion":1,"requestId":"00000000000000000000000000000001","sessionId":"00000000000000000000000000000002",
-                "outcome":{"kind":"current","snapshot":{"revision":"0","keysProfile":"[keys]","manifestCheck":true,"restartRequired":[],
-                    "defaultShell":"pwsh.exe","shellMode":"non_login","windowTitle":"{tab}","notificationProfile":"[ui.toast]",
-                    "agentSidebarProfile":"{}","spacesSidebarProfile":"{}","themeName":"one-light",
+                "outcome":{"kind":"current","snapshot":{"revision":"0","keysProfile":"[keys]","manifestCheck":true,
+                    "windowTitle":"{tab}","notificationProfile":"[ui.toast]",
+                    "agentSidebarProfile":"{}","spacesSidebarProfile":"{}",
                     "diagnostics":{"items":[{"field":"keys.help","reason":"invalid-keybinding","disposition":"disabled"}],"omittedCount":0}}}}}
     });
     assert!(validator.is_valid(&document));
     for field in [
-        "defaultShell",
-        "shellMode",
         "windowTitle",
         "notificationProfile",
         "agentSidebarProfile",
         "spacesSidebarProfile",
-        "themeName",
         "diagnostics",
     ] {
         let mut missing = document.clone();
@@ -262,12 +234,15 @@ fn public_configuration_requires_complete_current_snapshots() {
             .remove(field);
         assert!(!validator.is_valid(&missing), "required {field}");
     }
-    let mut invalid = document.clone();
-    invalid["result"]["reply"]["outcome"]["snapshot"]["themeName"] = "custom".into();
-    assert!(!validator.is_valid(&invalid));
-    let mut invalid = document.clone();
-    invalid["result"]["reply"]["outcome"]["snapshot"]["shellMode"] = "unknown".into();
-    assert!(!validator.is_valid(&invalid));
+    for (field, value) in [
+        ("themeName", "terminal-native"),
+        ("defaultShell", ""),
+        ("shellMode", "auto"),
+    ] {
+        let mut retired = document.clone();
+        retired["result"]["reply"]["outcome"]["snapshot"][field] = value.into();
+        assert!(!validator.is_valid(&retired), "retired {field}");
+    }
     let mut invalid = document;
     let items = invalid["result"]["reply"]["outcome"]["snapshot"]["diagnostics"]["items"]
         .as_array_mut()

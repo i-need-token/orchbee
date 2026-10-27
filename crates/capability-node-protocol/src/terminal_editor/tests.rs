@@ -125,14 +125,7 @@ fn editor_source_kind_refuses_invalid_tail_identity_geometry_and_ambiguous_launc
             .with_editor_source(Some(source))
             .is_err()
     );
-    assert!(valid.clone().with_plugin_environment(Some(plugin)).is_err());
-    assert!(
-        valid
-            .with_default_shell(Some(
-                DefaultShellSelection::new("cmd.exe".into(), DefaultShellMode::Auto).unwrap()
-            ))
-            .is_err()
-    );
+    assert!(valid.with_plugin_environment(Some(plugin)).is_err());
 }
 
 #[test]

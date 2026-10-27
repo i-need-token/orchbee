@@ -26,14 +26,6 @@ pub struct ConfigurationRequest {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub enum ConfigurationRestart {
-    #[serde(rename = "terminal.default_shell")]
-    DefaultShell,
-    #[serde(rename = "terminal.shell_mode")]
-    ShellMode,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ConfigurationDiagnosticDisposition {
     Defaulted,
@@ -103,48 +95,7 @@ pub struct ConfigurationSnapshot {
     /// Canonical presentation-only JSON admitted by the Windows settings owner.
     pub agent_sidebar_profile: String,
     pub spaces_sidebar_profile: String,
-    /// Required closed selection; a missing or unknown value rejects the whole snapshot.
-    pub theme_name: ConfigurationThemeName,
-    pub restart_required: Vec<ConfigurationRestart>,
     pub manifest_check: bool,
-    /// Admitted defaults for subsequent preparations, not resolved executable facts.
-    pub default_shell: String,
-    pub shell_mode: ConfigurationShellMode,
-}
-
-/// The shipped chrome themes carried by the matched native configuration cohort.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum ConfigurationThemeName {
-    TerminalNative,
-    OneLight,
-    OneDark,
-}
-impl ConfigurationThemeName {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::TerminalNative => "terminal-native",
-            Self::OneLight => "one-light",
-            Self::OneDark => "one-dark",
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ConfigurationShellMode {
-    Auto,
-    Login,
-    NonLogin,
-}
-impl ConfigurationShellMode {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Auto => "auto",
-            Self::Login => "login",
-            Self::NonLogin => "non_login",
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -230,14 +181,6 @@ impl ConfigurationResult {
                     && snapshot.spaces_sidebar_profile.len() <= 32 * 1024
                     && !snapshot.agent_sidebar_profile.is_empty()
                     && snapshot.agent_sidebar_profile.len() <= 32 * 1024
-                    && snapshot.default_shell.len() <= 4096
-                    && !snapshot.default_shell.chars().any(char::is_control)
-                    && snapshot.restart_required.len() <= 3
-                    && snapshot
-                        .restart_required
-                        .iter()
-                        .enumerate()
-                        .all(|(index, field)| !snapshot.restart_required[..index].contains(field))
             }
             ConfigurationOutcome::Failed {
                 reason,

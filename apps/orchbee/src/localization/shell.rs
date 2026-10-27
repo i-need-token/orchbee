@@ -298,12 +298,6 @@ impl Locale {
             (Self::ZhCn, Some(Notice::ConfigurationWarning)) => {
                 "配置已加载，但有警告；请运行 orchbee config check"
             }
-            (Self::EnUs, Some(Notice::ConfigurationRestart)) => {
-                "Keys updated; some Client settings need a restart"
-            }
-            (Self::ZhCn, Some(Notice::ConfigurationRestart)) => {
-                "键位已更新；部分客户端设置需要重启"
-            }
             (Self::EnUs, Some(Notice::ConfigurationUnknown)) => {
                 "Reload outcome unknown; inspect server config"
             }

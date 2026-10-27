@@ -332,7 +332,6 @@ pub struct AuthorizedTerminalLaunch {
     mode: TerminalLaunchMode,
     launch: Option<LaunchSelection>,
     environment: crate::LaunchEnvironment,
-    default_shell: Option<crate::DefaultShellSelection>,
     plugin_environment: Option<crate::PluginTerminalEnvironment>,
     editor_source: Option<crate::TerminalEditorSource>,
 }
@@ -351,7 +350,6 @@ impl AuthorizedTerminalLaunch {
             mode,
             launch,
             environment: crate::LaunchEnvironment::empty(),
-            default_shell: None,
             plugin_environment: None,
             editor_source: None,
         }
@@ -401,24 +399,10 @@ impl AuthorizedTerminalLaunch {
     pub const fn environment(&self) -> &crate::LaunchEnvironment {
         &self.environment
     }
-    pub fn with_default_shell(
-        mut self,
-        shell: Option<crate::DefaultShellSelection>,
-    ) -> Result<Self, ProtocolError> {
-        if shell.is_some() && self.launch.is_some() {
-            return Err(ProtocolError::InvalidPayload);
-        }
-        self.default_shell = shell;
-        Ok(self)
-    }
-    pub const fn default_shell(&self) -> Option<&crate::DefaultShellSelection> {
-        self.default_shell.as_ref()
-    }
-
     /// Admits immutable capture only for an explicit deferred editor launch.
     ///
     /// # Errors
-    /// Refuses immediate geometry, default-shell selection or plugin metadata.
+    /// Refuses immediate geometry or plugin metadata.
     pub fn with_editor_source(
         mut self,
         source: Option<crate::TerminalEditorSource>,
@@ -426,7 +410,6 @@ impl AuthorizedTerminalLaunch {
         if source.is_some()
             && (self.mode != TerminalLaunchMode::Deferred
                 || self.launch.is_none()
-                || self.default_shell.is_some()
                 || self.plugin_environment.is_some())
         {
             return Err(ProtocolError::InvalidPayload);

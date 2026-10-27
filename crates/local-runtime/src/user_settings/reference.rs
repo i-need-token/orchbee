@@ -21,18 +21,6 @@ pub const USER_CONFIG_OPTIONS: &[UserConfigOption] = &[
         description: "Starting directory policy for a new terminal.",
     },
     UserConfigOption {
-        path: "terminal.default_shell",
-        default: "empty (choose the host default)",
-        choices: "a Windows executable name or normalized path",
-        description: "Shell executable used for new terminals.",
-    },
-    UserConfigOption {
-        path: "terminal.shell_mode",
-        default: "auto",
-        choices: "auto, login, non_login",
-        description: "How the selected shell is started.",
-    },
-    UserConfigOption {
         path: "terminal.focus_new_panel",
         default: "true",
         choices: "true, false",
@@ -198,8 +186,6 @@ pub struct DefaultActionBindings {
 }
 
 const DEFAULT_CONFIG: &str = r#"[terminal]
-default_shell = ""
-shell_mode = "auto"
 focus_new_panel = true
 
 [update]

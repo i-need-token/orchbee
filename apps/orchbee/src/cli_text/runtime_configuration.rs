@@ -1,12 +1,7 @@
 //! Formats effective-configuration evidence and command guidance without reading configuration or environment state.
 use super::Locale;
 impl super::CliText {
-    pub(crate) fn cli_runtime_configuration(
-        self,
-        outcome: &str,
-        revision: Option<u64>,
-        restart: usize,
-    ) -> String {
+    pub(crate) fn cli_runtime_configuration(self, outcome: &str, revision: Option<u64>) -> String {
         let text = match (self.locale, outcome) {
             (Locale::EnUs, "startup") => {
                 "Session startup baseline; no live configuration has been published yet."
@@ -24,31 +19,13 @@ impl super::CliText {
                 "Configuration published with warnings; inspect 'orchbee config check'."
             }
             (Locale::ZhCn, "warning") => "配置已发布但含警告；请运行 'orchbee config check' 查看。",
-            (Locale::EnUs, "restart") => {
-                "Configuration published; some settings require a new session lifetime."
-            }
-            (Locale::ZhCn, "restart") => "配置已发布；部分设置需要重新启动会话。",
             (Locale::EnUs, _) => "Configuration published for connected Clients.",
             (Locale::ZhCn, _) => "配置已发布，连接中的客户端将接收更新。",
         };
         format!(
-            "{text}\nrevision={} restartRequired={restart}\n",
+            "{text}\nrevision={}\n",
             revision.map_or_else(|| "-".into(), |n| n.to_string())
         )
-    }
-    pub(crate) fn cli_configuration_shell(self, escaped_shell: &str, mode: &str) -> String {
-        let shell = if escaped_shell.is_empty() {
-            match self.locale {
-                Locale::EnUs => "(platform default)",
-                Locale::ZhCn => "（平台默认）",
-            }
-        } else {
-            escaped_shell
-        };
-        match self.locale {
-            Locale::EnUs => format!("New terminal defaults: shell=\"{shell}\" mode={mode}\n"),
-            Locale::ZhCn => format!("新终端默认值：shell=\"{shell}\" mode={mode}\n"),
-        }
     }
     pub(crate) fn cli_configuration_notifications(self, profile: &str) -> String {
         match self.locale {
@@ -104,8 +81,8 @@ impl super::CliText {
             ),
             C::ServerReloadConfig => (
                 "orchbee server reload-config [--format text|json]",
-                "Reload the configuration path selected when the session started. Updates shortcuts, window titles, Agent sidebar layouts, notification policy and manifest checks. Shell defaults affect new terminals; startup restore settings require a restart.\n\nFile or TOML errors preserve the previous configuration. Individual field warnings use safe defaults. Requires an existing session; a lost reply is never retried automatically.",
-                "重新加载会话启动时选定的配置路径。更新快捷键、窗口标题、智能体侧边栏布局、通知策略和清单检查。Shell 默认值影响新终端；启动恢复设置需要重启。\n\n文件或 TOML 错误会保留原配置；单字段警告使用安全默认值。需要已运行的会话；应答丢失时不自动重试。",
+                "Reload the configuration path selected when the session started. Updates shortcuts, window titles, Agent sidebar layouts, notification policy and manifest checks. Startup restore settings require a restart.\n\nFile or TOML errors preserve the previous configuration. Individual field warnings use safe defaults. Requires an existing session; a lost reply is never retried automatically.",
+                "重新加载会话启动时选定的配置路径。更新快捷键、窗口标题、智能体侧边栏布局、通知策略和清单检查。启动恢复设置需要重启。\n\n文件或 TOML 错误会保留原配置；单字段警告使用安全默认值。需要已运行的会话；应答丢失时不自动重试。",
             ),
             _ => unreachable!("command help ownership"),
         };

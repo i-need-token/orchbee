@@ -70,8 +70,6 @@ pub(crate) fn run(
             .ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidInput, "missing Session runtime")
             })?;
-        #[cfg(windows)]
-        let shell = orchbee_local_runtime::ShellSettings::from_private_arguments(&mut arguments)?;
         if arguments.next().is_some() {
             return Err(io::Error::from(io::ErrorKind::InvalidInput).into());
         }
@@ -93,15 +91,9 @@ pub(crate) fn run(
             &cohort,
             &runtime,
             Some(&preferences),
-            #[cfg(windows)]
-            &shell,
         );
     }
     let options = WorkerOptions::parse(arguments)?;
-    #[cfg(windows)]
-    let shell = orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name))?
-        .settings
-        .shell;
     let server = connect_to_server(&options.server_endpoint, cohort)?;
     // The Agent Drain queue belongs to this admitted Server connection and is
     // created before the Host broker so both paths share one owner.
@@ -116,8 +108,6 @@ pub(crate) fn run(
         server.generation(),
         &drain,
         Some(&preferences),
-        #[cfg(windows)]
-        &shell,
     )
 }
 

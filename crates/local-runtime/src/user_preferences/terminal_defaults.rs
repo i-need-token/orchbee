@@ -37,11 +37,8 @@ impl UserPreferencesStore {
                     environment: default_launch_environment(),
                 },
                 UserLaunchCommand::SystemShell { login } => {
-                    let mut launch = resolve_default_interactive_launch(
-                        #[cfg(windows)]
-                        &crate::ShellSettings::default(),
-                    )
-                    .map_err(|_| PreferencesFailure::Unavailable)?;
+                    let mut launch = resolve_default_interactive_launch()
+                        .map_err(|_| PreferencesFailure::Unavailable)?;
                     if *login {
                         launch.arguments.push("-l".into());
                     }

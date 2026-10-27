@@ -7,8 +7,6 @@ Windows CLI 创建操作读取 `APPDATA/Orchbee/config.toml`，或 `ORCHBEE_CONF
 ```toml
 [terminal]
 new_cwd = "follow"
-default_shell = "pwsh.exe"
-shell_mode = "auto"
 focus_new_panel = true
 
 [worktrees]
@@ -36,9 +34,8 @@ manifest_check = true
 系统模式跟随宿主默认背景，并在缺少宿主背景观测时使用终端原生对比度。共享偏好拥有应用外观。
 [原生主题](native-themes.zh-CN.md)定义极性、颜色能力、所有 chrome 消费界面、共享重载及回退。
 
-`config check` v1 为已准入的 Windows user-config details 增加必需 `themeName`；
-致命错误形状不变，1–13 版保持封闭。Session 配置 v1 为成功快照增加必需 `themeName`，
-1–8 版保持封闭。目录 v1 发布这些扩展，不增加 schema 或命令路径。
+原生配置文件没有主题设置：`[theme]` 表属于未知配置段，会警告并忽略；`config check` v1 details
+和 Session 配置 v1 快照都不携带主题字段。
 
 ## 创建策略
 
@@ -52,7 +49,7 @@ manifest_check = true
 
 分支目录名将 ASCII 字母转为小写，将连续非字母数字字符压缩为一个连字符，去掉首尾连字符，空结果使用 `worktree`。自动分支仍为 `worktree/<operation-id>`，并固定在提交意图中。只读仓库查询与创建使用相同来源和信任策略。Server 仍复核来源并独占所有 Git 和规范 Workspace 副作用；查询不构成文件系统事务。显式路径省去额外查询。每次调用只读一次配置，并在应用显式覆盖前完成校验。
 
-创建设置作用于 Windows CLI 创建。旧的显式空 Workspace 命令、TUI 直接创建、既有终端、Server 配置重载和键位仍由各自契约约束；下述 Shell 策略同时覆盖 TUI 创建。
+创建设置作用于 Windows CLI 创建。旧的显式空 Workspace 命令、TUI 直接创建、既有终端、Server 配置重载和键位仍由各自契约约束；所有创建入口都从下述共享启动配置获取默认程序。
 
 ## 检查与正确性
 
@@ -105,17 +102,13 @@ Windows `config reset-keys [--format text|json]` 是离线配置修复操作，�
 纯变换、独占文件／备份检查、注入写入／恢复失败以及真实 Windows CLI 进程测试覆盖本契约。
 完整快捷键、完整重载对齐和最终 Windows 替换验收仍是独立待办。
 
-## Windows 配置 Shell
+## Windows 自动 Shell
 
-`terminal.default_shell` 是一个字面可执行文件，而非命令行：接受绝对本地 Windows 路径或裸文件名，最多 4,096 个 UTF-8 字节，不含控制字符。去掉首尾空白，空值沿用当前平台默认值。拒绝带分隔符的相对路径、驱动器相对路径、UNC 和设备路径。裸名称仅在 Worker 的绝对 PATH 目录中查找，先检查原名，没有扩展名时再检查 `.exe`；不回退到当前目录、PATHEXT 或脚本。配置的程序不存在时启动失败，不回退。空配置优先在绝对 PATH 目录中查找首个兼容的 `pwsh.exe`，然后使用绝对 `SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe`。COMSPEC/SHELL 和当前目录查找不覆盖该策略；选择时不执行探测程序。
+共享的[启动配置偏好](../../../crates/workbench-protocol/docs/user-preferences.zh-CN.md)为每次默认终端启动选择程序。内置系统 Shell 配置优先在绝对 PATH 目录中查找首个兼容的 `pwsh.exe`，然后使用绝对 `SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe`。COMSPEC/SHELL 和当前目录查找不覆盖该策略；选择时不执行探测程序。已有 PowerShell 提示符集成在选择后执行。显式可执行文件和其他启动配置保留原参数。
 
-`terminal.shell_mode` 仅接受 `auto`（默认）、`login`、`non_login`。Windows 上 auto/non_login 不增加参数；login 只给 sh、bash、zsh、ksh、dash、ash、mksh、fish、csh、tcsh 添加 `-l`，名称忽略大小写和可选 `.exe` 后缀。其他 Shell 不加登录参数。已有 PowerShell 提示符集成在选择 Shell 后执行。显式可执行文件和 Launch Profile 保留原参数，绕过默认 Shell 选择。
+`terminal.default_shell` 与 `terminal.shell_mode` 已退役：原生配置文件不选择启动程序，已有的这两个键按未知键警告并忽略。私有启动参数、Server 接纳值和 Configuration 快照字段都不携带 Shell。
 
-Client 激活在提交前连同已有配置冻结这两个值。匹配版本的 Server 把私有快照传给 Worker，不重读配置。Worker 保留快照作为延迟 Host 启动及后续准备的回退值。Server 授权的 CLI/TUI/默认 Shell 恢复准备捕获最新已发布默认值，详见下文。非托管 Worker 直接启动在接入前读取并校验一次配置。已准备操作及重放保留确定的启动事实。仅编辑文件不发布配置，也不改变运行中的 Shell；显式重载更新后续准备所用的默认值。Windows `config check` v1 报告 `defaultShell`、`shellMode`，Shell 专属创建错误使用 configuration failure v1，v1 保留原字段和原因集合。这些值代表配置，不保证程序实际能启动。
-
-共享解析器、私有快照接入、Worker 启动解析、显式覆盖与运行循环测试，以及真实 Windows CLI 检查覆盖本契约。不修改公开线协议或持久化检查点；部署和回退均使用匹配的整套程序。
-
-自动 PATH 候选必须通过有界 DOS/PE/COFF、可选头检查，非空节表必须处于文件边界内，具有可执行映像且非 DLL 标志，x86/x64/ARM64 机器类型兼容。损坏、缺失、不可读或不兼容的候选会被跳过。发现过程解析候选的规范路径，排除祖先目录中存在 `AppxManifest.xml` 文件的映像：Store/AppX 激活拒绝 Host 的原子 Job-list 启动。该选择发生在终端创建之前，继续搜索 PATH 或使用系统回退；不重试创建，也不放松 Job 进程归属约束。显式配置仍按字面选择。这些检查仅证明结构候选，不能保证依赖可加载。已有固定版本 `winsafe` kernel 安全包装获取系统架构，不添加自写 unsafe。[GetNativeSystemInfo](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getnativesysteminfo) 对 ARM64 上的 x86/x64 进程返回模拟架构；模拟 Worker 优先本机 ARM64 程序尚未支持。显式配置仍可选择该程序。真实 x64 选择、合成头部／架构分区，以及直接／嵌套包标记分区覆盖本实现，不声称通过 ARM64 硬件验收。
+自动 PATH 候选必须通过有界 DOS/PE/COFF、可选头检查，非空节表必须处于文件边界内，具有可执行映像且非 DLL 标志，x86/x64/ARM64 机器类型兼容。损坏、缺失、不可读或不兼容的候选会被跳过。发现过程解析候选的规范路径，排除祖先目录中存在 `AppxManifest.xml` 文件的映像：Store/AppX 激活拒绝 Host 的原子 Job-list 启动。该选择发生在终端创建之前，继续搜索 PATH 或使用系统回退；不重试创建，也不放松 Job 进程归属约束。显式启动配置程序仍按字面选择。这些检查仅证明结构候选，不能保证依赖可加载。已有固定版本 `winsafe` kernel 安全包装获取系统架构，不添加自写 unsafe。[GetNativeSystemInfo](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getnativesysteminfo) 对 ARM64 上的 x86/x64 进程返回模拟架构；模拟 Worker 优先本机 ARM64 程序尚未支持。显式启动配置程序仍可选择该程序。真实 x64 选择、合成头部／架构分区，以及直接／嵌套包标记分区覆盖本实现，不声称通过 ARM64 硬件验收。
 
 ## Windows Client 按键配置
 
@@ -194,7 +187,7 @@ Hyper/Meta 修饰位不会降级为普通快捷键。宿主是否实际提供这
 
 侧栏 profile 使用同一接纳/发布转换：共享 Windows 配置所有者验证
 `ui.sidebar.agents.rows`、`rows_by_agent`、`row_gap`，再发布有界规范 profile。
-Client 在安装任何字段前同时验证键位、通知、两个侧栏及主题名称；畸形私有线协议 profile 保留全部原配置。
+Client 在安装任何字段前同时验证键位、通知和两个侧栏；畸形私有线协议 profile 保留全部原配置。
 首个快照到达后，启动使用 Server 的完整已接纳基线；连接期间显示的本地投影只是临时值。
 配置检查报告支持的布局及边界。token、Provider 选择、
 规则、几何与证据见 [Agent 侧栏配置模型](machines.zh-CN.md#agent-侧栏配置模型)。
@@ -215,7 +208,7 @@ serializer 预检，对包含固定宽度合法关联标识的完整 `Configurat
 `Current`，重载时为 `Reloaded`）。已接纳源文件的组合转义 profile 和诊断如果超过该响应上限，则会被拒绝，
 不截断其他合法设置。启动不安装配置状态或在线策略；重载保留完整旧快照和在线策略。
 
-Server 提交已支持的在线 manifest-check 策略，并向连接中的主 TUI Client 发布键位、profile、主题名称
+Server 提交已支持的在线 manifest-check 策略，并向连接中的主 TUI Client 发布键位、profile
 及有界警告记录。
 发布不等于所有 Client 都已确认应用。每个 Client 拥有可取消的配置观察线程，仅在输入包
 之间应用完整且已验证的新版本快照，并拒绝过时或重复版本；清除待处理前缀，保留编辑器／
@@ -224,9 +217,9 @@ Server 提交已支持的在线 manifest-check 策略，并向连接中的主 TU
 优先用于首次启动显示；该提示消除后，配置警告会重新显示，而且不会阻止 Agent 通知卡片。重载失败保留现有设置和警告记录，并显示
 本地化失败提示。重载动作可通过 `reload_config` 配置。原生默认是前缀 F5；前缀 Shift+R 是原生已有的 Project 重命名默认键位。配置 `reload_config = "prefix+shift+r"` 会明确替换该冲突默认。
 
-默认 Shell 与模式对后续准备生效，无需重启。CLI 目录及 worktree 默认值由下一次调用读取。其他配置族与 Client 专属 profile 策略仍未完成。线协议按键 profile 上限为 64 KiB；每动作最多 144 个展开触发项，保留用户文件中 16 个索引候选项的上限。可取消状态订阅使用共享 Client carrier，发布最新已提交配置。Reload 保留为两秒交换上限的一次性请求；结果未知时不重放，由新订阅恢复当前状态。重载成功表示状态已发布，不代表每个 Client 都已应用。
+CLI 目录及 worktree 默认值由下一次调用读取。其他配置族与 Client 专属 profile 策略仍未完成。线协议按键 profile 上限为 64 KiB；每动作最多 144 个展开触发项，保留用户文件中 16 个索引候选项的上限。可取消状态订阅使用共享 Client carrier，发布最新已提交配置。Reload 保留为两秒交换上限的一次性请求；结果未知时不重放，由新订阅恢复当前状态。重载成功表示状态已发布，不代表每个 Client 都已应用。
 
-不引入持久配置迁移或自动重试。确定性测试覆盖临时启动、首次完整应用、致命失败保留、原子 settings/diagnostic 代次、后续单调应用及警告发布/清除。获准 payload 包含 `themeName`；仅主题变化使用同一发布所有者，Client 在完整准入后解析缓存调色板。连接测试覆盖传播，不假设交付公平性。授权、有界序列化、无变化重载及退出仍是实现义务。设置提交/发布核心的范围更窄，只涉及 writer/CAS，不证明整个重载流程。
+不引入持久配置迁移或自动重试。确定性测试覆盖临时启动、首次完整应用、致命失败保留、原子 settings/diagnostic 代次、后续单调应用及警告发布/清除。连接测试覆盖传播，不假设交付公平性。授权、有界序列化、无变化重载及退出仍是实现义务。设置提交/发布核心的范围更窄，只涉及 writer/CAS，不证明整个重载流程。
 
 `server config` 与 `server reload-config` 版本 1 为每个成功快照增加必需的 `diagnostics` 对象。
 文本输出包含可见数量、精确省略数量，以及每条有界的字段／原因／处置记录。
@@ -235,16 +228,11 @@ Server 提交已支持的在线 manifest-check 策略，并向连接中的主 TU
 
 生产现在在每次新 Host 启动前，从一个确认快照读取
 [共享设备启动配置](../../../crates/workbench-protocol/docs/user-preferences.zh-CN.md)和滚动历史。
-记录不存在时使用规范启动默认值。下文配置回执描述已准入原生配置，不代表有效共享目录。
-请求携带的覆盖路径保留给没有共享存储的适配器。
+记录不存在时使用规范启动默认值。配置回执不携带启动程序。
 
-重载把已验证的 `DefaultShellSelection` 提交到 Server 现有 TerminalCoordinator。新建接纳时将不可变值冻结到每个默认 `AuthorizedTerminalLaunch`；显式程序/Profile 请求不携带默认覆盖。Worker 在 Host 交接前校验 Windows Shell 语法，并使用自身的程序/PATH 和模式解析。没有覆盖时，非托管/旧私有请求保留 Worker 的启动回退。现有 PTY、已准备启动、精确重放和延迟 Start 不接收后续默认值。CLI/TUI/恢复新建共用同一 coordinator 接纳。
+现有 PTY、已准备启动、精确重放和延迟 Start 不接收后续默认值。配置重载先提交注册表，再提交 manifest 调度；候选校验在提交前完成，调度拒绝接纳时发布不变。持锁期间没有 Worker IPC 或分布式确认。重载成功证明配置接纳，不保证程序存在。
 
-提交锁顺序为配置注册表、Session coordinator、manifest 调度。候选校验与线协议值构造在提交前完成；调度拒绝接纳时，启动策略和发布均不变。持锁期间没有 Worker IPC 或分布式确认。Shell/模式变化对后续新建生效，不再要求 Session 重启。重载成功证明配置接纳，不保证程序存在。
-
-启动准备失败记录既有的确定交接前失败，保留 Worker/Server 连接，不创建 Host 终端。同一失败请求重放原失败；修正设置后必须使用新的创建标识。首次 Host 尚不存在时，延迟循环也保持可用。Host 启动/传输不确定性仍保留原退出与不重试策略。证据覆盖私有帧、默认/显式/缺省选择、跨重载准备、精确/冲突重放、失败保留和真实 Windows 管道交换；provider/多 Client/视觉全量验收仍延后。匹配的私有 cohort 整套部署或回退，不迁移持久化数据。
-
-`server config` 和重载回执显示后续默认创建所用的已接纳 `defaultShell` 与 `shellMode`，包括重载响应丢失后的查询。空 Shell 表示平台默认；这些值不证明 Worker 已解析可执行文件或启动成功。CLI 回执 v1 必须包含两字段。匹配私有 cohort 的 Workbench 快照同样要求有界字面量（4096 UTF-8 字节、无控制字符）以及 `auto`/`login`/`non_login` 模式。人类可读输出转义字面量，并本地化空 Shell 标签。
+启动准备失败记录既有的确定交接前失败，保留 Worker/Server 连接，不创建 Host 终端。同一失败请求重放原失败；修正设置后必须使用新的创建标识。首次 Host 尚不存在时，延迟循环也保持可用。Host 启动/传输不确定性仍保留原退出与不重试策略。证据覆盖失败保留、精确/冲突重放和真实 Windows 管道交换；provider/多 Client/视觉全量验收仍延后。匹配的私有 cohort 整套部署或回退，不迁移持久化数据。
 
 ## 外层窗口标题
 
@@ -347,4 +335,4 @@ Git 在所属 Worker 上读取已提交的 Workspace 目录，显示相对本地
 
 `terminal.focus_new_panel` 接受布尔值，默认为 `true`。原生 Client 分屏选中刚提交的新窗格；`false` 保留原窗格。Client 在启动时读取该偏好，编辑此字段后需重启。类型无效时产生字段级诊断并使用默认值。CLI `panel split --focus` 保留显式命令策略。
 
-<!-- documentation-pairing: english-sha256=bbca1f12092b3039ebe44a678036aa27a2501055095812fc919178be60d29a8d zh-cn-sha256=bfa9c5f9824c542df132c7b7c1b6b7bd7924f426fcc6d4f969f054b0dd34e5df -->
+<!-- documentation-pairing: english-sha256=cd4c6b131e99b340ef95c5ec1d2f004fd04c1c439a482f728382c5db1a2a2c12 zh-cn-sha256=0a28808bbeefca6377c86b74dc5afda98873abccb02f2620721305feb456d8d8 -->

@@ -283,20 +283,9 @@ fn managed_startup_rereads_one_complete_authoritative_server_baseline() {
 }
 
 #[test]
-fn real_configuration_owner_updates_coordinator_and_invalid_reload_retains_live_defaults() {
-    use crate::{
-        local_terminal_service::LocalTerminalService,
-        terminal_coordinator::{PreparedOperation, WorkerPlacement},
-        worker_registry::WorkerRegistry,
-    };
-    use orchbee_capability_node_protocol::{
-        CapabilityNodeMessage, LeaseExpiresAtUnixMilliseconds, WorkerGeneration, WorkerId,
-    };
-    use orchbee_client_server_protocol::{
-        ClientMessage, RequestId, StartMode, TerminalCreateRequest,
-    };
+fn real_configuration_owner_publishes_and_failed_apply_retains_the_snapshot() {
+    use crate::{local_terminal_service::LocalTerminalService, worker_registry::WorkerRegistry};
     use std::{
-        num::NonZeroU64,
         sync::{Arc, Mutex},
         time::{Duration, Instant},
     };
@@ -309,7 +298,7 @@ fn real_configuration_owner_updates_coordinator_and_invalid_reload_retains_live_
         }
     }
     let fixture = Fixture::new();
-    fixture.write("[terminal]\ndefault_shell='old.exe'");
+    fixture.write("[keys]\nprefix='ctrl+a'");
     let reload = request(Action::Reload);
     let owner = Owner(Arc::new(LocalTerminalService::from_identity(
         Arc::new(Mutex::new(WorkerRegistry::new())),
@@ -319,58 +308,16 @@ fn real_configuration_owner_updates_coordinator_and_invalid_reload_retains_live_
         .0
         .start_process_observer_with_settings(fixture.settings(true), false)
         .unwrap();
-    let capture = |id: u128| {
-        let PreparedOperation::Dispatch(pending) = owner.0.coordinator.lock().unwrap().prepare(
-            ClientMessage::TerminalCreate(TerminalCreateRequest::new(
-                RequestId::parse(&format!("{id:032x}")).unwrap(),
-                None,
-                None,
-                StartMode::Deferred,
-                None,
-            )),
-            Some(WorkerPlacement {
-                worker_id: WorkerId::from_bytes([9; 16]).unwrap(),
-                generation: WorkerGeneration::new(NonZeroU64::MIN),
-            }),
-            Some(LeaseExpiresAtUnixMilliseconds::new(NonZeroU64::MAX)),
-        ) else {
-            panic!("prepared");
-        };
-        let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = pending.command() else {
-            panic!("launch");
-        };
-        launch.default_shell().unwrap().clone()
-    };
-    let old = capture(11);
-    assert_eq!(old.executable(), "old.exe");
-    fixture.write("[terminal]\ndefault_shell='new.exe'\nshell_mode='login'");
-    let Outcome::Reloaded { snapshot, .. } = owner.0.execute_configuration(reload.clone()).outcome
-    else {
-        panic!("reload");
-    };
-    assert!(snapshot.restart_required.is_empty());
-    let new = capture(12);
-    assert_eq!(snapshot.default_shell, "new.exe");
-    assert_eq!(snapshot.shell_mode, ConfigurationShellMode::Login);
-    assert_eq!(new.executable(), "new.exe");
-    assert_eq!(new.mode().as_str(), "login");
-    fixture.write("[terminal]\ndefault_shell='wrong.exe'\nshell_mode='invalid'");
+    fixture.write("[keys]\nprefix='ctrl+d'");
     let Outcome::Reloaded {
-        snapshot: warning,
+        snapshot,
         changed: true,
     } = owner.0.execute_configuration(reload.clone()).outcome
     else {
-        panic!("invalid shell mode defaults only that leaf")
+        panic!("reload");
     };
-    assert_eq!(warning.default_shell, "wrong.exe");
-    assert_eq!(warning.shell_mode, ConfigurationShellMode::Auto);
-    assert_eq!(warning.diagnostics.items[0].field, "terminal.shell_mode");
-    let fallback = capture(13);
-    assert_eq!(fallback.executable(), "wrong.exe");
-    assert_eq!(fallback.mode().as_str(), "auto");
-    assert_eq!(current(&owner.0.configuration), warning);
-    assert_eq!(old.executable(), "old.exe");
-    fixture.write("[terminal]\ndefault_shell='blocked.exe'");
+    assert!(snapshot.keys_profile.contains("ctrl+d"));
+    fixture.write("[keys]\nprefix='ctrl+x'");
     owner
         .0
         .stop_process_observer_before(Instant::now() + Duration::from_secs(3))
@@ -379,8 +326,7 @@ fn real_configuration_owner_updates_coordinator_and_invalid_reload_retains_live_
         owner.0.execute_configuration(reload).outcome,
         Outcome::Failed { .. }
     ));
-    assert_eq!(capture(14), fallback);
-    assert_eq!(current(&owner.0.configuration), warning);
+    assert_eq!(current(&owner.0.configuration), snapshot);
 }
 
 #[test]
@@ -390,7 +336,7 @@ fn reload_publishes_valid_candidates_and_retains_previous_state_on_load_or_apply
     let registry = Registry::default();
     registry.initialize(&fixture.settings(true)).unwrap();
     assert_eq!(current(&registry).revision.value(), 0);
-    fixture.write("[keys]\nprefix='ctrl+d'\n[update]\nmanifest_check=false\n[terminal]\ndefault_shell='cmd.exe'");
+    fixture.write("[keys]\nprefix='ctrl+d'\n[update]\nmanifest_check=false");
     let Outcome::Reloaded {
         snapshot,
         changed: true,
@@ -401,7 +347,6 @@ fn reload_publishes_valid_candidates_and_retains_previous_state_on_load_or_apply
         panic!("reload");
     };
     assert_eq!(snapshot.revision.value(), 1);
-    assert!(snapshot.restart_required.is_empty());
     assert!(snapshot.keys_profile.contains("ctrl+d"));
     assert!(matches!(
         registry.execute(&request(Action::Reload), |_| true),
@@ -447,26 +392,6 @@ fn reload_publishes_valid_candidates_and_retains_previous_state_on_load_or_apply
         }
     ));
     assert_eq!(current(&registry), warning);
-}
-
-#[test]
-fn missing_default_resets_keys_without_requiring_restart() {
-    let fixture = Fixture::new();
-    fixture.write("[terminal]\ndefault_shell='cmd.exe'");
-    let registry = Registry::default();
-    registry.initialize(&fixture.settings(false)).unwrap();
-    std::fs::remove_file(fixture.file()).unwrap();
-    let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload), |_| true)
-    else {
-        panic!("reset defaults");
-    };
-    assert!(snapshot.restart_required.is_empty());
-    fixture.write("[terminal]\ndefault_shell='cmd.exe'");
-    let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload), |_| true)
-    else {
-        panic!("return to startup");
-    };
-    assert!(snapshot.restart_required.is_empty());
 }
 
 #[test]
@@ -611,7 +536,6 @@ fn notification_reload_exposes_policy_and_defaults_invalid_leaves() {
             orchbee_local_runtime::AgentSoundSetting::Off
         );
         assert_eq!(parsed.position(), "top-left");
-        assert!(snapshot.restart_required.is_empty());
     }
     fixture.write("[ui.toast]\ndelivery='bad'");
     let Outcome::Reloaded {

@@ -81,14 +81,6 @@ pub(super) fn run(
     let arguments = [
         std::ffi::OsStr::new("--runtime-directory"),
         runtime.as_os_str(),
-        #[cfg(windows)]
-        std::ffi::OsStr::new("--default-shell"),
-        #[cfg(windows)]
-        std::ffi::OsStr::new(settings.shell.executable()),
-        #[cfg(windows)]
-        std::ffi::OsStr::new("--shell-mode"),
-        #[cfg(windows)]
-        std::ffi::OsStr::new(settings.shell.mode().as_str()),
     ];
     #[cfg(windows)]
     let mut worker = orchbee_local_runtime::spawn_session_child(
