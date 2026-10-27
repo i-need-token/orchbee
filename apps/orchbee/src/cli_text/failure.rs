@@ -641,13 +641,6 @@ impl super::CliText {
     /// The startup diagnostic when a derived Session socket path cannot fit one
     /// socket address on this platform.
     pub(crate) const fn cli_socket_path_too_long(self) -> &'static str {
-        match self.locale {
-            Locale::EnUs => {
-                "A derived local session socket path is too long for this platform's socket address limit. Set ORCHBEE_RUNTIME_BASE to a shorter absolute directory.\n"
-            }
-            Locale::ZhCn => {
-                "派生出的本地会话套接字路径超出本平台的套接字地址长度限制。请将 ORCHBEE_RUNTIME_BASE 设为更短的绝对目录。\n"
-            }
-        }
+        self.locale.socket_path_too_long()
     }
 }

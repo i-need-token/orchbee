@@ -50,7 +50,7 @@ pub(super) fn emit(
     let bytes = match format {
         OutputFormat::Json => output::encode_document(document),
         OutputFormat::Text => {
-            let mut text = locale.cli_panel_terminal_create(document);
+            let mut text = CliText::new(locale).cli_panel_terminal_create(document);
             if let Some(kind) = failure {
                 text.push_str(&CliText::new(locale).cli_failure(&Failure::new(kind)));
             }

@@ -330,6 +330,7 @@ pub(super) use workflow::submit_action;
 pub(super) use workflow::{submit_creation, success_output};
 
 mod workflow {
+    use crate::cli_text::CliText;
     use std::time::Instant;
 
     use orchbee_workbench_protocol::{

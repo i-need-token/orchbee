@@ -18,6 +18,7 @@ use super::super::{
 };
 use super::{SendTarget, SendVerdict, TERMINAL_SEND_ID};
 use crate::agent_runtime::startup::send::verdict as send_verdict;
+use crate::cli_text::CliText;
 use crate::invocation::{OutputFormat, Target, TerminalSendInput};
 use crate::local_client::{OutcomeUnknownReason, SubmissionError};
 use crate::localization::Locale;
