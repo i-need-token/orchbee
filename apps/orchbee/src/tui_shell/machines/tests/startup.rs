@@ -2,7 +2,7 @@
 use super::super::*;
 use super::{dimensions, profile, setup};
 use crate::{
-    local_client::test_support::server::FakeServer,
+    local_client::test_support::{multiplex_peer::Peer, server::FakeServer},
     workbench_client::{ClientContextLocation, ClientContextTarget},
 };
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
@@ -114,7 +114,8 @@ fn target(snapshot: &Snapshot) -> ClientContextTarget {
     }
 }
 fn peer(snapshot: Snapshot) -> io::Result<FakeServer> {
-    FakeServer::start(move |mut stream| {
+    FakeServer::start(move |stream| {
+        let mut stream = Peer::primary_lane(stream);
         stream.set_read_timeout(Some(Duration::from_secs(5)))?;
         assert!(matches!(
             read_message(&mut stream).map_err(io::Error::other)?,
@@ -141,6 +142,7 @@ fn peer(snapshot: Snapshot) -> io::Result<FakeServer> {
             }),
         )
         .map_err(io::Error::other)?;
+        stream.answer_probes();
         assert_eq!(
             stream.read(&mut [0])?,
             0,
@@ -365,135 +367,154 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
                 .push(stream);
             return Ok(());
         }
-        let mut magic = [0; 4];
-        stream.read_exact(&mut magic).inspect_err(|error| {
-            eprintln!("machine-local-workspace lane={index} stage=request-header-read: {error:?}");
-        })?;
-        if magic == AGENT_MAGIC {
-            let request = {
-                let mut reader = io::Cursor::new(magic).chain(&mut stream);
-                read_agent_request(&mut reader)
+        // Every later connection is one multiplexed carrier. Its logical streams are dispatched
+        // by request; observations stay pending until teardown closes the carrier.
+        loop {
+            let (stream_id, mode, request) = match read_multiplex_message(&mut stream) {
+                Ok(MultiplexMessage::StreamOpen {
+                    stream_id,
+                    mode,
+                    request,
+                    ..
+                }) => (stream_id, mode, request),
+                Ok(
+                    MultiplexMessage::LaneOpen { .. }
+                    | MultiplexMessage::LaneClose { .. }
+                    | MultiplexMessage::StreamClose { .. },
+                ) => continue,
+                Ok(MultiplexMessage::Disconnect { .. }) => return Ok(()),
+                Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => return Ok(()),
+                other => {
+                    eprintln!("machine-local-workspace lane={index} stage=carrier-read: {other:?}");
+                    return Err(io::Error::other("unexpected carrier message"));
+                }
+            };
+            if request.starts_with(&AGENT_MAGIC) {
+                let request = read_agent_request(&mut io::Cursor::new(&request))
                     .inspect_err(|error| {
                         eprintln!(
                             "machine-local-workspace lane={index} stage=attention-read: {error:?}"
                         );
                     })
-                    .map_err(io::Error::other)?
-            };
-            assert!(matches!(
-                request,
-                AgentRequest::Changes(AgentChangesRequest::Read { cursor: None, .. })
-            ));
-            decoded_attention
-                .send(DecodedAttention::Semantic)
-                .map_err(io::Error::other)?;
-            assert_eq!(
-                stream.read(&mut [0]).inspect_err(|error| {
-                    eprintln!(
-                        "machine-local-workspace lane={index} stage=attention-eof-read: {error:?}"
-                    );
-                })?,
-                0,
-                "semantic attention must end with cancellation after its decoded request"
-            );
-            return Ok(());
-        }
-        assert_eq!(magic, *b"OBWP", "unexpected request protocol");
-        let request = {
-            let mut reader = io::Cursor::new(magic).chain(&mut stream);
-            read_workbench_request(&mut reader)
-                .inspect_err(|error| {
-                    eprintln!(
-                        "machine-local-workspace lane={index} stage=snapshot-read: {error:?}"
-                    );
-                })
-                .map_err(io::Error::other)?
-        };
-        if matches!(
-            request,
-            WorkbenchRequest::AgentView(AgentViewRequest {
-                action: AgentViewAction::Read {},
-                ..
-            })
-        ) {
-            // The Windows Tab strip observes the attached machine's Agents while the Sidebar is
-            // hidden; that read stays pending until teardown cancels it.
-            assert_eq!(stream.read(&mut [0])?, 0);
-            return Ok(());
-        }
-        let WorkbenchRequest::SnapshotRead(read) = request else {
-            panic!("context lane must begin with a snapshot");
-        };
-        write_workbench_response(
-            &mut stream,
-            &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-                protocol_version: ProtocolVersion,
-                request_id: read.request_id,
-                outcome: WorkbenchSnapshotOutcome::Available {
-                    snapshot: snapshot.clone(),
-                },
-            }),
-        )
-        .inspect_err(|error| {
-            eprintln!("machine-local-workspace lane={index} stage=snapshot-write: {error:?}");
-        })
-        .map_err(io::Error::other)?;
-        // The destination closes after its snapshot. Native physical attention
-        // instead reads the same Session's presentation states; leave that decoded
-        // request pending until the existing surface teardown cancels it.
-        match read_workbench_request(&mut stream) {
-            Ok(WorkbenchRequest::PanelAgent(PanelAgentRequest {
-                session_id,
-                action: PanelAgentAction::States { presentation_ids },
-                ..
-            })) => {
-                assert_eq!(session_id, snapshot.session_id);
-                assert_eq!(
-                    presentation_ids,
-                    vec![TerminalPresentationId::parse(&id(5)).unwrap()]
-                );
-                decoded_attention
-                    .send(DecodedAttention::Physical)
                     .map_err(io::Error::other)?;
-                assert_eq!(
-                    stream.read(&mut [0]).inspect_err(|error| {
+                assert!(matches!(
+                    request,
+                    AgentRequest::Changes(AgentChangesRequest::Read { cursor: None, .. })
+                ));
+                decoded_attention
+                    .send(DecodedAttention::Semantic)
+                    .map_err(io::Error::other)?;
+                continue;
+            }
+            let request = read_workbench_request(&mut io::Cursor::new(&request))
+                .inspect_err(|error| {
+                    eprintln!("machine-local-workspace lane={index} stage=request-read: {error:?}");
+                })
+                .map_err(io::Error::other)?;
+            match request {
+                WorkbenchRequest::SnapshotRead(read) => {
+                    let mut record = Vec::new();
+                    write_workbench_response(
+                        &mut record,
+                        &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
+                            protocol_version: ProtocolVersion,
+                            request_id: read.request_id,
+                            outcome: WorkbenchSnapshotOutcome::Available {
+                                snapshot: snapshot.clone(),
+                            },
+                        }),
+                    )
+                    .map_err(io::Error::other)?;
+                    write_multiplex_message(
+                        &mut stream,
+                        &MultiplexMessage::StreamFrame {
+                            stream_id,
+                            sequence: NonZeroU64::MIN,
+                            kind: if mode == StreamMode::Request {
+                                StreamFrameKind::Result
+                            } else {
+                                StreamFrameKind::Snapshot
+                            },
+                            record,
+                        },
+                    )
+                    .inspect_err(|error| {
                         eprintln!(
-                            "machine-local-workspace lane={index} stage=physical-attention-eof-read: {error:?}"
+                            "machine-local-workspace lane={index} stage=snapshot-write: {error:?}"
                         );
-                    })?,
-                    0,
-                    "physical attention must end with cancellation after its decoded request"
-                );
-            }
-            Ok(WorkbenchRequest::AgentView(AgentViewRequest {
-                action: AgentViewAction::Read {},
-                ..
-            })) => {}
-            Ok(WorkbenchRequest::Events(SemanticEventsRequest {
-                session_id,
-                action: SemanticEventsAction::Subscribe { .. },
-                ..
-            })) => {
-                assert_eq!(session_id, snapshot.session_id);
-                assert_eq!(
-                    stream.read(&mut [0])?,
-                    0,
-                    "pending Agent watch must cancel at teardown"
-                );
-            }
-            Ok(WorkbenchRequest::WorkspaceMetadata(WorkspaceMetadataRequest {
-                action: WorkspaceMetadataAction::Read { workspace_ids },
-                ..
-            })) => {
-                assert_eq!(
+                    })?;
+                }
+                // A periodic refresh finds the destination unchanged.
+                WorkbenchRequest::PublicationRead(read) => {
+                    let mut record = Vec::new();
+                    write_workbench_response(
+                        &mut record,
+                        &WorkbenchResponse::Publication(WorkbenchPublicationResult {
+                            protocol_version: ProtocolVersion,
+                            request_id: read.request_id,
+                            outcome: WorkbenchPublicationOutcome::Current {
+                                revision: snapshot.revision,
+                            },
+                        }),
+                    )
+                    .map_err(io::Error::other)?;
+                    write_multiplex_message(
+                        &mut stream,
+                        &MultiplexMessage::StreamFrame {
+                            stream_id,
+                            sequence: NonZeroU64::MIN,
+                            kind: StreamFrameKind::Result,
+                            record,
+                        },
+                    )?;
+                }
+                // Native physical attention reads the same Session's presentation states.
+                WorkbenchRequest::PanelAgent(PanelAgentRequest {
+                    session_id,
+                    action: PanelAgentAction::States { presentation_ids },
+                    ..
+                }) => {
+                    assert_eq!(session_id, snapshot.session_id);
+                    assert_eq!(
+                        presentation_ids,
+                        vec![TerminalPresentationId::parse(&id(5)).unwrap()]
+                    );
+                    decoded_attention
+                        .send(DecodedAttention::Physical)
+                        .map_err(io::Error::other)?;
+                }
+                // The Windows Tab strip observes the attached machine's Agents while the Sidebar
+                // is hidden.
+                WorkbenchRequest::AgentView(AgentViewRequest {
+                    action: AgentViewAction::Read {},
+                    ..
+                }) => {}
+                WorkbenchRequest::Events(SemanticEventsRequest {
+                    session_id,
+                    action: SemanticEventsAction::Subscribe { .. },
+                    ..
+                }) => assert_eq!(session_id, snapshot.session_id),
+                WorkbenchRequest::WorkspaceMetadata(WorkspaceMetadataRequest {
+                    action: WorkspaceMetadataAction::Read { workspace_ids },
+                    ..
+                }) => assert_eq!(
                     workspace_ids,
                     vec![snapshot.navigation.workspaces[1].workspace_id.clone()]
-                );
+                ),
+                // Settings and Panel metadata are read-only observations of the destination.
+                WorkbenchRequest::Settings(SettingsRequest {
+                    session_id,
+                    operation: SettingsOperation::Open {},
+                    ..
+                }) => assert_eq!(session_id, snapshot.session_id),
+                WorkbenchRequest::PanelMetadata(PanelMetadataRequest {
+                    action:
+                        PanelMetadataAction::Read { .. } | PanelMetadataAction::ReadPresentations { .. },
+                    ..
+                }) => {}
+                other => panic!("unexpected request on the destination carrier: {other:?}"),
             }
-            Err(WorkbenchWireError::Io(error)) if error.kind() == io::ErrorKind::UnexpectedEof => {}
-            other => panic!("unexpected post-snapshot request: {other:?}"),
         }
-        Ok(())
     })?;
     let deadline = Instant::now() + Duration::from_secs(3);
     let client = LocalClient::connect_before(server.endpoint(), "test-cohort", deadline)
@@ -613,7 +634,8 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
 fn machine_workspace_escape_cancels_pending_native_read_and_retains_current_surface()
 -> io::Result<()> {
     let (sent, received) = std::sync::mpsc::sync_channel(1);
-    let server = FakeServer::start(move |mut stream| {
+    let server = FakeServer::start(move |stream| {
+        let mut stream = Peer::primary_lane(stream);
         assert!(matches!(
             read_message(&mut stream).map_err(io::Error::other)?,
             LocalClientMessage::ClientHello(_)

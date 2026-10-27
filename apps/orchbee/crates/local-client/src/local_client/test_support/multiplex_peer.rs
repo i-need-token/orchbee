@@ -2,10 +2,12 @@
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_local_ipc::LocalStream;
 use orchbee_workbench_protocol::{
-    MultiplexMessage, MultiplexStreamId, ProtocolVersion, StreamFrameKind, StreamMode,
-    WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse, WorkbenchSnapshotOutcome,
-    WorkbenchSnapshotResult, read_multiplex_message, read_workbench_request,
-    read_workbench_response, write_multiplex_message, write_workbench_response,
+    MultiplexLaneId, MultiplexMessage, MultiplexStreamId, ProtocolVersion, StreamFrameKind,
+    StreamMode, WorkbenchPublicationDocument, WorkbenchPublicationOutcome,
+    WorkbenchPublicationResult, WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse,
+    WorkbenchSnapshotOutcome, WorkbenchSnapshotResult, read_multiplex_message,
+    read_workbench_request, read_workbench_response, write_multiplex_message,
+    write_workbench_response,
 };
 use std::{
     collections::BTreeMap,
@@ -90,6 +92,9 @@ pub struct Peer {
     reply: Option<Open>,
     snapshots: BTreeMap<MultiplexStreamId, (WorkbenchRequestId, StreamMode, u64)>,
     latest: Option<WorkbenchSnapshotOutcome>,
+    /// `Some` scripts only the first opened lane; `Some(None)` awaits that lane.
+    primary: Option<Option<MultiplexLaneId>>,
+    probes: bool,
 }
 impl Peer {
     pub fn new(stream: LocalStream) -> Self {
@@ -102,7 +107,22 @@ impl Peer {
             reply: None,
             snapshots: BTreeMap::new(),
             latest: None,
+            primary: None,
+            probes: false,
         }
+    }
+    /// Scripts only the Client's first logical lane. Observation lanes opened later on the same
+    /// carrier stay unanswered until they close, as against a Server that never replies to them.
+    pub fn primary_lane(stream: LocalStream) -> Self {
+        Self {
+            primary: Some(None),
+            ..Self::new(stream)
+        }
+    }
+    /// From now on, answers multiplexed `publication.read` probes from the latest scripted
+    /// snapshot, as a journal would, once the script expects no further explicit refresh.
+    pub fn answer_probes(&mut self) {
+        self.probes = true;
     }
     pub fn set_read_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
         self.stream.set_read_timeout(timeout)
@@ -131,13 +151,57 @@ impl Peer {
             *sequence,
         )
     }
+    fn probe(&mut self, id: MultiplexStreamId, request: &[u8]) -> io::Result<bool> {
+        let Ok(WorkbenchRequest::PublicationRead(intent)) =
+            read_workbench_request(&mut Cursor::new(request))
+        else {
+            return Ok(false);
+        };
+        let outcome = match self.latest.clone() {
+            Some(WorkbenchSnapshotOutcome::Available { snapshot })
+                if snapshot.revision > intent.known_revision =>
+            {
+                WorkbenchPublicationOutcome::Published {
+                    publications: vec![WorkbenchPublicationDocument::Snapshot(snapshot)],
+                }
+            }
+            Some(WorkbenchSnapshotOutcome::Available { snapshot }) => {
+                WorkbenchPublicationOutcome::Current {
+                    revision: snapshot.revision,
+                }
+            }
+            Some(WorkbenchSnapshotOutcome::Denied {}) => WorkbenchPublicationOutcome::Denied {},
+            Some(WorkbenchSnapshotOutcome::Unavailable { reason }) => {
+                WorkbenchPublicationOutcome::Unavailable { reason }
+            }
+            None => WorkbenchPublicationOutcome::Current {
+                revision: intent.known_revision,
+            },
+        };
+        let open = Open {
+            id,
+            mode: StreamMode::Request,
+            request: Vec::new(),
+        };
+        respond(
+            &mut self.stream,
+            &open,
+            &WorkbenchResponse::Publication(WorkbenchPublicationResult {
+                protocol_version: ProtocolVersion,
+                request_id: intent.request_id,
+                outcome,
+            }),
+            1,
+        )?;
+        Ok(true)
+    }
     fn accept(&mut self, message: MultiplexMessage) -> io::Result<bool> {
         match message {
             MultiplexMessage::StreamOpen {
                 stream_id,
+                lane_id,
                 mode,
                 request,
-                ..
             } => {
                 if mode != StreamMode::Request
                     && let Ok(WorkbenchRequest::SnapshotRead(intent)) =
@@ -146,6 +210,15 @@ impl Peer {
                     self.snapshots
                         .insert(stream_id, (intent.request_id, mode, 0));
                     self.snapshot(stream_id)?;
+                    return Ok(false);
+                }
+                if self
+                    .primary
+                    .is_some_and(|primary| primary.is_some_and(|primary| primary != lane_id))
+                {
+                    return Ok(false);
+                }
+                if self.probes && mode == StreamMode::Request && self.probe(stream_id, &request)? {
                     return Ok(false);
                 }
                 self.reply = Some(Open {
@@ -160,7 +233,13 @@ impl Peer {
                 self.snapshots.remove(&stream_id);
                 Ok(false)
             }
-            MultiplexMessage::LaneOpen { .. } | MultiplexMessage::LaneClose { .. } => Ok(false),
+            MultiplexMessage::LaneOpen { lane_id } => {
+                if self.primary == Some(None) {
+                    self.primary = Some(Some(lane_id));
+                }
+                Ok(false)
+            }
+            MultiplexMessage::LaneClose { .. } => Ok(false),
             _ => Err(io::ErrorKind::InvalidData.into()),
         }
     }

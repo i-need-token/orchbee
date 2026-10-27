@@ -880,13 +880,15 @@ fn unbound_bootstrap_paints_empty_guidance_and_clickable_member_selector_without
 }
 
 #[test]
-fn unbound_client_schedules_bounded_refresh_without_terminal_poll_or_repeated_admission() {
+fn unbound_client_refreshes_only_on_publication_hints_without_terminal_poll_or_repeated_admission()
+{
     let (mut ui, mailbox, elapsed) = empty_ui();
     assert!(mailbox.try_recv().unwrap().is_none());
-    elapsed.store(999, std::sync::atomic::Ordering::SeqCst);
+    // Elapsed time alone never schedules a read; refreshes follow pushed publication hints.
+    elapsed.store(60_000, std::sync::atomic::Ordering::SeqCst);
     ui.tick();
     assert!(mailbox.try_recv().unwrap().is_none());
-    elapsed.store(1000, std::sync::atomic::Ordering::SeqCst);
+    ui.state.as_mut().unwrap().note_publication_hint();
     ui.tick();
     let queued = mailbox.try_recv().unwrap().unwrap();
     assert!(matches!(

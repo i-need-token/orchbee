@@ -3347,6 +3347,12 @@ impl CommandMailbox {
         clock: &dyn MailboxClock,
     ) -> Result<Option<UiReply>, EventError> {
         let (mut state, mut observed_at) = self.lock_with_fresh_sample(clock);
+        #[cfg(test)]
+        if self.ui_reply_await_sample_checkpoint.load(Ordering::SeqCst) == 1 {
+            drop(state);
+            Self::stop_at_resume_checkpoint(&self.ui_reply_await_sample_checkpoint);
+            (state, observed_at) = self.lock_with_fresh_sample(clock);
+        }
         loop {
             Self::ensure_open(&state).map_err(EventError::Closed)?;
             if matches!(&state.event, EventCell::Reply(current, _) if current == wait_key) {
@@ -4084,11 +4090,21 @@ impl CommandMailbox {
     }
 
     /// Arms the one-shot worker park inside `await_ui_reply_before`: after the worker
-    /// re-locks with a fresh clock sample it drops the mailbox mutex and parks until this
-    /// guard is dropped, so the test can run the UI side of a forward-expiry boundary first.
+    /// locks or re-locks with a fresh clock sample it drops the mailbox mutex and parks until
+    /// this guard is dropped, so the test can run the UI side of a forward-expiry boundary first.
     #[cfg(test)]
     pub(super) fn pause_next_ui_reply_await_sample_for_test(&self) -> WorkerResumeCheckpoint<'_> {
-        Self::arm_resume_checkpoint(&self.ui_reply_await_sample_checkpoint)
+        let checkpoint = Self::arm_resume_checkpoint(&self.ui_reply_await_sample_checkpoint);
+        self.wake_waiters_for_test();
+        checkpoint
+    }
+
+    /// Waits sleep until their real deadline, so a scripted clock advance or an armed sample
+    /// checkpoint wakes them under the mutex to re-sample.
+    #[cfg(test)]
+    pub(super) fn wake_waiters_for_test(&self) {
+        let _state = self.lock();
+        self.changed.notify_all();
     }
 
     /// Arms the one-shot UI park inside `deposit_ui_reply_before` at its clock sample: the
