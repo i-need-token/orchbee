@@ -23,10 +23,18 @@ pub(crate) trait WorkbenchFixture {
     fn fixture_presentation_membership(
         &self,
     ) -> Result<WorkbenchTerminalMembership, WorkbenchTerminalInvariantError>;
+    #[expect(
+        clippy::result_large_err,
+        reason = "fixtures return the authority's own command result unchanged for assertions"
+    )]
     fn prepare_fixture_tab(
         &mut self,
         binding: PresentationBinding,
     ) -> Result<Box<PreparedWorkbenchTabCreate<'_>>, WorkbenchCommandResult>;
+    #[expect(
+        clippy::result_large_err,
+        reason = "fixtures return the authority's own command result unchanged for assertions"
+    )]
     fn append_fixture_tab(
         &mut self,
         binding: PresentationBinding,

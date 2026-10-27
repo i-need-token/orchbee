@@ -49,7 +49,7 @@ fn publish_without_host(coordinator: &mut SessionCoordinator, close: &WorkbenchC
         .next_terminal_tab_close_step_target(&close.request_id, now)
         .unwrap();
     assert_eq!(step.next(), CloseContinuationNext::Publication);
-    let _changed = coordinator
+    coordinator
         .publish_terminal_tab_close(&close.request_id, now)
         .unwrap();
     assert!(
@@ -263,8 +263,7 @@ fn workspace_close_keeps_failed_members_and_requires_live_members_before_admissi
                     .outcome,
                 WorkbenchCommandOutcome::WorkspaceCloseAccepted { .. }
             ));
-            let _changed =
-                super::multileaf_membership::drive_close_to_publication(&mut coordinator, &close);
+            super::multileaf_membership::drive_close_to_publication(&mut coordinator, &close);
         } else {
             assert!(matches!(
                 result.outcome,

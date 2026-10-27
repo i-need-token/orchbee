@@ -287,7 +287,6 @@ fn empty_workspace_close_publishes_without_lifecycle_and_preserves_project_direc
     let prepared = authority
         .prepare_terminal_tab_close_publication(&close.request_id, now)
         .unwrap();
-    assert!(prepared.exact_removed_members().first().is_none());
     assert!(prepared.exact_removed_members().is_empty());
 
     assert!(prepared.before_membership().is_empty());

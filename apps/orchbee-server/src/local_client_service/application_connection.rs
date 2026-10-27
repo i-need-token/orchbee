@@ -41,13 +41,16 @@ impl ApplicationRequest {
         }
     }
     pub(super) fn same_subscription_owner(&self, other: &Self) -> bool {
-        match (self.workbench(), other.workbench()) {
-            (Some(WorkbenchRequest::WindowTitle(_)), Some(WorkbenchRequest::WindowTitle(_)))
-            | (Some(WorkbenchRequest::Notification(_)), Some(WorkbenchRequest::Notification(_))) => {
-                true
-            }
-            _ => false,
-        }
+        matches!(
+            (self.workbench(), other.workbench()),
+            (
+                Some(WorkbenchRequest::WindowTitle(_)),
+                Some(WorkbenchRequest::WindowTitle(_))
+            ) | (
+                Some(WorkbenchRequest::Notification(_)),
+                Some(WorkbenchRequest::Notification(_))
+            )
+        )
     }
     pub(super) fn shares_event_cursor(&self, other: &Self) -> bool {
         matches!((self.workbench(), other.workbench()),
@@ -223,6 +226,10 @@ impl ApplicationRequest {
     }
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "each callback is a distinct Server authority the connection loop must not own"
+)]
 pub(super) fn run_network<Permit>(
     stream: &orchbee_local_ipc::LocalStream,
     mut execute: impl FnMut(MultiplexLaneId, ClientMessage) -> ServerMessage,

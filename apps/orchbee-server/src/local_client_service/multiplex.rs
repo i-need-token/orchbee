@@ -218,6 +218,10 @@ fn read_loop(
     }
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the dispatcher borrows the connection loop's callbacks and shared state without owning them"
+)]
 fn dispatch(
     writer: &mut impl Write,
     first: Queued,
