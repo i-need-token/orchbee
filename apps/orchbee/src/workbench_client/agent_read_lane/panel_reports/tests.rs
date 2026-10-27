@@ -1,5 +1,5 @@
 use super::*;
-use crate::local_client::tests::server::FakeServer;
+use crate::local_client::test_support::server::FakeServer;
 use crate::workbench_client::agent_read_lane::{AgentReadLane, LaneCommand, LaneOutcome};
 use crate::workbench_client::panel_reports::SelectedPanel;
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};

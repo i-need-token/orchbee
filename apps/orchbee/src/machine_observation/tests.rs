@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    local_client::tests::server::FakeServer,
+    local_client::test_support::server::FakeServer,
     machine_agents::{
         Checkpoint,
         tests::{accept, checkpoint},
@@ -131,7 +131,7 @@ fn observation_collector_ages_from_worker_completion_and_discards_previous_gener
 #[test]
 fn carrier_snapshot_gate_and_reset_retire_completed_reads_before_accepting_fresh_state()
 -> io::Result<()> {
-    use crate::local_client::tests::multiplex_peer::{Open, admit, read_open, respond};
+    use crate::local_client::test_support::multiplex_peer::{Open, admit, read_open, respond};
     use orchbee_workbench_protocol::{
         MultiplexMessage, StreamFrameKind, StreamMode, WorkbenchRequest, WorkbenchResponse,
         WorkbenchRevision, WorkbenchSnapshotResult, read_multiplex_message, read_workbench_request,
@@ -310,7 +310,7 @@ fn pending<T: Send + Sync + 'static>(
 #[test]
 fn failed_subscription_admission_and_first_read_recover_without_successful_state_polling()
 -> io::Result<()> {
-    use crate::local_client::tests::multiplex_peer::{admit, read_open, respond};
+    use crate::local_client::test_support::multiplex_peer::{admit, read_open, respond};
     use orchbee_workbench_protocol::{
         MultiplexMessage, StreamMode, WorkbenchRequest, WorkbenchResponse, WorkbenchSnapshotResult,
         WorkbenchSnapshotUnavailableReason, read_multiplex_message, read_workbench_request,

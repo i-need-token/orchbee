@@ -171,7 +171,7 @@ fn action_row(ui: &WorkbenchClientUi, action: MenuAction) -> usize {
 
 fn empty_ui_without_focused_panel() -> WorkbenchClientUi {
     let elapsed = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
-    let clock = crate::local_client::tests::server::adjustable_operation_clock(elapsed);
+    let clock = crate::local_client::test_support::server::adjustable_operation_clock(elapsed);
     let mailbox = std::sync::Arc::new(crate::workbench_client::mailbox::CommandMailbox::new(
         10,
         Geometry::new(120, 40, 8, 16).unwrap(),

@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     client_view::{ClientActionDisposition, KeyCode, KeyEvent, Modifiers, PrefixInput},
-    local_client::{LocalClient, tests::server::FakeServer},
+    local_client::{LocalClient, test_support::server::FakeServer},
 };
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_workbench_protocol::{WorkbenchRequest, WorkbenchRevision, read_workbench_request};
@@ -285,7 +285,7 @@ fn warning_reload_keeps_the_agent_notification_surface_available() {
         ConfigurationResult, WorkbenchResponse, write_workbench_response,
     };
     let server = FakeServer::start_connections(1, move |index, stream| {
-        let mut stream = crate::local_client::tests::multiplex_peer::Peer::new(stream);
+        let mut stream = crate::local_client::test_support::multiplex_peer::Peer::new(stream);
         assert!(matches!(
             read_message(&mut stream).map_err(io::Error::other)?,
             LocalClientMessage::ClientHello(_)
@@ -394,7 +394,7 @@ fn warning_reload_reports_restart_then_restores_warning_and_notification_availab
         ConfigurationRestart, ConfigurationResult, WorkbenchResponse, write_workbench_response,
     };
     let server = FakeServer::start_connections(1, move |index, stream| {
-        let mut stream = crate::local_client::tests::multiplex_peer::Peer::new(stream);
+        let mut stream = crate::local_client::test_support::multiplex_peer::Peer::new(stream);
         assert!(matches!(
             read_message(&mut stream).map_err(io::Error::other)?,
             LocalClientMessage::ClientHello(_)
@@ -519,7 +519,7 @@ fn unchanged_reload_reports_restart_without_reapplying_the_existing_snapshot() {
         ConfigurationRestart, ConfigurationResult, WorkbenchResponse, write_workbench_response,
     };
     let server = FakeServer::start_connections(1, move |index, stream| {
-        let mut stream = crate::local_client::tests::multiplex_peer::Peer::new(stream);
+        let mut stream = crate::local_client::test_support::multiplex_peer::Peer::new(stream);
         assert!(matches!(
             read_message(&mut stream).map_err(io::Error::other)?,
             LocalClientMessage::ClientHello(_)
@@ -627,7 +627,7 @@ fn unchanged_reload_catches_up_a_lagging_client_once_before_reporting_success() 
         ConfigurationResult, WorkbenchResponse, write_workbench_response,
     };
     let server = FakeServer::start_connections(1, move |index, stream| {
-        let mut stream = crate::local_client::tests::multiplex_peer::Peer::new(stream);
+        let mut stream = crate::local_client::test_support::multiplex_peer::Peer::new(stream);
         assert!(matches!(
             read_message(&mut stream).map_err(io::Error::other)?,
             LocalClientMessage::ClientHello(_)
@@ -731,7 +731,7 @@ fn unchanged_reload_catches_up_a_lagging_client_once_before_reporting_success() 
 
 #[test]
 fn closing_watcher_cancels_only_its_pending_stream() {
-    use crate::local_client::tests::multiplex_peer::{admit, read_open};
+    use crate::local_client::test_support::multiplex_peer::{admit, read_open};
     use orchbee_workbench_protocol::{MultiplexMessage, read_multiplex_message};
     let (opened, ready) = mpsc::sync_channel(1);
     let server = FakeServer::start(move |mut stream| {
@@ -771,7 +771,7 @@ fn closing_watcher_cancels_only_its_pending_stream() {
 
 #[test]
 fn submitted_reload_loss_recovers_by_subscription_without_replaying_the_write() {
-    use crate::local_client::tests::multiplex_peer::{admit, read_open, respond};
+    use crate::local_client::test_support::multiplex_peer::{admit, read_open, respond};
     use orchbee_workbench_protocol::{ConfigurationResult, WorkbenchResponse};
     let (lost, loss) = mpsc::sync_channel(1);
     let (release, finish) = mpsc::sync_channel(1);

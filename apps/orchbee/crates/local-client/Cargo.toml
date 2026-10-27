@@ -5,6 +5,10 @@ edition.workspace = true
 rust-version.workspace = true
 publish = false
 
+[features]
+# Exposes `test_support` to the owning application's tests through its development dependency.
+test-support = []
+
 [dependencies]
 getrandom.workspace = true
 orchbee-agent-observation-protocol = { path = "../../../../crates/agent-observation-protocol" }

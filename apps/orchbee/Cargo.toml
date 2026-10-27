@@ -73,6 +73,8 @@ sha2.workspace = true
 [dev-dependencies]
 # Shared GUI/TUI close-target corpus; reuse the already admitted workspace serde.
 jsonschema.workspace = true
+# Bounded fake peers and controlled transport clocks for application unit tests only.
+orchbee-local-client = { path = "crates/local-client", features = ["test-support"] }
 
 [target.'cfg(unix)'.dev-dependencies]
 nix = { workspace = true, features = ["fs", "process", "signal", "term"] }

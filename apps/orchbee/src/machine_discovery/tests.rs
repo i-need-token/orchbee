@@ -1,7 +1,7 @@
 use super::*;
 use crate::local_client::cancellation::OwnedCancellation;
-use crate::local_client::tests::multiplex_peer::{admit, read_open, respond};
-use crate::{local_client::tests::server::FakeServer, machines::Draft};
+use crate::local_client::test_support::multiplex_peer::{admit, read_open, respond};
+use crate::{local_client::test_support::server::FakeServer, machines::Draft};
 use orchbee_workbench_protocol::{
     MultiplexMessage, Navigation, ProtocolVersion, StreamFrameKind, StreamMode, TerminalContext,
     WorkbenchRequest, WorkbenchResponse, WorkbenchSnapshotOutcome, WorkbenchSnapshotResult,

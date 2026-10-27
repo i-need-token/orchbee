@@ -3,7 +3,7 @@ use super::super::{
 };
 use super::*;
 use crate::{
-    local_client::tests::server::adjustable_operation_clock,
+    local_client::test_support::server::adjustable_operation_clock,
     terminal_content::TerminalScreen,
     terminal_input::{PointerLinkAdmission, PointerSelectionCell},
     terminal_link_activation::{Notice, PaintedLinkSource, PaintedRows, SnapshotMember},

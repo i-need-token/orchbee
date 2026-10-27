@@ -121,7 +121,7 @@ fn install_capture_read(
 ) {
     const COHORT: &str = "agent-board-capture";
     let mut rows = Some(initial_rows);
-    let server = crate::local_client::tests::server::FakeServer::start_connections(
+    let server = crate::local_client::test_support::server::FakeServer::start_connections(
         2,
         move |index, mut stream| {
             admit_fake_client(&mut stream, COHORT)?;

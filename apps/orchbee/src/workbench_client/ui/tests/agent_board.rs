@@ -5,7 +5,7 @@
 //! instead of reporting `Gone`.
 
 use super::super::*;
-use crate::local_client::tests::server::adjustable_operation_clock;
+use crate::local_client::test_support::server::adjustable_operation_clock;
 use crate::workbench_client::mailbox::EventDeadline;
 use orchbee_agent_observation_protocol::{
     AgentAttachmentGeneration, AgentPresentationAttachment, AgentPresentationId,

@@ -447,7 +447,7 @@ fn reopening_keeps_accepted_and_unknown_work_but_retires_retryable_results() {
 #[test]
 fn remote_origin_never_publishes_the_local_process_path_as_target_availability() {
     let mut state = State::new(true);
-    state.set_origin(crate::local_client::tests::server::disconnected_remote_origin());
+    state.set_origin(crate::local_client::test_support::server::disconnected_remote_origin());
     state.ensure_catalog(std::env::var_os("PATH"));
     assert_eq!(state.catalog_status(), CatalogStatus::Unavailable);
     assert!(state.detected().is_empty());

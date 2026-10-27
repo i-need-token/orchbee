@@ -1,3 +1,4 @@
+//! Bounded fake Servers, admitted-client constructors and controlled transport clocks.
 use orchbee_local_ipc::{LocalListener as UnixListener, LocalStream as UnixStream};
 use std::{
     fs, io,
@@ -15,7 +16,7 @@ const SERVER_GUARD_TIMEOUT: Duration = Duration::from_secs(1);
 /// `join` waits on forever.
 const ACCEPT_GUARD_TIMEOUT: Duration = Duration::from_secs(3);
 static NEXT_FIXTURE_ID: AtomicU64 = AtomicU64::new(1);
-pub(crate) struct FakeServer {
+pub struct FakeServer {
     _directory: TestDirectory,
     endpoint: PathBuf,
     thread: thread::JoinHandle<io::Result<()>>,
@@ -45,7 +46,7 @@ fn accept_bounded(listener: &UnixListener, deadline: Instant) -> io::Result<Unix
 }
 
 impl FakeServer {
-    pub(crate) fn start_connections(
+    pub fn start_connections(
         count: usize,
         mut handler: impl FnMut(usize, UnixStream) -> io::Result<()> + Send + 'static,
     ) -> io::Result<Self> {
@@ -53,7 +54,7 @@ impl FakeServer {
         #[cfg(unix)]
         let endpoint = directory.path.join("client.sock");
         #[cfg(windows)]
-        let endpoint = crate::tests::windows_endpoints::endpoint();
+        let endpoint = super::windows_endpoints::endpoint();
         let listener = UnixListener::bind(&endpoint)?;
         listener.set_nonblocking(true)?;
         let thread = thread::spawn(move || {
@@ -75,7 +76,7 @@ impl FakeServer {
 
     /// Keep the peer alive until its consumers finish; canceled observations
     /// may omit admissions, but the maximum and every read remain bounded.
-    pub(crate) fn start_optional_connections(
+    pub fn start_optional_connections(
         maximum: usize,
         handler: impl Fn(usize, UnixStream) -> io::Result<()> + Send + Sync + 'static,
     ) -> io::Result<Self> {
@@ -83,7 +84,7 @@ impl FakeServer {
         #[cfg(unix)]
         let endpoint = directory.path.join("client.sock");
         #[cfg(windows)]
-        let endpoint = crate::tests::windows_endpoints::endpoint();
+        let endpoint = super::windows_endpoints::endpoint();
         let listener = UnixListener::bind(&endpoint)?;
         listener.set_nonblocking(true)?;
         let (signal, finish) = std::sync::mpsc::sync_channel(1);
@@ -165,7 +166,7 @@ impl FakeServer {
         })
     }
 
-    pub(crate) fn start(
+    pub fn start(
         handler: impl FnOnce(UnixStream) -> io::Result<()> + Send + 'static,
     ) -> io::Result<Self> {
         Self::start_with_accept_deadline(handler, ACCEPT_GUARD_TIMEOUT)
@@ -181,7 +182,7 @@ impl FakeServer {
         #[cfg(unix)]
         let endpoint = directory.path.join("client.sock");
         #[cfg(windows)]
-        let endpoint = crate::tests::windows_endpoints::endpoint();
+        let endpoint = super::windows_endpoints::endpoint();
         let listener = UnixListener::bind(&endpoint)?;
         listener.set_nonblocking(true)?;
         let thread = thread::spawn(move || {
@@ -198,11 +199,11 @@ impl FakeServer {
         })
     }
 
-    pub(crate) fn endpoint(&self) -> &Path {
+    pub fn endpoint(&self) -> &Path {
         &self.endpoint
     }
 
-    pub(crate) fn finish(self) -> io::Result<()> {
+    pub fn finish(self) -> io::Result<()> {
         if let Some(signal) = self.finish_signal {
             // If the peer already failed, join below retains its actual error.
             let _closed = signal.send(());
@@ -213,12 +214,12 @@ impl FakeServer {
     }
 }
 
-pub(super) struct TestDirectory {
-    pub(super) path: PathBuf,
+pub(crate) struct TestDirectory {
+    pub(crate) path: PathBuf,
 }
 
 impl TestDirectory {
-    pub(super) fn new() -> io::Result<Self> {
+    pub(crate) fn new() -> io::Result<Self> {
         for _attempt in 0..100 {
             let fixture_id = NEXT_FIXTURE_ID.fetch_add(1, Ordering::Relaxed);
             let path = std::env::temp_dir().join(format!(
@@ -244,11 +245,60 @@ impl Drop for TestDirectory {
     }
 }
 
-pub(crate) fn shutdown_handle(stream: UnixStream) -> super::super::LocalClientShutdown {
+/// Test-only admission without an operation deadline: real handshake, system clock and unbounded
+/// chunk limits. Production admission always goes through `connect_before`.
+impl super::super::LocalClient {
+    pub fn connect(
+        endpoint: &Path,
+        cohort: &str,
+    ) -> Result<Self, super::super::LocalClientConnectError> {
+        Self::connect_with_request_timeout(endpoint, cohort, super::super::REQUEST_TOTAL_TIMEOUT)
+    }
+
+    pub(in crate::local_client) fn connect_with_request_timeout(
+        endpoint: &Path,
+        cohort: &str,
+        request_timeout: Duration,
+    ) -> Result<Self, super::super::LocalClientConnectError> {
+        Self::connect_with_submission_runtime(
+            endpoint,
+            cohort,
+            request_timeout,
+            Box::new(super::super::SystemMonotonicClock),
+            super::super::IoChunkLimits::UNBOUNDED,
+        )
+    }
+
+    pub(in crate::local_client) fn connect_with_submission_runtime(
+        endpoint: &Path,
+        cohort: &str,
+        request_timeout: Duration,
+        clock: Box<dyn super::super::MonotonicClock>,
+        io_chunk_limits: super::super::IoChunkLimits,
+    ) -> Result<Self, super::super::LocalClientConnectError> {
+        let connection = super::super::ClientConnection::connect(endpoint, cohort)
+            .map_err(super::super::LocalClientConnectError::Admission)?;
+        Self::from_connection(
+            connection,
+            super::super::LocalClientOrigin {
+                multiplex: None,
+                endpoint: endpoint.to_path_buf(),
+                cohort: cohort.to_owned(),
+                local: true,
+                carrier: None,
+            },
+            request_timeout,
+            clock,
+            io_chunk_limits,
+        )
+    }
+}
+
+pub fn shutdown_handle(stream: UnixStream) -> super::super::LocalClientShutdown {
     super::super::LocalClientShutdown(super::super::ShutdownTarget::Direct(stream))
 }
 
-pub(crate) fn connect_with_checkpoint_clock(
+pub fn connect_with_checkpoint_clock(
     endpoint: &Path,
     cohort: &str,
     expired: Arc<AtomicBool>,
@@ -265,7 +315,7 @@ pub(crate) fn connect_with_checkpoint_clock(
     )
 }
 
-pub(crate) fn connect_with_adjustable_clock(
+pub fn connect_with_adjustable_clock(
     endpoint: &Path,
     cohort: &str,
     elapsed_millis: Arc<AtomicU64>,
@@ -282,7 +332,7 @@ pub(crate) fn connect_with_adjustable_clock(
     )
 }
 
-pub(crate) fn adjustable_operation_clock(
+pub fn adjustable_operation_clock(
     elapsed_millis: Arc<AtomicU64>,
 ) -> super::super::LocalOperationClock {
     super::super::LocalOperationClock(Arc::new(AdjustableClock {
@@ -294,7 +344,7 @@ pub(crate) fn adjustable_operation_clock(
 /// A lane-admission origin whose endpoint never answers — enough to
 /// spawn a real agent-board lane (real pipe + thread) in tests without
 /// standing up a live OBAP socket.
-pub(crate) fn disconnected_origin() -> super::super::LocalClientOrigin {
+pub fn disconnected_origin() -> super::super::LocalClientOrigin {
     super::super::LocalClientOrigin {
         multiplex: None,
         endpoint: PathBuf::from("/nonexistent-orchbee-agent-board.sock"),
@@ -305,13 +355,13 @@ pub(crate) fn disconnected_origin() -> super::super::LocalClientOrigin {
 }
 
 /// A typed remote origin without an SSH process, pipe or running writer.
-pub(crate) fn disconnected_remote_origin() -> super::super::LocalClientOrigin {
+pub fn disconnected_remote_origin() -> super::super::LocalClientOrigin {
     let mut origin = disconnected_origin();
     origin.local = false;
     origin
 }
 
-pub(crate) fn connect_with_gated_prewrite_clock(
+pub fn connect_with_gated_prewrite_clock(
     endpoint: &Path,
     cohort: &str,
     elapsed_millis: Arc<AtomicU64>,
@@ -330,7 +380,7 @@ pub(crate) fn connect_with_gated_prewrite_clock(
     )
 }
 
-pub(crate) fn connect_with_switchable_ceiling_clock(
+pub fn connect_with_switchable_ceiling_clock(
     endpoint: &Path,
     cohort: &str,
     elapsed_millis: Arc<AtomicU64>,
@@ -373,7 +423,7 @@ fn near_ceiling_from(origin: Instant, required_overflow: Duration) -> Option<Ins
         .then_some(near_ceiling)
 }
 
-pub(crate) fn connect_with_next_ui_sample_expiry_clock(
+pub fn connect_with_next_ui_sample_expiry_clock(
     endpoint: &Path,
     cohort: &str,
     phase: Arc<AtomicU8>,
@@ -381,7 +431,7 @@ pub(crate) fn connect_with_next_ui_sample_expiry_clock(
     connect_with_ui_sample_expiry_clock(endpoint, cohort, phase, 1)
 }
 
-pub(crate) fn connect_with_ui_sample_expiry_clock(
+pub fn connect_with_ui_sample_expiry_clock(
     endpoint: &Path,
     cohort: &str,
     phase: Arc<AtomicU8>,
@@ -422,13 +472,13 @@ struct PrewriteGateState {
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct PrewriteGate {
+pub struct PrewriteGate {
     state: Mutex<PrewriteGateState>,
     changed: Condvar,
 }
 
 impl PrewriteGate {
-    pub(crate) fn arm(&self) -> io::Result<()> {
+    pub fn arm(&self) -> io::Result<()> {
         let mut state = self
             .state
             .lock()
@@ -441,7 +491,7 @@ impl PrewriteGate {
         Ok(())
     }
 
-    pub(crate) fn await_blocked_before(&self, wall_deadline: Instant) -> bool {
+    pub fn await_blocked_before(&self, wall_deadline: Instant) -> bool {
         let mut state = self
             .state
             .lock()
@@ -466,7 +516,7 @@ impl PrewriteGate {
         true
     }
 
-    pub(crate) fn release(&self) {
+    pub fn release(&self) {
         let mut state = self
             .state
             .lock()

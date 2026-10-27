@@ -1,5 +1,5 @@
 use super::*;
-use crate::local_client::{LocalClient, tests::server::FakeServer};
+use crate::local_client::{LocalClient, test_support::server::FakeServer};
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_workbench_protocol::{
     WorkbenchRequest, parse_workbench_request, read_workbench_request,
@@ -20,7 +20,7 @@ fn graphics_draw_publication_uses_the_registered_connection_and_shutdown_interru
     for stalled in [false, true] {
         let (reached_tx, reached_rx) = mpsc::sync_channel(1);
         let server = FakeServer::start_connections(1, move |index, stream| {
-            let mut stream = crate::local_client::tests::multiplex_peer::Peer::new(stream);
+            let mut stream = crate::local_client::test_support::multiplex_peer::Peer::new(stream);
             assert!(matches!(
                 read_message(&mut stream).map_err(io::Error::other)?,
                 LocalClientMessage::ClientHello(_)
@@ -190,7 +190,7 @@ fn closing_during_the_one_workbench_snapshot_read_wakes_and_joins_without_delive
         let reply = parse_workbench_response(&serde_json::to_vec(&reply).unwrap()).unwrap();
         let (reached_tx, reached_rx) = mpsc::sync_channel(1);
         let server = FakeServer::start_connections(1, move |_, stream| {
-            let mut stream = crate::local_client::tests::multiplex_peer::Peer::new(stream);
+            let mut stream = crate::local_client::test_support::multiplex_peer::Peer::new(stream);
             assert!(matches!(
                 read_message(&mut stream).map_err(io::Error::other)?,
                 LocalClientMessage::ClientHello(_)
@@ -290,7 +290,7 @@ fn configured_command_actor_cancels_and_joins_with_truthful_delivery_receipt() {
     {
         let (reached_tx, reached_rx) = mpsc::sync_channel(1);
         let server = FakeServer::start_connections(1, move |_, stream| {
-            let mut stream = crate::local_client::tests::multiplex_peer::Peer::new(stream);
+            let mut stream = crate::local_client::test_support::multiplex_peer::Peer::new(stream);
             assert!(matches!(
                 read_message(&mut stream).map_err(io::Error::other)?,
                 LocalClientMessage::ClientHello(_)

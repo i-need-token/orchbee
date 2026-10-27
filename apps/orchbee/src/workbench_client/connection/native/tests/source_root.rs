@@ -3,7 +3,7 @@ use super::super::AttachedTerminal;
 use super::super::ClientExecutor;
 use super::setup::{TestResult, admit, fixture_geometry, snapshot};
 use crate::local_client::LocalClient;
-use crate::local_client::tests::server::FakeServer;
+use crate::local_client::test_support::server::FakeServer;
 use crate::workbench_client::primary_directory::tests::process_record;
 use crate::workbench_client::state::{AttachmentKey, ControllerMode, PaneKey, PaneRef};
 use crate::workbench_client::workbench_projection::{

@@ -14,12 +14,12 @@ use std::{
     time::Duration,
 };
 
-pub(crate) struct Open {
-    pub(crate) id: MultiplexStreamId,
-    pub(crate) mode: StreamMode,
-    pub(crate) request: Vec<u8>,
+pub struct Open {
+    pub id: MultiplexStreamId,
+    pub mode: StreamMode,
+    pub request: Vec<u8>,
 }
-pub(crate) fn admit(stream: &mut LocalStream, generation: u64) -> io::Result<()> {
+pub fn admit(stream: &mut LocalStream, generation: u64) -> io::Result<()> {
     assert!(matches!(
         read_message(stream).map_err(io::Error::other)?,
         LocalClientMessage::ClientHello(_)
@@ -32,7 +32,7 @@ pub(crate) fn admit(stream: &mut LocalStream, generation: u64) -> io::Result<()>
     )
     .map_err(io::Error::other)
 }
-pub(crate) fn read_open(stream: &mut LocalStream) -> io::Result<Open> {
+pub fn read_open(stream: &mut LocalStream) -> io::Result<Open> {
     loop {
         match read_multiplex_message(stream)? {
             MultiplexMessage::StreamOpen {
@@ -54,7 +54,7 @@ pub(crate) fn read_open(stream: &mut LocalStream) -> io::Result<Open> {
         }
     }
 }
-pub(crate) fn respond(
+pub fn respond(
     stream: &mut LocalStream,
     open: &Open,
     response: &WorkbenchResponse,
@@ -81,7 +81,7 @@ pub(crate) fn respond(
 
 /// Domain scripts can run directly or over the TUI's actual multiplexer. Snapshot subscriptions
 /// observe the same snapshots that the script publishes; they never open an extra Server socket.
-pub(crate) struct Peer {
+pub struct Peer {
     stream: LocalStream,
     admitted: bool,
     multiplex: Option<bool>,
@@ -92,7 +92,7 @@ pub(crate) struct Peer {
     latest: Option<WorkbenchSnapshotOutcome>,
 }
 impl Peer {
-    pub(crate) fn new(stream: LocalStream) -> Self {
+    pub fn new(stream: LocalStream) -> Self {
         Self {
             stream,
             admitted: false,
@@ -104,7 +104,7 @@ impl Peer {
             latest: None,
         }
     }
-    pub(crate) fn set_read_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
+    pub fn set_read_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
         self.stream.set_read_timeout(timeout)
     }
     fn snapshot(&mut self, id: MultiplexStreamId) -> io::Result<()> {

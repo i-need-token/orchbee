@@ -32,7 +32,7 @@ fn divider_submission_atomically_distinguishes_a_dead_lane_from_transient_backlo
 
 #[test]
 fn pending_mutation_does_not_block_a_view_update_on_the_same_carrier() {
-    use crate::local_client::tests::multiplex_peer::{admit, read_open, respond};
+    use crate::local_client::test_support::multiplex_peer::{admit, read_open, respond};
     let (started, mutation) = mpsc::sync_channel(1);
     let (updated, update) = mpsc::sync_channel(1);
     let server = FakeServer::start(move |mut stream| {

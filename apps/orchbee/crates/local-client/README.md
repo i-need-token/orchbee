@@ -21,9 +21,14 @@ The transport owns cancellation, multiplexing, connection health, queues, and la
 stops and joins that relay. Connection shutdown and logical lane shutdown remain separate operations.
 
 Adjacent private tests retain admission, fragmentation, deadline, typed exchange, cancellation,
-queue, correlation, health, and cleanup evidence. Their clocks, raw connection constructors,
-before-write gates, and wake marker factories are available only to the owning test modules.
-Application behavior tests must consume the production boundary.
+queue, correlation, health, and cleanup evidence. Raw connection constructors and chunk limits stay
+with those tests.
+
+The `test-support` feature exposes `test_support`: bounded fake Servers and multiplex peers,
+deadline-free test admission, controlled transport clocks, a before-write gate, and wake marker
+errors. Only the application's development dependency enables it, so release builds and the
+production boundary never include it. Application tests use it to drive real admission and exchange
+paths; application code still consumes only the production boundary.
 
 ## Maintenance
 

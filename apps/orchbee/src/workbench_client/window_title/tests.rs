@@ -1,7 +1,7 @@
 use super::*;
 use crate::local_client::{
     LocalClient,
-    tests::{
+    test_support::{
         multiplex_peer::{admit, read_open, respond},
         server::FakeServer,
     },

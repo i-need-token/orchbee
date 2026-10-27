@@ -2,7 +2,7 @@
 use super::super::ClientExecutor;
 use super::setup::{TestResult, admit, fixture_geometry, snapshot};
 use crate::local_client::LocalClient;
-use crate::local_client::tests::server::FakeServer;
+use crate::local_client::test_support::server::FakeServer;
 use crate::workbench_client::mailbox::CommandMailbox;
 use crate::workbench_client::state::OperationDeadlines;
 use crate::workbench_client::state::workspace_setup::{SetupToken, quick::QuickPreparation};

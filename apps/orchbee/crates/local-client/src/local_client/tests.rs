@@ -31,9 +31,9 @@ use orchbee_local_ipc::{AsLocalIo, LocalIo, PollFlags};
 
 use super::agent::{AgentExchangeError, AgentExchangeFailure};
 use super::{
-    ClientConnection, DeadlineIo, IoChunkLimits, LocalClient, LocalClientConnectError,
-    LocalOperationClock, MonotonicClock, OutcomeUnknownReason, ResultKind, SubmissionDeadline,
-    SubmissionError, exchange_wake_fault, exchange_wake_ready,
+    DeadlineIo, IoChunkLimits, LocalClient, LocalClientConnectError, LocalOperationClock,
+    MonotonicClock, OutcomeUnknownReason, ResultKind, SubmissionDeadline, SubmissionError,
+    exchange_wake_fault, exchange_wake_ready,
 };
 
 const COHORT: &str = "test-cohort";
@@ -46,10 +46,9 @@ const SERVER_GUARD_TIMEOUT: Duration = Duration::from_secs(1);
 use server::TestDirectory;
 use server::{FakeServer, connect_with_adjustable_clock};
 
-pub(crate) mod multiplex_peer;
+pub(crate) use super::test_support::{multiplex_peer, server};
 mod process_info;
 mod selection;
-pub(crate) mod server;
 mod workbench;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -245,7 +244,7 @@ fn validates_the_cohort_before_connecting() -> TestResult {
     #[cfg(unix)]
     let endpoint = directory.path.join("client.sock");
     #[cfg(windows)]
-    let endpoint = crate::tests::windows_endpoints::endpoint();
+    let endpoint = super::test_support::windows_endpoints::endpoint();
     let listener = UnixListener::bind(&endpoint)?;
     listener.set_nonblocking(true)?;
 
@@ -1760,54 +1759,10 @@ fn agent_read_names_family_result_retires_the_session() -> TestResult {
     Ok(())
 }
 
-use super::{LocalClientOrigin, REQUEST_TOTAL_TIMEOUT, SystemMonotonicClock};
 use orchbee_client_server_protocol::{
     TerminalControlRequest, TerminalControlResult, TerminalViewerRequest, TerminalViewerResult,
 };
-use std::path::Path;
 impl LocalClient {
-    pub(crate) fn connect(endpoint: &Path, cohort: &str) -> Result<Self, LocalClientConnectError> {
-        Self::connect_with_request_timeout(endpoint, cohort, REQUEST_TOTAL_TIMEOUT)
-    }
-
-    fn connect_with_request_timeout(
-        endpoint: &Path,
-        cohort: &str,
-        request_timeout: Duration,
-    ) -> Result<Self, LocalClientConnectError> {
-        Self::connect_with_submission_runtime(
-            endpoint,
-            cohort,
-            request_timeout,
-            Box::new(SystemMonotonicClock),
-            IoChunkLimits::UNBOUNDED,
-        )
-    }
-
-    fn connect_with_submission_runtime(
-        endpoint: &Path,
-        cohort: &str,
-        request_timeout: Duration,
-        clock: Box<dyn MonotonicClock>,
-        io_chunk_limits: IoChunkLimits,
-    ) -> Result<Self, LocalClientConnectError> {
-        let connection = ClientConnection::connect(endpoint, cohort)
-            .map_err(LocalClientConnectError::Admission)?;
-        Self::from_connection(
-            connection,
-            LocalClientOrigin {
-                multiplex: None,
-                endpoint: endpoint.to_path_buf(),
-                cohort: cohort.to_owned(),
-                local: true,
-                carrier: None,
-            },
-            request_timeout,
-            clock,
-            io_chunk_limits,
-        )
-    }
-
     pub(crate) fn submit_terminal_create(
         &mut self,
         request: TerminalCreateRequest,

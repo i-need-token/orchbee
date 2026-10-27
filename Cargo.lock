@@ -852,8 +852,8 @@ dependencies = [
  "orchbee-local-client",
  "orchbee-local-client-protocol",
  "orchbee-local-ipc",
- "orchbee-local-worker-protocol",
  "orchbee-local-runtime",
+ "orchbee-local-worker-protocol",
  "orchbee-terminal-protocol",
  "orchbee-windows-console-host",
  "orchbee-workbench-protocol",
@@ -938,10 +938,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "orchbee-local-worker-protocol"
-version = "0.1.0"
-
-[[package]]
 name = "orchbee-local-runtime"
 version = "0.1.0"
 dependencies = [
@@ -963,6 +959,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "orchbee-local-worker-protocol"
+version = "0.1.0"
+
+[[package]]
 name = "orchbee-server"
 version = "0.1.0"
 dependencies = [
@@ -976,8 +976,8 @@ dependencies = [
  "orchbee-local-client-protocol",
  "orchbee-local-ipc",
  "orchbee-local-peer-credentials",
- "orchbee-local-worker-protocol",
  "orchbee-local-runtime",
+ "orchbee-local-worker-protocol",
  "orchbee-terminal-protocol",
  "orchbee-workbench-protocol",
  "process-wrap",
@@ -1032,8 +1032,8 @@ dependencies = [
  "orchbee-capability-node-protocol",
  "orchbee-local-ipc",
  "orchbee-local-peer-credentials",
- "orchbee-local-worker-protocol",
  "orchbee-local-runtime",
+ "orchbee-local-worker-protocol",
  "orchbee-terminal-protocol",
  "rustix",
  "winsafe",

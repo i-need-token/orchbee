@@ -1,7 +1,7 @@
 use super::*;
 mod mouse;
 use crate::{
-    local_client::tests::server::adjustable_operation_clock,
+    local_client::test_support::server::adjustable_operation_clock,
     terminal_input::{
         DecodedKind, LegacyDecoder, PointerSelectionAdmission, PointerSelectionCell,
         PointerSelectionIntent,
@@ -946,7 +946,7 @@ fn motion_and_valid_search_read_limits_report_query_failure_not_draft_limit() {
 #[test]
 fn raw_forward_search_and_carriage_return_submit_without_pane_input() {
     let (mut ui, mailbox, _, _) = ready_ui();
-    ui.set_agent_board_origin(crate::local_client::tests::server::disconnected_origin());
+    ui.set_agent_board_origin(crate::local_client::test_support::server::disconnected_origin());
     // Tab/context/create membership replacement disposes the old projections,
     // but a later copy episode must retain the session's reconnect capability.
     ui.clear_projections();

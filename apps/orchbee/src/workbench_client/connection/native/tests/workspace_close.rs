@@ -3,7 +3,7 @@ use super::super::ClientExecutor;
 use super::setup::{TestResult, admit};
 use crate::{
     client_view::{ClientAction, ClientActionDisposition, ClientKey, ClientView},
-    local_client::{LocalClient, LocalOperationClock, tests::server::FakeServer},
+    local_client::{LocalClient, LocalOperationClock, test_support::server::FakeServer},
     localization::Locale,
     tui_pointer::HitMapBuilder,
     tui_theme::Theme,
@@ -139,7 +139,7 @@ fn ready(
     LocalOperationClock,
     Snapshot,
 ) {
-    let clock = crate::local_client::tests::server::adjustable_operation_clock(Arc::new(
+    let clock = crate::local_client::test_support::server::adjustable_operation_clock(Arc::new(
         std::sync::atomic::AtomicU64::new(0),
     ));
     let mailbox = Arc::new(CommandMailbox::new(

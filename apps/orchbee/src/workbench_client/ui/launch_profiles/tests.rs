@@ -54,7 +54,9 @@ fn one_shot_selection_keeps_literal_arguments_and_shared_default() {
 
 #[test]
 fn system_one_shot_requires_local_origin_while_ordinary_defaults_stay_unpinned() {
-    use crate::local_client::tests::server::{disconnected_origin, disconnected_remote_origin};
+    use crate::local_client::test_support::server::{
+        disconnected_origin, disconnected_remote_origin,
+    };
     use crate::workbench_client::mailbox::QueuedCommand;
 
     let local = disconnected_origin();
@@ -115,7 +117,9 @@ fn system_one_shot_requires_local_origin_while_ordinary_defaults_stay_unpinned()
 
 #[test]
 fn remote_custom_selection_is_literal_and_local_system_selection_still_checks_profile_equality() {
-    use crate::local_client::tests::server::{disconnected_origin, disconnected_remote_origin};
+    use crate::local_client::test_support::server::{
+        disconnected_origin, disconnected_remote_origin,
+    };
 
     let (mut ui, mailbox, _, _) = ready_ui();
     ui.set_agent_board_origin(disconnected_remote_origin());

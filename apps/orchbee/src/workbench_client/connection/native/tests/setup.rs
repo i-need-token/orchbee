@@ -5,7 +5,7 @@ mod workspace_setup;
 use crate::{
     local_client::{
         LocalClientShutdown, LocalOperationClock,
-        tests::server::{
+        test_support::server::{
             FakeServer, PrewriteGate, connect_with_adjustable_clock,
             connect_with_gated_prewrite_clock, connect_with_switchable_ceiling_clock,
         },

@@ -807,7 +807,7 @@ fn deadline_elapsed() -> io::Error {
 trait MonotonicClock: fmt::Debug + Send + Sync {
     fn now(&self) -> Instant;
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     fn before_request_write(&self) {}
 }
 
@@ -826,7 +826,7 @@ impl MonotonicClock for LocalOperationClock {
         self.0.now()
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     fn before_request_write(&self) {
         self.0.before_request_write();
     }
@@ -911,7 +911,7 @@ fn exchange_once<ResultType, ReadError>(
         buffered,
     };
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     clock.before_request_write();
     if io.buffered.is_none()
         && let Err(error) = io.write_all(frame)
@@ -997,13 +997,13 @@ pub fn exchange_wake_fault(error: &io::Error) -> bool {
 
 /// Test-only marker constructors: the query classifiers are provable only
 /// against the real private marker payloads.
-#[cfg(test)]
-pub(crate) fn wake_ready_io() -> io::Error {
+#[cfg(any(test, feature = "test-support"))]
+pub fn wake_ready_io() -> io::Error {
     io::Error::other(ExchangeWakeReady)
 }
 
-#[cfg(test)]
-pub(crate) fn wake_fault_io() -> io::Error {
+#[cfg(any(test, feature = "test-support"))]
+pub fn wake_fault_io() -> io::Error {
     io::Error::other(ExchangeWakeFault(PollFlags::POLLHUP))
 }
 
@@ -1104,5 +1104,7 @@ impl Write for DeadlineIo<'_> {
 pub(crate) mod agent;
 pub(crate) mod workbench;
 
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
 #[cfg(test)]
 pub(crate) mod tests;

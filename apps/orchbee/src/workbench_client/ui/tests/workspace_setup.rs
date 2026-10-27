@@ -1,5 +1,5 @@
 use super::super::*;
-use crate::local_client::tests::server::adjustable_operation_clock;
+use crate::local_client::test_support::server::adjustable_operation_clock;
 use crate::local_client::workbench::workspace_setup::WorkbenchSetupCommit;
 use crate::workbench_client::mailbox::{CommandLease, EventDeadline, UiWaitKey};
 use crate::workbench_client::state::workspace_setup::SetupResult;
@@ -488,7 +488,7 @@ fn shell_control_tick_lands_all_launch_entries_unless_newer_focus_revokes_them()
                     client_control: None,
                     backend: ClientBackend::Native(Box::new(ui)),
                     task: None,
-                    shutdown: crate::local_client::tests::server::shutdown_handle(shutdown),
+                    shutdown: crate::local_client::test_support::server::shutdown_handle(shutdown),
                     retirement_redraw_pending: false,
                     origin: None,
                     recovery_shutdown: None,

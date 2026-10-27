@@ -1,6 +1,6 @@
 use super::super::tests::membership::{canonical_snapshot, place_refresh, snapshot};
 use super::super::*;
-use crate::local_client::tests::server::adjustable_operation_clock;
+use crate::local_client::test_support::server::adjustable_operation_clock;
 use crate::workbench_client::mailbox::EventDeadline;
 use crate::workbench_client::state::{ControllerMode, FrameIdentity};
 use orchbee_workbench_protocol::*;

@@ -2,7 +2,7 @@
 use super::super::*;
 use super::{dimensions, profile, setup};
 use crate::{
-    local_client::tests::server::FakeServer,
+    local_client::test_support::server::FakeServer,
     workbench_client::{ClientContextLocation, ClientContextTarget},
 };
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};

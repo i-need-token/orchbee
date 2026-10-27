@@ -1,6 +1,6 @@
 use super::super::tests::membership::snapshot;
 use super::super::*;
-use crate::local_client::tests::server::adjustable_operation_clock;
+use crate::local_client::test_support::server::adjustable_operation_clock;
 use crate::workbench_client::{
     mailbox::{CommandLease, EventDeadline},
     state::{CloseWorkerReturn, retired_membership::UnavailablePoll},

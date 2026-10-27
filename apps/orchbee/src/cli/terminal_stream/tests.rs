@@ -1,7 +1,7 @@
 #[cfg(windows)]
 mod windows;
 use super::*;
-use crate::local_client::tests::server::FakeServer;
+use crate::local_client::test_support::server::FakeServer;
 use base64::Engine;
 use orchbee_client_server_protocol::{
     ClientMessage, ServerMessage, TerminalViewerResult, read_client_message, write_server_message,

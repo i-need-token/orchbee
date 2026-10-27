@@ -11,7 +11,7 @@ use super::super::*;
 mod chrome;
 mod scrollbar;
 use crate::client_view::{ClientKey, ClientView, KeyCode, KeyEvent, Modifiers};
-use crate::local_client::tests::server::adjustable_operation_clock;
+use crate::local_client::test_support::server::adjustable_operation_clock;
 use crate::terminal_input::{InputDispatcher, TerminalInputPort, TerminalInputUnavailable};
 use crate::workbench_client::mailbox::EventDeadline;
 use orchbee_client_server_protocol::{ControllerId, ViewportRowOrigin};

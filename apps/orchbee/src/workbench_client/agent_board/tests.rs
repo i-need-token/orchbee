@@ -7,7 +7,7 @@
 use super::*;
 mod mouse;
 use crate::client_view::{KeyCode, KeyEvent, Modifiers};
-use crate::local_client::tests::server::adjustable_operation_clock;
+use crate::local_client::test_support::server::adjustable_operation_clock;
 use crate::workbench_client::workbench_projection::ClientContextLocation;
 use orchbee_agent_observation_protocol::{
     AgentAttachmentGeneration, AgentExecutionLocation, AgentExecutionLocationId, AgentObservation,
@@ -126,7 +126,7 @@ fn one_started_completion_requests_exactly_one_refresh() {
     use orchbee_agent_observation_protocol::{AgentName, ObapRequestId};
 
     let mut board = AgentBoard::new(clock(), true);
-    board.set_origin(crate::local_client::tests::server::disconnected_origin());
+    board.set_origin(crate::local_client::test_support::server::disconnected_origin());
     board.open();
     board.start.install_catalog(&["codex"]);
     board.start.set_name("alpha");
@@ -910,7 +910,7 @@ fn request_refresh_preserves_a_queued_jump_intent() {
 
 mod lane_outcomes {
     use super::*;
-    use crate::local_client::tests::server::disconnected_origin;
+    use crate::local_client::test_support::server::disconnected_origin;
     use orchbee_agent_observation_protocol::{
         AgentCapability, AgentSessionDetail, AgentSessionSnapshot, AgentTurnState,
     };
@@ -918,7 +918,7 @@ mod lane_outcomes {
     #[test]
     fn client_path_catalog_waits_for_the_same_open_episodes_complete_empty_read() {
         let mut board = AgentBoard::new(clock(), true);
-        board.set_origin(crate::local_client::tests::server::disconnected_remote_origin());
+        board.set_origin(crate::local_client::test_support::server::disconnected_remote_origin());
         board.open_with_start_catalog(Some(std::ffi::OsString::from("C:\\client-bin")));
         assert!(!board.drain_start());
         assert_eq!(board.start.catalog_status(), start::CatalogStatus::Loading);

@@ -1,6 +1,6 @@
 use super::*;
 use crate::client_view::{KeyCode, Modifiers};
-use crate::local_client::tests::server::adjustable_operation_clock;
+use crate::local_client::test_support::server::adjustable_operation_clock;
 use crate::workbench_client::mailbox::EventDeadline;
 use crate::workbench_client::ui::CommandMailbox;
 use crate::workbench_client::{SetupEdit, SetupStage};

@@ -20,8 +20,11 @@
 停止并 join 该转发任务。连接关闭与逻辑 lane 关闭仍是独立操作。
 
 相邻私有测试保留准入、分片、截止时间、类型化交换、取消、队列、关联、健康与清理证据。
-其中的时钟、原始连接构造器、写前 gate 和 wake marker 工厂仅供所属测试模块使用。
-应用行为测试必须消费生产边界。
+原始连接构造器和分块上限仍只属于这些测试。
+
+`test-support` feature 导出 `test_support`：有界的假 Server 与多路复用对端、无截止时间的测试准入、
+受控的传输时钟、写前 gate，以及 wake marker 错误。只有应用的开发依赖会开启它，因此发布构建和
+生产边界都不包含它。应用测试用它驱动真实的准入与交换路径；应用代码仍只消费生产边界。
 
 ## 维护
 
@@ -30,4 +33,4 @@
 [仓库验证门禁](../../../../docs/zh-CN/VERIFICATION.md)。
 导出操作必须对应真实应用消费者，并保留私有测试的归属。
 
-<!-- documentation-pairing: english-sha256=9ca3f764f9cfcccf99cbf7af2335d8987ae61e6a1961ef31eb472f05e3ab427a zh-cn-sha256=98f0da5df1070f5322da8c2f15da399c60211080f35795d348d9d8ba7b715c2d -->
+<!-- documentation-pairing: english-sha256=97e6aca5ad2fc2b5d39a4697af325c14b238a8eb663031910bdbd7d7ab5a755c zh-cn-sha256=ffe86927693250722b0f2c262163fe01109490ef982eda1af9737db5d9fd1cfa -->

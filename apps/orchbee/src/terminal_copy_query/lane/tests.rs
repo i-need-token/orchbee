@@ -20,8 +20,9 @@ use crate::{
 
 #[test]
 fn oversized_query_is_refused_before_a_lane_or_connection_exists() {
-    let clock =
-        crate::local_client::tests::server::adjustable_operation_clock(Arc::new(AtomicU64::new(0)));
+    let clock = crate::local_client::test_support::server::adjustable_operation_clock(Arc::new(
+        AtomicU64::new(0),
+    ));
     let mut driver = Driver::new(clock);
     assert_eq!(
         driver.admit(Request {
@@ -42,8 +43,9 @@ fn oversized_query_is_refused_before_a_lane_or_connection_exists() {
 
 #[test]
 fn busy_driver_never_queues_or_replaces_the_exact_inflight_identity() {
-    let clock =
-        crate::local_client::tests::server::adjustable_operation_clock(Arc::new(AtomicU64::new(0)));
+    let clock = crate::local_client::test_support::server::adjustable_operation_clock(Arc::new(
+        AtomicU64::new(0),
+    ));
     let mut driver = Driver::new(clock);
     let retained = Pending {
         identity: identity(1, 1),
@@ -70,10 +72,11 @@ fn busy_driver_never_queues_or_replaces_the_exact_inflight_identity() {
 
 #[test]
 fn episode_cancel_clears_the_exact_flight_but_retains_the_session_origin() {
-    let clock =
-        crate::local_client::tests::server::adjustable_operation_clock(Arc::new(AtomicU64::new(0)));
+    let clock = crate::local_client::test_support::server::adjustable_operation_clock(Arc::new(
+        AtomicU64::new(0),
+    ));
     let mut driver = Driver::new(clock);
-    driver.set_origin(crate::local_client::tests::server::disconnected_origin());
+    driver.set_origin(crate::local_client::test_support::server::disconnected_origin());
     driver.inflight = Some(Pending {
         identity: identity(4, 5),
         source: source(),
@@ -88,8 +91,9 @@ fn episode_cancel_clears_the_exact_flight_but_retains_the_session_origin() {
 
 #[test]
 fn worker_loss_is_reported_against_the_retained_identity_and_complete_source() {
-    let clock =
-        crate::local_client::tests::server::adjustable_operation_clock(Arc::new(AtomicU64::new(0)));
+    let clock = crate::local_client::test_support::server::adjustable_operation_clock(Arc::new(
+        AtomicU64::new(0),
+    ));
     let mut driver = Driver::new(clock);
     let pending = Pending {
         identity: identity(2, 3),
@@ -107,8 +111,9 @@ fn worker_loss_is_reported_against_the_retained_identity_and_complete_source() {
 
 #[test]
 fn mismatched_worker_source_returns_unexpected_for_the_retained_request() {
-    let clock =
-        crate::local_client::tests::server::adjustable_operation_clock(Arc::new(AtomicU64::new(0)));
+    let clock = crate::local_client::test_support::server::adjustable_operation_clock(Arc::new(
+        AtomicU64::new(0),
+    ));
     let mut driver = Driver::new(clock);
     let pending = Pending {
         identity: identity(6, 7),

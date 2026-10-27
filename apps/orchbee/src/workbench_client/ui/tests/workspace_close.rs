@@ -112,7 +112,7 @@ fn ready_with_background_target(
     LocalOperationClock,
     Snapshot,
 ) {
-    let clock = crate::local_client::tests::server::adjustable_operation_clock(Arc::new(
+    let clock = crate::local_client::test_support::server::adjustable_operation_clock(Arc::new(
         std::sync::atomic::AtomicU64::new(0),
     ));
     let mailbox = Arc::new(CommandMailbox::new(

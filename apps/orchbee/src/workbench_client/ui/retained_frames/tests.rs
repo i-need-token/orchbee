@@ -358,7 +358,7 @@ fn ready_for_retained_handoff(
     cache: crate::workbench_client::workbench_projection::ClientContextTabs,
 ) -> WorkbenchClientUi {
     use crate::{
-        local_client::tests::server::adjustable_operation_clock,
+        local_client::test_support::server::adjustable_operation_clock,
         workbench_client::mailbox::{CommandMailbox, EventDeadline, WorkerEvent},
     };
     use orchbee_client_server_protocol::Geometry;

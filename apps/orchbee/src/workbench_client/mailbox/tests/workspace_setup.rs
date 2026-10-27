@@ -10,7 +10,7 @@ fn conditional_project_review_requires_the_exact_retained_no_effect_reason_befor
     use crate::local_client::workbench::workspace_setup::WorkbenchSetupPrecommit;
     use crate::workbench_client::state::workspace_setup::OrganizationChoice;
     use orchbee_workbench_protocol::WorkbenchRejectionReason;
-    let clock = crate::local_client::tests::server::adjustable_operation_clock(Arc::new(
+    let clock = crate::local_client::test_support::server::adjustable_operation_clock(Arc::new(
         std::sync::atomic::AtomicU64::new(0),
     ));
     let deadlines = OperationDeadlines::from_sample(clock.now()).unwrap();

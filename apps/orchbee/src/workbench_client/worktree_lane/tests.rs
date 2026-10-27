@@ -1,6 +1,6 @@
 use super::*;
 mod sidebar;
-use crate::local_client::tests::server::FakeServer;
+use crate::local_client::test_support::server::FakeServer;
 use crate::workbench_client::state::worktree_launch::{
     WorktreeMode,
     tests::{canonical, confirm, discovery, fixture},

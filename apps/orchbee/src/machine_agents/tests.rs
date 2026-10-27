@@ -1,6 +1,6 @@
 use super::*;
 use crate::local_client::cancellation::OwnedCancellation;
-use crate::local_client::tests::server::FakeServer;
+use crate::local_client::test_support::server::FakeServer;
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_workbench_protocol::{
     AgentViewResult, MetadataSource, MetadataTokenKey, MetadataTokenValue, Navigation,

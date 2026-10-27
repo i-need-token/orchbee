@@ -1,5 +1,5 @@
 use super::super::*;
-use crate::local_client::tests::server::adjustable_operation_clock;
+use crate::local_client::test_support::server::adjustable_operation_clock;
 use crate::workbench_client::mailbox::{CommandLease, EventDeadline, UiWaitKey};
 use orchbee_workbench_protocol::*;
 use std::sync::atomic::{AtomicU64, Ordering};

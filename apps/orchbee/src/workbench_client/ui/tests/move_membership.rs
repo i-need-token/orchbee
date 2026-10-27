@@ -1,5 +1,5 @@
 use super::super::*;
-use crate::local_client::tests::server::adjustable_operation_clock;
+use crate::local_client::test_support::server::adjustable_operation_clock;
 use crate::local_client::workbench::WorkbenchTabMoveCommit;
 use crate::workbench_client::mailbox::{CommandLease, EventDeadline, UiWaitKey};
 use crate::workbench_client::state::{

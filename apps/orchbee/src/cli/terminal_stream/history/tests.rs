@@ -3,7 +3,7 @@ use crate::cli::terminal_stream::{
     STEP,
     tests::{COHORT, SNAPSHOT, handshake, request},
 };
-use crate::local_client::tests::server::FakeServer;
+use crate::local_client::test_support::server::FakeServer;
 use orchbee_terminal_protocol::decode_terminal_text_frame;
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 #[cfg(windows)]

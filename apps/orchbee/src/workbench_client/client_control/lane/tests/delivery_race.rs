@@ -1,6 +1,6 @@
 //! A producer commit racing a new UI sample cannot discard a transferred control.
 use super::*;
-use crate::local_client::tests::multiplex_peer::{Open, admit, read_open, respond};
+use crate::local_client::test_support::multiplex_peer::{Open, admit, read_open, respond};
 use orchbee_workbench_protocol::{
     ClientViewAvailability, ClientViewCompletionOutcome, ClientViewControl,
     ClientViewControlReason, ClientViewRecord, StreamMode, WorkbenchClientId,

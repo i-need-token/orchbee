@@ -1,7 +1,7 @@
 //! Local transport witnesses prove that incomplete or drifting reads never establish a target set.
 use super::*;
 use crate::local_client::cancellation::OwnedCancellation;
-use crate::local_client::tests::server::FakeServer;
+use crate::local_client::test_support::server::FakeServer;
 use orchbee_agent_observation_protocol::{
     AgentListOutcomeEnvelope, AgentRequest, AgentResult, read_agent_request, write_agent_result,
 };

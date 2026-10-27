@@ -8,3 +8,6 @@ pub(crate) use orchbee_local_client::{
 
 #[cfg(windows)]
 pub(crate) use orchbee_local_client::RetainedCarrier;
+
+#[cfg(test)]
+pub(crate) use orchbee_local_client::test_support::{self, wake_fault_io, wake_ready_io};

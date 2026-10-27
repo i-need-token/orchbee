@@ -244,9 +244,9 @@ fn retired_recovery_seed_never_resets_any_exhausted_allocator() {
         old.close(CarrierFailure::Closed);
         let seed = old.retired_seed();
         let fresh = CommandMailbox::for_status_recovery(seed, geometry(80));
-        let clock = crate::local_client::tests::server::adjustable_operation_clock(Arc::new(
-            std::sync::atomic::AtomicU64::new(0),
-        ));
+        let clock = crate::local_client::test_support::server::adjustable_operation_clock(
+            Arc::new(std::sync::atomic::AtomicU64::new(0)),
+        );
         let deadline = clock.now() + Duration::from_secs(50);
         if exhausted == 0 {
             assert!(fresh.allocate_workbench_request_id().is_err());

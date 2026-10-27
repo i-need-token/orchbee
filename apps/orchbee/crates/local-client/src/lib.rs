@@ -136,5 +136,5 @@ pub mod workbench {
     }
 }
 
-#[cfg(all(test, windows))]
-mod tests;
+#[cfg(any(test, feature = "test-support"))]
+pub use local_client::test_support;
