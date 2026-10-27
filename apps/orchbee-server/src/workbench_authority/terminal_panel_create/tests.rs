@@ -6,7 +6,7 @@ use orchbee_workbench_protocol::{
     PanelNode, PanelOrientation, PresentationBinding, ProtocolVersion, SessionId, TerminalId,
     WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchLabel,
     WorkbenchPanelSplitDirection, WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse,
-    WorkbenchRevision, WorkbenchTerminalContextId, WorkbenchTerminalGeometry, WorkerId,
+    WorkbenchRevision, WorkbenchTerminalGeometry, WorkerId,
 };
 
 fn identity(value: u128) -> String {
@@ -32,7 +32,7 @@ fn split_command(
         expected_revision: WorkbenchRevision::new(1),
         action: WorkbenchAction::PanelSplit {
             right_click: Default::default(),
-            terminal_context_id: WorkbenchTerminalContextId::parse(&identity(1)).unwrap(),
+            terminal_context_id: authority.fixture_context_id().clone(),
             tab_id,
             panel_id,
             direction: WorkbenchPanelSplitDirection::Right,

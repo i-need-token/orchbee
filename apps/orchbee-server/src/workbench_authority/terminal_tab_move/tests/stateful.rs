@@ -61,6 +61,7 @@ fn generated_move_histories_have_truthful_outcomes_and_stable_shrinkable_replay(
 fn run(trace: &[Step]) -> Result<BTreeSet<&'static str>, String> {
     let (mut authority, grant) = authority(3);
     let baseline = authority.projection.snapshot().clone();
+    let cursor = authority.last_identity;
     let mut order = vec![0, 1, 2];
     let mut revision = baseline.revision;
     let mut retired = false;
@@ -203,7 +204,7 @@ fn run(trace: &[Step]) -> Result<BTreeSet<&'static str>, String> {
             .map(|index| baseline.terminal_contexts[0].tabs[*index].clone())
             .collect();
         if authority.projection.snapshot() != &expected_snapshot
-            || authority.last_identity != 10
+            || authority.last_identity != cursor
             || authority.ledger.len() != history.len()
             || authority.retired != retired
         {

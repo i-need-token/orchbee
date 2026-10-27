@@ -62,7 +62,7 @@ fn install(owner: &mut WorkbenchAuthority, snapshot: Snapshot) {
 
 #[test]
 fn ungrouped_creation_has_one_context_no_project_and_explicit_display_order() {
-    let (mut owner, grant) = authority();
+    let (mut owner, grant) = empty_authority();
     let first = workspace(&mut owner, &grant, 1, None);
     let second = workspace(&mut owner, &grant, 2, None);
     let snapshot = owner.snapshot();
@@ -76,7 +76,7 @@ fn ungrouped_creation_has_one_context_no_project_and_explicit_display_order() {
             .iter()
             .all(|workspace| workspace.project_id.is_none())
     );
-    assert_eq!(snapshot.terminal_contexts.len(), 3);
+    assert_eq!(snapshot.terminal_contexts.len(), 2);
     assert!(
         snapshot
             .terminal_contexts
@@ -313,7 +313,7 @@ fn invalid_targets_and_ledger_refusal_do_not_allocate_or_partially_move() {
 
 #[test]
 fn full_project_refuses_new_members_but_equal_membership_is_a_noop_and_project_limit_is_atomic() {
-    let (mut owner, grant) = authority();
+    let (mut owner, grant) = empty_authority();
     let source = workspace(&mut owner, &grant, 1, None);
     let project = project_id(&apply(&mut owner, &grant, 2, create("full")));
     let mut full = owner.snapshot().clone();
@@ -406,7 +406,7 @@ fn full_project_refuses_new_members_but_equal_membership_is_a_noop_and_project_l
 
 #[test]
 fn alongside_an_ungrouped_source_commits_only_that_source_and_new_shell_into_one_project() {
-    let (mut owner, _) = authority();
+    let (mut owner, _) = empty_authority();
     let grant = WorkbenchGrant::manage_navigation_and_terminal_create(owner.session_id().clone())
         .with_directory_association();
     let source = workspace(&mut owner, &grant, 1, None);
@@ -542,7 +542,7 @@ fn global_workspace_capacity_rejects_ungrouped_create_and_launch_without_partial
 #[test]
 fn ungrouped_and_new_project_launch_receipts_match_the_atomic_structure() {
     for grouped in [false, true] {
-        let (mut owner, _) = authority();
+        let (mut owner, _) = empty_authority();
         let grant =
             WorkbenchGrant::manage_navigation_and_terminal_create(owner.session_id().clone())
                 .with_directory_association();
@@ -573,8 +573,9 @@ fn ungrouped_and_new_project_launch_receipts_match_the_atomic_structure() {
             after.navigation.workspace_order,
             [after.navigation.workspaces[0].workspace_id.clone()]
         );
-        assert_eq!(after.terminal_contexts[0], before.terminal_contexts[0]);
-        assert_eq!(after.terminal_contexts[1].tabs.len(), 1);
+        assert!(before.terminal_contexts.is_empty());
+        assert_eq!(after.terminal_contexts.len(), 1);
+        assert_eq!(after.terminal_contexts[0].tabs.len(), 1);
         assert_eq!(after.navigation.directories.len(), 1);
         let settled = owner.prepare_terminal_tab_settlement(pending, WorkbenchTerminalOutcome::Failed {
             reason: orchbee_workbench_protocol::WorkbenchTerminalFailureReason::TerminalCreateFailed,

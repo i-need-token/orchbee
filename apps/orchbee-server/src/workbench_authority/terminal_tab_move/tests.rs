@@ -235,6 +235,7 @@ fn exact_move_replay_keeps_its_revision_and_all_fingerprint_fields_conflict_afte
 fn dropping_move_admission_or_prepared_commit_preserves_projection_cursor_and_ledger() {
     let (mut authority, grant) = authority(3);
     let before = authority.projection.snapshot().clone();
+    let cursor = authority.last_identity;
     let request = command(&authority, 10, 0, WorkbenchTabMoveDirection::Last);
     let WorkbenchTabMoveBegin::Admitted(admission) =
         authority.begin_terminal_tab_move(Some(&grant), request.clone())
@@ -256,7 +257,7 @@ fn dropping_move_admission_or_prepared_commit_preserves_projection_cursor_and_le
     ));
     drop(prepared);
     assert_eq!(authority.projection.snapshot(), &before);
-    assert_eq!(authority.last_identity, 10);
+    assert_eq!(authority.last_identity, cursor);
     assert_eq!(authority.ledger_bytes, 0);
     assert!(authority.ledger.is_empty());
     assert!(matches!(
@@ -269,6 +270,7 @@ fn dropping_move_admission_or_prepared_commit_preserves_projection_cursor_and_le
 fn move_entry_and_byte_capacity_refusal_is_unretained_and_preserves_prepared_order() {
     let (mut authority, grant) = authority(3);
     let before = authority.projection.snapshot().clone();
+    let cursor = authority.last_identity;
     let request = command(&authority, 10, 0, WorkbenchTabMoveDirection::Last);
     authority.ledger_bytes = MAXIMUM_LEDGER_BYTES;
     assert_eq!(
@@ -277,7 +279,7 @@ fn move_entry_and_byte_capacity_refusal_is_unretained_and_preserves_prepared_ord
     );
     assert_eq!(authority.projection.snapshot(), &before);
     assert!(authority.ledger.is_empty());
-    assert_eq!(authority.last_identity, 10);
+    assert_eq!(authority.last_identity, cursor);
     authority.ledger_bytes = 0;
     let retained = submit(&mut authority, &grant, request.clone());
     for index in 1..MAXIMUM_LEDGER_ENTRIES {
@@ -301,7 +303,7 @@ fn move_entry_and_byte_capacity_refusal_is_unretained_and_preserves_prepared_ord
     );
     assert_eq!(authority.projection.snapshot(), &before);
     assert_eq!(authority.ledger.len(), MAXIMUM_LEDGER_ENTRIES);
-    assert_eq!(authority.last_identity, 10);
+    assert_eq!(authority.last_identity, cursor);
 }
 
 #[test]
@@ -471,8 +473,10 @@ fn move_revision_growth_at_the_exact_projection_byte_bound_refuses_before_public
         .zip(&mut snapshot.navigation.workspaces)
     {
         for label in [&mut project.label, &mut workspace.label] {
-            let increment = remaining.min(2047);
-            let bytes = increment + 1;
+            // Labels differ in length (the fixture Workspace is not "1"); each grows to at most
+            // 2,048 bytes, the 512 four-byte characters a label may hold.
+            let increment = remaining.min(2048 - label.len());
+            let bytes = increment + label.len();
             *label = "\u{1f41d}".repeat(bytes / 4);
             label.push_str(match bytes % 4 {
                 0 => "",

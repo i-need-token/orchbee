@@ -6,7 +6,7 @@ fn populated() -> (
     WorkbenchGrant,
     Vec<WorkbenchWorkspaceId>,
 ) {
-    let (mut owner, grant) = authority();
+    let (mut owner, grant) = empty_authority();
     let mut ids = Vec::new();
     for p in 0..2 {
         let revision = owner.snapshot().revision.value();

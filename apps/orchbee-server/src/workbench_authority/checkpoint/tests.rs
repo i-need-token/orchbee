@@ -20,7 +20,7 @@ fn admission_validates_the_complete_graph_before_runtime_reconstruction() {
     assert_eq!(authority.snapshot(), restore(&bytes).unwrap().snapshot());
     assert_eq!(authority.catalog, restore(&bytes).unwrap().catalog);
     let invalid_graph =
-        changed(|value| value["terminalContexts"][1]["terminalContextId"] = json!(identity(900)));
+        changed(|value| value["terminalContexts"][0]["terminalContextId"] = json!(identity(900)));
     assert!(WorkbenchCheckpoint::parse(&invalid_graph).is_err());
     assert!(WorkbenchCheckpoint::parse(b"{}").is_err());
     let unsupported = changed(|value| value["version"] = json!(8));
@@ -54,10 +54,10 @@ fn graph(session_id: SessionId, owner: &WorkerId, bound: bool, revision: u64) ->
         "navigation": {
             "projects": [{"projectId": identity(2), "label": "项目"}],
             "directories": [{"directoryId": identity(3), "workerId": owner, "path": "C:\\work space\\项目"}],
-            "workspaces":[{"workspaceId":identity(1),"terminalContextId":identity(1),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"},{"workspaceId": identity(4), "projectId": identity(2), "label": "workspace", "primaryDirectoryId": identity(3), "terminalContextId": identity(5)}],
-            "workspaceOrder":[identity(1),identity(4)]},
+            "workspaces": [{"workspaceId": identity(4), "projectId": identity(2), "label": "workspace", "primaryDirectoryId": identity(3), "terminalContextId": identity(5)}],
+            "workspaceOrder": [identity(4)]
+        },
         "terminalContexts": [
-            {"terminalContextId": identity(1), "groups": [], "tabs": []},
             {"terminalContextId": identity(5),
              "groups": [{"groupId": identity(6), "label": "group", "color": "cyan"}],
              "tabs": [{"tabId": identity(7), "label": "tab", "automaticLabel": true,
@@ -230,15 +230,17 @@ fn deleted_profile_is_not_resurrected_and_its_counter_is_not_reused() {
         name: LaunchProfileName::parse("profile").unwrap(),
         launch: LaunchSelection::new(r"C:\tools\pwsh.exe".to_owned(), vec![]).unwrap(),
     };
-    let WorkbenchCommandOutcome::LaunchProfileCreated { profile_id, .. } =
-        command(&mut source, action())
+    let WorkbenchCommandOutcome::LaunchProfileCreated {
+        profile_id: deleted,
+        ..
+    } = command(&mut source, action())
     else {
         panic!("expected profile creation");
     };
     command(
         &mut source,
         WorkbenchAction::LaunchProfileDelete {
-            selector: LaunchProfileSelector::parse(profile_id.as_str()).unwrap(),
+            selector: LaunchProfileSelector::parse(deleted.as_str()).unwrap(),
         },
     );
     let mut restored = restore(&source.checkpoint(&worker(200)).unwrap()).unwrap();
@@ -250,9 +252,12 @@ fn deleted_profile_is_not_resurrected_and_its_counter_is_not_reused() {
     else {
         panic!("expected restored profile creation");
     };
+    // The fixture Workspace consumes identities first; restoration keeps the deleted high water.
+    let (_, deleted_counter) = deleted.as_str().split_once(':').unwrap();
+    let deleted_counter = u128::from_str_radix(deleted_counter, 16).unwrap();
     assert_eq!(
         profile_id.as_str(),
-        format!("{}:{}", identity(300), identity(3))
+        format!("{}:{}", identity(300), identity(deleted_counter + 1))
     );
 }
 
@@ -346,8 +351,8 @@ fn restores_actual_committed_membership_with_new_grants_and_an_empty_journal() {
 fn capture_refuses_foreign_directories_primary_and_child_presentations() {
     let paths = [
         "/navigation/directories/0/workerId",
-        "/terminalContexts/1/tabs/0/root/children/0/node/primaryPresentation/binding/workerId",
-        "/terminalContexts/1/tabs/0/root/children/0/node/childPresentations/0/binding/workerId",
+        "/terminalContexts/0/tabs/0/root/children/0/node/primaryPresentation/binding/workerId",
+        "/terminalContexts/0/tabs/0/root/children/0/node/childPresentations/0/binding/workerId",
     ];
     for path in paths {
         let mut source = fixture();
@@ -390,16 +395,16 @@ fn rejects_missing_unknown_duplicate_and_unsupported_fields() {
         );
     }
     for (path, field) in [
-        ("/terminalContexts/1/tabs/1", "automaticLabel"),
-        ("/terminalContexts/1/tabs/0", "groupId"),
-        ("/terminalContexts/1/tabs/0/root", "ratio"),
-        ("/terminalContexts/1/tabs/1/root", "rightClick"),
+        ("/terminalContexts/0/tabs/1", "automaticLabel"),
+        ("/terminalContexts/0/tabs/0", "groupId"),
+        ("/terminalContexts/0/tabs/0/root", "ratio"),
+        ("/terminalContexts/0/tabs/1/root", "rightClick"),
         (
-            "/terminalContexts/1/tabs/1/root/primaryPresentation",
+            "/terminalContexts/0/tabs/1/root/primaryPresentation",
             "binding",
         ),
         (
-            "/terminalContexts/1/tabs/1/root/primaryPresentation",
+            "/terminalContexts/0/tabs/1/root/primaryPresentation",
             "customLabel",
         ),
     ] {
@@ -444,8 +449,8 @@ fn rejects_missing_unknown_duplicate_and_unsupported_fields() {
 
 #[test]
 fn refuses_injected_bindings_and_workers_in_retained_configuration() {
-    let primary = "/terminalContexts/1/tabs/0/root/children/0/node/primaryPresentation/binding";
-    let child = "/terminalContexts/1/tabs/0/root/children/0/node/childPresentations/0/binding";
+    let primary = "/terminalContexts/0/tabs/0/root/children/0/node/primaryPresentation/binding";
+    let child = "/terminalContexts/0/tabs/0/root/children/0/node/childPresentations/0/binding";
     for path in [primary, child] {
         let encoded = changed(|value| {
             *value.pointer_mut(path).unwrap() =
@@ -472,9 +477,9 @@ fn refuses_invalid_membership_paths_launches_and_allocation_counters() {
             json!(identity(900)),
         ),
         ("/navigation/directories/0/path", json!("relative")),
-        ("/terminalContexts/1/tabs/0/groupId", json!(identity(900))),
+        ("/terminalContexts/0/tabs/0/groupId", json!(identity(900))),
         (
-            "/terminalContexts/1/tabs/0/root/children/0/node/panelId",
+            "/terminalContexts/0/tabs/0/root/children/0/node/panelId",
             json!(identity(2)),
         ),
         ("/profiles/0/counter", json!(identity(3))),

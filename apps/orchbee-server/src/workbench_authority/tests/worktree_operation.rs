@@ -322,7 +322,20 @@ fn observed_source_subdirectory_keeps_checkout_membership_until_directory_change
         }
     ));
     let mut changed = authority.snapshot().clone();
-    changed.navigation.directories[0].path = WorkbenchDirectoryPath::parse("C:/elsewhere").unwrap();
+    let primary = changed
+        .navigation
+        .workspace(&workspace_id)
+        .unwrap()
+        .primary_directory_id
+        .clone()
+        .unwrap();
+    changed
+        .navigation
+        .directories
+        .iter_mut()
+        .find(|directory| directory.directory_id == primary)
+        .unwrap()
+        .path = WorkbenchDirectoryPath::parse("C:/elsewhere").unwrap();
     authority.projection = crate::workbench_projection::WorkbenchProjectionStore::load(
         &orchbee_workbench_protocol::serialize_document(
             &orchbee_workbench_protocol::WorkbenchProtocolDocument::Snapshot(changed),

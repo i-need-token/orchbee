@@ -90,10 +90,7 @@ fn run(steps: &[Step]) -> Result<(), String> {
                     700 + index as u128,
                 ))
                 .unwrap(),
-                worker_id: orchbee_workbench_protocol::WorkerId::parse(
-                    "0909090909090909090909090909090909",
-                )
-                .unwrap(),
+                worker_id: orchbee_workbench_protocol::WorkerId::parse(&"09".repeat(16)).unwrap(),
             };
             let result = authority.append_fixture_tab(binding.clone());
             let after = snapshot(&mut authority, &grant);

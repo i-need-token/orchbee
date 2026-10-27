@@ -90,6 +90,7 @@ fn create_profile(
 fn catalog_create_mints_session_scoped_ids_and_advances_both_revisions() {
     let (mut authority, grant) = authority();
     let session_hex = authority.session_id().as_str().to_owned();
+    let cursor = authority.last_identity;
 
     let first = create_profile(
         &mut authority,
@@ -111,9 +112,11 @@ fn catalog_create_mints_session_scoped_ids_and_advances_both_revisions() {
     assert_eq!(*catalog_revision, LaunchProfileCatalogRevision::new(1));
     // <sessionHex>:<counterHex> — the Session prefix is what makes a dead Session's ids
     // unable to alias another Session's catalog. The counter shares the
-    // authority identity cursor, which starts at 1, so the first profile id
-    // mints counter 2.
-    assert_eq!(profile_id.as_str(), format!("{session_hex}:{:032x}", 2));
+    // authority identity cursor, so the first profile id mints its next value.
+    assert_eq!(
+        profile_id.as_str(),
+        format!("{session_hex}:{:032x}", cursor + 1)
+    );
 
     let second = create_profile(
         &mut authority,
@@ -136,7 +139,10 @@ fn catalog_create_mints_session_scoped_ids_and_advances_both_revisions() {
         *second_catalog_revision,
         LaunchProfileCatalogRevision::new(2)
     );
-    assert_eq!(second_id.as_str(), format!("{session_hex}:{:032x}", 3));
+    assert_eq!(
+        second_id.as_str(),
+        format!("{session_hex}:{:032x}", cursor + 2)
+    );
 
     // The catalog is private Server state: the public snapshot carries only the
     // advanced revision, never catalog contents.

@@ -216,6 +216,7 @@ fn panel_move_relocates_a_leaf_right_with_fresh_graft_identities() {
     let leaf_a = before_children[0].node.clone();
     let leaf_b = before_children[1].node.clone();
     let last_identity = authority.last_identity;
+    let ledger = authority.ledger.len();
 
     let request = move_command(
         &authority,
@@ -273,7 +274,7 @@ fn panel_move_relocates_a_leaf_right_with_fresh_graft_identities() {
     assert_eq!(authority.last_identity, last_identity + 3);
     // Idempotent replay returns the retained result.
     assert_eq!(submit(&mut authority, &grant, request), result);
-    assert_eq!(authority.ledger.len(), 2);
+    assert_eq!(authority.ledger.len(), ledger + 1);
 }
 
 #[test]

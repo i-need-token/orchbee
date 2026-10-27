@@ -57,10 +57,11 @@ fn child_creation_appends_one_identity_with_effect_free_preparation_and_sealed_r
     let (mut authority, grant, command) = fixture();
     let before = authority.snapshot().clone();
     let cursor = authority.last_identity;
+    let ledger = authority.ledger.len();
     drop(prepare(&mut authority, &grant, command.clone()));
     assert_eq!(authority.snapshot(), &before);
     assert_eq!(authority.last_identity, cursor);
-    assert!(authority.ledger.is_empty());
+    assert_eq!(authority.ledger.len(), ledger);
     let prepared = prepare(&mut authority, &grant, command.clone());
     let metadata = prepared.metadata().clone();
     assert_eq!(metadata.panel_id(), metadata.terminal_panel_id());

@@ -2,7 +2,7 @@ use super::*;
 use orchbee_workbench_protocol::WorkbenchDirectoryPath;
 
 fn empty_workspace() -> (WorkbenchAuthority, WorkbenchGrant, WorkbenchCommand) {
-    let (mut authority, navigation) = authority();
+    let (mut authority, navigation) = empty_authority();
     let created = submit(
         &mut authority,
         &navigation,
@@ -103,7 +103,7 @@ fn association_commits_one_directory_and_exact_replay_preserves_every_owner() {
 
 #[test]
 fn ungrouped_workspace_accepts_a_global_directory_without_creating_a_project() {
-    let (mut authority, grant) = authority();
+    let (mut authority, grant) = empty_authority();
     let grant = grant.with_directory_association();
     let created = submit(
         &mut authority,

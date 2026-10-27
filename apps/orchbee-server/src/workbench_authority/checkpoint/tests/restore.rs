@@ -83,7 +83,7 @@ fn preparation_is_effect_free_and_all_commits_preserve_retained_configuration() 
 #[test]
 fn unconfigured_workspaces_keep_the_runtime_default_directory() {
     let unconfigured = restore(&changed(|value| {
-        value["navigation"]["workspaces"][1]["primaryDirectoryId"] = Value::Null;
+        value["navigation"]["workspaces"][0]["primaryDirectoryId"] = Value::Null;
     }))
     .unwrap();
     let targets = unconfigured.restoration_targets(&worker(400)).unwrap();
@@ -132,7 +132,7 @@ fn refuses_old_session_foreign_worker_removed_membership_and_changed_directory()
     assert_eq!(authority.snapshot(), &changed);
     let mut removed = restore(&checkpoint()).unwrap();
     replace_snapshot(&mut removed, |snapshot| {
-        snapshot.terminal_contexts[1].tabs[0].tab_id =
+        snapshot.terminal_contexts[0].tabs[0].tab_id =
             orchbee_workbench_protocol::WorkbenchTabId::parse(&identity(80)).unwrap()
     });
     assert_eq!(

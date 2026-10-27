@@ -121,11 +121,12 @@ fn plugin_pane_resolution_freezes_root_relative_argv_and_protected_target_contex
         context.correlation_id.as_deref(),
         Some(command.request_id.as_str())
     );
-    assert!(
-        context.workspace_id.is_none()
-            && context.tab_id.is_none()
-            && context.focused_pane_id.is_none()
+    // A new Tab has no Tab or Pane yet; its target context belongs to the fixture Workspace.
+    assert_eq!(
+        context.workspace_id,
+        Some(snapshot.navigation.workspaces[0].workspace_id.to_string())
     );
+    assert!(context.tab_id.is_none() && context.focused_pane_id.is_none());
     assert!(
         !frozen
             .environment
@@ -245,7 +246,7 @@ fn admission_witness(root: PathBuf) {
     let grant = WorkbenchGrant::manage_navigation_and_terminal_create(session);
     let command: WorkbenchCommand = serde_json::from_value(json!({
         "protocolVersion":1,"requestId":id(200),"sessionId":id(100),"expectedRevision":"0",
-        "action":{"kind":"tab.create","terminalContextId":id(1),"label":"Dashboard",
+        "action":{"kind":"tab.create","terminalContextId":authority.fixture_context_id(),"label":"Dashboard",
         "geometry":{"columns":80,"rows":24,"cellPixelWidth":0,"cellPixelHeight":0},
         "options":{"pluginPane":{"pluginId":"tools","entrypointId":"dashboard"}}}
     }))

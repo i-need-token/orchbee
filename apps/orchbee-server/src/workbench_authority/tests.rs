@@ -26,6 +26,14 @@ fn authority() -> (WorkbenchAuthority, WorkbenchGrant) {
         WorkbenchGrant::manage_navigation(session),
     )
 }
+/// A Session without the fixture Workspace, for navigation scenarios that own every Workspace.
+fn empty_authority() -> (WorkbenchAuthority, WorkbenchGrant) {
+    let session = SessionId::parse(&identity(100)).unwrap();
+    (
+        WorkbenchAuthority::new(session.clone()).unwrap(),
+        WorkbenchGrant::manage_navigation(session),
+    )
+}
 fn command(id: u128, revision: u64, action: WorkbenchAction) -> WorkbenchCommand {
     WorkbenchCommand {
         protocol_version: ProtocolVersion,
@@ -305,7 +313,13 @@ fn workspace_creation_and_rename_keep_the_exact_parent_and_one_context() {
         WorkbenchCommandOutcome::Renamed { .. }
     ));
     let after = snapshot(&mut authority, &grant);
-    assert_eq!(after.navigation.workspaces[0].label, "Renamed");
+    let renamed = after
+        .navigation
+        .workspaces
+        .iter()
+        .find(|workspace| workspace.workspace_id == workspace_id)
+        .unwrap();
+    assert_eq!(renamed.label, "Renamed");
     assert_eq!(after.terminal_contexts, before.terminal_contexts);
 }
 
@@ -522,6 +536,8 @@ fn navigation_grant_can_rename_a_tab_without_terminal_grant_or_partial_ledger_ef
     );
     let reader = WorkbenchGrant::read_only(grant.session_id.clone());
     let before = snapshot(&mut authority, &grant);
+    // The fixture tab's own TabCreate stays retained; denied attempts must add nothing.
+    let ledger = authority.ledger.keys().cloned().collect::<Vec<_>>();
     assert_eq!(
         authority.execute(
             Some(&reader),
@@ -532,7 +548,7 @@ fn navigation_grant_can_rename_a_tab_without_terminal_grant_or_partial_ledger_ef
         WorkbenchResponse::Command(result(&request, WorkbenchCommandOutcome::Denied {}))
     );
     assert_eq!(snapshot(&mut authority, &grant), before);
-    assert!(authority.ledger.is_empty());
+    assert!(authority.ledger.keys().eq(&ledger));
 
     authority.ledger_bytes = MAXIMUM_LEDGER_BYTES;
     assert_eq!(
@@ -540,7 +556,7 @@ fn navigation_grant_can_rename_a_tab_without_terminal_grant_or_partial_ledger_ef
         unavailable(WorkbenchCommandUnavailableReason::RequestLedgerFull)
     );
     assert_eq!(snapshot(&mut authority, &grant), before);
-    assert!(authority.ledger.is_empty());
+    assert!(authority.ledger.keys().eq(&ledger));
     assert!(!authority.retired);
 
     authority.ledger_bytes = 0;
