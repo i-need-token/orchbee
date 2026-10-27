@@ -136,20 +136,28 @@ fn relocation_directory_is_worker_proven_atomic_and_replayable() {
             let mut before = owner.snapshot().clone();
             if case == 4 {
                 // Fill the reachable encoded projection limit; the global directory count
-                // limit is larger than any serializable projection.
-                before.navigation.directories = (0..256)
-                    .map(|index| orchbee_workbench_protocol::Directory {
-                        directory_id: WorkbenchDirectoryId::parse(&identity(4000 + index)).unwrap(),
-                        worker_id: binding(1).worker_id,
-                        path: WorkbenchDirectoryPath::parse("C:/").unwrap(),
-                    })
-                    .collect();
+                // limit is larger than any serializable projection. The fixture Workspace keeps
+                // its primary Directory; only the added Directories grow.
+                let existing = before.navigation.directories.len();
+                before
+                    .navigation
+                    .directories
+                    .extend(
+                        (existing..256).map(|index| orchbee_workbench_protocol::Directory {
+                            directory_id: WorkbenchDirectoryId::parse(&identity(
+                                4000 + index as u128,
+                            ))
+                            .unwrap(),
+                            worker_id: binding(1).worker_id,
+                            path: WorkbenchDirectoryPath::parse("C:/").unwrap(),
+                        }),
+                    );
                 let size = serialize_document(&WorkbenchProtocolDocument::Snapshot(before.clone()))
                     .unwrap()
                     .len();
                 let mut remaining =
                     orchbee_workbench_protocol::MAXIMUM_ENCODED_PROJECTION_BYTES - size;
-                for directory in &mut before.navigation.directories {
+                for directory in before.navigation.directories.iter_mut().skip(existing) {
                     let added = remaining.min(4093);
                     directory.path =
                         WorkbenchDirectoryPath::parse(&format!("C:/{}", "x".repeat(added)))
@@ -240,7 +248,10 @@ fn relocation_directory_is_worker_proven_atomic_and_replayable() {
                 owner.snapshot().revision.value(),
                 before.revision.value() + 1
             );
-            assert_eq!(navigation.directories.len(), 1);
+            assert_eq!(
+                navigation.directories.len(),
+                before.navigation.directories.len() + 1
+            );
             // Retained result is authoritative even without another Worker probe.
             assert_eq!(
                 relocate_with_directory(&mut owner, &grant, command, None),
@@ -252,7 +263,7 @@ fn relocation_directory_is_worker_proven_atomic_and_replayable() {
 
 #[test]
 fn cross_context_reference_matrix_conserves_leaves_and_reports_source_disposal() {
-    // Independent reference partitions: initial_workspace/Workspace source, one/many
+    // Independent reference partitions: fixture/project Workspace source, one/many
     // source leaves, existing/new Tab/new Workspace, and four graft directions.
     for source_index in [0, 1] {
         for source_split in [false, true] {
@@ -345,7 +356,8 @@ fn cross_context_reference_matrix_conserves_leaves_and_reports_source_disposal()
                         } => transfer,
                         other => panic!("relocation expected: {other:?}"),
                     };
-                    let removed_workspace = source_index == 1 && !source_split;
+                    // Each source Workspace owns one Tab, so moving its only leaf closes it.
+                    let removed_workspace = !source_split;
                     assert_eq!(transfer.closed_source_tab, !source_split);
                     assert_eq!(
                         transfer.closed_source_workspace_id.is_some(),
@@ -383,7 +395,7 @@ fn cross_context_reference_matrix_conserves_leaves_and_reports_source_disposal()
                     );
                     assert_eq!(
                         after.navigation.ordered_workspaces().unwrap().len(),
-                        2 - usize::from(removed_workspace) + usize::from(destination_kind == 2)
+                        3 - usize::from(removed_workspace) + usize::from(destination_kind == 2)
                     );
                     assert_eq!(submit(&mut owner, &grant, request), result);
                     assert_eq!(owner.snapshot(), &after);
@@ -576,7 +588,8 @@ fn run_transfers(steps: &[(u8, bool)]) -> Result<(), String> {
                 label: None,
             }
         };
-        let request = transfer_command(&owner, 100_000 + step as u128, source_index, destination);
+        // The fixture Tab retains request 100_000; generated requests start above it.
+        let request = transfer_command(&owner, 200_000 + step as u128, source_index, destination);
         let result = submit(&mut owner, &grant, request.clone());
         let WorkbenchCommandOutcome::PanelRelocatedToNewTab {
             new_tab_id,
