@@ -62,7 +62,7 @@ pub(super) fn render(
                 "{} > {}",
                 locale.settings_title(),
                 if draft.page == Page::Profiles && draft.text.is_none() {
-                    locale.settings_category(draft.selected)
+                    locale.settings_category_name(draft.selected)
                 } else {
                     locale.settings_row(draft.selected)
                 }
@@ -927,7 +927,7 @@ fn render_draft(
     } else {
         frame.render_widget(
             Paragraph::new(super::modal::title_line(
-                locale.settings_category(draft.selected),
+                locale.settings_category_name(draft.selected),
                 theme,
             )),
             Rect::new(inner.x, inner.y, inner.width, 1),
@@ -1706,7 +1706,7 @@ fn settings_value(locale: Locale, draft: DraftView<'_>, row: Row, theme: &Theme)
                     .to_owned()
             });
     }
-    let value = locale.settings_value(draft, row);
+    let value = locale.settings_value((draft, row));
     if row == Row::Scrollback {
         return value;
     }

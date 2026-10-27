@@ -23,11 +23,7 @@ impl SettingCategory {
     ];
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum SettingUnit {
-    Seconds,
-    Bytes,
-}
+pub(crate) use crate::localization::SettingUnit;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SettingControl {

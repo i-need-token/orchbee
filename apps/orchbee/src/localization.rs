@@ -22,7 +22,11 @@ mod shortcut_help;
 pub(crate) use shortcut_help::{ShortcutContext, ShortcutHelpGroup, ShortcutLabel};
 mod capabilities;
 mod settings;
-pub(crate) use settings::SettingsNotice;
+pub(crate) use settings::{
+    SettingUnit, SettingsCategory, SettingsChoice, SettingsDetail, SettingsDetailKind,
+    SettingsDraftState, SettingsFieldRequirement, SettingsHintLabel, SettingsNotice,
+    SettingsProfileLabel, SettingsRow, SettingsValue,
+};
 mod status;
 mod terminal_feedback;
 use std::ffi::OsString;

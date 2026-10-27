@@ -929,17 +929,17 @@ fn setting_category_copy_projects_the_closed_metadata_inventory() {
                 (Locale::EnUs, SettingCategory::LaunchProfiles) => "Launch profiles",
                 (Locale::ZhCn, SettingCategory::LaunchProfiles) => "启动配置",
             };
-            assert_eq!(locale.settings_category(metadata.row), expected);
+            assert_eq!(locale.settings_category_name(metadata.row), expected);
         }
         assert_eq!(
-            locale.settings_category(Row::Save),
+            locale.settings_category_name(Row::Save),
             match locale {
                 Locale::EnUs => "General",
                 Locale::ZhCn => "通用",
             }
         );
         assert_eq!(
-            locale.settings_category(Row::ProfileName),
+            locale.settings_category_name(Row::ProfileName),
             match locale {
                 Locale::EnUs => "Launch profiles",
                 Locale::ZhCn => "启动配置",
@@ -1334,7 +1334,7 @@ fn invalid_nondefault_executable_renders_its_profile_required_field_and_correcti
                 panic!("profile field")
             };
             assert_eq!(
-                locale.settings_value(field, Row::Executable),
+                locale.settings_value((field, Row::Executable)),
                 match locale {
                     Locale::EnUs => "Required",
                     Locale::ZhCn => "必填",

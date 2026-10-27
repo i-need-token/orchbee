@@ -134,21 +134,7 @@ const DISPATCH_ORDER: [LocalBinding; 22] = [
     LocalBinding::Delete,
 ];
 
-/// Semantic label paired with one locally effective Settings binding group.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum SettingsHintLabel {
-    Search,
-    Save,
-    Close,
-    Back,
-    Cancel,
-    Confirm,
-    Accept,
-    Clear,
-    ActivateEdit,
-    Select,
-    Change,
-}
+pub(crate) use crate::localization::SettingsHintLabel;
 
 /// One owner-ordered footer item backed by the same keys used for dispatch.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

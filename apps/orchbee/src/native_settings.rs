@@ -16,6 +16,7 @@ mod metadata;
 mod rows;
 #[cfg(test)]
 mod tests;
+mod text;
 mod values;
 pub(crate) use input::{SettingsHintLabel, footer_bindings, key_edit, key_edit_for_view};
 #[cfg(test)]
