@@ -6,7 +6,6 @@
 mod client_control;
 mod completion_reminders;
 pub(crate) mod input;
-pub(crate) use completion_reminders::Reminder as CompletionReminder;
 pub(crate) use input::InputAction;
 mod configuration;
 mod settings_lane;
@@ -64,7 +63,6 @@ mod terminal_selection;
 mod terminal_tail;
 pub(crate) mod terminal_viewport;
 mod ui;
-pub(crate) use ui::NoticeContext;
 pub(crate) use ui::settings::Notice as SettingsNotice;
 pub(crate) use ui::{WorkspaceCreationPhase, WorkspaceCreationPreview};
 mod wakeup;
@@ -86,21 +84,21 @@ pub(crate) use ui::RetainedFrameBank;
 pub(crate) use ui::WorktreeCaptureContext;
 pub(crate) use ui::{
     AgentBoardActualDraw, AgentBoardControl, AgentBoardControlTarget, AgentBoardDraw,
-    AgentBoardEpisodeToken, AgentBoardRead, AgentBoardReadFailure, AgentBoardRow,
-    AgentBoardRowTarget, AgentBoardSummary, AgentBoardToken, AgentBoardView, CaptureContext,
-    CaptureReadiness, ClientProjectionStatus, ClientTabView, CloseConfirmationKind,
-    CloseConfirmationToken, CloseConfirmationView, CloseStatusKind, CloseStatusToken,
-    CloseStatusView, DisplayController, DisplayPhase, DisplayProvenance, DisplayRetirement,
-    DrawReceipt, DrawnPresentationTarget, JumpFailure, LaunchFailure, LaunchProfile,
+    AgentBoardEpisodeToken, AgentBoardRead, AgentBoardRow, AgentBoardRowTarget, AgentBoardToken,
+    AgentBoardView, CaptureContext, CaptureReadiness, ClientProjectionStatus, ClientTabView,
+    CloseConfirmationToken, CloseConfirmationView, CloseStatusToken, DisplayController,
+    DisplayPhase, DisplayProvenance, DrawReceipt, DrawnPresentationTarget, LaunchFailure,
     LocationLabelStatus, LocationLabelTarget, ModalPresentation, PanelCloseConfirmationToken,
     PanelCloseConfirmationView, PresentationPlacement, RefreshStatus, RenameDraftToken,
     RenameDraftView, RenameEdit, SetupDraftView, SetupEdit, SetupStage, SetupStatus, SetupToken,
     ViewportSurface, WorkbenchClientNotice, WorkbenchClientView, WorkspaceCloseConfirmationView,
-    WorkspaceCloseStatus, WorkspaceCloseStatusView, WorkspaceCloseToken,
+    WorkspaceCloseToken,
 };
 #[cfg(test)]
 pub(crate) use ui::{
-    AgentBoardInputContext, ConfirmationCaptureContext, RenameInputContext, SetupCaptureContext,
+    AgentBoardInputContext, CloseConfirmationKind, CloseStatusKind, ConfirmationCaptureContext,
+    DisplayRetirement, LaunchProfile, RenameInputContext, SetupCaptureContext,
+    WorkspaceCloseStatus,
 };
 pub(crate) use ui::{AgentStartCatalogStatus, AgentStartPhase};
 

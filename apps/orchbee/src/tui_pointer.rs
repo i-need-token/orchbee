@@ -55,9 +55,10 @@ mod scrollbar;
 mod tabs;
 pub(crate) use tabs::{TabDragPreview, TabDragSource, TabDragTab};
 mod sidebar_reorder;
+#[cfg(test)]
+pub(crate) use sidebar_reorder::Placement as SidebarDropPlacement;
 pub(crate) use sidebar_reorder::{
-    Placement as SidebarDropPlacement, SidebarReorderDraw, SidebarReorderPaint,
-    SidebarReorderPreview, SidebarReorderSource,
+    SidebarReorderDraw, SidebarReorderPaint, SidebarReorderPreview, SidebarReorderSource,
 };
 mod sidebar_width;
 

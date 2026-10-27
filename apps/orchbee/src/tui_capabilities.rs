@@ -1,7 +1,9 @@
 //! Composition policy for optional host effects. Shared state and protocol operations stay available.
 use crate::client_view::ClientAction;
 
-pub(crate) use crate::host_capabilities::{Capability, Unsupported};
+pub(crate) use crate::host_capabilities::Capability;
+#[cfg(not(windows))]
+pub(crate) use crate::host_capabilities::Unsupported;
 
 /// Select the host effect required by this view intent; availability is a separate input.
 pub(crate) fn for_action(action: &ClientAction) -> Option<Capability> {

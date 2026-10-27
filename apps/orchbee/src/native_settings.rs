@@ -23,8 +23,10 @@ pub(crate) use input::{SettingsHintLabel, footer_bindings, key_edit, key_edit_fo
 pub(crate) use metadata::SETTINGS;
 #[cfg(test)]
 use metadata::SettingEffect;
+#[cfg(test)]
+use metadata::SettingUnit;
 pub(crate) use metadata::{
-    SettingAvailability, SettingCategory, SettingControl, SettingUnit, setting, setting_for_row,
+    SettingAvailability, SettingCategory, SettingControl, setting, setting_for_row,
 };
 pub(crate) use rows::{Page, Row};
 pub(crate) use values::scrollback_megabytes;
