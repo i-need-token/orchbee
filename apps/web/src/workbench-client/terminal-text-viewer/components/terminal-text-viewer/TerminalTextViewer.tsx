@@ -16,7 +16,7 @@ import {
 	MAX_TERMINAL_TEXT_VIEWER_QUERY_LENGTH,
 	type TerminalTextViewerController,
 	type TerminalTextViewerSource,
-} from './model/terminal-text-viewer-controller';
+} from '../../terminal-text-viewer-controller';
 
 export interface TerminalTextViewerProps {
 	readonly controller: TerminalTextViewerController;

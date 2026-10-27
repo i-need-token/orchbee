@@ -5,7 +5,7 @@ import type {
 	TerminalFindController,
 	TerminalFindNotice,
 	TerminalFindSnapshot,
-} from '../model/TerminalFindController';
+} from '../../../TerminalFindController';
 
 interface UseTerminalFindSurfaceOptions {
 	readonly controller: TerminalFindController;

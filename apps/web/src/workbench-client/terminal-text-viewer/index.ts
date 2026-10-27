@@ -2,10 +2,10 @@ export {
 	commandOutputViewerDocument,
 	scrollbackViewerDocument,
 	TerminalTextViewerController,
-} from './model/terminal-text-viewer-controller';
+} from './terminal-text-viewer-controller';
 
 export {
 	mountTerminalTextViewer,
 	type MountTerminalTextViewerOptions,
 	type TerminalTextViewerMount,
-} from './mounting/mountTerminalTextViewer';
+} from './mountTerminalTextViewer';

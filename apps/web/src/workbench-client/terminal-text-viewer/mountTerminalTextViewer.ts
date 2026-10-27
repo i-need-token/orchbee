@@ -4,13 +4,13 @@ import { TooltipProvider } from '@orchbee/ui/components';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 
-import type { ApplicationLocaleSource } from '../../../application-locale';
-import { ApplicationLocaleProvider } from '../../../application-locale-provider';
-import { TerminalTextViewer } from '../TerminalTextViewer';
+import type { ApplicationLocaleSource } from '../../application-locale';
+import { ApplicationLocaleProvider } from '../../application-locale-provider';
+import { TerminalTextViewer } from './components/terminal-text-viewer/TerminalTextViewer';
 import type {
 	TerminalTextViewerController,
 	TerminalTextViewerSource,
-} from '../model/terminal-text-viewer-controller';
+} from './terminal-text-viewer-controller';
 
 export interface MountTerminalTextViewerOptions {
 	readonly applicationLocaleSource?: ApplicationLocaleSource | undefined;

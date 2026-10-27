@@ -10,7 +10,7 @@ import { TerminalTextViewer } from '../TerminalTextViewer';
 import {
 	TerminalTextViewerController,
 	type TerminalTextViewerSource,
-} from '../model/terminal-text-viewer-controller';
+} from '../../../terminal-text-viewer-controller';
 
 beforeAll(() => {
 	Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {

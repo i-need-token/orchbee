@@ -1,4 +1,4 @@
-import { TerminalFindSurface } from '../src/workbench-client/terminal-find-surface/TerminalFindSurface';
+import { TerminalFindSurface } from '../src/workbench-client/terminal-find-surface/components/terminal-find-surface/TerminalFindSurface';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import type { ProjectedTerminalSearchEvent } from '@orchbee/terminal';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';

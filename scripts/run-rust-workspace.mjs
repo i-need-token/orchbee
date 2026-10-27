@@ -179,12 +179,14 @@ function legacySourceModules(directory) {
 	});
 }
 
-function enforceApplicationCratePolicy(workspacePackages, metadata) {
+function enforceApplicationCratePolicy(workspacePackages, cargoMetadata) {
 	const byRoot = new Map(
 		workspacePackages.map((entry) => [relativeSource(dirname(entry.manifest_path)), entry]),
 	);
-	const byId = new Map(metadata.packages.map((entry) => [entry.id, entry]));
-	const resolved = new Map((metadata.resolve?.nodes ?? []).map((entry) => [entry.id, entry.deps]));
+	const byId = new Map(cargoMetadata.packages.map((entry) => [entry.id, entry]));
+	const resolved = new Map(
+		(cargoMetadata.resolve?.nodes ?? []).map((entry) => [entry.id, entry.deps]),
+	);
 	const internalIds = new Set();
 	for (const [root, entry] of byRoot) {
 		const internal = /^(apps\/([a-z\d-]+))\/crates\/([a-z\d-]+)$/u.exec(root);

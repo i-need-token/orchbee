@@ -3,10 +3,10 @@ import { TooltipProvider } from '@orchbee/ui/components';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 
-import type { ApplicationLocaleSource } from '../../../application-locale';
-import { ApplicationLocaleProvider } from '../../../application-locale-provider';
-import { TerminalFindSurface } from '../TerminalFindSurface';
-import type { TerminalFindController } from '../model/TerminalFindController';
+import type { ApplicationLocaleSource } from '../../application-locale';
+import { ApplicationLocaleProvider } from '../../application-locale-provider';
+import { TerminalFindSurface } from './components/terminal-find-surface/TerminalFindSurface';
+import type { TerminalFindController } from './TerminalFindController';
 
 export interface MountTerminalFindSurfaceOptions {
 	readonly applicationLocaleSource?: ApplicationLocaleSource | undefined;

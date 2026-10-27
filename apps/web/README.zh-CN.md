@@ -79,7 +79,7 @@ Workbench 拥有这一显示覆盖，规范 Agent 结果与通知保持不变。
 Find 控制器会把以选择内容为初始查询的打开操作发布为一个完整快照。查询、选项与生命周期转换
 会约束同步订阅者和 driver 回调之后的搜索效果，防止旧调用重启或清除新工作。独立通知以及
 对同一查询的再次聚焦会保留待执行搜索的准入。
-[控制器测试](src/workbench-client/terminal-find-surface/model/__tests__/TerminalFindController.unit.test.ts)
+[控制器测试](src/workbench-client/terminal-find-surface/__tests__/TerminalFindController.unit.test.ts)
 覆盖替换、关闭、处置、重入打开，以及这些保留准入的更新。
 
 `Ctrl+Shift+G` 会在应用拥有的模态查看器中打开上一条带 Shell 标记的命令输出。一个 replace-latest Action 通过有界通用缓冲区 lane 准备精确 generation/revision 的纯文本 document；过时、淘汰、备用屏幕、不可用或超限读取绝不发布局部输出。已准备 document 在打开期间保持不可变，字面量不区分大小写搜索、Enter/Shift+Enter 导航、原生文本选择与独立的 `terminal.output.copy` Action 都在本地运行。查看器会约束焦点循环并在关闭时恢复终端焦点，且有意不启动外部 pager 或重新渲染 ANSI 样式。参见 [行为契约](../../packages/terminal/docs/command-output-viewer.zh-CN.md) 与 `projected-terminal.text-viewer` experience component。
@@ -203,4 +203,4 @@ Electron 加载 Web 开发 URL，并通过 User-Agent 发现 adapter。打包 El
 
 运行 `pnpm --filter @orchbee/web test` 执行单元测试。Windows 上 Vitest 最多使用四个工作进程（可用 CPU 更少时取其数量），以限制其他 workspace 套件并发时的进程创建及文件系统竞争。所有文件、断言和 deadline 保留；其他平台沿用运行器默认值。
 
-<!-- documentation-pairing: english-sha256=4b7fbf293ba018689a32c74958b17e47ec649ff53b78ac83e67f7e1a7f9090d6 zh-cn-sha256=139088658d079a65ca41c93fa5d75b4a3541db312ededb1d37b20975f7b94512 -->
+<!-- documentation-pairing: english-sha256=4fc5cc37e0c00b7baec5cb6332f36adf283fd1d33e510e28f7912d5a5549330f zh-cn-sha256=e8b68ed86fdf032558b153b6e7cb181d7b98c3ca6829e89488198e368d420e1c -->

@@ -5,7 +5,7 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { TerminalTextViewerController } from '../../model/terminal-text-viewer-controller';
+import { TerminalTextViewerController } from '../../../../terminal-text-viewer-controller';
 import { useTerminalTextViewer } from '../useTerminalTextViewer';
 
 function I18nWrapper({ children }: { readonly children: ReactNode }) {

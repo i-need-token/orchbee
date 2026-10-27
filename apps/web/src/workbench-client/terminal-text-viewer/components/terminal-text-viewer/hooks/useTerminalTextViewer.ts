@@ -7,7 +7,7 @@ import {
 	type TerminalTextViewerController,
 	type TerminalTextViewerSegment,
 	type TerminalTextViewerSnapshot,
-} from '../model/terminal-text-viewer-controller';
+} from '../../../terminal-text-viewer-controller';
 
 interface UseTerminalTextViewerOptions {
 	readonly controller: TerminalTextViewerController;

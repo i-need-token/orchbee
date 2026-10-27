@@ -8,7 +8,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { TerminalFindSurface } from '../TerminalFindSurface';
-import { TerminalFindController, type TerminalSearchDriver } from '../model/TerminalFindController';
+import { TerminalFindController, type TerminalSearchDriver } from '../../../TerminalFindController';
 
 beforeAll(() => {
 	Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {

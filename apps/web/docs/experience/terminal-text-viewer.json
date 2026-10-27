@@ -14,8 +14,8 @@
 		"copy-terminal-text"
 	],
 	"implementation": [
-		"apps/web/src/workbench-client/terminal-text-viewer/TerminalTextViewer.tsx",
-		"apps/web/src/workbench-client/terminal-text-viewer/model/terminal-text-viewer-controller.ts"
+		"apps/web/src/workbench-client/terminal-text-viewer/components/terminal-text-viewer/TerminalTextViewer.tsx",
+		"apps/web/src/workbench-client/terminal-text-viewer/terminal-text-viewer-controller.ts"
 	],
 	"stories": [
 		{

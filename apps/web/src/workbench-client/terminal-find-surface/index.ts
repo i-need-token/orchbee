@@ -1,7 +1,7 @@
-export { TerminalFindController } from './model/TerminalFindController';
+export { TerminalFindController } from './TerminalFindController';
 
 export {
 	mountTerminalFindSurface,
 	type TerminalFindSurfaceMount,
 	type MountTerminalFindSurfaceOptions,
-} from './mounting/mountTerminalFindSurface';
+} from './mountTerminalFindSurface';

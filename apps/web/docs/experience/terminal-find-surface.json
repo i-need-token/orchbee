@@ -8,7 +8,9 @@
 	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": ["search-terminal", "navigate-terminal-match"],
-	"implementation": ["apps/web/src/workbench-client/terminal-find-surface/TerminalFindSurface.tsx"],
+	"implementation": [
+		"apps/web/src/workbench-client/terminal-find-surface/components/terminal-find-surface/TerminalFindSurface.tsx"
+	],
 	"stories": [
 		{
 			"exportName": "MatchResults",

@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
 	TerminalFindController,
 	type TerminalSearchDriver,
-} from '../../model/TerminalFindController';
+} from '../../../../TerminalFindController';
 import { useTerminalFindSurface } from '../useTerminalFindSurface';
 
 describe('useTerminalFindSurface', () => {

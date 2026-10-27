@@ -186,7 +186,7 @@ The Find controller publishes selection-seeded opening as one complete snapshot.
 and lifecycle transitions fence later search effects across synchronous subscriber and driver
 callbacks, so an obsolete call cannot restart or clear newer work. Independent notices and
 same-query refocusing preserve pending search admission. The
-[controller tests](src/workbench-client/terminal-find-surface/model/__tests__/TerminalFindController.unit.test.ts)
+[controller tests](src/workbench-client/terminal-find-surface/__tests__/TerminalFindController.unit.test.ts)
 cover replacement, close, disposal, reentrant reopening, and those admission-preserving updates.
 
 `Ctrl+Shift+G` opens the last shell-marked command output in an application-owned modal viewer. One

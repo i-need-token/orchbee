@@ -12,7 +12,7 @@ import type * as React from 'react';
 
 import { useTerminalFindSurface } from './hooks/useTerminalFindSurface';
 import styles from './TerminalFindSurface.module.css';
-import type { TerminalFindController } from './model/TerminalFindController';
+import type { TerminalFindController } from '../../TerminalFindController';
 
 export interface TerminalFindSurfaceProps {
 	readonly controller: TerminalFindController;
