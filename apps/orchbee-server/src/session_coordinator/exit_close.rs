@@ -92,14 +92,8 @@ impl SessionCoordinator {
 /// Client selection, so its exact recognition stays with the Host.
 fn interactive_shell_launch(executable: &str, arguments: &[String]) -> bool {
     let filename = executable.rsplit(['/', '\\']).next().unwrap_or(executable);
-    let name = match filename.len().checked_sub(4) {
-        Some(stem)
-            if filename
-                .get(stem..)
-                .is_some_and(|extension| extension.eq_ignore_ascii_case(".exe")) =>
-        {
-            &filename[..stem]
-        }
+    let name = match filename.split_at_checked(filename.len().saturating_sub(4)) {
+        Some((stem, extension)) if extension.eq_ignore_ascii_case(".exe") => stem,
         _ => filename,
     };
     let flags: &[&str] =
