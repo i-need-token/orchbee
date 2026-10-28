@@ -108,7 +108,7 @@ impl Probe {
     }
 
     /// Settles a missing reply once. A timeout never permits another probe.
-    pub fn tick(&mut self, now: Instant) -> Option<Capability> {
+    pub(crate) fn tick(&mut self, now: Instant) -> Option<Capability> {
         let State::Pending { deadline } = self.state else {
             return None;
         };
@@ -138,6 +138,7 @@ pub trait ProbeTestAccess {
     fn begin(&mut self, now: Instant) -> Option<Query>;
     fn observe(&mut self, reply: HostReply, now: Instant) -> Option<Capability>;
     fn any_motion_admitted(&self) -> bool;
+    fn tick(&mut self, now: Instant) -> Option<Capability>;
 }
 
 #[cfg(any(test, feature = "test-support"))]
@@ -150,6 +151,9 @@ impl ProbeTestAccess for Probe {
     }
     fn any_motion_admitted(&self) -> bool {
         Probe::any_motion_admitted(self)
+    }
+    fn tick(&mut self, now: Instant) -> Option<Capability> {
+        Probe::tick(self, now)
     }
 }
 
