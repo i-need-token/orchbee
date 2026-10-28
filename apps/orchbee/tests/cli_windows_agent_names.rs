@@ -40,37 +40,41 @@ fn join_peer(handler: PeerGuard<'_>, output: &std::process::Output) {
 fn names_commands_exchange_correlated_typed_results_on_windows() {
     let fixture = Fixture::new();
     let rendezvous = fixture.rendezvous();
-    let cases: &[(&[&str], &str, Value, &str)] = &[
+    // Each wire outcome and the public result that names its Session as a target.
+    let cases: &[(&[&str], &str, Value, Value, &str)] = &[
         (
             &["agent", "names"],
             "names.list",
             json!({"kind":"listed","pending":[],"bindings":[{"name":"alpha","sessionId":"s1","lifecycle":"live"}]}),
+            json!({"kind":"listed-targets","pending":[],"bindings":[{"name":"alpha","target":{"kind":"session","sessionId":"s1"}}]}),
             include_str!("../src/cli/schemas/orchbee.agent.names.json"),
         ),
         (
             &["agent", "resolve", "--name", "alpha"],
             "resolve",
             json!({"kind":"resolved","sessionId":"s1","resolvedBy":"name"}),
+            json!({"kind":"resolved-target","target":{"kind":"session","sessionId":"s1"},"resolvedBy":"name"}),
             include_str!("../src/cli/schemas/orchbee.agent.resolve.json"),
         ),
         (
             &["agent", "rename", "--agent-session", "s1", "alpha"],
             "name.assign",
             json!({"kind":"assigned","sessionId":"s1","name":"alpha","previousName":null}),
+            json!({"kind":"assigned-target","target":{"kind":"session","sessionId":"s1"},"name":"alpha","previousName":null}),
             include_str!("../src/cli/schemas/orchbee.agent.rename.json"),
         ),
         (
             &["agent", "rename", "alpha", "--clear"],
             "name.release",
             json!({"kind":"released","sessionId":"s1","name":"alpha"}),
+            json!({"kind":"released-target","target":{"kind":"session","sessionId":"s1"},"name":"alpha"}),
             include_str!("../src/cli/schemas/orchbee.agent.rename.json"),
         ),
     ];
-    for (arguments, operation, outcome, schema) in cases {
+    for (arguments, operation, outcome, expected, schema) in cases {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let operation = (*operation).to_owned();
         let outcome = outcome.clone();
-        let expected = outcome.clone();
         let handler = peer(&fixture, listener, move |mut stream| {
             let AgentRequest::Names(request) = read_agent_request(&mut stream).unwrap() else {
                 panic!("names request");
@@ -108,7 +112,7 @@ fn names_commands_exchange_correlated_typed_results_on_windows() {
         );
         let document: Value = serde_json::from_slice(&output.stdout).unwrap();
         validate(&document, schema);
-        assert_eq!(document["result"], expected);
+        assert_eq!(&document["result"], expected);
     }
 }
 
@@ -1097,10 +1101,7 @@ fn positional_panel_fallback_preserves_session_or_alias_precedence_and_resolve_p
         );
         assert_eq!(doc["source"]["requestId"], source);
         assert_eq!(doc["result"]["resolvedBy"], resolved_by);
-        assert_eq!(
-            doc["version"],
-            if resolved_by == "presentation" { 2 } else { 1 }
-        );
+        assert_eq!(doc["version"], 1);
     }
 }
 
