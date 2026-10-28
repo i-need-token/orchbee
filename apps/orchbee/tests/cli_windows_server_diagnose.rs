@@ -56,8 +56,13 @@ impl Fixture {
         .unwrap();
         let validator = jsonschema::draft202012::new(&schema).unwrap();
         validator.validate(&document).unwrap();
+        // The shared schema admits POSIX modes for every host; Windows rows never claim one.
+        assert_eq!(
+            document["result"]["endpoints"]["client"]["mode"],
+            serde_json::json!({"kind": "unsupported"})
+        );
         let mut invalid = document.clone();
-        invalid["result"]["endpoints"]["client"]["mode"] = "0600".into();
+        invalid["result"]["endpoints"]["client"]["mode"] = "rw-------".into();
         assert!(!validator.is_valid(&invalid));
         document
     }
@@ -137,7 +142,10 @@ fn marker_lock_pipe_and_localization_are_facts_without_a_connection() {
     assert_eq!(document["result"]["marker"]["state"], "known");
     assert_eq!(document["result"]["marker"]["activation"], "active");
     assert_eq!(document["result"]["endpoints"]["client"]["state"], "known");
-    assert!(document["result"].get("hostScope").is_none());
+    assert_eq!(
+        document["result"]["hostScope"],
+        serde_json::json!({"kind": "unsupported"})
+    );
     assert!(
         matches!(listener.accept(), Err(error) if error.kind() == std::io::ErrorKind::WouldBlock)
     );
