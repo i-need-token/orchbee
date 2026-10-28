@@ -7,6 +7,7 @@ use std::{
 };
 
 use crate::terminal_lifecycle::{SynchronizedUpdateLease, TerminalModeGuard};
+use orchbee_workbench_client::test_support::terminal_graphics::ProbeTestAccess;
 use orchbee_workbench_client::test_support::terminal_lifecycle::SynchronizedUpdateLeaseTestAccess;
 use orchbee_workbench_client::test_support::terminal_lifecycle::graphics::ImageLeaseTestAccess;
 use orchbee_workbench_client::test_support::terminal_lifecycle::{

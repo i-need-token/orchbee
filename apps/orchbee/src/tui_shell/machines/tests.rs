@@ -21,6 +21,7 @@ use orchbee_workbench_client::test_support::terminal_input::PointerSelectionInte
 use orchbee_workbench_client::test_support::terminal_input::PointerTab;
 use orchbee_workbench_client::test_support::terminal_input::PointerTabFixture;
 use orchbee_workbench_client::test_support::tui_pointer::HitMapBuilderTestAccess;
+use orchbee_workbench_client::test_support::tui_pointer::PointerStateTestAccess;
 use orchbee_workbench_client::test_support::workbench_client::input::InputActionTestAccess;
 use orchbee_workbench_client::test_support::workbench_client::state::AttachmentKeyTestAccess;
 use orchbee_workbench_client::test_support::workbench_client::state::PaneKeyTestAccess;

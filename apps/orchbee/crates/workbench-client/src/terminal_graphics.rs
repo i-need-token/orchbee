@@ -106,12 +106,12 @@ pub struct Probe {
     kitty: KittyState,
 }
 impl Probe {
-    pub fn activate(&mut self, image_id: u32) {
+    pub(crate) fn activate(&mut self, image_id: u32) {
         if image_id != 0 && self.image_id.is_none() {
             self.image_id = Some(image_id);
         }
     }
-    pub fn facts(&self) -> Facts {
+    pub(crate) fn facts(&self) -> Facts {
         Facts {
             measurement: match self.cell {
                 CellState::Settled(measurement) => measurement,
@@ -120,7 +120,7 @@ impl Probe {
             kitty: matches!(self.kitty, KittyState::Settled(true)),
         }
     }
-    pub fn query(&mut self, cells: (u16, u16), now: Instant) -> Option<Query> {
+    pub(crate) fn query(&mut self, cells: (u16, u16), now: Instant) -> Option<Query> {
         let id = self.image_id?;
         if cells.0 == 0 || cells.1 == 0 {
             return None;
@@ -155,7 +155,7 @@ impl Probe {
             self.kitty = KittyState::Settled(false);
         }
     }
-    pub fn reply(&mut self, reply: Reply, now: Instant) {
+    pub(crate) fn reply(&mut self, reply: Reply, now: Instant) {
         self.tick(now);
         match reply {
             Reply::Cell(pixels) => match self.cell {
@@ -211,6 +211,31 @@ impl From<QueryFixture> for Query {
     fn from(fixture: QueryFixture) -> Self {
         let QueryFixture { cell, image_id } = fixture;
         Self { cell, image_id }
+    }
+}
+
+/// Crate-internal `Probe` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait ProbeTestAccess {
+    fn activate(&mut self, image_id: u32);
+    fn facts(&self) -> Facts;
+    fn query(&mut self, cells: (u16, u16), now: Instant) -> Option<Query>;
+    fn reply(&mut self, reply: Reply, now: Instant);
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl ProbeTestAccess for Probe {
+    fn activate(&mut self, image_id: u32) {
+        Probe::activate(self, image_id);
+    }
+    fn facts(&self) -> Facts {
+        Probe::facts(self)
+    }
+    fn query(&mut self, cells: (u16, u16), now: Instant) -> Option<Query> {
+        Probe::query(self, cells, now)
+    }
+    fn reply(&mut self, reply: Reply, now: Instant) {
+        Probe::reply(self, reply, now);
     }
 }
 

@@ -582,7 +582,7 @@ pub mod test_support {
 
     pub mod terminal_graphics {
         pub use crate::terminal_graphics::{
-            Facts, FactsTestAccess, Probe, Query, QueryFixture, Reply,
+            Facts, FactsTestAccess, Probe, ProbeTestAccess, Query, QueryFixture, Reply,
         };
     }
 
@@ -630,7 +630,7 @@ pub mod test_support {
 
     pub mod terminal_pointer_admission {
         pub use crate::terminal_pointer_admission::{
-            Capability, HostReply, ModeReportState, Probe, Query,
+            Capability, HostReply, ModeReportState, Probe, ProbeTestAccess, Query,
         };
     }
 
@@ -659,7 +659,8 @@ pub mod test_support {
         pub use crate::tui_pointer::{
             HelpControl, HitLayer, HitMapBuilderTestAccess, HitTarget, InteractionAvailability,
             InteractionSpec, InteractionSpecTestAccess, InteractionTarget, MotionObservability,
-            PointerOutcome, PointerState, PrimaryContract, ProjectedPointer,
+            PointerOutcome, PointerState, PointerStateTestAccess, PrimaryContract,
+            ProjectedPointer,
         };
     }
 

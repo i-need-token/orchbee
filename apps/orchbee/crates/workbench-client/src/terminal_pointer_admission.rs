@@ -70,7 +70,7 @@ pub struct Probe {
 
 impl Probe {
     /// Begins the endpoint's sole query. Later calls are permanent no-ops.
-    pub fn begin(&mut self, now: Instant) -> Option<Query> {
+    pub(crate) fn begin(&mut self, now: Instant) -> Option<Query> {
         if self.state != State::Unissued {
             return None;
         }
@@ -82,7 +82,7 @@ impl Probe {
 
     /// Applies one typed host reply. The deadline wins at its exact boundary,
     /// and every reply after settlement is inert.
-    pub fn observe(&mut self, reply: HostReply, now: Instant) -> Option<Capability> {
+    pub(crate) fn observe(&mut self, reply: HostReply, now: Instant) -> Option<Capability> {
         if let Some(capability) = self.tick(now) {
             return Some(capability);
         }
@@ -127,8 +127,29 @@ impl Probe {
         }
     }
 
-    pub const fn any_motion_admitted(&self) -> bool {
+    pub(crate) const fn any_motion_admitted(&self) -> bool {
         matches!(self.state, State::Settled(Capability::Admitted))
+    }
+}
+
+/// Crate-internal `Probe` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait ProbeTestAccess {
+    fn begin(&mut self, now: Instant) -> Option<Query>;
+    fn observe(&mut self, reply: HostReply, now: Instant) -> Option<Capability>;
+    fn any_motion_admitted(&self) -> bool;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl ProbeTestAccess for Probe {
+    fn begin(&mut self, now: Instant) -> Option<Query> {
+        Probe::begin(self, now)
+    }
+    fn observe(&mut self, reply: HostReply, now: Instant) -> Option<Capability> {
+        Probe::observe(self, reply, now)
+    }
+    fn any_motion_admitted(&self) -> bool {
+        Probe::any_motion_admitted(self)
     }
 }
 

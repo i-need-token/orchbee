@@ -18,6 +18,7 @@ use orchbee_workbench_client::test_support::terminal_pointer_admission::Capabili
 use orchbee_workbench_client::test_support::terminal_pointer_admission::HostReply as PointerHostReply;
 use orchbee_workbench_client::test_support::terminal_pointer_admission::ModeReportState;
 use orchbee_workbench_client::test_support::terminal_pointer_admission::Probe;
+use orchbee_workbench_client::test_support::terminal_pointer_admission::ProbeTestAccess;
 use std::{
     collections::VecDeque,
     error::Error,

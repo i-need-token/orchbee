@@ -9,6 +9,7 @@ use crate::{
 use orchbee_workbench_client::test_support::localization::LocaleTestAccess;
 use orchbee_workbench_client::test_support::machine_picker::PickerSourceTestAccess;
 use orchbee_workbench_client::test_support::machine_picker::PickerTestAccess;
+use orchbee_workbench_client::test_support::terminal_graphics::ProbeTestAccess;
 use orchbee_workbench_client::test_support::tui_graphics::SurfaceTestAccess;
 use orchbee_workbench_client::test_support::tui_layout::DividerDragTestAccess;
 use orchbee_workbench_client::test_support::tui_layout::DividerSource;
@@ -28,6 +29,7 @@ use orchbee_workbench_client::test_support::tui_pointer::InteractionTarget;
 use orchbee_workbench_client::test_support::tui_pointer::MotionObservability;
 use orchbee_workbench_client::test_support::tui_pointer::PointerOutcome;
 use orchbee_workbench_client::test_support::tui_pointer::PointerState;
+use orchbee_workbench_client::test_support::tui_pointer::PointerStateTestAccess;
 use orchbee_workbench_client::test_support::tui_pointer::PrimaryContract;
 use orchbee_workbench_client::test_support::tui_pointer::ProjectedPointer;
 use orchbee_workbench_protocol::{

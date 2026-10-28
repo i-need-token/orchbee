@@ -1460,7 +1460,7 @@ pub struct PointerState {
 
 impl PointerState {
     /// Immutable transient facts used throughout one candidate render.
-    pub fn projection(&self) -> PointerProjection {
+    pub(crate) fn projection(&self) -> PointerProjection {
         let projection = self
             .interactions
             .projection()
@@ -1470,7 +1470,7 @@ impl PointerState {
 
     /// Applies the settled outer-transport motion level. Downgrade clears
     /// position and click authority before later input can be admitted.
-    pub fn set_motion_observability(&mut self, observability: MotionObservability) {
+    pub(crate) fn set_motion_observability(&mut self, observability: MotionObservability) {
         if self.motion_observability == observability {
             return;
         }
@@ -1501,7 +1501,7 @@ impl PointerState {
         }
     }
 
-    pub fn take_projection_redraw(&mut self) -> bool {
+    pub(crate) fn take_projection_redraw(&mut self) -> bool {
         let interaction = self.interactions.take_redraw_after_publish();
         let modal = self.take_modal_projection_redraw();
         let chrome = self.chrome_projection.take_redraw_after_publish();
@@ -2169,7 +2169,7 @@ impl PointerState {
     /// The lifecycle write succeeded — the flag mirrors the armed state.
     /// Releasing is immediate: in-flight gestures and the wheel stream
     /// die so nothing reaches a pane after the host stops reporting.
-    pub fn set_capture(&mut self, enabled: bool) {
+    pub(crate) fn set_capture(&mut self, enabled: bool) {
         if !enabled {
             self.cancel_list_scroll();
             self.cancel_modal_press();
@@ -2220,7 +2220,7 @@ impl PointerState {
 
     /// The draw completed — the recorded map becomes the resolution
     /// authority until the next layout change.
-    pub fn publish(&mut self, map: FrameHitMap) {
+    pub(crate) fn publish(&mut self, map: FrameHitMap) {
         if self
             .copy_drag
             .as_ref()
@@ -2341,7 +2341,10 @@ impl PointerState {
 
     /// Cancels an admitted start before a structural invalidation clears
     /// the recorded map and press-time state.
-    pub fn invalidate_map_with_port(&mut self, port: &mut (impl TerminalInputPort + ?Sized)) {
+    pub(crate) fn invalidate_map_with_port(
+        &mut self,
+        port: &mut (impl TerminalInputPort + ?Sized),
+    ) {
         self.cancel_selection(port);
         self.invalidate_map();
     }
@@ -2365,7 +2368,7 @@ impl PointerState {
     /// dispatcher to run the same viewport-sync path a keyboard action
     /// would; `RegionsChanged` additionally marks the recorded map stale
     /// — the gesture the event belongs to is untouched either way.
-    pub fn event<Port: TerminalInputPort + ?Sized>(
+    pub(crate) fn event<Port: TerminalInputPort + ?Sized>(
         &mut self,
         view: &mut ClientView,
         port: &mut Port,
@@ -3806,6 +3809,55 @@ pub trait InteractionSpecTestAccess {
 impl InteractionSpecTestAccess for InteractionSpec {
     fn enabled(primary: PrimaryContract) -> Self {
         InteractionSpec::enabled(primary)
+    }
+}
+
+/// Crate-internal `PointerState` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait PointerStateTestAccess {
+    fn projection(&self) -> PointerProjection;
+    fn set_motion_observability(&mut self, observability: MotionObservability);
+    fn take_projection_redraw(&mut self) -> bool;
+    fn set_capture(&mut self, enabled: bool);
+    fn publish(&mut self, map: FrameHitMap);
+    fn invalidate_map_with_port<Port: TerminalInputPort + ?Sized>(&mut self, port: &mut Port);
+    fn event<Port: TerminalInputPort + ?Sized>(
+        &mut self,
+        view: &mut ClientView,
+        port: &mut Port,
+        now: Instant,
+        event: MouseEvent,
+    ) -> PointerOutcome;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl PointerStateTestAccess for PointerState {
+    fn projection(&self) -> PointerProjection {
+        PointerState::projection(self)
+    }
+    fn set_motion_observability(&mut self, observability: MotionObservability) {
+        PointerState::set_motion_observability(self, observability);
+    }
+    fn take_projection_redraw(&mut self) -> bool {
+        PointerState::take_projection_redraw(self)
+    }
+    fn set_capture(&mut self, enabled: bool) {
+        PointerState::set_capture(self, enabled);
+    }
+    fn publish(&mut self, map: FrameHitMap) {
+        PointerState::publish(self, map);
+    }
+    fn invalidate_map_with_port<Port: TerminalInputPort + ?Sized>(&mut self, port: &mut Port) {
+        PointerState::invalidate_map_with_port(self, port);
+    }
+    fn event<Port: TerminalInputPort + ?Sized>(
+        &mut self,
+        view: &mut ClientView,
+        port: &mut Port,
+        now: Instant,
+        event: MouseEvent,
+    ) -> PointerOutcome {
+        PointerState::event(self, view, port, now, event)
     }
 }
 
