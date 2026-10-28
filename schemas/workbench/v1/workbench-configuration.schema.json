@@ -88,7 +88,8 @@
 				"agentSidebarProfile",
 				"spacesSidebarProfile",
 				"focusNewPanel",
-				"worktreesDirectory"
+				"worktreesDirectory",
+				"newCwd"
 			],
 			"additionalProperties": false,
 			"properties": {
@@ -136,7 +137,20 @@
 					"type": ["string", "null"],
 					"minLength": 1,
 					"maxLength": 4096,
-					"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
+					"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000-\\u001f\\u007f-\\u009f]*$",
+					"$comment": "Bindings additionally enforce the 4096-byte UTF-8 limit."
+				},
+				"newCwd": {
+					"type": "string",
+					"anyOf": [
+						{
+							"enum": ["follow", "home", "current", "workspace"]
+						},
+						{
+							"maxLength": 4096,
+							"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000-\\u001f\\u007f-\\u009f]*$"
+						}
+					],
 					"$comment": "Bindings additionally enforce the 4096-byte UTF-8 limit."
 				}
 			}

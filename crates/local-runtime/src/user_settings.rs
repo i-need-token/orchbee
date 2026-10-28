@@ -608,7 +608,10 @@ fn normalize(
         };
         Ok(PathBuf::from(parent))
     })
-    .map_err(|_| SettingsError::new(field, "invalid-path"))
+    .ok()
+    // The Session publishes only paths every creation consumer admits.
+    .filter(|value| orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(value).is_ok())
+    .ok_or(SettingsError::new(field, "invalid-path"))
 }
 
 #[cfg(test)]

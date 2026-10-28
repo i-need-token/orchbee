@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn explicit_creation_wins_over_shared_file_policy() {
+fn config_check_projects_file_creation_defaults() {
     let settings = project(UserSettingsLoad {
         settings: UserSettings {
             cwd: Some((DirectoryPolicy::Explicit, Some(r"C:\项目".into()))),
@@ -11,17 +11,8 @@ fn explicit_creation_wins_over_shared_file_policy() {
         diagnostics: SettingsDiagnostics::default(),
     })
     .unwrap();
-    let mut directory = CreationDirectory::Default;
-    let mut options = LaunchOptions::default();
-    settings.apply_directory(&mut directory, &mut options);
-    assert_eq!(directory, CreationDirectory::Explicit);
-    assert_eq!(options.cwd.as_ref().unwrap().as_str(), r"C:\项目");
-    directory = CreationDirectory::Current;
-    options.cwd = None;
-    settings.apply_directory(&mut directory, &mut options);
-    assert_eq!(directory, CreationDirectory::Current);
-    assert!(options.cwd.is_none());
     let details = settings.check_details();
+    assert_eq!(details["newCwd"], r"C:\项目");
     assert_eq!(details["worktreeDirectory"], r"C:\worktrees");
 }
 

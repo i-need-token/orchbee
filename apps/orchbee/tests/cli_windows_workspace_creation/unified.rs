@@ -27,6 +27,7 @@ fn ordinary_and_no_focus_forms_submit_one_first_terminal_launch() {
             let (status, doc) = run(&args, (None, None), move |mut stream| {
                 snapshot(&mut stream, state(1, false, false, 12));
                 if !explicit_cwd {
+                    configuration_reply(&mut stream, "follow", None);
                     clients(&mut stream, vec![]);
                 }
                 assert!(launch_named(&mut stream, &expected, "pending", "manual"));
@@ -103,6 +104,7 @@ fn ordinary_follow_checks_caller_before_any_creation() {
         (Some("invalid-secret"), None),
         |mut stream| {
             snapshot(&mut stream, state(1, false, false, 12));
+            configuration_reply(&mut stream, "follow", None);
             assert_closed(&mut stream);
         },
     );

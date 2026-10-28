@@ -24,6 +24,7 @@ fn snapshot(revision: u64, profile: &str) -> ConfigurationSnapshot {
         manifest_check: true,
         focus_new_panel: true,
         worktrees_directory: None,
+        new_cwd: "follow".into(),
     }
 }
 

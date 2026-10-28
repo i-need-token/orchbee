@@ -4,7 +4,7 @@ use crate::peer_support as support;
 use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_workbench_protocol::*;
 use serde_json::{Value, json};
-use support::{Fixture, assert_closed, peer, validate};
+use support::{Fixture, assert_closed, configuration_reply, peer, validate};
 
 #[test]
 fn channel_set_persists_before_failed_update_and_never_activates_a_session() {
@@ -382,25 +382,18 @@ fn snapshot(stream: &mut LocalStream, project: bool) {
 }
 
 #[test]
-fn file_level_or_missing_explicit_configuration_stops_every_creation_before_ipc() {
+fn file_level_configuration_errors_fail_the_offline_check_but_never_creation() {
     let fixture = Fixture::new();
+    std::fs::create_dir_all(fixture.0.join("runtime")).unwrap();
     let config = fixture.0.join("config.toml");
-    let schema = include_str!("../src/cli/schemas/orchbee.cli.failure.configuration.json");
     let check_schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
-    for (bytes, reason) in [
-        (vec![b'a'; 65537], "too-large"),
-        (vec![0xff], "invalid-utf8"),
-        (
-            b"[terminal]\nnew_cwd='home'\nnew_cwd='follow'".to_vec(),
-            "invalid-toml",
-        ),
-    ] {
-        std::fs::write(&config, bytes).unwrap();
+    let check = |reason: &str| {
+        let environment = [("ORCHBEE_CONFIG_FILE", config.as_os_str())];
         let checked = fixture.run_with_env(
             &["config", "check", "--format=json"],
             None,
             None,
-            &[("ORCHBEE_CONFIG_FILE", config.as_os_str())],
+            &environment,
         );
         assert_eq!(checked.status.code(), Some(1));
         let checked = document(checked);
@@ -412,8 +405,9 @@ fn file_level_or_missing_explicit_configuration_stops_every_creation_before_ipc(
             checked["result"]["checks"][5]["details"],
             json!({"field": "file", "reason": reason})
         );
+        // Creation never reads the file: it proceeds to the Session, which is absent here.
         for args in [
-            vec!["workspace", "create", "--cwd=C:/explicit", "--format=json"],
+            vec!["workspace", "create", "--format=json"],
             vec!["tab", "create", "--workspace", "Workspace", "--format=json"],
             vec![
                 "panel",
@@ -424,72 +418,37 @@ fn file_level_or_missing_explicit_configuration_stops_every_creation_before_ipc(
             ],
             vec!["worktree", "create", "--cwd=C:/repo", "--format=json"],
         ] {
-            let output = fixture.run_with_env(
-                &args,
-                None,
-                None,
-                &[("ORCHBEE_CONFIG_FILE", config.as_os_str())],
-            );
+            let output = fixture.run_with_env(&args, None, None, &environment);
             assert_eq!(
                 output.status.code(),
-                Some(1),
-                "{args:?}: {}",
+                Some(4),
+                "{args:?}: {} {}",
+                String::from_utf8_lossy(&output.stdout),
                 String::from_utf8_lossy(&output.stderr)
             );
-            assert!(!String::from_utf8_lossy(&output.stderr).contains("DO-NOT-ECHO"));
             let doc = document(output);
-            validate(&doc, schema);
-            assert_eq!(doc["failure"]["details"]["reason"], reason);
+            assert_eq!(
+                doc["failure"]["kind"], "service-unavailable",
+                "{args:?}: {doc}"
+            );
         }
+    };
+    for (bytes, reason) in [
+        (vec![b'a'; 65537], "too-large"),
+        (vec![0xff], "invalid-utf8"),
+        (
+            b"[terminal]\nnew_cwd='home'\nnew_cwd='follow'".to_vec(),
+            "invalid-toml",
+        ),
+    ] {
+        std::fs::write(&config, bytes).unwrap();
+        check(reason);
     }
     std::fs::remove_file(&config).unwrap();
-    let doc = document(fixture.run_with_env(
-        &["workspace", "create", "--format=json"],
-        None,
-        None,
-        &[("ORCHBEE_CONFIG_FILE", config.as_os_str())],
-    ));
-    validate(&doc, schema);
-    assert_eq!(doc["failure"]["details"]["reason"], "missing");
+    check("missing");
     assert!(!config.exists());
-
-    let checked = fixture.run_with_env(
-        &["config", "check", "--format=json"],
-        None,
-        None,
-        &[("ORCHBEE_CONFIG_FILE", config.as_os_str())],
-    );
-    assert_eq!(checked.status.code(), Some(1));
-    let checked = document(checked);
-    validate(&checked, check_schema);
-    assert_eq!(checked["result"]["checks"][5]["status"], "fail");
-    assert_eq!(
-        checked["result"]["checks"][5]["details"],
-        json!({"field": "file", "reason": "missing"})
-    );
-
     std::fs::create_dir(&config).unwrap();
-    let doc = document(fixture.run_with_env(
-        &["workspace", "create", "--format=json"],
-        None,
-        None,
-        &[("ORCHBEE_CONFIG_FILE", config.as_os_str())],
-    ));
-    validate(&doc, schema);
-    assert_eq!(doc["failure"]["details"]["reason"], "not-file");
-    let checked = fixture.run_with_env(
-        &["config", "check", "--format=json"],
-        None,
-        None,
-        &[("ORCHBEE_CONFIG_FILE", config.as_os_str())],
-    );
-    assert_eq!(checked.status.code(), Some(1));
-    let checked = document(checked);
-    validate(&checked, check_schema);
-    assert_eq!(
-        checked["result"]["checks"][5]["details"],
-        json!({"field": "file", "reason": "not-file"})
-    );
+    check("not-file");
     std::fs::remove_dir(&config).unwrap();
 }
 
@@ -641,7 +600,7 @@ fn config_check_validates_current_key_policy() {
 }
 
 #[test]
-fn workspace_tab_and_panel_creation_apply_persistent_cwd_and_allow_override() {
+fn workspace_tab_and_panel_creation_apply_the_session_cwd_and_allow_override() {
     for (args, expected) in [
         (
             vec!["workspace", "create", "--format=json"],
@@ -668,13 +627,16 @@ fn workspace_tab_and_panel_creation_apply_persistent_cwd_and_allow_override() {
     ] {
         let fixture = Fixture::new();
         let config = fixture.0.join("config.toml");
-        std::fs::write(&config, "[terminal]\nnew_cwd='C:/configured'").unwrap();
+        std::fs::write(&config, "[terminal]\nnew_cwd='C:/file-only'").unwrap();
         let rendezvous = fixture.rendezvous();
         let handler = peer(
             &fixture,
             LocalListener::bind(rendezvous.client_socket_path()).unwrap(),
             move |mut stream| {
                 snapshot(&mut stream, true);
+                if expected == "C:/configured" {
+                    configuration_reply(&mut stream, "C:/configured", None);
+                }
                 let WorkbenchRequest::Command(request) =
                     read_workbench_request(&mut stream).unwrap()
                 else {
@@ -720,7 +682,7 @@ fn configured_checkout_query_precedes_setup_and_explicit_path_skips_it() {
     for mode in ["configured", "generated", "explicit", "query-failed"] {
         let fixture = Fixture::new();
         let config = fixture.0.join("config.toml");
-        std::fs::write(&config, "[worktrees]\ndirectory='C:/configured'").unwrap();
+        std::fs::write(&config, "[worktrees]\ndirectory='C:/file-only'").unwrap();
         let rendezvous = fixture.rendezvous();
         let handler = peer(
             &fixture,
@@ -728,6 +690,7 @@ fn configured_checkout_query_precedes_setup_and_explicit_path_skips_it() {
             move |mut stream| {
                 snapshot(&mut stream, mode != "query-failed");
                 if mode != "explicit" {
+                    configuration_reply(&mut stream, "follow", Some("C:/configured"));
                     let WorkbenchRequest::WorktreeQuery(request) =
                         read_workbench_request(&mut stream).unwrap()
                     else {

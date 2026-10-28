@@ -783,6 +783,46 @@ pub(super) fn assert_closed_for(stream: &mut LocalStream, context: &str) {
 pub(super) fn bound_snapshot_reply(stream: &mut LocalStream) {
     bound_snapshot_at(stream, 9);
 }
+/// Answers the Session configuration read that precedes creation with an omitted directory.
+#[allow(
+    dead_code,
+    reason = "Shared integration fixture helpers are consumed by separate test crate owners."
+)]
+pub(super) fn configuration_reply(
+    stream: &mut LocalStream,
+    new_cwd: &str,
+    worktrees_directory: Option<&str>,
+) {
+    use orchbee_workbench_protocol::*;
+    let WorkbenchRequest::Configuration(request) = read_workbench_request(stream).unwrap() else {
+        panic!("Session configuration read");
+    };
+    assert_eq!(request.action, ConfigurationAction::Current);
+    write_workbench_response(
+        stream,
+        &WorkbenchResponse::Configuration(ConfigurationResult {
+            protocol_version: ProtocolVersion,
+            request_id: request.request_id,
+            session_id: request.session_id,
+            outcome: ConfigurationOutcome::Current {
+                snapshot: ConfigurationSnapshot {
+                    revision: WorkbenchRevision::new(0),
+                    diagnostics: ConfigurationDiagnostics::default(),
+                    keys_profile: "[keys]".into(),
+                    window_title: String::new(),
+                    notification_profile: "[ui.toast]".into(),
+                    agent_sidebar_profile: "{}".into(),
+                    spaces_sidebar_profile: "{}".into(),
+                    manifest_check: true,
+                    focus_new_panel: true,
+                    worktrees_directory: worktrees_directory.map(Into::into),
+                    new_cwd: new_cwd.into(),
+                },
+            },
+        }),
+    )
+    .unwrap();
+}
 pub(super) fn bound_snapshot(revision: u64) -> orchbee_workbench_protocol::Snapshot {
     use orchbee_workbench_protocol::parse_snapshot;
     let document = json!({

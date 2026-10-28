@@ -51,6 +51,7 @@ const configurationResult = (notificationProfile: string) => ({
 			manifestCheck: true,
 			focusNewPanel: true,
 			worktreesDirectory: null,
+			newCwd: 'follow',
 		},
 	},
 });
@@ -89,6 +90,7 @@ describe('Session configuration publication', () => {
 			manifestCheck: true,
 			focusNewPanel: true,
 			worktreesDirectory: null,
+			newCwd: 'follow',
 		};
 		const document = {
 			kind: 'workbench.configuration.result',
@@ -122,6 +124,7 @@ describe('Session configuration publication', () => {
 						manifestCheck: true,
 						focusNewPanel: true,
 						worktreesDirectory: null,
+						newCwd: 'follow',
 					},
 				},
 			}).success,

@@ -33,6 +33,7 @@ fn configuration_roundtrips_have_distinct_carrier_kinds_and_exact_correlation() 
                 manifest_check: true,
                 focus_new_panel: true,
                 worktrees_directory: Some("C:/trees".into()),
+                new_cwd: "C:/项目".into(),
                 notification_profile: "[ui.toast]\ndelivery='off'\n".into(),
                 agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
                 spaces_sidebar_profile: r#"{"rows":[],"row_gap":0}"#.into(),
@@ -56,12 +57,31 @@ fn configuration_roundtrips_have_distinct_carrier_kinds_and_exact_correlation() 
         read_workbench_response(&mut bytes.as_slice()).unwrap(),
         WorkbenchResponse::Configuration(result.clone())
     );
-    for path in [String::new(), "C:/\u{7}trees".into(), "x".repeat(4097)] {
-        let mut invalid = result.clone();
-        if let ConfigurationOutcome::Reloaded { snapshot, .. } = &mut invalid.outcome {
-            snapshot.worktrees_directory = Some(path);
+    for path in [
+        String::new(),
+        "C:/\u{7}trees".into(),
+        format!("C:/{}", "x".repeat(4094)),
+        "trees".into(),
+        r"\\?\C:".into(),
+    ] {
+        for new_cwd in [false, true] {
+            let mut invalid = result.clone();
+            if let ConfigurationOutcome::Reloaded { snapshot, .. } = &mut invalid.outcome {
+                if new_cwd {
+                    snapshot.new_cwd = path.clone();
+                } else {
+                    snapshot.worktrees_directory = Some(path.clone());
+                }
+            }
+            assert!(invalid.validate().is_err(), "{path:?}");
         }
-        assert!(invalid.validate().is_err());
+    }
+    for new_cwd in ["follow", "home", "current", "workspace", "/srv/project"] {
+        let mut valid = result.clone();
+        if let ConfigurationOutcome::Reloaded { snapshot, .. } = &mut valid.outcome {
+            snapshot.new_cwd = new_cwd.into();
+        }
+        assert!(valid.validate().is_ok(), "{new_cwd}");
     }
 }
 #[test]
@@ -95,6 +115,7 @@ fn configuration_rejects_unknown_fields_oversize_and_invalid_failure_shapes() {
             manifest_check: false,
             focus_new_panel: true,
             worktrees_directory: None,
+            new_cwd: "follow".into(),
             window_title: "{hostname}: {workspace}".into(),
         },
     };
@@ -208,6 +229,7 @@ fn configuration_notification_profile_has_a_closed_16_kib_wire_bound() {
                 manifest_check: true,
                 focus_new_panel: true,
                 worktrees_directory: None,
+                new_cwd: "follow".into(),
                 window_title: String::new(),
             },
         },
@@ -241,6 +263,7 @@ fn configuration_frame_fits_both_bounded_escaped_profiles_and_checks_header_befo
                 manifest_check: true,
                 focus_new_panel: true,
                 worktrees_directory: None,
+                new_cwd: "follow".into(),
             },
         },
     });

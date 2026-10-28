@@ -1,4 +1,4 @@
-//! CLI settings preparation and reporting after configuration capability admission.
+//! Offline `config check` projection of `config.toml`; creation reads the Session snapshot instead.
 use super::{Failure, FailureKind};
 use crate::invocation::CreationDirectory;
 #[cfg(test)]
@@ -6,7 +6,7 @@ use orchbee_local_runtime::UserSettings;
 use orchbee_local_runtime::{
     DirectoryPolicy, SettingsDiagnostics, SettingsError, UserSettingsLoad, read_user_settings,
 };
-use orchbee_workbench_protocol::{LaunchOptions, WorkbenchDirectoryPath};
+use orchbee_workbench_protocol::WorkbenchDirectoryPath;
 use std::path::PathBuf;
 
 #[derive(Debug)]
@@ -18,8 +18,8 @@ pub(super) struct Settings {
     keys: orchbee_local_runtime::KeySettings,
     pub(super) path: Option<PathBuf>,
     pub(super) exists: bool,
-    pub(super) cwd: Option<(CreationDirectory, Option<WorkbenchDirectoryPath>)>,
-    pub(super) worktree_root: Option<WorkbenchDirectoryPath>,
+    cwd: Option<(CreationDirectory, Option<WorkbenchDirectoryPath>)>,
+    worktree_root: Option<WorkbenchDirectoryPath>,
     manifest_check: bool,
     manifest_check_source: &'static str,
     pub(super) diagnostics: SettingsDiagnostics,
@@ -98,18 +98,6 @@ fn project(load: UserSettingsLoad) -> Result<Settings, Error> {
 }
 
 impl Settings {
-    pub(super) fn apply_directory(
-        &self,
-        directory: &mut CreationDirectory,
-        options: &mut LaunchOptions,
-    ) {
-        if *directory == CreationDirectory::Default
-            && let Some((policy, path)) = &self.cwd
-        {
-            *directory = *policy;
-            options.cwd = path.clone();
-        }
-    }
     pub(super) fn check_details(&self) -> serde_json::Map<String, serde_json::Value> {
         let mut details = serde_json::Map::from_iter([
             (

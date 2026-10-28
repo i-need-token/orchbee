@@ -2836,7 +2836,7 @@ Hermes adds Windows plugin activation and content-free session observation. Its 
 
 ## Windows persistent creation defaults
 
-[Windows CLI configuration](windows-cli-configuration.md) owns the bounded TOML reader, `ORCHBEE_CONFIG_FILE`, `[terminal] new_cwd`, `[worktrees] directory`, and precedence before any creation effect. Windows `config check` v1 preserves five runtime checks and adds `user-config`. `orchbee.cli.failure.configuration` v1 reports bounded preparation errors. The offline catalog lists the current documents and command paths.
+[Windows CLI configuration](windows-cli-configuration.md) owns the bounded TOML reader, `ORCHBEE_CONFIG_FILE`, `[terminal] new_cwd`, `[worktrees] directory`, and precedence before any creation effect; creation takes those defaults from the Session's published configuration snapshot. Windows `config check` v1 preserves five runtime checks and adds `user-config`. `orchbee.cli.failure.configuration` v1 reports bounded preparation errors. The offline catalog lists the current documents and command paths.
 
 The current Windows `config check` v1 keeps fatal file and environment admission as `fail`/exit 1 and reports admitted field fallbacks as `warning` with `ok:true`/exit 0. Its bounded `diagnostics` and exact `diagnosticsOmitted` count follow the current closed contract. `server config`/`server reload-config` v1 carry the same admitted warning record in each successful snapshot. The embedded schema catalog is v1.
 

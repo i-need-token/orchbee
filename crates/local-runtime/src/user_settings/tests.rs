@@ -174,6 +174,11 @@ fn parsed_field_failures_warn_without_exposing_values_and_duplicate_toml_is_fata
         ("terminal = 2", "terminal", "wrong-type"),
         ("[terminal]\nnew_cwd = 5", "terminal.new_cwd", "wrong-type"),
         (
+            "[terminal]\nnew_cwd = '\\\\?\\C:'",
+            "terminal.new_cwd",
+            "invalid-path",
+        ),
+        (
             "[worktrees]\ndirectory = ''",
             "worktrees.directory",
             "invalid-path",

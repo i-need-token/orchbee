@@ -8,7 +8,7 @@ mod peer_support;
 use cohort_fixture::CohortFixture as Fixture;
 use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_workbench_protocol::*;
-use peer_support::{assert_closed, peer, validate};
+use peer_support::{assert_closed, configuration_reply, peer, validate};
 use serde_json::{Value, json};
 
 #[test]
@@ -240,6 +240,7 @@ fn workflow(
     cut: Cut,
 ) {
     snapshot_reply(stream, snapshot(false, split));
+    configuration_reply(stream, "follow", None);
     if listed {
         let request = view_request(stream);
         assert!(matches!(request.action, ClientViewAction::List {}));
@@ -385,6 +386,7 @@ fn creation_client_preflight_refuses_missing_ambiguous_and_unready_before_mutati
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
             snapshot_reply(&mut stream, snapshot(false, false));
+            configuration_reply(&mut stream, "follow", None);
             let request = view_request(&mut stream);
             assert!(matches!(request.action, ClientViewAction::List {}));
             let mut clients = vec![];
@@ -430,6 +432,7 @@ fn first_tab_focus_drives_refresh_from_an_unchanged_empty_client() {
         let mut empty = snapshot(false, false);
         empty.terminal_contexts[0].tabs.clear();
         snapshot_reply(&mut stream, empty);
+        configuration_reply(&mut stream, "follow", None);
         let mut current = record(false, false, false);
         current["view"]["selection"] = json!({"terminalContextId":id(4),"tabId":null,"panelId":null,"panelCount":0,"zoomed":false});
         let list = view_request(&mut stream);

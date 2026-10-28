@@ -2,7 +2,7 @@
 
 ## 文件与校验
 
-Windows CLI 创建操作读取 `APPDATA/Orchbee/config.toml`，或 `ORCHBEE_CONFIG_FILE` 指定的绝对文件路径。默认文件不存在时保持默认行为；显式文件不存在则报错。位置变量无效或为空、文件无法读取、目标是目录、文件超过 64 KiB、UTF-8/TOML 无效，均在创建前构成致命错误。成功解析的文档逐字段接纳：非法的受支持叶字段使用已有安全默认值，非法 profile 使用该 profile 的已有安全默认值，未知字段则忽略。读取器将每次回退作为警告报告，且不回显值或命令。读取和检查不会创建配置目录或文件。
+Orchbee 读取 `APPDATA/Orchbee/config.toml`，或 `ORCHBEE_CONFIG_FILE` 指定的绝对文件路径。运行中 Session 的 Server 在启动、重载以及采样器发现变化时读取它；`config check` 离线读取它。创建命令从不读取它。默认文件不存在时保持默认行为；显式文件不存在则报错。位置变量无效或为空、文件无法读取、目标是目录、文件超过 64 KiB、UTF-8/TOML 无效，均是遇到它们的那次读取的致命错误。成功解析的文档逐字段接纳：非法的受支持叶字段使用已有安全默认值，非法 profile 使用该 profile 的已有安全默认值，未知字段则忽略。读取器将每次回退作为警告报告，且不回显值或命令。读取和检查不会创建配置目录或文件。
 
 ```toml
 [terminal]
@@ -19,7 +19,7 @@ manifest_check = true
 
 只有本文记录的配置段和键会影响 Orchbee，包括下文的 `[keys]` 与 `[ui]` 配置族。未知配置段、字段和动作会警告并忽略；加载配置绝不会启用插件、安装 Provider 或运行配置命令。
 
-`terminal.new_cwd` 接受 `follow`、`home`、`current`、`workspace` 或路径。空值表示 `follow`。路径使用 Windows CLI 路径适配器：相对路径基于配置文件父目录，波浪线路径使用 Windows 主目录，拒绝有歧义的驱动器相对路径、UNC 和设备路径。非法路径仅让该叶字段回退。缺少 `APPDATA` 时仍可使用默认值；显式值无效时不会静默回退。
+`terminal.new_cwd` 接受 `follow`、`home`、`current`、`workspace` 或路径。空值表示 `follow`。路径使用 Windows CLI 路径适配器：相对路径基于配置文件父目录，波浪线路径使用 Windows 主目录，拒绝有歧义的驱动器相对路径、UNC 和设备路径。路径还必须是 workbench 目录路径，因此 `\\?\C:` 这类裸 verbatim 驱动器无效；`worktrees.directory` 适用相同规则。非法路径仅让该叶字段回退。缺少 `APPDATA` 时仍可使用默认值；显式值无效时不会静默回退。
 
 警告使用有界的规范原因语法和封闭的处置词汇，只携带有界的规范点分字段路径。警告按字段和原因去重、排序。一份结果最多携带 128 条警告及精确的省略数量，因此截断始终可见。未知路径段会转义并在 UTF-8 边界截短；不同原始字段在显示截短前去重。
 
@@ -42,20 +42,22 @@ manifest_check = true
 | 输入                                 | 结果                                                                              |
 | ------------------------------------ | --------------------------------------------------------------------------------- |
 | 显式 CLI cwd 或 worktree 路径        | 覆盖对应的有效配置                                                                |
-| Workspace、Tab 或 Panel 创建省略 cwd | 应用 `terminal.new_cwd`，随后执行已有的来源目录策略                               |
-| 已配置根目录且省略 worktree 路径     | 在任何 Project 或 Git 修改前查询来源仓库，选择 `root/repository-name/branch-slug` |
-| 未配置根目录                         | 保持已有的同级检出路径                                                            |
+| Workspace、Tab 或 Panel 创建省略 cwd | 应用 Session 已发布的 `terminal.new_cwd`，随后执行已有的来源目录策略              |
+| 已发布根目录且省略 worktree 路径     | 在任何 Project 或 Git 修改前查询来源仓库，选择 `root/repository-name/branch-slug` |
+| 未发布根目录                         | 保持已有的同级检出路径                                                            |
 | Resume                               | 使用操作已保留的路径和分支，不重新加载配置                                        |
 
-分支目录名将 ASCII 字母转为小写，将连续非字母数字字符压缩为一个连字符，去掉首尾连字符，空结果使用 `worktree`。自动分支仍为 `worktree/<operation-id>`，并固定在提交意图中。只读仓库查询与创建使用相同来源和信任策略。Server 仍复核来源并独占所有 Git 和规范 Workspace 副作用；查询不构成文件系统事务。显式路径省去额外查询。每次调用只读一次配置，并在应用显式覆盖前完成校验。
+分支目录名将 ASCII 字母转为小写，将连续非字母数字字符压缩为一个连字符，去掉首尾连字符，空结果使用 `worktree`。自动分支仍为 `worktree/<operation-id>`，并固定在提交意图中。只读仓库查询与创建使用相同来源和信任策略。Server 仍复核来源并独占所有 Git 和规范 Workspace 副作用；查询不构成文件系统事务。显式路径省去额外查询。
+
+创建从运行中的 Session 读取默认值，而不是从文件读取。省略 cwd 或检出路径的 Workspace、Tab、Panel 或 Worktree 创建，在 Session 快照读取之后、任何其他请求之前，读取一次当前配置快照（`workbench.configuration` `current`），并应用 `newCwd` 或 `worktreesDirectory`。显式 cwd 或检出路径跳过这次读取，插件窗格从不应用 `newCwd`。忙碌回复会在命令截止时间内重试；拒绝、不可用或 Session 不匹配的回复会在任何副作用前停止命令。因此配置错误归 Server 报告：致命文件拒绝 Session 启动，致命修改保留最后发布的快照并使 `server reload-config` 失败，字段回退以快照诊断和 Client 警告呈现。磁盘上损坏的文件不再让创建失败；创建继续使用最后发布的值，没有运行中的 Session 时以 `service-unavailable` 失败。
 
 创建设置作用于 Windows CLI 创建。旧的显式空 Workspace 命令、TUI 直接创建、既有终端、Server 配置重载和键位仍由各自契约约束；所有创建入口都从下述共享启动配置获取默认程序。
 
 ## 检查与正确性
 
-Windows `config check` 版本 1 为 `user-config` 检查增加已接纳的警告列表和省略数量。带警告的结果使用 `warning` 状态，整体文档仍成功并以 0 退出。致命文件或环境接纳错误使用 `fail` 状态并以 1 退出。检查报告选定文件、存在状态和规范化有效配置，文本输出以一行 `Config file:` 结尾，以可复制路径给出该文件；致命的创建配置继续使用独立的 `orchbee.cli.failure.configuration` 信封。来源发现失败会在首个 Project 创建前停止配置路径创建，不重试修改。
+Windows `config check` 版本 1 为 `user-config` 检查增加已接纳的警告列表和省略数量。带警告的结果使用 `warning` 状态，整体文档仍成功并以 0 退出。致命文件或环境接纳错误使用 `fail` 状态并以 1 退出。检查报告选定文件、存在状态和规范化有效配置，文本输出以一行 `Config file:` 结尾，以可复制路径给出该文件；独立的 `orchbee.cli.failure.configuration` 信封仍用于 Session 激活、`channel show` 和配置检出失败，但不再用于创建期间的文件错误。来源发现失败会在首个 Project 创建前停止配置路径创建，不重试修改。
 
-共享 Windows 设置读取器拥有有界文件检查、确定性的逐字段接纳和规范化；创建流程拥有优先级及已有副作用回执。读取没有写入器或可变缓存状态；下述显式恢复操作负责配置修复。核心证据覆盖格式错误和重复 TOML、字段局部回退、稳定且有界的警告、相对及波浪线路径、覆盖优先级和目录名向量。Windows 公开 IPC 轨迹覆盖有效启动 cwd、配置检出意图、发现失败后无修改、显式路径不查询及无文件时行为不变。完整应用验收为独立关卡。
+共享 Windows 设置读取器拥有有界文件检查、确定性的逐字段接纳和规范化；创建流程拥有优先级及已有副作用回执。读取没有写入器或可变缓存状态；下述显式恢复操作负责配置修复。核心证据覆盖格式错误和重复 TOML、字段局部回退、稳定且有界的警告、相对及波浪线路径、覆盖优先级和目录名向量。Windows 公开 IPC 轨迹覆盖已发布的启动 cwd 和检出根目录优先于文件、显式覆盖不读取配置、发现失败后无修改，以及文件错误使 `config check` 失败但不影响创建。完整应用验收为独立关卡。
 
 ## 规则更新策略
 
@@ -223,7 +225,7 @@ Server 提交已支持的在线 manifest-check 策略，并向连接中的主 TU
 优先用于首次启动显示；该提示消除后，配置警告会重新显示，而且不会阻止 Agent 通知卡片。重载失败保留现有设置和警告记录，并显示
 本地化失败提示。重载动作可通过 `reload_config` 配置。原生默认是前缀 F5；前缀 Shift+R 是原生已有的 Project 重命名默认键位。配置 `reload_config = "prefix+shift+r"` 会明确替换该冲突默认。
 
-CLI 目录及 worktree 默认值由下一次调用读取。其他配置族与 Client 专属 profile 策略仍未完成。线协议按键 profile 上限为 64 KiB；每动作最多 144 个展开触发项，保留用户文件中 16 个索引候选项的上限。可取消状态订阅使用共享 Client carrier，发布最新已提交配置。Reload 保留为两秒交换上限的一次性请求；结果未知时不重放，由新订阅恢复当前状态。重载成功表示状态已发布，不代表每个 Client 都已应用。
+CLI 创建应用其运行时已发布的目录及 worktree 默认值。其他配置族与 Client 专属 profile 策略仍未完成。线协议按键 profile 上限为 64 KiB；每动作最多 144 个展开触发项，保留用户文件中 16 个索引候选项的上限。可取消状态订阅使用共享 Client carrier，发布最新已提交配置。Reload 保留为两秒交换上限的一次性请求；结果未知时不重放，由新订阅恢复当前状态。重载成功表示状态已发布，不代表每个 Client 都已应用。
 
 不引入持久配置迁移或自动重试。确定性测试覆盖临时启动、首次完整应用、致命失败保留、原子 settings/diagnostic 代次、后续单调应用及警告发布/清除。连接测试覆盖传播，不假设交付公平性。授权、有界序列化、无变化重载及退出仍是实现义务。设置提交/发布核心的范围更窄，只涉及 writer/CAS，不证明整个重载流程。
 
@@ -341,4 +343,4 @@ Git 在所属 Worker 上读取已提交的 Workspace 目录，显示相对本地
 
 `terminal.focus_new_panel` 接受布尔值，默认为 `true`。原生 Client 分屏选中刚提交的新窗格；`false` 保留原窗格。Client 从每次发布的配置快照应用该偏好，发布后的下一次分屏即使用新值。类型无效时产生字段级诊断并使用默认值。CLI `panel split --focus` 保留显式命令策略。
 
-<!-- documentation-pairing: english-sha256=9d198c43723f1600c36b79ddbefe94a00c99fa25431c599290ed599595420750 zh-cn-sha256=9f5ace8657d038029f693af6c960ed4c7d8c29ac89cb24331f162e8a2d65bc55 -->
+<!-- documentation-pairing: english-sha256=7acc7d08782f41e9d91056c7b9378fd310a18021bae93715aabdc681ae6015e1 zh-cn-sha256=ee0e7dbc62b6c1380dbbb7f3e8913de0d667c5384d75db541302dd2fa6536360 -->

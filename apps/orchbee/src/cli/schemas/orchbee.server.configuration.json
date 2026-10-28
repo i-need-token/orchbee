@@ -73,7 +73,8 @@
 														"agentSidebarProfile",
 														"spacesSidebarProfile",
 														"focusNewPanel",
-														"worktreesDirectory"
+														"worktreesDirectory",
+														"newCwd"
 													],
 													"additionalProperties": false,
 													"properties": {
@@ -152,6 +153,11 @@
 														},
 														"worktreesDirectory": {
 															"type": ["string", "null"],
+															"minLength": 1,
+															"maxLength": 4096
+														},
+														"newCwd": {
+															"type": "string",
 															"minLength": 1,
 															"maxLength": 4096
 														}
@@ -179,7 +185,8 @@
 														"agentSidebarProfile",
 														"spacesSidebarProfile",
 														"focusNewPanel",
-														"worktreesDirectory"
+														"worktreesDirectory",
+														"newCwd"
 													],
 													"additionalProperties": false,
 													"properties": {
@@ -258,6 +265,11 @@
 														},
 														"worktreesDirectory": {
 															"type": ["string", "null"],
+															"minLength": 1,
+															"maxLength": 4096
+														},
+														"newCwd": {
+															"type": "string",
 															"minLength": 1,
 															"maxLength": 4096
 														}

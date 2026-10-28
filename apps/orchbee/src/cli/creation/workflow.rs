@@ -31,16 +31,6 @@ use std::{
 };
 
 pub(super) fn run(command: &CreationCommand, format: OutputFormat, locale: Locale) -> Output {
-    let settings = match crate::cli::configuration::load() {
-        Ok(settings) => settings,
-        Err(error) => return failure_output(error.failure(), Some(format), locale),
-    };
-    let mut configured = command.clone();
-    if configured.options.plugin_pane.is_none() {
-        settings.apply_directory(&mut configured.directory, &mut configured.options);
-    }
-    let command = &configured;
-
     let deadline = Instant::now() + Duration::from_millis(u64::from(command.timeout_ms));
     let mut signals = match ArmedSignals::arm_interrupts() {
         Ok(signals) => signals,
@@ -120,6 +110,18 @@ fn execute(
         None
     };
     let (mut client, _, snapshot) = query::snapshot_session_until(deadline)?;
+    let mut configured = command.clone();
+    if configured.options.plugin_pane.is_none() {
+        crate::cli::creation_defaults::apply_directory(
+            &mut client,
+            &snapshot.session_id,
+            deadline,
+            signals,
+            &mut configured.directory,
+            &mut configured.options,
+        )?;
+    }
+    let command = &configured;
     let caller = caller.map(|caller| caller.resolve(&snapshot)).transpose()?;
     check(signals, deadline)?;
     let selected = if needs_client || (targeting::needs_source(command) && caller.is_none()) {

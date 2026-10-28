@@ -46,21 +46,14 @@ English remains canonical.
 
 ## Delivery
 
-| Step | Result                                                                                                                                                             | Status                                                                                                                 |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
-| 1    | Delete both overlaps; Workers stop reading `config.toml`.                                                                                                          | Delivered                                                                                                              |
-| 2    | The Server reads `config.toml` once at startup and once per reload; Agent manifest reload and process observation consume the committed configuration.             | Delivered                                                                                                              |
-| 3    | The Server samples the frozen `config.toml` location and reloads and publishes a changed file with explicit-reload semantics.                                      | Delivered                                                                                                              |
-| 4    | Server admission captures launch defaults from `preferences.json`; Workers stop opening it.                                                                        | Delivered                                                                                                              |
-| 5    | Configuration snapshots carry `terminal.focus_new_panel`, `terminal.new_cwd`, and `worktrees.directory`; TUI startup, Worktree, and CLI creation reads move to it. | Partial: snapshots carry `focusNewPanel` and `worktreesDirectory`, and the native Client no longer reads `config.toml` |
-| 6    | Current authorities describe the delivered behavior; this proposal is deleted.                                                                                     | Open                                                                                                                   |
+| Step | Result                                                                                                                                                             | Status    |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- |
+| 1    | Delete both overlaps; Workers stop reading `config.toml`.                                                                                                          | Delivered |
+| 2    | The Server reads `config.toml` once at startup and once per reload; Agent manifest reload and process observation consume the committed configuration.             | Delivered |
+| 3    | The Server samples the frozen `config.toml` location and reloads and publishes a changed file with explicit-reload semantics.                                      | Delivered |
+| 4    | Server admission captures launch defaults from `preferences.json`; Workers stop opening it.                                                                        | Delivered |
+| 5    | Configuration snapshots carry `terminal.focus_new_panel`, `terminal.new_cwd`, and `worktrees.directory`; TUI startup, Worktree, and CLI creation reads move to it. | Delivered |
+| 6    | Current authorities describe the delivered behavior; this proposal is deleted.                                                                                     | Open      |
 
 Each step passes the affected Rust checks and existing configuration tests. The issue closes after
 `pnpm verify:changed` and `pnpm verify:rust-native` pass.
-
-### Remaining work
-
-- Step 5 still leaves CLI Workspace, Tab, Panel, and `worktree` creation reading `config.toml` for
-  `terminal.new_cwd` and `worktrees.directory`. Moving them adds `terminal.new_cwd` to the snapshot
-  and makes each creation command request the current snapshot before its first effect; the
-  Server then reports configuration errors for those commands.

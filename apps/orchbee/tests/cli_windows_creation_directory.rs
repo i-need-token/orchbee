@@ -6,7 +6,7 @@ use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_terminal_protocol as t;
 use orchbee_workbench_protocol::*;
 use serde_json::{Value, json};
-use support::{Fixture, assert_closed, peer, validate};
+use support::{Fixture, assert_closed, configuration_reply, peer, validate};
 
 fn id(n: u64) -> String {
     format!("{n:032x}")
@@ -251,6 +251,7 @@ fn source_observation_is_exact_bounded_read_only_and_never_replays_creation() {
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
             snapshot(&mut stream);
+            configuration_reply(&mut stream, "follow", None);
             if observe(&mut stream, cut) {
                 create(
                     &mut stream,
@@ -354,6 +355,7 @@ fn explicit_directory_modes_skip_viewer_and_tab_source_respects_the_destination_
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
             snapshot(&mut stream);
+            configuration_reply(&mut stream, "follow", None);
             if let Some(same) = client_context {
                 selected_client(&mut stream, same);
             }

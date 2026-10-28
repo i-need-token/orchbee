@@ -895,7 +895,7 @@ Windows `workspace create` 可省略 Project、名称和目录；按来源终端
 
 共享应用与终端主题通过和 Desktop 相同的偏好权威应用于原生 TUI。参见[原生主题](docs/native-themes.zh-CN.md)。
 
-`config check` 还校验 `APPDATA/Orchbee/config.toml`，可由绝对路径 `ORCHBEE_CONFIG_FILE` 覆盖。`[terminal] new_cwd` 设置创建 cwd 默认值；`[worktrees] directory` 选择检出根目录。显式命令参数覆盖有效配置。参见[配置与优先级](docs/windows-cli-configuration.zh-CN.md)。Windows CLI 每次调用读取；公共 TUI/CLI 激活在提交前读取启动策略。TUI 直接创建和 Server 热重载仍是独立能力。
+`config check` 还校验 `APPDATA/Orchbee/config.toml`，可由绝对路径 `ORCHBEE_CONFIG_FILE` 覆盖。`[terminal] new_cwd` 设置创建 cwd 默认值；`[worktrees] directory` 选择检出根目录。显式命令参数覆盖有效配置。参见[配置与优先级](docs/windows-cli-configuration.zh-CN.md)。Windows CLI 创建从运行中 Session 已发布的配置读取这些默认值，因此文件错误由 Server 和 `config check` 报告，而不是由创建报告；公共 TUI/CLI 激活在提交前读取启动策略。TUI 直接创建和 Server 热重载仍是独立能力。
 
 ## Windows 终端观察流
 
@@ -933,4 +933,4 @@ Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin acti
 
 Windows 首次运行引导在终端可继续输入时提供 Workspace 创建、Agent 选择、操作与帮助入口，关闭状态按原生配置档案保存。参见[原生首次运行引导](docs/native-onboarding.zh-CN.md)。
 
-<!-- documentation-pairing: english-sha256=50db44897813d353a62add424f3fc3940db0fb4075515146f543011153d3fc76 zh-cn-sha256=528c76f850bc74676868b64c47d7aca0c7c3133e7d49c8fda14f791b6760c039 -->
+<!-- documentation-pairing: english-sha256=26ab7840c99c64c9338cc07f8d86e82d87bde605e3f2826acad8e657791de3b3 zh-cn-sha256=dfed750df65b7d9f588c9007c44899338cd59dae12b5c420dec05c955a913a93 -->

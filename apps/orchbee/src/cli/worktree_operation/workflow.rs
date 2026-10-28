@@ -106,17 +106,23 @@ fn observe(
     if interrupted(answer, signals, deadline)? {
         return Ok(());
     }
-    let settings = if matches!(command, WorktreeCommand::Start(start) if matches!(start.kind, WorktreeStartKind::Create { .. }))
-    {
-        Some(crate::cli::configuration::load().map_err(crate::cli::configuration::Error::failure)?)
-    } else {
-        None
-    };
     let (mut client, _, snapshot) = query::snapshot_session_until(deadline)?;
     *session_id = Some(snapshot.session_id.clone());
     if interrupted(answer, signals, deadline)? {
         return Ok(());
     }
+    // An explicit checkout path needs no configured root.
+    let root = if matches!(command, WorktreeCommand::Start(start) if matches!(start.kind, WorktreeStartKind::Create { path: None, .. }))
+    {
+        crate::cli::creation_defaults::worktree_root(
+            &mut client,
+            &snapshot.session_id,
+            deadline,
+            signals,
+        )?
+    } else {
+        None
+    };
     let mut selected = None;
     let action = match command {
         WorktreeCommand::Start(start) => {
@@ -141,10 +147,7 @@ fn observe(
                     receipt.client_id = selected.as_ref().map(|client| client.client_id.clone());
                 }
                 let mut configured = start.as_ref().clone();
-                if let Some(root) = settings
-                    .as_ref()
-                    .and_then(|settings| settings.worktree_root.as_ref())
-                {
+                if let Some(root) = &root {
                     super::configured_path::Source {
                         client: &mut client,
                         snapshot: &snapshot,

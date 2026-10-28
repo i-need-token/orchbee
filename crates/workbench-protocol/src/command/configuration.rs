@@ -102,6 +102,17 @@ pub struct ConfigurationSnapshot {
     /// `worktrees.directory` as an admitted absolute path; null selects the sibling checkout.
     #[serde(deserialize_with = "super::agent_manifests::nullable")]
     pub worktrees_directory: Option<String>,
+    /// `terminal.new_cwd`: `follow`, `home`, `current`, `workspace`, or an admitted absolute path.
+    pub new_cwd: String,
+}
+
+/// The `terminal.new_cwd` keywords; any other admitted value is an absolute path.
+const NEW_CWD_POLICIES: [&str; 4] = ["follow", "home", "current", "workspace"];
+
+fn configured_path(path: &str) -> bool {
+    path.len() <= MAXIMUM_CONFIGURATION_PATH_BYTES
+        && crate::directory::is_absolute_path(path.as_bytes())
+        && !path.chars().any(char::is_control)
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -187,11 +198,12 @@ impl ConfigurationResult {
                     && snapshot.spaces_sidebar_profile.len() <= 32 * 1024
                     && !snapshot.agent_sidebar_profile.is_empty()
                     && snapshot.agent_sidebar_profile.len() <= 32 * 1024
-                    && snapshot.worktrees_directory.as_deref().is_none_or(|path| {
-                        !path.is_empty()
-                            && path.len() <= MAXIMUM_CONFIGURATION_PATH_BYTES
-                            && !path.chars().any(char::is_control)
-                    })
+                    && snapshot
+                        .worktrees_directory
+                        .as_deref()
+                        .is_none_or(configured_path)
+                    && (NEW_CWD_POLICIES.contains(&snapshot.new_cwd.as_str())
+                        || configured_path(&snapshot.new_cwd))
             }
             ConfigurationOutcome::Failed {
                 reason,

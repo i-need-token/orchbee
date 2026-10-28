@@ -624,12 +624,13 @@ fn sampler_publishes_only_changed_files_and_retains_fatal_edits() {
     registry.sample(&mut sampler, at(0), load, |_| panic!("equal candidate"));
     assert_eq!(current(&registry).revision.value(), 0);
     // Lengths differ so coarse modification times cannot hide an edit.
-    fixture.write("[keys]\nprefix='ctrl+d'\n");
+    fixture.write("[keys]\nprefix='ctrl+d'\n[terminal]\nnew_cwd='home'\n");
     registry.sample(&mut sampler, at(0), load, |_| panic!("sample is not due"));
     registry.sample(&mut sampler, at(1), load, |_| true);
     let published = current(&registry);
     assert_eq!(published.revision.value(), 1);
     assert!(published.keys_profile.contains("ctrl+d"));
+    assert_eq!(published.new_cwd, "home");
     assert_eq!(signal.revision(), 1);
 
     fixture.write("[keys\nprefix='ctrl+x'");

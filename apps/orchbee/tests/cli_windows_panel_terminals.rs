@@ -3,7 +3,7 @@
 use crate::peer_support;
 use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_workbench_protocol::*;
-use peer_support::{Fixture, assert_closed, peer, validate};
+use peer_support::{Fixture, assert_closed, configuration_reply, peer, validate};
 use serde_json::{Value, json};
 fn id(n: u64) -> String {
     format!("{n:032x}")
@@ -220,6 +220,7 @@ fn rejects_bound_foreign_and_full_targets_before_any_launch() {
                 &mut stream,
                 snapshot(if mode == 2 { 16 } else { 1 }, mode == 0),
             );
+            configuration_reply(&mut stream, "follow", None);
             assert_closed(&mut stream);
         });
         let panel = id(6);
@@ -248,6 +249,7 @@ fn selected_client_routes_read_only_and_retains_profile_refusal() {
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
     let handler = peer(&fixture, listener, move |mut stream| {
         initial(&mut stream, snapshot(1, false));
+        configuration_reply(&mut stream, "follow", None);
         let WorkbenchRequest::ClientView(request) = read_workbench_request(&mut stream).unwrap()
         else {
             panic!("Client list only")

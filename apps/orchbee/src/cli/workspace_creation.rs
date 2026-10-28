@@ -49,18 +49,8 @@ fn run_extended(
     super::launch_receipt::annotate(output, launch.as_ref().filter(|_| named), format, locale)
 }
 
-fn run_resolved(
-    mut command: WorkspaceCreationCommand,
-    format: OutputFormat,
-    locale: Locale,
-) -> Output {
-    let settings = match crate::cli::configuration::load() {
-        Ok(settings) => settings,
-        Err(error) => return failure_output(error.failure(), Some(format), locale),
-    };
-    settings.apply_directory(&mut command.directory, &mut command.options);
+fn run_resolved(command: WorkspaceCreationCommand, format: OutputFormat, locale: Locale) -> Output {
     let command = &command;
-
     let deadline = Instant::now() + Duration::from_millis(u64::from(command.timeout_ms));
     let mut signals = match ArmedSignals::arm_interrupts() {
         Ok(signals) => signals,
@@ -135,6 +125,16 @@ fn execute(
 ) -> Result<(), Failure> {
     signals.check_before(deadline)?;
     let (mut client, _, snapshot) = query::snapshot_session_until(deadline)?;
+    let mut configured = command.clone();
+    super::creation_defaults::apply_directory(
+        &mut client,
+        &snapshot.session_id,
+        deadline,
+        signals,
+        &mut configured.directory,
+        &mut configured.options,
+    )?;
+    let command = &configured;
     let prepared = source::prepare(command, &mut client, &snapshot, deadline, signals, locale)?;
     signals.check_before(deadline)?;
     *output = Some(Receipt {

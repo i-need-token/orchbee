@@ -1,7 +1,7 @@
 //! One Session-lifetime configuration owner. Fallible candidate preparation precedes publication.
 use orchbee_local_runtime::{
-    SettingsDiagnosticDisposition, SettingsDiagnostics, UserSettings, UserSettingsLoad,
-    read_user_settings_at,
+    DirectoryPolicy, SettingsDiagnosticDisposition, SettingsDiagnostics, UserSettings,
+    UserSettingsLoad, read_user_settings_at,
 };
 use orchbee_workbench_protocol::{
     ConfigurationAction as Action, ConfigurationDiagnostic, ConfigurationDiagnosticDisposition,
@@ -372,6 +372,15 @@ fn snapshot(
         manifest_check: current.manifest_check,
         focus_new_panel: current.focus_new_panel,
         worktrees_directory: current.worktree_root.clone(),
+        new_cwd: match &current.cwd {
+            Some((DirectoryPolicy::Explicit, Some(path))) => path.clone(),
+            Some((DirectoryPolicy::Home, _)) => "home".into(),
+            Some((DirectoryPolicy::Current, _)) => "current".into(),
+            Some((DirectoryPolicy::Workspace, _)) => "workspace".into(),
+            None | Some((DirectoryPolicy::Follow | DirectoryPolicy::Explicit, _)) => {
+                "follow".into()
+            }
+        },
     }
 }
 

@@ -6,7 +6,7 @@ use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_terminal_protocol as t;
 use orchbee_workbench_protocol::*;
 use serde_json::{Value, json};
-use support::{Fixture, assert_closed, peer, validate};
+use support::{Fixture, assert_closed, configuration_reply, peer, validate};
 const SCHEMA: &str = include_str!("../src/cli/schemas/orchbee.workspace.creation.json");
 fn id(n: u64) -> String {
     format!("{n:032x}")
@@ -332,6 +332,7 @@ fn headless_defaults_use_home_and_explicit_destination_can_differ_from_source() 
         (None, None),
         move |mut stream| {
             snapshot(&mut stream, state(0, false, false, 12));
+            configuration_reply(&mut stream, "follow", None);
             clients(&mut stream, vec![]);
             launch(&mut stream, &home, "pending");
             assert_closed(&mut stream);
@@ -533,6 +534,12 @@ fn source_directory_policy_does_not_confuse_destination_project_or_other_panels(
                     &mut stream,
                     state(if mode == "many-projects" { 2 } else { 1 }, true, false, 12),
                 );
+                if !matches!(
+                    mode,
+                    "workspace" | "explicit-ignore-source" | "many-projects"
+                ) {
+                    configuration_reply(&mut stream, "follow", None);
+                }
                 if mode == "invalid-caller" {
                     assert_closed(&mut stream);
                     return;
@@ -605,6 +612,7 @@ fn worktree_directory_start_has_one_operation_without_project_setup() {
             (None, None),
             move |mut stream| {
                 snapshot(&mut stream, state(0, false, false, 12));
+                configuration_reply(&mut stream, "follow", None);
                 let WorkbenchRequest::WorktreeOperation(request) =
                     read_workbench_request(&mut stream).unwrap()
                 else {

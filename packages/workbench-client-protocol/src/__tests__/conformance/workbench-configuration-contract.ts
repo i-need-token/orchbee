@@ -57,6 +57,9 @@ export const ConfigurationDiagnosticsSchema = z
 		}),
 	)
 	.readonly();
+const configuredPath = bounded(4096).refine(
+	(value) => /^(?:\/|(?:\\\\\?\\)?[A-Za-z]:[/\\])/u.test(value) && !/\p{Cc}/u.test(value),
+);
 const ConfigurationSnapshotSchema = z.strictObject({
 	revision: WorkbenchRevisionSchema,
 	diagnostics: ConfigurationDiagnosticsSchema,
@@ -67,9 +70,8 @@ const ConfigurationSnapshotSchema = z.strictObject({
 	spacesSidebarProfile: bounded(32768),
 	manifestCheck: z.boolean(),
 	focusNewPanel: z.boolean(),
-	worktreesDirectory: bounded(4096)
-		.refine((value) => !/\p{Cc}/u.test(value))
-		.nullable(),
+	worktreesDirectory: configuredPath.nullable(),
+	newCwd: z.union([z.enum(['follow', 'home', 'current', 'workspace']), configuredPath]),
 });
 const failure = z
 	.strictObject({

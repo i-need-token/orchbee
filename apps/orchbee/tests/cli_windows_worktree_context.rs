@@ -4,7 +4,7 @@ use crate::peer_support as support;
 use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_workbench_protocol::*;
 use serde_json::{Value, json};
-use support::{Fixture, assert_closed, peer, validate};
+use support::{Fixture, assert_closed, configuration_reply, peer, validate};
 
 fn id(n: u64) -> String {
     format!("{n:032x}")
@@ -391,6 +391,7 @@ fn implicit_source_keeps_the_selected_workspace_identity_with_or_without_a_direc
             },
             move |mut stream| {
                 snapshot(&mut stream, false, primary, initial_workspace);
+                configuration_reply(&mut stream, "follow", None);
                 if !caller {
                     clients(&mut stream, vec![record(false, initial_workspace)]);
                 }
@@ -422,6 +423,7 @@ fn source_refuses_ambiguous_stale_unready_and_missing_membership_before_git() {
             (None, None),
             move |mut stream| {
                 snapshot(&mut stream, false, false, true);
+                configuration_reply(&mut stream, "follow", None);
                 let mut row = record(false, true);
                 if case == 1 {
                     row["availability"] = json!("stale");
@@ -462,6 +464,7 @@ fn explicit_sources_ignore_invalid_caller_and_explicit_client_overrides_it() {
         });
         let (status, document) = run(&args, (Some("invalid"), None), move |mut stream| {
             snapshot(&mut stream, false, true, false);
+            configuration_reply(&mut stream, "follow", None);
             if case == 2 {
                 clients(&mut stream, vec![record(false, false)]);
             }
@@ -488,6 +491,7 @@ fn explicit_workspace_can_use_its_proven_caller_but_invalid_implicit_caller_neve
         (Some(&terminal), Some(&worker)),
         |mut stream| {
             snapshot(&mut stream, false, false, false);
+            configuration_reply(&mut stream, "follow", None);
             opened(&mut stream, json!({"kind":"workspace","workspaceId":id(4)}));
             assert_closed(&mut stream);
         },
@@ -505,6 +509,7 @@ fn explicit_workspace_can_use_its_proven_caller_but_invalid_implicit_caller_neve
             caller,
             |mut stream| {
                 snapshot(&mut stream, false, true, false);
+                configuration_reply(&mut stream, "follow", None);
                 assert_closed(&mut stream);
             },
         );
@@ -524,6 +529,9 @@ fn directory_fallback_requires_no_clients_and_source_list_uses_the_same_selector
         };
         let (status, document) = run(&args, (None, None), move |mut stream| {
             snapshot(&mut stream, false, true, false);
+            if !list {
+                configuration_reply(&mut stream, "follow", None);
+            }
             clients(
                 &mut stream,
                 if list {
@@ -591,6 +599,7 @@ fn focus_keeps_canonical_success_across_changed_view_and_uncertain_handoff() {
             (None, None),
             move |mut stream| {
                 snapshot(&mut stream, false, true, false);
+                configuration_reply(&mut stream, "follow", None);
                 clients(&mut stream, vec![record(false, false)]);
                 opened_after_wait(
                     &mut stream,

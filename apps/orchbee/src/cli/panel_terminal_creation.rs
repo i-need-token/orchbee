@@ -54,12 +54,6 @@ pub(crate) fn run(
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
-    let settings = match super::configuration::load() {
-        Ok(s) => s,
-        Err(e) => return failure_output(e.failure(), Some(format), locale),
-    };
-    let mut command = command.clone();
-    settings.apply_directory(&mut command.directory, &mut command.options);
     let deadline = Instant::now() + Duration::from_millis(u64::from(command.timeout_ms));
     let mut signals = match ArmedSignals::arm_interrupts() {
         Ok(s) => s,
@@ -72,7 +66,7 @@ pub(crate) fn run(
         }
     };
     let mut document = None;
-    let mut result = execute(&command, deadline, &mut signals, &mut document);
+    let mut result = execute(command, deadline, &mut signals, &mut document);
     let mut finalization = None;
     let mut cancelled = false;
     match signals.finish() {
@@ -128,6 +122,16 @@ fn execute(
     let session = query::stream_snapshot(deadline, signals.poll_fd());
     signals.check_before(deadline)?;
     let (mut client, snapshot) = session?;
+    let mut requested = command.directory;
+    let mut options = command.options.clone();
+    super::creation_defaults::apply_directory(
+        &mut client,
+        &snapshot.session_id,
+        deadline,
+        signals,
+        &mut requested,
+        &mut options,
+    )?;
     let panel = if let Some(prepared) = prepared {
         prepared.resolve(&snapshot)?
     } else {
@@ -158,9 +162,8 @@ fn execute(
         )?
     };
     let resolved = targeting::resolve(&snapshot, &panel, command)?;
-    let mut options = command.options.clone();
     let directory = directory::resolve_options(
-        command.directory,
+        requested,
         &mut options,
         &snapshot,
         Some(&Target::Id(resolved.panel.to_string())),

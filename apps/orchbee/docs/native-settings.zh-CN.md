@@ -204,8 +204,8 @@ Client 共享载体上的状态订阅，设置关闭期间也继续观察。UI �
 | `ui.window_title`                                                                                                      | 重载后实时标题订阅使用已准入模板；外层宿主标题交付仍是一项能力                               |
 | `ui.toast.delivery`、`delay_seconds`、`overlay.position`；`ui.sound.agents`                                            | 重载更新手动交付和后续自动反馈；已确认的共享 Agent 模式／全局声音仍具权威，保留各 Agent 静音 |
 | `terminal.focus_new_panel`                                                                                             | 发布后更新之后分屏的焦点偏好，默认为 true                                                    |
-| `worktrees.directory`                                                                                                  | 发布后更新原生 Worktree 启动之后的查询和开始；Windows CLI 在下一次相关创建调用中读取         |
-| `terminal.new_cwd`                                                                                                     | Windows CLI 在下一次相关创建调用中读取；不移动现有进程                                       |
+| `worktrees.directory`                                                                                                  | 发布后更新原生 Worktree 启动之后的查询和开始；Windows CLI 创建在运行时读取已发布值           |
+| `terminal.new_cwd`                                                                                                     | Windows CLI 创建在运行时读取已发布值；不移动现有进程                                         |
 | `update.manifest_check`                                                                                                | 重载更新既有规则检查调度器；自动检查仍遵循受管发布／能力限制                                 |
 | `update.channel`                                                                                                       | 后续发布／更新操作消费；不改变当前 TUI 颜色，也不重启 TUI                                    |
 | 指针捕获（`--mouse off`、默认前缀 `m`）、侧栏可见性／宽度                                                              | 立即生效的客户端本地交互状态；这些动作不持久化共享偏好                                       |
@@ -261,4 +261,4 @@ Cargo/TypeScript 检查。受影响的根门禁仍为必需。
 
 Shell 保留启动时是否由非空 `NO_COLOR` 禁用了颜色，并将该原因传入已提交主题及预览主题。应用／终端主题和可编辑颜色的说明以两种语言解释颜色抑制。校验、确认和未知保存结果的恢复信息优先。提示不会仅由单色模式推断 `NO_COLOR`，不会在渲染时读取环境，也不会更改已保存的主题选项。
 
-<!-- documentation-pairing: english-sha256=29b18b6827329fde3c3ed7b16305a8ad3c563709148c75dfe249187d2801a2a1 zh-cn-sha256=3264fdeed81968f90d7717983064b96939e94ed0a7545defb0e22bc985ed90b8 -->
+<!-- documentation-pairing: english-sha256=0b161ff419ed5304b7f73c7f625007bd52bae51b27ae51eebd87e21e8fcf8bcd zh-cn-sha256=765b87f922f25ddb179d830472fd387a8b98ed2507536f2a571e9981e6277b92 -->

@@ -1002,7 +1002,7 @@ Windows `workspace create` accepts omitted Project, label and cwd, resolves sour
 
 Shared application and terminal themes apply to the native TUI from the same preference authority as Desktop. See [native themes](docs/native-themes.md).
 
-`config check` also validates `APPDATA/Orchbee/config.toml`, with an absolute `ORCHBEE_CONFIG_FILE` override. `[terminal] new_cwd` sets creation cwd defaults; `[worktrees] directory` selects the checkout root. Explicit command arguments override valid settings. See [configuration and precedence](docs/windows-cli-configuration.md). Windows CLI reads each invocation; common TUI/CLI activation reads startup policy before commitment. Direct TUI creation and Server reload are separate capabilities.
+`config check` also validates `APPDATA/Orchbee/config.toml`, with an absolute `ORCHBEE_CONFIG_FILE` override. `[terminal] new_cwd` sets creation cwd defaults; `[worktrees] directory` selects the checkout root. Explicit command arguments override valid settings. See [configuration and precedence](docs/windows-cli-configuration.md). Windows CLI creation reads these defaults from the running Session's published configuration, so file errors are reported by the Server and `config check`, not by creation; common TUI/CLI activation reads startup policy before commitment. Direct TUI creation and Server reload are separate capabilities.
 
 ## Windows terminal observation stream
 

@@ -2408,7 +2408,7 @@ Hermes 新增 Windows 插件激活及不含内容的会话观察。其离线 doc
 
 ## Windows 持久创建默认值
 
-[Windows CLI 配置](windows-cli-configuration.zh-CN.md) 拥有有界 TOML 读取器、`ORCHBEE_CONFIG_FILE`、`[terminal] new_cwd`、`[worktrees] directory` 及创建副作用前的优先级。Windows `config check` v1 保留五项运行时检查并增加 `user-config`。`orchbee.cli.failure.configuration` v1 报告有界准备错误。目录列出当前文档与命令路径。
+[Windows CLI 配置](windows-cli-configuration.zh-CN.md) 拥有有界 TOML 读取器、`ORCHBEE_CONFIG_FILE`、`[terminal] new_cwd`、`[worktrees] directory` 及创建副作用前的优先级；创建从 Session 已发布的配置快照获取这些默认值。Windows `config check` v1 保留五项运行时检查并增加 `user-config`。`orchbee.cli.failure.configuration` v1 报告有界准备错误。目录列出当前文档与命令路径。
 
 当前 Windows `config check` v1 仍把致命文件和环境接纳错误报告为 `fail`／退出 1，并把已接纳的字段回退报告为 `warning`，同时保持 `ok:true`／退出 0。有界 `diagnostics` 与精确的 `diagnosticsOmitted` 数量遵循当前封闭契约。`server config`／`server reload-config` v1 在每个成功快照中携带同一份已接纳警告记录。内嵌 schema 目录为 v1。
 
@@ -2538,4 +2538,4 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=ff6a958e5fe442eebbcec0eb4485b01bca91bf1efe0e8147e7dea68e396a0901 zh-cn-sha256=ba1559fd9c54c54a646968cadc48a69043c032d80990c1bf19358f12376626dc -->
+<!-- documentation-pairing: english-sha256=d67feb0cedbc489661bee905d8708f26ae63a07b6ff7278251e189e2127590e3 zh-cn-sha256=dac9f6c685a3766d181d2c3a44d392e6e76e6ea9eef24b43fe722eaaf0d9fda9 -->
