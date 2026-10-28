@@ -5,7 +5,7 @@ use std::{collections::BTreeSet, sync::Mutex};
 const MAXIMUM_OWNED_IMAGES: usize = 128;
 
 #[derive(Debug)]
-pub(crate) struct ImageLease {
+pub struct ImageLease {
     pub(super) obligation: ModeLease,
     state: Mutex<State>,
 }
@@ -24,11 +24,11 @@ impl ImageLease {
             }),
         }
     }
-    pub(crate) fn capacity(&self) -> usize {
+    pub fn capacity(&self) -> usize {
         let state = self.state.lock().unwrap_or_else(|error| error.into_inner());
         MAXIMUM_OWNED_IMAGES.saturating_sub(state.ids.len())
     }
-    pub(crate) fn register(&self, id: u32) -> bool {
+    pub fn register(&self, id: u32) -> bool {
         let mut state = self.state.lock().unwrap_or_else(|error| error.into_inner());
         if id == 0 || state.ids.len() >= MAXIMUM_OWNED_IMAGES || state.ids.contains(&id) {
             return false;
@@ -38,7 +38,7 @@ impl ImageLease {
         state.ids.insert(id);
         true
     }
-    pub(crate) fn control_started(&self) {
+    pub fn control_started(&self) {
         self.obligation.mark_operation_started();
         self.state
             .lock()
@@ -73,7 +73,7 @@ impl ImageLease {
         state.unconfirmed_control = false;
     }
 }
-pub(crate) fn delete(id: u32) -> String {
+pub fn delete(id: u32) -> String {
     format!("\x1b_Ga=d,d=I,i={id},q=2;\x1b\\")
 }
 

@@ -36,7 +36,7 @@ fn write_bell(output: &mut impl io::Write) -> io::Result<()> {
     output.write_all(b"\x07")?;
     output.flush()
 }
-pub(crate) mod graphics;
+pub mod graphics;
 
 struct FocusReporting(bool);
 
@@ -360,7 +360,7 @@ impl SynchronizedUpdateLease {
     pub fn open_frame(&self) {
         self.obligation.mark_operation_started();
     }
-    pub(crate) fn graphics(&self) -> &graphics::ImageLease {
+    pub fn graphics(&self) -> &graphics::ImageLease {
         &self.graphics
     }
 
@@ -433,8 +433,8 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
         Self::enter_inner(control, true)
     }
 
-    #[cfg(test)]
-    fn enter_without_panic_hook(control: C) -> io::Result<Self> {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn enter_without_panic_hook(control: C) -> io::Result<Self> {
         Self::enter_inner(control, false)
     }
 
@@ -1357,6 +1357,8 @@ fn process_panic_registry() -> &'static PanicRestorationRegistry {
     })
 }
 
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
 #[cfg(test)]
 mod tests;
 #[cfg(all(test, windows))]

@@ -14,7 +14,7 @@ use crate::{
     terminal_live_view::LiveView, terminal_text::is_forbidden_terminal_scalar, tui_theme::Theme,
 };
 
-pub(super) fn render(
+pub fn render(
     frame: &mut Frame<'_>,
     area: Rect,
     terminal: &TerminalTextFrame,

@@ -112,6 +112,9 @@ mod tab_close;
 mod tab_rename;
 mod tabs;
 mod terminal_cells;
+// The owning application's backend tests paint captured cells through the real native writer.
+#[cfg(any(test, feature = "test-support"))]
+pub use terminal_cells::render as render_terminal_cells;
 mod terminal_failure;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_capture;

@@ -9,7 +9,7 @@ use orchbee_workbench_protocol::{
 #[test]
 fn raw_title_animation_and_clear_never_change_agent_seen_or_semantic_sequence() {
     let mut attention = Attention::default();
-    let baseline = super::super::tests::checkpoint(vec![row()]);
+    let baseline = super::super::test_support::checkpoint(vec![row()]);
     assert!(attention.project(&Choice::Local, &baseline).unwrap()[0].seen);
     let mut changed = baseline.as_ref().clone();
     let mut rows = changed.rows.to_vec();
@@ -42,7 +42,7 @@ fn row() -> Row {
         seen: true,
         name: None,
         order: PlacementOrder::default(),
-        target: super::super::tests::target(),
+        target: super::super::test_support::target(),
         label: "terminal".into(),
         workspace: String::new(),
         tab_label: None,
@@ -59,7 +59,7 @@ fn completion_edit_projects_idle_without_mutating_observation_or_new_completion(
     let mut attention = Attention::default();
     let mut done = row();
     done.state = PanelAgentState::Done;
-    let round = super::super::tests::checkpoint(vec![done.clone()]);
+    let round = super::super::test_support::checkpoint(vec![done.clone()]);
     assert_eq!(
         attention.project(&Choice::Local, &round).unwrap()[0].state,
         PanelAgentState::Done
@@ -72,7 +72,7 @@ fn completion_edit_projects_idle_without_mutating_observation_or_new_completion(
     );
     assert_eq!(round[0].state, PanelAgentState::Done);
     done.sequence = WorkbenchRevision::new(2);
-    let next = super::super::tests::checkpoint(vec![done]);
+    let next = super::super::test_support::checkpoint(vec![done]);
     assert_eq!(
         attention.project(&Choice::Local, &next).unwrap()[0].state,
         PanelAgentState::Done
@@ -83,7 +83,7 @@ fn completion_edit_projects_idle_without_mutating_observation_or_new_completion(
 fn endpoint_baseline_changed_new_rebound_and_restart_versions_are_distinct() {
     let mut attention = Attention::default();
     let local = Choice::Local;
-    let round = super::super::tests::checkpoint(vec![row()]);
+    let round = super::super::test_support::checkpoint(vec![row()]);
     assert!(attention.project(&local, &round).unwrap()[0].seen);
     let remote = Choice::Remote(ProfileId::parse(&"9".repeat(32)).unwrap());
     assert!(attention.project(&remote, &round).unwrap()[0].seen);
@@ -146,14 +146,14 @@ fn endpoint_baseline_changed_new_rebound_and_restart_versions_are_distinct() {
 #[test]
 fn invalid_complete_checkpoint_preserves_prior_attention_and_missing_members_are_pruned() {
     let mut attention = Attention::default();
-    let round = super::super::tests::checkpoint(vec![row()]);
+    let round = super::super::test_support::checkpoint(vec![row()]);
     attention.project(&Choice::Local, &round).unwrap();
     let before = attention.clone();
-    let invalid = super::super::tests::checkpoint(vec![row(), row()]);
+    let invalid = super::super::test_support::checkpoint(vec![row(), row()]);
     assert!(attention.project(&Choice::Local, &invalid).is_err());
     assert_eq!(attention, before);
     attention
-        .project(&Choice::Local, &super::super::tests::checkpoint(Vec::new()))
+        .project(&Choice::Local, &super::super::test_support::checkpoint(Vec::new()))
         .unwrap();
     assert!(!attention.project(&Choice::Local, &round).unwrap()[0].seen);
 }

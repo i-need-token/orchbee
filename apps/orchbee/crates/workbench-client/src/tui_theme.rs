@@ -899,7 +899,7 @@ impl Theme {
     }
 
     /// Explicit terminal colors override chrome; System + Host defers to host resolution.
-    pub(crate) fn with_terminal_preferences(
+    pub fn with_terminal_preferences(
         self,
         values: &orchbee_workbench_protocol::UserPreferencesValues,
     ) -> Self {

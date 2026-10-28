@@ -21,7 +21,7 @@ pub(crate) fn system_fallback() -> HostAppearance {
 
 /// The outer host's observed background polarity, independent of the System theme fallback.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub(crate) enum HostAppearance {
+pub enum HostAppearance {
     Dark,
     Light,
     #[default]

@@ -98,7 +98,7 @@ fn named(palette: Palette) -> Theme {
 
 impl Theme {
     /// Resolve System accents from host polarity; unknown appearance stays terminal-native.
-    pub(crate) fn application_with_host(
+    pub fn application_with_host(
         appearance: orchbee_workbench_protocol::ApplicationAppearance,
         host: HostAppearance,
         level: ColorLevel,

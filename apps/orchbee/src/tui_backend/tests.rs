@@ -24,6 +24,8 @@ use super::{
 };
 
 mod cursor;
+mod lifecycle;
+mod terminal_cells;
 
 #[test]
 fn resolved_cell_colors_keep_ansi_indices_rgb_and_resets() -> io::Result<()> {
