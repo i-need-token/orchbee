@@ -10,14 +10,14 @@ use orchbee_workbench_protocol::{
 /// The Workspace directory and complete terminal scope shown before destructive submission.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::workbench_client) struct Removal {
-    pub workspace_id: WorkbenchWorkspaceId,
-    pub path: WorkbenchDirectoryPath,
+    pub(crate) workspace_id: WorkbenchWorkspaceId,
+    pub(crate) path: WorkbenchDirectoryPath,
     label: String,
     branch: Option<String>,
     terminals: usize,
 }
 impl Removal {
-    pub fn capture(sidebar: &SidebarDiscovery) -> Option<Self> {
+    pub(crate) fn capture(sidebar: &SidebarDiscovery) -> Option<Self> {
         let SidebarWorktreeTarget::Workspace(workspace_id) = &sidebar.addressed.target else {
             return None;
         };
@@ -81,7 +81,7 @@ fn resumable(op: &Operation) -> bool {
 }
 
 impl Launcher {
-    pub fn prepare_remove_resume(&mut self, token: WorktreeToken) -> bool {
+    pub(crate) fn prepare_remove_resume(&mut self, token: WorktreeToken) -> bool {
         if self.token() != Some(token)
             || self.shown != Some(token)
             || !self.presentation.interactive()
@@ -101,7 +101,7 @@ impl Launcher {
         true
     }
 
-    pub fn confirm_remove_resume(&mut self, token: WorktreeToken) -> Option<(Plan, u32)> {
+    pub(crate) fn confirm_remove_resume(&mut self, token: WorktreeToken) -> Option<(Plan, u32)> {
         if self.token() != Some(token)
             || self.shown != Some(token)
             || !self.presentation.interactive()
@@ -124,7 +124,7 @@ impl Launcher {
         Some(result)
     }
 
-    pub fn cancel_remove_resume(&mut self) -> bool {
+    pub(crate) fn cancel_remove_resume(&mut self) -> bool {
         if !matches!(self.phase, Phase::ConfirmResume(_)) {
             return false;
         }
@@ -137,7 +137,7 @@ impl Launcher {
         true
     }
 
-    pub fn resume_settled(
+    pub(crate) fn resume_settled(
         &mut self,
         operation: &WorkbenchRequestId,
         result: Result<WorkbenchWorktreeOutcome, bool>,

@@ -14,14 +14,14 @@ use orchbee_workbench_protocol::{
 
 #[derive(Clone, Debug)]
 pub(in crate::workbench_client) struct SidebarDiscovery {
-    pub addressed: AddressedWorktreeSource,
-    pub sample: RootDirectory,
-    pub source: WorktreeSource,
-    pub discovery: Discovery,
+    pub(crate) addressed: AddressedWorktreeSource,
+    pub(crate) sample: RootDirectory,
+    pub(crate) source: WorktreeSource,
+    pub(crate) discovery: Discovery,
 }
 
 impl SidebarDiscovery {
-    pub fn valid(&self, snapshot: &Snapshot) -> bool {
+    pub(crate) fn valid(&self, snapshot: &Snapshot) -> bool {
         self.addressed.unchanged(snapshot)
             && self.addressed.resolve_sample(self.sample.clone()).as_ref() == Some(&self.source)
             && self
@@ -53,17 +53,17 @@ enum SourceOwner {
 /// later checks compare the complete source scope rather than unrelated writes.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::workbench_client) struct AddressedWorktreeSource {
-    pub target: SidebarWorktreeTarget,
-    pub cache: ClientContextTabs,
-    pub member: Option<ClientMemberTarget>,
-    pub primary: Option<ClientTerminalBinding>,
+    pub(crate) target: SidebarWorktreeTarget,
+    pub(crate) cache: ClientContextTabs,
+    pub(crate) member: Option<ClientMemberTarget>,
+    pub(crate) primary: Option<ClientTerminalBinding>,
     owner: SourceOwner,
     source: MenuContextSource,
     context: TerminalContext,
 }
 
 impl AddressedWorktreeSource {
-    pub fn capture(snapshot: &Snapshot, target: &SidebarWorktreeTarget) -> Option<Self> {
+    pub(crate) fn capture(snapshot: &Snapshot, target: &SidebarWorktreeTarget) -> Option<Self> {
         let (owner, workspace) = match target {
             SidebarWorktreeTarget::Workspace(id) => {
                 (SourceOwner::Workspace, snapshot.navigation.workspace(id)?)
@@ -117,7 +117,7 @@ impl AddressedWorktreeSource {
         })
     }
 
-    pub fn unchanged(&self, snapshot: &Snapshot) -> bool {
+    pub(crate) fn unchanged(&self, snapshot: &Snapshot) -> bool {
         Self::capture(snapshot, &self.target).is_some_and(|current| {
             self.cache.session_id() == current.cache.session_id()
                 && self.owner == current.owner
@@ -131,7 +131,7 @@ impl AddressedWorktreeSource {
     /// Only an admitted absent cwd (or no first terminal at all)
     /// permits the same Workspace's canonical directory. An unavailable sample
     /// can never select another Project member, Agent cwd or Client cwd.
-    pub fn resolve_sample(&self, sample: RootDirectory) -> Option<WorktreeSource> {
+    pub(crate) fn resolve_sample(&self, sample: RootDirectory) -> Option<WorktreeSource> {
         match sample {
             RootDirectory::Available(Some(path)) if self.primary.is_some() => {
                 Some(WorktreeSource::Directory { path })

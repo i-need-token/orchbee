@@ -1,11 +1,12 @@
 use super::*;
-use crate::agent_start::{DeliveryDisposition, ReservationState};
+use crate::agent_start::ReservationState;
 use orchbee_agent_observation_protocol::{
     AgentName, AgentProviderId, AgentSessionId, ObapRequestId,
 };
 use orchbee_client_server_protocol::{
     SendCleanupStatus, SendProgress, SendRejectedReason, SendUnavailableReason, TerminalSendOutcome,
 };
+use orchbee_workbench_client::test_support::agent_start::DeliveryDisposition;
 use serde_json::Value;
 
 fn report(receipt: &Value, state: ReservationState, verdict: Verdict) -> Report {
@@ -25,10 +26,7 @@ fn report(receipt: &Value, state: ReservationState, verdict: Verdict) -> Report 
 #[test]
 fn every_non_success_send_receipt_keeps_its_cli_status_and_exact_envelope() {
     use super::super::send::SendVerdict;
-    use crate::agent_runtime::startup::{
-        binding::Binding,
-        send::{Context, Receipt as DomainReceipt},
-    };
+    use crate::agent_runtime::startup::{binding::Binding, send::Receipt as DomainReceipt};
     use crate::agent_start::{
         Failure as DomainFailure, Report as DomainReport, StartFailure, Submission,
         Verdict as DomainVerdict,
@@ -36,6 +34,7 @@ fn every_non_success_send_receipt_keeps_its_cli_status_and_exact_envelope() {
     use orchbee_client_server_protocol::{
         HostEpoch, HostTerminalId, RequestId, SendTarget, TerminalSendResult,
     };
+    use orchbee_workbench_client::test_support::agent_runtime::startup::send::Context;
 
     let cases = [
         (

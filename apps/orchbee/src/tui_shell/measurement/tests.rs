@@ -334,7 +334,9 @@ fn measured_writer_forwards_short_writes_errors_vectored_and_overridden_write_al
 #[test]
 fn the_real_buffer_and_restoration_fence_do_not_replay_a_failed_prefix_on_drop() {
     let calls = Rc::new(RefCell::new(Vec::new()));
-    let lease = Arc::new(crate::terminal_lifecycle::test_support::synchronized_update_lease());
+    let lease = Arc::new(
+        orchbee_workbench_client::test_support::terminal_lifecycle::synchronized_update_lease(),
+    );
     let measurements = observe(10);
     let writer = MeasuredWriter::new(
         Spy {

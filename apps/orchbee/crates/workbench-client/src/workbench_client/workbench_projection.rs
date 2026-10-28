@@ -378,7 +378,7 @@ impl ClientTab {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ClientPanelTree {
+pub(crate) enum ClientPanelTree {
     Panel {
         panel_index: usize,
     },

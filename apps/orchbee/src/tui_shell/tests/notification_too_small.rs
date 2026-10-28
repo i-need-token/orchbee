@@ -99,18 +99,19 @@ fn without_cell_padding(value: &str) -> String {
 
 fn expected_too_small_notice(locale: Locale, width: u16, theme: &Theme) -> String {
     let marker = format!("{} ", theme.glyphs.status_bullet);
-    let marker_width = crate::terminal_text::display_width(&marker);
+    let marker_width =
+        orchbee_workbench_client::test_support::terminal_text::display_width(&marker);
     if marker_width < usize::from(width) {
         format!(
             "{marker}{}",
-            crate::terminal_text::truncate_display(
+            orchbee_workbench_client::test_support::terminal_text::truncate_display(
                 locale.shell().too_small_notice,
                 usize::from(width) - marker_width,
                 theme.glyphs.ellipsis,
             )
         )
     } else {
-        crate::terminal_text::truncate_display(
+        orchbee_workbench_client::test_support::terminal_text::truncate_display(
             locale.shell().too_small_notice,
             usize::from(width),
             theme.glyphs.ellipsis,

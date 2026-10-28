@@ -5,15 +5,10 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
-use crate::{
-    client_view::ClientView,
-    workbench_client::{
-        TerminalStatus,
-        test_support::{
-            TestResult, dispatch_close_input, fixture_geometry, interactive_close_server,
-            native_client, native_workbench_client, spin_with_draw,
-        },
-    },
+use crate::{client_view::ClientView, workbench_client::TerminalStatus};
+use orchbee_workbench_client::test_support::workbench_client::{
+    TestResult, dispatch_close_input, fixture_geometry, interactive_close_server, native_client,
+    native_workbench_client, spin_with_draw,
 };
 
 #[test]

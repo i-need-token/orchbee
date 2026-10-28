@@ -46,7 +46,7 @@ impl TerminalInputPort for Surface {
     }
     fn click_workspace_close(
         &mut self,
-        _: crate::workbench_client::WorkspaceCloseToken,
+        _: orchbee_workbench_client::test_support::workbench_client::WorkspaceCloseToken,
         confirm: bool,
     ) {
         self.events.borrow_mut().push(Event::Confirmation(confirm));
@@ -84,7 +84,9 @@ fn partial_frame_retires_old_press_authority_without_receipt_effect_or_replay() 
     let events = Rc::new(RefCell::new(Vec::new()));
     let remaining = Rc::new(std::cell::Cell::new(usize::MAX));
     let dimensions = dimensions(40, 12);
-    let lease = Arc::new(crate::terminal_lifecycle::test_support::synchronized_update_lease());
+    let lease = Arc::new(
+        orchbee_workbench_client::test_support::terminal_lifecycle::synchronized_update_lease(),
+    );
     let backend = FixedViewportBackend::new(
         PartialWriter {
             events: events.clone(),
@@ -111,13 +113,13 @@ fn partial_frame_retires_old_press_authority_without_receipt_effect_or_replay() 
     let mut hits = crate::tui_pointer::HitMapBuilder::new();
     hits.start_modal();
     hits.record_modal_control(
-        crate::tui_pointer::HitLayer::Overlay,
+        orchbee_workbench_client::test_support::tui_pointer::HitLayer::Overlay,
         ratatui::layout::Rect::new(10, 5, 8, 1),
-        crate::tui_pointer::HitTarget::WorkspaceClose {
-            token: crate::workbench_client::WorkspaceCloseToken::for_test(1),
+        orchbee_workbench_client::test_support::tui_pointer::HitTarget::WorkspaceClose {
+            token: orchbee_workbench_client::test_support::workbench_client::WorkspaceCloseToken::for_test(1),
             confirm: true,
         },
-        crate::tui_pointer::InteractionAvailability::Enabled,
+        orchbee_workbench_client::test_support::tui_pointer::InteractionAvailability::Enabled,
     );
     dispatcher.publish_hit_map(hits.finish());
     let now = std::time::Instant::now();
@@ -201,7 +203,9 @@ fn bell_is_outside_the_flushed_frame_and_failed_drawing_dispatches_nothing() {
             fail: fail.clone(),
         };
         let dimensions = dimensions(40, 12);
-        let lease = Arc::new(crate::terminal_lifecycle::test_support::synchronized_update_lease());
+        let lease = Arc::new(
+            orchbee_workbench_client::test_support::terminal_lifecycle::synchronized_update_lease(),
+        );
         let backend = FixedViewportBackend::new(writer.clone(), dimensions, lease.clone());
         let mut terminal = Terminal::with_options(
             backend,
@@ -293,7 +297,9 @@ fn machine_cover_settles_one_covered_native_receipt() {
     let events = Rc::new(RefCell::new(Vec::new()));
     let fail = Rc::new(RefCell::new(false));
     let dimensions = dimensions(40, 12);
-    let lease = Arc::new(crate::terminal_lifecycle::test_support::synchronized_update_lease());
+    let lease = Arc::new(
+        orchbee_workbench_client::test_support::terminal_lifecycle::synchronized_update_lease(),
+    );
     let backend = FixedViewportBackend::new(
         Writer {
             events: events.clone(),

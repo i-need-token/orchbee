@@ -7,8 +7,8 @@ use super::{
 };
 
 pub(super) struct Decision<'a> {
-    pub token: SetupToken,
-    pub project: &'a str,
+    pub(crate) token: SetupToken,
+    pub(crate) project: &'a str,
 }
 
 pub(super) fn render(

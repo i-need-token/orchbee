@@ -1,15 +1,13 @@
 use super::*;
+use crate::cli::terminal_stream::tests::{COHORT, SNAPSHOT, handshake, line, reply, request};
 use crate::cli::terminal_stream::{STEP, relay};
-use crate::{
-    cli::terminal_stream::tests::{COHORT, SNAPSHOT, handshake, line, reply, request},
-    local_client::test_support::server::FakeServer,
-};
 use orchbee_local_ipc::ChildOutputReader;
 use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, HistoryAnchorStatus, HistoryChanged,
     HistoryControl, MessageRole, PayloadEncoding, decode_terminal_render_row_window,
     decode_terminal_text_frame, encode_history_control, encode_transport_envelope,
 };
+use orchbee_workbench_client::test_support::local_client::server::FakeServer;
 use std::{io, num::NonZeroU64};
 const ROWS: &[u8] = include_bytes!(
     "../../../../../../../schemas/terminal/v1/fixtures/ghostty-render-row-window.bin"

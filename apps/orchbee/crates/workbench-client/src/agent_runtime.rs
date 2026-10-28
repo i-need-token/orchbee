@@ -3,8 +3,8 @@
 use orchbee_agent_observation_protocol::{AgentSafeInteger, AgentSessionDetail, ObapRequestId};
 use orchbee_local_ipc::{LocalIo as BorrowedFd, PollFd, PollFlags, PollTimeout, poll};
 use std::time::Duration;
-pub mod processes;
-pub mod startup;
+pub(crate) mod processes;
+pub(crate) mod startup;
 
 /// Which stderr diagnostic a typed send answer carries. The send envelope on
 /// stdout always reports both axes verbatim; this only picks the localized

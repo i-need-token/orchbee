@@ -509,7 +509,7 @@ mod tests {
         assert_eq!(
             choose(selected, "@agent:2").unwrap(),
             AgentNameTarget::Terminal {
-                binding: crate::machine_agents::test_support::physical(22)
+                binding: orchbee_workbench_client::test_support::machine_agents::physical(22)
             }
         );
         assert_eq!(
@@ -541,7 +541,7 @@ mod tests {
             report_revision: orchbee_workbench_protocol::WorkbenchRevision::new(7),
             rows: rows(Vec::new(), vec![state(12, Some("codex"))]),
         };
-        let mut binding = crate::machine_agents::test_support::physical(12);
+        let mut binding = orchbee_workbench_client::test_support::machine_agents::physical(12);
         binding.host_epoch =
             orchbee_agent_observation_protocol::AgentHostEpoch::parse(&format!("{:032x}", 9))
                 .unwrap();

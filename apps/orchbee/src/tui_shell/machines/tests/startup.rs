@@ -1,11 +1,11 @@
 //! Actual native admission and candidate bootstrap through the machine UI owner.
 use super::super::*;
 use super::{dimensions, profile, setup};
-use crate::{
-    local_client::test_support::{multiplex_peer::Peer, server::FakeServer},
-    workbench_client::{ClientContextLocation, ClientContextTarget},
-};
+use crate::workbench_client::{ClientContextLocation, ClientContextTarget};
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
+use orchbee_workbench_client::test_support::local_client::{
+    multiplex_peer::Peer, server::FakeServer,
+};
 use orchbee_workbench_protocol::*;
 use std::{io::Read, num::NonZeroU64};
 
@@ -208,29 +208,30 @@ fn machine_workspace_candidate_starts_exact_context_including_empty_without_open
             view.machines.observe_agent_sidebar(true);
             view.machines.observe(&[(
                 profile().id,
-                crate::machine_discovery::Observation::Online(crate::machine_discovery::Overview {
-                    session: target.session_id.clone(),
-                    revision: WorkbenchRevision::new(1),
-                    projects: 1,
-                    workspaces: 1,
-                    tabs: usize::from(!empty),
-                    labels: Vec::new(),
-                    contexts: vec![Context {
-                        target: target.clone(),
-                        project_id: None,
-                        project: None,
-                        workspace: Some("workspace".into()),
-                    }]
-                    .into(),
-                }),
+                orchbee_workbench_client::test_support::machine_discovery::Observation::Online(
+                    orchbee_workbench_client::test_support::machine_discovery::Overview {
+                        session: target.session_id.clone(),
+                        revision: WorkbenchRevision::new(1),
+                        projects: 1,
+                        workspaces: 1,
+                        tabs: usize::from(!empty),
+                        labels: Vec::new(),
+                        contexts: vec![Context {
+                            target: target.clone(),
+                            project_id: None,
+                            project: None,
+                            workspace: Some("workspace".into()),
+                        }]
+                        .into(),
+                    },
+                ),
             )]);
-            assert!(
-                view.machines
-                    .activate_sidebar_workspace(&crate::machine_picker::Selection {
-                        machine: Choice::Remote(profile().id),
-                        context: Some(target.clone().into()),
-                    })
-            );
+            assert!(view.machines.activate_sidebar_workspace(
+                &orchbee_workbench_client::test_support::machine_picker::Selection {
+                    machine: Choice::Remote(profile().id),
+                    context: Some(target.clone().into()),
+                }
+            ));
             view.machines.request.take();
         } else {
             view.machines.show();
@@ -534,7 +535,10 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
         fn forward(
             &mut self,
             _bytes: &[u8],
-        ) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
+        ) -> Result<
+            (),
+            orchbee_workbench_client::test_support::terminal_input::TerminalInputUnavailable,
+        > {
             Ok(())
         }
     }
@@ -556,10 +560,12 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
     view.machines.show();
     assert!(!view.machines.wants_agents());
     assert!(!view.machines.wants_spaces());
-    view.machines.request = Some(crate::machine_picker::Selection {
-        machine: Choice::Local,
-        context: Some(destination.clone().into()),
-    });
+    view.machines.request = Some(
+        orchbee_workbench_client::test_support::machine_picker::Selection {
+            machine: Choice::Local,
+            context: Some(destination.clone().into()),
+        },
+    );
     assert!(
         !manager
             .tick(

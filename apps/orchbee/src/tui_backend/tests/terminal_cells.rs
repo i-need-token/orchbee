@@ -15,11 +15,10 @@ use orchbee_workbench_protocol::{
 use ratatui::{Terminal, layout::Rect};
 
 use crate::{
-    terminal_device::WindowDimensions,
-    tui_backend::FixedViewportBackend,
-    tui_render::render_terminal_cells as render,
-    tui_theme::{ColorLevel, Theme},
+    terminal_device::WindowDimensions, tui_backend::FixedViewportBackend, tui_theme::Theme,
 };
+use orchbee_workbench_client::test_support::tui_render::render_terminal_cells as render;
+use orchbee_workbench_client::test_support::tui_theme::ColorLevel;
 
 #[test]
 fn native_backend_keeps_blank_and_existing_input_cells_visible_for_every_terminal_appearance() {
@@ -82,7 +81,7 @@ fn native_backend_keeps_blank_and_existing_input_cells_visible_for_every_termina
         let theme = if appearance == Appearance::Host {
             Theme::application_with_host(
                 Application::System,
-                crate::terminal_host_appearance::HostAppearance::Dark,
+                orchbee_workbench_client::test_support::terminal_host_appearance::HostAppearance::Dark,
                 ColorLevel::Truecolor,
             )
         } else {
@@ -99,7 +98,7 @@ fn native_backend_keeps_blank_and_existing_input_cells_visible_for_every_termina
                 pixel_width: 0,
                 pixel_height: 0,
             },
-            Arc::new(crate::terminal_lifecycle::test_support::synchronized_update_lease()),
+            Arc::new(orchbee_workbench_client::test_support::terminal_lifecycle::synchronized_update_lease()),
         );
         let mut terminal = Terminal::new(backend).unwrap();
         for (column, glyph) in [(8, " "), (3, "-")] {

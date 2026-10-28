@@ -28,8 +28,9 @@ pub const CANONICAL_IDS: &[&str] = &[
 ];
 
 pub(crate) use orchbee_agent_observation_protocol::native_agent_basename as basename;
-pub use orchbee_agent_observation_protocol::native_agent_provider as provider;
-pub use orchbee_agent_observation_protocol::normalize_agent_report_label as reported_label;
+pub use orchbee_agent_observation_protocol::{
+    native_agent_provider as provider, normalize_agent_report_label as reported_label,
+};
 
 /// Only canonical identities select a command; aliases remain read-only recognition.
 pub fn executable(canonical: &str) -> Option<&'static str> {

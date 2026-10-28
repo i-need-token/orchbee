@@ -21,13 +21,11 @@ pub(crate) use copy::{
     CopyHintLabel, CopyModeKey, CopySearchCommand, decide as copy_mode_key,
     footer_bindings as copy_footer_bindings, search_command as copy_search_command,
 };
-pub use keys::KeyEvent;
-pub use keys::format_configuration_binding;
 pub(crate) use keys::{
     Binding, KeyLabelGlyphs, LabelStyle, format_binding, format_binding_with_glyphs,
     join_key_labels,
 };
-pub use keys::{KeyCode, KeyKind, Modifiers};
+pub use keys::{KeyCode, KeyEvent, KeyKind, Modifiers, format_configuration_binding};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ViewportClass {

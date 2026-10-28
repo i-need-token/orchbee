@@ -6,12 +6,10 @@ use std::{
     sync::{Arc, atomic::Ordering},
 };
 
-use crate::terminal_lifecycle::{
-    self, SynchronizedUpdateLease, TerminalModeGuard,
-    test_support::{
-        FailingOrderedWireWriter, FakeTerminalModes, OrderedWire, OrderedWireModes,
-        OrderedWireWriter, lock_panic_hook_tests,
-    },
+use crate::terminal_lifecycle::{SynchronizedUpdateLease, TerminalModeGuard};
+use orchbee_workbench_client::test_support::terminal_lifecycle::{
+    FailingOrderedWireWriter, FakeTerminalModes, OrderedWire, OrderedWireModes, OrderedWireWriter,
+    lock_panic_hook_tests,
 };
 
 fn failed_frame_backend(
@@ -164,8 +162,9 @@ fn an_unfenced_writer_drop_retries_the_failed_frames_residue() {
     // BufWriter's drop always retries buffered bytes, so a recovered fd
     // accepts the failed frame's residue.
     let wire = OrderedWire::default();
-    let synchronized_update =
-        Arc::new(terminal_lifecycle::test_support::synchronized_update_lease());
+    let synchronized_update = Arc::new(
+        orchbee_workbench_client::test_support::terminal_lifecycle::synchronized_update_lease(),
+    );
     let (writer, failure) = FailingOrderedWireWriter::partial_then_fail(wire.clone());
     let mut backend = failed_frame_backend_with_capacity(writer, &synchronized_update, 16);
     let mut cell = ratatui::buffer::Cell::default();
@@ -264,7 +263,9 @@ fn panic_cleans_partial_graphics_before_sync_and_discards_buffered_output() -> i
         .iter()
         .position(|event| event.starts_with("graphics-cleanup:"))
         .unwrap();
-    assert!(events[cleanup].contains(&terminal_lifecycle::graphics::delete(11)));
+    assert!(events[cleanup].contains(
+        &orchbee_workbench_client::test_support::terminal_lifecycle::graphics::delete(11)
+    ));
     assert!(
         cleanup
             < events
@@ -288,11 +289,10 @@ fn panic_cleans_partial_graphics_before_sync_and_discards_buffered_output() -> i
 
 #[test]
 fn actual_backend_graphics_write_failure_keeps_owned_cleanup_until_restoration() {
-    use crate::{
-        terminal_graphics::{Probe, Reply},
-        tui_backend::ResizableBackend,
-        workbench_client::PaneGraphicsCanvas,
-    };
+    use crate::tui_backend::ResizableBackend;
+    use orchbee_workbench_client::test_support::terminal_graphics::Probe;
+    use orchbee_workbench_client::test_support::terminal_graphics::Reply;
+    use orchbee_workbench_client::test_support::workbench_client::PaneGraphicsCanvas;
     use orchbee_workbench_protocol::{
         PaneGraphicsLayer, PaneGraphicsPlacement, PaneGraphicsTarget, SessionId, WorkbenchPanelId,
         WorkbenchRevision,
@@ -363,5 +363,7 @@ fn actual_backend_graphics_write_failure_keeps_owned_cleanup_until_restoration()
     let sequences = control.state.lock().unwrap().graphics_cleanup.clone();
     assert_eq!(sequences.len(), 1);
     assert!(sequences[0].starts_with("\x18\x1b\\"));
-    assert!(sequences[0].contains(&terminal_lifecycle::graphics::delete(1)));
+    assert!(sequences[0].contains(
+        &orchbee_workbench_client::test_support::terminal_lifecycle::graphics::delete(1)
+    ));
 }

@@ -1,7 +1,7 @@
 //! Frozen provider fixture packs replayed against this application's integration exit mapping.
 
-use crate::agent_integrations::test_support;
 use crate::cli::integration::mutation_status;
+use orchbee_workbench_client::test_support::agent_integrations as test_support;
 
 #[test]
 fn provider_effects52_conformance() {

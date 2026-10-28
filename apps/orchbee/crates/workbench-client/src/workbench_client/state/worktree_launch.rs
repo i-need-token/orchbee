@@ -19,28 +19,28 @@ pub(crate) use crate::localization::WorktreeMode;
 pub(crate) use crate::localization::WorktreeNotice;
 #[derive(Clone, Debug)]
 pub(in crate::workbench_client) struct Discovery {
-    pub source: WorktreeQuerySource,
-    pub worker: WorkerId,
-    pub entries: Vec<WorktreeQueryEntry>,
-    pub configured_root: Option<WorkbenchDirectoryPath>,
+    pub(crate) source: WorktreeQuerySource,
+    pub(crate) worker: WorkerId,
+    pub(crate) entries: Vec<WorktreeQueryEntry>,
+    pub(crate) configured_root: Option<WorkbenchDirectoryPath>,
 }
 #[derive(Clone, Debug)]
 pub(in crate::workbench_client) struct Plan {
-    pub sidebar: Option<Box<addressed::SidebarDiscovery>>,
-    pub operation_id: WorkbenchRequestId,
-    pub origin: Origin,
-    pub source: WorktreeSource,
-    pub discovery: Discovery,
-    pub project: Option<WorkbenchProjectId>,
-    pub intent: WorktreeIntent,
-    pub removal: Option<Removal>,
+    pub(crate) sidebar: Option<Box<addressed::SidebarDiscovery>>,
+    pub(crate) operation_id: WorkbenchRequestId,
+    pub(crate) origin: Origin,
+    pub(crate) source: WorktreeSource,
+    pub(crate) discovery: Discovery,
+    pub(crate) project: Option<WorkbenchProjectId>,
+    pub(crate) intent: WorktreeIntent,
+    pub(crate) removal: Option<Removal>,
 }
 #[derive(Clone, Debug)]
 pub(in crate::workbench_client) struct Operation {
-    pub plan: Plan,
-    pub outcome: Option<WorkbenchWorktreeOutcome>,
-    pub focus_allowed: bool,
-    pub attempt: u32,
+    pub(crate) plan: Plan,
+    pub(crate) outcome: Option<WorkbenchWorktreeOutcome>,
+    pub(crate) focus_allowed: bool,
+    pub(crate) attempt: u32,
 }
 enum Phase {
     Idle,
@@ -86,7 +86,7 @@ impl Default for Launcher {
     }
 }
 impl Launcher {
-    pub fn open_sidebar(
+    pub(crate) fn open_sidebar(
         &mut self,
         origin: Origin,
         sidebar: addressed::SidebarDiscovery,
@@ -134,7 +134,7 @@ impl Launcher {
     }
     /// The painted token and exact row authorize one Open, without arming a
     /// replacement token for a selection that has never been drawn.
-    pub fn choose_and_confirm(
+    pub(crate) fn choose_and_confirm(
         &mut self,
         token: WorktreeToken,
         index: usize,
@@ -156,7 +156,7 @@ impl Launcher {
         self.confirm(token, operation_id, origin)
     }
 
-    pub fn scroll_choices(&mut self, token: WorktreeToken, up: bool, lines: usize) -> bool {
+    pub(crate) fn scroll_choices(&mut self, token: WorktreeToken, up: bool, lines: usize) -> bool {
         if self.token() != Some(token)
             || self.shown != Some(token)
             || !self.presentation.interactive()
@@ -169,12 +169,12 @@ impl Launcher {
         self.edit(token, WorktreeEdit::ScrollChoices { up, lines })
     }
 
-    pub fn visible(&self) -> bool {
+    pub(crate) fn visible(&self) -> bool {
         self.visible
     }
     /// Only a hidden, correlated successful terminal result can yield to a new
     /// explicit operation. Failed/uncertain outcomes retain their recovery owner.
-    pub fn hidden_opened_result(&self) -> bool {
+    pub(crate) fn hidden_opened_result(&self) -> bool {
         !self.visible
             && self.notice == WorktreeNotice::Opened
             && matches!(&self.phase, Phase::Result(operation)
@@ -183,13 +183,13 @@ impl Launcher {
                         if project_id == &operation.plan.project
                             && matches!(status.as_ref(), WorktreeOperationStatus::Opened { .. })))
     }
-    pub fn token(&self) -> Option<WorktreeToken> {
+    pub(crate) fn token(&self) -> Option<WorktreeToken> {
         self.visible.then_some(WorktreeToken(self.last_token))
     }
-    pub fn accepts_input(&self, token: WorktreeToken) -> bool {
+    pub(crate) fn accepts_input(&self, token: WorktreeToken) -> bool {
         self.token() == Some(token) && self.presentation.interactive() && self.input_frame_live
     }
-    pub fn default_create_ready(&self) -> bool {
+    pub(crate) fn default_create_ready(&self) -> bool {
         self.shown == self.token()
             && self.presentation.interactive()
             && !self.focus_revoked
@@ -197,7 +197,7 @@ impl Launcher {
     }
     /// The menu already chose one exact checkout. Its complete source form
     /// must still be painted before the choice can start an operation.
-    pub fn sidebar_open_ready(&self) -> bool {
+    pub(crate) fn sidebar_open_ready(&self) -> bool {
         self.visible
             && self.shown == self.token()
             && self.presentation.interactive()
@@ -217,7 +217,7 @@ impl Launcher {
         self.input_frame_live = false;
         Some(WorktreeToken(self.last_token))
     }
-    pub fn reopen(&mut self) -> bool {
+    pub(crate) fn reopen(&mut self) -> bool {
         if matches!(self.phase, Phase::Idle) {
             return false;
         }
@@ -230,7 +230,7 @@ impl Launcher {
         self.presentation = PresentationPhase::Pending;
         true
     }
-    pub fn open(&mut self, mut preparation: Preparation) -> bool {
+    pub(crate) fn open(&mut self, mut preparation: Preparation) -> bool {
         if !matches!(self.phase, Phase::Idle) {
             return self.reopen();
         }
@@ -247,13 +247,13 @@ impl Launcher {
         self.phase = Phase::Preparing(Box::new(preparation));
         true
     }
-    pub fn preparation(&self) -> Option<&Preparation> {
+    pub(crate) fn preparation(&self) -> Option<&Preparation> {
         match &self.phase {
             Phase::Preparing(p) => Some(p),
             _ => None,
         }
     }
-    pub fn prepared(&mut self, p: &Preparation, source: Option<WorktreeSource>) -> bool {
+    pub(crate) fn prepared(&mut self, p: &Preparation, source: Option<WorktreeSource>) -> bool {
         if self.preparation() != Some(p) {
             return false;
         }
@@ -267,7 +267,7 @@ impl Launcher {
         };
         true
     }
-    pub fn query_input(&self) -> Option<(&Preparation, &WorktreeSource)> {
+    pub(crate) fn query_input(&self) -> Option<(&Preparation, &WorktreeSource)> {
         match &self.phase {
             Phase::Querying {
                 preparation,
@@ -276,7 +276,7 @@ impl Launcher {
             _ => None,
         }
     }
-    pub fn discovered(
+    pub(crate) fn discovered(
         &mut self,
         token: WorktreeToken,
         result: Result<Discovery, WorktreeNotice>,
@@ -317,7 +317,7 @@ impl Launcher {
         self.phase = Phase::Draft(Box::new(draft));
         true
     }
-    pub fn edit(&mut self, token: WorktreeToken, edit: WorktreeEdit<'_>) -> bool {
+    pub(crate) fn edit(&mut self, token: WorktreeToken, edit: WorktreeEdit<'_>) -> bool {
         if !self.accepts_input(token) {
             return false;
         }
@@ -367,7 +367,7 @@ impl Launcher {
         }
         true
     }
-    pub fn draw(&mut self, token: Option<WorktreeToken>) {
+    pub(crate) fn draw(&mut self, token: Option<WorktreeToken>) {
         self.shown = token.filter(|token| self.token() == Some(*token));
         self.input_frame_live = self.shown.is_some();
         if self.shown.is_some() {
@@ -379,7 +379,7 @@ impl Launcher {
             }
         }
     }
-    pub fn geometry_blocked(&mut self) -> Option<GeometrySettlement> {
+    pub(crate) fn geometry_blocked(&mut self) -> Option<GeometrySettlement> {
         if !self.visible {
             return None;
         }
@@ -409,12 +409,12 @@ impl Launcher {
         }
         Some(settlement)
     }
-    pub fn entry_started(&mut self) {
+    pub(crate) fn entry_started(&mut self) {
         self.visible = false;
         self.shown = None;
         self.input_frame_live = false;
     }
-    pub fn confirm(
+    pub(crate) fn confirm(
         &mut self,
         token: WorktreeToken,
         operation_id: WorkbenchRequestId,
@@ -454,7 +454,7 @@ impl Launcher {
     }
     /// A Create action supplies the intent; the first successful surface draw
     /// authorizes its default plan without a second confirmation.
-    pub fn create_with_defaults(
+    pub(crate) fn create_with_defaults(
         &mut self,
         operation_id: WorkbenchRequestId,
         origin: &Origin,
@@ -485,7 +485,7 @@ impl Launcher {
         self.phase = Phase::Starting(Box::new(plan.clone()));
         Some(plan)
     }
-    pub fn start_settled(
+    pub(crate) fn start_settled(
         &mut self,
         operation: &WorkbenchRequestId,
         result: Result<WorkbenchWorktreeOutcome, bool>,
@@ -507,7 +507,7 @@ impl Launcher {
         self.phase = Phase::Observing(Box::new(op));
         self.observed(operation, result)
     }
-    pub fn operation(&self) -> Option<&Operation> {
+    pub(crate) fn operation(&self) -> Option<&Operation> {
         match &self.phase {
             Phase::Observing(op)
             | Phase::Result(op)
@@ -516,10 +516,10 @@ impl Launcher {
             _ => None,
         }
     }
-    pub fn pending(&self) -> bool {
+    pub(crate) fn pending(&self) -> bool {
         matches!(self.phase, Phase::Observing(_))
     }
-    pub fn begin_read(&mut self) -> Option<Plan> {
+    pub(crate) fn begin_read(&mut self) -> Option<Plan> {
         if let Phase::Result(op) = &self.phase {
             let mut op = op.clone();
             op.focus_allowed = false;
@@ -530,7 +530,7 @@ impl Launcher {
             _ => None,
         }
     }
-    pub fn carrier_lost(&mut self) -> bool {
+    pub(crate) fn carrier_lost(&mut self) -> bool {
         if let Phase::Resuming(op) = &self.phase {
             let operation = op.plan.operation_id.clone();
             return self.resume_settled(&operation, Err(true));
@@ -545,7 +545,7 @@ impl Launcher {
         }
         false
     }
-    pub fn observed(
+    pub(crate) fn observed(
         &mut self,
         operation: &WorkbenchRequestId,
         result: Result<WorkbenchWorktreeOutcome, bool>,
@@ -654,16 +654,16 @@ impl Launcher {
         }
         true
     }
-    pub fn suppress_focus(&mut self) {
+    pub(crate) fn suppress_focus(&mut self) {
         self.focus_revoked = true;
         if let Phase::Observing(op) | Phase::Result(op) = &mut self.phase {
             op.focus_allowed = false;
         }
     }
-    pub fn entry_notice(&mut self, notice: WorktreeNotice) {
+    pub(crate) fn entry_notice(&mut self, notice: WorktreeNotice) {
         self.notice = notice;
     }
-    pub fn dismiss(&mut self) {
+    pub(crate) fn dismiss(&mut self) {
         self.visible = false;
         self.shown = None;
         self.input_frame_live = false;
@@ -676,16 +676,16 @@ impl Launcher {
             _ => self.suppress_focus(),
         }
     }
-    pub fn forget_terminal(&mut self) {
+    pub(crate) fn forget_terminal(&mut self) {
         if matches!(self.phase, Phase::Result(_)) || matches!(self.phase, Phase::Idle) {
             self.phase = Phase::Idle;
             self.visible = false;
         }
     }
-    pub fn terminal_result(&self) -> bool {
+    pub(crate) fn terminal_result(&self) -> bool {
         matches!(self.phase, Phase::Result(_))
     }
-    pub fn fail(&mut self, notice: WorktreeNotice) {
+    pub(crate) fn fail(&mut self, notice: WorktreeNotice) {
         self.notice = notice;
         self.shown = None;
         self.input_frame_live = false;
@@ -704,10 +704,10 @@ impl Launcher {
         };
         self.phase = operation.map_or(Phase::Idle, |op| Phase::Result(Box::new(op)));
     }
-    pub fn notice(&self) -> WorktreeNotice {
+    pub(crate) fn notice(&self) -> WorktreeNotice {
         self.notice
     }
-    pub fn view(&self) -> Option<WorktreeView<'_>> {
+    pub(crate) fn view(&self) -> Option<WorktreeView<'_>> {
         self.visible.then_some(WorktreeView { launcher: self })
     }
 }

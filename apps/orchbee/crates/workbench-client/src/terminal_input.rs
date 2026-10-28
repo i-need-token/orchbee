@@ -2,18 +2,15 @@
 //! Workbench owns the input port and feature state; terminal events own pure byte parsing.
 
 use crate::client_view::ClientView;
-pub use crate::terminal_events::HostReply;
 pub use crate::terminal_events::{
-    DecodedItem, DecodedKind, LegacyDecoder, MouseAction, MouseButton, MouseEvent, PaneEncode,
-    PaneMouseEvent, encode_cursor_arrows, encode_pane_report,
+    DecodedItem, DecodedKind, HostReply, LegacyDecoder, MouseAction, MouseButton, MouseEvent,
+    PaneEncode, PaneMouseEvent, encode_cursor_arrows, encode_pane_report,
 };
 pub(crate) use crate::terminal_events::{PanePointerRoute, route_pane_pointer};
 use crate::terminal_events::{decoder, mouse, utf8};
 pub use crate::workbench_client::input::{
-    ModeRequest, PointerCaptureRequest, TerminalInputPort, UnavailableTerminalInputPort,
-};
-pub use crate::workbench_client::input::{
-    PointerFrameFacts, PointerProbe, PointerSelectionAdmission, PointerSelectionIntent,
+    ModeRequest, PointerCaptureRequest, PointerFrameFacts, PointerProbe, PointerSelectionAdmission,
+    PointerSelectionIntent, TerminalInputPort, UnavailableTerminalInputPort,
 };
 pub(crate) use crate::workbench_client::input::{PointerSelectionCell, PointerUnboundPane};
 // Existing dispatcher fixtures build pointer facts; production consumers use the owning port.

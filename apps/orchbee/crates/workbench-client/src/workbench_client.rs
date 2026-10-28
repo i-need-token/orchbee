@@ -49,7 +49,7 @@ mod primary_directory;
 mod startup_directory;
 mod startup_preference;
 pub use startup_directory::StartupDirectory;
-pub mod state;
+pub(crate) mod state;
 pub(crate) use state::control_takeover::TakeoverStatus;
 pub(crate) use state::workspace_close::WorkspaceDeleteRequest;
 pub(crate) use state::workspace_setup::ProjectRenameRequest;
@@ -62,7 +62,7 @@ mod terminal_clipboard;
 mod terminal_effects;
 mod terminal_selection;
 mod terminal_tail;
-pub mod terminal_viewport;
+pub(crate) mod terminal_viewport;
 mod ui;
 pub(crate) use ui::settings::Notice as SettingsNotice;
 pub(crate) use ui::{WorkspaceCreationPhase, WorkspaceCreationPreview};
@@ -70,16 +70,15 @@ mod wakeup;
 mod workbench_projection;
 pub use wakeup::UiWakeup;
 
-pub use workbench_projection::ClientContextTarget;
-pub use workbench_projection::ClientStartupTarget;
-pub use workbench_projection::{ClientContextLocation, ClientMemberTarget};
+pub use workbench_projection::{
+    ClientContextLocation, ClientContextTarget, ClientMemberTarget, ClientStartupTarget,
+};
 pub(crate) use workbench_projection::{ClientPanel, ClientPanelTree, ClientPresentation};
 
 pub(crate) use ui::{
     WorktreeEdit, WorktreeMode, WorktreeNotice, WorktreeStage, WorktreeToken, WorktreeView,
 };
 
-pub use ui::RetainedFrameBank;
 #[cfg(test)]
 pub(crate) use ui::WorktreeCaptureContext;
 pub(crate) use ui::{
@@ -98,8 +97,10 @@ pub(crate) use ui::{
     DisplayRetirement, LaunchProfile, SetupCaptureContext, WorkspaceCloseStatus,
 };
 pub(crate) use ui::{AgentStartCatalogStatus, AgentStartPhase};
-pub use ui::{CaptureContext, CloseConfirmationToken, WorkspaceCloseToken};
-pub use ui::{DisplayPhase, DrawReceipt, WorkbenchClientView};
+pub use ui::{
+    CaptureContext, CloseConfirmationToken, DisplayPhase, DrawReceipt, RetainedFrameBank,
+    WorkbenchClientView, WorkspaceCloseToken,
+};
 
 pub use crate::localization::TerminalStatus;
 
@@ -1535,6 +1536,6 @@ fn random_identity_seed() -> io::Result<u128> {
 }
 
 #[cfg(any(test, feature = "test-support"))]
-pub mod test_support;
+pub(crate) mod test_support;
 #[cfg(test)]
 mod tests;

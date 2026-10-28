@@ -151,7 +151,10 @@ fn select_entries(
     url: &str,
     check: impl FnMut() -> Result<(), Failure>,
 ) -> Result<Option<Selection>, Failure> {
-    terminal_link_activation::plugin::select_entries(entries, url, check).map_err(failure)
+    orchbee_workbench_client::test_support::terminal_link_activation::plugin::select_entries(
+        entries, url, check,
+    )
+    .map_err(failure)
 }
 
 #[cfg(test)]

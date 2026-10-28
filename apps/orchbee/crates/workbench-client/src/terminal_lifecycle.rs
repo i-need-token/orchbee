@@ -36,7 +36,7 @@ fn write_bell(output: &mut impl io::Write) -> io::Result<()> {
     output.write_all(b"\x07")?;
     output.flush()
 }
-pub mod graphics;
+pub(crate) mod graphics;
 
 struct FocusReporting(bool);
 
@@ -1358,7 +1358,7 @@ fn process_panic_registry() -> &'static PanicRestorationRegistry {
 }
 
 #[cfg(any(test, feature = "test-support"))]
-pub mod test_support;
+pub(crate) mod test_support;
 #[cfg(test)]
 mod tests;
 #[cfg(all(test, windows))]

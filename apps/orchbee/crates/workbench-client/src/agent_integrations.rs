@@ -35,14 +35,14 @@ pub use hook_configuration::{
 pub use hook_configuration_windows::ROOT_POLICY as CONFIGURATION_ROOT_POLICY;
 /// The closed result vocabularies stay available on every platform — the
 /// parser names them — while platform adapters own filesystem and process effects.
-pub mod model;
+pub(crate) mod model;
 #[cfg(any(unix, windows))]
 mod mutation;
 #[cfg(any(unix, windows))]
 mod providers;
 
 #[cfg(all(any(test, feature = "test-support"), unix))]
-pub mod test_support;
+pub(crate) mod test_support;
 #[cfg(test)]
 mod tests;
 
@@ -63,14 +63,10 @@ mod imp {
     use super::model::{ManagementMode, Provenance};
     use super::{IntegrationId, SnapshotItem, capsule, mutation, providers};
 
-    pub use super::mutation::AttemptedStep;
-    pub use super::mutation::Direction;
-    pub use super::mutation::FailureCode;
-    pub use super::mutation::MutationReport;
-    pub use super::mutation::PlannedStep;
-    pub use super::mutation::Refusal;
-    pub use super::mutation::StepKind;
-    pub use super::mutation::Verdict;
+    pub use super::mutation::{
+        AttemptedStep, Direction, FailureCode, MutationReport, PlannedStep, Refusal, StepKind,
+        Verdict,
+    };
     pub use super::providers::InspectionDetail;
 
     /// The one monotonic cooperative budget for an integration invocation —

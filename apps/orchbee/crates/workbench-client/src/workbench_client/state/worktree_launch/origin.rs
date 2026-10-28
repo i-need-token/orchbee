@@ -7,14 +7,14 @@ use crate::workbench_client::{
 use orchbee_client_server_protocol::Geometry;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::workbench_client) struct Origin {
-    pub cache: ClientContextTabs,
-    pub member: Option<ClientMemberTarget>,
-    pub zoom: bool,
-    pub geometry: Geometry,
-    pub primary_pane: Option<PaneRef>,
+    pub(crate) cache: ClientContextTabs,
+    pub(crate) member: Option<ClientMemberTarget>,
+    pub(crate) zoom: bool,
+    pub(crate) geometry: Geometry,
+    pub(crate) primary_pane: Option<PaneRef>,
 }
 impl Origin {
-    pub fn unchanged(&self, current: &Self) -> bool {
+    pub(crate) fn unchanged(&self, current: &Self) -> bool {
         self.cache.session_id() == current.cache.session_id()
             && self.cache.location() == current.cache.location()
             && self.cache.directory() == current.cache.directory()
@@ -34,13 +34,13 @@ impl Origin {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::workbench_client) struct Preparation {
-    pub generation: u64,
-    pub token: WorktreeToken,
-    pub mode: WorktreeMode,
-    pub origin: Origin,
-    pub primary: Option<ClientTerminalBinding>,
-    pub primary_pane: Option<PaneRef>,
-    pub deadlines: OperationDeadlines,
+    pub(crate) generation: u64,
+    pub(crate) token: WorktreeToken,
+    pub(crate) mode: WorktreeMode,
+    pub(crate) origin: Origin,
+    pub(crate) primary: Option<ClientTerminalBinding>,
+    pub(crate) primary_pane: Option<PaneRef>,
+    pub(crate) deadlines: OperationDeadlines,
 }
 impl WorkbenchClientState {
     pub(in crate::workbench_client) fn worktree_origin(&self) -> Option<Origin> {

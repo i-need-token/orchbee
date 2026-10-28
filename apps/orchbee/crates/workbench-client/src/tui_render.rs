@@ -117,7 +117,7 @@ mod terminal_cells;
 pub use terminal_cells::render as render_terminal_cells;
 mod terminal_failure;
 #[cfg(any(test, feature = "test-support"))]
-pub mod test_capture;
+pub(crate) mod test_capture;
 mod viewport;
 mod workspace_close;
 mod workspace_creation;

@@ -13,10 +13,9 @@ use ratatui::{
 
 use crate::{
     terminal_device::WindowDimensions,
-    terminal_lifecycle::{
-        SYNCHRONIZED_UPDATE_BEGIN, SYNCHRONIZED_UPDATE_END, test_support, write_ansi_command,
-    },
+    terminal_lifecycle::{SYNCHRONIZED_UPDATE_BEGIN, SYNCHRONIZED_UPDATE_END, write_ansi_command},
 };
+use orchbee_workbench_client::test_support::terminal_lifecycle as test_support;
 
 use super::{
     FixedViewportBackend, ResizableBackend, RestorationGatedWriter, write_modifier_transition,

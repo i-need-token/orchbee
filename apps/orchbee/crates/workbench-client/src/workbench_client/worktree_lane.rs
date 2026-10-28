@@ -41,12 +41,12 @@ pub(super) enum Action {
     },
 }
 pub(super) struct Job {
-    pub action: Action,
-    pub requests: [WorkbenchRequestId; 5],
-    pub viewers: [orchbee_client_server_protocol::RequestId; 4],
-    pub deadline: Instant,
+    pub(crate) action: Action,
+    pub(crate) requests: [WorkbenchRequestId; 5],
+    pub(crate) viewers: [orchbee_client_server_protocol::RequestId; 4],
+    pub(crate) deadline: Instant,
     /// `worktrees.directory` from the applied Server configuration snapshot at submission.
-    pub configured_root: ConfiguredRoot,
+    pub(crate) configured_root: ConfiguredRoot,
 }
 /// The Client never reads `config.toml`; an unapplied or unusable snapshot value stays unavailable.
 pub(super) type ConfiguredRoot = Result<Option<WorkbenchDirectoryPath>, WorktreeNotice>;
@@ -81,7 +81,7 @@ pub(super) struct Lane {
     task: Option<JoinHandle<()>>,
 }
 impl Lane {
-    pub fn spawn(origin: LocalClientOrigin, clock: LocalOperationClock) -> io::Result<Self> {
+    pub(crate) fn spawn(origin: LocalClientOrigin, clock: LocalOperationClock) -> io::Result<Self> {
         let shared = Arc::new((Mutex::new(Handoff::default()), Condvar::new()));
         let (read, wake) = LocalStream::pair()?;
         let worker = Arc::clone(&shared);
@@ -97,13 +97,13 @@ impl Lane {
             task: Some(task),
         })
     }
-    pub fn idle(&self) -> bool {
+    pub(crate) fn idle(&self) -> bool {
         self.shared
             .0
             .lock()
             .is_ok_and(|h| !h.failed && !h.stopped && !h.busy && h.reply.is_none())
     }
-    pub fn submit(&self, job: Job) -> bool {
+    pub(crate) fn submit(&self, job: Job) -> bool {
         let Ok(mut h) = self.shared.0.lock() else {
             return false;
         };
@@ -115,13 +115,13 @@ impl Lane {
         self.shared.1.notify_one();
         true
     }
-    pub fn take(&self) -> Option<Reply> {
+    pub(crate) fn take(&self) -> Option<Reply> {
         self.shared.0.lock().ok()?.reply.take()
     }
-    pub fn failed(&self) -> bool {
+    pub(crate) fn failed(&self) -> bool {
         self.shared.0.lock().map_or(true, |h| h.failed)
     }
-    pub fn close(&mut self) -> bool {
+    pub(crate) fn close(&mut self) -> bool {
         if self.task.is_none() {
             return true;
         }

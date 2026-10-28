@@ -111,7 +111,7 @@ pub enum ColorLevel {
 /// Background polarity an RGB theme is designed for. The terminal-native theme
 /// carries none: it must work on an unknown host appearance.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Polarity {
+pub(crate) enum Polarity {
     Dark,
     Light,
 }
@@ -137,25 +137,25 @@ pub struct GlyphSet {
     /// Status glyph used in the sidebar session section.
     pub status_bullet: &'static str,
     /// Workspace identity when no Agent state is available; never an activity status.
-    pub workspace: &'static str,
-    pub git_ahead: &'static str,
-    pub git_behind: &'static str,
+    pub(crate) workspace: &'static str,
+    pub(crate) git_ahead: &'static str,
+    pub(crate) git_behind: &'static str,
     /// Active marker in navigator and context lists.
     pub active_marker: &'static str,
     /// Reversible keyboard-navigation anchor within a collection.
     pub navigation_marker: &'static str,
     /// One-cell rule between strip regions, such as pinned and ordinary Tabs.
-    pub vertical_rule: &'static str,
+    pub(crate) vertical_rule: &'static str,
     /// One-cell scrollbar chrome, including host-safe ASCII alternatives.
-    pub scrollbar_track: &'static str,
-    pub scrollbar_thumb: &'static str,
+    pub(crate) scrollbar_track: &'static str,
+    pub(crate) scrollbar_thumb: &'static str,
     /// Project disclosure, with one-cell ASCII fallbacks.
-    pub disclosure_open: &'static str,
-    pub disclosure_closed: &'static str,
+    pub(crate) disclosure_open: &'static str,
+    pub(crate) disclosure_closed: &'static str,
     /// One-cell vertical guide connecting sibling Agents to their Workspace.
-    pub tree_guide: &'static str,
+    pub(crate) tree_guide: &'static str,
     /// One-cell Working frames; every frame has the same display width.
-    pub working_frames: &'static [&'static str],
+    pub(crate) working_frames: &'static [&'static str],
 }
 
 impl GlyphSet {
@@ -179,7 +179,7 @@ impl GlyphSet {
     };
 
     #[cfg(any(test, feature = "test-support"))]
-    pub const ASCII: Self = Self {
+    pub(crate) const ASCII: Self = Self {
         mode: GlyphMode::Simplified,
         ellipsis: "..",
         middle_dot: "-",
@@ -213,40 +213,40 @@ impl GlyphSet {
 /// missing role invalid at compile time.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct RoleStyles {
-    pub text_primary: Style,
-    pub text_secondary: Style,
-    pub text_disabled: Style,
-    pub text_inverse: Style,
-    pub accent_action: Style,
-    pub accent_destructive: Style,
-    pub accent_focus: Style,
-    pub accent_selection: Style,
+    pub(crate) text_primary: Style,
+    pub(crate) text_secondary: Style,
+    pub(crate) text_disabled: Style,
+    pub(crate) text_inverse: Style,
+    pub(crate) accent_action: Style,
+    pub(crate) accent_destructive: Style,
+    pub(crate) accent_focus: Style,
+    pub(crate) accent_selection: Style,
     #[cfg(any(test, feature = "test-support"))]
-    pub accent_link: Style,
-    pub status_success: Style,
-    pub status_warning: Style,
-    pub status_error: Style,
-    pub status_info: Style,
-    pub status_pending: Style,
-    pub status_working: Style,
-    pub status_idle: Style,
-    pub status_unread: Style,
-    pub frame_focused: Style,
-    pub frame_unfocused: Style,
-    pub frame_divider: Style,
-    pub frame_guide: Style,
-    pub surface_canvas: Style,
-    pub surface_chrome: Style,
-    pub surface_strip: Style,
-    pub surface_overlay: Style,
-    pub surface_hover: Style,
-    pub surface_pressed: Style,
-    pub surface_selection: Style,
-    pub surface_current: Style,
-    pub surface_related: Style,
-    pub surface_inactive: Style,
-    pub hint_key: Style,
-    pub hint_label: Style,
+    pub(crate) accent_link: Style,
+    pub(crate) status_success: Style,
+    pub(crate) status_warning: Style,
+    pub(crate) status_error: Style,
+    pub(crate) status_info: Style,
+    pub(crate) status_pending: Style,
+    pub(crate) status_working: Style,
+    pub(crate) status_idle: Style,
+    pub(crate) status_unread: Style,
+    pub(crate) frame_focused: Style,
+    pub(crate) frame_unfocused: Style,
+    pub(crate) frame_divider: Style,
+    pub(crate) frame_guide: Style,
+    pub(crate) surface_canvas: Style,
+    pub(crate) surface_chrome: Style,
+    pub(crate) surface_strip: Style,
+    pub(crate) surface_overlay: Style,
+    pub(crate) surface_hover: Style,
+    pub(crate) surface_pressed: Style,
+    pub(crate) surface_selection: Style,
+    pub(crate) surface_current: Style,
+    pub(crate) surface_related: Style,
+    pub(crate) surface_inactive: Style,
+    pub(crate) hint_key: Style,
+    pub(crate) hint_label: Style,
 }
 
 impl RoleStyles {
@@ -340,9 +340,9 @@ enum TerminalColorSource {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Theme {
     #[cfg(any(test, feature = "test-support"))]
-    pub name: &'static str,
-    pub polarity: Option<Polarity>,
-    pub corners: BorderType,
+    pub(crate) name: &'static str,
+    pub(crate) polarity: Option<Polarity>,
+    pub(crate) corners: BorderType,
     pub glyphs: GlyphSet,
     color_level: ColorLevel,
     no_color: bool,

@@ -3,16 +3,13 @@ mod divider;
 mod pane_geometry;
 mod resize;
 mod sidebar;
-pub use divider::DividerDrag;
-pub use divider::DividerSource;
-pub use divider::DrawnDivider;
 pub(crate) use divider::DrawnResize;
+pub use divider::{DividerDrag, DividerSource, DrawnDivider};
 pub use pane_geometry::{active_pane_area, pane_geometries, terminal_geometry};
 use ratatui::layout::{Constraint, Layout, Rect};
 pub use resize::ResizeProjection;
-pub use sidebar::SidebarWidth;
 pub(crate) use sidebar::SidebarWidthChange;
-pub use sidebar::{DrawnSidebarWidth, SidebarWidthDrag};
+pub use sidebar::{DrawnSidebarWidth, SidebarWidth, SidebarWidthDrag};
 
 use orchbee_workbench_protocol::{
     ClientSplitRatio, PanelOrientation, WorkbenchPanelSlotId, WorkbenchSplitId,
@@ -387,7 +384,7 @@ mod tests;
 /// equals what is painted and what the session is resized to. A degenerate
 /// panel yields an empty rect; callers must treat that as "cannot present",
 /// never as a resize target.
-pub const fn terminal_area(panel: Rect, framed: bool) -> Rect {
+pub(crate) const fn terminal_area(panel: Rect, framed: bool) -> Rect {
     if framed {
         Rect::new(
             panel.x.saturating_add(1),
@@ -438,10 +435,10 @@ pub const fn native_terminal_area(panel: Rect, frame: PaneFrame) -> Rect {
 /// One visible leaf's geometry: the outer rect, whose title sits on the line above it, and the
 /// terminal content rect the session may resize to.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct LeafArea {
-    pub panel_index: usize,
+pub(crate) struct LeafArea {
+    pub(crate) panel_index: usize,
     pub(crate) leaf: Rect,
-    pub content: Rect,
+    pub(crate) content: Rect,
 }
 
 /// The single source of truth for a panel tree's screen geometry: every
@@ -449,8 +446,8 @@ pub struct LeafArea {
 /// paints. Session geometry must consume `leaves` — never a recomputed path —
 /// so a drawn pane and a resized pane cannot diverge.
 #[derive(Clone, Debug, Default)]
-pub struct PanelTreeProjection<'a> {
-    pub leaves: Vec<LeafArea>,
+pub(crate) struct PanelTreeProjection<'a> {
+    pub(crate) leaves: Vec<LeafArea>,
     pub(crate) dividers: Vec<Rect>,
     pub(crate) splits: Vec<SplitArea<'a>>,
 }
@@ -472,7 +469,7 @@ pub(crate) struct SplitArea<'a> {
 /// to the active leaf (or the first leaf) when a split cannot fit its minimum
 /// pane size. `active_panel` selects the fallback leaf and identifies which
 /// leaf the live terminal attaches to.
-pub fn project_panel_tree<'a>(
+pub(crate) fn project_panel_tree<'a>(
     area: Rect,
     tree: &'a ClientPanelTree,
     active_panel: Option<usize>,
@@ -601,7 +598,7 @@ fn first_leaf(tree: &ClientPanelTree) -> Option<&ClientPanelTree> {
 /// panel when it is projected, otherwise the first projected leaf (the same
 /// fallback the renderer uses when the active leaf cannot be placed).
 impl PanelTreeProjection<'_> {
-    pub fn active_content(&self, active_panel: Option<usize>) -> Option<Rect> {
+    pub(crate) fn active_content(&self, active_panel: Option<usize>) -> Option<Rect> {
         self.leaves
             .iter()
             .find(|leaf| Some(leaf.panel_index) == active_panel)

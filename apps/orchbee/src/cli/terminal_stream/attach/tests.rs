@@ -1,14 +1,12 @@
 use super::super::{Action, LocalClient, Outcome, TerminalProjection, ViewerId};
 use super::*;
-use crate::{
-    cli::terminal_stream::tests::{COHORT, SNAPSHOT, handshake, record, reply, request},
-    local_client::test_support::server::FakeServer,
-};
+use crate::cli::terminal_stream::tests::{COHORT, SNAPSHOT, handshake, record, reply, request};
 use orchbee_client_server_protocol::{
     ClientMessage, ControllerId, PasteAcceptedBytes, ServerMessage, TerminalControlResult,
     read_client_message, write_server_message,
 };
 use orchbee_terminal_protocol::inspect_terminal_frame_route;
+use orchbee_workbench_client::test_support::local_client::server::FakeServer;
 use std::{
     io::Read,
     sync::{

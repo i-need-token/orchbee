@@ -31,11 +31,11 @@ fn viewer(
 }
 
 pub(super) struct DiscoveryRequest {
-    pub addressed: AddressedWorktreeSource,
-    pub requests: [WorkbenchRequestId; 3],
-    pub viewers: [RequestId; 4],
-    pub expected: Option<RootDirectory>,
-    pub configured_root: super::ConfiguredRoot,
+    pub(crate) addressed: AddressedWorktreeSource,
+    pub(crate) requests: [WorkbenchRequestId; 3],
+    pub(crate) viewers: [RequestId; 4],
+    pub(crate) expected: Option<RootDirectory>,
+    pub(crate) configured_root: super::ConfiguredRoot,
 }
 
 pub(super) fn discover(

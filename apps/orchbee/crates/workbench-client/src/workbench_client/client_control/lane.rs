@@ -40,9 +40,9 @@ pub(in crate::workbench_client) enum CommandFailure {
 
 pub(in crate::workbench_client) struct CommandCompletion {
     /// Exact installed identity, retained even when the command was refused before transport.
-    pub command_id: String,
-    pub reply: Result<orchbee_workbench_protocol::ConfiguredCommandResult, CommandFailure>,
-    pub focus: Option<Result<orchbee_workbench_protocol::WorkbenchClientViewResult, bool>>,
+    pub(crate) command_id: String,
+    pub(crate) reply: Result<orchbee_workbench_protocol::ConfiguredCommandResult, CommandFailure>,
+    pub(crate) focus: Option<Result<orchbee_workbench_protocol::WorkbenchClientViewResult, bool>>,
 }
 impl CommandCompletion {
     /// Reports a definite local refusal without inventing a Server result.

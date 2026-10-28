@@ -16,7 +16,7 @@ use ratatui::{
 };
 use std::time::{Duration, Instant};
 mod subscription;
-pub mod system;
+pub(crate) mod system;
 pub(crate) mod terminal;
 use orchbee_local_runtime::{NotificationDelivery as Delivery, NotificationSettings};
 #[derive(Clone, Debug, Eq, PartialEq)]

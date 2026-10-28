@@ -16,7 +16,7 @@ pub struct ViewportWindow {
     // Windows CLI streams reproduce captured defaults; themed TUI cells use roles.
     pub foreground: u32,
     pub background: u32,
-    pub graphics_present: bool,
+    pub(crate) graphics_present: bool,
     pub rows: Vec<TerminalTextRow>,
 }
 

@@ -12,13 +12,16 @@ use std::{
 use ratatui::{Terminal, TerminalOptions, Viewport, backend::TestBackend};
 
 use crate::{
-    client_view::{ClientAction, ClientActionDisposition, ClientView},
+    client_view::ClientView,
     localization::Locale,
     terminal_device::WindowDimensions,
-    terminal_input::{ModeRequest, TerminalInputPort, TerminalInputUnavailable},
+    terminal_input::{ModeRequest, TerminalInputPort},
     termination_signal::TerminationSource,
     tui_backend::{FixedViewportBackend, ResizableBackend},
 };
+use orchbee_workbench_client::test_support::client_view::ClientAction;
+use orchbee_workbench_client::test_support::client_view::ClientActionDisposition;
+use orchbee_workbench_client::test_support::terminal_input::TerminalInputUnavailable;
 
 use super::{InputSource, LoopExit, LoopFailure, ViewportSource, run_event_loop, to_area};
 mod action_menu;
@@ -49,7 +52,8 @@ fn run_native_close_resize_confirmation(
         fn native_capture_context(
             &self,
             owner: crate::tui_composition::WorkbenchCaptureOwner,
-        ) -> Option<crate::workbench_client::CaptureContext> {
+        ) -> Option<orchbee_workbench_client::test_support::workbench_client::CaptureContext>
+        {
             self.session.native_capture_context(owner)
         }
         fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
@@ -57,14 +61,14 @@ fn run_native_close_resize_confirmation(
         }
         fn apply_client_action(
             &mut self,
-            command: crate::workbench_client::InputAction,
+            command: orchbee_workbench_client::test_support::workbench_client::InputAction,
         ) -> Option<ClientActionDisposition> {
             self.session.apply_client_action(command)
         }
         fn capture_tab_confirmation_key_for(
             &mut self,
-            token: crate::workbench_client::CloseConfirmationToken,
-            key: crate::client_view::ClientKey,
+            token: orchbee_workbench_client::test_support::workbench_client::CloseConfirmationToken,
+            key: orchbee_workbench_client::test_support::client_view::ClientKey,
         ) -> bool {
             self.session.capture_tab_confirmation_key_for(token, key)
         }
@@ -519,7 +523,7 @@ fn settled_button_only_initialization_queries_once_after_the_first_draw() -> io:
         )];
         if expected_queries == 1 {
             expected_modes.push(ModeRequest::PointerAdmissionQuery(
-                crate::terminal_pointer_admission::Query,
+                orchbee_workbench_client::test_support::terminal_pointer_admission::Query,
             ));
         }
         assert_eq!(modes, expected_modes);
@@ -633,7 +637,7 @@ impl TerminalInputPort for OrderedSurface {
 
     fn apply_client_action(
         &mut self,
-        command: crate::workbench_client::InputAction,
+        command: orchbee_workbench_client::test_support::workbench_client::InputAction,
     ) -> Option<ClientActionDisposition> {
         let action = command.intent();
         self.events.push(SurfaceEvent::Action(action));
@@ -689,7 +693,9 @@ fn observes_fresh_geometry_before_initial_draw_tick_and_same_batch_effects() -> 
     let docked = super::terminal_geometry(measured, &ClientView::new(measured.columns), None)?
         .expect("a presentable viewport must produce pane geometry");
     let mut expanded_view = ClientView::new(measured.columns);
-    use crate::client_view::{KeyCode, KeyEvent, Modifiers, PrefixInput};
+    use crate::client_view::{KeyCode, Modifiers};
+    use orchbee_workbench_client::test_support::client_view::KeyEvent;
+    use orchbee_workbench_client::test_support::client_view::PrefixInput;
     let key = |code, mods| PrefixInput::Key(KeyEvent::press(code, mods));
     let prefix = expanded_view.decide(key(KeyCode::Char('b'), Modifiers::CTRL));
     expanded_view.commit(prefix, ClientActionDisposition::KeepNavigator);
@@ -757,7 +763,9 @@ fn required_terminal_resize_failure_prevents_dispatch_of_an_already_read_batch()
             failure: Arc::clone(&writer_failure),
         },
         initial,
-        Arc::new(crate::terminal_lifecycle::test_support::synchronized_update_lease()),
+        Arc::new(
+            orchbee_workbench_client::test_support::terminal_lifecycle::synchronized_update_lease(),
+        ),
     );
     let mut terminal = Terminal::with_options(
         backend,
@@ -878,7 +886,9 @@ fn failed_draw_never_acknowledges_the_pending_terminal_frame() {
             failure: failure.clone(),
         },
         dimensions,
-        Arc::new(crate::terminal_lifecycle::test_support::synchronized_update_lease()),
+        Arc::new(
+            orchbee_workbench_client::test_support::terminal_lifecycle::synchronized_update_lease(),
+        ),
     );
     let mut terminal = Terminal::with_options(
         backend,
@@ -1105,9 +1115,11 @@ mod window_title;
 
 #[test]
 fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forwarding_input() {
-    use crate::terminal_text::display_width;
+    use crate::tui_theme::Theme;
     use crate::tui_theme::ThemeName;
-    use crate::tui_theme::{ColorLevel, Role, Theme};
+    use orchbee_workbench_client::test_support::terminal_text::display_width;
+    use orchbee_workbench_client::test_support::tui_theme::ColorLevel;
+    use orchbee_workbench_client::test_support::tui_theme::Role;
     for (width, height) in [(80, 24), (120, 40), (70, 18), (40, 10), (18, 4)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             let mut terminal = test_terminal(dimensions(width, height));

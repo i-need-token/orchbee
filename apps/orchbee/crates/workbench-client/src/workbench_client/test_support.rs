@@ -5,14 +5,18 @@ mod close;
 mod rename;
 
 pub use super::ui::test_support::{
-    HostWire, SettingsFrame, SettingsFrameSource,
+    SettingsFrameSource,
     actual_native_shell_places_confirmed_pixels_inside_one_frame_and_clears_under_a_board,
     covering_client_owner_uses_confirmed_appearance_until_settings_returns,
     draft_appearance_reaches_background_chrome_and_program_defaults_without_runtime_effects,
     external_confirmed_values_update_unedited_presentation_and_cancel_reveals_the_latest_snapshot,
 };
-pub use close::*;
-pub use rename::*;
+pub use close::{dispatch_close_input, interactive_close_server};
+#[cfg(test)]
+pub use close::{dispatch_close_input_at, status_close_server};
+#[cfg(test)]
+pub use rename::RenameResponse;
+pub use rename::RenameServer;
 
 use super::{
     ClientBackend, ClientTask, Geometry, LocalClient, WorkbenchClient, connection, io, mailbox,
@@ -72,6 +76,7 @@ pub const FRAME: &[u8] = include_bytes!(concat!(
 
 pub type TestResult = Result<(), Box<dyn std::error::Error>>;
 
+#[cfg(test)]
 pub fn geometry() -> Result<Geometry, Box<dyn std::error::Error>> {
     Ok(Geometry::new(80, 24, 8, 16)?)
 }
@@ -252,6 +257,7 @@ pub fn binding_viewer_id() -> io::Result<ViewerId> {
     Ok(attachment_id)
 }
 
+#[cfg(test)]
 pub fn acquire(stream: &mut UnixStream, attachment_id: &ViewerId) -> io::Result<()> {
     let ClientMessage::TerminalControl(request) =
         read_client_message(stream).map_err(io::Error::other)?

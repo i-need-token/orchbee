@@ -7,9 +7,9 @@
 //! capability enters here.
 
 mod browser;
-pub mod context;
+pub(crate) mod context;
 mod lane;
-pub mod plugin;
+pub(crate) mod plugin;
 mod reader;
 
 pub(crate) use crate::terminal_content::ContentSource as PaintedLinkSource;

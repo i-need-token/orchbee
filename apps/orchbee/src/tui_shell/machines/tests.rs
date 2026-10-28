@@ -4,11 +4,11 @@ mod startup;
 use super::*;
 use crate::{
     machines::{Draft, ProfileId},
-    terminal_input::{
-        PointerProbe, PointerSelectionAdmission, PointerSelectionIntent,
-        UnavailableTerminalInputPort,
-    },
+    terminal_input::UnavailableTerminalInputPort,
 };
+use orchbee_workbench_client::test_support::terminal_input::PointerProbe;
+use orchbee_workbench_client::test_support::terminal_input::PointerSelectionAdmission;
+use orchbee_workbench_client::test_support::terminal_input::PointerSelectionIntent;
 struct Witness {
     name: &'static str,
     focus: Option<bool>,
@@ -19,7 +19,8 @@ impl crate::terminal_input::TerminalInputPort for Witness {
     fn forward(
         &mut self,
         _bytes: &[u8],
-    ) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
+    ) -> Result<(), orchbee_workbench_client::test_support::terminal_input::TerminalInputUnavailable>
+    {
         Ok(())
     }
 
@@ -29,10 +30,13 @@ impl crate::terminal_input::TerminalInputPort for Witness {
 
     fn apply_client_action(
         &mut self,
-        command: crate::workbench_client::InputAction,
-    ) -> Option<crate::client_view::ClientActionDisposition> {
+        command: orchbee_workbench_client::test_support::workbench_client::InputAction,
+    ) -> Option<orchbee_workbench_client::test_support::client_view::ClientActionDisposition> {
         let action = command.intent();
-        if let crate::client_view::ClientAction::FocusPanel(panel) = action {
+        if let orchbee_workbench_client::test_support::client_view::ClientAction::FocusPanel(
+            panel,
+        ) = action
+        {
             let target = self
                 .probe
                 .borrow()
@@ -46,12 +50,12 @@ impl crate::terminal_input::TerminalInputPort for Witness {
                 probe.focus = Some(target);
             }
         }
-        Some(crate::client_view::ClientActionDisposition::KeepNavigator)
+        Some(orchbee_workbench_client::test_support::client_view::ClientActionDisposition::KeepNavigator)
     }
 
     fn pointer_selection(
         &mut self,
-        _pane: &crate::workbench_client::state::PaneRef,
+        _pane: &orchbee_workbench_client::test_support::workbench_client::state::PaneRef,
         intent: PointerSelectionIntent,
     ) -> PointerSelectionAdmission {
         self.log
@@ -93,7 +97,8 @@ impl crate::terminal_input::TerminalInputPort for PixelSource {
     fn forward(
         &mut self,
         _bytes: &[u8],
-    ) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
+    ) -> Result<(), orchbee_workbench_client::test_support::terminal_input::TerminalInputUnavailable>
+    {
         Ok(())
     }
 }
@@ -287,7 +292,7 @@ fn machine_cancel_and_failed_attempt_preserve_active_surface_and_ignore_stale_co
 fn machine_pending_click_is_fenced_by_catalog_identity_before_queue_admission() {
     for change in 0..5 {
         let (mut manager, mut view, mut surface) = setup();
-        let request = crate::machine_picker::Selection {
+        let request = orchbee_workbench_client::test_support::machine_picker::Selection {
             machine: Choice::Remote(profile().id),
             context: Some(ClientStartupTarget::Context(ClientContextTarget {
                 session_id: orchbee_workbench_protocol::SessionId::parse(
@@ -400,7 +405,8 @@ impl crate::terminal_input::TerminalInputPort for DisconnectedLocal {
     fn forward(
         &mut self,
         _bytes: &[u8],
-    ) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
+    ) -> Result<(), orchbee_workbench_client::test_support::terminal_input::TerminalInputUnavailable>
+    {
         Ok(())
     }
 }
@@ -416,9 +422,12 @@ fn forced_catalog_fallback_cancels_once_through_the_old_surface_before_replace()
     let tab = orchbee_workbench_protocol::WorkbenchTabId::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
         .unwrap();
     let pane = |panel: &str| {
-        crate::workbench_client::state::PaneRef::new(
-            crate::workbench_client::state::PaneKey::new(
-                crate::workbench_client::state::AttachmentKey::new(1, tab.clone()),
+        orchbee_workbench_client::test_support::workbench_client::state::PaneRef::new(
+            orchbee_workbench_client::test_support::workbench_client::state::PaneKey::new(
+                orchbee_workbench_client::test_support::workbench_client::state::AttachmentKey::new(
+                    1,
+                    tab.clone(),
+                ),
                 orchbee_workbench_protocol::WorkbenchPanelId::parse(panel).unwrap(),
             ),
             0,
@@ -432,7 +441,7 @@ fn forced_catalog_fallback_cancels_once_through_the_old_surface_before_replace()
         input_ready: true,
         selection_ready: true,
         panes: vec![
-            crate::terminal_input::PointerPane {
+            orchbee_workbench_client::test_support::terminal_input::PointerPane {
                 right_click_reporting: false,
                 right_click: Default::default(),
                 record: previous,
@@ -440,7 +449,7 @@ fn forced_catalog_fallback_cancels_once_through_the_old_surface_before_replace()
                 controlling: Some(true),
                 frame_available: true,
             },
-            crate::terminal_input::PointerPane {
+            orchbee_workbench_client::test_support::terminal_input::PointerPane {
                 right_click_reporting: false,
                 right_click: Default::default(),
                 record: target.clone(),
@@ -449,10 +458,12 @@ fn forced_catalog_fallback_cancels_once_through_the_old_surface_before_replace()
                 frame_available: false,
             },
         ],
-        tabs: vec![crate::terminal_input::PointerTab {
-            id: tab,
-            position: 1,
-        }],
+        tabs: vec![
+            orchbee_workbench_client::test_support::terminal_input::PointerTab {
+                id: tab,
+                position: 1,
+            },
+        ],
         ..PointerProbe::default()
     }));
     manager.current = Some(profile());
@@ -470,14 +481,14 @@ fn forced_catalog_fallback_cancels_once_through_the_old_surface_before_replace()
     let content = ratatui::layout::Rect::new(0, 1, 10, 5);
     let mut hits = crate::tui_pointer::HitMapBuilder::new();
     hits.record(
-        crate::tui_pointer::HitLayer::Foreground,
+        orchbee_workbench_client::test_support::tui_pointer::HitLayer::Foreground,
         content,
-        crate::tui_pointer::HitTarget::Pane {
+        orchbee_workbench_client::test_support::tui_pointer::HitTarget::Pane {
             pane: target.clone(),
             content,
         },
     );
-    let mut pointer = crate::tui_pointer::PointerState::default();
+    let mut pointer = orchbee_workbench_client::test_support::tui_pointer::PointerState::default();
     pointer.set_capture(true);
     pointer.publish(hits.finish());
     let at = Instant::now();
@@ -501,14 +512,16 @@ fn forced_catalog_fallback_cancels_once_through_the_old_surface_before_replace()
     );
     {
         let mut probe = remote_probe.borrow_mut();
-        probe.frame = Some(crate::terminal_input::PointerFrameFacts {
-            tracking: orchbee_terminal_protocol::MouseTracking::None,
-            format: orchbee_terminal_protocol::MouseFormat::Sgr,
-            cell_pixel: (0, 0),
-            alternate_screen: false,
-            alternate_scroll: true,
-            application_cursor: false,
-        });
+        probe.frame = Some(
+            orchbee_workbench_client::test_support::terminal_input::PointerFrameFacts {
+                tracking: orchbee_terminal_protocol::MouseTracking::None,
+                format: orchbee_terminal_protocol::MouseFormat::Sgr,
+                cell_pixel: (0, 0),
+                alternate_screen: false,
+                alternate_scroll: true,
+                application_cursor: false,
+            },
+        );
         probe
             .panes
             .iter_mut()

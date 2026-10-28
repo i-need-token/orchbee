@@ -52,7 +52,7 @@ impl ClientPresentation {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ClientPanel {
+pub(crate) struct ClientPanel {
     pub(super) right_click: PanelRightClickTarget,
     pub(super) panel_id: WorkbenchPanelId,
     pub(super) primary: ClientPresentation,
@@ -66,7 +66,7 @@ impl ClientPanel {
     pub(crate) const fn right_click(&self) -> PanelRightClickTarget {
         self.right_click
     }
-    pub fn panel_id(&self) -> &WorkbenchPanelId {
+    pub(crate) fn panel_id(&self) -> &WorkbenchPanelId {
         &self.panel_id
     }
     pub(crate) fn presentation_id(&self) -> &TerminalPresentationId {

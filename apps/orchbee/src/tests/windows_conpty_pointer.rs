@@ -1,17 +1,19 @@
 //! Controlled native-ConPTY witness for the outer pointer-admission lifecycle.
 
 use crate::{
-    client_view::{KeyCode, KeyEvent, Modifiers},
+    client_view::{KeyCode, Modifiers},
     terminal_device::InheritedTerminal,
     terminal_input::{
-        DecodedItem, DecodedKind, HostReply as DecodedHostReply, LegacyDecoder, MouseAction,
-        MouseButton, MouseEvent,
+        DecodedItem, DecodedKind, LegacyDecoder, MouseAction, MouseButton, MouseEvent,
     },
     terminal_lifecycle::{InheritedTerminalModes, PointerTrackingLevel, TerminalModeGuard},
-    terminal_pointer_admission::{
-        Capability, HostReply as PointerHostReply, ModeReportState, Probe,
-    },
 };
+use orchbee_workbench_client::test_support::client_view::KeyEvent;
+use orchbee_workbench_client::test_support::terminal_input::HostReply as DecodedHostReply;
+use orchbee_workbench_client::test_support::terminal_pointer_admission::Capability;
+use orchbee_workbench_client::test_support::terminal_pointer_admission::HostReply as PointerHostReply;
+use orchbee_workbench_client::test_support::terminal_pointer_admission::ModeReportState;
+use orchbee_workbench_client::test_support::terminal_pointer_admission::Probe;
 use std::{
     collections::VecDeque,
     error::Error,

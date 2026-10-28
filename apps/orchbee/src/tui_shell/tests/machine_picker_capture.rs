@@ -2,16 +2,18 @@
 
 use super::*;
 use crate::{
-    client_view::{KeyCode, KeyEvent, Modifiers},
-    machine_agents::{
-        Observation as AgentObservation,
-        test_support::{checkpoint, row},
-    },
-    machine_picker::{Choice, Control, Mode, PickerAction},
+    client_view::{KeyCode, Modifiers},
+    machine_picker::Choice,
     terminal_input::InputDispatcher,
     tui_theme::Theme,
     workbench_client::ClientMemberTarget,
 };
+use orchbee_workbench_client::test_support::client_view::KeyEvent;
+use orchbee_workbench_client::test_support::machine_agents::Observation as AgentObservation;
+use orchbee_workbench_client::test_support::machine_agents::{checkpoint, row};
+use orchbee_workbench_client::test_support::machine_picker::Control;
+use orchbee_workbench_client::test_support::machine_picker::Mode;
+use orchbee_workbench_client::test_support::machine_picker::PickerAction;
 
 #[derive(Default)]
 struct Surface {
@@ -54,18 +56,19 @@ fn without_cell_padding(value: &str) -> String {
 
 fn expected_too_small_notice(locale: Locale, width: u16, theme: &Theme) -> String {
     let marker = format!("{} ", theme.glyphs.status_bullet);
-    let marker_width = crate::terminal_text::display_width(&marker);
+    let marker_width =
+        orchbee_workbench_client::test_support::terminal_text::display_width(&marker);
     if marker_width < usize::from(width) {
         format!(
             "{marker}{}",
-            crate::terminal_text::truncate_display(
+            orchbee_workbench_client::test_support::terminal_text::truncate_display(
                 locale.shell().too_small_notice,
                 usize::from(width) - marker_width,
                 theme.glyphs.ellipsis,
             )
         )
     } else {
-        crate::terminal_text::truncate_display(
+        orchbee_workbench_client::test_support::terminal_text::truncate_display(
             locale.shell().too_small_notice,
             usize::from(width),
             theme.glyphs.ellipsis,
@@ -250,7 +253,7 @@ fn machine_picker_root_frame_captures_real_agents_and_activates_search_on_exact_
         "the raw Agent query has not entered editing mode"
     );
 
-    crate::tui_render::test_capture::capture_screen(
+    orchbee_workbench_client::test_support::tui_render::test_capture::capture_screen(
         &mut terminal,
         "alignment-machine-picker-en-us-120x40-terminal-native",
         Locale::EnUs,
@@ -379,7 +382,10 @@ fn too_small_machine_frames_preserve_the_root_notice_and_only_keyboard_escape_cl
                     } else {
                         format!("{expected_status}{separator}{hint}")
                     };
-                    if crate::terminal_text::display_width(&candidate) > usize::from(width) {
+                    if orchbee_workbench_client::test_support::terminal_text::display_width(
+                        &candidate,
+                    ) > usize::from(width)
+                    {
                         break;
                     }
                     expected_status = candidate;
@@ -390,7 +396,9 @@ fn too_small_machine_frames_preserve_the_root_notice_and_only_keyboard_escape_cl
                     "the narrow status must retain the longest ordered prefix of whole localized hints"
                 );
                 assert!(
-                    crate::terminal_text::display_width(&expected_status) <= usize::from(width),
+                    orchbee_workbench_client::test_support::terminal_text::display_width(
+                        &expected_status
+                    ) <= usize::from(width),
                     "the complete localized hint prefix must be width-safe"
                 );
             }

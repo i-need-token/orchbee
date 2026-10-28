@@ -1,10 +1,8 @@
 use super::*;
-use crate::workbench_client::{
-    TerminalStatus,
-    test_support::{
-        RenameServer, TestResult, fixture_geometry, native_client, native_workbench_client, spin,
-        spin_with_draw,
-    },
+use crate::workbench_client::TerminalStatus;
+use orchbee_workbench_client::test_support::workbench_client::{
+    RenameServer, TestResult, fixture_geometry, native_client, native_workbench_client, spin,
+    spin_with_draw,
 };
 use orchbee_workbench_protocol::WorkbenchAction;
 use std::time::Instant;

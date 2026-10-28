@@ -10,7 +10,7 @@ use orchbee_workbench_protocol::{WorkbenchClientId, WorkbenchRevision};
 use serde_json::{Map, Value, json};
 
 fn listed(rows: Vec<crate::agent_projection::Row>, with_client: bool) -> Value {
-    let snapshot = crate::machine_agents::test_support::fixture();
+    let snapshot = orchbee_workbench_client::test_support::machine_agents::fixture();
     let checkpoint = crate::agent_projection::read::Checkpoint {
         canonical_revision: AgentSafeInteger::new(2),
         report_revision: WorkbenchRevision::new(7),

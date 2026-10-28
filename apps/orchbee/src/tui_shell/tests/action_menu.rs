@@ -1,5 +1,7 @@
 use super::*;
-use crate::tui_pointer::{HitLayer, HitMapBuilder, HitTarget};
+use crate::tui_pointer::HitMapBuilder;
+use orchbee_workbench_client::test_support::tui_pointer::HitLayer;
+use orchbee_workbench_client::test_support::tui_pointer::HitTarget;
 use ratatui::layout::Rect;
 
 #[test]
@@ -40,7 +42,12 @@ fn ready_mouse_continuation_is_decoded_before_idle_timeout_after_a_busy_frame() 
     }
 }
 
-fn navigation_view(columns: u16) -> (ClientView, crate::machine_picker::SidebarTarget) {
+fn navigation_view(
+    columns: u16,
+) -> (
+    ClientView,
+    orchbee_workbench_client::test_support::machine_picker::SidebarTarget,
+) {
     use orchbee_workbench_protocol::*;
     let contexts: Vec<_> = [1, 2]
         .into_iter()
@@ -59,7 +66,7 @@ fn navigation_view(columns: u16) -> (ClientView, crate::machine_picker::SidebarT
         })
         .collect();
     let current = contexts[0].target.clone();
-    let target = crate::machine_picker::SidebarTarget::Context {
+    let target = orchbee_workbench_client::test_support::machine_picker::SidebarTarget::Context {
         machine: crate::machine_picker::Choice::Local,
         target: contexts[1].target.clone(),
     };
@@ -290,7 +297,8 @@ fn sidebar_backdrop_retirement_settles_before_paint_with_or_without_packet_tail(
 
 #[test]
 fn sidebar_width_retires_same_packet_release_when_press_or_motion_observes_host_resize() {
-    use crate::{terminal_input::InputDispatcher, tui_layout::SidebarWidth};
+    use crate::terminal_input::InputDispatcher;
+    use orchbee_workbench_client::test_support::tui_layout::SidebarWidth;
     for resized in [dimensions(100, 40), dimensions(120, 28)] {
         for during_motion in [false, true] {
             let initial = dimensions(120, 40);

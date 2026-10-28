@@ -1,8 +1,8 @@
 //! Exercises Settings through the real whole-frame drawing boundary.
 use super::*;
-use crate::workbench_client::{
-    DrawReceipt, WorkbenchClientView,
-    test_support::{self, SettingsFrameSource},
+use crate::workbench_client::{DrawReceipt, WorkbenchClientView};
+use orchbee_workbench_client::test_support::workbench_client::{
+    self as test_support, SettingsFrameSource,
 };
 
 fn settings_frame(

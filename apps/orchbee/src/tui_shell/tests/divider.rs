@@ -3,12 +3,21 @@ use super::*;
 use crate::{
     client_view::Modifiers,
     terminal_input::{MouseAction, MouseButton, MouseEvent},
-    tui_layout::{DividerDrag, DividerSource, DrawnDivider},
-    tui_pointer::{
-        HelpControl, HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget,
-        MotionObservability, PointerOutcome, PointerState, PrimaryContract, ProjectedPointer,
-    },
+    tui_layout::DividerDrag,
+    tui_pointer::HitMapBuilder,
 };
+use orchbee_workbench_client::test_support::tui_layout::DividerSource;
+use orchbee_workbench_client::test_support::tui_layout::DrawnDivider;
+use orchbee_workbench_client::test_support::tui_pointer::HelpControl;
+use orchbee_workbench_client::test_support::tui_pointer::HitLayer;
+use orchbee_workbench_client::test_support::tui_pointer::HitTarget;
+use orchbee_workbench_client::test_support::tui_pointer::InteractionSpec;
+use orchbee_workbench_client::test_support::tui_pointer::InteractionTarget;
+use orchbee_workbench_client::test_support::tui_pointer::MotionObservability;
+use orchbee_workbench_client::test_support::tui_pointer::PointerOutcome;
+use orchbee_workbench_client::test_support::tui_pointer::PointerState;
+use orchbee_workbench_client::test_support::tui_pointer::PrimaryContract;
+use orchbee_workbench_client::test_support::tui_pointer::ProjectedPointer;
 use orchbee_workbench_protocol::{
     ClientSplitRatio, PanelOrientation, SessionId, WorkbenchPanelId, WorkbenchPanelSlotId,
     WorkbenchRevision, WorkbenchSplitId, WorkbenchTabId, WorkbenchTerminalContextId,
@@ -56,7 +65,7 @@ impl TerminalInputPort for Surface {
     fn pending_resize_projection(
         &mut self,
         _: Rect,
-        _: crate::client_view::SidebarSurface,
+        _: orchbee_workbench_client::test_support::client_view::SidebarSurface,
         allowed: bool,
     ) -> crate::tui_layout::ResizeProjection {
         self.presentation_checks.push(allowed);
@@ -66,7 +75,8 @@ impl TerminalInputPort for Surface {
 
 #[test]
 fn zero_host_samples_cannot_apply_new_pixels_to_the_retained_viewport() {
-    use crate::terminal_graphics::{Probe, Reply};
+    use orchbee_workbench_client::test_support::terminal_graphics::Probe;
+    use orchbee_workbench_client::test_support::terminal_graphics::Reply;
     let initial = dimensions(120, 40);
     let mut size = initial;
     let mut terminal = test_terminal(initial);
@@ -272,13 +282,13 @@ fn divider_preview_cannot_leak_into_a_machine_capture_frame_before_input_reconci
         .expect("the higher owner must be a live Machine picker episode");
     assert!(
         machine_source
-            .drawn(crate::machine_picker::PickerAction::Row(0))
+            .drawn(orchbee_workbench_client::test_support::machine_picker::PickerAction::Row(0))
             .is_some(),
         "the real default Machine snapshot contains its Local row"
     );
     assert!(
         machine_source
-            .drawn(crate::machine_picker::PickerAction::Row(1))
+            .drawn(orchbee_workbench_client::test_support::machine_picker::PickerAction::Row(1))
             .is_none(),
         "the source snapshot contains exactly one Machine row"
     );
@@ -493,8 +503,9 @@ fn divider_rejected_preview_preserves_the_draw_pointer_projection() {
 
 #[test]
 fn divider_lost_preview_restores_graphics_in_the_same_flushed_frame_without_another_event() {
-    use crate::terminal_graphics::{Probe, Reply};
-    use crate::workbench_client::PaneGraphicsCanvas;
+    use orchbee_workbench_client::test_support::terminal_graphics::Probe;
+    use orchbee_workbench_client::test_support::terminal_graphics::Reply;
+    use orchbee_workbench_client::test_support::workbench_client::PaneGraphicsCanvas;
     use orchbee_workbench_protocol::{
         PaneGraphicsLayer, PaneGraphicsPlacement, PaneGraphicsTarget, TerminalPresentationId,
     };
@@ -503,7 +514,7 @@ fn divider_lost_preview_restores_graphics_in_the_same_flushed_frame_without_anot
         let mut backend = FixedViewportBackend::new(
             Vec::<u8>::new(),
             size,
-            Arc::new(crate::terminal_lifecycle::test_support::synchronized_update_lease()),
+            Arc::new(orchbee_workbench_client::test_support::terminal_lifecycle::synchronized_update_lease()),
         );
         backend.enable_graphics_probe(31);
         let mut terminal = Terminal::with_options(
@@ -586,7 +597,7 @@ fn divider_lost_preview_restores_graphics_in_the_same_flushed_frame_without_anot
             assert!(dispatcher.sidebar_width_preview().is_some());
             assert_eq!(
                 view.machines.sidebar_width(),
-                crate::tui_layout::SidebarWidth::DEFAULT
+                orchbee_workbench_client::test_support::tui_layout::SidebarWidth::DEFAULT
             );
             // The next successful candidate loses the exact painted border.
             view.machines.available = false;

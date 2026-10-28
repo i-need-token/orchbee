@@ -40,10 +40,10 @@ pub enum WorktreeEdit<'a> {
     ScrollChoices { up: bool, lines: usize },
 }
 pub(super) struct Draft {
-    pub removal: Option<super::Removal>,
-    pub sidebar: Option<Box<super::addressed::SidebarDiscovery>>,
-    pub token: WorktreeToken,
-    pub origin: Origin,
+    pub(crate) removal: Option<super::Removal>,
+    pub(crate) sidebar: Option<Box<super::addressed::SidebarDiscovery>>,
+    pub(crate) token: WorktreeToken,
+    pub(crate) origin: Origin,
     source: WorktreeSource,
     discovery: Discovery,
     mode: WorktreeMode,
@@ -51,7 +51,7 @@ pub(super) struct Draft {
     selected_checkout: usize,
     branch: LineEditor,
     base: LineEditor,
-    pub complete: bool,
+    pub(crate) complete: bool,
     fault: bool,
 }
 impl Draft {
@@ -72,7 +72,7 @@ impl Draft {
         true
     }
 
-    pub fn new(
+    pub(crate) fn new(
         origin: Origin,
         source: WorktreeSource,
         discovery: Discovery,
@@ -99,7 +99,7 @@ impl Draft {
             fault: false,
         }
     }
-    pub fn is_create(&self) -> bool {
+    pub(crate) fn is_create(&self) -> bool {
         self.mode == WorktreeMode::Create
     }
     pub(super) fn is_checkout(&self) -> bool {
@@ -119,7 +119,7 @@ impl Draft {
             &mut self.branch
         }
     }
-    pub fn edit(&mut self, edit: WorktreeEdit<'_>) -> Result<bool, WorktreeNotice> {
+    pub(crate) fn edit(&mut self, edit: WorktreeEdit<'_>) -> Result<bool, WorktreeNotice> {
         if self.stage == WorktreeStage::Remove {
             return Ok(false);
         }
@@ -193,7 +193,7 @@ impl Draft {
         }
         Ok(changed)
     }
-    pub fn plan(&self, operation_id: WorkbenchRequestId) -> Option<Plan> {
+    pub(crate) fn plan(&self, operation_id: WorkbenchRequestId) -> Option<Plan> {
         if !self.complete || self.fault {
             return None;
         }

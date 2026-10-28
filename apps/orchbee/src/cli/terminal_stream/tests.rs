@@ -1,7 +1,6 @@
 #[cfg(windows)]
 mod windows;
 use super::*;
-use crate::local_client::test_support::server::FakeServer;
 use base64::Engine;
 use orchbee_client_server_protocol::{
     ClientMessage, ServerMessage, TerminalViewerResult, read_client_message, write_server_message,
@@ -13,6 +12,7 @@ use orchbee_terminal_protocol::{
     TerminalTextRow, decode_terminal_text_frame, encode_transport_envelope,
     inspect_terminal_frame_route,
 };
+use orchbee_workbench_client::test_support::local_client::server::FakeServer;
 use std::{
     io,
     num::NonZeroU64,

@@ -51,13 +51,12 @@ mod panel_close;
 mod prefix;
 pub(crate) use prefix::PrefixDesc;
 mod session_status;
-pub use session_status::DisplayPhase;
-pub use session_status::TerminalStatus;
 pub(crate) use session_status::{
     ClientProjectionStatus, DisplayController, DisplayProvenance, DisplayRetirement,
     DuplicateProgress, DuplicateStop, LaunchFailure, LaunchProfile, NoticeContext, RefreshStatus,
     WorkbenchClientNotice,
 };
+pub use session_status::{DisplayPhase, TerminalStatus};
 mod shell;
 mod startup;
 #[cfg(any(unix, windows))]

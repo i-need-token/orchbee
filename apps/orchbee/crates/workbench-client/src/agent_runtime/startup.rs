@@ -1,11 +1,11 @@
 //! Shared startup protocol operations. Callers retain discovery, selectors, presentation and signal ownership.
 pub(crate) use super::processes::{Selection, interpret};
 pub(crate) use super::{SendVerdict, wait_backoff};
-pub mod binding;
-pub mod observation;
-pub mod processes;
-pub mod send;
-pub mod snapshot;
+pub(crate) mod binding;
+pub(crate) mod observation;
+pub(crate) mod processes;
+pub(crate) mod send;
+pub(crate) mod snapshot;
 use crate::local_client::{
     LocalClient, LocalClientConnectError, LocalClientOrigin, LocalOperationClock,
 };

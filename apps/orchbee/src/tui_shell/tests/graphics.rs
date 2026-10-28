@@ -1,7 +1,8 @@
 //! Actual shell loop witnesses: capability replies cannot become pane input.
 use super::*;
-use crate::terminal_graphics::{Facts, Query};
 use orchbee_client_server_protocol::Geometry;
+use orchbee_workbench_client::test_support::terminal_graphics::Facts;
+use orchbee_workbench_client::test_support::terminal_graphics::Query;
 use ratatui::backend::Backend;
 
 struct Inputs {
@@ -63,7 +64,9 @@ fn graphics_measurement_flows_through_the_actual_shell_without_reply_or_prefix_l
     let mut backend = FixedViewportBackend::new(
         Vec::<u8>::new(),
         initial,
-        Arc::new(crate::terminal_lifecycle::test_support::synchronized_update_lease()),
+        Arc::new(
+            orchbee_workbench_client::test_support::terminal_lifecycle::synchronized_update_lease(),
+        ),
     );
     backend.enable_graphics_probe(31);
     let mut terminal = Terminal::with_options(
@@ -155,7 +158,9 @@ fn absent_and_late_graphics_replies_do_not_delay_the_first_draw_or_restore_unkno
     let mut backend = FixedViewportBackend::new(
         Vec::<u8>::new(),
         initial,
-        Arc::new(crate::terminal_lifecycle::test_support::synchronized_update_lease()),
+        Arc::new(
+            orchbee_workbench_client::test_support::terminal_lifecycle::synchronized_update_lease(),
+        ),
     );
     backend.enable_graphics_probe(31);
     let mut terminal = Terminal::with_options(

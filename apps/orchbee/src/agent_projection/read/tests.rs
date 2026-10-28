@@ -1,12 +1,12 @@
 //! Local transport witnesses prove that incomplete or drifting reads never establish a target set.
 use super::*;
 use crate::local_client::cancellation::OwnedCancellation;
-use crate::local_client::test_support::server::FakeServer;
 use orchbee_agent_observation_protocol::{
     AgentListOutcomeEnvelope, AgentRequest, AgentResult, read_agent_request, write_agent_result,
 };
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_local_ipc::LocalStream;
+use orchbee_workbench_client::test_support::local_client::server::FakeServer;
 use orchbee_workbench_protocol::{
     PanelAgentAction, PanelAgentOutcome, PanelAgentResult, ProtocolVersion, TerminalAgentStateRow,
     WorkbenchRequest, WorkbenchResponse, WorkbenchSnapshotOutcome, WorkbenchSnapshotResult,
@@ -179,7 +179,7 @@ fn peer(case: Case) -> io::Result<FakeServer> {
         else {
             panic!("final topology fence");
         };
-        let mut snapshot = machine_agents::test_support::fixture();
+        let mut snapshot = orchbee_workbench_client::test_support::machine_agents::fixture();
         if matches!(case, Case::WorkbenchDrift) {
             snapshot.revision = WorkbenchRevision::new(2);
         }
@@ -213,7 +213,7 @@ fn complete_read_requires_both_sources_and_all_revision_fences() -> io::Result<(
             .map_err(io::Error::other)?;
         let result = read(
             &mut client,
-            &machine_agents::test_support::fixture(),
+            &orchbee_workbench_client::test_support::machine_agents::fixture(),
             false,
             deadline,
             OwnedCancellation::new().unwrap().borrow(),
@@ -249,7 +249,7 @@ fn expired_and_cancelled_reads_have_no_source_or_effect_requests() -> io::Result
         }
         let result = read(
             &mut client,
-            &machine_agents::test_support::fixture(),
+            &orchbee_workbench_client::test_support::machine_agents::fixture(),
             false,
             if cancelled { deadline } else { Instant::now() },
             cancel.borrow(),
@@ -298,7 +298,7 @@ fn cancellation_and_deadline_interrupt_an_inflight_source_without_retry() -> io:
         };
         let result = read(
             &mut client,
-            &machine_agents::test_support::fixture(),
+            &orchbee_workbench_client::test_support::machine_agents::fixture(),
             false,
             deadline,
             cancel.borrow(),

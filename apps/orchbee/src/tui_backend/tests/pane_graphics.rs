@@ -2,11 +2,9 @@
 
 use std::sync::Arc;
 
-use crate::{
-    terminal_lifecycle::test_support::synchronized_update_lease,
-    tui_backend::{FixedViewportBackend, ResizableBackend},
-    workbench_client::test_support,
-};
+use crate::tui_backend::{FixedViewportBackend, ResizableBackend};
+use orchbee_workbench_client::test_support::terminal_lifecycle::synchronized_update_lease;
+use orchbee_workbench_client::test_support::workbench_client as test_support;
 
 #[test]
 fn actual_native_shell_places_confirmed_pixels_inside_one_frame_and_clears_under_a_board() {

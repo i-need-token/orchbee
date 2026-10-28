@@ -1,7 +1,8 @@
 //! Controlled admission traces for direct sidebar navigation and its latest-intent slot.
 use super::super::*;
 use super::{dimensions, setup};
-use crate::{machine_picker::Selection, workbench_client::ClientContextLocation};
+use crate::workbench_client::ClientContextLocation;
+use orchbee_workbench_client::test_support::machine_picker::Selection;
 use orchbee_workbench_protocol::{SessionId, WorkbenchTerminalContextId, WorkbenchWorkspaceId};
 use std::{cell::RefCell, rc::Rc};
 
@@ -13,7 +14,11 @@ struct Navigation {
 }
 struct Surface(Rc<RefCell<Navigation>>);
 impl crate::terminal_input::TerminalInputPort for Surface {
-    fn forward(&mut self, _: &[u8]) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
+    fn forward(
+        &mut self,
+        _: &[u8],
+    ) -> Result<(), orchbee_workbench_client::test_support::terminal_input::TerminalInputUnavailable>
+    {
         Ok(())
     }
 }
@@ -251,7 +256,11 @@ struct AgentNavigation {
     unavailable: bool,
 }
 impl crate::terminal_input::TerminalInputPort for AgentSurface {
-    fn forward(&mut self, _: &[u8]) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
+    fn forward(
+        &mut self,
+        _: &[u8],
+    ) -> Result<(), orchbee_workbench_client::test_support::terminal_input::TerminalInputUnavailable>
+    {
         Ok(())
     }
 }
@@ -274,11 +283,11 @@ impl TerminalSurface for AgentSurface {
         }
     }
 }
-fn agent_checkpoint() -> Arc<crate::machine_agents::Checkpoint> {
-    crate::machine_agents::test_support::checkpoint(
+fn agent_checkpoint() -> Arc<orchbee_workbench_client::test_support::machine_agents::Checkpoint> {
+    orchbee_workbench_client::test_support::machine_agents::checkpoint(
         [23, 24, 25]
             .into_iter()
-            .map(crate::machine_agents::test_support::row)
+            .map(orchbee_workbench_client::test_support::machine_agents::row)
             .collect(),
     )
 }
@@ -305,7 +314,7 @@ fn prepare_agents() -> (
     }]);
     view.machines.observe_agents(vec![(
         Choice::Local,
-        crate::machine_agents::Observation::Ready(checkpoint),
+        orchbee_workbench_client::test_support::machine_agents::Observation::Ready(checkpoint),
     )]);
     let state = Rc::new(RefCell::new(AgentNavigation {
         current: targets[0].clone(),
@@ -332,7 +341,9 @@ fn verified_agent(
     // withdraws its rows. Publish the next click's checkpoint through the normal Picker guard.
     view.machines.observe_agents(vec![(
         Choice::Local,
-        crate::machine_agents::Observation::Ready(agent_checkpoint()),
+        orchbee_workbench_client::test_support::machine_agents::Observation::Ready(
+            agent_checkpoint(),
+        ),
     )]);
     assert!(view.machines.activate_sidebar_agent(&Selection {
         machine: Choice::Local,

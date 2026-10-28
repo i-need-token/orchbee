@@ -179,8 +179,8 @@ fn agent_session_until_expired_total_fails_before_io() {
 fn agent_markers_classify_internal_at_every_io_position() {
     let request_id = ObapRequestId::parse("11111111111111111111111111111111").expect("request id");
     for marker in [
-        crate::local_client::wake_ready_io,
-        crate::local_client::wake_fault_io,
+        orchbee_workbench_client::test_support::local_client::wake_ready_io,
+        orchbee_workbench_client::test_support::local_client::wake_fault_io,
     ] {
         for operation in [
             AgentReadOperation::List,
@@ -248,7 +248,7 @@ fn session_socket_drops_before_finish_arbitration() {
     use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 
     let (eof, eof_rx) = std::sync::mpsc::channel();
-    let server = crate::local_client::test_support::server::FakeServer::start(move |mut stream| {
+    let server = orchbee_workbench_client::test_support::local_client::server::FakeServer::start(move |mut stream| {
             match read_message(&mut stream).map_err(std::io::Error::other)? {
                 LocalClientMessage::ClientHello(_) => {}
                 _ => {

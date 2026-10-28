@@ -2,13 +2,12 @@
 
 use super::Locale;
 mod parameters;
-pub use parameters::DisplayPhase;
-pub use parameters::TerminalStatus;
 pub(crate) use parameters::{
     ClientProjectionStatus, DisplayController, DisplayProvenance, DisplayRetirement,
     DuplicateProgress, DuplicateStop, LaunchFailure, LaunchProfile, NoticeContext, RefreshStatus,
     WorkbenchClientNotice,
 };
+pub use parameters::{DisplayPhase, TerminalStatus};
 
 impl Locale {
     pub(crate) const fn terminal_status(

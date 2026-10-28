@@ -1679,7 +1679,7 @@ fn integration_signal_install_failure_refuses_before_effects() {
     use crate::agent_integrations::IntegrationId;
     use crate::invocation::AgentIntegrationCommand;
 
-    crate::termination_signal::arm_install_fault();
+    orchbee_workbench_client::test_support::termination_signal::arm_install_fault();
     let command = AgentIntegrationCommand::Enable {
         provider: IntegrationId::ClaudeCode,
         adapter_source: None,
@@ -1703,8 +1703,8 @@ fn integration_signal_install_failure_refuses_before_effects() {
 #[test]
 fn integration_cancelled_mutation_document_validates_against_schema() {
     use super::integration::Prepared;
-    use crate::agent_integrations::model::Provenance;
     use crate::agent_integrations::{Direction, IntegrationId, MutationReport, Verdict};
+    use orchbee_workbench_client::test_support::agent_integrations::model::Provenance;
 
     let report = MutationReport {
         integration_id: IntegrationId::ClaudeCode,

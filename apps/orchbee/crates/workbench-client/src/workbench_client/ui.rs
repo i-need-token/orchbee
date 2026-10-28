@@ -114,10 +114,9 @@ pub(crate) use input_capture::WorktreeCaptureContext;
 #[cfg(test)]
 pub(crate) use input_capture::{ConfirmationCaptureContext, SetupCaptureContext};
 pub(crate) use panel_close::{PanelCloseConfirmationToken, PanelCloseConfirmationView};
-pub use tab_close::CloseConfirmationToken;
-pub use tab_close::DrawReceipt;
 #[cfg(test)]
 pub(crate) use tab_close::{CloseConfirmationKind, CloseStatusKind};
+pub use tab_close::{CloseConfirmationToken, DrawReceipt};
 pub(crate) use tab_close::{CloseConfirmationView, CloseStatusToken, ModalPresentation};
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use tab_rename::RenameInputContext;
@@ -201,7 +200,7 @@ impl<'a> ClientTabView<'a> {
     }
 
     /// Resolve this Client's split weight against exact ordered slot identities.
-    pub fn split_ratio(
+    pub(crate) fn split_ratio(
         &self,
         split: &orchbee_workbench_protocol::WorkbenchSplitId,
         first: &orchbee_workbench_protocol::WorkbenchPanelSlotId,
@@ -244,15 +243,15 @@ impl<'a> ClientTabView<'a> {
         self.inner.panel_count()
     }
 
-    pub fn panel_tree(&self) -> &'a super::ClientPanelTree {
+    pub(crate) fn panel_tree(&self) -> &'a super::ClientPanelTree {
         self.inner.panel_tree()
     }
 
-    pub fn active_panel(&self) -> Option<usize> {
+    pub(crate) fn active_panel(&self) -> Option<usize> {
         self.inner.active_panel()
     }
 
-    pub fn panel(&self, index: usize) -> Option<&'a super::ClientPanel> {
+    pub(crate) fn panel(&self, index: usize) -> Option<&'a super::ClientPanel> {
         self.inner.panel(index)
     }
 
@@ -894,7 +893,7 @@ impl<'a> WorkbenchClientView<'a> {
 
     /// The panel identity of the focus pane — the leaf that takes input,
     /// resize and the focused-frame chrome.
-    pub const fn focus_panel_id(&self) -> Option<&'a WorkbenchPanelId> {
+    pub(crate) const fn focus_panel_id(&self) -> Option<&'a WorkbenchPanelId> {
         self.focus
     }
     pub fn focused_member(&self) -> Option<super::ClientMemberTarget> {

@@ -339,7 +339,7 @@ fn unified_agent_get_schema_is_closed_around_real_projection_and_inspection() {
         report_revision: WorkbenchRevision::new(7),
         rows: rows(vec![canonical], vec![state(12, None)]),
     };
-    let snapshot = crate::machine_agents::test_support::fixture();
+    let snapshot = orchbee_workbench_client::test_support::machine_agents::fixture();
     let source = crate::cli::agent_projection::source(&snapshot, &checkpoint);
     let document = |with_client| {
         let result = Projection::UnifiedAgentInspection(Box::new(Inspection {
@@ -482,7 +482,7 @@ fn unified_agent_get_physical_inspection_requires_current_semantics() {
         report_revision: WorkbenchRevision::new(7),
         rows: rows(Vec::new(), vec![state(12, Some("codex"))]),
     };
-    let snapshot = crate::machine_agents::test_support::fixture();
+    let snapshot = orchbee_workbench_client::test_support::machine_agents::fixture();
     let source = crate::cli::agent_projection::source(&snapshot, &checkpoint);
     let row = checkpoint.rows[0].clone();
     let row_document = row.document(1, None);
