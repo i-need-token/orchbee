@@ -127,7 +127,7 @@ impl TerminalProjection {
     /// Installs a frame directly — UI-level fixtures that exercise
     /// frame-dependent gates (history entry availability) without needing
     /// an OBRW encoder for the receive path.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub(crate) fn install_frame_for_test(&mut self, frame: TerminalTextFrame) {
         self.frame = Some(Arc::new(frame));
     }

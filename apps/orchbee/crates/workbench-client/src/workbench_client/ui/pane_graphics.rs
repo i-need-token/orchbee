@@ -3,6 +3,8 @@
 //! were merely prepared for drawing.
 
 use super::{WorkbenchClientUi, WorkbenchClientView};
+#[cfg(any(test, feature = "test-support"))]
+pub(super) mod test_support;
 #[cfg(test)]
 mod tests;
 use crate::workbench_client::{

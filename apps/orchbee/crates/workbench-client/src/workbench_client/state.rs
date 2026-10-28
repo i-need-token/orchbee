@@ -1421,7 +1421,7 @@ impl WorkbenchClientState {
 
     /// The exact live incarnation of one logical pane — test code resolves a
     /// `PaneKey` into the `PaneRef` the current membership minted.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub(super) fn pane_ref_for(&self, pane: &PaneKey) -> Option<PaneRef> {
         self.pane_record(pane).map(PaneRecord::pane_ref)
     }

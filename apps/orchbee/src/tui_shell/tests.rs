@@ -31,7 +31,6 @@ mod machine_picker_capture;
 mod notification_too_small;
 mod rename;
 mod settings;
-pub(crate) use settings::{SettingsFrameSource, settings_frame};
 
 struct QueueInputSource {
     inputs: VecDeque<io::Result<Option<Vec<u8>>>>,

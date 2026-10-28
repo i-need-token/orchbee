@@ -262,7 +262,7 @@ fn is_content_role(role: Role) -> bool {
         | Role::StatusUnread
         | Role::HintKey
         | Role::HintLabel => true,
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         Role::AccentLink => true,
         _ => false,
     }

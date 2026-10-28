@@ -64,7 +64,7 @@ fn named(palette: Palette) -> Theme {
             accent_destructive: Style::new().fg(rgb(palette.destructive_accent)),
             accent_focus: focus,
             accent_selection: primary.bg(rgb(palette.selection)),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             accent_link: focus.add_modifier(Modifier::UNDERLINED),
             status_success: Style::new().fg(rgb(palette.success)),
             status_warning: Style::new().fg(rgb(palette.warning)),

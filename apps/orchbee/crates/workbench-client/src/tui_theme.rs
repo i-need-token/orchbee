@@ -30,7 +30,7 @@ pub enum Role {
     AccentDestructive,
     AccentFocus,
     AccentSelection,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     AccentLink,
     StatusSuccess,
     StatusWarning,
@@ -221,7 +221,7 @@ pub(crate) struct RoleStyles {
     pub accent_destructive: Style,
     pub accent_focus: Style,
     pub accent_selection: Style,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub accent_link: Style,
     pub status_success: Style,
     pub status_warning: Style,
@@ -260,7 +260,7 @@ impl RoleStyles {
             Role::AccentDestructive => self.accent_destructive,
             Role::AccentFocus => self.accent_focus,
             Role::AccentSelection => self.accent_selection,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             Role::AccentLink => self.accent_link,
             Role::StatusSuccess => self.status_success,
             Role::StatusWarning => self.status_warning,
@@ -298,7 +298,7 @@ impl RoleStyles {
             accent_destructive: apply(self.accent_destructive),
             accent_focus: apply(self.accent_focus),
             accent_selection: apply(self.accent_selection),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             accent_link: apply(self.accent_link),
             status_success: apply(self.status_success),
             status_warning: apply(self.status_warning),
@@ -512,7 +512,7 @@ impl Theme {
                 accent_destructive: Style::new().fg(Color::Red),
                 accent_focus: Style::new().fg(Color::Cyan),
                 accent_selection: Style::new().fg(Color::White).bg(Color::Blue),
-                #[cfg(test)]
+                #[cfg(any(test, feature = "test-support"))]
                 accent_link: Style::new()
                     .fg(Color::Cyan)
                     .add_modifier(Modifier::UNDERLINED),
@@ -549,7 +549,7 @@ impl Theme {
     /// The RGB theme the render evidence requires alongside `terminal-native`.
     /// Declared dark polarity; a production host-facing RGB theme arrives with
     /// the environment seam — this constructor is test evidence only.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     #[must_use]
     pub(crate) fn rgb_test_dark() -> Self {
         Self {
@@ -1038,7 +1038,7 @@ impl Theme {
                 ),
                 (&mut styles.accent_focus, self.styles.accent_focus),
                 (&mut styles.accent_selection, self.styles.accent_selection),
-                #[cfg(test)]
+                #[cfg(any(test, feature = "test-support"))]
                 (&mut styles.accent_link, self.styles.accent_link),
                 (&mut styles.status_success, self.styles.status_success),
                 (&mut styles.status_warning, self.styles.status_warning),

@@ -1,74 +1,14 @@
+pub(in crate::workbench_client::ui) use super::super::test_support::{ready, ready_snapshot};
 use super::super::*;
-use crate::local_client::test_support::server::adjustable_operation_clock;
 use crate::local_client::workbench::workspace_setup::WorkbenchSetupCommit;
 use crate::workbench_client::mailbox::{CommandLease, EventDeadline, UiWaitKey};
 use crate::workbench_client::state::workspace_setup::SetupResult;
 use orchbee_workbench_protocol::{
-    Project, Snapshot, TerminalContext, WorkbenchDirectoryPath, WorkbenchProjectId,
-    WorkbenchRevision, WorkbenchSnapshotOutcome, WorkbenchTerminalContextId, WorkbenchWorkspaceId,
-    Workspace,
+    Snapshot, TerminalContext, WorkbenchDirectoryPath, WorkbenchRevision, WorkbenchSnapshotOutcome,
+    WorkbenchTerminalContextId, WorkbenchWorkspaceId, Workspace,
 };
-use std::sync::atomic::AtomicU64;
 mod responsive;
 mod sidebar;
-fn project() -> Project {
-    Project {
-        project_id: WorkbenchProjectId::parse(&format!("{:032x}", 270)).unwrap(),
-        label: "Project".into(),
-    }
-}
-pub(in crate::workbench_client::ui) fn ready(
-    with_project: bool,
-) -> (
-    WorkbenchClientUi,
-    Arc<CommandMailbox>,
-    LocalOperationClock,
-    Snapshot,
-) {
-    let mut snapshot = super::super::tests::membership::snapshot(1, 1);
-    if with_project {
-        snapshot.navigation.projects.push(project());
-    }
-    ready_snapshot(snapshot)
-}
-pub(in crate::workbench_client::ui) fn ready_snapshot(
-    snapshot: Snapshot,
-) -> (
-    WorkbenchClientUi,
-    Arc<CommandMailbox>,
-    LocalOperationClock,
-    Snapshot,
-) {
-    let clock = adjustable_operation_clock(Arc::new(AtomicU64::new(0)));
-    let mailbox = Arc::new(CommandMailbox::new(
-        10,
-        Geometry::new(80, 24, 8, 16).unwrap(),
-    ));
-    let mut ui = WorkbenchClientUi::new(Arc::clone(&mailbox), clock.clone());
-    let wait = mailbox
-        .publish_event_before(
-            WorkerEvent::Bootstrap {
-                selection: None,
-                cache: crate::workbench_client::workbench_projection::project_preferred_workspace(
-                    &snapshot,
-                )
-                .unwrap(),
-            },
-            EventDeadline::Startup(clock.now() + super::super::super::state::OPERATION_TOTAL),
-            &clock,
-        )
-        .unwrap();
-    ui.tick();
-    mailbox.take_deposited_reply(&wait).unwrap().unwrap();
-    let state = ui.state.as_mut().unwrap();
-    let key = state.desired().unwrap().clone();
-    state.install_projection_t(&key);
-    state.record_setup_configuration_t(&key, ControllerMode::ReadOnly, None);
-    state.stage_drawn_frame_t(&key, FrameIdentity::new(1));
-    state.mark_feedback_accepted_t(&key, FrameIdentity::new(1));
-    state.publish_ready_t(&key, FrameIdentity::new(1), ControllerMode::ReadOnly, None);
-    (ui, mailbox, clock, snapshot)
-}
 pub(in crate::workbench_client::ui) fn finish_preparation(
     ui: &mut WorkbenchClientUi,
     mailbox: &CommandMailbox,

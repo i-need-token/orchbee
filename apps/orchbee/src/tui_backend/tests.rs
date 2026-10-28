@@ -25,6 +25,7 @@ use super::{
 
 mod cursor;
 mod lifecycle;
+mod pane_graphics;
 mod terminal_cells;
 
 #[test]

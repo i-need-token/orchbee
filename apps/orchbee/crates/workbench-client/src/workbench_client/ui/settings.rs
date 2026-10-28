@@ -14,6 +14,8 @@ use orchbee_workbench_protocol::{
     SettingsRequest, UserPreferencesSnapshot, WorkbenchRequestId,
 };
 use std::time::{Duration, Instant};
+#[cfg(any(test, feature = "test-support"))]
+pub(super) mod test_support;
 #[cfg(test)]
 mod tests;
 

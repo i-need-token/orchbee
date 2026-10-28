@@ -1,50 +1,12 @@
 //! The shell keeps draft effects local and preserves committed/unknown receipts.
+use super::test_support::{draft_basis, ready};
 use super::*;
-use crate::native_settings::Basis;
 use crate::{
     client_view::{ClientView, KeyCode, Modifiers},
     tui_presentation::PresentationPhase,
     workbench_client::DrawReceipt,
 };
 use ratatui::{Terminal, backend::TestBackend};
-mod appearance;
-fn ready() -> WorkbenchClientUi {
-    ready_with_basis(draft_basis())
-}
-fn ready_with_application_theme(
-    application_theme: orchbee_workbench_protocol::ApplicationAppearance,
-) -> WorkbenchClientUi {
-    ready_with_basis(draft_basis_with_application_theme(application_theme))
-}
-fn ready_with_basis(basis: Basis) -> WorkbenchClientUi {
-    let (mut ui, _, _, _) = super::super::tests::workspace_setup::ready(true);
-    let token = ui.settings.editor.open().unwrap();
-    assert!(ui.settings.editor.loaded(token, basis.clone()));
-    ui.apply_user_preferences(&basis.values);
-    ui.settings
-        .editor
-        .draw(ui.settings.editor.view().unwrap().token());
-    ui
-}
-fn draft_basis() -> Basis {
-    Basis {
-        source: "missing".into(),
-        values: orchbee_workbench_protocol::UserPreferencesValues::default(),
-        claimed: Default::default(),
-    }
-}
-fn draft_basis_with_application_theme(
-    application_theme: orchbee_workbench_protocol::ApplicationAppearance,
-) -> Basis {
-    Basis {
-        source: "missing".into(),
-        values: orchbee_workbench_protocol::UserPreferencesValues {
-            application_theme,
-            ..orchbee_workbench_protocol::UserPreferencesValues::default()
-        },
-        claimed: Default::default(),
-    }
-}
 
 fn present_settings(ui: &mut WorkbenchClientUi) {
     let shell = ClientView::new(120);

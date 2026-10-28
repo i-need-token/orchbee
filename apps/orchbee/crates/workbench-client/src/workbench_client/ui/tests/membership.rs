@@ -1,3 +1,5 @@
+pub(in crate::workbench_client) use super::super::test_support::snapshot;
+use super::super::test_support::snapshot_terminal;
 use super::super::*;
 use crate::local_client::test_support::server::adjustable_operation_clock;
 use crate::workbench_client::mailbox::{EventDeadline, SwitchMarker};
@@ -754,82 +756,10 @@ fn place_refresh_outcome(
     (lease, wait)
 }
 
-fn snapshot_terminal(index: usize) -> TerminalId {
-    TerminalId::parse(&format!("{:032x}", 1004 + index * 10)).unwrap()
-}
-
 /// A Workspace retains its identity throughout empty and populated states.
 pub(in crate::workbench_client::ui) fn canonical_snapshot(count: usize, revision: u64) -> Snapshot {
     let mut snapshot = snapshot(count, revision);
     snapshot.navigation.workspaces[0].workspace_id =
         WorkbenchWorkspaceId::parse(&format!("{:032x}", 7000)).unwrap();
     snapshot
-}
-
-pub(in crate::workbench_client) fn snapshot(count: usize, revision: u64) -> Snapshot {
-    let context = WorkbenchTerminalContextId::parse(&format!("{:032x}", 2)).unwrap();
-    Snapshot {
-        navigation: {
-            let fixture_context_id = context.clone();
-            let fixture_workspace_id = orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
-                fixture_context_id.as_str(),
-            )
-            .unwrap();
-            Navigation {
-                project_order: Vec::new(),
-                directories: Vec::new(),
-                workspaces: std::iter::once(orchbee_workbench_protocol::Workspace {
-                    workspace_id: fixture_workspace_id.clone(),
-                    terminal_context_id: fixture_context_id.clone(),
-                    project_id: None,
-                    primary_directory_id: None,
-                    label: "Workspace".into(),
-                })
-                .chain(Vec::new())
-                .collect(),
-                workspace_order: Vec::new(),
-                projects: Vec::new(),
-            }
-        },
-        protocol_version: ProtocolVersion,
-        revision: WorkbenchRevision::new(revision),
-        session_id: SessionId::parse(&format!("{:032x}", 1)).unwrap(),
-        terminal_contexts: vec![TerminalContext {
-            groups: Vec::new(),
-            terminal_context_id: context,
-            tabs: (0..count)
-                .map(|index| {
-                    let base = 1000 + index * 10;
-                    Tab {
-                        automatic_label: false,
-                        group_id: None,
-                        pinned: false,
-                        label: format!("Tab {index}"),
-                        tab_id: WorkbenchTabId::parse(&format!("{base:032x}")).unwrap(),
-                        root: PanelNode::Panel {
-                            right_click: Default::default(),
-                            child_presentations: Vec::new(),
-                            panel_id: WorkbenchPanelId::parse(&format!("{:032x}", base + 1))
-                                .unwrap(),
-                            primary_presentation: Presentation {
-                                custom_label: None,
-                                label: format!("Terminal {index}"),
-                                presentation_id: TerminalPresentationId::parse(&format!(
-                                    "{:032x}",
-                                    base + 2
-                                ))
-                                .unwrap(),
-                                binding: Some(PresentationBinding {
-                                    terminal_id: snapshot_terminal(index),
-                                    worker_id: WorkerId::parse(&format!("{:032x}", base + 3))
-                                        .unwrap(),
-                                }),
-                                launch_failure: None,
-                            },
-                        },
-                    }
-                })
-                .collect(),
-        }],
-    }
 }

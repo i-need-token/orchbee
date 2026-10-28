@@ -273,7 +273,7 @@ impl Driver {
     pub(super) fn cell_pixels(&self) -> Option<orchbee_workbench_protocol::PaneGraphicsCellPixels> {
         self.host.cell_capabilities().cell_pixels
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub(in crate::workbench_client) fn install_for_test(&mut self, canvas: Canvas) {
         assert!(
             self.scope

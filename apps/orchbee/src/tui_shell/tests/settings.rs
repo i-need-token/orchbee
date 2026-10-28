@@ -1,27 +1,26 @@
 //! Exercises Settings through the real whole-frame drawing boundary.
 use super::*;
-use crate::workbench_client::{DrawReceipt, WorkbenchClientView};
+use crate::workbench_client::{
+    DrawReceipt, WorkbenchClientView,
+    test_support::{self, SettingsFrameSource},
+};
 
-pub(crate) trait SettingsFrameSource {
-    fn settings_view(&self) -> WorkbenchClientView<'_>;
-}
-
-pub(crate) fn settings_frame(
+fn settings_frame(
     size: (u16, u16),
     view: &mut ClientView,
     locale: Locale,
-    session: &impl SettingsFrameSource,
+    session: &dyn SettingsFrameSource,
 ) -> (ratatui::buffer::Buffer, DrawReceipt) {
-    struct Surface<'a, S> {
-        session: &'a S,
+    struct Surface<'a> {
+        session: &'a dyn SettingsFrameSource,
         receipt: DrawReceipt,
     }
-    impl<S> TerminalInputPort for Surface<'_, S> {
+    impl TerminalInputPort for Surface<'_> {
         fn forward(&mut self, _bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
             panic!("drawing Settings cannot forward input");
         }
     }
-    impl<S: SettingsFrameSource> super::super::TerminalSurface for Surface<'_, S> {
+    impl super::super::TerminalSurface for Surface<'_> {
         fn view(&self) -> Option<WorkbenchClientView<'_>> {
             Some(self.session.settings_view())
         }
@@ -47,4 +46,25 @@ pub(crate) fn settings_frame(
     )
     .unwrap();
     (terminal.backend().buffer().clone(), surface.receipt)
+}
+
+#[test]
+fn draft_appearance_reaches_background_chrome_and_program_defaults_without_runtime_effects() {
+    test_support::draft_appearance_reaches_background_chrome_and_program_defaults_without_runtime_effects(
+        &settings_frame,
+    );
+}
+
+#[test]
+fn external_confirmed_values_update_unedited_presentation_and_cancel_reveals_the_latest_snapshot() {
+    test_support::external_confirmed_values_update_unedited_presentation_and_cancel_reveals_the_latest_snapshot(
+        &settings_frame,
+    );
+}
+
+#[test]
+fn covering_client_owner_uses_confirmed_appearance_until_settings_returns() {
+    test_support::covering_client_owner_uses_confirmed_appearance_until_settings_returns(
+        &settings_frame,
+    );
 }

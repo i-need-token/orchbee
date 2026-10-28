@@ -1,17 +1,78 @@
 //! Whole-frame preview, restoration and confirmed publication across the native painters.
+//!
+//! The Client state and every assertion stay here; the owning application paints each frame
+//! through its real shell drawing boundary.
 use super::*;
 use crate::{
+    client_view::ClientView,
     localization::Locale,
-    tui_shell::tests::{SettingsFrameSource, settings_frame},
+    native_settings::Basis,
     tui_theme::{ColorLevel, Role},
+    workbench_client::DrawReceipt,
 };
 use orchbee_workbench_protocol::{
     ApplicationAppearance, PreferencesLocale, TerminalDisplayAppearance, UserPreferencesValues,
 };
+use ratatui::buffer::Buffer;
+
+/// The Client view a whole-frame Settings paint draws.
+pub trait SettingsFrameSource {
+    fn settings_view(&self) -> WorkbenchClientView<'_>;
+}
+
+/// One whole native frame painted by the owning application's shell, with its draw receipt.
+pub type SettingsFrame<'a> = &'a dyn Fn(
+    (u16, u16),
+    &mut ClientView,
+    Locale,
+    &dyn SettingsFrameSource,
+) -> (Buffer, DrawReceipt);
 
 impl SettingsFrameSource for WorkbenchClientUi {
     fn settings_view(&self) -> WorkbenchClientView<'_> {
         self.view()
+    }
+}
+
+pub(super) fn ready() -> WorkbenchClientUi {
+    ready_with_basis(draft_basis())
+}
+
+pub(super) fn draft_basis() -> Basis {
+    Basis {
+        source: "missing".into(),
+        values: orchbee_workbench_protocol::UserPreferencesValues::default(),
+        claimed: Default::default(),
+    }
+}
+
+pub(super) fn ready_with_application_theme(
+    application_theme: orchbee_workbench_protocol::ApplicationAppearance,
+) -> WorkbenchClientUi {
+    ready_with_basis(draft_basis_with_application_theme(application_theme))
+}
+
+pub(super) fn ready_with_basis(basis: Basis) -> WorkbenchClientUi {
+    let (mut ui, _, _, _) = super::super::test_support::ready(true);
+    let token = ui.settings.editor.open().unwrap();
+    assert!(ui.settings.editor.loaded(token, basis.clone()));
+    ui.apply_user_preferences(&basis.values);
+    ui.settings
+        .editor
+        .draw(ui.settings.editor.view().unwrap().token());
+    ui
+}
+
+pub(super) fn draft_basis_with_application_theme(
+    application_theme: orchbee_workbench_protocol::ApplicationAppearance,
+) -> Basis {
+    Basis {
+        source: "missing".into(),
+        values: orchbee_workbench_protocol::UserPreferencesValues {
+            application_theme,
+            ..orchbee_workbench_protocol::UserPreferencesValues::default()
+        },
+        claimed: Default::default(),
     }
 }
 
@@ -20,14 +81,17 @@ fn paint(
     shell: &mut ClientView,
     size: (u16, u16),
     locale: Locale,
-) -> ratatui::buffer::Buffer {
-    let (buffer, receipt) = settings_frame(size, shell, locale, ui);
+    paint_frame: SettingsFrame<'_>,
+) -> Buffer {
+    let (buffer, receipt) = paint_frame(size, shell, locale, &*ui);
     ui.after_close_draw(receipt);
     buffer
 }
 
-#[test]
-fn draft_appearance_reaches_background_chrome_and_program_defaults_without_runtime_effects() {
+/// Scenario body for the owning application's test of the same name.
+pub fn draft_appearance_reaches_background_chrome_and_program_defaults_without_runtime_effects(
+    paint_frame: SettingsFrame<'_>,
+) {
     for size in [(120, 40), (80, 24)] {
         for fallback in [Locale::EnUs, Locale::ZhCn] {
             for level in [
@@ -48,15 +112,10 @@ fn draft_appearance_reaches_background_chrome_and_program_defaults_without_runti
                 let area = ratatui::layout::Rect::new(0, 0, size.0, size.1);
                 let areas = crate::tui_layout::project_shell_areas(area, shell.sidebar_surface());
                 let pane = crate::tui_layout::active_pane_area(&areas, Some(ui.view())).unwrap();
-                let key =
-                    super::super::super::tests::viewport::install_projection(&mut ui, None, 0);
+                let key = super::super::test_support::install_projection(&mut ui, None, 0);
                 let projection = ui.projections.iter_mut().find(|p| p.key == key).unwrap();
-                let mut frame = super::super::super::tests::viewport::frame(
-                    &projection.value,
-                    0,
-                    false,
-                    pane.height,
-                );
+                let mut frame =
+                    super::super::test_support::frame(&projection.value, 0, false, pane.height);
                 frame.geometry.columns = pane.width;
                 frame.geometry.rows = pane.height;
                 frame.foreground = 0x102030;
@@ -76,7 +135,7 @@ fn draft_appearance_reaches_background_chrome_and_program_defaults_without_runti
                 projection.value.install_frame_for_test(frame);
 
                 ui.settings.editor.edit(Edit::Cancel);
-                let original = paint(&mut ui, &mut shell, size, fallback);
+                let original = paint(&mut ui, &mut shell, size, fallback, paint_frame);
                 assert_eq!(
                     original[(pane.right() - 2, pane.y)].symbol(),
                     "d",
@@ -87,7 +146,7 @@ fn draft_appearance_reaches_background_chrome_and_program_defaults_without_runti
                     token,
                     draft_basis_with_application_theme(ApplicationAppearance::Light)
                 ));
-                paint(&mut ui, &mut shell, size, fallback);
+                paint(&mut ui, &mut shell, size, fallback, paint_frame);
                 let confirmed_shell = shell.clone();
                 ui.settings.editor.edit(Edit::Select(Row::Theme));
                 ui.settings.editor.edit(Edit::Adjust(true));
@@ -112,7 +171,7 @@ fn draft_appearance_reaches_background_chrome_and_program_defaults_without_runti
                     let expected = shell
                         .preview_theme(preview)
                         .with_host_terminal_colors(0x102030, 0xe0d0c0);
-                    let buffer = paint(&mut ui, &mut shell, size, fallback);
+                    let buffer = paint(&mut ui, &mut shell, size, fallback, paint_frame);
                     assert_eq!(
                         buffer[(0, size.1 - 1)].bg,
                         expected.color(Role::SurfaceChrome),
@@ -165,7 +224,7 @@ fn draft_appearance_reaches_background_chrome_and_program_defaults_without_runti
                     );
                 }
                 ui.settings.editor.edit(Edit::Cancel);
-                let restored = paint(&mut ui, &mut shell, size, fallback);
+                let restored = paint(&mut ui, &mut shell, size, fallback, paint_frame);
                 assert_eq!(restored[(0, 0)], original[(0, 0)]);
                 assert_eq!(
                     restored[(pane.right() - 2, pane.y)],
@@ -177,8 +236,10 @@ fn draft_appearance_reaches_background_chrome_and_program_defaults_without_runti
     }
 }
 
-#[test]
-fn external_confirmed_values_update_unedited_presentation_and_cancel_reveals_the_latest_snapshot() {
+/// Scenario body for the owning application's test of the same name.
+pub fn external_confirmed_values_update_unedited_presentation_and_cancel_reveals_the_latest_snapshot(
+    paint_frame: SettingsFrame<'_>,
+) {
     let mut ui = ready_with_application_theme(ApplicationAppearance::Light);
     let mut shell = ClientView::new(120);
     let initial = UserPreferencesValues {
@@ -200,7 +261,7 @@ fn external_confirmed_values_update_unedited_presentation_and_cancel_reveals_the
     assert_eq!(preview.locale, PreferencesLocale::ZhCn);
     assert_eq!(preview.application_theme, ApplicationAppearance::Dark);
     let expected = shell.preview_theme(preview);
-    let buffer = paint(&mut ui, &mut shell, (120, 40), Locale::EnUs);
+    let buffer = paint(&mut ui, &mut shell, (120, 40), Locale::EnUs, paint_frame);
     assert_eq!(buffer[(0, 0)].bg, expected.color(Role::SurfaceChrome));
     assert!(
         buffer
@@ -216,29 +277,31 @@ fn external_confirmed_values_update_unedited_presentation_and_cancel_reveals_the
             && draft.basis_values == &initial));
     ui.settings.editor.edit(Edit::Cancel);
     assert_eq!(shell.user_preferences.as_ref(), Some(&latest.values));
-    let restored = paint(&mut ui, &mut shell, (120, 40), Locale::EnUs);
+    let restored = paint(&mut ui, &mut shell, (120, 40), Locale::EnUs, paint_frame);
     assert_eq!(
         restored[(0, 0)].bg,
         shell.configured_theme().unwrap().color(Role::SurfaceChrome)
     );
 }
 
-#[test]
-fn covering_client_owner_uses_confirmed_appearance_until_settings_returns() {
+/// Scenario body for the owning application's test of the same name.
+pub fn covering_client_owner_uses_confirmed_appearance_until_settings_returns(
+    paint_frame: SettingsFrame<'_>,
+) {
     let mut ui = ready();
     let mut shell = ClientView::new(120);
     shell.apply_user_preferences(UserPreferencesValues::default());
     ui.settings.editor.edit(Edit::Select(Row::Theme));
     ui.settings.editor.edit(Edit::Adjust(true));
-    let preview = paint(&mut ui, &mut shell, (120, 40), Locale::EnUs);
+    let preview = paint(&mut ui, &mut shell, (120, 40), Locale::EnUs, paint_frame);
     shell.machines.open = true;
-    let covered = paint(&mut ui, &mut shell, (120, 40), Locale::EnUs);
+    let covered = paint(&mut ui, &mut shell, (120, 40), Locale::EnUs, paint_frame);
     assert_eq!(
         covered[(0, 0)].bg,
         shell.configured_theme().unwrap().color(Role::SurfaceChrome)
     );
     assert_ne!(preview[(0, 0)].bg, covered[(0, 0)].bg);
     shell.machines.open = false;
-    let resumed = paint(&mut ui, &mut shell, (120, 40), Locale::EnUs);
+    let resumed = paint(&mut ui, &mut shell, (120, 40), Locale::EnUs, paint_frame);
     assert_eq!(resumed[(0, 0)].bg, preview[(0, 0)].bg);
 }

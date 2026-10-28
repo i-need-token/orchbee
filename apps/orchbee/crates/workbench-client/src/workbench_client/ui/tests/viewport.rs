@@ -5,131 +5,21 @@
 //! history-key consumption contracts — driven on real `WorkbenchClientUi` fixtures
 //! without a session worker.
 
+use super::super::test_support::{attachment, epoch};
+pub(in crate::workbench_client::ui) use super::super::test_support::{
+    controlling_ui, frame, install_projection,
+};
 use super::super::tests::move_membership::ready_ui;
 use super::super::tests::publication_hint::ready_split_ui;
 use super::super::*;
 mod chrome;
 mod scrollbar;
 use crate::client_view::{ClientKey, ClientView, KeyCode, KeyEvent, Modifiers};
-use crate::local_client::test_support::server::adjustable_operation_clock;
 use crate::terminal_input::{InputDispatcher, TerminalInputPort, TerminalInputUnavailable};
 use crate::workbench_client::mailbox::EventDeadline;
-use orchbee_client_server_protocol::{ControllerId, ViewportRowOrigin};
-use orchbee_terminal_protocol::{
-    AttachmentId, HistoryAnchorStatus, HistoryChanged, HostEpoch, TerminalFrameRoute,
-    TerminalInteraction, TerminalPixelGeometry, TerminalTextCell, TerminalTextCursor,
-    TerminalTextFrame, TerminalTextRow, TerminalTextStyle,
-};
-use std::{io, num::NonZeroU64, sync::atomic::AtomicU64, time::Instant};
-
-fn attachment() -> AttachmentId {
-    AttachmentId::parse(&format!("{:032x}", 7_001)).unwrap()
-}
-
-fn epoch() -> HostEpoch {
-    HostEpoch::parse(&format!("{:032x}", 7_002)).unwrap()
-}
-
-/// A minimal live frame whose gate-relevant fields the caller controls,
-/// routed to the projection it will be installed on.
-pub(in crate::workbench_client::ui) fn frame(
-    projection: &TerminalProjection,
-    scrollback_rows: u64,
-    alternate_screen: bool,
-    rows: u16,
-) -> TerminalTextFrame {
-    TerminalTextFrame {
-        route: TerminalFrameRoute {
-            attachment_id: *projection.attachment(),
-            host_epoch: *projection.epoch(),
-            sequence: NonZeroU64::new(1).unwrap(),
-            generation: NonZeroU64::new(1).unwrap(),
-            revision: 1,
-            base_revision: None,
-        },
-        geometry: TerminalPixelGeometry {
-            cell_pixel_height: 16,
-            cell_pixel_width: 8,
-            columns: 80,
-            rows: 24,
-        },
-        cursor: TerminalTextCursor {
-            column: 0,
-            row: 0,
-            visible: true,
-        },
-        alternate_screen,
-        interaction: TerminalInteraction::default(),
-        foreground: 0,
-        background: 0,
-        theme_revision: 1,
-        scrollback_rows,
-        progress: None,
-        graphics_present: None,
-        command_completion: None,
-        command_observation: None,
-        title: None,
-        current_directory: None,
-        rows: (0..rows)
-            .map(|index| TerminalTextRow {
-                prompt_class: 0,
-                index,
-                flags: 0,
-                cells: vec![TerminalTextCell {
-                    text: "x".into(),
-                    style: TerminalTextStyle {
-                        foreground: 0,
-                        background: 0,
-                        underline_color: 0,
-                        flags: 0,
-                        underline: 0,
-                    },
-                    width: 0,
-                }],
-            })
-            .collect(),
-    }
-}
-
-/// Installs a `KeyedProjection` for the exact focus incarnation — with the
-/// frame spec `(scrollback_rows, alternate_screen, rows)` and read
-/// watermark the test needs — bypassing the event path for fixtures that
-/// exercise gates rather than the owner seam.
-pub(in crate::workbench_client::ui) fn install_projection(
-    ui: &mut WorkbenchClientUi,
-    frame_spec: Option<(u64, bool, u16)>,
-    read_watermark: u64,
-) -> PaneRef {
-    let key = ui
-        .state
-        .as_ref()
-        .unwrap()
-        .focus_pane_ref()
-        .expect("focus pane");
-    let mut value = TerminalProjection::new(attachment(), epoch()).with_host_terminal(
-        orchbee_client_server_protocol::HostTerminalId::parse(&format!("{:032x}", 7_003)).unwrap(),
-    );
-    if let Some((scrollback_rows, alternate_screen, rows)) = frame_spec {
-        let frame = frame(&value, scrollback_rows, alternate_screen, rows);
-        value.install_frame_for_test(frame);
-    }
-    ui.projections.push(KeyedProjection {
-        effect_stream: super::super::super::terminal_effects::Stream::new(
-            *value.attachment(),
-            *value.epoch(),
-        ),
-        key: key.clone(),
-        value,
-        status: ClientProjectionStatus::FrameAvailable,
-        viewport: None,
-        tail: None,
-        tail_attempted: None,
-        history_sequence: 0,
-        read_watermark,
-        selection: None,
-    });
-    key
-}
+use orchbee_client_server_protocol::ViewportRowOrigin;
+use orchbee_terminal_protocol::{HistoryAnchorStatus, HistoryChanged};
+use std::{io, num::NonZeroU64, time::Instant};
 
 /// Installs the live frame `enter_history`'s gates require on a projection
 /// the event path already installed.
@@ -663,47 +553,6 @@ fn viewport_outcome_notice_survives_publish_take_apply() {
     // The applied outcome changed nothing itself; the surviving Entering
     // core's read demand still stages the entry read once facts arrive.
     assert_eq!(staged_read_sequence(&mut ui, &mailbox, &key, 1, 1), 1);
-}
-
-/// A ready fixture under a `Controlling` mode — `forward` requires it.
-pub(in crate::workbench_client::ui) fn controlling_ui() -> (
-    WorkbenchClientUi,
-    Arc<CommandMailbox>,
-    LocalOperationClock,
-    Arc<AtomicU64>,
-) {
-    let elapsed = Arc::new(AtomicU64::new(0));
-    let clock = adjustable_operation_clock(Arc::clone(&elapsed));
-    let mailbox = Arc::new(CommandMailbox::new(
-        10,
-        Geometry::new(80, 24, 8, 16).unwrap(),
-    ));
-    let mut ui = WorkbenchClientUi::new(Arc::clone(&mailbox), clock.clone());
-    let wait = mailbox
-        .publish_event_before(
-            WorkerEvent::Bootstrap {
-                selection: None,
-                cache: crate::workbench_client::workbench_projection::project_preferred_workspace(
-                    &super::super::tests::membership::snapshot(2, 1),
-                )
-                .unwrap(),
-            },
-            EventDeadline::Startup(clock.now() + crate::workbench_client::state::OPERATION_TOTAL),
-            &clock,
-        )
-        .unwrap();
-    ui.tick();
-    assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
-    let state = ui.state.as_mut().unwrap();
-    let key = state.desired().unwrap().clone();
-    let geometry = Geometry::new(80, 24, 8, 16).unwrap();
-    let mode = ControllerMode::Controlling(ControllerId::parse(&format!("{:032x}", 8)).unwrap());
-    assert!(state.install_projection_t(&key));
-    assert!(state.record_setup_configuration_t(&key, mode.clone(), Some(geometry)));
-    assert!(state.stage_drawn_frame_t(&key, FrameIdentity::new(1)));
-    assert!(state.mark_feedback_accepted_t(&key, FrameIdentity::new(1)));
-    assert!(state.publish_ready_t(&key, FrameIdentity::new(1), mode, Some(geometry)));
-    (ui, mailbox, clock, elapsed)
 }
 
 // A typed byte on a non-Live pane lands on the wire strictly after the

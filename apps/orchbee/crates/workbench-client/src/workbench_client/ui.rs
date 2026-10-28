@@ -84,6 +84,8 @@ impl From<retained_frames::RetainedFrames> for RetainedFrameBank {
 }
 mod retired_membership;
 mod tab_close;
+#[cfg(any(test, feature = "test-support"))]
+pub(in crate::workbench_client) mod test_support;
 #[cfg(test)]
 pub(in crate::workbench_client) mod tests;
 mod workspace_close;
@@ -1488,7 +1490,7 @@ impl WorkbenchClientUi {
         accepted
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub(super) fn tick(&mut self) -> bool {
         self.tick_with_client_capture(crate::tui_composition::ClientCaptureClaims::default())
     }

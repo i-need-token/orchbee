@@ -38,7 +38,7 @@ pub enum Operation {
 #[derive(Default)]
 pub struct FakeState {
     pub graphics_cleanup: Vec<String>,
-    failures_remaining: HashMap<Operation, usize>,
+    pub failures_remaining: HashMap<Operation, usize>,
     operations: Vec<Operation>,
 }
 

@@ -183,7 +183,7 @@ pub(crate) fn render_shell(
 /// every painter reports the exact rect it drew, so a recorded region
 /// can never disagree with the frame on screen. The shell publishes the
 /// staged map only when the whole draw completes.
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) fn render_terminal_shell(
     frame: &mut Frame<'_>,
     view: &ClientView,

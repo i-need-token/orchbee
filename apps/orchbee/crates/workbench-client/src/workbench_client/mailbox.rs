@@ -3321,7 +3321,7 @@ impl CommandMailbox {
         Ok(MutationResult::Applied)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub(super) fn take_deposited_reply(
         &self,
         wait_key: &UiWaitKey,

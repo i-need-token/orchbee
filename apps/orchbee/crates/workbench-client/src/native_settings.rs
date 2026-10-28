@@ -14,6 +14,8 @@ pub(crate) use choices::{Choice, ChoicePicker};
 mod input;
 mod metadata;
 mod rows;
+#[cfg(any(test, feature = "test-support"))]
+mod test_support;
 #[cfg(test)]
 mod tests;
 mod text;
@@ -122,7 +124,7 @@ pub(crate) type Basis = UserPreferencesSnapshot;
 pub(crate) enum Edit {
     Next,
     Previous,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     Select(Row),
     Adjust(bool),
     AdjustLarge(bool),
@@ -1010,14 +1012,14 @@ impl Editor {
         let State::Draft(draft) = &mut self.state else {
             return None;
         };
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         let fixture_selection = matches!(edit, Edit::Select(_));
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-support")))]
         let fixture_selection = false;
         if !self.surface_presented && !fixture_selection {
             return None;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         if fixture_selection {
             draft.browse = BrowseMode::Browse;
         }
@@ -1240,7 +1242,7 @@ impl Editor {
                 draft.row = rows[next];
                 draft.follow_selection = true;
             }
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             Edit::Select(row) if rows.contains(&row) => {
                 draft.row = row;
                 draft.follow_selection = true;

@@ -95,8 +95,7 @@ pub(crate) use ui::{
 #[cfg(test)]
 pub(crate) use ui::{
     AgentBoardInputContext, CloseConfirmationKind, CloseStatusKind, ConfirmationCaptureContext,
-    DisplayRetirement, LaunchProfile, RenameInputContext, SetupCaptureContext,
-    WorkspaceCloseStatus,
+    DisplayRetirement, LaunchProfile, SetupCaptureContext, WorkspaceCloseStatus,
 };
 pub(crate) use ui::{AgentStartCatalogStatus, AgentStartPhase};
 pub use ui::{CaptureContext, CloseConfirmationToken, WorkspaceCloseToken};
