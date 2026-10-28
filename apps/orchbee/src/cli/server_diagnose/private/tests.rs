@@ -5,6 +5,7 @@ fn named_session_diagnosis_uses_the_shared_schema() {
     let scope = format!("orchbee-session-{}", "a".repeat(47));
     let mut document = collect_at(
         Path::new("never-created-relative-path"),
+        None,
         &scope,
         Instant::now(),
     )
@@ -41,6 +42,7 @@ fn spent_budget_and_namespace_limit_do_not_manufacture_absence() {
     assert_eq!(result["state"], "uninspectable");
     let result = collect_at(
         Path::new("never-created-relative-path"),
+        None,
         "orchbee-native-00000000000000000000000000000000",
         Instant::now(),
     )

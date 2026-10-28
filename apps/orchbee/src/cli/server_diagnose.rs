@@ -520,6 +520,11 @@ fn envelope(
     let mut result = Map::from_iter([
         ("complete".to_owned(), json!(complete)),
         ("scope".to_owned(), json!(scope)),
+        // Retained-record attribution belongs to the Windows private runtime catalog.
+        (
+            "unrecognizedRecords".to_owned(),
+            json!({"kind":"unsupported"}),
+        ),
     ]);
     for (name, row) in &rows {
         result.insert(name.clone(), Value::Object(row.clone()));

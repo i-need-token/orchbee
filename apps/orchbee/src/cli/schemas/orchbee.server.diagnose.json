@@ -33,6 +33,7 @@
 				"locks",
 				"endpoints",
 				"hostScope",
+				"unrecognizedRecords",
 				"advisories"
 			],
 			"additionalProperties": false,
@@ -106,16 +107,127 @@
 						}
 					]
 				},
+				"unrecognizedRecords": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/unrecognizedRecords"
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
 				"advisories": {
 					"type": "array",
 					"items": {
-						"enum": ["activation-recorded", "socket-residue", "pipe-name-present"]
+						"enum": [
+							"activation-recorded",
+							"socket-residue",
+							"pipe-name-present",
+							"unrecognized-records"
+						]
 					}
 				}
 			}
 		}
 	},
 	"$defs": {
+		"unrecognizedRecords": {
+			"type": "object",
+			"required": ["state", "reason", "records"],
+			"additionalProperties": false,
+			"properties": {
+				"state": {
+					"enum": ["known", "uninspectable"]
+				},
+				"reason": {
+					"anyOf": [
+						{
+							"enum": [
+								"denied",
+								"io-error",
+								"invalid-path",
+								"parent-unavailable",
+								"deadline",
+								"observation-limit"
+							]
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"records": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/unrecognizedRecord"
+					}
+				}
+			},
+			"if": {
+				"properties": {
+					"state": {
+						"const": "known"
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"reason": {
+						"type": "null"
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"reason": {
+						"type": "string"
+					},
+					"records": {
+						"maxItems": 0
+					}
+				}
+			}
+		},
+		"unrecognizedRecord": {
+			"type": "object",
+			"required": ["record", "reason", "path", "pathUtf16"],
+			"additionalProperties": false,
+			"properties": {
+				"record": {
+					"enum": ["runtime-directory", "catalog-record", "deletion-intent"]
+				},
+				"reason": {
+					"enum": ["obsolete-identity", "unreadable"]
+				},
+				"path": {
+					"anyOf": [
+						{
+							"type": "string",
+							"minLength": 1
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"pathUtf16": {
+					"anyOf": [
+						{
+							"type": "array",
+							"items": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 65535
+							}
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			}
+		},
 		"row": {
 			"type": "object",
 			"required": [

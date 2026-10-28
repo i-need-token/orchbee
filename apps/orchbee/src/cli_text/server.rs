@@ -18,13 +18,13 @@ pub(super) const HELP_SERVER_START_ZH: crate::cli_text::HelpDetails =
 pub(super) const HELP_SERVER_DIAGNOSE_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee server diagnose [--format text|json]",
-        "Report bounded facts about the implicit per-user local session runtime —\nits base and scope directory, the activation marker and locks, and the\nfinite client/worker/pending/observation/host endpoint paths. Every row\nis a pathname or descriptor fact at its own observation instant: 'held'\nmeans some owner held the lifetime lock then — never that a session or any\nprocess is alive — and 'absent' is a pathname fact, never proof that an\nexecution ended. A 'known' marker or a valid client/worker socket leaf\nadds a conditional advisory: if no existing session can be joined, fresh\nactivation is blocked by current recovery policy.\n\nThe command never connects to an endpoint, never creates or deletes a\npath, never acquires the activation lock, and never repairs, stops, or\npredicts a later start. A cooperative five-second budget is checked\nbetween bounded filesystem operations; rows it cannot reach close as\n'uninspectable'. '--format json' emits the orchbee.server.diagnose\nenvelope on Linux and Windows. Windows reports private-DACL and bounded\npipe-name observations; unsupported members are explicit.",
+        "Report bounded facts about the implicit per-user local session runtime —\nits base and scope directory, the activation marker and locks, and the\nfinite client/worker/pending/observation/host endpoint paths. Every row\nis a pathname or descriptor fact at its own observation instant: 'held'\nmeans some owner held the lifetime lock then — never that a session or any\nprocess is alive — and 'absent' is a pathname fact, never proof that an\nexecution ended. A 'known' marker or a valid client/worker socket leaf\nadds a conditional advisory: if no existing session can be joined, fresh\nactivation is blocked by current recovery policy.\n\nThe command never connects to an endpoint, never creates or deletes a\npath, never acquires the activation lock, and never repairs, stops, or\npredicts a later start. A cooperative five-second budget is checked\nbetween bounded filesystem operations; rows it cannot reach close as\n'uninspectable'. '--format json' emits the orchbee.server.diagnose\nenvelope on Linux and Windows. Windows reports private-DACL and bounded\npipe-name observations; unsupported members are explicit.\n\nOn Windows, unrecognizedRecords lists retained records that refuse the\nselected session: another derivation's runtime directory, catalog record, or\ndeletion intent naming it, and records at its own location that cannot be\nadmitted. Other session names are unaffected. Records are never migrated or\nmoved; an advisory names the next step.",
     );
 
 pub(super) const HELP_SERVER_DIAGNOSE_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee server diagnose [--format text|json]",
-        "报告隐式每用户本地会话运行时的有界事实——基目录与 scope 目录、激活标记与锁，以及有限的 client/worker/pending/observation/host 端点路径。每一行都是其各自观察瞬间的路径名或描述符事实：'held' 表示某个属主在那一刻持有生命周期锁——绝不表示某个会话或进程存活；\n'absent' 是路径名事实，绝不证明某个执行已结束。观察到 'known' 标记或合法的 client/worker 套接字叶时附加一条条件通告：若无可加入的现有会话，按当前恢复策略新的激活将被阻止。\n\n本命令绝不连接任何端点，绝不创建或删除路径，绝不获取激活锁，也绝不修复、停止或预测后续启动。协作式五秒预算在有界的文件系统操作之间检查；无法到达的行以 'uninspectable' 闭合。'--format json'\n在 Linux 与 Windows 均输出 orchbee.server.diagnose 封套。Windows 使用私有 DACL\n和有界管道名称观察；不支持的成员明确标记。",
+        "报告隐式每用户本地会话运行时的有界事实——基目录与 scope 目录、激活标记与锁，以及有限的 client/worker/pending/observation/host 端点路径。每一行都是其各自观察瞬间的路径名或描述符事实：'held' 表示某个属主在那一刻持有生命周期锁——绝不表示某个会话或进程存活；\n'absent' 是路径名事实，绝不证明某个执行已结束。观察到 'known' 标记或合法的 client/worker 套接字叶时附加一条条件通告：若无可加入的现有会话，按当前恢复策略新的激活将被阻止。\n\n本命令绝不连接任何端点，绝不创建或删除路径，绝不获取激活锁，也绝不修复、停止或预测后续启动。协作式五秒预算在有界的文件系统操作之间检查；无法到达的行以 'uninspectable' 闭合。'--format json'\n在 Linux 与 Windows 均输出 orchbee.server.diagnose 封套。Windows 使用私有 DACL\n和有界管道名称观察；不支持的成员明确标记。\n\n在 Windows 上，unrecognizedRecords 列出使选中会话被拒绝的保留记录：以其他推导方式命名该会话的运行时目录、清单记录或删除意图，以及该会话自身位置上无法接纳的记录。其他会话名称不受影响。记录绝不迁移或移动；通告会给出下一步。",
     );
 
 pub(super) const HELP_SERVER_STOP_EN: crate::cli_text::HelpDetails =
@@ -134,6 +134,12 @@ impl super::CliText {
             }
             (Locale::ZhCn, "pipe-name-present") => {
                 "注：观察到 client/worker 管道名称，未连接或认证其属主；若无可加入的会话，当前恢复策略将阻止重新激活。\n"
+            }
+            (Locale::EnUs, "unrecognized-records") => {
+                "note: the listed records refuse this session; they cannot be admitted for it and are kept as found, never migrated. Start another name, for example orchbee --session recovery-work server start, or move the listed paths elsewhere once no older Orchbee build uses them, then rerun server diagnose.\n"
+            }
+            (Locale::ZhCn, "unrecognized-records") => {
+                "注：所列记录使此会话被拒绝；它们无法被此会话接纳，已原样保留且绝不迁移。可改用其他名称，例如 orchbee --session recovery-work server start；或确认没有旧版 Orchbee 仍在使用后，把所列路径移到别处，再重新运行 server diagnose。\n"
             }
             (Locale::EnUs, _) => "note: unrecognized advisory.\n",
             (Locale::ZhCn, _) => "注：未识别的通告。\n",

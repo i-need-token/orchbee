@@ -584,7 +584,8 @@ including after runtime-leaf loss, while preserving the last checkpoint. The fir
 live Host, unknown or incomplete identity and unreadable records without deleting data. No old process
 is terminated and no clean-stop receipt is invented. Run `orchbee server diagnose` with the same
 `--session` selection to inspect a refusal, or `orchbee --session recovery-work server start` to use another
-name. A new activation publishes the current version 1 catalog before marker, Server or storage
+name. Records left by an earlier derivation refuse only the Session they name; diagnosis lists them
+under `unrecognizedRecords`. A new activation publishes the current version 1 catalog before marker, Server or storage
 publication. Stopped records admit fixed slots and exact owned corrupt originals. Other record
 versions/shapes remain unreadable without migration. `session list` exposes an admitted named record
 as `unreadable` with unknown running state; confirmed `session delete` can remove it after all existing
@@ -1693,6 +1694,19 @@ describe current recovery policy only. Public Windows tests cover absent/held/fr
 invalid marker, Unicode paths, schema and localized text, and zero creation;
 runtime and IPC tests cover admission, real listeners and bounded observation.
 
+On Windows, `unrecognizedRecords` lists the retained records that refuse the selected Session.
+`obsolete-identity` marks a runtime directory, deletion intent or catalog record whose own name
+derives this Session while it is stored at another location, as an earlier build's derivation
+leaves it; `unreadable` marks a record at the Session's own location that its admission rejects.
+Each item carries `record` (`runtime-directory`, `catalog-record` or `deletion-intent`), `reason`
+and the record's `path` or `pathUtf16`. The member's `state` is `known`, or `uninspectable` with
+`denied`, `io-error`, `invalid-path`, `parent-unavailable`, `deadline` or `observation-limit`;
+Linux reports the member as unsupported. A non-empty list adds the `unrecognized-records`
+advisory: the records are retained as found and never migrated, they refuse only this Session,
+and the next step is another `--session` name or moving the listed paths away after confirming
+no older build still uses them. Text prints one `unrecognizedRecords.N` row per record. Diagnosis
+never moves, repairs or deletes a record.
+
 `server diagnose` is the read-only counterpart of activation: it reports bounded facts about the
 implicit per-euid local Session runtime without connecting to anything, creating anything, or
 repairing anything. The runtime base resolves exactly like `server start` (`ORCHBEE_RUNTIME_BASE`
@@ -2036,10 +2050,11 @@ endpoint:{socket},environment:{observationSocketEnv},asset:{roots:[<root>…]},h
   is `orchbee-native-<euid>`, and `runtimeBase` carries exactly one of `path` (UTF-8) or
   `pathBytesHex` (non-UTF-8, never a lossy display string).
 - `orchbee.server.diagnose` → `{complete,scope,runtimeBase,runtimeDirectory,marker,locks,
-endpoints,hostScope,advisories}`: the bounded observation document described in Session
+endpoints,hostScope,unrecognizedRecords,advisories}`: the bounded observation document described in Session
   diagnostics — closed row states and reasons, `locks:{activation,sessionLifetime}`,
   `endpoints:{client,worker,clientPending,agentObservation,hostEndpoint}`, `path`/`pathBytesHex`
-  on the two directory rows, and the conditional `advisories` token list.
+  on the two directory rows, `unrecognizedRecords:{state,reason,records}` on Windows (unsupported
+  on Linux), and the conditional `advisories` token list.
 - `orchbee.cli.failure` → `{schema:"orchbee.cli.failure",version:1,failure:{kind,details?},
 source?}`; no English `message` field exists. `source` is attached only from an already trusted
   source (a validated snapshot for post-read failures, `embedded` for `api schema` not-found,

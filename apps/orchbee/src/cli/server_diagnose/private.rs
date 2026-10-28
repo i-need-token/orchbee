@@ -3,12 +3,13 @@ use super::{DiagnoseDocument, Failure, FailureKind};
 use crate::cli::config;
 use orchbee_local_runtime::{
     ActivationState, ModeCheckedLocalSessionRendezvous as Rendezvous, RendezvousError,
-    SessionLifetimeObservation, SessionScope,
+    SessionCatalog, SessionLifetimeObservation, SessionScope, UnrecognizedRecord,
+    UnrecognizedRecordKind, UnrecognizedRecordReason,
 };
 use serde_json::{Map, Value, json};
 use std::{
     io,
-    path::Path,
+    path::{Path, PathBuf},
     time::{Duration, Instant},
 };
 
@@ -66,10 +67,64 @@ pub(super) fn collect() -> Result<DiagnoseDocument, Failure> {
     let deadline = Instant::now() + Duration::from_secs(5);
     let (base, scope) = crate::local_activation::runtime_location()
         .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
-    collect_at(&base, &scope, deadline)
+    let local = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
+    collect_at(&base, local.as_deref(), &scope, deadline)
 }
 
-fn collect_at(base: &Path, scope: &str, deadline: Instant) -> Result<DiagnoseDocument, Failure> {
+/// One retained record as found: what holds it, why this Session cannot admit it, and where.
+fn record_row(record: &UnrecognizedRecord) -> Row {
+    let mut result = Map::from_iter([
+        (
+            "record".to_owned(),
+            json!(match record.kind {
+                UnrecognizedRecordKind::RuntimeDirectory => "runtime-directory",
+                UnrecognizedRecordKind::CatalogRecord => "catalog-record",
+                UnrecognizedRecordKind::DeletionIntent => "deletion-intent",
+            }),
+        ),
+        (
+            "reason".to_owned(),
+            json!(match record.reason {
+                UnrecognizedRecordReason::ObsoleteIdentity => "obsolete-identity",
+                UnrecognizedRecordReason::Unreadable => "unreadable",
+            }),
+        ),
+    ]);
+    let (key, value) = config::path_detail(&record.path);
+    result.insert(key, value);
+    result
+}
+
+/// Records that refuse this Session, read without admitting, migrating, or moving any of them.
+fn unrecognized(
+    base: &Path,
+    local: Option<&Path>,
+    scope: &str,
+    deadline: Instant,
+) -> (Row, Vec<Row>) {
+    let observed = local
+        .ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))
+        .and_then(|local| SessionCatalog::unrecognized_records(base, local, scope, deadline));
+    match observed {
+        Ok(records) => (row("known", None), records.iter().map(record_row).collect()),
+        Err(error) => (
+            match error.kind() {
+                io::ErrorKind::NotFound => row("uninspectable", Some("parent-unavailable")),
+                io::ErrorKind::TimedOut => row("uninspectable", Some("deadline")),
+                io::ErrorKind::FileTooLarge => row("uninspectable", Some("observation-limit")),
+                _ => error_row(&error),
+            },
+            Vec::new(),
+        ),
+    }
+}
+
+fn collect_at(
+    base: &Path,
+    local: Option<&Path>,
+    scope: &str,
+    deadline: Instant,
+) -> Result<DiagnoseDocument, Failure> {
     let scope_id =
         SessionScope::parse(scope).map_err(|_| Failure::new(FailureKind::InternalFailure))?;
     let mut complete = true;
@@ -207,6 +262,18 @@ fn collect_at(base: &Path, scope: &str, deadline: Instant) -> Result<DiagnoseDoc
         ),
         ("endpoints".to_owned(), endpoints),
     ]);
+    let mut records = Vec::new();
+    let summary = step(deadline, &mut complete, || {
+        let (summary, observed) = unrecognized(base, local, scope, deadline);
+        records = observed;
+        summary
+    });
+    if summary.get("reason") == Some(&json!("deadline")) {
+        complete = false;
+    }
+    if !records.is_empty() {
+        advisories.push("unrecognized-records");
+    }
     let mut result = Map::from_iter([
         ("complete".to_owned(), json!(complete)),
         ("scope".to_owned(), json!(scope)),
@@ -219,6 +286,30 @@ fn collect_at(base: &Path, scope: &str, deadline: Instant) -> Result<DiagnoseDoc
     );
     let mut result = Value::Object(result);
     super::complete_rows(&mut result);
+    // A list member rather than a row: it is completed here, and text gives each record a row.
+    let mut member = summary.clone();
+    member.entry("reason").or_insert(Value::Null);
+    member.insert(
+        "records".to_owned(),
+        records
+            .iter()
+            .map(|record| {
+                let mut record = record.clone();
+                for key in ["path", "pathUtf16"] {
+                    record.entry(key).or_insert(Value::Null);
+                }
+                Value::Object(record)
+            })
+            .collect(),
+    );
+    result["unrecognizedRecords"] = Value::Object(member);
+    rows.push(("unrecognizedRecords".to_owned(), summary));
+    rows.extend(
+        records
+            .into_iter()
+            .enumerate()
+            .map(|(index, record)| (format!("unrecognizedRecords.{}", index + 1), record)),
+    );
     Ok(DiagnoseDocument {
         envelope: json!({"schema":"orchbee.server.diagnose", "version":1,
             "source":config::local_runtime_source(), "result":result}),

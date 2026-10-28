@@ -472,7 +472,8 @@ recovery-required，其他名称照常列出和启动。未知／不安全清单
 路由并恢复检查点。`server start` 和 TUI 启动会自动恢复登记完整且证明全部死亡的当前 Active 代次，
 也支持运行时叶目录丢失，并保留最近检查点。第一阶段保留数据、拒绝活 Host、未知／不完整身份和不可读记录；
 不终止旧进程，不伪造正常停止回执。使用相同 `--session` 选择执行 `orchbee server diagnose` 检查拒绝原因，
-或执行 `orchbee --session recovery-work server start` 另开命名会话。新激活会在提交标记、拉起 Server 或发布
+或执行 `orchbee --session recovery-work server start` 另开命名会话。较早推导方式留下的记录只拒绝其所命名的会话；
+诊断在 `unrecognizedRecords` 下列出它们。新激活会在提交标记、拉起 Server 或发布
 检查点存储前先发布当前版本 1 catalog。Stopped 记录准入固定槽位及精确自有损坏原件。
 其他记录版本／形状保持不可读，不迁移。`session list` 将具有已准入名称的记录显示为 `unreadable`，
 运行状态未知；已确认的 `session delete` 可在全部既有 owner／存储 guard 通过后删除它。详见
@@ -1392,6 +1393,16 @@ cohort 验证之前开始，且绝不按阶段重置：
 测试覆盖 absent/held/free、非法标记、中文路径、schema、本地化文本和零创建；
 runtime／IPC 测试覆盖准入、真实监听器和有界观察。
 
+在 Windows 上，`unrecognizedRecords` 列出使选中会话被拒绝的保留记录。`obsolete-identity`
+表示运行时目录、删除意图或清单记录自身的名称派生出此会话，却存放在其他位置——较早构建的推导方式即会留下这种记录；
+`unreadable` 表示位于此会话自身位置、但其准入拒绝的记录。每一项携带 `record`（`runtime-directory`、
+`catalog-record` 或 `deletion-intent`）、`reason` 及记录的 `path` 或 `pathUtf16`。该成员的 `state`
+为 `known`，或为 `uninspectable` 并附 `denied`、`io-error`、`invalid-path`、`parent-unavailable`、
+`deadline` 或 `observation-limit`；Linux 将该成员报告为 unsupported。列表非空时附加
+`unrecognized-records` 通告：这些记录原样保留且绝不迁移，只拒绝此会话；下一步是改用其他 `--session`
+名称，或在确认没有旧版构建仍在使用后把所列路径移走。文本为每条记录输出一行 `unrecognizedRecords.N`。
+诊断绝不移动、修复或删除记录。
+
 `server diagnose` 是激活的只读对偶面：它报告隐式 per-euid 本地 Session 运行时的有界事实，
 不 connect 任何东西、不创建任何东西、不修复任何东西。运行时基座与 `server start`
 完全同规则解析（`ORCHBEE_RUNTIME_BASE` 或 `/tmp`，scope `orchbee-native-<euid>`），
@@ -1695,10 +1706,11 @@ endpoint:{socket},environment:{observationSocketEnv},asset:{roots:[<root>…]},h
   `orchbee-native-<euid>`，`runtimeBase` 恰携带 `path`（UTF-8）或 `pathBytesHex`
   （非 UTF-8，绝非有损显示串）之一。
 - `orchbee.server.diagnose` → `{complete,scope,runtimeBase,runtimeDirectory,marker,locks,
-endpoints,hostScope,advisories}`：Session 诊断一节描述的有界观察文档——封闭行状态与
+endpoints,hostScope,unrecognizedRecords,advisories}`：Session 诊断一节描述的有界观察文档——封闭行状态与
   reason、`locks:{activation,sessionLifetime}`、
   `endpoints:{client,worker,clientPending,agentObservation,hostEndpoint}`、两个目录行的
-  `path`/`pathBytesHex`，以及条件性 `advisories` token 清单。
+  `path`/`pathBytesHex`、Windows 上的 `unrecognizedRecords:{state,reason,records}`（Linux 为
+  unsupported），以及条件性 `advisories` token 清单。
 - `orchbee.cli.failure` → `{schema:"orchbee.cli.failure",version:1,failure:{kind,details?},
 source?}`；不存在英文 `message` 字段。`source` 只取自已可信来源（读取后失败用已验证快照；
   `api schema` not-found 用 `embedded`；mutation command 阶段失败一律用
@@ -2541,4 +2553,4 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=dc37644925b911dcdf4cd0937844e1111b3b7d85b43bc48d5aea308ad0b6e125 zh-cn-sha256=e13ba03ae7251ba285936e190882b7f9d311da9955121d3e6795f1adf36d5516 -->
+<!-- documentation-pairing: english-sha256=30730cc1b084ad3d440f3ec296607be98ef8cd3708e99d909b03f71c7308dd40 zh-cn-sha256=7a8c21c57ba8aa35c8ad72ae6cfc240f89c78fbe48d5c56d3298a95db59f363d -->
