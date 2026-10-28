@@ -30,26 +30,56 @@ fn sidebar_pointer_fallbacks_keep_one_background_and_readable_navigation() {
             assert_eq!(theme.paired_pointer_surfaces(), theme);
             for surface in [Role::SurfaceHover, Role::SurfacePressed] {
                 let band = theme.style(surface);
+                if band.fg.is_some() {
+                    // The reverse band is primary text on chrome: the host's own pair in
+                    // terminal-native and monochrome, as on the Tab strip.
+                    assert_eq!(band.fg, theme.style(Role::TextPrimary).fg);
+                    assert_eq!(band.bg, theme.style(Role::SurfaceChrome).bg);
+                    assert!(band.add_modifier.contains(Modifier::REVERSED));
+                }
                 for role in [
                     Role::TextPrimary,
                     Role::TextSecondary,
+                    Role::TextDisabled,
                     Role::HintLabel,
+                    Role::AccentAction,
+                    Role::AccentFocus,
                     Role::AccentSelection,
                     Role::StatusWorking,
                 ] {
+                    let style = theme.style(role);
                     let content = theme.content_on_surface(
                         Role::SurfaceChrome,
                         Some(surface),
                         Some(role),
-                        theme.style(role),
+                        style,
                     );
-                    assert_eq!(content.bg, band.bg);
+                    let case = format!("{} {level:?} {surface:?} {role:?}", base.name);
+                    if role == Role::StatusWorking
+                        && band.fg.is_some()
+                        && level != ColorLevel::Monochrome
+                        && !matches!(style.fg, None | Some(Color::Reset))
+                    {
+                        // A Working hue keeps its color on the contrast pair, like other hues.
+                        assert_eq!(content.fg, style.fg, "{case}");
+                        assert!(
+                            matches!(content.bg, Some(Color::Black | Color::White)),
+                            "{case}"
+                        );
+                        assert!(!content.add_modifier.contains(Modifier::REVERSED), "{case}");
+                        continue;
+                    }
+                    assert_eq!(content.bg, band.bg, "{case}");
                     assert_eq!(
                         content.add_modifier.contains(Modifier::REVERSED),
-                        band.add_modifier.contains(Modifier::REVERSED)
+                        band.add_modifier.contains(Modifier::REVERSED),
+                        "{case}"
                     );
                     if let Some(foreground) = band.fg {
-                        assert_eq!(content.fg, Some(foreground));
+                        assert_eq!(content.fg, Some(foreground), "{case}");
+                        // A host may apply DIM before reverse video swaps the pair, which would
+                        // give the token a darker background of its own.
+                        assert!(!content.add_modifier.contains(Modifier::DIM), "{case}");
                     }
                 }
             }
@@ -58,7 +88,7 @@ fn sidebar_pointer_fallbacks_keep_one_background_and_readable_navigation() {
 }
 
 #[test]
-fn paired_pointer_projection_preserves_other_roles_and_explicit_content_colors() {
+fn paired_pointer_projection_preserves_other_roles_and_explicit_colors_outside_the_band() {
     for original in [
         Theme::terminal_native(),
         Theme::one_light(),
@@ -76,11 +106,19 @@ fn paired_pointer_projection_preserves_other_roles_and_explicit_content_colors()
             }
         }
         for surface in [Role::SurfaceHover, Role::SurfacePressed] {
+            let band = theme.style(surface);
             let explicit = theme.style(Role::TextPrimary).fg(Color::Rgb(16, 32, 48));
             for role in [None, Some(Role::TextPrimary)] {
                 let composed =
                     theme.content_on_surface(Role::SurfaceOverlay, Some(surface), role, explicit);
-                assert_eq!(composed.fg, explicit.fg);
+                if band.add_modifier.contains(Modifier::REVERSED) {
+                    // An explicit color joins the reverse band instead of reversing into a block
+                    // of its own color.
+                    assert_eq!(composed.fg, band.fg);
+                    assert!(composed.add_modifier.contains(Modifier::REVERSED));
+                } else {
+                    assert_eq!(composed.fg, explicit.fg);
+                }
             }
         }
     }

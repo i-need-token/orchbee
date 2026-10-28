@@ -91,8 +91,11 @@ Theme rules:
   context retains its fill where one remains, otherwise its current marker, `BOLD` or underline.
   Within that band, a `status-*` or `agent-*` glyph of a known color keeps its foreground on
   whichever of ANSI black or white contrasts more with it, rather than becoming a block of its own
-  color; host-relative status glyphs reverse with the band's text. Individual components apply the
-  semantic state but never branch on the palette.
+  color; host-relative status glyphs reverse with the band's text. A row that mixes text roles in
+  the band pairs it with primary text on chrome, and every other cell, including secondary text,
+  resting accents, explicit token colors and blanks, takes that foreground without `DIM`. The row
+  keeps one displayed background even where a host applies `DIM` before reverse video swaps the
+  colors. Individual components apply the semantic state but never branch on the palette.
 - Monochrome gives current context an underline, provisional selection a bold reverse band, and
   focused frames a bold reverse outline. Independent current, navigation and checked markers remain
   visible; focus and value choices never rely on bold text alone. Renderers retain the complete role

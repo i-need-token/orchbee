@@ -139,12 +139,18 @@ clears inherited whole-row bold before applying identity emphasis, so supporting
 hierarchy. Pressed, provisional, hover, current and base surfaces retain that order; focus,
 operational state and unread markers remain independent. Hover and press do not select an entity.
 
-The theme's `paired_pointer_surfaces` projection, consumed by the sidebar and Settings, resolves
-reverse-video pointer fallbacks to an ANSI black/white pair.
-This prevents token foregrounds and inherited span backgrounds from becoming separate displayed
-backgrounds. Monochrome retains one host-relative reverse band. Navigation markers adopt the same
-contrast pair; status and explicit token colors retain their roles. Named RGB surfaces keep their
-palette. Shared controls consume this projection without inspecting the active palette.
+The theme's `paired_pointer_surfaces` projection, consumed by the sidebar and Settings, pairs
+reverse-video pointer fallbacks with primary text on chrome. In terminal-native and Monochrome that
+pair is the host's own, so hover and press form the same host-relative reverse band as the Tab
+strip; collapsed 256- and 16-color fills pair the quantized primary text and chrome the same way.
+Every cell that stays in the band takes its foreground without DIM: ordinary and secondary text,
+navigation markers, resting accents, explicit token colors and blank cells. Token foregrounds and
+inherited span backgrounds therefore never become separate displayed backgrounds, and a host that
+applies DIM before reverse video swaps the colors cannot give a token a darker background. Status
+and Agent glyphs with a sampled color keep the contrast pair described for the action band below,
+and a destructive label keeps its own pair; Monochrome reverses them with the band. Named RGB
+surfaces keep their palette. Shared controls consume this projection without inspecting the active
+palette.
 
 Persistent sidebar context uses `surface-current`, separate from the selection color used by
 pickers. The native theme pairs ANSI gray with black body text, without DIM on host-relative text;

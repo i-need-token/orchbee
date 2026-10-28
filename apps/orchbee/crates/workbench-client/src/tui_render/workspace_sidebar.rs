@@ -17,7 +17,7 @@ use crate::{
     tui_pointer::{InteractionSpec, InteractionTarget, PrimaryContract, ProjectedPointer},
 };
 use orchbee_local_runtime::{SidebarTokenStyle, SpaceSidebarToken, SpaceSidebarTokenKind as Kind};
-use ratatui::style::Style;
+use ratatui::style::{Modifier, Style};
 use sidebar_text::{fit, machine_label, state_role};
 mod layout;
 
@@ -901,9 +901,25 @@ fn restore_interaction_background(
     };
     // Ratatui clears a wide glyph's hidden continuation cells while painting its Paragraph.
     // Restore the row surface after content, then let an active child pointer surface win below.
+    // A reverse band leaves hue glyphs on their contrast pair; only cleared blanks rejoin it.
+    let band = interaction
+        .map(|role| theme.style(role))
+        .filter(|style| style.add_modifier.contains(Modifier::REVERSED));
     for y in rect.y..rect.bottom() {
         for x in rect.x..rect.right() {
-            frame.buffer_mut()[(x, y)].set_bg(background);
+            let cell = &mut frame.buffer_mut()[(x, y)];
+            match band {
+                Some(band) => {
+                    if !cell.modifier.contains(Modifier::REVERSED)
+                        && cell.symbol().trim().is_empty()
+                    {
+                        cell.set_style(band);
+                    }
+                }
+                None => {
+                    cell.set_bg(background);
+                }
+            }
         }
     }
 }

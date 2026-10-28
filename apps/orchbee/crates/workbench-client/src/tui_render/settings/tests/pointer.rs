@@ -131,6 +131,8 @@ fn assert_pointer_band(editor: &mut Editor, locale: Locale, theme: &Theme, targe
             assert_eq!(cell.modifier.contains(Modifier::REVERSED), reversed);
             if reversed {
                 assert_eq!(cell.fg, expected.fg.unwrap(), "one displayed reverse band");
+                // DIM applied before the host swaps the pair would darken a token's background.
+                assert!(!cell.modifier.contains(Modifier::DIM), "{target:?} {x},{y}");
             }
         }
         let View::Draft(after) = editor.view().unwrap() else {

@@ -7,6 +7,7 @@ use crate::{
     tui_pointer::{MotionObservability, PointerState},
     tui_theme::ColorLevel,
 };
+use ratatui::style::Color;
 use std::time::Instant;
 
 struct Port;
@@ -270,11 +271,29 @@ fn hover_press_and_navigation_compose_one_full_row_without_bolding_supporting_li
                                     );
                                     continue;
                                 }
+                                let band = expected.add_modifier.contains(Modifier::REVERSED);
+                                if band && !cell.modifier.contains(Modifier::REVERSED) {
+                                    // A state glyph of a known color keeps it on the contrast
+                                    // pair, never a block of its own color.
+                                    assert!(!cell.symbol().trim().is_empty(), "{x},{y}");
+                                    assert!(
+                                        matches!(cell.bg, Color::Black | Color::White),
+                                        "{surface:?} {x},{y}"
+                                    );
+                                    continue;
+                                }
                                 assert_eq!(cell.bg, expected.bg.unwrap(), "{surface:?} {x},{y}");
-                                assert_eq!(
-                                    cell.modifier.contains(Modifier::REVERSED),
-                                    expected.add_modifier.contains(Modifier::REVERSED)
-                                );
+                                assert_eq!(cell.modifier.contains(Modifier::REVERSED), band);
+                                if band && surface != Role::SurfaceSelection {
+                                    // One displayed pointer band: every other cell shares its
+                                    // pair.
+                                    assert_eq!(
+                                        cell.fg,
+                                        expected.fg.unwrap(),
+                                        "{surface:?} {x},{y}"
+                                    );
+                                    assert!(!cell.modifier.contains(Modifier::DIM), "{x},{y}");
+                                }
                                 if *y != ys[0] && !cell.symbol().trim().is_empty() {
                                     assert!(
                                         !cell.modifier.contains(Modifier::BOLD),
@@ -364,7 +383,13 @@ fn explicit_identity_color_and_plain_override_survive_row_composition_without_pr
                             && theme.style(surface).add_modifier.contains(Modifier::BOLD)
                 );
                 sidebar_text::compose_lines(&mut lines, Some(surface), true, &theme);
-                assert_eq!(lines[0].spans[0].style.fg, identity.fg);
+                // An explicit identity color survives fills but joins a reverse band.
+                let band = theme.style(surface);
+                let reverse_band = band.add_modifier.contains(Modifier::REVERSED);
+                assert_eq!(
+                    lines[0].spans[0].style.fg,
+                    if reverse_band { band.fg } else { identity.fg }
+                );
                 assert_eq!(
                     lines[0].spans[0]
                         .style
@@ -411,8 +436,16 @@ fn explicit_identity_color_and_plain_override_survive_row_composition_without_pr
                         .add_modifier
                         .contains(Modifier::BOLD)
                 );
-                for span in lines.iter().skip(1).flat_map(|line| &line.spans) {
-                    assert_eq!(lines[0].spans[0].style.bg, span.style.bg);
+                // Every span shares one background, except that a known state hue keeps its
+                // foreground on the contrast pair in a reverse band.
+                let hue_paired = reverse_band && !matches!(state.fg, None | Some(Color::Reset));
+                for (index, span) in lines.iter().flat_map(|line| &line.spans).enumerate() {
+                    if hue_paired && index == 5 {
+                        assert!(matches!(span.style.bg, Some(Color::Black | Color::White)));
+                        assert!(!span.style.add_modifier.contains(Modifier::REVERSED));
+                    } else {
+                        assert_eq!(lines[0].spans[0].style.bg, span.style.bg, "{index}");
+                    }
                 }
             }
         }

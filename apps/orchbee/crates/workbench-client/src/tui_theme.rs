@@ -694,24 +694,19 @@ impl Theme {
 
     /// Mixed-role controls keep one displayed background despite different content foregrounds.
     /// A reverse-video fallback would turn every token foreground into its own background patch.
-    /// Resolve that fallback to a neutral pair; monochrome keeps one host-relative reverse band.
+    /// Pair that fallback with primary text on chrome, reversed, so ordinary text forms one band:
+    /// host-relative in terminal-native and monochrome, as on the Tab strip.
     pub(crate) fn paired_pointer_surfaces(mut self) -> Self {
+        let band = Style::new()
+            .fg(self.styles.text_primary.fg.unwrap_or(Color::Reset))
+            .bg(self.styles.surface_chrome.bg.unwrap_or(Color::Reset))
+            .add_modifier(Modifier::REVERSED);
         for surface in [
             &mut self.styles.surface_hover,
             &mut self.styles.surface_pressed,
         ] {
             if surface.add_modifier.contains(Modifier::REVERSED) {
-                *surface = if self.color_level == ColorLevel::Monochrome {
-                    Style::new()
-                        .fg(Color::Reset)
-                        .bg(Color::Reset)
-                        .add_modifier(Modifier::REVERSED)
-                } else {
-                    Style::new()
-                        .fg(Color::Black)
-                        .bg(Color::White)
-                        .remove_modifier(Modifier::REVERSED)
-                };
+                *surface = band;
             }
         }
         self
@@ -788,8 +783,6 @@ impl Theme {
             content = contrast_pair(content);
         }
 
-        let paired_pointer = matches!(interaction, Some(Role::SurfaceHover | Role::SurfacePressed))
-            && interaction_style.is_some_and(|style| style.fg.is_some());
         let paired = match interaction {
             Some(Role::SurfaceCurrent | Role::SurfaceHover | Role::SurfacePressed) => {
                 interaction_style.and_then(|style| style.fg)
@@ -797,6 +790,20 @@ impl Theme {
             Some(Role::SurfaceSelection) => self.style(Role::AccentSelection).fg,
             _ => None,
         };
+        // `paired_pointer_surfaces` made hover and press one reverse band of primary text on
+        // chrome. Whatever still reverses into it takes the band's foreground so the row shows one
+        // background: ordinary and secondary text, resting accents, explicit colors and blanks
+        // alike. Hues and destructive labels left the band for their contrast pair above. A host
+        // may apply DIM before reverse video swaps the pair, so the band drops DIM rather than
+        // give a token a darker background of its own.
+        if matches!(interaction, Some(Role::SurfaceHover | Role::SurfacePressed))
+            && let Some(foreground) = paired
+        {
+            if content.add_modifier.contains(Modifier::REVERSED) {
+                content = content.fg(foreground).remove_modifier(Modifier::DIM);
+            }
+            return content;
+        }
         // Host-relative Working and Idle glyphs follow the host foreground like body text; other
         // status and Agent roles keep their own hue.
         let ordinary = matches!(
@@ -810,21 +817,20 @@ impl Theme {
                     | Role::StatusWorking
                     | Role::StatusIdle
             )
-        ) || paired_pointer && content_role == Some(Role::AccentSelection);
-        if (self.color_level != ColorLevel::Monochrome || paired_pointer)
-            && (self.polarity.is_none() || paired_pointer)
+        );
+        if self.color_level != ColorLevel::Monochrome
+            && self.polarity.is_none()
             && ordinary
             && let Some(role) = content_role
             && content_foreground == self.style(role).fg
             && let Some(foreground) = paired
-            && (foreground != Color::Reset || paired_pointer)
+            && foreground != Color::Reset
         {
             content = content.fg(foreground);
             if matches!(
                 role,
                 Role::TextSecondary | Role::HintLabel | Role::StatusIdle
-            ) && (!paired_pointer || self.color_level == ColorLevel::Monochrome)
-            {
+            ) {
                 content = content.remove_modifier(Modifier::DIM);
             }
         }

@@ -88,11 +88,12 @@ sidebars and 24/30/60-column preferences; these are render/input-map checks rath
 host gesture evidence.
 
 Settings preflight and painting consume the theme's `paired_pointer_surfaces` projection. Reverse-video
-hover/press fallbacks resolve to one neutral foreground/background pair across the complete row,
-including labels, values, markers and blank cells; picker choices and fixed footer actions use the
-same projection. Monochrome retains one host-relative reverse band. Named RGB surfaces and explicit
-content colors keep their existing roles. This local theme copy changes presentation without
-changing hit geometry, pointer admission, selection, the draft or save authority.
+hover/press fallbacks become one band of primary text on chrome across the complete row, including
+labels, values, markers and blank cells; in terminal-native and Monochrome it is the host's own
+reverse band, as on the Tab strip. Content in the band takes its foreground without DIM; picker
+choices and fixed footer actions use the same projection. Named RGB surfaces keep their palette,
+and explicit content colors keep their roles on them. This local theme copy changes presentation
+without changing hit geometry, pointer admission, selection, the draft or save authority.
 
 The renderer projects typed shared actions, rows and value controls. Header Close,
 footer actions, rows and minus/plus controls publish the same generic
