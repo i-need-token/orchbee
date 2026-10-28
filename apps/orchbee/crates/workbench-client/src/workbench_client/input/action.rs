@@ -29,7 +29,7 @@ pub(in crate::workbench_client) enum CapturedRequest {
 
 impl InputAction {
     /// The view reducer sees the semantic intent without receiving captured authority.
-    pub fn intent(&self) -> ClientAction {
+    pub(crate) fn intent(&self) -> ClientAction {
         match self {
             Self::View(action) => action.clone(),
             Self::Captured(captured) => captured.intent(),

@@ -848,7 +848,7 @@ impl Theme {
     /// [`Style`] so reduced-color fallback modifiers are not discarded; this
     /// accessor only exposes a concrete fill when one exists.
     #[must_use]
-    pub fn color(&self, role: Role) -> Color {
+    pub(crate) fn color(&self, role: Role) -> Color {
         let style = self.style(role);
         match role {
             Role::SurfaceCanvas
@@ -899,7 +899,7 @@ impl Theme {
     }
 
     /// Explicit terminal colors override chrome; System + Host defers to host resolution.
-    pub fn with_terminal_preferences(
+    pub(crate) fn with_terminal_preferences(
         self,
         values: &orchbee_workbench_protocol::UserPreferencesValues,
     ) -> Self {
@@ -1416,6 +1416,49 @@ fn srgb_to_lab(red: u8, green: u8, blue: u8) -> (f64, f64, f64) {
     }
     let (fx, fy, fz) = (cube_root(x), cube_root(y), cube_root(z));
     (116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz))
+}
+
+/// Crate-internal `Theme` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait ThemeTestAccess {
+    fn color(&self, role: Role) -> Color;
+    fn with_terminal_preferences(
+        self,
+        values: &orchbee_workbench_protocol::UserPreferencesValues,
+    ) -> Self;
+    fn application_with_host(
+        appearance: orchbee_workbench_protocol::ApplicationAppearance,
+        host: crate::terminal_host_appearance::HostAppearance,
+        level: ColorLevel,
+    ) -> Self;
+    fn one_light() -> Self;
+    fn one_dark() -> Self;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl ThemeTestAccess for Theme {
+    fn color(&self, role: Role) -> Color {
+        Theme::color(self, role)
+    }
+    fn with_terminal_preferences(
+        self,
+        values: &orchbee_workbench_protocol::UserPreferencesValues,
+    ) -> Self {
+        Theme::with_terminal_preferences(self, values)
+    }
+    fn application_with_host(
+        appearance: orchbee_workbench_protocol::ApplicationAppearance,
+        host: crate::terminal_host_appearance::HostAppearance,
+        level: ColorLevel,
+    ) -> Self {
+        Theme::application_with_host(appearance, host, level)
+    }
+    fn one_light() -> Self {
+        Theme::one_light()
+    }
+    fn one_dark() -> Self {
+        Theme::one_dark()
+    }
 }
 
 #[cfg(test)]

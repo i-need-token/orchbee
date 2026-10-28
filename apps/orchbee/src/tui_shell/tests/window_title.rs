@@ -1,4 +1,6 @@
 use super::*;
+use orchbee_workbench_client::test_support::client_view::ClientViewTestAccess;
+use orchbee_workbench_client::test_support::notifications::StateTestAccess;
 use orchbee_workbench_protocol::{WindowTitle, WindowTitleSnapshot, WorkbenchRevision};
 #[test]
 fn window_title_control_tick_reaches_owner_once_without_consuming_input() {

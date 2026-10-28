@@ -1,6 +1,10 @@
 use super::*;
 use crate::tui_pointer::HitMapBuilder;
+use orchbee_workbench_client::test_support::client_view::ClientViewTestAccess;
+use orchbee_workbench_client::test_support::machine_picker::PickerTestAccess;
+use orchbee_workbench_client::test_support::tui_layout::SidebarWidthTestAccess;
 use orchbee_workbench_client::test_support::tui_pointer::HitLayer;
+use orchbee_workbench_client::test_support::tui_pointer::HitMapBuilderTestAccess;
 use orchbee_workbench_client::test_support::tui_pointer::HitTarget;
 use ratatui::layout::Rect;
 

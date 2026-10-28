@@ -133,5 +133,22 @@ fn locale_from_value(value: &OsString) -> Locale {
     }
 }
 
+/// Crate-internal `Locale` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait LocaleTestAccess {
+    fn machine_picker_text(self, key: &str) -> &'static str;
+    fn shell(self) -> ShellText<'static>;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl LocaleTestAccess for Locale {
+    fn machine_picker_text(self, key: &str) -> &'static str {
+        Locale::machine_picker_text(self, key)
+    }
+    fn shell(self) -> ShellText<'static> {
+        Locale::shell(self)
+    }
+}
+
 #[cfg(test)]
 mod tests;

@@ -2,6 +2,8 @@
 use super::super::*;
 use super::{dimensions, setup};
 use crate::workbench_client::ClientContextLocation;
+use orchbee_workbench_client::test_support::client_view::ClientViewTestAccess;
+use orchbee_workbench_client::test_support::machine_picker::PickerTestAccess;
 use orchbee_workbench_client::test_support::machine_picker::Selection;
 use orchbee_workbench_protocol::{SessionId, WorkbenchTerminalContextId, WorkbenchWorkspaceId};
 use std::{cell::RefCell, rc::Rc};

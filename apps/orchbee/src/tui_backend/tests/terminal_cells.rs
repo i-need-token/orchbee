@@ -19,6 +19,7 @@ use crate::{
 };
 use orchbee_workbench_client::test_support::tui_render::render_terminal_cells as render;
 use orchbee_workbench_client::test_support::tui_theme::ColorLevel;
+use orchbee_workbench_client::test_support::tui_theme::ThemeTestAccess;
 
 #[test]
 fn native_backend_keeps_blank_and_existing_input_cells_visible_for_every_terminal_appearance() {

@@ -63,7 +63,7 @@ pub struct Facts {
     pub kitty: bool,
 }
 impl Facts {
-    pub fn cell_capabilities(self) -> PaneGraphicsCapabilities {
+    pub(crate) fn cell_capabilities(self) -> PaneGraphicsCapabilities {
         PaneGraphicsCapabilities {
             transport: PaneGraphicsTransport::CellRaster,
             cell_pixels: self.measurement.map(|measurement| PaneGraphicsCellPixels {
@@ -182,5 +182,18 @@ impl Probe {
 }
 
 /// Recognize cell-report syntax even when its dimensions must be refused.
+/// Crate-internal `Facts` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait FactsTestAccess {
+    fn cell_capabilities(self) -> PaneGraphicsCapabilities;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl FactsTestAccess for Facts {
+    fn cell_capabilities(self) -> PaneGraphicsCapabilities {
+        Facts::cell_capabilities(self)
+    }
+}
+
 #[cfg(test)]
 mod tests;

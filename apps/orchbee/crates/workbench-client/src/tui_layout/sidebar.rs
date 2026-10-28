@@ -7,7 +7,7 @@ use ratatui::layout::Rect;
 pub struct SidebarWidth(u16);
 
 impl SidebarWidth {
-    pub const DEFAULT: Self = Self(30);
+    pub(crate) const DEFAULT: Self = Self(30);
     const MINIMUM: u16 = 24;
     const MAXIMUM: u16 = 60;
 
@@ -75,7 +75,7 @@ impl DrawnSidebarWidth {
         };
         Self::new(self.viewport, surface).expect("changing width preserves sidebar visibility")
     }
-    pub fn edge(self) -> Rect {
+    pub(crate) fn edge(self) -> Rect {
         self.edge_for(self.preferred())
     }
     fn edge_for(self, width: SidebarWidth) -> Rect {

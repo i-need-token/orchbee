@@ -6,6 +6,7 @@ use orchbee_agent_observation_protocol::{
 use orchbee_client_server_protocol::{
     SendCleanupStatus, SendProgress, SendRejectedReason, SendUnavailableReason, TerminalSendOutcome,
 };
+use orchbee_workbench_client::test_support::agent_runtime::startup::send::ReceiptTestAccess;
 use orchbee_workbench_client::test_support::agent_start::DeliveryDisposition;
 use serde_json::Value;
 

@@ -259,7 +259,7 @@ impl<'a> WorkbenchClientView<'a> {
     ) -> Option<crate::workbench_client::state::CloseSetStatus> {
         self.state.as_ref()?.close_set_status()
     }
-    pub fn close_confirmation(&self) -> Option<CloseConfirmationView<'a>> {
+    pub(crate) fn close_confirmation(&self) -> Option<CloseConfirmationView<'a>> {
         self.state
             .as_ref()?
             .close_confirmation()

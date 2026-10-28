@@ -54,12 +54,12 @@ pub enum InputFailure {
 
 impl Receipt {
     /// Derive delivery truth from the Server outcome, independently of any later workflow failure.
-    pub fn verdict(&self) -> SendVerdict {
+    pub(crate) fn verdict(&self) -> SendVerdict {
         verdict(self.result.outcome())
     }
     /// Return no failure only for accepted input with confirmed cleanup.
     /// Partial input and zero-input protocol faults retain different failure categories.
-    pub fn refusal(&self) -> Option<InputFailure> {
+    pub(crate) fn refusal(&self) -> Option<InputFailure> {
         match self.result.outcome() {
             TerminalSendOutcome::Accepted {
                 cleanup: SendCleanupStatus::Confirmed,
@@ -190,5 +190,22 @@ pub fn verdict(outcome: &TerminalSendOutcome) -> SendVerdict {
             }
         }
         TerminalSendOutcome::OutcomeUnknown { .. } => SendVerdict::OutcomeUnknown,
+    }
+}
+
+/// Crate-internal `Receipt` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait ReceiptTestAccess {
+    fn verdict(&self) -> SendVerdict;
+    fn refusal(&self) -> Option<InputFailure>;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl ReceiptTestAccess for Receipt {
+    fn verdict(&self) -> SendVerdict {
+        Receipt::verdict(self)
+    }
+    fn refusal(&self) -> Option<InputFailure> {
+        Receipt::refusal(self)
     }
 }

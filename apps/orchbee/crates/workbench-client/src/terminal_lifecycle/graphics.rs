@@ -24,11 +24,11 @@ impl ImageLease {
             }),
         }
     }
-    pub fn capacity(&self) -> usize {
+    pub(crate) fn capacity(&self) -> usize {
         let state = self.state.lock().unwrap_or_else(|error| error.into_inner());
         MAXIMUM_OWNED_IMAGES.saturating_sub(state.ids.len())
     }
-    pub fn register(&self, id: u32) -> bool {
+    pub(crate) fn register(&self, id: u32) -> bool {
         let mut state = self.state.lock().unwrap_or_else(|error| error.into_inner());
         if id == 0 || state.ids.len() >= MAXIMUM_OWNED_IMAGES || state.ids.contains(&id) {
             return false;
@@ -38,7 +38,7 @@ impl ImageLease {
         state.ids.insert(id);
         true
     }
-    pub fn control_started(&self) {
+    pub(crate) fn control_started(&self) {
         self.obligation.mark_operation_started();
         self.state
             .lock()
@@ -75,6 +75,27 @@ impl ImageLease {
 }
 pub fn delete(id: u32) -> String {
     format!("\x1b_Ga=d,d=I,i={id},q=2;\x1b\\")
+}
+
+/// Crate-internal `ImageLease` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait ImageLeaseTestAccess {
+    fn capacity(&self) -> usize;
+    fn register(&self, id: u32) -> bool;
+    fn control_started(&self);
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl ImageLeaseTestAccess for ImageLease {
+    fn capacity(&self) -> usize {
+        ImageLease::capacity(self)
+    }
+    fn register(&self, id: u32) -> bool {
+        ImageLease::register(self, id)
+    }
+    fn control_started(&self) {
+        ImageLease::control_started(self)
+    }
 }
 
 #[cfg(test)]

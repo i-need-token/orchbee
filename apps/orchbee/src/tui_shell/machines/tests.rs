@@ -6,9 +6,16 @@ use crate::{
     machines::{Draft, ProfileId},
     terminal_input::UnavailableTerminalInputPort,
 };
+use orchbee_workbench_client::test_support::client_view::ClientViewTestAccess;
+use orchbee_workbench_client::test_support::machine_picker::PickerTestAccess;
 use orchbee_workbench_client::test_support::terminal_input::PointerProbe;
 use orchbee_workbench_client::test_support::terminal_input::PointerSelectionAdmission;
 use orchbee_workbench_client::test_support::terminal_input::PointerSelectionIntent;
+use orchbee_workbench_client::test_support::tui_pointer::HitMapBuilderTestAccess;
+use orchbee_workbench_client::test_support::workbench_client::input::InputActionTestAccess;
+use orchbee_workbench_client::test_support::workbench_client::state::AttachmentKeyTestAccess;
+use orchbee_workbench_client::test_support::workbench_client::state::PaneKeyTestAccess;
+use orchbee_workbench_client::test_support::workbench_client::state::PaneRefTestAccess;
 struct Witness {
     name: &'static str,
     focus: Option<bool>,

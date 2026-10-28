@@ -360,7 +360,7 @@ impl SynchronizedUpdateLease {
     pub fn open_frame(&self) {
         self.obligation.mark_operation_started();
     }
-    pub fn graphics(&self) -> &graphics::ImageLease {
+    pub(crate) fn graphics(&self) -> &graphics::ImageLease {
         &self.graphics
     }
 
@@ -376,7 +376,7 @@ impl SynchronizedUpdateLease {
         self.frame_output_blocked.load(Ordering::Acquire)
     }
 
-    pub fn block_frame_output(&self) {
+    pub(crate) fn block_frame_output(&self) {
         self.frame_output_blocked.store(true, Ordering::Release);
     }
 }
@@ -650,7 +650,7 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
     /// Switches inside an existing lease. Global levels disable the old level first;
     /// menu motion retains button fallback. An unknown partial write fences later
     /// runtime switches until the full release sequence settles cleanup.
-    pub fn set_pointer_tracking(&mut self, level: PointerTrackingLevel) -> io::Result<()> {
+    pub(crate) fn set_pointer_tracking(&mut self, level: PointerTrackingLevel) -> io::Result<()> {
         if !self.pointer_capture_enabled {
             return Err(io::Error::other("pointer tracking requires active capture"));
         }
@@ -1378,4 +1378,34 @@ fn captured_window_title(result: io::Result<String>) -> io::Result<String> {
         return Err(io::Error::other("console title capture may be truncated"));
     }
     Ok(title.to_owned())
+}
+
+/// Crate-internal `SynchronizedUpdateLease` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait SynchronizedUpdateLeaseTestAccess {
+    fn graphics(&self) -> &graphics::ImageLease;
+    fn block_frame_output(&self);
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl SynchronizedUpdateLeaseTestAccess for SynchronizedUpdateLease {
+    fn graphics(&self) -> &graphics::ImageLease {
+        SynchronizedUpdateLease::graphics(self)
+    }
+    fn block_frame_output(&self) {
+        SynchronizedUpdateLease::block_frame_output(self)
+    }
+}
+
+/// Crate-internal `TerminalModeGuard` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait TerminalModeGuardTestAccess {
+    fn set_pointer_tracking(&mut self, level: PointerTrackingLevel) -> io::Result<()>;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl<C: TerminalModes> TerminalModeGuardTestAccess for TerminalModeGuard<C> {
+    fn set_pointer_tracking(&mut self, level: PointerTrackingLevel) -> io::Result<()> {
+        Self::set_pointer_tracking(self, level)
+    }
 }

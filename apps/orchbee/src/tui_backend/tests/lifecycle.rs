@@ -7,10 +7,13 @@ use std::{
 };
 
 use crate::terminal_lifecycle::{SynchronizedUpdateLease, TerminalModeGuard};
+use orchbee_workbench_client::test_support::terminal_lifecycle::SynchronizedUpdateLeaseTestAccess;
+use orchbee_workbench_client::test_support::terminal_lifecycle::graphics::ImageLeaseTestAccess;
 use orchbee_workbench_client::test_support::terminal_lifecycle::{
     FailingOrderedWireWriter, FakeTerminalModes, OrderedWire, OrderedWireModes, OrderedWireWriter,
     lock_panic_hook_tests,
 };
+use orchbee_workbench_client::test_support::tui_graphics::SurfaceTestAccess;
 
 fn failed_frame_backend(
     writer: FailingOrderedWireWriter,

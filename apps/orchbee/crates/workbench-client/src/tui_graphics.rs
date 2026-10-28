@@ -136,7 +136,7 @@ impl Surface {
         state.frame_allowed = false;
         state.staged.clear();
     }
-    pub fn select(
+    pub(crate) fn select(
         &self,
         session: &SessionId,
         canvas: &PaneGraphicsCanvas,
@@ -512,6 +512,29 @@ impl State {
                 .collect(),
         });
         self.active = active;
+    }
+}
+
+/// Crate-internal `Surface` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait SurfaceTestAccess {
+    fn select(
+        &self,
+        session: &SessionId,
+        canvas: &PaneGraphicsCanvas,
+        body: Rect,
+    ) -> Option<Choice>;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl SurfaceTestAccess for Surface {
+    fn select(
+        &self,
+        session: &SessionId,
+        canvas: &PaneGraphicsCanvas,
+        body: Rect,
+    ) -> Option<Choice> {
+        Surface::select(self, session, canvas, body)
     }
 }
 

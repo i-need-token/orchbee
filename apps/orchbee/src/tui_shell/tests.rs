@@ -24,6 +24,11 @@ use orchbee_workbench_client::test_support::client_view::ClientActionDisposition
 use orchbee_workbench_client::test_support::terminal_input::TerminalInputUnavailable;
 
 use super::{InputSource, LoopExit, LoopFailure, ViewportSource, run_event_loop, to_area};
+use orchbee_workbench_client::test_support::client_view::ClientViewTestAccess;
+use orchbee_workbench_client::test_support::terminal_events::keys::KeyEventTestAccess;
+use orchbee_workbench_client::test_support::tui_theme::ThemeTestAccess;
+use orchbee_workbench_client::test_support::workbench_client::WorkbenchClientViewTestAccess;
+use orchbee_workbench_client::test_support::workbench_client::input::InputActionTestAccess;
 mod action_menu;
 mod close;
 mod divider;

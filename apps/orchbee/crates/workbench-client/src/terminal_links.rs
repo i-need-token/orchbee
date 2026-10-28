@@ -15,7 +15,7 @@ pub struct ResolvedLink {
     pub regions: Vec<LinkRegion>,
 }
 impl ResolvedLink {
-    pub fn none() -> Self {
+    pub(crate) fn none() -> Self {
         Self {
             url: None,
             regions: Vec::new(),
@@ -295,6 +295,19 @@ fn url_range(text: &str, clicked: usize) -> Option<Range<usize>> {
         end = byte;
     }
     (start <= clicked && clicked < end).then_some(start..end)
+}
+
+/// Crate-internal `ResolvedLink` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait ResolvedLinkTestAccess {
+    fn none() -> Self;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl ResolvedLinkTestAccess for ResolvedLink {
+    fn none() -> Self {
+        ResolvedLink::none()
+    }
 }
 
 #[cfg(test)]

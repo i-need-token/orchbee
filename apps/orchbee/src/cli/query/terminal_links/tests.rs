@@ -1,6 +1,7 @@
 use super::*;
 use crate::cli_text::CliText;
 use orchbee_workbench_client::test_support::terminal_links::LinkRegion;
+use orchbee_workbench_client::test_support::terminal_links::ResolvedLinkTestAccess;
 #[test]
 fn link_activation_receipt_requires_truthful_handled_and_closed_known_or_unknown_identity() {
     let schema: serde_json::Value = serde_json::from_str(include_str!(

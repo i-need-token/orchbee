@@ -6,6 +6,7 @@ use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_mess
 use orchbee_workbench_client::test_support::local_client::{
     multiplex_peer::Peer, server::FakeServer,
 };
+use orchbee_workbench_client::test_support::machine_picker::PickerTestAccess;
 use orchbee_workbench_protocol::*;
 use std::{io::Read, num::NonZeroU64};
 

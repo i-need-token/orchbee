@@ -48,7 +48,7 @@ impl InteractionSpec {
         }
     }
 
-    pub const fn enabled(primary: PrimaryContract) -> Self {
+    pub(crate) const fn enabled(primary: PrimaryContract) -> Self {
         Self::new(primary, InteractionAvailability::Enabled)
     }
 

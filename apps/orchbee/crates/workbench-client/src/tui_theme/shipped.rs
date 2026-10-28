@@ -98,7 +98,7 @@ fn named(palette: Palette) -> Theme {
 
 impl Theme {
     /// Resolve System accents from host polarity; unknown appearance stays terminal-native.
-    pub fn application_with_host(
+    pub(crate) fn application_with_host(
         appearance: orchbee_workbench_protocol::ApplicationAppearance,
         host: HostAppearance,
         level: ColorLevel,
@@ -115,7 +115,7 @@ impl Theme {
         }
         .quantize(level)
     }
-    pub fn one_light() -> Self {
+    pub(crate) fn one_light() -> Self {
         named(Palette {
             #[cfg(any(test, feature = "test-support"))]
             name: "one-light",
@@ -157,7 +157,7 @@ impl Theme {
             ],
         })
     }
-    pub fn one_dark() -> Self {
+    pub(crate) fn one_dark() -> Self {
         named(Palette {
             #[cfg(any(test, feature = "test-support"))]
             name: "one-dark",

@@ -127,7 +127,7 @@ impl Row {
     }
 }
 impl Picker {
-    pub const fn sidebar_width(&self) -> crate::tui_layout::SidebarWidth {
+    pub(crate) const fn sidebar_width(&self) -> crate::tui_layout::SidebarWidth {
         self.sidebar_width
     }
     /// The input owner first validates a live painted source; this compares its preference.
@@ -192,7 +192,7 @@ impl Picker {
         self.show_agents();
         self.agent_control(super::Control::Search);
     }
-    pub fn activate_sidebar_agent(&mut self, selected: &Selection) -> bool {
+    pub(crate) fn activate_sidebar_agent(&mut self, selected: &Selection) -> bool {
         if !self.available || !self.spaces.visible() || self.open {
             return false;
         }

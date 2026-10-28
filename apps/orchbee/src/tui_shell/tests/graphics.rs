@@ -2,6 +2,7 @@
 use super::*;
 use orchbee_client_server_protocol::Geometry;
 use orchbee_workbench_client::test_support::terminal_graphics::Facts;
+use orchbee_workbench_client::test_support::terminal_graphics::FactsTestAccess;
 use orchbee_workbench_client::test_support::terminal_graphics::Query;
 use ratatui::backend::Backend;
 

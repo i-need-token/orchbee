@@ -1,6 +1,9 @@
 //! Output trace at the actual draw/flush boundary, without an inherited terminal.
 use super::*;
 use crate::tui_shell::InputDispatcher;
+use orchbee_workbench_client::test_support::machine_picker::PickerTestAccess;
+use orchbee_workbench_client::test_support::terminal_lifecycle::SynchronizedUpdateLeaseTestAccess;
+use orchbee_workbench_client::test_support::tui_pointer::HitMapBuilderTestAccess;
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,

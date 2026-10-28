@@ -9,11 +9,16 @@ use crate::{
     workbench_client::ClientMemberTarget,
 };
 use orchbee_workbench_client::test_support::client_view::KeyEvent;
+use orchbee_workbench_client::test_support::localization::LocaleTestAccess;
 use orchbee_workbench_client::test_support::machine_agents::Observation as AgentObservation;
 use orchbee_workbench_client::test_support::machine_agents::{checkpoint, row};
 use orchbee_workbench_client::test_support::machine_picker::Control;
+use orchbee_workbench_client::test_support::machine_picker::DrawnPickerTargetTestAccess;
 use orchbee_workbench_client::test_support::machine_picker::Mode;
 use orchbee_workbench_client::test_support::machine_picker::PickerAction;
+use orchbee_workbench_client::test_support::machine_picker::PickerSourceTestAccess;
+use orchbee_workbench_client::test_support::machine_picker::PickerTestAccess;
+use orchbee_workbench_client::test_support::terminal_events::keys::KeyEventTestAccess;
 
 #[derive(Default)]
 struct Surface {

@@ -6,12 +6,21 @@ use crate::{
     tui_layout::DividerDrag,
     tui_pointer::HitMapBuilder,
 };
+use orchbee_workbench_client::test_support::localization::LocaleTestAccess;
+use orchbee_workbench_client::test_support::machine_picker::PickerSourceTestAccess;
+use orchbee_workbench_client::test_support::machine_picker::PickerTestAccess;
+use orchbee_workbench_client::test_support::tui_graphics::SurfaceTestAccess;
+use orchbee_workbench_client::test_support::tui_layout::DividerDragTestAccess;
 use orchbee_workbench_client::test_support::tui_layout::DividerSource;
 use orchbee_workbench_client::test_support::tui_layout::DrawnDivider;
+use orchbee_workbench_client::test_support::tui_layout::DrawnSidebarWidthTestAccess;
+use orchbee_workbench_client::test_support::tui_layout::SidebarWidthTestAccess;
 use orchbee_workbench_client::test_support::tui_pointer::HelpControl;
 use orchbee_workbench_client::test_support::tui_pointer::HitLayer;
+use orchbee_workbench_client::test_support::tui_pointer::HitMapBuilderTestAccess;
 use orchbee_workbench_client::test_support::tui_pointer::HitTarget;
 use orchbee_workbench_client::test_support::tui_pointer::InteractionSpec;
+use orchbee_workbench_client::test_support::tui_pointer::InteractionSpecTestAccess;
 use orchbee_workbench_client::test_support::tui_pointer::InteractionTarget;
 use orchbee_workbench_client::test_support::tui_pointer::MotionObservability;
 use orchbee_workbench_client::test_support::tui_pointer::PointerOutcome;

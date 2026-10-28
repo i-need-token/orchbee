@@ -79,7 +79,7 @@ pub struct DividerDrag {
 
 impl DividerDrag {
     /// Begins only inside the exact painted divider.
-    pub fn begin(target: DrawnDivider, column: u16, row: u16) -> Option<Self> {
+    pub(crate) fn begin(target: DrawnDivider, column: u16, row: u16) -> Option<Self> {
         if !target.divider.contains((column, row).into()) {
             return None;
         }

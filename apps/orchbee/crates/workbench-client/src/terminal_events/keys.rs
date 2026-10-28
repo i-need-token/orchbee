@@ -93,7 +93,7 @@ pub struct KeyEvent {
 }
 
 impl KeyEvent {
-    pub const fn press(code: KeyCode, mods: Modifiers) -> Self {
+    pub(crate) const fn press(code: KeyCode, mods: Modifiers) -> Self {
         Self {
             code,
             mods,
@@ -359,6 +359,19 @@ pub(crate) fn join_key_labels(labels: &[String], style: LabelStyle, separator: &
         return format!("{shift}{}", letters.join(separator));
     }
     labels.join(separator)
+}
+
+/// Crate-internal `KeyEvent` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait KeyEventTestAccess {
+    fn press(code: KeyCode, mods: Modifiers) -> Self;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl KeyEventTestAccess for KeyEvent {
+    fn press(code: KeyCode, mods: Modifiers) -> Self {
+        KeyEvent::press(code, mods)
+    }
 }
 
 #[cfg(test)]

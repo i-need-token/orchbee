@@ -20,6 +20,7 @@ use orchbee_workbench_client::test_support::terminal_lifecycle as test_support;
 use super::{
     FixedViewportBackend, ResizableBackend, RestorationGatedWriter, write_modifier_transition,
 };
+use orchbee_workbench_client::test_support::terminal_lifecycle::SynchronizedUpdateLeaseTestAccess;
 
 mod cursor;
 mod lifecycle;

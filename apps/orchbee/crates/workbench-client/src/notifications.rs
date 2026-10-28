@@ -65,7 +65,7 @@ impl State {
     pub fn empty(&self) -> bool {
         self.visible.is_none() && self.pending.is_none()
     }
-    pub fn install(&mut self, message: Notification, now: Instant) -> bool {
+    pub(crate) fn install(&mut self, message: Notification, now: Instant) -> bool {
         self.install_with_delivery(message, self.policy.delivery, now)
     }
     pub(crate) fn install_automatic(
@@ -234,5 +234,18 @@ pub fn render(
     );
     Some(rect)
 }
+/// Crate-internal `State` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait StateTestAccess {
+    fn install(&mut self, message: Notification, now: Instant) -> bool;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl StateTestAccess for State {
+    fn install(&mut self, message: Notification, now: Instant) -> bool {
+        State::install(self, message, now)
+    }
+}
+
 #[cfg(test)]
 mod tests;

@@ -157,7 +157,7 @@ impl DrawnPickerTarget {
         &self.source
     }
 
-    pub fn available(&self) -> bool {
+    pub(crate) fn available(&self) -> bool {
         self.source.available(self.action)
     }
 }
@@ -211,7 +211,7 @@ impl PickerSource {
         }
     }
 
-    pub fn drawn(&self, action: PickerAction) -> Option<DrawnPickerTarget> {
+    pub(crate) fn drawn(&self, action: PickerAction) -> Option<DrawnPickerTarget> {
         self.admits(action).then(|| DrawnPickerTarget {
             source: self.clone(),
             action,
@@ -478,7 +478,7 @@ impl Picker {
 
     /// Projects the exact nonvisual authority behind the currently open
     /// centered picker. A candidate renderer clones this `Arc` for the frame.
-    pub fn picker_source(&self) -> Option<PickerSource> {
+    pub(crate) fn picker_source(&self) -> Option<PickerSource> {
         let scope = self.selection_scope.filter(|scope| {
             self.available && self.open && scope.origin == SelectionOrigin::Picker
         })?;
@@ -796,7 +796,7 @@ impl Picker {
         }
         changed
     }
-    pub fn show(&mut self) {
+    pub(crate) fn show(&mut self) {
         if !self.begin_selection(SelectionOrigin::Picker) {
             return;
         }
@@ -855,7 +855,7 @@ impl Picker {
             Choice::Local => None,
         }
     }
-    pub fn key(&mut self, key: KeyEvent) {
+    pub(crate) fn key(&mut self, key: KeyEvent) {
         if key.kind == KeyKind::Release {
             return;
         }
@@ -1544,6 +1544,73 @@ impl Picker {
                 Rect::new(inner.x, inner.bottom() - 2, inner.width, 2),
             );
         }
+    }
+}
+
+/// Crate-internal `DrawnPickerTarget` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait DrawnPickerTargetTestAccess {
+    fn available(&self) -> bool;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl DrawnPickerTargetTestAccess for DrawnPickerTarget {
+    fn available(&self) -> bool {
+        DrawnPickerTarget::available(self)
+    }
+}
+
+/// Crate-internal `PickerSource` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait PickerSourceTestAccess {
+    fn drawn(&self, action: PickerAction) -> Option<DrawnPickerTarget>;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl PickerSourceTestAccess for PickerSource {
+    fn drawn(&self, action: PickerAction) -> Option<DrawnPickerTarget> {
+        PickerSource::drawn(self, action)
+    }
+}
+
+/// Crate-internal `Picker` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait PickerTestAccess {
+    fn picker_source(&self) -> Option<PickerSource>;
+    fn show(&mut self);
+    fn key(&mut self, key: KeyEvent);
+    fn enter_sidebar_navigation(&mut self) -> bool;
+    fn sidebar_width(&self) -> crate::tui_layout::SidebarWidth;
+    fn activate_sidebar_agent(&mut self, selected: &Selection) -> bool;
+    fn show_workspaces(&mut self);
+    fn activate_sidebar_workspace(&mut self, selected: &Selection) -> bool;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl PickerTestAccess for Picker {
+    fn picker_source(&self) -> Option<PickerSource> {
+        Picker::picker_source(self)
+    }
+    fn show(&mut self) {
+        Picker::show(self)
+    }
+    fn key(&mut self, key: KeyEvent) {
+        Picker::key(self, key)
+    }
+    fn enter_sidebar_navigation(&mut self) -> bool {
+        Picker::enter_sidebar_navigation(self)
+    }
+    fn sidebar_width(&self) -> crate::tui_layout::SidebarWidth {
+        Picker::sidebar_width(self)
+    }
+    fn activate_sidebar_agent(&mut self, selected: &Selection) -> bool {
+        Picker::activate_sidebar_agent(self, selected)
+    }
+    fn show_workspaces(&mut self) {
+        Picker::show_workspaces(self)
+    }
+    fn activate_sidebar_workspace(&mut self, selected: &Selection) -> bool {
+        Picker::activate_sidebar_workspace(self, selected)
     }
 }
 

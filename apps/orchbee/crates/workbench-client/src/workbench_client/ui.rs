@@ -4549,3 +4549,16 @@ fn finish_action<Value>(
         | Err(AdmissionError::Build(ActionBuildError::Protocol)) => {}
     }
 }
+
+/// Crate-internal `WorkbenchClientView` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait WorkbenchClientViewTestAccess<'a> {
+    fn close_confirmation(&self) -> Option<CloseConfirmationView<'a>>;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl<'a> WorkbenchClientViewTestAccess<'a> for WorkbenchClientView<'a> {
+    fn close_confirmation(&self) -> Option<CloseConfirmationView<'a>> {
+        WorkbenchClientView::close_confirmation(self)
+    }
+}

@@ -384,7 +384,7 @@ impl ClientView {
         }
     }
 
-    pub const fn notice(&self) -> Option<Notice> {
+    pub(crate) const fn notice(&self) -> Option<Notice> {
         if self.notice.is_some() {
             return self.notice;
         }
@@ -950,7 +950,7 @@ impl ClientView {
         }
     }
 
-    pub fn configuration_notice(&mut self, notice: Notice) {
+    pub(crate) fn configuration_notice(&mut self, notice: Notice) {
         self.notice = Some(notice);
     }
 
@@ -998,7 +998,7 @@ impl ClientView {
         self.prefix_active = false;
     }
 
-    pub fn decide(&self, input: PrefixInput) -> ClientTransition {
+    pub(crate) fn decide(&self, input: PrefixInput) -> ClientTransition {
         let mut next = self.clone();
         if self.overlay == Some(Overlay::ShortcutHelp) {
             if let PrefixInput::Key(event) = input
@@ -1243,7 +1243,7 @@ impl ClientView {
     }
 
     /// Semantic entry shared by menu activation and the binding decision layer.
-    pub fn decide_action(&self, action: ClientAction) -> ClientTransition {
+    pub(crate) fn decide_action(&self, action: ClientAction) -> ClientTransition {
         let mut next = self.clone();
         next.prefix_active = false;
         next.notice = None;
@@ -1346,7 +1346,11 @@ impl ClientView {
         }
     }
 
-    pub fn commit(&mut self, transition: ClientTransition, disposition: ClientActionDisposition) {
+    pub(crate) fn commit(
+        &mut self,
+        transition: ClientTransition,
+        disposition: ClientActionDisposition,
+    ) {
         let mut next = transition.next;
         if transition.action == Some(ClientAction::CreateTab)
             && disposition == ClientActionDisposition::WorkspaceCreationStarted
@@ -1506,6 +1510,35 @@ impl ClientView {
                 self.replace_overlay(overlay);
             }
         }
+    }
+}
+
+/// Crate-internal `ClientView` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait ClientViewTestAccess {
+    fn notice(&self) -> Option<Notice>;
+    fn configuration_notice(&mut self, notice: Notice);
+    fn decide(&self, input: PrefixInput) -> ClientTransition;
+    fn decide_action(&self, action: ClientAction) -> ClientTransition;
+    fn commit(&mut self, transition: ClientTransition, disposition: ClientActionDisposition);
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl ClientViewTestAccess for ClientView {
+    fn notice(&self) -> Option<Notice> {
+        ClientView::notice(self)
+    }
+    fn configuration_notice(&mut self, notice: Notice) {
+        ClientView::configuration_notice(self, notice)
+    }
+    fn decide(&self, input: PrefixInput) -> ClientTransition {
+        ClientView::decide(self, input)
+    }
+    fn decide_action(&self, action: ClientAction) -> ClientTransition {
+        ClientView::decide_action(self, action)
+    }
+    fn commit(&mut self, transition: ClientTransition, disposition: ClientActionDisposition) {
+        ClientView::commit(self, transition, disposition)
     }
 }
 

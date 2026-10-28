@@ -606,3 +606,40 @@ impl PanelTreeProjection<'_> {
             .map(|leaf| leaf.content)
     }
 }
+
+/// Crate-internal `DividerDrag` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait DividerDragTestAccess: Sized {
+    fn begin(target: DrawnDivider, column: u16, row: u16) -> Option<Self>;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl DividerDragTestAccess for DividerDrag {
+    fn begin(target: DrawnDivider, column: u16, row: u16) -> Option<Self> {
+        DividerDrag::begin(target, column, row)
+    }
+}
+
+/// Crate-internal `SidebarWidth` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait SidebarWidthTestAccess: Sized {
+    const DEFAULT: Self;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl SidebarWidthTestAccess for SidebarWidth {
+    const DEFAULT: Self = SidebarWidth::DEFAULT;
+}
+
+/// Crate-internal `DrawnSidebarWidth` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait DrawnSidebarWidthTestAccess {
+    fn edge(self) -> Rect;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl DrawnSidebarWidthTestAccess for DrawnSidebarWidth {
+    fn edge(self) -> Rect {
+        DrawnSidebarWidth::edge(self)
+    }
+}

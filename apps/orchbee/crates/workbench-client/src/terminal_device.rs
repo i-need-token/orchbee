@@ -59,3 +59,20 @@ pub use native::InheritedTerminal;
 use native::require_same_terminal_identity;
 #[cfg(all(test, unix))]
 mod tests;
+
+/// Crate-internal `InheritedTerminal` operations the application's tests drive.
+#[cfg(all(windows, any(test, feature = "test-support")))]
+pub trait InheritedTerminalTestAccess {
+    fn input_mode(&self) -> io::Result<u32>;
+    fn output_mode(&self) -> io::Result<u32>;
+}
+
+#[cfg(all(windows, any(test, feature = "test-support")))]
+impl InheritedTerminalTestAccess for InheritedTerminal {
+    fn input_mode(&self) -> io::Result<u32> {
+        InheritedTerminal::input_mode(self)
+    }
+    fn output_mode(&self) -> io::Result<u32> {
+        InheritedTerminal::output_mode(self)
+    }
+}

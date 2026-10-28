@@ -679,3 +679,16 @@ impl TerminalInputPort for UnavailableTerminalInputPort {
         Err(TerminalInputUnavailable)
     }
 }
+
+/// Crate-internal `InputAction` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait InputActionTestAccess {
+    fn intent(&self) -> ClientAction;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl InputActionTestAccess for InputAction {
+    fn intent(&self) -> ClientAction {
+        InputAction::intent(self)
+    }
+}

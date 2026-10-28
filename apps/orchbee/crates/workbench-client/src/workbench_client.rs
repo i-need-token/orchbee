@@ -79,6 +79,8 @@ pub(crate) use ui::{
     WorktreeEdit, WorktreeMode, WorktreeNotice, WorktreeStage, WorktreeToken, WorktreeView,
 };
 
+#[cfg(any(test, feature = "test-support"))]
+pub use ui::WorkbenchClientViewTestAccess;
 #[cfg(test)]
 pub(crate) use ui::WorktreeCaptureContext;
 pub(crate) use ui::{

@@ -14,6 +14,7 @@ use super::{
     finish_run, write_journal,
 };
 use crate::{localization::Locale, tui_backend::RestorationGatedWriter};
+use orchbee_workbench_client::test_support::terminal_lifecycle::SynchronizedUpdateLeaseTestAccess;
 
 fn observe(limit: usize) -> Measurements {
     Measurements(Some(Rc::new(Active {

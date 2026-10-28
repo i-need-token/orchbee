@@ -7,6 +7,8 @@ use crate::{
     workbench_client::{DrawReceipt, WorkbenchClientView},
 };
 use orchbee_local_runtime::{NotificationDelivery, NotificationSettings};
+use orchbee_workbench_client::test_support::localization::LocaleTestAccess;
+use orchbee_workbench_client::test_support::notifications::StateTestAccess;
 use orchbee_workbench_protocol::{Notification, NotificationPosition, NotificationSound};
 use ratatui::layout::Rect;
 

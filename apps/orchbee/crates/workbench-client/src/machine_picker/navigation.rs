@@ -974,7 +974,7 @@ impl Picker {
             .flatten()
             .map(|focus| &focus.target)
     }
-    pub fn enter_sidebar_navigation(&mut self) -> bool {
+    pub(crate) fn enter_sidebar_navigation(&mut self) -> bool {
         if !self.available || self.open {
             return false;
         }

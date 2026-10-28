@@ -226,7 +226,7 @@ impl Locale {
         }
     }
 
-    pub const fn shell(self) -> ShellText<'static> {
+    pub(crate) const fn shell(self) -> ShellText<'static> {
         match self {
             Self::EnUs => EN_US_SHELL,
             Self::ZhCn => ZH_CN_SHELL,

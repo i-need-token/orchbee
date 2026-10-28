@@ -9,7 +9,10 @@ use crate::{
     terminal_lifecycle::{InheritedTerminalModes, PointerTrackingLevel, TerminalModeGuard},
 };
 use orchbee_workbench_client::test_support::client_view::KeyEvent;
+use orchbee_workbench_client::test_support::terminal_device::InheritedTerminalTestAccess;
+use orchbee_workbench_client::test_support::terminal_events::keys::KeyEventTestAccess;
 use orchbee_workbench_client::test_support::terminal_input::HostReply as DecodedHostReply;
+use orchbee_workbench_client::test_support::terminal_lifecycle::TerminalModeGuardTestAccess;
 use orchbee_workbench_client::test_support::terminal_pointer_admission::Capability;
 use orchbee_workbench_client::test_support::terminal_pointer_admission::HostReply as PointerHostReply;
 use orchbee_workbench_client::test_support::terminal_pointer_admission::ModeReportState;

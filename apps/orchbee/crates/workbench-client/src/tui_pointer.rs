@@ -638,7 +638,7 @@ impl HitMapBuilder {
             .retain(|region| region.rect.intersection(area) != region.rect);
     }
     /// A modal replaces all earlier overlay controls in this frame.
-    pub fn start_modal(&mut self) {
+    pub(crate) fn start_modal(&mut self) {
         self.map.backdrop_dismissal = None;
         {
             self.map.navigator = None;
@@ -702,7 +702,7 @@ impl HitMapBuilder {
             .regions
             .retain(|region| !matches!(region.layer, HitLayer::Overlay | HitLayer::OverlaySurface));
     }
-    pub const fn new() -> Self {
+    pub(crate) const fn new() -> Self {
         Self {
             map: FrameHitMap {
                 sidebar_reorder: None,
@@ -746,7 +746,7 @@ impl HitMapBuilder {
 
     /// A capturing overlay is open this frame: an unresolved press is an
     /// outside click that dismisses it.
-    pub fn mark_overlay_active(&mut self) {
+    pub(crate) fn mark_overlay_active(&mut self) {
         self.map.overlay_active = true;
     }
 
@@ -797,7 +797,7 @@ impl HitMapBuilder {
         }
     }
 
-    pub fn record(&mut self, layer: HitLayer, rect: Rect, target: HitTarget) {
+    pub(crate) fn record(&mut self, layer: HitLayer, rect: Rect, target: HitTarget) {
         if rect.is_empty() {
             return;
         }
@@ -822,7 +822,7 @@ impl HitMapBuilder {
     /// was painted. The ordinary `HitTarget` continues to drive the existing
     /// owner effect; availability is retained only for input admission and
     /// immutable hover/pressed projection.
-    pub fn record_modal_control(
+    pub(crate) fn record_modal_control(
         &mut self,
         layer: HitLayer,
         rect: Rect,
@@ -924,7 +924,7 @@ impl HitMapBuilder {
     /// Records one feature-declared interaction from the exact geometry its
     /// renderer successfully painted. `hit_rect` may be a child fragment of
     /// a complete row-sized `paint_rect`; frontmost children record first.
-    pub fn record_interaction(
+    pub(crate) fn record_interaction(
         &mut self,
         layer: HitLayer,
         hit_rect: Rect,
@@ -951,7 +951,7 @@ impl HitMapBuilder {
 
     /// Projects only the transient pointer axis for an exact typed target and
     /// painted extent. The feature retains every persistent component fact.
-    pub fn projected_pointer(
+    pub(crate) fn projected_pointer(
         &self,
         layer: HitLayer,
         hit_rect: Rect,
@@ -3716,6 +3716,96 @@ impl PointerState {
             | PanePointerRoute::Host => {}
         }
         true
+    }
+}
+
+/// Crate-internal `HitMapBuilder` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait HitMapBuilderTestAccess {
+    fn start_modal(&mut self);
+    fn new() -> Self;
+    fn mark_overlay_active(&mut self);
+    fn record(&mut self, layer: HitLayer, rect: Rect, target: HitTarget);
+    fn record_modal_control(
+        &mut self,
+        layer: HitLayer,
+        rect: Rect,
+        target: HitTarget,
+        availability: InteractionAvailability,
+    );
+    fn record_interaction(
+        &mut self,
+        layer: HitLayer,
+        hit_rect: Rect,
+        paint_rect: Rect,
+        target: InteractionTarget,
+        spec: InteractionSpec,
+    );
+    fn projected_pointer(
+        &self,
+        layer: HitLayer,
+        hit_rect: Rect,
+        paint_rect: Rect,
+        target: &InteractionTarget,
+        spec: InteractionSpec,
+    ) -> ProjectedPointer;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl HitMapBuilderTestAccess for HitMapBuilder {
+    fn start_modal(&mut self) {
+        HitMapBuilder::start_modal(self)
+    }
+    fn new() -> Self {
+        HitMapBuilder::new()
+    }
+    fn mark_overlay_active(&mut self) {
+        HitMapBuilder::mark_overlay_active(self)
+    }
+    fn record(&mut self, layer: HitLayer, rect: Rect, target: HitTarget) {
+        HitMapBuilder::record(self, layer, rect, target)
+    }
+    fn record_modal_control(
+        &mut self,
+        layer: HitLayer,
+        rect: Rect,
+        target: HitTarget,
+        availability: InteractionAvailability,
+    ) {
+        HitMapBuilder::record_modal_control(self, layer, rect, target, availability)
+    }
+    fn record_interaction(
+        &mut self,
+        layer: HitLayer,
+        hit_rect: Rect,
+        paint_rect: Rect,
+        target: InteractionTarget,
+        spec: InteractionSpec,
+    ) {
+        HitMapBuilder::record_interaction(self, layer, hit_rect, paint_rect, target, spec)
+    }
+    fn projected_pointer(
+        &self,
+        layer: HitLayer,
+        hit_rect: Rect,
+        paint_rect: Rect,
+        target: &InteractionTarget,
+        spec: InteractionSpec,
+    ) -> ProjectedPointer {
+        HitMapBuilder::projected_pointer(self, layer, hit_rect, paint_rect, target, spec)
+    }
+}
+
+/// Crate-internal `InteractionSpec` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait InteractionSpecTestAccess {
+    fn enabled(primary: PrimaryContract) -> Self;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl InteractionSpecTestAccess for InteractionSpec {
+    fn enabled(primary: PrimaryContract) -> Self {
+        InteractionSpec::enabled(primary)
     }
 }
 

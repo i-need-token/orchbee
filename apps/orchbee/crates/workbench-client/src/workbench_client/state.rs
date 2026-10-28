@@ -112,7 +112,7 @@ pub struct AttachmentKey {
 }
 
 impl AttachmentKey {
-    pub const fn new(generation: u64, tab_id: WorkbenchTabId) -> Self {
+    pub(crate) const fn new(generation: u64, tab_id: WorkbenchTabId) -> Self {
         Self { generation, tab_id }
     }
 
@@ -136,7 +136,7 @@ pub struct PaneKey {
 }
 
 impl PaneKey {
-    pub const fn new(anchor: AttachmentKey, panel: WorkbenchPanelId) -> Self {
+    pub(crate) const fn new(anchor: AttachmentKey, panel: WorkbenchPanelId) -> Self {
         Self { anchor, panel }
     }
 
@@ -144,7 +144,7 @@ impl PaneKey {
         &self.anchor
     }
 
-    pub const fn panel(&self) -> &WorkbenchPanelId {
+    pub(crate) const fn panel(&self) -> &WorkbenchPanelId {
         &self.panel
     }
 
@@ -170,11 +170,11 @@ pub struct PaneRef {
 }
 
 impl PaneRef {
-    pub const fn new(pane: PaneKey, incarnation: u32) -> Self {
+    pub(crate) const fn new(pane: PaneKey, incarnation: u32) -> Self {
         Self { pane, incarnation }
     }
 
-    pub const fn pane(&self) -> &PaneKey {
+    pub(crate) const fn pane(&self) -> &PaneKey {
         &self.pane
     }
 
@@ -4214,6 +4214,53 @@ impl<'a> ClientTabView<'a> {
     #[cfg(test)]
     pub(super) fn presentation_label(&self) -> &'a str {
         self.tab.presentation_label().as_str()
+    }
+}
+
+/// Crate-internal `AttachmentKey` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait AttachmentKeyTestAccess {
+    fn new(generation: u64, tab_id: WorkbenchTabId) -> Self;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl AttachmentKeyTestAccess for AttachmentKey {
+    fn new(generation: u64, tab_id: WorkbenchTabId) -> Self {
+        AttachmentKey::new(generation, tab_id)
+    }
+}
+
+/// Crate-internal `PaneKey` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait PaneKeyTestAccess {
+    fn new(anchor: AttachmentKey, panel: WorkbenchPanelId) -> Self;
+    fn panel(&self) -> &WorkbenchPanelId;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl PaneKeyTestAccess for PaneKey {
+    fn new(anchor: AttachmentKey, panel: WorkbenchPanelId) -> Self {
+        PaneKey::new(anchor, panel)
+    }
+    fn panel(&self) -> &WorkbenchPanelId {
+        PaneKey::panel(self)
+    }
+}
+
+/// Crate-internal `PaneRef` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait PaneRefTestAccess {
+    fn new(pane: PaneKey, incarnation: u32) -> Self;
+    fn pane(&self) -> &PaneKey;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl PaneRefTestAccess for PaneRef {
+    fn new(pane: PaneKey, incarnation: u32) -> Self {
+        PaneRef::new(pane, incarnation)
+    }
+    fn pane(&self) -> &PaneKey {
+        PaneRef::pane(self)
     }
 }
 
