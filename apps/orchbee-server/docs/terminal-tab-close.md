@@ -632,6 +632,35 @@ A Tab, Panel or Workspace containing a definitively failed Create remains closab
 
 Creating/Starting stays busy. Unknown, unavailable with a retained identity, missing/duplicate bindings and contradictory accepted Create facts remain unavailable. Existing membership fencing, request replay, publication revision, failure parking and explicit resume rules apply unchanged. Publication revalidates the full ordered scope, including Uncreated members. Tests exercise actual failed-Create settlement, no-Worker removal, mixed scopes and unknown-outcome refusal.
 
+## Normal Shell exit
+
+Server closes the Panel of an interactive Shell that exits with code 0, following Windows
+Terminal's graceful close. Every viewer of the exact physical terminal, including Server sampling
+viewers, passes the Host `TerminalExited` record through Server's exact identity check in the
+viewer Poll route; only an `ExitCode(0)` record reaches the Session. Under the Worker and Session
+gates, the Session admits an ordinary `panel.close` with a Server-generated request ID at the
+current revision only when:
+
+- no Close fences or has disposed the target;
+- TerminalCoordinator retains the binding's Create as the same Started Host incarnation and Worker
+  generation;
+- the retained Client launch selection is absent, so the Session's default program ran, or names
+  an interactive Shell under the Host launch rule: PowerShell with only plain interactive flags,
+  `cmd` with only `/D` or `/Q`, or a POSIX shell with only interactive or login flags;
+- the binding is the primary Presentation of a Panel without child Presentations.
+
+A sole leaf therefore closes its whole Tab, and the last Tab leaves its Workspace empty, exactly
+as a user Panel Close would. The close maintenance owner then runs the ordinary continuation and
+publication; native Clients remove the member through their existing peer-Close path. Nonzero,
+signal and unknown exits, runtime failures, explicit commands and scripts, child Presentations and
+shared Panels keep [terminal settlement](../../orchbee/docs/native-panel-lifecycle.md#terminal-settlement).
+A refused admission changes nothing; the settled Panel remains until a later exit observation is
+admitted or a user closes it. Only Windows runs Server sampling viewers, so elsewhere an exit that
+no viewer observed is evaluated when a later viewer attaches. No command, wire field, setting or
+receipt is added. Session coordinator tests cover eligibility, stale incarnations, single
+admission and leaf versus Tab scope; real-window review covers exit 0, nonzero exit, splits and the
+last Tab.
+
 ## Workspace group admission
 
 Ordinary Workspace Close rejects a known main-checkout Workspace with associated group members using `workspace-group-close-required`. It retains the same rejection/replay rules. The separate [Project close-all owner](../../orchbee/docs/windows-worktrees.md#project-close-all) freezes scopes and delegates each child to this lifecycle. Its internal admission token must match the retained operation, claimed attempt, exact canonical member and closed predecessor prefix; the wire action contains no bypass flag. Child Close remains the sole authority for terminal disposal, generation-fenced resume and canonical removal. Aggregate group reads carry compact child observations, while existing Workspace Close reads retain full terminal membership.

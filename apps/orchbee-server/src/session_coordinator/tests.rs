@@ -16,6 +16,7 @@ use std::num::NonZeroU64;
 
 mod agent_registration;
 mod checkpoint_restore;
+mod exit_close;
 mod failed_launch_close;
 mod launch_read;
 mod multileaf_membership;

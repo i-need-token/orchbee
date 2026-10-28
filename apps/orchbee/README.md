@@ -13,7 +13,8 @@ Windows refuses a TUI launched from a terminal already inside the selected Sessi
 another Client. The localized message returns to the current Shell; CLI subcommands and explicit
 routes to another Session remain usable. Failed and ended terminals retain navigation, creation
 and close paths; [terminal settlement](docs/native-panel-lifecycle.md#terminal-settlement) preserves
-final output and known exit codes.
+final output and known exit codes. An interactive Shell that exits with code 0 instead closes its
+pane, and its Tab when it was the last pane.
 
 Windows `events subscribe` emits bounded NDJSON observations from an existing Session. `events wait`
 retains one connection and filter through wait slices, distinguishing match, known timeout,
@@ -236,8 +237,9 @@ and [startup position](docs/native-context-selection.md#windows-startup-preferen
 
 The prefix is `Ctrl+B`, followed by `|` for a side-by-side split, `-` for a stacked split,
 `h/j/k/l` for pane focus, or `d` to detach. Splitting focuses the new pane by default; `terminal.focus_new_panel = false` preserves the current focus once the Session publishes it. Run the executable
-again to reattach to the retained Session. Detaching leaves shells running; an exited shell remains
-observable until its Tab/Panel is explicitly closed. If every registered Session process has exited,
+again to reattach to the retained Session. Detaching leaves shells running. A shell that exits with
+code 0 closes its pane; any other exit remains observable until its Tab/Panel is explicitly closed.
+If every registered Session process has exited,
 running the executable again automatically starts a fresh generation and restores the existing
 checkpoint. Live or uncertain old owners block startup; current recovery does not adopt a live Host.
 `session list` v2 reports guarded cold eligibility as `recoverable`. Continuous Workbench checkpoints

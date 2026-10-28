@@ -38,20 +38,8 @@ impl SessionCoordinator {
         if self.terminals.target_retired(target) {
             return TargetLifecycle::Fenced;
         }
-        let terminal_id = orchbee_workbench_protocol::TerminalId::parse(&format!(
-            "{:032x}",
-            u128::from_be_bytes(target.terminal_id.as_bytes())
-        ));
-        let worker_id = orchbee_workbench_protocol::WorkerId::parse(&format!(
-            "{:032x}",
-            u128::from_be_bytes(target.worker.worker_id.as_bytes())
-        ));
-        let (Ok(terminal_id), Ok(worker_id)) = (terminal_id, worker_id) else {
+        let Some(binding) = target_binding(target) else {
             return TargetLifecycle::Fenced;
-        };
-        let binding = PresentationBinding {
-            terminal_id,
-            worker_id,
         };
         let Some(close_id) = authority.terminal_tab_close_request_for_binding(&binding) else {
             return TargetLifecycle::Unfenced;
@@ -132,6 +120,22 @@ impl SessionCoordinator {
         Self::terminal_tab_close_runtime(terminals, binding, current_worker)
             .is_ok_and(|evidence| matches!(evidence, WorkbenchTabCloseMemberRuntime::Runtime { target, .. } if Some(target) == expected))
     }
+}
+
+/// The canonical binding naming the physical terminal of `target`.
+pub(super) fn target_binding(target: BindingViewerTarget) -> Option<PresentationBinding> {
+    Some(PresentationBinding {
+        terminal_id: orchbee_workbench_protocol::TerminalId::parse(&format!(
+            "{:032x}",
+            u128::from_be_bytes(target.terminal_id.as_bytes())
+        ))
+        .ok()?,
+        worker_id: orchbee_workbench_protocol::WorkerId::parse(&format!(
+            "{:032x}",
+            u128::from_be_bytes(target.worker.worker_id.as_bytes())
+        ))
+        .ok()?,
+    })
 }
 
 fn is_disposed(status: Option<WorkbenchTabCloseStatus>) -> bool {

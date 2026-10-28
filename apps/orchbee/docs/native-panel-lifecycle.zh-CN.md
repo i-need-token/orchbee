@@ -134,6 +134,12 @@ resize 权限。控制权拒绝或类型化控制运行时不可用只降级控�
 CLI 帧读取消费结束记录时不会使画面失效，也不会输出 projection-blocked 流重置；已有输出
 schema 保持不变。
 
+结束状态描述的是仍保留其 Panel 的已结束终端。以退出码 0 结束的交互 Shell 不保留 Panel：
+Server 通过[规范 Close](../../orchbee-server/docs/terminal-tab-close.zh-CN.md#shell-正常退出)
+关闭该 Panel；该 Panel 是唯一叶子时关闭其 Tab，包括退出首先由之后附着的 viewer 观测到的
+情况。Client 通过既有的对端 Close 路径移除该成员；最后一个 Tab 关闭后 Workspace 进入普通
+空状态。
+
 setup 或已准入 Create 期间收到退出时，也须降级保留的选择并清除控制几何。因此，提交前
 拒绝不能在 Shell 已结束后恢复可控制选择。失败输入不重放。导航、从子成员返回主成员、
 新建和关闭继续使用既有所有者，包括当前仅有一个已结束 Tab 的情况。
@@ -144,4 +150,4 @@ viewer 拒绝则停放为稳定导航视图，并进入普通命令循环。不�
 传输、协议、结果不明和清理失败沿用原边界。投影／状态测试覆盖精确目标结束与选择恢复；
 真实窗口评审覆盖 exit 0、非零退出、普通输入、返回主成员、重新进入及窄窗口状态展示。
 
-<!-- documentation-pairing: english-sha256=c8b7977da70ac4ba8f2b0958351ffe4b132a391d634553c38e9975931e4a47b5 zh-cn-sha256=9763311babf79d93ac389088b63c81dd5bb02debe6b67f4ce12b9e9ad17a09f5 -->
+<!-- documentation-pairing: english-sha256=f7de967a53101de0c3dba8fb1251245bf8f3f5c552f1630292524c964d067f07 zh-cn-sha256=0f06e77da844e5636b4ec9e146fcd46433a63c2de348303f2ddf5a5d3d0bdc5a -->

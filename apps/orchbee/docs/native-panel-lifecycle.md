@@ -150,6 +150,12 @@ viewer polling remains authoritative for whether readable output is still availa
 CLI frame readers consume settlement without invalidating pixels or emitting a projection-blocked
 stream reset; their existing output schemas stay unchanged.
 
+Settlement describes every ended terminal that keeps its Panel. An interactive Shell that exits
+with code 0 does not keep it: Server closes that Panel, or its Tab when the Panel is the sole leaf,
+through the [canonical Close](../../orchbee-server/docs/terminal-tab-close.md#normal-shell-exit),
+including when a later viewer attachment first observes the exit. Clients remove the member
+through the existing peer-Close path; the last Tab leaves the Workspace's ordinary empty state.
+
 An exit arriving during setup or an admitted Create also downgrades the retained selection and
 clears its controller geometry. Precommit refusal therefore cannot restore a controlling selection
 after its Shell ended. No failed input is replayed. Navigation, child-to-primary selection, Create

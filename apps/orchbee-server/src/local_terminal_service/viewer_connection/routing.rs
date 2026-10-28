@@ -611,23 +611,33 @@ pub(super) fn valid_poll_record(viewer: &mut ViewerAttachment, record: &[u8]) ->
             if envelope.payload_encoding != PayloadEncoding::ControlJson {
                 return false;
             }
-            let identity = match orchbee_terminal_protocol::decode_lifecycle_control(
+            let (identity, normal_exit) = match orchbee_terminal_protocol::decode_lifecycle_control(
                 envelope.kind,
                 envelope.role,
                 envelope.payload,
             ) {
-                Ok(orchbee_terminal_protocol::LifecycleControl::TerminalExited(event)) => {
-                    event.identity
-                }
+                Ok(orchbee_terminal_protocol::LifecycleControl::TerminalExited(event)) => (
+                    event.identity,
+                    event.exit == orchbee_terminal_protocol::ExitResult::ExitCode(0),
+                ),
                 Ok(orchbee_terminal_protocol::LifecycleControl::TerminalFailed(event)) => {
-                    event.identity
+                    (event.identity, false)
                 }
                 // This lifecycle exchange requires its exact target-bearing acknowledgment; other control records cannot confirm it.
                 _ => return false,
             };
-            identity.terminal_id.as_bytes() == &viewer.target.identity.terminal_id().as_bytes()
+            let exact = identity.terminal_id.as_bytes()
+                == &viewer.target.identity.terminal_id().as_bytes()
                 && identity.creation_id.as_bytes()
-                    == &viewer.target.identity.creation_id().as_bytes()
+                    == &viewer.target.identity.creation_id().as_bytes();
+            // Every viewer of this exact terminal, including Server sampling viewers, reaches
+            // this check; the Session alone decides whether the exited Shell's Panel closes.
+            if exact && normal_exit {
+                viewer
+                    .service
+                    .close_after_normal_exit(&viewer.handle, viewer.target);
+            }
+            exact
         }
         55 | 56 => {
             envelope.payload_encoding == PayloadEncoding::ControlJson

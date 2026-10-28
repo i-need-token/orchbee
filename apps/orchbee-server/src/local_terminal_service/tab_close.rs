@@ -63,6 +63,41 @@ impl LocalTerminalService {
         result
     }
 
+    /// Server validated an exact Host exit record with exit code 0 for `target` on a viewer issued
+    /// by `handle`. The Session decides whether that terminal's Panel closes; an admitted Close then
+    /// runs the ordinary continuation. Ineligible, fenced or stale targets change nothing.
+    pub(super) fn close_after_normal_exit(
+        &self,
+        handle: &crate::worker_obcn_carrier::WorkerRequestHandle,
+        target: crate::terminal_coordinator::BindingViewerTarget,
+    ) {
+        let admitted = {
+            let Ok(workers) = self.workers.lock() else {
+                return;
+            };
+            let current = placement(workers.request_handle().as_ref());
+            if !handle.is_active()
+                || current != Some(target.worker)
+                || placement(Some(handle)) != Some(target.worker)
+            {
+                return;
+            }
+            let Ok(mut coordinator) = self.coordinator.lock() else {
+                return;
+            };
+            coordinator.close_after_normal_exit(
+                target,
+                close_request_id,
+                current,
+                self.close_maintenance.available(),
+                Instant::now(),
+            )
+        };
+        if admitted {
+            self.close_maintenance.notify();
+        }
+    }
+
     pub(crate) fn execute_workspace_close(
         &self,
         command: WorkbenchCommand,
@@ -343,4 +378,10 @@ impl LocalTerminalService {
             .map_err(|_| PostcommitCoordinationError)?;
         Ok(Some(Instant::now()))
     }
+}
+
+fn close_request_id() -> Option<WorkbenchRequestId> {
+    let mut bytes = [0; 16];
+    getrandom::fill(&mut bytes).ok()?;
+    WorkbenchRequestId::parse(&format!("{:032x}", u128::from_be_bytes(bytes))).ok()
 }

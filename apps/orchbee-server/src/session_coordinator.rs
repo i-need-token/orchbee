@@ -29,6 +29,7 @@ mod independent_popup;
 mod plugin_popup;
 #[cfg(windows)]
 pub(crate) use editor_popup::EditorPopupLaunch;
+mod exit_close;
 mod tab_close;
 mod tab_create;
 #[cfg(test)]

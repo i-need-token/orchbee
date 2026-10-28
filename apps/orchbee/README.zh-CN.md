@@ -11,6 +11,7 @@ Agent 标识使用 `--agent-session <id>`。[会话契约](docs/native-cli-query
 Windows 在所选会话内的终端再次启动 TUI 时，会在打开另一个 Client 前拒绝进入，并显示本地化
 说明后返回当前 Shell；CLI 子命令及显式进入其他会话仍可使用。失败和已结束终端保留导航、
 新建和关闭入口；[终端结束状态](docs/native-panel-lifecycle.zh-CN.md#终端结束状态)保留最终输出与已知退出码。
+以退出码 0 结束的交互 Shell 则会关闭其窗格；它是最后一个窗格时同时关闭 Tab。
 
 Windows `events subscribe` 从已有 Session 输出有界 NDJSON 观察。`events wait` 在等待片段间保留
 同一连接及过滤器，区分匹配、确定超时、历史丢失、拒绝与中断。使用 `--event tab.renamed`、
@@ -213,8 +214,8 @@ Windows Session 中没有 Workspace 或终端内容时，`cd <project>; orchbee`
 及[启动位置](docs/native-context-selection.zh-CN.md#windows-启动偏好)。
 
 前缀键为 `Ctrl+B`，随后按 `|` 左右分屏、`-` 上下分屏、`h/j/k/l` 切换窗格，或 `d` 脱离。
-分屏默认聚焦新窗格；设置 `terminal.focus_new_panel = false` 并由 Session 发布后可保留当前焦点。再次运行可执行文件即可重新连接保留的 Session。脱离后 Shell 继续运行；退出的 Shell
-仍可观察，直至显式关闭其 Tab/Panel。全部已登记的 Session 进程退出后，再次运行可执行文件会自动开始
+分屏默认聚焦新窗格；设置 `terminal.focus_new_panel = false` 并由 Session 发布后可保留当前焦点。再次运行可执行文件即可重新连接保留的 Session。脱离后 Shell 继续运行。以退出码 0
+结束的 Shell 会关闭其窗格；其他退出仍可观察，直至显式关闭其 Tab/Panel。全部已登记的 Session 进程退出后，再次运行可执行文件会自动开始
 新代，并恢复已有 checkpoint。旧 owner 仍活着或无法证明退出时拒绝启动；当前恢复不接管活 Host。
 `session list` v2 用 `recoverable` 报告受 guard 保护的冷恢复资格。持续 Workbench checkpoint
 会保留布局变更及采样所得的终端目录，但不保存屏幕内容；详见
@@ -945,4 +946,4 @@ Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin acti
 
 Windows 首次运行引导在终端可继续输入时提供 Workspace 创建、Agent 选择、操作与帮助入口，关闭状态按原生配置档案保存。参见[原生首次运行引导](docs/native-onboarding.zh-CN.md)。
 
-<!-- documentation-pairing: english-sha256=c7ff4033ff790b64ceacc2651ab12237f45a984accea286099e2f1b4646bc2ba zh-cn-sha256=0f9c56e22ae4eb8cb3bb77b35f29a0d921fda8adb22ac37543ef41e1e6e387c1 -->
+<!-- documentation-pairing: english-sha256=1d623e1b78839fbddf665b5c90575a6991add49465f87c5ed18275258bff0580 zh-cn-sha256=6b729d059277cbbfd9e51512095704fa71b0f59f27c4a2228c08341ef6ec6316 -->

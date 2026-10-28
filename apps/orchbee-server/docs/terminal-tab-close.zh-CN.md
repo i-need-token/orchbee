@@ -524,6 +524,31 @@ Presentation 身份和终端绑定，存活 Presentation 绝不改变其绑定�
 
 Creating/Starting 仍为 busy。Unknown、保留 identity 的 unavailable、缺失或重复 binding、矛盾的 accepted Create facts 仍为 unavailable。既有 membership fence、request replay、publication revision、失败停驻与显式 resume 规则保持适用。Publication 重新验证完整有序 scope，包括 Uncreated 成员。测试覆盖真实 failed-Create settlement、无 Worker 移除、混合 scope 与 unknown-outcome 拒绝。
 
+## Shell 正常退出
+
+交互 Shell 以退出码 0 结束时，Server 关闭它所在的 Panel，行为参照 Windows Terminal 的
+graceful 关闭。该精确物理终端的每个 viewer（包括 Server 采样 viewer）都会让 Host
+`TerminalExited` 记录经过 viewer Poll 路由中 Server 的精确身份校验；只有 `ExitCode(0)`
+记录会交给 会话。会话 在 Worker 与 会话 gate 内，仅当以下条件全部成立时，才以 Server
+生成的 request ID 和当前 revision 准入一次普通 `panel.close`：
+
+- 没有 Close 已对该目标设栅栏或已处置它；
+- TerminalCoordinator 保留的该 binding 的 Create 仍是同一 Started Host 实例和 Worker
+  代次；
+- 保留的 Client launch selection 为空（即运行的是 会话 的默认程序），或按 Host 启动规则
+  属于交互 Shell：PowerShell 只带普通交互参数，`cmd` 只带 `/D` 或 `/Q`，POSIX shell
+  只带交互或登录参数；
+- 该 binding 是某个 Panel 的主 Presentation，且该 Panel 没有子 Presentation。
+
+因此唯一叶子会关闭整个 Tab，最后一个 Tab 关闭后其 Workspace 留空，与用户发起的 Panel
+Close 完全一致。随后 close maintenance owner 执行普通继续流程和发布；原生 Client 通过既有
+的对端 Close 路径移除该成员。非零、信号和未知退出、运行时失败、显式命令和脚本、子
+Presentation 以及共享 Panel 保持[终端结束状态](../../orchbee/docs/native-panel-lifecycle.zh-CN.md#终端结束状态)。
+准入被拒时不产生任何变化；已结束的 Panel 保留，直到后续退出观测被准入或用户关闭它。只有
+Windows 运行 Server 采样 viewer，因此其他平台上无人观测到的退出会在之后有 viewer 附着时
+再判定。不新增命令、wire 字段、设置或回执。会话 协调器测试覆盖资格判定、过期实例、单次
+准入以及叶子与 Tab 范围；真实窗口评审覆盖 exit 0、非零退出、分屏和最后一个 Tab。
+
 ## Workspace 组接纳
 
 普通 Workspace Close 对有关联组成员的已知主 checkout Workspace 返回 `workspace-group-close-required`，沿用相同的拒绝/重放规则。独立的[Project 全部关闭 owner](../../orchbee/docs/windows-worktrees.zh-CN.md#project-全部关闭) 冻结作用域，再将各子操作交给此生命周期。内部接纳令牌必须匹配保留操作、已领取的尝试、精确规范成员和前序已关闭成员前缀；线上 action 不包含绕过标志。子 Close 仍独自负责终端处置、代次围栏恢复及规范移除。组聚合读取携带精简子操作观测，现有 Workspace Close 读取继续保留完整终端成员。
@@ -540,4 +565,4 @@ Panel、Tab 和 Workspace Close 按规范 Tab／树顺序捕获全部已绑定�
 
 OBWP 61/62 在既有 会话 读取权限下，按原始请求 ID 读取精确保留 Close 账本项，包括空范围及已完成范围。它返回原始目标和 generation，不解析当前布局成员。[CLI 状态与恢复](../../orchbee/docs/native-operation-status.zh-CN.md) 复用既有 generation 围栏恢复准入；读取本身不续期尝试，也不调度清理。
 
-<!-- documentation-pairing: english-sha256=d047b7f23c91fcde1e275eff65324d275a90f2a2d5cf5b9822fb42a901edbf03 zh-cn-sha256=098d3b36a36cb79a7fb3f37f688a18db0561abc88c6e7aac83e01d98d4d0d6be -->
+<!-- documentation-pairing: english-sha256=9badddf9b1390a09e12677acbf78ad81d101947e6103a2462bdd69d3bfb6c009 zh-cn-sha256=e3072d40976636fd9bdc847f1bdafd69853e8767a5426cb21f9feb88d9bf7641 -->
