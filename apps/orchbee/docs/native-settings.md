@@ -220,6 +220,21 @@ scrollbar use and manual history navigation take ownership of the displayed wind
 automatic following cannot move active selection/export work. The
 [viewport contract](native-terminal-viewport.md) governs the underlying lease.
 
+## Configuration stores and readers
+
+Native configuration has two stores, and each setting lives in exactly one of them. `preferences.json` owns every setting that a TUI or Desktop Settings surface edits; the [shared inventory](../../../crates/workbench-protocol/docs/user-preferences.md#inventory-and-effect) lists them. `config.toml` owns the settings users edit only by hand, described in [Windows CLI configuration](windows-cli-configuration.md). A key that would exist in both stores is deleted, together with its reader, from the store that does not own it: the chrome theme belongs to `applicationTheme`, and the default launch program belongs to `launchProfiles`. Notification policy is split by meaning: Agent notification mode and global sound are shared preferences, while manual delivery, delay, overlay position and per-Agent sound overrides stay in `config.toml`.
+
+| Reader                                  | Reads                                        | Rule                                                                                                                                                                                                                                                                                                                                                                            |
+| --------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Session Server                          | Both stores                                  | The runtime authority. It reads `config.toml` at startup, on reload and when its sampler sees a change, and reads `preferences.json` when it dispatches each creation and at its sampling deadline. It publishes one effective snapshot per revision over the Client's shared-carrier subscriptions; a refused candidate keeps the previous snapshot and publishes diagnostics. |
+| Worker                                  | Neither store                                | Server dispatch carries the launch intent; the Worker resolves device facts, such as System shell discovery, itself.                                                                                                                                                                                                                                                            |
+| Desktop                                 | `preferences.json`                           | Reads and writes it through `orchbee-settings`; the Server observes those writes at its sampling deadline.                                                                                                                                                                                                                                                                      |
+| Local Session activation                | The `config.toml` location and file validity | Rejects an unreadable file and freezes the location the Server reads.                                                                                                                                                                                                                                                                                                           |
+| `channel show`, `channel set`, `update` | `update.channel`                             | Release operations run without a Session.                                                                                                                                                                                                                                                                                                                                       |
+| `config check`                          | The whole `config.toml`                      | Validates the file the user edits; applies no runtime policy.                                                                                                                                                                                                                                                                                                                   |
+
+Every other Client consumer, including the TUI and CLI creation defaults, uses the Server's snapshots.
+
 ## Apply timing and capability boundaries
 
 Every shared key persists through the same atomic Save and private record. The
@@ -244,8 +259,8 @@ horizons in localized row help:
 | `launchProfiles`                   | Child edits remain in the parent draft                                        | Subsequent default launches capture the catalog/default; existing programs keep their launch facts                      |
 
 Native host configuration is a separate admitted surface, not extra shared-editor
-rows. Windows TOML changes require an explicit `server reload-config` (default
-prefix F5). Configuration and shared preferences use separate state subscriptions on the
+rows. Windows TOML changes publish when the Server's sampler sees the edit, about
+once per second, or immediately through `server reload-config` (default prefix F5). Configuration and shared preferences use separate state subscriptions on the
 Client's shared carrier, including while Settings is closed. The UI consumes their snapshots
 on its existing tick, whose input wait is at most 50 ms; neither observer polls the Server.
 Same-Server preference commits invalidate immediately. Desktop and other Sessions can write

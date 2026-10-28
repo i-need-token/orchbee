@@ -165,6 +165,21 @@ Agent 尾部折叠共用保留历史的读取/确认/恢复权威。它仅用精
 滚动条和手动历史导航会取得已显示窗口的所有权；自动跟随不能移动进行中
 的选择/导出工作。底层租约由[视口契约](native-terminal-viewport.zh-CN.md) 约束。
 
+## 配置存储与读取方
+
+原生配置有两个存储，每个设置只存在于其中一个。`preferences.json` 拥有 TUI 或 Desktop 设置界面编辑的全部设置，由[共享清单](../../../crates/workbench-protocol/docs/user-preferences.zh-CN.md#清单与生效时机)列出。`config.toml` 拥有用户只手工编辑的设置，见 [Windows CLI 配置](windows-cli-configuration.zh-CN.md)。会同时出现在两个存储里的键，连同其读取方一起从不拥有它的存储中删除：界面主题归 `applicationTheme`，默认启动程序归 `launchProfiles`。通知策略按含义拆分：Agent 通知模式与全局声音是共享偏好，手动投递、延迟、浮层位置与逐 Agent 声音覆盖留在 `config.toml`。
+
+| 读取方                                  | 读取内容                       | 规则                                                                                                                                                                                                                      |
+| --------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Session Server                          | 两个存储                       | 运行时权威。它在启动、重载以及采样器发现变化时读取 `config.toml`，在分派每次创建时和采样截止时间读取 `preferences.json`。它通过 Client 共享载体上的订阅，每个修订发布一份有效快照；被拒绝的候选保留之前的快照并发布诊断。 |
+| Worker                                  | 不读取任何存储                 | Server 分派携带启动意图；Worker 自行解析设备事实，例如系统 shell 发现。                                                                                                                                                   |
+| Desktop                                 | `preferences.json`             | 通过 `orchbee-settings` 读写；Server 在其采样截止时间观察这些写入。                                                                                                                                                       |
+| 本地 Session 激活                       | `config.toml` 位置与文件有效性 | 拒绝无法读取的文件，并冻结 Server 读取的位置。                                                                                                                                                                            |
+| `channel show`、`channel set`、`update` | `update.channel`               | 发布操作在没有 Session 时运行。                                                                                                                                                                                           |
+| `config check`                          | 整个 `config.toml`             | 校验用户编辑的文件；不应用任何运行时策略。                                                                                                                                                                                |
+
+其他所有 Client 消费方，包括 TUI 与 CLI 创建默认值，都使用 Server 的快照。
+
 ## 生效时机与能力边界
 
 每个共享键都通过同一原子保存和私有记录持久化。
@@ -188,7 +203,7 @@ Agent 尾部折叠共用保留历史的读取/确认/恢复权威。它仅用精
 | `launchProfiles`                   | 子页面编辑仍属于父页面草稿                     | 后续默认启动捕获目录／默认项；现有程序保留启动事实                               |
 
 原生宿主配置属于单独获准的界面，不是共享编辑器的额外设置行。Windows TOML
-更改需要显式执行 `server reload-config`（默认前缀 F5）。配置与共享偏好分别使用
+更改在 Server 采样器发现修改时发布，约每秒一次；`server reload-config`（默认前缀 F5）会立即发布。配置与共享偏好分别使用
 Client 共享载体上的状态订阅，设置关闭期间也继续观察。UI 在现有 tick 中消费快照，
 其输入等待最多 50 ms；两种观察器都不轮询 Server。同一 Server 内的偏好提交立即使
 订阅失效并重新读取。Desktop 和其他 Session 可以在不通知该 Server 的情况下写入共享
@@ -261,4 +276,4 @@ Cargo/TypeScript 检查。受影响的根门禁仍为必需。
 
 Shell 保留启动时是否由非空 `NO_COLOR` 禁用了颜色，并将该原因传入已提交主题及预览主题。应用／终端主题和可编辑颜色的说明以两种语言解释颜色抑制。校验、确认和未知保存结果的恢复信息优先。提示不会仅由单色模式推断 `NO_COLOR`，不会在渲染时读取环境，也不会更改已保存的主题选项。
 
-<!-- documentation-pairing: english-sha256=0b161ff419ed5304b7f73c7f625007bd52bae51b27ae51eebd87e21e8fcf8bcd zh-cn-sha256=765b87f922f25ddb179d830472fd387a8b98ed2507536f2a571e9981e6277b92 -->
+<!-- documentation-pairing: english-sha256=72043824e8bf3b9e990cf17d9ecfe951539cc57764c738f82f4f6419de51abb9 zh-cn-sha256=02975c46381719db0683f02ccbf19a1626f2a59b0cf1f3bc655201fe9261681f -->

@@ -7,16 +7,16 @@
 
 本 crate 只拥有经准入的共享能力和稳定的运行时生命周期契约。应用保留组合与产品策略；Server 的帧目录归 `apps/orchbee-server/src/frame_directory` 所有，CLI 的不可变版本发布归 `apps/orchbee/src/release_store` 所有。
 
-| 归属模块                                                                   | 真实生产消费者与共享理由                                                                                                                           |
-| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `cohort`、`rendezvous`、`rendezvous_types`、`retained_child`               | Client 激活、Server 准入和 Worker 启动共用 cohort 身份、锁与进程生命周期原语。                                                                     |
-| `session_name`、`session_catalog`、`activation_record`、`durable_sessions` | Client 枚举／激活／删除与 Server 保留／停止共同依赖同一身份和生命周期记录；目录删除 fence 也约束 rendezvous 准入。其内部记录不暴露为可变应用 API。 |
-| `process_registration`、`process_observation`、`registered_child`          | Client 创建 Server、Server 创建 Worker、Worker 创建 Host 共用先登记后执行及确切进程身份恢复契约。                                                  |
-| `session_store`、`checkpoint_rotation`、`checkpoint_restore_notice`        | Server 的检查点写入／轮换与 Client 的恢复诊断／停止后删除共用固定槽位、活动代与存储锁约束。                                                        |
-| `user_preferences`、`default_interactive_launch`、`notification_policy`    | Desktop 设置桥接程序、Client、Server 和 Worker 消费共享偏好、启动快照或通知配置；通知类型直接供设置解码使用，不存在平台别名。                      |
-| `user_settings`、`plugins`、`user_path`                                    | Client 解析与设置 UI、Server 配置和 Worker 执行消费相同有界 schema；Windows 路径语法在所有宿主保持明确。                                           |
-| `command`、`command_outcome`、`command_child`、`directory`                 | Client 命令／安装、Server 重启与 Worker 命令／目录观测共用编码、结果和进程结算契约。                                                               |
-| `private_cache`、`private_filesystem`、`host_appearance`                   | 运行时存储、CLI 版本存储和 Server 帧读取共用精确句柄准入；Client 与 Worker 共用只读 Windows 主题观察。                                             |
+| 归属模块                                                                   | 真实生产消费者与共享理由                                                                                                                                                   |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cohort`、`rendezvous`、`rendezvous_types`、`retained_child`               | Client 激活、Server 准入和 Worker 启动共用 cohort 身份、锁与进程生命周期原语。                                                                                             |
+| `session_name`、`session_catalog`、`activation_record`、`durable_sessions` | Client 枚举／激活／删除与 Server 保留／停止共同依赖同一身份和生命周期记录；目录删除 fence 也约束 rendezvous 准入。其内部记录不暴露为可变应用 API。                         |
+| `process_registration`、`process_observation`、`registered_child`          | Client 创建 Server、Server 创建 Worker、Worker 创建 Host 共用先登记后执行及确切进程身份恢复契约。                                                                          |
+| `session_store`、`checkpoint_rotation`、`checkpoint_restore_notice`        | Server 的检查点写入／轮换与 Client 的恢复诊断／停止后删除共用固定槽位、活动代与存储锁约束。                                                                                |
+| `user_preferences`、`default_interactive_launch`、`notification_policy`    | Desktop 设置桥接程序、Client、Server 和 Worker 消费共享偏好、启动快照或通知配置；通知类型直接供设置解码使用，不存在平台别名。                                              |
+| `user_settings`、`plugins`、`user_path`                                    | Server 配置与 Client 对 `config.toml` 的最小读取（激活、发布渠道与 `config check`）共享有界设置 schema；插件与路径还服务 Worker 执行，Windows 路径语法在所有宿主保持明确。 |
+| `command`、`command_outcome`、`command_child`、`directory`                 | Client 命令／安装、Server 重启与 Worker 命令／目录观测共用编码、结果和进程结算契约。                                                                                       |
+| `private_cache`、`private_filesystem`、`host_appearance`                   | 运行时存储、CLI 版本存储和 Server 帧读取共用精确句柄准入；Client 与 Worker 共用只读 Windows 主题观察。                                                                     |
 
 ## 共享类型与平台副作用
 
@@ -480,4 +480,4 @@ cohort 准入、备用租约及进程／Server 所有权；普通 client／worke
 原生管道测试验证 scope／票据地址隔离，以及长 Unicode runtime 输入下仍有界的名称。
 [Worker 契约](../../apps/orchbee-worker/docs/windows-server-handoff.zh-CN.md) 负责连接转移。
 
-<!-- documentation-pairing: english-sha256=583e8bf97f8adaf2137102551a64f9d2e78867f92bfab68ab0bb578196681239 zh-cn-sha256=a8984682f1ae01c55357aae3e3a9795776c3fe937338305e547d900e6a765ba3 -->
+<!-- documentation-pairing: english-sha256=3a76132625f093109c4f31110c2780aede46b549056d6be0a33d9697c72848b0 zh-cn-sha256=c8d58954ad959220d2d1a5525f4fe7499d1ead5ba191819986daade5ea40c0f5 -->
