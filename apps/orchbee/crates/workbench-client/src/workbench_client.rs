@@ -401,8 +401,8 @@ impl WorkbenchClient {
         std::mem::take(&mut self.retirement_redraw_pending) || changed
     }
 
-    #[cfg(test)]
-    pub(crate) fn rename_input_context(&mut self) -> Option<RenameInputContext> {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn rename_input_context(&mut self) -> Option<ui::RenameInputContext> {
         match &mut self.backend {
             ClientBackend::Native(native) => native.rename_input_context(),
         }
@@ -1535,5 +1535,7 @@ fn random_identity_seed() -> io::Result<u128> {
     Ok(u128::from_be_bytes(seed))
 }
 
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
 #[cfg(test)]
 mod tests;

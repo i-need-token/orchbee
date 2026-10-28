@@ -117,7 +117,7 @@ pub use tab_close::DrawReceipt;
 #[cfg(test)]
 pub(crate) use tab_close::{CloseConfirmationKind, CloseStatusKind};
 pub(crate) use tab_close::{CloseConfirmationView, CloseStatusToken, ModalPresentation};
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) use tab_rename::RenameInputContext;
 pub(crate) use tab_rename::{RenameDraftToken, RenameDraftView, RenameEdit};
 mod create_membership;
@@ -1190,7 +1190,7 @@ impl WorkbenchClientUi {
         self.focus_new_panel = focus_new_panel;
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub(super) fn new(mailbox: Arc<CommandMailbox>, clock: LocalOperationClock) -> Self {
         Self::with_capabilities(mailbox, clock, crate::tui_capabilities::Capabilities::all())
     }

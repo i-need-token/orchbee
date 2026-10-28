@@ -1,7 +1,15 @@
 use super::*;
+use crate::workbench_client::{
+    TerminalStatus,
+    test_support::{
+        RenameServer, TestResult, fixture_geometry, native_client, native_workbench_client, spin,
+        spin_with_draw,
+    },
+};
+use orchbee_workbench_protocol::WorkbenchAction;
 use std::time::Instant;
 
-pub(crate) fn run_native_rename_resize(
+fn run_native_rename_resize(
     session: &mut crate::workbench_client::WorkbenchClient,
 ) -> io::Result<Vec<bool>> {
     struct TimedInput {
@@ -83,4 +91,30 @@ pub(crate) fn run_native_rename_resize(
         Err(LoopFailure::Input(error) | LoopFailure::Viewport(error)) => Err(error),
         Err(LoopFailure::Terminal(error)) => match error {},
     }
+}
+
+#[test]
+fn actual_loop_outer_resize_blocks_hidden_enter_then_restores_the_draft() -> TestResult {
+    let geometry = fixture_geometry()?;
+    let server = RenameServer::start(geometry)?;
+    let mut workbench_client = native_workbench_client(native_client(&server.server)?, geometry)?;
+    assert!(spin_with_draw(
+        &mut workbench_client,
+        |workbench_client| workbench_client.status() == TerminalStatus::Controlling
+    ));
+    let leases = run_native_rename_resize(&mut workbench_client)?;
+    assert_eq!(leases.iter().filter(|enabled| **enabled).count(), 1);
+    assert_eq!(leases.last(), Some(&false));
+    spin(&mut workbench_client, |_| {
+        !server.commands.lock().unwrap().is_empty()
+    });
+    let commands = server.commands.lock().unwrap();
+    assert!(
+        matches!(&commands[..], [command] if matches!(&command.action, WorkbenchAction::TabRename { label, .. } if label.as_str() == "renamed"))
+    );
+    drop(commands);
+    assert!(server.inputs.lock().unwrap().is_empty());
+    assert!(workbench_client.rename_input_context().is_none());
+    server.finish(workbench_client)?;
+    Ok(())
 }

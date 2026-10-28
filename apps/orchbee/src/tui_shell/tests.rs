@@ -23,6 +23,7 @@ use crate::{
 
 use super::{InputSource, LoopExit, LoopFailure, ViewportSource, run_event_loop, to_area};
 mod action_menu;
+mod close;
 mod divider;
 mod effects;
 mod graphics;
@@ -30,14 +31,13 @@ mod machine_picker_capture;
 mod notification_too_small;
 mod rename;
 mod settings;
-pub(crate) use rename::run_native_rename_resize;
 pub(crate) use settings::{SettingsFrameSource, settings_frame};
 
 struct QueueInputSource {
     inputs: VecDeque<io::Result<Option<Vec<u8>>>>,
 }
 
-pub(crate) fn run_native_close_resize_confirmation(
+fn run_native_close_resize_confirmation(
     session: &mut crate::workbench_client::WorkbenchClient,
 ) -> io::Result<Vec<bool>> {
     struct Surface<'a> {

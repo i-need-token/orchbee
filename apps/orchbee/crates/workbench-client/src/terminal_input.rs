@@ -35,7 +35,7 @@ pub enum DispatchOutcome {
 /// Test helper: drives the real `InputDispatcher` path so tests exercise the
 /// same decode → ownership → dispatch rules as production, instead of a
 /// parallel byte-level loop.
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) fn dispatch_input<Port: TerminalInputPort + ?Sized, LayoutError>(
     dispatcher: &mut InputDispatcher,
     view: &mut ClientView,

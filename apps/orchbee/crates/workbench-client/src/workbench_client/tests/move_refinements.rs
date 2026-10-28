@@ -84,30 +84,6 @@ fn native_ui_move_expiry_returns_while_the_contended_mailbox_remains_locked() ->
     Ok(())
 }
 
-pub(super) fn two_tabs() -> Snapshot {
-    let WorkbenchSnapshotOutcome::Available { mut snapshot } = available_snapshot(Some(binding()))
-    else {
-        unreachable!()
-    };
-    let mut second = snapshot.terminal_contexts[0].tabs[0].clone();
-    second.tab_id = WorkbenchTabId::parse(CREATED_TAB_ID).unwrap();
-    let PanelNode::Panel {
-        panel_id,
-        primary_presentation,
-        ..
-    } = &mut second.root
-    else {
-        unreachable!()
-    };
-    *panel_id = WorkbenchPanelId::parse(CREATED_PANEL_ID).unwrap();
-    primary_presentation.presentation_id =
-        TerminalPresentationId::parse(CREATED_PRESENTATION_ID).unwrap();
-    primary_presentation.binding.as_mut().unwrap().terminal_id =
-        TerminalId::parse(CREATED_TAB_ID).unwrap();
-    snapshot.terminal_contexts[0].tabs.push(second);
-    snapshot
-}
-
 #[test]
 fn outer_native_shutdown_join_finalization_retains_exact_pending_move_and_first_failure()
 -> TestResult {

@@ -67,7 +67,7 @@ impl<'a> RenameDraftView<'a> {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct RenameInputContext {
+pub struct RenameInputContext {
     token: RenameDraftToken,
 }
 impl RenameInputContext {

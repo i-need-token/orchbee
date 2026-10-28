@@ -153,7 +153,10 @@ fn invalid_complete_checkpoint_preserves_prior_attention_and_missing_members_are
     assert!(attention.project(&Choice::Local, &invalid).is_err());
     assert_eq!(attention, before);
     attention
-        .project(&Choice::Local, &super::super::test_support::checkpoint(Vec::new()))
+        .project(
+            &Choice::Local,
+            &super::super::test_support::checkpoint(Vec::new()),
+        )
         .unwrap();
     assert!(!attention.project(&Choice::Local, &round).unwrap()[0].seen);
 }
