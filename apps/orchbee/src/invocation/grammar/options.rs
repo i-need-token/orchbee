@@ -2472,7 +2472,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--mouse",
-        values: &["off", "on"],
+        // Default first, matching every usage line that names the choices.
+        values: &["on", "off"],
         closed_values: true,
         string_rule: None,
         commands: &[
