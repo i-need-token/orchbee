@@ -1118,3 +1118,34 @@ fn retired_workspace_replacement_attaches_same_panel_only_with_fresh_physical_id
         ui.retire(CarrierFailure::Closed);
     }
 }
+
+/// Every retired connection floats Disconnected, even when its last operation's outcome is
+/// unknown; the full fact, including that nothing replays, stays with the pane.
+#[test]
+fn every_retirement_names_disconnected_and_leaves_its_full_fact_to_the_pane() {
+    use crate::localization::Locale;
+
+    for failure in [CarrierFailure::Closed, CarrierFailure::OutcomeUnknown] {
+        let (mut ui, _mailbox, _clock, _elapsed) = super::move_membership::ready_ui();
+        ui.retire(failure);
+        ui.finalize_retirement(None, None, None, CloseWorkerReturn::Returned(None));
+        let outcome_unknown = failure == CarrierFailure::OutcomeUnknown;
+        assert_eq!(
+            ui.view().retirement(),
+            Some(if outcome_unknown {
+                crate::localization::DisplayRetirement::OutcomeUnknown
+            } else {
+                crate::localization::DisplayRetirement::Unavailable
+            })
+        );
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let status = ui.view().status(locale, 120);
+            assert_eq!(
+                status.persistent,
+                Some(PersistentStatus::Disconnected),
+                "{failure:?} {locale:?}"
+            );
+            assert_eq!(status.text, ui.view().phase_status_text(locale));
+        }
+    }
+}

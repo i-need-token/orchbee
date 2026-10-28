@@ -577,9 +577,10 @@ primary status fact and never covers terminal graphics. The chip otherwise appea
 capture, other input modes, sidebar navigation, meaningful notices, connection or recovery,
 released pointer capture and persistent states. Directory missing, Disconnected and Terminal
 exited show one or two words with their severity marker, followed by the fixing binding when it
-fits, such as `Ctrl+B c` to create a Tab for an ended terminal. An exit that does not fit in two
-words uses the localized compact exit copy; the full exit result remains with `Locale::native_status`
-and the pane title. A transient notice leads the exact primary fact and carries no hints; a persistent
+fits, such as `Ctrl+B c` to create a Tab for an ended terminal. Every retired connection is
+Disconnected, including one whose last operation has an unknown outcome; the pane keeps that full
+fact. An exit that does not fit in two words uses the localized compact exit copy; the full exit
+result remains with `Locale::native_status` and the pane title. A transient notice leads the exact primary fact and carries no hints; a persistent
 state yields to it. Ready and zoom context is available with prefix hints; ordinary controlling status
 is omitted, while read-only input remains explicit.
 Segments follow `docs/tui/overlays-and-status.md`. Prefix hints start with cancel, help and

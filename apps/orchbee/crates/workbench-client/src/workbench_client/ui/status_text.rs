@@ -103,16 +103,12 @@ impl WorkbenchClientView<'_> {
         {
             Some(PersistentStatus::DirectoryMissing)
         } else if text == phase
-            && match view.retirement() {
-                Some(retirement) => {
-                    retirement == crate::localization::DisplayRetirement::Unavailable
-                }
-                None => {
-                    view.notice().is_none()
-                        && view.setup_status().is_none()
-                        && view.phase() == crate::localization::DisplayPhase::Retired
-                }
-            }
+            // A retired connection is Disconnected whatever its last operation's outcome; the
+            // pane keeps the full fact, including an unknown outcome that will not replay.
+            && (view.retirement().is_some()
+                || (view.notice().is_none()
+                    && view.setup_status().is_none()
+                    && view.phase() == crate::localization::DisplayPhase::Retired))
         {
             Some(PersistentStatus::Disconnected)
         } else {
