@@ -72,7 +72,9 @@ Client 中编写或审查渲染代码前先阅读本标准。
 - `surface-hover`、`surface-pressed`、`surface-selection` 和 `surface-current` 在量化后仍须保持
   有序且可区分。当终端原生或低色深映射无法提供四种不同填充时，悬停使用解析器提供的
   `REVERSED` 带，按下还会加粗动作主要标签，临时选择保留其 `accent-selection` 标记，当前上下文
-  保留其当前标记或 `BOLD`。各组件应用语义状态，但绝不按调色板分支。
+  保留其当前标记或 `BOLD`。在该色带内，颜色已知的 `status-*` 或 `agent-*` 字形保留其前景，
+  衬在 ANSI 黑色与白色中与它对比度更高的一方上，而不变成自身颜色的色块；随宿主变化的状态字形
+  与色带文字一同反色。各组件应用语义状态，但绝不按调色板分支。
 - 单色模式用下划线表示当前上下文、粗体反色带表示临时选择、粗体反色轮廓表示焦点框架。
   独立的当前、导航和已选值标记继续可见；焦点和选项不能只依靠粗体文字。渲染器保留完整的
   角色样式，包括其修饰符。
@@ -201,4 +203,4 @@ Client 中编写或审查渲染代码前先阅读本标准。
 | 截断或换行             | 测试包含宽字符和一个比行更宽的 token                                                                        |
 | 新增字形               | 已声明其 ASCII 回退，并在简化字形测试中渲染                                                                 |
 
-<!-- documentation-pairing: english-sha256=f050069e737aa57fca782c7ea58a0b361460cce747cf0049eba535890d153cde zh-cn-sha256=7982975f132cd5475bd0f5f764919b8fb3c55e2293bf4b7ca56112479a511e70 -->
+<!-- documentation-pairing: english-sha256=c4252c1f3144ba1cd87226c03dd122f210e22c673d9dc04ad6875b34f2da151d zh-cn-sha256=bbc23adaee06e26ce3854e6420cebaa78db58e9d48556fc634452df6db2239a1 -->

@@ -211,6 +211,11 @@ hover or press fill onto another interaction, base, current or selection fill, t
 the same reverse-video fallback. Monochrome does likewise. It does not make an at-rest primary
 action bold or reversed: the control's stable action grammar, verb and grouping preserve its
 affordance while focus and press keep independent cues.
+Inside that band, the resolver takes reversal off a glyph whose status or Agent role has a sampled
+color, such as a Tab's traffic-light state glyph or its unread bullet, and backs that foreground
+with ANSI black or white, whichever contrasts more. The glyph keeps its hue instead of becoming a
+block of it; host-relative Working and Idle glyphs, and monochrome, reverse with the band. Gaps
+beside such a glyph stay in the band.
 
 ## Color diagnosis
 

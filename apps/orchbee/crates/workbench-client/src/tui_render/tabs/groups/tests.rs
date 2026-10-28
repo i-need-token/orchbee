@@ -1,7 +1,7 @@
 use super::*;
 use crate::tui_theme::{ColorLevel, GlyphSet};
 use orchbee_workbench_protocol::{MetadataState, WorkbenchTabGroupId};
-use ratatui::{Terminal, backend::TestBackend, buffer::Buffer};
+use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, style::Color};
 
 type Hits = Vec<(usize, StripPart, Rect)>;
 
@@ -375,6 +375,44 @@ fn terminal_native_working_reads_on_the_current_tab_fill() {
     );
     let current = theme.style(Role::SurfaceCurrent);
     assert_eq!((Some(glyph.fg), Some(glyph.bg)), (current.fg, current.bg));
+}
+
+#[test]
+fn terminal_native_pointer_bands_keep_agent_and_unread_hues_off_reverse_video() {
+    // The reverse band would show each hue as a block behind a glyph in the band's text color.
+    let theme = Theme::terminal_native();
+    let mut blocked = tab("agent", false, None);
+    blocked.agent = Some(TabAgent {
+        state: MetadataState::Blocked,
+        unread: true,
+    });
+    for pointer in [ProjectedPointer::Hovered, ProjectedPointer::Pressed] {
+        let (buffer, _) = draw(std::slice::from_ref(&blocked), &theme, 40, |_, _| pointer);
+        assert!(text(&buffer).starts_with(&format!(
+            " {} agent {}",
+            state_glyph(MetadataState::Blocked, &theme, 0),
+            theme.glyphs.status_bullet
+        )));
+        for (x, role) in [(1, Role::AgentAttention), (9, Role::StatusUnread)] {
+            let cell = &buffer[(x, 0)];
+            assert_eq!(cell.fg, theme.color(role), "{pointer:?} {role:?}");
+            assert!(
+                matches!(cell.bg, Color::Black | Color::White),
+                "{pointer:?} {role:?}"
+            );
+            assert!(
+                !cell.modifier.contains(Modifier::REVERSED),
+                "{pointer:?} {role:?}"
+            );
+        }
+        // The label and the gaps keep the band.
+        for x in [0, 2, 3, 8, 10] {
+            assert!(
+                buffer[(x, 0)].modifier.contains(Modifier::REVERSED),
+                "{pointer:?} {x}"
+            );
+        }
+    }
 }
 
 #[test]

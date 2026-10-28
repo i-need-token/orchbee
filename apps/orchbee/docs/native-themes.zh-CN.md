@@ -164,6 +164,10 @@ Terminal-native 把 `accent-action` 映射为不带修饰的 ANSI 青色。Hover
 命名 hover 或按下填充与另一交互、基础、当前或选区填充重合，解析器采用同一反色回退；
 无色模式同样处理。静止的主要动作不会因此变为粗体或反色：控件稳定的动作语法、动词与分组
 保留其可操作性，焦点与按下则保持独立提示。
+在该色带内，状态或 Agent 角色带有可采样颜色的字形（例如 Tab 的红绿灯状态字形或未读圆点）
+由解析器去掉反色，并以 ANSI 黑色或白色中对比度更高的一方衬托其前景。字形保留色相，而不是
+变成该颜色的色块；随宿主变化的工作与空闲字形以及单色模式随色带反色。这类字形旁的间隔
+仍属于色带。
 
 ## 颜色诊断
 
@@ -207,4 +211,4 @@ Terminal-native 把 `accent-action` 映射为不带修饰的 ANSI 青色。Hover
 
 单色选中背景将终端默认前景与背景显式配对，并使用反色，使不同标签与标记角色保持在同一可见背景带上。
 
-<!-- documentation-pairing: english-sha256=050c1c799008dabe1a58ec99c626b237aaac4b3290a2b954c9888ab50899ac9b zh-cn-sha256=6ac71791497ce75435fc4a0f6bb7fd2e4c949b47dda7c9d8bd6b00894fb0666e -->
+<!-- documentation-pairing: english-sha256=00a724dde21bf470be3c0ceedf0c164b6815fd83e3912331d47fe02d4693f722 zh-cn-sha256=20a74a69e51b11ce635f57b6e416a84855df348da744df02f4946573ec5b3f95 -->

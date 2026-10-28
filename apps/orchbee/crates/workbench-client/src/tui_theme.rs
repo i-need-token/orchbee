@@ -103,6 +103,24 @@ impl Role {
         Self::HintKey,
         Self::HintLabel,
     ];
+
+    /// Agent state and status roles, whose hue carries meaning even on a one-cell glyph.
+    const fn is_state_hue(self) -> bool {
+        matches!(
+            self,
+            Self::StatusSuccess
+                | Self::StatusWarning
+                | Self::StatusError
+                | Self::StatusInfo
+                | Self::StatusPending
+                | Self::StatusWorking
+                | Self::StatusIdle
+                | Self::StatusUnread
+                | Self::AgentAttention
+                | Self::AgentDone
+                | Self::AgentError
+        )
+    }
 }
 
 /// The detected host color level, supplied by the environment owner.
@@ -765,6 +783,14 @@ impl Theme {
         {
             content = destructive_content_pair(content);
         }
+        // Reverse video would turn an Agent or status hue into a block of its own color behind a
+        // glyph drawn in the band's text color. The hue keeps its foreground on the same pair.
+        if content_role.is_some_and(Role::is_state_hue)
+            && self.color_level != ColorLevel::Monochrome
+            && content.add_modifier.contains(Modifier::REVERSED)
+        {
+            content = contrast_pair(content);
+        }
 
         let paired_pointer = matches!(interaction, Some(Role::SurfaceHover | Role::SurfacePressed))
             && interaction_style.is_some_and(|style| style.fg.is_some());
@@ -1295,6 +1321,15 @@ fn destructive_content_pair(content: Style) -> Style {
     {
         return content;
     }
+    contrast_pair(content)
+}
+
+/// Backs a known foreground with whichever of ANSI black or white contrasts more with it, in place
+/// of reverse video. A host-relative foreground has no known hue and keeps its style.
+fn contrast_pair(content: Style) -> Style {
+    let Some(foreground) = content.fg.and_then(sampled_color) else {
+        return content;
+    };
     let background =
         if color_contrast(foreground, (0, 0, 0)) >= color_contrast(foreground, (255, 255, 255)) {
             Color::Black

@@ -675,3 +675,87 @@ fn double_click_survives_selection_revision_but_not_a_context_replacement() {
         assert!(port.writes.is_empty());
     }
 }
+
+#[test]
+fn a_drag_keeps_whole_tokens_while_the_close_track_reveals_or_hides() {
+    // Tab 2 painted as the strip paints it: a body plus a three-cell track that is a close control
+    // while revealed (hover, press, current) and part of the Tab while hidden (a drag at rest).
+    for hovered_before_press in [true, false] {
+        let (mut pointer, mut port, mut view, _) = fixture(false);
+        let drawn = port.source.drawn.clone();
+        let map = |revealed: bool| {
+            let mut hits = HitMapBuilder::new();
+            hits.record_action_menu_source(Some(drawn.source.clone()));
+            for n in [1, 3, 4, 5] {
+                let x = u16::try_from(n - 1).unwrap() * 10;
+                hits.record_tab_target(&drawn, Rect::new(x, 0, 9, 1), HitTarget::Tab(id(n)));
+            }
+            hits.record_tab_target(&drawn, Rect::new(10, 0, 6, 1), HitTarget::Tab(id(2)));
+            let track = Rect::new(16, 0, 3, 1);
+            if revealed {
+                hits.record_interaction(
+                    HitLayer::Foreground,
+                    track,
+                    track,
+                    InteractionTarget::TabCloseRequest {
+                        source: drawn.clone(),
+                        tab: id(2),
+                    },
+                    InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
+                );
+            } else {
+                hits.record_tab_target(&drawn, track, HitTarget::Tab(id(2)));
+            }
+            hits.finish()
+        };
+        pointer.publish(map(hovered_before_press));
+        send(
+            &mut pointer,
+            &mut port,
+            &mut view,
+            MouseAction::Press,
+            12,
+            0,
+        );
+        pointer.publish(map(true));
+        assert_eq!(
+            HitMapBuilder::with_pointer(pointer.projection()).projected_tab_pointer(
+                &drawn,
+                &HitTarget::Tab(id(2)),
+                Rect::new(10, 0, 6, 1)
+            ),
+            ProjectedPointer::Pressed
+        );
+        send(
+            &mut pointer,
+            &mut port,
+            &mut view,
+            MouseAction::Motion,
+            15,
+            0,
+        );
+        send(
+            &mut pointer,
+            &mut port,
+            &mut view,
+            MouseAction::Motion,
+            31,
+            0,
+        );
+        pointer.publish(map(false));
+        let preview = pointer
+            .tab_drag_preview()
+            .expect("the drag outlives its hidden track");
+        assert_eq!(preview.grabbed, vec![Rect::new(10, 0, 9, 1)]);
+        assert_eq!(preview.marker, Some((30, 0)));
+        send(
+            &mut pointer,
+            &mut port,
+            &mut view,
+            MouseAction::Release,
+            31,
+            0,
+        );
+        assert_eq!(port.writes.len(), 1, "{hovered_before_press}");
+    }
+}

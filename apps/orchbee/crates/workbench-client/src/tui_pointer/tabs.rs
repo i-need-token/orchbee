@@ -66,7 +66,10 @@ struct Drop {
 pub(super) struct TabDrag {
     pub(super) source: TabDragSource,
     target: HitTarget,
+    /// The pressed target's regions as painted at the press: activation and the pressed projection.
+    pressed: Vec<Rect>,
     origin: (u16, u16),
+    /// Whole strip tokens, which the drop resolves against and the preview tints.
     regions: Vec<(Rect, HitTarget)>,
     ids: WorkbenchTabIdSet,
     carries_group: bool,
@@ -74,18 +77,50 @@ pub(super) struct TabDrag {
     phase: Phase,
 }
 
-fn tab_regions(map: &FrameHitMap) -> Vec<(Rect, HitTarget)> {
+/// Strip regions exposed at both ends: Tab and group tokens and the create control.
+fn exposed_regions(map: &FrameHitMap) -> impl Iterator<Item = (Rect, &HitTarget)> {
     map.regions
         .iter()
         .filter(|region| {
             matches!(
                 region.target,
-                HitTarget::Tab(_) | HitTarget::TabGroup { .. } | HitTarget::TabCreate(_)
-            ) && matches!(map.hit(region.rect.x, region.rect.y), HitResolution::Region(target) if target == &region.target)
-              && matches!(map.hit(region.rect.right().saturating_sub(1), region.rect.y), HitResolution::Region(target) if target == &region.target)
+                HitTarget::Tab(_)
+                    | HitTarget::TabGroup { .. }
+                    | HitTarget::TabCreate(_)
+                    | HitTarget::TabCloseRequest { .. }
+            ) && [region.rect.x, region.rect.right().saturating_sub(1)]
+                .into_iter()
+                .all(|x| {
+                    matches!(
+                        map.hit(x, region.rect.y),
+                        HitResolution::Region(target) if target == &region.target
+                    )
+                })
         })
-        .map(|region| (region.rect, region.target.clone()))
-        .collect()
+        .map(|region| (region.rect, &region.target))
+}
+
+/// The strip's tokens as a drag sees them. A Tab's close track joins its token whether the control
+/// is revealed or hidden, so a pointer that reveals or hides it never changes the drag's geometry.
+pub(super) fn tab_regions(map: &FrameHitMap) -> Vec<(Rect, HitTarget)> {
+    let mut tokens: Vec<(Rect, HitTarget)> = Vec::new();
+    for (rect, target) in exposed_regions(map) {
+        let target = match target {
+            HitTarget::TabCloseRequest { tab, .. } => HitTarget::Tab(tab.clone()),
+            target => target.clone(),
+        };
+        let adjacent = tokens.iter_mut().find(|(token, token_target)| {
+            *token_target == target
+                && matches!(target, HitTarget::Tab(_))
+                && token.y == rect.y
+                && (token.right() == rect.x || rect.right() == token.x)
+        });
+        match adjacent {
+            Some((token, _)) => *token = token.union(rect),
+            None => tokens.push((rect, target)),
+        }
+    }
+    tokens
 }
 
 impl TabDrag {
@@ -125,9 +160,14 @@ impl TabDrag {
                     .filter(|tab| tab.group.as_ref() == Some(group))
                     .all(|tab| ids.contains(&tab.id))
             });
+        let pressed = exposed_regions(map)
+            .filter(|(_, painted)| **painted == target)
+            .map(|(rect, _)| rect)
+            .collect();
         Some(Self {
             source,
             target,
+            pressed,
             origin: (event.column, event.row),
             regions: tab_regions(map),
             ids: WorkbenchTabIdSet::try_from(ids).ok()?,
@@ -154,17 +194,12 @@ impl TabDrag {
         ) {
             return None;
         }
-        let area = self
-            .regions
-            .iter()
-            .find_map(|(area, target)| (target == &self.target).then_some(*area))?;
+        let area = *self.pressed.first()?;
         super::chrome::Fingerprint::tab(&self.source.drawn, &self.target, area)
     }
 
     fn over_pressed_target(&self, column: u16, row: u16) -> bool {
-        self.regions
-            .iter()
-            .any(|(area, target)| target == &self.target && contains(*area, column, row))
+        self.pressed.iter().any(|area| contains(*area, column, row))
     }
 
     fn destination(&self, column: u16, row: u16) -> Option<Drop> {

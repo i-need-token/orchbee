@@ -179,7 +179,9 @@ impl Token {
                 Piece::Label,
             ));
             if unread {
-                pieces.push((format!(" {}", theme.glyphs.status_bullet), Piece::Unread));
+                // The gap stays in the token's band; only the bullet carries the unread hue.
+                pieces.push((" ".to_owned(), Piece::Pad));
+                pieces.push((theme.glyphs.status_bullet.to_owned(), Piece::Unread));
             }
             if self.is_tab() {
                 pieces.push((" ".to_owned(), Piece::Pad));
@@ -720,7 +722,7 @@ fn piece_style(
                         theme.agent_style(agent.state, working_frame),
                     )
                 }),
-                Piece::Unread => (None, theme.style(Role::StatusUnread)),
+                Piece::Unread => (Some(Role::StatusUnread), theme.style(Role::StatusUnread)),
                 Piece::Close if revealed => {
                     return match close_pointer {
                         ProjectedPointer::Rest => theme.content_on_surface(
@@ -766,7 +768,7 @@ fn piece_style(
                         theme.agent_style(agent.state, working_frame),
                     )
                 }),
-                Piece::Unread => (None, theme.style(Role::StatusUnread)),
+                Piece::Unread => (Some(Role::StatusUnread), theme.style(Role::StatusUnread)),
                 Piece::Pad | Piece::Close => (None, Style::new()),
             };
             theme.tab_group_header_style(*color, surface, role, content)

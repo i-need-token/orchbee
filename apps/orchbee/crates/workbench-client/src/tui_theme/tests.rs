@@ -9,8 +9,8 @@ use ratatui::{
 
 use super::{ColorLevel, GlyphMode, GlyphSet, Polarity, Role, Theme, quantize_color};
 
+mod contrast_pair;
 mod cursor;
-mod destructive;
 mod terminal_defaults;
 
 #[test]

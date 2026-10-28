@@ -121,3 +121,53 @@ fn destructive_role_is_independent_of_error_status_and_monochrome_warning_modifi
         Modifier::BOLD | Modifier::UNDERLINED | Modifier::SLOW_BLINK | Modifier::RAPID_BLINK
     ));
 }
+
+#[test]
+fn state_hues_leave_reverse_video_bands_for_a_contrast_pair() {
+    let mut reversed_hues = 0;
+    for theme in [
+        Theme::terminal_native(),
+        Theme::one_light(),
+        Theme::one_dark(),
+    ] {
+        for level in [
+            ColorLevel::Truecolor,
+            ColorLevel::Ansi256,
+            ColorLevel::Ansi16,
+            ColorLevel::Monochrome,
+        ] {
+            let theme = theme.quantize(level);
+            for interaction in [Role::SurfaceHover, Role::SurfacePressed] {
+                let band = theme.style(interaction);
+                for role in Role::ALL.into_iter().filter(|role| role.is_state_hue()) {
+                    let hue = theme.style(role);
+                    let content = theme.content_on_surface(
+                        Role::SurfaceStrip,
+                        Some(interaction),
+                        Some(role),
+                        hue,
+                    );
+                    let case = format!("{level:?} {interaction:?} {role:?}");
+                    let known = !matches!(hue.fg, None | Some(Color::Reset));
+                    if !band.add_modifier.contains(Modifier::REVERSED) {
+                        assert_eq!(content.bg, band.bg, "{case}");
+                    } else if known && level != ColorLevel::Monochrome {
+                        // The hue keeps its foreground, never a block of its own color.
+                        reversed_hues += 1;
+                        assert_eq!(content.fg, hue.fg, "{case}");
+                        assert!(!content.add_modifier.contains(Modifier::REVERSED), "{case}");
+                        let contrast = contrast_ratio(
+                            nominal_rgb(content.fg.unwrap()),
+                            nominal_rgb(content.bg.unwrap()),
+                        );
+                        assert!(contrast >= 4.5, "{case}: {contrast}");
+                    } else {
+                        // Host-relative and monochrome content reads like the band's own text.
+                        assert!(content.add_modifier.contains(Modifier::REVERSED), "{case}");
+                    }
+                }
+            }
+        }
+    }
+    assert!(reversed_hues > 0);
+}

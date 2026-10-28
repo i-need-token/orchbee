@@ -32,8 +32,8 @@ and launch-profile selection keep their existing semantics.
 
 Automatic rename drafts start empty with the same current display name as an informational
 placeholder; only typed text can submit. Fixed names prefill the editor. The native TUI renders the existing
-rename draft anchored at its painted Tab, expanding along the strip to at least 24 cells when possible;
-when fewer than eight cells fit it uses the complete
+rename draft over its whole painted Tab, close control included, widening along the strip to at least
+24 cells when possible; when fewer than eight cells fit it uses the complete
 modal. Enter submits and Esc cancels; the same exact shown token and input fences apply in both forms.
 
 Compact Tabs show the active Tab as a bold label on the current surface, without a marker,

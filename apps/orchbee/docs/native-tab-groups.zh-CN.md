@@ -87,8 +87,9 @@ Tab／Panel／Split／Slot／Presentation 身份和终端绑定。组清理遵�
 `update-group` 操作，重新打开读取已提交值。跨分组选择标记不改变被重新着色的完整分组。
 
 `tui_pointer::tabs::TabDrag` 仅按最后一次成功绘制的精确 Session／revision、context、
-有序元数据和 token 矩形准入无修饰左键按下。横向移动两个单元格或改变行位置后，
-显示静态拾取高亮和插入标记，终端输出继续。移动仅影响本地预览。
+有序元数据和 token 矩形准入无修饰左键按下。Tab 的 token 矩形无论关闭控件显示与否都包含其关闭轨道，
+因此指针显示或隐藏 `[x]` 既不移动也不取消拖动。横向移动两个单元格或改变行位置后，
+在整个 token 上显示静态拾取高亮，并在落点相邻 token 的边缘单元格显示插入标记，终端输出继续。移动仅影响本地预览。
 有效左键释放只发送一次 `move-tabs-by-drag`，携带有界所选 ID 集合、原顺序插入边界
 和可空目的组。固定与非固定成员不混合；完整选中组保留身份，部分成员采用目的组。
 未移动的分组保持连续。展开成员是组内目标；标题选择集合前／后边界，包括折叠组。
@@ -176,4 +177,4 @@ unavailable／unknown、投影恢复及超时均停止剩余源。当前操作�
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
 
-<!-- documentation-pairing: english-sha256=99d96bdf6e6e2b51d8aa754b62a668aad684463f0c1b1848b01f1d06f76d7ef2 zh-cn-sha256=d6db496eb789ad3e9ca6fdcdfd2affc78e3ab3a1e52f5d392e167c1ad9e6e12f -->
+<!-- documentation-pairing: english-sha256=10f2aafb0e7ea173aa29a34ebc2bc1fa9d80488a36ebfbff4588d9cd22d107e2 zh-cn-sha256=253651be55ee0d9e5a678a9c7d9ab443d76438b1f276e2316086189c01aac659 -->

@@ -87,8 +87,10 @@ Theme rules:
   distinguishable after quantization. When a terminal-native or reduced-color mapping cannot
   provide four distinct fills, hover uses the resolver's `REVERSED` band, pressed also bolds the
   action's primary label, provisional selection retains its `accent-selection` marker, and current
-  context retains its current marker or `BOLD`. Individual components apply the semantic state but
-  never branch on the palette.
+  context retains its current marker or `BOLD`. Within that band, a `status-*` or `agent-*` glyph
+  of a known color keeps its foreground on whichever of ANSI black or white contrasts more with it,
+  rather than becoming a block of its own color; host-relative status glyphs reverse with the
+  band's text. Individual components apply the semantic state but never branch on the palette.
 - Monochrome gives current context an underline, provisional selection a bold reverse band, and
   focused frames a bold reverse outline. Independent current, navigation and checked markers remain
   visible; focus and value choices never rely on bold text alone. Renderers retain the complete role

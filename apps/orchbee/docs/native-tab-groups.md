@@ -107,8 +107,11 @@ the existing `update-group` operation, and reopening reads the committed value. 
 do not change which whole group is recolored.
 
 `tui_pointer::tabs::TabDrag` admits a plain left press only against the last successful frame's
-exact Session/revision, context, ordered metadata and token rectangles. A two-cell horizontal move
-or a row change starts a static grabbed highlight and insertion marker; terminal output continues.
+exact Session/revision, context, ordered metadata and token rectangles. A Tab's token rectangle
+spans its close track whether the control is revealed or hidden, so a pointer that reveals or hides
+`[x]` neither moves nor cancels the drag. A two-cell horizontal move or a row change starts a static
+grabbed highlight over whole tokens and an insertion marker on the edge cell of the token the drop
+lands beside; terminal output continues.
 Motion is private. A valid left release emits exactly one `move-tabs-by-drag` with a bounded
 selected ID set, original-order insertion boundary and nullable destination group.
 Pinned and unpinned members never mix. Complete selected groups retain identity; partial members

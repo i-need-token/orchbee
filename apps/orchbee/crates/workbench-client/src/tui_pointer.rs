@@ -621,10 +621,13 @@ pub struct HitMapBuilder {
 }
 
 impl HitMapBuilder {
+    /// A Tab's whole painted strip token, including its close track whether the control is
+    /// revealed or hidden.
     pub(crate) fn tab_area(&self, tab: &WorkbenchTabId) -> Option<Rect> {
-        self.map.regions.iter().find_map(|region| {
-            (region.target == HitTarget::Tab(tab.clone())).then_some(region.rect)
-        })
+        let tab = HitTarget::Tab(tab.clone());
+        tabs::tab_regions(&self.map)
+            .into_iter()
+            .find_map(|(rect, target)| (target == tab).then_some(rect))
     }
     pub fn resolve_sidebar_reorder_preview(
         &self,
