@@ -962,11 +962,11 @@ close-status` and `workspace close-resume` both flags are strict stable IDs inst
   on `--text`, `--file`, and `--stdin`, never on `--key` or alone. `--paste` is valid only with `--file` or `--stdin`; it produces a paste record and an optional trailing Enter record. Zero source kinds
   or more than one is `invalid-usage`, with conflicts named in the fixed order
   `--text`, `--key`, `--file`, `--stdin` regardless of argv order.
-- `--mouse off|on`: single-use value flag on explicit `tui`, `terminal attach` and
+- `--mouse on|off`: single-use value flag on explicit `tui`, `terminal attach` and
   `agent attach` routes; host pointer capture defaults on. The attach interfaces use
   the [Windows stream contract](windows-terminal-streams.md), including interactive
   output with either global format. Both declared spellings
-  (`--mouse on` and `--mouse=on`) carry the same closed `off|on` vocabulary; a missing
+  (`--mouse on` and `--mouse=on`) carry the same closed `on|off` vocabulary; a missing
   or unknown value, a repeat under either spelling, or the flag on any other command
   route, or the bare invocation, is `invalid-usage`.
 - `--include-ended`: valueless boolean flag, single use, admitted only on `agent list`;
@@ -1022,7 +1022,7 @@ Command paths (fixed words, no abbreviations or aliases):
 
 ```
 orchbee                         # bare → TUI (unchanged)
-orchbee tui [--mouse off|on]    # TUI
+orchbee tui [--mouse on|off]    # TUI
 orchbee -v|-V|--version         # version line
 orchbee -h|--help | orchbee help   # root help
 orchbee status

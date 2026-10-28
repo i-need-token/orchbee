@@ -225,8 +225,8 @@ presses before that draw and admission after it, without changing Picker focus.
 - `--mouse` is admitted on `tui` (`off` and `on` values). Windows `terminal attach` and
   `agent attach` also admit it under the separate [stream contract](windows-terminal-streams.md).
   Bare `orchbee` rejects the option and still defaults to capture on; other routes reject it;
-  `tui` continues to reject `--format`. Both declared spellings are admitted — `--mouse off|on` and
-  `--mouse=off|on` — while values outside the closed pair, dash-led values, and repeated
+  `tui` continues to reject `--format`. Both declared spellings are admitted — `--mouse on|off` and
+  `--mouse=on|off` — while values outside the closed pair, dash-led values, and repeated
   occurrences all refuse.
 - A `Shift`-modified report is never claimed: the host reserves `Shift` for native selection. A
   `Shift` report during pane-program passthrough is dropped while that gesture survives so an

@@ -183,7 +183,7 @@ Picker 拥有侧栏偏好宽度；`SidebarSurface` 把同一个偏好传给布�
 - `--mouse` 在 `tui` 准入（`off` 与 `on` 两个值）。Windows `terminal attach` 和
   `agent attach` 也按独立的[流契约](windows-terminal-streams.zh-CN.md)受理该选项。
   裸 `orchbee` 拒绝该选项且仍默认捕获开启；其他路由拒绝；`tui` 继续拒绝 `--format`。两种声明写法均可——
-  `--mouse off|on` 与 `--mouse=off|on`——封闭词表以外的值、以 dash 开头的值、重复
+  `--mouse on|off` 与 `--mouse=on|off`——封闭词表以外的值、以 dash 开头的值、重复
   出现一律拒绝。
 - `Shift` 修饰的报告从不被认领：宿主保留 `Shift` 用于原生选择。pane 程序透传期间收到的
   `Shift` 报告被丢弃，而该手势继续存活，使随后不带修饰的 release 仍到达 pane；Client
@@ -499,4 +499,4 @@ control/attach 字节实测覆盖。
 
 证据覆盖按钮边界、不响应的数量／空格、不重叠的分屏矩形、单面板／分屏／放大渲染、窄窗口及 Minimal 降级、修饰键／非左键报告、捕获／overlay／模态守卫、旧实例／anchor、成员移除及实际 UI 准入精确子项 Switch。组合 TestBackend 截图证明 cell composition；物理宿主配色、字体、鼠标硬件、延迟及多 Client 视觉行为需要各自的原生证据。
 
-<!-- documentation-pairing: english-sha256=82a73750f04472ed786d7be1e8d2eb7861ad375f9a762e27d8da7e0764dbfebe zh-cn-sha256=1eac7b56106bdf8004560418f9c2d60740cbe69452b4d51584560a8f741540d1 -->
+<!-- documentation-pairing: english-sha256=d925298158d5e5f68348bf25b2de06c66807162d1e2c296df3017557f98278f0 zh-cn-sha256=ff1a390372a4e1402fc63c6f7ab099029d78dcf50841cd557cd3f4cf0ef331be -->

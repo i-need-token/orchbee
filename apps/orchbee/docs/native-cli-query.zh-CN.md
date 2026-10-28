@@ -780,10 +780,10 @@ Windows wait 版本 1 新增可空的 `matchedChange`。空表示当前样本命
   `--paste` 仅能与 `--file` 或 `--stdin` 同用，生成一条粘贴记录及可选的末尾 Enter 记录。
   零个或多于一种源均为 `invalid-usage`；冲突按固定次序
   `--text`、`--key`、`--file`、`--stdin` 命名，与 argv 次序无关。
-- `--mouse off|on`：带值 flag，单次使用，在显式 `tui`、`terminal attach` 和
+- `--mouse on|off`：带值 flag，单次使用，在显式 `tui`、`terminal attach` 和
   `agent attach` 路由受理；宿主机指针捕获默认开启。attach 遵循
   [Windows 流契约](windows-terminal-streams.zh-CN.md)，包括任一全局格式下均输出交互画面。两种声明写法（`--mouse on` 与 `--mouse=on`）取值同为
-  封闭的 `off|on` 词表；缺失或未知值、任一写法下的重复、出现在其他命令路由
+  封闭的 `on|off` 词表；缺失或未知值、任一写法下的重复、出现在其他命令路由
   或裸调用，均为 `invalid-usage`。
 - `--include-ended`：无值布尔 flag，单次使用，仅 `agent list` 受理；让请求页包含
   lifecycle 为 `ended` 的 session。
@@ -832,7 +832,7 @@ Windows wait 版本 1 新增可空的 `matchedChange`。空表示当前样本命
 
 ```
 orchbee                         # 裸调用 → TUI（不变）
-orchbee tui [--mouse off|on]    # TUI
+orchbee tui [--mouse on|off]    # TUI
 orchbee -v|-V|--version         # 版本行
 orchbee -h|--help | orchbee help   # 根帮助
 orchbee status
@@ -2538,4 +2538,4 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=578960442ddd664220b658f318e1c123d05472dc12fbe6e4be01b1f2219aecdc zh-cn-sha256=f19b4f8bcba44e6b1b05095f6cfa17cb851538b3407b50e297565b34da51f6d4 -->
+<!-- documentation-pairing: english-sha256=07f0cb2d529d6f2173b206f5abb5edfce0609ace8ddc57df504bd38db8e6fe9c zh-cn-sha256=2b5f98a830da14079987cb397ad651bcae667c8a198af719e551acf365a73d4c -->
