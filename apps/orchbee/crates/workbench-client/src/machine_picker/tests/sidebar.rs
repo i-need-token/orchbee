@@ -34,7 +34,9 @@ fn owner(picker: &Picker) -> SidebarTarget {
         .iter()
         .find_map(|row| match row {
             SidebarRow::Context { .. } => Some(row.target()),
-            SidebarRow::Project { .. } | SidebarRow::Agent { .. } => None,
+            SidebarRow::Project { .. } | SidebarRow::Recents { .. } | SidebarRow::Agent { .. } => {
+                None
+            }
         })
         .unwrap()
 }

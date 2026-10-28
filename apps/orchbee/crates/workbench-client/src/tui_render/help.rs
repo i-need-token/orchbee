@@ -538,14 +538,6 @@ fn shortcut_lines(
         ));
         for (glyph, label) in [
             (
-                theme.glyphs.workspace,
-                locale.sidebar_marker_label("workspace"),
-            ),
-            (
-                theme.glyphs.active_marker,
-                locale.sidebar_marker_label("current"),
-            ),
-            (
                 theme.glyphs.status_bullet,
                 locale.sidebar_marker_label("unread"),
             ),

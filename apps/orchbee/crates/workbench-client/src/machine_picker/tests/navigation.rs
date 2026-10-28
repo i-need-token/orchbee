@@ -279,7 +279,7 @@ fn sidebar_source_mints_only_live_parts_and_rejects_structurally_stale_release()
     );
     assert_eq!(
         picker.sidebar_activation(&project_primary),
-        Some(SidebarActivation::ToggleProject(project.clone()))
+        Some(SidebarActivation::ToggleGroup(project.clone()))
     );
     assert_eq!(
         picker.sidebar_activation(&context_disclosure),
@@ -300,7 +300,7 @@ fn sidebar_source_mints_only_live_parts_and_rejects_structurally_stale_release()
         Some(SidebarActivation::Activate(_))
     ));
 
-    assert!(picker.toggle_sidebar_project(&project));
+    assert!(picker.toggle_sidebar_group(&project));
     assert!(picker.sidebar_activation(&project_primary).is_none());
     assert!(picker.sidebar_activation(&context_disclosure).is_none());
     assert!(picker.sidebar_activation(&agent_primary).is_none());
@@ -771,7 +771,14 @@ fn regroup_and_dissolve_preserve_focused_agent_and_exact_activation() {
         assert_eq!(picker.sidebar_focused_target(), Some(&selected));
         assert_eq!(picker.current_context.as_ref(), Some(&active));
         assert_eq!(picker.current_member.as_ref(), Some(&member));
-        assert_eq!(picker.sidebar_parent(&context).is_some(), group.is_some());
+        // A Workspace outside any Project sits under its Session's Recents heading.
+        assert!(match picker.sidebar_parent(&context) {
+            Some(SidebarTarget::Project { project_id, .. }) => {
+                group.is_some_and(|id| project_id.as_str() == format!("{id:032x}"))
+            }
+            Some(SidebarTarget::Recents { .. }) => group.is_none(),
+            _ => false,
+        });
         assert_eq!(
             key(&mut picker, KeyCode::Enter),
             SidebarIntent::Activate(expected.clone())
@@ -817,7 +824,7 @@ fn project_collapse_keeps_independent_latent_agent_disclosure() {
     picker.observe_focus(Choice::Local, Some(workspace(1, 21).target), None);
     assert!(picker.toggle_sidebar_context_agents(&second));
     assert!(picker.focus_sidebar_target(&first));
-    assert!(picker.toggle_sidebar_project(&project));
+    assert!(picker.toggle_sidebar_group(&project));
     assert_eq!(picker.sidebar_focused_target(), Some(&project));
     assert!(picker.sidebar_context_agents_expanded(&first));
     assert!(!picker.sidebar_context_agents_expanded(&second));
@@ -825,7 +832,7 @@ fn project_collapse_keeps_independent_latent_agent_disclosure() {
         machine: Choice::Local,
         context: Some(workspace(1, 21).target.into())
     }));
-    assert!(picker.toggle_sidebar_project(&project));
+    assert!(picker.toggle_sidebar_group(&project));
     assert!(picker.sidebar_context_agents_expanded(&first));
     assert!(!picker.sidebar_context_agents_expanded(&second));
     assert_eq!(picker.current_context, Some(workspace(1, 21).target));
@@ -833,7 +840,7 @@ fn project_collapse_keeps_independent_latent_agent_disclosure() {
 }
 
 #[test]
-fn regroup_into_collapsed_project_uses_new_parent_then_dissolve_returns_root_entry() {
+fn regroup_into_collapsed_project_uses_new_parent_then_dissolve_moves_under_recents() {
     let mut picker = picker();
     let owner = SidebarTarget::Context {
         machine: Choice::Local,
@@ -845,7 +852,7 @@ fn regroup_into_collapsed_project_uses_new_parent_then_dissolve_returns_root_ent
             target: workspace(2, 23).target,
         })
         .unwrap();
-    assert!(picker.toggle_sidebar_project(&destination));
+    assert!(picker.toggle_sidebar_group(&destination));
     assert!(picker.focus_sidebar_target(&owner));
     let mut rows = picker.local_contexts.to_vec();
     rows[1].project_id = workspace(2, 23).project_id;
@@ -858,11 +865,68 @@ fn regroup_into_collapsed_project_uses_new_parent_then_dissolve_returns_root_ent
     }
     picker.observe_local(rows);
     assert!(picker.focus_sidebar_target(&owner));
-    assert!(picker.sidebar_parent(&owner).is_none());
-    assert_eq!(picker.sidebar_navigation_rows().len(), 4);
+    let recents = picker.sidebar_parent(&owner).unwrap();
+    assert!(matches!(recents, SidebarTarget::Recents { .. }));
+    assert_eq!(picker.sidebar_navigation_rows().len(), 5);
     assert_eq!(key(&mut picker, KeyCode::Left), SidebarIntent::None);
-    assert_eq!(picker.sidebar_focused_target(), Some(&owner));
+    assert_eq!(picker.sidebar_focused_target(), Some(&recents));
     assert!(picker.request.is_none());
+}
+
+#[test]
+fn recents_heading_folds_like_a_project_without_menu_reorder_or_activation() {
+    let mut picker = picker();
+    let rows = picker.sidebar_navigation_rows();
+    // The Workspace outside any Project follows every Project, under its Session's heading.
+    let [.., heading, last] = rows.as_slice() else {
+        unreachable!()
+    };
+    let (recents, ungrouped) = (heading.target(), last.target());
+    assert!(matches!(recents, SidebarTarget::Recents { .. }));
+    assert_eq!(picker.sidebar_parent(&ungrouped), Some(recents.clone()));
+    let active = context(11).target;
+    picker.observe_focus(Choice::Local, Some(active.clone()), None);
+    assert!(picker.enter_sidebar_navigation());
+    assert_eq!(picker.sidebar_focused_target(), Some(&ungrouped));
+    assert_eq!(key(&mut picker, KeyCode::Left), SidebarIntent::None);
+    assert_eq!(picker.sidebar_focused_target(), Some(&recents));
+    assert_eq!(key(&mut picker, KeyCode::Left), SidebarIntent::None);
+    assert!(!picker.sidebar_group_expanded(&recents));
+    assert!(
+        !picker
+            .sidebar_navigation_rows()
+            .iter()
+            .any(|row| row.target() == ungrouped)
+    );
+    // The heading has no menu, is never a reorder source and never activates.
+    assert_eq!(key(&mut picker, KeyCode::F(2)), SidebarIntent::None);
+    assert_eq!(
+        picker.sidebar_key(KeyEvent::press(KeyCode::Up, Modifiers::CTRL)),
+        SidebarIntent::None
+    );
+    // Re-entering over the folded current Workspace focuses the heading without unfolding it.
+    picker.leave_sidebar_navigation();
+    assert!(picker.enter_sidebar_navigation());
+    assert_eq!(picker.sidebar_focused_target(), Some(&recents));
+    assert!(!picker.sidebar_group_expanded(&recents));
+    assert_eq!(key(&mut picker, KeyCode::Right), SidebarIntent::None);
+    assert!(picker.sidebar_group_expanded(&recents));
+    assert_eq!(key(&mut picker, KeyCode::Right), SidebarIntent::None);
+    assert_eq!(picker.sidebar_focused_target(), Some(&ungrouped));
+    assert_eq!(key(&mut picker, KeyCode::Left), SidebarIntent::None);
+    assert_eq!(key(&mut picker, KeyCode::Enter), SidebarIntent::None);
+    assert!(!picker.sidebar_group_expanded(&recents));
+    assert_eq!(picker.current_context, Some(active));
+    assert!(picker.request.is_none());
+    // Once every Workspace belongs to a Project, no Recents heading remains.
+    picker.observe_local(vec![workspace(1, 21), workspace(2, 23)]);
+    assert!(
+        !picker
+            .sidebar_navigation_rows()
+            .iter()
+            .any(|row| matches!(row, SidebarRow::Recents { .. }))
+    );
+    assert!(!picker.sidebar_target_exists(&recents));
 }
 
 #[test]
@@ -882,7 +946,7 @@ fn sidebar_focus_disclosure_and_menu_preserve_active_context_until_explicit_acti
     let project = picker.sidebar_focused_target().unwrap().clone();
     assert!(matches!(project, SidebarTarget::Project { .. }));
     assert_eq!(key(&mut picker, KeyCode::Enter), SidebarIntent::None);
-    assert!(!picker.sidebar_project_expanded(&project));
+    assert!(!picker.sidebar_group_expanded(&project));
     assert_eq!(
         key(&mut picker, KeyCode::F(2)),
         SidebarIntent::OpenMenu(project.clone())
@@ -963,14 +1027,15 @@ fn sidebar_navigation_reveal_uses_visible_tree_heights_and_resumes_after_wheel()
     let mut picker = picker();
     picker.enter_sidebar_navigation();
     key(&mut picker, KeyCode::End);
-    let heights = [1, 1, 2, 3, 1, 2];
+    // Two Projects, then the Recents heading over the Workspace outside them.
+    let heights = [1, 1, 2, 3, 1, 1, 2];
     let last = window(&picker, &heights, 3, 0);
-    assert_eq!((last.top, last.end()), (4, 6));
+    assert_eq!((last.top, last.end()), (5, 7));
     picker.queue_space_scroll(last, true);
     assert!(picker.settle_sidebar_scroll());
-    assert!(window(&picker, &heights, 3, 0).end() < 6);
+    assert!(window(&picker, &heights, 3, 0).end() < 7);
     key(&mut picker, KeyCode::End);
-    assert_eq!(window(&picker, &heights, 3, 0).end(), 6);
+    assert_eq!(window(&picker, &heights, 3, 0).end(), 7);
     assert!(picker.request.is_none());
 }
 
@@ -985,7 +1050,7 @@ fn entering_on_a_collapsed_active_workspace_focuses_its_parent_without_disclosur
             target: active.clone(),
         })
         .unwrap();
-    assert!(picker.toggle_sidebar_project(&parent));
+    assert!(picker.toggle_sidebar_group(&parent));
     assert!(!picker.sidebar_navigation_active());
     assert!(picker.sidebar_focused_target().is_none());
     let before: Vec<_> = picker
@@ -995,7 +1060,7 @@ fn entering_on_a_collapsed_active_workspace_focuses_its_parent_without_disclosur
         .collect();
     assert!(picker.enter_sidebar_navigation());
     assert_eq!(picker.sidebar_focused_target(), Some(&parent));
-    assert!(!picker.sidebar_project_expanded(&parent));
+    assert!(!picker.sidebar_group_expanded(&parent));
     assert_eq!(
         picker
             .sidebar_navigation_rows()
@@ -1072,19 +1137,19 @@ fn width_compare_and_set_rejects_equal_rect_staleness_and_preserves_navigation()
             target: active.clone(),
         })
         .unwrap();
-    picker.toggle_sidebar_project(&parent);
+    picker.toggle_sidebar_group(&parent);
     key(&mut picker, KeyCode::End);
     let focused = picker.sidebar_focused_target().cloned();
-    let queued = window(&picker, &[1; 4], 2, 0);
+    let queued = window(&picker, &[1; 5], 2, 0);
     picker.queue_space_scroll(queued, true);
     assert!(picker.set_sidebar_width(SidebarWidth::DEFAULT, width(60)));
     assert!(picker.spaces.scroll.is_none());
     assert!(picker.sidebar_navigation_active());
     assert_eq!(picker.sidebar_focused_target(), focused.as_ref());
-    assert!(!picker.sidebar_project_expanded(&parent));
+    assert!(!picker.sidebar_group_expanded(&parent));
     assert_eq!(picker.current_context, Some(active));
     assert!(picker.request.is_none());
-    assert_eq!(window(&picker, &[1; 4], 2, 0).end(), 4);
+    assert_eq!(window(&picker, &[1; 5], 2, 0).end(), 5);
     let viewport = Rect::new(0, 0, 60, 12);
     let old = DrawnSidebarWidth::new(viewport, SidebarSurface::Overlay(width(60))).unwrap();
     assert!(picker.set_sidebar_width(old.preferred(), width(40)));

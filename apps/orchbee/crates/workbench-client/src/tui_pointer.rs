@@ -230,7 +230,7 @@ pub enum HitTarget {
     /// An Agent board row from one exact successfully presented Board view.
     /// Press-time selection validates this complete witness with the owner.
     AgentBoardRow(crate::workbench_client::AgentBoardRowTarget),
-    MachineProjectRow {
+    MachineGroupRow {
         target: crate::machine_picker::SidebarTarget,
         window: crate::machine_picker::SidebarWindow,
     },
@@ -286,7 +286,7 @@ impl HitTarget {
     fn sidebar_target(&self) -> Option<crate::machine_picker::SidebarTarget> {
         use crate::machine_picker::SidebarTarget;
         match self {
-            Self::MachineProjectRow { target, .. }
+            Self::MachineGroupRow { target, .. }
             | Self::SidebarDisclosure(target)
             | Self::SidebarMenu(target)
             | Self::SidebarClose(target)
@@ -2861,7 +2861,7 @@ impl PointerState {
                 | HitTarget::TabCloseRequest { .. }
                 | HitTarget::TabStripPage { .. },
             ) => PointerOutcome::Ignored,
-            HitResolution::Region(HitTarget::MachineProjectRow { window, .. }) => {
+            HitResolution::Region(HitTarget::MachineGroupRow { window, .. }) => {
                 if event.action != MouseAction::Press
                     || event.mods != crate::client_view::Modifiers::NONE
                 {

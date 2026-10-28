@@ -133,7 +133,7 @@ fn admit_creation_current(view: &mut ClientView, target: &SidebarTarget) -> bool
                 presentation: target.member.clone(),
             }),
         ),
-        SidebarTarget::Project { .. } => unreachable!(),
+        SidebarTarget::Project { .. } | SidebarTarget::Recents { .. } => unreachable!(),
     };
     view.machines
         .observe_focus(Choice::Local, Some(context), member)
@@ -306,12 +306,11 @@ fn foreground_creation_yields_to_the_admitted_member_after_commit() {
                         assert_eq!(buffer[(x, y)].bg, theme.color(Role::SurfaceCurrent));
                     }
                 }
-                if !pending_current {
-                    assert_eq!(
-                        buffer[(tracks.unread.x, y)].symbol(),
-                        theme.glyphs.active_marker
-                    );
-                }
+                // Fills alone tie the Workspace to its current Agent; no row adds a text marker.
+                assert!(
+                    (0..buffer.area.width)
+                        .all(|x| buffer[(x, y)].symbol() != theme.glyphs.active_marker)
+                );
                 assert!(!admit_creation_current(&mut view, &beta));
                 assert!(view.machines.request.is_none());
             }
@@ -714,7 +713,7 @@ fn provisional_rows_survive_observer_lag_and_reconcile_without_label_deduplicati
 }
 
 #[test]
-fn canonical_handoff_then_higher_revision_removal_clears_the_row_and_collapsed_parent_marker() {
+fn canonical_handoff_then_higher_revision_removal_clears_the_row_and_never_fills_a_folded_parent() {
     for collapsed in [false, true] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             let theme = Theme::terminal_native();
@@ -735,7 +734,7 @@ fn canonical_handoff_then_higher_revision_removal_clears_the_row_and_collapsed_p
                 project_id: project.clone(),
             };
             if collapsed {
-                assert!(view.machines.toggle_sidebar_project(&parent));
+                assert!(view.machines.toggle_sidebar_group(&parent));
             }
             let preview = WorkspaceCreationPreview {
                 session: &session,
@@ -807,23 +806,20 @@ fn canonical_handoff_then_higher_revision_removal_clears_the_row_and_collapsed_p
                                 || buffer[(0, *y - 1)].bg != theme.color(Role::SurfaceCurrent))
                     })
                     .collect();
+                // A Project heading is never current, folded or not; only the row fills.
                 assert_eq!(
                     current_bands.len(),
-                    usize::from(revision < 4),
+                    usize::from(revision < 4 && !collapsed),
                     "revision {revision}, collapsed {collapsed}: {text}",
                 );
                 if let Some(y) = current_bands.first() {
                     let label: String = (0..buffer.area.width)
                         .map(|x| buffer[(x, *y)].symbol())
                         .collect();
-                    let expected = if collapsed {
-                        "Repo".to_owned()
-                    } else if present {
-                        format!("{} created workspace", theme.glyphs.workspace)
-                    } else {
-                        "created workspace".to_owned()
-                    };
-                    assert!(label.trim_start().starts_with(&expected), "{label}");
+                    assert!(
+                        label.trim_start().starts_with("created workspace"),
+                        "present {present}: {label}"
+                    );
                 }
             }
         }
@@ -842,7 +838,7 @@ fn creation_and_canonical_workspace_share_configured_metadata_tracks() {
             &Theme::terminal_native(),
             48,
             "",
-            0,
+            LineShape::default(),
         );
         assert_eq!(projected.lines.len(), usize::from(configured_height(&view)));
     }

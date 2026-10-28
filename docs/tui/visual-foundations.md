@@ -76,8 +76,9 @@ Theme rules:
   text, and the host-relative `status-working` and `status-idle` glyphs, adopt the paired foreground
   on this fill. Secondary text and `status-idle` drop DIM there; Working keeps its breathing
   intensity. Other status roles, `agent-*` roles, and explicit token colors retain their meaning.
-  RGB themes keep their text hierarchy. When quantization collapses the fill onto chrome, retain a
-  text marker independently of configurable text emphasis.
+  RGB themes keep their text hierarchy. When quantization collapses the fill onto chrome, current
+  identity keeps a cue that configurable text emphasis cannot remove: a stable marker, or an
+  underline across a row whose owner documents the fill as its only current cue.
 - `agent-attention`, `agent-done`, and `agent-error` each have one fixed value shared by every
   theme, including `terminal-native` and host-relative appearances. Quantization maps them to the
   nearest color at each level, which is `Yellow`, `Green`, and `Red` at 16 colors, and to the host
@@ -87,10 +88,11 @@ Theme rules:
   distinguishable after quantization. When a terminal-native or reduced-color mapping cannot
   provide four distinct fills, hover uses the resolver's `REVERSED` band, pressed also bolds the
   action's primary label, provisional selection retains its `accent-selection` marker, and current
-  context retains its current marker or `BOLD`. Within that band, a `status-*` or `agent-*` glyph
-  of a known color keeps its foreground on whichever of ANSI black or white contrasts more with it,
-  rather than becoming a block of its own color; host-relative status glyphs reverse with the
-  band's text. Individual components apply the semantic state but never branch on the palette.
+  context retains its fill where one remains, otherwise its current marker, `BOLD` or underline.
+  Within that band, a `status-*` or `agent-*` glyph of a known color keeps its foreground on
+  whichever of ANSI black or white contrasts more with it, rather than becoming a block of its own
+  color; host-relative status glyphs reverse with the band's text. Individual components apply the
+  semantic state but never branch on the palette.
 - Monochrome gives current context an underline, provisional selection a bold reverse band, and
   focused frames a bold reverse outline. Independent current, navigation and checked markers remain
   visible; focus and value choices never rely on bold text alone. Renderers retain the complete role
@@ -148,10 +150,12 @@ Hierarchy describes information priority, not interaction state.
 - Use at most the heading, primary, and secondary hierarchy levels in one region. Disabled is an
   availability treatment applied to affected content, not a fourth hierarchy level. Additional
   structure comes from spacing, grouping, or a frame, not from more colors or `ITALIC`.
-- `BOLD` marks a heading, the active item, or the label or glyph of a pressed enabled action; it
-  never marks pointer hover or a warning. `UNDERLINED` marks only `accent-link`. `REVERSED` is
-  available only to the theme resolver as a terminal-native or reduced-color fallback for an
-  interactive band; component renderers never request it directly. `BLINK` is forbidden everywhere.
+- `BOLD` marks a heading, a current item whose owner documents bold identity, such as the active
+  Tab, or the label or glyph of a pressed enabled action; it never marks pointer hover or a warning.
+  `UNDERLINED` marks only `accent-link` and current context where no current fill can show.
+  `REVERSED` is available only to the theme resolver as a terminal-native or reduced-color fallback
+  for an interactive band; component renderers never request it directly. `BLINK` is forbidden
+  everywhere.
 - Status roles color the status glyph or the status word, not the whole line.
 
 ## Interaction states
@@ -164,7 +168,7 @@ Hierarchy describes information priority, not interaction state.
 | Pointer pressed       | `surface-pressed` plus `BOLD` on the enabled action label or glyph while the primary button remains held on the armed target                                                                                                                                                                               |
 | Provisional selection | `surface-selection` across the complete row plus the shared `accent-selection` navigation marker when the component provides one                                                                                                                                                                           |
 | Selected range        | `surface-selection` across the selected cells; endpoints or the active edge use `accent-selection` when they are drawn                                                                                                                                                                                     |
-| Current context       | Neutral `surface-current` across the complete row; current identity uses `BOLD` or a stable marker independently of focus                                                                                                                                                                                  |
+| Current context       | Neutral `surface-current` across the complete row; current identity adds `BOLD` or a stable marker independently of focus, or its owner documents the fill as the only cue and underlines the row where no fill can show                                                                                   |
 | Checked value         | A stable glyph using `accent-selection` for the value at the control's declared boundary; navigation remains independent                                                                                                                                                                                   |
 | Active tab            | Neutral `surface-current` plus `BOLD` or a stable current marker; keyboard focus and provisional navigation remain separate                                                                                                                                                                                |
 | Pending               | Fixed-width `status-pending` glyph plus a localized verb; the control footprint stays fixed                                                                                                                                                                                                                |
@@ -179,7 +183,9 @@ owner's focus marker; its reversible navigation anchor remains independently vis
 
 Current context and keyboard focus are separate facts. The current context remains identifiable
 while input belongs elsewhere; moving keyboard focus must not erase that indication. A surface
-documents both presentations and their simultaneous appearance.
+documents both presentations and their simultaneous appearance. Where the fill is the only current
+cue, a navigation or pointer surface replaces it only on the row that holds that navigation or
+pointer, and leaving the row restores it.
 
 A checked value may represent a staged or parent-draft value as well as a confirmed domain value. It
 does not by itself prove persistence. When it differs from the confirmed or effective basis, the

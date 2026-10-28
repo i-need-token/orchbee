@@ -119,7 +119,7 @@ fn sidebar_primary_cell(
     for y in 0..40 {
         for x in 0..30 {
             let matches = match (map.hit_target_at(x, y), target) {
-                (Some(HitTarget::MachineProjectRow { target: row, .. }), _) => row == target,
+                (Some(HitTarget::MachineGroupRow { target: row, .. }), _) => row == target,
                 (
                     Some(HitTarget::MachineWorkspaceRow { selected, .. }),
                     crate::machine_picker::SidebarTarget::Context { machine, target },
@@ -234,7 +234,7 @@ fn sidebar_target_map(
 fn sidebar_project_pointer_toggles_without_taking_keyboard_input() {
     let mut view = sidebar_view();
     let target = sidebar_project_target();
-    let expanded = view.machines.sidebar_project_expanded(&target);
+    let expanded = view.machines.sidebar_group_expanded(&target);
     let mut port = Port::new(MenuAction::Help);
     let mut dispatcher = InputDispatcher::default();
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
@@ -254,7 +254,7 @@ fn sidebar_project_pointer_toggles_without_taking_keyboard_input() {
         )
         .unwrap();
     assert!(!view.machines.sidebar_navigation_active());
-    assert_eq!(view.machines.sidebar_project_expanded(&target), !expanded);
+    assert_eq!(view.machines.sidebar_group_expanded(&target), !expanded);
     assert!(view.machines.request.is_none());
     assert!(!modes.contains(&ModeRequest::BracketedPaste(true)));
     assert!(forwarded_bytes(&port.calls).is_empty());
@@ -430,7 +430,8 @@ fn sidebar_keyboard_and_row_menu_share_drawn_identity_and_cancel_returns_to_navi
                             MenuTarget::Project(project_id),
                         crate::machine_picker::SidebarTarget::Context { target, .. } =>
                             MenuTarget::Workspace(target.location),
-                        crate::machine_picker::SidebarTarget::Agent { .. } => unreachable!(),
+                        crate::machine_picker::SidebarTarget::Recents { .. }
+                        | crate::machine_picker::SidebarTarget::Agent { .. } => unreachable!(),
                     }),
                 })
             );

@@ -74,10 +74,8 @@ impl SpaceSidebarToken {
 impl Default for SpaceSidebarSettings {
     fn default() -> Self {
         Self::parse(
-            &toml::from_str::<toml::Value>(
-                "rows=[['state_icon','workspace','git_status'],['location']]",
-            )
-            .expect("default layout"),
+            &toml::from_str::<toml::Value>("rows=[['workspace','git_status'],['location']]")
+                .expect("default layout"),
         )
         .expect("default tokens")
     }

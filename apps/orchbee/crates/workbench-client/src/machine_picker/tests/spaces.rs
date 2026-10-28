@@ -194,7 +194,7 @@ fn failed_and_missing_workspace_rounds_retain_git_groups_scroll_and_current_iden
         picker.observe_focus(Choice::Local, Some(current.clone()), None);
         let project = picker.sidebar_navigation_rows()[0].target();
         if collapsed {
-            assert!(picker.toggle_sidebar_project(&project));
+            assert!(picker.toggle_sidebar_group(&project));
         } else {
             picker.queue_space_scroll(window(&picker, &[1; 4], 2, 0), false);
             assert!(picker.settle_sidebar_scroll());

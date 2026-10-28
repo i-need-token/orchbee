@@ -478,7 +478,7 @@ Windows 主侧栏按精确 Session/context 身份解析工作区行，不按显�
 `$custom` 值来自 Workspace 报告所有者。样式与首条文本规则在终端净化前检查原始值。
 图标和 Git 计数 token 不接纳文本规则。非空配置行在值缺失或隐藏时保留行位；空配置保留一行身份供导航。
 
-工作区状态独立于 seen 聚合完整物理 Agent 事实，沿用注意／错误／结果／运行／空闲／未知的顺序：blocked、error、done、working、idle、unknown。未观察到 Agent 时状态位留空，不虚构 idle。已知 Agent 的状态依据不足时显示 unknown。来源过滤与自定义显示标签不改变权威。
+工作区状态独立于 seen 聚合完整物理 Agent 事实，沿用注意／错误／结果／运行／空闲／未知的顺序：blocked、error、done、working、idle、unknown。`state_text` 显示最紧急的状态，已折叠 Workspace 的状态行按该顺序列出每个 Agent 的状态。未观察到 Agent 时两者都留空，不虚构 idle。已知 Agent 的状态依据不足时显示 unknown。来源过滤与自定义显示标签不改变权威。
 Git 观测跟随选定 Worker 上 Workspace 的首个终端，即首个 Tab 中首个 Panel 的主终端。
 其目录取 Server 既有周期进程采样器中最新的 OSC 7／9;9 上报，否则取根进程 cwd；
 尚无采样时使用规范 Workspace 目录。因此在终端中 `cd` 进入或离开检出目录后，
@@ -534,4 +534,4 @@ null/unknown 区分、样式／Unicode 绘制及导航几何。整套 cohort 与
 
 Agent 选择器显示指定名称，并在存在不同的任务标题时一并显示。详情为工作区、提供商、标题和自定义令牌分别保留行；存在远程配置时再增加机器上下文，同时保留复制 ID 操作。模式栏使用共用的当前状态轨道，使每个模式都有独立的可见标签和命中区域。
 
-<!-- documentation-pairing: english-sha256=dfdc58b5adb373b1776b3fb47b33c044c203d2231d4be156995004006247a478 zh-cn-sha256=43786e0ca7fcad4ade90b6602389ae02f7cb28fef18670cd715741a845468a38 -->
+<!-- documentation-pairing: english-sha256=766a241fa3819a8127018520f6d04e29e8bc054c00704c9e20a685430ff9d143 zh-cn-sha256=3817437bcc585b56b94bcadcd36a793595bfd837b771a79604a31b6bb08f6af4 -->

@@ -170,7 +170,7 @@ fn paint(
 fn hit_belongs_to_sidebar_target(hit: Option<&HitTarget>, target: &SidebarTarget) -> bool {
     match hit {
         Some(
-            HitTarget::MachineProjectRow { target: actual, .. }
+            HitTarget::MachineGroupRow { target: actual, .. }
             | HitTarget::SidebarDisclosure(actual)
             | HitTarget::SidebarMenu(actual)
             | HitTarget::CreateMenu(Some(actual)),
@@ -268,7 +268,7 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                 let project_y = (0..height).find(|y| {
                     matches!(
                         hits.hit_target_at(0, *y),
-                        Some(HitTarget::MachineProjectRow { target, .. }) if target == &project
+                        Some(HitTarget::MachineGroupRow { target, .. }) if target == &project
                     )
                 });
                 if let Some(project_y) = project_y {
@@ -366,7 +366,8 @@ fn workspace_rows_render_real_branch_divergence_and_custom_names_with_exact_hits
                 0,
             );
             for row in view.machines.space_rows() {
-                let (text_lines, _, _) = lines(&view, row, locale, &theme, 80, "", 0).into_parts();
+                let (text_lines, _) =
+                    lines(&view, row, locale, &theme, 80, "", LineShape::default()).into_parts();
                 let projected = text_lines
                     .into_iter()
                     .map(|line| {
@@ -398,9 +399,8 @@ fn workspace_rows_render_real_branch_divergence_and_custom_names_with_exact_hits
                 let exact = sidebar_target_rows(&hits, 30, 40, target);
                 assert_eq!(exact.len(), 3, "{target:?}: {text}");
                 assert!(
-                    rows[usize::from(exact[0])]
-                        .contains(&format!("{} same", theme.glyphs.workspace)),
-                    "a Workspace without an Agent keeps its identity track: {text}"
+                    rows[usize::from(exact[0])].starts_with(" same"),
+                    "a configured state icon paints nothing before a Workspace name: {text}"
                 );
                 assert!(exact.windows(2).all(|pair| pair[1] == pair[0] + 1));
                 let painted_x = (0..30)
@@ -486,7 +486,7 @@ fn fixed_actions_keep_complete_labels_and_exact_button_hits_above_the_first_grou
             );
             assert!(matches!(
                 hits.hit_target_at(0, 3),
-                Some(HitTarget::MachineProjectRow { .. })
+                Some(HitTarget::MachineGroupRow { .. })
             ));
             let local_hint = crate::machine_picker::sidebar_binding_label(
                 command,
@@ -689,7 +689,7 @@ fn workspace_separators_stay_outside_entries_and_style_patches_preserve_count_ro
     for y in 0..40 {
         if matches!(
             map.hit_target_at(0, y),
-            Some(HitTarget::MachineWorkspaceSurface(_) | HitTarget::MachineProjectRow { .. })
+            Some(HitTarget::MachineWorkspaceSurface(_) | HitTarget::MachineGroupRow { .. })
         ) {
             assert_eq!(buffer[(0, y)].bg, theme.color(Role::SurfaceChrome));
         }
@@ -896,8 +896,9 @@ fn sidebar_context_menus_have_no_overflow_trigger_and_revealed_create_stays_righ
                 focused_hits.hit_target_at(x, other_rows[0]),
                 Some(HitTarget::SidebarMenu(_))
             )));
+            // A Workspace row's keyboard marker shares the Project heading's edge column.
             assert_eq!(
-                focused_buffer[(2, other_rows[0])].symbol(),
+                focused_buffer[(0, other_rows[0])].symbol(),
                 theme.glyphs.navigation_marker
             );
             let active_rows = sidebar_target_rows(&focused_hits, width, 10, &active);
@@ -911,7 +912,7 @@ fn sidebar_context_menus_have_no_overflow_trigger_and_revealed_create_stays_righ
             let (restored_buffer, restored_hits) =
                 paint_navigation(&view, locale, &theme, width, 10);
             let restored_other_rows = sidebar_target_rows(&restored_hits, width, 10, &other);
-            assert_eq!(restored_buffer[(2, restored_other_rows[0])].symbol(), " ");
+            assert_eq!(restored_buffer[(0, restored_other_rows[0])].symbol(), " ");
             assert!((0..width).all(|x| !matches!(
                 restored_hits.hit_target_at(x, restored_other_rows[0]),
                 Some(HitTarget::SidebarMenu(actual)) if actual == &other
@@ -956,7 +957,7 @@ fn project_context_and_auxiliary_tracks_cover_every_multirow_cell_without_overla
                     layout::RowKind::for_target(&project),
                 )
                 .unwrap()
-                .with_disclosure_after(display_width("Repo 2"));
+                .with_disclosure_after(display_width("Repo"));
                 for y in &project_rows {
                     for x in 0..width {
                         let hit = hits.hit_target_at(x, *y);
@@ -971,7 +972,7 @@ fn project_context_and_auxiliary_tracks_cover_every_multirow_cell_without_overla
                         } else {
                             assert!(matches!(
                                 hit,
-                                Some(HitTarget::MachineProjectRow { target, .. })
+                                Some(HitTarget::MachineGroupRow { target, .. })
                                     if target == &project
                             ));
                         }
@@ -985,7 +986,7 @@ fn project_context_and_auxiliary_tracks_cover_every_multirow_cell_without_overla
                     for x in 0..width {
                         assert!(matches!(
                             hits.hit_target_at(x, y),
-                            Some(HitTarget::MachineProjectRow { target, .. }) if target == &project
+                            Some(HitTarget::MachineGroupRow { target, .. }) if target == &project
                         ));
                     }
                 }
@@ -1005,7 +1006,7 @@ fn project_context_and_auxiliary_tracks_cover_every_multirow_cell_without_overla
                     }
                 }
                 assert_eq!(
-                    candidate[(2, focused_rows[0])].symbol(),
+                    candidate[(0, focused_rows[0])].symbol(),
                     theme.glyphs.navigation_marker
                 );
 
@@ -1036,7 +1037,7 @@ fn project_context_and_auxiliary_tracks_cover_every_multirow_cell_without_overla
                 );
                 assert_eq!(view.machines.current_context.as_ref(), Some(target));
 
-                assert!(view.machines.toggle_sidebar_project(&project));
+                assert!(view.machines.toggle_sidebar_group(&project));
                 let (collapsed_buffer, collapsed) =
                     paint_navigation(&view, locale, &theme, width, 10);
                 let collapsed_project_rows = sidebar_target_rows(&collapsed, width, 10, &project);
@@ -1107,14 +1108,14 @@ fn agents_are_nested_by_default_and_project_collapse_retains_disclosure() {
         );
 
         let project = view.machines.sidebar_parent(&active).unwrap();
-        assert!(view.machines.toggle_sidebar_project(&project));
+        assert!(view.machines.toggle_sidebar_group(&project));
         assert!(view.machines.sidebar_context_agents_expanded(&active));
         let (_, hidden_hits) = paint(&view, locale, &Theme::terminal_native(), 120, 40);
         assert!((0..40).all(|y| !matches!(
             hidden_hits.hit_target_at(2, y),
             Some(HitTarget::MachineAgentRow { .. })
         )));
-        assert!(view.machines.toggle_sidebar_project(&project));
+        assert!(view.machines.toggle_sidebar_group(&project));
         assert!(view.machines.sidebar_context_agents_expanded(&active));
         let (_, restored_hits) = paint(&view, locale, &Theme::terminal_native(), 120, 40);
         assert!((0..40).any(|y| matches!(
@@ -1162,7 +1163,7 @@ fn collapsed_rows_keep_focus_disclosure_and_current_context() {
                 let project = view.machines.sidebar_parent(&targets[0]).unwrap();
                 for target in [&targets[0], &project] {
                     if matches!(target, SidebarTarget::Project { .. }) {
-                        assert!(view.machines.toggle_sidebar_project(target));
+                        assert!(view.machines.toggle_sidebar_group(target));
                     } else {
                         assert!(view.machines.toggle_sidebar_context_agents(target));
                     }
@@ -1181,19 +1182,9 @@ fn collapsed_rows_keep_focus_disclosure_and_current_context() {
                     let target_rows = sidebar_target_rows(&hits, width, 20, target);
                     assert!(!target_rows.is_empty(), "{text}");
                     let y = target_rows[0];
-                    let navigation_x = if matches!(target, SidebarTarget::Project { .. }) {
-                        0
-                    } else {
-                        2
-                    };
-                    assert_eq!(
-                        buffer[(navigation_x, y)].symbol(),
-                        theme.glyphs.navigation_marker
-                    );
-                    assert_eq!(
-                        buffer[(navigation_x, y)].bg,
-                        theme.color(Role::SurfaceSelection)
-                    );
+                    // Workspace rows share the Project heading's edge marker column.
+                    assert_eq!(buffer[(0, y)].symbol(), theme.glyphs.navigation_marker);
+                    assert_eq!(buffer[(0, y)].bg, theme.color(Role::SurfaceSelection));
                     assert!(target_rows.iter().any(|row| (0..width).any(|x| matches!(
                         hits.hit_target_at(x, *row),
                         Some(HitTarget::SidebarDisclosure(actual)) if actual == target
@@ -1249,15 +1240,20 @@ fn ungrouped_view(label: &str) -> ClientView {
 }
 
 #[test]
-fn projects_precede_ungrouped_workspaces_and_create_has_no_overflow_slot() {
+fn projects_precede_recents_and_create_has_no_overflow_slot() {
     let mut view = ungrouped_view("Empty group");
     let tree = view.machines.sidebar_navigation_rows();
     assert!(matches!(tree[0], SidebarRow::Project { .. }));
-    assert!(matches!(tree[1], SidebarRow::Context { .. }));
+    assert!(matches!(tree[1], SidebarRow::Recents { .. }));
     assert!(matches!(tree[2], SidebarRow::Context { .. }));
-    let workspace = tree[1].target();
+    assert!(matches!(tree[3], SidebarRow::Context { .. }));
+    let workspace = tree[2].target();
     let project = tree[0].target();
-    assert!(view.machines.sidebar_parent(&workspace).is_none());
+    let recents = tree[1].target();
+    assert_eq!(
+        view.machines.sidebar_parent(&workspace),
+        Some(recents.clone())
+    );
     assert!(view.machines.focus_sidebar_target(&project));
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let (buffer, hits) = paint_navigation(&view, locale, &Theme::terminal_native(), 40, 20);
@@ -1275,11 +1271,11 @@ fn projects_precede_ungrouped_workspaces_and_create_has_no_overflow_slot() {
         let project_start = (0..20)
             .find(|y| {
                 (0..40).any(|x| {
-                    matches!(hits.hit_target_at(x, *y), Some(HitTarget::MachineProjectRow { target, .. }) if target == &project)
+                    matches!(hits.hit_target_at(x, *y), Some(HitTarget::MachineGroupRow { target, .. }) if target == &project)
                 })
             })
             .unwrap();
-        // Project, group gap, inert ungrouped heading, then the first ungrouped Workspace.
+        // Project, group gap, Recents heading, then the first Workspace outside any Project.
         assert_eq!(first_workspace, project_start + 3);
         assert_eq!(
             buffer[(0, project_start)].symbol(),
@@ -1288,11 +1284,10 @@ fn projects_precede_ungrouped_workspaces_and_create_has_no_overflow_slot() {
         let heading = (0..40)
             .map(|x| buffer[(x, first_workspace - 1)].symbol())
             .collect::<String>();
-        // Wide glyphs leave blank continuation cells; compare the heading text without them.
-        assert!(
-            heading
-                .replace(' ', "")
-                .contains(locale.machine_picker_text("sidebar-ungrouped")),
+        // Wide glyphs leave blank continuation cells; the heading carries no member count.
+        assert_eq!(
+            heading.replace(' ', ""),
+            locale.machine_picker_text("sidebar-recents"),
             "{heading:?}"
         );
         for x in 0..40 {
@@ -1302,15 +1297,20 @@ fn projects_precede_ungrouped_workspaces_and_create_has_no_overflow_slot() {
                     buffer[(x, y)].bg,
                     Theme::terminal_native().color(Role::SurfaceChrome)
                 );
-                assert!(matches!(
-                    hits.hit_target_at(x, y),
-                    Some(HitTarget::MachineWorkspaceSurface(_))
-                ));
             }
+            assert!(matches!(
+                hits.hit_target_at(x, project_start + 1),
+                Some(HitTarget::MachineWorkspaceSurface(_))
+            ));
+            // The Recents heading folds like a Project but offers no menu or Create.
+            assert!(matches!(
+                hits.hit_target_at(x, first_workspace - 1),
+                Some(HitTarget::MachineGroupRow { target, .. }) if target == &recents
+            ));
             assert!(matches!(
                 hits.hit_target_at(x, project_start),
                 Some(
-                    HitTarget::MachineProjectRow { target, .. }
+                    HitTarget::MachineGroupRow { target, .. }
                         | HitTarget::SidebarDisclosure(target)
                         | HitTarget::SidebarMenu(target)
                         | HitTarget::CreateMenu(Some(target))
@@ -1460,7 +1460,7 @@ fn duplicate_project_and_workspace_labels_keep_complete_distinguishing_ids_when_
         }
         assert!((0..30).any(|y| matches!(
             hits.hit_target_at(4, y),
-            Some(HitTarget::MachineProjectRow { target: SidebarTarget::Project { project_id, .. }, .. })
+            Some(HitTarget::MachineGroupRow { target: SidebarTarget::Project { project_id, .. }, .. })
                 if project_id.as_str() == id(71)
         )));
     }
@@ -1583,27 +1583,20 @@ fn colored_current_context_and_agent_keep_plain_identity_state_and_unread_cues_i
             )
             .unwrap();
             assert_eq!(candidate[(tracks.navigation.x, y)].symbol(), " ");
-            assert_eq!(
-                candidate[(
-                    if target == &context {
-                        tracks.unread.x
-                    } else {
-                        tracks.current.x
-                    },
-                    y
-                )]
-                    .symbol(),
-                theme.glyphs.active_marker
-            );
-            assert_eq!(
-                candidate[(tracks.state.x, y)].symbol(),
-                theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
-            );
+            // The fill alone marks current identity; no row adds a text marker.
+            assert!((0..120).all(|x| candidate[(x, y)].symbol() != theme.glyphs.active_marker));
+            // Only the Agent row has a state column.
+            if target == &agent {
+                assert_eq!(
+                    candidate[(tracks.state.x, y)].symbol(),
+                    theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
+                );
+            }
             // An expanded Workspace leaves the unread cue to its visible Agent row.
             assert_eq!(
                 candidate[(tracks.unread.x, y)].symbol(),
                 if target == &context {
-                    theme.glyphs.active_marker
+                    " "
                 } else {
                     theme.glyphs.status_bullet
                 }
@@ -1634,7 +1627,7 @@ fn colored_current_context_and_agent_keep_plain_identity_state_and_unread_cues_i
 }
 
 #[test]
-fn monochrome_current_context_survives_explicit_plain_text_and_simultaneous_focus() {
+fn monochrome_current_workspace_underlines_without_bold_or_text_marker_beside_focus() {
     let mut view = view(120, 40);
     let mut workspace = token("workspace");
     workspace["style"]["bold"] = serde_json::json!(false);
@@ -1651,50 +1644,56 @@ fn monochrome_current_context_survives_explicit_plain_text_and_simultaneous_focu
             vec![agent],
         )),
     )]);
-    // Collapsed Agent rows hand their unread cue to the Workspace row.
+    // Folded Agent rows hand their unread cue and states to the Workspace row.
     if view.machines.sidebar_context_agents_expanded(&active) {
         assert!(view.machines.toggle_sidebar_context_agents(&active));
     }
     view.machines
         .observe_focus(Choice::Local, Some(target.clone()), None);
-    assert!(view.machines.focus_sidebar_target(&active));
     let theme = Theme::terminal_native().quantize(crate::tui_theme::ColorLevel::Monochrome);
-    let (buffer, hits) = paint_navigation(&view, Locale::EnUs, &theme, 26, 10);
-    let rows = sidebar_target_rows(&hits, 26, 10, &active);
-    assert_eq!(
-        rows.len(),
-        1,
-        "removing the overflow slot leaves room for the inline disclosure and identity suffix"
-    );
-    let y = rows[0];
-    let tracks = layout::Tracks::resolve(
-        Rect::new(0, y, 26, rows.len() as u16),
-        0,
-        auxiliary_actions(&view.machines.sidebar_source(), &active),
-        layout::RowKind::for_target(&active),
-    )
-    .unwrap();
-    assert_eq!(
-        buffer[(tracks.navigation.x, y)].symbol(),
-        theme.glyphs.navigation_marker
-    );
-    assert_eq!(
-        buffer[(tracks.current.x, y)].symbol(),
-        theme.glyphs.active_marker
-    );
-    assert_eq!(
-        buffer[(tracks.state.x, y)].symbol(),
-        theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
-    );
-    assert_eq!(
-        buffer[(tracks.unread.x, y)].symbol(),
-        theme.glyphs.status_bullet
-    );
-    assert!(
-        !buffer[(tracks.primary.x, y)]
-            .modifier
-            .contains(Modifier::BOLD)
-    );
+    for focused in [false, true] {
+        if focused {
+            assert!(view.machines.focus_sidebar_target(&active));
+        }
+        let (buffer, hits) = paint_navigation(&view, Locale::EnUs, &theme, 26, 10);
+        let rows = sidebar_target_rows(&hits, 26, 10, &active);
+        assert_eq!(
+            rows.len(),
+            2,
+            "a folded Workspace adds its Agents' status line"
+        );
+        let y = rows[0];
+        let tracks = layout::Tracks::resolve(
+            Rect::new(0, y, 26, rows.len() as u16),
+            0,
+            auxiliary_actions(&view.machines.sidebar_source(), &active),
+            layout::RowKind::for_target(&active),
+        )
+        .unwrap();
+        assert_eq!(
+            buffer[(tracks.navigation.x, y)].symbol(),
+            if focused {
+                theme.glyphs.navigation_marker
+            } else {
+                " "
+            }
+        );
+        assert!((0..26).all(|x| buffer[(x, y)].symbol() != theme.glyphs.active_marker));
+        assert_eq!(
+            buffer[(tracks.primary.x, y + 1)].symbol(),
+            theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
+        );
+        assert_eq!(
+            buffer[(tracks.unread.x, y)].symbol(),
+            theme.glyphs.status_bullet
+        );
+        let identity = &buffer[(tracks.primary.x, y)];
+        assert!(!identity.modifier.contains(Modifier::BOLD), "{focused}");
+        // Monochrome cannot fill the current row, so an underline stands in at rest.
+        if !focused {
+            assert!(identity.modifier.contains(Modifier::UNDERLINED));
+        }
+    }
 }
 
 #[test]

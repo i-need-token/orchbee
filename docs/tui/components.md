@@ -96,7 +96,8 @@ Backgrounds use exactly one role with this precedence: `surface-pressed`, `surfa
 independent:
 
 - keyboard focus remains visible through `frame-focused` or a stable `accent-focus` marker;
-- current identity remains visible through `BOLD` or a stable current marker;
+- current identity remains visible through `BOLD`, a stable current marker, or a fill its owner
+  documents as the only current cue, underlined where no fill can show;
 - a checked value retains its checked glyph using `accent-selection`;
 - disabled content uses `text-disabled`, but a current or checked marker remains recognizable;
 - pending retains focus, current, and checked cues and adds a fixed-width `status-pending` glyph and
@@ -116,8 +117,8 @@ distinct from focus, provisional navigation, validation, and pending state.
 Pointer hover never moves keyboard focus, current context, or a checked value, and never adds
 `BOLD`. It changes the background. An action whose own label or glyph rests in `text-secondary`,
 such as an inactive tab, an auxiliary button, or an icon action, rises to `text-primary`; list rows
-keep their content hierarchy, including secondary headings and metadata. `BOLD` marks current
-identity and press. An open action menu
+keep their content hierarchy, including secondary headings and metadata. `BOLD` marks press and
+any current identity whose owner documents bold. An open action menu
 updates its provisional candidate on real unmodified, button-free movement over an enabled painted
 row, using the same full-row selection fill and navigation marker as keyboard navigation. This
 does not execute an action or open a submenu. Leaving retains the candidate; arrows continue from

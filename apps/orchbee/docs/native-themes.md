@@ -151,18 +151,17 @@ pickers. The native theme pairs ANSI gray with black body text, without DIM on h
 both named themes use a neutral fill against chrome and retain their primary/secondary
 text colors. One Light uses `[224, 228, 235]` against `[240, 242, 245]` chrome so the persistent
 row remains visible while input belongs to a terminal. This fill remains quieter than keyboard
-selection and preserves readable text contrast. The most specific expanded current row owns the
-fill: when an active Agent is shown, its Workspace retains bold identity and a current marker on
-chrome instead of merging with that Agent's fill. Collapsing the Agents returns the fill to the
-Workspace. Current names
-are bold; status glyphs and explicit token colors remain semantic. Rows reserve separate tracks for
-provisional navigation, current identity, operational state and unread state. A current row shows `*`
-in its current track when quantization collapses its fill onto chrome or when an identity token
-explicitly disables bold; the configured token modifiers remain unchanged. Keyboard navigation uses
-`surface-selection`, its paired text and the separate navigation marker. When the provisional target
-is also current, `surface-selection` wins the row background while bold identity or the current marker
-retains persistent-current evidence; operational and unread glyphs remain in their own tracks. Explicit
-token colors and modifiers apply after the focus style. This does not infer host polarity or change a terminal's palette.
+selection and preserves readable text contrast. The most specific visible current row owns the
+fill: when an active Agent is shown, its Workspace takes the quieter related surface instead of
+merging with that Agent's fill. Folding the Agents returns the fill to the Workspace. The fill alone
+marks the current sidebar row: names keep their normal weight and no marker is added; status glyphs
+and explicit token colors remain semantic. When quantization collapses the fill onto chrome, the
+current row is underlined instead, as in Monochrome; the configured token modifiers remain
+unchanged. Keyboard navigation uses `surface-selection`, its paired text and the separate navigation
+marker. When the provisional target is also current, `surface-selection` wins the row background
+until navigation leaves that row, and pointer hover likewise replaces the current fill on its own
+row; Agent state and unread glyphs remain in their own cells. Explicit token colors and modifiers
+apply after the focus style. This does not infer host polarity or change a terminal's palette.
 
 ## Color capabilities
 
@@ -198,8 +197,9 @@ disabled text at truecolor and 256 colors. Faint intensity can darken an RGB
 foreground until disabled text looks like primary text on a light surface.
 At 16 colors and monochrome, quantization retains DIM when muted and primary
 foregrounds coincide; `terminal-native` keeps its host-relative DIM.
-Monochrome current context uses bold underline plus its current marker; provisional selection and
-checked accents use bold reverse video plus their distinct markers. Focused frames retain a bold
+Monochrome current context uses an underline without bold, plus a current marker where its owner
+keeps one; provisional selection and checked accents use bold reverse video plus their distinct
+markers. Focused frames retain a bold
 reverse outline, including shared split boundaries, and focus labels use bold underline. Provider
 choices use a fixed checked-glyph track and the selection role rather than primary-action styling.
 At low color levels, a host may render DIM black like ordinary black. Visible

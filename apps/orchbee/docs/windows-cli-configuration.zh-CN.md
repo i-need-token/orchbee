@@ -318,20 +318,21 @@ Agent 的 `row_gap` 用于 Agent 行之前及相邻 Agent 行之间；Workspace 
 
 ```toml
 [ui.sidebar.spaces]
-rows = [["state_icon", "workspace"], [{ token = "branch", fg = "#8bc", rules = [{ starts_with = "worktree/", dim = true }] }, "git_status"], ["$issue"]]
+rows = [["workspace"], [{ token = "branch", fg = "#8bc", rules = [{ starts_with = "worktree/", dim = true }] }, "git_status"], ["$issue"]]
 row_gap = 0
 ```
 
-默认值为 `[["state_icon", "workspace", "git_status"], ["location"]]`，间隔 0。
+默认值为 `[["workspace", "git_status"], ["location"]]`，间隔 0。
 `location` 显示分支，否则显示 Workspace 文件夹，本机主目录缩写为 `~`。
 显式 `rows = []` 保留身份／导航行。另一个内置值是 `state_text`；
-`$name` 读取 Workspace 报告，不替代内置值。样式与首条匹配规则共用 Agent 接纳机制，
+`$name` 读取 Workspace 报告，不替代内置值。为兼容配置仍接受 `state_icon`，但它在 Workspace 行上
+不绘制任何内容。样式与首条匹配规则共用 Agent 接纳机制，
 但图标／Git 计数拒绝文字规则，Workspace 布局没有 `rows_by_agent`。
 最多 16 行、每行 16 个 token、每个文字 token 16 条规则，`row_gap` 范围 0–65535。
-缺失／隐藏值折叠。运行状态绘制在行首状态轨道，Git 计数右对齐在配置它的行末端，在身份行上
-贴齐行尾；其他文字共享剩余单元格。
+缺失／隐藏值折叠。Git 计数右对齐在配置它的行末端，在身份行上贴齐行尾；其他文字共享剩余单元格。
+已折叠的 Workspace 用其 Agent 状态行取代第二个配置行。
 
-状态使用完整物理 Agent 快照，不受 seen 及列表／来源过滤影响。
+状态文字与折叠后的状态行使用完整物理 Agent 快照，不受 seen 及列表／来源过滤影响。
 Git 在所属 Worker 上读取已提交的 Workspace 目录，显示相对本地 upstream 的非零 ahead／behind；
 缺少 upstream 时无计数；非仓库无 Git 观测。游离时无分支名，未出生分支保留名字。
 不 fetch、不改配置、不执行 hook/fsmonitor、不启动终端，绘制时无 I/O。
@@ -343,4 +344,4 @@ Git 在所属 Worker 上读取已提交的 Workspace 目录，显示相对本地
 
 `terminal.focus_new_panel` 接受布尔值，默认为 `true`。原生 Client 分屏选中刚提交的新窗格；`false` 保留原窗格。Client 从每次发布的配置快照应用该偏好，发布后的下一次分屏即使用新值。类型无效时产生字段级诊断并使用默认值。CLI `panel split --focus` 保留显式命令策略。
 
-<!-- documentation-pairing: english-sha256=7acc7d08782f41e9d91056c7b9378fd310a18021bae93715aabdc681ae6015e1 zh-cn-sha256=ee0e7dbc62b6c1380dbbb7f3e8913de0d667c5384d75db541302dd2fa6536360 -->
+<!-- documentation-pairing: english-sha256=982ebe97215d77ce55e7e5ab3b1622786af3bf73de5cd46d52143b3ea4732de8 zh-cn-sha256=5ca5e40ce1d8826665c3317d23fffcf467ea409d275e0a795cbf9da80196392d -->

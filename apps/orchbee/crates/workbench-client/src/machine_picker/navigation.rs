@@ -18,6 +18,11 @@ pub enum SidebarTarget {
         session_id: SessionId,
         project_id: WorkbenchProjectId,
     },
+    /// The heading over one Session's Workspaces outside any Project; it folds but never activates.
+    Recents {
+        machine: Choice,
+        session_id: SessionId,
+    },
     Context {
         machine: Choice,
         target: ClientContextTarget,
@@ -31,21 +36,27 @@ impl SidebarTarget {
     pub(crate) fn machine(&self) -> &Choice {
         match self {
             Self::Project { machine, .. }
+            | Self::Recents { machine, .. }
             | Self::Context { machine, .. }
             | Self::Agent { machine, .. } => machine,
         }
     }
     pub(crate) fn session_id(&self) -> &SessionId {
         match self {
-            Self::Project { session_id, .. } => session_id,
+            Self::Project { session_id, .. } | Self::Recents { session_id, .. } => session_id,
             Self::Context { target, .. } => &target.session_id,
             Self::Agent { target, .. } => &target.context.session_id,
         }
     }
 
+    /// Project and Recents headings group rows; they fold and never become current.
+    pub(crate) const fn is_group(&self) -> bool {
+        matches!(self, Self::Project { .. } | Self::Recents { .. })
+    }
+
     pub(crate) fn selection(&self) -> Option<Selection> {
         match self {
-            Self::Project { .. } => None,
+            Self::Project { .. } | Self::Recents { .. } => None,
             Self::Context { machine, target } => Some(Selection {
                 machine: machine.clone(),
                 context: Some(target.clone().into()),
@@ -204,7 +215,13 @@ impl SidebarSource {
                 } => workspaces.get(workspace_id).is_some_and(|workspace| {
                     &workspace.terminal_context_id == terminal_context_id
                         && match (&row.parent, &workspace.project_id) {
-                            (None, None) => true,
+                            (
+                                Some(SidebarTarget::Recents {
+                                    machine: parent_machine,
+                                    session_id: parent_session,
+                                }),
+                                None,
+                            ) => parent_machine == machine && parent_session == session,
                             (
                                 Some(SidebarTarget::Project {
                                     machine: parent_machine,
@@ -221,7 +238,9 @@ impl SidebarSource {
                         }
                 }),
             },
-            SidebarTarget::Project { .. } | SidebarTarget::Agent { .. } => true,
+            SidebarTarget::Project { .. }
+            | SidebarTarget::Recents { .. }
+            | SidebarTarget::Agent { .. } => true,
         })
     }
 
@@ -311,7 +330,8 @@ impl DrawnSidebarTarget {
 /// Existing Picker transition selected by an accepted ordinary row release.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum SidebarActivation {
-    ToggleProject(SidebarTarget),
+    /// Folds or opens a Project or Recents heading.
+    ToggleGroup(SidebarTarget),
     ToggleContext(SidebarTarget),
     Activate(Selection),
     CloseWorkspace(orchbee_workbench_protocol::WorkbenchWorkspaceId),
@@ -323,8 +343,10 @@ pub(crate) enum SidebarRow<'a> {
         session_id: &'a SessionId,
         project_id: &'a WorkbenchProjectId,
         label: &'a str,
-        /// Member Workspaces, including those hidden while the Project is collapsed.
-        workspaces: usize,
+    },
+    Recents {
+        machine: &'a Choice,
+        session_id: &'a SessionId,
     },
     Context {
         row: &'a Row,
@@ -346,6 +368,13 @@ impl SidebarRow<'_> {
                 machine: (*machine).clone(),
                 session_id: (*session_id).clone(),
                 project_id: (*project_id).clone(),
+            },
+            Self::Recents {
+                machine,
+                session_id,
+            } => SidebarTarget::Recents {
+                machine: (*machine).clone(),
+                session_id: (*session_id).clone(),
             },
             Self::Context { row, .. } => row
                 .sidebar_target()
@@ -507,6 +536,7 @@ struct Focus {
 pub(super) struct SidebarNavigation {
     active: bool,
     focus: Option<Focus>,
+    // Folded Project and Recents headings; every group starts expanded.
     collapsed: Vec<SidebarTarget>,
     // Every Context is expanded by default; retain independent explicit collapse choices.
     collapsed_agents: Vec<SidebarTarget>,
@@ -684,15 +714,12 @@ impl Picker {
                     session_id: session_id.clone(),
                     project_id: project_id.clone(),
                 };
-                let expanded = self.sidebar_project_expanded(&target);
+                let expanded = self.sidebar_group_expanded(&target);
                 entries.push(SidebarRow::Project {
                     machine,
                     session_id,
                     project_id,
                     label,
-                    workspaces: children
-                        .get(&(session_id.as_str(), project_id.as_str()))
-                        .map_or(0, Vec::len),
                 });
                 if expanded
                     && let SidebarTarget::Project {
@@ -707,8 +734,36 @@ impl Picker {
                     }
                 }
             }
-            for row in ungrouped {
-                append_context(&self.navigation, &agent_children, &mut entries, row);
+            // Workspaces outside any Project always come last, under one Recents heading per Session.
+            let mut sessions = Vec::new();
+            for row in &ungrouped {
+                let session_id = &row
+                    .context
+                    .as_ref()
+                    .expect("an ungrouped sidebar row has Context data")
+                    .target
+                    .session_id;
+                if !sessions.contains(&session_id) {
+                    sessions.push(session_id);
+                }
+            }
+            for session_id in sessions {
+                let heading = SidebarRow::Recents {
+                    machine: &machine.choice,
+                    session_id,
+                };
+                let expanded = self.sidebar_group_expanded(&heading.target());
+                entries.push(heading);
+                if !expanded {
+                    continue;
+                }
+                for row in ungrouped.iter().filter(|row| {
+                    row.context
+                        .as_ref()
+                        .is_some_and(|context| &context.target.session_id == session_id)
+                }) {
+                    append_context(&self.navigation, &agent_children, &mut entries, row);
+                }
             }
         }
         entries
@@ -735,7 +790,7 @@ impl Picker {
                 SidebarCatalogRow {
                     parent: self.sidebar_parent(&target),
                     disclosure: match row {
-                        SidebarRow::Project { .. } => true,
+                        SidebarRow::Project { .. } | SidebarRow::Recents { .. } => true,
                         SidebarRow::Context { has_agents, .. } => has_agents,
                         SidebarRow::Agent { .. } => false,
                     },
@@ -801,9 +856,10 @@ impl Picker {
             return None;
         }
         match (&drawn.target, drawn.part) {
-            (SidebarTarget::Project { .. }, SidebarPart::Primary | SidebarPart::Disclosure) => {
-                Some(SidebarActivation::ToggleProject(drawn.target.clone()))
-            }
+            (
+                SidebarTarget::Project { .. } | SidebarTarget::Recents { .. },
+                SidebarPart::Primary | SidebarPart::Disclosure,
+            ) => Some(SidebarActivation::ToggleGroup(drawn.target.clone())),
             (SidebarTarget::Context { .. }, SidebarPart::Disclosure) => {
                 Some(SidebarActivation::ToggleContext(drawn.target.clone()))
             }
@@ -886,6 +942,15 @@ impl Picker {
                         })
                 })
             }
+            SidebarTarget::Recents {
+                machine,
+                session_id,
+            } => self.workspace_rows.iter().any(|row| {
+                &row.choice == machine
+                    && row.context.as_ref().is_some_and(|context| {
+                        &context.target.session_id == session_id && context.project_id.is_none()
+                    })
+            }),
             SidebarTarget::Agent { machine, target } => {
                 self.workspace_rows.iter().any(|row| {
                     row.enabled
@@ -905,7 +970,8 @@ impl Picker {
             }
         }
     }
-    pub(crate) fn sidebar_project_expanded(&self, target: &SidebarTarget) -> bool {
+    /// Whether a Project or Recents heading shows its Workspaces.
+    pub(crate) fn sidebar_group_expanded(&self, target: &SidebarTarget) -> bool {
         !self.navigation.collapsed.contains(target)
     }
     /// Resolve organizational ancestry from current metadata, never from terminal identity.
@@ -921,13 +987,19 @@ impl Picker {
                         .as_ref()
                         .filter(|context| &row.choice == machine && &context.target == target)
                 })?;
-                Some(SidebarTarget::Project {
-                    machine: machine.clone(),
-                    session_id: target.session_id.clone(),
-                    project_id: context.project_id.clone()?,
+                Some(match &context.project_id {
+                    Some(project_id) => SidebarTarget::Project {
+                        machine: machine.clone(),
+                        session_id: target.session_id.clone(),
+                        project_id: project_id.clone(),
+                    },
+                    None => SidebarTarget::Recents {
+                        machine: machine.clone(),
+                        session_id: target.session_id.clone(),
+                    },
                 })
             }
-            SidebarTarget::Project { .. } => None,
+            SidebarTarget::Project { .. } | SidebarTarget::Recents { .. } => None,
         }
     }
     fn sidebar_ancestors(&self, target: &SidebarTarget) -> Vec<SidebarTarget> {
@@ -962,7 +1034,7 @@ impl Picker {
             && self.sidebar_target_exists(target)
             && self
                 .sidebar_parent(target)
-                .is_none_or(|parent| self.sidebar_project_expanded(&parent))
+                .is_none_or(|parent| self.sidebar_group_expanded(&parent))
     }
     pub fn sidebar_navigation_active(&self) -> bool {
         self.navigation.active
@@ -1012,11 +1084,8 @@ impl Picker {
         self.focus_sidebar_position(position);
         true
     }
-    pub(crate) fn toggle_sidebar_project(&mut self, target: &SidebarTarget) -> bool {
-        if !self.available
-            || self.open
-            || !matches!(target, SidebarTarget::Project { .. })
-            || !self.sidebar_target_exists(target)
+    pub(crate) fn toggle_sidebar_group(&mut self, target: &SidebarTarget) -> bool {
+        if !self.available || self.open || !target.is_group() || !self.sidebar_target_exists(target)
         {
             return false;
         }
@@ -1162,7 +1231,10 @@ impl Picker {
         };
         match command {
             SidebarCommand::MoveUp | SidebarCommand::MoveDown => {
-                if key.kind == KeyKind::Press {
+                // Recents is a fixed trailing heading, never a reorder source.
+                if key.kind == KeyKind::Press
+                    && !matches!(focus.target, SidebarTarget::Recents { .. })
+                {
                     return SidebarIntent::Reorder {
                         target: focus.target,
                         up: *command == SidebarCommand::MoveUp,
@@ -1177,9 +1249,9 @@ impl Picker {
             SidebarCommand::First => self.focus_sidebar_position(0),
             SidebarCommand::Last => self.focus_sidebar_position(targets.len().saturating_sub(1)),
             SidebarCommand::Expand => match &focus.target {
-                SidebarTarget::Project { .. } => {
-                    if !self.sidebar_project_expanded(&focus.target) {
-                        self.toggle_sidebar_project(&focus.target);
+                SidebarTarget::Project { .. } | SidebarTarget::Recents { .. } => {
+                    if !self.sidebar_group_expanded(&focus.target) {
+                        self.toggle_sidebar_group(&focus.target);
                     } else if targets
                         .get(focus.position + 1)
                         .and_then(|target| self.sidebar_parent(target))
@@ -1226,14 +1298,16 @@ impl Picker {
                         self.focus_sidebar_position(position);
                     }
                 }
-                SidebarTarget::Project { .. } if self.sidebar_project_expanded(&focus.target) => {
-                    self.toggle_sidebar_project(&focus.target);
+                SidebarTarget::Project { .. } | SidebarTarget::Recents { .. }
+                    if self.sidebar_group_expanded(&focus.target) =>
+                {
+                    self.toggle_sidebar_group(&focus.target);
                 }
-                SidebarTarget::Project { .. } => {}
+                SidebarTarget::Project { .. } | SidebarTarget::Recents { .. } => {}
             },
             SidebarCommand::Activate => match &focus.target {
-                SidebarTarget::Project { .. } => {
-                    self.toggle_sidebar_project(&focus.target);
+                SidebarTarget::Project { .. } | SidebarTarget::Recents { .. } => {
+                    self.toggle_sidebar_group(&focus.target);
                 }
                 SidebarTarget::Context { machine, target }
                     if self.sidebar_target_exists(&focus.target) =>
@@ -1257,8 +1331,10 @@ impl Picker {
                 SidebarTarget::Agent { .. } => {}
             },
             SidebarCommand::OpenMenu
-                if !matches!(focus.target, SidebarTarget::Agent { .. })
-                    && self.sidebar_target_exists(&focus.target) =>
+                if matches!(
+                    focus.target,
+                    SidebarTarget::Project { .. } | SidebarTarget::Context { .. }
+                ) && self.sidebar_target_exists(&focus.target) =>
             {
                 return SidebarIntent::OpenMenu(focus.target);
             }

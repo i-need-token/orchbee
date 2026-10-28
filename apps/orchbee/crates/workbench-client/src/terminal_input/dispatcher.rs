@@ -1859,8 +1859,8 @@ impl InputDispatcher {
                                         );
                                     }
                                     let changed = match activation {
-                                        Some(SidebarActivation::ToggleProject(target)) => {
-                                            view.machines.toggle_sidebar_project(&target)
+                                        Some(SidebarActivation::ToggleGroup(target)) => {
+                                            view.machines.toggle_sidebar_group(&target)
                                         }
                                         Some(SidebarActivation::ToggleContext(target)) => {
                                             view.machines.toggle_sidebar_context_agents(&target)

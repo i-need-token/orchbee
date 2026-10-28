@@ -145,10 +145,8 @@ fn current_workspace_and_agent_have_distinct_surfaces_and_collapse_restores_the_
                 focused[(tracks.primary.x, y)].bg,
                 theme.color(Role::SurfaceSelection)
             );
-            assert_eq!(
-                focused[(tracks.current.x, y)].symbol(),
-                theme.glyphs.active_marker
-            );
+            // The fill alone marks current identity; the folded Workspace repeats unread.
+            assert!((0..40).all(|x| focused[(x, y)].symbol() != theme.glyphs.active_marker));
             assert_eq!(
                 focused[(tracks.unread.x, y)].symbol(),
                 theme.glyphs.status_bullet
@@ -165,10 +163,15 @@ fn current_workspace_and_agent_have_distinct_surfaces_and_collapse_restores_the_
                 );
                 view.machines.focus_sidebar_target(&agent);
                 let (focused, _, hits) = paint_navigation_buffers(&view, locale, &theme, 40, 20);
+                // Agent navigation tints its Workspace unless that Workspace is itself current,
+                // whose fill outranks the related tint.
+                let owner = if context.is_some() {
+                    Role::SurfaceCurrent
+                } else {
+                    Role::SurfaceRelated
+                };
                 for y in sidebar_target_rows(&hits, 40, 20, &workspace) {
-                    assert!(
-                        (0..40).all(|x| focused[(x, y)].bg == theme.color(Role::SurfaceRelated))
-                    );
+                    assert!((0..40).all(|x| focused[(x, y)].bg == theme.color(owner)));
                 }
                 let y = sidebar_target_rows(&hits, 40, 20, &agent)[0];
                 assert_eq!(
@@ -244,7 +247,14 @@ fn hover_press_and_navigation_compose_one_full_row_without_bolding_supporting_li
                             );
                         }
                         for y in &ys {
-                            assert_eq!(buffer[(first, *y)].symbol(), " ");
+                            // A Workspace opens at its edge marker cell; an Agent surface opens
+                            // with one blank cell before its state.
+                            let edge = if owner && navigate && *y == ys[0] {
+                                theme.glyphs.navigation_marker
+                            } else {
+                                " "
+                            };
+                            assert_eq!(buffer[(first, *y)].symbol(), edge);
                             for x in 0..40 {
                                 if hidden_by_candidate_wide_glyph(&buffer, x, *y) {
                                     continue;
@@ -404,6 +414,159 @@ fn explicit_identity_color_and_plain_override_survive_row_composition_without_pr
                 for span in lines.iter().skip(1).flat_map(|line| &line.spans) {
                     assert_eq!(lines[0].spans[0].style.bg, span.style.bg);
                 }
+            }
+        }
+    }
+}
+
+#[test]
+fn folded_workspace_status_line_orders_agent_states_by_urgency_and_bounds_the_remainder() {
+    use MetadataState as State;
+    use PanelAgentState::*;
+    for theme in [Theme::terminal_native(), Theme::one_dark()] {
+        for (states, expected, remainder) in [
+            (
+                vec![Idle, Working, Done, Error, Blocked],
+                vec![
+                    State::Blocked,
+                    State::Error,
+                    State::Done,
+                    State::Working,
+                    State::Idle,
+                ],
+                "",
+            ),
+            (
+                vec![Idle, Working, Done, Error, Blocked, Unknown, Working],
+                vec![State::Blocked, State::Error, State::Done, State::Working],
+                "+3",
+            ),
+        ] {
+            let mut view = view(120, 40);
+            configure(&mut view, serde_json::json!([[token("workspace")]]), 0);
+            let workspace = view.machines.space_rows()[0].sidebar_target().unwrap();
+            let SidebarTarget::Context { target, .. } = &workspace else {
+                unreachable!()
+            };
+            let agents = states
+                .iter()
+                .zip(30..)
+                .map(|(state, number)| {
+                    let mut agent = agent_for(target.clone(), number);
+                    agent.state = *state;
+                    agent
+                })
+                .collect();
+            view.machines.observe_agents(vec![(
+                Choice::Local,
+                crate::machine_agents::Observation::Ready(
+                    crate::machine_agents::test_support::checkpoint(agents),
+                ),
+            )]);
+            if view.machines.sidebar_context_agents_expanded(&workspace) {
+                assert!(view.machines.toggle_sidebar_context_agents(&workspace));
+            }
+            let (buffer, _, hits) = paint_navigation_buffers(&view, Locale::EnUs, &theme, 40, 20);
+            let rows = sidebar_target_rows(&hits, 40, 20, &workspace);
+            assert_eq!(rows.len(), 2, "folding adds one status line under the name");
+            let tracks = layout::Tracks::resolve(
+                Rect::new(0, rows[0], 40, 2),
+                0,
+                auxiliary_actions(&view.machines.sidebar_source(), &workspace),
+                layout::RowKind::for_target(&workspace),
+            )
+            .unwrap();
+            let y = rows[1];
+            let mut x = tracks.primary.x;
+            for state in &expected {
+                assert_eq!(
+                    buffer[(x, y)].symbol(),
+                    theme.agent_glyph(*state),
+                    "{state:?}"
+                );
+                assert_eq!(buffer[(x + 1, y)].symbol(), " ");
+                x += 2;
+            }
+            let rest: String = (x..40).map(|x| buffer[(x, y)].symbol()).collect();
+            assert_eq!(rest.trim_end(), remainder);
+            if !remainder.is_empty() {
+                assert_eq!(
+                    buffer[(x, y)].fg,
+                    theme
+                        .style(Role::TextSecondary)
+                        .fg
+                        .unwrap_or(ratatui::style::Color::Reset)
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn current_sidebar_rows_stay_plain_and_distinguishable_at_every_color_level() {
+    for base in [
+        Theme::terminal_native(),
+        Theme::one_light(),
+        Theme::one_dark(),
+    ] {
+        for level in [
+            ColorLevel::Truecolor,
+            ColorLevel::Ansi256,
+            ColorLevel::Ansi16,
+            ColorLevel::Monochrome,
+        ] {
+            let theme = base.quantize(level);
+            let (mut view, workspace, agent) = current_agent_view();
+            let sibling = view
+                .machines
+                .sidebar_navigation_rows()
+                .iter()
+                .map(SidebarRow::target)
+                .find(|target| matches!(target, SidebarTarget::Agent { .. }) && target != &agent)
+                .unwrap();
+            let other = view.machines.space_rows()[1].sidebar_target().unwrap();
+            // A visible current Agent owns the fill; folding it away hands the fill to its
+            // Workspace.
+            for (kind, current, peer) in [
+                ("Agent", &agent, &sibling),
+                ("Workspace", &workspace, &other),
+            ] {
+                if current == &workspace {
+                    assert!(view.machines.toggle_sidebar_context_agents(&workspace));
+                }
+                let (buffer, _, hits) =
+                    paint_navigation_buffers(&view, Locale::EnUs, &theme, 40, 20);
+                let identity = |target: &SidebarTarget| {
+                    let y = sidebar_target_rows(&hits, 40, 20, target)[0];
+                    let tracks = layout::Tracks::resolve(
+                        Rect::new(0, y, 40, 1),
+                        0,
+                        auxiliary_actions(&view.machines.sidebar_source(), target),
+                        layout::RowKind::for_target(target),
+                    )
+                    .unwrap();
+                    (tracks.primary.x, y)
+                };
+                let (x, y) = identity(current);
+                let shown = &buffer[(x, y)];
+                let rest = &buffer[identity(peer)];
+                assert!(
+                    (x..40).all(|x| !buffer[(x, y)].modifier.contains(Modifier::BOLD)),
+                    "{} {level:?}: the current {kind} is not bold",
+                    base.name
+                );
+                assert!(
+                    shown.bg != rest.bg
+                        || shown.modifier.contains(Modifier::UNDERLINED)
+                            && !rest.modifier.contains(Modifier::UNDERLINED),
+                    "{} {level:?}: the current {kind} looks like its peer",
+                    base.name
+                );
+                assert!(
+                    (0..40).all(|x| buffer[(x, y)].symbol() != theme.glyphs.active_marker),
+                    "{} {level:?}: the current {kind} has no text marker",
+                    base.name
+                );
             }
         }
     }

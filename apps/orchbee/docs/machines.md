@@ -657,7 +657,7 @@ text rules inspect original values before terminal sanitization. Icon and Git
 count tokens do not admit text rules. Nonempty configured rows retain their slots when values are missing or hidden;
 an empty configuration retains one identity row for navigation.
 
-Workspace state aggregates complete physical Agent facts independently of seen, using the established attention/error/outcome/working/idle/unknown ordering: blocked, error, done, working, idle, unknown. No observed Agent leaves the state slot blank; it never manufactures idle. A known Agent with insufficient state evidence is unknown. Source filters and custom display labels do not change this authority.
+Workspace state aggregates complete physical Agent facts independently of seen, using the established attention/error/outcome/working/idle/unknown ordering: blocked, error, done, working, idle, unknown. `state_text` shows the most urgent state, and a folded Workspace's status line lists every Agent's state in that order. Without an observed Agent both stay empty; neither manufactures idle. A known Agent with insufficient state evidence is unknown. Source filters and custom display labels do not change this authority.
 Git observations follow the Workspace's first terminal, the leading Panel primary
 of its first Tab, on the selected Worker. Its directory is the latest OSC 7/9;9
 report, otherwise the root process cwd, from the Server's existing periodic process

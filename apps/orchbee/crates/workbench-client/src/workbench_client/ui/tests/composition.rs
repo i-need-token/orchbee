@@ -293,7 +293,7 @@ fn machine_capture_suppresses_native_proof_hits_and_remembered_sidebar_focus() {
     assert!(!frame.text().contains(Locale::EnUs.shell().board.title));
     assert!(!frame.has_hit(|target| matches!(
         target,
-        HitTarget::MachineProjectRow { .. }
+        HitTarget::MachineGroupRow { .. }
             | HitTarget::MachineWorkspaceRow { .. }
             | HitTarget::MachineAgentRow { .. }
             | HitTarget::MachineWorkspaceSurface(_)

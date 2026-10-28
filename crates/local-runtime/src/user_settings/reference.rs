@@ -118,7 +118,7 @@ pub const USER_CONFIG_OPTIONS: &[UserConfigOption] = &[
     },
     UserConfigOption {
         path: "ui.sidebar.spaces.rows",
-        default: "[['state_icon', 'workspace', 'git_status'], ['location']]",
+        default: "[['workspace', 'git_status'], ['location']]",
         choices: "up to 16 rows of 16 tokens; state_icon, state_text, workspace, branch, location, git_status, or custom token keys",
         description: "Rows shown for Space sidebar entries.",
     },

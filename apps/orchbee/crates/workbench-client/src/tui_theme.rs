@@ -160,8 +160,6 @@ pub struct GlyphSet {
     pub(crate) middle_dot: &'static str,
     /// Status glyph used in the sidebar session section.
     pub(crate) status_bullet: &'static str,
-    /// Workspace identity when no Agent state is available; never an activity status.
-    pub(crate) workspace: &'static str,
     pub(crate) git_ahead: &'static str,
     pub(crate) git_behind: &'static str,
     /// Active marker in navigator and context lists.
@@ -188,7 +186,6 @@ impl GlyphSet {
         ellipsis: "…",
         middle_dot: "·",
         status_bullet: "•",
-        workspace: "•",
         git_ahead: "↑",
         git_behind: "↓",
         active_marker: "*",
@@ -208,7 +205,6 @@ impl GlyphSet {
         ellipsis: "..",
         middle_dot: "-",
         status_bullet: "*",
-        workspace: "w",
         git_ahead: "+",
         git_behind: "-",
         active_marker: "*",
@@ -850,14 +846,16 @@ impl Theme {
             .add_modifier(surface.add_modifier)
     }
 
-    /// Quantization can collapse the context fill onto chrome. Retain a text
-    /// marker in that case, including when token overrides suppress bold text.
-    pub(crate) fn current_context_marker(&self) -> &'static str {
+    /// A surface whose current row is marked by its fill alone underlines that row where
+    /// quantization collapses the fill onto chrome, as Monochrome does.
+    pub(crate) fn underline_collapsed_current(mut self) -> Self {
         if self.styles.surface_current.bg == self.styles.surface_chrome.bg {
-            self.glyphs.active_marker
-        } else {
-            " "
+            self.styles.surface_current = self
+                .styles
+                .surface_current
+                .add_modifier(Modifier::UNDERLINED);
         }
+        self
     }
 
     /// Explicit user token styles remain data owned by the theme boundary.
@@ -1276,9 +1274,8 @@ impl Theme {
                 .fg(Color::Reset)
                 .bg(Color::Reset)
                 .add_modifier(Modifier::BOLD | Modifier::REVERSED);
-            styles.surface_current = styles
-                .surface_current
-                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED);
+            // Current identity owners that document bold add it themselves.
+            styles.surface_current = styles.surface_current.add_modifier(Modifier::UNDERLINED);
             styles.accent_selection = styles
                 .accent_selection
                 .add_modifier(Modifier::BOLD | Modifier::REVERSED);

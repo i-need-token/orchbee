@@ -66,6 +66,7 @@ pub(crate) struct RowTracks<'a> {
     provisional: Option<Rect>,
     checked: Option<(Rect, &'a str)>,
     status: Option<Rect>,
+    plain_current: bool,
 }
 
 impl<'a> RowTracks<'a> {
@@ -78,6 +79,7 @@ impl<'a> RowTracks<'a> {
             provisional: None,
             checked: None,
             status: None,
+            plain_current: false,
         }
     }
 
@@ -104,6 +106,12 @@ impl<'a> RowTracks<'a> {
     /// Reserves the operation-status track for idle and pending rows.
     pub(crate) const fn with_status(mut self, status: Rect) -> Self {
         self.status = Some(status);
+        self
+    }
+
+    /// Marks current identity by the current surface alone, without bold on the primary track.
+    pub(crate) const fn with_plain_current(mut self) -> Self {
+        self.plain_current = true;
         self
     }
 }
@@ -212,7 +220,7 @@ pub(crate) fn paint_row_interaction(
             theme,
         );
     }
-    if state.current == CurrentState::Current {
+    if state.current == CurrentState::Current && !tracks.plain_current {
         frame
             .buffer_mut()
             .set_style(tracks.primary, Style::new().add_modifier(Modifier::BOLD));

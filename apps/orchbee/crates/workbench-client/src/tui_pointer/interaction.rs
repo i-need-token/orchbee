@@ -225,10 +225,12 @@ impl InteractionTarget {
                 use crate::machine_picker::{SidebarPart, SidebarTarget};
                 match target.part() {
                     SidebarPart::Primary => match target.target() {
-                        SidebarTarget::Project { .. } => HitTarget::MachineProjectRow {
-                            target: target.target().clone(),
-                            window: target.window(),
-                        },
+                        SidebarTarget::Project { .. } | SidebarTarget::Recents { .. } => {
+                            HitTarget::MachineGroupRow {
+                                target: target.target().clone(),
+                                window: target.window(),
+                            }
+                        }
                         SidebarTarget::Context { .. } => HitTarget::MachineWorkspaceRow {
                             selected: target
                                 .selection()

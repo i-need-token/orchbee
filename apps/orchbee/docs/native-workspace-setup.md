@@ -70,14 +70,14 @@ Carrier retirement immediately hides creation feedback while preserving those re
 The known Workspace ID replaces the provisional row. The active Client's validated command-lane
 snapshot supplies canonical sidebar topology without waiting for the independent metadata observer.
 A newer same-Session checkpoint supersedes older topology, including when it removed the Workspace.
-A collapsed Project shows the current
-marker only while the checkpoint still places that exact Workspace in it. Labels never deduplicate creations, and
-a prior receipt never supplies a newer launch's identity.
+Labels never deduplicate creations, and a prior receipt never supplies a newer launch's identity.
 
-The provisional row occupies the append position in its eventual machine and Project group from
-the first frame. It shares the canonical list's row gaps and viewport window; foreground creation
-anchors that window to the same slot before and after the exact-ID handoff. A collapsed destination
-Project carries the current marker instead of exposing a temporary child outside the group.
+The provisional row occupies the append position in its eventual machine and Project or Recents
+group from the first frame. Its name aligns with Workspace names, with the `status-pending` glyph in
+the edge cell before it and the localized progress after the name. It shares the canonical list's
+row gaps and viewport window; foreground creation anchors that window to the same slot before and
+after the exact-ID handoff. A folded destination Project or Recents heading shows neither a
+temporary child nor current feedback; the window reveals that heading instead.
 
 ## Optional Project organization
 

@@ -6,26 +6,25 @@ use ratatui::layout::Rect;
 const NAVIGATION_WIDTH: u16 = 1;
 const DISCLOSURE_WIDTH: u16 = 1;
 const DISCLOSURE_GAP: u16 = 1;
-/// A single vertical guide sits under the Workspace state, followed by one blank cell.
+/// A single vertical guide sits under the first cell of the Workspace name, then one blank cell.
 const GUIDE_WIDTH: u16 = 1;
 const GUIDE_GAP: u16 = 1;
-/// A filled blank cell separates each Workspace or Agent surface edge from its state.
+/// A filled blank cell separates each Agent surface edge from its state.
 const ROW_LEADING_PADDING: u16 = 1;
-const CURRENT_WIDTH: u16 = 1;
 const STATE_WIDTH: u16 = 1;
-const STATE_GAP: u16 = 1;
 const UNREAD_WIDTH: u16 = 1;
-const METADATA_GAP: u16 = 1;
+/// One blank cell separates the identity from a trailing auxiliary control.
+const AUXILIARY_GAP: u16 = 1;
 const COMFORTABLE_MINIMUM: u16 = 52;
 const COMPACT_MINIMUM: u16 = 28;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum RowKind {
-    /// A Project or ungrouped heading: identity starts at the list edge without a state slot.
+    /// A Project or Recents heading: the navigation cell at the list edge, then the label.
     Group,
-    /// A Workspace: leading surface padding, then state and identity.
+    /// A Workspace: aligned with the headings, without a state column.
     Owner,
-    /// An Agent: vertical guide, a chrome gap, then padded state and identity.
+    /// An Agent: vertical guide, a chrome gap, then padded state, navigation and title.
     Agent,
 }
 
@@ -33,7 +32,7 @@ impl RowKind {
     pub(super) const fn for_target(target: &SidebarTarget) -> Self {
         match target {
             SidebarTarget::Agent { .. } => Self::Agent,
-            SidebarTarget::Project { .. } => Self::Group,
+            SidebarTarget::Project { .. } | SidebarTarget::Recents { .. } => Self::Group,
             SidebarTarget::Context { .. } => Self::Owner,
         }
     }
@@ -104,8 +103,9 @@ pub(super) struct Tracks {
     pub(super) navigation: Rect,
     pub(super) disclosure: Rect,
     pub(super) guide: Rect,
-    pub(super) current: Rect,
+    /// The Agent state glyph; empty on headings and Workspaces.
     pub(super) state: Rect,
+    /// The last primary cell, which an unread marker takes after a blank cell when shown.
     pub(super) unread: Rect,
     pub(super) primary: Rect,
     pub(super) auxiliary: Rect,
@@ -145,57 +145,38 @@ impl Tracks {
             band.height,
         );
         let content_y = band.y.saturating_add(leading_gap);
-        // Workspace states and Agent guides align after row padding. Headings keep their marker slot.
-        let guide = clipped_track(
-            band,
-            band.x.saturating_add(if kind == RowKind::Group {
-                NAVIGATION_WIDTH
-            } else {
-                ROW_LEADING_PADDING
-            }),
-            if kind == RowKind::Agent {
-                GUIDE_WIDTH
-            } else {
-                0
-            },
-        );
-        // A Workspace state shares the guide column. Headings reserve no state slot.
-        let state = clipped_track(
-            band,
-            guide.right().saturating_add(if kind == RowKind::Agent {
-                GUIDE_GAP + ROW_LEADING_PADDING
-            } else {
-                0
-            }),
-            if kind == RowKind::Group {
-                0
-            } else {
-                STATE_WIDTH
-            },
-        );
-        // The existing state-to-name gap carries keyboard focus without adding leading space.
-        let navigation = clipped_track(
-            band,
-            if kind == RowKind::Group {
-                band.x
-            } else {
-                state.right()
-            },
-            NAVIGATION_WIDTH,
-        );
-        let metadata_width = METADATA_GAP + CURRENT_WIDTH + UNREAD_WIDTH;
-        let primary_right = auxiliary.x.checked_sub(metadata_width)?;
-        let primary_x = if kind == RowKind::Group {
-            state.right()
+        let (guide, state, navigation) = if kind == RowKind::Agent {
+            // The guide sits under the Workspace name's first cell; the padded state follows.
+            let guide = clipped_track(band, band.x.saturating_add(NAVIGATION_WIDTH), GUIDE_WIDTH);
+            let state = clipped_track(
+                band,
+                guide
+                    .right()
+                    .saturating_add(GUIDE_GAP + ROW_LEADING_PADDING),
+                STATE_WIDTH,
+            );
+            (
+                guide,
+                state,
+                clipped_track(band, state.right(), NAVIGATION_WIDTH),
+            )
         } else {
-            state.right().saturating_add(STATE_GAP)
+            // Headings and Workspaces keep the navigation cell at the list edge and no state.
+            let navigation = clipped_track(band, band.x, NAVIGATION_WIDTH);
+            let empty = Rect::new(navigation.right(), band.y, 0, band.height);
+            (empty, empty, navigation)
+        };
+        let primary_x = navigation.right();
+        let primary_right = if auxiliary_width == 0 {
+            auxiliary.x
+        } else {
+            auxiliary.x.checked_sub(AUXILIARY_GAP)?
         };
         if primary_x >= primary_right {
             return None;
         }
-        let current = clipped_track(band, primary_right + METADATA_GAP, CURRENT_WIDTH);
-        let unread = clipped_track(band, current.right(), UNREAD_WIDTH);
         let primary = Rect::new(primary_x, band.y, primary_right - primary_x, band.height);
+        let unread = clipped_track(band, primary.right() - UNREAD_WIDTH, UNREAD_WIDTH);
         let disclosure = Rect::new(primary.right(), content_y, 0, 0);
         let create = actions.create(density, auxiliary);
         Some(Self {
@@ -205,7 +186,6 @@ impl Tracks {
             navigation,
             disclosure,
             guide,
-            current,
             state,
             unread,
             primary,

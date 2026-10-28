@@ -683,7 +683,13 @@ fn shipped_low_color_and_monochrome_preserve_readable_hierarchy() {
         Theme::one_light(),
         Theme::one_dark(),
     ] {
-        assert_eq!(theme.current_context_marker(), " ");
+        // Shipped fills keep the current row distinct, so no underline joins them.
+        assert_eq!(
+            theme
+                .underline_collapsed_current()
+                .style(Role::SurfaceCurrent),
+            theme.style(Role::SurfaceCurrent)
+        );
         let low = theme.quantize(ColorLevel::Ansi16);
         if theme.polarity.is_some() {
             for role in [
@@ -726,7 +732,12 @@ fn shipped_low_color_and_monochrome_preserve_readable_hierarchy() {
             theme.name
         );
         let mono = theme.quantize(ColorLevel::Monochrome);
-        assert_eq!(mono.current_context_marker(), theme.glyphs.active_marker);
+        // Monochrome has no fill to mark the current row: underline marks it, never bold.
+        let current = mono
+            .underline_collapsed_current()
+            .style(Role::SurfaceCurrent);
+        assert!(current.add_modifier.contains(Modifier::UNDERLINED));
+        assert!(!current.add_modifier.contains(Modifier::BOLD));
         for role in Role::ALL {
             for color in [mono.style(role).fg, mono.style(role).bg]
                 .into_iter()
@@ -1336,7 +1347,6 @@ fn themes_carry_uniform_corners_and_resolved_glyphs() {
         GlyphSet::ASCII.ellipsis,
         GlyphSet::ASCII.middle_dot,
         GlyphSet::ASCII.status_bullet,
-        GlyphSet::ASCII.workspace,
         GlyphSet::ASCII.active_marker,
         GlyphSet::ASCII.navigation_marker,
         GlyphSet::ASCII.disclosure_open,

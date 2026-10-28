@@ -18,7 +18,7 @@ impl Item {
                 }
                 ClientContextLocation::NoWorkspace => return None,
             },
-            SidebarTarget::Agent { .. } => return None,
+            SidebarTarget::Recents { .. } | SidebarTarget::Agent { .. } => return None,
         })
     }
 }

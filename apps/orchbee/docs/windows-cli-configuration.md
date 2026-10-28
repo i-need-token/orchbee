@@ -395,23 +395,24 @@ A Project's first Workspace sits directly under its heading.
 
 ```toml
 [ui.sidebar.spaces]
-rows = [["state_icon", "workspace"], [{ token = "branch", fg = "#8bc", rules = [{ starts_with = "worktree/", dim = true }] }, "git_status"], ["$issue"]]
+rows = [["workspace"], [{ token = "branch", fg = "#8bc", rules = [{ starts_with = "worktree/", dim = true }] }, "git_status"], ["$issue"]]
 row_gap = 0
 ```
 
-Defaults are `[["state_icon", "workspace", "git_status"], ["location"]]`, gap 0.
+Defaults are `[["workspace", "git_status"], ["location"]]`, gap 0.
 `location` shows the branch, otherwise the Workspace folder with a local home folder shortened to
 `~`. An explicit `rows = []` keeps an identity/navigation row. The other builtin is
-`state_text`; `$name` reads Workspace reports and never replaces a builtin.
+`state_text`; `$name` reads Workspace reports and never replaces a builtin. `state_icon` remains
+accepted for compatibility but paints nothing on a Workspace row.
 Styles and first-match rules share Agent admission, but icons/Git counts reject
 text rules and Workspace layouts have no `rows_by_agent`. Limit 16 rows, 16 tokens
 per row, 16 rules per text token and `row_gap` 0–65535. Missing/hidden values collapse.
-Operational state paints in the row's leading state track, and Git counts right-align at the
-end of the line that configures them, flush with the row's trailing edge on the identity line;
-other text shares the remaining cells.
+Git counts right-align at the end of the line that configures them, flush with the row's
+trailing edge on the identity line; other text shares the remaining cells. A folded Workspace
+replaces its second configured line with its Agents' status line.
 
-State uses the complete physical Agent checkpoint, independent of seen and of list/source
-filters. Git reads the committed Workspace directory
+State text and the folded status line use the complete physical Agent checkpoint, independent of
+seen and of list/source filters. Git reads the committed Workspace directory
 on its Worker, showing nonzero ahead/behind against the local upstream. Missing
 upstream supplies no counts; nonrepositories supply no Git observation. Detached
 has no branch; unborn keeps its branch name. No fetch, configuration write, hook/fsmonitor execution, terminal

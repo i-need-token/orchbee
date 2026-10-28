@@ -434,7 +434,8 @@ fn variable_sidebar_heights_gaps_and_small_viewports_publish_exact_hit_geometry(
             _ => None,
         })
         .unwrap();
-    assert_eq!(window.capacity, 2);
+    // The Recents heading and its Workspace each take one row before the first Agent.
+    assert_eq!(window.capacity, 3);
     view.machines.queue_space_scroll(window, false);
     assert!(view.machines.settle_sidebar_scroll());
     let (_, hits) = paint(&view, Locale::EnUs, &Theme::terminal_native(), 60, 12);
@@ -444,7 +445,7 @@ fn variable_sidebar_heights_gaps_and_small_viewports_publish_exact_hit_geometry(
             // The six-row body fits both remaining entries exactly: the first
             // visible entry owns no leading gap (three Claude rows), then the
             // custom entry owns its one-row gap plus two content rows.
-            assert_eq!((window.top, window.end()), (2, 4));
+            assert_eq!((window.top, window.end()), (3, 5));
             let Some(crate::workbench_client::ClientStartupTarget::Agent(target)) =
                 &selected.context
             else {
@@ -1038,11 +1039,12 @@ fn sidebar_renders_complete_rows_at_all_tiers_locales_and_themes() {
                                 continue;
                             }
                             inspected.push(selected.clone());
-                            assert!(window.capacity > 0 && window.end() <= 21);
+                            // The Recents heading, its Workspace and twenty Agents.
+                            assert!(window.capacity > 0 && window.end() <= 22);
                             // The range footer appears exactly when the window clips entries.
                             assert_eq!(
-                                joined.contains("/21"),
-                                window.top > 0 || window.end() < 21,
+                                joined.contains("/22"),
+                                window.top > 0 || window.end() < 22,
                                 "{rows:?}"
                             );
                             let exact = (0..height)
@@ -1078,7 +1080,12 @@ fn compact_sidebar_visual_rows_and_mouse_bounds_match_the_painted_window() {
     let (rows, hits) = paint(&view, Locale::EnUs, &theme, 60, 12);
     assert!(rows[1].contains("[ New workspace ]"), "{rows:?}");
     assert!(rows[2].contains("[ Search ]"), "{rows:?}");
-    assert!(rows[3].contains("Ungrouped 1"), "{rows:?}");
+    // The Recents heading names the group without a member count.
+    assert_eq!(
+        rows[3].split_whitespace().collect::<Vec<_>>(),
+        ["Recents", "│"],
+        "{rows:?}"
+    );
     assert!(rows[4].contains("Workspace"), "{rows:?}");
     assert!(!rows[4].contains(theme.glyphs.ellipsis), "{rows:?}");
     assert!(
@@ -1270,27 +1277,29 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
                 _ => None,
             })
             .unwrap();
+        // The fill alone marks the current row, underlined only where no fill can show.
+        assert_eq!(
+            terminal.backend().buffer()[(title_x, y)]
+                .modifier
+                .contains(Modifier::UNDERLINED),
+            theme
+                .underline_collapsed_current()
+                .style(Role::SurfaceCurrent)
+                .add_modifier
+                .contains(Modifier::UNDERLINED)
+        );
         let (rows, _) = paint(&view, Locale::EnUs, &theme, 120, 40);
-        let marker = theme.current_context_marker();
         assert!(
             rows[y as usize]
                 .contains(theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)),
             "{:?}",
             rows[y as usize]
         );
-        if marker == " " {
-            assert_eq!(
-                rows[y as usize].matches(theme.glyphs.active_marker).count(),
-                0,
-                "RGB/ANSI themes rely on the current-row style without an extra text marker"
-            );
-        } else {
-            assert_eq!(rows[y as usize].matches(marker).count(), 1);
-            let marker_x = (0..30)
-                .find(|x| terminal.backend().buffer()[(*x, y)].symbol() == marker)
-                .unwrap();
-            assert_eq!(marker_x, 27);
-        }
+        assert_eq!(
+            rows[y as usize].matches(theme.glyphs.active_marker).count(),
+            0,
+            "no theme adds a text marker to the current row"
+        );
         assert_eq!(
             view.machines
                 .sidebar_navigation_rows()

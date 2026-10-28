@@ -74,10 +74,6 @@ pub(crate) enum ShortcutContext {
 impl Locale {
     pub(crate) fn sidebar_marker_label(self, marker: &str) -> &'static str {
         match (self, marker) {
-            (Self::EnUs, "workspace") => "Workspace",
-            (Self::ZhCn, "workspace") => "工作区",
-            (Self::EnUs, "current") => "Current",
-            (Self::ZhCn, "current") => "当前",
             (Self::EnUs, "unread") => "Unseen change",
             (Self::ZhCn, "unread") => "有未读变化",
             (Self::EnUs, "expanded") => "Expanded",

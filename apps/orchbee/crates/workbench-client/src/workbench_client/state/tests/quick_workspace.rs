@@ -580,11 +580,11 @@ fn project_row_and_disclosure_focus_retires_submitted_entering_and_queued_ready_
                 project: Some("Project".into()),
                 workspace: Some("Workspace".into()),
             }]);
-        // Both MachineProjectRow and SidebarDisclosure reach this exact
+        // Both MachineGroupRow and SidebarDisclosure reach this exact
         // Picker owner transition, bypassing ClientAction/commit_pointer.
         assert!(view.machines.sidebar_target_exists(&target));
         assert!(view.machines.focus_sidebar_target(&target));
-        assert!(view.machines.toggle_sidebar_project(&target));
+        assert!(view.machines.toggle_sidebar_group(&target));
         assert!(view.machines.sidebar_navigation_active());
         assert!(view.project_quick_entry_pending());
         // The initial Native shell adapter settles intent before any Ready take.

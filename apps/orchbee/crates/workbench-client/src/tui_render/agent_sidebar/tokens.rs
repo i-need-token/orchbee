@@ -1,5 +1,5 @@
 //! Pure token projection from the already-fenced Agent row. No I/O or Agent authority.
-use super::super::workspace_sidebar::{CurrentIdentityEmphasis, ProjectedSidebarLines};
+use super::super::workspace_sidebar::ProjectedSidebarLines;
 use super::{ClientView, Line, Locale, Role, Span, Theme, display_label, machine_label};
 use crate::machine_picker::Row;
 use orchbee_local_runtime::{AgentSidebarToken, AgentSidebarTokenKind as Kind, SidebarTokenStyle};
@@ -119,7 +119,7 @@ pub(in crate::tui_render) fn projection(
             locale.machine_picker_text(row.sidebar_status().unwrap_or("agents-unavailable")),
             theme.style(Role::TextDisabled),
         ));
-        return ProjectedSidebarLines::new(lines, CurrentIdentityEmphasis::Theme);
+        return ProjectedSidebarLines::new(lines);
     };
     let (_, state_role) = super::super::sidebar_text::state_role(context.agent.display_state());
     let text_style =
@@ -146,16 +146,12 @@ pub(in crate::tui_render) fn projection(
         } else {
             title
         };
-        return ProjectedSidebarLines::new(
-            vec![Line::from(Span::styled(
-                title,
-                text_style(Role::TextPrimary, true),
-            ))],
-            CurrentIdentityEmphasis::Theme,
-        );
+        return ProjectedSidebarLines::new(vec![Line::from(Span::styled(
+            title,
+            text_style(Role::TextPrimary, true),
+        ))]);
     };
     let mut lines = Vec::new();
-    let mut current_identity = CurrentIdentityEmphasis::Theme;
     for row in rows {
         let mut spans = Vec::new();
         let mut previous_icon = false;
@@ -187,9 +183,6 @@ pub(in crate::tui_render) fn projection(
             } else {
                 Role::TextSecondary
             };
-            if token_role == Role::TextPrimary && style.bold == Some(false) {
-                current_identity = CurrentIdentityEmphasis::ExplicitPlain;
-            }
             let projected = theme.sidebar_token_style(token_role, style, false, false);
             spans.push(Span::styled(text, projected));
         }
@@ -200,7 +193,7 @@ pub(in crate::tui_render) fn projection(
     if lines.is_empty() {
         lines.push(Line::default());
     }
-    ProjectedSidebarLines::new(lines, current_identity)
+    ProjectedSidebarLines::new(lines)
 }
 
 #[cfg(test)]

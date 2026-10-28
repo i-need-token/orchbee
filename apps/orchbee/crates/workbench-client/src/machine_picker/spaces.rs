@@ -82,12 +82,13 @@ impl Picker {
                 &checkpoint.session_id == session && checkpoint.revision >= revision
             })
     }
-    /// Current canonical membership keeps a collapsed Project marker from outliving its Workspace.
-    pub(crate) fn workspace_checkpoint_project(
+    /// The Project, or `Some(None)` for Recents, that current canonical membership gives one
+    /// Workspace; `None` while the checkpoint does not place it.
+    pub(crate) fn workspace_checkpoint_group(
         &self,
         session: &orchbee_workbench_protocol::SessionId,
         workspace: &orchbee_workbench_protocol::WorkbenchWorkspaceId,
-    ) -> Option<&orchbee_workbench_protocol::WorkbenchProjectId> {
+    ) -> Option<Option<&orchbee_workbench_protocol::WorkbenchProjectId>> {
         let checkpoint = self.space_checkpoint(&self.current)?;
         if &checkpoint.session_id != session {
             return None;
@@ -98,9 +99,7 @@ impl Picker {
             else {
                 return None;
             };
-            (workspace_id == workspace)
-                .then_some(row.project_id.as_ref())
-                .flatten()
+            (workspace_id == workspace).then_some(row.project_id.as_ref())
         })
     }
     pub fn wants_spaces(&self) -> bool {
@@ -230,25 +229,33 @@ impl Picker {
             .and_then(|checkpoint| checkpoint.rows.iter().find(|r| r.target == context.target))
     }
     pub(crate) fn workspace_state(&self, row: &Row) -> Option<MetadataState> {
-        let context = row.context.as_ref()?;
+        self.workspace_agent_states(row).first().copied()
+    }
+    /// Every Agent state in one Workspace, most urgent first; empty without a complete checkpoint.
+    pub(crate) fn workspace_agent_states(&self, row: &Row) -> Vec<MetadataState> {
+        let Some(context) = row.context.as_ref() else {
+            return Vec::new();
+        };
         let Some(crate::machine_agents::Observation::Ready(cp)) = self
             .agent_observations
             .iter()
             .find(|(c, _)| c == &row.choice)
             .map(|(_, o)| o)
         else {
-            return None;
+            return Vec::new();
         };
         if cp.session_id != context.target.session_id || !cp.contexts.contains(&context.target) {
-            return None;
+            return Vec::new();
         }
         // These are complete, attention-projected physical rows, before every view/source filter.
-        most_urgent(
-            cp.rows
-                .iter()
-                .filter(|r| r.target.context == context.target)
-                .map(crate::machine_agents::Row::display_state),
-        )
+        let mut states = cp
+            .rows
+            .iter()
+            .filter(|r| r.target.context == context.target)
+            .map(crate::machine_agents::Row::display_state)
+            .collect::<Vec<_>>();
+        states.sort_by_key(|state| urgency(*state));
+        states
     }
     /// The attached machine's Agents in one Tab, summarized like a collapsed Workspace row.
     pub(crate) fn tab_agent(
@@ -418,14 +425,17 @@ pub(crate) struct TabAgent {
 }
 
 /// Blocked, error, done, working, then idle: the order a person needs to act on them.
-pub(crate) fn most_urgent(states: impl Iterator<Item = MetadataState>) -> Option<MetadataState> {
-    let rank = |state| match state {
+const fn urgency(state: MetadataState) -> u8 {
+    match state {
         MetadataState::Blocked => 0,
         MetadataState::Error => 1,
         MetadataState::Done => 2,
         MetadataState::Working => 3,
         MetadataState::Idle => 4,
         MetadataState::Unknown => 5,
-    };
-    states.min_by_key(|state| rank(*state))
+    }
+}
+
+pub(crate) fn most_urgent(states: impl Iterator<Item = MetadataState>) -> Option<MetadataState> {
+    states.min_by_key(|state| urgency(*state))
 }

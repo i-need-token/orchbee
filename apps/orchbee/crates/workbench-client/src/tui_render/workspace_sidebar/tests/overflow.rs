@@ -58,9 +58,7 @@ fn revealed_frame(
             (0..width).any(|x| {
                 matches!(
                     map.hit_target_at(x, *y),
-                    Some(
-                        HitTarget::MachineProjectRow { .. } | HitTarget::MachineWorkspaceRow { .. }
-                    )
+                    Some(HitTarget::MachineGroupRow { .. } | HitTarget::MachineWorkspaceRow { .. })
                 )
             })
         })
@@ -307,23 +305,12 @@ fn project_group_gap_stays_inert_while_hover_targets_only_the_inline_disclosure_
                         layout::RowKind::Group,
                     )
                     .unwrap();
-                    let count =
-                        view.machines
-                            .sidebar_navigation_rows()
-                            .iter()
-                            .find_map(|row| match row {
-                                crate::machine_picker::SidebarRow::Project {
-                                    workspaces, ..
-                                } if row.target() == target => Some(format!(" {workspaces}")),
-                                _ => None,
-                            })
-                            .unwrap();
-                    // Only the name truncates; the member count stays whole before the disclosure.
+                    // Only the name truncates before the disclosure; a heading has no count.
                     let expected_label = truncate_display(
                         label,
-                        usize::from(tracks.text_width(true)).saturating_sub(display_width(&count)),
+                        usize::from(tracks.text_width(true)),
                         theme.glyphs.ellipsis,
-                    ) + &count;
+                    );
                     let disclosure_x = tracks.primary.x + display_width(&expected_label) as u16 + 1;
                     let disclosure_cells = (0..24)
                         .flat_map(|y| (0..width).map(move |x| (x, y)))
@@ -405,7 +392,7 @@ fn project_group_gap_stays_inert_while_hover_targets_only_the_inline_disclosure_
                     assert_eq!(view.machines.sidebar_focused_target(), before.as_ref());
                     assert!(!view.machines.sidebar_navigation_active());
                     assert!(view.machines.request.is_none());
-                    assert!(view.machines.sidebar_project_expanded(&target));
+                    assert!(view.machines.sidebar_group_expanded(&target));
                 }
             }
         }

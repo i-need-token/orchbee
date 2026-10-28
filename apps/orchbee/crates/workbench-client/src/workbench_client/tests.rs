@@ -370,10 +370,7 @@ fn native_create_action_renders_before_feedback_and_captures_wire_intent() -> Te
     let mut client_view = ClientView::new(120);
     let before_feedback = render_workbench_client(&workbench_client, &client_view)?;
     assert!(
-        before_feedback.contains(&format!(
-            "{}initial_workspace",
-            crate::tui_theme::Theme::terminal_native().current_context_marker()
-        )),
+        before_feedback.contains(" initial_workspace"),
         "{before_feedback}"
     );
     assert_eq!(
@@ -1735,13 +1732,7 @@ fn workspace_geometry_changes_require_a_separate_controller_grant() -> TestResul
         }
         let mut client_view = ClientView::new(120);
         let rendered = render_workbench_client(&workbench_client, &client_view)?;
-        assert!(
-            rendered.contains(&format!(
-                "{}initial_workspace",
-                crate::tui_theme::Theme::terminal_native().current_context_marker()
-            )),
-            "{rendered}"
-        );
+        assert!(rendered.contains(" initial_workspace"), "{rendered}");
         if !controlling {
             assert!(workbench_client.forward(b"never submitted").is_err());
             assert!(
