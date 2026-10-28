@@ -1,0 +1,74 @@
+[package]
+name = "orchbee-workbench-client"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[features]
+# Exposes Client runtime fixtures and transport fakes to the owning application's tests through
+# its development dependency.
+test-support = ["orchbee-local-client/test-support"]
+
+[dependencies]
+serde.workspace = true
+base64.workspace = true
+getrandom.workspace = true
+orchbee-local-client = { path = "../local-client" }
+orchbee-local-ipc = { path = "../../../../crates/local-ipc" }
+orchbee-local-runtime = { path = "../../../../crates/local-runtime" }
+crossterm.workspace = true
+orchbee-agent-observation-protocol = { path = "../../../../crates/agent-observation-protocol" }
+orchbee-client-server-protocol = { path = "../../../../crates/client-server-protocol" }
+orchbee-terminal-protocol = { path = "../../../../crates/terminal-protocol" }
+orchbee-local-client-protocol = { path = "../../../../crates/local-client-protocol" }
+orchbee-workbench-protocol = { path = "../../../../crates/workbench-protocol" }
+ratatui.workspace = true
+# Provider onboarding: capsule payload digests are canonical sha256.
+sha2.workspace = true
+unicode-segmentation.workspace = true
+# Copy-mode search and link-plugin patterns use the linear-time engine.
+regex.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
+# Shared syntax-preserving Kimi hook inspection; Windows also owns hook editing.
+toml_edit.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+nix = { workspace = true, features = ["dir", "fs", "poll", "signal", "user"] }
+rustix = { workspace = true, features = ["fs", "termios"] }
+signal-hook = { version = "0.3.18", default-features = false }
+
+[target.'cfg(windows)'.dependencies]
+# Owned Unicode clipboard writes through a hidden HWND; no reads or monitoring.
+clipboard-win = { version = "5.4.1", default-features = false, features = ["std"] }
+# Exact retained console handles provide raw input records, mode and window
+# observation, and count-aware UTF-16 output without process-global reopening.
+orchbee-windows-console-host = { path = "../../../../crates/windows-console-host" }
+# Original console-title capture/restoration through safe UTF-16 Windows wrappers.
+win32console.workspace = true
+# Windows hook configuration documents reuse the workspace-pinned serde.
+serde_core = { version = "1.0.229", default-features = false, features = ["std"] }
+# Complete, bounded provider-owned TOML configuration inspection.
+toml.workspace = true
+# Suspended Job Object assignment and bounded process-tree cancellation.
+process-wrap.workspace = true
+windows.workspace = true
+# System-directory lookup, file replacement, and bounded CommandLineToArgv process projection.
+# The GUI feature also owns the hidden, joined system-notification window.
+# Reuse the cohort's existing safe Windows bindings.
+winsafe = { workspace = true, features = ["kernel", "shell", "gui"] }
+ctrlc = { version = "3.5.2", default-features = false }
+crossterm = { workspace = true, features = ["windows", "events"] }
+
+[dev-dependencies]
+# Bounded fake peers and controlled transport clocks for unit tests only.
+orchbee-local-client = { path = "../local-client", features = ["test-support"] }
+
+[target.'cfg(unix)'.dev-dependencies]
+nix = { workspace = true, features = ["fs", "process", "signal", "term"] }
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+rustix = { workspace = true, features = ["process"] }
+
+[lints]
+workspace = true

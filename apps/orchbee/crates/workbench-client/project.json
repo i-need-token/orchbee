@@ -1,0 +1,13 @@
+{
+	"$schema": "../../../../schemas/project-contract.schema.json",
+	"domain": "orchbee",
+	"runtime": ["native"],
+	"stability": "experimental",
+	"responsibility": "Application-private Workbench Client runtime for the Orchbee native application: verified Session activation, projected Workbench state, views, notices, input dispatch, terminal presentation and mode lifecycle, Agent provider integrations and start workflows, saved-machine discovery and SSH carriers, localization, and Client-local configuration.",
+	"nonGoals": [
+		"Owning an independent application lifecycle.",
+		"Serving consumers from other applications.",
+		"Owning process entry, command-line grammar and output, Agent doctor diagnostics, release installation, or the terminal shell loop and backend.",
+		"Owning Client Connection transport, which stays in the application-private local-client crate."
+	]
+}

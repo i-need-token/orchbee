@@ -1,0 +1,491 @@
+use super::*;
+use orchbee_terminal_protocol::{
+    Envelope, HistoryAnchorStatus, HistoryChanged, ProjectionBlockReason, ProjectionBlocked,
+    encode_history_control, encode_projection_demand_control, encode_transport_envelope,
+};
+const SNAPSHOT: &[u8] =
+    include_bytes!("../../../../../../schemas/terminal/v1/fixtures/ghostty-surface.bin");
+type TestResult = Result<(), Box<dyn std::error::Error>>;
+mod routing;
+
+#[test]
+fn shell_exit_keeps_final_pixels_and_requires_the_exact_terminal_and_epoch() -> TestResult {
+    use orchbee_terminal_protocol::{
+        CreationId, ExitResult, LifecycleControl, TerminalExited, TerminalId, TerminalIdentity,
+        encode_lifecycle_control,
+    };
+    let route = inspect_terminal_frame_route(SNAPSHOT)?;
+    let terminal = TerminalId::from_bytes([8; 16])?;
+    for code in [0, 7] {
+        let mut projection = TerminalProjection::new(route.attachment_id, route.host_epoch)
+            .with_host_terminal(orchbee_client_server_protocol::HostTerminalId::parse(
+                &terminal.to_text(),
+            )?);
+        projection
+            .receive(&record(SNAPSHOT)?)
+            .map_err(|()| "initial frame")?;
+        let retained = projection.share_frame().ok_or("retained frame")?;
+        for wrong_terminal in [true, false] {
+            let lifecycle =
+                encode_lifecycle_control(&LifecycleControl::TerminalExited(TerminalExited {
+                    identity: TerminalIdentity {
+                        creation_id: CreationId::from_bytes([9; 16])?,
+                        host_epoch: route.host_epoch,
+                        terminal_id: if wrong_terminal {
+                            TerminalId::from_bytes([7; 16])?
+                        } else {
+                            terminal
+                        },
+                    },
+                    final_revision: route.revision,
+                    exit: ExitResult::ExitCode(code),
+                }))?;
+            let bytes = encode_transport_envelope(&Envelope {
+                protocol: CURRENT_PROTOCOL_VERSION,
+                role: MessageRole::Event,
+                kind: lifecycle.kind,
+                payload_encoding: PayloadEncoding::ControlJson,
+                host_epoch: Some(route.host_epoch),
+                correlation_id: None,
+                optional_message: false,
+                payload: &lifecycle.payload,
+            })?;
+            let mut foreign_epoch = *route.host_epoch.as_bytes();
+            foreign_epoch[0] ^= 1;
+            let wrong_epoch = encode_transport_envelope(&Envelope {
+                protocol: CURRENT_PROTOCOL_VERSION,
+                role: MessageRole::Event,
+                kind: lifecycle.kind,
+                payload_encoding: PayloadEncoding::ControlJson,
+                host_epoch: Some(HostEpoch::from_bytes(foreign_epoch)?),
+                correlation_id: None,
+                optional_message: false,
+                payload: &lifecycle.payload,
+            })?;
+            assert_eq!(projection.receive_lifecycle(&wrong_epoch), Err(()));
+            if wrong_terminal {
+                assert_eq!(projection.receive_lifecycle(&bytes), Err(()));
+                assert_eq!(projection.end(), None);
+            } else {
+                assert_eq!(projection.receive_lifecycle(&bytes), Ok(true));
+                assert_eq!(
+                    projection.end(),
+                    Some(TerminalEnd::Exited(ExitResult::ExitCode(code)))
+                );
+                assert_eq!(projection.receive_lifecycle(&bytes), Ok(true));
+            }
+            assert!(Arc::ptr_eq(&retained, &projection.share_frame().unwrap()));
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn retained_pixels_are_immutable_and_outlive_only_their_actual_consumers() -> TestResult {
+    let route = inspect_terminal_frame_route(SNAPSHOT)?;
+    let mut projection = TerminalProjection::new(route.attachment_id, route.host_epoch);
+    projection
+        .receive(&record(SNAPSHOT)?)
+        .map_err(|()| "initial projection")?;
+    let retained = projection.share_frame().ok_or("installed frame")?;
+    let weak = Arc::downgrade(&retained);
+    let first_revision = retained.route.revision;
+    let next = snapshot_at(route.sequence.get() + 1, route.revision + 1);
+    projection
+        .receive(&record(&next)?)
+        .map_err(|()| "updated projection")?;
+    assert_eq!(retained.route.revision, first_revision);
+    assert!(!Arc::ptr_eq(&retained, &projection.share_frame().unwrap()));
+    projection.clear_frame();
+    assert!(projection.frame().is_none());
+    assert!(weak.upgrade().is_some());
+    drop(retained);
+    assert!(weak.upgrade().is_none());
+    Ok(())
+}
+
+fn record(bytes: &[u8]) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    Ok(encode_transport_envelope(&Envelope {
+        protocol: CURRENT_PROTOCOL_VERSION,
+        role: MessageRole::Event,
+        kind: if bytes[6] == 1 { 41 } else { 42 },
+        payload_encoding: PayloadEncoding::TerminalFrame,
+        host_epoch: Some(inspect_terminal_frame_route(bytes)?.host_epoch),
+        correlation_id: None,
+        optional_message: false,
+        payload: bytes,
+    })?)
+}
+
+fn geometry() -> Result<Geometry, Box<dyn std::error::Error>> {
+    let geometry = decode_terminal_text_frame(SNAPSHOT)?.geometry;
+    Ok(Geometry::new(
+        geometry.columns,
+        geometry.rows,
+        geometry.cell_pixel_width,
+        geometry.cell_pixel_height,
+    )?)
+}
+
+fn snapshot_at(sequence: u64, revision: u64) -> Vec<u8> {
+    let mut snapshot = SNAPSHOT.to_vec();
+    snapshot[48..56].copy_from_slice(&sequence.to_le_bytes());
+    snapshot[64..72].copy_from_slice(&revision.to_le_bytes());
+    snapshot
+}
+
+fn viewer_id(route: orchbee_terminal_protocol::TerminalFrameRoute) -> ViewerId {
+    ViewerId::parse(&route.attachment_id.to_text())
+        .expect("terminal frame fixture must carry a valid ViewerId")
+}
+
+fn blocked_record(
+    attachment_id: AttachmentId,
+    epoch: HostEpoch,
+    revision: u64,
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let blocked = encode_projection_demand_control(&ProjectionDemandControl::ProjectionBlocked(
+        ProjectionBlocked {
+            attachment_id,
+            reason: ProjectionBlockReason::ProjectionTooLarge,
+            revision,
+        },
+    ))?;
+    Ok(encode_transport_envelope(&Envelope {
+        protocol: CURRENT_PROTOCOL_VERSION,
+        role: blocked.role,
+        kind: blocked.kind,
+        payload_encoding: PayloadEncoding::ControlJson,
+        host_epoch: Some(epoch),
+        correlation_id: None,
+        optional_message: false,
+        payload: &blocked.payload,
+    })?)
+}
+
+#[test]
+fn required_snapshot_geometry_checks_all_four_fields() -> TestResult {
+    let route = inspect_terminal_frame_route(SNAPSHOT)?;
+    let expected = geometry()?;
+    let mismatches = [
+        Geometry::new(
+            expected.columns().checked_add(1).ok_or("fixture columns")?,
+            expected.rows(),
+            expected.cell_pixel_width(),
+            expected.cell_pixel_height(),
+        )?,
+        Geometry::new(
+            expected.columns(),
+            expected.rows().checked_add(1).ok_or("fixture rows")?,
+            expected.cell_pixel_width(),
+            expected.cell_pixel_height(),
+        )?,
+        Geometry::new(
+            expected.columns(),
+            expected.rows(),
+            expected
+                .cell_pixel_width()
+                .checked_add(1)
+                .ok_or("fixture cell pixel width")?,
+            expected.cell_pixel_height(),
+        )?,
+        Geometry::new(
+            expected.columns(),
+            expected.rows(),
+            expected.cell_pixel_width(),
+            expected
+                .cell_pixel_height()
+                .checked_add(1)
+                .ok_or("fixture cell pixel height")?,
+        )?,
+    ];
+    for mismatch in mismatches {
+        let mut projection = TerminalProjection::new(route.attachment_id, route.host_epoch);
+        assert!(matches!(
+            projection.receive_for_geometry(&record(SNAPSHOT)?, Some(mismatch)),
+            Ok(Some(Feedback::NeedSnapshot {
+                attachment_id,
+                sequence,
+                reason: Reason::DimensionsMismatch,
+            })) if attachment_id == viewer_id(route) && sequence == route.sequence
+        ));
+        assert!(projection.frame().is_none());
+    }
+
+    let mut controlling = TerminalProjection::new(route.attachment_id, route.host_epoch);
+    assert!(matches!(
+        controlling.receive_for_geometry(&record(SNAPSHOT)?, Some(expected)),
+        Ok(Some(Feedback::FrameApplied { .. }))
+    ));
+    let mut read_only = TerminalProjection::new(route.attachment_id, route.host_epoch);
+    assert!(matches!(
+        read_only.receive_for_geometry(&record(SNAPSHOT)?, None),
+        Ok(Some(Feedback::FrameApplied { .. }))
+    ));
+    Ok(())
+}
+
+#[test]
+fn mismatch_and_clear_preserve_monotonic_fences_and_allow_fresh_recovery() -> TestResult {
+    let route = inspect_terminal_frame_route(SNAPSHOT)?;
+    let expected = geometry()?;
+    let mismatched = Geometry::new(
+        expected.columns().checked_add(1).ok_or("fixture columns")?,
+        expected.rows(),
+        expected.cell_pixel_width(),
+        expected.cell_pixel_height(),
+    )?;
+    let next_sequence = route
+        .sequence
+        .get()
+        .checked_add(1)
+        .ok_or("fixture sequence")?;
+    let recovery_sequence = next_sequence.checked_add(1).ok_or("fixture sequence")?;
+    let stale_sequence = recovery_sequence.checked_add(1).ok_or("fixture sequence")?;
+    let next_revision = route.revision.checked_add(1).ok_or("fixture revision")?;
+    let recovery_revision = next_revision.checked_add(1).ok_or("fixture revision")?;
+    let blocked_revision = recovery_revision.checked_add(1).ok_or("fixture revision")?;
+    let mut projection = TerminalProjection::new(route.attachment_id, route.host_epoch);
+
+    projection
+        .receive_for_geometry(&record(SNAPSHOT)?, Some(expected))
+        .map_err(|_| "initial snapshot")?;
+    let mismatch = snapshot_at(next_sequence, next_revision);
+    assert!(matches!(
+        projection.receive_for_geometry(&record(&mismatch)?, Some(mismatched)),
+        Ok(Some(Feedback::NeedSnapshot {
+            attachment_id,
+            sequence,
+            reason: Reason::DimensionsMismatch,
+        })) if attachment_id == viewer_id(route) && sequence.get() == next_sequence
+    ));
+    assert!(projection.frame().is_none());
+    assert_eq!(projection.last_sequence, next_sequence);
+    assert_eq!(projection.last_revision, route.revision);
+    assert!(
+        projection
+            .receive_for_geometry(&record(&mismatch)?, Some(expected))
+            .is_err()
+    );
+
+    let recovery = snapshot_at(recovery_sequence, recovery_revision);
+    assert!(matches!(
+        projection.receive_for_geometry(&record(&recovery)?, Some(expected)),
+        Ok(Some(Feedback::FrameApplied { .. }))
+    ));
+    projection.clear_frame();
+    assert!(projection.frame().is_none());
+    assert_eq!(projection.last_sequence, recovery_sequence);
+    assert_eq!(projection.last_revision, recovery_revision);
+    assert!(
+        projection
+            .receive_for_geometry(&record(&recovery)?, Some(expected))
+            .is_err()
+    );
+
+    let stale = snapshot_at(stale_sequence, next_revision);
+    assert!(matches!(
+        projection.receive_for_geometry(&record(&stale)?, Some(expected)),
+        Ok(Some(Feedback::NeedSnapshot {
+            attachment_id,
+            reason: Reason::BaseMismatch,
+            ..
+        })) if attachment_id == viewer_id(route)
+    ));
+    let blocked = blocked_record(route.attachment_id, route.host_epoch, blocked_revision)?;
+    assert_eq!(projection.receive(&blocked), Ok(None));
+    projection.clear_frame();
+    assert_eq!(projection.blocked_revision, Some(blocked_revision));
+    assert!(projection.receive(&blocked).is_err());
+    Ok(())
+}
+#[test]
+fn snapshot_delta_gap_and_decoder_failure_have_atomic_feedback() -> TestResult {
+    let route = inspect_terminal_frame_route(SNAPSHOT)?;
+    let mut projection = TerminalProjection::new(route.attachment_id, route.host_epoch);
+    assert!(matches!(
+        projection.receive(&record(SNAPSHOT)?),
+        Ok(Some(Feedback::FrameApplied { .. }))
+    ));
+    assert!(projection.frame().is_some());
+    let mut delta = SNAPSHOT.to_vec();
+    delta[6] = 2;
+    delta[48..56].copy_from_slice(&(route.sequence.get() + 1).to_le_bytes());
+    delta[56..64].copy_from_slice(&route.revision.to_le_bytes());
+    delta[64..72].copy_from_slice(&(route.revision + 1).to_le_bytes());
+    assert!(matches!(
+        projection.receive(&record(&delta)?),
+        Ok(Some(Feedback::FrameApplied { .. }))
+    ));
+    let revision = projection.frame().ok_or("frame")?.route.revision;
+    delta[48..56].copy_from_slice(&(route.sequence.get() + 3).to_le_bytes());
+    delta[56..64].copy_from_slice(&revision.to_le_bytes());
+    delta[64..72].copy_from_slice(&(revision + 1).to_le_bytes());
+    assert!(matches!(
+        projection.receive(&record(&delta)?),
+        Ok(Some(Feedback::NeedSnapshot {
+            attachment_id,
+            reason: Reason::SequenceGap,
+            ..
+        })) if attachment_id == viewer_id(route)
+    ));
+    assert!(projection.frame().is_none());
+    let mut snapshot = SNAPSHOT.to_vec();
+    snapshot[48..56].copy_from_slice(&(route.sequence.get() + 4).to_le_bytes());
+    snapshot[64..72].copy_from_slice(&revision.to_le_bytes());
+    assert!(matches!(
+        projection.receive(&record(&snapshot)?),
+        Ok(Some(Feedback::FrameApplied { .. }))
+    ));
+    snapshot[48..56].copy_from_slice(&(route.sequence.get() + 5).to_le_bytes());
+    snapshot[153] = 1;
+    assert!(matches!(
+        projection.receive(&record(&snapshot)?),
+        Ok(Some(Feedback::NeedSnapshot {
+            attachment_id,
+            reason: Reason::DecoderRejected,
+            ..
+        })) if attachment_id == viewer_id(route)
+    ));
+    assert!(projection.frame().is_none());
+    assert!(projection.receive(&record(&snapshot)?).is_err());
+    Ok(())
+}
+
+#[test]
+fn frame_metadata_delta_clears_previously_observed_values() -> TestResult {
+    let mut snapshot = SNAPSHOT.to_vec();
+    snapshot[116..124].fill(0);
+    let route = inspect_terminal_frame_route(&snapshot)?;
+    let mut projection = TerminalProjection::new(route.attachment_id, route.host_epoch);
+    projection
+        .receive(&record(&snapshot)?)
+        .map_err(|()| "snapshot")?;
+    assert!(projection.frame().ok_or("frame")?.title.is_some());
+    let mut delta = snapshot;
+    delta[6] = 2;
+    delta[48..56].copy_from_slice(&(route.sequence.get() + 1).to_le_bytes());
+    delta[56..64].copy_from_slice(&route.revision.to_le_bytes());
+    delta[64..72].copy_from_slice(&(route.revision + 1).to_le_bytes());
+    delta[116..124].fill(255);
+    projection.receive(&record(&delta)?).map_err(|()| "delta")?;
+    let frame = projection.frame().ok_or("delta frame")?;
+    assert!(frame.title.is_none() && frame.current_directory.is_none());
+    Ok(())
+}
+#[test]
+fn scope_and_delta_generation_mismatch_never_commit() -> TestResult {
+    let route = inspect_terminal_frame_route(SNAPSHOT)?;
+    let mut projection = TerminalProjection::new(route.attachment_id, route.host_epoch);
+    let mut wrong = SNAPSHOT.to_vec();
+    wrong[32] ^= 1;
+    assert!(projection.receive(&record(&wrong)?).is_err());
+    assert!(projection.frame().is_none());
+    projection
+        .receive(&record(SNAPSHOT)?)
+        .map_err(|_| "snapshot")?;
+    let mut next = decode_terminal_text_frame(SNAPSHOT)?;
+    next.route.base_revision = Some(route.revision);
+    next.route.generation =
+        std::num::NonZeroU64::new(route.generation.get() + 1).ok_or("generation")?;
+    assert_eq!(projection.apply(next), Err(Reason::GenerationMismatch));
+    assert_eq!(projection.frame().ok_or("frame")?.route, route);
+    Ok(())
+}
+
+#[test]
+fn history_events_acknowledge_their_own_identity_without_touching_frames() -> TestResult {
+    let route = inspect_terminal_frame_route(SNAPSHOT)?;
+    let mut projection = TerminalProjection::new(route.attachment_id, route.host_epoch);
+    let event = history_record(route.attachment_id, route.host_epoch, 7, 5)?;
+    assert!(matches!(
+        projection.receive(&event),
+        Ok(Some(Feedback::HistoryObserved {
+            attachment_id,
+            sequence,
+            generation,
+            revision: 5,
+        })) if attachment_id == viewer_id(route)
+            && sequence.get() == 7
+            && generation == std::num::NonZeroU64::MIN
+    ));
+    // Nothing frame-shaped moved: the sequence fence, the blocked revision,
+    // and the missing frame are all exactly as before the event.
+    assert_eq!(projection.last_sequence, 0);
+    assert_eq!(projection.blocked_revision, None);
+    assert!(projection.frame().is_none());
+    // A foreign attachment's event is protocol-invalid, not observed.
+    let wrong = history_record(AttachmentId::from_bytes([9; 16])?, route.host_epoch, 8, 5)?;
+    assert!(projection.receive(&wrong).is_err());
+    // The ordinary frame path is undisturbed by either event.
+    assert!(matches!(
+        projection.receive(&record(SNAPSHOT)?),
+        Ok(Some(Feedback::FrameApplied { .. }))
+    ));
+    Ok(())
+}
+
+#[test]
+fn a_history_event_and_a_blocked_notice_do_not_reorder_each_other() -> TestResult {
+    let route = inspect_terminal_frame_route(SNAPSHOT)?;
+    let mut projection = TerminalProjection::new(route.attachment_id, route.host_epoch);
+    let blocked = blocked_record(route.attachment_id, route.host_epoch, 9)?;
+    assert_eq!(projection.receive(&blocked), Ok(None));
+    // The event still acknowledges itself while the projection stays blocked.
+    let event = history_record(route.attachment_id, route.host_epoch, 3, 9)?;
+    assert!(matches!(
+        projection.receive(&event),
+        Ok(Some(Feedback::HistoryObserved { revision: 9, .. }))
+    ));
+    assert_eq!(projection.blocked_revision, Some(9));
+    assert!(projection.frame().is_none());
+    Ok(())
+}
+
+fn history_record(
+    attachment_id: AttachmentId,
+    epoch: HostEpoch,
+    sequence: u64,
+    revision: u64,
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let control = encode_history_control(&HistoryControl::HistoryChanged(HistoryChanged {
+        anchor_status: HistoryAnchorStatus::Valid,
+        attachment_id,
+        generation: std::num::NonZeroU64::MIN,
+        revision,
+        sequence: std::num::NonZeroU64::new(sequence).ok_or("zero sequence")?,
+        total_rows: 100,
+    }))?;
+    Ok(encode_transport_envelope(&Envelope {
+        protocol: CURRENT_PROTOCOL_VERSION,
+        role: control.role,
+        kind: control.kind,
+        payload_encoding: PayloadEncoding::ControlJson,
+        host_epoch: Some(epoch),
+        correlation_id: None,
+        optional_message: false,
+        payload: &control.payload,
+    })?)
+}
+
+#[test]
+fn snapshot_cannot_move_an_existing_projection_backwards() -> TestResult {
+    let route = inspect_terminal_frame_route(SNAPSHOT)?;
+    let mut projection = TerminalProjection::new(route.attachment_id, route.host_epoch);
+    let mut first = decode_terminal_text_frame(SNAPSHOT)?;
+    first.route.revision = 12;
+    projection.apply(first).map_err(|_| "initial snapshot")?;
+    let mut stale = decode_terminal_text_frame(SNAPSHOT)?;
+    stale.route.revision = 11;
+    assert_eq!(projection.apply(stale), Err(Reason::BaseMismatch));
+    let saved = projection.frame.take();
+    let mut stale_after_reset = decode_terminal_text_frame(SNAPSHOT)?;
+    stale_after_reset.route.revision = 11;
+    assert_eq!(
+        projection.apply(stale_after_reset),
+        Err(Reason::BaseMismatch)
+    );
+    projection.frame = saved;
+    assert_eq!(projection.frame().ok_or("frame")?.route.revision, 12);
+    Ok(())
+}

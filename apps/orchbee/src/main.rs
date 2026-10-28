@@ -2,81 +2,67 @@
 //! TUI sessions. Feature owners define command and interaction semantics; Server and Worker
 //! retain shared Workbench authority and physical terminal execution.
 
-mod action_menu;
-mod action_projection;
-#[cfg(windows)]
-mod agent_configuration_windows;
 mod agent_doctor;
-mod agent_integrations;
 mod agent_projection;
-mod agent_provider;
-mod agent_runtime;
-mod agent_start;
 mod cli;
 mod cli_text;
-mod client_context;
-mod client_view;
 mod help;
-mod host_capabilities;
 mod invocation;
-mod local_activation;
-mod local_client;
 mod local_startup;
-mod localization;
-mod machine_agents;
-mod machine_discovery;
-mod machine_observation;
-mod machine_picker;
-mod machine_spaces;
-mod machine_ssh;
-mod machine_tunnel;
-mod machines;
-mod native_settings;
-mod notifications;
-mod onboarding;
 mod presentation;
 mod release_store;
-mod startup_status;
 mod startup_wait;
-mod terminal_buffer_text;
-mod terminal_content;
-mod terminal_copy;
-mod terminal_copy_mode;
-mod terminal_copy_query;
-mod terminal_device;
-mod terminal_events;
-mod terminal_graphics;
-mod terminal_host_appearance;
-mod terminal_input;
-mod terminal_lifecycle;
-mod terminal_link_activation;
-mod terminal_links;
-mod terminal_live_view;
-mod terminal_pointer_admission;
-mod terminal_projection;
-mod terminal_scrollbar;
-mod terminal_text;
-mod terminal_title;
-mod termination_signal;
-mod transient_notice;
 mod tui_backend;
-mod tui_capabilities;
-mod tui_composition;
-mod tui_graphics;
-mod tui_layout;
-mod tui_pointer;
-mod tui_presentation;
-mod tui_render;
 mod tui_shell;
-mod tui_shortcut_help;
-mod tui_theme;
-#[cfg(windows)]
-mod windows_console_input;
-#[cfg(windows)]
-mod windows_signal;
-mod workbench_client;
-mod worktree_destination;
 
+#[cfg(windows)]
+use orchbee_workbench_client::agent_configuration_windows;
+use orchbee_workbench_client::agent_integrations;
+use orchbee_workbench_client::agent_provider;
+use orchbee_workbench_client::agent_runtime;
+use orchbee_workbench_client::agent_start;
+use orchbee_workbench_client::client_view;
+use orchbee_workbench_client::local_activation;
+use orchbee_workbench_client::local_client;
+use orchbee_workbench_client::localization;
+use orchbee_workbench_client::machine_agents;
+use orchbee_workbench_client::machine_discovery;
+use orchbee_workbench_client::machine_observation;
+use orchbee_workbench_client::machine_picker;
+use orchbee_workbench_client::machine_spaces;
+use orchbee_workbench_client::machine_ssh;
+#[cfg(windows)]
+use orchbee_workbench_client::machine_tunnel;
+use orchbee_workbench_client::machines;
+use orchbee_workbench_client::notifications;
+use orchbee_workbench_client::onboarding;
+use orchbee_workbench_client::terminal_buffer_text;
+use orchbee_workbench_client::terminal_content;
+use orchbee_workbench_client::terminal_copy;
+use orchbee_workbench_client::terminal_device;
+use orchbee_workbench_client::terminal_graphics;
+use orchbee_workbench_client::terminal_host_appearance;
+use orchbee_workbench_client::terminal_input;
+use orchbee_workbench_client::terminal_lifecycle;
+use orchbee_workbench_client::terminal_link_activation;
+use orchbee_workbench_client::terminal_links;
+#[cfg(test)]
+use orchbee_workbench_client::terminal_pointer_admission;
+use orchbee_workbench_client::terminal_projection;
+use orchbee_workbench_client::terminal_text;
+use orchbee_workbench_client::terminal_title;
+use orchbee_workbench_client::termination_signal;
+use orchbee_workbench_client::tui_capabilities;
+use orchbee_workbench_client::tui_composition;
+use orchbee_workbench_client::tui_graphics;
+use orchbee_workbench_client::tui_layout;
+use orchbee_workbench_client::tui_pointer;
+use orchbee_workbench_client::tui_render;
+use orchbee_workbench_client::tui_theme;
+#[cfg(windows)]
+use orchbee_workbench_client::windows_signal;
+use orchbee_workbench_client::workbench_client;
+use orchbee_workbench_client::worktree_destination;
 use std::{
     env,
     io::{self, Write},

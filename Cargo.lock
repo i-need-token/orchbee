@@ -840,38 +840,30 @@ name = "orchbee"
 version = "0.1.0"
 dependencies = [
  "base64",
- "clipboard-win",
  "crossterm",
- "ctrlc",
  "getrandom",
  "jsonschema",
  "nix",
  "orchbee-agent-observation-protocol",
  "orchbee-capability-node-protocol",
  "orchbee-client-server-protocol",
- "orchbee-local-client",
  "orchbee-local-client-protocol",
  "orchbee-local-ipc",
  "orchbee-local-runtime",
  "orchbee-local-worker-protocol",
  "orchbee-terminal-protocol",
- "orchbee-windows-console-host",
+ "orchbee-workbench-client",
  "orchbee-workbench-protocol",
- "process-wrap",
  "ratatui",
  "regex",
  "rustix",
  "serde",
- "serde_core",
  "serde_json",
  "sha2",
- "signal-hook",
  "toml",
  "toml_edit",
  "unicode-segmentation",
- "win32console",
  "winapi-util",
- "windows",
  "winsafe",
 ]
 
@@ -1012,6 +1004,42 @@ name = "orchbee-windows-console-host"
 version = "0.1.0"
 dependencies = [
  "windows",
+]
+
+[[package]]
+name = "orchbee-workbench-client"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "clipboard-win",
+ "crossterm",
+ "ctrlc",
+ "getrandom",
+ "nix",
+ "orchbee-agent-observation-protocol",
+ "orchbee-client-server-protocol",
+ "orchbee-local-client",
+ "orchbee-local-client-protocol",
+ "orchbee-local-ipc",
+ "orchbee-local-runtime",
+ "orchbee-terminal-protocol",
+ "orchbee-windows-console-host",
+ "orchbee-workbench-protocol",
+ "process-wrap",
+ "ratatui",
+ "regex",
+ "rustix",
+ "serde",
+ "serde_core",
+ "serde_json",
+ "sha2",
+ "signal-hook",
+ "toml",
+ "toml_edit",
+ "unicode-segmentation",
+ "win32console",
+ "windows",
+ "winsafe",
 ]
 
 [[package]]

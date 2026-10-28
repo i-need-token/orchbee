@@ -667,7 +667,7 @@ impl Write for MutexWriter {
 
 #[test]
 fn synchronized_output_sequences_have_a_single_lifecycle_owner() {
-    let lifecycle = include_str!("../terminal_lifecycle.rs");
+    let lifecycle = include_str!("../../crates/workbench-client/src/terminal_lifecycle.rs");
     for required in ["2026h", "2026l"] {
         assert!(
             lifecycle.contains(required),
@@ -676,7 +676,7 @@ fn synchronized_output_sequences_have_a_single_lifecycle_owner() {
     }
     for source in [
         include_str!("../tui_backend.rs"),
-        include_str!("../tui_render.rs"),
+        include_str!("../../crates/workbench-client/src/tui_render.rs"),
         include_str!("../tui_shell.rs"),
     ] {
         for forbidden in ["2026h", "2026l"] {
