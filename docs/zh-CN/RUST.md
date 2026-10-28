@@ -130,6 +130,13 @@ Rust lint runner 会在调用 Clippy 前检查每个 workspace member 的 `src/`
 依赖树；模块内容与边界仍由编译器检查和语义审阅负责。
 [Runner 夹具](../../scripts/run-rust-workspace.test.mjs)覆盖被拒绝和被接受的布局。
 
+以分层表述[横向依赖契约](MODULE-BOUNDARIES.md#原生源码树)的 member 把契约放在
+`docs/module-layers.md`。`## Layers` 下的第一张表按从低到高列出层 ID，或者该节链接到另一个
+member 的契约以复用其表。`## Module assignment` 下的表把模块路径映射到层；后代模块继承最近一个
+已归属祖先的层。`pnpm lint:rust-modules` 读取该文件，报告环和指向高层的引用但不失败
+（[Lint](LINTING.md#强制执行边界)）；它的[夹具](../../scripts/rust-module-graph.test.mjs)覆盖模块图
+提取和契约解析。
+
 ## 平台特定代码
 
 - 操作系统 API 与行为放在路径命名了平台或能力的适配器模块中，例如 `linux_permissions` 或
@@ -366,4 +373,4 @@ workspace 构建统一后的依赖 feature，不能证明独立交付的 package
 cohort。它绝不把 `target/` 下碰巧已有的文件视为 release input。Supported target、signing、
 install path、update cohort 与 rollback 仍由每个已接受的应用发布切片负责。
 
-<!-- documentation-pairing: english-sha256=352331a328023c81ed192251beb6146ff3fdc665c5f4b96808af9abe606c793f zh-cn-sha256=04b5749c5d69d6280d2db1fddfbfbe4634debfae13856d1f01462f855e0c494b -->
+<!-- documentation-pairing: english-sha256=419a8e49f80b79355f9432a315e2ee2fc0e3a205ec14ec4184797d0e9e13a745 zh-cn-sha256=4aee932e9ec21303903842866d1686c5786a2d45a0b6041c539983498b42d46d -->

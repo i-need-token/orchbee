@@ -151,6 +151,14 @@ Clippy, including files inactive on the current platform. This filename check le
 semantic review still own module contents and boundaries. The
 [runner fixtures](../scripts/run-rust-workspace.test.mjs) exercise both rejected and admitted layouts.
 
+A member that states its [lateral-import contract](MODULE-BOUNDARIES.md#native-source-trees) as
+layers keeps it in `docs/module-layers.md`. The first table under `## Layers` lists layer IDs from
+lowest to highest, or the section links to another member's contract to reuse its table. Tables
+under `## Module assignment` map module paths to layers; a descendant inherits the nearest assigned
+ancestor's layer. `pnpm lint:rust-modules` reads the file and reports cycles and upward references
+without failing ([Linting](LINTING.md#enforcement-boundary)); its
+[fixtures](../scripts/rust-module-graph.test.mjs) exercise graph extraction and contract parsing.
+
 ## Platform-specific code
 
 - Operating-system APIs and behavior live in adapter modules whose path names the platform or the

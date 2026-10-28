@@ -87,6 +87,7 @@ export function checkSteps(task, scope, platform = process.platform) {
 					concurrent: [
 						'test:check-output',
 						'test:rust-runner',
+						'test:rust-modules',
 						'test:lint-rules',
 						'test:dependency-scope',
 						'test:documentation-pairing',

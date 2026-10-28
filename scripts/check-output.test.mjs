@@ -294,6 +294,7 @@ test('the daily gate retains host tests while full builds and cross checks requi
 		[
 			'test:check-output',
 			'test:rust-runner',
+			'test:rust-modules',
 			'test:lint-rules',
 			'test:dependency-scope',
 			'test:documentation-pairing',

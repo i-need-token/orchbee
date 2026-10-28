@@ -9,6 +9,7 @@
 | `pnpm lint:code`                               | 以面向 Agent 的输出运行会阻塞的 oxlint 诊断                                                              |
 | `pnpm lint:code:warnings`                      | 审计会阻塞的诊断和不阻塞的 oxlint warning                                                                |
 | `pnpm lint:rust`                               | 验证固定 Cargo workspace，并在 member 存在时运行 locked Clippy 工作                                      |
+| `pnpm lint:rust-modules`                       | 对照 owner 的分层契约报告 Rust 模块环和指向高层的引用，发现问题不导致失败                                |
 | `pnpm lint:documentation`                      | 验证每个仓库 Markdown 文档对的路径、凭据和结构                                                           |
 | `pnpm lint:styles`                             | 验证 Token 注册表和自有前端样式契约                                                                      |
 | `pnpm lint:storage`                            | 验证浏览器存储访问、所有权、key 形态和版本                                                               |
@@ -20,6 +21,7 @@
 | `pnpm test:lint-rules`                         | 测试 `orchbee/*` 规则和中英文规范契约                                                                    |
 | `pnpm test:dependency-scope`                   | 使用隔离的正向和负向 fixture 验证完整与严格 Knip 图的覆盖                                                |
 | `pnpm test:rust-runner`                        | 通过隔离 Cargo 夹具测试 Rust target 覆盖、失败传播、依赖继承/默认 feature 以及自有代码的 unsafe/导入策略 |
+| `pnpm test:rust-modules`                       | 通过隔离的夹具 crate 测试生产模块图提取、环与分层发现以及契约解析                                        |
 | `pnpm test:documentation-pairing`              | 运行文档配对检查与确认流程的负向测试                                                                     |
 | `pnpm test:ghostty-source`                     | 测试 Ghostty 来源工具的精确 pin 与干净工作树准入                                                         |
 | `pnpm test:style-contract`                     | 运行前端样式契约检查器的回归测试                                                                         |
@@ -40,6 +42,7 @@
 | Knip 范围     | 包清单、工具插件或 `knip.config.mjs#workspaces` 必须能发现每个可运行脚本、构建配置、测试套件和公共包入口。只补充遗漏的真实入口；冗余入口和过期配置提示都会失败。共享 fixture 是经测试消费者访问的项目文件，不能将其伪装成入口。仅生产模式排除测试辅助文件时，完整图仍须分析它们；`pnpm test:dependency-scope` 验证可达性、孤立文件拒绝和严格依赖隔离。 私有包启用 `includeEntryExports`，入口导出也必须有消费者；不能通过假入口或测试专用外观隐藏死 API。 |
 | 类型感知      | 包审查加入 `oxlint-tsgolint` 前，类型感知 oxlint 规则保持未启用；lint 不会检测悬空 Promise 或来自第三方的不安全 `any` 传播。                                                                                                                                                                                                                                                                                                                              |
 | Rust          | `pnpm lint:rust` 验证精确工具链与锁定的 Cargo metadata，要求共享第三方依赖通过 `workspace = true` 继承，并拒绝未直接或经继承设置 `default-features = false` 的第三方声明，包含未使用的 workspace 声明。随后对每个 target 和 feature 运行 workspace Clippy，并拒绝已启用的 warning。[`docs/RUST.md`](RUST.md#lint-策略与执行边界) 定义其余评审边界。                                                                                                       |
+| Rust 模块     | `pnpm lint:rust-modules` 从 `mod` 声明读取各 Cargo member 的生产模块树，含各 `path` 与 `cfg_attr(path)` 变体，不含 `cfg(test)` 或 `test-support` 项，并以文本解析 `crate`、`self`、`super` 和导入路径，故宏生成的引用不可见。它报告兄弟模块环；在 `docs/module-layers.md` 契约下还报告向上引用、未归属模块和过期行。发现项不会让 `pnpm lint` 失败；输入不可读、模块无法解析或契约格式错误时才失败。[`docs/RUST.md`](RUST.md#模块和可见性) 定义契约。      |
 | 样式          | `pnpm lint:styles` 强制执行 [`docs/frontend/design-tokens.md`](frontend/design-tokens.md)：注册表、生成的 TypeScript 清单、CSS Module、Tailwind 边界、原始值、响应式阈值、JSX class 和内联样式。生成的公共 Token 名称必须等于 CSS 注册表；完整 Tailwind 映射必须精确覆盖已安装的公共主题、指向已注册的 Orchbee Token，并保留编译时字面量断点和容器值。                                                                                                    |
 | 样式例外      | `pnpm lint:styles` 的 shadcn 编写例外按路径限制在检入的生成源码和支持文件中。                                                                                                                                                                                                                                                                                                                                                                             |
 | 浏览器存储    | `pnpm lint:storage` 强制执行 [`docs/frontend/browser-storage.md`](frontend/browser-storage.md)：只有应用组合入口可以访问 `localStorage` 或 `sessionStorage`；`orchbee:` key 字面量保留在所属的 `*-storage.ts` 模块中，并使用带版本的语法。                                                                                                                                                                                                                |
@@ -130,4 +133,4 @@ strict 原始退出码为零时，只有不存在保留记录才接受。strict 
 
 每次自定义规则变更都要同时更新其实现、权威来源、诊断和回归测试。
 
-<!-- documentation-pairing: english-sha256=e15e237c27124de48be712a126ca6197613395426fb79d28cde8513108dcde17 zh-cn-sha256=151b10b483ffc2e97bc663b2bef1eac8f786b6bfa2c721585d720654007a2d01 -->
+<!-- documentation-pairing: english-sha256=0b32680c832ed38cf763a104b97f7e949ffe737a615612e7f68d227865be17ea zh-cn-sha256=d29b67b8fe2a11fa206ac7c1f7a8f9cce608ef09d444d73f8ac107c9feaa961b -->
