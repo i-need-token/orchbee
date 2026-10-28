@@ -292,7 +292,7 @@ fn actual_graphics_raw_pipe_frames_keep_owner_sequence_and_cleanup_on_eof_bad_fr
             } else {
                 file_path
             };
-            bytes = serde_json::to_vec(&json!({"format":"bgra", "image_width":1, "image_height":1,
+            bytes = serde_json::to_vec(&json!({"format":"bgra", "width":1, "height":1,
                 "revision":u64::MAX.to_string(), "file":{"path":path.to_str().unwrap()}, "damage":{"x":0,"y":0,"width":1,"height":1}, "transport":"direct-kitty"}))
             .unwrap();
             if mode == "file-numeric" {
