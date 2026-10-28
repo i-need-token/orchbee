@@ -326,7 +326,15 @@ fn orphaned_checkpoint_and_malformed_intent_are_not_cleanup_authority() {
             .delete(&name, &fixture.0, deadline(), || Ok(false))
             .is_err()
     );
-    assert!(Catalog::list(&fixture.0, &fixture.0, deadline()).is_err());
+    // The intent is attributed only to the name it records, which is listed as refused.
+    let entries = Catalog::list(&fixture.0, &fixture.0, deadline()).unwrap();
+    assert_eq!(
+        entries
+            .iter()
+            .map(|entry| (entry.name.as_str(), entry.conflicted))
+            .collect::<Vec<_>>(),
+        [("default", false), ("different", true)]
+    );
     assert!(
         Rendezvous::prepare_mode_checked(&fixture.0, SessionScope::parse(&scope(&name)).unwrap())
             .is_err()

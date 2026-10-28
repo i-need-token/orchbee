@@ -548,7 +548,10 @@ without creating it. Checkpoint storage is already isolated by the admitted runt
 `session list [--format text|json]` lists default followed by exact named sessions in the
 selected runtime base. It reads at most 256 sessions under one five-second deadline, creates
 no runtime state and reports running, stopping, stopped, absent, starting, deleting, recoverable or recovery-required
-from authenticated metadata and admitted lifecycle facts. Unknown/unsafe inventory fails explicitly.
+from authenticated metadata and admitted lifecycle facts. A name that a retained record still names
+from another location, such as an earlier build's runtime leaf or catalog record, is listed as
+recovery-required while other names list and start normally. Unknown/unsafe inventory, including an
+object whose name cannot be read, fails explicitly.
 
 Check and list text views lead with their conclusion and keep raw reason structures in JSON.
 `config check` prints a verdict line, one aligned row per check with its path, locale or failure
@@ -563,7 +566,8 @@ line saying how to create the first entry; the launch-profile catalog revision i
 and its existing result schema. `session delete <name> --confirm` removes only that stopped
 named session's retained checkpoint and owned runtime files; it refuses default, running or
 uncertain state and never deletes Project/worktree/user directories. A name operand and explicit
-`--session` must agree. Delete is idempotent when absent. A partial removal remains fenced by a
+`--session` must agree. Delete is idempotent when absent; a name that a retained record still
+names from another location is refused as recovery-required instead. A partial removal remains fenced by a
 deletion intent and an explicit failure; repeat delete to finish, never start to repair it.
 Deletion checks Ctrl+C before each filesystem phase and exits 130 on interruption. Completed removals are not rolled back; a pending intent remains resumable. The `interrupted` result reports whether an intent remains, including cancellation after cleanup completed.
 

@@ -101,9 +101,15 @@ fn remove_runtime(base: &Fixture, runtime: &Path) {
 }
 
 #[test]
-fn obsolete_named_identity_cannot_become_an_absent_new_session() {
+fn obsolete_named_identity_refuses_only_its_own_name() {
+    use crate::{UnrecognizedRecord, UnrecognizedRecordKind as Kind, UnrecognizedRecordReason};
     use std::io::Write;
-    for retained_record in [false, true] {
+    let other = SessionName::parse("other").unwrap();
+    for kind in [
+        Kind::CatalogRecord,
+        Kind::RuntimeDirectory,
+        Kind::DeletionIntent,
+    ] {
         let base = Fixture::new();
         let local = Fixture::new();
         let name = SessionName::parse("work").unwrap();
@@ -115,30 +121,42 @@ fn obsolete_named_identity_cannot_become_an_absent_new_session() {
         let old_scope = format!("orchbee-session-{:x}", hash.finalize())[..63].to_owned();
         assert_ne!(old_scope, scope(&name));
         let old_runtime = base.0.canonicalize().unwrap().join(&old_scope);
-
-        let (evidence, bytes) = if retained_record {
-            let (_, session, owner) = start(&base, &local, name.as_str(), 1);
-            let runtime = session.runtime_directory().to_path_buf();
-            drop(owner);
-            drop(session);
-            remove_runtime(&base, &runtime);
-            let current = record_path(&base, &local, &name);
-            let mut value: serde_json::Value =
-                serde_json::from_slice(&fs::read(&current).unwrap()).unwrap();
-            value["runtime"] = serde_json::json!(old_runtime.to_str().unwrap());
-            let bytes = serde_json::to_vec(&value).unwrap();
-            fs::write(&current, &bytes).unwrap();
-            let old = current.with_file_name(format!("{old_scope}.json"));
-            fs::rename(&current, &old).unwrap();
-            (old, bytes)
-        } else {
-            drop(base.open(&old_scope));
-            let path = old_runtime.join("session-name.json");
-            let bytes = br#"{"version":1,"name":"work"}"#.to_vec();
-            let mut file = permissions::open_file(&path, true, true).unwrap();
-            file.write_all(&bytes).unwrap();
+        let write = |path: &Path, bytes: &[u8]| {
+            let mut file = permissions::open_file(path, true, true).unwrap();
+            file.write_all(bytes).unwrap();
             file.sync_all().unwrap();
-            (path, bytes)
+        };
+
+        let (retained, evidence, bytes) = match kind {
+            Kind::CatalogRecord => {
+                let (_, session, owner) = start(&base, &local, name.as_str(), 1);
+                let runtime = session.runtime_directory().to_path_buf();
+                drop(owner);
+                drop(session);
+                remove_runtime(&base, &runtime);
+                let current = record_path(&base, &local, &name);
+                let mut value: serde_json::Value =
+                    serde_json::from_slice(&fs::read(&current).unwrap()).unwrap();
+                value["runtime"] = serde_json::json!(old_runtime.to_str().unwrap());
+                let bytes = serde_json::to_vec(&value).unwrap();
+                fs::write(&current, &bytes).unwrap();
+                let old = current.with_file_name(format!("{old_scope}.json"));
+                fs::rename(&current, &old).unwrap();
+                (old.clone(), old, bytes)
+            }
+            Kind::RuntimeDirectory => {
+                drop(base.open(&old_scope));
+                let path = old_runtime.join("session-name.json");
+                let bytes = br#"{"version":1,"name":"work"}"#.to_vec();
+                write(&path, &bytes);
+                (base.0.join(&old_scope), path, bytes)
+            }
+            Kind::DeletionIntent => {
+                let path = base.0.join(format!("{old_scope}.deleting"));
+                let bytes = br#"{"version":1,"name":"work","stopped_request_id":null}"#.to_vec();
+                write(&path, &bytes);
+                (path.clone(), path, bytes)
+            }
         };
         let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
         assert_eq!(
@@ -149,8 +167,58 @@ fn obsolete_named_identity_cannot_become_an_absent_new_session() {
             io::ErrorKind::InvalidData
         );
         assert!(!base.0.join(scope(&name)).exists());
+        // The claimed name is neither removable here nor reported absent.
+        let refused = catalog
+            .delete(&name, &local.0, deadline(), || Ok(false))
+            .unwrap_err();
+        assert_eq!(
+            (refused.reason, refused.pending),
+            (Reason::RecoveryRequired, false)
+        );
+        assert_eq!(
+            catalog
+                .prepare_activation(&scope(&other), Some(&other), deadline())
+                .unwrap(),
+            Some(other.clone())
+        );
+        drop(catalog);
+        let entries = Catalog::list(&base.0, &local.0, deadline()).unwrap();
+        assert_eq!(
+            entries
+                .iter()
+                .map(|entry| (entry.name.as_str(), entry.conflicted))
+                .collect::<Vec<_>>(),
+            [("default", false), ("work", true)]
+        );
+        assert_eq!(
+            Catalog::unrecognized_records(&base.0, &local.0, &scope(&name), deadline()).unwrap(),
+            [UnrecognizedRecord {
+                kind,
+                reason: UnrecognizedRecordReason::ObsoleteIdentity,
+                path: retained,
+            }]
+        );
+        assert!(
+            Catalog::unrecognized_records(&base.0, &local.0, &scope(&other), deadline())
+                .unwrap()
+                .is_empty()
+        );
         assert_eq!(fs::read(evidence).unwrap(), bytes);
     }
+    // An object without readable identity keeps only its location; it refuses no other name,
+    // and the inventory that cannot attribute it still fails explicitly.
+    let base = Fixture::new();
+    let local = Fixture::new();
+    drop(base.open(&format!("orchbee-session-{}", "0".repeat(47))));
+    let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
+    assert_eq!(
+        catalog
+            .prepare_activation(&scope(&other), Some(&other), deadline())
+            .unwrap(),
+        Some(other.clone())
+    );
+    drop(catalog);
+    assert!(Catalog::list(&base.0, &local.0, deadline()).is_err());
 }
 
 #[test]

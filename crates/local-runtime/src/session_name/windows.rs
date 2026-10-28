@@ -47,6 +47,23 @@ pub(crate) fn read(runtime: &Path) -> io::Result<SessionName> {
     Ok(name)
 }
 
+/// Identity metadata only: the recorded name, without admitting its version or location.
+pub(crate) fn claimed(runtime: &Path) -> io::Result<SessionName> {
+    #[derive(Deserialize)]
+    struct Identity {
+        name: String,
+    }
+    let file = permissions::open_file(&runtime.join(FILE_NAME), false, false)?;
+    let mut bytes = Vec::new();
+    file.take(MAXIMUM_BYTES + 1).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > MAXIMUM_BYTES {
+        return Err(io::ErrorKind::InvalidData.into());
+    }
+    let identity: Identity =
+        serde_json::from_slice(&bytes).map_err(|_| io::ErrorKind::InvalidData)?;
+    SessionName::parse(&identity.name).map_err(|_| io::ErrorKind::InvalidData.into())
+}
+
 pub(crate) fn validate_scope(runtime: &Path, name: &SessionName) -> io::Result<()> {
     let scope = name.scope_for_user(&orchbee_local_ipc::current_user_sid()?);
     if runtime.file_name().and_then(|value| value.to_str()) != Some(scope.as_str()) {

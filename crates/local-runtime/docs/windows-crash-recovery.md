@@ -45,9 +45,9 @@ a process discovered by PID. Server/Worker effects must not bypass registered cr
 
 Recovery never terminates old processes, fabricates a clean-stop receipt, deletes checkpoint data,
 or resumes an Agent into a still-owned terminal. A live orphan Host remains protected and requires
-the separately owned Host-adoption protocol. Refusal offers read-only diagnosis. An alternate
-named Session is available only when current namespace identity is admitted; this grants no
-unknown-owner cleanup capability.
+the separately owned Host-adoption protocol. Refusal offers read-only diagnosis. A retained record
+refuses only the Session it names or whose location it occupies, so an alternate named Session
+remains available; this grants no unknown-owner cleanup capability.
 
 Crashed publication precedes runtime reconciliation. A failure after durable publication is a
 partial committed result, retried for the same activation identity under the same guards. New
@@ -78,10 +78,15 @@ Private staging, flush and atomic replacement cover ordinary process crashes; fi
 power-loss durability, removal of the configured runtime base and hostile administrators are
 outside the claim. A removed runtime leaf does not erase the durable catalog or checkpoint.
 
-Before creating a missing runtime, activation validates namespace identities within the original
-deadline and inventory bound. Scopes/records derived from the obsolete name domain return
-InvalidData and retain their bytes instead of appearing as an absent current same-name Session.
-Rendezvous also refuses directories containing `site-lifetime.lock`, preventing a new
+Before creating a missing runtime, activation inventories namespace objects within the original
+deadline and inventory bound. A runtime directory, deletion intent or catalog record whose own
+readable name derives the selected scope while it is stored at another location, as obsolete-domain
+data is, returns InvalidData for that name and retains its bytes instead of appearing as an absent
+current same-name Session. Different names never share a runtime, pipe, lock or checkpoint, so such
+records refuse no other name. Objects without a readable name affect only their own location;
+unsafe catalog entries, the inventory bound and the deadline still refuse every activation.
+Diagnosis reports each refusing record with its kind, reason and path. Rendezvous also refuses
+directories containing `site-lifetime.lock`, preventing a new
 `session-lifetime.lock` from bypassing an existing owner. Neither boundary dual-reads, repairs
 or migrates; identity replacement belongs to a recovery workflow that owns the old data and processes.
 
@@ -95,6 +100,7 @@ or migrates; identity replacement belongs to a recovery workflow that owns the o
 | PID reuse does not grant termination authority                        | Pure identity comparison and native identity observation; recovery exposes no termination operation |
 | Recovery interruption preserves generation and checkpoint             | Publication-boundary tests and isolated process-loss restart traces                                 |
 | Default and named Sessions share policy                               | Native Windows integration cases for both routes                                                    |
+| Retained records refuse only the Session they name or occupy          | Windows catalog regression cases for runtime-directory, deletion-intent and catalog-record kinds    |
 
 The abstract model retains physical processes across generation changes instead of forgetting old
 owners. Suspended creation, identity publication and resume are separate actions; parent loss can

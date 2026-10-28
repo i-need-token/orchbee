@@ -104,7 +104,7 @@ Read-only rendezvous admission requires a valid record for named scopes and veri
 current-user scope derivation. Runtime aliases, unknown fields, duplicate fields and mismatched
 names are rejected. This identity does not grant process control or authorize state deletion.
 
-Current named scopes use the `orchbee.session-name.v1\0` domain separator. Before creating a runtime, activation validates current namespace identities within the original deadline and inventory bound; obsolete derived records or directories return InvalidData and retain their bytes instead of appearing as an absent same-name Session. POSIX and Windows rendezvous also refuse runtimes containing the obsolete `site-lifetime.lock`, never creating a parallel `session-lifetime.lock`. There is no old-name alias, dual reader or automatic migration.
+Current named scopes use the `orchbee.session-name.v1\0` domain separator. Before creating a runtime, activation inventories runtime directories, deletion intents and catalog records within the original deadline and inventory bound. A record whose own readable name derives the selected scope while it is stored at another location, as obsolete derived records and directories are, returns InvalidData and retains its bytes instead of letting that name appear as an absent Session. Such a record refuses only the Session it names: other names, and objects without a readable name, keep their own location's admission, so a runtime base holding obsolete records still starts new named Sessions. Unsafe catalog entries, the inventory bound and the deadline still refuse every activation. `SessionCatalog::unrecognized_records` reports, read-only, each record that refuses one scope with its kind, reason and path. POSIX and Windows rendezvous also refuse runtimes containing the obsolete `site-lifetime.lock`, never creating a parallel `session-lifetime.lock`. There is no old-name alias, dual reader or automatic migration.
 
 ## Windows durable session catalog
 
@@ -118,7 +118,9 @@ reads never migrate records. Effect paths derive from admitted inputs, never ser
 The configured runtime base must still exist; removing a stopped runtime leaf does not remove its
 catalog entry or checkpoint. Reads merge runtime and durable entries without creating or migrating
 files. Unsupported or malformed records with an admitted name are listed as unreadable without repair.
-Mismatched identities, linked or redirected files still fail admission.
+Mismatched identities, linked or redirected files still fail admission. A record whose readable name
+derives another scope is listed as a conflict of that name; a record without a readable name fails
+enumeration and refuses only its own location's activation.
 
 The pinned-base namespace gate covers default and named activation. A missing runtime with a
 validated stopped record, free checkpoint lock and absent endpoints can be recreated at the same
@@ -155,11 +157,15 @@ node scripts/tla/run-models.mjs --models session-crash-recovery
 `SessionCatalog` serializes default/named activation and named deletion with one private per-user
 namespace lock in the admitted runtime base. Activation holds it from before runtime creation
 through readiness. Read-only enumeration creates nothing, includes default, sorts exact names
-and rejects unsafe or corrupt entries instead of hiding them. Inventory is limited to 256 sessions.
+and rejects unsafe, corrupt or unattributable entries instead of hiding them. A name claimed by a
+record stored at another location is listed as conflicted; a location holding both a current
+identity and a record naming another Session fails enumeration. Inventory is limited to 256 sessions.
 
 The cleanup owner checks the original deadline and its caller's interruption predicate between filesystem phases. Interruption reports whether a published intent remains; completed removals are not rolled back.
 
 Deletion refuses default, live or uncertain processes, unsafe files and unknown directory content.
+A name claimed by a record stored at another location is refused as RecoveryRequired, never
+reported absent, unless its own deletion is already pending.
 An admitted stopped receipt (or never-activated runtime), free lifetime and absent endpoints are
 required before publishing a bounded, flushed sibling deletion intent. The intent fences normal
 rendezvous admission and survives partial cleanup. The owner removes only known checkpoint and

@@ -28,4 +28,4 @@ impl SessionName {
 #[cfg(windows)]
 mod windows;
 #[cfg(windows)]
-pub(crate) use windows::{NAMED_PREFIX, read, register, validate_scope};
+pub(crate) use windows::{NAMED_PREFIX, claimed, read, register, validate_scope};

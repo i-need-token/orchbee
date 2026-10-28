@@ -22,6 +22,30 @@ pub struct NamedSessionDeleteFailure {
     pub pending: bool,
 }
 
+/// The retained object that holds a record the selected Session cannot admit.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum UnrecognizedRecordKind {
+    RuntimeDirectory,
+    CatalogRecord,
+    DeletionIntent,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum UnrecognizedRecordReason {
+    /// Its identity names the selected Session, but another derivation stored it elsewhere.
+    ObsoleteIdentity,
+    /// It occupies the selected Session's location but cannot be admitted for that Session.
+    Unreadable,
+}
+
+/// A read-only fact: the record is retained as found and is never migrated or repaired.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UnrecognizedRecord {
+    pub kind: UnrecognizedRecordKind,
+    pub reason: UnrecognizedRecordReason,
+    pub path: std::path::PathBuf,
+}
+
 #[cfg(not(windows))]
 mod unsupported;
 #[cfg(windows)]

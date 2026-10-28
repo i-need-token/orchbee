@@ -256,6 +256,10 @@ fn observe(
     if entry.unreadable {
         return Ok((SessionState::Unreadable, None));
     }
+    // Activation and deletion refuse this name while another derivation's record names it.
+    if entry.conflicted {
+        return Ok((SessionState::RecoveryRequired, None));
+    }
     if entry.cold_recoverable().map_err(local_error)? {
         return Ok((SessionState::Recoverable, None));
     }

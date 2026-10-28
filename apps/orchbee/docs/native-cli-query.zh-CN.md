@@ -444,7 +444,9 @@ scope 传给子终端，使内部 CLI 命令保持所属 Session，即使 Server
 检查点存储已按准入后的运行时路径隔离。
 `session list [--format text|json]` 列出所选运行时基目录中的 default，再按精确名称排序列出命名会话。
 它在一个五秒总期限内读取最多 256 个会话，不创建运行时状态，根据认证元数据及准入后的生命周期事实
-报告 running、stopping、stopped、absent、starting、deleting、recoverable 或 recovery-required。未知／不安全清单明确失败。
+报告 running、stopping、stopped、absent、starting、deleting、recoverable 或 recovery-required。
+若保留的记录仍从其他位置命名某个名称（例如较早构建留下的运行时叶目录或清单记录），该名称显示为
+recovery-required，其他名称照常列出和启动。未知／不安全清单（包括无法读取名称的对象）明确失败。
 
 检查与列表的文本视图先给出结论，原始原因结构只保留在 JSON 中。
 `config check` 输出一行结论、每项检查一行对齐的路径／语言区域／失败原因、设置警告、正在使用的文件及
@@ -457,7 +459,8 @@ scope 传给子终端，使内部 CLI 命令保持所属 Session，即使 Server
 复用 `server stop`，包括其 timeout、detach、request-id、retry 参数及现有结果 schema。
 `session delete <name> --confirm` 只移除该已停止命名会话的保留检查点和自有运行时文件，拒绝 default、
 运行中或不确定状态，绝不删除 Project／worktree／用户目录。名称位置参数必须与显式 `--session` 一致。
-状态缺席时删除幂等成功；部分移除保留删除意图阻止启动，并明确失败，重复 delete 完成清理，不能用 start 修复。
+状态缺席时删除幂等成功；若保留的记录仍从其他位置命名该名称，则改为以 recovery-required 拒绝。
+部分移除保留删除意图阻止启动，并明确失败，重复 delete 完成清理，不能用 start 修复。
 删除在每个文件系统阶段前检查 Ctrl+C，中断退出 130。已完成移除不会回滚；保留的意图支持继续清理。`interrupted` 结果报告是否仍有待完成意图，也覆盖清理完成后才收到中断的情况。
 
 列表输出 `orchbee.session.list` v1。`recoverable` 表示受门保护的当次观察
@@ -2538,4 +2541,4 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=c698b3c9f6f269dd77612a45c1a8e15a71e2441d12bc49ca51e52119490919e5 zh-cn-sha256=aaaf2c903b4e7c6dabf621450f719cdf720385e7fa7f762c04d4fb6d1b35dd0a -->
+<!-- documentation-pairing: english-sha256=dc37644925b911dcdf4cd0937844e1111b3b7d85b43bc48d5aea308ad0b6e125 zh-cn-sha256=e13ba03ae7251ba285936e190882b7f9d311da9955121d3e6795f1adf36d5516 -->

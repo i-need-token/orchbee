@@ -1,5 +1,8 @@
 //! Named lifecycle effects are refused before observing or mutating host state.
-use super::{NamedSessionDeleteFailure, NamedSessionDeleteOutcome, NamedSessionDeleteReason};
+use super::{
+    NamedSessionDeleteFailure, NamedSessionDeleteOutcome, NamedSessionDeleteReason,
+    UnrecognizedRecord,
+};
 use crate::{
     ActivationState, ModeCheckedLocalSessionRendezvous as Rendezvous, ModeCheckedSessionLock,
     RetainedChild, SessionName,
@@ -18,6 +21,7 @@ pub struct NamedSessionEntry {
     pub runtime: PathBuf,
     pub deleting: bool,
     pub unreadable: bool,
+    pub conflicted: bool,
     unavailable: Infallible,
 }
 impl SessionCatalog {
@@ -65,6 +69,14 @@ impl SessionCatalog {
         _local: &Path,
         _deadline: Instant,
     ) -> io::Result<Vec<NamedSessionEntry>> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
+    pub fn unrecognized_records(
+        _base: &Path,
+        _local: &Path,
+        _scope: &str,
+        _deadline: Instant,
+    ) -> io::Result<Vec<UnrecognizedRecord>> {
         Err(io::ErrorKind::Unsupported.into())
     }
     pub fn delete(

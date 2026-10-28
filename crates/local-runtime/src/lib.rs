@@ -70,7 +70,8 @@ mod session_name;
 mod session_store;
 pub use session_catalog::{
     NamedSessionDeleteFailure, NamedSessionDeleteOutcome, NamedSessionDeleteReason,
-    NamedSessionEntry, SessionCatalog,
+    NamedSessionEntry, SessionCatalog, UnrecognizedRecord, UnrecognizedRecordKind,
+    UnrecognizedRecordReason,
 };
 pub use session_name::SessionName;
 pub mod private_filesystem;

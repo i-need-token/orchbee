@@ -50,12 +50,19 @@ pub struct NamedSessionEntry {
     pub deleting: bool,
     /// The catalog identity is known, but its retained record cannot be admitted.
     pub unreadable: bool,
+    /// A record stored outside the current location names this Session; activation and
+    /// deletion refuse while it remains.
+    pub conflicted: bool,
     retained: Option<ActivationState>,
     checkpoint: PathBuf,
     local: PathBuf,
 }
 
-use super::{NamedSessionDeleteFailure, NamedSessionDeleteOutcome, NamedSessionDeleteReason};
+use super::{
+    NamedSessionDeleteFailure, NamedSessionDeleteOutcome, NamedSessionDeleteReason,
+    UnrecognizedRecord, UnrecognizedRecordKind as RecordKind,
+    UnrecognizedRecordReason as RecordReason,
+};
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -110,6 +117,139 @@ pub(crate) fn require_not_deleting(base: &Path, scope: &str) -> io::Result<()> {
     Ok(())
 }
 
+/// Identity metadata of a deletion intent, without admitting its version or location.
+fn intent_name(base: &Path, scope: &str) -> io::Result<Option<SessionName>> {
+    #[derive(Deserialize)]
+    struct Identity {
+        name: String,
+    }
+    let file = match permissions::open_file(&intent_path(base, scope), false, false) {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error),
+    };
+    let mut bytes = Vec::new();
+    file.take(1025).read_to_end(&mut bytes)?;
+    if bytes.len() > 1024 {
+        return Err(io::ErrorKind::InvalidData.into());
+    }
+    let identity: Identity =
+        serde_json::from_slice(&bytes).map_err(|_| io::ErrorKind::InvalidData)?;
+    SessionName::parse(&identity.name)
+        .map(Some)
+        .map_err(|_| io::ErrorKind::InvalidData.into())
+}
+
+/// Current admission first. Only a readable name that derives another location becomes an
+/// obsolete claim; every other failure keeps its existing meaning.
+fn intent_identity(base: &Path, scope: &str, sid: &str) -> io::Result<Option<(SessionName, bool)>> {
+    match read_intent(base, scope) {
+        Ok(Some(intent)) => Ok(Some((SessionName::parse(&intent.name)?, true))),
+        Ok(None) => Ok(None),
+        Err(error) if error.kind() == io::ErrorKind::InvalidData => {
+            match intent_name(base, scope) {
+                Ok(Some(name)) if name.scope_for_user(sid) != scope => Ok(Some((name, false))),
+                _ => Err(error),
+            }
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn runtime_identity(runtime: &Path, location: &str, sid: &str) -> io::Result<(SessionName, bool)> {
+    match session_name::read(runtime) {
+        Ok(name) => Ok((name, true)),
+        Err(error) if error.kind() == io::ErrorKind::InvalidData => {
+            match session_name::claimed(runtime) {
+                Ok(name) if name.scope_for_user(sid) != location => Ok((name, false)),
+                _ => Err(error),
+            }
+        }
+        Err(error) => Err(error),
+    }
+}
+
+/// One retained namespace object, attributed only by the identity metadata it records itself.
+struct Claim {
+    kind: RecordKind,
+    location: String,
+    path: PathBuf,
+    identity: Option<SessionName>,
+}
+
+impl Claim {
+    /// A readable identity that derives `scope` while stored elsewhere still names that Session.
+    fn names_elsewhere(&self, scope: &str, sid: &str) -> bool {
+        self.location != scope
+            && self
+                .identity
+                .as_ref()
+                .is_some_and(|name| name.scope_for_user(sid) == scope)
+    }
+}
+
+/// Inventory catalog records and named runtime objects without admitting any of them. An object
+/// whose identity cannot be read keeps only its location; the bounds and deadline fail closed.
+fn claims(base: &Path, durable: Option<&Directory>, deadline: Instant) -> io::Result<Vec<Claim>> {
+    let mut claims = Vec::new();
+    if let Some(durable) = durable {
+        for (scope, record) in durable.list(deadline)? {
+            let identity = match record {
+                CatalogRecord::Readable(record) => SessionName::parse(&record.name).ok(),
+                CatalogRecord::Unreadable(name) => Some(name),
+                CatalogRecord::Unrecognized(name) => name,
+            };
+            claims.push(Claim {
+                kind: RecordKind::CatalogRecord,
+                path: durable.record_file(&scope)?,
+                location: scope,
+                identity,
+            });
+        }
+    }
+    let mut scopes = BTreeSet::new();
+    for entry in fs::read_dir(base)? {
+        check_deadline(deadline)?;
+        let entry = entry?;
+        let Some(leaf) = entry.file_name().to_str().map(str::to_owned) else {
+            continue;
+        };
+        let (scope, kind) = match leaf.strip_suffix(INTENT_SUFFIX) {
+            Some(scope) => (scope, RecordKind::DeletionIntent),
+            None => (leaf.as_str(), RecordKind::RuntimeDirectory),
+        };
+        if !scope_matches(scope) {
+            continue;
+        }
+        scopes.insert(scope.to_owned());
+        if scopes.len() > MAXIMUM_SESSIONS {
+            return Err(io::ErrorKind::FileTooLarge.into());
+        }
+        let identity = if kind == RecordKind::DeletionIntent {
+            intent_name(base, scope).ok().flatten()
+        } else {
+            permissions::open_tree(&entry.path())
+                .and_then(|_pins| session_name::claimed(&entry.path()))
+                .ok()
+        };
+        claims.push(Claim {
+            kind,
+            location: scope.to_owned(),
+            path: entry.path(),
+            identity,
+        });
+    }
+    Ok(claims)
+}
+
+#[derive(Default)]
+struct Listed {
+    deleting: bool,
+    retained: Option<ActivationState>,
+    unreadable: bool,
+    conflicted: bool,
+}
+
 impl SessionCatalog {
     /// Only declared activation/deletion effects acquire this owner. Reads use `list` instead.
     pub fn try_lock(base: &Path, local: &Path) -> io::Result<Self> {
@@ -158,7 +298,7 @@ impl SessionCatalog {
         if !Self::supports_scope(scope)? {
             return Ok(None);
         }
-        self.require_namespace_identity(scope, deadline)?;
+        self.require_unclaimed(scope, deadline)?;
         let record = self.durable.read(scope)?;
         if record.as_ref().is_some_and(Record::is_deleting) {
             return Err(io::ErrorKind::WouldBlock.into());
@@ -206,35 +346,17 @@ impl SessionCatalog {
         Ok(Some(name))
     }
 
-    fn require_namespace_identity(
-        &self,
-        selected_scope: &str,
-        deadline: Instant,
-    ) -> io::Result<()> {
-        // A changed derivation must not turn the same name's old directory or record into
-        // apparent absence. Admit only current identities; never migrate or replace old data.
-        drop(self.durable.list(deadline)?);
-        let mut scopes = BTreeSet::new();
-        for entry in fs::read_dir(&self.base)? {
-            check_deadline(deadline)?;
-            let entry = entry?;
-            let Some(leaf) = entry.file_name().to_str().map(str::to_owned) else {
-                continue;
-            };
-            let scope = leaf.strip_suffix(INTENT_SUFFIX).unwrap_or(&leaf);
-            if scope == selected_scope || !scope_matches(scope) {
-                continue;
-            }
-            scopes.insert(scope.to_owned());
-            if scopes.len() > MAXIMUM_SESSIONS {
-                return Err(io::ErrorKind::FileTooLarge.into());
-            }
-            if leaf.ends_with(INTENT_SUFFIX) {
-                read_intent(&self.base, scope)?.ok_or(io::ErrorKind::InvalidData)?;
-            } else {
-                let _pins = permissions::open_tree(&entry.path())?;
-                session_name::read(&entry.path())?;
-            }
+    fn require_unclaimed(&self, scope: &str, deadline: Instant) -> io::Result<()> {
+        // A changed derivation must not turn this Session's retained records into apparent
+        // absence. Only a record whose own identity derives this scope while stored elsewhere
+        // refuses it; other Sessions' records and unattributable objects stay with their own
+        // location's admission. Nothing is migrated or replaced.
+        let sid = orchbee_local_ipc::current_user_sid()?;
+        if claims(&self.base, Some(&self.durable), deadline)?
+            .iter()
+            .any(|claim| claim.names_elsewhere(scope, &sid))
+        {
+            return Err(io::ErrorKind::InvalidData.into());
         }
         Ok(())
     }
@@ -396,18 +518,37 @@ impl SessionCatalog {
         let _directories = permissions::open_tree(base)?;
         let base = base.canonicalize()?;
         let sid = orchbee_local_ipc::current_user_sid()?;
-        let mut names: BTreeMap<String, (bool, Option<ActivationState>, bool)> = BTreeMap::new();
+        let mut names: BTreeMap<String, Listed> = BTreeMap::new();
+        // A location that holds both a current identity and a record naming another Session
+        // cannot be attributed to either one, so that inventory still fails explicitly.
+        let mut current = BTreeSet::new();
+        let mut obsolete = BTreeSet::new();
         if let Some(directory) = Directory::open(local, &base)? {
-            for (_, record) in directory.list(deadline)? {
+            for (scope, record) in directory.list(deadline)? {
                 match record {
                     CatalogRecord::Readable(record) => {
-                        names.insert(
-                            record.name.clone(),
-                            (record.is_deleting(), record.activation(), false),
-                        );
+                        let listed = names.entry(record.name.clone()).or_default();
+                        listed.deleting = record.is_deleting();
+                        listed.retained = record.activation();
+                        current.insert(scope);
                     }
                     CatalogRecord::Unreadable(name) => {
-                        names.insert(name.as_str().to_owned(), (false, None, true));
+                        names
+                            .entry(name.as_str().to_owned())
+                            .or_default()
+                            .unreadable = true;
+                        current.insert(scope);
+                    }
+                    // Another derivation's record still names its Session; nothing else is read.
+                    CatalogRecord::Unrecognized(Some(name)) => {
+                        names
+                            .entry(name.as_str().to_owned())
+                            .or_default()
+                            .conflicted = true;
+                        obsolete.insert(scope);
+                    }
+                    CatalogRecord::Unrecognized(None) => {
+                        return Err(io::ErrorKind::InvalidData.into());
                     }
                 }
             }
@@ -418,48 +559,66 @@ impl SessionCatalog {
             let Some(leaf) = entry.file_name().to_str().map(str::to_owned) else {
                 continue;
             };
-            let (name, deleting) = if scope_matches(&leaf) {
+            let (location, name, deleting, admitted) = if scope_matches(&leaf) {
                 let _pins = permissions::open_tree(&entry.path())?;
-                match read_intent(&base, &leaf)? {
-                    Some(intent) => (SessionName::parse(&intent.name)?, true),
+                let (name, deleting, admitted) = match intent_identity(&base, &leaf, &sid)? {
+                    Some((name, true)) => (name, true, true),
+                    Some((name, false)) => {
+                        // A current identity in this leaf contradicts an intent naming another
+                        // Session, so the location is attributed to both and fails below.
+                        if session_name::read(&entry.path()).is_ok() {
+                            current.insert(leaf.clone());
+                        }
+                        (name, false, false)
+                    }
                     None => {
-                        let pending = names.iter().find(|(name, (deleting, _, _))| {
-                            *deleting
+                        let pending = names.iter().find(|(name, listed)| {
+                            listed.deleting
                                 && SessionName::parse(name)
                                     .is_ok_and(|name| name.scope_for_user(&sid) == leaf)
                         });
                         match pending {
-                            Some((name, _)) => (SessionName::parse(name)?, true),
-                            None => (session_name::read(&entry.path())?, false),
+                            Some((name, _)) => (SessionName::parse(name)?, true, true),
+                            None => {
+                                let (name, admitted) =
+                                    runtime_identity(&entry.path(), &leaf, &sid)?;
+                                (name, false, admitted)
+                            }
                         }
                     }
-                }
+                };
+                (leaf.clone(), name, deleting, admitted)
             } else if let Some(scope) = leaf
                 .strip_suffix(INTENT_SUFFIX)
                 .filter(|scope| scope_matches(scope))
             {
-                let intent = read_intent(&base, scope)?.ok_or(io::ErrorKind::NotFound)?;
-                (SessionName::parse(&intent.name)?, true)
+                let (name, admitted) =
+                    intent_identity(&base, scope, &sid)?.ok_or(io::ErrorKind::NotFound)?;
+                (scope.to_owned(), name, admitted, admitted)
             } else {
                 continue;
             };
-            names
-                .entry(name.as_str().to_owned())
-                .and_modify(|entry| entry.0 |= deleting)
-                .or_insert((deleting, None, false));
+            let listed = names.entry(name.as_str().to_owned()).or_default();
+            listed.deleting |= deleting;
+            listed.conflicted |= !admitted;
+            if admitted {
+                current.insert(location);
+            } else {
+                obsolete.insert(location);
+            }
             if names.len() + usize::from(!names.contains_key("default")) > MAXIMUM_SESSIONS {
                 return Err(io::ErrorKind::FileTooLarge.into());
             }
         }
-        let (deleting, retained, unreadable) =
-            names.remove("default").unwrap_or((false, None, false));
+        if !obsolete.is_disjoint(&current) {
+            return Err(io::ErrorKind::InvalidData.into());
+        }
+        let default = names.remove("default").unwrap_or_default();
         if names.len() >= MAXIMUM_SESSIONS {
             return Err(io::ErrorKind::FileTooLarge.into());
         }
         let mut result = Vec::with_capacity(names.len() + 1);
-        for (text, (deleting, retained, unreadable)) in
-            std::iter::once(("default".to_owned(), (deleting, retained, unreadable))).chain(names)
-        {
+        for (text, listed) in std::iter::once(("default".to_owned(), default)).chain(names) {
             let name = SessionName::parse(&text)?;
             let runtime = base.join(name.scope_for_user(&sid));
             result.push(NamedSessionEntry {
@@ -467,12 +626,70 @@ impl SessionCatalog {
                 checkpoint: checkpoint_path(local, &runtime),
                 runtime,
                 name,
-                deleting,
-                retained,
-                unreadable,
+                deleting: listed.deleting,
+                retained: listed.retained,
+                unreadable: listed.unreadable,
+                conflicted: listed.conflicted,
             });
         }
         Ok(result)
+    }
+
+    /// Read-only diagnosis of the records that refuse `scope`: records naming its Session from
+    /// another location, and records at its own location that its admission cannot accept.
+    /// Paths keep the caller's spelling of `base` and `local` so people can act on them.
+    pub fn unrecognized_records(
+        base: &Path,
+        local: &Path,
+        scope: &str,
+        deadline: Instant,
+    ) -> io::Result<Vec<UnrecognizedRecord>> {
+        let sid = orchbee_local_ipc::current_user_sid()?;
+        if !durable::supports_scope(scope, &sid) {
+            return Ok(Vec::new());
+        }
+        let _directories = permissions::open_tree(base)?;
+        let directory = Directory::open(local, &base.canonicalize()?)?;
+        let mut records: Vec<_> = claims(base, directory.as_ref(), deadline)?
+            .into_iter()
+            .filter(|claim| claim.names_elsewhere(scope, &sid))
+            .map(|claim| UnrecognizedRecord {
+                kind: claim.kind,
+                reason: RecordReason::ObsoleteIdentity,
+                path: claim.path,
+            })
+            .collect();
+        let unreadable = |kind, path| UnrecognizedRecord {
+            kind,
+            reason: RecordReason::Unreadable,
+            path,
+        };
+        if let Some(directory) = &directory
+            && directory.read(scope).is_err()
+        {
+            records.push(unreadable(
+                RecordKind::CatalogRecord,
+                directory.record_file(scope)?,
+            ));
+        }
+        if scope_matches(scope) {
+            if read_intent(base, scope).is_err() {
+                records.push(unreadable(
+                    RecordKind::DeletionIntent,
+                    intent_path(base, scope),
+                ));
+            }
+            // A missing identity is registered by the next activation; an unsafe runtime is a
+            // runtime-directory fact rather than a record.
+            let runtime = base.join(scope);
+            if let Ok(_pins) = permissions::open_tree(&runtime)
+                && session_name::read(&runtime)
+                    .is_err_and(|error| error.kind() != io::ErrorKind::NotFound)
+            {
+                records.push(unreadable(RecordKind::RuntimeDirectory, runtime));
+            }
+        }
+        Ok(records)
     }
 
     pub fn delete(
@@ -497,7 +714,8 @@ impl SessionCatalog {
         let mut pending = false;
         let mut refused = None;
         let result = (|| -> io::Result<NamedSessionDeleteOutcome> {
-            let scope = name.scope_for_user(&orchbee_local_ipc::current_user_sid()?);
+            let sid = orchbee_local_ipc::current_user_sid()?;
+            let scope = name.scope_for_user(&sid);
             let runtime = self.base.join(&scope);
             let previous = read_intent(&self.base, &scope)?;
             let (durable, unreadable) = match self.durable.read(&scope) {
@@ -506,6 +724,15 @@ impl SessionCatalog {
                 Err(error) => return Err(error),
             };
             pending = previous.is_some() || durable.as_ref().is_some_and(Record::is_deleting);
+            // A record naming this Session from elsewhere is neither removable here nor absence.
+            if !pending
+                && claims(&self.base, Some(&self.durable), deadline)?
+                    .iter()
+                    .any(|claim| claim.names_elsewhere(&scope, &sid))
+            {
+                refused = Some(Reason::RecoveryRequired);
+                return Err(io::ErrorKind::InvalidData.into());
+            }
             check()?;
             let _app_data = permissions::open_tree(local_app_data)?;
             if local_app_data.canonicalize()? != self.local {
@@ -707,7 +934,7 @@ impl SessionCatalog {
 impl NamedSessionEntry {
     /// A read-only, guarded observation of cold-recovery eligibility, never a future-start promise.
     pub fn cold_recoverable(&self) -> io::Result<bool> {
-        if self.deleting || self.unreadable {
+        if self.deleting || self.unreadable || self.conflicted {
             return Ok(false);
         }
         let observed = (|| -> io::Result<bool> {

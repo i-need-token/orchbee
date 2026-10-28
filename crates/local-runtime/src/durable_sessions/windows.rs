@@ -113,7 +113,10 @@ pub(crate) fn supports_scope(scope: &str, sid: &str) -> bool {
 
 pub(crate) enum CatalogRecord {
     Readable(Record),
+    /// Its identity names the Session derived for this scope, but the record is not admitted.
     Unreadable(SessionName),
+    /// Its identity names a Session derived elsewhere, or cannot be read. Only the scope is known.
+    Unrecognized(Option<SessionName>),
 }
 
 pub(crate) struct Directory {
@@ -283,7 +286,12 @@ impl Directory {
                 Ok(Some(record)) => CatalogRecord::Readable(record),
                 Ok(None) => return Err(io::ErrorKind::NotFound.into()),
                 Err(error) if error.kind() == io::ErrorKind::InvalidData => {
-                    CatalogRecord::Unreadable(self.unreadable_name(scope)?)
+                    match self.identity(scope)? {
+                        Some(name) if name.scope_for_user(&self.sid) == scope => {
+                            CatalogRecord::Unreadable(name)
+                        }
+                        name => CatalogRecord::Unrecognized(name),
+                    }
                 }
                 Err(error) => return Err(error),
             };
@@ -294,20 +302,24 @@ impl Directory {
         }
         Ok(records)
     }
-    // Read only identity metadata for display; this never admits lifecycle or process facts.
-    fn unreadable_name(&self, scope: &str) -> io::Result<SessionName> {
+    // Read only identity metadata for attribution and display; this never admits lifecycle or
+    // process facts, and an older derivation's name is never translated into a current scope.
+    fn identity(&self, scope: &str) -> io::Result<Option<SessionName>> {
         #[derive(Deserialize)]
         struct Identity {
             name: String,
         }
-        let bytes = self.read_bytes(scope)?.ok_or(io::ErrorKind::NotFound)?;
-        let identity: Identity =
-            serde_json::from_slice(&bytes).map_err(|_| io::ErrorKind::InvalidData)?;
-        let name = SessionName::parse(&identity.name).map_err(|_| io::ErrorKind::InvalidData)?;
-        if name.scope_for_user(&self.sid) != scope {
-            return Err(io::ErrorKind::InvalidData.into());
-        }
-        Ok(name)
+        let bytes = match self.read_bytes(scope) {
+            Ok(bytes) => bytes.ok_or(io::ErrorKind::NotFound)?,
+            Err(error) if error.kind() == io::ErrorKind::InvalidData => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        Ok(serde_json::from_slice::<Identity>(&bytes)
+            .ok()
+            .and_then(|identity| SessionName::parse(&identity.name).ok()))
+    }
+    pub(crate) fn record_file(&self, scope: &str) -> io::Result<PathBuf> {
+        self.record_path(scope, false)
     }
 
     /// Explicit deletion may replace an unreadable record only with its durable deletion fence.
