@@ -220,9 +220,11 @@ fn enforces_directory_paths_bounds_order_uniqueness_and_workspace_references()
     let corpus = read_corpus()?;
     let configured = document(&corpus, "snapshot-workspace-r2")?.clone();
     assert!(parse_document(&serde_json::to_vec(&configured)?).is_ok());
+    // Workspace 0 is ungrouped without a directory; Workspace 1 is the configured Project Workspace.
+    assert_eq!(configured["navigation"]["workspaces"][1]["label"], "Main");
 
     let mut missing_primary = configured.clone();
-    object_at_mut(&mut missing_primary, "/navigation/workspaces/0")?.remove("primaryDirectoryId");
+    object_at_mut(&mut missing_primary, "/navigation/workspaces/1")?.remove("primaryDirectoryId");
     assert!(parse_document(&serde_json::to_vec(&missing_primary)?).is_err());
 
     let mut missing_directories = configured.clone();
@@ -232,7 +234,7 @@ fn enforces_directory_paths_bounds_order_uniqueness_and_workspace_references()
     let mut dangling = configured.clone();
     replace_string(
         &mut dangling,
-        "/navigation/workspaces/0/primaryDirectoryId",
+        "/navigation/workspaces/1/primaryDirectoryId",
         "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee".to_owned(),
     )?;
     assert!(parse_document(&serde_json::to_vec(&dangling)?).is_err());
@@ -244,7 +246,7 @@ fn enforces_directory_paths_bounds_order_uniqueness_and_workspace_references()
 
     // Group changes preserve global physical references.
     let mut regrouped = configured.clone();
-    regrouped["navigation"]["workspaces"][0]["projectId"] = Value::Null;
+    regrouped["navigation"]["workspaces"][1]["projectId"] = Value::Null;
     regrouped["navigation"]["projects"] = json!([]);
     assert!(parse_document(&serde_json::to_vec(&regrouped)?).is_ok());
 
@@ -263,7 +265,7 @@ fn enforces_directory_paths_bounds_order_uniqueness_and_workspace_references()
             }))
             .collect::<Vec<_>>()
     );
-    bounded["navigation"]["workspaces"][0]["primaryDirectoryId"] = json!(identity(1));
+    bounded["navigation"]["workspaces"][1]["primaryDirectoryId"] = json!(identity(1));
     assert!(parse_document(&serde_json::to_vec(&bounded)?).is_ok());
 
     assert!(WorkbenchDirectoryPath::parse(&format!("/{}", "a".repeat(4095))).is_ok());

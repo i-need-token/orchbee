@@ -24,36 +24,18 @@ fn workspace_names_reject_unicode_whitespace_on_both_wire_directions_without_tri
 
 fn near_limit_snapshot() -> Snapshot {
     let id = |value: u128| format!("{value:032x}");
-    let standalone = WorkbenchTerminalContextId::parse(&id(1)).unwrap();
     let mut snapshot = Snapshot {
         protocol_version: ProtocolVersion,
         session_id: SessionId::parse(&id(10000)).unwrap(),
         revision: WorkbenchRevision::new(1),
-        navigation: {
-            let fixture_context_id = standalone.clone();
-            let fixture_workspace_id =
-                crate::WorkbenchWorkspaceId::parse(fixture_context_id.as_str()).unwrap();
-            Navigation {
-                directories: Vec::new(),
-                workspaces: std::iter::once(crate::Workspace {
-                    workspace_id: fixture_workspace_id.clone(),
-                    terminal_context_id: fixture_context_id.clone(),
-                    project_id: None,
-                    primary_directory_id: None,
-                    label: "Workspace".into(),
-                })
-                .chain(Vec::new())
-                .collect(),
-                workspace_order: Vec::new(),
-                project_order: Vec::new(),
-                projects: Vec::new(),
-            }
+        navigation: Navigation {
+            directories: Vec::new(),
+            workspaces: Vec::new(),
+            workspace_order: Vec::new(),
+            project_order: Vec::new(),
+            projects: Vec::new(),
         },
-        terminal_contexts: vec![TerminalContext {
-            terminal_context_id: standalone,
-            groups: Vec::new(),
-            tabs: Vec::new(),
-        }],
+        terminal_contexts: Vec::new(),
     };
     let mut next = 2;
     for _project in 0..2 {
