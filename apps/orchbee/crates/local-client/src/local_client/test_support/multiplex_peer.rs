@@ -183,7 +183,7 @@ impl Peer {
             mode: StreamMode::Request,
             request: Vec::new(),
         };
-        respond(
+        match respond(
             &mut self.stream,
             &open,
             &WorkbenchResponse::Publication(WorkbenchPublicationResult {
@@ -192,7 +192,15 @@ impl Peer {
                 outcome,
             }),
             1,
-        )?;
+        ) {
+            // A Client may close the carrier before its unsolicited probe is answered.
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::BrokenPipe | io::ErrorKind::ConnectionReset
+                ) => {}
+            result => result?,
+        }
         Ok(true)
     }
     fn accept(&mut self, message: MultiplexMessage) -> io::Result<bool> {

@@ -1984,6 +1984,8 @@ fn workspace_snapshot_failures_are_unavailable_without_an_attachment_fallback() 
                     .map_err(io::Error::other)?;
                 }
             }
+            // A publication probe may still race the drop; only attachment traffic fails.
+            stream.answer_probes();
             let mut rest = Vec::new();
             stream.read_to_end(&mut rest)?;
             assert!(
