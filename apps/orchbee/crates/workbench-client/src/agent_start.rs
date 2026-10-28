@@ -109,7 +109,7 @@ pub struct Report {
     pub last_observed: Option<AgentLaunchReservation>,
     pub reservation_state: ReservationState,
     pub submission: Option<Submission>,
-    pub delivery: DeliveryDisposition,
+    pub(crate) delivery: DeliveryDisposition,
     pub elapsed_ms: u64,
     pub verdict: Verdict,
 }
@@ -186,4 +186,46 @@ pub(crate) fn run_on_origin(
 }
 pub fn command_valid(request: &Request) -> bool {
     command::launch(request.provider.as_str(), &request.args).is_some()
+}
+
+/// Field-for-field `Report` fixture the application's tests build values from.
+#[cfg(any(test, feature = "test-support"))]
+pub struct ReportFixture {
+    pub name: AgentName,
+    pub provider: AgentProviderId,
+    pub reservation: Option<ObapRequestId>,
+    pub last_observed: Option<AgentLaunchReservation>,
+    pub reservation_state: ReservationState,
+    pub submission: Option<Submission>,
+    pub delivery: DeliveryDisposition,
+    pub elapsed_ms: u64,
+    pub verdict: Verdict,
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl From<ReportFixture> for Report {
+    fn from(fixture: ReportFixture) -> Self {
+        let ReportFixture {
+            name,
+            provider,
+            reservation,
+            last_observed,
+            reservation_state,
+            submission,
+            delivery,
+            elapsed_ms,
+            verdict,
+        } = fixture;
+        Self {
+            name,
+            provider,
+            reservation,
+            last_observed,
+            reservation_state,
+            submission,
+            delivery,
+            elapsed_ms,
+            verdict,
+        }
+    }
 }

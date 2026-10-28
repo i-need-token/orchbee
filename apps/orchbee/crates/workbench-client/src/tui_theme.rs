@@ -131,19 +131,19 @@ pub struct GlyphSet {
     mode: GlyphMode,
     /// Truncation marker. `…` is East Asian ambiguous width; `..` is the
     /// ASCII form.
-    pub ellipsis: &'static str,
+    pub(crate) ellipsis: &'static str,
     /// Separator inside frame titles and list rows.
-    pub middle_dot: &'static str,
+    pub(crate) middle_dot: &'static str,
     /// Status glyph used in the sidebar session section.
-    pub status_bullet: &'static str,
+    pub(crate) status_bullet: &'static str,
     /// Workspace identity when no Agent state is available; never an activity status.
     pub(crate) workspace: &'static str,
     pub(crate) git_ahead: &'static str,
     pub(crate) git_behind: &'static str,
     /// Active marker in navigator and context lists.
-    pub active_marker: &'static str,
+    pub(crate) active_marker: &'static str,
     /// Reversible keyboard-navigation anchor within a collection.
-    pub navigation_marker: &'static str,
+    pub(crate) navigation_marker: &'static str,
     /// One-cell rule between strip regions, such as pinned and ordinary Tabs.
     pub(crate) vertical_rule: &'static str,
     /// One-cell scrollbar chrome, including host-safe ASCII alternatives.
@@ -343,7 +343,7 @@ pub struct Theme {
     pub(crate) name: &'static str,
     pub(crate) polarity: Option<Polarity>,
     pub(crate) corners: BorderType,
-    pub glyphs: GlyphSet,
+    pub(crate) glyphs: GlyphSet,
     color_level: ColorLevel,
     no_color: bool,
     terminal_colors: Option<(Color, Color)>,
@@ -1421,6 +1421,7 @@ fn srgb_to_lab(red: u8, green: u8, blue: u8) -> (f64, f64, f64) {
 /// Crate-internal `Theme` operations the application's tests drive.
 #[cfg(any(test, feature = "test-support"))]
 pub trait ThemeTestAccess {
+    fn glyphs(&self) -> &GlyphSet;
     fn color(&self, role: Role) -> Color;
     fn with_terminal_preferences(
         self,
@@ -1437,6 +1438,9 @@ pub trait ThemeTestAccess {
 
 #[cfg(any(test, feature = "test-support"))]
 impl ThemeTestAccess for Theme {
+    fn glyphs(&self) -> &GlyphSet {
+        &self.glyphs
+    }
     fn color(&self, role: Role) -> Color {
         Theme::color(self, role)
     }
@@ -1458,6 +1462,35 @@ impl ThemeTestAccess for Theme {
     }
     fn one_dark() -> Self {
         Theme::one_dark()
+    }
+}
+
+/// Crate-internal `GlyphSet` glyphs the application's tests read.
+#[cfg(any(test, feature = "test-support"))]
+pub trait GlyphSetTestAccess {
+    fn ellipsis(&self) -> &'static str;
+    fn middle_dot(&self) -> &'static str;
+    fn status_bullet(&self) -> &'static str;
+    fn active_marker(&self) -> &'static str;
+    fn navigation_marker(&self) -> &'static str;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl GlyphSetTestAccess for GlyphSet {
+    fn ellipsis(&self) -> &'static str {
+        self.ellipsis
+    }
+    fn middle_dot(&self) -> &'static str {
+        self.middle_dot
+    }
+    fn status_bullet(&self) -> &'static str {
+        self.status_bullet
+    }
+    fn active_marker(&self) -> &'static str {
+        self.active_marker
+    }
+    fn navigation_marker(&self) -> &'static str {
+        self.navigation_marker
     }
 }
 

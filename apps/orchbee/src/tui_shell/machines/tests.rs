@@ -8,9 +8,18 @@ use crate::{
 };
 use orchbee_workbench_client::test_support::client_view::ClientViewTestAccess;
 use orchbee_workbench_client::test_support::machine_picker::PickerTestAccess;
+use orchbee_workbench_client::test_support::terminal_input::PointerFrameFacts;
+use orchbee_workbench_client::test_support::terminal_input::PointerFrameFactsFixture;
+use orchbee_workbench_client::test_support::terminal_input::PointerPane;
+use orchbee_workbench_client::test_support::terminal_input::PointerPaneFixture;
+use orchbee_workbench_client::test_support::terminal_input::PointerPaneTestAccess;
 use orchbee_workbench_client::test_support::terminal_input::PointerProbe;
+use orchbee_workbench_client::test_support::terminal_input::PointerProbeFixture;
+use orchbee_workbench_client::test_support::terminal_input::PointerProbeTestAccess;
 use orchbee_workbench_client::test_support::terminal_input::PointerSelectionAdmission;
 use orchbee_workbench_client::test_support::terminal_input::PointerSelectionIntent;
+use orchbee_workbench_client::test_support::terminal_input::PointerTab;
+use orchbee_workbench_client::test_support::terminal_input::PointerTabFixture;
 use orchbee_workbench_client::test_support::tui_pointer::HitMapBuilderTestAccess;
 use orchbee_workbench_client::test_support::workbench_client::input::InputActionTestAccess;
 use orchbee_workbench_client::test_support::workbench_client::state::AttachmentKeyTestAccess;
@@ -47,14 +56,14 @@ impl crate::terminal_input::TerminalInputPort for Witness {
             let target = self
                 .probe
                 .borrow()
-                .panes
+                .panes()
                 .iter()
-                .find(|pane| pane.record.pane().panel() == &panel && pane.attached)
-                .map(|pane| pane.record.clone());
+                .find(|pane| pane.record().pane().panel() == &panel && pane.attached())
+                .map(|pane| pane.record().clone());
             if let Some(target) = target {
                 let mut probe = self.probe.borrow_mut();
-                probe.desired = Some(target.pane().clone());
-                probe.focus = Some(target);
+                *probe.desired_mut() = Some(target.pane().clone());
+                *probe.focus_mut() = Some(target);
             }
         }
         Some(orchbee_workbench_client::test_support::client_view::ClientActionDisposition::KeepNavigator)
@@ -442,37 +451,37 @@ fn forced_catalog_fallback_cancels_once_through_the_old_surface_before_replace()
     };
     let previous = pane("11111111111111111111111111111111");
     let target = pane("22222222222222222222222222222222");
-    let remote_probe = std::rc::Rc::new(std::cell::RefCell::new(PointerProbe {
-        focus: Some(previous.clone()),
-        desired: Some(previous.pane().clone()),
-        input_ready: true,
-        selection_ready: true,
-        panes: vec![
-            orchbee_workbench_client::test_support::terminal_input::PointerPane {
-                right_click_reporting: false,
-                right_click: Default::default(),
-                record: previous,
-                attached: true,
-                controlling: Some(true),
-                frame_available: true,
-            },
-            orchbee_workbench_client::test_support::terminal_input::PointerPane {
-                right_click_reporting: false,
-                right_click: Default::default(),
-                record: target.clone(),
-                attached: true,
-                controlling: Some(true),
-                frame_available: false,
-            },
-        ],
-        tabs: vec![
-            orchbee_workbench_client::test_support::terminal_input::PointerTab {
+    let remote_probe = std::rc::Rc::new(std::cell::RefCell::new(PointerProbe::from(
+        PointerProbeFixture {
+            focus: Some(previous.clone()),
+            desired: Some(previous.pane().clone()),
+            input_ready: true,
+            selection_ready: true,
+            panes: vec![
+                PointerPane::from(PointerPaneFixture {
+                    right_click_reporting: false,
+                    right_click: Default::default(),
+                    record: previous,
+                    attached: true,
+                    controlling: Some(true),
+                    frame_available: true,
+                }),
+                PointerPane::from(PointerPaneFixture {
+                    right_click_reporting: false,
+                    right_click: Default::default(),
+                    record: target.clone(),
+                    attached: true,
+                    controlling: Some(true),
+                    frame_available: false,
+                }),
+            ],
+            tabs: vec![PointerTab::from(PointerTabFixture {
                 id: tab,
                 position: 1,
-            },
-        ],
-        ..PointerProbe::default()
-    }));
+            })],
+            ..PointerProbeFixture::default()
+        },
+    )));
     manager.current = Some(profile());
     manager.cached.push(Cached {
         profile: None,
@@ -519,22 +528,20 @@ fn forced_catalog_fallback_cancels_once_through_the_old_surface_before_replace()
     );
     {
         let mut probe = remote_probe.borrow_mut();
-        probe.frame = Some(
-            orchbee_workbench_client::test_support::terminal_input::PointerFrameFacts {
-                tracking: orchbee_terminal_protocol::MouseTracking::None,
-                format: orchbee_terminal_protocol::MouseFormat::Sgr,
-                cell_pixel: (0, 0),
-                alternate_screen: false,
-                alternate_scroll: true,
-                application_cursor: false,
-            },
-        );
-        probe
-            .panes
+        *probe.frame_mut() = Some(PointerFrameFacts::from(PointerFrameFactsFixture {
+            tracking: orchbee_terminal_protocol::MouseTracking::None,
+            format: orchbee_terminal_protocol::MouseFormat::Sgr,
+            cell_pixel: (0, 0),
+            alternate_screen: false,
+            alternate_scroll: true,
+            application_cursor: false,
+        }));
+        *probe
+            .panes_mut()
             .iter_mut()
-            .find(|pane| pane.record == target)
+            .find(|pane| *pane.record() == target)
             .unwrap()
-            .frame_available = true;
+            .frame_available_mut() = true;
     }
     pointer.tick(
         &mut view,
@@ -615,7 +622,7 @@ fn machine_catalog_failure_preserves_active_identity_but_disable_returns_local()
     );
     assert!(!change.switched);
     assert_eq!(view.machines.current, Choice::Remote(profile().id));
-    assert_eq!(view.machines.rows.len(), 1);
+    assert_eq!(view.machines.rows().len(), 1);
     let mut disabled = profile();
     disabled.enabled = false;
     let change = manager.refresh_catalog(

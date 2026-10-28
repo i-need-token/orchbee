@@ -57,14 +57,14 @@ pub enum ModeRequest {
 /// the pane's requested mouse contract plus its screen/cursor modes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PointerFrameFacts {
-    pub tracking: MouseTracking,
-    pub format: MouseFormat,
+    pub(crate) tracking: MouseTracking,
+    pub(crate) format: MouseFormat,
     /// `(cell_pixel_width, cell_pixel_height)`; `(0, 0)` means the host
     /// reported pixels unknown — cell-mode input still works.
-    pub cell_pixel: (u16, u16),
-    pub alternate_screen: bool,
-    pub alternate_scroll: bool,
-    pub application_cursor: bool,
+    pub(crate) cell_pixel: (u16, u16),
+    pub(crate) alternate_screen: bool,
+    pub(crate) alternate_scroll: bool,
+    pub(crate) application_cursor: bool,
 }
 
 /// A terminal cell inside the pane viewport recorded by the pointer press.
@@ -117,9 +117,9 @@ pub enum PointerLinkAdmission {
 /// values, so the probe needs no panel list.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PointerTab {
-    pub id: WorkbenchTabId,
+    pub(crate) id: WorkbenchTabId,
     /// 1-based position, matching `ClientAction::SelectTab`.
-    pub position: usize,
+    pub(crate) position: usize,
 }
 
 /// The live facts of one pane leaf the last probe observed, keyed by the
@@ -129,22 +129,22 @@ pub struct PointerTab {
 /// and orphans the gesture rather than substituting the new attachment.
 #[derive(Clone, Debug)]
 pub struct PointerPane {
-    pub right_click_reporting: bool,
-    pub right_click: orchbee_workbench_protocol::PanelRightClickTarget,
+    pub(crate) right_click_reporting: bool,
+    pub(crate) right_click: orchbee_workbench_protocol::PanelRightClickTarget,
     /// The record's exact incarnation (logical pane + incarnation).
-    pub record: crate::workbench_client::state::PaneRef,
+    pub(crate) record: crate::workbench_client::state::PaneRef,
     /// The record's attachment is live for this incarnation.
-    pub attached: bool,
+    pub(crate) attached: bool,
     /// The record's controller mode once known: `Some(true)` admits input
     /// (`Controlling`), `Some(false)` adjudicates negatively (`ReadOnly`),
     /// and `None` means the mode has not arrived yet — a settling focus
     /// must keep waiting rather than cancel as read-only.
-    pub controlling: Option<bool>,
+    pub(crate) controlling: Option<bool>,
     /// The record's installed projection reached `FrameAvailable` for
     /// this exact incarnation — a usable frame from the same generation,
     /// so an attached local focus settles immediately rather than waiting
     /// on a newer sequence.
-    pub frame_available: bool,
+    pub(crate) frame_available: bool,
 }
 
 /// The session facts a pointer event resolves against, probed fresh per
@@ -154,37 +154,37 @@ pub struct PointerPane {
 pub struct PointerProbe {
     /// A modal draft or an armed confirmation owns input; pointer events
     /// are swallowed without producing gestures.
-    pub input_captured: bool,
+    pub(crate) input_captured: bool,
     /// The focus pane's exact live incarnation — `None` when the focus
     /// pane departed or has no record. Compared bit for bit with a
     /// gesture's recorded target.
-    pub focus: Option<crate::workbench_client::state::PaneRef>,
+    pub(crate) focus: Option<crate::workbench_client::state::PaneRef>,
     /// The selection's desired pane key — its anchor names the active tab
     /// for stale-map edge resolution.
-    pub desired: Option<crate::workbench_client::state::PaneKey>,
+    pub(crate) desired: Option<crate::workbench_client::state::PaneKey>,
     /// Per-leaf live facts for every pane record, keyed by exact
     /// incarnation — the pending settler looks up its recorded target.
-    pub panes: Vec<PointerPane>,
-    pub unbound: Vec<PointerUnboundPane>,
+    pub(crate) panes: Vec<PointerPane>,
+    pub(crate) unbound: Vec<PointerUnboundPane>,
     /// `forward` would accept input right now: Ready phase under a
     /// Controlling mode with an exact focus incarnation that no close
     /// suppresses. `focus == expected` alone is not this — the phase and
     /// mode must be live reads, not a painted snapshot.
-    pub input_ready: bool,
+    pub(crate) input_ready: bool,
     /// The focus pane can admit a Host-backed selection right now: Ready
     /// phase with read authority for the exact focus incarnation and no
     /// close or retirement suppression. This is independent from
     /// `input_ready`; a ReadOnly viewer can still select and copy text.
-    pub selection_ready: bool,
+    pub(crate) selection_ready: bool,
     /// Tabs in painted order for stable-id → position resolution.
-    pub tabs: Vec<PointerTab>,
+    pub(crate) tabs: Vec<PointerTab>,
     /// The focus pane's current interaction facts; `None` while no
     /// current frame exists for the focused incarnation.
-    pub frame: Option<PointerFrameFacts>,
+    pub(crate) frame: Option<PointerFrameFacts>,
     /// The focus pane currently owns a non-Live retained-history core:
     /// wheel gestures over it scroll locally instead of encoding to the
     /// pane. Read fresh per event, like every other probe fact.
-    pub viewport_non_live: bool,
+    pub(crate) viewport_non_live: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -690,5 +690,182 @@ pub trait InputActionTestAccess {
 impl InputActionTestAccess for InputAction {
     fn intent(&self) -> ClientAction {
         InputAction::intent(self)
+    }
+}
+
+/// Crate-internal `PointerProbe` state the application's tests read and adjust.
+#[cfg(any(test, feature = "test-support"))]
+pub trait PointerProbeTestAccess {
+    fn panes(&self) -> &[PointerPane];
+    fn panes_mut(&mut self) -> &mut Vec<PointerPane>;
+    fn focus_mut(&mut self) -> &mut Option<crate::workbench_client::state::PaneRef>;
+    fn desired_mut(&mut self) -> &mut Option<crate::workbench_client::state::PaneKey>;
+    fn frame_mut(&mut self) -> &mut Option<PointerFrameFacts>;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl PointerProbeTestAccess for PointerProbe {
+    fn panes(&self) -> &[PointerPane] {
+        &self.panes
+    }
+    fn panes_mut(&mut self) -> &mut Vec<PointerPane> {
+        &mut self.panes
+    }
+    fn focus_mut(&mut self) -> &mut Option<crate::workbench_client::state::PaneRef> {
+        &mut self.focus
+    }
+    fn desired_mut(&mut self) -> &mut Option<crate::workbench_client::state::PaneKey> {
+        &mut self.desired
+    }
+    fn frame_mut(&mut self) -> &mut Option<PointerFrameFacts> {
+        &mut self.frame
+    }
+}
+
+/// Crate-internal `PointerPane` state the application's tests read and adjust.
+#[cfg(any(test, feature = "test-support"))]
+pub trait PointerPaneTestAccess {
+    fn record(&self) -> &crate::workbench_client::state::PaneRef;
+    fn attached(&self) -> bool;
+    fn frame_available_mut(&mut self) -> &mut bool;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl PointerPaneTestAccess for PointerPane {
+    fn record(&self) -> &crate::workbench_client::state::PaneRef {
+        &self.record
+    }
+    fn attached(&self) -> bool {
+        self.attached
+    }
+    fn frame_available_mut(&mut self) -> &mut bool {
+        &mut self.frame_available
+    }
+}
+
+/// Field-for-field `PointerFrameFacts` fixture the application's tests build values from.
+#[cfg(any(test, feature = "test-support"))]
+pub struct PointerFrameFactsFixture {
+    pub tracking: MouseTracking,
+    pub format: MouseFormat,
+    pub cell_pixel: (u16, u16),
+    pub alternate_screen: bool,
+    pub alternate_scroll: bool,
+    pub application_cursor: bool,
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl From<PointerFrameFactsFixture> for PointerFrameFacts {
+    fn from(fixture: PointerFrameFactsFixture) -> Self {
+        let PointerFrameFactsFixture {
+            tracking,
+            format,
+            cell_pixel,
+            alternate_screen,
+            alternate_scroll,
+            application_cursor,
+        } = fixture;
+        Self {
+            tracking,
+            format,
+            cell_pixel,
+            alternate_screen,
+            alternate_scroll,
+            application_cursor,
+        }
+    }
+}
+
+/// Field-for-field `PointerTab` fixture the application's tests build values from.
+#[cfg(any(test, feature = "test-support"))]
+pub struct PointerTabFixture {
+    pub id: WorkbenchTabId,
+    pub position: usize,
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl From<PointerTabFixture> for PointerTab {
+    fn from(fixture: PointerTabFixture) -> Self {
+        let PointerTabFixture { id, position } = fixture;
+        Self { id, position }
+    }
+}
+
+/// Field-for-field `PointerPane` fixture the application's tests build values from.
+#[cfg(any(test, feature = "test-support"))]
+pub struct PointerPaneFixture {
+    pub right_click_reporting: bool,
+    pub right_click: orchbee_workbench_protocol::PanelRightClickTarget,
+    pub record: crate::workbench_client::state::PaneRef,
+    pub attached: bool,
+    pub controlling: Option<bool>,
+    pub frame_available: bool,
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl From<PointerPaneFixture> for PointerPane {
+    fn from(fixture: PointerPaneFixture) -> Self {
+        let PointerPaneFixture {
+            right_click_reporting,
+            right_click,
+            record,
+            attached,
+            controlling,
+            frame_available,
+        } = fixture;
+        Self {
+            right_click_reporting,
+            right_click,
+            record,
+            attached,
+            controlling,
+            frame_available,
+        }
+    }
+}
+
+/// Field-for-field `PointerProbe` fixture the application's tests build values from.
+#[cfg(any(test, feature = "test-support"))]
+#[derive(Default)]
+pub struct PointerProbeFixture {
+    pub input_captured: bool,
+    pub focus: Option<crate::workbench_client::state::PaneRef>,
+    pub desired: Option<crate::workbench_client::state::PaneKey>,
+    pub panes: Vec<PointerPane>,
+    pub unbound: Vec<PointerUnboundPane>,
+    pub input_ready: bool,
+    pub selection_ready: bool,
+    pub tabs: Vec<PointerTab>,
+    pub frame: Option<PointerFrameFacts>,
+    pub viewport_non_live: bool,
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl From<PointerProbeFixture> for PointerProbe {
+    fn from(fixture: PointerProbeFixture) -> Self {
+        let PointerProbeFixture {
+            input_captured,
+            focus,
+            desired,
+            panes,
+            unbound,
+            input_ready,
+            selection_ready,
+            tabs,
+            frame,
+            viewport_non_live,
+        } = fixture;
+        Self {
+            input_captured,
+            focus,
+            desired,
+            panes,
+            unbound,
+            input_ready,
+            selection_ready,
+            tabs,
+            frame,
+            viewport_non_live,
+        }
     }
 }

@@ -1,5 +1,6 @@
 use super::*;
 use orchbee_local_runtime::{PluginManifest, PluginPlatform, PluginRegistryError};
+use orchbee_workbench_client::test_support::terminal_link_activation::plugin::SelectionTestAccess;
 fn entry(id: &str) -> PluginRegistryEntry {
     PluginRegistryEntry {
         manifest_path: format!("C:/plugins/{id}/orchbee-plugin.toml"),
@@ -38,7 +39,7 @@ fn link_handlers_follow_plugin_lexical_order_and_preserve_overlapping_manifest_o
         .unwrap()
         .unwrap();
     assert_eq!(
-        (chosen.entry.manifest.id.as_str(), chosen.handler.as_str()),
+        (chosen.entry().manifest.id.as_str(), chosen.handler()),
         ("a", "first")
     );
     let mut reversed = a;
@@ -47,7 +48,7 @@ fn link_handlers_follow_plugin_lexical_order_and_preserve_overlapping_manifest_o
         select_entries(&[reversed], "https://example", || Ok(()))
             .unwrap()
             .unwrap()
-            .handler,
+            .handler(),
         "second"
     );
     assert!(
@@ -88,7 +89,7 @@ fn link_matching_skips_disabled_unavailable_invalid_and_platform_ineligible_hand
         let chosen = select_entries(&[a, entry("z")], "https://example", || Ok(()))
             .unwrap()
             .unwrap();
-        assert_eq!(chosen.entry.manifest.id, "z", "{mode}");
+        assert_eq!(chosen.entry().manifest.id, "z", "{mode}");
     }
     let mut overridden = entry("a");
     overridden.manifest.platforms = Some(vec![PluginPlatform::Macos]);

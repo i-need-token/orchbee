@@ -12,8 +12,8 @@ pub(crate) mod placement;
 /// An emitted query creates no placement and never guesses a terminal capability.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Query {
-    pub cell: bool,
-    pub image_id: Option<u32>,
+    pub(crate) cell: bool,
+    pub(crate) image_id: Option<u32>,
 }
 impl Query {
     pub(crate) fn sequence(self) -> String {
@@ -60,7 +60,7 @@ impl Measurement {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Facts {
     pub measurement: Option<Measurement>,
-    pub kitty: bool,
+    pub(crate) kitty: bool,
 }
 impl Facts {
     pub(crate) fn cell_capabilities(self) -> PaneGraphicsCapabilities {
@@ -185,13 +185,32 @@ impl Probe {
 /// Crate-internal `Facts` operations the application's tests drive.
 #[cfg(any(test, feature = "test-support"))]
 pub trait FactsTestAccess {
+    fn kitty(&self) -> bool;
     fn cell_capabilities(self) -> PaneGraphicsCapabilities;
 }
 
 #[cfg(any(test, feature = "test-support"))]
 impl FactsTestAccess for Facts {
+    fn kitty(&self) -> bool {
+        self.kitty
+    }
     fn cell_capabilities(self) -> PaneGraphicsCapabilities {
         Facts::cell_capabilities(self)
+    }
+}
+
+/// Field-for-field `Query` fixture the application's tests build values from.
+#[cfg(any(test, feature = "test-support"))]
+pub struct QueryFixture {
+    pub cell: bool,
+    pub image_id: Option<u32>,
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl From<QueryFixture> for Query {
+    fn from(fixture: QueryFixture) -> Self {
+        let QueryFixture { cell, image_id } = fixture;
+        Self { cell, image_id }
     }
 }
 

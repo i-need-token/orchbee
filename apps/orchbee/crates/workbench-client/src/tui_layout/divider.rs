@@ -11,11 +11,11 @@ use ratatui::layout::Rect;
 /// Selected canonical identity; drawing it grants no terminal input authority.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DividerSource {
-    pub session: SessionId,
-    pub context: WorkbenchTerminalContextId,
-    pub tab: WorkbenchTabId,
-    pub focus: WorkbenchPanelId,
-    pub revision: WorkbenchRevision,
+    pub(crate) session: SessionId,
+    pub(crate) context: WorkbenchTerminalContextId,
+    pub(crate) tab: WorkbenchTabId,
+    pub(crate) focus: WorkbenchPanelId,
+    pub(crate) revision: WorkbenchRevision,
 }
 
 /// A resize toolbar refers to one focused layout and its painted viewport.
@@ -29,15 +29,15 @@ pub struct DrawnResize {
 /// Exact painted split and viewport, revalidated before every gesture step.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DrawnDivider {
-    pub source: DividerSource,
+    pub(crate) source: DividerSource,
     pub viewport: Rect,
-    pub split: WorkbenchSplitId,
-    pub first: WorkbenchPanelSlotId,
-    pub second: WorkbenchPanelSlotId,
-    pub orientation: PanelOrientation,
-    pub ratio: ClientSplitRatio,
-    pub area: Rect,
-    pub divider: Rect,
+    pub(crate) split: WorkbenchSplitId,
+    pub(crate) first: WorkbenchPanelSlotId,
+    pub(crate) second: WorkbenchPanelSlotId,
+    pub(crate) orientation: PanelOrientation,
+    pub(crate) ratio: ClientSplitRatio,
+    pub(crate) area: Rect,
+    pub(crate) divider: Rect,
 }
 
 impl DrawnDivider {
@@ -69,11 +69,11 @@ impl DrawnDivider {
 /// Local preview; the original source and ratio remain immutable until it is dropped.
 #[derive(Clone, Debug)]
 pub struct DividerDrag {
-    pub target: DrawnDivider,
+    pub(crate) target: DrawnDivider,
     /// Last successfully painted geometry of this same local draft, never a new origin.
     pub(crate) painted: DrawnDivider,
     pressed: (u16, u16),
-    pub ratio: ClientSplitRatio,
+    pub(crate) ratio: ClientSplitRatio,
     pub(crate) preview: Rect,
 }
 

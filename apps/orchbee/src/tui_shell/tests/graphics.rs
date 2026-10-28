@@ -4,6 +4,7 @@ use orchbee_client_server_protocol::Geometry;
 use orchbee_workbench_client::test_support::terminal_graphics::Facts;
 use orchbee_workbench_client::test_support::terminal_graphics::FactsTestAccess;
 use orchbee_workbench_client::test_support::terminal_graphics::Query;
+use orchbee_workbench_client::test_support::terminal_graphics::QueryFixture;
 use ratatui::backend::Backend;
 
 struct Inputs {
@@ -116,10 +117,10 @@ fn graphics_measurement_flows_through_the_actual_shell_without_reply_or_prefix_l
     );
     assert_eq!(
         queries,
-        [Query {
+        [Query::from(QueryFixture {
             cell: true,
             image_id: Some(31)
-        }]
+        })]
     );
     assert!(
         surface
@@ -202,7 +203,7 @@ fn absent_and_late_graphics_replies_do_not_delay_the_first_draw_or_restore_unkno
         surface
             .facts
             .iter()
-            .all(|facts| facts.measurement.is_none() && !facts.kitty)
+            .all(|facts| facts.measurement.is_none() && !facts.kitty())
     );
     assert!(
         surface

@@ -40,7 +40,7 @@ pub struct ShellText<'a> {
     pub(crate) no_workspace: &'static str,
     pub(crate) tabs_unavailable: &'static str,
     pub(crate) terminal_unavailable: &'static str,
-    pub too_small_notice: &'static str,
+    pub(crate) too_small_notice: &'static str,
     pub(crate) workbench_title: &'static str,
     pub(crate) pinned_tab: &'static str,
     pub(crate) unnamed_tab_group: &'static str,

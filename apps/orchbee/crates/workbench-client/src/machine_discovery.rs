@@ -20,13 +20,13 @@ const CONNECT_LIMIT: usize = 4;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Overview {
-    pub session: SessionId,
-    pub revision: WorkbenchRevision,
-    pub projects: usize,
-    pub workspaces: usize,
-    pub tabs: usize,
-    pub labels: Vec<String>,
-    pub contexts: std::sync::Arc<[Context]>,
+    pub(crate) session: SessionId,
+    pub(crate) revision: WorkbenchRevision,
+    pub(crate) projects: usize,
+    pub(crate) workspaces: usize,
+    pub(crate) tabs: usize,
+    pub(crate) labels: Vec<String>,
+    pub(crate) contexts: std::sync::Arc<[Context]>,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Context {
@@ -346,6 +346,42 @@ impl Drop for Discovery {
             .chain(&self.retired)
         {
             worker.cancel();
+        }
+    }
+}
+
+/// Field-for-field `Overview` fixture the application's tests build values from.
+#[cfg(any(test, feature = "test-support"))]
+pub struct OverviewFixture {
+    pub session: SessionId,
+    pub revision: WorkbenchRevision,
+    pub projects: usize,
+    pub workspaces: usize,
+    pub tabs: usize,
+    pub labels: Vec<String>,
+    pub contexts: std::sync::Arc<[Context]>,
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl From<OverviewFixture> for Overview {
+    fn from(fixture: OverviewFixture) -> Self {
+        let OverviewFixture {
+            session,
+            revision,
+            projects,
+            workspaces,
+            tabs,
+            labels,
+            contexts,
+        } = fixture;
+        Self {
+            session,
+            revision,
+            projects,
+            workspaces,
+            tabs,
+            labels,
+            contexts,
         }
     }
 }

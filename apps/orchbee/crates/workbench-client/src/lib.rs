@@ -519,7 +519,7 @@ pub mod test_support {
     }
 
     pub mod agent_start {
-        pub use crate::agent_start::DeliveryDisposition;
+        pub use crate::agent_start::{DeliveryDisposition, ReportFixture};
     }
 
     pub mod client_view {
@@ -542,18 +542,18 @@ pub mod test_support {
     }
 
     pub mod localization {
-        pub use crate::localization::LocaleTestAccess;
+        pub use crate::localization::{LocaleTestAccess, ShellTextTestAccess};
     }
 
     pub mod machine_agents {
         pub use crate::machine_agents::test_support::{
             checkpoint, fixture, physical, row, state_checkpoint,
         };
-        pub use crate::machine_agents::{Checkpoint, Observation};
+        pub use crate::machine_agents::{Checkpoint, Observation, RowTestAccess, TargetTestAccess};
     }
 
     pub mod machine_discovery {
-        pub use crate::machine_discovery::{Observation, Overview};
+        pub use crate::machine_discovery::{Observation, Overview, OverviewFixture};
     }
 
     pub mod machine_picker {
@@ -573,6 +573,7 @@ pub mod test_support {
     }
 
     pub mod terminal_events {
+        pub use crate::terminal_events::DecodedItemTestAccess;
 
         pub mod keys {
             pub use crate::terminal_events::keys::KeyEventTestAccess;
@@ -580,7 +581,9 @@ pub mod test_support {
     }
 
     pub mod terminal_graphics {
-        pub use crate::terminal_graphics::{Facts, FactsTestAccess, Probe, Query, Reply};
+        pub use crate::terminal_graphics::{
+            Facts, FactsTestAccess, Probe, Query, QueryFixture, Reply,
+        };
     }
 
     pub mod terminal_host_appearance {
@@ -591,6 +594,10 @@ pub mod test_support {
         pub use crate::terminal_input::{
             HostReply, PointerFrameFacts, PointerPane, PointerProbe, PointerSelectionAdmission,
             PointerSelectionIntent, PointerTab, TerminalInputUnavailable,
+        };
+        pub use crate::workbench_client::input::{
+            PointerFrameFactsFixture, PointerPaneFixture, PointerPaneTestAccess,
+            PointerProbeFixture, PointerProbeTestAccess, PointerTabFixture,
         };
     }
 
@@ -611,7 +618,9 @@ pub mod test_support {
     pub mod terminal_link_activation {
 
         pub mod plugin {
-            pub use crate::terminal_link_activation::plugin::select_entries;
+            pub use crate::terminal_link_activation::plugin::{
+                SelectionTestAccess, select_entries,
+            };
         }
     }
 
@@ -640,8 +649,9 @@ pub mod test_support {
 
     pub mod tui_layout {
         pub use crate::tui_layout::{
-            DividerDragTestAccess, DividerSource, DrawnDivider, DrawnSidebarWidthTestAccess,
-            SidebarWidth, SidebarWidthTestAccess,
+            DividerDragTestAccess, DividerSource, DividerSourceFixture, DrawnDivider,
+            DrawnDividerFixture, DrawnDividerTestAccess, DrawnSidebarWidthTestAccess,
+            ShellAreasTestAccess, SidebarAreaTestAccess, SidebarWidth, SidebarWidthTestAccess,
         };
     }
 
@@ -662,7 +672,7 @@ pub mod test_support {
     }
 
     pub mod tui_theme {
-        pub use crate::tui_theme::{ColorLevel, Role, ThemeTestAccess};
+        pub use crate::tui_theme::{ColorLevel, GlyphSetTestAccess, Role, ThemeTestAccess};
     }
 
     pub mod workbench_client {
@@ -677,8 +687,8 @@ pub mod test_support {
             spin, spin_with_draw,
         };
         pub use crate::workbench_client::{
-            CaptureContext, CloseConfirmationToken, InputAction, PaneGraphicsCanvas,
-            WorkbenchClientViewTestAccess, WorkspaceCloseToken,
+            CaptureContext, ClientMemberTargetFixture, CloseConfirmationToken, InputAction,
+            PaneGraphicsCanvas, WorkbenchClientViewTestAccess, WorkspaceCloseToken,
         };
 
         pub mod input {

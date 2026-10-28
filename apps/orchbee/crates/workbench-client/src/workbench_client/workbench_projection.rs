@@ -97,9 +97,9 @@ impl ClientStartupTarget {
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ClientMemberTarget {
-    pub tab: WorkbenchTabId,
-    pub panel: WorkbenchPanelId,
-    pub presentation: TerminalPresentationId,
+    pub(crate) tab: WorkbenchTabId,
+    pub(crate) panel: WorkbenchPanelId,
+    pub(crate) presentation: TerminalPresentationId,
 }
 
 /// An exact bound member, with an optional physical Host fence for Agent navigation.
@@ -1764,6 +1764,30 @@ fn retained_structure_tuples(current: &[ClientTab], candidate: &[ClientTab]) -> 
     current
         .iter()
         .all(|tab| structure_tuples_retained(&tab.tree, &tab.tab_id, &splits, &slots))
+}
+
+/// Field-for-field `ClientMemberTarget` fixture the application's tests build values from.
+#[cfg(any(test, feature = "test-support"))]
+pub struct ClientMemberTargetFixture {
+    pub tab: WorkbenchTabId,
+    pub panel: WorkbenchPanelId,
+    pub presentation: TerminalPresentationId,
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl From<ClientMemberTargetFixture> for ClientMemberTarget {
+    fn from(fixture: ClientMemberTargetFixture) -> Self {
+        let ClientMemberTargetFixture {
+            tab,
+            panel,
+            presentation,
+        } = fixture;
+        Self {
+            tab,
+            panel,
+            presentation,
+        }
+    }
 }
 
 #[cfg(test)]

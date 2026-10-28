@@ -12,7 +12,10 @@ use orchbee_workbench_client::test_support::machine_picker::PickerTestAccess;
 use orchbee_workbench_client::test_support::tui_graphics::SurfaceTestAccess;
 use orchbee_workbench_client::test_support::tui_layout::DividerDragTestAccess;
 use orchbee_workbench_client::test_support::tui_layout::DividerSource;
+use orchbee_workbench_client::test_support::tui_layout::DividerSourceFixture;
 use orchbee_workbench_client::test_support::tui_layout::DrawnDivider;
+use orchbee_workbench_client::test_support::tui_layout::DrawnDividerFixture;
+use orchbee_workbench_client::test_support::tui_layout::DrawnDividerTestAccess;
 use orchbee_workbench_client::test_support::tui_layout::DrawnSidebarWidthTestAccess;
 use orchbee_workbench_client::test_support::tui_layout::SidebarWidthTestAccess;
 use orchbee_workbench_client::test_support::tui_pointer::HelpControl;
@@ -34,14 +37,14 @@ use orchbee_workbench_protocol::{
 use ratatui::{layout::Rect, widgets::Paragraph};
 
 fn fixture_divider(viewport: Rect) -> DrawnDivider {
-    DrawnDivider {
-        source: DividerSource {
+    DrawnDivider::from(DrawnDividerFixture {
+        source: DividerSource::from(DividerSourceFixture {
             session: SessionId::parse(&format!("{:032x}", 1)).unwrap(),
             context: WorkbenchTerminalContextId::parse(&format!("{:032x}", 2)).unwrap(),
             tab: WorkbenchTabId::parse(&format!("{:032x}", 3)).unwrap(),
             focus: WorkbenchPanelId::parse(&format!("{:032x}", 4)).unwrap(),
             revision: WorkbenchRevision::new(1),
-        },
+        }),
         viewport,
         split: WorkbenchSplitId::parse(&format!("{:032x}", 5)).unwrap(),
         first: WorkbenchPanelSlotId::parse(&format!("{:032x}", 6)).unwrap(),
@@ -50,7 +53,7 @@ fn fixture_divider(viewport: Rect) -> DrawnDivider {
         ratio: ClientSplitRatio::default(),
         area: Rect::new(0, 0, 101, 30),
         divider: Rect::new(50, 0, 1, 30),
-    }
+    })
 }
 
 #[derive(Default)]
@@ -264,7 +267,7 @@ fn divider_preview_cannot_leak_into_a_machine_capture_frame_before_input_reconci
     let mut hits = HitMapBuilder::new();
     hits.record(
         HitLayer::Foreground,
-        target.divider,
+        target.divider(),
         HitTarget::Divider(target),
     );
     preview_dispatcher.set_pointer_capture(&mut preview_view, &mut preview_surface, true);
@@ -469,8 +472,8 @@ fn divider_rejected_preview_preserves_the_draw_pointer_projection() {
                     None,
                     super::super::divider::Presentation {
                         projection: &crate::tui_layout::ResizeProjection::Divider {
-                            source: drag.target.clone(),
-                            ratio: drag.ratio,
+                            source: drag.target().clone(),
+                            ratio: drag.ratio(),
                         },
                         preview: Some(super::super::divider::Preview::Divider(&drag)),
                     },
@@ -567,7 +570,7 @@ fn divider_lost_preview_restores_graphics_in_the_same_flushed_frame_without_anot
         } else {
             hits.record(
                 HitLayer::Foreground,
-                target.divider,
+                target.divider(),
                 HitTarget::Divider(target),
             );
         }

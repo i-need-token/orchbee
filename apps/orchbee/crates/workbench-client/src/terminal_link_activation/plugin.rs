@@ -44,8 +44,8 @@ impl<E> From<crate::terminal_content::Error<E>> for Error<E> {
 /// The exact registry entry, handler, and action chosen by deterministic priority.
 #[derive(Clone)]
 pub struct Selection {
-    pub entry: PluginRegistryEntry,
-    pub handler: String,
+    pub(crate) entry: PluginRegistryEntry,
+    pub(crate) handler: String,
     pub(crate) action: String,
     catalog: Option<PluginLinkCatalogGuard>,
 }
@@ -425,6 +425,23 @@ fn request_id<E>() -> Result<WorkbenchRequestId, Error<E>> {
         let _ = write!(text, "{byte:02x}");
     }
     WorkbenchRequestId::parse(&text).map_err(|_| Error::IdentityUnavailable)
+}
+
+/// Crate-internal `Selection` choices the application's tests read.
+#[cfg(any(test, feature = "test-support"))]
+pub trait SelectionTestAccess {
+    fn entry(&self) -> &PluginRegistryEntry;
+    fn handler(&self) -> &str;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl SelectionTestAccess for Selection {
+    fn entry(&self) -> &PluginRegistryEntry {
+        &self.entry
+    }
+    fn handler(&self) -> &str {
+        &self.handler
+    }
 }
 
 #[cfg(test)]

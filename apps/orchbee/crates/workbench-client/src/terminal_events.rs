@@ -24,3 +24,16 @@ pub enum HostReply {
     Pointer(pointer::HostReply),
     Appearance(appearance::ColorReply),
 }
+
+/// Crate-internal `DecodedItem` facts the application's tests read.
+#[cfg(any(test, feature = "test-support"))]
+pub trait DecodedItemTestAccess {
+    fn owned(&self) -> bool;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl DecodedItemTestAccess for DecodedItem {
+    fn owned(&self) -> bool {
+        self.owned
+    }
+}

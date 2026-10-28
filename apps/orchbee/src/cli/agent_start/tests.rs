@@ -8,6 +8,7 @@ use orchbee_client_server_protocol::{
 };
 use orchbee_workbench_client::test_support::agent_runtime::startup::send::ReceiptTestAccess;
 use orchbee_workbench_client::test_support::agent_start::DeliveryDisposition;
+use orchbee_workbench_client::test_support::agent_start::ReportFixture;
 use serde_json::Value;
 
 fn report(receipt: &Value, state: ReservationState, verdict: Verdict) -> Report {
@@ -145,7 +146,7 @@ fn every_non_success_send_receipt_keeps_its_cli_status_and_exact_envelope() {
         assert_eq!(receipt.verdict(), expected_verdict);
         let failure =
             DomainFailure::Start(StartFailure::InputNotAccepted(receipt.refusal().unwrap()));
-        let report = Report::from(DomainReport {
+        let report = Report::from(DomainReport::from(ReportFixture {
             name: AgentName::parse("alpha").unwrap(),
             provider: AgentProviderId::parse("codex").unwrap(),
             reservation: Some(ObapRequestId::parse(&"1".repeat(32)).unwrap()),
@@ -158,7 +159,7 @@ fn every_non_success_send_receipt_keeps_its_cli_status_and_exact_envelope() {
                 failure,
                 read_cause: None,
             },
-        });
+        }));
         assert_eq!(report.failure_kind(), Some(failure_kind));
         let answer = project(report, OutputFormat::Json, Locale::EnUs, None);
         assert_eq!(answer.status, status);

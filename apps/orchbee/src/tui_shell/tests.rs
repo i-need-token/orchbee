@@ -26,6 +26,8 @@ use orchbee_workbench_client::test_support::terminal_input::TerminalInputUnavail
 use super::{InputSource, LoopExit, LoopFailure, ViewportSource, run_event_loop, to_area};
 use orchbee_workbench_client::test_support::client_view::ClientViewTestAccess;
 use orchbee_workbench_client::test_support::terminal_events::keys::KeyEventTestAccess;
+use orchbee_workbench_client::test_support::tui_layout::ShellAreasTestAccess;
+use orchbee_workbench_client::test_support::tui_layout::SidebarAreaTestAccess;
 use orchbee_workbench_client::test_support::tui_theme::ThemeTestAccess;
 use orchbee_workbench_client::test_support::workbench_client::WorkbenchClientViewTestAccess;
 use orchbee_workbench_client::test_support::workbench_client::input::InputActionTestAccess;
@@ -1172,11 +1174,11 @@ fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forward
                     while x < width {
                         let cell = &terminal.backend().buffer()[(x, y)];
                         let position = (x, y).into();
-                        let role = if areas.status.contains(position)
-                            || areas.tabs.contains(position)
+                        let role = if areas.status().contains(position)
+                            || areas.tabs().contains(position)
                             || areas
                                 .sidebar
-                                .is_some_and(|sidebar| sidebar.area.contains(position))
+                                .is_some_and(|sidebar| sidebar.area().contains(position))
                         {
                             Role::SurfaceChrome
                         } else {

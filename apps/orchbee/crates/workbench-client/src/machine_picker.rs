@@ -354,7 +354,7 @@ pub struct Picker {
     pub open: bool,
     pub current: Choice,
     pub current_label: String,
-    pub rows: Vec<Row>,
+    pub(crate) rows: Vec<Row>,
     pub busy: bool,
     pub error: Option<&'static str>,
     pub request: Option<Selection>,
@@ -1576,6 +1576,7 @@ impl PickerSourceTestAccess for PickerSource {
 /// Crate-internal `Picker` operations the application's tests drive.
 #[cfg(any(test, feature = "test-support"))]
 pub trait PickerTestAccess {
+    fn rows(&self) -> &[Row];
     fn picker_source(&self) -> Option<PickerSource>;
     fn show(&mut self);
     fn key(&mut self, key: KeyEvent);
@@ -1588,6 +1589,9 @@ pub trait PickerTestAccess {
 
 #[cfg(any(test, feature = "test-support"))]
 impl PickerTestAccess for Picker {
+    fn rows(&self) -> &[Row] {
+        &self.rows
+    }
     fn picker_source(&self) -> Option<PickerSource> {
         Picker::picker_source(self)
     }

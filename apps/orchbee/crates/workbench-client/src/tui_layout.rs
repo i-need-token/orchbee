@@ -105,7 +105,7 @@ pub(crate) enum SidebarLayer {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SidebarArea {
-    pub area: Rect,
+    pub(crate) area: Rect,
     pub(crate) layer: SidebarLayer,
 }
 
@@ -114,8 +114,8 @@ pub struct ShellAreas {
     pub(crate) body: Rect,
     pub panel: Rect,
     pub sidebar: Option<SidebarArea>,
-    pub status: Rect,
-    pub tabs: Rect,
+    pub(crate) status: Rect,
+    pub(crate) tabs: Rect,
     pub tier: ViewportTier,
     pub(crate) workbench: Rect,
 }
@@ -610,11 +610,19 @@ impl PanelTreeProjection<'_> {
 /// Crate-internal `DividerDrag` operations the application's tests drive.
 #[cfg(any(test, feature = "test-support"))]
 pub trait DividerDragTestAccess: Sized {
+    fn target(&self) -> &DrawnDivider;
+    fn ratio(&self) -> ClientSplitRatio;
     fn begin(target: DrawnDivider, column: u16, row: u16) -> Option<Self>;
 }
 
 #[cfg(any(test, feature = "test-support"))]
 impl DividerDragTestAccess for DividerDrag {
+    fn target(&self) -> &DrawnDivider {
+        &self.target
+    }
+    fn ratio(&self) -> ClientSplitRatio {
+        self.ratio
+    }
     fn begin(target: DrawnDivider, column: u16, row: u16) -> Option<Self> {
         DividerDrag::begin(target, column, row)
     }
@@ -641,5 +649,120 @@ pub trait DrawnSidebarWidthTestAccess {
 impl DrawnSidebarWidthTestAccess for DrawnSidebarWidth {
     fn edge(self) -> Rect {
         DrawnSidebarWidth::edge(self)
+    }
+}
+
+/// Crate-internal `ShellAreas` regions the application's tests read.
+#[cfg(any(test, feature = "test-support"))]
+pub trait ShellAreasTestAccess {
+    fn status(&self) -> Rect;
+    fn tabs(&self) -> Rect;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl ShellAreasTestAccess for ShellAreas {
+    fn status(&self) -> Rect {
+        self.status
+    }
+    fn tabs(&self) -> Rect {
+        self.tabs
+    }
+}
+
+/// Crate-internal `SidebarArea` regions the application's tests read.
+#[cfg(any(test, feature = "test-support"))]
+pub trait SidebarAreaTestAccess {
+    fn area(&self) -> Rect;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl SidebarAreaTestAccess for SidebarArea {
+    fn area(&self) -> Rect {
+        self.area
+    }
+}
+
+/// Crate-internal `DrawnDivider` geometry the application's tests read.
+#[cfg(any(test, feature = "test-support"))]
+pub trait DrawnDividerTestAccess {
+    fn divider(&self) -> Rect;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl DrawnDividerTestAccess for DrawnDivider {
+    fn divider(&self) -> Rect {
+        self.divider
+    }
+}
+
+/// Field-for-field `DividerSource` fixture the application's tests build values from.
+#[cfg(any(test, feature = "test-support"))]
+pub struct DividerSourceFixture {
+    pub session: orchbee_workbench_protocol::SessionId,
+    pub context: orchbee_workbench_protocol::WorkbenchTerminalContextId,
+    pub tab: orchbee_workbench_protocol::WorkbenchTabId,
+    pub focus: orchbee_workbench_protocol::WorkbenchPanelId,
+    pub revision: orchbee_workbench_protocol::WorkbenchRevision,
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl From<DividerSourceFixture> for DividerSource {
+    fn from(fixture: DividerSourceFixture) -> Self {
+        let DividerSourceFixture {
+            session,
+            context,
+            tab,
+            focus,
+            revision,
+        } = fixture;
+        Self {
+            session,
+            context,
+            tab,
+            focus,
+            revision,
+        }
+    }
+}
+
+/// Field-for-field `DrawnDivider` fixture the application's tests build values from.
+#[cfg(any(test, feature = "test-support"))]
+pub struct DrawnDividerFixture {
+    pub source: DividerSource,
+    pub viewport: Rect,
+    pub split: orchbee_workbench_protocol::WorkbenchSplitId,
+    pub first: orchbee_workbench_protocol::WorkbenchPanelSlotId,
+    pub second: orchbee_workbench_protocol::WorkbenchPanelSlotId,
+    pub orientation: orchbee_workbench_protocol::PanelOrientation,
+    pub ratio: orchbee_workbench_protocol::ClientSplitRatio,
+    pub area: Rect,
+    pub divider: Rect,
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl From<DrawnDividerFixture> for DrawnDivider {
+    fn from(fixture: DrawnDividerFixture) -> Self {
+        let DrawnDividerFixture {
+            source,
+            viewport,
+            split,
+            first,
+            second,
+            orientation,
+            ratio,
+            area,
+            divider,
+        } = fixture;
+        Self {
+            source,
+            viewport,
+            split,
+            first,
+            second,
+            orientation,
+            ratio,
+            area,
+            divider,
+        }
     }
 }

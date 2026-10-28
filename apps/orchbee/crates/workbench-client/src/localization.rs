@@ -150,5 +150,18 @@ impl LocaleTestAccess for Locale {
     }
 }
 
+/// Crate-internal `ShellText` copy the application's tests read.
+#[cfg(any(test, feature = "test-support"))]
+pub trait ShellTextTestAccess {
+    fn too_small_notice(&self) -> &'static str;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl<'a> ShellTextTestAccess for ShellText<'a> {
+    fn too_small_notice(&self) -> &'static str {
+        self.too_small_notice
+    }
+}
+
 #[cfg(test)]
 mod tests;

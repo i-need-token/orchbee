@@ -32,10 +32,10 @@ const MAXIMUM_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Target {
-    pub context: ClientContextTarget,
-    pub tab: WorkbenchTabId,
-    pub panel: WorkbenchPanelId,
-    pub member: TerminalPresentationId,
+    pub(crate) context: ClientContextTarget,
+    pub(crate) tab: WorkbenchTabId,
+    pub(crate) panel: WorkbenchPanelId,
+    pub(crate) member: TerminalPresentationId,
     pub(crate) terminal: PresentationBinding,
     pub(crate) physical: AgentLaunchBinding,
     pub(crate) agent: String,
@@ -45,7 +45,7 @@ pub struct Row {
     pub(crate) seen: bool,
     pub(crate) name: Option<String>,
     pub(crate) order: PlacementOrder,
-    pub target: Target,
+    pub(crate) target: Target,
     pub(crate) label: String,
     pub(crate) workspace: String,
     pub(crate) tab_label: Option<String>,
@@ -67,7 +67,7 @@ pub struct Checkpoint {
     pub(crate) report_revision: WorkbenchRevision,
     pub(crate) contexts: Arc<[ClientContextTarget]>,
     pub(crate) view: AgentViewSnapshot,
-    pub rows: Arc<[Row]>,
+    pub(crate) rows: Arc<[Row]>,
 }
 impl std::ops::Deref for Checkpoint {
     type Target = [Row];
@@ -507,3 +507,41 @@ pub fn verify(
 pub(crate) mod test_support;
 #[cfg(test)]
 pub(crate) mod tests;
+
+/// Crate-internal `Row` placement the application's tests read.
+#[cfg(any(test, feature = "test-support"))]
+pub trait RowTestAccess {
+    fn target(&self) -> &Target;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl RowTestAccess for Row {
+    fn target(&self) -> &Target {
+        &self.target
+    }
+}
+
+/// Crate-internal `Target` identity the application's tests read.
+#[cfg(any(test, feature = "test-support"))]
+pub trait TargetTestAccess {
+    fn context(&self) -> &ClientContextTarget;
+    fn tab(&self) -> &WorkbenchTabId;
+    fn panel(&self) -> &WorkbenchPanelId;
+    fn member(&self) -> &TerminalPresentationId;
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl TargetTestAccess for Target {
+    fn context(&self) -> &ClientContextTarget {
+        &self.context
+    }
+    fn tab(&self) -> &WorkbenchTabId {
+        &self.tab
+    }
+    fn panel(&self) -> &WorkbenchPanelId {
+        &self.panel
+    }
+    fn member(&self) -> &TerminalPresentationId {
+        &self.member
+    }
+}

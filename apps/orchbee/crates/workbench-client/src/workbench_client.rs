@@ -103,6 +103,8 @@ pub use ui::{
     CaptureContext, CloseConfirmationToken, DisplayPhase, DrawReceipt, RetainedFrameBank,
     WorkbenchClientView, WorkspaceCloseToken,
 };
+#[cfg(any(test, feature = "test-support"))]
+pub use workbench_projection::ClientMemberTargetFixture;
 
 pub use crate::localization::TerminalStatus;
 

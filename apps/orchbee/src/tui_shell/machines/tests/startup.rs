@@ -210,7 +210,7 @@ fn machine_workspace_candidate_starts_exact_context_including_empty_without_open
             view.machines.observe(&[(
                 profile().id,
                 orchbee_workbench_client::test_support::machine_discovery::Observation::Online(
-                    orchbee_workbench_client::test_support::machine_discovery::Overview {
+                    orchbee_workbench_client::test_support::machine_discovery::Overview::from(orchbee_workbench_client::test_support::machine_discovery::OverviewFixture {
                         session: target.session_id.clone(),
                         revision: WorkbenchRevision::new(1),
                         projects: 1,
@@ -224,7 +224,7 @@ fn machine_workspace_candidate_starts_exact_context_including_empty_without_open
                             workspace: Some("workspace".into()),
                         }]
                         .into(),
-                    },
+                    }),
                 ),
             )]);
             assert!(view.machines.activate_sidebar_workspace(

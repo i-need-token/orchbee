@@ -10,7 +10,10 @@ use crate::{
 };
 use orchbee_workbench_client::test_support::client_view::KeyEvent;
 use orchbee_workbench_client::test_support::localization::LocaleTestAccess;
+use orchbee_workbench_client::test_support::localization::ShellTextTestAccess;
 use orchbee_workbench_client::test_support::machine_agents::Observation as AgentObservation;
+use orchbee_workbench_client::test_support::machine_agents::RowTestAccess;
+use orchbee_workbench_client::test_support::machine_agents::TargetTestAccess;
 use orchbee_workbench_client::test_support::machine_agents::{checkpoint, row};
 use orchbee_workbench_client::test_support::machine_picker::Control;
 use orchbee_workbench_client::test_support::machine_picker::DrawnPickerTargetTestAccess;
@@ -19,6 +22,9 @@ use orchbee_workbench_client::test_support::machine_picker::PickerAction;
 use orchbee_workbench_client::test_support::machine_picker::PickerSourceTestAccess;
 use orchbee_workbench_client::test_support::machine_picker::PickerTestAccess;
 use orchbee_workbench_client::test_support::terminal_events::keys::KeyEventTestAccess;
+use orchbee_workbench_client::test_support::tui_theme::GlyphSetTestAccess;
+use orchbee_workbench_client::test_support::tui_theme::ThemeTestAccess;
+use orchbee_workbench_client::test_support::workbench_client::ClientMemberTargetFixture;
 
 #[derive(Default)]
 struct Surface {
@@ -60,23 +66,23 @@ fn without_cell_padding(value: &str) -> String {
 }
 
 fn expected_too_small_notice(locale: Locale, width: u16, theme: &Theme) -> String {
-    let marker = format!("{} ", theme.glyphs.status_bullet);
+    let marker = format!("{} ", theme.glyphs().status_bullet());
     let marker_width =
         orchbee_workbench_client::test_support::terminal_text::display_width(&marker);
     if marker_width < usize::from(width) {
         format!(
             "{marker}{}",
             orchbee_workbench_client::test_support::terminal_text::truncate_display(
-                locale.shell().too_small_notice,
+                locale.shell().too_small_notice(),
                 usize::from(width) - marker_width,
-                theme.glyphs.ellipsis,
+                theme.glyphs().ellipsis(),
             )
         )
     } else {
         orchbee_workbench_client::test_support::terminal_text::truncate_display(
-            locale.shell().too_small_notice,
+            locale.shell().too_small_notice(),
             usize::from(width),
-            theme.glyphs.ellipsis,
+            theme.glyphs().ellipsis(),
         )
     }
 }
@@ -158,7 +164,7 @@ fn machine_picker_root_frame_captures_real_agents_and_activates_search_on_exact_
 
     let current = row(23);
     let provisional = row(24);
-    let focus = current.target.clone();
+    let focus = current.target().clone();
     let mut shell = ClientView::new(WIDTH);
     shell.machines.available = true;
     assert!(shell.machines.observe_agents(vec![(
@@ -167,12 +173,12 @@ fn machine_picker_root_frame_captures_real_agents_and_activates_search_on_exact_
     )]));
     assert!(shell.machines.observe_focus(
         Choice::Local,
-        Some(focus.context.clone()),
-        Some(ClientMemberTarget {
-            tab: focus.tab.clone(),
-            panel: focus.panel.clone(),
-            presentation: focus.member.clone(),
-        }),
+        Some(focus.context().clone()),
+        Some(ClientMemberTarget::from(ClientMemberTargetFixture {
+            tab: focus.tab().clone(),
+            panel: focus.panel().clone(),
+            presentation: focus.member().clone(),
+        })),
     ));
     shell.machines.show_agents();
     shell
@@ -223,12 +229,12 @@ fn machine_picker_root_frame_captures_real_agents_and_activates_search_on_exact_
     let buffer = terminal.backend().buffer();
     assert_eq!(
         buffer[(first.0 - 2, first.1)].symbol(),
-        theme.glyphs.active_marker,
+        theme.glyphs().active_marker(),
         "the first real Agent remains current"
     );
     assert_eq!(
         buffer[(second.0 - 1, second.1)].symbol(),
-        theme.glyphs.navigation_marker,
+        theme.glyphs().navigation_marker(),
         "the second real Agent is the distinct provisional row"
     );
 
@@ -301,7 +307,7 @@ fn too_small_machine_frames_preserve_the_root_notice_and_only_keyboard_escape_cl
         for (width, height) in [(100, 1), (100, 3), (100, 4), (19, 24)] {
             let current = row(23);
             let provisional = row(24);
-            let focus = current.target.clone();
+            let focus = current.target().clone();
             let mut shell = ClientView::new(width);
             shell.machines.available = true;
             assert!(shell.machines.observe_agents(vec![(
@@ -310,12 +316,12 @@ fn too_small_machine_frames_preserve_the_root_notice_and_only_keyboard_escape_cl
             )]));
             assert!(shell.machines.observe_focus(
                 Choice::Local,
-                Some(focus.context.clone()),
-                Some(ClientMemberTarget {
-                    tab: focus.tab.clone(),
-                    panel: focus.panel.clone(),
-                    presentation: focus.member.clone(),
-                }),
+                Some(focus.context().clone()),
+                Some(ClientMemberTarget::from(ClientMemberTargetFixture {
+                    tab: focus.tab().clone(),
+                    panel: focus.panel().clone(),
+                    presentation: focus.member().clone(),
+                })),
             ));
             shell.machines.show_agents();
             shell
@@ -379,7 +385,7 @@ fn too_small_machine_frames_preserve_the_root_notice_and_only_keyboard_escape_cl
                     format!("Enter {}", locale.machine_picker_text("picker-open-hint")),
                     format!("Tab {}", locale.machine_picker_text("picker-mode-hint")),
                 ];
-                let separator = format!(" {} ", theme.glyphs.middle_dot);
+                let separator = format!(" {} ", theme.glyphs().middle_dot());
                 let mut expected_status = String::new();
                 for hint in ordered_hints {
                     let candidate = if expected_status.is_empty() {

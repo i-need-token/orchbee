@@ -3,6 +3,8 @@ use super::super::*;
 use super::{dimensions, setup};
 use crate::workbench_client::ClientContextLocation;
 use orchbee_workbench_client::test_support::client_view::ClientViewTestAccess;
+use orchbee_workbench_client::test_support::machine_agents::RowTestAccess;
+use orchbee_workbench_client::test_support::machine_agents::TargetTestAccess;
 use orchbee_workbench_client::test_support::machine_picker::PickerTestAccess;
 use orchbee_workbench_client::test_support::machine_picker::Selection;
 use orchbee_workbench_protocol::{SessionId, WorkbenchTerminalContextId, WorkbenchWorkspaceId};
@@ -302,14 +304,10 @@ fn prepare_agents() -> (
 ) {
     let (manager, mut view, _) = setup();
     let checkpoint = agent_checkpoint();
-    let targets: Vec<_> = checkpoint
-        .rows
-        .iter()
-        .map(|row| row.target.clone())
-        .collect();
+    let targets: Vec<_> = checkpoint.iter().map(|row| row.target().clone()).collect();
     view.machines.observe_agent_sidebar(true);
     view.machines.observe_local(vec![Context {
-        target: targets[0].context.clone(),
+        target: targets[0].context().clone(),
         project_id: None,
         project: None,
         workspace: Some("same label".into()),

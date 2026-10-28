@@ -10,6 +10,7 @@ use crate::{
 };
 use orchbee_workbench_client::test_support::client_view::KeyEvent;
 use orchbee_workbench_client::test_support::terminal_device::InheritedTerminalTestAccess;
+use orchbee_workbench_client::test_support::terminal_events::DecodedItemTestAccess;
 use orchbee_workbench_client::test_support::terminal_events::keys::KeyEventTestAccess;
 use orchbee_workbench_client::test_support::terminal_input::HostReply as DecodedHostReply;
 use orchbee_workbench_client::test_support::terminal_lifecycle::TerminalModeGuardTestAccess;
@@ -91,7 +92,7 @@ fn expect_key(
 ) -> io::Result<()> {
     let item = next_required(input, terminal, Instant::now() + PHASE_TIMEOUT, phase)?;
     let expected = DecodedKind::Key(KeyEvent::press(KeyCode::Char(expected), Modifiers::NONE));
-    if item.owned || item.kind != expected {
+    if item.owned() || item.kind != expected {
         return Err(witness_error(format!(
             "expected unowned {phase}, decoded {:?}",
             item.kind
@@ -117,7 +118,7 @@ fn expect_no_button_motion(
         column: 0,
         row: 0,
     });
-    if item.owned || item.kind != expected {
+    if item.owned() || item.kind != expected {
         return Err(witness_error(format!(
             "expected unowned typed no-button motion, decoded {:?}",
             item.kind
@@ -155,7 +156,7 @@ fn admit_any_motion(
             }
             continue;
         };
-        if item.owned {
+        if item.owned() {
             return Err(witness_error(
                 "pointer admission metadata unexpectedly belonged to captured input",
             ));

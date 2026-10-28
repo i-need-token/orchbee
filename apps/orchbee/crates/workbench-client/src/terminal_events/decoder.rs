@@ -21,7 +21,7 @@ use crate::terminal_events::keys::{KeyCode, KeyEvent, KeyKind, Modifiers};
 pub struct DecodedItem {
     pub kind: DecodedKind,
     pub raw: Box<[u8]>,
-    pub owned: bool,
+    pub(crate) owned: bool,
 }
 
 impl DecodedItem {
