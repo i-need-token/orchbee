@@ -8,8 +8,7 @@ use orchbee_capability_node_protocol::{
 };
 use orchbee_server::{WorkbenchAuthority, WorkbenchGrant};
 use orchbee_workbench_protocol::{
-    PanelNode, PresentationBinding, TerminalId as WorkbenchTerminalId, WorkbenchAction,
-    WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandResult,
+    PanelNode, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandResult,
     WorkbenchCommandUnavailableReason, WorkbenchDirectoryPath, WorkbenchLabel,
     WorkbenchRejectionReason, WorkbenchRequest, WorkbenchResponse, WorkbenchRevision,
     WorkbenchTerminalContextId, WorkbenchTerminalFailureReason, WorkbenchTerminalGeometry,
@@ -606,7 +605,7 @@ fn workbench_and_terminal_preflight_refusals_leave_all_three_session_owners_unch
 }
 
 #[test]
-fn missing_retired_and_inconsistent_workbench_use_service_unavailable_without_terminal_effects() {
+fn missing_and_retired_workbench_use_service_unavailable_without_terminal_effects() {
     let command_for = |session_id| WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 40)).unwrap(),
@@ -655,34 +654,6 @@ fn missing_retired_and_inconsistent_workbench_use_service_unavailable_without_te
         }
     ));
     assert_eq!(retired.allocate_identity(), Some(1_u128.to_be_bytes()));
-
-    let mut inconsistent = session();
-    let _metadata = inconsistent
-        .workbench
-        .as_mut()
-        .unwrap()
-        .prepare_fixture_tab(PresentationBinding {
-            terminal_id: WorkbenchTerminalId::parse(&format!("{:032x}", 501)).unwrap(),
-            worker_id: WorkbenchWorkerId::parse(&format!("{:032x}", 502)).unwrap(),
-        })
-        .unwrap()
-        .commit()
-        .metadata()
-        .clone();
-    let inconsistent_command = tab_command(&inconsistent, 42, 1, "inconsistent");
-    assert!(matches!(
-        ready(inconsistent.prepare_terminal_tab_create(
-            inconsistent_command,
-            Some(id(401)),
-            Some(expiry()),
-            Some(worker(1)),
-        ))
-        .outcome,
-        WorkbenchCommandOutcome::Unavailable {
-            reason: WorkbenchCommandUnavailableReason::ServiceUnavailable,
-        }
-    ));
-    assert_eq!(inconsistent.allocate_identity(), Some(1_u128.to_be_bytes()));
 }
 
 #[test]

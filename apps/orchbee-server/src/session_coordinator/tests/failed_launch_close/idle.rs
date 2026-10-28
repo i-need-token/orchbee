@@ -6,7 +6,7 @@ use orchbee_workbench_protocol::{WorkbenchRejectionReason, WorkbenchRevision};
 fn conditional_delete_distinguishes_never_created_from_live_unknown_pending_and_missing_worker() {
     for project in [false, true] {
         for kind in 0..6 {
-            let mut coordinator = session();
+            let mut coordinator = empty_session();
             let context = configure_workspace(&mut coordinator, "C:/workspace");
             let revision = snapshot(&mut coordinator).revision.value();
             let create =
@@ -141,7 +141,7 @@ fn conditional_delete_distinguishes_never_created_from_live_unknown_pending_and_
 #[test]
 fn busy_project_keeps_preflight_classification_even_when_runtime_authority_becomes_unavailable() {
     for has_worker in [false, true] {
-        let mut coordinator = session();
+        let mut coordinator = empty_session();
         let context = configure_workspace(&mut coordinator, "C:/workspace");
         let revision = snapshot(&mut coordinator).revision.value();
         let create = context_tab_command(&coordinator, 100, revision, context, "live member");

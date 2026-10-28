@@ -22,9 +22,9 @@ use std::{
 #[test]
 fn an_oblc_admitted_connection_with_read_only_policy_cannot_mutate_or_discover_ledger_state()
 -> io::Result<()> {
-    let terminals = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
-        WorkerRegistry::new(),
-    ))));
+    let terminals = Arc::new(LocalTerminalService::workspace_fixture(Arc::new(
+        Mutex::new(WorkerRegistry::new()),
+    )));
     let service = WorkbenchService::new(
         WorkbenchPolicy {
             read: true,

@@ -214,7 +214,7 @@ fn failed_split_panel_closes_without_disposing_its_running_sibling() {
 #[test]
 fn workspace_close_keeps_failed_members_and_requires_live_members_before_admission() {
     for mixed in [false, true] {
-        let mut coordinator = session();
+        let mut coordinator = empty_session();
         let context = configure_workspace(&mut coordinator, "C:/workspace");
         for (request, successful) in [(100, false), (110, mixed)] {
             let revision = snapshot(&mut coordinator).revision.value();

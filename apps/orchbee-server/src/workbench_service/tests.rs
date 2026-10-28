@@ -125,9 +125,9 @@ fn configuration_reads_and_reloads_require_their_own_grant_before_owner_admissio
 
 #[test]
 fn navigation_permission_alone_denies_tab_create_before_terminal_or_ledger_effects() {
-    let terminals = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
-        WorkerRegistry::new(),
-    ))));
+    let terminals = Arc::new(LocalTerminalService::workspace_fixture(Arc::new(
+        Mutex::new(WorkerRegistry::new()),
+    )));
     let reader = WorkbenchService::new(
         WorkbenchPolicy {
             read: true,
@@ -209,9 +209,9 @@ fn navigation_permission_alone_denies_tab_create_before_terminal_or_ledger_effec
 
 #[test]
 fn navigation_permission_admits_move_without_terminal_create_permission() {
-    let terminals = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
-        WorkerRegistry::new(),
-    ))));
+    let terminals = Arc::new(LocalTerminalService::workspace_fixture(Arc::new(
+        Mutex::new(WorkerRegistry::new()),
+    )));
     let service = WorkbenchService::new(
         WorkbenchPolicy {
             read: true,
@@ -264,9 +264,9 @@ fn panel_terminal_creation_requires_both_grants_and_reaches_the_lifecycle_owner(
     use orchbee_workbench_protocol::{
         WorkbenchPanelId, WorkbenchPanelTerminalTarget, WorkbenchRejectionReason, WorkbenchTabId,
     };
-    let terminals = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
-        WorkerRegistry::new(),
-    ))));
+    let terminals = Arc::new(LocalTerminalService::workspace_fixture(Arc::new(
+        Mutex::new(WorkerRegistry::new()),
+    )));
     let reader = WorkbenchService::new(
         WorkbenchPolicy {
             read: true,
@@ -531,9 +531,9 @@ mod notifications;
 
 #[test]
 fn layout_structure_uses_navigation_only_without_a_worker() {
-    let terminals = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
-        WorkerRegistry::new(),
-    ))));
+    let terminals = Arc::new(LocalTerminalService::workspace_fixture(Arc::new(
+        Mutex::new(WorkerRegistry::new()),
+    )));
     let service = WorkbenchService::new(
         WorkbenchPolicy {
             read: true,

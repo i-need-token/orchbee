@@ -32,6 +32,12 @@ fn session() -> SessionCoordinator {
             .unwrap(),
     ))
 }
+/// A Session without the fixture Workspace, for scenarios whose configured Workspace is the only one.
+fn empty_session() -> SessionCoordinator {
+    SessionCoordinator::new(Some(
+        WorkbenchAuthority::new(SessionId::parse(&format!("{:032x}", 999)).unwrap()).unwrap(),
+    ))
+}
 fn worker(generation: u64) -> WorkerPlacement {
     WorkerPlacement {
         worker_id: WorkerId::from_bytes([9; 16]).unwrap(),

@@ -612,7 +612,12 @@ mod process_samples {
                 .complete_terminal_tab_create(pending, completion, Some(worker(1)))
                 .unwrap();
         }
-        let workspace_id = snapshot(&mut session).navigation.workspaces[0]
+        let workspace_id = snapshot(&mut session)
+            .navigation
+            .workspaces
+            .iter()
+            .find(|workspace| workspace.terminal_context_id == context)
+            .unwrap()
             .workspace_id
             .clone();
         let targets = session.process_observation_targets().unwrap();

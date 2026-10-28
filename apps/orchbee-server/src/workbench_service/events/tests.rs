@@ -26,9 +26,9 @@ fn service(read: bool, navigate: bool) -> WorkbenchService {
             create_terminal: false,
             manage_terminal_lifecycle: false,
         },
-        Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
-            WorkerRegistry::new(),
-        )))),
+        Arc::new(LocalTerminalService::workspace_fixture(Arc::new(
+            Mutex::new(WorkerRegistry::new()),
+        ))),
     )
 }
 fn snapshot(service: &WorkbenchService) -> Snapshot {

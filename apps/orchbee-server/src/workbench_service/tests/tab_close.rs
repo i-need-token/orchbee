@@ -22,9 +22,9 @@ fn snapshot(service: &WorkbenchService) -> Snapshot {
 
 #[test]
 fn close_uses_independent_grants_and_authority_preconditions_without_host_work() {
-    let terminals = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
-        WorkerRegistry::new(),
-    ))));
+    let terminals = Arc::new(LocalTerminalService::workspace_fixture(Arc::new(
+        Mutex::new(WorkerRegistry::new()),
+    )));
     let reader = WorkbenchService::new(
         WorkbenchPolicy {
             read: true,
