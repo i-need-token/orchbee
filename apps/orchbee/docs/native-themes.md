@@ -78,7 +78,8 @@ body, even on a dark-default outer host. A received program frame replaces only 
 with its independent terminal defaults and explicit program colors.
 
 Each theme owns one accent per Tab group color. One Light and One Dark use their palette's hues;
-terminal-native uses named ANSI colors. A group header writes its name in the bold accent on a
+terminal-native uses named ANSI colors, except orange, which has no ANSI name and uses RGB
+`[255, 165, 0]`; a host at a lower color level quantizes it. A group header writes its name in the bold accent on a
 resting tint that mixes 20% of the accent into the strip fill, including System's derived strip.
 Terminal-native has no concrete strip color to mix, and 16-color hosts cannot express a faint fill,
 so their headers rest on the strip with the accent text alone. A current, hover or pressed surface replaces only the tint; the accent name
