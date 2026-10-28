@@ -3592,8 +3592,12 @@ impl CommandMailbox {
         self.close_locked(&mut state, failure)
     }
 
+    /// Waits sleep until their real deadline, so a scripted clock advance or an armed sample
+    /// checkpoint wakes them under the mutex: a waiter between its sample and its wait cannot
+    /// miss the notification.
     #[cfg(test)]
     pub(super) fn wake_waiters(&self) {
+        let _state = self.lock();
         self.changed.notify_all();
     }
 
@@ -4095,16 +4099,8 @@ impl CommandMailbox {
     #[cfg(test)]
     pub(super) fn pause_next_ui_reply_await_sample_for_test(&self) -> WorkerResumeCheckpoint<'_> {
         let checkpoint = Self::arm_resume_checkpoint(&self.ui_reply_await_sample_checkpoint);
-        self.wake_waiters_for_test();
+        self.wake_waiters();
         checkpoint
-    }
-
-    /// Waits sleep until their real deadline, so a scripted clock advance or an armed sample
-    /// checkpoint wakes them under the mutex to re-sample.
-    #[cfg(test)]
-    pub(super) fn wake_waiters_for_test(&self) {
-        let _state = self.lock();
-        self.changed.notify_all();
     }
 
     /// Arms the one-shot UI park inside `deposit_ui_reply_before` at its clock sample: the

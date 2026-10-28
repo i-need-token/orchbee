@@ -3752,7 +3752,7 @@ impl Trace {
                 &completed,
                 || {
                     elapsed.store(120_000, std::sync::atomic::Ordering::SeqCst);
-                    mailbox.wake_waiters_for_test();
+                    mailbox.wake_waiters();
                     Ok(())
                 },
             )?;
