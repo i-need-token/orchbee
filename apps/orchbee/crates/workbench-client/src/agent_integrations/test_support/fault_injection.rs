@@ -1,7 +1,7 @@
 //! Test-only fault injection, step witnesses, and the scripted command
 //! runner for the frozen fixture packs (Root57 `provider-effects52`,
-//! Report64 `provider-conformance64`). Everything here is `#[cfg(test)]` —
-//! production carries zero cost and zero surface.
+//! Report64 `provider-conformance64`). Everything here compiles only for tests and the
+//! `test-support` feature — release builds carry zero cost and zero surface.
 //!
 //! Two injection styles, per the packs' contract:
 //! - primitive faults: a named fs/exec primitive answers a scripted errno;

@@ -10,20 +10,20 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
-#[cfg(all(test, unix))]
+#[cfg(all(any(test, feature = "test-support"), unix))]
 use std::cell::Cell;
 
 // Test-only seam: arms the next `install` call ON THIS THREAD to fail
 // before any signal registration runs, so callers' refusal-before-effect
 // ordering is observable without a real registration failure. Thread-local
 // so a parallel test's own `install` can never steal the armed fault.
-#[cfg(all(test, unix))]
+#[cfg(all(any(test, feature = "test-support"), unix))]
 thread_local! {
     static INSTALL_FAULT: Cell<bool> = const { Cell::new(false) };
 }
 
-#[cfg(all(test, unix))]
-pub(crate) fn arm_install_fault() {
+#[cfg(all(any(test, feature = "test-support"), unix))]
+pub fn arm_install_fault() {
     INSTALL_FAULT.with(|armed| armed.set(true));
 }
 
@@ -50,7 +50,7 @@ pub struct TerminationSignal {
 
 impl TerminationSignal {
     pub fn install() -> io::Result<Self> {
-        #[cfg(all(test, unix))]
+        #[cfg(all(any(test, feature = "test-support"), unix))]
         if INSTALL_FAULT.with(|armed| armed.replace(false)) {
             return Err(io::Error::other("termination-signal install fault"));
         }

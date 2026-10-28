@@ -6,6 +6,8 @@ use crate::cli_text::CliText;
 mod list_output;
 #[cfg(windows)]
 mod projection_schemas;
+#[cfg(unix)]
+mod provider_packs;
 
 use serde_json::{Value, json};
 

@@ -24,6 +24,7 @@ use super::super::inspect;
 use super::super::model::{IntegrationId, ManagementMode};
 use super::super::mutation::{self, Direction, StepKind, StepOutcome, Verdict};
 use super::super::providers::{self, ProviderContext};
+use super::CliStatus;
 use super::fault_injection::{
     self as inject, BoundaryAction, InjectCancel, Plan, Prim, ScriptedResult,
 };
@@ -874,7 +875,7 @@ fn assert_fs_effect(
 // The driver
 // ---------------------------------------------------------------------------
 
-fn run_case(case: &Case) {
+fn run_case(case: &Case, cli_status: CliStatus) {
     let dirs = make_dirs();
     let vars = substitutions(&dirs, case.provider);
     let payloads = payloads();
@@ -975,7 +976,7 @@ fn run_case(case: &Case) {
         if let Some(cli) = expect.get("cli") {
             if let Some(exit) = cli["exit"].as_u64() {
                 assert_eq!(
-                    crate::cli::integration::mutation_status(&report) as u64,
+                    cli_status(&report) as u64,
                     exit,
                     "{}: cli.exit (verdict {:?})",
                     case.id,
@@ -1087,13 +1088,15 @@ fn capsule_digest_uses_javascript_utf16_path_order() {
     );
 }
 
-#[test]
-fn provider_conformance64_replay() {
+/// Replays the frozen `provider-conformance64` corpus; `cli_status` is the owning application's
+/// integration exit mapping.
+pub fn provider_conformance64_replay(cli_status: CliStatus) {
     let cases = load_cases();
     assert_eq!(cases.len(), 221, "current corpus is 221 cases");
     let mut failures = Vec::new();
     for case in &cases {
-        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run_case(case)));
+        let outcome =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run_case(case, cli_status)));
         inject::reset();
         if let Err(payload) = outcome {
             failures.push(format!("{}: {payload:?}", case.id));

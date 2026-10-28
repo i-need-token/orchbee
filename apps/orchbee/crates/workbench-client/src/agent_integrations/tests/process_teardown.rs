@@ -243,7 +243,7 @@ fn cancelled_command_group_still_takes_the_kill_path() {
     fs::set_permissions(&script, fs::Permissions::from_mode(0o700)).unwrap();
 
     // No scripted plan — the spawn below is a real OS process tree.
-    super::fault_injection::reset();
+    super::super::test_support::fault_injection::reset();
 
     let flag = Arc::new(AtomicBool::new(false));
     let cancel = FlagCancel(flag.clone());
@@ -371,7 +371,7 @@ fn timed_out_command_is_launched_and_reaped_inside_its_slot() {
 
     // No scripted plan: the ready file and pinned pidfd prove the timeout
     // result came from a launched native process, not pre-spawn admission.
-    super::fault_injection::reset();
+    super::super::test_support::fault_injection::reset();
     let (result, elapsed, leader) = thread::scope(|scope| {
         let command = scope.spawn(|| {
             let start = Instant::now();

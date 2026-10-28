@@ -26,16 +26,16 @@ use super::providers::{self, ProviderContext};
 
 /// The wall the frontier consults — tests inject a clock skew so deadline
 /// and reserve math is exercised without real sleeps.
-#[cfg(not(all(test, unix)))]
+#[cfg(not(all(any(test, feature = "test-support"), unix)))]
 #[inline]
 fn now() -> Instant {
     Instant::now()
 }
 
-#[cfg(all(test, unix))]
+#[cfg(all(any(test, feature = "test-support"), unix))]
 #[inline]
 fn now() -> Instant {
-    super::tests::fault_injection::now()
+    super::test_support::fault_injection::now()
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -281,8 +281,8 @@ pub(crate) fn mutate(
             verdict: Verdict::Refused(Refusal::Deadline),
         };
     }
-    #[cfg(all(test, unix))]
-    super::tests::fault_injection::boundary("preflight-inspect", Path::new(""));
+    #[cfg(all(any(test, feature = "test-support"), unix))]
+    super::test_support::fault_injection::boundary("preflight-inspect", Path::new(""));
     if cancelled(context) {
         return MutationReport {
             integration_id: id,
@@ -550,8 +550,8 @@ pub(crate) fn mutate(
             // A filesystem vector's post-effect observation is a fresh
             // fs scan — no provider commands — while the budget lasts.
             if now() < context.deadline {
-                #[cfg(all(test, unix))]
-                super::tests::fault_injection::boundary("reinspect", Path::new(""));
+                #[cfg(all(any(test, feature = "test-support"), unix))]
+                super::test_support::fault_injection::boundary("reinspect", Path::new(""));
                 let item = providers::inspect_provider(id, context);
                 let verdict = if goal_observed(direction, item.state) {
                     Verdict::Completed
@@ -616,8 +616,8 @@ pub(crate) fn mutate(
     let reserve_deadline_ok = now() + SLOT * (reserve as u32) < context.deadline
         && attempt != Attempt::Failed(FailureCode::TimedOut);
     let (observed, provenance) = if reserve_deadline_ok {
-        #[cfg(all(test, unix))]
-        super::tests::fault_injection::boundary("reinspect", Path::new(""));
+        #[cfg(all(any(test, feature = "test-support"), unix))]
+        super::test_support::fault_injection::boundary("reinspect", Path::new(""));
         let item = providers::inspect_provider(id, context);
         let provenance = if item.state == State::Unknown
             && item.issue == Some(super::model::Issue::InspectionFailed)
@@ -747,8 +747,8 @@ fn prepare_capsule(
             // retained stage cleans up only on that pass; a foreign or
             // invalid occupant keeps it named as residue and the verdict
             // is the post-effect conflict family.
-            #[cfg(all(test, unix))]
-            super::tests::fault_injection::boundary(
+            #[cfg(all(any(test, feature = "test-support"), unix))]
+            super::test_support::fault_injection::boundary(
                 "capsule-isvalid-existing",
                 context.capsule_root,
             );
@@ -808,14 +808,14 @@ pub(crate) fn publish_capsule(source: &Path, target: &Path) -> PublishResult {
         if files::copy_tree(source, &staged_root).is_err() {
             return StepOutcome::Failed;
         }
-        #[cfg(all(test, unix))]
-        super::tests::fault_injection::boundary("capsule-verify", &staged_root);
+        #[cfg(all(any(test, feature = "test-support"), unix))]
+        super::test_support::fault_injection::boundary("capsule-verify", &staged_root);
         if capsule::validate(&staged_root) != CapsuleValidity::Ready {
             verify_failed = true;
             return StepOutcome::Failed;
         }
-        #[cfg(all(test, unix))]
-        super::tests::fault_injection::boundary("capsule-rename", target);
+        #[cfg(all(any(test, feature = "test-support"), unix))]
+        super::test_support::fault_injection::boundary("capsule-rename", target);
         match files::publish_no_replace(&staged_root, target) {
             FsStep::Done => StepOutcome::Completed,
             FsStep::Conflict => StepOutcome::Conflict,
@@ -909,8 +909,8 @@ fn run_step_with(
     if cancelled(context) {
         return Attempt::Cancelled;
     }
-    #[cfg(all(test, unix))]
-    super::tests::fault_injection::boundary("provider-command", Path::new(""));
+    #[cfg(all(any(test, feature = "test-support"), unix))]
+    super::test_support::fault_injection::boundary("provider-command", Path::new(""));
     let argv_owned: Vec<String> = argv.iter().map(|arg| (*arg).to_owned()).collect();
     // A spawned provider command may have mutated state before any
     // outcome is known — the frontier crosses at the spawn.
@@ -931,13 +931,13 @@ fn run_step_with(
         },
         outcome,
     });
-    #[cfg(all(test, unix))]
+    #[cfg(all(any(test, feature = "test-support"), unix))]
     if outcome == StepOutcome::Completed {
         // Harness-only elapsed time after a legal command completion lives
         // outside exec's run phase. Fire only after both the effect frontier
         // and attempted-step witness are durable, before the next command's
         // slot admission consult.
-        super::tests::fault_injection::boundary("provider-command-completed", Path::new(""));
+        super::test_support::fault_injection::boundary("provider-command-completed", Path::new(""));
     }
     match outcome {
         StepOutcome::Completed => Attempt::Attempted,
@@ -1722,8 +1722,8 @@ fn guarded_enable(
         &entry_path,
     );
     if !staged {
-        #[cfg(all(test, unix))]
-        super::tests::fault_injection::boundary("cleanup-stage", &container);
+        #[cfg(all(any(test, feature = "test-support"), unix))]
+        super::test_support::fault_injection::boundary("cleanup-stage", &container);
         let _ = files::remove_owned(&container, true);
         return Attempt::Failed(FailureCode::OperationFailed);
     }
@@ -1732,8 +1732,8 @@ fn guarded_enable(
     // re-verify inside `stage_entry`). A mismatch is verification-failed —
     // undetermined — and the container stays named residue.
     if spec.kind != BootstrapKind::ExtensionDirectory {
-        #[cfg(all(test, unix))]
-        super::tests::fault_injection::boundary("digest-verify", &entry_path);
+        #[cfg(all(any(test, feature = "test-support"), unix))]
+        super::test_support::fault_injection::boundary("digest-verify", &entry_path);
         let expected = inspect::module_bootstrap(spec.kind, id, &source_path);
         let intact = std::fs::read(&entry_path)
             .map(|bytes| bytes == expected.as_bytes())
@@ -1758,8 +1758,8 @@ fn guarded_enable(
         });
     }
     // Canonical re-inspection gate: the target must not have moved.
-    #[cfg(all(test, unix))]
-    super::tests::fault_injection::boundary("reinspect-target", &target);
+    #[cfg(all(any(test, feature = "test-support"), unix))]
+    super::test_support::fault_injection::boundary("reinspect-target", &target);
     let current_state = inspect::inspect_guarded_target(
         &target,
         spec.kind,
@@ -1768,8 +1768,8 @@ fn guarded_enable(
         options,
     );
     if current_state != initial_state {
-        #[cfg(all(test, unix))]
-        super::tests::fault_injection::boundary("cleanup-stage", &container);
+        #[cfg(all(any(test, feature = "test-support"), unix))]
+        super::test_support::fault_injection::boundary("cleanup-stage", &container);
         if files::remove_owned(&container, true) != FsStep::Done {
             residuals.push(container);
         }
@@ -1794,8 +1794,8 @@ fn guarded_enable(
                 backup_digest = backup.as_ref().and_then(|path| files::entry_digest(path));
             }
             Err(step) => {
-                #[cfg(all(test, unix))]
-                super::tests::fault_injection::boundary("cleanup-stage", &container);
+                #[cfg(all(any(test, feature = "test-support"), unix))]
+                super::test_support::fault_injection::boundary("cleanup-stage", &container);
                 let _ = files::remove_owned(&container, true);
                 attempted.push(AttemptedStep {
                     step: StepKind::Filesystem {
@@ -1819,8 +1819,8 @@ fn guarded_enable(
             outcome: StepOutcome::Completed,
         });
     }
-    #[cfg(all(test, unix))]
-    super::tests::fault_injection::boundary("install", &target);
+    #[cfg(all(any(test, feature = "test-support"), unix))]
+    super::test_support::fault_injection::boundary("install", &target);
     let publish = files::publish_no_replace(&entry_path, &target);
     attempted.push(AttemptedStep {
         step: StepKind::Filesystem {
@@ -1844,8 +1844,8 @@ fn guarded_enable(
                 return Attempt::Failed(FailureCode::TimedOut);
             }
             if let Some(backup_path) = backup {
-                #[cfg(all(test, unix))]
-                super::tests::fault_injection::boundary("restore", &target);
+                #[cfg(all(any(test, feature = "test-support"), unix))]
+                super::test_support::fault_injection::boundary("restore", &target);
                 let restore = files::restore_backup(&backup_path, &target);
                 attempted.push(AttemptedStep {
                     step: StepKind::Filesystem {
@@ -1858,8 +1858,8 @@ fn guarded_enable(
                     residuals.push(backup_path);
                 }
             }
-            #[cfg(all(test, unix))]
-            super::tests::fault_injection::boundary("cleanup-stage", &container);
+            #[cfg(all(any(test, feature = "test-support"), unix))]
+            super::test_support::fault_injection::boundary("cleanup-stage", &container);
             if files::remove_owned(&container, true) != FsStep::Done {
                 residuals.push(container);
             }
@@ -1871,8 +1871,8 @@ fn guarded_enable(
         }
     }
     // Post-publish verification — the published entry must verify as ours.
-    #[cfg(all(test, unix))]
-    super::tests::fault_injection::boundary("post-verify", &target);
+    #[cfg(all(any(test, feature = "test-support"), unix))]
+    super::test_support::fault_injection::boundary("post-verify", &target);
     let verified = inspect::inspect_guarded_target(
         &target,
         spec.kind,
@@ -1892,8 +1892,8 @@ fn guarded_enable(
         // Digest-guarded removal: the backup drops only while it still
         // carries the bytes captured at move-aside time. A foreign swap
         // keeps the occupant and reports conflict — never clobbered.
-        #[cfg(all(test, unix))]
-        super::tests::fault_injection::boundary("backup-remove", &backup_path);
+        #[cfg(all(any(test, feature = "test-support"), unix))]
+        super::test_support::fault_injection::boundary("backup-remove", &backup_path);
         let still_ours = files::entry_digest(&backup_path)
             .zip(backup_digest.as_ref())
             .map(|(now, captured)| now == *captured)
@@ -1934,8 +1934,8 @@ fn guarded_enable(
     }
     // Stage cleanup is the last step: earlier failures leave it as named
     // residue rather than sweeping under an unverified or unrestored state.
-    #[cfg(all(test, unix))]
-    super::tests::fault_injection::boundary("cleanup-stage", &container);
+    #[cfg(all(any(test, feature = "test-support"), unix))]
+    super::test_support::fault_injection::boundary("cleanup-stage", &container);
     if files::remove_owned(&container, true) != FsStep::Done {
         residuals.push(container);
     }
@@ -2038,8 +2038,8 @@ fn guarded_disable(
     let Some(target) = providers::guarded_target(id, spec, context.home) else {
         return Attempt::Failed(FailureCode::OperationFailed);
     };
-    #[cfg(all(test, unix))]
-    super::tests::fault_injection::boundary("remove-verify-owned", &target);
+    #[cfg(all(any(test, feature = "test-support"), unix))]
+    super::test_support::fault_injection::boundary("remove-verify-owned", &target);
     let state = inspect::inspect_guarded_target(
         &target,
         spec.kind,
@@ -2056,8 +2056,8 @@ fn guarded_disable(
     // Owned removal only: module entries unlink; an
     // extension directory removes through the no-follow walk.
     let is_directory = spec.kind == BootstrapKind::ExtensionDirectory;
-    #[cfg(all(test, unix))]
-    super::tests::fault_injection::boundary(
+    #[cfg(all(any(test, feature = "test-support"), unix))]
+    super::test_support::fault_injection::boundary(
         if is_directory {
             "remove-dir-walk"
         } else {

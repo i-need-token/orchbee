@@ -41,6 +41,8 @@ mod mutation;
 #[cfg(any(unix, windows))]
 mod providers;
 
+#[cfg(all(any(test, feature = "test-support"), unix))]
+pub mod test_support;
 #[cfg(test)]
 mod tests;
 

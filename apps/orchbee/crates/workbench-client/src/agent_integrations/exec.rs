@@ -112,12 +112,13 @@ pub(crate) fn run_command(
     // Test seam: a scripted plan replaces the process spawn entirely — the
     // provider's argv is logged for assertion and the scripted outcome is
     // materialized without touching a real binary.
-    #[cfg(test)]
-    if super::tests::fault_injection::commands_scripted() {
-        let Some(admission) = super::tests::fault_injection::scripted_admission(cancel) else {
+    #[cfg(any(test, feature = "test-support"))]
+    if super::test_support::fault_injection::commands_scripted() {
+        let Some(admission) = super::test_support::fault_injection::scripted_admission(cancel)
+        else {
             return CommandResult::Cancelled;
         };
-        return super::tests::fault_injection::run_scripted(
+        return super::test_support::fault_injection::run_scripted(
             executable,
             arguments,
             invocation_deadline,

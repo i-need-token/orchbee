@@ -22,6 +22,7 @@ use super::super::inspect;
 use super::super::model::IntegrationId;
 use super::super::mutation::{self, Direction, StepKind, StepOutcome, Verdict};
 use super::super::providers::{self, ProviderContext};
+use super::CliStatus;
 use super::fault_injection::{
     self as inject, BoundaryAction, InjectCancel, Plan, Prim, ScriptedResult,
 };
@@ -620,9 +621,9 @@ impl Outcome {
 
 /// `MutationReport` → pack vocabulary: the CLI's own `mutation_status`
 /// supplies the exit; verdict/provenance map member-wise.
-fn report_outcome(report: &mutation::MutationReport) -> Outcome {
+fn report_outcome(report: &mutation::MutationReport, cli_status: CliStatus) -> Outcome {
     use super::super::mutation::{FailureCode, Refusal};
-    let exit = crate::cli::integration::mutation_status(report) as i32;
+    let exit = cli_status(report) as i32;
     let attempted_any = !report.attempted.is_empty();
     let (verdict, determinate) = match &report.verdict {
         Verdict::Completed if !attempted_any => ("no-op", Some(true)),
@@ -1781,7 +1782,7 @@ fn assert_forbidden(case: &Case, outcome: &Outcome, dirs: &Dirs, witnessed: &[&'
 // Case runner
 // ---------------------------------------------------------------------------
 
-fn run_case(case: &Case) {
+fn run_case(case: &Case, cli_status: CliStatus) {
     let dirs = make_dirs();
     // A $CAPSULE_ROOT occupant marked orchbee-exact is a real capsule —
     // generic dir bytes would read invalid and misroute the preflight.
@@ -1860,7 +1861,7 @@ fn run_case(case: &Case) {
         }
         "enable-provider" | "disable-provider" => {
             let report = drive_provider(case, &dirs);
-            report_outcome(&report)
+            report_outcome(&report, cli_status)
         }
         "inspect" => drive_inspect(case, &dirs),
         "cohort-admit" => drive_cohort(case, &dirs),
@@ -1939,7 +1940,7 @@ fn run_case(case: &Case) {
 /// Static cases pin contract shape: exit-family vocabulary, provenance
 /// closure, honesty wording, reserve arithmetic — asserted against the
 /// implementation's own constants and mappers, not a parallel table.
-fn run_static(case: &Case) {
+fn run_static(case: &Case, cli_status: CliStatus) {
     let expect = &case.expect;
     match case.id.as_str() {
         "publish.dir.no-noreplace-primitive" => {
@@ -2006,7 +2007,7 @@ fn run_static(case: &Case) {
             };
             let _ = &mut case_enable;
             let report = drive_provider_at(&dirs, IntegrationId::Gemini, Direction::Disable);
-            let outcome = report_outcome(&report);
+            let outcome = report_outcome(&report, cli_status);
             inject::reset();
             assert_eq!(
                 outcome.exit, 3,
@@ -2138,13 +2139,14 @@ fn drive_provider_at(
     mutation::mutate(id, direction, &context)
 }
 
-#[test]
-fn provider_effects52_conformance() {
+/// Replays the frozen `provider-effects52` pack; `cli_status` is the owning application's
+/// integration exit mapping.
+pub fn provider_effects52_conformance(cli_status: CliStatus) {
     for case in load_cases() {
         if case.execution == "static" {
-            run_static(&case);
+            run_static(&case, cli_status);
         } else {
-            run_case(&case);
+            run_case(&case, cli_status);
         }
     }
 }

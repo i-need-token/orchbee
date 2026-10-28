@@ -294,7 +294,7 @@ pub(crate) const fn management_mode(id: IntegrationId, declared: ManagementMode)
 }
 
 /// The provider's registered executable name — the PATH-resolution key.
-#[cfg(all(test, unix))]
+#[cfg(all(any(test, feature = "test-support"), unix))]
 pub(crate) const fn executable_name(id: IntegrationId) -> &'static str {
     spec(id).executable
 }
