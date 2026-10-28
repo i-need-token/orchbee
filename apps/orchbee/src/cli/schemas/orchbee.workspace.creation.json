@@ -20,8 +20,7 @@
 				{
 					"title": "orchbee cli failure envelope",
 					"type": "object",
-					"required": ["schema", "version", "failure"],
-					"additionalProperties": false,
+					"required": ["schema", "version", "kind"],
 					"properties": {
 						"schema": {
 							"const": "orchbee.cli.failure"
@@ -29,39 +28,46 @@
 						"version": {
 							"const": 1
 						},
-						"failure": {
-							"type": "object",
-							"required": ["kind"],
-							"additionalProperties": false,
-							"properties": {
-								"kind": {
-									"enum": [
-										"ambiguous",
-										"cancelled",
-										"check-failed",
-										"denied",
-										"incompatible",
-										"internal-failure",
-										"invalid-identifier",
-										"invalid-usage",
-										"not-found",
-										"outcome-unknown",
-										"output-too-large",
-										"protocol-invalid",
-										"rejected",
-										"service-unavailable",
-										"connection-capacity",
-										"timeout",
-										"transport-loss"
-									]
-								},
-								"details": {
-									"type": "object"
-								}
-							}
-						},
 						"source": {
-							"$ref": "#/$defs/failureObservation/oneOf/0/$defs/source"
+							"anyOf": [
+								{
+									"$ref": "#/$defs/failureObservation/oneOf/0/$defs/source"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"kind": {
+							"enum": [
+								"ambiguous",
+								"cancelled",
+								"check-failed",
+								"denied",
+								"incompatible",
+								"internal-failure",
+								"invalid-identifier",
+								"invalid-usage",
+								"not-found",
+								"outcome-unknown",
+								"output-too-large",
+								"protocol-invalid",
+								"rejected",
+								"service-unavailable",
+								"connection-capacity",
+								"timeout",
+								"transport-loss"
+							]
+						},
+						"details": {
+							"anyOf": [
+								{
+									"type": "object"
+								},
+								{
+									"type": "null"
+								}
+							]
 						}
 					},
 					"$defs": {
@@ -675,8 +681,8 @@
 						}
 					},
 					"if": {
-						"properties": {
-							"failure": {
+						"allOf": [
+							{
 								"properties": {
 									"details": {
 										"properties": {
@@ -689,12 +695,11 @@
 								},
 								"required": ["details"]
 							}
-						},
-						"required": ["failure"]
+						]
 					},
 					"then": {
-						"properties": {
-							"failure": {
+						"allOf": [
+							{
 								"required": ["details"],
 								"properties": {
 									"kind": {
@@ -849,12 +854,12 @@
 									}
 								]
 							}
-						}
+						]
 					},
 					"else": {
 						"if": {
-							"properties": {
-								"failure": {
+							"allOf": [
+								{
 									"properties": {
 										"details": {
 											"properties": {
@@ -867,12 +872,11 @@
 									},
 									"required": ["details"]
 								}
-							},
-							"required": ["failure"]
+							]
 						},
 						"then": {
-							"properties": {
-								"failure": {
+							"allOf": [
+								{
 									"required": ["details"],
 									"properties": {
 										"kind": {
@@ -897,12 +901,12 @@
 										}
 									}
 								}
-							}
+							]
 						},
 						"else": {
 							"if": {
-								"properties": {
-									"failure": {
+								"allOf": [
+									{
 										"properties": {
 											"kind": {
 												"const": "ambiguous"
@@ -910,11 +914,11 @@
 										},
 										"required": ["kind"]
 									}
-								}
+								]
 							},
 							"then": {
-								"properties": {
-									"failure": {
+								"allOf": [
+									{
 										"required": ["details"],
 										"properties": {
 											"details": {
@@ -922,13 +926,13 @@
 											}
 										}
 									}
-								}
+								]
 							},
 							"allOf": [
 								{
 									"if": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"properties": {
 													"kind": {
 														"const": "check-failed"
@@ -936,11 +940,11 @@
 												},
 												"required": ["kind"]
 											}
-										}
+										]
 									},
 									"then": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"required": ["details"],
 												"properties": {
 													"details": {
@@ -948,13 +952,13 @@
 													}
 												}
 											}
-										}
+										]
 									}
 								},
 								{
 									"if": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"properties": {
 													"kind": {
 														"const": "service-unavailable"
@@ -962,11 +966,11 @@
 												},
 												"required": ["kind"]
 											}
-										}
+										]
 									},
 									"then": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"required": ["details"],
 												"properties": {
 													"details": {
@@ -996,13 +1000,13 @@
 													}
 												}
 											}
-										}
+										]
 									}
 								},
 								{
 									"if": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"properties": {
 													"kind": {
 														"const": "transport-loss"
@@ -1010,11 +1014,11 @@
 												},
 												"required": ["kind"]
 											}
-										}
+										]
 									},
 									"then": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"required": ["details"],
 												"properties": {
 													"details": {
@@ -1022,13 +1026,13 @@
 													}
 												}
 											}
-										}
+										]
 									}
 								},
 								{
 									"if": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"properties": {
 													"kind": {
 														"const": "incompatible"
@@ -1036,11 +1040,11 @@
 												},
 												"required": ["kind"]
 											}
-										}
+										]
 									},
 									"then": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"required": ["details"],
 												"properties": {
 													"details": {
@@ -1055,13 +1059,13 @@
 													}
 												}
 											}
-										}
+										]
 									}
 								},
 								{
 									"if": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"properties": {
 													"kind": {
 														"const": "connection-capacity"
@@ -1069,11 +1073,11 @@
 												},
 												"required": ["kind"]
 											}
-										}
+										]
 									},
 									"then": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"required": ["details"],
 												"properties": {
 													"details": {
@@ -1081,13 +1085,13 @@
 													}
 												}
 											}
-										}
+										]
 									}
 								},
 								{
 									"if": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"properties": {
 													"kind": {
 														"const": "protocol-invalid"
@@ -1095,11 +1099,11 @@
 												},
 												"required": ["kind"]
 											}
-										}
+										]
 									},
 									"then": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"required": ["details"],
 												"properties": {
 													"details": {
@@ -1114,13 +1118,13 @@
 													}
 												}
 											}
-										}
+										]
 									}
 								},
 								{
 									"if": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"properties": {
 													"kind": {
 														"enum": ["invalid-identifier", "not-found"]
@@ -1128,11 +1132,11 @@
 												},
 												"required": ["kind"]
 											}
-										}
+										]
 									},
 									"then": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"required": ["details"],
 												"properties": {
 													"details": {
@@ -1140,13 +1144,13 @@
 													}
 												}
 											}
-										}
+										]
 									}
 								},
 								{
 									"if": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"properties": {
 													"kind": {
 														"const": "outcome-unknown"
@@ -1154,11 +1158,11 @@
 												},
 												"required": ["kind"]
 											}
-										}
+										]
 									},
 									"then": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"required": ["details"],
 												"properties": {
 													"details": {
@@ -1166,13 +1170,13 @@
 													}
 												}
 											}
-										}
+										]
 									}
 								},
 								{
 									"if": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"properties": {
 													"kind": {
 														"const": "rejected"
@@ -1180,11 +1184,11 @@
 												},
 												"required": ["kind"]
 											}
-										}
+										]
 									},
 									"then": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"required": ["details"],
 												"properties": {
 													"details": {
@@ -1205,13 +1209,13 @@
 													}
 												}
 											}
-										}
+										]
 									}
 								},
 								{
 									"if": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"properties": {
 													"kind": {
 														"const": "output-too-large"
@@ -1219,11 +1223,11 @@
 												},
 												"required": ["kind"]
 											}
-										}
+										]
 									},
 									"then": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"required": ["details"],
 												"properties": {
 													"details": {
@@ -1231,13 +1235,13 @@
 													}
 												}
 											}
-										}
+										]
 									}
 								},
 								{
 									"if": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"properties": {
 													"kind": {
 														"const": "timeout"
@@ -1245,11 +1249,11 @@
 												},
 												"required": ["kind"]
 											}
-										}
+										]
 									},
 									"then": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"required": ["details"],
 												"properties": {
 													"details": {
@@ -1273,13 +1277,13 @@
 													}
 												}
 											}
-										}
+										]
 									}
 								},
 								{
 									"if": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"properties": {
 													"kind": {
 														"const": "cancelled"
@@ -1287,11 +1291,11 @@
 												},
 												"required": ["kind"]
 											}
-										}
+										]
 									},
 									"then": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"required": ["details"],
 												"properties": {
 													"details": {
@@ -1312,13 +1316,13 @@
 													}
 												}
 											}
-										}
+										]
 									}
 								},
 								{
 									"if": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"properties": {
 													"kind": {
 														"const": "denied"
@@ -1326,24 +1330,24 @@
 												},
 												"required": ["kind"]
 											}
-										}
+										]
 									},
 									"then": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"properties": {
 													"details": {
 														"$ref": "#/$defs/failureObservation/oneOf/0/$defs/cohortStageDetails"
 													}
 												}
 											}
-										}
+										]
 									}
 								},
 								{
 									"if": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"properties": {
 													"kind": {
 														"const": "internal-failure"
@@ -1351,11 +1355,11 @@
 												},
 												"required": ["kind"]
 											}
-										}
+										]
 									},
 									"then": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"properties": {
 													"details": {
 														"oneOf": [
@@ -1369,13 +1373,13 @@
 													}
 												}
 											}
-										}
+										]
 									}
 								},
 								{
 									"if": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"properties": {
 													"kind": {
 														"const": "invalid-usage"
@@ -1383,16 +1387,16 @@
 												},
 												"required": ["kind"]
 											}
-										}
+										]
 									},
 									"then": {
-										"properties": {
-											"failure": {
+										"allOf": [
+											{
 												"not": {
 													"required": ["details"]
 												}
 											}
-										}
+										]
 									}
 								}
 							]
@@ -1402,8 +1406,7 @@
 				{
 					"title": "orchbee launch profile failure envelope",
 					"type": "object",
-					"required": ["schema", "version", "failure"],
-					"additionalProperties": false,
+					"required": ["schema", "version", "kind"],
 					"properties": {
 						"schema": {
 							"const": "orchbee.cli.failure.launch-profile"
@@ -1411,30 +1414,37 @@
 						"version": {
 							"const": 1
 						},
-						"failure": {
-							"type": "object",
-							"required": ["kind"],
-							"additionalProperties": false,
-							"properties": {
-								"kind": {
-									"enum": [
-										"ambiguous",
-										"denied",
-										"internal-failure",
-										"not-found",
-										"protocol-invalid",
-										"service-unavailable",
-										"timeout",
-										"transport-loss"
-									]
-								},
-								"details": {
-									"type": "object"
-								}
-							}
-						},
 						"source": {
-							"$ref": "#/$defs/failureObservation/oneOf/1/$defs/source"
+							"anyOf": [
+								{
+									"$ref": "#/$defs/failureObservation/oneOf/1/$defs/source"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"kind": {
+							"enum": [
+								"ambiguous",
+								"denied",
+								"internal-failure",
+								"not-found",
+								"protocol-invalid",
+								"service-unavailable",
+								"timeout",
+								"transport-loss"
+							]
+						},
+						"details": {
+							"anyOf": [
+								{
+									"type": "object"
+								},
+								{
+									"type": "null"
+								}
+							]
 						}
 					},
 					"$defs": {
@@ -1580,8 +1590,8 @@
 						}
 					},
 					"if": {
-						"properties": {
-							"failure": {
+						"allOf": [
+							{
 								"properties": {
 									"kind": {
 										"const": "not-found"
@@ -1589,11 +1599,11 @@
 								},
 								"required": ["kind"]
 							}
-						}
+						]
 					},
 					"then": {
-						"properties": {
-							"failure": {
+						"allOf": [
+							{
 								"required": ["details"],
 								"properties": {
 									"details": {
@@ -1601,13 +1611,13 @@
 									}
 								}
 							}
-						}
+						]
 					},
 					"allOf": [
 						{
 							"if": {
-								"properties": {
-									"failure": {
+								"allOf": [
+									{
 										"properties": {
 											"kind": {
 												"const": "ambiguous"
@@ -1615,11 +1625,11 @@
 										},
 										"required": ["kind"]
 									}
-								}
+								]
 							},
 							"then": {
-								"properties": {
-									"failure": {
+								"allOf": [
+									{
 										"required": ["details"],
 										"properties": {
 											"details": {
@@ -1627,13 +1637,13 @@
 											}
 										}
 									}
-								}
+								]
 							}
 						},
 						{
 							"if": {
-								"properties": {
-									"failure": {
+								"allOf": [
+									{
 										"properties": {
 											"kind": {
 												"const": "denied"
@@ -1641,11 +1651,11 @@
 										},
 										"required": ["kind"]
 									}
-								}
+								]
 							},
 							"then": {
-								"properties": {
-									"failure": {
+								"allOf": [
+									{
 										"required": ["details"],
 										"properties": {
 											"details": {
@@ -1653,13 +1663,13 @@
 											}
 										}
 									}
-								}
+								]
 							}
 						},
 						{
 							"if": {
-								"properties": {
-									"failure": {
+								"allOf": [
+									{
 										"properties": {
 											"kind": {
 												"const": "service-unavailable"
@@ -1667,11 +1677,11 @@
 										},
 										"required": ["kind"]
 									}
-								}
+								]
 							},
 							"then": {
-								"properties": {
-									"failure": {
+								"allOf": [
+									{
 										"required": ["details"],
 										"properties": {
 											"details": {
@@ -1679,13 +1689,13 @@
 											}
 										}
 									}
-								}
+								]
 							}
 						},
 						{
 							"if": {
-								"properties": {
-									"failure": {
+								"allOf": [
+									{
 										"properties": {
 											"kind": {
 												"const": "timeout"
@@ -1693,11 +1703,11 @@
 										},
 										"required": ["kind"]
 									}
-								}
+								]
 							},
 							"then": {
-								"properties": {
-									"failure": {
+								"allOf": [
+									{
 										"required": ["details"],
 										"properties": {
 											"details": {
@@ -1705,13 +1715,13 @@
 											}
 										}
 									}
-								}
+								]
 							}
 						},
 						{
 							"if": {
-								"properties": {
-									"failure": {
+								"allOf": [
+									{
 										"properties": {
 											"kind": {
 												"const": "transport-loss"
@@ -1719,11 +1729,11 @@
 										},
 										"required": ["kind"]
 									}
-								}
+								]
 							},
 							"then": {
-								"properties": {
-									"failure": {
+								"allOf": [
+									{
 										"required": ["details"],
 										"properties": {
 											"details": {
@@ -1731,13 +1741,13 @@
 											}
 										}
 									}
-								}
+								]
 							}
 						},
 						{
 							"if": {
-								"properties": {
-									"failure": {
+								"allOf": [
+									{
 										"properties": {
 											"kind": {
 												"const": "protocol-invalid"
@@ -1745,11 +1755,11 @@
 										},
 										"required": ["kind"]
 									}
-								}
+								]
 							},
 							"then": {
-								"properties": {
-									"failure": {
+								"allOf": [
+									{
 										"required": ["details"],
 										"properties": {
 											"details": {
@@ -1764,7 +1774,7 @@
 											}
 										}
 									}
-								}
+								]
 							}
 						}
 					]
@@ -1779,84 +1789,80 @@
 						"version": {
 							"const": 1
 						},
-						"failure": {
-							"oneOf": [
-								{
-									"type": "object",
-									"properties": {
-										"kind": {
-											"enum": ["ambiguous", "not-found", "service-unavailable", "rejected"]
-										},
-										"details": {
-											"type": "object",
-											"properties": {
-												"stage": {
-													"const": "client-selection"
-												},
-												"reason": {
-													"enum": [
-														"client-not-found",
-														"client-stale",
-														"client-not-ready",
-														"client-ambiguous",
-														"client-panel-unavailable"
-													]
-												},
-												"candidates": {
-													"type": "array",
-													"maxItems": 32,
-													"uniqueItems": true,
-													"items": {
-														"type": "string",
-														"pattern": "^[0-9a-f]{32}$",
-														"not": {
-															"const": "00000000000000000000000000000000"
-														}
-													}
-												}
-											},
-											"required": ["stage", "reason", "candidates"],
-											"additionalProperties": false
-										}
-									},
-									"required": ["kind", "details"],
-									"additionalProperties": false
-								},
-								{
-									"type": "object",
-									"properties": {
-										"kind": {
-											"enum": [
-												"not-found",
-												"denied",
-												"rejected",
-												"service-unavailable",
-												"transport-loss",
-												"protocol-invalid",
-												"timeout",
-												"cancelled",
-												"internal-failure"
-											]
-										},
-										"details": {
-											"type": "object",
-											"properties": {
-												"stage": {
-													"const": "client-agent-read"
-												}
-											},
-											"required": ["stage"],
-											"additionalProperties": false
-										}
-									},
-									"required": ["kind", "details"],
-									"additionalProperties": false
-								}
-							]
+						"source": {
+							"type": "null"
 						}
 					},
-					"required": ["schema", "version", "failure"],
-					"additionalProperties": false
+					"oneOf": [
+						{
+							"properties": {
+								"kind": {
+									"enum": ["ambiguous", "not-found", "service-unavailable", "rejected"]
+								},
+								"details": {
+									"type": "object",
+									"properties": {
+										"stage": {
+											"const": "client-selection"
+										},
+										"reason": {
+											"enum": [
+												"client-not-found",
+												"client-stale",
+												"client-not-ready",
+												"client-ambiguous",
+												"client-panel-unavailable"
+											]
+										},
+										"candidates": {
+											"type": "array",
+											"maxItems": 32,
+											"uniqueItems": true,
+											"items": {
+												"type": "string",
+												"pattern": "^[0-9a-f]{32}$",
+												"not": {
+													"const": "00000000000000000000000000000000"
+												}
+											}
+										}
+									},
+									"required": ["stage", "reason", "candidates"],
+									"additionalProperties": false
+								}
+							},
+							"required": ["kind", "details"]
+						},
+						{
+							"properties": {
+								"kind": {
+									"enum": [
+										"not-found",
+										"denied",
+										"rejected",
+										"service-unavailable",
+										"transport-loss",
+										"protocol-invalid",
+										"timeout",
+										"cancelled",
+										"internal-failure"
+									]
+								},
+								"details": {
+									"type": "object",
+									"properties": {
+										"stage": {
+											"const": "client-agent-read"
+										}
+									},
+									"required": ["stage"],
+									"additionalProperties": false
+								}
+							},
+							"required": ["kind", "details"]
+						}
+					],
+					"required": ["schema", "version", "kind"]
 				},
 				{
 					"properties": {
