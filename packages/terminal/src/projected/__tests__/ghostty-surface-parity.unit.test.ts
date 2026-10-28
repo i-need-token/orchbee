@@ -33,15 +33,15 @@ import { type PackedRendererSource, WebGPURenderer } from '../../rendering';
 import { detectTerminalRowLinks } from '../../terminal-row-links';
 
 const surfaceFixturePath = new URL(
-	'../../../../schemas/terminal/v1/fixtures/ghostty-surface.bin',
+	'../../../../../schemas/terminal/v1/fixtures/ghostty-surface.bin',
 	import.meta.url,
 );
 const alternateSurfaceFixturePath = new URL(
-	'../../../../schemas/terminal/v1/fixtures/ghostty-alternate-surface.bin',
+	'../../../../../schemas/terminal/v1/fixtures/ghostty-alternate-surface.bin',
 	import.meta.url,
 );
 const renderRowWindowFixturePath = new URL(
-	'../../../../schemas/terminal/v1/fixtures/ghostty-render-row-window.bin',
+	'../../../../../schemas/terminal/v1/fixtures/ghostty-render-row-window.bin',
 	import.meta.url,
 );
 
