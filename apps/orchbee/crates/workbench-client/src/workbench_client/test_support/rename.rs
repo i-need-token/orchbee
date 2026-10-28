@@ -343,7 +343,7 @@ impl RenameServer {
     }
 }
 
-pub fn disconnected(error: &(dyn std::error::Error + 'static)) -> bool {
+pub(crate) fn disconnected(error: &(dyn std::error::Error + 'static)) -> bool {
     error.downcast_ref::<io::Error>().is_some_and(|error| {
         matches!(
             error.kind(),
@@ -355,7 +355,7 @@ pub fn disconnected(error: &(dyn std::error::Error + 'static)) -> bool {
 /// Computes the scripted outcome for whichever Workbench read arrived. The first read before any
 /// rename command is the bootstrap snapshot; later reads walk the ordinal script. `None` tells the
 /// caller to drop the connection (`LostSnapshot`).
-pub fn next_rename_snapshot(
+pub(crate) fn next_rename_snapshot(
     recorded: &Arc<Mutex<Vec<orchbee_workbench_protocol::WorkbenchCommand>>>,
     snapshot_count: &Arc<AtomicU8>,
     response: RenameResponse,

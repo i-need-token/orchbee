@@ -31,7 +31,7 @@ impl CloseTestServer {
     }
 }
 
-pub fn peer_disconnected(error: &(dyn std::error::Error + 'static)) -> bool {
+pub(crate) fn peer_disconnected(error: &(dyn std::error::Error + 'static)) -> bool {
     error.downcast_ref::<io::Error>().is_some_and(|error| {
         matches!(
             error.kind(),
@@ -54,7 +54,7 @@ pub fn dispatch_close_input(
     );
 }
 
-pub fn dispatch_close_input_at(
+pub(crate) fn dispatch_close_input_at(
     dispatcher: &mut InputDispatcher,
     workbench_client: &mut WorkbenchClient,
     view: &mut ClientView,
@@ -77,7 +77,7 @@ pub fn interactive_close_server(
     status_close_server(geometry, commands, input_bytes, None)
 }
 
-pub fn status_close_server(
+pub(crate) fn status_close_server(
     geometry: Geometry,
     commands: Arc<AtomicUsize>,
     input_bytes: Arc<AtomicUsize>,

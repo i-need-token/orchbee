@@ -13,7 +13,7 @@ pub use super::ui::test_support::{
 };
 pub use close::{dispatch_close_input, interactive_close_server};
 #[cfg(test)]
-pub use close::{dispatch_close_input_at, status_close_server};
+pub(crate) use close::{dispatch_close_input_at, status_close_server};
 #[cfg(test)]
 pub use rename::RenameResponse;
 pub use rename::RenameServer;
@@ -57,19 +57,19 @@ use std::{
     time::{Duration, Instant},
 };
 
-pub const ID: &str = "11111111111111111111111111111111";
+pub(crate) const ID: &str = "11111111111111111111111111111111";
 
-pub const SESSION_ID: &str = "22222222222222222222222222222222";
+pub(crate) const SESSION_ID: &str = "22222222222222222222222222222222";
 
-pub const WORKER_ID: &str = "33333333333333333333333333333333";
+pub(crate) const WORKER_ID: &str = "33333333333333333333333333333333";
 
-pub const TERMINAL_ID: &str = "44444444444444444444444444444444";
+pub(crate) const TERMINAL_ID: &str = "44444444444444444444444444444444";
 
-pub const CREATED_TAB_ID: &str = "55555555555555555555555555555555";
+pub(crate) const CREATED_TAB_ID: &str = "55555555555555555555555555555555";
 
-pub const NATIVE_TEST_IDENTITY_SEED: u128 = 0x100;
+pub(crate) const NATIVE_TEST_IDENTITY_SEED: u128 = 0x100;
 
-pub const FRAME: &[u8] = include_bytes!(concat!(
+pub(crate) const FRAME: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../../schemas/terminal/v1/fixtures/ghostty-surface.bin"
 ));
@@ -91,7 +91,7 @@ pub fn fixture_geometry() -> Result<Geometry, Box<dyn std::error::Error>> {
     )?)
 }
 
-pub fn full_frame_record(
+pub(crate) fn full_frame_record(
     sequence: u64,
     revision: u64,
     geometry: Geometry,
@@ -115,7 +115,7 @@ pub fn full_frame_record(
     })?)
 }
 
-pub fn admit(stream: &mut UnixStream) -> io::Result<()> {
+pub(crate) fn admit(stream: &mut UnixStream) -> io::Result<()> {
     assert!(matches!(
         read_message(stream).map_err(io::Error::other)?,
         LocalClientMessage::ClientHello(_)
@@ -129,7 +129,7 @@ pub fn admit(stream: &mut UnixStream) -> io::Result<()> {
     .map_err(io::Error::other)
 }
 
-pub fn respond_with_snapshot(
+pub(crate) fn respond_with_snapshot(
     stream: &mut UnixStream,
     outcome: WorkbenchSnapshotOutcome,
 ) -> io::Result<String> {
@@ -154,7 +154,7 @@ pub fn respond_with_snapshot(
 /// Maps the latest committed snapshot outcome onto a `publication.read` reply the way a real
 /// journal would: `current` when the reader already holds the offered revision, otherwise
 /// `published` carrying the full snapshot as the boundary publication.
-pub fn publication_outcome_for(
+pub(crate) fn publication_outcome_for(
     outcome: WorkbenchSnapshotOutcome,
     known_revision: WorkbenchRevision,
 ) -> WorkbenchPublicationOutcome {
@@ -177,7 +177,7 @@ pub fn publication_outcome_for(
     }
 }
 
-pub fn available_snapshot(binding: Option<PresentationBinding>) -> WorkbenchSnapshotOutcome {
+pub(crate) fn available_snapshot(binding: Option<PresentationBinding>) -> WorkbenchSnapshotOutcome {
     WorkbenchSnapshotOutcome::Available {
         snapshot: Snapshot {
             navigation: {
@@ -232,14 +232,14 @@ pub fn available_snapshot(binding: Option<PresentationBinding>) -> WorkbenchSnap
     }
 }
 
-pub fn binding() -> PresentationBinding {
+pub(crate) fn binding() -> PresentationBinding {
     PresentationBinding {
         terminal_id: TerminalId::parse(TERMINAL_ID).unwrap(),
         worker_id: WorkerId::parse(WORKER_ID).unwrap(),
     }
 }
 
-pub fn binding_attach_outcome() -> io::Result<TerminalViewerOutcome> {
+pub(crate) fn binding_attach_outcome() -> io::Result<TerminalViewerOutcome> {
     Ok(TerminalViewerOutcome::Attached {
         attachment_id: ViewerId::parse(SESSION_ID).map_err(io::Error::other)?,
         host_epoch: HostEpoch::parse(ID).map_err(io::Error::other)?,
@@ -248,7 +248,7 @@ pub fn binding_attach_outcome() -> io::Result<TerminalViewerOutcome> {
     })
 }
 
-pub fn binding_viewer_id() -> io::Result<ViewerId> {
+pub(crate) fn binding_viewer_id() -> io::Result<ViewerId> {
     let TerminalViewerOutcome::Attached { attachment_id, .. } = binding_attach_outcome()? else {
         return Err(io::Error::other(
             "binding attach fixture did not contain a ViewerId",
@@ -283,7 +283,7 @@ pub fn acquire(stream: &mut UnixStream, attachment_id: &ViewerId) -> io::Result<
     .map_err(io::Error::other)
 }
 
-pub fn serve_native_controlling_frame(
+pub(crate) fn serve_native_controlling_frame(
     stream: &mut UnixStream,
     geometry: Geometry,
 ) -> io::Result<()> {
@@ -294,7 +294,7 @@ pub fn serve_native_controlling_frame(
     )
 }
 
-pub fn serve_native_controlling_frame_with_snapshot(
+pub(crate) fn serve_native_controlling_frame_with_snapshot(
     stream: &mut UnixStream,
     geometry: Geometry,
     initial: WorkbenchSnapshotOutcome,
@@ -406,7 +406,7 @@ pub fn serve_native_controlling_frame_with_snapshot(
     .map_err(io::Error::other)
 }
 
-pub fn accept_native_frame_feedback(stream: &mut UnixStream) -> io::Result<()> {
+pub(crate) fn accept_native_frame_feedback(stream: &mut UnixStream) -> io::Result<()> {
     let ClientMessage::TerminalViewer(feedback) =
         read_client_message(stream).map_err(io::Error::other)?
     else {
@@ -503,11 +503,11 @@ pub(super) fn workbench_client_with_identity(
     ))
 }
 
-pub fn native_identity(value: u128) -> String {
+pub(crate) fn native_identity(value: u128) -> String {
     format!("{value:032x}")
 }
 
-pub fn two_tabs() -> Snapshot {
+pub(crate) fn two_tabs() -> Snapshot {
     let WorkbenchSnapshotOutcome::Available { mut snapshot } = available_snapshot(Some(binding()))
     else {
         unreachable!()
@@ -531,6 +531,6 @@ pub fn two_tabs() -> Snapshot {
     snapshot
 }
 
-pub const CREATED_PANEL_ID: &str = "66666666666666666666666666666666";
+pub(crate) const CREATED_PANEL_ID: &str = "66666666666666666666666666666666";
 
-pub const CREATED_PRESENTATION_ID: &str = "77777777777777777777777777777777";
+pub(crate) const CREATED_PRESENTATION_ID: &str = "77777777777777777777777777777777";

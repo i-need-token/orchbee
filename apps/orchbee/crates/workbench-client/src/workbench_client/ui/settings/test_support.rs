@@ -21,7 +21,7 @@ pub trait SettingsFrameSource {
 }
 
 /// One whole native frame painted by the owning application's shell, with its draw receipt.
-pub type SettingsFrame<'a> = &'a dyn Fn(
+pub(crate) type SettingsFrame<'a> = &'a dyn Fn(
     (u16, u16),
     &mut ClientView,
     Locale,
