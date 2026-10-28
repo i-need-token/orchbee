@@ -211,17 +211,20 @@ pub(super) struct RetainedView<'a> {
 }
 
 impl<'a> RetainedView<'a> {
-    /// A last observed title, fenced by its canonical binding and the attached Host epoch.
+    /// A last observed title, fenced by its canonical binding and the attached Host epoch. A
+    /// `held` normal exit keeps its title after its viewer settles or is lost.
     pub(super) fn title(
         &self,
         tab: &WorkbenchTabId,
         panel: &crate::workbench_client::ClientPanel,
         epoch: Option<&orchbee_terminal_protocol::HostEpoch>,
+        held: bool,
     ) -> Option<&'a str> {
-        if self
-            .state
-            .pane_by_panel(panel.panel_id())
-            .is_some_and(|record| record.fault().is_some())
+        if !held
+            && self
+                .state
+                .pane_by_panel(panel.panel_id())
+                .is_some_and(|record| record.fault().is_some())
         {
             return None;
         }
@@ -245,13 +248,17 @@ impl<'a> RetainedView<'a> {
             .and_then(crate::terminal_title::display)
     }
 
+    /// Retained pixels for a connecting pane. A `held` normal exit keeps its final pixels in any
+    /// phase until it leaves membership; they are never live content.
     pub(super) fn frame(
         &self,
         panel: &WorkbenchPanelId,
         columns: u16,
         rows: u16,
+        held: bool,
     ) -> Option<&'a TerminalTextFrame> {
         match self.state.phase_kind() {
+            _ if held => {}
             ClientPhaseKind::Starting | ClientPhaseKind::Switching | ClientPhaseKind::Ready => {
                 if self
                     .state

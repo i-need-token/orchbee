@@ -66,6 +66,7 @@ mod panel_close;
 mod presentations;
 pub(crate) use presentations::DrawnPresentationTarget;
 mod history_positions;
+mod normal_exit;
 mod retained_frames;
 /// Volatile Client view data carried across a targeted context surface replacement.
 #[derive(Clone, Default)]
@@ -271,6 +272,7 @@ pub struct WorkbenchClientView<'a> {
     state: Option<ClientStateView<'a>>,
     panes: &'a [KeyedProjection],
     retained_frames: Option<retained_frames::RetainedView<'a>>,
+    normal_exits: Option<&'a normal_exit::NormalExitHolds>,
     focus: Option<&'a WorkbenchPanelId>,
     projection_status: ClientProjectionStatus,
     retirement: Option<DisplayRetirement>,
@@ -493,6 +495,7 @@ impl<'a> WorkbenchClientView<'a> {
                                     panel,
                                     self.pane_projection(panel.panel_id())
                                         .map(TerminalProjection::epoch),
+                                    self.normal_exit_held(panel.panel_id()),
                                 )
                             })
                             .flatten()
@@ -644,11 +647,40 @@ impl<'a> WorkbenchClientView<'a> {
         self.focus.and_then(|panel| self.pane_projection(panel))
     }
 
+    /// The settlement this panel presents. A held normal exit presents none while Server's Close
+    /// normally removes the pane; decisions about the terminal use [`Self::settled_end`].
     pub(crate) fn terminal_end(
         &self,
         panel: &WorkbenchPanelId,
     ) -> Option<crate::terminal_projection::TerminalEnd> {
+        if self.normal_exit_held(panel) {
+            return None;
+        }
+        self.settled_end(panel)
+    }
+
+    /// The Host settlement of this panel's exact pane, whether or not it is presented.
+    pub(crate) fn settled_end(
+        &self,
+        panel: &WorkbenchPanelId,
+    ) -> Option<crate::terminal_projection::TerminalEnd> {
         self.pane_projection(panel)?.end()
+    }
+
+    /// Whether this panel's exact pane holds its closing presentation after exit code 0.
+    pub(crate) fn normal_exit_held(&self, panel: &WorkbenchPanelId) -> bool {
+        let (Some(holds), Some(state)) = (self.normal_exits, self.state.as_ref()) else {
+            return false;
+        };
+        state
+            .pane_by_panel(panel)
+            .is_some_and(|record| holds.holds(&record.pane_ref()))
+    }
+
+    /// Whether any pane holds its closing presentation, which suppresses automatic status cues.
+    pub(crate) fn normal_exit_closing(&self) -> bool {
+        self.normal_exits
+            .is_some_and(normal_exit::NormalExitHolds::active)
     }
 
     /// The live projection installed for one panel's exact pane incarnation,
@@ -681,7 +713,12 @@ impl<'a> WorkbenchClientView<'a> {
         {
             return None;
         }
-        let frame = self.retained_frames.as_ref()?.frame(panel, columns, rows)?;
+        let frame = self.retained_frames.as_ref()?.frame(
+            panel,
+            columns,
+            rows,
+            self.normal_exit_held(panel),
+        )?;
         if self
             .pane_projection(panel)
             .is_some_and(|live| *live.epoch() != frame.route.host_epoch)
@@ -959,6 +996,7 @@ impl<'a> WorkbenchClientView<'a> {
             resize: None,
             panes: &[],
             retained_frames: None,
+            normal_exits: None,
             focus: None,
             projection_status: ClientProjectionStatus::Empty,
             retirement: None,
@@ -996,6 +1034,7 @@ impl<'a> WorkbenchClientView<'a> {
             resize: None,
             panes,
             retained_frames: None,
+            normal_exits: None,
             focus: state.focus_panel_id(),
             projection_status,
             retirement: None,
@@ -1115,6 +1154,7 @@ pub(super) struct WorkbenchClientUi {
     agent_index: super::agent_board::PresentationIndex,
     projections: Vec<KeyedProjection>,
     retained_frames: retained_frames::RetainedFrames,
+    normal_exits: normal_exit::NormalExitHolds,
     navigation_draw: navigation_draw::NavigationDraw,
     history_positions: history_positions::Coordinator,
     effects: super::terminal_effects::Queue,
@@ -1237,6 +1277,7 @@ impl WorkbenchClientUi {
             outer_focused: None,
             projections: Vec::new(),
             retained_frames: retained_frames::RetainedFrames::default(),
+            normal_exits: normal_exit::NormalExitHolds::default(),
             navigation_draw: navigation_draw::NavigationDraw::default(),
             history_positions: history_positions::Coordinator::default(),
             effects: super::terminal_effects::Queue::default(),
@@ -1293,6 +1334,7 @@ impl WorkbenchClientUi {
             state: state.map(WorkbenchClientState::view),
             panes: &self.projections,
             retained_frames: state.map(|state| self.retained_frames.view(state)),
+            normal_exits: Some(&self.normal_exits),
             focus,
             projection_status: focus_status,
             retirement: self.retirement,
@@ -1513,6 +1555,10 @@ impl WorkbenchClientUi {
         if let Some(state) = &self.state {
             self.retained_frames.prune(state);
         }
+        let state = self.state.as_ref();
+        let exit_hold_released = self
+            .normal_exits
+            .release(self.clock.now(), |key| normal_exit::member(state, key));
         let command_notice_changed = if self
             .command_notice
             .is_some_and(|(_, until)| self.clock.now() >= until)
@@ -1525,10 +1571,10 @@ impl WorkbenchClientUi {
 
         let effect_changed = self.settle_effect_delivery();
         if self.retirement_failure.is_some() {
-            return command_notice_changed || duplicate_changed;
+            return command_notice_changed || duplicate_changed || exit_hold_released;
         }
         let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) else {
-            return command_notice_changed;
+            return command_notice_changed || exit_hold_released;
         };
         let acknowledged = if let Some(ack) = mailbox.take_close_acknowledgement()
             && let Some(state) = &mut self.state
@@ -1545,7 +1591,10 @@ impl WorkbenchClientUi {
         let taken = match mailbox.take_event_before(&self.clock) {
             Ok(taken) => taken,
             Err(EventError::ForwardExpired) => {
-                return command_notice_changed || acknowledged || !self.pending_draws.is_empty();
+                return command_notice_changed
+                    || exit_hold_released
+                    || acknowledged
+                    || !self.pending_draws.is_empty();
             }
             Err(EventError::Closed(closed)) => {
                 self.retire(closed.failure());
@@ -1636,6 +1685,7 @@ impl WorkbenchClientUi {
         changed |= self.expire_status_notices();
         acknowledged
             || command_notice_changed
+            || exit_hold_released
             || changed
             || effect_changed
             || self.effects.has_pending()
@@ -3936,8 +3986,19 @@ impl WorkbenchClientUi {
                 return true;
             }
         }
+        let settled = self.projections[index].value.end().is_some();
         match self.projections[index].value.receive_lifecycle(&record) {
             Ok(true) => {
+                // Only the first settlement of this exact pane may start a closing hold.
+                if let (false, Some(end), Some(state)) = (
+                    settled,
+                    self.projections[index].value.end(),
+                    self.state.as_ref(),
+                ) {
+                    let key = poll_key.pane_ref();
+                    let sole = normal_exit::sole_presentation(state, key);
+                    self.normal_exits.observe(key, end, sole, self.clock.now());
+                }
                 if self.projections[index].value.end().is_some()
                     && let Some(state) = &mut self.state
                 {
@@ -4237,6 +4298,7 @@ impl WorkbenchClientUi {
     /// Drops every projection and staged draw — used on epoch teardown, where
     /// all panes retire together, and on retirement.
     fn clear_projections(&mut self) {
+        self.normal_exits.clear();
         self.history_positions.projections_cleared();
         self.copy_mode.cancel();
         self.effects.close();

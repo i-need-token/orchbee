@@ -28,7 +28,7 @@ impl WorkbenchClientUi {
         let view = self.view();
         let ended = view
             .focus_panel_id()
-            .is_some_and(|panel| view.terminal_end(panel).is_some());
+            .is_some_and(|panel| view.settled_end(panel).is_some());
         if ended || self.modal_owns_input() || self.focus_viewport_non_live() {
             return ClientActionDisposition::KeepNavigator;
         }

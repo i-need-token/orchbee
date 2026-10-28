@@ -2282,12 +2282,16 @@ fn status_overlay_visible(
                 DisplayPhase::Starting | DisplayPhase::Switching
             ) && native.projection_status()
                 == ClientProjectionStatus::FrameAvailable;
-            let visible = (native.phase() != DisplayPhase::Ready && !connecting_frame)
-                || native
-                    .focus_panel_id()
-                    .and_then(|panel| native.terminal_end(panel))
-                    .is_some()
-                || native.controller() == Some(DisplayController::ReadOnly)
+            // A pane closing after a normal Shell exit raises no automatic connection,
+            // view-only or exit cue while Server removes it.
+            let automatic = !native.normal_exit_closing()
+                && ((native.phase() != DisplayPhase::Ready && !connecting_frame)
+                    || native
+                        .focus_panel_id()
+                        .and_then(|panel| native.terminal_end(panel))
+                        .is_some()
+                    || native.controller() == Some(DisplayController::ReadOnly));
+            let visible = automatic
                 || native.notice().is_some()
                 || native.takeover_status().is_some()
                 || native.setup_status().is_some()
