@@ -14,8 +14,7 @@ use ratatui::{
 use crate::{
     terminal_device::WindowDimensions,
     terminal_lifecycle::{
-        SYNCHRONIZED_UPDATE_BEGIN, SYNCHRONIZED_UPDATE_END, SynchronizedUpdateLease,
-        write_ansi_command,
+        SYNCHRONIZED_UPDATE_BEGIN, SYNCHRONIZED_UPDATE_END, test_support, write_ansi_command,
     },
 };
 
@@ -113,7 +112,11 @@ fn resolved_cell_colors_do_not_consult_the_process_no_color_policy() {
 }
 
 fn new_test_backend<W: Write>(writer: W, dimensions: WindowDimensions) -> FixedViewportBackend<W> {
-    FixedViewportBackend::new(writer, dimensions, Arc::new(SynchronizedUpdateLease::new()))
+    FixedViewportBackend::new(
+        writer,
+        dimensions,
+        Arc::new(test_support::synchronized_update_lease()),
+    )
 }
 
 #[test]
@@ -605,7 +608,7 @@ fn a_flush_without_an_open_frame_emits_no_end_marker() -> io::Result<()> {
 
 #[test]
 fn a_restoration_gated_writer_discards_frame_bytes_once_recovery_starts() {
-    let synchronized_update = Arc::new(SynchronizedUpdateLease::new());
+    let synchronized_update = Arc::new(test_support::synchronized_update_lease());
     let mut writer =
         RestorationGatedWriter::new(Vec::<u8>::new(), Arc::clone(&synchronized_update));
 
@@ -626,7 +629,7 @@ fn a_restoration_gated_writer_discards_frame_bytes_once_recovery_starts() {
 
 #[test]
 fn a_buffer_drop_flush_above_a_blocked_gate_emits_nothing() {
-    let synchronized_update = Arc::new(SynchronizedUpdateLease::new());
+    let synchronized_update = Arc::new(test_support::synchronized_update_lease());
     let sink = Arc::new(std::sync::Mutex::new(Vec::<u8>::new()));
     let sink_for_writer = Arc::clone(&sink);
     {

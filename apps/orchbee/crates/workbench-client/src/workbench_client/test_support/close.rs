@@ -1,6 +1,16 @@
 //! Fake Server peer for interactive Tab close confirmation.
 
-use super::*;
+use super::{
+    Arc, AtomicBool, ClientMessage, ClientView, DispatchOutcome, FakeServer, Geometry, ID,
+    InputDispatcher, Instant, Ordering, ProtocolVersion, Read, ServerMessage,
+    TerminalControlAction, TerminalControlOutcome, TerminalControlResult, TerminalViewerAction,
+    TerminalViewerOutcome, TerminalViewerResult, UnixStream, WorkbenchAction, WorkbenchClient,
+    WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchPublicationOutcome,
+    WorkbenchPublicationResult, WorkbenchRequest, WorkbenchResponse, WorkbenchTabId,
+    WorkbenchTerminalContextId, accept_native_frame_feedback, binding_viewer_id, dispatch_input,
+    io, read_client_message, read_workbench_request, serve_native_controlling_frame,
+    write_server_message, write_workbench_response,
+};
 use orchbee_workbench_protocol::{
     WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason,
     WorkbenchTabCloseReadOutcome, WorkbenchTabCloseReadResult, WorkbenchTabCloseResumeOutcome,

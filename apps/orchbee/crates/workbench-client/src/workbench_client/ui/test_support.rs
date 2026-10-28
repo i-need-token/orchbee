@@ -10,7 +10,11 @@ pub use super::settings::test_support::{
     draft_appearance_reaches_background_chrome_and_program_defaults_without_runtime_effects,
     external_confirmed_values_update_unedited_presentation_and_cancel_reveals_the_latest_snapshot,
 };
-use super::*;
+use super::{
+    Arc, ClientProjectionStatus, CommandMailbox, ControllerMode, FrameIdentity, Geometry,
+    KeyedProjection, LocalOperationClock, PaneRef, ProtocolVersion, TerminalProjection,
+    WorkbenchClientUi, WorkbenchPanelId, WorkbenchTabId, WorkerEvent,
+};
 use crate::local_client::test_support::server::adjustable_operation_clock;
 use crate::workbench_client::mailbox::EventDeadline;
 use orchbee_client_server_protocol::ControllerId;
@@ -18,7 +22,11 @@ use orchbee_terminal_protocol::{
     AttachmentId, HostEpoch, TerminalFrameRoute, TerminalInteraction, TerminalPixelGeometry,
     TerminalTextCell, TerminalTextCursor, TerminalTextFrame, TerminalTextRow, TerminalTextStyle,
 };
-use orchbee_workbench_protocol::*;
+use orchbee_workbench_protocol::{
+    Navigation, PanelNode, Presentation, PresentationBinding, Project, SessionId, Snapshot, Tab,
+    TerminalContext, TerminalId, TerminalPresentationId, WorkbenchProjectId, WorkbenchRevision,
+    WorkbenchTerminalContextId, WorkerId,
+};
 use std::{num::NonZeroU64, sync::atomic::AtomicU64};
 
 pub(in crate::workbench_client) fn attachment() -> AttachmentId {

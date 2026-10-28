@@ -1,6 +1,16 @@
 //! Fake Server peer for native Tab rename.
 
-use super::*;
+use super::{
+    Arc, AtomicBool, AtomicU8, CREATED_TAB_ID, ClientMessage, FakeServer, Geometry, ID, Ordering,
+    ProtocolVersion, Read, ServerMessage, TerminalControlAction, TerminalControlOutcome,
+    TerminalControlResult, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerResult,
+    UnixStream, WorkbenchAction, WorkbenchClient, WorkbenchCommandOutcome, WorkbenchCommandResult,
+    WorkbenchPublicationResult, WorkbenchRequest, WorkbenchResponse, WorkbenchRevision,
+    WorkbenchSnapshotOutcome, WorkbenchSnapshotResult, accept_native_frame_feedback,
+    available_snapshot, binding, binding_attach_outcome, binding_viewer_id, full_frame_record, io,
+    publication_outcome_for, read_client_message, read_workbench_request,
+    serve_native_controlling_frame, two_tabs, write_server_message, write_workbench_response,
+};
 use std::sync::Mutex;
 
 pub struct RenameServer {

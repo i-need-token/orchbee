@@ -84,7 +84,7 @@ fn partial_frame_retires_old_press_authority_without_receipt_effect_or_replay() 
     let events = Rc::new(RefCell::new(Vec::new()));
     let remaining = Rc::new(std::cell::Cell::new(usize::MAX));
     let dimensions = dimensions(40, 12);
-    let lease = Arc::new(SynchronizedUpdateLease::new());
+    let lease = Arc::new(crate::terminal_lifecycle::test_support::synchronized_update_lease());
     let backend = FixedViewportBackend::new(
         PartialWriter {
             events: events.clone(),
@@ -201,7 +201,7 @@ fn bell_is_outside_the_flushed_frame_and_failed_drawing_dispatches_nothing() {
             fail: fail.clone(),
         };
         let dimensions = dimensions(40, 12);
-        let lease = Arc::new(SynchronizedUpdateLease::new());
+        let lease = Arc::new(crate::terminal_lifecycle::test_support::synchronized_update_lease());
         let backend = FixedViewportBackend::new(writer.clone(), dimensions, lease.clone());
         let mut terminal = Terminal::with_options(
             backend,
@@ -293,7 +293,7 @@ fn machine_cover_settles_one_covered_native_receipt() {
     let events = Rc::new(RefCell::new(Vec::new()));
     let fail = Rc::new(RefCell::new(false));
     let dimensions = dimensions(40, 12);
-    let lease = Arc::new(SynchronizedUpdateLease::new());
+    let lease = Arc::new(crate::terminal_lifecycle::test_support::synchronized_update_lease());
     let backend = FixedViewportBackend::new(
         Writer {
             events: events.clone(),

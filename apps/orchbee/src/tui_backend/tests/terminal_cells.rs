@@ -16,7 +16,6 @@ use ratatui::{Terminal, layout::Rect};
 
 use crate::{
     terminal_device::WindowDimensions,
-    terminal_lifecycle::SynchronizedUpdateLease,
     tui_backend::FixedViewportBackend,
     tui_render::render_terminal_cells as render,
     tui_theme::{ColorLevel, Theme},
@@ -100,7 +99,7 @@ fn native_backend_keeps_blank_and_existing_input_cells_visible_for_every_termina
                 pixel_width: 0,
                 pixel_height: 0,
             },
-            Arc::new(SynchronizedUpdateLease::new()),
+            Arc::new(crate::terminal_lifecycle::test_support::synchronized_update_lease()),
         );
         let mut terminal = Terminal::new(backend).unwrap();
         for (column, glyph) in [(8, " "), (3, "-")] {

@@ -1,6 +1,6 @@
 //! Test-only presentation of the Settings editor's current draft, as the native painter reports it.
 
-use super::*;
+use super::{BrowseMode, Editor, SettingsDraw, State, Token};
 
 impl Editor {
     pub(crate) fn draw(&mut self, token: Token) {

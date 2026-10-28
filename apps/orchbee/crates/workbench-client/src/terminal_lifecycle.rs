@@ -349,7 +349,7 @@ pub struct SynchronizedUpdateLease {
 }
 
 impl SynchronizedUpdateLease {
-    pub const fn new() -> Self {
+    pub(crate) const fn new() -> Self {
         Self {
             graphics: graphics::ImageLease::new(),
             frame_output_blocked: AtomicBool::new(false),

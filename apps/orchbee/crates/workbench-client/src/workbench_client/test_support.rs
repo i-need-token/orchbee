@@ -14,7 +14,10 @@ pub use super::ui::test_support::{
 pub use close::*;
 pub use rename::*;
 
-use super::*;
+use super::{
+    ClientBackend, ClientTask, Geometry, LocalClient, WorkbenchClient, connection, io, mailbox,
+    thread, ui,
+};
 use crate::local_client::test_support::multiplex_peer::Peer as UnixStream;
 use crate::{
     client_view::ClientView,

@@ -63,7 +63,7 @@ fn graphics_measurement_flows_through_the_actual_shell_without_reply_or_prefix_l
     let mut backend = FixedViewportBackend::new(
         Vec::<u8>::new(),
         initial,
-        Arc::new(SynchronizedUpdateLease::new()),
+        Arc::new(crate::terminal_lifecycle::test_support::synchronized_update_lease()),
     );
     backend.enable_graphics_probe(31);
     let mut terminal = Terminal::with_options(
@@ -155,7 +155,7 @@ fn absent_and_late_graphics_replies_do_not_delay_the_first_draw_or_restore_unkno
     let mut backend = FixedViewportBackend::new(
         Vec::<u8>::new(),
         initial,
-        Arc::new(SynchronizedUpdateLease::new()),
+        Arc::new(crate::terminal_lifecycle::test_support::synchronized_update_lease()),
     );
     backend.enable_graphics_probe(31);
     let mut terminal = Terminal::with_options(

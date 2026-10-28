@@ -503,7 +503,7 @@ fn divider_lost_preview_restores_graphics_in_the_same_flushed_frame_without_anot
         let mut backend = FixedViewportBackend::new(
             Vec::<u8>::new(),
             size,
-            Arc::new(SynchronizedUpdateLease::new()),
+            Arc::new(crate::terminal_lifecycle::test_support::synchronized_update_lease()),
         );
         backend.enable_graphics_probe(31);
         let mut terminal = Terminal::with_options(

@@ -2,7 +2,7 @@
 //!
 //! The Client state and every assertion stay here; the owning application paints each frame
 //! through its real shell drawing boundary.
-use super::*;
+use super::{Edit, Row, View, WorkbenchClientUi, WorkbenchClientView};
 use crate::{
     client_view::ClientView,
     localization::Locale,

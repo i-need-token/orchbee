@@ -32,6 +32,10 @@ pub enum LinkRead {
 /// Resolve OSC 8 metadata for one rendered cell. Projection rows expose a
 /// wide glyph's tail with the head width marker, so the tail inherits the
 /// preceding head's hyperlink instead of becoming an unrelated cell.
+#[expect(
+    clippy::result_unit_err,
+    reason = "application-private boundary whose callers only branch on failure"
+)]
 pub fn explicit_url(row: TerminalProjectionRow<'_, '_>, column: u16) -> Result<Option<String>, ()> {
     let cell = row.cells().nth(usize::from(column)).ok_or(())?;
     let cell = if cell.width == 2 && column > 0 {

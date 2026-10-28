@@ -7,7 +7,7 @@ use std::{
     sync::{Arc, Mutex, MutexGuard, OnceLock},
 };
 
-use super::{PointerTrackingLevel, TerminalModes};
+use super::{PointerTrackingLevel, SynchronizedUpdateLease, TerminalModes};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Operation {
@@ -342,4 +342,9 @@ impl io::Write for FailingOrderedWireWriter {
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
     }
+}
+
+/// A fresh synchronized-update lease for a backend under test.
+pub fn synchronized_update_lease() -> SynchronizedUpdateLease {
+    SynchronizedUpdateLease::new()
 }

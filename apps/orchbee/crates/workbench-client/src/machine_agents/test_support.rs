@@ -1,6 +1,12 @@
 //! Shared Agent checkpoint fixtures for unit tests and the owning application's tests.
 
-use super::*;
+use super::{
+    AgentLaunchBinding, AgentViewSnapshot, Arc, Checkpoint, ClientContextLocation,
+    ClientContextTarget, MetadataTokens, PanelAgentState, PanelMetadataEffective, PanelNode,
+    PlacementOrder, PresentationBinding, ProtocolVersion, Row, SessionId, Snapshot,
+    StateCheckpoint, Target, TerminalAgentStateSnapshot, TerminalPresentationId, WorkbenchPanelId,
+    WorkbenchRevision, WorkbenchTabId, placements,
+};
 use orchbee_workbench_protocol::{
     Navigation, Presentation, Tab, TerminalContext, TerminalId, WorkbenchTerminalContextId,
     WorkerId,
@@ -94,7 +100,10 @@ pub(crate) fn presentation(n: u64) -> Presentation {
 }
 
 pub fn physical(n: u64) -> AgentLaunchBinding {
-    use orchbee_agent_observation_protocol::*;
+    use orchbee_agent_observation_protocol::{
+        AgentAttachmentGeneration, AgentHostEpoch, AgentHostTerminalId, AgentLaunchBinding,
+        AgentPresentationId,
+    };
     AgentLaunchBinding {
         presentation_id: AgentPresentationId::parse(&id(n)).unwrap(),
         generation: AgentAttachmentGeneration::parse(&id(1)).unwrap(),

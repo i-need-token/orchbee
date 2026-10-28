@@ -45,6 +45,10 @@ impl TerminalProjection {
     }
 
     /// Lifecycle records never invalidate the final frame or mint frame feedback.
+    #[expect(
+        clippy::result_unit_err,
+        reason = "application-private boundary whose callers only branch on failure"
+    )]
     pub fn receive_lifecycle(&mut self, record: &[u8]) -> Result<bool, ()> {
         use orchbee_terminal_protocol::{LifecycleControl, decode_lifecycle_control};
         let envelope = decode_transport_envelope(record).map_err(|_| ())?;
@@ -131,6 +135,10 @@ impl TerminalProjection {
     pub(crate) fn install_frame_for_test(&mut self, frame: TerminalTextFrame) {
         self.frame = Some(Arc::new(frame));
     }
+    #[expect(
+        clippy::result_unit_err,
+        reason = "application-private boundary whose callers only branch on failure"
+    )]
     pub fn receive_for_geometry(
         &mut self,
         record: &[u8],

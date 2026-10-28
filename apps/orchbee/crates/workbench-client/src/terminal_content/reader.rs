@@ -570,6 +570,10 @@ fn validate_join<E>(
 }
 
 /// Decode a process sample from an already-open exact viewer.
+#[expect(
+    clippy::result_unit_err,
+    reason = "application-private boundary whose callers only branch on failure"
+)]
 pub fn process_directory(
     record: &[u8],
     attachment: AttachmentId,

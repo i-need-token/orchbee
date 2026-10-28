@@ -164,7 +164,8 @@ fn an_unfenced_writer_drop_retries_the_failed_frames_residue() {
     // BufWriter's drop always retries buffered bytes, so a recovered fd
     // accepts the failed frame's residue.
     let wire = OrderedWire::default();
-    let synchronized_update = Arc::new(SynchronizedUpdateLease::new());
+    let synchronized_update =
+        Arc::new(terminal_lifecycle::test_support::synchronized_update_lease());
     let (writer, failure) = FailingOrderedWireWriter::partial_then_fail(wire.clone());
     let mut backend = failed_frame_backend_with_capacity(writer, &synchronized_update, 16);
     let mut cell = ratatui::buffer::Cell::default();

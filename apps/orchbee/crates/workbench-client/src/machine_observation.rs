@@ -51,6 +51,10 @@ pub(crate) fn check(deadline: Instant, cancel: Cancellation<'_>) -> Result<(), (
         Ok(())
     }
 }
+#[expect(
+    clippy::result_unit_err,
+    reason = "application-private boundary whose callers only branch on failure"
+)]
 pub fn snapshot(
     client: &mut LocalClient,
     deadline: Instant,

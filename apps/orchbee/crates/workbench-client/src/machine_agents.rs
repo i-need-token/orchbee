@@ -275,6 +275,10 @@ fn collect(
     }
     Ok(())
 }
+#[expect(
+    clippy::result_unit_err,
+    reason = "application-private boundary whose callers only branch on failure"
+)]
 pub fn read(
     client: &mut LocalClient,
     deadline: Instant,
@@ -393,6 +397,10 @@ pub struct StateCheckpoint {
     pub revision: WorkbenchRevision,
     bytes: usize,
 }
+#[expect(
+    clippy::result_unit_err,
+    reason = "application-private boundary whose callers only branch on failure"
+)]
 pub fn read_states_at(
     client: &mut LocalClient,
     snapshot: &Snapshot,
@@ -439,6 +447,10 @@ pub fn read_states_at(
 }
 
 /// A final report fence lets a composite read prove overlap with another source.
+#[expect(
+    clippy::result_unit_err,
+    reason = "application-private boundary whose callers only branch on failure"
+)]
 pub fn confirm(
     client: &mut LocalClient,
     snapshot: &Snapshot,
@@ -452,6 +464,10 @@ pub fn confirm(
     }
     check(deadline, cancel)
 }
+#[expect(
+    clippy::result_unit_err,
+    reason = "application-private boundary whose callers only branch on failure"
+)]
 pub fn verify(
     client: &mut LocalClient,
     snapshot: &Snapshot,

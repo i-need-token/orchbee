@@ -16,7 +16,6 @@ use crate::{
     localization::Locale,
     terminal_device::WindowDimensions,
     terminal_input::{ModeRequest, TerminalInputPort, TerminalInputUnavailable},
-    terminal_lifecycle::SynchronizedUpdateLease,
     termination_signal::TerminationSource,
     tui_backend::{FixedViewportBackend, ResizableBackend},
 };
@@ -758,7 +757,7 @@ fn required_terminal_resize_failure_prevents_dispatch_of_an_already_read_batch()
             failure: Arc::clone(&writer_failure),
         },
         initial,
-        Arc::new(SynchronizedUpdateLease::new()),
+        Arc::new(crate::terminal_lifecycle::test_support::synchronized_update_lease()),
     );
     let mut terminal = Terminal::with_options(
         backend,
@@ -879,7 +878,7 @@ fn failed_draw_never_acknowledges_the_pending_terminal_frame() {
             failure: failure.clone(),
         },
         dimensions,
-        Arc::new(SynchronizedUpdateLease::new()),
+        Arc::new(crate::terminal_lifecycle::test_support::synchronized_update_lease()),
     );
     let mut terminal = Terminal::with_options(
         backend,

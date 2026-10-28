@@ -29,6 +29,10 @@ const HISTORY_CHANGED_KIND: u16 = 53;
 /// Decode and route-validate a `HistoryChanged` record for `attachment`/`epoch`.
 /// `Ok(None)` means the record is not a kind-53 event at all; `Err` is a
 /// protocol violation the caller retires.
+#[expect(
+    clippy::result_unit_err,
+    reason = "application-private boundary whose callers only branch on failure"
+)]
 pub fn decode_history_changed(
     record: &[u8],
     attachment: &AttachmentId,

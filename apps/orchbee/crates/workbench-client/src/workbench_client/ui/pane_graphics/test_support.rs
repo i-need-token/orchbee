@@ -2,7 +2,7 @@
 //! application supplies its real native backend.
 
 use super::super::test_support::{controlling_ui, install_projection};
-use super::*;
+use super::{PaneGraphicsCanvas, Source, WorkbenchClientUi};
 use crate::{
     client_view::ClientView,
     localization::Locale,

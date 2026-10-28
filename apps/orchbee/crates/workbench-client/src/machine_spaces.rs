@@ -271,6 +271,10 @@ fn read(
     }
     .read(git_requested)
 }
+#[expect(
+    clippy::result_unit_err,
+    reason = "application-private boundary whose callers only branch on failure"
+)]
 pub fn read_with_git(
     client: &mut LocalClient,
     deadline: Instant,
@@ -278,6 +282,10 @@ pub fn read_with_git(
 ) -> Result<Arc<Checkpoint>, ()> {
     read(client, deadline, cancel, true)
 }
+#[expect(
+    clippy::result_unit_err,
+    reason = "application-private boundary whose callers only branch on failure"
+)]
 pub fn read_metadata(
     client: &mut LocalClient,
     deadline: Instant,
