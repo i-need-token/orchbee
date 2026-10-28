@@ -3,7 +3,7 @@
 ## Scope and ownership
 
 The Workbench Client's rename, workspace-setup and Settings drafts share one pure single-line editor core
-at [`terminal_text/line_editor.rs`](../src/terminal_text/line_editor.rs). It
+at [`terminal_text/line_editor.rs`](../crates/workbench-client/src/terminal_text/line_editor.rs). It
 covers the editing vocabulary the keyboard standard assigns to draft fields: insert (typed input
 and atomic paste share one path), Backspace, Delete, Left, Right, Home/Ctrl+A, End/Ctrl+E, Ctrl+W
 and Ctrl+U. Selection, undo history, Ctrl+K, and Up/Down remapping are outside this core; consumers
@@ -22,7 +22,7 @@ The editor core does not own display layout.
 `LineEditor` holds `text` (exact UTF-8), `cursor` (a byte index that is always an
 extended-grapheme boundary, possibly `text.len()`), and a `LengthLimit`. The limit is `Scalars`
 for workbench labels (512 scalars) or `Bytes` for filesystem paths (4096 bytes). Settings uses
-[field-specific byte limits](../src/native_settings/rows.rs), up to 32 KiB. Each limit is checked
+[field-specific byte limits](../crates/workbench-client/src/native_settings/rows.rs), up to 32 KiB. Each limit is checked
 against the exact resulting text — never against grapheme clusters. An over-limit insertion or
 paste returns `LengthLimitReached` and leaves text and cursor unchanged; the owning draft turns
 that rejection into its visible input fault.
@@ -45,7 +45,7 @@ snaps the mapped cursor to the visible grapheme boundary at or before it: stripp
 merge neighboring clusters. No raw prefix or mid-sequence slice is parsed independently.
 
 For rename and workspace setup,
-[`field_window(editor, field_width)`](../src/workbench_client/state/field_window.rs) chooses a window
+[`field_window(editor, field_width)`](../crates/workbench-client/src/workbench_client/state/field_window.rs) chooses a window
 over the _visible_ text by whole grapheme clusters. The returned window is the
 drawable text plus the cursor column strictly inside the field width; a zero-width field yields
 `None` rather than a fake position, and a cluster wider than the remaining space is never split.
@@ -71,7 +71,7 @@ inside the removed span, narrow windows with cursor motion, ordinary Chinese, em
 marks, and zero-width fields. Draft-level tests cover prefill-at-end editing, navigation, deletion,
 word-backspace, atomic paste, picker inertness, and fault recovery; renderer and session journeys
 witness the drawn window, the placed cursor, and exact raw submission.
-The [Settings renderer witnesses](../src/tui_render/settings/tests.rs) check control/ANSI removal
+The [Settings renderer witnesses](../crates/workbench-client/src/tui_render/settings/tests.rs) check control/ANSI removal
 that joins combining marks or emoji variation selectors, normal wide glyphs and cursor-at-end.
-The [Settings input trace](../src/terminal_input/dispatcher/tests/settings.rs) sends literal paste
+The [Settings input trace](../crates/workbench-client/src/terminal_input/dispatcher/tests/settings.rs) sends literal paste
 and Ctrl+W through the decoder and verifies word deletion without saving or pane forwarding.

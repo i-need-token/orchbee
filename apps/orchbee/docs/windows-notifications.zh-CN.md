@@ -91,10 +91,10 @@ Session 将键位、侧栏设置及完整通知 profile 原子发布。启动或
 
 所属实现测试覆盖基线/替换静默、准确 Client/身份/序号/类型去重、拒绝过期候选、Client 局部确认、静音策略、无效重载保留、有效重载取消和退役后无效果。
 
-在 `src/workbench_client/agent_notifications/tests.rs`、`src/workbench_client/agent_notifications/tests/generated.rs`、`src/notifications/tests.rs`、`src/tui_shell/tests/notification_too_small.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。真实根帧尺寸恢复用例不请求 OS 声音，验证隐藏卡片的效果保留与一次性结算。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
+在 `crates/workbench-client/src/workbench_client/agent_notifications/tests.rs`、`crates/workbench-client/src/workbench_client/agent_notifications/tests/generated.rs`、`crates/workbench-client/src/notifications/tests.rs`、`src/tui_shell/tests/notification_too_small.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。真实根帧尺寸恢复用例不请求 OS 声音，验证隐藏卡片的效果保留与一次性结算。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
 
 规范位置键为 `ui.toast.overlay.position`。生成的配置与 Session profile 使用规范配置节；profile 发布与回滚要求同一 cohort。
 
-<!-- documentation-pairing: english-sha256=d17272a98e2d597854508db321a9688e4a73bee7a01b99517191fee608bf1ae9 zh-cn-sha256=b1b23508c2c3ee5a00eef0fa02e09f97b389921472cf9913a9fff01b56eb57d6 -->
+<!-- documentation-pairing: english-sha256=5f835d493af0e90fcfb8b7b937fa9488068e1364a34c8987af716ab4cb613308 zh-cn-sha256=9d5951611487791032bbde74bf064340f3067bb7866175e3b20c495493c10fcf -->

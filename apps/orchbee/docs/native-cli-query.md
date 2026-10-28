@@ -1620,7 +1620,7 @@ cancelled, and untrusted exchanges publish none. Text output is a single line:
 ## Session activation
 
 `server start` is the headless form of the TUI's local startup: both call the single shared
-connect-or-activate core (`src/local_activation.rs`) — the sequence is identical and only the
+connect-or-activate core (`crates/workbench-client/src/local_activation.rs`) — the sequence is identical and only the
 failure projection differs. One absolute 20-second deadline starts before cohort validation
 and is never reset per stage:
 

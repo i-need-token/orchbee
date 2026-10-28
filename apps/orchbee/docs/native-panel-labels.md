@@ -70,7 +70,7 @@ existing rejection behavior. Custom labels are not attachment identity and never
 
 [Server authority tests](../../orchbee-server/src/workbench_authority/tests/panel_labels.rs) cover
 normalized set/clear, no-op, replay, non-target preservation, pending creation, authorization and
-capacity. [Native projection traces](../src/workbench_client/workbench_projection/tests/label_evolution.rs)
+capacity. [Native projection traces](../crates/workbench-client/src/workbench_client/workbench_projection/tests/label_evolution.rs)
 cover custom-label evolution and immutable identity rejection. These maintained tests do not run
 two native TUIs against one Session.
 

@@ -71,8 +71,8 @@ UI 根据已绘制缓存及准入的完整 Snapshot 一次性解析调整。显�
 
 | 声明                                               | 维护中的证据                                                                                                                                                                                                                                         |
 | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 几何、焦点保留、嵌套拓扑与折叠                     | `src/tui_layout/tests.rs`、`src/tui_layout/tests/generated.rs`：八个固定种子，每种子 196 个动作，JSON 重放与删除缩减                                                                                                                                 |
-| 选中／非活动／未访问目标的只读行为及 Snapshot 中断 | `src/workbench_client/ui/client_layout/tests.rs`、`src/workbench_client/client_control/tests.rs`、`src/workbench_client/client_control/lane/tests.rs`                                                                                                |
+| 几何、焦点保留、嵌套拓扑与折叠                     | `crates/workbench-client/src/tui_layout/tests.rs`、`crates/workbench-client/src/tui_layout/tests/generated.rs`：八个固定种子，每种子 196 个动作，JSON 重放与删除缩减                                                                                 |
+| 选中／非活动／未访问目标的只读行为及 Snapshot 中断 | `crates/workbench-client/src/workbench_client/ui/client_layout/tests.rs`、`crates/workbench-client/src/workbench_client/client_control/tests.rs`、`crates/workbench-client/src/workbench_client/client_control/lane/tests.rs`                        |
 | 精确身份、边界、物理边缘及邻居排序                 | `crates/workbench-protocol/tests/client_layout.rs`、共享 Client 视图语料及独立 TypeScript 校验                                                                                                                                                       |
 | 预留、完成、断连与过期                             | [Server 注册表测试](../../orchbee-server/src/client_view_registry/tests.rs)及[生成交错](../../orchbee-server/src/client_view_registry/tests/traces.rs)：96 个固定种子，每种子六个固定前缀动作及 128 个生成动作，重放及删除缩减；有限轨迹，不穷尽调度 |
 
@@ -82,4 +82,4 @@ UI 根据已绘制缓存及准入的完整 Snapshot 一次性解析调整。显�
 
 上报的根 `area` 即使在放大时也包含全部未放大的 Panel 和分隔矩形。放大仅改变选中 Panel 的显示矩形；标题和滚动条可能使显示矩形小于根范围。
 
-<!-- documentation-pairing: english-sha256=5bdeda9b7ae0617f2318bd273454099a39a306e3437948bc45edb312d570655e zh-cn-sha256=057358d25a6d56c2ed3c853cf688f85872f5f67d6c05e28a18ea7a15d4e5403a -->
+<!-- documentation-pairing: english-sha256=6df49cc9b7471c4e63d6666b7b64a79f6b79ed947f211045f7d6d21aa77140b9 zh-cn-sha256=71b3fd8969cf971f6ec492a1cbf4339ffc2a63a90bf1ef2f612810153da42931 -->

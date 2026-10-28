@@ -36,8 +36,8 @@
 
 所属实现测试覆盖命中几何、跨成功草稿帧的两次按住移动、规范来源隔离、合并最新意图、中断、一次提交、CAS 冲突、延迟发布显示及发布/绘制顺序。侧栏实时宽度由[鼠标输入](native-mouse-input.zh-CN.md#侧栏宽度输入)管理，共用该投影生命周期。
 
-在 `src/tui_layout/divider/tests.rs`、`src/tui_pointer/tests/divider.rs`、`src/workbench_client/client_control/tests/divider.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
+在 `crates/workbench-client/src/tui_layout/divider/tests.rs`、`crates/workbench-client/src/tui_pointer/tests/divider.rs`、`crates/workbench-client/src/workbench_client/client_control/tests/divider.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。命名／生成实现轨迹证明有界所有权及投影主张，不证明全部交错或物理终端外观。真实宿主验收须在独立松手前捕获至少两次按住移动及其中的已渲染帧，同时检查可见 pane 边界和实际内部终端尺寸。覆盖两个轴、嵌套 split、侧栏宽度、限幅及取消／退役。宿主观测不证明未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
 
-<!-- documentation-pairing: english-sha256=a96eea281533c8bf7d3285a12140591ea153f53eba4ef0b3d0246447c95e3f4a zh-cn-sha256=10bd81587f79ee738bef84a4315bb834527018eb6a017793f00d5e4cf45008b1 -->
+<!-- documentation-pairing: english-sha256=3278ba077d1bbcfe8edba3d2d879da60315a1bf5152c10a804a384018e9dc49f zh-cn-sha256=81769de3dfd60704abcabaf83c54ca0d70d581dfe6c62ab23e3661be116ea504 -->

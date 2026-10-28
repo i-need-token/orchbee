@@ -380,6 +380,13 @@ contracts that compilation cannot establish.
   directory whose `tests.rs` declares behavior-named children such as `mod backpressure;`. Do not
   attach differently named or abbreviated test modules to production files. Shared unit-test
   fixtures are children of that same `tests` owner, with only the visibility their test consumers need.
+- When the owning application's tests also need an application-internal crate's fixtures, the crate
+  exposes them from a `test_support` module beside the owning module, gated by
+  `#[cfg(any(test, feature = "test-support"))]`. Only development dependencies within the owning
+  application enable `test-support`, directly or through a sibling crate's own `test-support`
+  feature; fixtures that only the crate's own unit tests use remain under `tests`.
+  When such an application test asserts private crate state, the crate keeps the scenario body in
+  `test_support` and the application test passes in its entry-layer driver.
 - Crates with integration or conformance tests use `autotests = false` and one `integration`
   target at `tests/main.rs`. Each boundary or fixture family remains a child module under `tests/`;
   shared helpers live in `tests/support/mod.rs`. Do not create an empty target for a crate without

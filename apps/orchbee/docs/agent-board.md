@@ -146,6 +146,6 @@ Each epoch’s lane owns its outcome receiver; closing the lane prevents its lat
 
 The owning implementation tests cover same-revision row assembly, stable viewport anchoring, stale or superseded jumps, exact non-zero-panel landing, viewer death, bounded lane cleanup, exact-episode input isolation, first-draw refusal, admitted suspension and resume, stale draw rejection, Client-PATH candidate discovery, keyboard and pointer startup, current-draw cancellation, lost-worker recovery, close/cancel separation and both locales.
 
-Maintain the concrete witnesses in `src/workbench_client/agent_board/tests.rs`, `src/tui_render/agent_board.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
+Maintain the concrete witnesses in `crates/workbench-client/src/workbench_client/agent_board/tests.rs`, `crates/workbench-client/src/tui_render/agent_board.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 
 Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.

@@ -125,8 +125,8 @@ separate evidence.
 
 ## Sidebar row state
 
-The [Workspace row compositor](../src/tui_render/workspace_sidebar.rs) owns one background per row,
-including padding, blank cells and continuation lines. The [text compositor](../src/tui_render/sidebar_text.rs)
+The [Workspace row compositor](../crates/workbench-client/src/tui_render/workspace_sidebar.rs) owns one background per row,
+including padding, blank cells and continuation lines. The [text compositor](../crates/workbench-client/src/tui_render/sidebar_text.rs)
 clears inherited whole-row bold before applying identity emphasis, so supporting lines keep their
 hierarchy. Pressed, provisional, hover, current and base surfaces retain that order; focus,
 operational state and unread markers remain independent. Hover and press do not select an entity.

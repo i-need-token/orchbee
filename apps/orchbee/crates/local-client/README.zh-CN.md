@@ -23,8 +23,10 @@
 原始连接构造器和分块上限仍只属于这些测试。
 
 `test-support` feature 导出 `test_support`：有界的假 Server 与多路复用对端、无截止时间的测试准入、
-受控的传输时钟、写前 gate，以及 wake marker 错误。只有应用的开发依赖会开启它，因此发布构建和
-生产边界都不包含它。应用测试用它驱动真实的准入与交换路径；应用代码仍只消费生产边界。
+受控的传输时钟、写前 gate，以及 wake marker 错误。只有应用内的开发依赖会直接或经
+[Workbench Client](../workbench-client/README.zh-CN.md) 的 `test-support` feature 开启它，因此发布
+构建和生产边界都不包含它。应用和 Workbench Client 的测试用它驱动真实的准入与交换路径；应用代码
+仍只消费生产边界。
 
 ## 维护
 
@@ -33,4 +35,4 @@
 [仓库验证门禁](../../../../docs/zh-CN/VERIFICATION.md)。
 导出操作必须对应真实应用消费者，并保留私有测试的归属。
 
-<!-- documentation-pairing: english-sha256=97e6aca5ad2fc2b5d39a4697af325c14b238a8eb663031910bdbd7d7ab5a755c zh-cn-sha256=ffe86927693250722b0f2c262163fe01109490ef982eda1af9737db5d9fd1cfa -->
+<!-- documentation-pairing: english-sha256=fd88ae1853d7eae65438eb7b5329a4053b68cac0df40185f2c8366c055680e8e zh-cn-sha256=49837fd7236cf1225e1e471d2feee94f6f103e54946547aaad5979c1d0534b51 -->

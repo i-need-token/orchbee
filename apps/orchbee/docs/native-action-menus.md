@@ -29,7 +29,7 @@ The presentation decision consumes the root target, retained parent chain, exact
 viewport, locale, theme and owner-derived unavailable reasons. It changes no action identity,
 selection, capture or execution boundary. A refused frame publishes no row or control authority;
 successful context frames expose only their actual content, controls and surface. The render
-witnesses in `src/tui_render/action_menu/tests.rs` compare context and global composition, both locales and
+witnesses in `crates/workbench-client/src/tui_render/action_menu/tests.rs` compare context and global composition, both locales and
 shipped theme families, and the width/height boundaries with and without a reserved reason.
 
 Tab menus follow the GUI sections for creation/grouping, duplication/pinning and close.
@@ -59,7 +59,7 @@ empty compatibility slot require selecting or creating a Workspace first. Esc an
 parent-return, scrolling, narrow-layout and draw-authority rules apply unchanged. The local adapter
 matches Desktop's saved-profile semantics; command catalog IDs and CLI `--profile` retain their
 separate existing catalog authority. Profile resolution, immutable-default and menu/render witnesses
-live in `src/workbench_client/ui/launch_profiles/tests.rs` and the adjacent menu suites.
+live in `crates/workbench-client/src/workbench_client/ui/launch_profiles/tests.rs` and the adjacent menu suites.
 Sidebar Workspace/Project Delete and Tab Close/Resume intents declare `ActionTone::Destructive`;
 the shared metadata and action/row controls resolve that label through `accent-destructive`.
 The Tab Close confirmation uses the same intent tone. Cancel, metadata edits, Ungroup and color
@@ -256,7 +256,7 @@ when applicable, the selected-set count.
 Each row states its own scope: selection marks elsewhere never imply that every action uses them.
 Group assignment, Group actions and color pages retain a short semantic path with the addressed
 Tab or group name; group pages also identify their complete group count. These facts are useful
-content, separate from generic menu decoration. `src/tui_render/action_menu/tab_header.rs` composes
+content, separate from generic menu decoration. `crates/workbench-client/src/tui_render/action_menu/tab_header.rs` composes
 this fixed row from the existing action control. A child paints Back with its Esc hint inside the
 button and emits the existing `MenuControl::Back` for the exact source/token. The root has no Back
 target. No generic X, footer or selection counter returns. The complete return button, semantic
@@ -453,10 +453,10 @@ Search witnesses cover effective-shortcut and localized-alias matching, nested n
 filtered identity and availability, grapheme Backspace, Ctrl+U clearing, query bounds and localized
 no-results presentation.
 
-Maintain the concrete witnesses in `src/action_menu/tests.rs`, `src/workbench_client/ui/action_menus/tests.rs`, `src/terminal_input/dispatcher/tests/action_menu.rs`, `src/tui_render/tests.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
+Maintain the concrete witnesses in `crates/workbench-client/src/action_menu/tests.rs`, `crates/workbench-client/src/workbench_client/ui/action_menus/tests.rs`, `crates/workbench-client/src/terminal_input/dispatcher/tests/action_menu.rs`, `crates/workbench-client/src/tui_render/tests.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 
-`src/workbench_client/ui/action_menus/sidebar/tests.rs` covers asynchronous token replacement and
-cancelled episodes. `src/tui_render/action_menu/tests/sidebar.rs` covers stable probe-outcome row
+`crates/workbench-client/src/workbench_client/ui/action_menus/sidebar/tests.rs` covers asynchronous token replacement and
+cancelled episodes. `crates/workbench-client/src/tui_render/action_menu/tests/sidebar.rs` covers stable probe-outcome row
 coordinates at window edges and complete duplicate/truncated Project suffixes in both locales.
 
 Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.

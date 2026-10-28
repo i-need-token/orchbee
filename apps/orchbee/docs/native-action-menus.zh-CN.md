@@ -25,7 +25,7 @@ Workspace 侧栏仅对当前机器、已绘制 Session 上仍存在的准确行�
 
 呈现决策消费根目标、保留的父级链、准确菜单 token、视口、语言、主题及 owner 派生的不可用原因，
 不改变动作身份、选择、捕获或执行边界。被拒绝的帧不发布行或控件权限；成功的上下文帧仅暴露
-实际内容、控件及表面。`src/tui_render/action_menu/tests.rs` 的渲染见证比较上下文与全局组合、两种语言
+实际内容、控件及表面。`crates/workbench-client/src/tui_render/action_menu/tests.rs` 的渲染见证比较上下文与全局组合、两种语言
 及随产品提供的主题类别，并覆盖有／无预留原因时的宽高边界。
 
 标签页菜单遵循 GUI 的创建／分组、复制／固定和关闭分段。
@@ -47,7 +47,7 @@ System shell 仅在当前来源已证明为直接本地 Session 后使用原生�
 空兼容槽位中的配置选项要求先选择或创建 Workspace。Esc、既有父级返回、滚动、窄布局与
 绘制权限规则保持不变。本地适配器遵循 Desktop 的已保存配置语义；命令目录 ID 与 CLI
 `--profile` 保留各自既有的独立目录权威。配置解析、默认值不可变与菜单／渲染见证位于
-`src/workbench_client/ui/launch_profiles/tests.rs` 及相邻菜单测试套件。
+`crates/workbench-client/src/workbench_client/ui/launch_profiles/tests.rs` 及相邻菜单测试套件。
 侧栏 Workspace／Project 删除与标签页关闭／继续关闭意图声明 `ActionTone::Destructive`；共享元数据
 与动作／行控件通过 `accent-destructive` 解析标签。标签页关闭确认使用相同意图色调。取消、元数据
 编辑、解散分组与颜色选项保持普通意图；红色调色板选项是值，不是破坏性意图。Pane 关闭保持既有
@@ -193,7 +193,7 @@ carrier 不可用时，全局菜单仍可独立使用；面板操作和“重命
 每一行说明自身范围：其他位置保留的选择标记
 不表示所有动作都使用它们。分组归属、分组操作和颜色页面保留简短的语义路径，以及目标标签页或分组
 名称；分组页面还标明完整分组数量。这些事实属于有用内容，与通用菜单装饰分离。
-`src/tui_render/action_menu/tab_header.rs` 使用既有动作控件组合此固定行。子菜单绘制返回按钮，
+`crates/workbench-client/src/tui_render/action_menu/tab_header.rs` 使用既有动作控件组合此固定行。子菜单绘制返回按钮，
 在按钮内显示 Esc 提示，针对准确 source／token 发出既有 `MenuControl::Back`；根菜单没有返回
 目标。不会恢复通用 X、页脚或选择计数。完整返回按钮、语义路径、可选原因和至少一个动作必须在
 任何绘制或命中发布前同时容纳；只有动作行滚动。返回／Left／Esc 恢复保留的父级选择并要求重新
@@ -357,14 +357,14 @@ Context Refresh 与 Tab attachment generation 使用不同类型的导航键，�
 搜索见证覆盖有效快捷键和本地化别名匹配、新建标签页子项命中、筛选后的动作身份及可用性、按字形簇
 退格、Ctrl+U 清空、查询长度上限，以及本地化无结果状态。
 
-在 `src/action_menu/tests.rs`、`src/workbench_client/ui/action_menus/tests.rs`、`src/terminal_input/dispatcher/tests/action_menu.rs`、`src/tui_render/tests.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
+在 `crates/workbench-client/src/action_menu/tests.rs`、`crates/workbench-client/src/workbench_client/ui/action_menus/tests.rs`、`crates/workbench-client/src/terminal_input/dispatcher/tests/action_menu.rs`、`crates/workbench-client/src/tui_render/tests.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
-`src/workbench_client/ui/action_menus/sidebar/tests.rs` 覆盖异步 token 替换与已取消轮次。
-`src/tui_render/action_menu/tests/sidebar.rs` 覆盖靠窗口边缘时不同探测结果的行坐标稳定性，
+`crates/workbench-client/src/workbench_client/ui/action_menus/sidebar/tests.rs` 覆盖异步 token 替换与已取消轮次。
+`crates/workbench-client/src/tui_render/action_menu/tests/sidebar.rs` 覆盖靠窗口边缘时不同探测结果的行坐标稳定性，
 以及两种语言下重名或截断 Project 的完整后缀。
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
 
 侧栏锚定菜单保留被覆盖行的完整矩形用于定位，同时抑制底层输入目标。空间允许时在行旁打开，否则在其上方或下方打开。工作树发现过程在检查中、可用和不可用结果间保留原因行，使靠边放置的重命名与删除操作保持位置。
 
-<!-- documentation-pairing: english-sha256=f00f251e8355607dad562527a4f2731cc13a966c8e69e0458e336c44701fa618 zh-cn-sha256=4da40db51e3dcdc0ea77349c952678297dd275651269cfe7d583f2df1b4fed66 -->
+<!-- documentation-pairing: english-sha256=1f5da73ac2dee7f50f6bc3e1a57c976c727711693cc28ed1558a3ad49dcb9961 zh-cn-sha256=9d831a08e38f25d4b407223d9793142769412bcc5b6932e00a24907b280d2432 -->

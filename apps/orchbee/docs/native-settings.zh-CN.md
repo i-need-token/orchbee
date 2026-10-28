@@ -232,22 +232,22 @@ Client 共享载体上的状态订阅，设置关闭期间也继续观察。UI �
 
 ## 正确性与证据
 
-[浏览／选项轨迹](../src/native_settings/tests/browse.rs) 覆盖双语全词匹配搜索、值排除、
+[浏览／选项轨迹](../crates/workbench-client/src/native_settings/tests/browse.rs) 覆盖双语全词匹配搜索、值排除、
 查询字节上限的原子拒绝、无结果、选择器精确单字段接受、取消外观预览、外部更改、
 过期指针选项和带筛选的配置子页面返回。
-[组合用例](../src/tui_render/settings/tests/browse.rs) 固定分类／标签／值的主体布局，
+[组合用例](../crates/workbench-client/src/tui_render/settings/tests/browse.rs) 固定分类／标签／值的主体布局，
 覆盖滚动与尺寸层级下的固定操作、移除隐藏命中区域、搜索光标和两种语言下的同弹窗选项接受。
-[输入包用例](../src/terminal_input/dispatcher/tests/settings.rs) 保证查询输入与局部返回不会进入窗格输入或持久化。
+[输入包用例](../crates/workbench-client/src/terminal_input/dispatcher/tests/settings.rs) 保证查询输入与局部返回不会进入窗格输入或持久化。
 这些本地导航变化不改变共享提交／发布协议。
 
-[指针组合用例](../src/tui_render/settings/tests/pointer.rs) 通过实际绘制的设置命中映射，驱动
+[指针组合用例](../crates/workbench-client/src/tui_render/settings/tests/pointer.rs) 通过实际绘制的设置命中映射，驱动
 已准入的移动与按下报告。在原生、命名、ANSI-16 和单色主题及两种语言下，检查完整标签／值、
 复选框、有界数字、选择器和页脚色带，包含禁用减号与次要快捷键文字。指针反馈保留同一绘制回执、
 命中几何、选中设置与草稿值；实际宿主呈现仍需要单独审阅截图。
 
-[编辑器预览用例](../src/native_settings/tests/appearance.rs) 覆盖每个已准入键的
+[编辑器预览用例](../crates/workbench-client/src/native_settings/tests/appearance.rs) 覆盖每个已准入键的
 精确单键保存补丁、冻结基线、子页面返回、重置、无效颜色输入、冲突投影、
-结果未知和轮次回收。[整帧用例](../src/workbench_client/ui/settings/tests/appearance.rs)
+结果未知和轮次回收。[整帧用例](../src/tui_shell/tests/settings.rs)
 使用现有原生终端，经过真实 Shell 绘制边界，覆盖两种语言、80x24／120x40
 和真彩／256 色／16 色／单色能力。它们比较背景界面、默认与显式程序单元格、
 取消、外部更新和客户端遮盖捕获。这些确定性证据不证明剪贴板、通知、声音或
@@ -276,4 +276,4 @@ Cargo/TypeScript 检查。受影响的根门禁仍为必需。
 
 Shell 保留启动时是否由非空 `NO_COLOR` 禁用了颜色，并将该原因传入已提交主题及预览主题。应用／终端主题和可编辑颜色的说明以两种语言解释颜色抑制。校验、确认和未知保存结果的恢复信息优先。提示不会仅由单色模式推断 `NO_COLOR`，不会在渲染时读取环境，也不会更改已保存的主题选项。
 
-<!-- documentation-pairing: english-sha256=72043824e8bf3b9e990cf17d9ecfe951539cc57764c738f82f4f6419de51abb9 zh-cn-sha256=02975c46381719db0683f02ccbf19a1626f2a59b0cf1f3bc655201fe9261681f -->
+<!-- documentation-pairing: english-sha256=afaf9950c6d08687466a6a35bf41cb5cb6693b3fef673b6b1040dcc903f9a613 zh-cn-sha256=fcfc1dc4619de366c10148cc575ca8f380f870a15393c6a765034b0e73d449ba -->

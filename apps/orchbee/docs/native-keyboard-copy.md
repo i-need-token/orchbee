@@ -213,9 +213,9 @@ cursor movement or query retry never needs to repair connection configuration.
 
 The owning implementation tests cover input packet ownership, admitted geometry, stale query/effect rejection, final movement before release, effect ordering, at-most-once submission and matching success exit.
 
-Maintain the concrete witnesses in `src/terminal_copy_mode/tests.rs`,
-`src/workbench_client/terminal_selection/tests.rs`,
-`src/workbench_client/ui/copy_mode/tests/mouse.rs`, `src/tui_render/copy_mode/tests.rs` and the
+Maintain the concrete witnesses in `crates/workbench-client/src/terminal_copy_mode/tests.rs`,
+`crates/workbench-client/src/workbench_client/terminal_selection/tests.rs`,
+`crates/workbench-client/src/workbench_client/ui/copy_mode/tests/mouse.rs`, `crates/workbench-client/src/tui_render/copy_mode/tests.rs` and the
 adjacent state, carrier, input and rendering suites. The mouse visibility suite composes the full
 shell at 120×40, 80×24, Compact and Minimal sizes in both locales and native/RGB themes. Controlled
 search completions check visible matching glyphs and a cursor above the footer for primary and

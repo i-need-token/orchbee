@@ -320,6 +320,11 @@ Rust、TypeScript 与 Zig binding 绝不能成为同一 serialized contract 的�
 - 挂载的模块命名为 `tests`，位于模块旁的 `tests.rs`，或位于一个 `tests/` 目录中，由其 `tests.rs`
   声明按行为命名的子模块，例如 `mod backpressure;`。不要给生产文件挂载其他名称或缩写的测试
   模块。共享单元测试夹具作为同一个 `tests` 所有者的子模块，只提供测试使用者需要的可见性。
+- 当所属应用的测试也需要应用内部 crate 的夹具时，该 crate 从所属模块旁的 `test_support` 模块
+  导出它们，并用 `#[cfg(any(test, feature = "test-support"))]` 门控。只有所属应用内的开发依赖
+  直接或经同级 crate 自身的 `test-support` feature 开启 `test-support`；仅被 crate 自身单元测试
+  使用的夹具仍留在 `tests` 下。当这类应用测试断言 crate 私有状态时，crate 把场景主体保留在
+  `test_support` 中，由应用测试传入其入口层驱动。
 - 有集成或一致性测试的 crate 设置 `autotests = false`，通过 `tests/main.rs` 声明一个
   `integration` target。每个边界或夹具族仍是 `tests/` 下的子模块，共享 helper 位于
   `tests/support/mod.rs`。没有这些测试的 crate 不创建空 target。需要进程隔离的套件保留为
@@ -361,4 +366,4 @@ workspace 构建统一后的依赖 feature，不能证明独立交付的 package
 cohort。它绝不把 `target/` 下碰巧已有的文件视为 release input。Supported target、signing、
 install path、update cohort 与 rollback 仍由每个已接受的应用发布切片负责。
 
-<!-- documentation-pairing: english-sha256=4d5566584e4551600bf619e836af78f74ff1e5b9dde6fa61826d4f3951ae3301 zh-cn-sha256=0d5909a0c21a7ce091b1722c2f5cb5fbe4b039c6b62b854b38138d560a29d612 -->
+<!-- documentation-pairing: english-sha256=352331a328023c81ed192251beb6146ff3fdc665c5f4b96808af9abe606c793f zh-cn-sha256=04b5749c5d69d6280d2db1fddfbfbe4634debfae13856d1f01462f855e0c494b -->

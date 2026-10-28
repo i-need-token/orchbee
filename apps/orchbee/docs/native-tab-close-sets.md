@@ -100,6 +100,6 @@ The owning implementation tests cover frozen ordered close sets, exact membershi
 first-draw refusal, admitted suspension and restoration, receipt retention, cancellation, unknown
 outcomes, peer removal and survivor selection.
 
-Maintain the concrete witnesses in `src/workbench_client/state/tab_close.rs`, `src/workbench_client/mailbox/tests/tab_close.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
+Maintain the concrete witnesses in `crates/workbench-client/src/workbench_client/state/tab_close.rs`, `crates/workbench-client/src/workbench_client/mailbox/tests/tab_close.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 
 Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.

@@ -386,8 +386,14 @@ test('direct model inputs and both claim languages retain each protocol owner', 
 
 test('protocol owner paths select their core while UI copy and deterministic local flows use implementation tests', async () => {
 	const cases = [
-		['apps/orchbee/src/workbench_client/terminal_viewport/window.rs', 'native-terminal-viewport'],
-		['apps/orchbee/src/workbench_client/state/membership.rs', 'native-client-pane-membership'],
+		[
+			'apps/orchbee/crates/workbench-client/src/workbench_client/terminal_viewport/window.rs',
+			'native-terminal-viewport',
+		],
+		[
+			'apps/orchbee/crates/workbench-client/src/workbench_client/state/membership.rs',
+			'native-client-pane-membership',
+		],
 		['apps/orchbee-server/src/local_terminal_service/configuration.rs', 'native-settings-save'],
 		[
 			'apps/orchbee-server/src/local_terminal_service/viewer_connection.rs',
@@ -425,9 +431,9 @@ test('protocol owner paths select their core while UI copy and deterministic loc
 		);
 	}
 	for (const file of [
-		'apps/orchbee/src/localization.rs',
-		'apps/orchbee/src/localization/action_menu.rs',
-		'apps/orchbee/src/tui_render/action_menu.rs',
+		'apps/orchbee/crates/workbench-client/src/localization.rs',
+		'apps/orchbee/crates/workbench-client/src/localization/action_menu.rs',
+		'apps/orchbee/crates/workbench-client/src/tui_render/action_menu.rs',
 		'packages/terminal/src/search/projected-search-controller.ts',
 		'apps/orchbee/src/cli/creation.rs',
 	])

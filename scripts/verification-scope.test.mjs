@@ -214,12 +214,12 @@ test('shared PowerShell startup assets select the Host and its native process co
 test('paired TUI standards and their colocated receipts retain native ownership without selecting every suite', () => {
 	const actual = readVerificationGraph(path.resolve(import.meta.dirname, '..'));
 	const selected = selectVerificationScope(actual, [
-		'apps/orchbee/src/workbench_client/ui/action_menus.rs',
+		'apps/orchbee/crates/workbench-client/src/workbench_client/ui/action_menus.rs',
 		'docs/tui/terminal-environment.md',
 		'docs/zh-CN/tui/terminal-environment.md',
 	]);
 	assert.equal(selected.all, false, selected.reasons.join('\n'));
-	assert.deepEqual(selected.cargo, ['orchbee']);
+	assert.deepEqual(selected.cargo, ['orchbee', 'orchbee-workbench-client']);
 	assert.deepEqual(selected.pnpm, []);
 	for (const standard of [
 		'keyboard-input',

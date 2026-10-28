@@ -78,8 +78,8 @@ Server 发布 owner 仅在移除关闭 Tab 后其源组变空时删除该组。
 所属实现测试覆盖冻结有序关闭集合、准确成员校验、首次绘制拒绝、准入后的挂起与恢复、
 回执保留、取消、不明结果、对端移除和幸存者选择。
 
-在 `src/workbench_client/state/tab_close.rs`、`src/workbench_client/mailbox/tests/tab_close.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
+在 `crates/workbench-client/src/workbench_client/state/tab_close.rs`、`crates/workbench-client/src/workbench_client/mailbox/tests/tab_close.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
 
-<!-- documentation-pairing: english-sha256=e7b7c9b8aab1e7e358aa54b81b44f6bc72324320449dce9578796d1f277c92a0 zh-cn-sha256=3a657046a5ca6adb2027e77ad8c8133d0a68b6f26955b121e274405ca5f022fc -->
+<!-- documentation-pairing: english-sha256=4217626f2c308846369a5688c38fbf1c3820e8898be62e46361bc652ef6f7200 zh-cn-sha256=43a06cff3adea094713c38ccaa560ede1b0bc4da6021b6c0ff19b959c4e752eb -->

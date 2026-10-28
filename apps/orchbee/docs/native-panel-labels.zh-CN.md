@@ -61,7 +61,7 @@ revision 的矛盾，以及不可变回退标签或绑定变化仍按原规则�
 ## 证据与兼容性
 
 [Server 权威测试](../../orchbee-server/src/workbench_authority/tests/panel_labels.rs)覆盖规范化设置/清除、
-无变化、重放、非目标保留、pending 创建、授权及容量。[原生投影轨迹](../src/workbench_client/workbench_projection/tests/label_evolution.rs)
+无变化、重放、非目标保留、pending 创建、授权及容量。[原生投影轨迹](../crates/workbench-client/src/workbench_client/workbench_projection/tests/label_evolution.rs)
 覆盖自定义标签演进及不可变身份拒绝。这些维护中的测试不会针对同一 Session 运行两个原生 TUI。
 
 原生 Windows 进程验证必须使用专属 Session 与两个 TUI，检查全局显示收敛、设置/清除/无变化、
@@ -77,4 +77,4 @@ CLI Panel 读取保留创建时的 `label`，增加可空 `customLabel` 及实�
 
 叶窗格标题中，已提供的自定义 Presentation 标题或 metadata 标题不再附加 Panel 序号，包括显式提供的数字标题。两者都没有时，生成的标题保留本地化资源前缀和 Panel 序号。创建标签若是继承的纯 ASCII 数字，则从该标题省略；非数字创建标签显示在序号后。这一显示选择不重写不可变标签。所有形式使用同一净化和显示单元截断规则。
 
-<!-- documentation-pairing: english-sha256=f79b9ff7f8b1515bc546d7189618bb9027352dfb78959267509d03712717da97 zh-cn-sha256=18a6f55010f34867fe49902ca848484728ccc0538922cfbee90a85a3b06e1bf0 -->
+<!-- documentation-pairing: english-sha256=a2e10ce78ca169ba900900a3ccdf1ac06d35cb0de386735dfeda827dc6b1079e zh-cn-sha256=b4063fb2376e09e89409a457b1e5d144c194bd05b68ab798191277a9f12cff64 -->

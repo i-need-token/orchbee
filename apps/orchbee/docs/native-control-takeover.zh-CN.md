@@ -55,13 +55,13 @@ marker 只有一种类型化用途；接管不伪装为 Workbench 快照修改�
 串行化的原生交接使用受控实现证据，不保留独立 TLA 模型。可执行证据覆盖实际状态、
 带帧 carrier、预留及 Host 操作边界：
 
-| 声明                                                                       | 维护中的证据                                                                                                         |
-| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| 显式准入、捕获的几何、帧先于输入及退出后的单调回执                         | [`state/tests/control_takeover.rs`](../src/workbench_client/state/tests/control_takeover.rs)                         |
-| 拒绝、未知结果不重新提交、resize／demand 丢失及 UI 投递丢失后保留授权      | [`connection/native/tests/control_takeover.rs`](../src/workbench_client/connection/native/tests/control_takeover.rs) |
-| 绘制／反馈恢复输入且不重放；对端几何不授予权限                             | [`ui/tests/control_takeover.rs`](../src/workbench_client/ui/tests/control_takeover.rs)                               |
-| 待处理预留排除竞争者；迟到清理保留替代授权                                 | [Server 预留测试](../../orchbee-server/src/local_terminal_service/controller_connection/tests.rs)                    |
-| 确认 detach 后才 attach；失败不恢复旧权限；旧输入、resize 和清理继续受隔离 | [Worker 本地管道测试](../../orchbee-worker/src/host_connection/tests/controller_takeover.rs)                         |
+| 声明                                                                       | 维护中的证据                                                                                                                                 |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| 显式准入、捕获的几何、帧先于输入及退出后的单调回执                         | [`state/tests/control_takeover.rs`](../crates/workbench-client/src/workbench_client/state/tests/control_takeover.rs)                         |
+| 拒绝、未知结果不重新提交、resize／demand 丢失及 UI 投递丢失后保留授权      | [`connection/native/tests/control_takeover.rs`](../crates/workbench-client/src/workbench_client/connection/native/tests/control_takeover.rs) |
+| 绘制／反馈恢复输入且不重放；对端几何不授予权限                             | [`ui/tests/control_takeover.rs`](../crates/workbench-client/src/workbench_client/ui/tests/control_takeover.rs)                               |
+| 待处理预留排除竞争者；迟到清理保留替代授权                                 | [Server 预留测试](../../orchbee-server/src/local_terminal_service/controller_connection/tests.rs)                                            |
+| 确认 detach 后才 attach；失败不恢复旧权限；旧输入、resize 和清理继续受隔离 | [Worker 本地管道测试](../../orchbee-worker/src/host_connection/tests/controller_takeover.rs)                                                 |
 
 保留的 [`ConnectionViewerOwnership`](../../orchbee-server/formal/tla/ConnectionViewerOwnership.tla)
 模型在自身边界内单独检查共享 Viewer／grant 归属和清理，不建模原生交接序列。
@@ -70,4 +70,4 @@ marker 只有一种类型化用途；接管不伪装为 Workbench 快照修改�
 Windows Terminal 或真实 Agent provider 验收，也不建立主动更新控制标签的通知契约。
 同作者审读不等同独立确认。
 
-<!-- documentation-pairing: english-sha256=9d0f1867a102094fca5f0914235b649beb1cda54b187c30ca36d3432476b07ee zh-cn-sha256=b79d245d095621704ada9c1080725197be07d9b737796dadfbe960ee8d787387 -->
+<!-- documentation-pairing: english-sha256=588ae9655fda5fa24d2b59c7f8214b3c4dbcb0210e5667ec8c42c143e39bc80d zh-cn-sha256=5314f51718e1ed742a549508a0f7fe7f1506bccd6a23264045b32e81334542bf -->

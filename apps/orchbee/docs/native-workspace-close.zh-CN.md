@@ -137,13 +137,13 @@ revision 相同，目标 Context 缺失或被替换也会在提交前被拒绝�
 覆盖有效准入证据。Framed peer 断言普通 Close 从不发送 group Start，且
 两条路径都不重放变更。Snapshot fixture 保留 Project 元数据和共享检出目录。
 
-在 `src/workbench_client/state/tests/workspace_close.rs`、
-`src/workbench_client/connection/native/tests/workspace_close.rs`、
-`src/workbench_client/ui/tests/workspace_close.rs` 和 local-client Close adapter 套件中维护
+在 `crates/workbench-client/src/workbench_client/state/tests/workspace_close.rs`、
+`crates/workbench-client/src/workbench_client/connection/native/tests/workspace_close.rs`、
+`crates/workbench-client/src/workbench_client/ui/tests/workspace_close.rs` 和 local-client Close adapter 套件中维护
 证据。渲染证据覆盖两种 locale、terminal-native 与 RGB 主题，以及 Standard、Compact、
 Minimal 和被拒绝的几何。适用的仓库 gate 仍是权威；定向开发使用
 `cargo test --locked -p orchbee --bin orchbee workspace_close` 和 Project 全部关闭 carrier 测试。
 这些受控实现轨迹不证明全部交错、物理终端外观或未测试的平台。共享身份与提交协议仍由
 已注册模型负责。
 
-<!-- documentation-pairing: english-sha256=8fd9899b125c5c179cca3885a259b6bba4b113e2491b5c868b8528deb60afcb5 zh-cn-sha256=f0bc55a2e4e1cbf64155db82657a356d915b25a814d9e64595307ad1fdb384f0 -->
+<!-- documentation-pairing: english-sha256=876e99e74285a1cc51d4f3ff586f1fdffc7dbe866bc07673357d48dcd8cbd4f4 zh-cn-sha256=d01f83a425d8fbd3d3a4c8dbc2295c9317699233f38d71b6045e51d2eda3d498 -->

@@ -508,7 +508,7 @@ Workspace/context、目录 ID、路径与 Worker 保留上次结果。已观察�
 并清除旧分支；目录或 Session 变化绝不继承旧值。保留的 Git 文字预留两格新鲜度槽
 （陈旧时为 ` ?`），Workspace 选择器显示“状态已过期”。机器端点替换或移除使其保留 checkpoint
 失效；最后一个 Workspace 消费者隐藏后释放。保留事实不授予导航或副作用权限。
-`src/machine_picker/tests/spaces.rs` 覆盖失败／缺失及乱序轮次、稳定分组、滚动／当前身份、
+`crates/workbench-client/src/machine_picker/tests/spaces.rs` 覆盖失败／缺失及乱序轮次、稳定分组、滚动／当前身份、
 部分 Git 失败、确认不存在与来源替换。这些是受控实现轨迹，不提供穷尽 TLC 保证，
 也不是真实多 Client 宿主证据。
 
@@ -534,4 +534,4 @@ null/unknown 区分、样式／Unicode 绘制及导航几何。整套 cohort 与
 
 Agent 选择器显示指定名称，并在存在不同的任务标题时一并显示。详情为工作区、提供商、标题和自定义令牌分别保留行；存在远程配置时再增加机器上下文，同时保留复制 ID 操作。模式栏使用共用的当前状态轨道，使每个模式都有独立的可见标签和命中区域。
 
-<!-- documentation-pairing: english-sha256=42a23a058b3591bbded041d6a7b9dd757102aa195b4936443f0ad1313e102eb6 zh-cn-sha256=ca685b419b91c1c72449a1331610334aed28ff792d9638e654ffaf22b20437fa -->
+<!-- documentation-pairing: english-sha256=1405c3560275d9d8c17948ffb998a82ddcc978c94a9e905967e5b68542df9605 zh-cn-sha256=ded30234064eab745a9d81ca49da9b757a693634a66316f1e629bebfd4120285 -->

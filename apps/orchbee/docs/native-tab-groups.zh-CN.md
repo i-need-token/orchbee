@@ -172,8 +172,8 @@ unavailable／unknown、投影恢复及超时均停止剩余源。当前操作�
 
 所属实现测试覆盖组成员关系、固定顺序、复制来源身份、顺序回执/安装/Ready 屏障、取消以及拒绝后不自动重放。
 
-在 `src/workbench_client/state/tab_groups.rs`、`src/workbench_client/state/tab_duplication.rs`、`src/workbench_client/mailbox/tests/tab_duplication.rs`、`src/tui_pointer/tests/tab_groups.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
+在 `crates/workbench-client/src/workbench_client/state/tab_groups.rs`、`crates/workbench-client/src/workbench_client/state/tab_duplication.rs`、`crates/workbench-client/src/workbench_client/mailbox/tests/tab_duplication.rs`、`crates/workbench-client/src/tui_pointer/tests/tab_groups.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
 
-<!-- documentation-pairing: english-sha256=344511581af0dda5dc0be2448dbd17612336a552f203e56dd87d8bfa6e7e9c52 zh-cn-sha256=8e6efb508954e034891bbbbd2a8da4f49eef49291b43ffa4365a3b81c40a5be9 -->
+<!-- documentation-pairing: english-sha256=99d96bdf6e6e2b51d8aa754b62a668aad684463f0c1b1848b01f1d06f76d7ef2 zh-cn-sha256=d6db496eb789ad3e9ca6fdcdfd2affc78e3ab3a1e52f5d392e167c1ad9e6e12f -->

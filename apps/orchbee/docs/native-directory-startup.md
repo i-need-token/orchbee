@@ -32,6 +32,6 @@ Closing the last Workspace in a live Client is deliberate removal, not first ent
 
 ## Evidence and limits
 
-`src/workbench_client/startup_directory/tests.rs` covers admission with empty Projects, rejection with an empty Workspace, path/label rules, exact scope and retained evidence in both locales. `src/workbench_client/connection/native/tests/startup_directory.rs` checks one launch before Bootstrap, no implicit terminal open or ProjectCreate, retained known receipts after read failure, and unknown handoff without follow-up or replay.
+`crates/workbench-client/src/workbench_client/startup_directory/tests.rs` covers admission with empty Projects, rejection with an empty Workspace, path/label rules, exact scope and retained evidence in both locales. `crates/workbench-client/src/workbench_client/connection/native/tests/startup_directory.rs` checks one launch before Bootstrap, no implicit terminal open or ProjectCreate, retained known receipts after read failure, and unknown handoff without follow-up or replay.
 
 Use the owning `startup_directory` Rust tests with the matched native dependency build. These tests cover bounded implementation traces; actual terminal appearance and full cohort acceptance belong to the native end-to-end suite. They do not claim exhaustive interleavings or other-platform coverage.

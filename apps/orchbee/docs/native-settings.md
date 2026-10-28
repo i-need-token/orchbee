@@ -290,26 +290,26 @@ restart, process launch or synthetic completion event is caused by appearance pr
 
 ## Correctness and evidence
 
-The [browse/choice traces](../src/native_settings/tests/browse.rs) cover bilingual all-term search,
+The [browse/choice traces](../crates/workbench-client/src/native_settings/tests/browse.rs) cover bilingual all-term search,
 value exclusion, atomic query bounds, empty results, exact one-leaf picker acceptance, cancelled
 appearance preview, external changes, stale pointer choices and filtered profile return. The
-[composition cases](../src/tui_render/settings/tests/browse.rs) pin the category/label/value body,
+[composition cases](../crates/workbench-client/src/tui_render/settings/tests/browse.rs) pin the category/label/value body,
 fixed actions across scrolling and size tiers, hidden-hit removal, search cursor and same-modal
-picker acceptance in both locales. The [input packet cases](../src/terminal_input/dispatcher/tests/settings.rs)
+picker acceptance in both locales. The [input packet cases](../crates/workbench-client/src/terminal_input/dispatcher/tests/settings.rs)
 keep query entry and local return out of pane input and persistence. These local navigation changes
 do not change the shared commit/publication protocol.
 
-The [composed pointer cases](../src/tui_render/settings/tests/pointer.rs) drive admitted motion and
+The [composed pointer cases](../crates/workbench-client/src/tui_render/settings/tests/pointer.rs) drive admitted motion and
 press reports through the painted Settings hit map. They check complete label/value, checkbox,
 bounded-number, picker and footer bands under native, named, ANSI-16 and monochrome themes in both
 locales, including a disabled decrement and secondary shortcut text. Pointer feedback retains the
 same draw receipt, hit geometry, selected setting and draft values; actual host presentation still
 requires separate screenshot review.
 
-The [editor preview cases](../src/native_settings/tests/appearance.rs) cover every
+The [editor preview cases](../crates/workbench-client/src/native_settings/tests/appearance.rs) cover every
 admitted key's exact one-key Save patch, frozen basis, child return, reset, invalid
 color entry, conflict projection, unknown result and episode retirement. The
-[whole-frame cases](../src/workbench_client/ui/settings/tests/appearance.rs) drive
+[whole-frame cases](../src/tui_shell/tests/settings.rs) drive
 the real Shell drawing boundary with an existing native terminal, both locales,
 80x24/120x40 and truecolor/256/16/monochrome capability. They compare background
 chrome, default and explicit program cells, cancellation, external updates and

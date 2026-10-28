@@ -457,6 +457,18 @@ provisional pending the input-design review and may be rebound; the split and cl
 the input-vocabulary draft, while `H`/`J`/`K`/`L` are interim top-level stand-ins for the draft's
 `PANEL`-mode `h`/`j`/`k`/`l` move.
 
+## Application crates
+
+The `orchbee` binary is the entry layer: process entry, command-line grammar and output, Agent
+doctor diagnostics, startup and release installation, and the terminal shell loop and backend.
+Two application-private crates sit below it and never depend on it:
+
+- [Workbench Client](crates/workbench-client/README.md) is the Client runtime: Session activation,
+  projected Workbench state, views, input dispatch, terminal presentation, Agent and machine
+  workflows, and localization.
+- [Local client](crates/local-client/README.md) is the Client Connection transport beneath that
+  runtime.
+
 ## Private local Client transport
 
 On Unix, the application-private `LocalClient` accepts an endpoint and executable cohort only from
@@ -667,9 +679,9 @@ shell owns terminal modes and drawing; the session owns its mailbox, connection 
 input. `terminal_projection` validates terminal frames and produces exact feedback. Terminal Host
 retains VT and history authority.
 
-[Workbench Client lifecycle regressions](src/workbench_client/tests.rs) cover interrupted Drop/join,
-unknown-input retirement and read-only input refusal. [Native transport regressions](src/workbench_client/connection/native/tests.rs)
-and [mailbox traces](src/workbench_client/mailbox/tests.rs) cover bounded admission, projection/feedback
+[Workbench Client lifecycle regressions](crates/workbench-client/src/workbench_client/tests.rs) cover interrupted Drop/join,
+unknown-input retirement and read-only input refusal. [Native transport regressions](crates/workbench-client/src/workbench_client/connection/native/tests.rs)
+and [mailbox traces](crates/workbench-client/src/workbench_client/mailbox/tests.rs) cover bounded admission, projection/feedback
 ordering and retirement. [Linux public startup/PTY witnesses](tests/local_startup_process.rs) and
 [native pointer witnesses](tests/local_startup_process/native_pointer.rs) cover retained shells,
 resize, pointer routing and terminal-mode restoration. Their finite deadlines are test bounds,
@@ -698,12 +710,12 @@ the same exact owed feedback until accepted; this policy cannot acknowledge an u
 Client cancellation closes the stream, interrupts an exchange, and joins after at most one 10-ms
 backoff under normal scheduling. Expiry or identity exhaustion ends the operation.
 
-| Claim                                                       | Refinement and evidence                                                                                                                                                                                                                                                                                    |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Only known-unchanged capacity results allow another attempt | Server viewer/control ServerBusy producers establish unchanged Host effects; Client matches only that exact result. Fake Server partitions check busy, rejection, unavailable and unknown.                                                                                                                 |
-| No possible effect is replayed                              | [LocalClient tests](crates/local-client/src/local_client/tests.rs) check timeout and EOF after one exchange without resubmission; [native command traces](src/workbench_client/connection/native/tests/commands.rs) check busy input/resize/feedback and retirement after ambiguous input.                 |
-| Deadline and identity do not reset                          | One operation deadline covers all attempts; request IDs and controller sequence increase; bounded fake Server traces exercise expiry and busy Resize.                                                                                                                                                      |
-| Retained feedback and cancellation stay bounded             | [Mailbox tests](src/workbench_client/mailbox/tests.rs) check the eight-record capacity; [native transport tests](src/workbench_client/connection/native/tests.rs) check exact drawn feedback; [Workbench Client lifecycle tests](src/workbench_client/tests.rs) check joined drop of the retained adapter. |
+| Claim                                                       | Refinement and evidence                                                                                                                                                                                                                                                                                                                                                            |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Only known-unchanged capacity results allow another attempt | Server viewer/control ServerBusy producers establish unchanged Host effects; Client matches only that exact result. Fake Server partitions check busy, rejection, unavailable and unknown.                                                                                                                                                                                         |
+| No possible effect is replayed                              | [LocalClient tests](crates/local-client/src/local_client/tests.rs) check timeout and EOF after one exchange without resubmission; [native command traces](crates/workbench-client/src/workbench_client/connection/native/tests/commands.rs) check busy input/resize/feedback and retirement after ambiguous input.                                                                 |
+| Deadline and identity do not reset                          | One operation deadline covers all attempts; request IDs and controller sequence increase; bounded fake Server traces exercise expiry and busy Resize.                                                                                                                                                                                                                              |
+| Retained feedback and cancellation stay bounded             | [Mailbox tests](crates/workbench-client/src/workbench_client/mailbox/tests.rs) check the eight-record capacity; [native transport tests](crates/workbench-client/src/workbench_client/connection/native/tests.rs) check exact drawn feedback; [Workbench Client lifecycle tests](crates/workbench-client/src/workbench_client/tests.rs) check joined drop of the retained adapter. |
 
 ## Localization and authority
 
@@ -712,8 +724,8 @@ Authored help and diagnostics ship in `en-US` and `zh-CN`. Locale selection chec
 falls back to canonical `en-US`. Locale data affects presentation only and is never persisted or
 used as authority.
 
-`src/localization.rs` owns locale selection and shared text over plain presentation parameters;
-feature copy lives in `src/localization/<feature>.rs`. Features select status, menu, shortcut and
+`crates/workbench-client/src/localization.rs` owns locale selection and shared text over plain presentation parameters;
+feature copy lives in `crates/workbench-client/src/localization/<feature>.rs`. Features select status, menu, shortcut and
 Settings descriptions before calling this lower layer; it does not inspect Workbench views,
 Settings drafts, CLI commands or input dispatch. CLI copy and command/result formatting live in
 `src/cli_text/<feature>.rs`, with `CliText` retaining the selected `Locale`. Add messages to their
@@ -830,8 +842,8 @@ Run from the repository root:
 ```sh
 pnpm --filter @orchbee/terminal-host build
 cargo build -p orchbee-server -p orchbee-worker --locked
-cargo test -p orchbee --all-targets --all-features --locked
-cargo clippy -p orchbee --all-targets --all-features --locked -- -D warnings
+cargo test -p orchbee -p orchbee-workbench-client --all-targets --all-features --locked
+cargo clippy -p orchbee -p orchbee-workbench-client --all-targets --all-features --locked -- -D warnings
 node scripts/tla/check-inventory.mjs
 node scripts/tla/run-models.mjs --workspace apps/orchbee
 node scripts/tla/run-models.mjs --models local-session-startup
@@ -873,8 +885,9 @@ ORCHBEE_TEST_NATIVE_COHORT=/tmp/orchbee-native-dev cargo test -p orchbee --test 
 
 ### Agent integration conformance fixtures
 
-`tests/fixtures/agent-integrations/` holds the corpora replayed by the
-`agent_integrations` unit harnesses:
+`tests/fixtures/agent-integrations/` holds the corpora replayed by the Workbench Client
+`agent_integrations` harnesses; the application's CLI tests run both packs with its
+integration exit mapping:
 
 - `provider-conformance/` — `payloads.json` plus `cases/<provider>.cases.json`:
   per-provider inspection, enable, and disable cases pinning scripted command

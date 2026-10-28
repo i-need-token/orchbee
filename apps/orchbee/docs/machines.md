@@ -697,7 +697,7 @@ An observed null branch confirms absence and clears the old branch; a changed di
 never inherits it. Retained Git text reserves a two-cell freshness track (` ?` when stale), and the
 Workspace picker reports Stale. Endpoint replacement/removal invalidates its retained checkpoint;
 hiding the last Workspace consumer releases it. No retained fact grants navigation or effect authority.
-`src/machine_picker/tests/spaces.rs` covers failed/missing and out-of-order rounds, stable grouping,
+`crates/workbench-client/src/machine_picker/tests/spaces.rs` covers failed/missing and out-of-order rounds, stable grouping,
 scroll/current identity, partial Git failure, confirmed absence and source replacement. These are
 controlled implementation traces, not exhaustive TLC assurance or real multi-Client host evidence.
 

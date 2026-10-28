@@ -399,6 +399,15 @@ resize。与聚合 Close
 绑定，待输入设计裁决后可能重绑；split 与 close 键形遵循 input-vocabulary 草案表，而
 `H`/`J`/`K`/`L` 是草案 `PANEL` 模式 `h`/`j`/`k`/`l` move 的过渡性顶层替身。
 
+## 应用 crate
+
+`orchbee` 二进制是入口层：进程入口、命令行语法与输出、Agent doctor 诊断、启动与发布安装，
+以及终端 shell 循环和 backend。其下有两个应用私有 crate，它们从不依赖二进制：
+
+- [Workbench Client](crates/workbench-client/README.zh-CN.md) 是 Client 运行时：Session 激活、
+  投影后的 Workbench 状态、视图、输入分发、终端呈现、Agent 与机器工作流，以及本地化。
+- [本地客户端](crates/local-client/README.zh-CN.md) 是该运行时之下的 Client Connection 传输层。
+
 ## 私有本机 Client transport
 
 在 Unix 上，application-private `LocalClient` 只从 internal caller 接收 endpoint 与 executable
@@ -584,9 +593,9 @@ OBLC 握手计数。如果无法读取线程名，应将该代理指标记为不
 客户端拥有 mailbox、连接 task 与已准入输入。`terminal_projection` 校验终端 frame 并产生精确反馈。
 Terminal Host 保持 VT 与 history 权威。
 
-[Workbench Client 生命周期回归](src/workbench_client/tests.rs) 覆盖 Drop 中断与 join、未知输入结果退役及只读输入拒绝。
-[Native 传输回归](src/workbench_client/connection/native/tests.rs) 与
-[mailbox 轨迹](src/workbench_client/mailbox/tests.rs) 覆盖有界准入、projection/feedback 顺序及退役。
+[Workbench Client 生命周期回归](crates/workbench-client/src/workbench_client/tests.rs) 覆盖 Drop 中断与 join、未知输入结果退役及只读输入拒绝。
+[Native 传输回归](crates/workbench-client/src/workbench_client/connection/native/tests.rs) 与
+[mailbox 轨迹](crates/workbench-client/src/workbench_client/mailbox/tests.rs) 覆盖有界准入、projection/feedback 顺序及退役。
 [Linux 公开启动／PTY 见证](tests/local_startup_process.rs) 与
 [原生指针见证](tests/local_startup_process/native_pointer.rs) 覆盖保留 shell、resize、指针路由及终端模式恢复。
 其有限 deadline 是测试边界，不是性能保证。
@@ -611,12 +620,12 @@ transport 失败和未知结果均为最终结果。Feedback 在接受前保持�
 此策略不能确认未绘制帧。Client 取消关闭 stream、打断 exchange，在正常调度下至多等待一次
 10 毫秒退避后 join。到期或身份耗尽会结束操作。
 
-| 声明                                 | 细化映射和证据                                                                                                                                                                                                                                                    |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 只有已知未改变的容量结果允许再次尝试 | Server viewer/control 的 ServerBusy 分支证明 Host effect 未发生；Client 仅匹配这个精确结果。Fake Server 分区检查 busy、拒绝、不可用和未知结果。                                                                                                                   |
-| 不重放任何可能已发生的副作用         | [LocalClient 测试](crates/local-client/src/local_client/tests.rs) 检查单次 exchange 后的超时与 EOF 不会触发重提交；[native command 轨迹](src/workbench_client/connection/native/tests/commands.rs) 检查 busy input/resize/feedback，以及输入结果不明后的退役。    |
-| 截止时间与身份不重置                 | 同一操作截止时间覆盖全部尝试；请求 ID 与 controller sequence 递增；有界 fake Server 轨迹覆盖到期和 busy Resize。                                                                                                                                                  |
-| 保留反馈与取消仍有界                 | [Mailbox 测试](src/workbench_client/mailbox/tests.rs) 检查八条记录的容量；[native 传输测试](src/workbench_client/connection/native/tests.rs) 检查精确的已绘制帧反馈；[Workbench Client 生命周期测试](src/workbench_client/tests.rs) 检查保留适配器释放时的 join。 |
+| 声明                                 | 细化映射和证据                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 只有已知未改变的容量结果允许再次尝试 | Server viewer/control 的 ServerBusy 分支证明 Host effect 未发生；Client 仅匹配这个精确结果。Fake Server 分区检查 busy、拒绝、不可用和未知结果。                                                                                                                                                                                           |
+| 不重放任何可能已发生的副作用         | [LocalClient 测试](crates/local-client/src/local_client/tests.rs) 检查单次 exchange 后的超时与 EOF 不会触发重提交；[native command 轨迹](crates/workbench-client/src/workbench_client/connection/native/tests/commands.rs) 检查 busy input/resize/feedback，以及输入结果不明后的退役。                                                    |
+| 截止时间与身份不重置                 | 同一操作截止时间覆盖全部尝试；请求 ID 与 controller sequence 递增；有界 fake Server 轨迹覆盖到期和 busy Resize。                                                                                                                                                                                                                          |
+| 保留反馈与取消仍有界                 | [Mailbox 测试](crates/workbench-client/src/workbench_client/mailbox/tests.rs) 检查八条记录的容量；[native 传输测试](crates/workbench-client/src/workbench_client/connection/native/tests.rs) 检查精确的已绘制帧反馈；[Workbench Client 生命周期测试](crates/workbench-client/src/workbench_client/tests.rs) 检查保留适配器释放时的 join。 |
 
 ## 本地化与权威
 
@@ -624,8 +633,8 @@ Authored help 与 diagnostic 同时提供 `en-US` 和 `zh-CN`。Locale selection
 `LC_ALL`、`LC_MESSAGES` 与 `LANG`；以 `zh` 开头的 language prefix 选择 `zh-CN`，其他 value
 均 fallback 到 canonical `en-US`。Locale data 只影响 presentation，绝不会持久化或用作 authority。
 
-`src/localization.rs` 负责语言选择，以及仅接收普通展示参数的共享文案；功能文案位于
-`src/localization/<feature>.rs`。各功能先选择状态、菜单、快捷键和设置的描述，再调用此下层；
+`crates/workbench-client/src/localization.rs` 负责语言选择，以及仅接收普通展示参数的共享文案；功能文案位于
+`crates/workbench-client/src/localization/<feature>.rs`。各功能先选择状态、菜单、快捷键和设置的描述，再调用此下层；
 下层不读取 Workbench 视图、设置草稿、CLI 命令或输入分发。CLI 文案及命令／结果格式化位于
 `src/cli_text/<feature>.rs`，`CliText` 保留已选择的 `Locale`。新增文案归入其所属的文案模块；
 领域模块继续返回类型化结果。
@@ -735,8 +744,8 @@ attachment 的测量延迟。此前单终端 reference 使用了不同的就绪�
 ```sh
 pnpm --filter @orchbee/terminal-host build
 cargo build -p orchbee-server -p orchbee-worker --locked
-cargo test -p orchbee --all-targets --all-features --locked
-cargo clippy -p orchbee --all-targets --all-features --locked -- -D warnings
+cargo test -p orchbee -p orchbee-workbench-client --all-targets --all-features --locked
+cargo clippy -p orchbee -p orchbee-workbench-client --all-targets --all-features --locked -- -D warnings
 node scripts/tla/check-inventory.mjs
 node scripts/tla/run-models.mjs --workspace apps/orchbee
 node scripts/tla/run-models.mjs --models local-session-startup
@@ -771,7 +780,8 @@ ORCHBEE_TEST_NATIVE_COHORT=/tmp/orchbee-native-dev cargo test -p orchbee --test 
 
 ### Agent integration 一致性 fixture
 
-`tests/fixtures/agent-integrations/` 保存 `agent_integrations` 单元 harness 重放的两套语料：
+`tests/fixtures/agent-integrations/` 保存 Workbench Client 中 `agent_integrations` harness 重放的
+两套语料；应用的 CLI 测试以自身的 integration 退出码映射运行这两套语料：
 
 - `provider-conformance/` —— `payloads.json` 加 `cases/<provider>.cases.json`：
   按 provider 组织的 inspect、enable、disable 案例，钉定脚本化命令回复、
@@ -933,4 +943,4 @@ Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin acti
 
 Windows 首次运行引导在终端可继续输入时提供 Workspace 创建、Agent 选择、操作与帮助入口，关闭状态按原生配置档案保存。参见[原生首次运行引导](docs/native-onboarding.zh-CN.md)。
 
-<!-- documentation-pairing: english-sha256=26ab7840c99c64c9338cc07f8d86e82d87bde605e3f2826acad8e657791de3b3 zh-cn-sha256=dfed750df65b7d9f588c9007c44899338cd59dae12b5c420dec05c955a913a93 -->
+<!-- documentation-pairing: english-sha256=46d1a12f118c181e42badae484cc6c48e37cc3a5937415470946b94a155b49ab zh-cn-sha256=871747772813395c470afcd69d30295868c2c5538073d50ff17ab6ce039a6b20 -->

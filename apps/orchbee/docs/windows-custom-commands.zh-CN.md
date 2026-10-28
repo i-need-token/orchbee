@@ -22,7 +22,7 @@ TUI 命令交换使用共享 carrier 上独立可取消的逻辑 lane 和负责 
 相同路径，无需先经 CLI 列出目录或调用命令。Server 的命令、来源与权限检查保持不变。
 拒绝反馈包含命令 ID，并区分繁忙、来源过时、命令／配置变化、权限、不可用及副作用结果未知，
 分别提供等待、返回实时终端、重载、重连或检查后再重试的指引。受控 lane 见证位于
-`src/workbench_client/client_control/lane/tests/configured_invocation.rs`；popup 的输入、关闭与
+`crates/workbench-client/src/workbench_client/client_control/lane/tests/configured_invocation.rs`；popup 的输入、关闭与
 返回行为继续由既有独立 popup 所有者负责。
 
 ## 参考与证据
@@ -33,4 +33,4 @@ TUI 命令交换使用共享 carrier 上独立可取消的逻辑 lane 和负责 
 
 配置shell见证在原有三秒预算内等待完整的command-ID回执；文件创建本身不能证明写入完成。夹具在成功路径显式检查清理。panic展开期间，清理失败报告准确保留目录，不替换原始panic。反例覆盖初始空回执，以及暂不允许删除目录的消费者：原始panic保持可观察，消费者释放句柄后再回收目录。
 
-<!-- documentation-pairing: english-sha256=61fab1803cbc90a7aaad03cf80dd234fd2de82811818e196ce7f3d19cd89466e zh-cn-sha256=0ea05c9f4882e70bb7d85b54208fe8124f2fb8f0b9a64283d73a1d6a8195eddb -->
+<!-- documentation-pairing: english-sha256=ee0bdd7e2f6d384f3a5a1d653e005407d1c6fc069f7202522e0ad5bf14d1ccbb zh-cn-sha256=56d9a92d0b34250ac66d18057b6dd8fad9f36068e8af4df246be0bd6394eb75a -->

@@ -54,8 +54,8 @@ Snapshot 安装使用既有成员 owner。仅标签变化不 detach 或重新 at
 
 所属实现测试覆盖Unicode 与字节上限、重复标签、Empty 和非当前目标、来源保留、准确发布、过期绘制及不明结果不重放。
 
-在 `src/localization/tests/location_labels.rs`、`crates/local-client/src/local_client/tests/workbench/workspace_setup/location_labels.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
+在 `crates/workbench-client/src/localization/tests/location_labels.rs`、`crates/local-client/src/local_client/tests/workbench/workspace_setup/location_labels.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
 运行 `cargo test --locked -p orchbee -p orchbee-local-client --all-targets --all-features`。应用与传输层证据测试分别随各自所属 crate 运行。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
 
-<!-- documentation-pairing: english-sha256=8f46d54e17a9246918a161dc0b760b071b87337d351980340a5c02d3c09ef436 zh-cn-sha256=a516c816317a530351d977ce5e7a6f5d369299745ce728301c6dfac4c0f278ef -->
+<!-- documentation-pairing: english-sha256=11fd11486a3729d4da851014a19e947dd22ccf4bdebfd916805bcfaadc42322d zh-cn-sha256=4e6a6ad562726ed81b2a00b2ff90b77d03842319c8db36b5adaa8f6dfe9412f4 -->

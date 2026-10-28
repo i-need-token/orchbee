@@ -175,8 +175,8 @@ Client 会话的重连来源。此后的键盘或工具栏搜索能重新打开�
 
 所属实现测试覆盖输入包所有权、已接纳几何、拒绝过期查询/效果、释放前最后移动、效果顺序、最多一次提交和匹配的成功退出。
 
-在 `src/terminal_copy_mode/tests.rs`、`src/workbench_client/terminal_selection/tests.rs`、
-`src/workbench_client/ui/copy_mode/tests/mouse.rs`、`src/tui_render/copy_mode/tests.rs` 及相邻的
+在 `crates/workbench-client/src/terminal_copy_mode/tests.rs`、`crates/workbench-client/src/workbench_client/terminal_selection/tests.rs`、
+`crates/workbench-client/src/workbench_client/ui/copy_mode/tests/mouse.rs`、`crates/workbench-client/src/tui_render/copy_mode/tests.rs` 及相邻的
 状态、carrier、输入和渲染套件中维护实际证据。鼠标可见性套件在 120×40、80×24、Compact 和
 Minimal 尺寸下，以两种语言和原生／RGB 主题组合完整 shell。受控搜索完成检查主屏与备用屏幕的
 可见匹配字形及底栏上方的光标，覆盖键盘／工具栏搜索与重复搜索，以及宽单元格选择／拖动的坐标
@@ -185,4 +185,4 @@ Minimal 尺寸下，以两种语言和原生／RGB 主题组合完整 shell。�
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
 
-<!-- documentation-pairing: english-sha256=02c460b6a1997ae04517759917dec2fa25431c8e3889b7736dd4c77284b62c66 zh-cn-sha256=c0b8874b1220820d4633359841782cea02b9c709b2e5518b4fe1cad8edc6c7c6 -->
+<!-- documentation-pairing: english-sha256=71f827fefcadd7109f6b850df8fa0ba6a2652b280b503665923136a522979b77 zh-cn-sha256=b812af164aa21a010242e2c617a90a644b31798b2b032e5825b8063bb76d1fb7 -->

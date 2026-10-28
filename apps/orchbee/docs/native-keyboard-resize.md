@@ -39,6 +39,6 @@ A local adjustment and a remote adjustment never share acknowledgement identity.
 
 The owning implementation tests cover one in-flight mutation without backlog, exact completion provenance, mode exit/replacement, inactive-target purity and draw-before-local-success.
 
-Maintain the concrete witnesses in `src/workbench_client/client_control/tests.rs`, `src/workbench_client/ui.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
+Maintain the concrete witnesses in `crates/workbench-client/src/workbench_client/client_control/tests.rs`, `crates/workbench-client/src/workbench_client/ui.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 
 Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.

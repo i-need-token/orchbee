@@ -99,8 +99,8 @@ sRGB 对比度约为 1.434:1。标题、主要值、快捷键字形与已有的�
 
 ## 侧栏行状态
 
-[Workspace 行组合器](../src/tui_render/workspace_sidebar.rs) 负责每行唯一的背景，覆盖 padding、
-空白格和续行。[文字组合器](../src/tui_render/sidebar_text.rs) 在应用身份强调前清除继承的整行
+[Workspace 行组合器](../crates/workbench-client/src/tui_render/workspace_sidebar.rs) 负责每行唯一的背景，覆盖 padding、
+空白格和续行。[文字组合器](../crates/workbench-client/src/tui_render/sidebar_text.rs) 在应用身份强调前清除继承的整行
 粗体，使辅助行保留自身层级。按下、临时导航、悬停、当前与基底表面依次保持该优先级；焦点、
 运行状态及未读标记互相独立。悬停与按下不会选择实体。
 
@@ -202,4 +202,4 @@ Terminal-native 把 `accent-action` 映射为不带修饰的 ANSI 青色。Hover
 
 单色选中背景将终端默认前景与背景显式配对，并使用反色，使不同标签与标记角色保持在同一可见背景带上。
 
-<!-- documentation-pairing: english-sha256=ffa931ef4cafda07236e75c4d91aa75c10674b7a4fc829eba48cdcc40b92688d zh-cn-sha256=3f8cdf7310c20a2087ccc49b347904cd00dc87a05036b99cbfe48cdeb70d32cc -->
+<!-- documentation-pairing: english-sha256=04fedc0c9185424458db00e3b7d14424974aef695593d1fca6c6a01d4cc3c828 zh-cn-sha256=294fb0c96d726b8cee6239883ab4a34869c10ff203ffdf1cc8090589569ade47 -->

@@ -39,8 +39,8 @@
 
 所属实现测试覆盖单一在途修改且不积压、准确完成来源、模式退出/替换、非活动目标纯度及本地成功前完成绘制。
 
-在 `src/workbench_client/client_control/tests.rs`、`src/workbench_client/ui.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
+在 `crates/workbench-client/src/workbench_client/client_control/tests.rs`、`crates/workbench-client/src/workbench_client/ui.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
 
-<!-- documentation-pairing: english-sha256=9bcae6a73ce548081d8add8e802ec5b27ffdae74662d68b52cf0078fd5ade509 zh-cn-sha256=61be6caef905d83b4977ed02bd99218bf9f65d257ee62a98ed37cd247521c341 -->
+<!-- documentation-pairing: english-sha256=b28d3384e52afec3d0699191efe0c15d52385b24957f1aebadffc825372b3e67 zh-cn-sha256=3126042b177cb55acfc28fb0e4ed377495748d06a7c1323cb0f178fa9d436e7b -->

@@ -62,6 +62,6 @@ and a newly queued action. Cancellation never undoes a committed label.
 
 The owning implementation tests cover Unicode and byte limits, duplicate labels, Empty and noncurrent targets, origin preservation, exact publication, stale draw and unknown-result non-replay.
 
-Maintain the concrete witnesses in `src/localization/tests/location_labels.rs`, `crates/local-client/src/local_client/tests/workbench/workspace_setup/location_labels.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
+Maintain the concrete witnesses in `crates/workbench-client/src/localization/tests/location_labels.rs`, `crates/local-client/src/local_client/tests/workbench/workspace_setup/location_labels.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 
 Run `cargo test --locked -p orchbee -p orchbee-local-client --all-targets --all-features`. The application and transport witnesses run with their owning crates. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.
