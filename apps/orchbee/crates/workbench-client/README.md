@@ -10,8 +10,10 @@ machine output, Agent doctor diagnostics, startup and release installation, and 
 loop and backend that hold the host terminal. This crate is the Client runtime those entries
 compose. It never depends on the binary, never parses invocations, and never writes command output.
 
-[`src/lib.rs`](src/lib.rs) lists the modules the application consumes; every other module stays
-private. Items keep crate or narrower visibility unless the application names them.
+Every implementation module is private. [`src/lib.rs`](src/lib.rs) re-exports, by explicit name,
+only the items the application's production code uses, through the `application` facade whose
+submodules mirror the implementation module paths. The facade never re-exports a whole module or
+uses a glob. Items the application does not name keep crate or narrower visibility.
 
 ## Contents
 
@@ -45,6 +47,13 @@ application owns because they reach its shell loop, backend, or command layer:
   keeping their assertions on private runtime state;
 - the frozen provider fixture packs, which take the application's integration exit mapping, with
   their fault-injection seams.
+
+The root `test_support` facade exists only under `test` or `test-support` and re-exports, by
+explicit name, what the application's tests use beyond the production facade. Items only tests use
+carry the same gate. When a test needs a crate-internal member of a production type, the member
+stays `pub(crate)` and a gated `<Type>TestAccess` trait beside the type delegates to it; tests
+import the trait from the facade. Tests build values whose fields stay crate-internal from gated
+`<Type>Fixture` structs through `From`.
 
 Only the application's development dependency enables the feature, together with
 `orchbee-local-client/test-support`. Release builds and the production boundary never include it,

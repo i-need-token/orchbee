@@ -9,8 +9,9 @@ crate。
 启动与发布安装，以及持有宿主终端的终端 shell 循环和 backend。此 crate 是这些入口所组合的
 Client 运行时。它从不依赖二进制，从不解析调用，也从不写入命令输出。
 
-[`src/lib.rs`](src/lib.rs) 列出应用消费的模块；其余模块均保持私有。除非应用直接使用，
-各条目都保持 crate 级或更窄的可见性。
+所有实现模块都是私有的。[`src/lib.rs`](src/lib.rs) 通过 `application` 门面按名称显式重导出
+应用生产代码实际使用的条目，门面的子模块与实现模块路径一一对应。门面从不重导出整个模块，
+也不使用 glob。应用未直接使用的条目都保持 crate 级或更窄的可见性。
 
 ## 内容
 
@@ -39,6 +40,11 @@ Client 运行时。它从不依赖二进制，从不解析调用，也从不写�
 - 接收应用真实绘制器或 backend、同时把断言保留在私有运行时状态上的设置与窗格图形场景；
 - 冻结的 provider fixture 包及其故障注入接缝，它们接收应用的 integration 退出码映射。
 
+根部的 `test_support` 门面只在 `test` 或 `test-support` 下存在，按名称显式重导出应用测试在生产
+门面之外用到的条目。只给测试用的条目带有同样的门控。测试需要某个生产类型的 crate 内部成员时，
+该成员保持 `pub(crate)`，由类型旁边带门控的 `<Type>TestAccess` trait 委托调用；测试从门面导入
+该 trait。字段保持 crate 内部的值，由测试通过带门控的 `<Type>Fixture` 结构体经 `From` 构造。
+
 只有应用的开发依赖会开启此 feature，并同时开启 `orchbee-local-client/test-support`。发布构建
 和生产边界都不包含它，应用代码只消费生产边界。
 
@@ -49,4 +55,4 @@ Client 运行时。它从不依赖二进制，从不解析调用，也从不写�
 [仓库验证门禁](../../../../docs/zh-CN/VERIFICATION.md)。
 导出的模块和条目必须对应真实应用消费者，并保留私有测试的归属。
 
-<!-- documentation-pairing: english-sha256=49b7c57dd6d27c98253978c9238c282f117dd1919b45be09338d77883c27ba87 zh-cn-sha256=63b0e1bc7463ea0a62ae36a5e97faf32e280ab7d3c1a664ffdcf92dc5f437aa7 -->
+<!-- documentation-pairing: english-sha256=dd7a77c0e7e1d0f26f37585e02df320cec73511ef97874ea586cdfd249e36e2a zh-cn-sha256=7b16511019e8860cfd230c2c0fc2c46e3eac2ec1a1c6694fe9befd3df2851c02 -->
