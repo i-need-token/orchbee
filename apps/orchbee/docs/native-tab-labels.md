@@ -85,4 +85,4 @@ cross-context numbering and ambiguous selectors; strict native projection and ac
 TUI display with unchanged focus identities. Other operating-system runtime behavior is outside
 the Windows acceptance evidence.
 
-Absolute Windows executable paths used as automatic terminal titles display their basename; raw title observations remain unchanged. An overflowing compact strip preserves the active token and its group context and, when space permits, paints noninteractive ellipsis markers at the hidden edges. Close tracks remain separate from those markers.
+Absolute Windows executable paths used as automatic terminal titles display their basename; raw title observations remain unchanged. An overflowing compact strip preserves the active token and its group context and, when space permits, paints noninteractive ellipsis markers at the hidden edges. Close tracks remain separate from those markers. A truncated label keeps at least its first three cells before the ellipsis, or the whole of a shorter label; a token that cannot keep that minimum beside its state glyph is not painted as a clipped stub, and the edge marker stands for it.

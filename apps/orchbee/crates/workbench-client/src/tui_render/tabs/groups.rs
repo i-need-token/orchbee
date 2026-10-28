@@ -43,6 +43,8 @@ const LABEL_LIMIT: usize = 24;
 const CLOSE_WIDTH: usize = 3;
 /// A truncated Tab keeps its close track only from this width.
 const MINIMUM_CLOSE_TOKEN: usize = 7;
+/// A truncated label keeps this many leading cells before its ellipsis.
+const MINIMUM_LABEL_CELLS: usize = 3;
 
 enum Kind {
     Tab {
@@ -107,6 +109,8 @@ impl Token {
     }
 
     /// The token's cells within `budget`, truncating its label before dropping the close track.
+    /// A label keeps three cells and its ellipsis, or the whole of a shorter label; a token that
+    /// cannot is not painted, and the strip's edge marker stands for it.
     fn pieces(
         &self,
         theme: &Theme,
@@ -136,22 +140,23 @@ impl Token {
             (3, &[false])
         };
         let text = self.text();
+        let least = display_width(text)
+            .min(MINIMUM_LABEL_CELLS + display_width(theme.glyphs.ellipsis))
+            .max(1);
         for &close in closes {
             let fixed = lead + trail + tail + usize::from(close) * CLOSE_WIDTH;
-            let Some(room) = budget.checked_sub(fixed).filter(|room| *room > 0) else {
+            let Some(room) = budget.checked_sub(fixed).filter(|room| *room >= least) else {
                 continue;
-            };
-            let marker = if display_width(theme.glyphs.ellipsis) <= room {
-                theme.glyphs.ellipsis
-            } else {
-                ""
             };
             let mut pieces = vec![(" ".to_owned(), Piece::Pad)];
             if let Some(glyph) = &glyph {
                 pieces.push((glyph.clone(), Piece::Glyph));
                 pieces.push((" ".to_owned(), Piece::Pad));
             }
-            pieces.push((truncate_display(text, room, marker), Piece::Label));
+            pieces.push((
+                truncate_display(text, room, theme.glyphs.ellipsis),
+                Piece::Label,
+            ));
             if unread {
                 pieces.push((format!(" {}", theme.glyphs.status_bullet), Piece::Unread));
             }
@@ -167,9 +172,7 @@ impl Token {
             }
             return Some(pieces);
         }
-        // Too narrow for any cue: keep a clipped, still activatable label.
-        let clipped = truncate_display(&format!(" {text}"), budget, "");
-        (display_width(&clipped) > 0).then(|| vec![(clipped, Piece::Label)])
+        None
     }
 }
 
@@ -358,6 +361,10 @@ where
             content_end.saturating_sub(used)
         };
         let Some(pieces) = token.pieces(theme, working_frame, budget) else {
+            // A shortened group identity yields to its member rather than hiding it.
+            if Some(token_index) == prefix {
+                continue;
+            }
             break;
         };
         let cells: usize = pieces.iter().map(|(text, _)| display_width(text)).sum();

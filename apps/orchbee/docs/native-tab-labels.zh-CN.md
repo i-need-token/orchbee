@@ -66,6 +66,6 @@ CLI Tab 行、Workspace 的 Tab 引用以及所有 Tab 标签选择器均使用�
 和重放；无关 Tab 与 Presentation 稳定性；跨上下文编号和歧义选择器；严格原生投影以及保持
 焦点身份不变的实际 Windows TUI 显示。其他操作系统的运行时行为不在 Windows 验收证据内。
 
-自动终端标题若为 Windows 可执行文件绝对路径，只显示文件名；原始标题观察保持不变。紧凑标签栏溢出时保留当前标签及分组上下文，在空间允许时于隐藏的一侧绘制不可交互的省略标记。关闭控件与省略标记各占独立区域。
+自动终端标题若为 Windows 可执行文件绝对路径，只显示文件名；原始标题观察保持不变。紧凑标签栏溢出时保留当前标签及分组上下文，在空间允许时于隐藏的一侧绘制不可交互的省略标记。关闭控件与省略标记各占独立区域。截断的名称在省略号前至少保留前三格，较短的名称保留全部；在状态字形旁放不下这一最小宽度的标签不绘制成截断残片，由边缘的省略标记代表。
 
-<!-- documentation-pairing: english-sha256=680d93972a48de7488bf0c3e73e5d5b5424bc3aafb36732560cfd36474fe2e0e zh-cn-sha256=02c01f35537acb78f411659238d54a26d2f15a1de2cdc42cc668fd8eeeef1700 -->
+<!-- documentation-pairing: english-sha256=b6dbdb95cb07c79522dcdfc81cf45f57147e6e5e377192d8a956eca974f4f056 zh-cn-sha256=5cda7fd3f028198b9ee45781f61a55b15a93ce3f97a189c156d58b5d05dec2bf -->

@@ -126,7 +126,7 @@ fn unnamed_group_has_localized_visible_header_and_identity_hit_region() {
 }
 
 #[test]
-fn headers_clip_by_cells_keep_active_member_and_never_emit_control_bytes() {
+fn headers_clip_by_cells_keep_active_member_without_stubs_or_control_bytes() {
     let group = group("组👩‍💻\x1b[2J\nwide", TabGroupColor::Orange);
     for width in [1, 4, 8, 16, 40, 80, 120] {
         for collapsed in [false, true] {
@@ -147,9 +147,13 @@ fn headers_clip_by_cells_keep_active_member_and_never_emit_control_bytes() {
                 } else {
                     StripPart::Tab
                 };
+                // A strip too narrow for the active token's minimum label leaves it to the
+                // markers instead of painting a clipped stub.
+                let kept = hits
+                    .iter()
+                    .any(|(index, hit, _)| *index == 3 && *hit == part);
                 assert!(
-                    hits.iter()
-                        .any(|(index, hit, _)| *index == 3 && *hit == part),
+                    kept || (width < 16 && hits.is_empty()),
                     "width={width}, collapsed={collapsed}, glyphs={glyphs:?}, hits={hits:?}"
                 );
                 assert!(
@@ -157,7 +161,7 @@ fn headers_clip_by_cells_keep_active_member_and_never_emit_control_bytes() {
                         .all(|(_, _, rect)| rect.width > 0 && rect.right() <= width)
                 );
                 if collapsed {
-                    assert_eq!(hits.len(), 1);
+                    assert_eq!(hits.len(), usize::from(kept));
                 }
                 let text = text(&buffer);
                 assert!(!text.contains('\x1b') && !text.contains('\n'));
