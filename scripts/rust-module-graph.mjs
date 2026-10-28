@@ -1010,6 +1010,10 @@ function formatCount(value) {
 	return value.toLocaleString('en-US');
 }
 
+function formatReferences(count) {
+	return `${formatCount(count)} ${count === 1 ? 'reference' : 'references'}`;
+}
+
 function formatMembers(members, limit) {
 	if (members.length <= limit) return members.join(', ');
 	return `${members.slice(0, limit).join(', ')}, ... ${members.length - limit} more`;
@@ -1040,7 +1044,7 @@ export function formatReport({ results, problems }, { details = false } = {}) {
 			const references = layers.violations.reduce((total, entry) => total + entry.references, 0);
 			if (layers.violations.length > 0)
 				findings.push(
-					`${layers.violations.length} module pair(s) depend on a higher layer (${formatCount(references)} references)`,
+					`${layers.violations.length} module pair(s) depend on a higher layer (${formatReferences(references)})`,
 				);
 			if (layers.unassigned.length > 0)
 				findings.push(`${layers.unassigned.length} unassigned top-level module(s)`);
@@ -1062,7 +1066,7 @@ export function formatReport({ results, problems }, { details = false } = {}) {
 		if (!details) continue;
 		for (const entry of layers.violations) {
 			lines.push(
-				`  ${entry.from} (${entry.fromLayer}) -> ${entry.to} (${entry.toLayer}): ${entry.references} references, e.g. ${entry.samples.join(', ')}`,
+				`  ${entry.from} (${entry.fromLayer}) -> ${entry.to} (${entry.toLayer}): ${formatReferences(entry.references)}, e.g. ${entry.samples.join(', ')}`,
 			);
 		}
 	}
