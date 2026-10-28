@@ -13,10 +13,7 @@ use orchbee_workbench_protocol::{
     ConfigurationAction, ConfigurationFailure, ConfigurationOutcome, ConfigurationRequest,
     ConfigurationSnapshot, LaunchOptions, ProtocolVersion, SessionId, WorkbenchDirectoryPath,
 };
-use std::time::{Duration, Instant};
-
-/// A reload holds the snapshot lock only briefly; a busy read retries until the deadline.
-const BUSY_RETRY: Duration = Duration::from_millis(10);
+use std::time::Instant;
 
 /// Replaces an omitted directory with `terminal.new_cwd`; any explicit policy skips the read.
 pub(super) fn apply_directory(
@@ -69,51 +66,40 @@ fn current(
     deadline: Instant,
     signals: &mut ArmedSignals,
 ) -> Result<ConfigurationSnapshot, Failure> {
-    loop {
-        signals.check_before(deadline)?;
-        let request = ConfigurationRequest {
-            protocol_version: ProtocolVersion,
-            request_id: query::request_id()?,
-            session_id: session_id.clone(),
-            action: ConfigurationAction::Current,
-        };
-        let reply = match client.configuration(request, deadline, signals.poll_fd()) {
-            Ok(reply) => reply,
-            Err(error) => {
-                signals.check_before(deadline)?;
-                return Err(Failure::new(match error.reason {
-                    _ if error.submitted => FailureKind::TransportLoss,
-                    MetadataExchangeReason::ConnectionUnavailable => {
-                        FailureKind::ServiceUnavailable
-                    }
-                    MetadataExchangeReason::Encoding => FailureKind::InternalFailure,
-                    MetadataExchangeReason::Deadline => FailureKind::Timeout,
-                    _ => FailureKind::TransportLoss,
-                }));
-            }
-        };
-        let kind = match reply.outcome {
-            ConfigurationOutcome::Current { snapshot } => return Ok(snapshot),
-            ConfigurationOutcome::Failed {
-                reason: ConfigurationFailure::Busy,
-                ..
-            } => {
-                std::thread::sleep(BUSY_RETRY);
-                continue;
-            }
-            ConfigurationOutcome::Failed {
-                reason: ConfigurationFailure::Denied,
-                ..
-            } => FailureKind::Denied,
-            ConfigurationOutcome::Failed {
-                reason: ConfigurationFailure::Unavailable | ConfigurationFailure::SessionMismatch,
-                ..
-            } => FailureKind::ServiceUnavailable,
-            // A current read never reloads, so no other reply is valid.
-            ConfigurationOutcome::Failed { .. } | ConfigurationOutcome::Reloaded { .. } => {
-                FailureKind::ProtocolInvalid
-            }
-        };
-        return Err(Failure::new(kind));
-    }
+    signals.check_before(deadline)?;
+    let request = ConfigurationRequest {
+        protocol_version: ProtocolVersion,
+        request_id: query::request_id()?,
+        session_id: session_id.clone(),
+        action: ConfigurationAction::Current,
+    };
+    let reply = match client.configuration(request, deadline, signals.poll_fd()) {
+        Ok(reply) => reply,
+        Err(error) => {
+            signals.check_before(deadline)?;
+            return Err(Failure::new(match error.reason {
+                _ if error.submitted => FailureKind::TransportLoss,
+                MetadataExchangeReason::ConnectionUnavailable => FailureKind::ServiceUnavailable,
+                MetadataExchangeReason::Encoding => FailureKind::InternalFailure,
+                MetadataExchangeReason::Deadline => FailureKind::Timeout,
+                _ => FailureKind::TransportLoss,
+            }));
+        }
+    };
+    let kind = match reply.outcome {
+        ConfigurationOutcome::Current { snapshot } => return Ok(snapshot),
+        ConfigurationOutcome::Failed {
+            reason: ConfigurationFailure::Denied,
+            ..
+        } => FailureKind::Denied,
+        ConfigurationOutcome::Failed {
+            reason: ConfigurationFailure::Unavailable | ConfigurationFailure::SessionMismatch,
+            ..
+        } => FailureKind::ServiceUnavailable,
+        // A current read never reloads or reports busy, so no other reply is valid.
+        ConfigurationOutcome::Failed { .. } | ConfigurationOutcome::Reloaded { .. } => {
+            FailureKind::ProtocolInvalid
+        }
+    };
+    Err(Failure::new(kind))
 }

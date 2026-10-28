@@ -164,8 +164,9 @@ impl Registry {
         apply: impl FnOnce(&UserSettings) -> bool,
     ) -> Outcome {
         if request.action == Action::Current {
-            let Ok(slot) = self.state.try_lock() else {
-                return Outcome::failed(Failure::Busy);
+            // Reloads read the file outside the lock, so a current read only waits for a commit.
+            let Ok(slot) = self.state.lock() else {
+                return Outcome::failed(Failure::Unavailable);
             };
             return slot
                 .as_ref()
