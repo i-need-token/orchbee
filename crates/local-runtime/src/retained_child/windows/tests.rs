@@ -17,7 +17,7 @@ fn exact_termination_confirms_exit_and_preserves_another_process() {
     let executable = std::env::current_exe().unwrap();
     let args: Vec<&OsStr> = [
         "--exact",
-        "retained_child::tests::termination_fixture",
+        "retained_child::windows::tests::termination_fixture",
         "--ignored",
     ]
     .into_iter()
@@ -55,7 +55,7 @@ fn detached_launch_preserves_argv_and_does_not_inherit_caller_capture_pipes() {
     let output = Command::new(std::env::current_exe().unwrap())
         .args([
             "--exact",
-            "retained_child::tests::capture_fixture",
+            "retained_child::windows::tests::capture_fixture",
             "--ignored",
             "--nocapture",
         ])
@@ -99,7 +99,7 @@ fn capture_fixture() {
     let executable = std::env::current_exe().unwrap();
     let args: Vec<&OsStr> = [
         "--exact",
-        "retained_child::tests::detached_fixture",
+        "retained_child::windows::tests::detached_fixture",
         "--ignored",
         "--nocapture",
         "--skip",
@@ -141,7 +141,7 @@ fn exit_code_259_is_a_completed_process_not_still_active() {
     let executable = std::env::current_exe().unwrap();
     let args: Vec<&OsStr> = [
         "--exact",
-        "retained_child::tests::exit_259_fixture",
+        "retained_child::windows::tests::exit_259_fixture",
         "--ignored",
     ]
     .into_iter()
