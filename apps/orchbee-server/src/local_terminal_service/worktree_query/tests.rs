@@ -28,9 +28,10 @@ struct Fixture {
 }
 impl Fixture {
     fn new() -> Self {
-        let service = Arc::new(LocalTerminalService::workspace_fixture(Arc::new(
-            Mutex::new(WorkerRegistry::new()),
-        )));
+        // Each scenario creates the Project Workspaces it observes; none precede them.
+        let service = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
+            WorkerRegistry::new(),
+        ))));
         let worker = orchbee_local_worker_protocol::WorkerId::from_bytes([9; 16]);
         let WorkerAdmission::Accepted { generation } =
             service.workers.lock().unwrap().admit(worker)

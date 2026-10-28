@@ -78,7 +78,8 @@ fn committed_move_finishes_while_another_owner_holds_the_worker_registry() {
             terminal_context_id: snapshot.navigation.workspaces[0]
                 .terminal_context_id
                 .clone(),
-            tab_id: orchbee_workbench_protocol::WorkbenchTabId::parse(&format!("{:032x}", 2))
+            // The fixture Workspace holds identities 1 through 4; the first created Tab takes 5.
+            tab_id: orchbee_workbench_protocol::WorkbenchTabId::parse(&format!("{:032x}", 5))
                 .unwrap(),
             direction: WorkbenchTabMoveDirection::Last,
         },

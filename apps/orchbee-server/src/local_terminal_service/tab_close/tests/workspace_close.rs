@@ -446,7 +446,8 @@ fn populated_workspace_close_disposes_every_member_then_removes_scope() {
     );
     assert_eq!(after.navigation.projects.len(), 1);
     assert_eq!(after.navigation.projects[0].project_id, project_id);
-    assert_eq!(after.navigation.directories.len(), 1);
+    // The closed Workspace's Directory survives beside the fixture Workspace's own.
+    assert_eq!(after.navigation.directories.len(), 2);
     assert!(matches!(
         read(&service, &close),
         WorkbenchWorkspaceCloseReadOutcome::Available {

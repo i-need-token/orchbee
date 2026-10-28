@@ -44,9 +44,10 @@ impl Fixture {
         Self::with_close_owner(true)
     }
     fn with_close_owner(start_owner: bool) -> Self {
-        let service = Arc::new(LocalTerminalService::workspace_fixture(Arc::new(
-            Mutex::new(WorkerRegistry::new()),
-        )));
+        // The scenario's Project Workspace is the Session's only Workspace.
+        let service = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
+            WorkerRegistry::new(),
+        ))));
         let worker = orchbee_local_worker_protocol::WorkerId::from_bytes([9; 16]);
         let WorkerAdmission::Accepted { generation } =
             service.workers.lock().unwrap().admit(worker)

@@ -239,10 +239,26 @@ fn exact_worker_validation_commits_path_once_without_touching_initial_workspace(
         before.navigation.workspaces[0].terminal_context_id.clone()
     );
     let navigation = &settled.navigation;
-    assert_eq!(navigation.directories.len(), 1);
-    assert_eq!(&navigation.directories[0].directory_id, directory_id);
+    let WorkbenchAction::WorkspacePrimaryDirectoryAccept { workspace_id, .. } = &command.action
+    else {
+        panic!("directory association expected")
+    };
     assert_eq!(
-        navigation.workspaces[0].primary_directory_id.as_ref(),
+        navigation.directories.len(),
+        before.navigation.directories.len() + 1
+    );
+    assert!(
+        navigation
+            .directories
+            .iter()
+            .any(|directory| &directory.directory_id == directory_id)
+    );
+    assert_eq!(
+        navigation
+            .workspace(workspace_id)
+            .unwrap()
+            .primary_directory_id
+            .as_ref(),
         Some(directory_id)
     );
     assert_eq!(service.execute_workspace_directory(command), accepted);
@@ -293,6 +309,7 @@ fn negative_observations_preserve_snapshot_and_same_command_can_retry_with_fresh
 fn revision_change_during_validation_rejects_without_rebase_or_association() {
     let service = service();
     let command = association(&service);
+    let before = snapshot(&service);
     let mut peer = WorkerPeer::new(&service);
     let result = thread::scope(|scope| {
         let pending = scope.spawn(|| service.execute_workspace_directory(command.clone()));
@@ -319,9 +336,19 @@ fn revision_change_during_validation_rejects_without_rebase_or_association() {
     ));
     let settled = snapshot(&service);
     assert_eq!(settled.revision.value(), 3);
-    assert!(settled.navigation.directories.is_empty());
+    assert_eq!(
+        settled.navigation.directories,
+        before.navigation.directories
+    );
+    let WorkbenchAction::WorkspacePrimaryDirectoryAccept { workspace_id, .. } = &command.action
+    else {
+        panic!("directory association expected")
+    };
     assert!(
-        settled.navigation.workspaces[0]
+        settled
+            .navigation
+            .workspace(workspace_id)
+            .unwrap()
             .primary_directory_id
             .is_none()
     );
