@@ -34,7 +34,8 @@ fn scene() -> Snapshot {
     focused["primaryPresentation"]["binding"] = binding(218);
     focused["childPresentations"] = json!([{"customLabel":null,"presentationId":id(318),"label":"workspace child","binding":binding(418)}]);
     value["navigation"]["projects"] = json!([{"projectId":id(13),"label":"project"}]);
-    value["navigation"]["workspaces"] = json!([{"workspaceId":id(12),"projectId":id(13),"terminalContextId":id(11),"label":"destination","primaryDirectoryId":null}]);
+    // The destination joins the current Workspace, whose Context holds the source Tab.
+    value["navigation"]["workspaces"].as_array_mut().unwrap().push(json!({"workspaceId":id(12),"projectId":id(13),"terminalContextId":id(11),"label":"destination","primaryDirectoryId":null}));
     value["terminalContexts"].as_array_mut().unwrap().push(json!({"terminalContextId":id(11),"groups":[],"tabs":[
         {"tabId":id(14),"label":"first","groupId":null,"pinned":false,"root":panel(15)},
         {"tabId":id(16),"label":"remembered","groupId":null,"pinned":false,"root":tree(60,panel(17),focused)}]}));
@@ -98,10 +99,18 @@ fn submit_creation(
         _ => panic!("plugin terminal creation"),
     };
     let context = options.plugin_context.as_ref().unwrap();
-    assert_eq!(context.workspace_id, workspace.then(|| id(12)));
+    // Every Context belongs to a Workspace; the source Tab's is the ungrouped fixture Workspace.
+    assert_eq!(
+        context.workspace_id,
+        Some(id(if workspace { 12 } else { 4 }))
+    );
     assert_eq!(
         context.workspace_label.as_deref(),
-        workspace.then_some("destination")
+        Some(if workspace {
+            "destination"
+        } else {
+            "Workspace"
+        })
     );
     assert_eq!(context.tab_id, tab.map(id));
     assert_eq!(context.focused_pane_id, pane.map(id));
