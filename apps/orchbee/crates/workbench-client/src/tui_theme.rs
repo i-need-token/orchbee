@@ -1090,12 +1090,9 @@ impl Theme {
                 Polarity::Dark => [255, 255, 255],
                 Polarity::Light => [0, 0, 0],
             });
-        let mix = |percent: u8| -> [u8; 3] {
-            // Each channel stays between its endpoints, so rounding cannot truncate.
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let mix = |percent: u8| -> [f64; 3] {
             let channel = |from: u8, to: u8| {
-                (f64::from(from) + (f64::from(to) - f64::from(from)) * f64::from(percent) / 100.0)
-                    .round() as u8
+                f64::from(from) + (f64::from(to) - f64::from(from)) * f64::from(percent) / 100.0
             };
             [
                 channel(background[0], foreground[0]),
@@ -1104,15 +1101,18 @@ impl Theme {
             ]
         };
         let level = self.color_level;
-        let fill = |percent: u8| {
-            let [r, g, b] = mix(percent);
-            Style::new().bg(quantize_color(Color::Rgb(r, g, b), level))
+        // Each channel stays between its endpoints, so rounding cannot truncate.
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let color = |[r, g, b]: [f64; 3]| {
+            quantize_color(
+                Color::Rgb(r.round() as u8, g.round() as u8, b.round() as u8),
+                level,
+            )
         };
+        let fill = |percent: u8| Style::new().bg(color(mix(percent)));
+        // Group tints mix into the unrounded strip, so each tint rounds once.
         let strip = mix(steps.strip);
-        self.styles.surface_strip = self.styles.surface_strip.bg(quantize_color(
-            Color::Rgb(strip[0], strip[1], strip[2]),
-            level,
-        ));
+        self.styles.surface_strip = self.styles.surface_strip.bg(color(strip));
         self.styles.surface_related = fill(steps.related);
         self.styles.surface_hover = fill(steps.hover);
         self.styles.surface_current = fill(steps.current);

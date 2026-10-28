@@ -384,11 +384,18 @@ fn system_derives_strip_and_interaction_fills_from_observed_host_colors() {
             Some(foreground),
             background,
         );
-        let strip = fills[0];
+        // The tint mixes into the unrounded strip, so it rounds once.
+        let [fg, bg] = [foreground, background].map(|value| f64::from((value & 0xff) as u8));
+        let share = if appearance == HostAppearance::Dark {
+            0.14
+        } else {
+            0.05
+        };
+        let strip = bg + (fg - bg) * share;
         let Color::Rgb(r, g, b) = theme.tab_groups.accent(TabGroupColor::Blue) else {
             panic!("named accents stay RGB at truecolor");
         };
-        let tint = |accent: u8| (f64::from(accent) * 0.2 + f64::from(strip) * 0.8).round() as u8;
+        let tint = |accent: u8| (f64::from(accent) * 0.2 + strip * 0.8).round() as u8;
         assert_eq!(
             theme.tab_groups.tint(TabGroupColor::Blue),
             Some(Color::Rgb(tint(r), tint(g), tint(b)))

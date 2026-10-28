@@ -29,11 +29,12 @@ const fn slot(color: TabGroupColor) -> usize {
 /// Share of the accent in a resting group fill; the rest is the Tab strip surface.
 const TINT_WEIGHT: f64 = 0.2;
 
-fn tints(accents: [[u8; 3]; 9], strip: [u8; 3]) -> [Option<Color>; 9] {
+/// A derived strip passes its unrounded channels, so a tint rounds once.
+fn tints(accents: [[u8; 3]; 9], strip: [f64; 3]) -> [Option<Color>; 9] {
     // The weighted channel stays within 0..=255, so rounding cannot truncate.
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    let mix = |accent: u8, base: u8| {
-        (f64::from(accent) * TINT_WEIGHT + f64::from(base) * (1.0 - TINT_WEIGHT)).round() as u8
+    let mix = |accent: u8, base: f64| {
+        (f64::from(accent) * TINT_WEIGHT + base * (1.0 - TINT_WEIGHT)).round() as u8
     };
     accents.map(|[r, g, b]| {
         Some(Color::Rgb(
@@ -65,14 +66,14 @@ impl TabGroupPalette {
     pub(super) fn named(accents: [[u8; 3]; 9], strip: [u8; 3]) -> Self {
         Self {
             accents: accents.map(|[r, g, b]| Color::Rgb(r, g, b)),
-            tints: tints(accents, strip),
+            tints: tints(accents, strip.map(f64::from)),
             sources: Some(accents),
         }
     }
 
     /// Re-tints a named palette over a strip derived from host colors, at an already resolved
     /// color level. Host-relative accents have no sources and keep resting on the strip.
-    pub(super) fn over_strip(mut self, strip: [u8; 3], level: ColorLevel) -> Self {
+    pub(super) fn over_strip(mut self, strip: [f64; 3], level: ColorLevel) -> Self {
         if let Some(sources) = self.sources
             && matches!(level, ColorLevel::Truecolor | ColorLevel::Ansi256)
         {
