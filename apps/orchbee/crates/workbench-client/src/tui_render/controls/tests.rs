@@ -426,15 +426,57 @@ fn action_hierarchy_uses_the_declared_content_role_at_rest() {
 }
 
 #[test]
-fn pointer_emphasis_bolds_the_enabled_label_and_never_its_frame() {
+fn press_bolds_the_enabled_label_and_hover_only_raises_secondary_text() {
     let theme = Theme::rgb_test_dark();
-    for (kind, pointer, label_bold) in [
-        (ActionKind::Primary, PointerPresentation::Rest, false),
-        (ActionKind::Primary, PointerPresentation::Hovered, true),
-        (ActionKind::Primary, PointerPresentation::Pressed, true),
-        (ActionKind::Secondary, PointerPresentation::Hovered, true),
-        (ActionKind::Secondary, PointerPresentation::Pressed, true),
-        (ActionKind::Auxiliary, PointerPresentation::Hovered, true),
+    for (kind, pointer, label_bold, label_role) in [
+        (
+            ActionKind::Primary,
+            PointerPresentation::Rest,
+            false,
+            Role::AccentAction,
+        ),
+        (
+            ActionKind::Primary,
+            PointerPresentation::Hovered,
+            false,
+            Role::AccentAction,
+        ),
+        (
+            ActionKind::Primary,
+            PointerPresentation::Pressed,
+            true,
+            Role::AccentAction,
+        ),
+        (
+            ActionKind::Secondary,
+            PointerPresentation::Hovered,
+            false,
+            Role::TextPrimary,
+        ),
+        (
+            ActionKind::Secondary,
+            PointerPresentation::Pressed,
+            true,
+            Role::TextPrimary,
+        ),
+        (
+            ActionKind::Auxiliary,
+            PointerPresentation::Rest,
+            false,
+            Role::TextSecondary,
+        ),
+        (
+            ActionKind::Auxiliary,
+            PointerPresentation::Hovered,
+            false,
+            Role::TextPrimary,
+        ),
+        (
+            ActionKind::Auxiliary,
+            PointerPresentation::Pressed,
+            true,
+            Role::TextPrimary,
+        ),
     ] {
         let mut terminal = Terminal::new(TestBackend::new(7, 1)).unwrap();
         let mut painted = None;
@@ -454,6 +496,7 @@ fn pointer_emphasis_bolds_the_enabled_label_and_never_its_frame() {
             buffer[(3, 0)].style().add_modifier.contains(Modifier::BOLD),
             label_bold
         );
+        assert_eq!(buffer[(3, 0)].style().fg, theme.style(label_role).fg);
         assert!(!buffer[(1, 0)].style().add_modifier.contains(Modifier::BOLD));
         assert!(!buffer[(6, 0)].style().add_modifier.contains(Modifier::BOLD));
     }

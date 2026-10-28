@@ -1698,12 +1698,12 @@ fn popup_draw_uses_an_exact_shared_close_and_keeps_program_mouse_in_the_body() {
                 PointerOutcome::IdleMotion { changed: true }
             ));
             let (mut hovered, hits) = paint(&pointer);
-            // Hover strengthens the close glyph without filling its cells.
+            // Hover raises the close glyph to primary text without weight or a fill.
             let hovered_close = &hovered.backend().buffer()[(25, 2)];
             assert_eq!(hovered_close.bg, theme.color(Role::SurfaceOverlay));
             assert_eq!(hovered_close.fg, theme.color(Role::TextPrimary));
             assert!(
-                hovered_close
+                !hovered_close
                     .modifier
                     .contains(ratatui::style::Modifier::BOLD)
             );

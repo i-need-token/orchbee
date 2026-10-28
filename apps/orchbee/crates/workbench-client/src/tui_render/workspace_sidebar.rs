@@ -1651,10 +1651,10 @@ pub(super) fn render(
         };
         let marker = agent_state
             .map(|state| {
-                let (key, role) = state_role(state);
+                let (key, _) = state_role(state);
                 (
                     super::sidebar_text::state_glyph(state, theme, view.machines.working_frame()),
-                    role,
+                    Theme::agent_role(state),
                     locale.machine_picker_text(key),
                 )
             })

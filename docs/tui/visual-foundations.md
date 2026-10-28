@@ -51,6 +51,7 @@ change values.
 | `text`      | `primary`, `secondary`, `disabled`, `inverse`                                                             | Content and chrome text by information priority; `inverse` only on a filled surface                                                                                                                                       |
 | `accent`    | `action`, `destructive`, `focus`, `selection`, `link`                                                     | The primary action at rest, explicit destructive intent, the focused frame or control, provisional or checked indicators, selected-range boundaries, and activatable references                                           |
 | `status`    | `success`, `warning`, `error`, `info`, `pending`, `working`, `idle`, `unread`                             | Outcome and state meaning only; never decoration or hierarchy                                                                                                                                                             |
+| `agent`     | `attention`, `done`, `error`                                                                              | Agent state glyphs for Needs attention, Completed, and Failed only; never text, status words, or emphasis                                                                                                                 |
 | `frame`     | `focused`, `unfocused`, `divider`, `guide`                                                                | Pane and overlay borders, split boundaries, and low-contrast hierarchy guides                                                                                                                                             |
 | `surface`   | `canvas`, `chrome`, `strip`, `overlay`, `hover`, `pressed`, `selection`, `current`, `related`, `inactive` | Backgrounds for the terminal canvas, persistent chrome, the Tab strip, overlays, pointer feedback, pressed controls, provisional or range selection, persistent current context, associated ancestors, and inactive panes |
 | `hint`      | `key`, `label`                                                                                            | Key glyphs and their action labels in footers and help                                                                                                                                                                    |
@@ -65,14 +66,23 @@ Theme rules:
   level is unknown. It is the default until an explicit user setting selects another theme.
 - The `terminal-native` theme maps text and base surfaces (`canvas`, `chrome`, `strip`, and
   `overlay`) to the terminal default foreground and background (`Color::Reset`). It resolves current and interaction
-  surfaces through the paired colors and modifier fallbacks below, and maps accent, status, and
-  frame roles to named ANSI-16 colors. It uses the `DIM` modifier, not a gray color, for
-  `text-secondary`, so de-emphasis follows the host palette on both light and dark backgrounds.
+  surfaces through the paired colors and modifier fallbacks below, and maps accent, frame, and the
+  remaining status roles to named ANSI-16 colors. `status-working` uses the terminal default
+  foreground, and `status-idle` that foreground with `DIM`, so both read on either polarity. It uses
+  the `DIM` modifier, not a gray color, for `text-secondary`, so de-emphasis follows the host palette
+  on both light and dark backgrounds.
 - `surface-current` uses a neutral fill to distinguish persistent context from an accented selection.
   In `terminal-native`, this is a paired ANSI foreground/background: host-relative body and metadata
-  text adopt the paired foreground without DIM on this fill. Status and explicit token colors retain
-  their meaning. RGB themes keep their text hierarchy. When quantization collapses the fill onto
-  chrome, retain a text marker independently of configurable text emphasis.
+  text, and the host-relative `status-working` and `status-idle` glyphs, adopt the paired foreground
+  on this fill. Secondary text and `status-idle` drop DIM there; Working keeps its breathing
+  intensity. Other status roles, `agent-*` roles, and explicit token colors retain their meaning.
+  RGB themes keep their text hierarchy. When quantization collapses the fill onto chrome, retain a
+  text marker independently of configurable text emphasis.
+- `agent-attention`, `agent-done`, and `agent-error` each have one fixed value shared by every
+  theme, including `terminal-native` and host-relative appearances. Quantization maps them to the
+  nearest color at each level, which is `Yellow`, `Green`, and `Red` at 16 colors, and to the host
+  default in monochrome, where shape fallbacks keep outcomes distinct. The state's word, wherever it
+  appears, keeps its `status-*` text role.
 - `surface-hover`, `surface-pressed`, `surface-selection`, and `surface-current` remain ordered and
   distinguishable after quantization. When a terminal-native or reduced-color mapping cannot
   provide four distinct fills, hover uses the resolver's `REVERSED` band, pressed also bolds the
@@ -106,13 +116,21 @@ Theme rules:
 - Paint a region's complete background, including padding and empty cells, through its surface
   role. RGB themes distinguish canvas, persistent chrome and overlays; a border alone is not the
   region's surface. Terminal-native and lower color levels retain their admitted host behavior.
-- `surface-strip` keeps a named theme's chrome fill even when a host-relative appearance returns the
-  other base surfaces to the terminal background, so the Tab strip stays distinct from an unframed
-  terminal directly below it.
+- A host-relative appearance whose host reports its default background derives `surface-strip`,
+  `surface-related`, `surface-hover`, `surface-current`, and `surface-pressed` by mixing that
+  background toward the reported host foreground in fixed per-role proportions, with separate
+  proportions for dark and light backgrounds. The Tab strip therefore stays distinct from an
+  unframed terminal directly below it, and interaction fills stay visible on any host background.
+  `surface-selection` keeps its palette value. Derived values pass through the same quantization and
+  collapsed-role fallbacks as palette values. Without a reported background, the appearance resolves
+  to `terminal-native`, which paints none of these fills. The theme owner documents the proportions.
 
 Forbidden in any theme: `DarkGray` (bright black) for text, because many profiles map it close to
 the background; `White` or `Black` as text on an unpainted surface; `Yellow` or `Blue` as text on
-`Color::Reset` in the `terminal-native` theme, because their contrast depends on polarity.
+`Color::Reset` in the `terminal-native` theme, because their contrast depends on polarity. These
+restrictions govern text, including status words. `agent-*` glyphs are not text: their fixed values
+may quantize to `Yellow` on a host-default surface, because the glyph is a one-cell indicator whose
+state also has a status word and a shape fallback without color.
 
 ## Text hierarchy
 
@@ -128,27 +146,27 @@ Hierarchy describes information priority, not interaction state.
 - Use at most the heading, primary, and secondary hierarchy levels in one region. Disabled is an
   availability treatment applied to affected content, not a fourth hierarchy level. Additional
   structure comes from spacing, grouping, or a frame, not from more colors or `ITALIC`.
-- `BOLD` marks a heading, the active item, or the label or glyph of a hovered or pressed enabled
-  action; it never marks a warning. `UNDERLINED` marks only `accent-link`. `REVERSED` is available
-  only to the theme resolver as a terminal-native or reduced-color fallback for an interactive band;
-  component renderers never request it directly. `BLINK` is forbidden everywhere.
+- `BOLD` marks a heading, the active item, or the label or glyph of a pressed enabled action; it
+  never marks pointer hover or a warning. `UNDERLINED` marks only `accent-link`. `REVERSED` is
+  available only to the theme resolver as a terminal-native or reduced-color fallback for an
+  interactive band; component renderers never request it directly. `BLINK` is forbidden everywhere.
 - Status roles color the status glyph or the status word, not the whole line.
 
 ## Interaction states
 
-| State                 | Presentation                                                                                                                                                                                                                                                  |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Focused region        | `frame-focused` border; an unframed region uses `accent-focus` on its title or a dedicated marker                                                                                                                                                             |
-| Unfocused pane        | `frame-unfocused` border; `surface-inactive` may mask its content only when the owner documents it                                                                                                                                                            |
-| Pointer hover         | `surface-hover` across the effective hit rectangle plus `BOLD` on an enabled action label; an icon action instead strengthens its glyph to `text-primary` + `BOLD` without a fill; action menus may move the provisional candidate and use its selection fill |
-| Pointer pressed       | `surface-pressed` plus `BOLD` on the enabled action label or glyph while the primary button remains held on the armed target                                                                                                                                  |
-| Provisional selection | `surface-selection` across the complete row plus the shared `accent-selection` navigation marker when the component provides one                                                                                                                              |
-| Selected range        | `surface-selection` across the selected cells; endpoints or the active edge use `accent-selection` when they are drawn                                                                                                                                        |
-| Current context       | Neutral `surface-current` across the complete row; current identity uses `BOLD` or a stable marker independently of focus                                                                                                                                     |
-| Checked value         | A stable glyph using `accent-selection` for the value at the control's declared boundary; navigation remains independent                                                                                                                                      |
-| Active tab            | Neutral `surface-current` plus `BOLD` or a stable current marker; keyboard focus and provisional navigation remain separate                                                                                                                                   |
-| Pending               | Fixed-width `status-pending` glyph plus a localized verb; the control footprint stays fixed                                                                                                                                                                   |
-| Disabled              | `text-disabled`; no hover or pressed treatment; the action stays in help with its reason                                                                                                                                                                      |
+| State                 | Presentation                                                                                                                                                                                                                                                                                               |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Focused region        | `frame-focused` border; an unframed region uses `accent-focus` on its title or a dedicated marker                                                                                                                                                                                                          |
+| Unfocused pane        | `frame-unfocused` border; `surface-inactive` may mask its content only when the owner documents it                                                                                                                                                                                                         |
+| Pointer hover         | `surface-hover` across the effective hit rectangle, without `BOLD`; an enabled action label resting in `text-secondary` rises to `text-primary`; an icon action instead strengthens its glyph to `text-primary` without a fill; action menus may move the provisional candidate and use its selection fill |
+| Pointer pressed       | `surface-pressed` plus `BOLD` on the enabled action label or glyph while the primary button remains held on the armed target                                                                                                                                                                               |
+| Provisional selection | `surface-selection` across the complete row plus the shared `accent-selection` navigation marker when the component provides one                                                                                                                                                                           |
+| Selected range        | `surface-selection` across the selected cells; endpoints or the active edge use `accent-selection` when they are drawn                                                                                                                                                                                     |
+| Current context       | Neutral `surface-current` across the complete row; current identity uses `BOLD` or a stable marker independently of focus                                                                                                                                                                                  |
+| Checked value         | A stable glyph using `accent-selection` for the value at the control's declared boundary; navigation remains independent                                                                                                                                                                                   |
+| Active tab            | Neutral `surface-current` plus `BOLD` or a stable current marker; keyboard focus and provisional navigation remain separate                                                                                                                                                                                |
+| Pending               | Fixed-width `status-pending` glyph plus a localized verb; the control footprint stays fixed                                                                                                                                                                                                                |
+| Disabled              | `text-disabled`; no hover or pressed treatment; the action stays in help with its reason                                                                                                                                                                                                                   |
 
 Exactly one region shows focus at a time. Focus is visible in every layout tier. Project it once at
 the keyboard-owner boundary: a framed collection uses its `frame-focused` border, while an unframed
@@ -195,7 +213,12 @@ combinations and control behavior.
 - Provisional row navigation uses the shared one-cell `›` marker with `>` as its ASCII fallback.
   Feature renderers reserve its track but never choose a local substitute or reuse it for current,
   checked, or changed state.
+- Disclosure uses `▾` while expanded and `▸` while collapsed, with `v` and `>` as ASCII fallbacks,
+  so a collapsed disclosure never reads as the `+` or `-` of an ASCII status glyph.
 - One glyph has one meaning across the Client. Document glyph meanings with the owning surface.
+  ASCII fallbacks may share a character only when their tracks never coincide: the collapsed
+  disclosure `>` follows an identity or label, while the navigation `>` occupies the leading
+  navigation track.
 
 ## Display width and text safety
 

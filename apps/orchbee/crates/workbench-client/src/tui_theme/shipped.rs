@@ -1,7 +1,7 @@
 //! Shipped RGB palettes project every existing semantic role; no renderer owns colors.
 use super::{
-    Color, ColorLevel, GlyphSet, Modifier, Polarity, RoleStyles, Style, TabGroupPalette,
-    TerminalColorSource, Theme,
+    AGENT_ATTENTION, AGENT_DONE, AGENT_ERROR, Color, ColorLevel, GlyphSet, Modifier, Polarity,
+    RoleStyles, Style, TabGroupPalette, TerminalColorSource, Theme,
 };
 use crate::terminal_host_appearance::HostAppearance;
 use ratatui::widgets::BorderType;
@@ -73,6 +73,9 @@ fn named(palette: Palette) -> Theme {
             status_working: Style::new().fg(rgb(palette.working)),
             status_idle: Style::new().fg(rgb(palette.idle)),
             status_unread: Style::new().fg(rgb(palette.unread)),
+            agent_attention: Style::new().fg(AGENT_ATTENTION),
+            agent_done: Style::new().fg(AGENT_DONE),
+            agent_error: Style::new().fg(AGENT_ERROR),
             status_pending: secondary.add_modifier(Modifier::DIM),
             frame_focused: focus,
             frame_unfocused: Style::new().fg(rgb(palette.frame)),
@@ -80,7 +83,7 @@ fn named(palette: Palette) -> Theme {
             frame_guide: Style::new().fg(rgb(palette.guide)),
             surface_canvas: primary.bg(rgb(palette.background)),
             surface_chrome: primary.bg(rgb(palette.chrome)),
-            // The Tab strip keeps the palette chrome even where System chrome follows the host.
+            // System derives the strip from observed host colors; see `with_outer_host_colors`.
             surface_strip: primary.bg(rgb(palette.chrome)),
             surface_overlay: primary.bg(rgb(palette.overlay)),
             surface_hover: Style::new().bg(rgb(palette.hover_surface)),

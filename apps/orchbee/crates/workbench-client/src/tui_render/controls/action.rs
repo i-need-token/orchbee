@@ -127,7 +127,12 @@ pub(crate) fn render_action(
     let interaction = state.interaction_role();
     let enabled = state.availability == Availability::Enabled;
     let action_role = if enabled {
-        spec.tone.content_role(spec.kind.content_role())
+        // Secondary action text rises to primary under the pointer; hover never adds weight.
+        let ordinary = match spec.kind.content_role() {
+            Role::TextSecondary if state.pointer != PointerPresentation::Rest => Role::TextPrimary,
+            role => role,
+        };
+        spec.tone.content_role(ordinary)
     } else {
         Role::TextDisabled
     };
@@ -158,9 +163,8 @@ pub(crate) fn render_action(
         Some(action_role),
         theme.style(action_role),
     );
-    // Hover and press strengthen the label as well as the fill, so pointer feedback survives
-    // themes whose hover surface is close to the base surface.
-    if state.pointer != PointerPresentation::Rest && enabled {
+    // Bold marks press only; hover changes the fill and, for secondary actions, the text role.
+    if state.pointer == PointerPresentation::Pressed && enabled {
         label_style = label_style.add_modifier(Modifier::BOLD);
     }
     let status = if state.operation == OperationState::Pending {

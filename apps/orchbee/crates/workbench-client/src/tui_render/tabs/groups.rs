@@ -551,7 +551,8 @@ fn piece_style(
                 .or_else(|| active.then_some(Role::SurfaceCurrent));
             let (role, content) = match piece {
                 Piece::Label => {
-                    let role = if *active {
+                    // Hover raises an inactive label to primary text; bold stays with current and press.
+                    let role = if *active || pointer != ProjectedPointer::Rest {
                         Role::TextPrimary
                     } else {
                         Role::TextSecondary
@@ -567,12 +568,12 @@ fn piece_style(
                         },
                     )
                 }
-                Piece::Glyph => (
-                    None,
-                    token.agent.map_or_else(Style::new, |agent| {
-                        theme.agent_style(agent.state, working_frame)
-                    }),
-                ),
+                Piece::Glyph => token.agent.map_or((None, Style::new()), |agent| {
+                    (
+                        Some(Theme::agent_role(agent.state)),
+                        theme.agent_style(agent.state, working_frame),
+                    )
+                }),
                 Piece::Unread => (None, theme.style(Role::StatusUnread)),
                 Piece::Close if revealed => {
                     return match close_pointer {
@@ -609,17 +610,20 @@ fn piece_style(
                 .or_else(|| checked.then_some(Role::SurfaceSelection))
                 .or_else(|| current.then_some(Role::SurfaceCurrent));
             let accent = Style::new().fg(theme.tab_groups.accent(*color));
-            let content = match piece {
-                Piece::Label => accent.add_modifier(Modifier::BOLD),
-                Piece::Arrow if pointer_surface.is_some() => theme.style(Role::TextPrimary),
-                Piece::Arrow => accent,
-                Piece::Glyph => token.agent.map_or_else(Style::new, |agent| {
-                    theme.agent_style(agent.state, working_frame)
+            let (role, content) = match piece {
+                Piece::Label => (None, accent.add_modifier(Modifier::BOLD)),
+                Piece::Arrow if pointer_surface.is_some() => (None, theme.style(Role::TextPrimary)),
+                Piece::Arrow => (None, accent),
+                Piece::Glyph => token.agent.map_or((None, Style::new()), |agent| {
+                    (
+                        Some(Theme::agent_role(agent.state)),
+                        theme.agent_style(agent.state, working_frame),
+                    )
                 }),
-                Piece::Unread => theme.style(Role::StatusUnread),
-                Piece::Pad | Piece::Close => Style::new(),
+                Piece::Unread => (None, theme.style(Role::StatusUnread)),
+                Piece::Pad | Piece::Close => (None, Style::new()),
             };
-            theme.tab_group_header_style(*color, surface, content)
+            theme.tab_group_header_style(*color, surface, role, content)
         }
     }
 }

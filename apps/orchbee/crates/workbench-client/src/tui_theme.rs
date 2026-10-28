@@ -40,6 +40,9 @@ pub enum Role {
     StatusWorking,
     StatusIdle,
     StatusUnread,
+    AgentAttention,
+    AgentDone,
+    AgentError,
     FrameFocused,
     FrameUnfocused,
     FrameDivider,
@@ -62,7 +65,7 @@ impl Role {
     /// Test/validator helper for totality checks; production consumes roles
     /// individually.
     #[cfg(test)]
-    pub(crate) const ALL: [Self; 33] = [
+    pub(crate) const ALL: [Self; 36] = [
         Self::TextPrimary,
         Self::TextSecondary,
         Self::TextDisabled,
@@ -80,6 +83,9 @@ impl Role {
         Self::StatusWorking,
         Self::StatusIdle,
         Self::StatusUnread,
+        Self::AgentAttention,
+        Self::AgentDone,
+        Self::AgentError,
         Self::FrameFocused,
         Self::FrameUnfocused,
         Self::FrameDivider,
@@ -192,8 +198,8 @@ impl GlyphSet {
         vertical_rule: "|",
         scrollbar_track: "|",
         scrollbar_thumb: "#",
-        disclosure_open: "-",
-        disclosure_closed: "+",
+        disclosure_open: "v",
+        disclosure_closed: ">",
         tree_guide: "|",
         working_frames: &["-", "\\", "|", "/"],
     };
@@ -231,6 +237,9 @@ pub(crate) struct RoleStyles {
     pub(crate) status_working: Style,
     pub(crate) status_idle: Style,
     pub(crate) status_unread: Style,
+    pub(crate) agent_attention: Style,
+    pub(crate) agent_done: Style,
+    pub(crate) agent_error: Style,
     pub(crate) frame_focused: Style,
     pub(crate) frame_unfocused: Style,
     pub(crate) frame_divider: Style,
@@ -270,6 +279,9 @@ impl RoleStyles {
             Role::StatusWorking => self.status_working,
             Role::StatusIdle => self.status_idle,
             Role::StatusUnread => self.status_unread,
+            Role::AgentAttention => self.agent_attention,
+            Role::AgentDone => self.agent_done,
+            Role::AgentError => self.agent_error,
             Role::FrameFocused => self.frame_focused,
             Role::FrameUnfocused => self.frame_unfocused,
             Role::FrameDivider => self.frame_divider,
@@ -308,6 +320,9 @@ impl RoleStyles {
             status_working: apply(self.status_working),
             status_idle: apply(self.status_idle),
             status_unread: apply(self.status_unread),
+            agent_attention: apply(self.agent_attention),
+            agent_done: apply(self.agent_done),
+            agent_error: apply(self.agent_error),
             frame_focused: apply(self.frame_focused),
             frame_unfocused: apply(self.frame_unfocused),
             frame_divider: apply(self.frame_divider),
@@ -327,6 +342,37 @@ impl RoleStyles {
         }
     }
 }
+
+/// Percent of the host foreground mixed into the host background for each System fill.
+#[derive(Clone, Copy)]
+struct HostSurfaceSteps {
+    strip: u8,
+    related: u8,
+    hover: u8,
+    current: u8,
+    pressed: u8,
+}
+
+const DARK_HOST_STEPS: HostSurfaceSteps = HostSurfaceSteps {
+    strip: 14,
+    related: 10,
+    hover: 17,
+    current: 21,
+    pressed: 28,
+};
+const LIGHT_HOST_STEPS: HostSurfaceSteps = HostSurfaceSteps {
+    strip: 5,
+    related: 7,
+    hover: 9,
+    current: 12,
+    pressed: 16,
+};
+
+/// Agent state glyphs follow a traffic light with one value in every theme and host: Needs
+/// attention, Completed and Failed. Quantization maps them to Yellow, Green and Red at 16 colors.
+const AGENT_ATTENTION: Color = Color::Rgb(254, 188, 46);
+const AGENT_DONE: Color = Color::Rgb(40, 200, 64);
+const AGENT_ERROR: Color = Color::Rgb(255, 95, 87);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum TerminalColorSource {
@@ -405,9 +451,9 @@ impl Theme {
         use orchbee_workbench_protocol::MetadataState::*;
         match state {
             Working => Role::StatusWorking,
-            Blocked => Role::StatusWarning,
-            Done => Role::StatusSuccess,
-            Error => Role::StatusError,
+            Blocked => Role::AgentAttention,
+            Done => Role::AgentDone,
+            Error => Role::AgentError,
             Idle => Role::StatusIdle,
             Unknown => Role::TextSecondary,
         }
@@ -476,9 +522,10 @@ impl Theme {
         &self,
         color: orchbee_workbench_protocol::TabGroupColor,
         surface: Option<Role>,
+        content_role: Option<Role>,
         content: Style,
     ) -> Style {
-        let style = self.content_on_surface(Role::SurfaceStrip, surface, None, content);
+        let style = self.content_on_surface(Role::SurfaceStrip, surface, content_role, content);
         match (surface, self.tab_groups.tint(color)) {
             (None, Some(tint)) => style.bg(tint),
             _ => style,
@@ -521,9 +568,13 @@ impl Theme {
                 status_error: Style::new().fg(Color::Red),
                 status_info: Style::new().fg(Color::Cyan),
                 status_pending: Style::new().fg(Color::Cyan).add_modifier(Modifier::DIM),
-                status_working: Style::new().fg(Color::Gray),
+                // Working follows the host foreground so it reads on either polarity.
+                status_working: reset,
                 status_idle: dim,
                 status_unread: Style::new().fg(Color::LightBlue),
+                agent_attention: Style::new().fg(AGENT_ATTENTION),
+                agent_done: Style::new().fg(AGENT_DONE),
+                agent_error: Style::new().fg(AGENT_ERROR),
                 frame_focused: Style::new().fg(Color::Cyan),
                 frame_unfocused: Style::new().fg(Color::DarkGray),
                 frame_divider: Style::new().fg(Color::DarkGray),
@@ -583,6 +634,9 @@ impl Theme {
                 status_working: Style::new().fg(Color::Rgb(229, 229, 229)),
                 status_idle: Style::new().fg(Color::Rgb(88, 88, 88)),
                 status_unread: Style::new().fg(Color::Rgb(96, 165, 250)),
+                agent_attention: Style::new().fg(AGENT_ATTENTION),
+                agent_done: Style::new().fg(AGENT_DONE),
+                agent_error: Style::new().fg(AGENT_ERROR),
                 status_pending: Style::new()
                     .fg(Color::Rgb(133, 146, 171))
                     .add_modifier(Modifier::DIM),
@@ -721,6 +775,8 @@ impl Theme {
             Some(Role::SurfaceSelection) => self.style(Role::AccentSelection).fg,
             _ => None,
         };
+        // Host-relative Working and Idle glyphs follow the host foreground like body text; other
+        // status and Agent roles keep their own hue.
         let ordinary = matches!(
             content_role,
             Some(
@@ -729,6 +785,8 @@ impl Theme {
                     | Role::TextDisabled
                     | Role::HintKey
                     | Role::HintLabel
+                    | Role::StatusWorking
+                    | Role::StatusIdle
             )
         ) || paired_pointer && content_role == Some(Role::AccentSelection);
         if (self.color_level != ColorLevel::Monochrome || paired_pointer)
@@ -740,8 +798,10 @@ impl Theme {
             && (foreground != Color::Reset || paired_pointer)
         {
             content = content.fg(foreground);
-            if matches!(role, Role::TextSecondary | Role::HintLabel)
-                && (!paired_pointer || self.color_level == ColorLevel::Monochrome)
+            if matches!(
+                role,
+                Role::TextSecondary | Role::HintLabel | Role::StatusIdle
+            ) && (!paired_pointer || self.color_level == ColorLevel::Monochrome)
             {
                 content = content.remove_modifier(Modifier::DIM);
             }
@@ -950,8 +1010,10 @@ impl Theme {
     }
 
     /// System base surfaces use the host's default background without depending on
-    /// a query, quantization, or a captured child's launch colors. Captured RGB is
-    /// descriptive metadata; an unobserved background keeps terminal-native contrast.
+    /// a query, quantization, or a captured child's launch colors. An observed background also
+    /// derives the strip and interaction fills by mixing it toward the host foreground, so they
+    /// stay visible on any host; selection keeps the palette. An unobserved background keeps
+    /// terminal-native contrast, which paints none of these fills.
     pub(crate) fn with_outer_host_colors(
         mut self,
         application: orchbee_workbench_protocol::ApplicationAppearance,
@@ -973,6 +1035,12 @@ impl Theme {
         self.styles.surface_canvas = self.styles.surface_canvas.bg(Color::Reset);
         self.styles.surface_chrome = self.styles.surface_chrome.bg(Color::Reset);
         self.styles.surface_inactive = self.styles.surface_inactive.bg(Color::Reset);
+        if let Some(background) = colors.background
+            && let Some(polarity) = self.polarity
+            && self.color_level != ColorLevel::Monochrome
+        {
+            self.derive_host_surfaces(polarity, colors.foreground, background);
+        }
         if matches!(self.color_level, ColorLevel::Ansi16 | ColorLevel::Ansi256)
             && interaction_surfaces_collapse(&self.styles)
         {
@@ -995,6 +1063,61 @@ impl Theme {
                     });
         }
         self
+    }
+
+    /// Until the host foreground arrives, the matched palette's primary text stands in for it.
+    fn derive_host_surfaces(
+        &mut self,
+        polarity: Polarity,
+        foreground: Option<u32>,
+        background: u32,
+    ) {
+        let steps = match polarity {
+            Polarity::Dark => DARK_HOST_STEPS,
+            Polarity::Light => LIGHT_HOST_STEPS,
+        };
+        let background = unpack_rgb(background);
+        let foreground = foreground
+            .map(unpack_rgb)
+            .or_else(|| {
+                self.styles
+                    .text_primary
+                    .fg
+                    .and_then(sampled_color)
+                    .map(|(r, g, b)| [r, g, b])
+            })
+            .unwrap_or(match polarity {
+                Polarity::Dark => [255, 255, 255],
+                Polarity::Light => [0, 0, 0],
+            });
+        let mix = |percent: u8| -> [u8; 3] {
+            // Each channel stays between its endpoints, so rounding cannot truncate.
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let channel = |from: u8, to: u8| {
+                (f64::from(from) + (f64::from(to) - f64::from(from)) * f64::from(percent) / 100.0)
+                    .round() as u8
+            };
+            [
+                channel(background[0], foreground[0]),
+                channel(background[1], foreground[1]),
+                channel(background[2], foreground[2]),
+            ]
+        };
+        let level = self.color_level;
+        let fill = |percent: u8| {
+            let [r, g, b] = mix(percent);
+            Style::new().bg(quantize_color(Color::Rgb(r, g, b), level))
+        };
+        let strip = mix(steps.strip);
+        self.styles.surface_strip = self.styles.surface_strip.bg(quantize_color(
+            Color::Rgb(strip[0], strip[1], strip[2]),
+            level,
+        ));
+        self.styles.surface_related = fill(steps.related);
+        self.styles.surface_hover = fill(steps.hover);
+        self.styles.surface_current = fill(steps.current);
+        self.styles.surface_pressed = fill(steps.pressed);
+        self.tab_groups = self.tab_groups.over_strip(strip, level);
     }
 
     fn terminal_color(&self, value: u32) -> Color {
@@ -1048,6 +1171,9 @@ impl Theme {
                 (&mut styles.status_working, self.styles.status_working),
                 (&mut styles.status_idle, self.styles.status_idle),
                 (&mut styles.status_unread, self.styles.status_unread),
+                (&mut styles.agent_attention, self.styles.agent_attention),
+                (&mut styles.agent_done, self.styles.agent_done),
+                (&mut styles.agent_error, self.styles.agent_error),
                 (&mut styles.surface_canvas, self.styles.surface_canvas),
                 (&mut styles.surface_chrome, self.styles.surface_chrome),
                 (&mut styles.surface_strip, self.styles.surface_strip),
@@ -1176,6 +1302,10 @@ fn destructive_content_pair(content: Style) -> Style {
             Color::White
         };
     content.bg(background).remove_modifier(Modifier::REVERSED)
+}
+
+const fn unpack_rgb(value: u32) -> [u8; 3] {
+    [(value >> 16) as u8, (value >> 8) as u8, value as u8]
 }
 
 fn sampled_color(color: Color) -> Option<(u8, u8, u8)> {

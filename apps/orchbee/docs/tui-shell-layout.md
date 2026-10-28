@@ -224,7 +224,7 @@ and unread markers remain in their own slots. Agent continuations and a collapse
 Project retain the same whole-row surface as their identity. When focus and
 current context coincide, the navigation surface takes precedence while the current marker retains
 current-state evidence.
-Project and eligible Context disclosure use one glyph (`▾`/`▸`, with `-`/`+` ASCII fallbacks) after
+Project and eligible Context disclosure use one glyph (`▾`/`▸`, with `v`/`>` ASCII fallbacks) after
 one blank cell following the displayed first-line identity. Text measurement and painting reserve
 these two cells before truncation, using display width for wide glyphs. Identity starts stay fixed.
 Disclosure and Create appear only while the row or one of its controls is hovered or pressed, or the
@@ -264,7 +264,8 @@ help from the binding registry; the gesture does not add a separate shortcut sys
 
 At Full and Compact tiers, the top strip contains Tabs, their close and creation controls,
 and a sidebar restore control when needed. It rests on `surface-strip`, one step lighter than the
-terminal in named themes, so a bare pane below it stays distinct. Each Tab leads with the state glyph
+terminal in named themes and derived from the observed host colors under System, so a bare pane
+below it stays distinct. Each Tab leads with the state glyph
 of the Agent the current machine observation places in it and follows with an unread dot; a
 collapsed group carries its members' most urgent state. While the sidebar is hidden, the attached
 machine alone stays observed for this purpose. Summaries stay in the sidebar and Agent Board.
@@ -380,14 +381,18 @@ inputs remain canonical; a newer state or terminal incarnation cannot inherit th
 The Agent Board applies the same presentation override to its matching observed session version.
 
 Sidebar, Tab, pane-title and Agent Board Working glyphs use a stationary solid circle `●`, breathing from
-white to gray over two seconds on the shared 100 ms clock. Idle uses gray `○`; attention, done and
-error use yellow, green and red `●`; unknown and the default Workspace identity use secondary-gray
-`•`. Attention alternates full and half intensity every 500 ms. The Picker owns the phase and only
-advances while observed Agents or the visible Board need animation. Rendering stays pure. ASCII
+white to gray over two seconds on the shared 100 ms clock; terminal-native Working uses the host
+foreground and adopts the current Tab's paired foreground. Idle uses gray `○`; attention, done and
+error use the fixed traffic-light `agent-attention` `#FEBC2E`, `agent-done` `#28C840` and
+`agent-error` `#FF5F57` `●` in every theme and host, which 16-color hosts show as Yellow, Green
+and Red; their state words keep the status text roles. Unknown and the default Workspace identity
+use secondary-gray `•`. Attention alternates full and half intensity every 500 ms. The Picker owns
+the phase and only advances while observed Agents or the visible Board need animation. Rendering stays pure. ASCII
 uses `-\|/` Working frames and distinct `#`, `+`, `x`, `o`, `.` status fallbacks; monochrome
 keeps distinguishable outcomes without color breathing. The shared palette is owned by
-[`@orchbee/design-tokens`](../../../packages/design-tokens/README.md): Working is neutral, while
-attention, done, error and idle retain GrokNight colors. Light themes use a dark breathing circle for
+[`@orchbee/design-tokens`](../../../packages/design-tokens/README.md): Working is neutral and idle
+retains its GrokNight color, while the TUI's attention, done and error glyphs use the fixed values
+above. Light themes use a dark breathing circle for
 contrast, and reduced-color hosts use bright/dim intensity. Truecolor System themes retain smooth
 interpolation while their canvas stays host-relative: observed outer-host colors or neutral endpoints
 for the theme polarity drive the fade, independently of child-terminal color preferences.

@@ -113,7 +113,11 @@ provisional cursor. It never proves persistence by itself. When that projected v
 the confirmed or effective basis, the owner supplies a visible changed-draft cue that remains
 distinct from focus, provisional navigation, validation, and pending state.
 
-Pointer hover never moves keyboard focus, current context, or a checked value. An open action menu
+Pointer hover never moves keyboard focus, current context, or a checked value, and never adds
+`BOLD`. It changes the background. An action whose own label or glyph rests in `text-secondary`,
+such as an inactive tab, an auxiliary button, or an icon action, rises to `text-primary`; list rows
+keep their content hierarchy, including secondary headings and metadata. `BOLD` marks current
+identity and press. An open action menu
 updates its provisional candidate on real unmodified, button-free movement over an enabled painted
 row, using the same full-row selection fill and navigation marker as keyboard navigation. This
 does not execute an action or open a submenu. Leaving retains the candidate; arrows continue from
@@ -154,11 +158,12 @@ auxiliary-action slots required by any state that the component can enter.
   Shortcut text uses `text-secondary` and normal weight; terminal cells retain their host font size.
   It shares the button's complete fixed paint and hit extent and never creates a second action.
 - Buttons in a list's auxiliary-action slot use `text-secondary` at rest and inherit the row's
-  surface. Their own hover and press feedback remains local to the painted action extent.
+  surface. Their own hover and press feedback remains local to the painted action extent, and
+  raises their label to `text-primary`.
 - A button group reserves a focus-marker cell for each button. The focused button uses
   `accent-focus` on that marker and its brackets. Pointer hover paints the full button extent with
   `surface-hover`; press uses `surface-pressed` without erasing the focus marker. An enabled button
-  label takes `BOLD` while hovered or pressed.
+  label takes `BOLD` only while pressed.
 - A pending button reserves a status-glyph slot and sizes its label area for the larger of its idle
   and pending localized labels. Its outer extent does not change when the operation starts.
 - An inline action has an explicit group boundary and spacing from adjacent content. Its effective
@@ -168,7 +173,8 @@ auxiliary-action slots required by any state that the component can enter.
   owner. If the layout can keep a label, use an inline action instead. A glyph without both a name
   and keyboard equivalent is decorative and cannot receive a hit region.
 - An enabled icon action rests in `text-secondary`. Hover strengthens its glyph and brackets to
-  `text-primary` with `BOLD` and adds no fill; press keeps that emphasis and adds `surface-pressed`.
+  `text-primary` without `BOLD` or a fill; press keeps `text-primary` and adds `BOLD` and
+  `surface-pressed`.
   A frame-borne icon action keeps one blank surface cell between each bracket and the frame rule;
   those cells are outside its hit extent. An owner that documents a destructive hover, such as a row
   close, may replace the hover content role.
@@ -269,7 +275,9 @@ padding and continuation rows retain their declared owner.
   `accent-focus` marker or focused frame; a manual-activation tab list may additionally show its
   provisional cursor with `surface-selection`.
 - Every tab label is an action target across its complete painted extent. Hover and press follow the
-  action-state rules and never activate a tab before the admitted gesture commits.
+  action-state rules and never activate a tab before the admitted gesture commits. An inactive label
+  rests in `text-secondary` and rises to `text-primary` under the pointer; `BOLD` marks only the
+  active tab and press.
 - Activating a tab changes content and leaves focus on that tab unless the owning flow explicitly
   transfers focus into the new panel. Focus movement alone never changes the active tab.
 - Overflow follows the owning layout tier through wrapping, scrolling, or a documented overflow

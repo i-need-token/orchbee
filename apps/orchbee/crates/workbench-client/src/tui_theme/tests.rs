@@ -48,9 +48,7 @@ fn sidebar_pointer_fallbacks_keep_one_background_and_readable_navigation() {
                         content.add_modifier.contains(Modifier::REVERSED),
                         band.add_modifier.contains(Modifier::REVERSED)
                     );
-                    if role == Role::StatusWorking {
-                        assert_eq!(content.fg, theme.style(role).fg);
-                    } else if let Some(foreground) = band.fg {
+                    if let Some(foreground) = band.fg {
                         assert_eq!(content.fg, Some(foreground));
                     }
                 }
@@ -901,12 +899,25 @@ fn every_role_maps_to_a_style_in_both_themes() {
     }
 }
 
+const AGENT_ROLES: [(Role, Color, Color); 3] = [
+    (
+        Role::AgentAttention,
+        Color::Rgb(254, 188, 46),
+        Color::Yellow,
+    ),
+    (Role::AgentDone, Color::Rgb(40, 200, 64), Color::Green),
+    (Role::AgentError, Color::Rgb(255, 95, 87), Color::Red),
+];
+
 #[test]
-fn terminal_native_uses_only_named_colors() {
+fn terminal_native_uses_only_named_colors_outside_fixed_agent_glyphs() {
     let theme = Theme::terminal_native();
     assert_eq!(theme.name, "terminal-native");
     assert_eq!(theme.polarity, None);
     for (role, fg, bg) in style_colors(&theme) {
+        if AGENT_ROLES.iter().any(|(agent, ..)| *agent == role) {
+            continue;
+        }
         for color in [fg, bg].into_iter().flatten() {
             assert!(
                 !matches!(color, Color::Rgb(..) | Color::Indexed(_)),
@@ -1162,7 +1173,7 @@ fn checked_pair_and_low_color_interaction_layer_over_the_base_surface() {
 }
 
 #[test]
-fn terminal_native_quantize_is_identity() {
+fn terminal_native_quantize_is_identity_outside_fixed_agent_glyphs() {
     for level in [
         ColorLevel::Truecolor,
         ColorLevel::Ansi256,
@@ -1170,11 +1181,70 @@ fn terminal_native_quantize_is_identity() {
     ] {
         let quantized = Theme::terminal_native().quantize(level);
         for role in Role::ALL {
+            if AGENT_ROLES.iter().any(|(agent, ..)| *agent == role) {
+                continue;
+            }
             let before = Theme::terminal_native().style(role);
             let after = quantized.style(role);
             assert_eq!(before, after, "{role:?} changed at {level:?}");
         }
     }
+}
+
+#[test]
+fn agent_state_glyphs_use_one_traffic_light_in_every_theme() {
+    use orchbee_workbench_protocol::MetadataState::{Blocked, Done, Error};
+    for theme in [
+        Theme::terminal_native(),
+        Theme::one_light(),
+        Theme::one_dark(),
+        Theme::rgb_test_dark(),
+    ] {
+        for (role, rgb, ansi16) in AGENT_ROLES {
+            assert_eq!(theme.style(role), Style::new().fg(rgb), "{}", theme.name);
+            assert_eq!(theme.quantize(ColorLevel::Ansi16).color(role), ansi16);
+            assert_eq!(
+                theme.quantize(ColorLevel::Monochrome).color(role),
+                Color::Reset
+            );
+        }
+    }
+    assert_eq!(Theme::agent_role(Blocked), Role::AgentAttention);
+    assert_eq!(Theme::agent_role(Done), Role::AgentDone);
+    assert_eq!(Theme::agent_role(Error), Role::AgentError);
+    // Status words keep their own text roles; terminal-native warning text stays Magenta.
+    assert_eq!(
+        Theme::terminal_native().color(Role::StatusWarning),
+        Color::Magenta
+    );
+}
+
+#[test]
+fn terminal_native_working_follows_the_host_foreground_and_pairs_on_current() {
+    use orchbee_workbench_protocol::MetadataState::{Idle, Working};
+    let theme = Theme::terminal_native();
+    assert_eq!(
+        theme.style(Role::StatusWorking),
+        Style::new().fg(Color::Reset)
+    );
+    for frame in 0..20 {
+        let working = theme.content_on_surface(
+            Role::SurfaceStrip,
+            Some(Role::SurfaceCurrent),
+            Some(Theme::agent_role(Working)),
+            theme.agent_style(Working, frame),
+        );
+        assert_eq!(working.fg, theme.style(Role::SurfaceCurrent).fg);
+        assert_eq!(working.bg, theme.style(Role::SurfaceCurrent).bg);
+    }
+    let idle = theme.content_on_surface(
+        Role::SurfaceStrip,
+        Some(Role::SurfaceCurrent),
+        Some(Theme::agent_role(Idle)),
+        theme.agent_style(Idle, 0),
+    );
+    assert_eq!(idle.fg, theme.style(Role::SurfaceCurrent).fg);
+    assert!(!idle.add_modifier.contains(Modifier::DIM));
 }
 
 #[test]
@@ -1255,6 +1325,13 @@ fn themes_carry_uniform_corners_and_resolved_glyphs() {
     assert_eq!(GlyphSet::ASCII.mode(), GlyphMode::Simplified);
     assert_eq!(GlyphSet::UTF8.navigation_marker, "›");
     assert_eq!(GlyphSet::ASCII.navigation_marker, ">");
+    assert_eq!(
+        (
+            GlyphSet::ASCII.disclosure_open,
+            GlyphSet::ASCII.disclosure_closed
+        ),
+        ("v", ">")
+    );
     for value in [
         GlyphSet::ASCII.ellipsis,
         GlyphSet::ASCII.middle_dot,

@@ -133,8 +133,8 @@ pub(crate) fn render_icon_action(
     } else {
         PointerPresentation::Rest
     };
-    // A glyph this small reads its hover through strengthened content rather than a fill block;
-    // press adds the pressed surface so release feedback stays distinct from hover.
+    // A glyph this small reads its hover through a stronger text role rather than a fill block;
+    // press adds weight and the pressed surface so release feedback stays distinct from hover.
     let (role, interaction) = match (spec.availability, pointer) {
         (Availability::Disabled, _) => (Role::TextDisabled, None),
         (Availability::Enabled, PointerPresentation::Rest) => (Role::TextSecondary, None),
@@ -144,7 +144,7 @@ pub(crate) fn render_icon_action(
         }
     };
     let mut content = theme.style(role);
-    if pointer != PointerPresentation::Rest {
+    if pointer == PointerPresentation::Pressed {
         content = content.add_modifier(Modifier::BOLD);
     }
     let style = content_style(theme, spec.surface, interaction, Some(role), content);

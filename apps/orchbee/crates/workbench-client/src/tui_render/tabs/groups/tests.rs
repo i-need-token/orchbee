@@ -228,6 +228,48 @@ fn close_reveals_on_the_active_or_pointed_tab_without_moving_the_strip() {
 }
 
 #[test]
+fn a_pointed_inactive_tab_label_rises_to_primary_text_without_bold() {
+    let theme = Theme::rgb_test_dark();
+    let tabs = [tab("build", true, None), tab("logs", false, None)];
+    for (pointer, role, bold) in [
+        (ProjectedPointer::Rest, Role::TextSecondary, false),
+        (ProjectedPointer::Hovered, Role::TextPrimary, false),
+        (ProjectedPointer::Pressed, Role::TextPrimary, true),
+    ] {
+        let (buffer, hits) = draw(&tabs, &theme, 60, |index, part| {
+            if index == 1 && part == StripPart::Tab {
+                pointer
+            } else {
+                ProjectedPointer::Rest
+            }
+        });
+        let (_, _, rect) = hits.iter().find(|(hit, _, _)| *hit == 1).copied().unwrap();
+        let label = &buffer[(rect.x + 1, 0)];
+        assert_eq!(label.symbol(), "l");
+        assert_eq!(label.fg, theme.color(role), "{pointer:?}");
+        assert_eq!(label.modifier.contains(Modifier::BOLD), bold, "{pointer:?}");
+    }
+}
+
+#[test]
+fn terminal_native_working_reads_on_the_current_tab_fill() {
+    let theme = Theme::terminal_native();
+    let mut working = tab("agent", true, None);
+    working.agent = Some(TabAgent {
+        state: MetadataState::Working,
+        unread: false,
+    });
+    let (buffer, _) = draw(std::slice::from_ref(&working), &theme, 40, rest);
+    let glyph = &buffer[(1, 0)];
+    assert_eq!(
+        glyph.symbol(),
+        state_glyph(MetadataState::Working, &theme, 0)
+    );
+    let current = theme.style(Role::SurfaceCurrent);
+    assert_eq!((Some(glyph.fg), Some(glyph.bg)), (current.fg, current.bg));
+}
+
+#[test]
 fn active_and_checked_tabs_keep_their_geometry_and_bands() {
     let theme = Theme::rgb_test_dark();
     let mut tabs = [tab("member", true, None), tab("other", false, None)];
@@ -345,6 +387,7 @@ fn group_header_contrast_pairs_follow_pointer_transitions_and_current_context() 
                         let expected = theme.tab_group_header_style(
                             color,
                             surface,
+                            None,
                             Style::new()
                                 .fg(theme.tab_groups.accent(color))
                                 .add_modifier(Modifier::BOLD),

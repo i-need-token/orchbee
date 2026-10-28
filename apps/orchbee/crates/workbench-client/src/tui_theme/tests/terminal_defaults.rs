@@ -292,10 +292,13 @@ fn host_default_backgrounds_keep_working_breath_smooth_and_unknown_static() {
         assert_eq!(theme.agent_style(Unknown, 0), theme.agent_style(Unknown, 7));
     }
 
+    // Terminal-native Working keeps the host foreground and breathes through intensity.
     let native = Theme::terminal_native();
+    assert_eq!(native.agent_style(Working, 3).fg, Some(Color::Reset));
+    assert_eq!(native.agent_style(Working, 7).fg, Some(Color::Reset));
     assert_ne!(
-        native.agent_style(Working, 3).fg,
-        native.agent_style(Working, 7).fg
+        native.agent_style(Working, 3),
+        native.agent_style(Working, 7)
     );
     for level in [
         ColorLevel::Ansi16,
@@ -308,4 +311,111 @@ fn host_default_backgrounds_keep_working_breath_smooth_and_unknown_static() {
                 .all(|frame| !matches!(theme.agent_style(Working, frame).fg, Some(Color::Rgb(..))))
         );
     }
+}
+
+#[test]
+fn system_derives_strip_and_interaction_fills_from_observed_host_colors() {
+    use crate::terminal_host_appearance::{HostAppearance, HostColors};
+    use orchbee_workbench_protocol::TabGroupColor;
+    let system = |appearance, level, foreground, background| {
+        Theme::application_with_host(App::System, appearance, level).with_outer_host_colors(
+            App::System,
+            HostColors {
+                foreground,
+                background: Some(background),
+            },
+        )
+    };
+    // Strip, related, hover, current and pressed mix 14/10/17/21/28% (dark) or
+    // 5/7/9/12/16% (light) of the host foreground into its background.
+    for (appearance, foreground, background, fills, palette) in [
+        (
+            HostAppearance::Dark,
+            0xe5e5e5,
+            0x000000,
+            [32, 23, 39, 48, 64],
+            Theme::one_dark(),
+        ),
+        (
+            HostAppearance::Light,
+            0x000000,
+            0xffffff,
+            [242, 237, 232, 224, 214],
+            Theme::one_light(),
+        ),
+    ] {
+        for level in [
+            ColorLevel::Truecolor,
+            ColorLevel::Ansi256,
+            ColorLevel::Ansi16,
+        ] {
+            let theme = system(appearance, level, Some(foreground), background);
+            for (role, gray) in [
+                Role::SurfaceStrip,
+                Role::SurfaceRelated,
+                Role::SurfaceHover,
+                Role::SurfaceCurrent,
+                Role::SurfacePressed,
+            ]
+            .into_iter()
+            .zip(fills)
+            {
+                let derived = quantize_color(Color::Rgb(gray, gray, gray), level);
+                let collapsed = matches!(role, Role::SurfaceHover | Role::SurfacePressed)
+                    && theme.style(role) == crate::tui_theme::interaction_surface_fallback();
+                assert!(
+                    theme.color(role) == derived || collapsed,
+                    "{appearance:?} {level:?} {role:?}"
+                );
+            }
+            assert_eq!(
+                theme.style(Role::SurfaceStrip).fg,
+                palette.quantize(level).style(Role::TextPrimary).fg
+            );
+            assert_eq!(
+                theme.style(Role::SurfaceSelection),
+                palette.quantize(level).style(Role::SurfaceSelection)
+            );
+        }
+        // A resting group header tints the derived strip.
+        let theme = system(
+            appearance,
+            ColorLevel::Truecolor,
+            Some(foreground),
+            background,
+        );
+        let strip = fills[0];
+        let Color::Rgb(r, g, b) = theme.tab_groups.accent(TabGroupColor::Blue) else {
+            panic!("named accents stay RGB at truecolor");
+        };
+        let tint = |accent: u8| (f64::from(accent) * 0.2 + f64::from(strip) * 0.8).round() as u8;
+        assert_eq!(
+            theme.tab_groups.tint(TabGroupColor::Blue),
+            Some(Color::Rgb(tint(r), tint(g), tint(b)))
+        );
+    }
+
+    // Until the host foreground arrives, the palette's primary text stands in for it.
+    let Color::Rgb(r, g, b) = Theme::one_dark().color(Role::TextPrimary) else {
+        panic!("One Dark text is RGB");
+    };
+    let mix = |channel: u8| (f64::from(channel) * 0.14).round() as u8;
+    assert_eq!(
+        system(HostAppearance::Dark, ColorLevel::Truecolor, None, 0x000000)
+            .color(Role::SurfaceStrip),
+        Color::Rgb(mix(r), mix(g), mix(b))
+    );
+
+    // Monochrome keeps the resolver's modifier fallbacks.
+    let mono = system(
+        HostAppearance::Dark,
+        ColorLevel::Monochrome,
+        Some(0xe5e5e5),
+        0,
+    );
+    assert_eq!(
+        mono.style(Role::SurfaceHover),
+        crate::tui_theme::interaction_surface_fallback()
+    );
+    assert_eq!(mono.color(Role::SurfaceStrip), Color::Reset);
 }
