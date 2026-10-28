@@ -15,7 +15,7 @@ fn context(context: u64, tab: u64, panel: u64, bound: bool) -> Value {
     json!({"terminalContextId":id(context),"groups":[],"tabs":[{"tabId":id(tab),"label":"shell","pinned":false,"groupId":null,"root":{"kind":"panel","panelId":id(panel),"primaryPresentation":{"customLabel":null,"presentationId":id(panel+1),"label":"shell","binding":if bound {json!({"terminalId":id(12),"workerId":id(9)})} else {Value::Null}},"childPresentations":[]}}]})
 }
 fn state(count: u64, source: bool, created: bool, revision: u64) -> Snapshot {
-    let mut contexts = vec![json!({"terminalContextId":id(10),"groups":[],"tabs":[]})];
+    let mut contexts = vec![];
     let projects: Vec<_> = (0..count)
         .map(|n| json!({"projectId":id(3+n*100),"label":if n==0 {"Default"} else {"other"}}))
         .collect();
@@ -36,7 +36,7 @@ fn state(count: u64, source: bool, created: bool, revision: u64) -> Snapshot {
             .as_str()
             .cmp(&b["terminalContextId"].as_str())
     });
-    serde_json::from_value(json!({"protocolVersion":1,"sessionId":id(2),"revision":revision.to_string(),"navigation":{"projects":projects,"directories":directories,"workspaces":std::iter::once(serde_json::json!({"workspaceId":id(10),"terminalContextId":id(10),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"})).chain(workspaces).collect::<Vec<_>>()},"terminalContexts":contexts})).unwrap()
+    serde_json::from_value(json!({"protocolVersion":1,"sessionId":id(2),"revision":revision.to_string(),"navigation":{"projects":projects,"directories":directories,"workspaces":workspaces},"terminalContexts":contexts})).unwrap()
 }
 fn snapshot(stream: &mut LocalStream, state: Snapshot) {
     let WorkbenchRequest::SnapshotRead(request) = read_workbench_request(stream).unwrap() else {
