@@ -39,6 +39,13 @@ pub(super) struct TabClick {
     at: std::time::Instant,
 }
 
+/// The first token of a paged Tab strip window: a Tab, or the header of that Tab's group.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TabStripStart {
+    pub(crate) tab: WorkbenchTabId,
+    pub(crate) header: bool,
+}
+
 pub struct TabDragPreview {
     pub(crate) grabbed: Vec<Rect>,
     pub(crate) marker: Option<(u16, u16)>,
@@ -449,6 +456,7 @@ impl PointerState {
                                     }
                                     None
                                 } else {
+                                    port.follow_drawn_tab_strip(&drag.source.drawn, &id);
                                     self.tab_click = Some(TabClick {
                                         source: drag.source.drawn.clone(),
                                         tab: id.clone(),

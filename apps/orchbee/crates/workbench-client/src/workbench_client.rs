@@ -1303,6 +1303,26 @@ impl TerminalInputPort for WorkbenchClient {
         }
     }
 
+    fn page_drawn_tab_strip(
+        &mut self,
+        source: &crate::action_menu::DrawnTabCreate,
+        start: &crate::tui_pointer::TabStripStart,
+    ) {
+        if let Some(native) = self.backend.native_mut() {
+            native.page_drawn_tab_strip(source, start);
+        }
+    }
+
+    fn follow_drawn_tab_strip(
+        &mut self,
+        source: &crate::action_menu::DrawnTabCreate,
+        tab: &orchbee_workbench_protocol::WorkbenchTabId,
+    ) {
+        if let Some(native) = self.backend.native_mut() {
+            native.follow_drawn_tab_strip(source, tab);
+        }
+    }
+
     fn commit_tab_drag(
         &mut self,
         source: &crate::action_menu::DrawnTabCreate,

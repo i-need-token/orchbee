@@ -11,6 +11,16 @@ fn draw(
     width: u16,
     pointer: impl Fn(usize, StripPart) -> ProjectedPointer,
 ) -> (Buffer, Hits) {
+    draw_from(tabs, theme, width, None, pointer)
+}
+
+fn draw_from(
+    tabs: &[GroupTabDisplay<'_>],
+    theme: &Theme,
+    width: u16,
+    start: Option<StripStart>,
+    pointer: impl Fn(usize, StripPart) -> ProjectedPointer,
+) -> (Buffer, Hits) {
     let mut terminal = Terminal::new(TestBackend::new(width, 1)).unwrap();
     let mut hits = Vec::new();
     terminal
@@ -22,6 +32,7 @@ fn draw(
                 theme,
                 "Unnamed group",
                 0,
+                start,
                 GroupInteractions::new(
                     &mut (),
                     &mut |_, index, part, _| pointer(index, part),
@@ -64,8 +75,12 @@ fn rest(_: usize, _: StripPart) -> ProjectedPointer {
     ProjectedPointer::Rest
 }
 
+fn is_page(part: StripPart) -> bool {
+    matches!(part, StripPart::Page { .. })
+}
+
 #[test]
-fn overflow_markers_keep_the_active_tab_visible_and_do_not_acquire_hits() {
+fn overflow_markers_keep_the_active_tab_visible_and_page_the_strip() {
     for glyphs in [GlyphSet::UTF8, GlyphSet::ASCII] {
         let theme = Theme::terminal_native().with_glyphs(glyphs);
         for active in [0, 4, 8] {
@@ -76,15 +91,103 @@ fn overflow_markers_keep_the_active_tab_visible_and_do_not_acquire_hits() {
             let text = text(&buffer);
             assert!(text.contains(&format!("task-{active}")), "{text}");
             assert!(hits.iter().any(|(index, _, _)| *index == active));
+            let (pages, painted): (Vec<_>, Vec<_>) =
+                hits.iter().partition(|(_, part, _)| is_page(*part));
+            assert_eq!(
+                pages.len(),
+                usize::from(active > 0) + usize::from(active < 8)
+            );
+            // Each marker is its own control and pages to Tabs beyond the painted ones.
             if active > 0 {
                 assert!(text.starts_with(theme.glyphs.ellipsis), "{text}");
-                assert!(hits.iter().all(|(_, _, rect)| rect.x > 0));
+                let (target, _, marker) = pages.iter().find(|(_, _, rect)| rect.x == 0).unwrap();
+                assert!(
+                    painted
+                        .iter()
+                        .all(|(index, _, rect)| rect.x > marker.right() && index > target)
+                );
             }
             if active < 8 {
                 assert!(text.trim_end().ends_with(theme.glyphs.ellipsis), "{text}");
-                assert!(hits.iter().all(|(_, _, rect)| rect.right() < 36));
+                let (target, _, marker) = pages
+                    .iter()
+                    .find(|(_, _, rect)| rect.right() == 36)
+                    .unwrap();
+                assert!(
+                    painted
+                        .iter()
+                        .all(|(index, _, rect)| rect.right() < marker.x && index <= target)
+                );
             }
         }
+    }
+}
+
+#[test]
+fn paged_windows_start_at_their_token_and_page_by_whole_windows() {
+    let theme = Theme::terminal_native();
+    let page = |hits: &Hits, leading: bool| {
+        hits.iter()
+            .find(|(_, part, rect)| is_page(*part) && (rect.x == 0) == leading)
+            .map(|(index, part, _)| (*index, *part))
+    };
+    let group = group("group-name-long", TabGroupColor::Blue);
+    let tabs: Vec<_> = (0..9)
+        .map(|index| {
+            tab(
+                &format!("task-{index}"),
+                index == 0,
+                (2..6).contains(&index).then_some(&group),
+            )
+        })
+        .collect();
+    // The first page ends inside the shortened group header, so the next page opens with it.
+    let (buffer, hits) = draw(&tabs, &theme, 36, rest);
+    assert!(text(&buffer).starts_with(" task-0"), "{}", text(&buffer));
+    assert_eq!(page(&hits, true), None);
+    assert_eq!(
+        page(&hits, false),
+        Some((2, StripPart::Page { header: true }))
+    );
+    // A paged window starts at its token wherever the current Tab is, and its markers page one
+    // whole window back to the first page and forward to the first Tab it does not show.
+    let start = StripStart {
+        index: 2,
+        header: true,
+    };
+    let (buffer, hits) = draw_from(&tabs, &theme, 36, Some(start), rest);
+    let paged = text(&buffer);
+    assert!(paged.starts_with("…  group-name-long"), "{paged}");
+    assert!(!paged.contains("task-0"), "{paged}");
+    assert!(
+        hits.iter()
+            .all(|(index, part, _)| *index != 0 || is_page(*part))
+    );
+    assert_eq!(
+        page(&hits, true),
+        Some((0, StripPart::Page { header: false }))
+    );
+    assert_eq!(
+        page(&hits, false),
+        Some((3, StripPart::Page { header: false }))
+    );
+    // The start applies only while the Tabs overflow a strip wide enough for its markers.
+    for (count, width) in [(2, 36), (9, 7)] {
+        let (_, hits) = draw_from(
+            &tabs[..count],
+            &theme,
+            width,
+            Some(StripStart {
+                index: 1,
+                header: false,
+            }),
+            rest,
+        );
+        assert!(
+            hits.iter()
+                .any(|(index, part, _)| *index == 0 && *part == StripPart::Tab)
+        );
+        assert!(hits.iter().all(|(_, part, _)| !is_page(*part)));
     }
 }
 
@@ -109,6 +212,7 @@ fn unnamed_group_has_localized_visible_header_and_identity_hit_region() {
                     &Theme::terminal_native(),
                     label,
                     0,
+                    None,
                     GroupInteractions::new(
                         &mut (),
                         &mut |_, _, _, _| ProjectedPointer::Rest,
@@ -153,7 +257,7 @@ fn headers_clip_by_cells_keep_active_member_without_stubs_or_control_bytes() {
                     .iter()
                     .any(|(index, hit, _)| *index == 3 && *hit == part);
                 assert!(
-                    kept || (width < 16 && hits.is_empty()),
+                    kept || (width < 16 && hits.iter().all(|(_, hit, _)| is_page(*hit))),
                     "width={width}, collapsed={collapsed}, glyphs={glyphs:?}, hits={hits:?}"
                 );
                 assert!(

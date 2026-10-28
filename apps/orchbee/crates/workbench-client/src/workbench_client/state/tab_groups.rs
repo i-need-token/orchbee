@@ -1,5 +1,7 @@
-//! Client-local group disclosure; canonical metadata remains in the projection.
+//! Client-local group disclosure and Tab strip scrolling; canonical metadata remains in the
+//! projection.
 use super::{ClientContextTabs, WorkbenchClientState, WorkbenchClientView};
+use crate::tui_pointer::TabStripStart;
 use orchbee_workbench_protocol::{
     SessionId, WorkbenchTabGroupId, WorkbenchTabId, WorkbenchTerminalContextId,
 };
@@ -18,6 +20,17 @@ pub(super) struct GroupView {
     selected: Vec<WorkbenchTabId>,
     anchor: Option<WorkbenchTabId>,
     recent: Option<WorkbenchTabGroupId>,
+    scroll: Option<StripScroll>,
+}
+
+/// A Tab strip window the person paged to with an edge marker. It lasts while the current Tab is
+/// the one it was paged from, or a Tab the person then activated inside the painted window.
+struct StripScroll {
+    start: TabStripStart,
+    /// Canonical Tab order when last settled; a closed start Tab yields to its next survivor.
+    order: Vec<WorkbenchTabId>,
+    current: WorkbenchTabId,
+    followed: Option<WorkbenchTabId>,
 }
 
 impl GroupView {
@@ -73,6 +86,102 @@ impl GroupView {
 }
 
 impl WorkbenchClientState {
+    fn active_tab_id(&self) -> Option<&WorkbenchTabId> {
+        self.active()
+            .and_then(|active| self.cache.tabs().get(active.index()))
+            .map(|tab| tab.tab_id())
+    }
+
+    /// Pages the strip to start at a painted token. Scrolling never changes the current Tab.
+    pub(in crate::workbench_client) fn scroll_tab_strip(&mut self, start: TabStripStart) {
+        let Some(current) = self.active_tab_id().cloned() else {
+            return;
+        };
+        if self.cache.tab_index(&start.tab).is_none() {
+            return;
+        }
+        self.tab_groups.prepare(&self.cache);
+        self.tab_groups.scroll = Some(StripScroll {
+            start,
+            order: self
+                .cache
+                .tabs()
+                .iter()
+                .map(|tab| tab.tab_id().clone())
+                .collect(),
+            current,
+            followed: None,
+        });
+    }
+
+    /// A pointer activation of a Tab painted in the paged window keeps that window.
+    pub(in crate::workbench_client) fn follow_tab_strip_scroll(&mut self, tab: &WorkbenchTabId) {
+        if self.tab_groups.matches(&self.cache)
+            && let Some(scroll) = self.tab_groups.scroll.as_mut()
+        {
+            scroll.followed = Some(tab.clone());
+        }
+    }
+
+    /// Before each frame: any other change of the current Tab returns the strip to the window
+    /// around it, and a closed start Tab yields to the next surviving Tab, then the previous one.
+    pub(in crate::workbench_client) fn settle_tab_strip_scroll(&mut self) {
+        if self.tab_groups.scroll.is_none() {
+            return;
+        }
+        let active = self.active_tab_id().cloned();
+        let cache = &self.cache;
+        let matches = self.tab_groups.matches(cache);
+        let Some(scroll) = self.tab_groups.scroll.as_mut().filter(|_| matches) else {
+            self.tab_groups.scroll = None;
+            return;
+        };
+        if active.as_ref() != Some(&scroll.current) {
+            match scroll.followed.take() {
+                Some(followed) if active.as_ref() == Some(&followed) => scroll.current = followed,
+                _ => {
+                    self.tab_groups.scroll = None;
+                    return;
+                }
+            }
+        }
+        if cache.tab_index(&scroll.start.tab).is_none() {
+            let position = scroll
+                .order
+                .iter()
+                .position(|id| *id == scroll.start.tab)
+                .unwrap_or(scroll.order.len());
+            let survivor = scroll.order[position.saturating_add(1).min(scroll.order.len())..]
+                .iter()
+                .chain(scroll.order[..position].iter().rev())
+                .find(|id| cache.tab_index(id).is_some())
+                .cloned();
+            let Some(tab) = survivor else {
+                self.tab_groups.scroll = None;
+                return;
+            };
+            scroll.start = TabStripStart { tab, header: false };
+        }
+        scroll.order = cache
+            .tabs()
+            .iter()
+            .map(|tab| tab.tab_id().clone())
+            .collect();
+    }
+
+    /// The paged window's start while it still applies to the current Tab.
+    pub(in crate::workbench_client) fn tab_strip_start(&self) -> Option<&TabStripStart> {
+        let scroll = self
+            .tab_groups
+            .scroll
+            .as_ref()
+            .filter(|_| self.tab_groups.matches(&self.cache))?;
+        let active = self.active_tab_id()?;
+        (*active == scroll.current || Some(active) == scroll.followed.as_ref())
+            .then_some(&scroll.start)
+            .filter(|start| self.cache.tab_index(&start.tab).is_some())
+    }
+
     pub(in crate::workbench_client) fn recent_tab_group(
         &self,
     ) -> Option<&orchbee_workbench_protocol::TabGroup> {
@@ -188,6 +297,9 @@ impl WorkbenchClientState {
 impl WorkbenchClientView<'_> {
     pub(in crate::workbench_client) fn selected_tab_ids(&self) -> Vec<WorkbenchTabId> {
         self.state.selected_tab_ids()
+    }
+    pub(in crate::workbench_client) fn tab_strip_start(&self) -> Option<&TabStripStart> {
+        self.state.tab_strip_start()
     }
     pub(in crate::workbench_client) fn group_collapsed(&self, id: &WorkbenchTabGroupId) -> bool {
         self.state.group_collapsed(id)

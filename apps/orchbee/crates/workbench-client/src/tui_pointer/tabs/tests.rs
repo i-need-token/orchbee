@@ -16,6 +16,7 @@ struct Port {
     source: TabDragSource,
     writes: Vec<TabConfiguration>,
     actions: Vec<ClientAction>,
+    follows: Vec<WorkbenchTabId>,
 }
 impl TerminalInputPort for Port {
     fn forward(&mut self, _: &[u8]) -> Result<(), TerminalInputUnavailable> {
@@ -52,6 +53,10 @@ impl TerminalInputPort for Port {
     fn commit_tab_drag(&mut self, source: &DrawnTabCreate, operation: TabConfiguration) {
         assert_eq!(source, &self.source.drawn);
         self.writes.push(operation);
+    }
+    fn follow_drawn_tab_strip(&mut self, source: &DrawnTabCreate, tab: &WorkbenchTabId) {
+        assert_eq!(source, &self.source.drawn);
+        self.follows.push(tab.clone());
     }
     fn apply_client_action(
         &mut self,
@@ -138,6 +143,7 @@ fn fixture(collapsed: bool) -> (PointerState, Port, ClientView, FrameHitMap) {
             source,
             writes: Vec::new(),
             actions: Vec::new(),
+            follows: Vec::new(),
         },
         ClientView::new(120),
         map,
@@ -366,6 +372,7 @@ fn motion_is_private_and_release_commits_once_including_selected_set() {
         0,
     );
     assert_eq!(port.writes.len(), 1);
+    assert!(port.follows.is_empty(), "a drag never selects a Tab");
 }
 
 #[test]
@@ -616,6 +623,8 @@ fn second_exact_tab_click_renames_but_focus_loss_cancels_the_pair() {
                 }
             ]
         );
+        // Each selecting click keeps a paged strip window; the renaming click selects nothing.
+        assert_eq!(port.follows, vec![id(2); 1 + usize::from(lose_focus)]);
         assert!(port.writes.is_empty());
     }
 }

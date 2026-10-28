@@ -1884,23 +1884,49 @@ fn render_tab_strip(
             .collect::<Vec<_>>();
         let tab_target = |index: usize, part: tabs::groups::StripPart| {
             let tab = native.tab(index)?;
-            Some(match part {
-                tabs::groups::StripPart::Header => HitTarget::TabGroup {
+            match part {
+                tabs::groups::StripPart::Header => Some(HitTarget::TabGroup {
                     tab: tab.tab_id().clone(),
                     group: tab.group()?.group_id.clone(),
-                },
+                }),
                 tabs::groups::StripPart::Tab | tabs::groups::StripPart::Close => {
-                    HitTarget::Tab(tab.tab_id().clone())
+                    Some(HitTarget::Tab(tab.tab_id().clone()))
                 }
-            })
+                tabs::groups::StripPart::Page { .. } => None,
+            }
         };
-        let close_target = |index: usize| {
-            Some(InteractionTarget::TabCloseRequest {
-                source: tab_source.clone()?,
-                tab: native.tab(index)?.tab_id().clone(),
-            })
+        // Close and the paging edge markers are release-activated controls, not Tab gestures.
+        let control_target = |index: usize, part: tabs::groups::StripPart| {
+            let source = tab_source.clone()?;
+            let tab = native.tab(index)?.tab_id().clone();
+            match part {
+                tabs::groups::StripPart::Close => {
+                    Some(InteractionTarget::TabCloseRequest { source, tab })
+                }
+                tabs::groups::StripPart::Page { header } => Some(InteractionTarget::TabStripPage {
+                    source,
+                    start: crate::tui_pointer::TabStripStart { tab, header },
+                }),
+                tabs::groups::StripPart::Tab | tabs::groups::StripPart::Header => None,
+            }
         };
-        let close_spec = InteractionSpec::enabled(PrimaryContract::ActivateOnRelease);
+        let is_control = |part: tabs::groups::StripPart| {
+            matches!(
+                part,
+                tabs::groups::StripPart::Close | tabs::groups::StripPart::Page { .. }
+            )
+        };
+        let control_spec = InteractionSpec::enabled(PrimaryContract::ActivateOnRelease);
+        let start = native.tab_strip_start().and_then(|start| {
+            Some(tabs::groups::StripStart {
+                index: (0..native.tab_count()).position(|index| {
+                    native
+                        .tab(index)
+                        .is_some_and(|tab| *tab.tab_id() == start.tab)
+                })?,
+                header: start.header,
+            })
+        });
         tabs::groups::render(
             frame,
             tab_area,
@@ -1908,19 +1934,23 @@ fn render_tab_strip(
             theme,
             text.unnamed_tab_group,
             machines.working_frame(),
+            start,
             tabs::groups::GroupInteractions::new(
                 hits,
                 &mut |hits, index, part, rect| {
-                    if part == tabs::groups::StripPart::Close {
-                        return close_target(index).map_or(ProjectedPointer::Rest, |target| {
-                            hits.projected_pointer(
-                                HitLayer::Foreground,
-                                rect,
-                                rect,
-                                &target,
-                                close_spec,
-                            )
-                        });
+                    if is_control(part) {
+                        return control_target(index, part).map_or(
+                            ProjectedPointer::Rest,
+                            |target| {
+                                hits.projected_pointer(
+                                    HitLayer::Foreground,
+                                    rect,
+                                    rect,
+                                    &target,
+                                    control_spec,
+                                )
+                            },
+                        );
                     }
                     let (Some(source), Some(target)) =
                         (tab_source.as_ref(), tab_target(index, part))
@@ -1930,14 +1960,14 @@ fn render_tab_strip(
                     hits.projected_tab_pointer(source, &target, rect)
                 },
                 &mut |hits, index, part, rect| {
-                    if part == tabs::groups::StripPart::Close {
-                        if let Some(target) = close_target(index) {
+                    if is_control(part) {
+                        if let Some(target) = control_target(index, part) {
                             hits.record_interaction(
                                 HitLayer::Foreground,
                                 rect,
                                 rect,
                                 target,
-                                close_spec,
+                                control_spec,
                             );
                         }
                     } else if let (Some(source), Some(target)) =

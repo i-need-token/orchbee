@@ -1815,6 +1815,10 @@ impl InputDispatcher {
                                     self.menu_packet = true;
                                     port.request_drawn_tab_close(&source, &tab);
                                 }
+                                InteractionTarget::TabStripPage { source, start } => {
+                                    self.menu_packet = true;
+                                    port.page_drawn_tab_strip(&source, &start);
+                                }
                                 InteractionTarget::TabCreate(target) => {
                                     // Creation can replace the input target. A stale
                                     // exact witness still owns this physical packet.

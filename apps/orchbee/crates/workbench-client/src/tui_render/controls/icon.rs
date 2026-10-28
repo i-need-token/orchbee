@@ -120,22 +120,22 @@ pub(crate) fn render_frame_icon_action(
     render_icon_action(frame, rect, spec, theme)
 }
 
-/// Paints one fixed icon action and returns its complete visible and clickable extent.
-pub(crate) fn render_icon_action(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    spec: IconActionSpec,
+/// The style of an icon action's glyph, shared with unbracketed glyph controls such as the Tab
+/// strip's edge markers.
+pub(crate) fn icon_action_style(
     theme: &Theme,
-) -> Option<Rect> {
-    let rect = icon_action_rect(frame.area(), area)?;
-    let pointer = if spec.availability == Availability::Enabled {
-        spec.pointer
+    surface: ControlSurface,
+    availability: Availability,
+    pointer: PointerPresentation,
+) -> Style {
+    let pointer = if availability == Availability::Enabled {
+        pointer
     } else {
         PointerPresentation::Rest
     };
     // A glyph this small reads its hover through a stronger text role rather than a fill block;
     // press adds weight and the pressed surface so release feedback stays distinct from hover.
-    let (role, interaction) = match (spec.availability, pointer) {
+    let (role, interaction) = match (availability, pointer) {
         (Availability::Disabled, _) => (Role::TextDisabled, None),
         (Availability::Enabled, PointerPresentation::Rest) => (Role::TextSecondary, None),
         (Availability::Enabled, PointerPresentation::Hovered) => (Role::TextPrimary, None),
@@ -147,7 +147,18 @@ pub(crate) fn render_icon_action(
     if pointer == PointerPresentation::Pressed {
         content = content.add_modifier(Modifier::BOLD);
     }
-    let style = content_style(theme, spec.surface, interaction, Some(role), content);
+    content_style(theme, surface, interaction, Some(role), content)
+}
+
+/// Paints one fixed icon action and returns its complete visible and clickable extent.
+pub(crate) fn render_icon_action(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    spec: IconActionSpec,
+    theme: &Theme,
+) -> Option<Rect> {
+    let rect = icon_action_rect(frame.area(), area)?;
+    let style = icon_action_style(theme, spec.surface, spec.availability, spec.pointer);
     frame.render_widget(Paragraph::new(spec.glyph.label()), rect);
     for x in rect.x..rect.right() {
         frame.buffer_mut()[(x, rect.y)]

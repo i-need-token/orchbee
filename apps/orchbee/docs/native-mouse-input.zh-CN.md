@@ -258,6 +258,7 @@ Copy、Resize 与原生表单发布包含 availability 和精确几何的显式�
 | 控件之外的 overlay 本体     | `OverlaySurface` | `OverlaySurface`                 | 吞掉——绝不到达下层                                                                       |
 | 捕获型 overlay 之外         | —                | backdrop                         | 普通按钮按下关闭，滚轮无效。底层任何区域，包括未遮盖的 tab 构件或 pane，都看不到该事件。 |
 | 紧凑 tab-strip 标记         | `Foreground`     | 带显式交互元数据的 `Tab(tab_id)` | 按下为点击／拖拽建立手势，释放时激活或一次提交                                           |
+| 紧凑 tab-strip 边缘标记     | `Foreground`     | `TabStripPage{source,start}`     | 匹配的主键释放把标签栏翻动一页；从不选择 Tab                                             |
 | Pane 叶视口（content 矩形） | `Foreground`     | `Pane{tab,panel}` + 已绘制来源   | 精确 `Ctrl`+主键点击打开已绘制链接；其他 Press 先聚焦，再使用程序透传或 Client 选择      |
 | 未绑定的 pane 叶            | `Foreground`     | `Pane{tab,panel}`                | Press 只聚焦；没有程序收到该事件                                                         |
 | 可见 pane 分隔线            | `Foreground`     | `Divider(source)`                | 无修饰左键按下开始预览，松手一次应用，Esc 或 Shift 取消                                  |
@@ -499,4 +500,4 @@ control/attach 字节实测覆盖。
 
 证据覆盖按钮边界、不响应的数量／空格、不重叠的分屏矩形、单面板／分屏／放大渲染、窄窗口及 Minimal 降级、修饰键／非左键报告、捕获／overlay／模态守卫、旧实例／anchor、成员移除及实际 UI 准入精确子项 Switch。组合 TestBackend 截图证明 cell composition；物理宿主配色、字体、鼠标硬件、延迟及多 Client 视觉行为需要各自的原生证据。
 
-<!-- documentation-pairing: english-sha256=d925298158d5e5f68348bf25b2de06c66807162d1e2c296df3017557f98278f0 zh-cn-sha256=ff1a390372a4e1402fc63c6f7ab099029d78dcf50841cd557cd3f4cf0ef331be -->
+<!-- documentation-pairing: english-sha256=6306ad8a8d8e3b53981bb3c9dfef78f8af7f4a32cd5fddee2df892abf50b5615 zh-cn-sha256=a90fc45bcfd0a7b8aa77d82f9e8fbfb27f54c9aec1f77813f2b84dcff417db57 -->

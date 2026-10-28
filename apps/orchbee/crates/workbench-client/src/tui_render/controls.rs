@@ -26,8 +26,8 @@ pub(crate) use hint::{
     KeyHint, measure_key_hints, measure_overlay_hints, render_key_hints, render_overlay_hints,
 };
 pub(crate) use icon::{
-    IconActionGlyph, IconActionSpec, frame_close_rect, icon_action_rect, render_frame_icon_action,
-    render_icon_action,
+    IconActionGlyph, IconActionSpec, frame_close_rect, icon_action_rect, icon_action_style,
+    render_frame_icon_action, render_icon_action,
 };
 pub(crate) use query::{QueryField, render_divider, render_query_field};
 pub(crate) use row::{RowContentBand, RowFocusCue, RowTracks, paint_row_interaction};

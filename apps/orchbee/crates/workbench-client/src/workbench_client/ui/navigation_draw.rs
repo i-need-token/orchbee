@@ -18,6 +18,9 @@ impl WorkbenchClientUi {
         allow_defer: bool,
     ) -> bool {
         self.navigation_draw.viewport = Some(viewport);
+        if let Some(state) = self.state.as_mut() {
+            state.settle_tab_strip_scroll();
+        }
         if !allow_defer || !self.navigation_waits_for_frame(viewport) {
             return false;
         }

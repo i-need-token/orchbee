@@ -1,11 +1,14 @@
-//! The Windows Tab strip: group headers, Agent cues, hover-revealed close and overflow, painted
-//! with the hit regions derived from the same pass.
+//! The Windows Tab strip: group headers, Agent cues, hover-revealed close and paging overflow
+//! markers, painted with the hit regions derived from the same pass.
 use super::TabDisplay;
 use crate::{
     machine_picker::TabAgent,
     terminal_text::{display_width, truncate_display},
     tui_pointer::ProjectedPointer,
-    tui_render::sidebar_text::state_glyph,
+    tui_render::{
+        controls::{Availability, ControlSurface, icon_action_style},
+        sidebar_text::state_glyph,
+    },
     tui_theme::{Role, Theme},
 };
 use orchbee_workbench_protocol::{TabGroup, TabGroupColor};
@@ -35,6 +38,16 @@ pub(in crate::tui_render) enum StripPart {
     Header,
     /// A Tab's revealed close control.
     Close,
+    /// An edge marker that pages the strip. Its index names the new window's first token: that
+    /// Tab, or the header of its group when `header` is set.
+    Page { header: bool },
+}
+
+/// The first token of a paged strip window, by display index: the Tab, or its group's header.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(in crate::tui_render) struct StripStart {
+    pub(in crate::tui_render) index: usize,
+    pub(in crate::tui_render) header: bool,
 }
 
 /// Longer Tab labels end in an ellipsis.
@@ -106,6 +119,14 @@ impl Token {
         self.pieces(theme, 0, usize::MAX).map_or(0, |pieces| {
             pieces.iter().map(|(text, _)| display_width(text)).sum()
         })
+    }
+
+    /// Whether painted `pieces` show this token's whole label.
+    fn whole(&self, pieces: &[(String, Piece)]) -> bool {
+        matches!(self.kind, Kind::Divider)
+            || pieces
+                .iter()
+                .any(|(text, piece)| *piece == Piece::Label && text == self.text())
     }
 
     /// The token's cells within `budget`, truncating its label before dropping the close track.
@@ -255,6 +276,12 @@ fn summarize(agents: impl Iterator<Item = TabAgent>) -> Option<TabAgent> {
 }
 
 /// Paints the strip into `area` and returns the column after which the create control belongs.
+/// `start` draws the window the person paged to with an edge marker; it applies only while the
+/// Tabs overflow a strip wide enough for its markers.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one strip paint takes its view inputs and interaction ports together"
+)]
 pub(in crate::tui_render) fn render<C, P, R>(
     frame: &mut Frame<'_>,
     area: Rect,
@@ -262,6 +289,7 @@ pub(in crate::tui_render) fn render<C, P, R>(
     theme: &Theme,
     unnamed_group: &str,
     working_frame: usize,
+    start: Option<StripStart>,
     mut interactions: GroupInteractions<'_, C, P, R>,
 ) -> u16
 where
@@ -275,7 +303,7 @@ where
     let width = usize::from(area.width);
     let marker_width = display_width(theme.glyphs.ellipsis);
     // Keep a complete active tab target on tiny strips. Wider strips reserve
-    // noninteractive edge markers before selecting the visible token window.
+    // edge markers before selecting the visible token window.
     let overflow_track = if width >= 2 * (marker_width + 1) + 4 {
         marker_width + 1
     } else {
@@ -295,44 +323,36 @@ where
         width.saturating_sub(2 * overflow_track)
     };
     let active = tokens.iter().position(Token::active).unwrap_or(0);
-    let mut start = active;
-    let mut occupied = widths.get(active).copied().unwrap_or(0);
-    while start > 0 {
-        let previous = widths[start - 1] + 1;
-        if occupied.saturating_add(previous) > window_width {
-            break;
+    // A paged window starts where the person paged it, wherever the current Tab is.
+    let scrolled = start
+        .filter(|_| total_width > width && overflow_track > 0)
+        .and_then(|start| start_token(&tokens, tabs, start));
+    let mut first = scrolled.unwrap_or(active);
+    let mut prefix = None;
+    if scrolled.is_none() {
+        let mut occupied = widths.get(active).copied().unwrap_or(0);
+        while first > 0 {
+            let previous = widths[first - 1] + 1;
+            if occupied.saturating_add(previous) > window_width {
+                break;
+            }
+            occupied += previous;
+            first -= 1;
         }
-        occupied += previous;
-        start -= 1;
+        let missing_header = tokens
+            .get(first)
+            .and_then(|token| token.header)
+            .filter(|header| *header < first);
+        // Keep the active member and its group identity together when the window starts inside
+        // a group.
+        if missing_header.is_some() && window_width >= 8 {
+            first = active;
+            prefix = tokens.get(active).and_then(|token| token.header);
+        }
     }
-    let missing_header = tokens
-        .get(start)
-        .and_then(|token| token.header)
-        .filter(|header| *header < start);
-    // Keep the active member and its group identity together when the window starts inside a group.
-    let prefix = if missing_header.is_some() && window_width >= 8 {
-        start = active;
-        tokens.get(active).and_then(|token| token.header)
-    } else {
-        None
-    };
-    let mut used = 0;
-    let indices: Vec<_> = prefix.into_iter().chain(start..tokens.len()).collect();
-    if start > 0 && overflow_track > 0 {
-        paint_text(
-            frame,
-            area,
-            0,
-            &format!("{} ", theme.glyphs.ellipsis),
-            theme.content_on_surface(
-                Role::SurfaceStrip,
-                None,
-                Some(Role::TextSecondary),
-                theme.style(Role::TextSecondary),
-            ),
-        );
-        used = overflow_track;
-    }
+    let leading = first > 0 && overflow_track > 0;
+    let mut used = if leading { overflow_track } else { 0 };
+    let indices: Vec<_> = prefix.into_iter().chain(first..tokens.len()).collect();
     let needed = indices
         .iter()
         .map(|index| {
@@ -344,13 +364,17 @@ where
         })
         .sum::<usize>()
         .saturating_add(indices.len().saturating_sub(1));
-    let trailing =
-        overflow_track > 0 && needed > width.saturating_sub(used) && active + 1 < tokens.len();
+    let trailing = overflow_track > 0
+        && needed > width.saturating_sub(used)
+        && (scrolled.is_some() || active + 1 < tokens.len());
     let content_end = width.saturating_sub(usize::from(trailing) * overflow_track);
     let mut painted_end = 0;
-    for (position, token_index) in indices.into_iter().enumerate() {
+    let mut painted = 0;
+    // The first token this window leaves out or shortens: the next page starts there.
+    let mut next_page = None;
+    for (position, token_index) in indices.iter().copied().enumerate() {
         let token = &tokens[token_index];
-        if position > 0 && used < content_end {
+        if painted > 0 && used < content_end {
             used += 1;
         }
         let budget = if Some(token_index) == prefix {
@@ -365,8 +389,13 @@ where
             if Some(token_index) == prefix {
                 continue;
             }
+            next_page.get_or_insert(token_index);
             break;
         };
+        // A shortened label opens the next page unless it already opens this one.
+        if painted > 0 && Some(token_index) != prefix && !token.whole(&pieces) {
+            next_page.get_or_insert(token_index);
+        }
         let cells: usize = pieces.iter().map(|(text, _)| display_width(text)).sum();
         let rect = Rect::new(
             area.x
@@ -387,28 +416,138 @@ where
         if !matches!(token.kind, Kind::Divider) {
             painted_end = used + cells;
         }
+        painted += 1;
         used += cells;
         if used >= content_end {
+            if let Some(next) = indices.get(position + 1) {
+                next_page.get_or_insert(*next);
+            }
             break;
         }
     }
+    if leading {
+        let target = previous_page(&tokens, &widths, first, window_width);
+        paint_page_marker(frame, area, 0, &tokens[target], theme, &mut interactions);
+    }
     if trailing {
-        paint_text(
-            frame,
-            area,
-            content_end + 1,
-            theme.glyphs.ellipsis,
-            theme.content_on_surface(
-                Role::SurfaceStrip,
-                None,
-                Some(Role::TextSecondary),
-                theme.style(Role::TextSecondary),
+        // A rule never opens a window.
+        let target = next_page
+            .map(|index| index + usize::from(matches!(tokens[index].kind, Kind::Divider)))
+            .and_then(|index| tokens.get(index));
+        match target {
+            Some(target) => paint_page_marker(
+                frame,
+                area,
+                content_end + 1,
+                target,
+                theme,
+                &mut interactions,
             ),
-        );
+            None => paint_text(
+                frame,
+                area,
+                content_end + 1,
+                theme.glyphs.ellipsis,
+                theme.content_on_surface(
+                    Role::SurfaceStrip,
+                    None,
+                    Some(Role::TextSecondary),
+                    theme.style(Role::TextSecondary),
+                ),
+            ),
+        }
         // Hidden Tabs follow the marker; creation moves to the strip's end.
         return area.width.saturating_add(1);
     }
     u16::try_from(painted_end + usize::from(painted_end > 0)).unwrap_or(u16::MAX)
+}
+
+/// The token a paged start names while it is in the strip: the Tab, or its group's header when
+/// the header was paged to or the group is collapsed.
+fn start_token(tokens: &[Token], tabs: &[GroupTabDisplay<'_>], start: StripStart) -> Option<usize> {
+    let group = tabs.get(start.index)?.group.map(|group| &group.group_id);
+    let header = || {
+        let group = group?;
+        tokens.iter().position(|token| {
+            matches!(token.kind, Kind::Header { .. })
+                && tabs
+                    .get(token.index)
+                    .and_then(|tab| tab.group)
+                    .is_some_and(|candidate| candidate.group_id == *group)
+        })
+    };
+    if start.header
+        && let Some(header) = header()
+    {
+        return Some(header);
+    }
+    tokens
+        .iter()
+        .position(|token| token.is_tab() && token.index == start.index)
+        .or_else(header)
+}
+
+/// The first token of the window that ends just before `first`: one page back.
+fn previous_page(tokens: &[Token], widths: &[usize], first: usize, window: usize) -> usize {
+    let mut start = first.saturating_sub(1);
+    let mut occupied = widths.get(start).copied().unwrap_or(0);
+    while start > 0 {
+        let previous = widths[start - 1] + 1;
+        if occupied.saturating_add(previous) > window {
+            break;
+        }
+        occupied += previous;
+        start -= 1;
+    }
+    // A rule never opens a window.
+    if matches!(
+        tokens.get(start).map(|token| &token.kind),
+        Some(Kind::Divider)
+    ) {
+        if start + 1 < first {
+            start += 1;
+        } else {
+            start = start.saturating_sub(1);
+        }
+    }
+    start
+}
+
+/// Paints an edge marker as a glyph action that pages the strip to start at `target`.
+fn paint_page_marker<C, P, R>(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    offset: usize,
+    target: &Token,
+    theme: &Theme,
+    interactions: &mut GroupInteractions<'_, C, P, R>,
+) where
+    P: FnMut(&C, usize, StripPart, Rect) -> ProjectedPointer,
+    R: FnMut(&mut C, usize, StripPart, Rect),
+{
+    let marker = theme.glyphs.ellipsis;
+    let (Ok(offset), Ok(width)) = (u16::try_from(offset), u16::try_from(display_width(marker)))
+    else {
+        return;
+    };
+    let rect = Rect::new(area.x.saturating_add(offset), area.y, width, 1);
+    if area.intersection(rect) != rect || frame.area().intersection(rect) != rect {
+        return;
+    }
+    let part = StripPart::Page {
+        header: matches!(target.kind, Kind::Header { .. }),
+    };
+    let pointer = interactions.project(target.index, part, rect);
+    let style = icon_action_style(
+        theme,
+        ControlSurface::Strip,
+        Availability::Enabled,
+        super::pointer_presentation(pointer),
+    );
+    frame
+        .buffer_mut()
+        .set_stringn(rect.x, rect.y, marker, usize::from(width), style);
+    interactions.record(target.index, part, rect);
 }
 
 fn paint_text(frame: &mut Frame<'_>, area: Rect, offset: usize, text: &str, style: Style) {

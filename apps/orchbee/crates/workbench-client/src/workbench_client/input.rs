@@ -396,6 +396,22 @@ pub trait TerminalInputPort {
     ) {
     }
 
+    /// Pages the painted Tab strip; a stale source changes nothing.
+    fn page_drawn_tab_strip(
+        &mut self,
+        _source: &crate::action_menu::DrawnTabCreate,
+        _start: &crate::tui_pointer::TabStripStart,
+    ) {
+    }
+
+    /// Keeps a paged strip window across a pointer activation of a Tab painted in it.
+    fn follow_drawn_tab_strip(
+        &mut self,
+        _source: &crate::action_menu::DrawnTabCreate,
+        _tab: &orchbee_workbench_protocol::WorkbenchTabId,
+    ) {
+    }
+
     fn commit_tab_drag(
         &mut self,
         _source: &crate::action_menu::DrawnTabCreate,

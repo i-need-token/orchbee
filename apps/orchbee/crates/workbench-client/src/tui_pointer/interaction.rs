@@ -124,6 +124,10 @@ pub enum InteractionTarget {
         source: crate::action_menu::DrawnTabCreate,
         tab: orchbee_workbench_protocol::WorkbenchTabId,
     },
+    TabStripPage {
+        source: crate::action_menu::DrawnTabCreate,
+        start: super::TabStripStart,
+    },
     PopupClose(crate::workbench_client::DrawnPopupClose),
     #[cfg(any(test, feature = "test-support"))]
     Fixture(HitTarget),
@@ -176,6 +180,7 @@ impl InteractionTarget {
                 | Self::SidebarFixed(_)
                 | Self::TabCreate(_)
                 | Self::TabCloseRequest { .. }
+                | Self::TabStripPage { .. }
         ) {
             return true;
         }
@@ -261,6 +266,10 @@ impl InteractionTarget {
             Self::TabCloseRequest { source, tab } => HitTarget::TabCloseRequest {
                 source: source.clone(),
                 tab: tab.clone(),
+            },
+            Self::TabStripPage { source, start } => HitTarget::TabStripPage {
+                source: source.clone(),
+                start: start.clone(),
             },
             Self::PopupClose(target) => HitTarget::PopupClose(target.clone()),
             #[cfg(any(test, feature = "test-support"))]

@@ -54,7 +54,7 @@ pub(crate) use list_scroll::Target as ListScrollTarget;
 pub(crate) use modal::CancelledModalEvent;
 mod scrollbar;
 mod tabs;
-pub(crate) use tabs::{TabDragPreview, TabDragSource, TabDragTab};
+pub(crate) use tabs::{TabDragPreview, TabDragSource, TabDragTab, TabStripStart};
 mod sidebar_reorder;
 #[cfg(test)]
 pub(crate) use sidebar_reorder::Placement as SidebarDropPlacement;
@@ -190,6 +190,11 @@ pub enum HitTarget {
     TabCloseRequest {
         source: crate::action_menu::DrawnTabCreate,
         tab: WorkbenchTabId,
+    },
+    /// A Tab strip edge marker that pages the strip to start at `start`.
+    TabStripPage {
+        source: crate::action_menu::DrawnTabCreate,
+        start: TabStripStart,
     },
     TabGroup {
         tab: WorkbenchTabId,
@@ -2850,7 +2855,8 @@ impl PointerState {
                 HitTarget::SidebarMenu(_)
                 | HitTarget::SidebarClose(_)
                 | HitTarget::ActionMenuControl { .. }
-                | HitTarget::TabCloseRequest { .. },
+                | HitTarget::TabCloseRequest { .. }
+                | HitTarget::TabStripPage { .. },
             ) => PointerOutcome::Ignored,
             HitResolution::Region(HitTarget::MachineProjectRow { window, .. }) => {
                 if event.action != MouseAction::Press

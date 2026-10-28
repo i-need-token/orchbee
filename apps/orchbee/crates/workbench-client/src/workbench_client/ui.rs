@@ -354,6 +354,10 @@ impl<'a> WorkbenchClientView<'a> {
             .as_ref()
             .is_some_and(|state| state.group_collapsed(id))
     }
+    /// The start of the window the person paged the Tab strip to, while it applies.
+    pub(crate) fn tab_strip_start(&self) -> Option<crate::tui_pointer::TabStripStart> {
+        self.state.as_ref()?.tab_strip_start().cloned()
+    }
 
     /// Immutable selected layout identity for a divider painted from this view.
     pub(crate) fn divider_source(&self) -> Option<crate::tui_layout::DividerSource> {

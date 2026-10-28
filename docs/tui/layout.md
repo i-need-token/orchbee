@@ -149,9 +149,12 @@ instead of presenting an incomplete task.
   scrolling.
 - Prose wraps at word boundaries. A wrapped block never exceeds its declared maximum height; excess
   content scrolls or is summarized through a documented shorter form.
-- An active tab stays fully visible: its strip windows around it before drawing neighbors. A
-  selector reveals its provisional cursor for selector navigation or under its declared
-  cursor-visible policy; ordinary viewport movement may leave that cursor offscreen.
+- An unpaged tab strip keeps the active tab fully visible: it windows around that tab before
+  drawing neighbors. Paging controls move the strip's viewport and may leave the active tab
+  offscreen; any change of the active tab other than activating a tab painted in the paged window
+  returns the strip to the window around the active tab. A selector reveals its provisional
+  cursor for selector navigation or under its declared cursor-visible policy; ordinary viewport
+  movement may leave that cursor offscreen.
 
 ## Scrolling regions
 

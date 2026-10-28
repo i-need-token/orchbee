@@ -44,6 +44,7 @@ pub(super) fn render(
         theme,
         locale.shell().unnamed_tab_group,
         0,
+        None,
         tabs::groups::GroupInteractions::new(
             &mut (),
             &mut |_, _, _, _| ProjectedPointer::Rest,

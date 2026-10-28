@@ -287,6 +287,34 @@ impl WorkbenchClientUi {
         }
     }
 
+    pub(in crate::workbench_client) fn page_drawn_tab_strip(
+        &mut self,
+        source: &crate::action_menu::DrawnTabCreate,
+        start: &crate::tui_pointer::TabStripStart,
+    ) {
+        if self
+            .tab_drag_source()
+            .is_some_and(|current| current.drawn == *source)
+            && let Some(state) = self.state.as_mut()
+        {
+            state.scroll_tab_strip(start.clone());
+        }
+    }
+
+    pub(in crate::workbench_client) fn follow_drawn_tab_strip(
+        &mut self,
+        source: &crate::action_menu::DrawnTabCreate,
+        tab: &WorkbenchTabId,
+    ) {
+        if self
+            .tab_drag_source()
+            .is_some_and(|current| current.drawn == *source)
+            && let Some(state) = self.state.as_mut()
+        {
+            state.follow_tab_strip_scroll(tab);
+        }
+    }
+
     pub(in crate::workbench_client) fn commit_tab_drag(
         &mut self,
         source: &crate::action_menu::DrawnTabCreate,

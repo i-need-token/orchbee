@@ -281,7 +281,8 @@ padding and continuation rows retain their declared owner.
 - Activating a tab changes content and leaves focus on that tab unless the owning flow explicitly
   transfers focus into the new panel. Focus movement alone never changes the active tab.
 - Overflow follows the owning layout tier through wrapping, scrolling, or a documented overflow
-  control. The active tab and the exit path remain visible; labels are not silently dropped.
+  control. The exit path remains visible, and the active tab does too unless the person scrolls
+  the tabs; a hidden label is represented by the overflow control, never silently dropped.
 
 ## Search and editors
 

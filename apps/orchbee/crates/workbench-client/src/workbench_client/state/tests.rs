@@ -29,6 +29,7 @@ mod startup_preference;
 mod switch_membership;
 mod tab_close;
 mod tab_rename;
+mod tab_strip_paging;
 mod workspace_close;
 mod workspace_setup;
 mod zoom;

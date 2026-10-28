@@ -131,6 +131,30 @@ fn tab_group_and_creation_menus_have_distinct_scopes_and_submenu_back_requires_n
 }
 
 #[test]
+fn strip_paging_requires_the_painted_source_and_follows_its_pointer_selection() {
+    for exact in [false, true] {
+        let (mut ui, _mailbox, _, _) =
+            ready_snapshot(super::super::super::tests::membership::snapshot(6, 1));
+        let source = ui.tab_drag_source().unwrap();
+        let mut stale = source.drawn.clone();
+        stale.source.revision = WorkbenchRevision::new(0);
+        let painted = if exact { &source.drawn } else { &stale };
+        let page = crate::tui_pointer::TabStripStart {
+            tab: source.tabs[3].id.clone(),
+            header: false,
+        };
+        ui.page_drawn_tab_strip(painted, &page);
+        assert_eq!(ui.view().tab_strip_start(), exact.then(|| page.clone()));
+        // Only a click on the painted strip carries its window across the selection it makes.
+        ui.page_drawn_tab_strip(&source.drawn, &page);
+        ui.follow_drawn_tab_strip(painted, &source.tabs[4].id);
+        ui.apply_client_action(ClientAction::SelectTab(5));
+        ui.prepare_draw(ratatui::layout::Rect::new(0, 0, 80, 24), false);
+        assert_eq!(ui.view().tab_strip_start(), exact.then_some(page));
+    }
+}
+
+#[test]
 fn drag_uses_existing_atomic_receipt_and_stale_source_cannot_queue() {
     let (mut ui, mailbox, clock, mut snapshot) = ready_snapshot(grouped());
     let original = snapshot.clone();
