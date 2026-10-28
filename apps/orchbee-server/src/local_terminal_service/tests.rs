@@ -217,13 +217,18 @@ fn close_session_lookup_returns_unavailable_for_missing_or_poisoned_session_owne
 
 impl LocalTerminalService {
     pub(crate) fn workspace_fixture(workers: Arc<Mutex<WorkerRegistry>>) -> Self {
+        Self::session_workspace_fixture(workers, random_session_id().unwrap())
+    }
+
+    /// A service whose Session already holds the fixture Workspace that new Tabs target.
+    pub(crate) fn session_workspace_fixture(
+        workers: Arc<Mutex<WorkerRegistry>>,
+        session: orchbee_workbench_protocol::SessionId,
+    ) -> Self {
         use crate::test_support::WorkbenchFixture;
         Self::from_workbench(
             workers,
-            Some(
-                orchbee_server::WorkbenchAuthority::workspace_fixture(random_session_id().unwrap())
-                    .unwrap(),
-            ),
+            Some(orchbee_server::WorkbenchAuthority::workspace_fixture(session).unwrap()),
         )
     }
 }

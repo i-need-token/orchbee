@@ -114,9 +114,9 @@ impl Fixture {
         let faults = Arc::clone(&popup_fault);
         let peer =
             thread::spawn(move || worker::run(peer, observation, refusals, faults, static_codex));
-        let mut service = LocalTerminalService::from_identity(
+        let mut service = LocalTerminalService::session_workspace_fixture(
             registry,
-            Ok(orchbee_workbench_protocol::SessionId::parse(&format!("{:032x}", 1)).unwrap()),
+            orchbee_workbench_protocol::SessionId::parse(&format!("{:032x}", 1)).unwrap(),
         );
         configure(&mut service);
         let service = Arc::new(service);

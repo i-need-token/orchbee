@@ -317,7 +317,7 @@ fn drain_read_serves_the_canonical_member() {
     let workers = registry();
     let generation = admit_generation(&workers);
     let owner = register(&workers, generation);
-    let service = LocalTerminalService::new(workers);
+    let service = LocalTerminalService::workspace_fixture(workers);
     let presentation = open_member(&service, generation);
     let agents = AgentService::open(AgentPolicy {
         read: true,
@@ -417,7 +417,7 @@ fn drain_read_serves_the_canonical_member() {
 /// snapshot instead of reporting Unavailable.
 #[test]
 fn no_carrier_serves_an_empty_list() {
-    let service = LocalTerminalService::new(registry());
+    let service = LocalTerminalService::workspace_fixture(registry());
     let _presentation = open_member(&service, NonZeroU64::MIN);
     let agents = AgentService::open(AgentPolicy {
         read: true,
@@ -738,7 +738,7 @@ fn retired_carrier_serves_the_retained_snapshot() {
     let workers = registry();
     let generation = admit_generation(&workers);
     let owner = register(&workers, generation);
-    let service = LocalTerminalService::new(workers);
+    let service = LocalTerminalService::workspace_fixture(workers);
     let presentation = open_member(&service, generation);
     let agents = AgentService::open(AgentPolicy {
         read: true,

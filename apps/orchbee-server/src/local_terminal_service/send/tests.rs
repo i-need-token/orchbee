@@ -68,7 +68,7 @@ impl Fixture {
         let owner = thread::spawn(move || owner.run(server));
         let peer = thread::spawn(move || run_worker(peer, requests, replies));
         let session_id = SessionId::parse(&format!("{:032x}", 1))?;
-        let service = LocalTerminalService::from_identity(registry, Ok(session_id));
+        let service = LocalTerminalService::session_workspace_fixture(registry, session_id);
         Ok(Self {
             service,
             requests: Mutex::new(worker_requests),
