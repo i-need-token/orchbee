@@ -308,7 +308,12 @@ fn link_activation_invokes_once_with_exact_clicked_primary_or_child_and_preserve
                 assert_eq!(context.focused_pane_agent.as_deref(), Some("codex"));
                 assert_eq!(context.focused_pane_status.as_deref(), Some("working"));
             }
-            assert!(context.workspace_id.is_none());
+            // The clicked Panel's Context belongs to the bound snapshot's only Workspace.
+            assert_eq!(
+                context.workspace_id.as_deref(),
+                Some("00000000000000000000000000000001")
+            );
+            assert_eq!(context.workspace_label.as_deref(), Some("Workspace"));
             assert_eq!(context.invocation_source.as_deref(), Some("link_click"));
             assert_eq!(context.clicked_url.as_deref(), Some(clicked));
             assert_eq!(context.link_handler_id.as_deref(), Some("handler"));
