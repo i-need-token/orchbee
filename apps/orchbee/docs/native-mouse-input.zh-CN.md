@@ -177,7 +177,7 @@ Picker 拥有侧栏偏好宽度；`SidebarSurface` 把同一个偏好传给布�
   打开菜单和重新 arm 捕获都不重试。同一租约在每条退出路径上禁用 `1003`、`1006` 和 `1002`——正常返回、失败、owner 线程 panic 以及每个
   终止信号。
 - `Ctrl+B m` 在运行时释放并重新 arm 捕获。释放只在模式写成功后生效，因此持久状态指示
-  （`mouse released · Ctrl+B m restores` / `鼠标已释放 · Ctrl+B m 恢复`）与宿主实际上报
+  （`mouse released · Ctrl+b m restores` / `鼠标已释放 · Ctrl+b m 恢复`）与宿主实际上报
   状态绝不不一致。released 期间，每个已解码指针事件在探测或命中解析之前即被忽略，所有
   在途手势与滚轮流取消；重新 arm 不复活它们。
 - `--mouse` 在 `tui` 准入（`off` 与 `on` 两个值）。Windows `terminal attach` 和
@@ -499,4 +499,4 @@ control/attach 字节实测覆盖。
 
 证据覆盖按钮边界、不响应的数量／空格、不重叠的分屏矩形、单面板／分屏／放大渲染、窄窗口及 Minimal 降级、修饰键／非左键报告、捕获／overlay／模态守卫、旧实例／anchor、成员移除及实际 UI 准入精确子项 Switch。组合 TestBackend 截图证明 cell composition；物理宿主配色、字体、鼠标硬件、延迟及多 Client 视觉行为需要各自的原生证据。
 
-<!-- documentation-pairing: english-sha256=f54de4318e760cb7878bb349695db567d0a6c432d7d3d81d4a4bc5761296ea07 zh-cn-sha256=4c29ad3e255ed42183878adf5114b307cd47871e57138c2deec8e0fb4ab03eee -->
+<!-- documentation-pairing: english-sha256=d925298158d5e5f68348bf25b2de06c66807162d1e2c296df3017557f98278f0 zh-cn-sha256=ff1a390372a4e1402fc63c6f7ab099029d78dcf50841cd557cd3f4cf0ef331be -->

@@ -218,8 +218,8 @@ presses before that draw and admission after it, without changing Picker focus.
   disables `1003`, `1006` and `1002` on every exit path — normal return, failure, owner-thread panic,
   and each termination signal — like every other leased mode.
 - `Ctrl+B m` releases and re-arms capture at runtime. The release applies only after the mode
-  write succeeds, so the persistent status indicator (`mouse released · Ctrl+B m restores` /
-  `鼠标已释放 · Ctrl+B m 恢复`) never disagrees with the host's actual reporting state. While
+  write succeeds, so the persistent status indicator (`mouse released · Ctrl+b m restores` /
+  `鼠标已释放 · Ctrl+b m 恢复`) never disagrees with the host's actual reporting state. While
   released every decoded pointer event is ignored before probing or hit resolution, and all
   in-flight gestures and the wheel stream are cancelled; re-arming does not resurrect them.
 - `--mouse` is admitted on `tui` (`off` and `on` values). Windows `terminal attach` and
