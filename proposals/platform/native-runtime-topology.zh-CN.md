@@ -16,7 +16,7 @@
 
 本提案细化父提案的物理进程拓扑，并显式收窄其用于原生终端启动的逻辑 placement 模型。
 当前产品 runtime 尚未形成这一目标形态。下文通过当前 owner 汇总已完成的增量底座、已检查的
-Client-side 本机 会话 activation model、本机 Server-Worker、Client Session 与 Worker-Host
+Client-side 本机 会话 activation model、本机 Server-Worker、Client-Server 与 Worker-Host
 connection spine、已集成的 Server OBCS 终端授权、terminal-control contract、已集成的 Worker
 authorization/default-launch/Host execution loop、application-private local Client transport 与共享的 local-会话 runtime，
 以及已检查的 terminal Client authority model。本机纵向链路已在 Windows、Linux 与未签名的 Apple
@@ -1087,7 +1087,10 @@ prototype 后确定，但 measurement contract 不能推迟到实施以后。
 15. 标准 packaging 只暴露 `bin/orchbee` 与私有 versioned libexec artifact。Shell、Homebrew 与 npm
     分发同一 signed/digest-verified native cohort；npm platform package 执行时不需要 Node。首批是
     macOS/Linux。Public cutover 前必须具备 atomic side-by-side install/rollback、migration evidence
-    与 measured budget。
+    与 measured budget。**平台顺序已不再适用：**实际先交付的是 Windows，具备
+    [完整 cohort 的发布安装与更新](../../apps/orchbee/docs/windows-cli-configuration.zh-CN.md#windows-版本安装)；
+    macOS 与 Linux 只有 [staged 开发 cohort](../../apps/orchbee/README.zh-CN.md#macos-与-linux-本地启动)。
+    没有更晚的编号决策记录这一顺序，本注记不改变其他条款。
 16. Agent observation 使用 versioned Capsule 中私有 one-shot Rust `orchbee-agent-bridge`。Bridge 仅
     本机、有界、静默、fail-open、不激活且无状态。Worker join 已 ACK rich event 与 private correlation；
     Server 拥有 canonical Agent semantics；Client 渲染。先做 observation，后做 launch/orchestration，
@@ -1187,4 +1190,4 @@ prototype 后确定，但 measurement contract 不能推迟到实施以后。
   DOM、pixel 或 Client-local focus state？
 - migration、compatibility、rollback 与 evidence obligation 是否足够小，可以切成可独立审阅的交付？
 
-<!-- documentation-pairing: english-sha256=d69187a1ccfc06105246161aaf8f29d832d81389eb9c4f02aa8f95f05e345369 zh-cn-sha256=6f1d3a86f3da6d11cc3601be0389cfeb8167949597c45802907583c4d80836c8 -->
+<!-- documentation-pairing: english-sha256=2a1ff20441c68b67ada0f2b7ed2a65fe9709683ec6b4b2f16600a53da13d05b1 zh-cn-sha256=e0eb5f7fae4673f7d18f956ccff2ee29411337832f22105845b1507e4925c2c9 -->

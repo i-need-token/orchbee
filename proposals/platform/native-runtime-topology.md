@@ -17,7 +17,7 @@ English remains canonical.
 This proposal refines the parent proposal's physical process topology and explicitly narrows its
 logical placement model for native terminal launch. The product runtime does not yet have this
 target shape. Completed additive foundations plus the checked Client-side local Session activation
-model, local Server-Worker, Client Session, and Worker-Host connection spines, the integrated Server
+model, local Server-Worker, Client-Server, and Worker-Host connection spines, the integrated Server
 OBCS terminal authorization, the terminal-control contracts, the integrated Worker authorization/default-launch/Host
 execution loop, the application-private local Client transport and shared local-Session runtime, and the
 checked terminal Client authority model are summarized with their current owners below. The local
@@ -1166,7 +1166,12 @@ implementation.
 15. Standard packaging exposes `bin/orchbee` and private versioned libexec artifacts. Shell,
     Homebrew, and npm distribute one signed/digest-verified native cohort; npm platform packages do
     not require Node at runtime. macOS/Linux come first. Atomic side-by-side install and rollback,
-    migration evidence, and measured budgets precede public cutover.
+    migration evidence, and measured budgets precede public cutover. **No longer applicable to the
+    platform order:** Windows came first, with
+    [complete-cohort release installation and updates](../../apps/orchbee/docs/windows-cli-configuration.md#windows-release-installation),
+    while macOS and Linux have only
+    [staged development cohorts](../../apps/orchbee/README.md#macos-and-linux-local-startup). No later
+    numbered decision records that order, and this note changes no other clause.
 16. Agent observation uses private one-shot Rust `orchbee-agent-bridge` from a versioned Capsule.
     Bridge is local-only, bounded, silent, fail-open, nonactivating, and stateless. Worker joins the
     acknowledged rich event and private correlation; Server owns canonical Agent semantics; Clients
