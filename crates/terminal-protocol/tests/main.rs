@@ -1,5 +1,9 @@
 //! Integration and conformance tests through this crate's public boundaries.
 
+// The aggregate suite owns the shared corpus decoder once.
+#[path = "support/encoded_fixture.rs"]
+mod encoded_fixture;
+
 mod attachment_control;
 mod conformance;
 mod connection_control;

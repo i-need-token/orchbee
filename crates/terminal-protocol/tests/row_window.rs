@@ -1,11 +1,9 @@
+use crate::encoded_fixture::base64;
 use orchbee_terminal_protocol::{
     MAXIMUM_ROW_WINDOW_BYTES, ProtocolErrorCode, TERMINAL_ROW_WINDOW_HEADER_BYTES,
     TerminalRowPromptClass, decode_terminal_text_row_window,
 };
 use std::error::Error;
-#[path = "support/encoded_fixture.rs"]
-mod encoded_fixture;
-use encoded_fixture::base64;
 
 const WINDOW: &[u8] =
     include_bytes!("../../../schemas/terminal/v1/fixtures/terminal-row-window.bin");

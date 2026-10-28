@@ -1,7 +1,5 @@
 //! Render admission is checked against the Host and shared TS/Zig fixtures.
-#[path = "support/encoded_fixture.rs"]
-mod encoded_fixture;
-use encoded_fixture::base64;
+use crate::encoded_fixture::base64;
 use orchbee_terminal_protocol::{
     ProtocolErrorCode, RowWindowDetail, decode_terminal_render_row_window,
     decode_terminal_text_row_window,

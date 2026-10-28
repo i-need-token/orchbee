@@ -1,7 +1,5 @@
 //! Independent TS/Zig corpus and real Host witnesses for the Rust strict boundary.
-#[path = "support/encoded_fixture.rs"]
-mod encoded_fixture;
-use encoded_fixture::base64;
+use crate::encoded_fixture::base64;
 use orchbee_terminal_protocol::{ProtocolErrorCode, decode_terminal_projection_buffer};
 use std::error::Error;
 
