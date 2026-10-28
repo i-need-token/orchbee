@@ -8,7 +8,7 @@ use crate::{localization::Locale, tui_theme::Theme};
 ///
 /// Ordinary test runs have no filesystem side effect. The invoking review creates and later
 /// releases `ORCHBEE_TUI_CAPTURE_DIR`; this helper never invents a repository snapshot store.
-pub(crate) fn capture_screen(
+pub fn capture_screen(
     terminal: &mut Terminal<TestBackend>,
     name: &str,
     locale: Locale,

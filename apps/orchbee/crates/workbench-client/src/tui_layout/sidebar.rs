@@ -7,7 +7,7 @@ use ratatui::layout::Rect;
 pub struct SidebarWidth(u16);
 
 impl SidebarWidth {
-    pub(crate) const DEFAULT: Self = Self(30);
+    pub const DEFAULT: Self = Self(30);
     const MINIMUM: u16 = 24;
     const MAXIMUM: u16 = 60;
 
@@ -18,8 +18,8 @@ impl SidebarWidth {
             None
         }
     }
-    #[cfg(test)]
-    pub(crate) const fn columns(self) -> u16 {
+    #[cfg(any(test, feature = "test-support"))]
+    pub const fn columns(self) -> u16 {
         self.0
     }
     /// The narrowest host that docks this sidebar beside Compact-minimum content.
@@ -75,7 +75,7 @@ impl DrawnSidebarWidth {
         };
         Self::new(self.viewport, surface).expect("changing width preserves sidebar visibility")
     }
-    pub(crate) fn edge(self) -> Rect {
+    pub fn edge(self) -> Rect {
         self.edge_for(self.preferred())
     }
     fn edge_for(self, width: SidebarWidth) -> Rect {

@@ -2,16 +2,25 @@
 //! Workbench owns the input port and feature state; terminal events own pure byte parsing.
 
 use crate::client_view::ClientView;
-pub(crate) use crate::terminal_events::{HostReply, PanePointerRoute, route_pane_pointer};
-pub use crate::terminal_events::{DecodedItem, DecodedKind, LegacyDecoder, MouseAction, MouseButton, MouseEvent, PaneEncode, PaneMouseEvent, encode_cursor_arrows, encode_pane_report};
+pub use crate::terminal_events::HostReply;
+pub use crate::terminal_events::{
+    DecodedItem, DecodedKind, LegacyDecoder, MouseAction, MouseButton, MouseEvent, PaneEncode,
+    PaneMouseEvent, encode_cursor_arrows, encode_pane_report,
+};
+pub(crate) use crate::terminal_events::{PanePointerRoute, route_pane_pointer};
 use crate::terminal_events::{decoder, mouse, utf8};
-pub(crate) use crate::workbench_client::input::{PointerFrameFacts, PointerProbe, PointerSelectionAdmission, PointerSelectionCell, PointerSelectionIntent, PointerUnboundPane};
-pub use crate::workbench_client::input::{ModeRequest, PointerCaptureRequest, TerminalInputPort, UnavailableTerminalInputPort};
+pub use crate::workbench_client::input::{
+    ModeRequest, PointerCaptureRequest, TerminalInputPort, UnavailableTerminalInputPort,
+};
+pub use crate::workbench_client::input::{
+    PointerFrameFacts, PointerProbe, PointerSelectionAdmission, PointerSelectionIntent,
+};
+pub(crate) use crate::workbench_client::input::{PointerSelectionCell, PointerUnboundPane};
 // Existing dispatcher fixtures build pointer facts; production consumers use the owning port.
 #[cfg(test)]
-pub(crate) use crate::workbench_client::input::{
-    PointerLinkAdmission, PointerPane, PointerTab, TerminalInputUnavailable,
-};
+pub(crate) use crate::workbench_client::input::PointerLinkAdmission;
+#[cfg(any(test, feature = "test-support"))]
+pub use crate::workbench_client::input::{PointerPane, PointerTab, TerminalInputUnavailable};
 use crate::workbench_client::{RenameDraftToken, RenameEdit, SetupEdit, SetupToken};
 mod dispatcher;
 mod modal;

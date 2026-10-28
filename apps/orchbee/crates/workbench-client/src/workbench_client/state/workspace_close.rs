@@ -23,9 +23,9 @@ pub(crate) use sidebar::WorkspaceDeleteRequest;
 /// Identifies exactly one fully drawn destructive confirmation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WorkspaceCloseToken(u64);
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 impl WorkspaceCloseToken {
-    pub(crate) const fn for_test(value: u64) -> Self {
+    pub const fn for_test(value: u64) -> Self {
         Self(value)
     }
 }

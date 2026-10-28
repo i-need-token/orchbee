@@ -8,8 +8,8 @@ use crate::client_view::{ClientView, PanelDirection};
 use crate::localization::Locale;
 use crate::terminal_device::WindowDimensions;
 use crate::terminal_projection::TerminalProjection;
+use crate::tui_layout::pane_geometries;
 use crate::tui_pointer::{HitMapBuilder, HitTarget};
-use crate::tui_shell::pane_geometries;
 use crate::workbench_client::WorkbenchClientView;
 use crate::workbench_client::ui::KeyedProjection;
 use orchbee_terminal_protocol::{

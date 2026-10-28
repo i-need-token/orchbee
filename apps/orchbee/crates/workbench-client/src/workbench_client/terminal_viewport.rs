@@ -655,11 +655,7 @@ impl TerminalViewport {
 
     /// The acknowledgement outcome for the installed window. Only an exact
     /// accepted match promotes the pending anchor to committed.
-    pub fn ack_outcome(
-        &mut self,
-        request_sequence: NonZeroU64,
-        accepted: bool,
-    ) -> ViewportEffect {
+    pub fn ack_outcome(&mut self, request_sequence: NonZeroU64, accepted: bool) -> ViewportEffect {
         let matches = self.ack == AckState::Flight
             && self
                 .window

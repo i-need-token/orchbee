@@ -85,7 +85,7 @@ pub(super) fn render_directory_guidance(
     }
     let glyphs = match theme.glyphs.mode() {
         GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
     };
     let Some(key) = bindings

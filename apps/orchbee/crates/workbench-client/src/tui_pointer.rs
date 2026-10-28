@@ -30,7 +30,7 @@ use ratatui::layout::Rect;
 use orchbee_terminal_protocol::MouseTracking;
 use orchbee_workbench_protocol::WorkbenchTabId;
 
-pub(crate) use crate::client_view::help::HelpControl;
+pub use crate::client_view::help::HelpControl;
 use crate::client_view::{ClientAction, ClientView, Modifiers};
 use crate::terminal_input::{
     MouseAction, MouseButton, MouseEvent, PaneEncode, PaneMouseEvent, PanePointerRoute,
@@ -43,10 +43,11 @@ use crate::workbench_client::state::PaneRef;
 mod chrome;
 mod copy_mode;
 mod interaction;
-pub(crate) use interaction::{
+pub use interaction::{
     InteractionAvailability, InteractionSpec, InteractionTarget, MotionObservability,
-    PointerProjection, PrimaryContract, ProjectedPointer, ReleaseOwnership,
+    PrimaryContract, ProjectedPointer,
 };
+pub(crate) use interaction::{PointerProjection, ReleaseOwnership};
 mod list_scroll;
 mod modal;
 pub(crate) use list_scroll::Target as ListScrollTarget;
@@ -84,7 +85,7 @@ const ARROWS_PER_NOTCH: usize = 3;
 /// overlay is tested before the layer beneath it, and a
 /// press that hits nothing inside it dismisses instead of falling through.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum HitLayer {
+pub enum HitLayer {
     /// A noncapturing notification card shields only its painted cells.
     Notification,
     /// A transient status row occludes pane cells without capturing the whole viewport.
@@ -106,7 +107,7 @@ pub(crate) enum HitLayer {
 /// identities, never positions: the probe re-resolves them against current
 /// state so a reorder between paint and click cannot misroute.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum HitTarget {
+pub enum HitTarget {
     Onboarding(crate::onboarding::Action),
     OnboardingSurface,
     CopyControl {
@@ -247,7 +248,7 @@ pub(crate) enum HitTarget {
 /// Stable Client-owned actions painted in the root chrome. Their live
 /// availability is still revalidated by the dispatcher on release.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum GlobalChromeAction {
+pub enum GlobalChromeAction {
     Onboarding(crate::onboarding::Action),
     RestoreSidebar,
 }
@@ -255,7 +256,7 @@ pub(crate) enum GlobalChromeAction {
 /// Finite controls shared by the two capturing pickers. A row index has meaning
 /// only together with its immutable painted token.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum ModalControl {
+pub enum ModalControl {
     Choice(usize),
     NextField,
     Refresh,
@@ -265,7 +266,7 @@ pub(crate) enum ModalControl {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum ResizeControl {
+pub enum ResizeControl {
     Adjust {
         target: Box<crate::tui_layout::DrawnResize>,
         direction: crate::client_view::PanelDirection,
@@ -637,7 +638,7 @@ impl HitMapBuilder {
             .retain(|region| region.rect.intersection(area) != region.rect);
     }
     /// A modal replaces all earlier overlay controls in this frame.
-    pub(crate) fn start_modal(&mut self) {
+    pub fn start_modal(&mut self) {
         self.map.backdrop_dismissal = None;
         {
             self.map.navigator = None;
@@ -701,7 +702,7 @@ impl HitMapBuilder {
             .regions
             .retain(|region| !matches!(region.layer, HitLayer::Overlay | HitLayer::OverlaySurface));
     }
-    pub(crate) const fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             map: FrameHitMap {
                 sidebar_reorder: None,
@@ -745,7 +746,7 @@ impl HitMapBuilder {
 
     /// A capturing overlay is open this frame: an unresolved press is an
     /// outside click that dismisses it.
-    pub(crate) fn mark_overlay_active(&mut self) {
+    pub fn mark_overlay_active(&mut self) {
         self.map.overlay_active = true;
     }
 
@@ -796,7 +797,7 @@ impl HitMapBuilder {
         }
     }
 
-    pub(crate) fn record(&mut self, layer: HitLayer, rect: Rect, target: HitTarget) {
+    pub fn record(&mut self, layer: HitLayer, rect: Rect, target: HitTarget) {
         if rect.is_empty() {
             return;
         }
@@ -821,7 +822,7 @@ impl HitMapBuilder {
     /// was painted. The ordinary `HitTarget` continues to drive the existing
     /// owner effect; availability is retained only for input admission and
     /// immutable hover/pressed projection.
-    pub(crate) fn record_modal_control(
+    pub fn record_modal_control(
         &mut self,
         layer: HitLayer,
         rect: Rect,
@@ -923,7 +924,7 @@ impl HitMapBuilder {
     /// Records one feature-declared interaction from the exact geometry its
     /// renderer successfully painted. `hit_rect` may be a child fragment of
     /// a complete row-sized `paint_rect`; frontmost children record first.
-    pub(crate) fn record_interaction(
+    pub fn record_interaction(
         &mut self,
         layer: HitLayer,
         hit_rect: Rect,
@@ -950,7 +951,7 @@ impl HitMapBuilder {
 
     /// Projects only the transient pointer axis for an exact typed target and
     /// painted extent. The feature retains every persistent component fact.
-    pub(crate) fn projected_pointer(
+    pub fn projected_pointer(
         &self,
         layer: HitLayer,
         hit_rect: Rect,
@@ -1046,10 +1047,7 @@ impl HitMapBuilder {
         self.map.exposes_divider(target)
     }
 
-    pub fn exposes_sidebar_width(
-        &self,
-        target: &crate::tui_layout::DrawnSidebarWidth,
-    ) -> bool {
+    pub fn exposes_sidebar_width(&self, target: &crate::tui_layout::DrawnSidebarWidth) -> bool {
         self.map.exposes_sidebar_width(target)
     }
 }
@@ -1375,7 +1373,7 @@ enum CancelledChromeRelease {
 /// What one host report did to the pointer state — the dispatcher maps it
 /// to `after_layout` work and map invalidation.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum PointerOutcome {
+pub enum PointerOutcome {
     SidebarReorderEnded,
     TabGestureEnded,
     SidebarWidthEnded,
@@ -1436,7 +1434,7 @@ enum PendingStatus {
 /// `Default` is released — the shell settles the armed state only after
 /// the terminal mode write succeeds.
 #[derive(Default)]
-pub(crate) struct PointerState {
+pub struct PointerState {
     capture: bool,
     host_unfocused: bool,
     motion_observability: MotionObservability,
@@ -1462,7 +1460,7 @@ pub(crate) struct PointerState {
 
 impl PointerState {
     /// Immutable transient facts used throughout one candidate render.
-    pub(crate) fn projection(&self) -> PointerProjection {
+    pub fn projection(&self) -> PointerProjection {
         let projection = self
             .interactions
             .projection()
@@ -1472,7 +1470,7 @@ impl PointerState {
 
     /// Applies the settled outer-transport motion level. Downgrade clears
     /// position and click authority before later input can be admitted.
-    pub(crate) fn set_motion_observability(&mut self, observability: MotionObservability) {
+    pub fn set_motion_observability(&mut self, observability: MotionObservability) {
         if self.motion_observability == observability {
             return;
         }
@@ -1503,7 +1501,7 @@ impl PointerState {
         }
     }
 
-    pub(crate) fn take_projection_redraw(&mut self) -> bool {
+    pub fn take_projection_redraw(&mut self) -> bool {
         let interaction = self.interactions.take_redraw_after_publish();
         let modal = self.take_modal_projection_redraw();
         let chrome = self.chrome_projection.take_redraw_after_publish();
@@ -2171,7 +2169,7 @@ impl PointerState {
     /// The lifecycle write succeeded — the flag mirrors the armed state.
     /// Releasing is immediate: in-flight gestures and the wheel stream
     /// die so nothing reaches a pane after the host stops reporting.
-    pub(crate) fn set_capture(&mut self, enabled: bool) {
+    pub fn set_capture(&mut self, enabled: bool) {
         if !enabled {
             self.cancel_list_scroll();
             self.cancel_modal_press();
@@ -2222,7 +2220,7 @@ impl PointerState {
 
     /// The draw completed — the recorded map becomes the resolution
     /// authority until the next layout change.
-    pub(crate) fn publish(&mut self, map: FrameHitMap) {
+    pub fn publish(&mut self, map: FrameHitMap) {
         if self
             .copy_drag
             .as_ref()
@@ -2343,10 +2341,7 @@ impl PointerState {
 
     /// Cancels an admitted start before a structural invalidation clears
     /// the recorded map and press-time state.
-    pub(crate) fn invalidate_map_with_port(
-        &mut self,
-        port: &mut (impl TerminalInputPort + ?Sized),
-    ) {
+    pub fn invalidate_map_with_port(&mut self, port: &mut (impl TerminalInputPort + ?Sized)) {
         self.cancel_selection(port);
         self.invalidate_map();
     }
@@ -2370,7 +2365,7 @@ impl PointerState {
     /// dispatcher to run the same viewport-sync path a keyboard action
     /// would; `RegionsChanged` additionally marks the recorded map stale
     /// — the gesture the event belongs to is untouched either way.
-    pub(crate) fn event<Port: TerminalInputPort + ?Sized>(
+    pub fn event<Port: TerminalInputPort + ?Sized>(
         &mut self,
         view: &mut ClientView,
         port: &mut Port,
@@ -2479,7 +2474,7 @@ impl PointerState {
     /// Advances pending-focus readiness and the wheel flush between
     /// packets and on idle passes. Returns `true` when bytes moved or a
     /// gesture settled — the caller redraws.
-    pub(crate) fn tick<Port: TerminalInputPort + ?Sized>(
+    pub fn tick<Port: TerminalInputPort + ?Sized>(
         &mut self,
         view: &mut ClientView,
         port: &mut Port,

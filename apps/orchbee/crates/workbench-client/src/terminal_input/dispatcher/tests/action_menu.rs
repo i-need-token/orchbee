@@ -61,9 +61,9 @@ fn sidebar_view() -> ClientView {
 
 fn sidebar_view_with_agent() -> (ClientView, crate::machine_picker::SidebarTarget) {
     let mut view = sidebar_view();
-    let mut agent = crate::machine_agents::tests::row(23);
+    let mut agent = crate::machine_agents::test_support::row(23);
     agent.target.context = sidebar_context();
-    let mut checkpoint = crate::machine_agents::tests::checkpoint(vec![agent])
+    let mut checkpoint = crate::machine_agents::test_support::checkpoint(vec![agent])
         .as_ref()
         .clone();
     checkpoint.contexts = vec![sidebar_context()].into();

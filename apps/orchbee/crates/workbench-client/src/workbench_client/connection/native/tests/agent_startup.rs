@@ -9,7 +9,7 @@ use orchbee_client_server_protocol::*;
 use orchbee_workbench_protocol::*;
 
 fn target() -> TestResult<machine_agents::Target> {
-    let mut target = machine_agents::tests::target();
+    let mut target = machine_agents::test_support::target();
     let TerminalViewerOutcome::Attached {
         host_epoch,
         host_terminal_id,
@@ -27,7 +27,7 @@ fn observe(harness: &Harness, target: &machine_agents::Target, changed: bool) ->
     harness.carrier.respond_read(
         &request,
         WorkbenchSnapshotOutcome::Available {
-            snapshot: machine_agents::tests::fixture(),
+            snapshot: machine_agents::test_support::fixture(),
         },
     )?;
     let WorkbenchRequest::PanelAgent(request) = harness.carrier.take_workbench()? else {
@@ -186,7 +186,7 @@ fn agent_startup_missing_unbound_or_moved_member_never_falls_back_to_primary() -
             fixture_geometry()?,
             ClientStartupTarget::Agent(Box::new(target)),
         )?;
-        let mut snapshot = machine_agents::tests::fixture();
+        let mut snapshot = machine_agents::test_support::fixture();
         let PanelNode::Panel {
             child_presentations,
             ..

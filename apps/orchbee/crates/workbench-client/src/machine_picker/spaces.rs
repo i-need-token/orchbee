@@ -362,7 +362,7 @@ impl Picker {
             self.spaces.queue(window, up);
         }
     }
-    pub(crate) fn show_workspaces(&mut self) {
+    pub fn show_workspaces(&mut self) {
         self.cancel_sidebar_scroll();
         self.workspace_query.clear();
         self.filter_workspaces(None);
@@ -389,7 +389,7 @@ impl Picker {
                 })
         })
     }
-    pub(crate) fn activate_sidebar_workspace(&mut self, selected: &Selection) -> bool {
+    pub fn activate_sidebar_workspace(&mut self, selected: &Selection) -> bool {
         if self.sidebar_workspace_index(selected).is_none()
             || !self.begin_selection(SelectionOrigin::Sidebar)
         {

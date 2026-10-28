@@ -36,12 +36,13 @@ mod navigation;
 mod sidebar;
 mod spaces;
 mod workspace_query;
-pub(crate) use agents::Control;
+pub use agents::Control;
 use agents::Navigation;
+pub use navigation::SidebarTarget;
 pub(crate) use navigation::{
     DrawnSidebarFixedTarget, DrawnSidebarTarget, SIDEBAR_BINDINGS, SidebarActivation,
     SidebarCommand, SidebarFixedAction, SidebarFixedActivation, SidebarIntent, SidebarPart,
-    SidebarRow, SidebarSource, SidebarTarget, sidebar_binding_label,
+    SidebarRow, SidebarSource, sidebar_binding_label,
 };
 pub(crate) use sidebar::SidebarWindow;
 pub(crate) use spaces::TabAgent;
@@ -79,7 +80,7 @@ pub enum SelectionOrigin {
     Sidebar,
 }
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub(crate) enum Mode {
+pub enum Mode {
     #[default]
     Machines,
     Workspaces,
@@ -129,11 +130,11 @@ struct PickerCatalog {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct PickerSource(Arc<PickerCatalog>);
+pub struct PickerSource(Arc<PickerCatalog>);
 
 /// A semantic action whose identity is closed over the exact painted catalog.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum PickerAction {
+pub enum PickerAction {
     Close,
     Mode(Mode),
     Control(Control),
@@ -142,7 +143,7 @@ pub(crate) enum PickerAction {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct DrawnPickerTarget {
+pub struct DrawnPickerTarget {
     source: PickerSource,
     action: PickerAction,
 }
@@ -156,14 +157,14 @@ impl DrawnPickerTarget {
         &self.source
     }
 
-    pub(crate) fn available(&self) -> bool {
+    pub fn available(&self) -> bool {
         self.source.available(self.action)
     }
 }
 
 /// The exact list viewport published with one successfully painted picker.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct DrawnPickerList {
+pub struct DrawnPickerList {
     source: PickerSource,
     window: SidebarWindow,
 }
@@ -210,7 +211,7 @@ impl PickerSource {
         }
     }
 
-    pub(crate) fn drawn(&self, action: PickerAction) -> Option<DrawnPickerTarget> {
+    pub fn drawn(&self, action: PickerAction) -> Option<DrawnPickerTarget> {
         self.admits(action).then(|| DrawnPickerTarget {
             source: self.clone(),
             action,
@@ -241,7 +242,7 @@ fn search_key_label(theme: &Theme) -> String {
 fn key_label_glyphs(theme: &Theme) -> KeyLabelGlyphs {
     match theme.glyphs.mode() {
         GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
     }
 }
@@ -326,7 +327,7 @@ impl Mode {
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Row {
+pub struct Row {
     pub(crate) choice: Choice,
     pub(crate) label: String,
     pub(crate) enabled: bool,
@@ -353,7 +354,7 @@ pub struct Picker {
     pub open: bool,
     pub current: Choice,
     pub current_label: String,
-    pub(crate) rows: Vec<Row>,
+    pub rows: Vec<Row>,
     pub busy: bool,
     pub error: Option<&'static str>,
     pub request: Option<Selection>,
@@ -477,7 +478,7 @@ impl Picker {
 
     /// Projects the exact nonvisual authority behind the currently open
     /// centered picker. A candidate renderer clones this `Arc` for the frame.
-    pub(crate) fn picker_source(&self) -> Option<PickerSource> {
+    pub fn picker_source(&self) -> Option<PickerSource> {
         let scope = self.selection_scope.filter(|scope| {
             self.available && self.open && scope.origin == SelectionOrigin::Picker
         })?;
@@ -795,7 +796,7 @@ impl Picker {
         }
         changed
     }
-    pub(crate) fn show(&mut self) {
+    pub fn show(&mut self) {
         if !self.begin_selection(SelectionOrigin::Picker) {
             return;
         }
@@ -854,7 +855,7 @@ impl Picker {
             Choice::Local => None,
         }
     }
-    pub(crate) fn key(&mut self, key: KeyEvent) {
+    pub fn key(&mut self, key: KeyEvent) {
         if key.kind == KeyKind::Release {
             return;
         }

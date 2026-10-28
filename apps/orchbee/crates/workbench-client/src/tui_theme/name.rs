@@ -6,9 +6,9 @@ pub enum ThemeName {
     #[default]
     TerminalNative,
     /// Explicit light background with the shipped One Light palette; render evidence only.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     OneLight,
     /// Explicit dark background with the shipped One Dark palette; render evidence only.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     OneDark,
 }

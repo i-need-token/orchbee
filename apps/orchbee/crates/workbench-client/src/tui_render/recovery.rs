@@ -35,7 +35,7 @@ pub(super) fn render(
         .set_style(area, theme.style(Role::SurfaceChrome));
     let key_glyphs = match theme.glyphs.mode() {
         GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
     };
     let key = format_binding_with_glyphs(

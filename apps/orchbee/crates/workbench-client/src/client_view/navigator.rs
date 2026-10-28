@@ -61,7 +61,7 @@ pub struct Row {
 /// Rows retain their existing target identity; controls that act on the
 /// surface itself carry this smaller source.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct DrawSource {
+pub struct DrawSource {
     episode: u64,
     source: Source,
 }

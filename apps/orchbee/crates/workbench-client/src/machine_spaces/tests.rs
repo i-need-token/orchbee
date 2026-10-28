@@ -22,7 +22,7 @@ fn id(n: u64) -> String {
     format!("{n:032x}")
 }
 fn fixture() -> Snapshot {
-    let mut snapshot = crate::machine_agents::tests::fixture();
+    let mut snapshot = crate::machine_agents::test_support::fixture();
     let directory_id = WorkbenchDirectoryId::parse(&id(80)).unwrap();
     let workspaces: Vec<_> = [81, 91]
         .into_iter()

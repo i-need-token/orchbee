@@ -21,7 +21,7 @@ pub(crate) use tab_groups::TabGroupPalette;
 /// `Color::Rgb`, `Color::Indexed`, and named ANSI variants appear only here
 /// and in shipped theme values.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum Role {
+pub enum Role {
     TextPrimary,
     TextSecondary,
     TextDisabled,
@@ -120,7 +120,7 @@ pub enum Polarity {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum GlyphMode {
     Unicode,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     Simplified,
 }
 
@@ -178,8 +178,8 @@ impl GlyphSet {
         working_frames: &["●"],
     };
 
-    #[cfg(test)]
-    pub(crate) const ASCII: Self = Self {
+    #[cfg(any(test, feature = "test-support"))]
+    pub const ASCII: Self = Self {
         mode: GlyphMode::Simplified,
         ellipsis: "..",
         middle_dot: "-",
@@ -339,7 +339,7 @@ enum TerminalColorSource {
 /// corner option and the resolved glyph set.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Theme {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub name: &'static str,
     pub polarity: Option<Polarity>,
     pub corners: BorderType,
@@ -493,7 +493,7 @@ impl Theme {
         let reset = Style::new().fg(Color::Reset);
         let dim = Style::new().fg(Color::Reset).add_modifier(Modifier::DIM);
         Self {
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             name: "terminal-native",
             polarity: None,
             corners: BorderType::Plain,
@@ -848,7 +848,7 @@ impl Theme {
     /// [`Style`] so reduced-color fallback modifiers are not discarded; this
     /// accessor only exposes a concrete fill when one exists.
     #[must_use]
-    pub(crate) fn color(&self, role: Role) -> Color {
+    pub fn color(&self, role: Role) -> Color {
         let style = self.style(role);
         match role {
             Role::SurfaceCanvas

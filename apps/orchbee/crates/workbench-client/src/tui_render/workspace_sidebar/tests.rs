@@ -104,7 +104,7 @@ fn view(width: u16, height: u16) -> ClientView {
     )]);
     view.machines.observe_agents(vec![(
         Choice::Local,
-        crate::machine_agents::Observation::Ready(crate::machine_agents::tests::checkpoint(
+        crate::machine_agents::Observation::Ready(crate::machine_agents::test_support::checkpoint(
             Vec::new(),
         )),
     )]);
@@ -123,7 +123,7 @@ fn configure(view: &mut ClientView, rows: serde_json::Value, gap: u16) {
 }
 
 fn agent_for(target: ClientContextTarget, number: u64) -> crate::machine_agents::Row {
-    let mut agent = crate::machine_agents::tests::row(number);
+    let mut agent = crate::machine_agents::test_support::row(number);
     agent.target.context = target;
     agent
 }
@@ -227,7 +227,7 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                 view.machines.observe_agents(vec![(
                     Choice::Local,
                     crate::machine_agents::Observation::Ready(
-                        crate::machine_agents::tests::checkpoint(vec![agent]),
+                        crate::machine_agents::test_support::checkpoint(vec![agent]),
                     ),
                 )]);
                 let focused = view
@@ -604,9 +604,9 @@ fn compact_sidebar_keeps_current_workspace_and_agent_unclipped() {
         };
         view.machines.observe_agents(vec![(
             Choice::Local,
-            crate::machine_agents::Observation::Ready(crate::machine_agents::tests::checkpoint(
-                vec![agent],
-            )),
+            crate::machine_agents::Observation::Ready(
+                crate::machine_agents::test_support::checkpoint(vec![agent]),
+            ),
         )]);
         view.machines
             .observe_focus(Choice::Local, Some(target.clone()), Some(member));
@@ -1068,9 +1068,12 @@ fn agents_are_nested_by_default_and_project_collapse_retains_disclosure() {
             .observe_focus(Choice::Local, Some(target.clone()), None);
         view.machines.observe_agents(vec![(
             Choice::Local,
-            crate::machine_agents::Observation::Ready(crate::machine_agents::tests::checkpoint(
-                vec![agent_for(target.clone(), 23), agent_for(target.clone(), 24)],
-            )),
+            crate::machine_agents::Observation::Ready(
+                crate::machine_agents::test_support::checkpoint(vec![
+                    agent_for(target.clone(), 23),
+                    agent_for(target.clone(), 24),
+                ]),
+            ),
         )]);
 
         let (_, collapsed_hits) = paint(&view, locale, &Theme::terminal_native(), 120, 40);
@@ -1148,7 +1151,7 @@ fn collapsed_rows_keep_focus_disclosure_and_current_context() {
                 view.machines.observe_agents(vec![(
                     Choice::Local,
                     crate::machine_agents::Observation::Ready(
-                        crate::machine_agents::tests::checkpoint(vec![
+                        crate::machine_agents::test_support::checkpoint(vec![
                             waiting,
                             agent_for(contexts[1].clone(), 24),
                         ]),
@@ -1348,7 +1351,7 @@ fn shortest_sidebar_keeps_complete_current_context_and_agent_when_both_fit() {
             view.machines.observe_agents(vec![(
                 Choice::Local,
                 crate::machine_agents::Observation::Ready(
-                    crate::machine_agents::tests::checkpoint(vec![agent]),
+                    crate::machine_agents::test_support::checkpoint(vec![agent]),
                 ),
             )]);
             view.machines
@@ -1477,9 +1480,9 @@ fn duplicate_agent_titles_keep_member_identity_inline_and_on_narrow_continuation
     second.label = "same Agent title".into();
     view.machines.observe_agents(vec![(
         Choice::Local,
-        crate::machine_agents::Observation::Ready(crate::machine_agents::tests::checkpoint(vec![
-            first, second,
-        ])),
+        crate::machine_agents::Observation::Ready(crate::machine_agents::test_support::checkpoint(
+            vec![first, second],
+        )),
     )]);
     expand_context_agents(&mut view, target);
 
@@ -1545,9 +1548,9 @@ fn colored_current_context_and_agent_keep_plain_identity_state_and_unread_cues_i
         let member = agent.target.clone();
         view.machines.observe_agents(vec![(
             Choice::Local,
-            crate::machine_agents::Observation::Ready(crate::machine_agents::tests::checkpoint(
-                vec![agent],
-            )),
+            crate::machine_agents::Observation::Ready(
+                crate::machine_agents::test_support::checkpoint(vec![agent]),
+            ),
         )]);
         expand_context_agents(&mut view, context_target.clone());
         view.machines.observe_focus(
@@ -1644,9 +1647,9 @@ fn monochrome_current_context_survives_explicit_plain_text_and_simultaneous_focu
     agent.seen = false;
     view.machines.observe_agents(vec![(
         Choice::Local,
-        crate::machine_agents::Observation::Ready(crate::machine_agents::tests::checkpoint(vec![
-            agent,
-        ])),
+        crate::machine_agents::Observation::Ready(crate::machine_agents::test_support::checkpoint(
+            vec![agent],
+        )),
     )]);
     // Collapsed Agent rows hand their unread cue to the Workspace row.
     if view.machines.sidebar_context_agents_expanded(&active) {
@@ -1731,9 +1734,9 @@ fn alignment_sidebar_tree_keeps_current_focus_children_and_whole_shell_evidence(
         let agent_selection = agent.target.clone();
         view.machines.observe_agents(vec![(
             Choice::Local,
-            crate::machine_agents::Observation::Ready(crate::machine_agents::tests::checkpoint(
-                vec![agent],
-            )),
+            crate::machine_agents::Observation::Ready(
+                crate::machine_agents::test_support::checkpoint(vec![agent]),
+            ),
         )]);
         expand_context_agents(&mut view, target.clone());
         assert!(view.machines.focus_sidebar_target(&active));

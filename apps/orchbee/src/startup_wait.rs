@@ -73,7 +73,7 @@ pub(crate) trait WaitInput {
 /// Never synthesize a nonzero rect — a `None` verdict only pauses startup.
 ///
 /// Startup owns no panel tree yet, so the bound verdict is
-/// the shared layout owner's [`tui_shell::active_pane_area`] with no
+/// the shared layout owner's [`tui_layout::active_pane_area`] with no
 /// session — the same projection `terminal_geometry` consults for the
 /// first Workspace launch, so wait-gating and wire geometry cannot diverge.
 pub(crate) fn startup_presentable_area(dimensions: WindowDimensions) -> Option<Rect> {
@@ -82,7 +82,7 @@ pub(crate) fn startup_presentable_area(dimensions: WindowDimensions) -> Option<R
         Rect::new(0, 0, dimensions.columns, dimensions.rows),
         view.sidebar_surface(),
     );
-    crate::tui_shell::active_pane_area(&areas, None)
+    tui_layout::active_pane_area(&areas, None)
 }
 
 /// The mode-lease surface the wait needs. Production enters the shared

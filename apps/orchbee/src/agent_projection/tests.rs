@@ -4,7 +4,7 @@ use orchbee_workbench_protocol::{TerminalAgentStateSnapshot, WorkbenchRevision};
 
 pub(crate) fn state(n: u64, agent: Option<&str>) -> TerminalAgentStateSnapshot {
     TerminalAgentStateSnapshot {
-        binding: machine_agents::tests::physical(n),
+        binding: machine_agents::test_support::physical(n),
         sequence: WorkbenchRevision::new(4),
         agent: agent.map(str::to_owned),
         state: PanelAgentState::Idle,
@@ -21,7 +21,11 @@ pub(crate) fn rows(
     canonical: Vec<AgentSessionSummary>,
     states: Vec<TerminalAgentStateSnapshot>,
 ) -> Vec<Row> {
-    project(canonical, &machine_agents::tests::state_checkpoint(states)).unwrap()
+    project(
+        canonical,
+        &machine_agents::test_support::state_checkpoint(states),
+    )
+    .unwrap()
 }
 #[test]
 fn physical_only_rows_keep_full_binding_without_fabricated_sessions() {
@@ -33,7 +37,7 @@ fn physical_only_rows_keep_full_binding_without_fabricated_sessions() {
     assert_eq!(
         rows[0].target(),
         AgentNameTarget::Terminal {
-            binding: machine_agents::tests::physical(12)
+            binding: machine_agents::test_support::physical(12)
         }
     );
     let doc = rows[0].document(1, None);
@@ -180,7 +184,7 @@ fn including_ended_sessions_does_not_renumber_live_targets() {
 }
 #[test]
 fn cursor_requires_matching_sources_filters_and_complete_order() {
-    let snapshot = machine_agents::tests::fixture();
+    let snapshot = machine_agents::test_support::fixture();
     let mut checkpoint = read::Checkpoint {
         canonical_revision: AgentSafeInteger::new(2),
         report_revision: WorkbenchRevision::new(7),

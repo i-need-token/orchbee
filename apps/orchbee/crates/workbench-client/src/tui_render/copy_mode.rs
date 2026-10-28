@@ -483,7 +483,7 @@ fn resolved_footer_hints(
 ) -> Vec<ResolvedFooterHint> {
     let key_glyphs = match theme.glyphs.mode() {
         GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
     };
     let style = LabelStyle::for_host();

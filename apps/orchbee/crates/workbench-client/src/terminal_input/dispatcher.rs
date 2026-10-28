@@ -388,8 +388,8 @@ impl InputDispatcher {
     /// The shell settles the armed flag after the terminal mode write
     /// succeeded, so client state never claims a capture the host did not
     /// actually take.
-    #[cfg(test)]
-    pub(crate) fn set_pointer_capture(
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn set_pointer_capture(
         &mut self,
         view: &mut ClientView,
         port: &mut (impl TerminalInputPort + ?Sized),
@@ -454,8 +454,8 @@ impl InputDispatcher {
     }
 
     /// The renderer's finished frame map becomes the resolution authority.
-    #[cfg(test)]
-    pub(crate) fn publish_hit_map(&mut self, map: FrameHitMap) {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn publish_hit_map(&mut self, map: FrameHitMap) {
         let _ = self.publish_hit_map_with_help(map);
     }
 
@@ -498,9 +498,7 @@ impl InputDispatcher {
         }
     }
 
-    pub fn sidebar_reorder_preview(
-        &self,
-    ) -> Option<crate::tui_pointer::SidebarReorderPreview> {
+    pub fn sidebar_reorder_preview(&self) -> Option<crate::tui_pointer::SidebarReorderPreview> {
         self.pointer.sidebar_reorder_preview()
     }
 

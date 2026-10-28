@@ -1,6 +1,6 @@
 //! Bounded host graphics facts; only the admitted Windows shell activates probes.
 use crate::terminal_device::WindowDimensions;
-pub(crate) use crate::terminal_events::graphics::Reply;
+pub use crate::terminal_events::graphics::Reply;
 use orchbee_workbench_protocol::{
     PaneGraphicsCapabilities, PaneGraphicsCellPixels, PaneGraphicsTransport,
 };
@@ -12,8 +12,8 @@ pub(crate) mod placement;
 /// An emitted query creates no placement and never guesses a terminal capability.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Query {
-    pub(crate) cell: bool,
-    pub(crate) image_id: Option<u32>,
+    pub cell: bool,
+    pub image_id: Option<u32>,
 }
 impl Query {
     pub(crate) fn sequence(self) -> String {
@@ -60,10 +60,10 @@ impl Measurement {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Facts {
     pub measurement: Option<Measurement>,
-    pub(crate) kitty: bool,
+    pub kitty: bool,
 }
 impl Facts {
-    pub(crate) fn cell_capabilities(self) -> PaneGraphicsCapabilities {
+    pub fn cell_capabilities(self) -> PaneGraphicsCapabilities {
         PaneGraphicsCapabilities {
             transport: PaneGraphicsTransport::CellRaster,
             cell_pixels: self.measurement.map(|measurement| PaneGraphicsCellPixels {
@@ -99,19 +99,19 @@ enum KittyState {
 
 /// One outstanding legacy measurement plus one correlated graphics support query.
 #[derive(Default)]
-pub(crate) struct Probe {
+pub struct Probe {
     image_id: Option<u32>,
     cells: Option<(u16, u16)>,
     cell: CellState,
     kitty: KittyState,
 }
 impl Probe {
-    pub(crate) fn activate(&mut self, image_id: u32) {
+    pub fn activate(&mut self, image_id: u32) {
         if image_id != 0 && self.image_id.is_none() {
             self.image_id = Some(image_id);
         }
     }
-    pub(crate) fn facts(&self) -> Facts {
+    pub fn facts(&self) -> Facts {
         Facts {
             measurement: match self.cell {
                 CellState::Settled(measurement) => measurement,
@@ -120,7 +120,7 @@ impl Probe {
             kitty: matches!(self.kitty, KittyState::Settled(true)),
         }
     }
-    pub(crate) fn query(&mut self, cells: (u16, u16), now: Instant) -> Option<Query> {
+    pub fn query(&mut self, cells: (u16, u16), now: Instant) -> Option<Query> {
         let id = self.image_id?;
         if cells.0 == 0 || cells.1 == 0 {
             return None;
@@ -155,7 +155,7 @@ impl Probe {
             self.kitty = KittyState::Settled(false);
         }
     }
-    pub(crate) fn reply(&mut self, reply: Reply, now: Instant) {
+    pub fn reply(&mut self, reply: Reply, now: Instant) {
         self.tick(now);
         match reply {
             Reply::Cell(pixels) => match self.cell {

@@ -113,8 +113,8 @@ mod tab_rename;
 mod tabs;
 mod terminal_cells;
 mod terminal_failure;
-#[cfg(test)]
-pub(crate) mod test_capture;
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_capture;
 mod viewport;
 mod workspace_close;
 mod workspace_creation;
@@ -2135,7 +2135,7 @@ fn render_dividers(
             crate::tui_theme::GlyphMode::Unicode => {
                 crate::tui_layout::divider_glyph(up, down, left, right)
             }
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             crate::tui_theme::GlyphMode::Simplified => {
                 if (up || down) && (left || right) {
                     '+'

@@ -381,12 +381,12 @@ fn workspace_state_uses_complete_post_attention_rows_before_agent_view_filters()
         .unwrap()
         .target
         .clone();
-    let mut working = crate::machine_agents::tests::row(23);
+    let mut working = crate::machine_agents::test_support::row(23);
     working.target.context = context.clone();
-    let mut blocked = crate::machine_agents::tests::row(24);
+    let mut blocked = crate::machine_agents::test_support::row(24);
     blocked.target.context = context.clone();
     blocked.state = PanelAgentState::Blocked;
-    let mut cp = crate::machine_agents::tests::checkpoint(vec![working, blocked])
+    let mut cp = crate::machine_agents::test_support::checkpoint(vec![working, blocked])
         .as_ref()
         .clone();
     cp.view.spec=Some(parse_agent_view_spec(br#"{"source":"test.filter","filter":{"op":"eq","field":"status","value":"idle"},"sort":[]}"#).unwrap());
@@ -410,7 +410,7 @@ fn workspace_state_uses_complete_post_attention_rows_before_agent_view_filters()
         .unwrap()
         .target
         .clone();
-    let mut empty = crate::machine_agents::tests::checkpoint(Vec::new())
+    let mut empty = crate::machine_agents::test_support::checkpoint(Vec::new())
         .as_ref()
         .clone();
     empty.contexts = vec![context].into();
@@ -468,7 +468,7 @@ fn workspace_state_priority_uses_explicit_facts_without_acknowledgement() {
             .into_iter()
             .enumerate()
             .map(|(i, (state, seen))| {
-                let mut row = crate::machine_agents::tests::row(i as u64 + 23);
+                let mut row = crate::machine_agents::test_support::row(i as u64 + 23);
                 row.target.context = context.clone();
                 row.state = state;
                 row.seen = seen;
@@ -477,9 +477,9 @@ fn workspace_state_priority_uses_explicit_facts_without_acknowledgement() {
             .collect();
         picker.agent_observations = vec![(
             Choice::Local,
-            crate::machine_agents::Observation::Ready(crate::machine_agents::tests::checkpoint(
-                rows,
-            )),
+            crate::machine_agents::Observation::Ready(
+                crate::machine_agents::test_support::checkpoint(rows),
+            ),
         )];
         assert_eq!(
             picker.workspace_state(&picker.workspace_rows[0]),

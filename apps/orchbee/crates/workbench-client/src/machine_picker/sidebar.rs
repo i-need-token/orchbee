@@ -2,7 +2,7 @@
 use super::{ClientStartupTarget, Picker, Row, Selection, SelectionOrigin, SidebarTarget};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct SidebarWindow {
+pub struct SidebarWindow {
     pub(crate) top: usize,
     pub(crate) capacity: usize,
     pub(crate) total: usize,
@@ -127,7 +127,7 @@ impl Row {
     }
 }
 impl Picker {
-    pub(crate) const fn sidebar_width(&self) -> crate::tui_layout::SidebarWidth {
+    pub const fn sidebar_width(&self) -> crate::tui_layout::SidebarWidth {
         self.sidebar_width
     }
     /// The input owner first validates a live painted source; this compares its preference.
@@ -181,8 +181,8 @@ impl Picker {
         }
         self.spaces.settle(self.sidebar_navigation_rows().len())
     }
-    #[cfg(test)]
-    pub(crate) fn show_agents(&mut self) {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn show_agents(&mut self) {
         self.cancel_sidebar_scroll();
         self.show();
         self.set_mode(super::Mode::Agents);
@@ -192,7 +192,7 @@ impl Picker {
         self.show_agents();
         self.agent_control(super::Control::Search);
     }
-    pub(crate) fn activate_sidebar_agent(&mut self, selected: &Selection) -> bool {
+    pub fn activate_sidebar_agent(&mut self, selected: &Selection) -> bool {
         if !self.available || !self.spaces.visible() || self.open {
             return false;
         }

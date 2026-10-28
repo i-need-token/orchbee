@@ -511,7 +511,7 @@ fn agent_row() -> crate::machine_agents::Row {
         seen: true,
         name: None,
         order: crate::machine_agents::PlacementOrder::default(),
-        target: crate::machine_agents::tests::target(),
+        target: crate::machine_agents::test_support::target(),
         label: "same terminal".into(),
         workspace: "project / workspace".into(),
         tab_label: None,
@@ -532,7 +532,7 @@ fn agent_mode_routes_duplicate_local_and_remote_identities_and_invalidates_stale
         ..Picker::default()
     };
     picker.replace(&[a.clone(), b.clone()]);
-    let rows = crate::machine_agents::tests::checkpoint(vec![agent_row()]);
+    let rows = crate::machine_agents::test_support::checkpoint(vec![agent_row()]);
     picker.observe_agents(vec![
         (Choice::Local, Agents::Ready(rows.clone())),
         (Choice::Remote(a.id.clone()), Agents::Ready(rows.clone())),
@@ -558,7 +558,9 @@ fn agent_mode_routes_duplicate_local_and_remote_identities_and_invalidates_stale
     let old = painted.target(PickerAction::Row(picker.selected));
     picker.observe_agents(vec![(
         Choice::Local,
-        Agents::Ready(crate::machine_agents::tests::checkpoint(vec![agent_row()])),
+        Agents::Ready(crate::machine_agents::test_support::checkpoint(vec![
+            agent_row(),
+        ])),
     )]);
     assert!(!picker.activate_drawn_picker(&old));
     assert!(
@@ -586,7 +588,7 @@ fn agent_mode_distinguishes_empty_loading_and_unavailable_without_fallback_selec
     for (observation, key) in [
         (Agents::Loading, "agents-loading"),
         (
-            Agents::Ready(crate::machine_agents::tests::checkpoint(Vec::new())),
+            Agents::Ready(crate::machine_agents::test_support::checkpoint(Vec::new())),
             "no-agents",
         ),
         (Agents::Unavailable, "agents-unavailable"),

@@ -20,13 +20,13 @@ const CONNECT_LIMIT: usize = 4;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Overview {
-    pub(crate) session: SessionId,
-    pub(crate) revision: WorkbenchRevision,
-    pub(crate) projects: usize,
-    pub(crate) workspaces: usize,
-    pub(crate) tabs: usize,
-    pub(crate) labels: Vec<String>,
-    pub(crate) contexts: std::sync::Arc<[Context]>,
+    pub session: SessionId,
+    pub revision: WorkbenchRevision,
+    pub projects: usize,
+    pub workspaces: usize,
+    pub tabs: usize,
+    pub labels: Vec<String>,
+    pub contexts: std::sync::Arc<[Context]>,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Context {

@@ -349,7 +349,7 @@ pub struct SynchronizedUpdateLease {
 }
 
 impl SynchronizedUpdateLease {
-    pub(crate) const fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             graphics: graphics::ImageLease::new(),
             frame_output_blocked: AtomicBool::new(false),
@@ -376,7 +376,7 @@ impl SynchronizedUpdateLease {
         self.frame_output_blocked.load(Ordering::Acquire)
     }
 
-    pub(crate) fn block_frame_output(&self) {
+    pub fn block_frame_output(&self) {
         self.frame_output_blocked.store(true, Ordering::Release);
     }
 }
@@ -650,7 +650,7 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
     /// Switches inside an existing lease. Global levels disable the old level first;
     /// menu motion retains button fallback. An unknown partial write fences later
     /// runtime switches until the full release sequence settles cleanup.
-    pub(crate) fn set_pointer_tracking(&mut self, level: PointerTrackingLevel) -> io::Result<()> {
+    pub fn set_pointer_tracking(&mut self, level: PointerTrackingLevel) -> io::Result<()> {
         if !self.pointer_capture_enabled {
             return Err(io::Error::other("pointer tracking requires active capture"));
         }

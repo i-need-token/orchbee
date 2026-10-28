@@ -7,7 +7,7 @@ use crate::terminal_host_appearance::HostAppearance;
 use ratatui::widgets::BorderType;
 
 struct Palette {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     name: &'static str,
     polarity: Polarity,
     primary: [u8; 3],
@@ -45,7 +45,7 @@ fn named(palette: Palette) -> Theme {
     let secondary = Style::new().fg(rgb(palette.secondary));
     let focus = Style::new().fg(rgb(palette.focus));
     Theme {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         name: palette.name,
         polarity: Some(palette.polarity),
         corners: BorderType::Plain,
@@ -115,9 +115,9 @@ impl Theme {
         }
         .quantize(level)
     }
-    pub(crate) fn one_light() -> Self {
+    pub fn one_light() -> Self {
         named(Palette {
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             name: "one-light",
             polarity: Polarity::Light,
             primary: [56, 58, 66],
@@ -157,9 +157,9 @@ impl Theme {
             ],
         })
     }
-    pub(crate) fn one_dark() -> Self {
+    pub fn one_dark() -> Self {
         named(Palette {
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             name: "one-dark",
             polarity: Polarity::Dark,
             primary: [204, 211, 224],
@@ -203,9 +203,9 @@ impl Theme {
         use super::ThemeName;
         match name {
             ThemeName::TerminalNative => Self::terminal_native(),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             ThemeName::OneLight => Self::one_light(),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             ThemeName::OneDark => Self::one_dark(),
         }
         .quantize(level)

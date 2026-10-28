@@ -13,7 +13,7 @@ use crate::{
     terminal_device::InheritedTerminal,
     terminal_lifecycle::{InheritedTerminalModes, TerminalModeGuard},
     termination_signal::TerminationSignal,
-    tui_shell,
+    tui_layout, tui_shell,
     workbench_client::{TerminalStatus, WorkbenchClient},
 };
 use std::{
@@ -53,7 +53,7 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
         },
     };
     let geometry =
-        tui_shell::terminal_geometry(dimensions, &ClientView::new(dimensions.columns), None)
+        tui_layout::terminal_geometry(dimensions, &ClientView::new(dimensions.columns), None)
             .ok()
             .flatten()
             .ok_or(StartupFailure::Terminal)?;

@@ -301,7 +301,7 @@ fn divider_live_frames_share_program_geometry_and_preserve_pane_paint() {
             pixel_height: 0,
         };
         let canonical =
-            crate::tui_shell::pane_geometries(dimensions, &view, &native.view()).unwrap();
+            crate::tui_layout::pane_geometries(dimensions, &view, &native.view()).unwrap();
         for theme in [
             Theme::terminal_native(),
             Theme::one_dark(),
@@ -319,7 +319,7 @@ fn divider_live_frames_share_program_geometry_and_preserve_pane_paint() {
                 let mut projected = native.view();
                 projected.set_resize_projection(&resize);
                 let panes =
-                    crate::tui_shell::pane_geometries(dimensions, &view, &projected).unwrap();
+                    crate::tui_layout::pane_geometries(dimensions, &view, &projected).unwrap();
                 let displacement = drag.preview.x - target.divider.x;
                 assert_eq!(panes.len(), 2);
                 assert_eq!(
@@ -377,7 +377,7 @@ fn divider_live_frames_share_program_geometry_and_preserve_pane_paint() {
                 ));
             }
             assert_eq!(
-                crate::tui_shell::pane_geometries(dimensions, &view, &native.view()).unwrap(),
+                crate::tui_layout::pane_geometries(dimensions, &view, &native.view()).unwrap(),
                 canonical
             );
             assert_eq!(
@@ -442,7 +442,7 @@ fn held_viewport_observations_keep_the_cas_source_and_resize_only_its_controller
             };
             let mut projected = native.view();
             projected.set_resize_projection(&resize);
-            let panes = crate::tui_shell::pane_geometries(dimensions, &view, &projected).unwrap();
+            let panes = crate::tui_layout::pane_geometries(dimensions, &view, &projected).unwrap();
             let expected = panes
                 .iter()
                 .find(|(panel, _, _)| panel == &target.source.focus)
@@ -595,7 +595,7 @@ fn divider_nested_vertical_target_uses_its_own_painted_area_and_ordered_slots() 
         pixel_width: 0,
         pixel_height: 0,
     };
-    let original = crate::tui_shell::pane_geometries(dimensions, &view, &native.view()).unwrap();
+    let original = crate::tui_layout::pane_geometries(dimensions, &view, &native.view()).unwrap();
     for delta in [2, 4] {
         drag.update(nested.divider.x, nested.divider.y + delta);
         let resize = ResizeProjection::Divider {
@@ -607,7 +607,7 @@ fn divider_nested_vertical_target_uses_its_own_painted_area_and_ordered_slots() 
         assert!(drawn.contains(&drag.projected_target()));
         let mut projected = native.view();
         projected.set_resize_projection(&resize);
-        let panes = crate::tui_shell::pane_geometries(dimensions, &view, &projected).unwrap();
+        let panes = crate::tui_layout::pane_geometries(dimensions, &view, &projected).unwrap();
         let displacement = drag.preview.y - nested.divider.y;
         assert_eq!(
             panes[0], original[0],

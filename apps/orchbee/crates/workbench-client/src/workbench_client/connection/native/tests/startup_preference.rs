@@ -8,7 +8,7 @@ use orchbee_workbench_protocol::*;
 #[test]
 fn startup_preference_actual_carrier_restores_second_tab_without_open_or_agent_verification()
 -> TestResult {
-    let target = crate::machine_agents::tests::target();
+    let target = crate::machine_agents::test_support::target();
     let geometry = fixture_geometry()?;
     let fallback = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let mut steps = vec![WireKind::Workbench];
@@ -37,7 +37,7 @@ fn startup_preference_actual_carrier_restores_second_tab_without_open_or_agent_v
     harness.carrier.respond_read(
         &request,
         WorkbenchSnapshotOutcome::Available {
-            snapshot: crate::machine_agents::tests::fixture(),
+            snapshot: crate::machine_agents::test_support::fixture(),
         },
     )?;
     let UiEvent::Bootstrap { key } = harness.ui.settle_next(FrameCut::None)? else {

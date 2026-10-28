@@ -57,7 +57,7 @@ impl InheritedTerminal {
         inspect().map_err(TerminalAdmissionError::Inspect)
     }
 
-    pub(crate) fn input_mode(&self) -> io::Result<u32> {
+    pub fn input_mode(&self) -> io::Result<u32> {
         self.input.mode()
     }
 
@@ -65,7 +65,7 @@ impl InheritedTerminal {
         self.input.set_mode(mode)
     }
 
-    pub(crate) fn output_mode(&self) -> io::Result<u32> {
+    pub fn output_mode(&self) -> io::Result<u32> {
         self.output.mode()
     }
 

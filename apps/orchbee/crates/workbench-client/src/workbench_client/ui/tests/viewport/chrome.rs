@@ -17,7 +17,7 @@ fn read_only_crop_keeps_complete_hints_beside_actions_and_prompt_above_status() 
             let view = ClientView::new(width);
             let area = Rect::new(0, 0, width, height);
             let areas = project_shell_areas(area, view.sidebar_surface());
-            let pane = crate::tui_shell::active_pane_area(&areas, Some(ui.view())).unwrap();
+            let pane = crate::tui_layout::active_pane_area(&areas, Some(ui.view())).unwrap();
             ui.observe_geometry(Geometry::new(pane.width, pane.height, 8, 16).unwrap());
             drain(&mailbox);
             let key = install_projection(&mut ui, None, 0);
@@ -114,9 +114,9 @@ fn minimal_global_actions_leave_the_projected_first_row_and_live_cursor_to_the_t
             assert_eq!(areas.tier, ViewportTier::Minimal, "{width}x{height}");
             assert!(areas.tabs.is_empty(), "{width}x{height}");
 
-            let pane = crate::tui_shell::active_pane_area(&areas, Some(ui.view()))
+            let pane = crate::tui_layout::active_pane_area(&areas, Some(ui.view()))
                 .expect("Minimal remains a presentable terminal viewport");
-            let geometry = crate::tui_shell::terminal_geometry(
+            let geometry = crate::tui_layout::terminal_geometry(
                 WindowDimensions {
                     columns: width,
                     pixel_height: height * 16,
@@ -309,7 +309,7 @@ fn prefix_status_uses_the_reserved_row_without_covering_or_resizing_the_terminal
                 view.machines.available = true;
                 let area = Rect::new(0, 0, width, height);
                 let areas = project_shell_areas(area, view.sidebar_surface());
-                let pane = crate::tui_shell::active_pane_area(&areas, Some(ui.view())).unwrap();
+                let pane = crate::tui_layout::active_pane_area(&areas, Some(ui.view())).unwrap();
                 assert_eq!(
                     pane,
                     crate::tui_layout::native_terminal_area(
@@ -428,7 +428,8 @@ fn ended_single_terminal_keeps_exit_feedback_in_the_reserved_status_row() {
                     view.machines.available = true;
                     let areas =
                         project_shell_areas(Rect::new(0, 0, width, height), view.sidebar_surface());
-                    let pane = crate::tui_shell::active_pane_area(&areas, Some(ui.view())).unwrap();
+                    let pane =
+                        crate::tui_layout::active_pane_area(&areas, Some(ui.view())).unwrap();
                     let key = install_projection(&mut ui, None, 0);
                     let projection = projection_at(&mut ui, &key);
                     let mut content = frame(&projection.value, 0, false, pane.height);
@@ -511,7 +512,7 @@ fn ended_single_terminal_keeps_exit_feedback_in_the_reserved_status_row() {
                             Some(HitTarget::OverlaySurface)
                         ));
                         assert_eq!(
-                            crate::tui_shell::active_pane_area(&areas, Some(ui.view())),
+                            crate::tui_layout::active_pane_area(&areas, Some(ui.view())),
                             Some(pane)
                         );
                     }

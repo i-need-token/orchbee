@@ -88,7 +88,8 @@ fn paired_pointer_projection_preserves_other_roles_and_explicit_content_colors()
     }
 }
 
-const DESIGN_TOKENS_CSS: &str = include_str!("../../../../../../packages/design-tokens/src/tokens.css");
+const DESIGN_TOKENS_CSS: &str =
+    include_str!("../../../../../../packages/design-tokens/src/tokens.css");
 
 fn css_block<'a>(source: &'a str, selector: &str) -> &'a str {
     let marker = format!("{selector} {{");

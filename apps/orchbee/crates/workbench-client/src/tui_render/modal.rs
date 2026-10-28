@@ -233,7 +233,7 @@ pub(super) fn paint_modal_close(
 pub(super) fn modal_key_label(theme: &Theme, binding: &Binding) -> String {
     let glyphs = match theme.glyphs.mode() {
         GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
     };
     format_binding_with_glyphs(binding, LabelStyle::for_host(), glyphs)

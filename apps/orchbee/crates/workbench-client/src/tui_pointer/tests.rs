@@ -55,7 +55,7 @@ fn sidebar_fixture(count: u64) -> (ClientView, FrameHitMap) {
     view.machines.available = true;
     view.machines.observe_agent_sidebar(true);
     let agents = (23..23 + count)
-        .map(crate::machine_agents::tests::row)
+        .map(crate::machine_agents::test_support::row)
         .collect::<Vec<_>>();
     view.machines
         .observe_local(vec![crate::machine_discovery::Context {
@@ -66,7 +66,9 @@ fn sidebar_fixture(count: u64) -> (ClientView, FrameHitMap) {
         }]);
     view.machines.observe_agents(vec![(
         crate::machine_picker::Choice::Local,
-        crate::machine_agents::Observation::Ready(crate::machine_agents::tests::checkpoint(agents)),
+        crate::machine_agents::Observation::Ready(crate::machine_agents::test_support::checkpoint(
+            agents,
+        )),
     )]);
     let owner = view
         .machines

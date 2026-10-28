@@ -14,14 +14,14 @@ use crate::{
 
 /// Whether a painted interaction may currently accept its declared gesture.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum InteractionAvailability {
+pub enum InteractionAvailability {
     Enabled,
     Disabled,
 }
 
 /// The explicit primary-button contract declared by a feature renderer.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum PrimaryContract {
+pub enum PrimaryContract {
     /// Arm on press and emit the semantic intent on a matching release.
     ActivateOnRelease,
     /// Emit one provisional navigation intent on press; release only ends ownership.
@@ -32,7 +32,7 @@ pub(crate) enum PrimaryContract {
 
 /// Typed interaction metadata supplied by the feature that owns the target.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct InteractionSpec {
+pub struct InteractionSpec {
     primary: PrimaryContract,
     availability: InteractionAvailability,
 }
@@ -48,7 +48,7 @@ impl InteractionSpec {
         }
     }
 
-    pub(crate) const fn enabled(primary: PrimaryContract) -> Self {
+    pub const fn enabled(primary: PrimaryContract) -> Self {
         Self::new(primary, InteractionAvailability::Enabled)
     }
 
@@ -64,7 +64,7 @@ impl InteractionSpec {
 /// The renderer-facing pointer axis. Domain focus, selection, current, checked,
 /// availability, and operation state stay independent in the component model.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub(crate) enum ProjectedPointer {
+pub enum ProjectedPointer {
     #[default]
     Rest,
     Hovered,
@@ -76,7 +76,7 @@ pub(crate) enum ProjectedPointer {
 /// Lifecycle code changes this only after its mode effect settles. Re-admission
 /// never supplies a synthetic position; a real movement report must arrive.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub(crate) enum MotionObservability {
+pub enum MotionObservability {
     #[default]
     ButtonOnly,
     AnyMotion,
@@ -89,7 +89,7 @@ pub(crate) enum MotionObservability {
 /// renderer can publish generic activation metadata; broad hit targets whose
 /// meaning depends on current context are deliberately excluded.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum InteractionTarget {
+pub enum InteractionTarget {
     Help(crate::client_view::help::DrawnHelpControl),
     GlobalChrome(super::GlobalChromeAction),
     SettingsRow {
@@ -125,7 +125,7 @@ pub(crate) enum InteractionTarget {
         tab: orchbee_workbench_protocol::WorkbenchTabId,
     },
     PopupClose(crate::workbench_client::DrawnPopupClose),
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     Fixture(HitTarget),
 }
 
@@ -179,7 +179,7 @@ impl InteractionTarget {
         ) {
             return true;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         if matches!(self, Self::Fixture(_)) {
             return true;
         }
@@ -263,7 +263,7 @@ impl InteractionTarget {
                 tab: tab.clone(),
             },
             Self::PopupClose(target) => HitTarget::PopupClose(target.clone()),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             Self::Fixture(target) => target.clone(),
         }
     }

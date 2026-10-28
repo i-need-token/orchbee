@@ -1,6 +1,6 @@
 //! Actual binary helper process and PowerShell wrapper; no configured SSH endpoint is touched.
 #![cfg(windows)]
-#[path = "../src/machine_tunnel/program.rs"]
+#[path = "../crates/workbench-client/src/machine_tunnel/program.rs"]
 mod program;
 use crate::peer_support as support;
 use orchbee_local_client_protocol::{ClientHello, LocalClientMessage, read_message, write_message};

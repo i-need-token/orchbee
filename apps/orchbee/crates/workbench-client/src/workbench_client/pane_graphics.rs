@@ -91,14 +91,14 @@ impl Layer {
     }
 }
 #[derive(Clone, Debug)]
-pub(crate) struct Canvas {
+pub struct Canvas {
     pub(super) source: Source,
     revision: WorkbenchRevision,
     layers: Vec<Layer>,
 }
 impl Canvas {
-    #[cfg(test)]
-    pub(crate) fn fixture(
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn fixture(
         target: PaneGraphicsTarget,
         revision: WorkbenchRevision,
         layers: Vec<(PaneGraphicsLayer, Vec<u8>)>,
@@ -118,8 +118,8 @@ impl Canvas {
         )
         .expect("valid graphics fixture")
     }
-    #[cfg(test)]
-    pub(crate) fn draw_for_test(&self) -> Draw {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn draw_for_test(&self) -> Draw {
         Draw::new(self.source.clone(), Some(self.revision))
     }
     pub(in crate::workbench_client) fn new(

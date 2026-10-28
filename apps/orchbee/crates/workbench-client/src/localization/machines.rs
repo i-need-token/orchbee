@@ -144,7 +144,7 @@ impl Locale {
             Self::ZhCn => "侧栏",
         }
     }
-    pub(crate) fn machine_picker_text(self, key: &str) -> &'static str {
+    pub fn machine_picker_text(self, key: &str) -> &'static str {
         match (self, key) {
             (Self::EnUs, "copy-id") => "[Ctrl+y Copy ID]",
             (Self::ZhCn, "copy-id") => "[Ctrl+y 复制 ID]",

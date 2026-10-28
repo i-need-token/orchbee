@@ -6,7 +6,7 @@
 mod client_control;
 mod completion_reminders;
 pub(crate) mod input;
-pub(crate) use input::InputAction;
+pub use input::InputAction;
 mod configuration;
 mod settings_lane;
 mod window_title;
@@ -31,7 +31,8 @@ mod agent_notifications;
 mod independent_popup;
 mod pane_graphics;
 mod panel_reports;
-pub(crate) use pane_graphics::{Canvas as PaneGraphicsCanvas, Draw as PaneGraphicsDraw};
+pub use pane_graphics::Canvas as PaneGraphicsCanvas;
+pub(crate) use pane_graphics::Draw as PaneGraphicsDraw;
 mod plugin_overlays;
 #[cfg(test)]
 pub(crate) use independent_popup::PopupInputContext;
@@ -48,7 +49,7 @@ mod primary_directory;
 mod startup_directory;
 mod startup_preference;
 pub use startup_directory::StartupDirectory;
-pub(crate) mod state;
+pub mod state;
 pub(crate) use state::control_takeover::TakeoverStatus;
 pub(crate) use state::workspace_close::WorkspaceDeleteRequest;
 pub(crate) use state::workspace_setup::ProjectRenameRequest;
@@ -71,8 +72,8 @@ pub use wakeup::UiWakeup;
 
 pub use workbench_projection::ClientContextTarget;
 pub use workbench_projection::ClientStartupTarget;
-pub(crate) use workbench_projection::{ClientPanel, ClientPanelTree, ClientPresentation};
 pub use workbench_projection::{ClientContextLocation, ClientMemberTarget};
+pub(crate) use workbench_projection::{ClientPanel, ClientPanelTree, ClientPresentation};
 
 pub(crate) use ui::{
     WorktreeEdit, WorktreeMode, WorktreeNotice, WorktreeStage, WorktreeToken, WorktreeView,
@@ -81,8 +82,16 @@ pub(crate) use ui::{
 pub use ui::RetainedFrameBank;
 #[cfg(test)]
 pub(crate) use ui::WorktreeCaptureContext;
-pub(crate) use ui::{AgentBoardActualDraw, AgentBoardControl, AgentBoardControlTarget, AgentBoardDraw, AgentBoardEpisodeToken, AgentBoardRead, AgentBoardRow, AgentBoardRowTarget, AgentBoardToken, AgentBoardView, CaptureContext, CaptureReadiness, ClientProjectionStatus, ClientTabView, CloseConfirmationToken, CloseConfirmationView, CloseStatusToken, DisplayController, DisplayProvenance, DrawnPresentationTarget, LaunchFailure, LocationLabelStatus, LocationLabelTarget, ModalPresentation, PanelCloseConfirmationToken, PanelCloseConfirmationView, PresentationPlacement, RefreshStatus, RenameDraftToken, RenameDraftView, RenameEdit, SetupDraftView, SetupEdit, SetupStage, SetupStatus, SetupToken, ViewportSurface, WorkbenchClientNotice, WorkspaceCloseConfirmationView, WorkspaceCloseToken};
-pub use ui::{DisplayPhase, DrawReceipt, WorkbenchClientView};
+pub(crate) use ui::{
+    AgentBoardActualDraw, AgentBoardControl, AgentBoardControlTarget, AgentBoardDraw,
+    AgentBoardEpisodeToken, AgentBoardRead, AgentBoardRow, AgentBoardRowTarget, AgentBoardToken,
+    AgentBoardView, CaptureReadiness, ClientProjectionStatus, ClientTabView, CloseConfirmationView,
+    CloseStatusToken, DisplayController, DisplayProvenance, DrawnPresentationTarget, LaunchFailure,
+    LocationLabelStatus, LocationLabelTarget, ModalPresentation, PanelCloseConfirmationToken,
+    PanelCloseConfirmationView, PresentationPlacement, RefreshStatus, RenameDraftToken,
+    RenameDraftView, RenameEdit, SetupDraftView, SetupEdit, SetupStage, SetupStatus, SetupToken,
+    ViewportSurface, WorkbenchClientNotice, WorkspaceCloseConfirmationView,
+};
 #[cfg(test)]
 pub(crate) use ui::{
     AgentBoardInputContext, CloseConfirmationKind, CloseStatusKind, ConfirmationCaptureContext,
@@ -90,6 +99,8 @@ pub(crate) use ui::{
     WorkspaceCloseStatus,
 };
 pub(crate) use ui::{AgentStartCatalogStatus, AgentStartPhase};
+pub use ui::{CaptureContext, CloseConfirmationToken, WorkspaceCloseToken};
+pub use ui::{DisplayPhase, DrawReceipt, WorkbenchClientView};
 
 pub use crate::localization::TerminalStatus;
 
@@ -146,10 +157,7 @@ impl WorkbenchClient {
             })
     }
 
-    pub fn navigate_context(
-        &mut self,
-        target: &ClientContextTarget,
-    ) -> ContextNavigationAdmission {
+    pub fn navigate_context(&mut self, target: &ClientContextTarget) -> ContextNavigationAdmission {
         self.backend
             .native_mut()
             .map_or(ContextNavigationAdmission::Unavailable, |native| {
@@ -347,11 +355,7 @@ impl WorkbenchClient {
         }
     }
 
-    pub fn prepare_draw(
-        &mut self,
-        viewport: ratatui::layout::Rect,
-        allow_defer: bool,
-    ) -> bool {
+    pub fn prepare_draw(&mut self, viewport: ratatui::layout::Rect, allow_defer: bool) -> bool {
         match &mut self.backend {
             ClientBackend::Native(native) => native.prepare_draw(viewport, allow_defer),
         }
@@ -438,10 +442,7 @@ impl WorkbenchClient {
         changed
     }
 
-    pub fn shared_preferences_tick(
-        &mut self,
-        view: &mut crate::client_view::ClientView,
-    ) -> bool {
+    pub fn shared_preferences_tick(&mut self, view: &mut crate::client_view::ClientView) -> bool {
         if let Some(native) = self.backend.native_mut()
             && let Some(snapshot) = native.take_settings_snapshot()
         {
@@ -569,11 +570,7 @@ impl WorkbenchClient {
         }
     }
 
-    pub fn observe_popup_surface(
-        &mut self,
-        area: ratatui::layout::Rect,
-        pixels: (u16, u16),
-    ) {
+    pub fn observe_popup_surface(&mut self, area: ratatui::layout::Rect, pixels: (u16, u16)) {
         if let Some(native) = self.backend.native_mut() {
             native.popup_surface(area, pixels);
         }

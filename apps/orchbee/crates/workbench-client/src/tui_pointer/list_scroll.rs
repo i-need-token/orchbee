@@ -7,7 +7,7 @@ use super::{
 use crate::client_view::help::HelpDrawSource;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum Target {
+pub enum Target {
     Setup(crate::workbench_client::SetupToken),
     Worktree(crate::workbench_client::WorktreeToken),
     Copy(crate::terminal_copy_mode::CopyModeToken),

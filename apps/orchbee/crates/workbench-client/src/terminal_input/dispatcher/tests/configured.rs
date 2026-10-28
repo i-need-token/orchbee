@@ -181,7 +181,7 @@ fn configured_agent_cycle_captures_packet_tail_and_never_acts_inside_picker() {
 fn sidebar_pointer_navigation_defers_current_check_without_picker_and_captures_packet_tail() {
     use crate::machine_agents::{
         Observation as Agents,
-        tests::{checkpoint, row},
+        test_support::{checkpoint, row},
     };
     use crate::machine_picker::{Choice, SidebarPart};
     use crate::tui_pointer::{

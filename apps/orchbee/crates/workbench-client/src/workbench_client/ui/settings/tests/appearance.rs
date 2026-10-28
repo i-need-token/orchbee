@@ -47,7 +47,7 @@ fn draft_appearance_reaches_background_chrome_and_program_defaults_without_runti
                 ui.apply_user_preferences(&values);
                 let area = ratatui::layout::Rect::new(0, 0, size.0, size.1);
                 let areas = crate::tui_layout::project_shell_areas(area, shell.sidebar_surface());
-                let pane = crate::tui_shell::active_pane_area(&areas, Some(ui.view())).unwrap();
+                let pane = crate::tui_layout::active_pane_area(&areas, Some(ui.view())).unwrap();
                 let key =
                     super::super::super::tests::viewport::install_projection(&mut ui, None, 0);
                 let projection = ui.projections.iter_mut().find(|p| p.key == key).unwrap();

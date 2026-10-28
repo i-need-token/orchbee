@@ -15,7 +15,7 @@ pub struct ResolvedLink {
     pub regions: Vec<LinkRegion>,
 }
 impl ResolvedLink {
-    pub(crate) fn none() -> Self {
+    pub fn none() -> Self {
         Self {
             url: None,
             regions: Vec::new(),
@@ -32,10 +32,7 @@ pub enum LinkRead {
 /// Resolve OSC 8 metadata for one rendered cell. Projection rows expose a
 /// wide glyph's tail with the head width marker, so the tail inherits the
 /// preceding head's hyperlink instead of becoming an unrelated cell.
-pub fn explicit_url(
-    row: TerminalProjectionRow<'_, '_>,
-    column: u16,
-) -> Result<Option<String>, ()> {
+pub fn explicit_url(row: TerminalProjectionRow<'_, '_>, column: u16) -> Result<Option<String>, ()> {
     let cell = row.cells().nth(usize::from(column)).ok_or(())?;
     let cell = if cell.width == 2 && column > 0 {
         row.cells().nth(usize::from(column - 1)).ok_or(())?

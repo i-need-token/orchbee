@@ -44,8 +44,8 @@ impl<E> From<crate::terminal_content::Error<E>> for Error<E> {
 /// The exact registry entry, handler, and action chosen by deterministic priority.
 #[derive(Clone)]
 pub struct Selection {
-    pub(crate) entry: PluginRegistryEntry,
-    pub(crate) handler: String,
+    pub entry: PluginRegistryEntry,
+    pub handler: String,
     pub(crate) action: String,
     catalog: Option<PluginLinkCatalogGuard>,
 }
@@ -103,10 +103,7 @@ impl Preflight {
     ///
     /// Returns `InvalidContext` when any fixed link-click field changed or the merged context is
     /// outside the protocol bounds.
-    pub fn finish<E>(
-        self,
-        context: PluginInvocationContext,
-    ) -> Result<Invocation, Error<E>> {
+    pub fn finish<E>(self, context: PluginInvocationContext) -> Result<Invocation, Error<E>> {
         if context.clicked_url.as_deref() != Some(self.url.as_str())
             || context.link_handler_id.as_deref() != Some(self.selection.handler.as_str())
             || context.correlation_id.as_deref() != Some(self.operation_id.as_str())
@@ -238,7 +235,7 @@ fn registry<E>() -> Result<PluginRegistry, Error<E>> {
 /// # Errors
 ///
 /// Returns the caller's gate error; malformed or ineligible individual handlers are skipped.
-pub(crate) fn select_entries<E>(
+pub fn select_entries<E>(
     entries: &[PluginRegistryEntry],
     url: &str,
     mut check: impl FnMut() -> Result<(), E>,

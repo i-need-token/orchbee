@@ -98,7 +98,7 @@ impl HelpDrawSource {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum HelpControl {
+pub enum HelpControl {
     ToggleAll,
     Close,
     Previous,
@@ -106,7 +106,7 @@ pub(crate) enum HelpControl {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct DrawnHelpControl {
+pub struct DrawnHelpControl {
     source: HelpDrawSource,
     control: HelpControl,
 }

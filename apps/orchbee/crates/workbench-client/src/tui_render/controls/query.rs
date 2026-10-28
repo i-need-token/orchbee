@@ -15,7 +15,7 @@ const MIN_DRAFT_WIDTH: usize = 8;
 pub(crate) fn render_divider(frame: &mut Frame<'_>, area: Rect, theme: &Theme) {
     let glyph = match theme.glyphs.mode() {
         GlyphMode::Unicode => "─",
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         GlyphMode::Simplified => "-",
     };
     frame.render_widget(

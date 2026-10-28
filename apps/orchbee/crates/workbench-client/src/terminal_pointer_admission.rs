@@ -11,7 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-pub(crate) use crate::terminal_events::pointer::{HostReply, ModeReportState};
+pub use crate::terminal_events::pointer::{HostReply, ModeReportState};
 
 const QUERY_DEADLINE: Duration = Duration::from_millis(300);
 
@@ -45,7 +45,7 @@ impl crossterm::Command for Query {
 
 /// Settled capability of this exact admitted outer-terminal endpoint.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum Capability {
+pub enum Capability {
     Admitted,
     Unavailable,
     Unknown,
@@ -64,13 +64,13 @@ enum State {
 /// A probe is deliberately neither resettable nor generation-based. A new
 /// probe requires a newly admitted endpoint owner.
 #[derive(Debug, Default)]
-pub(crate) struct Probe {
+pub struct Probe {
     state: State,
 }
 
 impl Probe {
     /// Begins the endpoint's sole query. Later calls are permanent no-ops.
-    pub(crate) fn begin(&mut self, now: Instant) -> Option<Query> {
+    pub fn begin(&mut self, now: Instant) -> Option<Query> {
         if self.state != State::Unissued {
             return None;
         }
@@ -82,7 +82,7 @@ impl Probe {
 
     /// Applies one typed host reply. The deadline wins at its exact boundary,
     /// and every reply after settlement is inert.
-    pub(crate) fn observe(&mut self, reply: HostReply, now: Instant) -> Option<Capability> {
+    pub fn observe(&mut self, reply: HostReply, now: Instant) -> Option<Capability> {
         if let Some(capability) = self.tick(now) {
             return Some(capability);
         }
@@ -108,7 +108,7 @@ impl Probe {
     }
 
     /// Settles a missing reply once. A timeout never permits another probe.
-    pub(crate) fn tick(&mut self, now: Instant) -> Option<Capability> {
+    pub fn tick(&mut self, now: Instant) -> Option<Capability> {
         let State::Pending { deadline } = self.state else {
             return None;
         };
@@ -119,15 +119,15 @@ impl Probe {
         Some(Capability::Unknown)
     }
 
-    #[cfg(test)]
-    pub(crate) const fn capability(&self) -> Option<Capability> {
+    #[cfg(any(test, feature = "test-support"))]
+    pub const fn capability(&self) -> Option<Capability> {
         match self.state {
             State::Settled(capability) => Some(capability),
             State::Unissued | State::Pending { .. } => None,
         }
     }
 
-    pub(crate) const fn any_motion_admitted(&self) -> bool {
+    pub const fn any_motion_admitted(&self) -> bool {
         matches!(self.state, State::Settled(Capability::Admitted))
     }
 }

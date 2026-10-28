@@ -1,10 +1,7 @@
 use super::*;
 use crate::{
     local_client::test_support::server::FakeServer,
-    machine_agents::{
-        Checkpoint,
-        tests::{accept, checkpoint},
-    },
+    machine_agents::{Checkpoint, test_support::checkpoint, tests::accept},
 };
 use std::io;
 fn id(n: u64) -> String {
@@ -144,7 +141,7 @@ fn carrier_snapshot_gate_and_reset_retire_completed_reads_before_accepting_fresh
         else {
             panic!("only snapshot reads");
         };
-        let mut snapshot = crate::machine_agents::tests::fixture();
+        let mut snapshot = crate::machine_agents::test_support::fixture();
         snapshot.revision = WorkbenchRevision::new(revision);
         WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
             protocol_version: ProtocolVersion,
@@ -360,7 +357,7 @@ fn failed_subscription_admission_and_first_read_recover_without_successful_state
                     request_id: request.request_id,
                     outcome: if available {
                         WorkbenchSnapshotOutcome::Available {
-                            snapshot: crate::machine_agents::tests::fixture(),
+                            snapshot: crate::machine_agents::test_support::fixture(),
                         }
                     } else {
                         WorkbenchSnapshotOutcome::Unavailable {

@@ -106,7 +106,7 @@ fn checkpoint(session: u8) -> crate::machine_spaces::Observation {
 }
 
 fn agent(context: ClientContextTarget, number: u64) -> crate::machine_agents::Row {
-    let mut row = crate::machine_agents::tests::row(number);
+    let mut row = crate::machine_agents::test_support::row(number);
     row.target.context = context;
     row
 }
@@ -120,7 +120,7 @@ fn observe_agents_at(
     rows: Vec<crate::machine_agents::Row>,
     report_revision: u64,
 ) {
-    let mut checkpoint = crate::machine_agents::tests::checkpoint(rows)
+    let mut checkpoint = crate::machine_agents::test_support::checkpoint(rows)
         .as_ref()
         .clone();
     checkpoint.report_revision =
@@ -394,7 +394,7 @@ fn agent_children_default_expanded_keep_projection_order_and_independent_disclos
         numbers
             .iter()
             .map(|n| {
-                crate::machine_agents::tests::row(*n)
+                crate::machine_agents::test_support::row(*n)
                     .target
                     .member
                     .as_str()
@@ -612,7 +612,7 @@ fn agent_join_uses_choice_session_and_full_context_location_across_colliding_ids
     let checkpoint = |session: &SessionId,
                       contexts: Vec<ClientContextTarget>,
                       rows: Vec<crate::machine_agents::Row>| {
-        let mut checkpoint = crate::machine_agents::tests::checkpoint(rows)
+        let mut checkpoint = crate::machine_agents::test_support::checkpoint(rows)
             .as_ref()
             .clone();
         checkpoint.session_id = session.clone();

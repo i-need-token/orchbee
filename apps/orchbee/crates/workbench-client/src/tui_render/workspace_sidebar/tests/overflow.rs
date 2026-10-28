@@ -433,7 +433,10 @@ fn multirow_workspace_disclosure_has_no_hit_on_separator_or_continuations() {
             view.machines.observe_agents(vec![(
                 Choice::Local,
                 crate::machine_agents::Observation::Ready(
-                    crate::machine_agents::tests::checkpoint(vec![agent_for(context.clone(), 23)]),
+                    crate::machine_agents::test_support::checkpoint(vec![agent_for(
+                        context.clone(),
+                        23,
+                    )]),
                 ),
             )]);
             let theme = Theme::one_light();

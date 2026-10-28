@@ -31,7 +31,7 @@ fn retained_renderer_has_no_cursor_selection_graphics_input_or_ack() {
     let client = ClientView::new(120);
     let areas =
         crate::tui_layout::project_shell_areas(Rect::new(0, 0, 120, 32), client.sidebar_surface());
-    let area = crate::tui_shell::active_pane_area(&areas, Some(ui.view())).unwrap();
+    let area = crate::tui_layout::active_pane_area(&areas, Some(ui.view())).unwrap();
     let projection = &mut ui.projections[0];
     let mut frame = projection.value.take_frame().unwrap();
     frame.geometry.columns = area.width;

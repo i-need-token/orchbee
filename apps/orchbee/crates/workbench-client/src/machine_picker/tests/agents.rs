@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 #[test]
 fn ordinal_agent_focus_uses_source_sorted_targets_and_never_counts_placeholders() {
-    use crate::machine_agents::tests::checkpoint;
+    use crate::machine_agents::test_support::checkpoint;
     use orchbee_workbench_protocol::*;
     let remote = profile(1, "remote", true);
     let disabled = profile(2, "disabled", false);
@@ -40,7 +40,7 @@ fn ordinal_agent_focus_uses_source_sorted_targets_and_never_counts_placeholders(
     .unwrap();
     let mut second = first.clone();
     second.target.member = TerminalPresentationId::parse(&format!("{:032x}", 24)).unwrap();
-    second.target.physical = crate::machine_agents::tests::physical(24);
+    second.target.physical = crate::machine_agents::test_support::physical(24);
     second.tokens = MetadataTokens::new(
         [(
             MetadataTokenKey::parse("phase").unwrap(),
@@ -104,7 +104,7 @@ fn ordinal_agent_focus_uses_source_sorted_targets_and_never_counts_placeholders(
 
 #[test]
 fn ordinal_intent_waits_cancels_expires_and_absent_or_current_indices_do_not_attach() {
-    use crate::machine_agents::tests::checkpoint;
+    use crate::machine_agents::test_support::checkpoint;
     let mut picker = picker();
     focus(&mut picker);
     let choice = Choice::Remote(profile(1, "remote", true).id);
@@ -138,7 +138,7 @@ fn ordinal_intent_waits_cancels_expires_and_absent_or_current_indices_do_not_att
 
 #[test]
 fn active_source_view_drives_list_and_global_cycle_and_failed_source_never_clears_it() {
-    use crate::machine_agents::{Observation as Agents, tests::checkpoint};
+    use crate::machine_agents::{Observation as Agents, test_support::checkpoint};
     use orchbee_workbench_protocol::*;
     let remote = profile(1, "remote", true);
     let mut picker = Picker {
@@ -151,7 +151,7 @@ fn active_source_view_drives_list_and_global_cycle_and_failed_source_never_clear
     let mut blocked = agent_row();
     blocked.state = PanelAgentState::Blocked;
     blocked.target.member = TerminalPresentationId::parse(&format!("{:032x}", 24)).unwrap();
-    blocked.target.physical = crate::machine_agents::tests::physical(24);
+    blocked.target.physical = crate::machine_agents::test_support::physical(24);
     let mut local = checkpoint(vec![idle.clone(), blocked.clone()])
         .as_ref()
         .clone();
@@ -207,11 +207,15 @@ fn picker() -> Picker {
     picker.observe_agents(vec![
         (
             Choice::Local,
-            Agents::Ready(crate::machine_agents::tests::checkpoint(vec![agent_row()])),
+            Agents::Ready(crate::machine_agents::test_support::checkpoint(vec![
+                agent_row(),
+            ])),
         ),
         (
             Choice::Remote(profile(1, "remote", true).id),
-            Agents::Ready(crate::machine_agents::tests::checkpoint(vec![agent_row()])),
+            Agents::Ready(crate::machine_agents::test_support::checkpoint(vec![
+                agent_row(),
+            ])),
         ),
     ]);
     picker.show();
@@ -404,7 +408,9 @@ fn global_agent_navigation_waits_wraps_and_uses_filtered_stable_order() {
     picker.observe_agents(vec![
         (
             Choice::Local,
-            Agents::Ready(crate::machine_agents::tests::checkpoint(vec![agent_row()])),
+            Agents::Ready(crate::machine_agents::test_support::checkpoint(vec![
+                agent_row(),
+            ])),
         ),
         (remote.clone(), Agents::Loading),
     ]);
@@ -417,11 +423,13 @@ fn global_agent_navigation_waits_wraps_and_uses_filtered_stable_order() {
     picker.observe_agents(vec![
         (
             Choice::Local,
-            Agents::Ready(crate::machine_agents::tests::checkpoint(vec![agent_row()])),
+            Agents::Ready(crate::machine_agents::test_support::checkpoint(vec![
+                agent_row(),
+            ])),
         ),
         (
             remote.clone(),
-            Agents::Ready(crate::machine_agents::tests::checkpoint(vec![
+            Agents::Ready(crate::machine_agents::test_support::checkpoint(vec![
                 blocked.clone(),
             ])),
         ),
@@ -463,7 +471,7 @@ fn agent_navigation_cancels_expires_and_never_selects_unavailable_or_empty_rows(
     assert!(picker.request.is_none());
     for observation in [
         Agents::Unavailable,
-        Agents::Ready(crate::machine_agents::tests::checkpoint(Vec::new())),
+        Agents::Ready(crate::machine_agents::test_support::checkpoint(Vec::new())),
     ] {
         picker.observe_agents(vec![(Choice::Local, observation)]);
         picker.navigate_agent(true, now);
@@ -472,7 +480,9 @@ fn agent_navigation_cancels_expires_and_never_selects_unavailable_or_empty_rows(
     }
     picker.observe_agents(vec![(
         Choice::Local,
-        Agents::Ready(crate::machine_agents::tests::checkpoint(vec![agent_row()])),
+        Agents::Ready(crate::machine_agents::test_support::checkpoint(vec![
+            agent_row(),
+        ])),
     )]);
     for reverse in [false, true] {
         picker.navigate_agent(reverse, now);
@@ -493,11 +503,13 @@ fn sorting_preserves_selected_physical_identity_and_invalidates_pointer_hits() {
     picker.observe_agents(vec![
         (
             Choice::Local,
-            Agents::Ready(crate::machine_agents::tests::checkpoint(vec![other])),
+            Agents::Ready(crate::machine_agents::test_support::checkpoint(vec![other])),
         ),
         (
             Choice::Remote(profile(1, "remote", true).id),
-            Agents::Ready(crate::machine_agents::tests::checkpoint(vec![agent_row()])),
+            Agents::Ready(crate::machine_agents::test_support::checkpoint(vec![
+                agent_row(),
+            ])),
         ),
     ]);
     picker.agent_control(Control::Order);
@@ -529,7 +541,9 @@ fn agent_metadata_is_visible_without_changing_activation_identity() {
     .unwrap();
     picker.observe_agents(vec![(
         Choice::Local,
-        Agents::Ready(crate::machine_agents::tests::checkpoint(vec![row.clone()])),
+        Agents::Ready(crate::machine_agents::test_support::checkpoint(vec![
+            row.clone(),
+        ])),
     )]);
     let text = paint(&picker, Locale::EnUs, 100, 30);
     for label in ["Fix docs", "Friendly Agent", "Reviewing", "issue: ORCH-42"] {

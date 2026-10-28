@@ -15,11 +15,7 @@ impl Binding {
     ///
     /// # Errors
     /// Returns `InvalidBinding` if any Session, Worker or terminal identity is malformed.
-    pub fn parse(
-        session: &str,
-        worker: &str,
-        terminal: &str,
-    ) -> Result<Self, InvalidBinding> {
+    pub fn parse(session: &str, worker: &str, terminal: &str) -> Result<Self, InvalidBinding> {
         Ok(Self {
             session: SessionId::parse(session).map_err(|_| InvalidBinding)?,
             worker: WorkerId::parse(worker).map_err(|_| InvalidBinding)?,

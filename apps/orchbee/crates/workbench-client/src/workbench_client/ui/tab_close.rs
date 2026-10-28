@@ -15,8 +15,9 @@ use crate::{
 };
 use std::sync::Arc;
 
+pub use crate::workbench_client::state::CloseConfirmationToken;
 pub(crate) use crate::workbench_client::state::{
-    CloseConfirmationKind, CloseConfirmationToken, CloseStatusKind, CloseStatusToken,
+    CloseConfirmationKind, CloseStatusKind, CloseStatusToken,
 };
 
 /// The renderer's geometry verdict for one modal surface in a completed draw.
@@ -173,7 +174,7 @@ impl DrawReceipt {
     }
 }
 
-pub(crate) struct CloseConfirmationView<'a> {
+pub struct CloseConfirmationView<'a> {
     inner: state::CloseConfirmationView<'a>,
 }
 
@@ -258,7 +259,7 @@ impl<'a> WorkbenchClientView<'a> {
     ) -> Option<crate::workbench_client::state::CloseSetStatus> {
         self.state.as_ref()?.close_set_status()
     }
-    pub(crate) fn close_confirmation(&self) -> Option<CloseConfirmationView<'a>> {
+    pub fn close_confirmation(&self) -> Option<CloseConfirmationView<'a>> {
         self.state
             .as_ref()?
             .close_confirmation()

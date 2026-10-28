@@ -32,10 +32,10 @@ const MAXIMUM_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Target {
-    pub(crate) context: ClientContextTarget,
-    pub(crate) tab: WorkbenchTabId,
-    pub(crate) panel: WorkbenchPanelId,
-    pub(crate) member: TerminalPresentationId,
+    pub context: ClientContextTarget,
+    pub tab: WorkbenchTabId,
+    pub panel: WorkbenchPanelId,
+    pub member: TerminalPresentationId,
     pub(crate) terminal: PresentationBinding,
     pub(crate) physical: AgentLaunchBinding,
     pub(crate) agent: String,
@@ -45,7 +45,7 @@ pub struct Row {
     pub(crate) seen: bool,
     pub(crate) name: Option<String>,
     pub(crate) order: PlacementOrder,
-    pub(crate) target: Target,
+    pub target: Target,
     pub(crate) label: String,
     pub(crate) workspace: String,
     pub(crate) tab_label: Option<String>,
@@ -67,7 +67,7 @@ pub struct Checkpoint {
     pub(crate) report_revision: WorkbenchRevision,
     pub(crate) contexts: Arc<[ClientContextTarget]>,
     pub(crate) view: AgentViewSnapshot,
-    pub(crate) rows: Arc<[Row]>,
+    pub rows: Arc<[Row]>,
 }
 impl std::ops::Deref for Checkpoint {
     type Target = [Row];
@@ -75,7 +75,7 @@ impl std::ops::Deref for Checkpoint {
         &self.rows
     }
 }
-pub(crate) type Observation = crate::machine_observation::Observation<Checkpoint>;
+pub type Observation = crate::machine_observation::Observation<Checkpoint>;
 pub type Collector = crate::machine_observation::Collector<Checkpoint>;
 pub(crate) use crate::machine_observation::snapshot;
 use crate::machine_observation::{check, request_id};
@@ -487,5 +487,7 @@ pub fn verify(
     check(deadline, cancel)
 }
 
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
 #[cfg(test)]
 pub(crate) mod tests;

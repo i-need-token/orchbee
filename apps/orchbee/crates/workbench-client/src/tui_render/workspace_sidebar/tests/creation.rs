@@ -114,7 +114,9 @@ fn creation_member_view() -> (ClientView, SidebarTarget, [SidebarTarget; 2]) {
         .unwrap();
     view.machines.observe_agents(vec![(
         Choice::Local,
-        crate::machine_agents::Observation::Ready(crate::machine_agents::tests::checkpoint(agents)),
+        crate::machine_agents::Observation::Ready(crate::machine_agents::test_support::checkpoint(
+            agents,
+        )),
     )]);
     expand_context_agents(&mut view, target.clone());
     (view, workspace, members)

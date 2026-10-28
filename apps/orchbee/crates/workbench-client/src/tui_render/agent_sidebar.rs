@@ -21,7 +21,7 @@ pub(super) mod tokens;
 pub(super) fn key_label_glyphs(theme: &Theme) -> KeyLabelGlyphs {
     match theme.glyphs.mode() {
         crate::tui_theme::GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         crate::tui_theme::GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
     }
 }

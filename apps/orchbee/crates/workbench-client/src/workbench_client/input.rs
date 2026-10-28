@@ -6,8 +6,9 @@ use super::{
     WorktreeToken,
 };
 mod action;
+pub(crate) use action::CapturedClientAction;
 pub(in crate::workbench_client) use action::CapturedRequest;
-pub(crate) use action::{CapturedClientAction, InputAction};
+pub use action::InputAction;
 
 use crate::client_view::{ClientAction, ClientActionDisposition, ClientKey};
 use crate::terminal_events::{DecodedItem, MouseEvent};
@@ -55,15 +56,15 @@ pub enum ModeRequest {
 /// The interaction facts of the currently attached pane's latest frame —
 /// the pane's requested mouse contract plus its screen/cursor modes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct PointerFrameFacts {
-    pub(crate) tracking: MouseTracking,
-    pub(crate) format: MouseFormat,
+pub struct PointerFrameFacts {
+    pub tracking: MouseTracking,
+    pub format: MouseFormat,
     /// `(cell_pixel_width, cell_pixel_height)`; `(0, 0)` means the host
     /// reported pixels unknown — cell-mode input still works.
-    pub(crate) cell_pixel: (u16, u16),
-    pub(crate) alternate_screen: bool,
-    pub(crate) alternate_scroll: bool,
-    pub(crate) application_cursor: bool,
+    pub cell_pixel: (u16, u16),
+    pub alternate_screen: bool,
+    pub alternate_scroll: bool,
+    pub application_cursor: bool,
 }
 
 /// A terminal cell inside the pane viewport recorded by the pointer press.
@@ -115,10 +116,10 @@ pub enum PointerLinkAdmission {
 /// tab never resolves positionally: hit regions carry exact `PaneRef`
 /// values, so the probe needs no panel list.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct PointerTab {
-    pub(crate) id: WorkbenchTabId,
+pub struct PointerTab {
+    pub id: WorkbenchTabId,
     /// 1-based position, matching `ClientAction::SelectTab`.
-    pub(crate) position: usize,
+    pub position: usize,
 }
 
 /// The live facts of one pane leaf the last probe observed, keyed by the
@@ -127,23 +128,23 @@ pub(crate) struct PointerTab {
 /// a fresh incarnation of the same `(anchor, panel)` fails the equality
 /// and orphans the gesture rather than substituting the new attachment.
 #[derive(Clone, Debug)]
-pub(crate) struct PointerPane {
-    pub(crate) right_click_reporting: bool,
-    pub(crate) right_click: orchbee_workbench_protocol::PanelRightClickTarget,
+pub struct PointerPane {
+    pub right_click_reporting: bool,
+    pub right_click: orchbee_workbench_protocol::PanelRightClickTarget,
     /// The record's exact incarnation (logical pane + incarnation).
-    pub(crate) record: crate::workbench_client::state::PaneRef,
+    pub record: crate::workbench_client::state::PaneRef,
     /// The record's attachment is live for this incarnation.
-    pub(crate) attached: bool,
+    pub attached: bool,
     /// The record's controller mode once known: `Some(true)` admits input
     /// (`Controlling`), `Some(false)` adjudicates negatively (`ReadOnly`),
     /// and `None` means the mode has not arrived yet — a settling focus
     /// must keep waiting rather than cancel as read-only.
-    pub(crate) controlling: Option<bool>,
+    pub controlling: Option<bool>,
     /// The record's installed projection reached `FrameAvailable` for
     /// this exact incarnation — a usable frame from the same generation,
     /// so an attached local focus settles immediately rather than waiting
     /// on a newer sequence.
-    pub(crate) frame_available: bool,
+    pub frame_available: bool,
 }
 
 /// The session facts a pointer event resolves against, probed fresh per
@@ -153,37 +154,37 @@ pub(crate) struct PointerPane {
 pub struct PointerProbe {
     /// A modal draft or an armed confirmation owns input; pointer events
     /// are swallowed without producing gestures.
-    pub(crate) input_captured: bool,
+    pub input_captured: bool,
     /// The focus pane's exact live incarnation — `None` when the focus
     /// pane departed or has no record. Compared bit for bit with a
     /// gesture's recorded target.
-    pub(crate) focus: Option<crate::workbench_client::state::PaneRef>,
+    pub focus: Option<crate::workbench_client::state::PaneRef>,
     /// The selection's desired pane key — its anchor names the active tab
     /// for stale-map edge resolution.
-    pub(crate) desired: Option<crate::workbench_client::state::PaneKey>,
+    pub desired: Option<crate::workbench_client::state::PaneKey>,
     /// Per-leaf live facts for every pane record, keyed by exact
     /// incarnation — the pending settler looks up its recorded target.
-    pub(crate) panes: Vec<PointerPane>,
-    pub(crate) unbound: Vec<PointerUnboundPane>,
+    pub panes: Vec<PointerPane>,
+    pub unbound: Vec<PointerUnboundPane>,
     /// `forward` would accept input right now: Ready phase under a
     /// Controlling mode with an exact focus incarnation that no close
     /// suppresses. `focus == expected` alone is not this — the phase and
     /// mode must be live reads, not a painted snapshot.
-    pub(crate) input_ready: bool,
+    pub input_ready: bool,
     /// The focus pane can admit a Host-backed selection right now: Ready
     /// phase with read authority for the exact focus incarnation and no
     /// close or retirement suppression. This is independent from
     /// `input_ready`; a ReadOnly viewer can still select and copy text.
-    pub(crate) selection_ready: bool,
+    pub selection_ready: bool,
     /// Tabs in painted order for stable-id → position resolution.
-    pub(crate) tabs: Vec<PointerTab>,
+    pub tabs: Vec<PointerTab>,
     /// The focus pane's current interaction facts; `None` while no
     /// current frame exists for the focused incarnation.
-    pub(crate) frame: Option<PointerFrameFacts>,
+    pub frame: Option<PointerFrameFacts>,
     /// The focus pane currently owns a non-Live retained-history core:
     /// wheel gestures over it scroll locally instead of encoding to the
     /// pane. Read fresh per event, like every other probe fact.
-    pub(crate) viewport_non_live: bool,
+    pub viewport_non_live: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

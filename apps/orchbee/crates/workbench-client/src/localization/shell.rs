@@ -15,7 +15,7 @@ const EN_US_USAGE_FAILURE: &str = "Invalid invocation. Run 'orchbee --help'.\n";
 const ZH_CN_USAGE_FAILURE: &str = "调用方式无效。请运行 ‘orchbee --help’。\n";
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct ShellText<'a> {
+pub struct ShellText<'a> {
     pub(crate) agents: &'static str,
     pub(crate) app_title: &'static str,
     pub(crate) board: AgentBoardText,
@@ -40,7 +40,7 @@ pub(crate) struct ShellText<'a> {
     pub(crate) no_workspace: &'static str,
     pub(crate) tabs_unavailable: &'static str,
     pub(crate) terminal_unavailable: &'static str,
-    pub(crate) too_small_notice: &'static str,
+    pub too_small_notice: &'static str,
     pub(crate) workbench_title: &'static str,
     pub(crate) pinned_tab: &'static str,
     pub(crate) unnamed_tab_group: &'static str,
@@ -226,7 +226,7 @@ impl Locale {
         }
     }
 
-    pub(crate) const fn shell(self) -> ShellText<'static> {
+    pub const fn shell(self) -> ShellText<'static> {
         match self {
             Self::EnUs => EN_US_SHELL,
             Self::ZhCn => ZH_CN_SHELL,

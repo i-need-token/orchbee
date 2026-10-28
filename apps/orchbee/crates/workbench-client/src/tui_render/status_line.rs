@@ -447,7 +447,7 @@ fn fitting_hints(hints: &[OwnedHint], available: usize, theme: &Theme) -> (usize
 fn key_label_glyphs(theme: &Theme) -> KeyLabelGlyphs {
     match theme.glyphs.mode() {
         GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
     }
 }

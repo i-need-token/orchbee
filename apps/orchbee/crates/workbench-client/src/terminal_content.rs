@@ -11,8 +11,8 @@ mod source;
 
 pub(crate) use reader::ReadAttachment;
 pub use reader::process_directory;
-pub(crate) use source::{ContentSource, PaintedRows, TerminalScreen};
 pub use source::SnapshotMember;
+pub(crate) use source::{ContentSource, PaintedRows, TerminalScreen};
 
 /// Cancellation and deadline policy supplied by the owning read lane.
 pub trait Guard {

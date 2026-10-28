@@ -5,7 +5,7 @@ fn id(value: u8) -> String {
     format!("{value:032x}")
 }
 pub(in crate::workbench_client) fn empty() -> Snapshot {
-    let mut snapshot = crate::machine_agents::tests::fixture();
+    let mut snapshot = crate::machine_agents::test_support::fixture();
     snapshot.navigation.workspaces.clear();
     snapshot.navigation.workspace_order.clear();
     snapshot.terminal_contexts.clear();
@@ -35,7 +35,7 @@ pub(in crate::workbench_client) fn created() -> Snapshot {
         workspace_id: WorkbenchWorkspaceId::parse(&id(5)).unwrap(),
         terminal_context_id: WorkbenchTerminalContextId::parse(&id(6)).unwrap(),
     });
-    let tab = crate::machine_agents::tests::fixture().terminal_contexts[0]
+    let tab = crate::machine_agents::test_support::fixture().terminal_contexts[0]
         .tabs
         .remove(0);
     snapshot.terminal_contexts.push(TerminalContext {
@@ -82,7 +82,7 @@ fn directory_startup_only_empty_content_without_restore_block_admits_creation() 
     }
     assert!(!directory.admits(&empty_workspace));
     assert!(!directory.admits(&created()));
-    assert!(!directory.admits(&crate::machine_agents::tests::fixture()));
+    assert!(!directory.admits(&crate::machine_agents::test_support::fixture()));
     assert!(
         StartupDirectory::new(None, Locale::EnUs, true)
             .parameters()

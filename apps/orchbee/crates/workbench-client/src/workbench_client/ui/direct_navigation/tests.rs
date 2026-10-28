@@ -10,8 +10,8 @@ use crate::workbench_client::{
 use orchbee_workbench_protocol::{SessionId, TerminalId, WorkbenchSnapshotOutcome};
 
 fn first() -> crate::machine_agents::Target {
-    let mut target = crate::machine_agents::tests::row(12).target;
-    let snapshot = crate::machine_agents::tests::fixture();
+    let mut target = crate::machine_agents::test_support::row(12).target;
+    let snapshot = crate::machine_agents::test_support::fixture();
     target.tab = snapshot.terminal_contexts[0].tabs[0].tab_id.clone();
     let orchbee_workbench_protocol::PanelNode::Panel { panel_id, .. } =
         &snapshot.terminal_contexts[0].tabs[0].root
@@ -58,7 +58,7 @@ fn settle_switch(
             WorkerEvent::SwitchSnapshotResult {
                 marker: target.selected().key().clone(),
                 outcome: WorkbenchSnapshotOutcome::Available {
-                    snapshot: crate::machine_agents::tests::fixture(),
+                    snapshot: crate::machine_agents::test_support::fixture(),
                 },
             },
             EventDeadline::PlacementOnly(target.deadlines().forward_cutoff()),
@@ -107,9 +107,9 @@ fn settle_switch(
 #[test]
 fn direct_agent_guards_identity_and_busy_before_current_then_selects_exact_child() {
     let (mut ui, mailbox, clock, _) =
-        ready_ui_with_snapshot(crate::machine_agents::tests::fixture());
+        ready_ui_with_snapshot(crate::machine_agents::test_support::fixture());
     let original = first();
-    let destination = crate::machine_agents::tests::target();
+    let destination = crate::machine_agents::test_support::target();
     install_matching_projection(&mut ui, &original);
     assert_eq!(ui.navigate_agent(&original), Admission::Current);
     for invalid in 0..3 {
@@ -148,7 +148,7 @@ fn direct_agent_guards_identity_and_busy_before_current_then_selects_exact_child
 #[test]
 fn direct_cross_context_agent_installs_exact_child_without_intermediate_default_member() {
     use orchbee_workbench_protocol::{WorkbenchTerminalContextId, WorkbenchWorkspaceId, Workspace};
-    let mut snapshot = crate::machine_agents::tests::fixture();
+    let mut snapshot = crate::machine_agents::test_support::fixture();
     let mut workspace = snapshot.terminal_contexts[0].clone();
     snapshot.terminal_contexts[0].tabs.truncate(1);
     workspace.tabs.remove(0);
@@ -170,7 +170,7 @@ fn direct_cross_context_agent_installs_exact_child_without_intermediate_default_
         .collect();
     snapshot.terminal_contexts.push(workspace.clone());
     let (mut ui, mailbox, clock, _) = ready_ui_with_snapshot(snapshot.clone());
-    let mut target = crate::machine_agents::tests::target();
+    let mut target = crate::machine_agents::test_support::target();
     target.context.location = crate::workbench_client::ClientContextLocation::Workspace {
         workspace_id,
         terminal_context_id: workspace.terminal_context_id,
@@ -248,7 +248,7 @@ fn current_agent_with_same_canonical_binding_but_different_host_requires_fenced_
     use orchbee_agent_observation_protocol::{AgentHostEpoch, AgentHostTerminalId};
     for mismatch in 0..3 {
         let (mut ui, mailbox, _, _) =
-            ready_ui_with_snapshot(crate::machine_agents::tests::fixture());
+            ready_ui_with_snapshot(crate::machine_agents::test_support::fixture());
         let mut target = first();
         if mismatch != 2 {
             install_matching_projection(&mut ui, &target);
@@ -290,7 +290,7 @@ fn same_tab_agent_focus_requires_the_live_peer_host_before_local_focus() {
         let panel = tab.panel(1).unwrap();
         let member = state.selected_presentation(panel);
         let binding = member.binding().unwrap();
-        let mut target = crate::machine_agents::tests::target();
+        let mut target = crate::machine_agents::test_support::target();
         target.context = crate::workbench_client::ClientContextTarget {
             session_id: state.cache().session_id().clone(),
             location: state.cache().location().clone(),
@@ -359,7 +359,8 @@ fn direct_host_replacement_discards_old_pixels_using_shared_viewport_geometry() 
     use orchbee_agent_observation_protocol::AgentHostTerminalId;
     use ratatui::layout::Rect;
     for mismatch in [false, true] {
-        let (mut ui, _, _, _) = ready_ui_with_snapshot(crate::machine_agents::tests::fixture());
+        let (mut ui, _, _, _) =
+            ready_ui_with_snapshot(crate::machine_agents::test_support::fixture());
         let mut target = first();
         install_matching_projection(&mut ui, &target);
         let client = ClientView::new(120);
@@ -367,7 +368,7 @@ fn direct_host_replacement_discards_old_pixels_using_shared_viewport_geometry() 
             Rect::new(0, 0, 120, 32),
             client.sidebar_surface(),
         );
-        let area = crate::tui_shell::active_pane_area(&areas, Some(ui.view())).unwrap();
+        let area = crate::tui_layout::active_pane_area(&areas, Some(ui.view())).unwrap();
         let projection = ui.projections.last_mut().unwrap();
         let mut frame = crate::workbench_client::ui::tests::viewport::frame(
             &projection.value,

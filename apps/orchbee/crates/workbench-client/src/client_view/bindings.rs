@@ -7,8 +7,8 @@ use super::{
     keys::{Binding, KeyEvent},
 };
 mod configured;
-pub(crate) use configured::DiscoveryEntry;
 pub use configured::Bindings;
+pub(crate) use configured::DiscoveryEntry;
 
 /// The chord the ordinary layer intercepts unconditionally: `Ctrl+B`.
 pub(crate) const PREFIX_CHORD: Binding = Binding::new(KeyCode::Char('b'), Modifiers::CTRL);

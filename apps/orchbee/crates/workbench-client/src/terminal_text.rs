@@ -241,7 +241,7 @@ fn skip_sequence(characters: &mut impl Iterator<Item = (usize, char)>, mut state
 /// Display width in terminal cells: East Asian wide characters count as two,
 /// combining marks as zero. This is the one canonical measure — the same
 /// function for measuring, truncating, and laying out chrome text.
-pub(crate) fn display_width(text: &str) -> usize {
+pub fn display_width(text: &str) -> usize {
     Line::raw(text).width()
 }
 
@@ -262,7 +262,7 @@ pub(crate) fn unique_identity_suffix(id: &str, peers: &[&str]) -> String {
 /// budgeted before the text. Returns `text` unchanged when it already fits and
 /// an empty string when even the marker exceeds the budget. Splits only on
 /// grapheme boundaries, so a wide character or combining sequence is never cut.
-pub(crate) fn truncate_display(text: &str, budget: usize, marker: &str) -> String {
+pub fn truncate_display(text: &str, budget: usize, marker: &str) -> String {
     if display_width(text) <= budget {
         return text.to_owned();
     }

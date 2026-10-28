@@ -67,9 +67,9 @@ pub(crate) use panel_close::PanelCloseConfirmationToken;
 pub(super) use panel_close::{PanelCloseConfirmationView, PanelCloseState};
 use switch_membership::SwitchMembership;
 pub(super) use switch_membership::SwitchRestoreKey;
+pub use tab_close::CloseConfirmationToken;
 pub(crate) use tab_close::{
-    CloseConfirmationKind, CloseConfirmationToken, CloseSetStatus, CloseStatusKind,
-    CloseStatusToken,
+    CloseConfirmationKind, CloseSetStatus, CloseStatusKind, CloseStatusToken,
 };
 pub(super) use tab_close::{
     CloseConfirmationView, CloseFlightKey, CloseLeaseAcknowledgement, CloseOperation,
@@ -106,13 +106,13 @@ fn contains_presentation(
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct AttachmentKey {
+pub struct AttachmentKey {
     generation: u64,
     tab_id: WorkbenchTabId,
 }
 
 impl AttachmentKey {
-    pub(crate) const fn new(generation: u64, tab_id: WorkbenchTabId) -> Self {
+    pub const fn new(generation: u64, tab_id: WorkbenchTabId) -> Self {
         Self { generation, tab_id }
     }
 
@@ -130,13 +130,13 @@ impl AttachmentKey {
 /// move that keeps the same anchor and panel keeps the same key. Equality is
 /// exact — anchor-generation or tab comparisons must go through `anchor()`.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct PaneKey {
+pub struct PaneKey {
     anchor: AttachmentKey,
     panel: WorkbenchPanelId,
 }
 
 impl PaneKey {
-    pub(crate) const fn new(anchor: AttachmentKey, panel: WorkbenchPanelId) -> Self {
+    pub const fn new(anchor: AttachmentKey, panel: WorkbenchPanelId) -> Self {
         Self { anchor, panel }
     }
 
@@ -144,7 +144,7 @@ impl PaneKey {
         &self.anchor
     }
 
-    pub(crate) const fn panel(&self) -> &WorkbenchPanelId {
+    pub const fn panel(&self) -> &WorkbenchPanelId {
         &self.panel
     }
 
@@ -170,11 +170,11 @@ pub struct PaneRef {
 }
 
 impl PaneRef {
-    pub(crate) const fn new(pane: PaneKey, incarnation: u32) -> Self {
+    pub const fn new(pane: PaneKey, incarnation: u32) -> Self {
         Self { pane, incarnation }
     }
 
-    pub(crate) const fn pane(&self) -> &PaneKey {
+    pub const fn pane(&self) -> &PaneKey {
         &self.pane
     }
 

@@ -8,7 +8,7 @@ const MAX_BYTES: usize = 1024;
 const DISMISSED: &[u8] = b"{\"version\":1,\"dismissed\":true}\n";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum Action {
+pub enum Action {
     Workspace,
     Agent,
     Menu,

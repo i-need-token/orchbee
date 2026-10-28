@@ -12,9 +12,9 @@ mod lane;
 pub mod plugin;
 mod reader;
 
+pub(crate) use crate::terminal_content::ContentSource as PaintedLinkSource;
 #[cfg(test)]
 pub(crate) use crate::terminal_content::PaintedRows;
-pub(crate) use crate::terminal_content::ContentSource as PaintedLinkSource;
 pub use crate::terminal_content::{Guard, SnapshotMember};
 pub(crate) use lane::{Admission, Driver, Notice};
 pub use plugin::{Activation, Error};

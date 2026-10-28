@@ -179,7 +179,7 @@ fn peer(case: Case) -> io::Result<FakeServer> {
         else {
             panic!("final topology fence");
         };
-        let mut snapshot = machine_agents::tests::fixture();
+        let mut snapshot = machine_agents::test_support::fixture();
         if matches!(case, Case::WorkbenchDrift) {
             snapshot.revision = WorkbenchRevision::new(2);
         }
@@ -213,7 +213,7 @@ fn complete_read_requires_both_sources_and_all_revision_fences() -> io::Result<(
             .map_err(io::Error::other)?;
         let result = read(
             &mut client,
-            &machine_agents::tests::fixture(),
+            &machine_agents::test_support::fixture(),
             false,
             deadline,
             OwnedCancellation::new().unwrap().borrow(),
@@ -249,7 +249,7 @@ fn expired_and_cancelled_reads_have_no_source_or_effect_requests() -> io::Result
         }
         let result = read(
             &mut client,
-            &machine_agents::tests::fixture(),
+            &machine_agents::test_support::fixture(),
             false,
             if cancelled { deadline } else { Instant::now() },
             cancel.borrow(),
@@ -298,7 +298,7 @@ fn cancellation_and_deadline_interrupt_an_inflight_source_without_retry() -> io:
         };
         let result = read(
             &mut client,
-            &machine_agents::tests::fixture(),
+            &machine_agents::test_support::fixture(),
             false,
             deadline,
             cancel.borrow(),

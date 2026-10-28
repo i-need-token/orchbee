@@ -23,7 +23,7 @@ const REPLY_DEADLINE: Duration = Duration::from_secs(5);
 
 #[derive(Clone)]
 pub struct Surface(Rc<RefCell<State>>);
-pub(crate) struct Choice {
+pub struct Choice {
     pub(crate) revision: Option<WorkbenchRevision>,
 }
 struct State {
@@ -97,13 +97,7 @@ impl Surface {
             cursor: 0,
         })))
     }
-    pub fn update(
-        &self,
-        facts: Facts,
-        now: Instant,
-        replies: Vec<Reply>,
-        overflow: bool,
-    ) -> bool {
+    pub fn update(&self, facts: Facts, now: Instant, replies: Vec<Reply>, overflow: bool) -> bool {
         let mut state = self.0.borrow_mut();
         let mut changed = state.facts != facts;
         state.facts = facts;
@@ -142,7 +136,7 @@ impl Surface {
         state.frame_allowed = false;
         state.staged.clear();
     }
-    pub(crate) fn select(
+    pub fn select(
         &self,
         session: &SessionId,
         canvas: &PaneGraphicsCanvas,
@@ -240,11 +234,7 @@ impl Surface {
             state.start_candidate();
         }
     }
-    pub fn write_frame(
-        &self,
-        writer: &mut impl Write,
-        cursor: Position,
-    ) -> io::Result<Vec<u32>> {
+    pub fn write_frame(&self, writer: &mut impl Write, cursor: Position) -> io::Result<Vec<u32>> {
         let mut state = self.0.borrow_mut();
         if state.lease.frame_output_blocked() {
             return Ok(Vec::new());

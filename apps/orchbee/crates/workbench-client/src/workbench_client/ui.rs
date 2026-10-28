@@ -89,9 +89,10 @@ pub(in crate::workbench_client) mod tests;
 mod workspace_close;
 mod workspace_setup;
 mod worktree_launch;
+pub(crate) use workspace_close::WorkspaceCloseConfirmationView;
 #[cfg(test)]
 pub(crate) use workspace_close::WorkspaceCloseStatus;
-pub(crate) use workspace_close::{WorkspaceCloseConfirmationView, WorkspaceCloseToken};
+pub use workspace_close::WorkspaceCloseToken;
 pub(crate) use workspace_setup::{
     LocationLabelStatus, LocationLabelTarget, SetupDraftView, SetupEdit, SetupStage, SetupStatus,
     SetupToken,
@@ -104,16 +105,18 @@ mod copy_mode;
 mod tab_rename;
 mod terminal_effects;
 mod terminal_selection;
+pub use input_capture::CaptureContext;
+pub(crate) use input_capture::CaptureReadiness;
 #[cfg(test)]
 pub(crate) use input_capture::WorktreeCaptureContext;
-pub(crate) use input_capture::{CaptureContext, CaptureReadiness};
 #[cfg(test)]
 pub(crate) use input_capture::{ConfirmationCaptureContext, SetupCaptureContext};
 pub(crate) use panel_close::{PanelCloseConfirmationToken, PanelCloseConfirmationView};
+pub use tab_close::CloseConfirmationToken;
+pub use tab_close::DrawReceipt;
 #[cfg(test)]
 pub(crate) use tab_close::{CloseConfirmationKind, CloseStatusKind};
-pub(crate) use tab_close::{CloseConfirmationToken, CloseConfirmationView, CloseStatusToken, ModalPresentation};
-pub use tab_close::DrawReceipt;
+pub(crate) use tab_close::{CloseConfirmationView, CloseStatusToken, ModalPresentation};
 #[cfg(test)]
 pub(crate) use tab_rename::RenameInputContext;
 pub(crate) use tab_rename::{RenameDraftToken, RenameDraftView, RenameEdit};
@@ -325,10 +328,7 @@ impl<'a> WorkbenchClientView<'a> {
         })
     }
     /// A shell-local projection never changes the cache or canonical layout inspection.
-    pub fn set_resize_projection(
-        &mut self,
-        resize: &'a crate::tui_layout::ResizeProjection,
-    ) {
+    pub fn set_resize_projection(&mut self, resize: &'a crate::tui_layout::ResizeProjection) {
         self.resize = Some(resize);
     }
 
@@ -940,10 +940,10 @@ impl<'a> WorkbenchClientView<'a> {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 impl<'a> WorkbenchClientView<'a> {
     /// Empty, unobstructed Native surface for consumers whose test owns no Client state.
-    pub(crate) fn notification_test_view() -> Self {
+    pub fn notification_test_view() -> Self {
         Self {
             worktree: None,
             menu: None,
@@ -975,6 +975,7 @@ impl<'a> WorkbenchClientView<'a> {
     /// live projections and the focus draw status the paint pass would
     /// report — the exact shape `pane_geometries`, `active_pane_area`, and
     /// the renderer consume.
+    #[cfg(test)]
     pub(super) fn test_view(
         state: &'a WorkbenchClientState,
         panes: &'a [KeyedProjection],

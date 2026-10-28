@@ -93,7 +93,7 @@ pub struct KeyEvent {
 }
 
 impl KeyEvent {
-    pub(crate) const fn press(code: KeyCode, mods: Modifiers) -> Self {
+    pub const fn press(code: KeyCode, mods: Modifiers) -> Self {
         Self {
             code,
             mods,
@@ -197,7 +197,7 @@ impl LabelStyle {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum KeyLabelGlyphs {
     Unicode,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     Ascii,
 }
 
@@ -276,25 +276,25 @@ fn format_binding_with_presentation(
         KeyCode::PageDown => "PageDown".to_owned(),
         KeyCode::Up => match glyphs {
             KeyLabelGlyphs::Unicode => "↑",
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             KeyLabelGlyphs::Ascii => "Up",
         }
         .to_owned(),
         KeyCode::Down => match glyphs {
             KeyLabelGlyphs::Unicode => "↓",
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             KeyLabelGlyphs::Ascii => "Down",
         }
         .to_owned(),
         KeyCode::Left => match glyphs {
             KeyLabelGlyphs::Unicode => "←",
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             KeyLabelGlyphs::Ascii => "Left",
         }
         .to_owned(),
         KeyCode::Right => match glyphs {
             KeyLabelGlyphs::Unicode => "→",
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             KeyLabelGlyphs::Ascii => "Right",
         }
         .to_owned(),

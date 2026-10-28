@@ -40,7 +40,7 @@ fn automatic_label_is_unicode_bounded_and_roots_are_localized() {
     assert_eq!(
         automatic_label(
             &path,
-            &crate::machine_agents::tests::fixture(),
+            &crate::machine_agents::test_support::fixture(),
             Locale::EnUs
         )
         .as_str()
@@ -51,7 +51,7 @@ fn automatic_label_is_unicode_bounded_and_roots_are_localized() {
     assert_eq!(
         automatic_label(
             &WorkbenchDirectoryPath::parse("C:/").unwrap(),
-            &crate::machine_agents::tests::fixture(),
+            &crate::machine_agents::test_support::fixture(),
             Locale::EnUs
         )
         .as_str(),
@@ -60,7 +60,7 @@ fn automatic_label_is_unicode_bounded_and_roots_are_localized() {
     assert_eq!(
         automatic_label(
             &WorkbenchDirectoryPath::parse("C:/").unwrap(),
-            &crate::machine_agents::tests::fixture(),
+            &crate::machine_agents::test_support::fixture(),
             Locale::ZhCn
         )
         .as_str(),

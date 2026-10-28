@@ -51,7 +51,7 @@ pub enum ReservationState {
 /// submission. This remains separate from the workflow verdict: a later
 /// readiness failure cannot erase input that was already accepted.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum DeliveryDisposition {
+pub enum DeliveryDisposition {
     /// No record reached the Host queue, or submission never began.
     NotApplied,
     /// Every record reached the Host queue.
@@ -109,7 +109,7 @@ pub struct Report {
     pub last_observed: Option<AgentLaunchReservation>,
     pub reservation_state: ReservationState,
     pub submission: Option<Submission>,
-    pub(crate) delivery: DeliveryDisposition,
+    pub delivery: DeliveryDisposition,
     pub elapsed_ms: u64,
     pub verdict: Verdict,
 }

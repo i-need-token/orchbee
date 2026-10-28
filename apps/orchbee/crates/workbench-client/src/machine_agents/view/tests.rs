@@ -9,7 +9,7 @@ fn row() -> Row {
         seen: true,
         name: None,
         order: crate::machine_agents::PlacementOrder::default(),
-        target: crate::machine_agents::tests::target(),
+        target: crate::machine_agents::test_support::target(),
         label: "terminal".into(),
         workspace: "project / workspace".into(),
         tab_label: None,
@@ -50,7 +50,7 @@ fn source_view_uses_canonical_agent_exact_member_and_raw_multikey_ties() {
     let mut second = first.clone();
     second.state = PanelAgentState::Blocked;
     second.target.member = TerminalPresentationId::parse(&format!("{:032x}", 24)).unwrap();
-    second.target.physical = crate::machine_agents::tests::physical(24);
+    second.target.physical = crate::machine_agents::test_support::physical(24);
     let candidates = [
         (Choice::Local, first.clone()),
         (remote.clone(), second.clone()),
@@ -173,7 +173,7 @@ fn view_priority_and_state_sequence_are_stable_and_display_metadata_cannot_retar
         ["2", "4", "1", "0", "3"]
     );
     let target = result[0].row.target.clone();
-    assert_eq!(target, crate::machine_agents::tests::target());
+    assert_eq!(target, crate::machine_agents::test_support::target());
     let view = View {
         order: Order::Sequence,
         ..View::default()

@@ -12,7 +12,7 @@ use orchbee_workbench_protocol::{SessionId, WorkbenchProjectId};
 use std::sync::Arc;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum SidebarTarget {
+pub enum SidebarTarget {
     Project {
         machine: Choice,
         session_id: SessionId,
@@ -251,7 +251,7 @@ impl SidebarSource {
 
 /// Exact semantic target and window geometry admitted by one Sidebar frame.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct DrawnSidebarTarget {
+pub struct DrawnSidebarTarget {
     source: SidebarSource,
     target: SidebarTarget,
     part: SidebarPart,
@@ -269,7 +269,7 @@ pub(crate) enum SidebarFixedAction {
 
 /// A fixed Sidebar action bound to the same immutable source as the tree frame.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct DrawnSidebarFixedTarget {
+pub struct DrawnSidebarFixedTarget {
     source: SidebarSource,
     action: SidebarFixedAction,
     scope: Option<Selection>,
@@ -974,7 +974,7 @@ impl Picker {
             .flatten()
             .map(|focus| &focus.target)
     }
-    pub(crate) fn enter_sidebar_navigation(&mut self) -> bool {
+    pub fn enter_sidebar_navigation(&mut self) -> bool {
         if !self.available || self.open {
             return false;
         }
@@ -996,8 +996,8 @@ impl Picker {
         });
         self.spaces.reveal();
     }
-    #[cfg(test)]
-    pub(crate) fn focus_sidebar_target(&mut self, target: &SidebarTarget) -> bool {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn focus_sidebar_target(&mut self, target: &SidebarTarget) -> bool {
         if !self.available || self.open || !self.spaces.visible() {
             return false;
         }

@@ -65,7 +65,7 @@ impl State {
     pub fn empty(&self) -> bool {
         self.visible.is_none() && self.pending.is_none()
     }
-    pub(crate) fn install(&mut self, message: Notification, now: Instant) -> bool {
+    pub fn install(&mut self, message: Notification, now: Instant) -> bool {
         self.install_with_delivery(message, self.policy.delivery, now)
     }
     pub(crate) fn install_automatic(
@@ -115,10 +115,7 @@ impl State {
         }
     }
 }
-pub fn available(
-    view: &ClientView,
-    workbench_client: Option<WorkbenchClientView<'_>>,
-) -> bool {
+pub fn available(view: &ClientView, workbench_client: Option<WorkbenchClientView<'_>>) -> bool {
     let Some(native) = workbench_client else {
         return false;
     };

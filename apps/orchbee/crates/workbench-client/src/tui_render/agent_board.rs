@@ -80,7 +80,7 @@ pub(super) fn render(
         Layout::vertical([Constraint::Length(1); 3]).areas(footer);
     let key_glyphs = match theme.glyphs.mode() {
         GlyphMode::Unicode => crate::client_view::KeyLabelGlyphs::Unicode,
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         GlyphMode::Simplified => crate::client_view::KeyLabelGlyphs::Ascii,
     };
     let label_style = crate::client_view::LabelStyle::for_host();

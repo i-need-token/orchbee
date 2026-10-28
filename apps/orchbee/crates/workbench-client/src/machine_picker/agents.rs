@@ -19,7 +19,7 @@ use crate::{
 };
 use std::time::{Duration, Instant};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum Control {
+pub enum Control {
     State,
     Scope,
     Order,

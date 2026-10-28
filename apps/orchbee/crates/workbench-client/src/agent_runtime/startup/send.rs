@@ -54,12 +54,12 @@ pub enum InputFailure {
 
 impl Receipt {
     /// Derive delivery truth from the Server outcome, independently of any later workflow failure.
-    pub(crate) fn verdict(&self) -> SendVerdict {
+    pub fn verdict(&self) -> SendVerdict {
         verdict(self.result.outcome())
     }
     /// Return no failure only for accepted input with confirmed cleanup.
     /// Partial input and zero-input protocol faults retain different failure categories.
-    pub(crate) fn refusal(&self) -> Option<InputFailure> {
+    pub fn refusal(&self) -> Option<InputFailure> {
         match self.result.outcome() {
             TerminalSendOutcome::Accepted {
                 cleanup: SendCleanupStatus::Confirmed,

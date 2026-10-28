@@ -1,5 +1,5 @@
 use super::*;
-use crate::machine_agents::{Observation as Agents, tests::checkpoint};
+use crate::machine_agents::{Observation as Agents, test_support::checkpoint};
 
 fn sidebar_picker(count: u64) -> Picker {
     let mut picker = Picker {
@@ -15,7 +15,7 @@ fn sidebar_picker(count: u64) -> Picker {
             index + 23
         ))
         .unwrap();
-        row.target.physical = crate::machine_agents::tests::physical(index + 23);
+        row.target.physical = crate::machine_agents::test_support::physical(index + 23);
         rows.push(row);
     }
     picker.observe_local(vec![Context {

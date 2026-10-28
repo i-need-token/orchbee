@@ -97,9 +97,9 @@ impl ClientStartupTarget {
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ClientMemberTarget {
-    pub(crate) tab: WorkbenchTabId,
-    pub(crate) panel: WorkbenchPanelId,
-    pub(crate) presentation: TerminalPresentationId,
+    pub tab: WorkbenchTabId,
+    pub panel: WorkbenchPanelId,
+    pub presentation: TerminalPresentationId,
 }
 
 /// An exact bound member, with an optional physical Host fence for Agent navigation.

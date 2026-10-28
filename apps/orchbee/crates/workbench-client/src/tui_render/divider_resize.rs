@@ -39,7 +39,7 @@ pub fn render_divider_preview(
     let line = drag.preview;
     let glyphs = match theme.glyphs.mode() {
         GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
     };
     let pointer = hits.projected_divider_pointer(&drag.projected_target());

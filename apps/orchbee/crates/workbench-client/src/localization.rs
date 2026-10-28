@@ -4,8 +4,8 @@
 mod action_menu;
 pub(crate) use action_menu::{ActionSearchAlias, MenuLabel, MenuUnavailable};
 mod parameters;
-pub(crate) use parameters::{BackendAction, PanelDirection};
 pub use parameters::Notice;
+pub(crate) use parameters::{BackendAction, PanelDirection};
 mod control_takeover;
 pub(crate) use control_takeover::TakeoverStatus;
 mod directory_startup;
@@ -51,9 +51,13 @@ mod panel_close;
 mod prefix;
 pub(crate) use prefix::PrefixDesc;
 mod session_status;
-pub(crate) use session_status::{ClientProjectionStatus, DisplayController, DisplayProvenance, DisplayRetirement, DuplicateProgress, DuplicateStop, LaunchFailure, LaunchProfile, NoticeContext, RefreshStatus, WorkbenchClientNotice};
 pub use session_status::DisplayPhase;
 pub use session_status::TerminalStatus;
+pub(crate) use session_status::{
+    ClientProjectionStatus, DisplayController, DisplayProvenance, DisplayRetirement,
+    DuplicateProgress, DuplicateStop, LaunchFailure, LaunchProfile, NoticeContext, RefreshStatus,
+    WorkbenchClientNotice,
+};
 mod shell;
 mod startup;
 #[cfg(any(unix, windows))]

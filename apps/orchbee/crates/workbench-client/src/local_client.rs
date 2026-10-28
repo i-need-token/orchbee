@@ -1,7 +1,11 @@
 //! Production transport boundary for the native application.
 
+pub use orchbee_local_client::{
+    LocalClient, LocalClientConnectError, LocalClientOrigin, LocalOperationClock,
+    OutcomeUnknownReason, SubmissionError, agent, cancellation, exchange_wake_fault,
+    exchange_wake_ready, workbench,
+};
 pub(crate) use orchbee_local_client::{LocalClientShutdown, multiplex, subscription};
-pub use orchbee_local_client::{LocalClient, LocalClientConnectError, LocalClientOrigin, LocalOperationClock, OutcomeUnknownReason, SubmissionError, agent, cancellation, exchange_wake_fault, exchange_wake_ready, workbench};
 
 pub(crate) use orchbee_local_client::RetainedCarrier;
 

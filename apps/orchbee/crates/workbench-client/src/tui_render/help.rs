@@ -422,7 +422,7 @@ fn control_plan(
 const fn key_label_glyphs(theme: &Theme) -> KeyLabelGlyphs {
     match theme.glyphs.mode() {
         GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
     }
 }

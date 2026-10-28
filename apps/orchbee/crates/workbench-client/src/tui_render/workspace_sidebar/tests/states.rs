@@ -33,9 +33,9 @@ fn current_agent_view() -> (ClientView, SidebarTarget, SidebarTarget) {
     let member = first.target.clone();
     view.machines.observe_agents(vec![(
         Choice::Local,
-        crate::machine_agents::Observation::Ready(crate::machine_agents::tests::checkpoint(vec![
-            first, second,
-        ])),
+        crate::machine_agents::Observation::Ready(crate::machine_agents::test_support::checkpoint(
+            vec![first, second],
+        )),
     )]);
     expand_context_agents(&mut view, target.clone());
     view.machines.observe_focus(

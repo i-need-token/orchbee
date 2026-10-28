@@ -5,8 +5,9 @@
 use super::{ModalPresentation, WorkbenchClientUi, WorkbenchClientView};
 #[cfg(test)]
 pub(crate) use crate::workbench_client::state::workspace_close::WorkspaceCloseStatus;
+pub use crate::workbench_client::state::workspace_close::WorkspaceCloseToken;
 pub(crate) use crate::workbench_client::state::workspace_close::{
-    WorkspaceCloseConfirmationView, WorkspaceCloseStatusView, WorkspaceCloseToken,
+    WorkspaceCloseConfirmationView, WorkspaceCloseStatusView,
 };
 use crate::{
     client_view::{ClientActionDisposition, ClientKey},

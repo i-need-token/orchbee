@@ -275,10 +275,10 @@ impl TerminalSurface for AgentSurface {
     }
 }
 fn agent_checkpoint() -> Arc<crate::machine_agents::Checkpoint> {
-    crate::machine_agents::tests::checkpoint(
+    crate::machine_agents::test_support::checkpoint(
         [23, 24, 25]
             .into_iter()
-            .map(crate::machine_agents::tests::row)
+            .map(crate::machine_agents::test_support::row)
             .collect(),
     )
 }

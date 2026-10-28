@@ -1,13 +1,16 @@
 //! Deterministic shell and pane geometry; no terminal or shared-layout mutations.
 mod divider;
+mod pane_geometry;
 mod resize;
 mod sidebar;
-pub(crate) use divider::DividerSource;
-pub(crate) use divider::{DrawnDivider, DrawnResize};
 pub use divider::DividerDrag;
+pub use divider::DividerSource;
+pub use divider::DrawnDivider;
+pub(crate) use divider::DrawnResize;
+pub use pane_geometry::{active_pane_area, pane_geometries, terminal_geometry};
 use ratatui::layout::{Constraint, Layout, Rect};
 pub use resize::ResizeProjection;
-pub(crate) use sidebar::SidebarWidth;
+pub use sidebar::SidebarWidth;
 pub(crate) use sidebar::SidebarWidthChange;
 pub use sidebar::{DrawnSidebarWidth, SidebarWidthDrag};
 
@@ -105,7 +108,7 @@ pub(crate) enum SidebarLayer {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SidebarArea {
-    pub(crate) area: Rect,
+    pub area: Rect,
     pub(crate) layer: SidebarLayer,
 }
 
@@ -114,8 +117,8 @@ pub struct ShellAreas {
     pub(crate) body: Rect,
     pub panel: Rect,
     pub sidebar: Option<SidebarArea>,
-    pub(crate) status: Rect,
-    pub(crate) tabs: Rect,
+    pub status: Rect,
+    pub tabs: Rect,
     pub tier: ViewportTier,
     pub(crate) workbench: Rect,
 }

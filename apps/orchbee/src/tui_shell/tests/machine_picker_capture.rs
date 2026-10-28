@@ -5,7 +5,7 @@ use crate::{
     client_view::{KeyCode, KeyEvent, Modifiers},
     machine_agents::{
         Observation as AgentObservation,
-        tests::{checkpoint, row},
+        test_support::{checkpoint, row},
     },
     machine_picker::{Choice, Control, Mode, PickerAction},
     terminal_input::InputDispatcher,

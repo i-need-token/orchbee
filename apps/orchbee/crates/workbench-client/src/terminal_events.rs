@@ -12,14 +12,14 @@ pub(crate) mod utf8;
 pub use decoder::DecodedItem;
 pub use decoder::DecodedKind;
 pub use decoder::LegacyDecoder;
-pub(crate) use mouse::{PanePointerRoute, route_pane_pointer};
-pub use mouse::encode_cursor_arrows;
-pub use mouse::PaneEncode;
-pub use mouse::MouseEvent;
-pub use mouse::PaneMouseEvent;
 pub use mouse::MouseAction;
 pub use mouse::MouseButton;
+pub use mouse::MouseEvent;
+pub use mouse::PaneEncode;
+pub use mouse::PaneMouseEvent;
+pub use mouse::encode_cursor_arrows;
 pub use mouse::encode_pane_report;
+pub(crate) use mouse::{PanePointerRoute, route_pane_pointer};
 
 /// Metadata replies produced by the outer terminal. These are consumed before
 /// any keyboard, modal-editor or pane-input owner can observe their bytes.

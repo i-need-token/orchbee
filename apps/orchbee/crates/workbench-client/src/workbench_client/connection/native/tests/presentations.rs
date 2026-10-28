@@ -15,7 +15,7 @@ fn direct_agent_switch_detaches_unexpected_host_before_poll_frame_or_control() -
     else {
         return Err(test_error("target panel"));
     };
-    let mut expected = crate::machine_agents::tests::physical(1);
+    let mut expected = crate::machine_agents::test_support::physical(1);
     let TerminalViewerOutcome::Attached { host_epoch, .. } = attached_outcome()? else {
         return Err(test_error("Host fixture"));
     };

@@ -100,9 +100,7 @@ pub struct StartedSession {
 /// existing TUI order, unchanged: cohort validation first, then
 /// runtime-base/scope resolution, `prepare_mode_checked`, the derived
 /// socket-path budget check, then the activation loop.
-pub fn activate_local_session(
-    deadline: Instant,
-) -> Result<StartedSession, ActivationFailure> {
+pub fn activate_local_session(deadline: Instant) -> Result<StartedSession, ActivationFailure> {
     let cohort = Cohort::current_with_diagnostic(deadline).map_err(|error| {
         ActivationFailure::caused(
             failure(error.kind(), StartupFailure::Cohort),

@@ -442,7 +442,7 @@ pub(super) fn render(
             }
             let separator = match theme.glyphs.mode() {
                 GlyphMode::Unicode => "─",
-                #[cfg(test)]
+                #[cfg(any(test, feature = "test-support"))]
                 GlyphMode::Simplified => "-",
             };
             frame.render_widget(
@@ -737,7 +737,7 @@ fn effective_binding_for_source(
 const fn key_label_glyphs(theme: &Theme) -> KeyLabelGlyphs {
     match theme.glyphs.mode() {
         GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
     }
 }

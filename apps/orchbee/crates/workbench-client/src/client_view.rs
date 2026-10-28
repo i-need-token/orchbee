@@ -15,14 +15,18 @@ use crate::terminal_events::keys;
 pub(crate) mod navigator;
 mod resize;
 
-pub(crate) use bindings::{DiscoveryEntry, PrefixAction, PrefixDesc};
 pub use bindings::Bindings;
+pub(crate) use bindings::{DiscoveryEntry, PrefixAction, PrefixDesc};
 pub(crate) use copy::{
     CopyHintLabel, CopyModeKey, CopySearchCommand, decide as copy_mode_key,
     footer_bindings as copy_footer_bindings, search_command as copy_search_command,
 };
+pub use keys::KeyEvent;
 pub use keys::format_configuration_binding;
-pub(crate) use keys::{Binding, KeyEvent, KeyLabelGlyphs, LabelStyle, format_binding, format_binding_with_glyphs, join_key_labels};
+pub(crate) use keys::{
+    Binding, KeyLabelGlyphs, LabelStyle, format_binding, format_binding_with_glyphs,
+    join_key_labels,
+};
 pub use keys::{KeyCode, KeyKind, Modifiers};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -153,7 +157,7 @@ pub enum ClientKey {
 /// complete sequence (`NonKey`, e.g. an unknown CSI run under an armed
 /// prefix). Owners never see raw bytes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum PrefixInput {
+pub enum PrefixInput {
     Key(KeyEvent),
     NonKey,
 }
@@ -190,7 +194,7 @@ impl ClientActionDisposition {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct ClientTransition {
+pub struct ClientTransition {
     next: ClientView,
     action: Option<ClientAction>,
     shell: ShellCommand,
@@ -382,7 +386,7 @@ impl ClientView {
         }
     }
 
-    pub(crate) const fn notice(&self) -> Option<Notice> {
+    pub const fn notice(&self) -> Option<Notice> {
         if self.notice.is_some() {
             return self.notice;
         }
@@ -948,7 +952,7 @@ impl ClientView {
         }
     }
 
-    pub(crate) fn configuration_notice(&mut self, notice: Notice) {
+    pub fn configuration_notice(&mut self, notice: Notice) {
         self.notice = Some(notice);
     }
 
@@ -996,7 +1000,7 @@ impl ClientView {
         self.prefix_active = false;
     }
 
-    pub(crate) fn decide(&self, input: PrefixInput) -> ClientTransition {
+    pub fn decide(&self, input: PrefixInput) -> ClientTransition {
         let mut next = self.clone();
         if self.overlay == Some(Overlay::ShortcutHelp) {
             if let PrefixInput::Key(event) = input
@@ -1241,7 +1245,7 @@ impl ClientView {
     }
 
     /// Semantic entry shared by menu activation and the binding decision layer.
-    pub(crate) fn decide_action(&self, action: ClientAction) -> ClientTransition {
+    pub fn decide_action(&self, action: ClientAction) -> ClientTransition {
         let mut next = self.clone();
         next.prefix_active = false;
         next.notice = None;
@@ -1344,11 +1348,7 @@ impl ClientView {
         }
     }
 
-    pub(crate) fn commit(
-        &mut self,
-        transition: ClientTransition,
-        disposition: ClientActionDisposition,
-    ) {
+    pub fn commit(&mut self, transition: ClientTransition, disposition: ClientActionDisposition) {
         let mut next = transition.next;
         if transition.action == Some(ClientAction::CreateTab)
             && disposition == ClientActionDisposition::WorkspaceCreationStarted

@@ -267,7 +267,7 @@ struct ResolvedFooterHint {
 fn format_settings_bindings(bindings: impl Iterator<Item = Binding>, theme: &Theme) -> String {
     let key_glyphs = match theme.glyphs.mode() {
         GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
     };
     bindings

@@ -4,7 +4,7 @@ use crate::{
     client_view::{ClientActionDisposition, KeyCode, KeyEvent, Modifiers, PrefixInput},
     machine_agents::{
         Observation as Agents,
-        tests::{checkpoint, row},
+        test_support::{checkpoint, row},
     },
     machine_picker::Choice,
 };
