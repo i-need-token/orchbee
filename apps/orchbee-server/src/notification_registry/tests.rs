@@ -148,6 +148,8 @@ fn paused_or_full_inbox_refuses_new_work_and_stale_messages_never_reappear() {
         ),
         NotificationOutcome::Listening { notification: None }
     ));
+    // Listener lifetime belongs to its connection; only a disconnect removes it.
+    r.disconnect(NonZeroU64::new(2).unwrap());
     assert_eq!(
         run(&mut r, 1, 5, message("stale"), now + LIVE + LIVE),
         outcome(Reason::NoForegroundClient)
@@ -197,6 +199,11 @@ fn registry_capacity_is_bounded_and_reclaimed_after_disconnect_and_expiry() {
     );
     run(&mut r, 99, 258, message("expired"), now + RETAIN);
     assert_eq!(r.receipts.len(), 1);
+    // Time reclaims receipts; listeners stay until their connections disconnect.
+    assert_eq!(r.listeners.len(), 32);
+    for generation in 2..=33 {
+        r.disconnect(NonZeroU64::new(generation).unwrap());
+    }
     assert!(r.listeners.is_empty());
 }
 
