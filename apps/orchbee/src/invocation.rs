@@ -4892,7 +4892,12 @@ fn doctor_asset_roots_option(
     envelope: FailureEnvelope,
 ) -> Result<Vec<String>, ParseFailure> {
     for value in &options.asset_roots {
-        if value.is_empty() || !user_path::absolute(value) || value.as_bytes().contains(&0) {
+        // Doctor never routes to another machine, so a root must also be absolute on this host.
+        if value.is_empty()
+            || !user_path::absolute(value)
+            || !std::path::Path::new(value).is_absolute()
+            || value.as_bytes().contains(&0)
+        {
             return Err(usage_with(
                 UsageReason::InvalidValue {
                     context,

@@ -745,7 +745,7 @@
 					"$ref": "#/$defs/physical_state"
 				},
 				"manifestSource": {
-					"enum": ["bundled", "local-override", "remote-cache"]
+					"enum": ["bundled", "local-override", "remote-cache", null]
 				},
 				"manifestVersion": {
 					"oneOf": [
