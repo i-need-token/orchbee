@@ -5,13 +5,13 @@ pub(super) fn snapshot(stream: &mut LocalStream, count: u64, no_directory: bool)
     let WorkbenchRequest::SnapshotRead(request) = read_workbench_request(stream).unwrap() else {
         panic!()
     };
-    let mut contexts = vec![json!({"terminalContextId":id(4),"groups":[],"tabs":[]})];
+    let mut contexts = Vec::new();
     let rows:Vec<_>=(0..count).map(|n| {
         contexts.push(json!({"terminalContextId":id(200+n),"groups":[],"tabs":[]}));
         json!({"workspaceId":id(100+n),"projectId":id(30),"label":"work","primaryDirectoryId":if no_directory {Value::Null} else {json!(id(31))},"terminalContextId":id(200+n)})
     }).collect();
     let value = json!({"protocolVersion":1,"sessionId":id(2),"revision":"12",
-        "navigation":{"projects":[{"projectId":id(30),"label":"project"}],"directories":[{"directoryId":id(31),"workerId":id(32),"path":"C:/repo/sub"}],"workspaces":std::iter::once(serde_json::json!({"workspaceId":id(4),"terminalContextId":id(4),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"})).chain(rows).collect::<Vec<_>>()},"terminalContexts":contexts});
+        "navigation":{"projects":[{"projectId":id(30),"label":"project"}],"directories":[{"directoryId":id(31),"workerId":id(32),"path":"C:/repo/sub"}],"workspaces":rows},"terminalContexts":contexts});
     write_workbench_response(
         stream,
         &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
