@@ -208,11 +208,15 @@ fn inherited_terminal_adapter_has_no_path_process_or_global_size_fallback() {
         );
     }
 
-    let manifest = include_str!("../../../../Cargo.toml");
-    for forbidden_feature in ["features = [\"events\"", "features = [\"crossterm\""] {
-        assert!(
-            !manifest.contains(forbidden_feature),
-            "orchbee enables a dependency path that can acquire a different terminal: {forbidden_feature}"
-        );
+    for manifest in [
+        include_str!("../../Cargo.toml"),
+        include_str!("../../../../Cargo.toml"),
+    ] {
+        for forbidden_feature in ["features = [\"events\"", "features = [\"crossterm\""] {
+            assert!(
+                !manifest.contains(forbidden_feature),
+                "orchbee enables a dependency path that can acquire a different terminal: {forbidden_feature}"
+            );
+        }
     }
 }
