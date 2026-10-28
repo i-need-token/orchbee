@@ -408,6 +408,8 @@ resize。与聚合 Close
   投影后的 Workbench 状态、视图、输入分发、终端呈现、Agent 与机器工作流，以及本地化。
 - [本地客户端](crates/local-client/README.zh-CN.md) 是该运行时之下的 Client Connection 传输层。
 
+二进制内部模块遵循[应用模块分层](docs/module-layers.zh-CN.md)，它沿用 Workbench Client 的分层模型。
+
 ## 私有本机 Client transport
 
 在 Unix 上，application-private `LocalClient` 只从 internal caller 接收 endpoint 与 executable
@@ -943,4 +945,4 @@ Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin acti
 
 Windows 首次运行引导在终端可继续输入时提供 Workspace 创建、Agent 选择、操作与帮助入口，关闭状态按原生配置档案保存。参见[原生首次运行引导](docs/native-onboarding.zh-CN.md)。
 
-<!-- documentation-pairing: english-sha256=81d114ac5610a920c2a08c89848bddc36090fbb5908dabcb800111b99e357149 zh-cn-sha256=3710096c7fdf069ed45bb93e2314eb7fd282a0e7457647d8f2da900c02d76b71 -->
+<!-- documentation-pairing: english-sha256=c7ff4033ff790b64ceacc2651ab12237f45a984accea286099e2f1b4646bc2ba zh-cn-sha256=0f9c56e22ae4eb8cb3bb77b35f29a0d921fda8adb22ac37543ef41e1e6e387c1 -->

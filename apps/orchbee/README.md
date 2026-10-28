@@ -469,6 +469,9 @@ Two application-private crates sit below it and never depend on it:
 - [Local client](crates/local-client/README.md) is the Client Connection transport beneath that
   runtime.
 
+Modules inside the binary follow the [application module layers](docs/module-layers.md), which
+apply the Workbench Client layer model.
+
 ## Private local Client transport
 
 On Unix, the application-private `LocalClient` accepts an endpoint and executable cohort only from

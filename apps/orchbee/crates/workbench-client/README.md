@@ -35,6 +35,9 @@ and on shared protocol and runtime crates under [`crates/`](../../../../crates).
 behavior needs an entry-layer value, such as an exit mapping or a shell painter, the application
 passes it in.
 
+Modules inside the crate follow the [module layers](docs/module-layers.md): each module's layer,
+the allowed reference direction, state ownership, and component placement.
+
 ## Test support
 
 Adjacent private unit tests own runtime evidence, and fixtures used only by them stay

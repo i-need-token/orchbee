@@ -29,6 +29,9 @@ Client 运行时。它从不依赖二进制，从不解析调用，也从不写�
 提供 Client Connection 传输，并依赖 [`crates/`](../../../../crates) 下的共享协议与运行时 crate。
 当运行时行为需要入口层的值，例如退出码映射或 shell 绘制器时，由应用传入。
 
+crate 内部模块遵循[模块分层](docs/module-layers.zh-CN.md)：每个模块所在的层、允许的引用方向、
+状态归属和组件位置。
+
 ## 测试支持
 
 相邻的私有单元测试拥有运行时证据，仅被它们使用的 fixture 保持 `#[cfg(test)]`。
@@ -55,4 +58,4 @@ Client 运行时。它从不依赖二进制，从不解析调用，也从不写�
 [仓库验证门禁](../../../../docs/zh-CN/VERIFICATION.md)。
 导出的模块和条目必须对应真实应用消费者，并保留私有测试的归属。
 
-<!-- documentation-pairing: english-sha256=dd7a77c0e7e1d0f26f37585e02df320cec73511ef97874ea586cdfd249e36e2a zh-cn-sha256=7b16511019e8860cfd230c2c0fc2c46e3eac2ec1a1c6694fe9befd3df2851c02 -->
+<!-- documentation-pairing: english-sha256=9105788638bc05110ab4bba2328ea73a4259f0b3a3889167c3fee014bbd3986c zh-cn-sha256=7d4f3100ff07f53b780b8179e40f3249e0a5ab6db4ec34f2e874087368c6f6fa -->

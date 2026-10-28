@@ -13,6 +13,17 @@
 机器配置、SSH 进程创建、运行时发现、观测策略、CLI 输出和 Workbench 交互由应用负责。
 此 crate 不选择功能，也不重放副作用。
 
+## 模块方向
+
+库根只声明一个实现模块 `local_client`，以及只重新导出它的内联门面。`local_client` 拥有其子模块
+`agent`、`cancellation`、`carrier`、`multiplex`、`subscription` 和 `workbench` 共用的连接核心。
+子模块使用父模块的共享项，彼此之间不导入；唯一例外是 `subscription -> multiplex`，因为订阅共用
+连接 actor 的取消和新快照恢复。反向导入和其他横向导入仍然禁止。
+
+整个 crate 是 Workbench Client `workflow` 层之下的传输层，所以它保留这份横向依赖清单，而不使用
+[模块分层](../workbench-client/docs/module-layers.zh-CN.md) 的归属表。`pnpm lint:rust-modules`
+会报告任何模块环。
+
 ## 生命周期与证据
 
 传输层拥有取消、多路复用、连接健康、队列和 lane 关闭。
@@ -35,4 +46,4 @@
 [仓库验证门禁](../../../../docs/zh-CN/VERIFICATION.md)。
 导出操作必须对应真实应用消费者，并保留私有测试的归属。
 
-<!-- documentation-pairing: english-sha256=fd88ae1853d7eae65438eb7b5329a4053b68cac0df40185f2c8366c055680e8e zh-cn-sha256=49837fd7236cf1225e1e471d2feee94f6f103e54946547aaad5979c1d0534b51 -->
+<!-- documentation-pairing: english-sha256=a2b6bf6bc9554e4bd38631374266a5e88d2893ff51d017a0316cecc2bd6de25c zh-cn-sha256=02de7a5a586726965681f95ccb37277012adf49ccf0ef7af21a8c92ed7525354 -->

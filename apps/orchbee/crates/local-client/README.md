@@ -14,6 +14,19 @@ private. Typed receipts and failures preserve submission and outcome uncertainty
 Machine profiles, SSH process creation, runtime discovery, observation policy, CLI output, and
 Workbench interaction stay with the application. The crate does not select features or replay effects.
 
+## Module direction
+
+The library root declares one implementation module, `local_client`, and inline facades that only
+re-export it. `local_client` owns the connection core that its children `agent`, `cancellation`,
+`carrier`, `multiplex`, `subscription`, and `workbench` share. Children use the parent's shared
+items and never import each other, except `subscription -> multiplex`, because subscriptions share
+the connection actor's cancellation and fresh-snapshot recovery. Reverse and other lateral imports
+remain forbidden.
+
+The whole crate is the transport beneath the Workbench Client's `workflow` layer, so it keeps this
+lateral list instead of a [module-layer](../workbench-client/docs/module-layers.md) assignment.
+`pnpm lint:rust-modules` reports any module cycle.
+
 ## Lifetime and evidence
 
 The transport owns cancellation, multiplexing, connection health, queues, and lane shutdown.
