@@ -373,7 +373,7 @@ and retains the operation ID.
 Windows `Ctrl+B F2` opens [action menus](docs/native-action-menus.md).
 Right-click a pane, tab, Workspace or Project row for its existing actions. Opening and cancelling
 preserve focus; addressed organization and Delete actions also preserve the current terminal.
-Pointer-opened menus stay near the clicked cell and clamp above the status line. Hover selects
+Pointer-opened menus stay near the clicked cell and clamp to the whole viewport. Hover selects
 a visible row without executing it; click or Enter executes, and Esc or an outside click cancels.
 Context menus use a plain rectangular border with action rows and an optional disabled reason,
 without a title, X, footer hints or selection counter. Submenus inherit their root's chrome policy;

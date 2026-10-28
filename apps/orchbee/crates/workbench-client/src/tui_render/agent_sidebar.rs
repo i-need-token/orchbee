@@ -1,15 +1,15 @@
 //! Paints the existing merged Agent projection; never reads or acknowledges terminals.
 use super::controls::{
     ActionKind, ActionSpec, Availability, CheckedState, ControlSurface, CurrentState, FocusState,
-    InteractionState, KeyHint, NavigationState, OperationState, PointerPresentation, action_rect,
-    render_action, render_key_hints,
+    InteractionState, NavigationState, OperationState, PointerPresentation, action_rect,
+    render_action,
 };
 use super::sidebar_text::machine_label;
 use super::{
     Block, Borders, Clear, ClientView, Frame, HitLayer, HitMapBuilder, Line, Locale, Padding,
     Paragraph, Rect, Role, SessionStatus, SidebarArea, SidebarLayer, Span, Theme, display_width,
 };
-use crate::client_view::{ClientAction, KeyLabelGlyphs, Overlay, PrefixAction};
+use crate::client_view::{KeyLabelGlyphs, Overlay};
 use crate::machine_discovery::display_label;
 use crate::tui_layout::{DrawnSidebarWidth, SidebarWidthDrag};
 use crate::tui_pointer::{
@@ -211,48 +211,6 @@ fn render_actions(
     }
 }
 
-fn render_navigation_hint(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    view: &ClientView,
-    locale: Locale,
-    input: SidebarInput,
-    theme: &Theme,
-) {
-    use crate::machine_picker::{SidebarCommand, sidebar_binding_label};
-    let glyphs = key_label_glyphs(theme);
-    let hints = match input {
-        SidebarInput::Suppressed => return,
-        SidebarInput::Terminal => view
-            .bindings()
-            .action_labels_with_glyphs(
-                PrefixAction::Client(ClientAction::FocusBusinessSidebar),
-                glyphs,
-            )
-            .into_iter()
-            .take(1)
-            .map(|key| (key, locale.machine_picker_text("workspace-sidebar-open")))
-            .collect::<Vec<_>>(),
-        SidebarInput::Navigation => [
-            (SidebarCommand::Exit, locale.sidebar_back_hint()),
-            (
-                SidebarCommand::Help,
-                locale.sidebar_navigation_action(SidebarCommand::Help),
-            ),
-        ]
-        .into_iter()
-        .filter_map(|(command, label)| {
-            sidebar_binding_label(command, glyphs).map(|key| (key, label))
-        })
-        .collect(),
-    };
-    let hints = hints
-        .iter()
-        .map(|(key, label)| KeyHint::new(key, label))
-        .collect::<Vec<_>>();
-    let _ = render_key_hints(frame, area, &hints, theme);
-}
-
 pub(super) fn render(
     frame: &mut Frame<'_>,
     sidebar: SidebarArea,
@@ -282,7 +240,7 @@ pub(super) fn render(
         .padding(Padding::new(0, 1, 1, 0))
         .style(theme.style(Role::SurfaceChrome));
     let mut inner = block.inner(sidebar.area);
-    // Footer rules and shortcut hints continue through the trailing padding to the divider.
+    // The fixed actions continue through the trailing padding to the divider.
     let content_right = sidebar.area.right().saturating_sub(1).max(inner.right());
     frame.render_widget(block, sidebar.area);
     let layer = if view.overlay() == Some(Overlay::BusinessSidebar) {
@@ -332,39 +290,10 @@ pub(super) fn render(
     if area.is_empty() {
         return;
     }
-    let footer_rows = if frame.area().height >= 24 && area.height >= 5 {
-        3
-    } else {
-        area.height.min(2)
-    };
+    // Settings sits alone on the last row; the list runs down to it. The floating status, not a
+    // sidebar hint row, carries the shortcuts.
+    let footer_rows = 1;
     let settings = Rect::new(area.x, area.bottom() - 1, area.width, 1);
-    if footer_rows == 3 {
-        frame.render_widget(
-            Block::new()
-                .borders(Borders::TOP)
-                .border_style(theme.style(Role::FrameDivider))
-                .style(theme.style(Role::SurfaceChrome)),
-            Rect::new(area.x, settings.y - 2, content_right - area.x, 1),
-        );
-    }
-    if footer_rows >= 2 {
-        render_navigation_hint(
-            frame,
-            Rect::new(area.x + 1, settings.y - 1, area.width.saturating_sub(1), 1),
-            view,
-            locale,
-            input,
-            theme,
-        );
-    }
-    let settings_hint = view
-        .bindings()
-        .action_labels_with_glyphs(
-            PrefixAction::Client(ClientAction::OpenSettings),
-            key_label_glyphs(theme),
-        )
-        .into_iter()
-        .next();
     let _ =
         render_fixed_action(
             frame,
@@ -372,7 +301,7 @@ pub(super) fn render(
             content_right,
             FixedAction {
                 label: locale.settings_title(),
-                hint: settings_hint.as_deref(),
+                hint: None,
                 kind: ActionKind::Secondary,
                 enabled: true,
                 target: InteractionTarget::SidebarFixed(view.machines.drawn_sidebar_fixed(

@@ -102,7 +102,7 @@ direct selected/group Close includes them where applicable. Hidden collapsed mem
 
 A resumable Tab-close row appears only after the close owner has presented the exact recovery status.
 Opening the menu freezes an opaque permit for that target, operation, attempt and status incarnation.
-While the menu replaces the status row, availability and the one-shot handoff revalidate that permit
+While the menu replaces the ordinary status chip, availability and the one-shot handoff revalidate that permit
 and the exact menu source. They neither keep the covered status marked as displayed nor fall back to
 ordinary Close. The resulting Resume confirmation must present its own exact prompt and status before
 it accepts confirmation.
@@ -132,8 +132,8 @@ consume layout rows, while the global footer counts filtered actions only. Rows 
 status line visible. The global menu's fixed footer shows the selected row and filtered total (`current/total`) plus ordered,
 atomic key hints styled as key and localized verb. Exit is first; Enter and navigation disappear as
 whole items when space runs out. Shared Back or Close actions are shown when they fit. The menu
-footer owns routine key discovery, so a normally presented global menu leaves the session status row
-empty. During geometry recovery, that row instead shows one localized, key-free refusal or suspension
+footer owns routine key discovery, so a normally presented global menu floats no session status.
+During geometry recovery, the status chip instead shows one localized, key-free refusal or suspension
 notice plus one shared Esc Back or Close hint; it never mixes underlying notice or Machines text.
 Menu width includes one cell of padding on each side and borders; labels that exceed the
 available width truncate on grapheme boundaries with the theme's ellipsis.

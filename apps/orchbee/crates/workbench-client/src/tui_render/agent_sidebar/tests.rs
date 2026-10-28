@@ -1,7 +1,10 @@
 use super::super::{project_shell_areas, render_terminal_shell};
 use super::*;
 use crate::{
-    client_view::{ClientActionDisposition, KeyCode, KeyEvent, Modifiers, PrefixInput},
+    client_view::{
+        ClientAction, ClientActionDisposition, KeyCode, KeyEvent, Modifiers, PrefixAction,
+        PrefixInput,
+    },
     machine_agents::{
         Observation as Agents,
         test_support::{checkpoint, row},
@@ -415,6 +418,7 @@ fn variable_sidebar_heights_gaps_and_small_viewports_publish_exact_hit_geometry(
         );
     }
     view.resize(60);
+    // Settings alone on the last row leaves a 12-row host the same six-row list body.
     // Explicitly show the compact sidebar; the full-width view's intent was docked.
     for key in [
         KeyEvent::press(KeyCode::Char('b'), Modifiers::CTRL),
@@ -423,8 +427,8 @@ fn variable_sidebar_heights_gaps_and_small_viewports_publish_exact_hit_geometry(
         let t = view.decide(PrefixInput::Key(key));
         view.commit(t, ClientActionDisposition::KeepNavigator);
     }
-    let (_, hits) = paint(&view, Locale::EnUs, &Theme::terminal_native(), 60, 13);
-    let window = (0..13)
+    let (_, hits) = paint(&view, Locale::EnUs, &Theme::terminal_native(), 60, 12);
+    let window = (0..12)
         .find_map(|y| match hits.hit_target_at(2, y) {
             Some(HitTarget::MachineAgentRow { window, .. }) => Some(*window),
             _ => None,
@@ -433,9 +437,9 @@ fn variable_sidebar_heights_gaps_and_small_viewports_publish_exact_hit_geometry(
     assert_eq!(window.capacity, 2);
     view.machines.queue_space_scroll(window, false);
     assert!(view.machines.settle_sidebar_scroll());
-    let (_, hits) = paint(&view, Locale::EnUs, &Theme::terminal_native(), 60, 13);
+    let (_, hits) = paint(&view, Locale::EnUs, &Theme::terminal_native(), 60, 12);
     let mut painted = std::collections::BTreeMap::new();
-    for y in 0..13 {
+    for y in 0..12 {
         if let Some(HitTarget::MachineAgentRow { selected, window }) = hits.hit_target_at(2, y) {
             // The six-row body fits both remaining entries exactly: the first
             // visible entry owns no leading gap (three Claude rows), then the
@@ -759,112 +763,101 @@ fn default_agent_identity_uses_provider_for_blank_titles_without_repeating_it() 
 }
 
 #[test]
-fn settings_stays_at_the_sidebar_bottom_as_an_exact_discoverable_action() {
-    for count in [0, 1, 30] {
-        let view = view(120, 40, count);
-        for locale in [Locale::EnUs, Locale::ZhCn] {
-            let (rows, hits) = paint(&view, locale, &Theme::terminal_native(), 120, 40);
-            let footer = &rows[39];
-            assert!(footer.contains("[ "), "{footer:?}");
-            assert!(footer.contains(locale.settings_title()), "{footer:?}");
-            assert!(footer.contains(" ]"), "{footer:?}");
-            let configured_hint = view
-                .bindings()
-                .action_labels_with_glyphs(
-                    PrefixAction::Client(ClientAction::OpenSettings),
-                    key_label_glyphs(&Theme::terminal_native()),
-                )
-                .into_iter()
-                .next()
-                .unwrap();
-            assert!(footer.contains(&configured_hint), "{footer:?}");
-            let exact = (0..29)
-                .filter(|x| matches!(hits.hit_target_at(*x, 39), Some(HitTarget::SettingsButton)))
-                .collect::<Vec<_>>();
-            assert!(!exact.is_empty());
-            assert_eq!(
-                exact,
-                (*exact.first().unwrap()..=*exact.last().unwrap()).collect::<Vec<_>>()
-            );
-            assert!(exact.len() < 29);
-            assert!(!matches!(
-                hits.hit_target_at(*exact.last().unwrap() + 1, 39),
-                Some(HitTarget::SettingsButton)
-            ));
-            let hint_byte = footer.find(&configured_hint).unwrap();
-            let hint_x = display_width(&footer[..hint_byte]);
-            assert_eq!(hint_x + display_width(&configured_hint), 29);
-            assert!(hint_x >= usize::from(*exact.last().unwrap()) + 3);
-            for x in hint_x..hint_x + display_width(&configured_hint) {
-                assert!(!matches!(
-                    hits.hit_target_at(x as u16, 39),
-                    Some(HitTarget::SettingsButton)
-                ));
-            }
-            let browse_binding = view
-                .bindings()
-                .action_labels_with_glyphs(
-                    PrefixAction::Client(ClientAction::FocusBusinessSidebar),
-                    key_label_glyphs(&Theme::terminal_native()),
-                )
-                .into_iter()
-                .next()
-                .unwrap();
-            assert!(rows[38].contains(&browse_binding), "{:?}", rows[38]);
-            assert!(rows[38].contains(locale.machine_picker_text("workspace-sidebar-open")));
-            assert!(rows[37].starts_with('─'));
-            for y in [37, 38] {
-                assert!((0..28).all(|x| !matches!(
-                    hits.hit_target_at(x, y),
-                    Some(HitTarget::MachineAgentRow { .. } | HitTarget::MachineWorkspaceRow { .. })
-                )));
-            }
-        }
-    }
-}
-
-#[test]
-fn settings_footer_omits_whole_hints_at_narrow_width_and_saves_a_row_on_short_hosts() {
+fn settings_sits_alone_on_the_sidebar_last_row_as_an_exact_action_without_a_shortcut() {
     use crate::tui_layout::SidebarWidth;
 
-    for (width, height, preferred, english_hint, chinese_hint) in [
-        (120, 40, 26, true, true),
-        (120, 40, 24, false, true),
-        (80, 24, 30, true, true),
-        (60, 12, 30, true, true),
-    ] {
-        let mut view = view(width, height, 0);
-        view.machines
-            .set_sidebar_width(SidebarWidth::DEFAULT, SidebarWidth::new(preferred).unwrap());
-        for (locale, visible_hint) in [(Locale::EnUs, english_hint), (Locale::ZhCn, chinese_hint)] {
-            let (rows, hits) = paint(&view, locale, &Theme::terminal_native(), width, height);
-            let footer = &rows[usize::from(height - 1)];
-            let hint = view
-                .bindings()
-                .action_labels_with_glyphs(
-                    PrefixAction::Client(ClientAction::OpenSettings),
-                    key_label_glyphs(&Theme::terminal_native()),
-                )
-                .into_iter()
-                .next()
-                .unwrap();
-            assert!(footer.contains(locale.settings_title()), "{footer:?}");
-            assert_eq!(footer.contains(&hint), visible_hint, "{footer:?}");
-            assert_eq!(rows[usize::from(height - 3)].starts_with('─'), height >= 24);
-            assert!(
-                rows[usize::from(height - 2)]
-                    .contains(locale.machine_picker_text("workspace-sidebar-open"))
-            );
-            assert!((0..preferred).any(|x| matches!(
-                hits.hit_target_at(x, height - 1),
-                Some(HitTarget::SettingsButton)
-            )));
+    for (width, height) in [(120, 40), (80, 24), (60, 12)] {
+        for count in [0, 1, 30] {
+            let mut view = view(width, height, count);
+            view.machines
+                .set_sidebar_width(SidebarWidth::DEFAULT, SidebarWidth::new(30).unwrap());
+            for locale in [Locale::EnUs, Locale::ZhCn] {
+                let (rows, hits) = paint(&view, locale, &Theme::terminal_native(), width, height);
+                let last = height - 1;
+                let footer = &rows[usize::from(last)];
+                assert!(footer.contains("[ "), "{footer:?}");
+                assert!(footer.contains(locale.settings_title()), "{footer:?}");
+                assert!(footer.contains(" ]"), "{footer:?}");
+                let configured_hint = view
+                    .bindings()
+                    .action_labels_with_glyphs(
+                        PrefixAction::Client(ClientAction::OpenSettings),
+                        key_label_glyphs(&Theme::terminal_native()),
+                    )
+                    .into_iter()
+                    .next()
+                    .unwrap();
+                assert!(!footer.contains(&configured_hint), "{footer:?}");
+                let exact = (0..29)
+                    .filter(|x| {
+                        matches!(
+                            hits.hit_target_at(*x, last),
+                            Some(HitTarget::SettingsButton)
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                assert!(!exact.is_empty());
+                assert_eq!(
+                    exact,
+                    (*exact.first().unwrap()..=*exact.last().unwrap()).collect::<Vec<_>>()
+                );
+                assert!(exact.len() < 29);
+                // No rule or shortcut row separates the list from Settings.
+                for y in [last - 2, last - 1] {
+                    let row = &rows[usize::from(y)];
+                    assert!(!row.starts_with('─'), "{row:?}");
+                    assert!(
+                        !row.contains(locale.sidebar_navigation_action(
+                            crate::machine_picker::SidebarCommand::Exit
+                        )),
+                        "{row:?}"
+                    );
+                }
+            }
         }
     }
 }
 
+/// The range row exists only while the list overflows, so a list that fits reaches the row
+/// directly above Settings.
 #[test]
-fn sidebar_footer_follows_input_ownership_without_moving_settings_or_publishing_hint_hits() {
+fn list_runs_down_to_settings_and_reserves_the_range_row_only_while_overflowing() {
+    for (width, height) in [(120, 40), (80, 24)] {
+        let above = height - 2;
+        let mut reached = false;
+        for count in 0..40 {
+            let view = view(width, height, count);
+            let (rows, hits) = paint(
+                &view,
+                Locale::EnUs,
+                &Theme::terminal_native(),
+                width,
+                height,
+            );
+            let browse = Locale::EnUs.machine_picker_text("workspace-sidebar-open");
+            let list_row = |y: u16| {
+                (0..28).any(|x| {
+                    matches!(
+                        hits.hit_target_at(x, y),
+                        Some(
+                            HitTarget::MachineAgentRow { .. }
+                                | HitTarget::MachineWorkspaceRow { .. }
+                        )
+                    )
+                })
+            };
+            let range = rows[usize::from(above)].contains(browse);
+            if range {
+                assert!(list_row(above - 1), "{width}x{height} {count}: {rows:?}");
+            }
+            reached |= !range && list_row(above);
+        }
+        assert!(reached, "{width}x{height}: no list ever reached Settings");
+    }
+}
+
+#[test]
+fn sidebar_input_ownership_never_moves_settings_or_adds_a_hint_row() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [Theme::terminal_native(), Theme::one_light()] {
             for input in [
@@ -903,32 +896,15 @@ fn sidebar_footer_follows_input_ownership_without_moving_settings_or_publishing_
                     })
                     .unwrap();
                 let buffer = terminal.backend().buffer();
-                let mut hint = String::new();
+                let mut above = String::new();
                 let mut x = 0;
                 while x < 28 {
                     let symbol = buffer[(x, 38)].symbol();
-                    hint.push_str(symbol);
+                    above.push_str(symbol);
                     x += u16::try_from(display_width(symbol).max(1)).unwrap();
                 }
-                match input {
-                    SidebarInput::Terminal => {
-                        assert!(
-                            hint.contains(locale.machine_picker_text("workspace-sidebar-open")),
-                            "{hint}"
-                        )
-                    }
-                    SidebarInput::Navigation => {
-                        assert!(hint.contains(locale.sidebar_back_hint()), "{hint}");
-                        assert!(
-                            hint.contains(locale.sidebar_navigation_action(
-                                crate::machine_picker::SidebarCommand::Help
-                            )),
-                            "{hint}"
-                        );
-                        assert!(!hint.contains("Ctrl+B"), "{hint}");
-                    }
-                    SidebarInput::Suppressed => assert!(hint.trim().is_empty(), "{hint}"),
-                }
+                // Return and Help moved to the floating status; the row above Settings is list.
+                assert!(above.trim().is_empty(), "{input:?}: {above:?}");
                 let hits = hits.finish();
                 assert!(
                     (0..28).any(|x| matches!(
@@ -938,11 +914,7 @@ fn sidebar_footer_follows_input_ownership_without_moving_settings_or_publishing_
                 );
                 assert!((0..28).all(|x| !matches!(
                     hits.hit_target_at(x, 38),
-                    Some(
-                        HitTarget::SettingsButton
-                            | HitTarget::SidebarMenu(_)
-                            | HitTarget::MachineWorkspaceRow { .. }
-                    )
+                    Some(HitTarget::SettingsButton)
                 )));
             }
         }

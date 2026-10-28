@@ -11,6 +11,7 @@ mod pane_graphics;
 pub(in crate::workbench_client) mod settings;
 mod sidebar_reorder;
 mod status_text;
+pub(crate) use status_text::PersistentStatus;
 mod tab_duplication;
 mod tab_groups;
 

@@ -185,10 +185,11 @@ fn settings_centers_on_the_host_independently_of_sidebar_visibility_and_width() 
                         })
                         .collect::<Vec<_>>();
                     let expected_width = width.min(92);
-                    // The owning Settings contract prefers 92×30, clamped above the status row.
-                    let expected_height = (height - 1).min(30);
+                    // The owning Settings contract prefers 92×30, clamped to the whole host; the
+                    // status reserves no row.
+                    let expected_height = height.min(30);
                     let left = (width - expected_width) / 2;
-                    let top = (height - 1 - expected_height) / 2;
+                    let top = (height - expected_height) / 2;
                     assert_eq!(surface.iter().map(|cell| cell.0).min(), Some(left));
                     assert_eq!(
                         surface.iter().map(|cell| cell.0).max(),
@@ -199,7 +200,6 @@ fn settings_centers_on_the_host_independently_of_sidebar_visibility_and_width() 
                         surface.iter().map(|cell| cell.1).max(),
                         Some(top + expected_height - 1)
                     );
-                    assert!(surface.iter().all(|cell| cell.1 < height - 1));
                     for x in left + expected_width - 6..left + expected_width - 3 {
                         assert!(matches!(
                             frame.hits.hit_target_at(x, top),

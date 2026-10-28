@@ -204,7 +204,10 @@ mod tests {
                                 "{locale:?} {width}x{height}: missing complete {complete:?} in {text:?}"
                             );
                         }
-                        assert!(area.bottom() < height, "status row is not dialog content");
+                        assert!(
+                            area.bottom() < height,
+                            "the dialog keeps its margin above the last row"
+                        );
                     } else {
                         assert!(matches!(presentation, ModalPresentation::NotPresented));
                         assert!(area.is_empty() && !submit && !cancel);

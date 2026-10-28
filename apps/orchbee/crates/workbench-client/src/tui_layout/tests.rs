@@ -9,7 +9,7 @@ use crate::{client_view::SidebarSurface, workbench_client::ClientPanelTree};
 use super::{
     LeafArea, PaneFrame, SidebarLayer, SidebarWidth, ViewportTier, centered_overlay, divide_panes,
     divider_glyph, native_terminal_area, overlay_area, place_overlay, project_panel_tree,
-    project_shell_areas, terminal_area,
+    project_shell_areas, status_chip_area, terminal_area,
 };
 
 #[test]
@@ -39,7 +39,7 @@ fn classifies_tiers_by_the_lower_of_the_width_and_height_tiers() {
 }
 
 #[test]
-fn docks_the_sidebar_beside_content_with_a_reserved_status_row() {
+fn docks_the_sidebar_beside_content_that_reaches_the_last_row() {
     let viewport = Rect::new(0, 0, 120, 40);
     let areas = project_shell_areas(viewport, SidebarSurface::Docked(SidebarWidth::DEFAULT));
 
@@ -52,13 +52,15 @@ fn docks_the_sidebar_beside_content_with_a_reserved_status_row() {
         areas.sidebar.map(|sidebar| sidebar.area),
         Some(Rect::new(0, 0, SidebarWidth::DEFAULT.columns(), 40))
     );
-    assert_eq!(areas.workbench, Rect::new(30, 0, 90, 39));
+    assert_eq!(areas.workbench, Rect::new(30, 0, 90, 40));
     assert_eq!(areas.tabs, Rect::new(30, 0, 90, 1));
-    assert_eq!(areas.panel, Rect::new(30, 1, 90, 38));
+    assert_eq!(areas.panel, Rect::new(30, 1, 90, 39));
+    // The status reserves no row: it floats over the content's last row, one cell in from each end.
     assert_eq!(areas.status, Rect::new(30, 39, 90, 1));
+    assert_eq!(status_chip_area(&areas), Rect::new(31, 39, 88, 1));
     assert_eq!(
         terminal_area(areas.panel, areas.tier.shows_panel_frame()),
-        Rect::new(31, 2, 88, 36)
+        Rect::new(31, 2, 88, 37)
     );
 }
 
@@ -72,7 +74,7 @@ fn compact_docks_beside_usable_content_and_otherwise_overlays_without_reflowing(
 
     assert_eq!(hidden.tier, ViewportTier::Compact);
     assert_eq!(hidden.workbench, overlay.workbench);
-    assert_eq!(overlay.workbench, Rect::new(4, 2, 70, 19));
+    assert_eq!(overlay.workbench, Rect::new(4, 2, 70, 20));
     assert_eq!(
         overlay.sidebar.map(|sidebar| sidebar.layer),
         Some(SidebarLayer::Overlay)
@@ -117,7 +119,7 @@ fn drops_the_tab_strip_and_sidebar_at_minimal_and_too_small() {
     );
     assert_eq!(minimal.tier, ViewportTier::Minimal);
     assert!(minimal.tabs.is_empty());
-    assert_eq!(minimal.panel, Rect::new(0, 0, 50, 9));
+    assert_eq!(minimal.panel, Rect::new(0, 0, 50, 10));
     assert_eq!(minimal.sidebar, None);
     assert_eq!(minimal.status, Rect::new(0, 9, 50, 1));
 
@@ -129,7 +131,9 @@ fn drops_the_tab_strip_and_sidebar_at_minimal_and_too_small() {
     assert!(tiny.tabs.is_empty());
     assert_eq!(tiny.sidebar, None);
     assert_eq!(tiny.status, Rect::new(0, 3, 15, 1));
-    assert_eq!(tiny.panel.bottom(), tiny.status.y);
+    assert_eq!(tiny.panel.bottom(), tiny.status.bottom());
+    // TooSmall's full-row exit hint keeps the whole row.
+    assert_eq!(status_chip_area(&tiny), tiny.status);
     // TooSmall draws no panel frame, so the honest content area is the panel
     // itself; `active_pane_area` still withholds it (Ok(None)), so the session
     // keeps its last valid geometry instead of receiving a fabricated resize.
@@ -149,13 +153,13 @@ fn minimal_viewports_keep_the_terminal_at_the_first_row_without_a_top_strip() {
         assert!(areas.tabs.is_empty(), "{width}x{height}");
         assert_eq!(
             areas.panel,
-            Rect::new(viewport.x, viewport.y, width, height - 1),
+            Rect::new(viewport.x, viewport.y, width, height),
             "{width}x{height}"
         );
 
         let terminal = native_terminal_area(areas.panel, PaneFrame::Bare);
         assert_eq!(terminal.y, viewport.y, "{width}x{height}");
-        assert_eq!(terminal.bottom(), areas.status.y, "{width}x{height}");
+        assert_eq!(terminal.bottom(), areas.status.bottom(), "{width}x{height}");
         assert!(!terminal.intersects(areas.tabs), "{width}x{height}");
     }
 }
@@ -182,17 +186,17 @@ fn terminal_area_reports_degenerate_panels_as_empty_never_fabricated() {
 }
 
 #[test]
-fn keeps_overlay_geometry_inside_the_content_area_and_never_the_status() {
+fn centers_content_overlays_in_the_whole_content_that_the_status_floats_over() {
     let viewport = Rect::new(0, 0, 120, 40);
     let areas = project_shell_areas(viewport, SidebarSurface::Docked(SidebarWidth::DEFAULT));
     let content = overlay_area(&areas);
 
-    assert_eq!(content, Rect::new(30, 1, 90, 38));
-    assert!(!areas.panel.intersects(areas.status));
-    assert!(!content.intersects(areas.status));
+    assert_eq!(content, Rect::new(30, 1, 90, 39));
+    assert_eq!(content.bottom(), areas.status.bottom());
 
+    // The margin keeps the largest overlay off the last row the status floats over.
     let placed = place_overlay(content, u16::MAX, u16::MAX).unwrap();
-    assert_eq!(placed, Rect::new(32, 2, 86, 36));
+    assert_eq!(placed, Rect::new(32, 2, 86, 37));
     assert!(!placed.intersects(areas.status));
 }
 

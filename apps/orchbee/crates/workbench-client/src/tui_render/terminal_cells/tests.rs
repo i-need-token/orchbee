@@ -150,7 +150,7 @@ fn crop_header_preserves_occupied_cells_without_moving_live_content_or_cursor() 
                         "############",
                         Style::new(),
                     );
-                    super::super::viewport::render_live(
+                    if let Some(cursor) = super::super::viewport::render_live(
                         surface,
                         area,
                         &source,
@@ -160,7 +160,9 @@ fn crop_header_preserves_occupied_cells_without_moving_live_content_or_cursor() 
                         Some(occupied),
                         locale,
                         &Theme::terminal_native(),
-                    );
+                    ) {
+                        surface.set_cursor_position(cursor);
+                    }
                 })
                 .unwrap();
             let buffer = terminal.backend().buffer();
@@ -221,7 +223,7 @@ fn clipped_live_view_renders_latest_rows_cursor_and_complete_localized_hint() {
                 let crop = LiveView::new(&source, columns, rows);
                 terminal
                     .draw(|surface| {
-                        super::super::viewport::render_live(
+                        if let Some(cursor) = super::super::viewport::render_live(
                             surface,
                             Rect::new(0, 0, columns, rows),
                             &source,
@@ -231,7 +233,9 @@ fn clipped_live_view_renders_latest_rows_cursor_and_complete_localized_hint() {
                             None,
                             locale,
                             &theme,
-                        )
+                        ) {
+                            surface.set_cursor_position(cursor);
+                        }
                     })
                     .unwrap();
                 let content = crop.content(Rect::new(0, 0, columns, rows));
@@ -274,14 +278,17 @@ fn cropping_into_a_wide_tail_erases_old_cells_without_painting_half_a_glyph() {
         .unwrap();
     terminal
         .draw(|frame| {
-            render_live(
-                frame,
-                Rect::new(0, 0, 4, 4),
-                &source,
-                crop,
-                false,
-                &Theme::one_light(),
-            )
+            assert_eq!(
+                render_live(
+                    frame,
+                    Rect::new(0, 0, 4, 4),
+                    &source,
+                    crop,
+                    false,
+                    &Theme::one_light(),
+                ),
+                None
+            );
         })
         .unwrap();
     let content = crop.content(Rect::new(0, 0, 4, 4));
@@ -326,7 +333,7 @@ fn shared_tail_paints_retained_rows_and_moves_the_cursor_with_its_live_row() {
     let mut terminal = Terminal::new(TestBackend::new(10, 5)).unwrap();
     terminal
         .draw(|surface| {
-            render_tail(
+            if let Some(cursor) = render_tail(
                 surface,
                 Rect::new(1, 1, 6, 3),
                 &live,
@@ -334,7 +341,9 @@ fn shared_tail_paints_retained_rows_and_moves_the_cursor_with_its_live_row() {
                 2,
                 true,
                 &Theme::one_dark(),
-            )
+            ) {
+                surface.set_cursor_position(cursor);
+            }
         })
         .unwrap();
     assert_eq!(terminal.backend().buffer()[(1, 1)].symbol(), "H");

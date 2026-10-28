@@ -1,4 +1,4 @@
-//! Typed projection and painting for the shell status line.
+//! Typed projection and painting for the shell status: a floating chip, and the TooSmall row.
 
 use crate::client_view::PrefixDesc;
 use crate::{
@@ -6,21 +6,21 @@ use crate::{
         ClientAction, ClientView, KeyLabelGlyphs, LabelStyle, Notice, PanelDirection, PrefixAction,
         format_binding_with_glyphs, join_key_labels,
     },
-    localization::Locale,
+    localization::{Locale, TerminalEnd},
     terminal_text::{display_width, sanitize_terminal_text},
     tui_composition::CaptureOwner,
     tui_layout::ViewportTier,
     tui_theme::{GlyphMode, Role, Theme},
     workbench_client::{
         DisplayController, DisplayPhase, DisplayProvenance, LocationLabelStatus,
-        LocationLabelTarget, SetupStatus, TakeoverStatus, WorkbenchClientView,
+        LocationLabelTarget, PersistentStatus, SetupStatus, TakeoverStatus, WorkbenchClientView,
     },
 };
 use ratatui::{
     Frame,
     layout::Rect,
     text::{Line, Span},
-    widgets::Paragraph,
+    widgets::{Clear, Paragraph},
 };
 
 use super::controls::{KeyHint, measure_key_hints, render_key_hints};
@@ -83,6 +83,31 @@ impl Indicator {
     }
 }
 
+/// Facts the shell selected for this frame; the status decides what fits.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct StatusFacts<'a> {
+    pub(super) primary: &'a str,
+    /// The ordinary Ready fact. The TooSmall row keeps it; the floating chip omits it, since the
+    /// strip already names the current Tab.
+    pub(super) primary_ordinary: bool,
+    /// A lasting state the chip names in a word or two beside the action that fixes it.
+    pub(super) persistent: Option<PersistentStatus>,
+    pub(super) secondary_notice: Option<&'a str>,
+    pub(super) zoomed: bool,
+    pub(super) read_only: bool,
+    pub(super) recovery_status: bool,
+}
+
+/// What one status paint covered.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(super) struct StatusPaint {
+    /// The painted chip or row; its cells occlude the pane beneath.
+    pub(super) surface: Option<Rect>,
+    /// The complete primary fact, the recoverable-status draw receipt.
+    pub(super) primary: Option<Rect>,
+}
+
+/// Paints the floating chip end-aligned in `area`, or the full TooSmall row.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn render(
     frame: &mut Frame<'_>,
@@ -90,31 +115,196 @@ pub(super) fn render(
     view: &ClientView,
     capture_owner: Option<CaptureOwner>,
     locale: Locale,
-    status: &str,
-    secondary_notice: Option<&str>,
-    zoomed: bool,
-    read_only: bool,
-    recovery_status: bool,
+    facts: StatusFacts<'_>,
     tier: ViewportTier,
     theme: &Theme,
     session: Option<&WorkbenchClientView<'_>>,
-) -> Option<Rect> {
+) -> StatusPaint {
     if area.is_empty() {
-        return None;
+        return StatusPaint::default();
+    }
+    if tier == ViewportTier::TooSmall {
+        return render_row(
+            frame,
+            area,
+            view,
+            capture_owner,
+            locale,
+            facts,
+            tier,
+            theme,
+            session,
+        );
     }
 
     let client_notice = view
         .notice()
-        .filter(|notice| !(read_only && *notice == Notice::TerminalInputUnavailable));
-    let primary = client_notice.map_or(status, |notice| locale.shell_notice(Some(notice)));
-    let secondary_notice = secondary_notice.filter(|notice| {
+        .filter(|notice| !(facts.read_only && *notice == Notice::TerminalInputUnavailable));
+    let primary = client_notice.map_or(facts.primary, |notice| locale.shell_notice(Some(notice)));
+    let secondary_notice = secondary_notice(view, primary, facts.secondary_notice);
+    let glyphs = key_label_glyphs(theme);
+    let indicator_kind = input_indicator(view, capture_owner);
+    let contexts = contexts(view, facts.zoomed);
+    let copy = locale.status();
+    let available = usize::from(area.width).saturating_sub(2);
+    // An ended terminal that cannot name itself in two words still names its exit compactly.
+    let persistent_text = facts.persistent.map(|persistent| {
+        let (short, marker) = match persistent {
+            PersistentStatus::DirectoryMissing => {
+                (copy.directory_missing.to_owned(), Role::StatusWarning)
+            }
+            PersistentStatus::Disconnected => (copy.disconnected.to_owned(), Role::StatusError),
+            PersistentStatus::TerminalEnded(TerminalEnd::Exited(_)) => {
+                (copy.terminal_exited.to_owned(), Role::StatusWarning)
+            }
+            PersistentStatus::TerminalEnded(end @ TerminalEnd::Failed) => {
+                (locale.terminal_end_compact(end), Role::StatusError)
+            }
+        };
+        let fits = |text: &str| notice_width(StatusNotice { text, marker }, theme) <= available;
+        let text = match persistent {
+            PersistentStatus::TerminalEnded(end) if !fits(&short) => {
+                Some(locale.terminal_end_compact(end)).filter(|compact| fits(compact))
+            }
+            _ => None,
+        }
+        .unwrap_or(short);
+        (text, marker)
+    });
+
+    let (lead, hints) = if let Some(kind) = indicator_kind {
+        (
+            Lead::Indicator(indicator_projection(kind, view, locale, glyphs)),
+            status_hints(
+                view,
+                capture_owner,
+                Some(kind),
+                client_notice,
+                session,
+                &contexts,
+                tier,
+                locale,
+                glyphs,
+            ),
+        )
+    } else if let Some((text, marker)) = persistent_text
+        .as_ref()
+        .filter(|_| client_notice.is_none() && secondary_notice.is_none())
+    {
+        (
+            Lead::Notice(StatusNotice {
+                text,
+                marker: *marker,
+            }),
+            status_hints(
+                view,
+                capture_owner,
+                None,
+                client_notice,
+                session,
+                &[],
+                tier,
+                locale,
+                glyphs,
+            ),
+        )
+    } else {
+        // A transient notice leads and the exact fact follows it, as the recoverable receipt
+        // requires; the notice carries no hints of its own.
+        let notice = secondary_notice.map(|text| StatusNotice {
+            text,
+            marker: Role::StatusWarning,
+        });
+        let primary = (client_notice.is_some() || !facts.primary_ordinary)
+            .then(|| sanitize_terminal_text(primary).into_owned())
+            .filter(|primary| !primary.is_empty());
+        let mut hints = if notice.is_some() {
+            HintSet::default()
+        } else {
+            status_hints(
+                view,
+                capture_owner,
+                None,
+                client_notice,
+                session,
+                &contexts,
+                tier,
+                locale,
+                glyphs,
+            )
+        };
+        // Nothing names the prefix at rest, so the chip teaches it until it is first used.
+        if hints.items.is_empty()
+            && notice.is_none()
+            && capture_owner.is_none()
+            && view.overlay().is_none()
+            && view.launch_hint_pending()
+        {
+            hints.items.push(OwnedHint {
+                key: format_binding_with_glyphs(
+                    &view.bindings().prefix,
+                    LabelStyle::for_host(),
+                    glyphs,
+                ),
+                label: copy.shortcuts,
+            });
+        }
+        let contexts = contexts
+            .iter()
+            .map(|context| match context {
+                ContextIndicator::PointerReleased => copy.pointer_released,
+                ContextIndicator::Zoomed => copy.zoomed,
+            })
+            .collect();
+        (
+            Lead::Context {
+                notice,
+                primary,
+                contexts,
+            },
+            hints,
+        )
+    };
+    let chip = layout_chip(
+        lead,
+        &hints,
+        indicator_kind == Some(InputIndicator::Prefix),
+        available,
+        theme,
+    );
+    let painted = paint_chip(frame, area, &chip, theme);
+    StatusPaint {
+        surface: painted,
+        primary: painted
+            .zip(chip.primary)
+            .filter(|_| client_notice.is_none())
+            .map(|(rect, (offset, width))| {
+                Rect::new(
+                    rect.x
+                        .saturating_add(1)
+                        .saturating_add(u16::try_from(offset).unwrap_or(u16::MAX)),
+                    rect.y,
+                    u16::try_from(width).unwrap_or(u16::MAX),
+                    1,
+                )
+            }),
+    }
+}
+
+fn secondary_notice<'a>(
+    view: &ClientView,
+    primary: &str,
+    secondary_notice: Option<&'a str>,
+) -> Option<&'a str> {
+    secondary_notice.filter(|notice| {
         !view.prefix_active()
             && !primary
                 .strip_prefix(*notice)
                 .is_some_and(|suffix| suffix.is_empty() || suffix.starts_with(" · "))
-    });
-    let glyphs = key_label_glyphs(theme);
-    let indicator_kind = input_indicator(view, capture_owner);
+    })
+}
+
+fn contexts(view: &ClientView, zoomed: bool) -> Vec<ContextIndicator> {
     let mut contexts = Vec::with_capacity(2);
     if view.pointer_released() {
         contexts.push(ContextIndicator::PointerReleased);
@@ -122,6 +312,374 @@ pub(super) fn render(
     if zoomed {
         contexts.push(ContextIndicator::Zoomed);
     }
+    contexts
+}
+
+/// The chip's single lead: an input mode, a notice or lasting state, or context.
+#[derive(Debug)]
+enum Lead<'a> {
+    Indicator(Indicator),
+    Notice(StatusNotice<'a>),
+    Context {
+        notice: Option<StatusNotice<'a>>,
+        primary: Option<String>,
+        contexts: Vec<&'static str>,
+    },
+}
+
+/// The chip's laid-out content, inside its one-cell padding at each end.
+#[derive(Debug, Default)]
+struct ChipLayout {
+    spans: Vec<Span<'static>>,
+    width: usize,
+    hints: Vec<OwnedHint>,
+    hints_width: usize,
+    /// The complete primary fact's offset and width inside the content.
+    primary: Option<(usize, usize)>,
+}
+
+impl ChipLayout {
+    fn push(&mut self, text: String, style: ratatui::style::Style) {
+        self.width = self.width.saturating_add(display_width(&text));
+        self.spans.push(Span::styled(text, style));
+    }
+
+    fn keep_hints(&mut self, (hints, width): (Vec<OwnedHint>, usize)) {
+        self.hints = hints;
+        self.hints_width = width;
+    }
+
+    fn is_empty(&self) -> bool {
+        self.spans.is_empty() && self.hints.is_empty()
+    }
+
+    /// The separator a further lead part needs after what the lead already holds.
+    fn joint_before(&self, separator: &Separator) -> usize {
+        if self.spans.is_empty() {
+            0
+        } else {
+            separator.width
+        }
+    }
+
+    fn joint(&self, separator: &Separator) -> usize {
+        if self.spans.is_empty() || self.hints.is_empty() {
+            0
+        } else {
+            separator.width
+        }
+    }
+}
+
+/// Keeps the lead whole and drops hints whole, in their yield order, until the chip fits.
+fn layout_chip(
+    lead: Lead<'_>,
+    hints: &HintSet,
+    prefix: bool,
+    available: usize,
+    theme: &Theme,
+) -> ChipLayout {
+    let separator = separator(theme);
+    let mut chip = ChipLayout::default();
+    let room_after = |width: usize| {
+        available
+            .checked_sub(width)
+            .and_then(|room| room.checked_sub(separator.width))
+    };
+    let fit_after = |width: usize| {
+        room_after(width).map_or_else(|| (Vec::new(), 0), |room| fit_hints(hints, room, theme))
+    };
+    match lead {
+        Lead::Indicator(mut indicator) => {
+            if indicator.width() > available {
+                indicator.key = None;
+            }
+            if indicator.width() > available {
+                if !prefix {
+                    chip.keep_hints(fit_hints(hints, available, theme));
+                }
+                return chip;
+            }
+            let kept = fit_after(indicator.width());
+            if kept.0.is_empty() && !prefix && !hints.items.is_empty() {
+                // The current return route outranks the mode's name.
+                let alone = fit_hints(hints, available, theme);
+                if !alone.0.is_empty() {
+                    chip.keep_hints(alone);
+                    return chip;
+                }
+            }
+            let mut compact_key = None;
+            if kept.0.is_empty()
+                && prefix
+                && let Some(hint) = hints.items.first()
+            {
+                // The prefix keeps its cancellation key, then the badge alone.
+                let key = sanitize_terminal_text(&hint.key).into_owned();
+                let key_width = display_width(&key);
+                let fits = |indicator: &Indicator| {
+                    room_after(indicator.width()).is_some_and(|room| key_width <= room)
+                };
+                if !fits(&indicator) && indicator.key.is_some() {
+                    indicator.key = None;
+                }
+                if key_width > 0 && fits(&indicator) {
+                    compact_key = Some(key);
+                }
+            }
+            chip.push(indicator.label.to_owned(), theme.style(indicator.role));
+            if let Some(key) = indicator.key {
+                chip.push(" ".to_owned(), theme.style(Role::HintLabel));
+                chip.push(key, theme.style(Role::HintKey));
+            }
+            if let Some(key) = compact_key {
+                chip.push(separator.text.clone(), theme.style(Role::HintLabel));
+                chip.push(key, theme.style(Role::HintKey));
+            }
+            chip.keep_hints(kept);
+        }
+        Lead::Notice(notice) => {
+            if notice_width(notice, theme) > available {
+                chip.keep_hints(fit_hints(hints, available, theme));
+                return chip;
+            }
+            chip.push(
+                format!("{} ", theme.glyphs.status_bullet),
+                theme.style(notice.marker),
+            );
+            chip.push(
+                sanitize_terminal_text(notice.text).into_owned(),
+                theme.style(Role::TextPrimary),
+            );
+            chip.keep_hints(fit_after(chip.width));
+        }
+        Lead::Context {
+            notice,
+            primary,
+            contexts,
+        } => {
+            if let Some(notice) = notice.filter(|notice| notice_width(*notice, theme) <= available)
+            {
+                chip.push(
+                    format!("{} ", theme.glyphs.status_bullet),
+                    theme.style(notice.marker),
+                );
+                chip.push(
+                    sanitize_terminal_text(notice.text).into_owned(),
+                    theme.style(Role::TextPrimary),
+                );
+            }
+            if let Some(primary) = primary {
+                let joint = chip.joint_before(&separator);
+                let width = display_width(&primary);
+                if chip.width.saturating_add(joint).saturating_add(width) <= available {
+                    if joint > 0 {
+                        chip.push(separator.text.clone(), theme.style(Role::HintLabel));
+                    }
+                    chip.primary = Some((chip.width, width));
+                    chip.push(primary, theme.style(Role::TextPrimary));
+                }
+            }
+            for context in contexts {
+                let joint = chip.joint_before(&separator);
+                if chip
+                    .width
+                    .saturating_add(joint)
+                    .saturating_add(display_width(context))
+                    > available
+                {
+                    break;
+                }
+                if joint > 0 {
+                    chip.push(separator.text.clone(), theme.style(Role::HintLabel));
+                }
+                chip.push(context.to_owned(), theme.style(Role::TextPrimary));
+            }
+            if chip.spans.is_empty() {
+                chip.keep_hints(fit_hints(hints, available, theme));
+            } else {
+                chip.keep_hints(fit_after(chip.width));
+            }
+        }
+    }
+    chip
+}
+
+/// Fills the chip with the overlay surface, end-aligned so it covers only its own cells.
+fn paint_chip(frame: &mut Frame<'_>, area: Rect, chip: &ChipLayout, theme: &Theme) -> Option<Rect> {
+    if chip.is_empty() {
+        return None;
+    }
+    let separator = separator(theme);
+    let joint = chip.joint(&separator);
+    let lead = u16::try_from(chip.width.saturating_add(joint)).ok()?;
+    let content = lead.checked_add(u16::try_from(chip.hints_width).ok()?)?;
+    let width = content
+        .checked_add(2)
+        .filter(|width| *width <= area.width)?;
+    let rect = Rect::new(area.right() - width, area.y, width, 1);
+    if frame.area().intersection(rect) != rect {
+        return None;
+    }
+    frame.render_widget(Clear, rect);
+    frame
+        .buffer_mut()
+        .set_style(rect, theme.style(Role::SurfaceOverlay));
+    let x = rect.x + 1;
+    if lead > 0 {
+        let mut spans = chip.spans.clone();
+        if joint > 0 {
+            spans.push(Span::styled(
+                separator.text.clone(),
+                theme.style(Role::HintLabel),
+            ));
+        }
+        frame.render_widget(
+            Paragraph::new(Line::from(spans)),
+            Rect::new(x, rect.y, lead, 1),
+        );
+    }
+    if !chip.hints.is_empty() {
+        let hints = borrowed_hints(&chip.hints);
+        let width = u16::try_from(chip.hints_width).ok()?;
+        let _ = render_key_hints(frame, Rect::new(x + lead, rect.y, width, 1), &hints, theme);
+    }
+    Some(rect)
+}
+
+/// One marked notice and an optional hint as a floating chip. With `hint_first`, the hint is the
+/// owner's return route and survives narrowing ahead of the notice.
+pub(super) fn render_notice_chip(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    notice: &str,
+    marker: Role,
+    hint: Option<(String, &'static str)>,
+    hint_first: bool,
+    theme: &Theme,
+) -> Option<Rect> {
+    let available = usize::from(area.width).saturating_sub(2);
+    let separator = separator(theme);
+    let notice = StatusNotice {
+        text: notice,
+        marker,
+    };
+    let notice_width = notice_width(notice, theme);
+    let hints = HintSet::from(
+        hint.map(|(key, label)| OwnedHint { key, label })
+            .into_iter()
+            .collect::<Vec<_>>(),
+    );
+    let (alone, alone_width) = fit_hints(&hints, available, theme);
+    let both = !alone.is_empty()
+        && notice_width
+            .saturating_add(separator.width)
+            .saturating_add(alone_width)
+            <= available;
+    let (show_notice, show_hint) = if both {
+        (true, true)
+    } else if hint_first && !alone.is_empty() {
+        (false, true)
+    } else if notice_width <= available {
+        (true, false)
+    } else {
+        (false, !alone.is_empty())
+    };
+    let mut chip = ChipLayout::default();
+    if show_notice {
+        chip.push(
+            format!("{} ", theme.glyphs.status_bullet),
+            theme.style(marker),
+        );
+        chip.push(
+            sanitize_terminal_text(notice.text).into_owned(),
+            theme.style(Role::TextPrimary),
+        );
+    }
+    if show_hint {
+        chip.keep_hints((alone, alone_width));
+    }
+    paint_chip(frame, area, &chip, theme)
+}
+
+/// Context and hints as a floating chip for a gesture's feedback. The hints are its return route
+/// and survive narrowing ahead of the context.
+pub(super) fn render_context_chip(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    contexts: Vec<&'static str>,
+    hints: Vec<(String, &'static str)>,
+    theme: &Theme,
+) -> Option<Rect> {
+    let available = usize::from(area.width).saturating_sub(2);
+    let hints = HintSet::from(
+        hints
+            .into_iter()
+            .map(|(key, label)| OwnedHint { key, label })
+            .collect::<Vec<_>>(),
+    );
+    let separator = separator(theme);
+    let context_width = contexts
+        .iter()
+        .map(|context| display_width(context))
+        .sum::<usize>()
+        .saturating_add(
+            separator
+                .width
+                .saturating_mul(contexts.len().saturating_sub(1)),
+        );
+    let complete = measure_key_hints(&borrowed_hints(&hints.items), theme).is_some_and(|width| {
+        context_width
+            .saturating_add(separator.width)
+            .saturating_add(width)
+            <= available
+    });
+    let chip = if complete {
+        layout_chip(
+            Lead::Context {
+                notice: None,
+                primary: None,
+                contexts,
+            },
+            &hints,
+            false,
+            available,
+            theme,
+        )
+    } else {
+        // The context yields whole; the cancellation route stays.
+        let mut chip = ChipLayout::default();
+        chip.keep_hints(fit_hints(&hints, available, theme));
+        chip
+    };
+    paint_chip(frame, area, &chip, theme)
+}
+
+/// The TooSmall row: the primary fact at the start and the exit hint at the end.
+#[allow(clippy::too_many_arguments)]
+fn render_row(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    view: &ClientView,
+    capture_owner: Option<CaptureOwner>,
+    locale: Locale,
+    facts: StatusFacts<'_>,
+    tier: ViewportTier,
+    theme: &Theme,
+    session: Option<&WorkbenchClientView<'_>>,
+) -> StatusPaint {
+    frame.render_widget(Clear, area);
+    frame
+        .buffer_mut()
+        .set_style(area, theme.style(Role::SurfaceChrome));
+    let client_notice = view
+        .notice()
+        .filter(|notice| !(facts.read_only && *notice == Notice::TerminalInputUnavailable));
+    let primary = client_notice.map_or(facts.primary, |notice| locale.shell_notice(Some(notice)));
+    let secondary_notice = secondary_notice(view, primary, facts.secondary_notice);
+    let glyphs = key_label_glyphs(theme);
+    let indicator_kind = input_indicator(view, capture_owner);
+    let contexts = contexts(view, facts.zoomed);
 
     let notice = (indicator_kind.is_none())
         .then_some(secondary_notice)
@@ -144,6 +702,7 @@ pub(super) fn render(
             locale,
             glyphs,
         )
+        .items
     };
     let mut indicator =
         indicator_kind.map(|value| indicator_projection(value, view, locale, glyphs));
@@ -209,15 +768,8 @@ pub(super) fn render(
             right_width = width;
             right_is_notice = true;
         }
-    } else if tier == ViewportTier::TooSmall && !hints.is_empty() {
+    } else if !hints.is_empty() {
         let (count, width) = fitting_hints(&hints, usize::from(area.width), theme);
-        visible_hints = count;
-        right_width = width;
-    } else if primary_width <= usize::from(area.width) && !hints.is_empty() {
-        let remaining = usize::from(area.width)
-            .saturating_sub(primary_width)
-            .saturating_sub(separator.width);
-        let (count, width) = fitting_hints(&hints, remaining, theme);
         visible_hints = count;
         right_width = width;
     }
@@ -226,7 +778,7 @@ pub(super) fn render(
         indicator = None;
     }
 
-    if recovery_status
+    if facts.recovery_status
         && indicator.is_none()
         && notice.is_none()
         && primary_width <= usize::from(area.width)
@@ -293,10 +845,13 @@ pub(super) fn render(
         }
     }
 
-    if client_notice.is_none() {
-        primary_rect
-    } else {
-        None
+    StatusPaint {
+        surface: Some(area),
+        primary: if client_notice.is_none() {
+            primary_rect
+        } else {
+            None
+        },
     }
 }
 
@@ -444,6 +999,57 @@ fn fitting_hints(hints: &[OwnedHint], available: usize, theme: &Theme) -> (usize
     (0, 0)
 }
 
+/// Ordered hints and the order in which they yield to width.
+#[derive(Debug, Default)]
+struct HintSet {
+    items: Vec<OwnedHint>,
+    /// Indices in the order they drop; `None` drops from the end.
+    yield_order: Option<Vec<usize>>,
+}
+
+impl From<Vec<OwnedHint>> for HintSet {
+    fn from(items: Vec<OwnedHint>) -> Self {
+        Self {
+            items,
+            yield_order: None,
+        }
+    }
+}
+
+/// Drops whole hints in yield order until the rest fit; kept hints stay in display order.
+fn fit_hints(hints: &HintSet, available: usize, theme: &Theme) -> (Vec<OwnedHint>, usize) {
+    let mut kept: Vec<usize> = (0..hints.items.len()).collect();
+    let yield_order = hints
+        .yield_order
+        .clone()
+        .unwrap_or_else(|| (0..hints.items.len()).rev().collect());
+    let mut yielding = yield_order.into_iter();
+    while !kept.is_empty() {
+        let items = kept
+            .iter()
+            .map(|index| &hints.items[*index])
+            .map(|hint| KeyHint::new(&hint.key, hint.label))
+            .collect::<Vec<_>>();
+        if let Some(width) = measure_key_hints(&items, theme)
+            && width <= available
+        {
+            let kept = kept
+                .iter()
+                .map(|index| OwnedHint {
+                    key: hints.items[*index].key.clone(),
+                    label: hints.items[*index].label,
+                })
+                .collect();
+            return (kept, width);
+        }
+        let Some(next) = yielding.next() else {
+            break;
+        };
+        kept.retain(|index| *index != next);
+    }
+    (Vec::new(), 0)
+}
+
 fn key_label_glyphs(theme: &Theme) -> KeyLabelGlyphs {
     match theme.glyphs.mode() {
         GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
@@ -530,11 +1136,11 @@ fn status_hints(
     tier: ViewportTier,
     locale: Locale,
     glyphs: KeyLabelGlyphs,
-) -> Vec<OwnedHint> {
+) -> HintSet {
     let copy = locale.status();
     match indicator {
         Some(InputIndicator::Prefix) => {
-            return prefix_mode_hints(view, locale, glyphs);
+            return prefix_mode_hints(view, locale, glyphs).into();
         }
         Some(InputIndicator::Navigator) => {
             use crate::client_view::navigator::Command;
@@ -548,35 +1154,17 @@ fn status_hints(
                 key: crate::client_view::navigator::label_with_glyphs(command, glyphs),
                 label,
             })
-            .collect();
+            .collect::<Vec<_>>()
+            .into();
         }
-        Some(InputIndicator::Sidebar) => {
-            use crate::machine_picker::{SidebarCommand, sidebar_binding_label};
-            let mut commands = vec![SidebarCommand::Exit];
-            if tier == ViewportTier::Full {
-                commands.extend([
-                    SidebarCommand::Activate,
-                    SidebarCommand::OpenMenu,
-                    SidebarCommand::Help,
-                ]);
-            }
-            return commands
-                .into_iter()
-                .filter_map(|command| {
-                    sidebar_binding_label(command, glyphs).map(|key| OwnedHint {
-                        key,
-                        label: locale.sidebar_navigation_action(command),
-                    })
-                })
-                .collect();
-        }
-        Some(InputIndicator::Resize) => return resize_hints(view, locale, glyphs),
-        Some(InputIndicator::ResizePending) => return Vec::new(),
+        Some(InputIndicator::Sidebar) => return sidebar_hints(locale, glyphs),
+        Some(InputIndicator::Resize) => return resize_hints(view, locale, glyphs).into(),
+        Some(InputIndicator::ResizePending) => return HintSet::default(),
         None => {}
     }
 
     if capture_owner.is_some() {
-        return Vec::new();
+        return HintSet::default();
     }
     if tier == ViewportTier::TooSmall {
         return first_effective_hint(
@@ -586,7 +1174,8 @@ fn status_hints(
             glyphs,
         )
         .into_iter()
-        .collect();
+        .collect::<Vec<_>>()
+        .into();
     }
     let mut hints = status_actions(client_notice, session)
         .into_iter()
@@ -603,43 +1192,51 @@ fn status_hints(
             hints.push(hint);
         }
     }
-    if !hints.is_empty() {
-        return hints;
-    }
-    match tier {
-        ViewportTier::Full => vec![OwnedHint {
-            key: format_binding_with_glyphs(
-                &view.bindings().prefix,
-                LabelStyle::for_host(),
-                glyphs,
-            ),
-            label: copy.shortcuts,
-        }],
-        ViewportTier::Compact => effective_hint(view, PrefixAction::ShowHelp, copy.help, glyphs)
-            .into_iter()
-            .collect(),
-        ViewportTier::Minimal => effective_hint(
-            view,
-            PrefixAction::Client(ClientAction::Exit),
-            copy.exit,
-            glyphs,
-        )
+    // At rest nothing floats: no idle hint outlives the launch hint.
+    hints.into()
+}
+
+/// Sidebar focus keeps its return and Help routes as width shrinks.
+fn sidebar_hints(locale: Locale, glyphs: KeyLabelGlyphs) -> HintSet {
+    use crate::machine_picker::{SidebarCommand, sidebar_binding_label};
+    let commands = [
+        SidebarCommand::Exit,
+        SidebarCommand::Activate,
+        SidebarCommand::OpenMenu,
+        SidebarCommand::Help,
+    ];
+    let items = commands
         .into_iter()
-        .collect(),
-        ViewportTier::TooSmall => first_effective_hint(
-            view,
-            PrefixAction::Client(ClientAction::Exit),
-            copy.exit,
-            glyphs,
-        )
-        .into_iter()
-        .collect(),
+        .filter_map(|command| {
+            sidebar_binding_label(command, glyphs).map(|key| {
+                (
+                    command,
+                    OwnedHint {
+                        key,
+                        label: locale.sidebar_navigation_action(command),
+                    },
+                )
+            })
+        })
+        .collect::<Vec<_>>();
+    let yield_order = [
+        SidebarCommand::OpenMenu,
+        SidebarCommand::Activate,
+        SidebarCommand::Help,
+        SidebarCommand::Exit,
+    ]
+    .into_iter()
+    .filter_map(|command| items.iter().position(|(item, _)| *item == command))
+    .collect();
+    HintSet {
+        items: items.into_iter().map(|(_, hint)| hint).collect(),
+        yield_order: Some(yield_order),
     }
 }
 
 fn prefix_mode_hints(view: &ClientView, locale: Locale, glyphs: KeyLabelGlyphs) -> Vec<OwnedHint> {
     let copy = locale.status();
-    let mut hints = Vec::with_capacity(7);
+    let mut hints = Vec::with_capacity(8);
     hints.extend(prefix_action_hint(
         view,
         PrefixAction::Client(ClientAction::DismissPrefix),
@@ -650,6 +1247,12 @@ fn prefix_mode_hints(view: &ClientView, locale: Locale, glyphs: KeyLabelGlyphs) 
         view,
         PrefixAction::ShowHelp,
         copy.help,
+        glyphs,
+    ));
+    hints.extend(prefix_action_hint(
+        view,
+        PrefixAction::Client(ClientAction::FocusBusinessSidebar),
+        copy.focus_sidebar,
         glyphs,
     ));
     hints.extend(prefix_action_hint(

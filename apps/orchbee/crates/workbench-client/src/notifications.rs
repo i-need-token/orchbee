@@ -160,7 +160,7 @@ pub fn render(
         return None;
     };
     let bounds = frame.area();
-    // Reserve the persistent status row and one top chrome row.
+    // Keep clear of the top chrome row and the last row, where the status chip floats.
     let area = Rect::new(
         bounds.x,
         bounds.y.saturating_add(1),

@@ -143,7 +143,8 @@ fn single_terminal_chrome_keeps_settings_in_the_sidebar_and_matches_the_live_geo
                 assert_eq!(area.y, areas.panel.y);
                 assert_eq!(area.width + 1, areas.panel.width);
                 assert_eq!(area.height, areas.panel.height);
-                assert_eq!(area.bottom(), height - 1);
+                // The pane reaches the last row; the status floats over it.
+                assert_eq!(area.bottom(), height);
                 if areas.tier.shows_panel_frame() {
                     let row: String = (areas.tabs.x..areas.tabs.right())
                         .map(|x| buffer[(x, areas.tabs.y)].symbol())

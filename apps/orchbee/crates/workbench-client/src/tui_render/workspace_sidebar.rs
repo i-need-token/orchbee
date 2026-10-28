@@ -1188,7 +1188,6 @@ pub(super) fn render(
         return;
     }
     // The list opens directly under the fixed actions; Project and ungrouped headings name groups.
-    let body = Rect::new(area.x, area.y, area.width, area.height - 1);
     let insertion = extra_creation.map(|preview| creation_insertion(view, rows, preview));
     let measure = EntryMeasureContext {
         view,
@@ -1245,31 +1244,34 @@ pub(super) fn render(
             };
         }
     }
-    let window = view.machines.space_window_with_creation(
-        rows,
-        &heights,
-        &gaps,
-        body.height,
-        insertion,
-        current_creation.and_then(|preview| {
-            insertion.or_else(|| {
-                rows.iter()
-                    .position(|row| creation_target_matches(view, row, preview))
-            })
-        }),
-    );
-    if insertion.is_none()
-        && let Some(hits) = hits.as_deref_mut()
-    {
-        hits.record_sidebar_reorder_paint(crate::tui_pointer::SidebarReorderPaint {
-            viewport: frame.area(),
-            layer,
-            body,
-            footer: Rect::new(area.x, area.bottom() - 1, area.width, 1),
-            window,
-            source: source.clone(),
-        });
-    }
+    let creation_index = current_creation.and_then(|preview| {
+        insertion.or_else(|| {
+            rows.iter()
+                .position(|row| creation_target_matches(view, row, preview))
+        })
+    });
+    let window_in = |cells| {
+        view.machines.space_window_with_creation(
+            rows,
+            &heights,
+            &gaps,
+            cells,
+            insertion,
+            creation_index,
+        )
+    };
+    // The list runs down to Settings. Only an overflowing list gives its last row to the range
+    // footer, so a list that fits never leaves a blank row above Settings.
+    let whole = window_in(area.height);
+    let overflows = whole.top > 0 || whole.end() < whole.total;
+    let (body, window) = if overflows {
+        (
+            Rect::new(area.x, area.y, area.width, area.height - 1),
+            window_in(area.height - 1),
+        )
+    } else {
+        (area, whole)
+    };
     let mut y = body.y;
     let mut hovered_hint = None;
 
@@ -1965,6 +1967,25 @@ pub(super) fn render(
             crate::tui_pointer::HitTarget::MachineWorkspaceSurface(window),
         );
     }
+    // A drop below the last row moves to the end: the range footer, or the free rows under a
+    // list that fits.
+    let footer = if overflows {
+        Rect::new(area.x, area.bottom() - 1, area.width, 1)
+    } else {
+        Rect::new(area.x, y, area.width, area.bottom().saturating_sub(y))
+    };
+    if insertion.is_none()
+        && let Some(hits) = hits.as_deref_mut()
+    {
+        hits.record_sidebar_reorder_paint(crate::tui_pointer::SidebarReorderPaint {
+            viewport: frame.area(),
+            layer,
+            body,
+            footer,
+            window,
+            source: source.clone(),
+        });
+    }
     let range = if window.top > 0 || window.end() < window.total {
         format!(
             "{}-{}/{}",
@@ -1979,7 +2000,7 @@ pub(super) fn render(
     } else {
         String::new()
     };
-    if let Some(hint) = hovered_hint {
+    if let Some(hint) = hovered_hint.filter(|_| overflows || y < area.bottom()) {
         frame.render_widget(
             Paragraph::new(truncate_display(
                 &hint,

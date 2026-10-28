@@ -90,12 +90,6 @@ impl Locale {
         }
     }
 
-    pub(crate) const fn sidebar_back_hint(self) -> &'static str {
-        match self {
-            Self::EnUs => "Back",
-            Self::ZhCn => "返回",
-        }
-    }
     pub(crate) fn sidebar_navigation_action(
         self,
         action: impl Into<SidebarActionLabel>,

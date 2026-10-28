@@ -157,7 +157,7 @@ into the underlying terminal. Each asynchronous attempt has an identity and a
 cancellation owner; stale completion cannot switch the active machine.
 
 The picker header names its current Machines, Workspaces or Agents mode. While
-open, it owns the bottom status row and displays that mode with direct navigation,
+open, it owns the floating status and displays that mode with direct navigation,
 Enter, Tab and Escape hints, replacing pane-prefix hints. Agent search editing names
 Search there and states that Escape finishes editing rather than closing the
 picker. Workspace search instead keeps Enter Open and Escape Close. Short widths drop the full hint before the short exit hint, then retain
@@ -562,7 +562,8 @@ Default rows show one line with the effective presentation title beside the vert
 status glyph. A blank sanitized title falls back to the provider.
 Parent Machine/Workspace text stays in the tree rather than each Agent. Status color stays on the
 glyph; the title uses the primary text role. Hovering the row
-shows the glyph and localized state in the sidebar footer; configured `state_text` and `agent`
+shows the glyph and localized state on the list's last row when that row is free or holds the
+overflow range; configured `state_text` and `agent`
 tokens restore inline state and provider text.
 
 | Input or event                                 | Decision and observable result                                                                                          |

@@ -3,7 +3,7 @@
 ## Scope and ownership
 
 The native Client shell divides the host area into a top strip, a content region, an optional side
-panel, a pane area with shared boundaries, and an on-demand one-row status overlay. This reference documents the
+panel, a pane area with shared boundaries, and an on-demand floating status chip. This reference documents the
 concrete regions, thresholds, and degradation order that `docs/tui/layout.md` requires the owning
 application to declare. It owns the layout projection only: colors, glyphs, and frame style belong
 to the theme surface, overlay contents belong to their surface renderers, and terminal cell drawing
@@ -86,13 +86,13 @@ Width and height are classified independently and the lower tier wins.
 `ViewportTier::from_size(columns, rows)` in `tui_layout` is the single classifier. Chrome row and
 column counts per tier:
 
-| Chrome       | Full                             | Compact                                                                       | Minimal        | TooSmall       |
-| ------------ | -------------------------------- | ----------------------------------------------------------------------------- | -------------- | -------------- |
-| Top strip    | 1 row (tabs)                     | 1 row (tabs)                                                                  | none           | none           |
-| Status       | 1 reserved row                   | 1 reserved row                                                                | 1 reserved row | 1 reserved row |
-| Side panel   | docked, bounded preference       | docked while content keeps 60 columns, else overlay, bounded preference, left | hidden         | hidden         |
-| Panel chrome | split/zoom frame and leaf titles | split/zoom frame and leaf titles                                              | not drawn      | not drawn      |
-| Content      | remainder                        | remainder                                                                     | remainder      | notice only    |
+| Chrome       | Full                             | Compact                                                                       | Minimal        | TooSmall      |
+| ------------ | -------------------------------- | ----------------------------------------------------------------------------- | -------------- | ------------- |
+| Top strip    | 1 row (tabs)                     | 1 row (tabs)                                                                  | none           | none          |
+| Status       | chip, last row                   | chip, last row                                                                | chip, last row | full last row |
+| Side panel   | docked, bounded preference       | docked while content keeps 60 columns, else overlay, bounded preference, left | hidden         | hidden        |
+| Panel chrome | split/zoom frame and leaf titles | split/zoom frame and leaf titles                                              | not drawn      | not drawn     |
+| Content      | remainder                        | remainder                                                                     | remainder      | notice only   |
 
 At TooSmall the Client paints one localized too-small notice and the status line, nothing else, and
 resumes normal rendering when the host grows. The sidebar surface the view requests is an intent;
@@ -107,7 +107,7 @@ When directory input is supported, the sidebar fixes two action rows at the top:
 `[ Search ]` (`[ 新建工作区 ]` and `[ 搜索 ]` in Chinese). The bracketed action extent is
 both the visible affordance and the exact pointer target; the unused row remainder stays ordinary
 chrome. Hover and press change only the action surface. These rows and the bottom Settings action
-remain outside the scrolling navigation tree. Undismissed first-run guidance also reserves space above this footer, leaving at least four navigation rows; it never paints into the terminal. See [native onboarding](native-onboarding.md). Projects in their canonical
+remain outside the scrolling navigation tree. Undismissed first-run guidance also reserves space above Settings, leaving at least four navigation rows; it never paints into the terminal. See [native onboarding](native-onboarding.md). Projects in their canonical
 display order and their children follow, then ungrouped Workspaces under a localized Ungrouped heading. Each heading follows its label with a secondary count of its member Workspaces, including those hidden by collapse; only the label truncates. An ungrouped Workspace is a root entry; optional Projects group
 ordinary and Git-worktree-backed Workspaces as peers. Agents appear directly under
 each Workspace, with independent lists expanded by default. Configuration still owns item row height, gap and token styles.
@@ -125,13 +125,11 @@ to authored guidance or terminal content; no PTY geometry is reserved.
 
 Fixed-action shortcut hints end at the sidebar divider, with at least two blank cells after the
 button. A hint that cannot fit in full is omitted; its cells are outside
-the button's pointer target. At host heights of at least 24 rows, when the remaining sidebar area
-has at least five rows, a divider and one shortcut-hint row separate Settings from the scrolling
-list. While terminal input owns the keyboard, that hint shows the effective sidebar-focus binding
-and a localized Browse label. Sidebar navigation shows its local Back and Help bindings; an
-occluding input owner suppresses both projections. These complete hints use the shared hint
-component and publish no pointer targets. Shorter layouts omit only the divider; two available rows
-retain the navigation hint and Settings. The default focus switch is `Ctrl+B Tab`, with the previous
+the button's pointer target. The Settings action sits alone on the sidebar's last row without a shortcut
+hint, and at every size the list runs directly down to it with no divider, hint or blank row between
+them. The prefix status teaches the sidebar-focus binding as `Tab` sidebar; while sidebar navigation
+owns the keyboard, the floating status shows its Back and Help bindings. The default focus switch
+is `Ctrl+B Tab`, with the previous
 `Ctrl+B Shift+B` alias retained. Repeating the focus switch returns to the terminal without activating
 a Workspace. Blank sidebar cells do not change focus; the explicit binding and row controls own it.
 
@@ -147,8 +145,8 @@ An empty navigation tree leaves the space below the actions blank until rows or 
 Both sidebar presentations keep one top padding row and one right padding cell, with no
 outer left padding. Row surfaces, the footer
 divider and fixed-action shortcut hints continue through the right padding cell to the sidebar
-divider; pointer targets keep the list's own columns. Footer rows carry only
-overflow ranges; fully visible lists leave them blank.
+divider; pointer targets keep the list's own columns. Only an overflowing list reserves its last
+row for the range; a list that fits reaches the row directly above Settings.
 
 The tree shape comes from shared columns. Project and Ungrouped headings keep a one-cell navigation
 marker at the list's left edge, followed by their regular-weight secondary label. Workspace rows start
@@ -313,7 +311,7 @@ These controls reserve no additional terminal geometry; painted control cells ta
 precedence over the content beneath them. Their behavior belongs to the owning action, copy
 and resize references.
 
-When help cannot fit a complete page in a presentable tier, the existing status row shows the
+When help cannot fit a complete page in a presentable tier, the status chip shows the
 localized resize notice with a complete three-cell `[x]` button. This button can remain visible
 in Minimal and dismisses help without changing the underlying mode or PTY geometry. TooSmall
 paints only the root size notice and status; it retains the help episode without publishing
@@ -527,7 +525,7 @@ explicit Client-local preference owned by Picker, not a content-driven size or a
 persisted setting. A visible sidebar uses `min(preferred, host columns / 2)` columns;
 the existing Full and Compact floors ensure that this cap remains above the minimum.
 `SidebarSurface` carries the preferred value through the existing single shell
-projector, terminal geometry and local pane-layout validation. The status row uses the columns to the right of a visible sidebar. Host shrinkage clamps only the effective rectangle, retaining
+projector, terminal geometry and local pane-layout validation. The status chip floats within the columns to the right of a visible sidebar. Host shrinkage clamps only the effective rectangle, retaining
 the preference for later restoration.
 
 | State / event            | Decision and invariant                                                                                                                                                                                                                                                                                                                                                                     |
@@ -563,22 +561,33 @@ those effects. The existing bounded hierarchy traces remain the hierarchy author
 
 ## Status line
 
-The workbench reserves one bottom status row at every size. `ShellAreas.panel` and all terminal,
-pane, scrollbar and read-only layout projections exclude it. The sidebar keeps its full height.
-The row stays reserved when empty, so prefix entry, notices and expiry never resize a PTY or cover
-terminal cells or pane borders. Idle status is blank.
+The status reserves no row. At every presentable tier the workbench, `ShellAreas.panel` and all
+terminal, pane, scrollbar and read-only layout projections reach the host's last row.
+`ShellAreas.status` names that row to the right of a visible sidebar, and `status_chip_area` insets
+it by one cell on each side. The status paints after every overlay as an end-aligned chip within that
+area and records only its painted cells as an occluding `HitLayer::Status` surface. Panes return
+their cursor instead of placing it, and the shell places it after the status, so a chip hides only a
+cursor it covers. The rest of the row stays terminal content. Opening, changing and closing the chip
+never resize a PTY, and closing repaints the covered cells. At TooSmall the whole last row carries
+the exit hint.
 
-Status text appears for prefix capture, other input modes, meaningful notices, connection or recovery,
-released pointer capture and a focused terminal's ended lifecycle. Exit feedback remains visible
-alongside pane titles: `Locale::native_status` owns its localized exit result,
-and the renderer keeps status text admitted even when the session remains Ready and controlling.
-When the retained-output detail cannot fit, localized compact copy preserves the complete exit code,
-signal, unknown result or runtime-failure fact within twenty cells. The reserved row is stable. Ready and zoom context is available with prefix hints; ordinary
-controlling status is omitted, while read-only input remains explicit.
-TooSmall retains its exit hint.
-Segments follow `docs/tui/overlays-and-status.md`; context yields to the mode and exit hint.
-The prefix badge shortens its cancellation hint to `Esc`, then to the badge alone. Menus
-and Settings replace the overlay's complete background before painting their own hints.
+Nothing floats at rest once the prefix has been used. Until the first prefix entry in the Client
+process, an in-memory launch hint (`Ctrl+B` shortcuts) teaches the prefix. It never shows the
+primary status fact and never covers terminal graphics. The chip otherwise appears for prefix
+capture, other input modes, sidebar navigation, meaningful notices, connection or recovery,
+released pointer capture and persistent states. Directory missing, Disconnected and Terminal
+exited show one or two words with their severity marker, followed by the fixing binding when it
+fits, such as `Ctrl+B c` to create a Tab for an ended terminal. An exit that does not fit in two
+words uses the localized compact exit copy; the full exit result remains with `Locale::native_status`
+and the pane title. A transient notice leads the exact primary fact and carries no hints; a persistent
+state yields to it. Ready and zoom context is available with prefix hints; ordinary controlling status
+is omitted, while read-only input remains explicit.
+Segments follow `docs/tui/overlays-and-status.md`. Prefix hints start with cancel, help and
+`Tab` sidebar; trailing hints drop as whole records. The prefix badge shortens its cancellation hint
+to `Esc`, then to the badge alone. Sidebar navigation keeps Back and Help; its Row menu hint yields
+first, then Open. One owner paints the status cells per frame: recovery, copy mode, the help refusal,
+menus and Settings replace the ordinary chip instead of stacking a second one, and copy mode keeps
+its full status row while open.
 Runtime producers provide localized facts without embedded shortcut text. The footer appends
 an ordered set of complete `KeyHint` controls from the enabled effective dispatcher bindings
 or the active local input owner's canonical bindings, using the resolved theme's glyph policy.
@@ -591,7 +600,7 @@ pointer input without forwarding them. Once a usable surface returns, input resu
 same popup program and identity.
 Covered cells do not forward pointer input or attest unobscured terminal graphics.
 The status text area is reported only when completely drawn, preserving the recovery
-confirmation gate. The sidebar's fixed settings footer remains outside this rectangle.
+confirmation gate. The sidebar's Settings action remains outside this rectangle.
 
 ## Content area and overlays
 
@@ -610,8 +619,9 @@ locales, configured prefix labels, long scrolled columns, 120x41, 120x40 and 80x
 The navigator suppresses pane cursor/focus emphasis. Prefix input also hides the terminal cursor. Shortcut Help
 retains its nonmodal behavior.
 
-Content-scoped centered overlays use `ShellAreas.panel`; status already lies outside it. Application Settings instead uses the full host viewport minus its final row,
-including the sidebar and top strip in its centering reference. Sidebar visibility and width never
+Content-scoped centered overlays use `ShellAreas.panel`, which reaches the last row; the status chip
+paints above them. Application Settings and anchored context menus instead use the full host viewport,
+including the sidebar, top strip and last row in their reference. Sidebar visibility and width never
 shift that surface. These placement rules leave terminal geometry unchanged. `tui_layout` exposes
 two pure functions for content-scoped surface renderers:
 
@@ -621,8 +631,8 @@ two pure functions for content-scoped surface renderers:
   toward the top-left, and returns `None` when the resolved inner area would be below 4x3.
 
 A refused overlay is not drawn; the caller reports through the status line instead. Because the
-status row is drawn after every overlay and modal, the never-covered invariant holds even while
-older surface renderers still compute their own geometry.
+status chip is drawn after every overlay and modal, and hit testing follows the same order, the
+never-covered invariant holds even while older surface renderers still compute their own geometry.
 
 ## Split panes
 
@@ -673,10 +683,10 @@ keeping the last valid geometry below that floor is the environment slice's conc
 ## Correctness evidence
 
 `cargo test -p orchbee` covers: the tier boundary matrix including the width/height lower-of-two
-rule, the reserved status row and strip, sidebar presentation per tier, overlay clamping, centering, and
-refusal, pane division geometry and the shared divider, plus TestBackend renders at 120x40, 80x24,
-60x12, 50x10, 15x4 and mixed-axis geometries in `en-US` and `zh-CN` proving the status row is never
-covered, the too-small notice is localized, and active/long-label tab tokens stay visible through
+rule, content reaching the last row beneath the status chip, the strip, sidebar presentation per
+tier, overlay clamping, centering, and refusal, pane division geometry and the shared divider, plus
+TestBackend renders at 120x40, 80x24, 60x12, 50x10, 15x4 and mixed-axis geometries in `en-US` and
+`zh-CN` proving the status chip is never covered, the too-small notice is localized, and active/long-label tab tokens stay visible through
 display-width truncation.
 
 Whole-screen review follows `docs/tui/verification.md`: the current Workspace remains marked
@@ -684,7 +694,7 @@ independently of keyboard focus, ordinary sidebars expose only Settings at the b
 ranges, a single pane fills its panel, and split/zoom views share their frame and border titles. Review the default theme together with
 both named RGB themes, empty and populated sidebars, navigation, hidden sidebar and split/zoom.
 `workbench_client/ui/tests/viewport/chrome.rs` checks last-row content, prefix coverage, pointer
-occlusion, the first content row directly below the Tab strip, stable geometry and exact restoration in both
+occlusion, the launch hint hiding only a cursor it covers, the first content row directly below the Tab strip, stable geometry and exact restoration in both
 locales and native/RGB themes. The [empty-workspace witnesses](../crates/workbench-client/src/workbench_client/ui/tests/quick_workspace.rs)
 check blank content, retained creation, Search and Settings targets, and absence of the Actions button across tiers.
 The [layout query witnesses](../crates/workbench-client/src/workbench_client/ui/client_layout/tests.rs) pin bare, zoomed
@@ -693,7 +703,8 @@ retain exact-scope reports in each leaf; the
 [Presentation witnesses](../crates/workbench-client/src/workbench_client/ui/presentations/tests.rs) check the relocated arrows,
 inert count and keyboard/pointer selection.
 The same viewport/chrome witnesses inject correlated terminal-exit records and check persistent
-status, retained first-row content, unchanged geometry and hidden ended cursors. Localized copy
+status and its fix in the floating chip, retained first-row content, unchanged geometry and hidden
+ended cursors. Localized copy
 checks cover maximum exit/signal values, unknown results and runtime failure in both languages.
 These outcomes remain acceptance constraints for later feature changes.
 
@@ -726,7 +737,7 @@ Pending and canonical Workspace rows reserve the same nonempty configured token 
 
 ## Sidebar symbol discovery
 
-F1 includes a symbol legend for current context, unread changes, disclosure and all Agent states. Hovering a sidebar row explains its markers in the reserved sidebar footer. Branch text appears as observed, even when it equals the Workspace name or repeats another Workspace's branch for the same folder; divergence and stale observations remain visible.
+F1 includes a symbol legend for current context, unread changes, disclosure and all Agent states. Hovering a sidebar row explains its markers on the list's last row when that row holds the overflow range or is free. Branch text appears as observed, even when it equals the Workspace name or repeats another Workspace's branch for the same folder; divergence and stale observations remain visible.
 
 ## Shortcut discovery scope
 

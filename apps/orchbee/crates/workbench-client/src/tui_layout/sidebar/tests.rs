@@ -31,7 +31,8 @@ fn sidebar_width_bounds_and_tiers_share_one_offset_geometry_projection() {
                 let areas = project_shell_areas(viewport, surface);
                 let target = DrawnSidebarWidth::new(viewport, surface);
                 assert_eq!(areas.status.bottom(), viewport.bottom());
-                assert!(!areas.panel.intersects(areas.status));
+                // Content reaches the last row; the status floats over it.
+                assert_eq!(areas.panel.bottom(), areas.status.bottom());
                 assert!(
                     areas
                         .sidebar
@@ -54,15 +55,7 @@ fn sidebar_width_bounds_and_tiers_share_one_offset_geometry_projection() {
                         assert_eq!(areas.workbench.width + effective, columns);
                     }
                     SidebarLayer::Overlay => {
-                        assert_eq!(
-                            areas.workbench,
-                            Rect::new(
-                                areas.body.x,
-                                areas.body.y,
-                                areas.body.width,
-                                areas.body.height - 1
-                            )
-                        );
+                        assert_eq!(areas.workbench, areas.body);
                     }
                 }
                 assert!(!terminal_area(areas.panel, true).is_empty());

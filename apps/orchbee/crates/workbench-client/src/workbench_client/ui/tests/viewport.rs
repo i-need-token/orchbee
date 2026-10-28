@@ -23,6 +23,23 @@ use std::{io, num::NonZeroU64, time::Instant};
 
 /// Installs the live frame `enter_history`'s gates require on a projection
 /// the event path already installed.
+/// The person has used the prefix once, so nothing floats at rest.
+fn taught(width: u16) -> ClientView {
+    use crate::client_view::{ClientActionDisposition, PrefixInput};
+    let mut view = ClientView::new(width);
+    view.machines.available = true;
+    for key in [
+        KeyEvent::press(KeyCode::Char('b'), Modifiers::CTRL),
+        KeyEvent::press(KeyCode::Esc, Modifiers::NONE),
+    ] {
+        let transition = view.decide(PrefixInput::Key(key));
+        view.commit(transition, ClientActionDisposition::KeepNavigator);
+    }
+    assert!(!view.prefix_active());
+    assert!(!view.launch_hint_pending());
+    view
+}
+
 fn install_frame(ui: &mut WorkbenchClientUi, key: &PaneRef) {
     let projection = projection_at(ui, key);
     let frame = frame(&projection.value, 9, false, 24);

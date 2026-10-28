@@ -89,9 +89,10 @@ pub(crate) use ui::{
     AgentBoardView, CaptureReadiness, ClientProjectionStatus, ClientTabView, CloseConfirmationView,
     CloseStatusToken, DisplayController, DisplayProvenance, DrawnPresentationTarget, LaunchFailure,
     LocationLabelStatus, LocationLabelTarget, ModalPresentation, PanelCloseConfirmationToken,
-    PanelCloseConfirmationView, PresentationPlacement, RefreshStatus, RenameDraftToken,
-    RenameDraftView, RenameEdit, SetupDraftView, SetupEdit, SetupStage, SetupStatus, SetupToken,
-    ViewportSurface, WorkbenchClientNotice, WorkspaceCloseConfirmationView,
+    PanelCloseConfirmationView, PersistentStatus, PresentationPlacement, RefreshStatus,
+    RenameDraftToken, RenameDraftView, RenameEdit, SetupDraftView, SetupEdit, SetupStage,
+    SetupStatus, SetupToken, ViewportSurface, WorkbenchClientNotice,
+    WorkspaceCloseConfirmationView,
 };
 #[cfg(test)]
 pub(crate) use ui::{

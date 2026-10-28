@@ -1,4 +1,4 @@
-//! Composed terminal chrome preserves the final content row across prefix capture.
+//! Composed terminal chrome floats over the final content row and restores it after capture.
 use super::*;
 use crate::{
     client_view::{ClientActionDisposition, PrefixInput},
@@ -299,14 +299,33 @@ fn creation_admission_retires_old_map_before_mouse_events_in_the_same_or_next_pa
     }
 }
 
+/// The floating chip on the last row: the status cells that block the pane beneath.
+fn chip_cells(hits: &crate::tui_pointer::FrameHitMap, status: Rect) -> Option<Rect> {
+    let covered = (status.x..status.right())
+        .filter(|&x| {
+            matches!(
+                hits.hit_target_at(x, status.y),
+                Some(HitTarget::OverlaySurface)
+            )
+        })
+        .collect::<Vec<_>>();
+    let first = *covered.first()?;
+    let last = *covered.last()?;
+    assert_eq!(
+        covered.len(),
+        usize::from(last - first + 1),
+        "one contiguous chip"
+    );
+    Some(Rect::new(first, status.y, last - first + 1, 1))
+}
+
 #[test]
-fn prefix_status_uses_the_reserved_row_without_covering_or_resizing_the_terminal() {
+fn prefix_status_floats_over_the_last_terminal_row_and_restores_it_without_resizing() {
     for (width, height) in [(120, 40), (80, 24), (60, 12), (50, 10)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for theme in [Theme::terminal_native(), Theme::one_light()] {
                 let (mut ui, _, _, _) = controlling_ui();
-                let mut view = ClientView::new(width);
-                view.machines.available = true;
+                let mut view = taught(width);
                 let area = Rect::new(0, 0, width, height);
                 let areas = project_shell_areas(area, view.sidebar_surface());
                 let pane = crate::tui_layout::active_pane_area(&areas, Some(ui.view())).unwrap();
@@ -318,9 +337,10 @@ fn prefix_status_uses_the_reserved_row_without_covering_or_resizing_the_terminal
                     ),
                     "a single pane fills the panel without a frame"
                 );
-                assert!(
-                    pane.bottom() <= areas.status.y,
-                    "the status row is reserved below terminal content"
+                assert_eq!(
+                    pane.bottom(),
+                    areas.status.bottom(),
+                    "terminal content reaches the last row"
                 );
                 // The shell observes the drawn pane before painting it.
                 ui.observe_geometry(Geometry::new(pane.width, pane.height, 8, 16).unwrap());
@@ -350,17 +370,21 @@ fn prefix_status_uses_the_reserved_row_without_covering_or_resizing_the_terminal
                 };
                 let hits = paint(&mut terminal, &view);
                 let ordinary = terminal.backend().buffer().clone();
-                assert_eq!(ordinary[(pane.x, pane.y)].symbol(), "x");
-                assert!(matches!(
-                    hits.hit_target_at(pane.x, pane.y),
-                    Some(HitTarget::Pane { content, .. }) if content == &pane
-                ));
                 let last = pane.bottom() - 1;
-                assert_eq!(ordinary[(pane.x, last)].symbol(), "x");
-                assert!(matches!(
-                    hits.hit_target_at(pane.x, last),
-                    Some(HitTarget::Pane { .. })
-                ));
+                for y in [pane.y, last] {
+                    assert_eq!(ordinary[(pane.x, y)].symbol(), "x");
+                    assert!(matches!(
+                        hits.hit_target_at(pane.x, y),
+                        Some(HitTarget::Pane { content, .. }) if content == &pane
+                    ));
+                }
+                // At rest nothing floats: the whole last row is terminal content.
+                assert!(
+                    (pane.x..pane.right()).all(|x| matches!(
+                        hits.hit_target_at(x, last),
+                        Some(HitTarget::Pane { .. })
+                    ))
+                );
                 if areas.sidebar.is_some() {
                     assert!(matches!(
                         hits.hit_target_at(2, height - 1),
@@ -372,28 +396,40 @@ fn prefix_status_uses_the_reserved_row_without_covering_or_resizing_the_terminal
                     Modifiers::CTRL,
                 )));
                 view.commit(transition, ClientActionDisposition::KeepNavigator);
-                paint(&mut terminal, &view);
+                let hits = paint(&mut terminal, &view);
                 assert!(view.prefix_active());
                 assert!(
                     !terminal.backend().cursor_visible(),
                     "prefix input hides the terminal cursor"
                 );
                 let prefixed = terminal.backend().buffer();
+                let chip = chip_cells(&hits, areas.status)
+                    .expect("the prefix status floats on the last row");
+                // End-aligned one cell in from the right; the row's first cell stays content.
+                assert_eq!(chip.right(), areas.status.right() - 1);
+                assert!(chip.x > areas.status.x);
+                assert!((chip.x..chip.right()).any(|x| prefixed[(x, last)] != ordinary[(x, last)]));
                 for y in pane.y..pane.bottom() {
                     for x in pane.x..pane.right() {
-                        assert_eq!(
-                            prefixed[(x, y)],
-                            ordinary[(x, y)],
-                            "prefix status never covers terminal cell ({x}, {y})"
-                        );
+                        if !chip.contains((x, y).into()) {
+                            assert_eq!(
+                                prefixed[(x, y)],
+                                ordinary[(x, y)],
+                                "the chip covers only its own cells ({x}, {y})"
+                            );
+                        }
                     }
                 }
-                assert!(
-                    (areas.status.x..areas.status.right())
-                        .any(|x| prefixed[(x, areas.status.y)] != ordinary[(x, areas.status.y)]),
-                    "prefix status appears in the reserved row"
-                );
+                assert!(matches!(
+                    hits.hit_target_at(areas.status.x, last),
+                    Some(HitTarget::Pane { .. })
+                ));
                 assert_eq!(project_shell_areas(area, view.sidebar_surface()), areas);
+                assert_eq!(
+                    crate::tui_layout::active_pane_area(&areas, Some(ui.view())),
+                    Some(pane),
+                    "the chip never resizes the terminal"
+                );
                 let transition = view.decide(PrefixInput::Key(KeyEvent::press(
                     KeyCode::Esc,
                     Modifiers::NONE,
@@ -403,7 +439,7 @@ fn prefix_status_uses_the_reserved_row_without_covering_or_resizing_the_terminal
                 assert_eq!(
                     terminal.backend().buffer(),
                     &ordinary,
-                    "the complete terminal and settings row restore"
+                    "the complete terminal row restores"
                 );
                 assert_eq!(project_shell_areas(area, view.sidebar_surface()), areas);
             }
@@ -411,8 +447,71 @@ fn prefix_status_uses_the_reserved_row_without_covering_or_resizing_the_terminal
     }
 }
 
+/// The cursor is placed after the floating status, so the chip hides only a cursor it covers.
 #[test]
-fn ended_single_terminal_keeps_exit_feedback_in_the_reserved_status_row() {
+fn launch_chip_hides_only_the_terminal_cursor_beneath_it() {
+    for (width, height) in [(120, 40), (60, 12)] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let theme = Theme::terminal_native();
+            let (mut ui, _, _, _) = controlling_ui();
+            let mut view = ClientView::new(width);
+            view.machines.available = true;
+            assert!(view.launch_hint_pending());
+            let areas = project_shell_areas(Rect::new(0, 0, width, height), view.sidebar_surface());
+            let pane = crate::tui_layout::active_pane_area(&areas, Some(ui.view())).unwrap();
+            ui.observe_geometry(Geometry::new(pane.width, pane.height, 8, 16).unwrap());
+            let key = install_projection(&mut ui, None, 0);
+            let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+            let mut paint = |ui: &mut WorkbenchClientUi, column: u16| {
+                let projection = projection_at(ui, &key);
+                let mut content = frame(&projection.value, 0, false, pane.height);
+                content.geometry.columns = pane.width;
+                content.geometry.rows = pane.height;
+                content.cursor.visible = true;
+                content.cursor.row = pane.height - 1;
+                content.cursor.column = column;
+                projection.value.install_frame_for_test(content);
+                let mut hits = HitMapBuilder::new();
+                terminal
+                    .draw(|frame| {
+                        crate::tui_render::render_terminal_shell(
+                            frame,
+                            &view,
+                            locale,
+                            Some(ui.view()),
+                            &theme,
+                            &mut hits,
+                        );
+                    })
+                    .unwrap();
+                let cursor = terminal
+                    .backend()
+                    .cursor_visible()
+                    .then(|| terminal.get_cursor_position().unwrap());
+                (hits.finish(), cursor)
+            };
+            let (hits, cursor) = paint(&mut ui, 0);
+            let last = pane.bottom() - 1;
+            assert_eq!(
+                cursor,
+                Some((pane.x, last).into()),
+                "{locale:?} {width}x{height}"
+            );
+            let chip = chip_cells(&hits, areas.status).expect("the launch hint floats at rest");
+            assert!(chip.x > pane.x);
+            let (_, covered) = paint(&mut ui, chip.x - pane.x + 1);
+            assert_eq!(
+                covered, None,
+                "{locale:?} {width}x{height}: the chip hides the cursor"
+            );
+            let (_, beside) = paint(&mut ui, chip.x - pane.x - 1);
+            assert_eq!(beside, Some((chip.x - 1, last).into()));
+        }
+    }
+}
+
+#[test]
+fn ended_single_terminal_names_its_exit_in_the_floating_chip_beside_its_fix() {
     use orchbee_terminal_protocol::{
         CURRENT_PROTOCOL_VERSION, CreationId, Envelope, ExitResult, LifecycleControl, MessageRole,
         PayloadEncoding, TerminalExited, TerminalId, TerminalIdentity, encode_lifecycle_control,
@@ -483,14 +582,12 @@ fn ended_single_terminal_keeps_exit_feedback_in_the_reserved_status_row() {
                         let end = crate::terminal_projection::TerminalEnd::Exited(
                             ExitResult::ExitCode(code),
                         );
-                        let full = locale.terminal_end(end);
-                        let expected = if crate::terminal_text::display_width(&full)
-                            <= usize::from(areas.status.width)
-                        {
-                            full
-                        } else {
-                            locale.terminal_end_compact(end)
-                        };
+                        // Two words where they fit, then the compact exit; never the long fact.
+                        let available = usize::from(areas.status.width) - 4;
+                        let named = |text: &str| format!("{} {text}", theme.glyphs.status_bullet);
+                        let short = named(locale.status().terminal_exited);
+                        let compact = named(&locale.terminal_end_compact(end));
+                        let fix = format!("Ctrl+b c {}", locale.status().create_tab);
                         let buffer = terminal.backend().buffer();
                         let mut status = String::new();
                         let mut x = areas.status.x;
@@ -500,17 +597,48 @@ fn ended_single_terminal_keeps_exit_feedback_in_the_reserved_status_row() {
                             x += u16::try_from(crate::terminal_text::display_width(symbol).max(1))
                                 .unwrap();
                         }
+                        let fits =
+                            |text: &str| crate::terminal_text::display_width(text) <= available;
+                        let expected = if fits(&short) {
+                            Some(short.as_str())
+                        } else if fits(&compact) {
+                            Some(compact.as_str())
+                        } else {
+                            None
+                        };
+                        if let Some(expected) = expected {
+                            assert!(
+                                status.contains(expected),
+                                "{locale:?} {width}x{height}: {status}"
+                            );
+                        }
                         assert!(
-                            status.contains(&expected),
+                            !status.contains(&locale.terminal_end(end)),
                             "{locale:?} {width}x{height}: {status}"
                         );
+                        if fits(&format!("{short} · {fix}")) {
+                            assert!(
+                                status.contains(&fix),
+                                "{locale:?} {width}x{height}: {status}"
+                            );
+                        }
                         assert_eq!(buffer[(pane.x, pane.y)].symbol(), "x");
-                        assert!(pane.bottom() <= areas.status.y);
+                        assert_eq!(pane.bottom(), areas.status.bottom());
                         assert!(!terminal.backend().cursor_visible());
-                        assert!(matches!(
-                            hits.finish().hit_target_at(pane.x, areas.status.y),
-                            Some(HitTarget::OverlaySurface)
-                        ));
+                        let hits = hits.finish();
+                        let chip = (areas.status.x..areas.status.right())
+                            .filter(|x| {
+                                matches!(
+                                    hits.hit_target_at(*x, areas.status.y),
+                                    Some(HitTarget::OverlaySurface)
+                                )
+                            })
+                            .collect::<Vec<_>>();
+                        assert_eq!(chip.is_empty(), expected.is_none());
+                        if let (Some(first), Some(last)) = (chip.first(), chip.last()) {
+                            assert_eq!(*last + 2, areas.status.right());
+                            assert_eq!(chip.len(), usize::from(last - first + 1));
+                        }
                         assert_eq!(
                             crate::tui_layout::active_pane_area(&areas, Some(ui.view())),
                             Some(pane)

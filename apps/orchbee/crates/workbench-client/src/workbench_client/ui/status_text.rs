@@ -7,18 +7,47 @@ use crate::{
     workbench_client::{LocationLabelStatus, SetupStatus, WorkbenchClientNotice},
 };
 
+/// A lasting state the floating status names in a word or two beside the action that fixes it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum PersistentStatus {
+    DirectoryMissing,
+    Disconnected,
+    TerminalEnded(crate::localization::TerminalEnd),
+}
+
+/// One selected status fact, with its short form when it names a lasting state.
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) struct NativeStatus {
+    pub(crate) text: String,
+    pub(crate) persistent: Option<PersistentStatus>,
+    /// The ordinary Ready and controlling fact, which the floating status leaves unsaid.
+    pub(crate) ordinary: bool,
+}
+
+impl NativeStatus {
+    const fn fact(text: String) -> Self {
+        Self {
+            text,
+            persistent: None,
+            ordinary: false,
+        }
+    }
+}
+
 impl WorkbenchClientView<'_> {
     /// Select one current status without changing the retained operation or its outcome.
-    pub(crate) fn status_text(&self, locale: Locale, columns: u16) -> String {
+    pub(crate) fn status(&self, locale: Locale, columns: u16) -> NativeStatus {
         let view = self;
         if let Some(notice) = view.worktree_notice() {
-            return locale.worktree_status_line(notice, view.worktree().map(|v| v.stage()));
+            return NativeStatus::fact(
+                locale.worktree_status_line(notice, view.worktree().map(|v| v.stage())),
+            );
         }
         if let Some((status, id)) = view.takeover_status() {
-            return locale.takeover_status(status, id);
+            return NativeStatus::fact(locale.takeover_status(status, id));
         }
         if let Some(status) = view.workspace_close_status() {
-            return locale.workspace_close_status(status);
+            return NativeStatus::fact(locale.workspace_close_status(status));
         }
         if view.retirement().is_none()
             && (view.phase() == crate::localization::DisplayPhase::Ready
@@ -31,31 +60,77 @@ impl WorkbenchClientView<'_> {
                         == Some(crate::localization::DisplayProvenance::Failed))
         {
             let status = view.phase_status_text(locale);
-            if crate::terminal_text::display_width(&status) > usize::from(columns)
-                && let Some(end) = view
-                    .focus_panel_id()
-                    .and_then(|panel| view.terminal_end(panel))
-            {
-                return locale.terminal_end_compact(end);
-            }
-            return status;
+            let end = view
+                .focus_panel_id()
+                .and_then(|panel| view.terminal_end(panel));
+            let text = match end {
+                Some(end)
+                    if crate::terminal_text::display_width(&status) > usize::from(columns) =>
+                {
+                    locale.terminal_end_compact(end)
+                }
+                _ => status,
+            };
+            return NativeStatus {
+                text,
+                persistent: end.map(PersistentStatus::TerminalEnded),
+                ordinary: false,
+            };
         }
         if view.notice().is_none()
             && view.retirement().is_none()
             && view.setup_status().is_none()
             && let Some(progress) = view.duplicate_progress()
         {
-            return locale.duplication_progress(progress);
+            return NativeStatus::fact(locale.duplication_progress(progress));
         }
-        status_with_setup(
+        let phase = view.phase_status_text(locale);
+        let can_configure_directory = view.phase() == crate::localization::DisplayPhase::Empty
+            && view.workspace_directory_unconfigured();
+        let text = status_with_setup(
             locale,
-            view.phase_status_text(locale),
+            phase.clone(),
             view.retirement().is_some(),
             view.notice(),
             view.setup_status(),
-            view.phase() == crate::localization::DisplayPhase::Empty
-                && view.workspace_directory_unconfigured(),
-        )
+            can_configure_directory,
+        );
+        // Only the bare fact has a short form; an appended recovery fact keeps the full text.
+        let persistent = if view.retirement().is_none()
+            && view.notice().is_none()
+            && view.setup_status() == Some(SetupStatus::WorkspaceCreated)
+            && can_configure_directory
+        {
+            Some(PersistentStatus::DirectoryMissing)
+        } else if text == phase
+            && match view.retirement() {
+                Some(retirement) => {
+                    retirement == crate::localization::DisplayRetirement::Unavailable
+                }
+                None => {
+                    view.notice().is_none()
+                        && view.setup_status().is_none()
+                        && view.phase() == crate::localization::DisplayPhase::Retired
+                }
+            }
+        {
+            Some(PersistentStatus::Disconnected)
+        } else {
+            None
+        };
+        let ordinary = text == phase
+            && view.retirement().is_none()
+            && view.notice().is_none()
+            && view.setup_status().is_none()
+            && view.quick_workspace_recovery().is_none()
+            && view.phase() == crate::localization::DisplayPhase::Ready
+            && view.controller() == Some(crate::localization::DisplayController::Controlling)
+            && view.active_position().is_some();
+        NativeStatus {
+            text,
+            persistent,
+            ordinary,
+        }
     }
 
     /// Describe the selected presentation after the feature-owned recovery precedence.

@@ -1173,8 +1173,14 @@ fn ux_status_prefix_remains_visible_with_the_machine_picker_available() {
                         glyphs,
                     )
                 );
+                // The narrowest floating chip keeps the cancellation key ahead of the prefix key.
+                let expected = if (width, height) == (20, 5) {
+                    locale.status().prefix.to_owned()
+                } else {
+                    prefix
+                };
                 assert!(
-                    row.replace(' ', "").contains(&prefix.replace(' ', "")),
+                    row.replace(' ', "").contains(&expected.replace(' ', "")),
                     "{locale:?} {width}x{height}: {row:?}"
                 );
                 let cancel = format_binding_with_glyphs(
@@ -1225,8 +1231,14 @@ fn ux_presented_menu_clears_the_underlying_status_without_duplicate_keys() {
             .x..width)
                 .map(|x| terminal.backend().buffer()[(x, height - 1)].symbol())
                 .collect();
+            // The menu may reach the last row; no status paints beside it.
+            let notice = locale.shell_notice(Some(crate::client_view::Notice::UnknownPrefix));
             assert!(
-                row.trim().is_empty(),
+                !row.replace(' ', "").contains(&notice.replace(' ', "")),
+                "{locale:?} {width}x{height}: {row:?}"
+            );
+            assert!(
+                !row.contains("Ctrl+"),
                 "{locale:?} {width}x{height}: {row:?}"
             );
         }

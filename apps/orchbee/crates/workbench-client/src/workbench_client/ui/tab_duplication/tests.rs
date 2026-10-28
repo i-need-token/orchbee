@@ -845,13 +845,13 @@ fn selected_duplicate_definite_precommit_refusal_expires_without_hiding_a_later_
         (1, 0, 0)
     );
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let sequence_status = ui.view().status_text(locale, u16::MAX);
+        let sequence_status = ui.view().status(locale, u16::MAX).text;
         ui.state
             .as_mut()
             .unwrap()
             .set_notice(ClientNotice::LocalBusy);
         assert_ne!(
-            ui.view().status_text(locale, u16::MAX),
+            ui.view().status(locale, u16::MAX).text,
             sequence_status,
             "later notice wins"
         );

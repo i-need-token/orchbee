@@ -141,7 +141,7 @@ pub(crate) fn guidance_area(content: Rect, global_action: Option<Rect>) -> Rect 
 
 pub fn project_shell_areas(area: Rect, sidebar_surface: SidebarSurface) -> ShellAreas {
     let tier = ViewportTier::from_area(area);
-    // The sidebar retains its full height; the workbench reserves one stable status row.
+    // Content reaches the last row; the status floats over it and reserves no terminal height.
     let body = area;
     let surface = effective_sidebar_surface(tier, sidebar_surface, area.width);
     let (workbench, sidebar) = match surface {
@@ -173,12 +173,6 @@ pub fn project_shell_areas(area: Rect, sidebar_surface: SidebarSurface) -> Shell
             }),
         ),
     };
-    let workbench = Rect::new(
-        workbench.x,
-        workbench.y,
-        workbench.width,
-        workbench.height.saturating_sub(STATUS_ROWS),
-    );
     let (tabs, panel) = if tier.shows_tab_strip() {
         let [tabs, panel] =
             Layout::vertical([Constraint::Length(TAB_STRIP_ROWS), Constraint::Min(0)])
@@ -233,8 +227,19 @@ fn effective_sidebar_surface(
 }
 
 pub(crate) const fn overlay_area(areas: &ShellAreas) -> Rect {
-    // Status already lies outside the workbench and every terminal projection.
+    // Content-scoped surfaces center in the whole content; the floating status covers only its
+    // own cells on the last row, after every overlay has painted.
     areas.panel
+}
+
+/// The floating status chip's bounds: the last row beside a visible sidebar, one cell in from each
+/// end. TooSmall keeps the whole row for its full-width exit hint.
+pub(crate) const fn status_chip_area(areas: &ShellAreas) -> Rect {
+    let status = areas.status;
+    if matches!(areas.tier, ViewportTier::TooSmall) || status.width < 2 {
+        return status;
+    }
+    Rect::new(status.x + 1, status.y, status.width - 2, status.height)
 }
 
 pub(crate) fn place_overlay(

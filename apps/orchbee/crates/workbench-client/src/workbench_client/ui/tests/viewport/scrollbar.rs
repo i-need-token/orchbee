@@ -124,7 +124,7 @@ fn scrollbar_composed_render_preserves_terminal_cells_geometry_and_localized_chr
             for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
                 let (mut ui, _mailbox, _, _) = controlling_ui();
                 let key = install_projection(&mut ui, Some((1000, false, 24)), 0);
-                let view = ClientView::new(width);
+                let view = taught(width);
                 let area = Rect::new(0, 0, width, height);
                 let areas = crate::tui_layout::project_shell_areas(area, view.sidebar_surface());
                 let content = crate::tui_layout::native_terminal_area(

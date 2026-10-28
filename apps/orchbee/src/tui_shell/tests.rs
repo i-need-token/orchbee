@@ -292,8 +292,8 @@ fn connected_geometry_requires_real_cell_dimensions() -> io::Result<()> {
     let view = ClientView::new(original.columns);
     let geometry = super::terminal_geometry(original, &view, None)?
         .expect("a Full viewport must present a pane");
-    // 32 rows less the tab strip, reserved status row, frame and leaf title.
-    assert_eq!((geometry.columns(), geometry.rows()), (88, 28));
+    // 32 rows less the tab strip, frame and leaf title; the status reserves no row.
+    assert_eq!((geometry.columns(), geometry.rows()), (88, 29));
     assert_eq!(
         (geometry.cell_pixel_width(), geometry.cell_pixel_height()),
         (8, 20)
@@ -375,7 +375,7 @@ fn connected_geometry_reports_unknown_when_any_cell_pixel_axis_is_missing() -> i
             (geometry.cell_pixel_width(), geometry.cell_pixel_height()),
             (0, 0)
         );
-        assert_eq!((geometry.columns(), geometry.rows()), (88, 28));
+        assert_eq!((geometry.columns(), geometry.rows()), (88, 29));
     }
     Ok(())
 }
@@ -383,11 +383,11 @@ fn connected_geometry_reports_unknown_when_any_cell_pixel_axis_is_missing() -> i
 #[test]
 fn minimal_geometry_deducts_no_invisible_frame() -> io::Result<()> {
     let view = ClientView::new(50);
-    // 50x10 is Minimal: the panel spans the host area above the reserved status row,
-    // with no border cells deducted because none are drawn.
+    // 50x10 is Minimal: the panel spans the whole host area, which the floating status
+    // reserves no row of, with no border cells deducted because none are drawn.
     let geometry = super::terminal_geometry(dimensions(50, 10), &view, None)?
         .expect("a Minimal viewport still presents a pane");
-    assert_eq!((geometry.columns(), geometry.rows()), (50, 9));
+    assert_eq!((geometry.columns(), geometry.rows()), (50, 10));
     Ok(())
 }
 
@@ -1132,6 +1132,18 @@ fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forward
             let mut terminal = test_terminal(dimensions(width, height));
             let mut view = ClientView::new(width);
             view.configure_color_level(ColorLevel::Truecolor);
+            // Once the prefix has been used nothing floats at rest, so the last row is content.
+            {
+                use crate::client_view::{KeyCode, Modifiers};
+                use orchbee_workbench_client::test_support::client_view::{KeyEvent, PrefixInput};
+                for (code, mods) in [
+                    (KeyCode::Char('b'), Modifiers::CTRL),
+                    (KeyCode::Esc, Modifiers::NONE),
+                ] {
+                    let transition = view.decide(PrefixInput::Key(KeyEvent::press(code, mods)));
+                    view.commit(transition, ClientActionDisposition::KeepNavigator);
+                }
+            }
             let areas = crate::tui_layout::project_shell_areas(
                 to_area(dimensions(width, height)),
                 view.sidebar_surface(),
@@ -1168,13 +1180,16 @@ fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forward
                     "{context} {name:?}: geometry"
                 );
                 // This sessionless fixture has canvas beneath the unavailable notice and panel
-                // frame. Chrome owns the projected bars, the reserved status row and sidebar.
+                // frame. Chrome owns the projected bars and sidebar; content reaches the last
+                // row, which only TooSmall's full-row exit hint covers.
                 for y in 0..height {
                     let mut x = 0;
                     while x < width {
                         let cell = &terminal.backend().buffer()[(x, y)];
                         let position = (x, y).into();
-                        let role = if areas.status().contains(position)
+                        let too_small_row = areas.tier == crate::tui_layout::ViewportTier::TooSmall
+                            && areas.status().contains(position);
+                        let role = if too_small_row
                             || areas.tabs().contains(position)
                             || areas
                                 .sidebar

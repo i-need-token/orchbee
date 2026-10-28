@@ -14,6 +14,18 @@ use crate::{
 
 use super::render_shell;
 
+fn status_facts(primary: &str) -> super::status_line::StatusFacts<'_> {
+    super::status_line::StatusFacts {
+        primary,
+        primary_ordinary: false,
+        persistent: None,
+        secondary_notice: None,
+        zoomed: false,
+        read_only: false,
+        recovery_status: false,
+    }
+}
+
 #[test]
 fn close_request_notice_does_not_replace_the_exact_status_text() {
     let mut terminal = infallible(Terminal::new(TestBackend::new(100, 1)));
@@ -26,15 +38,15 @@ fn close_request_notice_does_not_replace_the_exact_status_text() {
             &view,
             None,
             Locale::EnUs,
-            "terminal · Close cleanup blocked",
-            Some("Close request was not applied"),
-            false,
-            false,
-            false,
+            super::status_line::StatusFacts {
+                secondary_notice: Some("Close request was not applied"),
+                ..status_facts("terminal · Close cleanup blocked")
+            },
             ViewportTier::Full,
             &crate::tui_theme::Theme::rgb_test_dark(),
             None,
-        );
+        )
+        .primary;
     }));
     assert!(visible.is_some());
     let text = terminal
@@ -70,11 +82,10 @@ fn ux_status_matching_native_notice_is_painted_once_and_keeps_hints() {
                         &view,
                         None,
                         locale,
-                        &status,
-                        Some(&notice),
-                        false,
-                        false,
-                        false,
+                        super::status_line::StatusFacts {
+                            secondary_notice: Some(&notice),
+                            ..status_facts(&status)
+                        },
                         ViewportTier::Full,
                         &crate::tui_theme::Theme::one_light(),
                         None,
@@ -99,19 +110,6 @@ fn ux_status_matching_native_notice_is_painted_once_and_keeps_hints() {
                     );
                 } else {
                     assert!(without_cell_padding(&text).contains(&without_cell_padding(&status)));
-                    let idle_hint = format!(
-                        "{} {}",
-                        crate::client_view::format_binding_with_glyphs(
-                            &view.bindings().prefix,
-                            crate::client_view::LabelStyle::for_host(),
-                            crate::client_view::KeyLabelGlyphs::Unicode,
-                        ),
-                        locale.status().shortcuts,
-                    );
-                    assert!(
-                        without_cell_padding(&text).contains(&without_cell_padding(&idle_hint)),
-                        "{locale:?} missing idle hint: {text:?}"
-                    );
                 }
             }
         }
@@ -119,28 +117,34 @@ fn ux_status_matching_native_notice_is_painted_once_and_keeps_hints() {
 }
 
 #[test]
-fn sidebar_status_keeps_canonical_whole_hints_and_drops_oversized_facts() {
+fn sidebar_status_keeps_return_and_help_as_whole_hints_yield_and_never_shows_the_fact() {
     use crate::{
         machine_picker::{SidebarCommand, sidebar_binding_label},
-        terminal_text::display_width,
         tui_theme::{GlyphSet, Theme},
     };
 
-    for width in [70, 120] {
+    for width in [50, 70, 120] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for glyphs in [GlyphSet::UTF8, GlyphSet::ASCII] {
                 let theme = Theme::rgb_test_dark().with_glyphs(glyphs);
                 let mut view = ClientView::new(width);
                 view.machines.available = true;
                 assert!(view.machines.enter_sidebar_navigation());
-                let mut commands = vec![SidebarCommand::Exit];
-                if width == 120 {
-                    commands.extend([
+                // Row menu yields first, then Open; Return to terminal and Help stay.
+                let commands = match (width, locale) {
+                    (120, _) | (70, Locale::ZhCn) => vec![
+                        SidebarCommand::Exit,
                         SidebarCommand::Activate,
                         SidebarCommand::OpenMenu,
                         SidebarCommand::Help,
-                    ]);
-                }
+                    ],
+                    (70, Locale::EnUs) => vec![
+                        SidebarCommand::Exit,
+                        SidebarCommand::Activate,
+                        SidebarCommand::Help,
+                    ],
+                    _ => vec![SidebarCommand::Exit, SidebarCommand::Help],
+                };
                 let key_glyphs = if glyphs == GlyphSet::ASCII {
                     crate::client_view::KeyLabelGlyphs::Ascii
                 } else {
@@ -162,61 +166,41 @@ fn sidebar_status_keeps_canonical_whole_hints_and_drops_oversized_facts() {
                     locale.status().sidebar,
                     theme.glyphs.middle_dot,
                 );
-                for (status, fits) in [
-                    ("Ready".to_owned(), true),
-                    ("Q".repeat(usize::from(width)), false),
-                    (format!("{}界", "Q".repeat(usize::from(width - 2))), false),
-                ] {
-                    let mut terminal = infallible(Terminal::new(TestBackend::new(width, 1)));
-                    let mut visible = None;
-                    infallible(terminal.draw(|frame| {
-                        visible = super::render_status(
-                            frame,
-                            frame.area(),
-                            &view,
-                            None,
-                            locale,
-                            &status,
-                            None,
-                            false,
-                            false,
-                            false,
-                            ViewportTier::from_size(width, 30),
-                            &theme,
-                            None,
-                        );
-                    }));
-                    assert_eq!(
-                        visible,
-                        fits.then_some(ratatui::layout::Rect::new(
-                            0,
-                            0,
-                            u16::try_from(display_width(&status)).unwrap(),
-                            1,
-                        )),
-                        "{locale:?} {width}: {status}"
-                    );
-                    let buffer = terminal.backend().buffer();
-                    let retained = (0..width)
-                        .map(|x| buffer[(x, 0)].symbol())
-                        .collect::<String>();
-                    if fits {
-                        assert!(retained.starts_with(&status));
-                    } else {
-                        assert!(!retained.starts_with('Q'));
-                        assert!(!retained.contains(glyphs.ellipsis));
-                    }
+                let status = "Q".repeat(usize::from(width));
+                let mut terminal = infallible(Terminal::new(TestBackend::new(width, 1)));
+                let mut visible = None;
+                infallible(terminal.draw(|frame| {
+                    visible = super::render_status(
+                        frame,
+                        ratatui::layout::Rect::new(1, 0, width - 2, 1),
+                        &view,
+                        None,
+                        locale,
+                        status_facts(&status),
+                        ViewportTier::from_size(width, 30),
+                        &theme,
+                        None,
+                    )
+                    .primary;
+                }));
+                assert_eq!(visible, None, "{locale:?} {width}");
+                let buffer = terminal.backend().buffer();
+                let retained = (0..width)
+                    .map(|x| buffer[(x, 0)].symbol())
+                    .collect::<String>();
+                assert!(!retained.contains('Q'));
+                assert!(!retained.contains(glyphs.ellipsis));
+                assert_eq!(
+                    without_cell_padding(&retained).trim(),
+                    without_cell_padding(&expected),
+                    "{locale:?} {width}: {retained:?}"
+                );
+                if glyphs == GlyphSet::ASCII {
                     assert!(
-                        without_cell_padding(&retained).ends_with(&without_cell_padding(&expected)),
-                        "{retained:?}"
+                        !['↑', '↓', '←', '→']
+                            .into_iter()
+                            .any(|arrow| retained.contains(arrow))
                     );
-                    if glyphs == GlyphSet::ASCII {
-                        assert!(
-                            !['↑', '↓', '←', '→']
-                                .into_iter()
-                                .any(|arrow| retained.contains(arrow))
-                        );
-                    }
                 }
             }
         }
@@ -1100,11 +1084,11 @@ fn zoom_context_and_restore_hint_are_projected_separately_in_both_locales() {
                 &view,
                 None,
                 locale,
-                "terminal · Ready · controlling",
-                None,
-                true,
-                false,
-                false,
+                super::status_line::StatusFacts {
+                    primary_ordinary: true,
+                    zoomed: true,
+                    ..status_facts("terminal · Ready · controlling")
+                },
                 ViewportTier::Full,
                 &crate::tui_theme::Theme::rgb_test_dark(),
                 None,
@@ -1169,7 +1153,7 @@ fn keyboard_copy_preserves_first_and_last_served_rows_without_history_chrome() {
                         &theme,
                         None,
                         true,
-                    )
+                    );
                 }));
                 let rows = buffer_rows(&terminal, width, 3);
                 assert_eq!(rows[0], first);

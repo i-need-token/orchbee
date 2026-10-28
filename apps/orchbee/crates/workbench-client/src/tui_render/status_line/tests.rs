@@ -2,20 +2,29 @@ use ratatui::{Terminal, backend::TestBackend, layout::Rect};
 
 use crate::{
     client_view::{
-        ClientAction, ClientActionDisposition, ClientView, KeyEvent, KeyLabelGlyphs, LabelStyle,
-        Notice, PrefixAction, PrefixInput,
+        ClientAction, ClientActionDisposition, ClientView, KeyCode, KeyEvent, KeyLabelGlyphs,
+        LabelStyle, Modifiers, Notice, PrefixAction, PrefixInput,
     },
-    localization::Locale,
+    localization::{Locale, TerminalEnd},
     tui_layout::ViewportTier,
     tui_theme::{GlyphSet, Role, Theme},
+    workbench_client::PersistentStatus,
 };
 
-use super::render;
+use super::{StatusFacts, StatusPaint, render};
 
-struct StatusContent<'a> {
-    primary: &'a str,
-    secondary_notice: Option<&'a str>,
-    recovery: bool,
+const CANVAS: &str = "¤";
+
+fn facts(primary: &str) -> StatusFacts<'_> {
+    StatusFacts {
+        primary,
+        primary_ordinary: false,
+        persistent: None,
+        secondary_notice: None,
+        zoomed: false,
+        read_only: false,
+        recovery_status: false,
+    }
 }
 
 #[test]
@@ -48,79 +57,41 @@ fn workspace_and_tab_creation_hints_retain_the_same_effective_action_binding_and
 fn paint(
     view: &ClientView,
     width: u16,
-    status: &str,
-    secondary_notice: Option<&str>,
-    recovery_status: bool,
+    facts: StatusFacts<'_>,
     theme: &Theme,
-) -> (Terminal<TestBackend>, Option<Rect>) {
-    paint_at_tier(
-        view,
-        width,
-        status,
-        secondary_notice,
-        recovery_status,
-        ViewportTier::Full,
-        theme,
-    )
+) -> (Terminal<TestBackend>, StatusPaint) {
+    paint_at_tier_with_locale(view, width, facts, ViewportTier::Full, Locale::EnUs, theme)
 }
 
-fn paint_at_tier(
-    view: &ClientView,
-    width: u16,
-    status: &str,
-    secondary_notice: Option<&str>,
-    recovery_status: bool,
-    tier: ViewportTier,
-    theme: &Theme,
-) -> (Terminal<TestBackend>, Option<Rect>) {
-    paint_at_tier_with_locale(
-        view,
-        width,
-        StatusContent {
-            primary: status,
-            secondary_notice,
-            recovery: recovery_status,
-        },
-        tier,
-        Locale::EnUs,
-        theme,
-    )
-}
-
+/// Paints into the shell's chip bounds: one cell in from each end of a canvas-filled row, or the
+/// whole row at TooSmall.
 fn paint_at_tier_with_locale(
     view: &ClientView,
     width: u16,
-    content: StatusContent<'_>,
+    facts: StatusFacts<'_>,
     tier: ViewportTier,
     locale: Locale,
     theme: &Theme,
-) -> (Terminal<TestBackend>, Option<Rect>) {
+) -> (Terminal<TestBackend>, StatusPaint) {
     let mut terminal = Terminal::new(TestBackend::new(width, 1)).unwrap();
-    let mut receipt = None;
+    let mut paint = StatusPaint::default();
     terminal
         .draw(|frame| {
-            let area = frame.area();
-            frame
-                .buffer_mut()
-                .set_style(area, theme.style(Role::SurfaceCanvas));
-            receipt = render(
-                frame,
-                frame.area(),
-                view,
-                None,
-                locale,
-                content.primary,
-                content.secondary_notice,
-                false,
-                false,
-                content.recovery,
-                tier,
-                theme,
-                None,
-            );
+            let row = frame.area();
+            for x in row.left()..row.right() {
+                frame
+                    .buffer_mut()
+                    .set_string(x, 0, CANVAS, theme.style(Role::SurfaceCanvas));
+            }
+            let area = if tier == ViewportTier::TooSmall {
+                row
+            } else {
+                Rect::new(row.x + 1, row.y, row.width.saturating_sub(2), 1)
+            };
+            paint = render(frame, area, view, None, locale, facts, tier, theme, None);
         })
         .unwrap();
-    (terminal, receipt)
+    (terminal, paint)
 }
 
 fn arm_prefix(view: &mut ClientView) {
@@ -130,35 +101,102 @@ fn arm_prefix(view: &mut ClientView) {
     assert!(view.prefix_active());
 }
 
-fn semantic_on_canvas(theme: &Theme, role: Role) -> ratatui::style::Style {
-    theme.content_on_surface(Role::SurfaceCanvas, None, Some(role), theme.style(role))
+/// The person has used the prefix once, so nothing floats at rest.
+fn taught(mut view: ClientView) -> ClientView {
+    arm_prefix(&mut view);
+    let transition = view.decide(PrefixInput::Key(KeyEvent::press(
+        KeyCode::Esc,
+        Modifiers::NONE,
+    )));
+    view.commit(transition, ClientActionDisposition::KeepNavigator);
+    assert!(!view.prefix_active());
+    assert!(!view.launch_hint_pending());
+    view
 }
 
+fn semantic_on_chip(theme: &Theme, role: Role) -> ratatui::style::Style {
+    theme.content_on_surface(Role::SurfaceOverlay, None, Some(role), theme.style(role))
+}
+
+/// The row's text with canvas cells blanked, so the chip reads on its own.
 fn row(terminal: &Terminal<TestBackend>, width: u16) -> String {
     let buffer = terminal.backend().buffer();
     let mut column = 0;
     let mut text = String::new();
     while column < width {
         let symbol = buffer[(column, 0)].symbol();
-        text.push_str(symbol);
+        text.push_str(if symbol == CANVAS { " " } else { symbol });
         column += u16::try_from(crate::terminal_text::display_width(symbol).max(1)).unwrap();
     }
     text
 }
 
 #[test]
+fn launch_hint_floats_end_aligned_until_the_prefix_is_first_used_then_nothing_floats_at_rest() {
+    let theme = Theme::rgb_test_dark();
+    let width = 80;
+    let ordinary = StatusFacts {
+        primary_ordinary: true,
+        ..facts("terminal · Ready · controlling")
+    };
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let view = ClientView::new(width);
+        assert!(view.launch_hint_pending());
+        let (terminal, paint) =
+            paint_at_tier_with_locale(&view, width, ordinary, ViewportTier::Full, locale, &theme);
+        let prefix = crate::client_view::format_binding_with_glyphs(
+            &view.bindings().prefix,
+            LabelStyle::for_host(),
+            KeyLabelGlyphs::Unicode,
+        );
+        let hint = format!("{prefix} {}", locale.status().shortcuts);
+        let hint_width = u16::try_from(crate::terminal_text::display_width(&hint)).unwrap();
+        // One padding cell at each end, ending one cell in from the right edge.
+        let chip = Rect::new(width - 1 - (hint_width + 2), 0, hint_width + 2, 1);
+        assert_eq!(paint.surface, Some(chip), "{locale:?}");
+        assert_eq!(paint.primary, None, "the ordinary fact stays unsaid");
+        assert_eq!(row(&terminal, width).trim(), hint, "{locale:?}");
+        let buffer = terminal.backend().buffer();
+        for x in [chip.x, chip.right() - 1] {
+            assert_eq!(
+                buffer[(x, 0)].bg,
+                theme.style(Role::SurfaceOverlay).bg.unwrap(),
+                "padding cell {x}"
+            );
+        }
+        for x in 0..width {
+            let covered = chip.x <= x && x < chip.right();
+            assert_eq!(buffer[(x, 0)].symbol() == CANVAS, !covered, "column {x}");
+        }
+
+        let view = taught(ClientView::new(width));
+        let (terminal, paint) =
+            paint_at_tier_with_locale(&view, width, ordinary, ViewportTier::Full, locale, &theme);
+        assert_eq!(paint, StatusPaint::default());
+        assert!(row(&terminal, width).trim().is_empty());
+    }
+}
+
+#[test]
 fn prefix_mode_status_hints_drop_only_the_lowest_priority_whole_items_by_width() {
     let theme = Theme::rgb_test_dark();
-    let mut expected = vec!["Esc cancel", "? help"];
-    expected.push("F2 actions");
-    expected.extend(["c create Tab", r"\ / - split", "g Agent board", "q detach"]);
+    let expected = [
+        "Esc cancel",
+        "? help",
+        "Tab sidebar",
+        "F2 actions",
+        "c create Tab",
+        r"\ / - split",
+        "g Agent board",
+        "q detach",
+    ];
 
-    let width_cases: &[(u16, usize)] = &[(160, 7), (100, 6), (80, 5), (60, 3)];
+    let width_cases: &[(u16, usize)] = &[(160, 8), (115, 7), (100, 6), (85, 5), (60, 3)];
 
     for &(width, visible_count) in width_cases {
         let mut view = ClientView::new(width);
         arm_prefix(&mut view);
-        let (terminal, _) = paint(&view, width, "Ready", None, false, &theme);
+        let (terminal, _) = paint(&view, width, facts("Ready"), &theme);
         let prefix = crate::client_view::format_binding_with_glyphs(
             &view.bindings().prefix,
             LabelStyle::for_host(),
@@ -181,25 +219,23 @@ fn prefix_mode_status_hints_drop_only_the_lowest_priority_whole_items_by_width()
 fn prefix_mode_hint_labels_are_localized_in_both_supported_locales() {
     let theme = Theme::rgb_test_dark();
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let mut view = ClientView::new(160);
+        let mut view = ClientView::new(200);
         arm_prefix(&mut view);
         let (terminal, _) = paint_at_tier_with_locale(
             &view,
-            160,
-            StatusContent {
-                primary: "Ready",
-                secondary_notice: None,
-                recovery: false,
-            },
+            200,
+            facts("Ready"),
             ViewportTier::Full,
             locale,
             &theme,
         );
-        let text = row(&terminal, 160);
+        let text = row(&terminal, 200);
         let copy = locale.status();
         for label in [
             copy.cancel,
             copy.help,
+            copy.focus_sidebar,
+            copy.actions,
             copy.create_tab,
             copy.split,
             copy.agent_board,
@@ -207,11 +243,6 @@ fn prefix_mode_hint_labels_are_localized_in_both_supported_locales() {
         ] {
             assert!(text.contains(label), "{label:?} missing in {text:?}");
         }
-        assert!(
-            text.contains(copy.actions),
-            "{} missing in {text:?}",
-            copy.actions
-        );
     }
 }
 
@@ -222,7 +253,7 @@ fn prefix_mode_hint_uses_the_configured_effective_binding_without_repeating_the_
     view.configure_keys(&configured_arrow_help());
     arm_prefix(&mut view);
 
-    let (terminal, _) = paint(&view, 120, "Ready", None, false, &theme);
+    let (terminal, _) = paint(&view, 120, facts("Ready"), &theme);
     let text = row(&terminal, 120);
     assert!(
         text.contains("PREFIX Ctrl+a · Esc cancel · ← help"),
@@ -262,7 +293,7 @@ fn configured_effective_hint_uses_ascii_glyphs_and_semantic_key_styles() {
     view.configure_keys(&configured_arrow_help());
     view.startup_notice(Notice::UnknownPrefix);
 
-    let (terminal, receipt) = paint(&view, width, "ignored", None, false, &theme);
+    let (terminal, paint) = paint(&view, width, facts("ignored"), &theme);
     let text = row(&terminal, width);
     let key = "Ctrl+a Left";
     let key_start = text.find(key).expect("effective Help chord is visible");
@@ -271,21 +302,21 @@ fn configured_effective_hint_uses_ascii_glyphs_and_semantic_key_styles() {
     assert!(!text.contains("Ctrl+b ?"));
     assert!(!text.contains('←'));
     assert_eq!(
-        receipt, None,
+        paint.primary, None,
         "a Client notice is not a native draw receipt"
     );
 
     for x in key_start..key_start + key.len() {
         assert_eq!(
             terminal.backend().buffer()[(u16::try_from(x).unwrap(), 0)].style(),
-            semantic_on_canvas(&theme, Role::HintKey)
+            semantic_on_chip(&theme, Role::HintKey)
         );
     }
     let label_start = key_start + key.len() + 1;
     for x in label_start..label_start + "shortcuts".len() {
         assert_eq!(
             terminal.backend().buffer()[(u16::try_from(x).unwrap(), 0)].style(),
-            semantic_on_canvas(&theme, Role::HintLabel)
+            semantic_on_chip(&theme, Role::HintLabel)
         );
     }
 }
@@ -298,9 +329,9 @@ fn a_hint_that_does_not_fit_is_dropped_as_a_whole() {
     view.configure_keys(&configured_arrow_help());
     view.startup_notice(Notice::UnknownPrefix);
 
-    let (terminal, _) = paint(&view, width, "ignored", None, false, &theme);
+    let (terminal, _) = paint(&view, width, facts("ignored"), &theme);
     let text = row(&terminal, width);
-    assert_eq!(text.trim_end(), "Unknown prefix key");
+    assert_eq!(text.trim(), "Unknown prefix key");
     assert!(!text.contains("Ctrl+a"));
     assert!(!text.contains("shortcuts"));
 }
@@ -312,13 +343,12 @@ fn too_small_keeps_the_effective_exit_hint_ahead_of_status_actions() {
     let mut view = ClientView::new(width);
     view.startup_notice(Notice::UnknownPrefix);
 
-    let (terminal, _) = paint_at_tier(
+    let (terminal, _) = paint_at_tier_with_locale(
         &view,
         width,
-        "ignored",
-        None,
-        false,
+        facts("ignored"),
         ViewportTier::TooSmall,
+        Locale::EnUs,
         &theme,
     );
     let text = row(&terminal, width);
@@ -341,13 +371,12 @@ fn too_small_keeps_the_whole_exit_hint_when_the_primary_fact_cannot_coexist() {
     let width = 19;
     let theme = Theme::rgb_test_dark();
     let view = ClientView::new(width);
-    let (terminal, _) = paint_at_tier(
+    let (terminal, _) = paint_at_tier_with_locale(
         &view,
         width,
-        "A deliberately long primary status fact",
-        None,
-        false,
+        facts("A deliberately long primary status fact"),
         ViewportTier::TooSmall,
+        Locale::EnUs,
         &theme,
     );
     let text = row(&terminal, width);
@@ -374,9 +403,10 @@ fn notice_severity_marks_only_the_bullet_and_keeps_reading_text_primary() {
     let (terminal, _) = paint(
         &view,
         width,
-        "Ready",
-        Some("Needs attention"),
-        false,
+        StatusFacts {
+            secondary_notice: Some("Needs attention"),
+            ..facts("Ready")
+        },
         &theme,
     );
     let buffer = terminal.backend().buffer();
@@ -385,7 +415,7 @@ fn notice_severity_marks_only_the_bullet_and_keeps_reading_text_primary() {
         .expect("notice marker is visible");
     assert_eq!(
         buffer[(bullet_x, 0)].style(),
-        semantic_on_canvas(&theme, Role::StatusWarning)
+        semantic_on_chip(&theme, Role::StatusWarning)
     );
     let text_x = bullet_x
         .saturating_add(
@@ -398,8 +428,67 @@ fn notice_severity_marks_only_the_bullet_and_keeps_reading_text_primary() {
     for x in text_x..text_x + u16::try_from("Needs attention".len()).unwrap() {
         assert_eq!(
             buffer[(x, 0)].style(),
-            semantic_on_canvas(&theme, Role::TextPrimary)
+            semantic_on_chip(&theme, Role::TextPrimary)
         );
+    }
+}
+
+/// Lasting states name themselves in a word or two; the long fact they replace stays out.
+#[test]
+fn persistent_states_show_short_copy_with_their_severity_marker() {
+    let theme = Theme::rgb_test_dark();
+    let width = 80;
+    let view = taught(ClientView::new(width));
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let copy = locale.status();
+        for (persistent, text, marker) in [
+            (
+                PersistentStatus::DirectoryMissing,
+                copy.directory_missing,
+                Role::StatusWarning,
+            ),
+            (
+                PersistentStatus::Disconnected,
+                copy.disconnected,
+                Role::StatusError,
+            ),
+            (
+                PersistentStatus::TerminalEnded(TerminalEnd::Exited(
+                    orchbee_terminal_protocol::ExitResult::ExitCode(1),
+                )),
+                copy.terminal_exited,
+                Role::StatusWarning,
+            ),
+            (
+                PersistentStatus::TerminalEnded(TerminalEnd::Failed),
+                &*locale.terminal_end_compact(TerminalEnd::Failed),
+                Role::StatusError,
+            ),
+        ] {
+            let (terminal, paint) = paint_at_tier_with_locale(
+                &view,
+                width,
+                StatusFacts {
+                    persistent: Some(persistent),
+                    ..facts("terminal · a long lasting fact")
+                },
+                ViewportTier::Full,
+                locale,
+                &theme,
+            );
+            let shown = row(&terminal, width);
+            assert_eq!(
+                shown.trim(),
+                format!("{} {text}", theme.glyphs.status_bullet),
+                "{locale:?} {persistent:?}"
+            );
+            assert_eq!(paint.primary, None);
+            let chip = paint.surface.expect("the lasting state floats");
+            assert_eq!(
+                terminal.backend().buffer()[(chip.x + 1, 0)].style(),
+                semantic_on_chip(&theme, marker)
+            );
+        }
     }
 }
 
@@ -407,22 +496,28 @@ fn notice_severity_marks_only_the_bullet_and_keeps_reading_text_primary() {
 fn recoverable_status_receipt_requires_the_complete_raw_fact() {
     let theme = Theme::rgb_test_dark();
     let status = "Close committed; cleanup pending";
-    let width = u16::try_from(crate::terminal_text::display_width(status)).unwrap();
-    let view = ClientView::new(width);
+    let status_width = u16::try_from(crate::terminal_text::display_width(status)).unwrap();
+    // The chip bounds sit one cell in from each end, and the chip pads one cell at each end.
+    let width = status_width + 4;
+    let recovery = StatusFacts {
+        recovery_status: true,
+        ..facts(status)
+    };
+    let view = taught(ClientView::new(width));
 
-    let (terminal, receipt) = paint(&view, width, status, None, true, &theme);
-    assert_eq!(receipt, Some(Rect::new(0, 0, width, 1)));
-    assert_eq!(row(&terminal, width), status);
+    let (terminal, painted) = paint(&view, width, recovery, &theme);
+    assert_eq!(painted.primary, Some(Rect::new(2, 0, status_width, 1)));
+    assert_eq!(row(&terminal, width).trim(), status);
 
     let narrow = width - 1;
-    let view = ClientView::new(narrow);
-    let (terminal, receipt) = paint(&view, narrow, status, None, true, &theme);
-    assert_eq!(receipt, None);
+    let view = taught(ClientView::new(narrow));
+    let (terminal, painted) = paint(&view, narrow, recovery, &theme);
+    assert_eq!(painted, StatusPaint::default());
     assert!(row(&terminal, narrow).trim().is_empty());
 }
 
-/// R-001: a stale rename refusal stays visible in the narrowest content status line beside a
-/// docked Compact sidebar; retrying is a separate hint on the effective rename binding.
+/// R-001: a stale rename refusal stays visible in the narrowest content status beside a docked
+/// Compact sidebar; retrying is a separate hint on the effective rename binding.
 #[test]
 fn stale_rename_fact_fits_compact_content_and_retry_is_a_separate_rename_hint() {
     use crate::workbench_client::{
@@ -441,19 +536,16 @@ fn stale_rename_fact_fits_compact_content_and_retry_is_a_separate_rename_hint() 
                 target,
                 status: Status::Stale,
             });
-            let (terminal, _) = paint_at_tier_with_locale(
+            let (terminal, paint) = paint_at_tier_with_locale(
                 &view,
                 width,
-                StatusContent {
-                    primary: fact,
-                    secondary_notice: None,
-                    recovery: false,
-                },
+                facts(fact),
                 ViewportTier::Compact,
                 locale,
                 &theme,
             );
-            assert!(row(&terminal, width).starts_with(fact), "{fact}");
+            assert!(row(&terminal, width).trim().starts_with(fact), "{fact}");
+            assert!(paint.primary.is_some(), "{fact}");
             let hint = super::action_hint(
                 &view,
                 super::StatusAction::RetryRename(target),

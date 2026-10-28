@@ -172,10 +172,17 @@ pub fn draft_appearance_reaches_background_chrome_and_program_defaults_without_r
                         .preview_theme(preview)
                         .with_host_terminal_colors(0x102030, 0xe0d0c0);
                     let buffer = paint(&mut ui, &mut shell, size, fallback, paint_frame);
+                    // Settings takes the whole host: at compact sizes its own surface covers the
+                    // corner; at full size the sidebar chrome stays visible beside it.
+                    let corner = if size.1 <= 30 {
+                        Role::SurfaceOverlay
+                    } else {
+                        Role::SurfaceChrome
+                    };
                     assert_eq!(
                         buffer[(0, size.1 - 1)].bg,
-                        expected.color(Role::SurfaceChrome),
-                        "the Settings overlay can cover (0, 0) at compact sizes; sample the status chrome"
+                        expected.color(corner),
+                        "the draft reaches the bottom-left surface at {size:?}"
                     );
                     let defaults = expected.terminal_defaults();
                     if size.0 == 120 {

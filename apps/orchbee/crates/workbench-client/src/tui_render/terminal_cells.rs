@@ -5,7 +5,7 @@ use orchbee_terminal_protocol::{TerminalTextFrame, TerminalTextRow, TerminalText
 use ratatui::{
     Frame,
     buffer::{CellDiffOption, CellWidth},
-    layout::Rect,
+    layout::{Position, Rect},
     style::{Color, Modifier, Style},
 };
 use unicode_segmentation::UnicodeSegmentation;
@@ -21,18 +21,32 @@ pub fn render(
     show_cursor: bool,
     theme: &Theme,
 ) {
+    if let Some(cursor) = render_with_cursor(frame, area, terminal, show_cursor, theme) {
+        frame.set_cursor_position(cursor);
+    }
+}
+
+/// Paint one frame and return its cursor cell; the shell places the cursor after the floating
+/// status, so a chip that covers the cell also hides the cursor.
+pub(super) fn render_with_cursor(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    terminal: &TerminalTextFrame,
+    show_cursor: bool,
+    theme: &Theme,
+) -> Option<Position> {
     let theme = theme.with_host_terminal_colors(terminal.foreground, terminal.background);
     render_rows(frame, area, &terminal.rows, &theme);
-    if show_cursor
+    (show_cursor
         && terminal.cursor.visible
         && terminal.cursor.column < area.width
-        && terminal.cursor.row < area.height
-    {
-        frame.set_cursor_position((
-            area.x + terminal.cursor.column,
-            area.y + terminal.cursor.row,
-        ));
-    }
+        && terminal.cursor.row < area.height)
+        .then(|| {
+            Position::new(
+                area.x + terminal.cursor.column,
+                area.y + terminal.cursor.row,
+            )
+        })
 }
 pub(super) fn render_rows(
     frame: &mut Frame<'_>,
@@ -51,7 +65,7 @@ pub(super) fn render_live(
     view: LiveView,
     show_cursor: bool,
     theme: &Theme,
-) {
+) -> Option<Position> {
     let theme = theme.with_host_terminal_colors(terminal.foreground, terminal.background);
     let (foreground, background) = theme.terminal_defaults();
     frame
@@ -75,8 +89,9 @@ pub(super) fn render_live(
         && column < content.width
         && row < content.height
     {
-        frame.set_cursor_position((content.x + column, content.y + row));
+        return Some(Position::new(content.x + column, content.y + row));
     }
+    None
 }
 
 pub(super) fn render_rows_at(
@@ -159,17 +174,15 @@ pub(super) fn render_tail(
     rows_before: u32,
     show_cursor: bool,
     theme: &Theme,
-) {
+) -> Option<Position> {
     let theme = theme.with_host_terminal_colors(window.foreground, window.background);
     render_rows(frame, area, &window.rows, &theme);
     let cursor_row = u32::from(terminal.cursor.row).saturating_add(rows_before);
-    if show_cursor
+    (show_cursor
         && terminal.cursor.visible
         && terminal.cursor.column < area.width
-        && cursor_row < u32::from(area.height)
-    {
-        frame.set_cursor_position((area.x + terminal.cursor.column, area.y + cursor_row as u16));
-    }
+        && cursor_row < u32::from(area.height))
+    .then(|| Position::new(area.x + terminal.cursor.column, area.y + cursor_row as u16))
 }
 fn style(value: TerminalTextStyle, foreground: Color, background: Color) -> Style {
     let mut style = Style::new()

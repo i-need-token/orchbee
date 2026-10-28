@@ -183,23 +183,31 @@ pickers, confirmations and global action discovery.
 
 ## Status line
 
-The status line is a one-row overlay, shown for an input owner, meaningful notice, recovery, or
-explicit mode such as released pointer capture. Ordinary passthrough has no permanent status
-row or hints. Opening and closing it never changes terminal geometry, and closing restores the
-covered cells. While visible it stays above other overlays. Its segments, from left to right:
+The status line is a floating one-row chip on the host's last row, end-aligned one cell in from
+the right edge of the content beside any docked side panel. It is shown for an input owner,
+meaningful notice, recovery, persistent state, or explicit mode such as released pointer capture.
+Content reaches the last row: the status reserves no row, opening and closing it never changes
+terminal geometry, and closing restores the covered cells. The chip occludes only its own painted
+cells, including pointer input and the terminal cursor beneath them; the rest of the row remains
+live content. While visible it stays above other overlays. Its segments, from start to end:
 
 | Segment         | Contract                                                                                              |
 | --------------- | ----------------------------------------------------------------------------------------------------- |
 | Input indicator | The armed prefix, active mode, capture kind, or released pointer capture; empty in the ordinary layer |
 | Context         | The current location such as workspace and tab; optional detail dropped first when width is short     |
 | Notice          | The most recent transient or persistent notice; replaces context detail while shown                   |
-| Hints           | The current owner's key hints, right-aligned, shortened or dropped through tiers                      |
+| Hints           | The current owner's key hints after the lead, dropped as whole records by priority                    |
 
 - The input indicator is mandatory whenever any owner other than passthrough holds the keyboard.
   It is the last segment to be dropped.
+- Ordinary passthrough floats nothing at rest. The one exception teaches the entry gesture: until
+  the person first uses the prefix in the Client process, the chip names it and its purpose.
 - In prefix mode, the current effective cancel binding comes first, followed by effective hints for
-  help, the action menu when available, tab creation, splits, the Agent board, and detach. Width
-  drops lower-priority hints as whole records.
+  help, side-panel focus when a side panel exists, the action menu when available, tab creation,
+  splits, the Agent board, and detach. Width drops trailing hints as whole records.
+- A persistent state that leaves the focused content unusable, such as a missing directory, a lost
+  connection, or an ended program, shows one or two words with its severity marker, followed by
+  the binding that fixes it when one exists. Its full explanation belongs to the affected surface.
 - Segments collapse in the order documented in [`layout.md`](layout.md#size-tiers). A partial
   segment is never drawn; it is dropped or replaced by its shorter documented form.
 - Status text is sanitized like every external string before painting.

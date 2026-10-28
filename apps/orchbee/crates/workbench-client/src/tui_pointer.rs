@@ -88,7 +88,7 @@ const ARROWS_PER_NOTCH: usize = 3;
 pub enum HitLayer {
     /// A noncapturing notification card shields only its painted cells.
     Notification,
-    /// A transient status row occludes pane cells without capturing the whole viewport.
+    /// The floating status chip occludes only its painted cells without capturing the viewport.
     Status,
     /// Actionable overlay controls — navigator rows. Tested first.
     Overlay,

@@ -317,6 +317,9 @@ pub struct ClientView {
     project_quick_entry_eligible: Option<bool>,
     pub(crate) navigator: navigator::Navigator,
     prefix_active: bool,
+    /// Whether this Client process has armed its prefix. Until it has, the floating status
+    /// teaches the prefix; the fact is deliberately not persisted.
+    prefix_used: bool,
     resize_mode: bool,
     pub(crate) resize_pointer_fine: bool,
     /// Read-only projection of the Client-owned copy episode, used only for discovery.
@@ -364,6 +367,7 @@ impl ClientView {
             project_quick_entry_eligible: None,
             navigator: navigator::Navigator::default(),
             prefix_active: false,
+            prefix_used: false,
             resize_mode: false,
             resize_pointer_fine: false,
             copy_mode_active: false,
@@ -634,6 +638,11 @@ impl ClientView {
 
     pub const fn prefix_active(&self) -> bool {
         self.prefix_active
+    }
+
+    /// The launch hint shows until this Client first arms its prefix.
+    pub(crate) const fn launch_hint_pending(&self) -> bool {
+        !self.prefix_used
     }
 
     pub(crate) fn cancel_prefix(&mut self) {
@@ -1364,6 +1373,9 @@ impl ClientView {
             next.navigator.close();
         }
         *self = next;
+        if self.prefix_active || self.navigator.prefix {
+            self.prefix_used = true;
+        }
     }
 
     fn decide_prefix(&mut self, input: PrefixInput) -> (ClientAction, ShellCommand) {

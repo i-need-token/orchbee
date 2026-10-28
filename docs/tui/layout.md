@@ -22,7 +22,7 @@ A full-screen Client divides the host area into persistent chrome and content, w
 | Region        | Contract                                                                                                                                                               |
 | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Top strip     | At most one row; holds navigation such as tabs and the current location                                                                                                |
-| Status line   | One row over content when needed; never reserves terminal height; remains above other overlays                                                                         |
+| Status line   | An end-aligned chip over the last row when needed; never reserves terminal height; remains above other overlays                                                        |
 | Side panel    | Optional; docked at Full width, and at Compact width while content keeps the Compact minimum beside it; otherwise an overlay at Compact width; hidden at Minimal width |
 | Content       | The remaining area; receives every row and column the chrome does not claim                                                                                            |
 | Pane boundary | One cell between split panes, shared by both neighbors                                                                                                                 |
@@ -111,9 +111,10 @@ instead of presenting an incomplete task.
 
 - An overlay is positioned relative to the content area, centered horizontally and vertically.
   Centering rounds toward the top-left cell. An application-wide Settings surface instead centers
-  within the full host viewport above the transient status row, independent of navigation chrome.
-- A pointer-opened context menu instead anchors to the triggering cell in the full viewport above
-  the status line, including navigation chrome. Clamp its complete frame to that viewport; never
+  within the full host viewport, independent of navigation chrome; the floating status reserves no
+  row of it.
+- A pointer-opened context menu instead anchors to the triggering cell in the full viewport,
+  including navigation chrome and the last row. Clamp its complete frame to that viewport; never
   move a sidebar trigger into the pane area merely because general overlays use that area.
   Keyboard opening retains the owning surface's deterministic placement.
 - Overlay width is `min(preferred, area.width − 4)` and height is `min(preferred, area.height − 2)`.

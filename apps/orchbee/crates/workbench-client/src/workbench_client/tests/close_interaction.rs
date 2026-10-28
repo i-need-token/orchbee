@@ -93,10 +93,7 @@ fn close_modal_geometry(
     let shell = crate::tui_layout::project_shell_areas(buffer.area, view.sidebar_surface());
     let modal_scope = crate::tui_layout::overlay_area(&shell);
     assert!(!shell.status.is_empty());
-    assert!((shell.status.y..shell.status.bottom()).all(|y| {
-        (shell.status.x..shell.status.right())
-            .all(|x| matches!(hits.hit_target_at(x, y), Some(HitTarget::OverlaySurface)))
-    }));
+    // The status floats over the content's last row; any chip there is not the dialog.
     let surface: Vec<_> = (modal_scope.y..modal_scope.bottom())
         .flat_map(|y| (modal_scope.x..modal_scope.right()).map(move |x| (x, y)))
         .filter(|(x, y)| {
@@ -158,8 +155,8 @@ fn assert_complete_close_frame(
     view: &ClientView,
 ) {
     let (shell, outer, inner) = close_modal_geometry(buffer, hits, view);
-    // OverlaySurface is also the separately owned status-strip blocker. The
-    // shared geometry helper clips modal text to this dialog's exact hit scope.
+    // OverlaySurface is also the floating status chip's blocker. The shared
+    // geometry helper clips modal text to this dialog's exact hit scope.
     let left = outer.x;
     let right = outer.right();
     let top = outer.y;

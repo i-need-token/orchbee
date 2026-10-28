@@ -377,6 +377,6 @@ read/ACK 权威与取消策略仍由 Orchbee 拥有。
 
 模型不证明实际时钟延迟、载荷校验、行几何或所有 UI 调度。超时、未清空状态队列或动作覆盖不足均属于检查失败。
 
-TUI 将阅读锚点失效表述为正在显示最新输出。这条一次性提示四秒后过期，焦点窗格完成返回实时后立即清除。状态行位于终端几何之外，恢复协议和保留的操作事实保持不变。
+TUI 将阅读锚点失效表述为正在显示最新输出。这条一次性提示四秒后过期，焦点窗格完成返回实时后立即清除。状态小块浮在终端内容之上，不改变终端几何，恢复协议和保留的操作事实保持不变。
 
-<!-- documentation-pairing: english-sha256=b6159ea5db1f30c7c540d2e76ce75cf7897d774bf344300a81be514e2c5dcb27 zh-cn-sha256=dd87722813b3dc734bd1080087051094aeb68c75ae820dffe127ce0a69bb2440 -->
+<!-- documentation-pairing: english-sha256=33bd9e2ba4d12d586b51ccbb3b9f82f8d7c721d3884225ce6b0bf57992be9e50 zh-cn-sha256=c1bdc0c61c355a352b9627c20ef4086683e7cc8d63ea8b630bd7acd109471cf1 -->

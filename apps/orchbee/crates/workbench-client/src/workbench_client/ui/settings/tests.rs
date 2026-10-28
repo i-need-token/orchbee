@@ -155,11 +155,13 @@ fn settings_owns_its_hints_without_repeating_them_in_global_status() {
             .x..width)
                 .map(|x| terminal.backend().buffer()[(x, height - 1)].symbol())
                 .collect();
-            assert!(row.chars().all(|cell| cell == ' '), "{row:?}");
-            assert_eq!(
-                terminal.backend().buffer()[(width - 1, height - 1)].bg,
-                theme.color(crate::tui_theme::Role::SurfaceChrome)
+            // Settings may reach the last row; no global status repeats its hints there.
+            let notice = locale.shell_notice(Some(crate::client_view::Notice::UnknownPrefix));
+            assert!(
+                !row.replace(' ', "").contains(&notice.replace(' ', "")),
+                "{row:?}"
             );
+            assert!(!row.contains("Ctrl+"), "{row:?}");
             assert!(!terminal.backend().cursor_visible());
         }
     }
@@ -337,13 +339,19 @@ fn retained_drafts_render_their_failure_instead_of_covering_it_with_key_hints() 
                 Notice::SourceChanged | Notice::Unknown => crate::tui_theme::Role::StatusWarning,
                 _ => unreachable!(),
             };
+            let marker = (status.x..status.right())
+                .find(|x| {
+                    terminal.backend().buffer()[(*x, status.y)].symbol()
+                        == theme.glyphs.status_bullet
+                })
+                .expect("the notice floats as the status chip");
             assert_eq!(
-                terminal.backend().buffer()[(status.x, status.y)].fg,
+                terminal.backend().buffer()[(marker, status.y)].fg,
                 theme.color(marker_role),
                 "the notice marker conveys its severity"
             );
             assert_eq!(
-                terminal.backend().buffer()[(status.x + 2, status.y)].fg,
+                terminal.backend().buffer()[(marker + 2, status.y)].fg,
                 theme.color(crate::tui_theme::Role::TextPrimary),
                 "the message keeps the primary reading color"
             );
@@ -484,7 +492,7 @@ fn initial_too_small_settings_is_refused_without_cancelling_its_read() {
             Some(PresentationPhase::Pending)
         );
         let shell = ClientView::new(120);
-        let mut terminal = Terminal::new(TestBackend::new(120, 10)).unwrap();
+        let mut terminal = Terminal::new(TestBackend::new(120, 9)).unwrap();
         let mut receipt = DrawReceipt::default();
         let mut hits = crate::tui_pointer::HitMapBuilder::new();
         terminal
@@ -500,7 +508,7 @@ fn initial_too_small_settings_is_refused_without_cancelling_its_read() {
             })
             .unwrap();
         let map = hits.finish();
-        assert!((0..10).all(|y| {
+        assert!((0..9).all(|y| {
             (0..120).all(|x| {
                 !matches!(
                     map.hit_target_at(x, y),
@@ -534,7 +542,7 @@ fn initial_too_small_settings_is_refused_without_cancelling_its_read() {
             })
             .unwrap();
         let candidate = candidate.expect("settled Settings frame");
-        let candidate_status: String = (0..120).map(|x| candidate[(x, 9)].symbol()).collect();
+        let candidate_status: String = (0..120).map(|x| candidate[(x, 8)].symbol()).collect();
         let expected = locale
             .settings_notice(Notice::PresentationUnavailable)
             .replace(' ', "");
@@ -544,15 +552,15 @@ fn initial_too_small_settings_is_refused_without_cancelling_its_read() {
         );
         let hidden_by_candidate_wide_glyph = |x: u16| {
             (0..x).rev().take(4).any(|start| {
-                let width = crate::terminal_text::display_width(candidate[(start, 9)].symbol());
+                let width = crate::terminal_text::display_width(candidate[(start, 8)].symbol());
                 width > 1 && usize::from(start) + width > usize::from(x)
             })
         };
         let sink = terminal.backend().buffer();
         let mut hidden_differences = Vec::new();
         for x in 0..120 {
-            let candidate_cell = &candidate[(x, 9)];
-            let sink_cell = &sink[(x, 9)];
+            let candidate_cell = &candidate[(x, 8)];
+            let sink_cell = &sink[(x, 8)];
             if candidate_cell != sink_cell {
                 assert!(
                     hidden_by_candidate_wide_glyph(x),
@@ -572,7 +580,7 @@ fn initial_too_small_settings_is_refused_without_cancelling_its_read() {
         }
         let visible_sink_status: String = (0..120)
             .filter(|x| !hidden_by_candidate_wide_glyph(*x))
-            .map(|x| sink[(x, 9)].symbol())
+            .map(|x| sink[(x, 8)].symbol())
             .collect();
         assert!(
             visible_sink_status.replace(' ', "").contains(&expected),

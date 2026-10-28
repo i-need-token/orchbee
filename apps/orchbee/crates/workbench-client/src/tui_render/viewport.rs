@@ -1,7 +1,13 @@
 //! Styled retained rows reuse the live cell painter, with fenced history chrome.
 use orchbee_terminal_protocol::TerminalTextFrame;
 
-use ratatui::{Frame, buffer::CellWidth, layout::Rect, style::Style, widgets::Clear};
+use ratatui::{
+    Frame,
+    buffer::CellWidth,
+    layout::{Position, Rect},
+    style::Style,
+    widgets::Clear,
+};
 
 use crate::{
     localization::Locale,
@@ -28,8 +34,32 @@ pub(super) fn render_live(
     occupied_header: Option<Rect>,
     locale: Locale,
     theme: &Theme,
+) -> Option<Position> {
+    let cursor = terminal_cells::render_live(frame, area, terminal, view, show_cursor, theme);
+    render_live_header(
+        frame,
+        area,
+        terminal,
+        view,
+        history_key,
+        occupied_header,
+        locale,
+        theme,
+    );
+    cursor
+}
+
+#[expect(clippy::too_many_arguments)]
+fn render_live_header(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    terminal: &TerminalTextFrame,
+    view: LiveView,
+    history_key: Option<&str>,
+    occupied_header: Option<Rect>,
+    locale: Locale,
+    theme: &Theme,
 ) {
-    terminal_cells::render_live(frame, area, terminal, view, show_cursor, theme);
     if !view.clipped || area.height < 2 || area.width == 0 {
         return;
     }
@@ -102,7 +132,7 @@ pub(super) fn render(
     locale: Locale,
     theme: &Theme,
 ) {
-    render_selected(
+    if let Some(cursor) = render_selected(
         frame,
         area,
         surface,
@@ -112,7 +142,9 @@ pub(super) fn render(
         theme,
         None,
         false,
-    );
+    ) {
+        frame.set_cursor_position(cursor);
+    }
 }
 
 #[expect(clippy::too_many_arguments)]
@@ -126,7 +158,7 @@ pub(super) fn render_selected(
     theme: &Theme,
     selected: Option<&orchbee_terminal_protocol::SelectionChangedState>,
     copy_mode: bool,
-) {
+) -> Option<Position> {
     let chrome = true;
     let chrome = chrome && !copy_mode;
     render_content(
@@ -139,7 +171,7 @@ pub(super) fn render_selected(
         theme,
         selected,
         chrome,
-    );
+    )
 }
 
 #[expect(clippy::too_many_arguments)]
@@ -153,7 +185,8 @@ fn render_content(
     theme: &Theme,
     selected: Option<&orchbee_terminal_protocol::SelectionChangedState>,
     chrome: bool,
-) {
+) -> Option<Position> {
+    let mut cursor = None;
     match surface {
         ViewportSurface::Window { window, position } => {
             frame.render_widget(Clear, area);
@@ -174,7 +207,8 @@ fn render_content(
         }
         ViewportSurface::Entering => {
             if let Some(terminal) = live_frame {
-                terminal_cells::render(frame, area, terminal, show_cursor, theme);
+                cursor =
+                    terminal_cells::render_with_cursor(frame, area, terminal, show_cursor, theme);
             } else {
                 frame.render_widget(Clear, area);
             }
@@ -198,6 +232,7 @@ fn render_content(
             }
         }
     }
+    cursor
 }
 
 /// The right-aligned mode badge on the leaf's first row — the only

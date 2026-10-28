@@ -244,13 +244,8 @@ fn assert_ready_prefix_client(
         "terminal control status changed\n{rendered}"
     );
 
-    for hint in [
-        "PREFIX Ctrl+b",
-        "Esc cancel",
-        "? help",
-        "c create Tab",
-        r"\ / - split",
-    ] {
+    // Beside the sidebar the chip keeps the leading hints; later ones drop whole.
+    for hint in ["PREFIX Ctrl+b", "Esc cancel", "? help", "Tab sidebar"] {
         assert!(
             rendered.contains(hint),
             "missing prefix hint {hint:?}\n{rendered}"

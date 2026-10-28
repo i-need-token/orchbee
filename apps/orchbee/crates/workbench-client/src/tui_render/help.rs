@@ -248,12 +248,21 @@ pub(super) fn render_refused(
     if area.is_empty() || frame.area().intersection(area) != area {
         return None;
     }
-    if area.width < 3 {
+    // The refusal floats as the status chip: one padding cell at each end, the notice, one gap,
+    // then the close control, end-aligned so it covers only its own cells.
+    let content = display_width(text.overlay_refused)
+        .saturating_add(1)
+        .saturating_add(3);
+    let width = u16::try_from(content.saturating_add(2))
+        .unwrap_or(u16::MAX)
+        .min(area.width);
+    if width < 5 {
         return None;
     }
-    let close_offer = Rect::new(area.right().checked_sub(3)?, area.y, 3, 1);
+    let chip = Rect::new(area.right() - width, area.y, width, 1);
+    let close_offer = Rect::new(chip.right() - 4, chip.y, 3, 1);
     let close_rect = icon_action_rect(frame.area(), close_offer)
-        .filter(|rect| area.intersection(*rect) == *rect)?;
+        .filter(|rect| chip.intersection(*rect) == *rect)?;
     let source = candidate.refused();
     let close = control_plan(
         hits,
@@ -263,7 +272,8 @@ pub(super) fn render_refused(
         close_rect,
         true,
     );
-    let notice_width = close_rect.x.saturating_sub(area.x);
+    let notice_x = chip.x + 1;
+    let notice_width = close_rect.x.saturating_sub(notice_x);
     let notice_width = notice_width.saturating_sub(u16::from(notice_width > 0));
     let notice = truncate_display(
         text.overlay_refused,
@@ -271,14 +281,14 @@ pub(super) fn render_refused(
         theme.glyphs.ellipsis,
     );
 
-    frame.render_widget(Clear, area);
+    frame.render_widget(Clear, chip);
     frame
         .buffer_mut()
-        .set_style(area, theme.style(Role::SurfaceOverlay));
+        .set_style(chip, theme.style(Role::SurfaceOverlay));
     if notice_width > 0 {
         frame.render_widget(
             Paragraph::new(notice).style(theme.style(Role::TextSecondary)),
-            Rect::new(area.x, area.y, notice_width, 1),
+            Rect::new(notice_x, chip.y, notice_width, 1),
         );
     }
     let painted = render_icon_action(frame, close.rect, close.visual, theme)
@@ -292,7 +302,7 @@ pub(super) fn render_refused(
         close.target,
         close.interaction,
     );
-    hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
+    hits.record(HitLayer::OverlaySurface, chip, HitTarget::OverlaySurface);
     hits.record_help_draw(source);
     Some(close_rect)
 }

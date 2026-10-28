@@ -337,7 +337,7 @@ Windows `Ctrl+B F2` 打开[动作菜单](docs/native-action-menus.zh-CN.md)。
 包括空和非当前 Project，不进入子 Workspace；重命名或取消期间仍选中当前终端。
 上下文菜单仅使用矩形边框、动作行及可选的禁用原因，不显示标题、X、页脚提示或选择计数。
 子菜单继承根菜单的构件策略；全局动作菜单保留按键发现控件。
-鼠标打开的菜单靠近点击单元格，并限制在状态行上方。悬停只选择可见行，不执行；点击或 Enter
+鼠标打开的菜单靠近点击单元格，并限制在完整视口内。悬停只选择可见行，不执行；点击或 Enter
 执行，Esc 或外部点击取消。
 Workspace 的 Project 子菜单提供新建 Project 或离开 Project，之后列出已有 Project。
 Worktree 子菜单使用首个终端的根进程 cwd；Project 从规范顺序的首个成员推导该来源，
@@ -943,4 +943,4 @@ Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin acti
 
 Windows 首次运行引导在终端可继续输入时提供 Workspace 创建、Agent 选择、操作与帮助入口，关闭状态按原生配置档案保存。参见[原生首次运行引导](docs/native-onboarding.zh-CN.md)。
 
-<!-- documentation-pairing: english-sha256=46d1a12f118c181e42badae484cc6c48e37cc3a5937415470946b94a155b49ab zh-cn-sha256=871747772813395c470afcd69d30295868c2c5538073d50ff17ab6ce039a6b20 -->
+<!-- documentation-pairing: english-sha256=81d114ac5610a920c2a08c89848bddc36090fbb5908dabcb800111b99e357149 zh-cn-sha256=3710096c7fdf069ed45bb93e2314eb7fd282a0e7457647d8f2da900c02d76b71 -->

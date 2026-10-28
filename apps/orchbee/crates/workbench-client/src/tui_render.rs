@@ -4,7 +4,7 @@
 
 use ratatui::{
     Frame,
-    layout::{Alignment, Constraint, Layout, Rect},
+    layout::{Alignment, Constraint, Layout, Position, Rect},
     style::Modifier,
     text::{Line, Span},
     widgets::{Block, Borders, Clear, List, ListItem, Padding, Paragraph, Wrap},
@@ -48,7 +48,7 @@ use crate::{
     },
     tui_layout::{
         PaneFrame, ShellAreas, SidebarArea, SidebarLayer, ViewportTier, native_terminal_area,
-        overlay_area, place_overlay, project_shell_areas, terminal_area,
+        overlay_area, place_overlay, project_shell_areas, status_chip_area, terminal_area,
     },
     tui_pointer::{
         HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
@@ -301,9 +301,13 @@ pub fn render_terminal_shell_with_resize<'a>(
     let mut help_presented = false;
     let mut board_draw = None;
     let mut graphics_draws = Vec::new();
+    // The pane cursor is placed after the floating status, so a chip that covers its cell hides it.
+    let mut pane_cursor = None;
     let sidebar_status;
     let mut sidebar_status_role = Role::StatusWarning;
     let status_text;
+    let mut status_persistent = None;
+    let mut status_ordinary = false;
     let mut secondary_notice = None;
 
     match workbench_client.as_ref() {
@@ -324,15 +328,16 @@ pub fn render_terminal_shell_with_resize<'a>(
         Some(native) => {
             let phase_status = native.phase_status_text(locale);
             let close = native.close_status();
-            let status = native.workspace_close_status().map_or_else(
-                || {
-                    close.as_ref().map_or_else(
-                        || native.status_text(locale, areas.status.width),
-                        |status| locale.native_close_status(status),
-                    )
-                },
-                |status| locale.workspace_close_status(status),
-            );
+            let status = match (native.workspace_close_status(), close.as_ref()) {
+                (Some(status), _) => locale.workspace_close_status(status),
+                (None, Some(status)) => locale.native_close_status(status),
+                (None, None) => {
+                    let selected = native.status(locale, status_chip_area(&areas).width);
+                    status_persistent = selected.persistent;
+                    status_ordinary = selected.ordinary;
+                    selected.text
+                }
+            };
             secondary_notice = native
                 .notice()
                 .map(|notice| locale.native_notice_with_context(notice, native.notice_context()))
@@ -373,6 +378,7 @@ pub fn render_terminal_shell_with_resize<'a>(
                     hits,
                     graphics_uncovered,
                     &mut graphics_draws,
+                    &mut pane_cursor,
                 );
             }
         }
@@ -801,65 +807,101 @@ pub fn render_terminal_shell_with_resize<'a>(
         Some(native)
             if native.controller() == Some(DisplayController::ReadOnly)
     );
-    let status_visible = status_overlay_visible(view, workbench_client.as_ref(), capture_owner)
+    // The status floats over the last row and covers only the cells it paints; nothing shows at
+    // rest once the launch hint has taught the prefix.
+    let status_facts = status_overlay_visible(view, workbench_client.as_ref(), capture_owner)
         || notice.is_some()
         || zoomed
         || tier == ViewportTier::TooSmall;
-    frame.render_widget(
-        Block::new().style(theme.style(Role::SurfaceChrome)),
-        areas.status,
-    );
-    if status_visible {
-        frame.render_widget(Clear, areas.status);
-        frame
-            .buffer_mut()
-            .set_style(areas.status, theme.style(Role::SurfaceChrome));
-        // Covered cells never forward a click to the terminal beneath the hint.
-        hits.record(HitLayer::Status, areas.status, HitTarget::OverlaySurface);
-    }
-    let status_area = if status_visible {
-        areas.status
+    // The launch hint alone floats without the fact: a connecting first frame still shows no
+    // connection-only status.
+    let status_visible = status_facts || view.launch_hint_pending();
+    let chip_area = status_chip_area(&areas);
+    let copy_status = capture_owner == Some(CaptureOwner::Copy)
+        && workbench_client
+            .as_ref()
+            .is_some_and(|native| native.copy_mode().is_some());
+    let help_refusal = tier != ViewportTier::TooSmall
+        && client_chrome_overlay_allowed(capture_owner)
+        && view.overlay() == Some(Overlay::ShortcutHelp)
+        && !help_presented
+        && view.help_draw_candidate().is_some();
+    let menu_status = native_top(WorkbenchCaptureOwner::ActionMenu)
+        && workbench_client
+            .as_ref()
+            .is_some_and(|native| native.action_menu().is_some());
+    let settings_status = native_top(WorkbenchCaptureOwner::Settings)
+        && workbench_client
+            .as_ref()
+            .is_some_and(|native| native.settings().is_some());
+    // One owner paints the status cells in a frame: a local owner's feedback replaces the
+    // ordinary status instead of stacking a second chip beside it.
+    let status_replaced =
+        native_recovery.is_some() || copy_status || help_refusal || menu_status || settings_status;
+    let painted = if status_visible && !status_replaced {
+        render_status(
+            frame,
+            chip_area,
+            view,
+            capture_owner,
+            locale,
+            status_line::StatusFacts {
+                primary: &status_text,
+                primary_ordinary: status_ordinary || !status_facts,
+                persistent: status_persistent,
+                secondary_notice: notice,
+                zoomed,
+                read_only,
+                recovery_status: matches!(workbench_client.as_ref(), Some(native)
+                    if native.workspace_close_status().is_none()
+                        && native.close_status().is_some_and(|status| status.resumable())),
+            },
+            tier,
+            theme,
+            workbench_client.as_ref(),
+        )
     } else {
-        Rect::default()
+        status_line::StatusPaint::default()
     };
-    let visible = render_status(
-        frame,
-        status_area,
-        view,
-        capture_owner,
-        locale,
-        &status_text,
-        notice,
-        zoomed,
-        read_only,
-        matches!(workbench_client.as_ref(), Some(native)
-            if native.workspace_close_status().is_none()
-                && native.close_status().is_some_and(|status| status.resumable())),
-        tier,
-        theme,
-        workbench_client.as_ref(),
-    );
+    // Covered cells never forward a click to the terminal beneath the status.
+    let mut status_surfaces = Vec::new();
+    if let Some(surface) = painted.surface {
+        hits.record(HitLayer::Status, surface, HitTarget::OverlaySurface);
+        status_surfaces.push(surface);
+    }
+    let visible = painted.primary;
     if let Some(recovery) = native_recovery {
-        match recovery {
+        let surface = match recovery {
             RecoveryStatus::LocalReturn { phase, verb } => {
                 let retained = phase != crate::tui_presentation::PresentationPhase::Pending;
                 recovery::render(
                     frame,
-                    areas.status,
+                    chip_area,
                     locale.presentation_notice(retained),
                     retained.then_some(locale.recovery_verb(verb)),
                     theme,
-                );
+                )
             }
             RecoveryStatus::Plain(notice) => {
-                recovery::render(frame, areas.status, notice, None, theme);
+                recovery::render(frame, chip_area, notice, None, theme)
             }
+        };
+        if let Some(surface) = surface {
+            hits.record(HitLayer::Status, surface, HitTarget::OverlaySurface);
+            status_surfaces.push(surface);
         }
     }
-    if capture_owner == Some(CaptureOwner::Copy)
-        && let Some(native) = workbench_client.as_ref()
-        && let Some(copy) = native.copy_mode()
+    if let Some(cursor) =
+        pane_cursor.filter(|cursor| !status_surfaces.iter().any(|chip| chip.contains(*cursor)))
     {
+        frame.set_cursor_position(cursor);
+    }
+    if copy_status
+        && let Some(copy) = workbench_client
+            .as_ref()
+            .and_then(|native| native.copy_mode())
+    {
+        // Copy mode's search editor and actions keep the whole last row while the mode is open.
         copy_mode::render_status(
             frame,
             areas.status,
@@ -870,16 +912,12 @@ pub fn render_terminal_shell_with_resize<'a>(
             view.capabilities
                 .supports(crate::tui_capabilities::Capability::Clipboard),
         );
+        hits.record(HitLayer::Status, areas.status, HitTarget::OverlaySurface);
     }
-    if tier != ViewportTier::TooSmall
-        && client_chrome_overlay_allowed(capture_owner)
-        && view.overlay() == Some(Overlay::ShortcutHelp)
-        && !help_presented
-        && let Some(candidate) = view.help_draw_candidate()
-    {
+    if help_refusal && let Some(candidate) = view.help_draw_candidate() {
         // The requested page remains owner state for a later resize. Only a
         // complete fixed-width close publishes refused-surface authority.
-        let _ = help::render_refused(frame, areas.status, text, candidate, theme, hits);
+        let _ = help::render_refused(frame, chip_area, text, candidate, theme, hits);
     }
     if capture_owner.is_none()
         && let Some(native) = workbench_client.as_ref()
@@ -946,13 +984,10 @@ pub fn render_terminal_shell_with_resize<'a>(
         } else {
             locale.menu_close_button()
         };
+        // An anchored menu takes the whole viewport, as Settings does; the status chip that
+        // replaces the ordinary status paints after it.
         let menu_area = if menu.anchor.is_some() {
-            Rect::new(
-                area.x,
-                area.y,
-                area.width,
-                areas.status.y.saturating_sub(area.y),
-            )
+            area
         } else {
             overlay_area(&areas)
         };
@@ -974,18 +1009,16 @@ pub fn render_terminal_shell_with_resize<'a>(
             }
             action_menu::render(frame, menu_area, menu, view.bindings(), locale, theme, hits)
         };
-        frame.render_widget(Clear, areas.status);
-        frame
-            .buffer_mut()
-            .set_style(areas.status, theme.style(Role::SurfaceChrome));
-        if matches!(draw, ModalPresentation::NotPresented) {
-            recovery::render(
+        if matches!(draw, ModalPresentation::NotPresented)
+            && let Some(surface) = recovery::render(
                 frame,
-                areas.status,
+                chip_area,
                 locale.presentation_notice(recovery),
                 recovery.then_some(local_return),
                 theme,
-            );
+            )
+        {
+            hits.record(HitLayer::Status, surface, HitTarget::OverlaySurface);
         }
         receipt.with_menu(Some(draw))
     } else {
@@ -1005,7 +1038,7 @@ pub fn render_terminal_shell_with_resize<'a>(
         } else {
             settings::render(
                 frame,
-                Rect::new(area.x, area.y, area.width, area.height.saturating_sub(1)),
+                area,
                 settings,
                 native.settings_pending(),
                 locale,
@@ -1013,10 +1046,6 @@ pub fn render_terminal_shell_with_resize<'a>(
                 hits,
             )
         };
-        frame.render_widget(Clear, areas.status);
-        frame
-            .buffer_mut()
-            .set_style(areas.status, theme.style(Role::SurfaceChrome));
         let notice = if matches!(draw, ModalPresentation::NotPresented) {
             // Classify this frame from the owner's pre-settlement incarnation.
             // A new attempt is refused; an admitted task can resume later.
@@ -1033,8 +1062,8 @@ pub fn render_terminal_shell_with_resize<'a>(
             native.settings_notice()
         };
         // Settings owns its complete local return and shortcut hint inside the
-        // surface. This global row carries only a distinct notice or recovery.
-        let line = notice.map_or_else(Line::default, |notice| {
+        // surface. The status chip carries only a distinct notice or recovery.
+        let line = notice.map(|notice| {
             let role = match notice {
                 crate::workbench_client::SettingsNotice::Saved => Role::StatusSuccess,
                 crate::workbench_client::SettingsNotice::Failed => Role::StatusError,
@@ -1046,27 +1075,23 @@ pub fn render_terminal_shell_with_resize<'a>(
                 | crate::workbench_client::SettingsNotice::Background => Role::StatusPending,
                 crate::workbench_client::SettingsNotice::NoChange => Role::StatusInfo,
             };
-            Line::from(vec![
-                Span::styled(
-                    format!("{} ", theme.glyphs.status_bullet),
-                    theme.style(role),
-                ),
-                Span::styled(
-                    locale.settings_notice(notice),
-                    theme.style(Role::TextPrimary),
-                ),
-            ])
+            (locale.settings_notice(notice), role)
         });
-        if matches!(draw, ModalPresentation::NotPresented) {
+        let surface = if matches!(draw, ModalPresentation::NotPresented) {
             recovery::render(
                 frame,
-                areas.status,
+                chip_area,
                 locale.presentation_notice(retained),
                 local_return.filter(|_| retained),
                 theme,
-            );
+            )
         } else {
-            frame.render_widget(Paragraph::new(line), areas.status);
+            line.and_then(|(text, role)| {
+                status_line::render_notice_chip(frame, chip_area, text, role, None, false, theme)
+            })
+        };
+        if let Some(surface) = surface {
+            hits.record(HitLayer::Status, surface, HitTarget::OverlaySurface);
         }
         receipt.with_settings(Some(draw))
     } else {
@@ -1288,6 +1313,7 @@ fn render_native_workbench(
     hits: &mut HitMapBuilder,
     graphics_uncovered: bool,
     graphics_draws: &mut Vec<crate::workbench_client::PaneGraphicsDraw>,
+    pane_cursor: &mut Option<Position>,
 ) {
     if let Some(preview) = native
         .workspace_creation_preview()
@@ -1445,6 +1471,7 @@ fn render_native_workbench(
                 client_view,
                 theme,
                 hits,
+                pane_cursor,
             );
             // The recorded region carries the pane's exact live
             // incarnation — a press resolves it bit for bit, so it can
@@ -1567,7 +1594,7 @@ fn render_native_workbench(
         if let Some(surface) = viewport {
             // A non-Live core owns the whole content area the same way a
             // split leaf does — validated window or mode indicator.
-            viewport::render_selected(
+            *pane_cursor = viewport::render_selected(
                 frame,
                 content_area,
                 surface,
@@ -1618,7 +1645,7 @@ fn render_native_workbench(
             } else {
                 crop.content(content_area)
             };
-            if let Some((window, rows_before)) = tail {
+            *pane_cursor = if let Some((window, rows_before)) = tail {
                 terminal_cells::render_tail(
                     frame,
                     content_area,
@@ -1627,7 +1654,7 @@ fn render_native_workbench(
                     rows_before,
                     show_cursor,
                     theme,
-                );
+                )
             } else {
                 viewport::render_live(
                     frame,
@@ -1639,8 +1666,8 @@ fn render_native_workbench(
                     global_action,
                     locale,
                     theme,
-                );
-            }
+                )
+            };
             selection::paint_cropped(
                 frame,
                 painted,
@@ -1970,6 +1997,7 @@ fn render_leaf(
     client_view: &ClientView,
     theme: &Theme,
     hits: &mut HitMapBuilder,
+    pane_cursor: &mut Option<Position>,
 ) {
     // Only the Windows copy-mode surface consumes input ownership and pointer targets here.
 
@@ -1999,7 +2027,7 @@ fn render_leaf(
         // A non-Live core owns the leaf: its validated window or its mode
         // indicator paints instead of the live frame path.
         let copy_active = active && native.copy_mode().is_some();
-        viewport::render_selected(
+        let cursor = viewport::render_selected(
             frame,
             content,
             surface,
@@ -2010,6 +2038,8 @@ fn render_leaf(
             panel.and_then(|panel| native.pane_selection(panel.panel_id())),
             copy_active,
         );
+        // Only the active leaf yields a cursor.
+        *pane_cursor = pane_cursor.or(cursor);
     } else if let Some(terminal) = terminal {
         let show_cursor = cursor_visible && active;
         let show_cursor = show_cursor && native.copy_mode().is_none();
@@ -2021,7 +2051,7 @@ fn render_leaf(
         } else {
             crop.content(content)
         };
-        if let Some((window, rows_before)) = tail {
+        let cursor = if let Some((window, rows_before)) = tail {
             terminal_cells::render_tail(
                 frame,
                 content,
@@ -2030,7 +2060,7 @@ fn render_leaf(
                 rows_before,
                 show_cursor,
                 theme,
-            );
+            )
         } else {
             viewport::render_live(
                 frame,
@@ -2042,8 +2072,9 @@ fn render_leaf(
                 None,
                 locale,
                 theme,
-            );
-        }
+            )
+        };
+        *pane_cursor = pane_cursor.or(cursor);
         selection::paint_cropped(
             frame,
             painted,
@@ -2244,26 +2275,18 @@ fn render_status(
     view: &ClientView,
     capture_owner: Option<CaptureOwner>,
     locale: Locale,
-    status: &str,
-    secondary_notice: Option<&str>,
-    zoomed: bool,
-    read_only: bool,
-    recovery_status: bool,
+    facts: status_line::StatusFacts<'_>,
     tier: ViewportTier,
     theme: &Theme,
     workbench_client: Option<&WorkbenchClientView<'_>>,
-) -> Option<Rect> {
+) -> status_line::StatusPaint {
     status_line::render(
         frame,
         area,
         view,
         capture_owner,
         locale,
-        status,
-        secondary_notice,
-        zoomed,
-        read_only,
-        recovery_status,
+        facts,
         tier,
         theme,
         workbench_client,
