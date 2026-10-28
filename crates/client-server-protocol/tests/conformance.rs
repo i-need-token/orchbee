@@ -182,7 +182,7 @@ fn schema_and_corpus_are_well_formed_and_every_canonical_message_round_trips()
             .pointer("/oneOf")
             .and_then(Value::as_array)
             .map(Vec::len),
-        Some(13)
+        Some(11)
     );
     assert!(jsonschema::draft202012::meta::is_valid(&schema));
     let schema_validator = jsonschema::draft202012::new(&schema)?;
