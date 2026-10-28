@@ -156,12 +156,12 @@ through the [canonical Close](../../orchbee-server/docs/terminal-tab-close.md#no
 including when a later viewer attachment first observes the exit. Clients remove the member
 through the existing peer-Close path; the last Tab leaves the Workspace's ordinary empty state.
 Until the member is removed, the Client holds the pane's closing presentation for at most one
-second (`workbench_client/ui/normal_exit.rs`): exit code 0 of a Panel's only Presentation keeps its
-final pixels and label, and the status line raises no automatic exit, view-only, connection or
+second (`workbench_client/normal_exit_hold.rs`): exit code 0 of a Panel's only Presentation keeps
+its final pixels and label, and the status line raises no automatic exit, view-only, connection or
 viewer-loss cue. The hold changes no attachment, input, selection or membership and ends when the
 pane leaves membership. A pane still present at the bound, such as a non-interactive program that
 Server keeps, shows its ordinary settlement; explicitly invoked status and notices still appear.
-UI tests cover the hold's eligibility, bound and release redraw.
+Tests cover the hold's eligibility, bound, release on departure, and the redraw a release owes.
 
 An exit arriving during setup or an admitted Create also downgrades the retained selection and
 clears its controller geometry. Precommit refusal therefore cannot restore a controlling selection

@@ -1,49 +1,13 @@
 use super::super::test_support::{controlling_ui, install_projection};
-use super::super::{
-    CommandMailbox, LocalOperationClock, MutationResult, QueuedCommand, Tagged, WorkbenchClientUi,
-};
-use super::*;
-use crate::workbench_client::state::{AttachmentKey, PaneKey};
+use super::super::*;
+use crate::localization::TerminalEnd;
+use crate::workbench_client::normal_exit_hold::BOUND;
 use orchbee_terminal_protocol::{
-    CURRENT_PROTOCOL_VERSION, CreationId, Envelope, LifecycleControl, MessageRole, PayloadEncoding,
-    TerminalExited, TerminalId, TerminalIdentity, encode_lifecycle_control,
+    CURRENT_PROTOCOL_VERSION, CreationId, Envelope, ExitResult, LifecycleControl, MessageRole,
+    PayloadEncoding, TerminalExited, TerminalId, TerminalIdentity, encode_lifecycle_control,
     encode_transport_envelope,
 };
-use orchbee_workbench_protocol::{WorkbenchPanelId, WorkbenchTabId};
 use std::sync::atomic::Ordering;
-
-fn pane(incarnation: u32) -> PaneRef {
-    let tab = WorkbenchTabId::parse(&format!("{:032x}", 5)).unwrap();
-    let panel = WorkbenchPanelId::parse(&format!("{:032x}", 6)).unwrap();
-    PaneRef::new(PaneKey::new(AttachmentKey::new(1, tab), panel), incarnation)
-}
-
-#[test]
-fn only_a_sole_presentation_exiting_with_code_zero_holds_until_its_bound_or_departure() {
-    let now = Instant::now();
-    let normal = TerminalEnd::Exited(ExitResult::ExitCode(0));
-    let mut holds = NormalExitHolds::default();
-    for (end, sole) in [
-        (TerminalEnd::Exited(ExitResult::ExitCode(1)), true),
-        (TerminalEnd::Exited(ExitResult::Signal(9)), true),
-        (TerminalEnd::Exited(ExitResult::Unknown(0)), true),
-        (TerminalEnd::Failed, true),
-        (normal, false),
-    ] {
-        holds.observe(&pane(1), end, sole, now);
-        assert!(!holds.active(), "{end:?} sole={sole}");
-    }
-
-    holds.observe(&pane(1), normal, true, now);
-    assert!(holds.holds(&pane(1)) && !holds.holds(&pane(2)));
-    assert!(!holds.release(now + BOUND - Duration::from_millis(1), |_| true));
-    assert!(holds.release(now + BOUND, |_| true));
-    assert!(!holds.active());
-
-    holds.observe(&pane(1), normal, true, now);
-    assert!(holds.release(now, |key| *key != pane(1)));
-    assert!(!holds.active());
-}
 
 #[test]
 fn a_normal_exit_presents_no_settlement_until_its_hold_ends() {

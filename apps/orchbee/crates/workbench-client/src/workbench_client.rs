@@ -45,6 +45,7 @@ pub(crate) use panel_reports::PanelReportView;
 mod agent_read_lane;
 mod connection;
 mod mailbox;
+mod normal_exit_hold;
 mod primary_directory;
 mod startup_directory;
 mod startup_preference;

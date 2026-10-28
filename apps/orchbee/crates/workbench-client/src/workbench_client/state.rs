@@ -1579,6 +1579,21 @@ impl WorkbenchClientState {
         Some(retired.failure)
     }
 
+    /// Whether the exact pane incarnation `key` still has a record, departing or not.
+    pub(super) fn pane_present(&self, key: &PaneRef) -> bool {
+        self.live_pane_record(key).is_some()
+    }
+
+    /// Whether `pane` presents the only Presentation of its Panel, so closing it closes the Panel.
+    pub(super) fn sole_presentation(&self, pane: &PaneKey) -> bool {
+        self.cache
+            .tabs()
+            .iter()
+            .find(|tab| tab.tab_id() == pane.anchor().tab_id())
+            .and_then(|tab| tab.panel(tab.panel_index(pane.panel())?))
+            .is_some_and(|panel| panel.presentation_count() == 1)
+    }
+
     pub(super) fn pane_attached(&self, key: &PaneRef) -> bool {
         self.live_pane_record(key)
             .is_some_and(|record| record.attached)

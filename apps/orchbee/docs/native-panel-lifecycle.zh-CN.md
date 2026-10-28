@@ -139,11 +139,11 @@ Server 通过[规范 Close](../../orchbee-server/docs/terminal-tab-close.zh-CN.m
 关闭该 Panel；该 Panel 是唯一叶子时关闭其 Tab，包括退出首先由之后附着的 viewer 观测到的
 情况。Client 通过既有的对端 Close 路径移除该成员；最后一个 Tab 关闭后 Workspace 进入普通
 空状态。在该成员被移除前，Client 最多用一秒保持该窗格的关闭呈现
-（`workbench_client/ui/normal_exit.rs`）：Panel 唯一的 Presentation 以退出码 0 结束时保留
+（`workbench_client/normal_exit_hold.rs`）：Panel 唯一的 Presentation 以退出码 0 结束时保留
 最终画面和标签，状态行不自动显示退出、仅查看、连接或 viewer 丢失提示。保持不改变附件、
 输入、选择或成员关系，并在窗格离开成员关系时结束。到达上限时仍存在的窗格（例如 Server
-保留的非交互程序）显示普通结束状态；主动唤起的状态和通知照常显示。UI 测试覆盖保持的
-资格、上限和释放后的重绘。
+保留的非交互程序）显示普通结束状态；主动唤起的状态和通知照常显示。测试覆盖保持的资格、
+上限、离开成员关系时的释放，以及释放所需的重绘。
 
 setup 或已准入 Create 期间收到退出时，也须降级保留的选择并清除控制几何。因此，提交前
 拒绝不能在 Shell 已结束后恢复可控制选择。失败输入不重放。导航、从子成员返回主成员、
@@ -155,4 +155,4 @@ viewer 拒绝则停放为稳定导航视图，并进入普通命令循环。不�
 传输、协议、结果不明和清理失败沿用原边界。投影／状态测试覆盖精确目标结束与选择恢复；
 真实窗口评审覆盖 exit 0、非零退出、普通输入、返回主成员、重新进入及窄窗口状态展示。
 
-<!-- documentation-pairing: english-sha256=5d7fcc02f80c9190f47ff4820c8c850fb1ee5bf6b390add9114970833d0bdd51 zh-cn-sha256=1667d6a78f698d0037f1fb5bbea7858b33ccceb87aef6de3d63357278c05c92c -->
+<!-- documentation-pairing: english-sha256=c2711ec4910e2cbacc1cec1ef8f5a9cd115929585bbb9895763e8ec5abce5fce zh-cn-sha256=22adecbe74f80859643488eb416754b8d49137691d427ec57d38a3f72ec3f36b -->

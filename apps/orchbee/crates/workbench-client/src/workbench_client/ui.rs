@@ -66,7 +66,6 @@ mod panel_close;
 mod presentations;
 pub(crate) use presentations::DrawnPresentationTarget;
 mod history_positions;
-mod normal_exit;
 mod retained_frames;
 /// Volatile Client view data carried across a targeted context surface replacement.
 #[derive(Clone, Default)]
@@ -272,7 +271,7 @@ pub struct WorkbenchClientView<'a> {
     state: Option<ClientStateView<'a>>,
     panes: &'a [KeyedProjection],
     retained_frames: Option<retained_frames::RetainedView<'a>>,
-    normal_exits: Option<&'a normal_exit::NormalExitHolds>,
+    normal_exits: Option<&'a super::normal_exit_hold::NormalExitHolds<PaneRef>>,
     focus: Option<&'a WorkbenchPanelId>,
     projection_status: ClientProjectionStatus,
     retirement: Option<DisplayRetirement>,
@@ -680,7 +679,7 @@ impl<'a> WorkbenchClientView<'a> {
     /// Whether any pane holds its closing presentation, which suppresses automatic status cues.
     pub(crate) fn normal_exit_closing(&self) -> bool {
         self.normal_exits
-            .is_some_and(normal_exit::NormalExitHolds::active)
+            .is_some_and(super::normal_exit_hold::NormalExitHolds::active)
     }
 
     /// The live projection installed for one panel's exact pane incarnation,
@@ -1154,7 +1153,7 @@ pub(super) struct WorkbenchClientUi {
     agent_index: super::agent_board::PresentationIndex,
     projections: Vec<KeyedProjection>,
     retained_frames: retained_frames::RetainedFrames,
-    normal_exits: normal_exit::NormalExitHolds,
+    normal_exits: super::normal_exit_hold::NormalExitHolds<PaneRef>,
     navigation_draw: navigation_draw::NavigationDraw,
     history_positions: history_positions::Coordinator,
     effects: super::terminal_effects::Queue,
@@ -1277,7 +1276,7 @@ impl WorkbenchClientUi {
             outer_focused: None,
             projections: Vec::new(),
             retained_frames: retained_frames::RetainedFrames::default(),
-            normal_exits: normal_exit::NormalExitHolds::default(),
+            normal_exits: super::normal_exit_hold::NormalExitHolds::default(),
             navigation_draw: navigation_draw::NavigationDraw::default(),
             history_positions: history_positions::Coordinator::default(),
             effects: super::terminal_effects::Queue::default(),
@@ -1556,9 +1555,9 @@ impl WorkbenchClientUi {
             self.retained_frames.prune(state);
         }
         let state = self.state.as_ref();
-        let exit_hold_released = self
-            .normal_exits
-            .release(self.clock.now(), |key| normal_exit::member(state, key));
+        let exit_hold_released = self.normal_exits.release(self.clock.now(), |key| {
+            state.is_some_and(|state| state.pane_present(key))
+        });
         let command_notice_changed = if self
             .command_notice
             .is_some_and(|(_, until)| self.clock.now() >= until)
@@ -3996,7 +3995,7 @@ impl WorkbenchClientUi {
                     self.state.as_ref(),
                 ) {
                     let key = poll_key.pane_ref();
-                    let sole = normal_exit::sole_presentation(state, key);
+                    let sole = state.sole_presentation(key.pane());
                     self.normal_exits.observe(key, end, sole, self.clock.now());
                 }
                 if self.projections[index].value.end().is_some()
