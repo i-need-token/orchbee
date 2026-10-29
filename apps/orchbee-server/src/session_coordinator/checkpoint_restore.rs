@@ -3,7 +3,9 @@
 //! adopt a physical terminal from another incarnation.
 
 use super::{SessionCoordinator, presentation_binding};
-use crate::terminal_coordinator::{CreateInputs, PendingOperation, WorkerPlacement};
+#[cfg(windows)]
+use crate::terminal_coordinator::WorkerPlacement;
+use crate::terminal_coordinator::{CreateInputs, PendingOperation};
 use orchbee_client_server_protocol::{
     Geometry, StartMode, TerminalCreateRequest, WorkerConstraint, WorkerId, WorkingDirectory,
 };

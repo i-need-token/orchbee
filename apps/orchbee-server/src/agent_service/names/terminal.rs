@@ -44,6 +44,7 @@ impl Names {
             .map(|entry| launch_binding(&entry.binding))
     }
 
+    #[cfg(any(windows, test))]
     pub(super) fn observe_terminal_owner(&mut self, fact: &TerminalNameFact) {
         let id = launch_binding(&fact.binding).presentation_id;
         let Some(entry) = self.terminals.get_mut(&id) else {
@@ -75,6 +76,7 @@ impl Names {
         });
     }
 
+    #[cfg(any(windows, test))]
     pub(super) fn reconcile_terminals(&mut self, facts: &[TerminalNameFact]) {
         self.terminals.retain(|_, entry| {
             facts

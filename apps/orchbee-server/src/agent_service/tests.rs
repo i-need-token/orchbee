@@ -2263,6 +2263,12 @@ pub(crate) struct NativeOutcome {
     class: NativeClass,
     ack_w: Option<u64>,
 }
+impl NativeOutcome {
+    #[cfg(unix)]
+    pub(crate) fn class(&self) -> NativeClass {
+        self.class
+    }
+}
 impl AgentService {
     pub(crate) fn native_apply_event(
         &self,

@@ -398,7 +398,7 @@ fn externally_created_timer_settles_via_capped_poll() {
     let routed = service
         .native_apply_event(event(carrier, 1, host1, hint_json(1, 1)), t_hint)
         .unwrap();
-    assert_eq!(routed.class, NativeClass::Routed);
+    assert_eq!(routed.class(), NativeClass::Routed);
 
     // Bounded-poll arrival (budget ≫ 25ms + slack): the endpoint's
     // own capped-poll tick is the only actor that can fire the timer.

@@ -6,6 +6,8 @@ mod launch;
 mod terminal;
 #[cfg(windows)]
 pub(crate) use terminal::TerminalNameFact;
+#[cfg(not(windows))]
+use terminal::TerminalNameFact;
 
 use std::collections::BTreeMap;
 
