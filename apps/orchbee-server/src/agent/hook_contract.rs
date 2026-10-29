@@ -6,6 +6,7 @@
 //! is required, any extra key fails, `null` is accepted only where the schema
 //! is `.nullable()`, and identity strings keep their length/regex bounds.
 
+use orchbee_agent_observation_protocol::AgentRunToken;
 use serde_json::Value;
 
 use super::{AgentActivity, AgentCapability, AgentPresentationVisibility};
@@ -120,6 +121,8 @@ pub struct HookEnvelope {
     pub correlations: Vec<HookCorrelation>,
     pub event_id: String,
     pub observation: HookObservation,
+    /// The Server-minted run the hook's Agent inherited; absent from older integrations.
+    pub run_token: Option<AgentRunToken>,
 }
 
 /// `AgentHookAdapterDefinition` — raw strings so corpus-injected adapter
@@ -160,8 +163,21 @@ fn strict_object<'a>(
     value: &'a Value,
     keys: &[&str],
 ) -> Option<&'a serde_json::Map<String, Value>> {
+    strict_object_with_optional(value, keys, &[])
+}
+
+/// strictObject whose `optional` keys may be absent; any other extra key still fails.
+fn strict_object_with_optional<'a>(
+    value: &'a Value,
+    keys: &[&str],
+    optional: &[&str],
+) -> Option<&'a serde_json::Map<String, Value>> {
     let object = value.as_object()?;
-    if object.len() != keys.len() {
+    let present = optional
+        .iter()
+        .filter(|key| object.contains_key(**key))
+        .count();
+    if object.len() != keys.len() + present {
         return None;
     }
     for key in keys {
@@ -183,7 +199,7 @@ fn nullable_string(value: &Value, check: fn(&str) -> bool) -> Option<Option<Stri
 /// `AgentHookRichObservationEnvelopeSchema.safeParse` — `None` covers every
 /// rejection (the boundary records no reason).
 pub fn parse_envelope(value: &Value) -> Option<HookEnvelope> {
-    let object = strict_object(
+    let object = strict_object_with_optional(
         value,
         &[
             "adapterId",
@@ -192,7 +208,13 @@ pub fn parse_envelope(value: &Value) -> Option<HookEnvelope> {
             "observation",
             "version",
         ],
+        &["runToken"],
     )?;
+    // Present means well formed: a malformed token rejects the envelope; absence is the fallback.
+    let run_token = match object.get("runToken") {
+        None => None,
+        Some(token) => Some(AgentRunToken::parse(token.as_str()?).ok()?),
+    };
     let adapter_id = object["adapterId"].as_str()?;
     if !is_adapter_id(adapter_id) {
         return None;
@@ -270,6 +292,7 @@ pub fn parse_envelope(value: &Value) -> Option<HookEnvelope> {
             session_key: session_key.to_string(),
             turn_key,
         },
+        run_token,
     })
 }
 

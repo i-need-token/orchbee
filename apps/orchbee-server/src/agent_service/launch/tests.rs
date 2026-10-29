@@ -205,7 +205,7 @@ fn management_policy_precedes_guarded_preparation_and_preserves_unavailable() {
         service
             .execute_launch_guarded(request, |request| service.fold_launch(
                 request,
-                &crate::agent_service::names::LaunchEvidence::fixture()
+                crate::agent_service::names::LaunchEvidence::fixture()
             ))
             .outcome(),
         AgentLaunchOutcome::Rejected {

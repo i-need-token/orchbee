@@ -1,5 +1,6 @@
 //! Policy and preparation adapter for the names owner's launch transitions.
 
+use std::collections::BTreeMap;
 use std::time::Instant;
 
 use orchbee_agent_observation_protocol::{
@@ -29,8 +30,9 @@ impl AgentService {
                     .then(mint_run_token)
                     .flatten(),
                 commands: observed(),
+                session_tokens: BTreeMap::new(),
             };
-            self.fold_launch(request, &evidence)
+            self.fold_launch(request, evidence)
         })
     }
 
@@ -80,19 +82,24 @@ impl AgentService {
     fn fold_launch(
         &self,
         request: &AgentLaunchRequest,
-        evidence: &LaunchEvidence,
+        mut evidence: LaunchEvidence,
     ) -> Result<AgentLaunchOutcome, PreparedUnavailable> {
         self.with_state(|state| {
             if state.runtime.is_disposed() {
                 return Err(PreparedUnavailable);
             }
+            evidence.session_tokens = state
+                .ingress
+                .run_tokens()
+                .map(|(session, token)| (session.to_owned(), token.clone()))
+                .collect();
             let now = state.launch_now_ms(Instant::now());
             Ok(state.names.execute_launch(
                 request,
                 state.runtime.snapshot(),
                 state.native.bindings(),
                 now,
-                evidence,
+                &evidence,
             ))
         })
         .map_err(|_| PreparedUnavailable)?

@@ -9,6 +9,8 @@ import { pathToFileURL } from 'node:url';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { AgentHookRichObservationEnvelopeSchema } from '../agent-hook-observation-contract';
+
 const resourceRoot = path.resolve(process.cwd(), 'resources/agent-observation-adapters/bundle');
 
 // Fixture-only bounds protecting test execution; the shipped hook `timeout`
@@ -544,6 +546,52 @@ describe('Agent observation adapter resources', () => {
 		expect(serialized).not.toContain('SUPER_SECRET');
 		expect(serialized).not.toContain('/private/secret');
 		expect(serialized).not.toContain('id_ed25519');
+	});
+
+	it('forwards only a well-formed run token and both envelope shapes stay admissible', async () => {
+		const transport = await import(transportUrl);
+		const sanitizers = await import(sanitizersUrl);
+		const observation = sanitizers.sanitizeAgentHookInput('claude-code', {
+			hook_event_name: 'SessionStart',
+			session_id: 'claude-session-1',
+		});
+		const token = '0123456789abcdef0123456789abcdef';
+		const forwarded = async (environment: Record<string, string>) => {
+			const envelopes: unknown[] = [];
+			let identity = 0;
+			await transport.forwardSanitizedObservation('claude-code', observation, {
+				allocateIdentity: () => `identity_${String(++identity).padStart(16, '0')}`,
+				discoverSockets: async () => ['/tmp/orchbee-agent-v1-forwarded.sock'],
+				environment,
+				resolveTargets: async () => [{ tty: '/dev/pts/4', visibility: 'unknown' }],
+				sendEnvelope: async (_socketPath: string, envelope: unknown) => {
+					envelopes.push(envelope);
+					return true;
+				},
+				writeHint: async () => undefined,
+			});
+			expect(envelopes).toHaveLength(1);
+			return envelopes[0];
+		};
+
+		const carried = await forwarded({ ORCHBEE_RUN_TOKEN: token });
+		expect(carried).toMatchObject({ runToken: token });
+		expect(AgentHookRichObservationEnvelopeSchema.safeParse(carried).success).toBe(true);
+		for (const malformed of [
+			'',
+			'0'.repeat(32),
+			token.toUpperCase(),
+			`${token}\n`,
+			'a'.repeat(33),
+		]) {
+			const omitted = await forwarded({ ORCHBEE_RUN_TOKEN: malformed });
+			expect(omitted).not.toHaveProperty('runToken');
+			const admitted = AgentHookRichObservationEnvelopeSchema.parse(omitted);
+			expect(
+				AgentHookRichObservationEnvelopeSchema.safeParse({ ...admitted, runToken: malformed })
+					.success,
+			).toBe(false);
+		}
 	});
 
 	it('writes no terminal hint when no Orchbee observation endpoint is available', async () => {

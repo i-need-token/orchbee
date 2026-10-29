@@ -214,7 +214,9 @@ disconnected SSH path degrade to stale or unknown rather than guessed completion
 Desktop injects only `ORCHBEE_AGENT_OBSERVATION_SOCKET` through a non-persistent terminal
 environment overlay. Before transport, each entry selects only bounded event, session, Turn,
 tool-operation, and subagent identifiers and discards prompts, questions, tool input/output,
-transcript paths, working directories, error text, notification text, and unknown fields. The rich
+transcript paths, working directories, error text, notification text, and unknown fields. When the
+Agent inherited a well-formed `ORCHBEE_RUN_TOKEN` from its managed launch command, the envelope
+carries it as the optional `runToken`; a missing or malformed value is omitted. The rich
 half goes to same-user private Unix-domain sockets or the injected native Windows observation pipe. A local process uses only the exact endpoint in
 its environment; only a remote process without that overlay discovers same-user forwarded
 candidates, and discovery requires an inherited non-empty `SSH_CONNECTION`, `SSH_CLIENT`, or

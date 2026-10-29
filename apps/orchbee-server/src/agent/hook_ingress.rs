@@ -5,6 +5,7 @@
 
 mod settlement_queue;
 
+use orchbee_agent_observation_protocol::AgentRunToken;
 use serde_json::Value;
 
 use super::AgentObservationEvent;
@@ -41,6 +42,8 @@ struct SessionBinding {
     child_sessions: SeqMap<String>,
     execution_location_id: String,
     requests: SeqMap<String>,
+    /// The first run token this session's hooks carried; once set it never changes.
+    run_token: Option<AgentRunToken>,
     session_id: String,
 }
 
@@ -217,6 +220,17 @@ impl AgentHookObservationIngress {
         admission.accepted
     }
 
+    /// Canonical session identity and the run token its hooks first carried, for every
+    /// token-bound root session; bounded by the session cap.
+    pub fn run_tokens(&self) -> impl Iterator<Item = (&str, &AgentRunToken)> {
+        self.sessions.iter().filter_map(|(_, binding)| {
+            binding
+                .run_token
+                .as_ref()
+                .map(|token| (binding.session_id.as_str(), token))
+        })
+    }
+
     /// Production clock-adapter entry: monotone-syncs the settlement
     /// scheduler to the freshest known time. Only the new Instant-domain
     /// service seams call this at fold entry — the corpus `advance` /
@@ -287,13 +301,22 @@ impl AgentHookObservationIngress {
                     adapter,
                     attachments,
                     envelope,
-                } => self.observe(
-                    runtime,
-                    adapter,
-                    envelope.observation.clone(),
-                    &envelope.event_id,
-                    attachments,
-                ),
+                } => {
+                    let super::hook_contract::HookEnvelope {
+                        event_id,
+                        observation,
+                        run_token,
+                        ..
+                    } = *envelope;
+                    self.observe(
+                        runtime,
+                        adapter,
+                        observation,
+                        &event_id,
+                        attachments,
+                        run_token,
+                    );
+                }
                 JoinCommand::AttachPresentations {
                     adapter_id,
                     attachments,
@@ -330,6 +353,7 @@ impl AgentHookObservationIngress {
         observation: super::hook_contract::HookObservation,
         external_event_id: &str,
         attachments: Vec<RawAttachment>,
+        run_token: Option<AgentRunToken>,
     ) {
         let Some(binding_key) = self.ensure_session(
             runtime,
@@ -340,6 +364,11 @@ impl AgentHookObservationIngress {
         ) else {
             return;
         };
+        if let Some(binding) = self.sessions.get_mut(&binding_key)
+            && binding.run_token.is_none()
+        {
+            binding.run_token = run_token;
+        }
         self.attach_presentations(runtime, &binding_key, &attachments);
         let event_id = external_event_id_for(&adapter.adapter_id, external_event_id);
         match observation.event {
@@ -574,6 +603,7 @@ impl AgentHookObservationIngress {
                 child_sessions: SeqMap::new(),
                 execution_location_id,
                 requests: SeqMap::new(),
+                run_token: None,
                 session_id,
             },
         );

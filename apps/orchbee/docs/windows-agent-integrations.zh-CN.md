@@ -314,6 +314,14 @@ Windows 管道证据覆盖这些边界，不证明经过认证的 Hermes 工作�
 来源：[固定 Hermes 插件实现](https://github.com/NousResearch/hermes-agent/tree/2a05208012cf50bbe8ff7b7b54a3825fd1e4692a/hermes_cli)
 和 [原生 Windows](https://hermes-agent.nousresearch.com/docs/user-guide/windows-native)。
 
+## 运行令牌转发
+
+受管 PowerShell 只把 `ORCHBEE_RUN_TOKEN` 导出给 Agent 启动命令，Agent 的 hook 继承它。共享传输仅在它是 32 位小写十六进制且非零时，才把它作为可选的 `runToken` 加入 envelope；其他值一律省略，观测仍会送达。Server 和 Desktop 的 envelope 解析器接受带或不带该字段的 envelope，拒绝已出现但格式错误的令牌。Server 把携带令牌的会话精确绑定到其运行，不带令牌的会话沿用最新运行回退，见 [canonical 模型](../../orchbee-server/docs/agent-canonical-model.zh-CN.md#托管启动预留)。
+
+在该字段之前安装的集成继续发送不带令牌的 envelope，并沿用回退规则。该字段改变了 Capsule 负载，因此 doctor 会把它们报告为 `update-required`；`orchbee agent integration enable --provider codex`（选择相应 provider）会安装转发令牌的传输。Envelope 版本不变，也不需要协商。
+
+Gemini 和 Qwen 扩展把脚本复制到自己的目录中，其是否为最新取决于条目契约版本，而不是 Capsule 摘要。因此已安装的扩展仍显示 `enabled`，继续使用不带令牌的传输并沿用回退规则；先执行 `agent integration disable` 再执行 `enable`，即可重新安装带转发的版本。
+
 ## 当前 Capsule 身份
 
 Capsule 契约为 1，以 `payloadSha256` 为身份；准确清单及规范摘要规则见
@@ -330,4 +338,4 @@ Windows 公开 doctor 用例将可执行文件、当前 sidecar 和安装树复�
 通过 Desktop 的摘要实现更新来源清单，核对更新状态、本地化重装命令及安装树保持不变。
 Unicode 摘要向量区分 UTF-16 路径顺序与 UTF-8 字节顺序。
 
-<!-- documentation-pairing: english-sha256=9cdaa879f30df209bd6f2f15f8be30f701a0cc631940338d521e11d9fe716b9f zh-cn-sha256=39a4c7d58b8374262ba3385d2ff48f9f58330e79bd944c4181c108c9525d0bd6 -->
+<!-- documentation-pairing: english-sha256=9d7bdc3f0c1f1065aef8dd65f8f507f289ee07c580aaf8b3c5e3c25383a890c6 zh-cn-sha256=c650a765982b78da703d00652861c4c02f2a603b2068a16b10e9f8e0b10e8a37 -->

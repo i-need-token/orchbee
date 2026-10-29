@@ -163,7 +163,7 @@ pub enum JoinCommand {
     ApplyObservation {
         adapter: AdapterDefinition,
         attachments: Vec<RawAttachment>,
-        envelope: HookEnvelope,
+        envelope: Box<HookEnvelope>,
     },
     AttachPresentations {
         adapter_id: String,
@@ -236,7 +236,7 @@ fn apply_observation_command(pending: &PendingEvent) -> JoinCommand {
             .iter()
             .map(|(_, attachment)| attachment.clone())
             .collect(),
-        envelope: pending.envelope.clone(),
+        envelope: Box::new(pending.envelope.clone()),
     }
 }
 

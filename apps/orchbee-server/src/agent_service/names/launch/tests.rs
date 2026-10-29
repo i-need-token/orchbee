@@ -452,6 +452,7 @@ fn launch_receipt_latches_its_own_token_on_its_own_terminal() {
         let evidence = super::LaunchEvidence {
             run_token: None,
             commands,
+            session_tokens: BTreeMap::new(),
         };
         match names.execute_launch(&inspect(10), &snapshot, &bindings, 200, &evidence) {
             Outcome::Pending { receipt, .. } => receipt,
@@ -473,4 +474,78 @@ fn launch_receipt_latches_its_own_token_on_its_own_terminal() {
     assert_eq!(inspect_with(vec![command(1, token, Some(false))]), finished);
     assert_eq!(inspect_with(vec![command(1, [3; 16], None)]), finished);
     assert_eq!(inspect_with(Vec::new()), finished);
+}
+
+/// Hook binding: this run's token selects its session exactly, even beside a fresher tokenless
+/// session; a session bound to another run's token (a late hook from before a restart) never
+/// joins the fallback; another provider carrying the inherited token (a nested provider) never
+/// binds; without tokens the newest-run fallback is unchanged and two candidates stay ambiguous.
+#[test]
+fn hook_run_tokens_bind_exactly_and_keep_the_newest_run_fallback() {
+    let bindings = [binding(1)];
+    let mut snapshot = snapshot(&bindings[0]);
+    let session = |id: &str, provider: &str| {
+        let mut session = snapshot.sessions[0].clone();
+        session.session_id = OpaqueId::new(id).unwrap();
+        session.provider_id = crate::agent::AgentProviderId::new(provider).unwrap();
+        session
+    };
+    let (late, nested, fresh) = (
+        session("late", "codex"),
+        session("nested", "claude-code"),
+        session("fresh", "codex"),
+    );
+    snapshot.sessions.push(late);
+    snapshot.sessions.push(nested);
+    snapshot.sessions.push(fresh);
+    let mut names = Names::default();
+    let Outcome::Reserved { run_token, .. } = names.execute_launch(
+        &reserve(10, "alpha", &bindings[0], 10000),
+        &snapshot,
+        &bindings,
+        100,
+        &super::LaunchEvidence::fixture(),
+    ) else {
+        panic!("reserved");
+    };
+    // Every session changes after Reserve, so all of them pass the baseline.
+    for session in &mut snapshot.sessions {
+        session.observation.sequence += 1;
+    }
+    let other = AgentRunToken::parse(&"5".repeat(32)).unwrap();
+    let mut candidate = |tokens: &[(&str, &AgentRunToken)]| {
+        let evidence = super::LaunchEvidence {
+            run_token: None,
+            commands: Vec::new(),
+            session_tokens: tokens
+                .iter()
+                .map(|(id, token)| ((*id).to_owned(), (*token).clone()))
+                .collect(),
+        };
+        match names.execute_launch(&inspect(10), &snapshot, &bindings, 200, &evidence) {
+            Outcome::Pending {
+                candidate_session_id,
+                ..
+            } => Ok(candidate_session_id.map(|id| id.as_str().to_owned())),
+            Outcome::Rejected { reason } => Err(reason),
+            other => panic!("{other:?}"),
+        }
+    };
+    // Tokenless: s1, late and fresh are same-provider changes; the fallback is ambiguous.
+    assert_eq!(candidate(&[]), Err(Rejection::CandidateAmbiguous));
+    // The run's own token wins over every tokenless fallback candidate.
+    assert_eq!(
+        candidate(&[("fresh", &run_token), ("nested", &run_token)]),
+        Ok(Some("fresh".to_owned()))
+    );
+    // Sessions bound to another run leave exactly one fallback candidate.
+    assert_eq!(
+        candidate(&[("late", &other), ("s1", &other), ("nested", &run_token)]),
+        Ok(Some("fresh".to_owned()))
+    );
+    // Two sessions carrying this run's token stay ambiguous rather than picking one.
+    assert_eq!(
+        candidate(&[("fresh", &run_token), ("s1", &run_token)]),
+        Err(Rejection::CandidateAmbiguous)
+    );
 }

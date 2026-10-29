@@ -86,9 +86,11 @@ pub(crate) struct ObservedCommand {
 
 /// Server evidence for one launch transition, gathered outside the names owner: a freshly
 /// minted run token for Reserve and the latest echoed command per Host Terminal for Inspect.
+/// `session_tokens` maps canonical session identities to the run token their hooks carried.
 pub(crate) struct LaunchEvidence {
     pub(crate) run_token: Option<AgentRunToken>,
     pub(crate) commands: Vec<ObservedCommand>,
+    pub(crate) session_tokens: BTreeMap<String, AgentRunToken>,
 }
 
 impl LaunchEvidence {
@@ -97,6 +99,7 @@ impl LaunchEvidence {
         Self {
             run_token: AgentRunToken::parse(&"7".repeat(32)).ok(),
             commands: Vec::new(),
+            session_tokens: BTreeMap::new(),
         }
     }
 }
@@ -140,27 +143,47 @@ impl Entry {
         };
     }
 
+    /// Hook binding rule. A live root session of this provider on this generation whose hooks
+    /// carried this run's token is the exact candidate. Without one, the newest-run fallback
+    /// admits sessions that changed since Reserve, excluding any bound to another run's token.
+    /// Two candidates of the chosen kind are ambiguous and bind nothing.
     fn candidate<'a>(
         &self,
         snapshot: &'a AgentRuntimeSnapshot,
+        tokens: &BTreeMap<String, AgentRunToken>,
     ) -> Result<Option<&'a AgentSessionSnapshot>, Rejection> {
-        let mut candidates = snapshot.sessions.iter().filter(|session| {
-            session.lifecycle == AgentLifecycle::Live
-                && session.parent_session_id.is_none()
-                && session.provider_id.as_str() == self.provider.as_str()
-                && attached(session, &self.binding)
-                && self
-                    .baseline
-                    .get(session.session_id.as_str())
-                    .is_none_or(|before| {
-                        (session.observation.generation, session.observation.sequence) > *before
-                    })
-        });
-        let first = candidates.next();
-        if candidates.next().is_some() {
-            return Err(Rejection::CandidateAmbiguous);
+        let eligible = || {
+            snapshot.sessions.iter().filter(|session| {
+                session.lifecycle == AgentLifecycle::Live
+                    && session.parent_session_id.is_none()
+                    && session.provider_id.as_str() == self.provider.as_str()
+                    && attached(session, &self.binding)
+            })
+        };
+        let exact: Vec<_> = eligible()
+            .filter(|session| tokens.get(session.session_id.as_str()) == Some(&self.run_token))
+            .collect();
+        let chosen = if exact.is_empty() {
+            eligible()
+                .filter(|session| {
+                    !tokens.contains_key(session.session_id.as_str())
+                        && self
+                            .baseline
+                            .get(session.session_id.as_str())
+                            .is_none_or(|before| {
+                                (session.observation.generation, session.observation.sequence)
+                                    > *before
+                            })
+                })
+                .collect()
+        } else {
+            exact
+        };
+        match chosen.as_slice() {
+            [] => Ok(None),
+            [only] => Ok(Some(only)),
+            _ => Err(Rejection::CandidateAmbiguous),
         }
-        Ok(first)
     }
 }
 
@@ -392,7 +415,7 @@ impl Names {
                 reservation_id: reservation_id.clone(),
             };
         }
-        let candidate = match entry.candidate(snapshot) {
+        let candidate = match entry.candidate(snapshot, &evidence.session_tokens) {
             Ok(candidate) => candidate,
             Err(reason) => return reject(reason),
         };

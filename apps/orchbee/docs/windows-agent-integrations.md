@@ -350,6 +350,14 @@ No new dependency or other-platform implementation is added.
 Source: [pinned Hermes plugin implementation](https://github.com/NousResearch/hermes-agent/tree/2a05208012cf50bbe8ff7b7b54a3825fd1e4692a/hermes_cli)
 and [native Windows](https://hermes-agent.nousresearch.com/docs/user-guide/windows-native).
 
+## Run token forwarding
+
+Managed PowerShell exports `ORCHBEE_RUN_TOKEN` only to an Agent start command, and the Agent's hooks inherit it. The shared transport adds it to the envelope as the optional `runToken` only when it is 32 lowercase hex digits and nonzero; any other value is omitted, so the observation is still delivered. The Server and Desktop envelope parsers admit envelopes with and without the field and refuse a present malformed token. The Server binds a token-carrying session exactly to its run and keeps the newest-run fallback for tokenless sessions, as the [canonical model](../../orchbee-server/docs/agent-canonical-model.md#managed-launch-reservations) describes.
+
+Integrations installed before this field keep sending tokenless envelopes and keep the fallback. The field changes the Capsule payload, so doctor reports them as `update-required`; `orchbee agent integration enable --provider codex` (select the provider) installs the forwarding transport. No envelope version changes, and no negotiation is needed.
+
+Gemini and Qwen extensions copy the scripts into their own directory, and their currency follows the entry contract version, not the Capsule digest. An existing extension therefore stays `enabled` with the tokenless transport and keeps the fallback; `agent integration disable` followed by `enable` reinstalls it with forwarding.
+
 ## Current Capsule identity
 
 The Capsule contract is 1 and its identity is `payloadSha256`, with the exact manifest and canonical digest rules in the [adapter guide](../../desktop/resources/agent-observation-adapters/README.md#packaged-payload-identity). CLI capsule objects expose that digest; the directory is `~/.orchbee/agent-observation-adapters/<payloadSha256>`. No semver ceiling, special legacy root or automatic migration is retained. Any final payload-byte change produces a different identity, including documentation and formatting.

@@ -14,6 +14,8 @@ const SOCKET_TIMEOUT_MILLISECONDS = 250;
 const IDENTITY_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/u;
 const PRIVATE_SOCKET_NAME_PATTERN = /^orchbee-agent-v1-[A-Za-z0-9_-]{16,64}\.sock$/u;
 const OBSERVATION_SOCKET_ENVIRONMENT_NAME = 'ORCHBEE_AGENT_OBSERVATION_SOCKET';
+const RUN_TOKEN_ENVIRONMENT_NAME = 'ORCHBEE_RUN_TOKEN';
+const RUN_TOKEN_PATTERN = /^(?!0{32}$)[0-9a-f]{32}$/u;
 const WINDOWS_OBSERVATION_PIPE_PATTERN =
 	/^\\\\\.\\pipe\\orchbee-[a-f0-9]{32}-observation$(?![\s\S])/u;
 const WINDOWS_CONSOLE_TARGET = String.raw`\\.\CONOUT$`;
@@ -104,6 +106,7 @@ export async function forwardSanitizedObservation(adapterId, value, options = {}
 		correlationId: allocateIdentity(),
 		target,
 	}));
+	const runToken = runTokenFrom(environment);
 	const envelope = {
 		adapterId,
 		correlations: correlations.map(({ correlationId, target }) => ({
@@ -112,6 +115,7 @@ export async function forwardSanitizedObservation(adapterId, value, options = {}
 		})),
 		eventId,
 		observation,
+		...(runToken === null ? {} : { runToken }),
 		version: 1,
 	};
 	const deliveries = await Promise.allSettled(
@@ -403,6 +407,13 @@ function sanitizeNormalizedObservation(value) {
 		return null;
 	}
 	return { activity, agentKey, event, operationKey, sessionKey, turnKey, version: 1 };
+}
+
+// The Agent inherits the Server-minted run token from its managed launch command. A missing or
+// malformed value is omitted so the observation still reaches the newest-run fallback.
+export function runTokenFrom(environment) {
+	const value = environment[RUN_TOKEN_ENVIRONMENT_NAME];
+	return typeof value === 'string' && RUN_TOKEN_PATTERN.test(value) ? value : null;
 }
 
 function allocateTransportIdentity() {

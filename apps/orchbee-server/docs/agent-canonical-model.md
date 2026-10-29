@@ -282,6 +282,14 @@ pinned generation, provider-matching, and newer than its baseline (or absent fro
 it). Zero candidates means pending; multiple candidates are an explicit ambiguity.
 This is local observation evidence, not causal authentication of a provider process.
 
+Hook binding refines that rule. The hook ingress keeps the first run token a session's hooks
+carried and never replaces it. A session carrying the reservation's own token is the exact
+candidate, ahead of every tokenless session. Otherwise the newest-run fallback above admits only
+sessions without a token, so a late hook from an earlier run, or a nested provider that inherited
+another run's token, never becomes the candidate; a nested provider of another kind that inherited
+this run's token is excluded by provider. Two exact candidates stay ambiguous. Token bindings are
+runtime-scoped like reservations, and after a Server restart no reservation names an old token.
+
 Reserve also mints the run token from OS entropy before the fold and stores it with the
 reservation; without entropy Reserve is unavailable. The process sampler keeps the latest
 shell-echoed command from each accepted frame. Each launch request reads those commands

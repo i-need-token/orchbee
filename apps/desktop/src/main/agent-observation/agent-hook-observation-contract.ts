@@ -82,6 +82,11 @@ export const AgentHookRichObservationEnvelopeSchema = z
 			.max(MAX_CORRELATIONS_PER_EVENT),
 		eventId: transportIdentitySchema,
 		observation: AgentHookSanitizedObservationSchema,
+		// Optional so envelopes from integrations installed before the run token stay admissible.
+		runToken: z
+			.string()
+			.regex(/^(?!0{32}$)[0-9a-f]{32}$/u)
+			.optional(),
 		version: z.literal(1),
 	})
 	.superRefine((envelope, context) => {

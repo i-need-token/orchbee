@@ -198,7 +198,8 @@ cancellation 用 `promptId` 限定 scope，避免延迟到达的 cancellation re
 Desktop 只通过非持久化 terminal environment overlay 注入
 `ORCHBEE_AGENT_OBSERVATION_SOCKET`。Transport 前，每个 entry 只选择有界的 event、session、Turn、
 tool-operation 与 subagent identifier，并丢弃 prompt、question、tool input/output、transcript path、
-working directory、error text、notification text 与未知字段。Rich half 发往同用户 private Unix-domain
+working directory、error text、notification text 与未知字段。Agent 从受管启动命令继承了格式正确的
+`ORCHBEE_RUN_TOKEN` 时，envelope 以可选的 `runToken` 携带它；缺失或格式错误时省略。Rich half 发往同用户 private Unix-domain
 socket 或 Windows 命名管道。Local process 只使用 environment 中的准确 endpoint；只有没有该 overlay 的 remote process
 才发现 same-user forwarded candidate，并且 discovery 要求继承的 `SSH_CONNECTION`、`SSH_CLIENT` 或
 `SSH_TTY` marker 至少一个非空。没有准确 overlay 的普通 local terminal 不执行 socket scan。只有
@@ -298,4 +299,4 @@ Doctor 先核对安装字节与清单是否一致，再将已校验的身份与�
 诊断为过期。这一只读诊断不将非当前来源准入为就绪，也不允许替换不明文件。
 不执行自动迁移或后台清理。
 
-<!-- documentation-pairing: english-sha256=02ee580b62852ebb92ff1b7cdd11fd420c042780492f84dc6cf2bb5390be7c7c zh-cn-sha256=7558623e1064ecc1f4c2478ebaf6e883d6ca815cae27402e38b84d16f7bfdbe8 -->
+<!-- documentation-pairing: english-sha256=02b78b16bdce85d792a6ffbc56c162c4ca14d20f956caa7facefb7a5d4f790a3 zh-cn-sha256=f267e08afc019c06b7d5445b398d06e4888d297325f1d99a457b1d8713e534b2 -->

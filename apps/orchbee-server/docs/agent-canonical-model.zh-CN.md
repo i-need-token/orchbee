@@ -236,6 +236,11 @@ generation/sequence 基线。候选必须是存活的根会话、精确附着在
 匹配，而且观察晚于基线（或基线中尚不存在）。零候选表示 pending，多个候选
 明确返回歧义。这是本地观察证据，不是 provider 进程的因果认证。
 
+Hook 绑定细化了这条规则。Hook ingress 保留会话的 hook 第一次携带的运行令牌，之后不再替换。携带本预留自身令牌的会话是
+精确候选，优先于所有不带令牌的会话。否则沿用上面的最新运行回退规则，但只接纳不带令牌的会话，因此较早运行的迟到 hook，
+或继承了其他运行令牌的嵌套 provider，都不会成为候选；继承了本运行令牌的其他种类嵌套 provider 按 provider 排除。
+两个精确候选仍为歧义。令牌绑定与预留一样只在运行时有效，Server 重启后不会有预留指向旧令牌。
+
 Reserve 还在 fold 之前用操作系统熵生成运行令牌，并与预留一起保存；无法取得熵时
 Reserve 返回 unavailable。进程采样器从每个被接受的帧中保留最新的 shell 回传命令。
 每个启动请求在叶锁外读取这些命令，fold 只依据本预留所在 Host 终端回传本预留令牌的
@@ -566,4 +571,4 @@ Devin 六组 hook 仅接收 session-identified。身份刷新保留未知或已�
 
 Hermes 仅准入 session-identified。会话启动／重置和 CLI 恢复观察保留规范轮次状态，不制造空闲或完成。
 
-<!-- documentation-pairing: english-sha256=c191406d5dbba751c6f3f2d8d31134686d5ca4bdd823dddafe76aee5993977a5 zh-cn-sha256=9e4c74a9681ff6039596bf9d526c9b44ce172f647bf13cb332ef66d38faa3c80 -->
+<!-- documentation-pairing: english-sha256=501ef06f241dcdbaad180ac29b745a4ed8139d24e5a3dde53379c8655df22e84 zh-cn-sha256=1c3bd11327b62c8991825ac75ea0de2c5c4d3ece18d16a7b1207a70f947ada34 -->

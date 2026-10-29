@@ -69,7 +69,7 @@ pub fn adapter_json(adapter: &AdapterDefinition) -> Value {
 }
 
 pub fn envelope_json(envelope: &HookEnvelope) -> Value {
-    json!({
+    let mut value = json!({
         "adapterId": envelope.adapter_id,
         "correlations": envelope.correlations.iter().map(|correlation| json!({
             "correlationId": correlation.correlation_id,
@@ -86,7 +86,11 @@ pub fn envelope_json(envelope: &HookEnvelope) -> Value {
             "version": 1,
         },
         "version": 1,
-    })
+    });
+    if let Some(token) = &envelope.run_token {
+        value["runToken"] = json!(token.as_str());
+    }
+    value
 }
 
 pub fn join_command_json(command: &JoinCommand) -> Value {

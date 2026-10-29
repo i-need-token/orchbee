@@ -137,6 +137,65 @@ fn clock_adapter_envelope_body() -> Vec<u8> {
     .into_bytes()
 }
 
+/// Real joined delivery: a session keeps the first run token its hooks carried, a tokenless
+/// envelope from an older integration still applies, and a malformed token is refused whole.
+#[test]
+fn joined_hooks_latch_the_first_run_token_and_admit_tokenless_envelopes() {
+    let mut runtime = AgentRuntime::new();
+    let mut ingress = AgentHookObservationIngress::new(None, JoinOptions::default());
+    let generation = format!("{:032x}", 1u8);
+    ingress.register_presentation_binding(
+        &mut runtime,
+        "desktop:presentation:c1".to_owned(),
+        generation.clone(),
+    );
+    let mut deliver = |sequence: u64, session: &str, token: Option<&str>| {
+        ingress.observe_terminal_application_signal(
+            &mut runtime,
+            &format!(
+                "{{\"correlationId\":\"correlation-{sequence:016}\",\
+                 \"eventId\":\"event-{sequence:016}\",\"kind\":\"correlation\",\"version\":1}}"
+            ),
+            generation.clone(),
+            "desktop:presentation:c1".to_owned(),
+            0.0,
+        );
+        let mut envelope: Value = serde_json::from_slice(&clock_adapter_envelope_body()).unwrap();
+        envelope["correlations"] = serde_json::json!([
+            {"correlationId": format!("correlation-{sequence:016}"), "visibility": "visible"}
+        ]);
+        envelope["eventId"] = Value::from(format!("event-{sequence:016}"));
+        envelope["observation"]["sessionKey"] = Value::from(session);
+        if let Some(token) = token {
+            envelope["runToken"] = Value::from(token);
+        }
+        let accepted =
+            ingress.admit_envelope(&mut runtime, &serde_json::to_vec(&envelope).unwrap(), 0.0);
+        let tokens: Vec<(String, String)> = ingress
+            .run_tokens()
+            .map(|(session, token)| (session.to_owned(), token.as_str().to_owned()))
+            .collect();
+        (accepted, tokens)
+    };
+    let first = "a".repeat(32);
+    let bound = vec![("desktop:agent:session:2".to_owned(), first.clone())];
+    assert_eq!(deliver(1, "session-1", Some(&first)), (true, bound.clone()));
+    assert_eq!(
+        deliver(2, "session-1", Some(&"b".repeat(32))),
+        (true, bound.clone())
+    );
+    assert_eq!(deliver(3, "session-2", None), (true, bound.clone()));
+    assert_eq!(
+        deliver(4, "session-3", Some(&"0".repeat(32))),
+        (false, bound.clone())
+    );
+    assert_eq!(
+        deliver(5, "session-3", Some("A".repeat(32).as_str())),
+        (false, bound)
+    );
+    assert_eq!(runtime.snapshot().sessions.len(), 2);
+}
+
 #[test]
 fn cursor_identity_join_does_not_infer_idle_for_current_or_legacy_payload() {
     for (adapter, event) in [
@@ -218,6 +277,7 @@ fn identity_translation_preserves_active_blocked_and_completed_state() {
                 observation(event),
                 &format!("step-{step}"),
                 vec![],
+                None,
             );
             let before = ingress.snapshot_json(&runtime);
             assert_eq!(before["sessions"][0]["turn"]["kind"], kind);
@@ -239,6 +299,7 @@ fn identity_translation_preserves_active_blocked_and_completed_state() {
                 observation(identity),
                 &format!("identity-{step}"),
                 vec![],
+                None,
             );
             assert_eq!(ingress.snapshot_json(&runtime), before);
         }
