@@ -25,7 +25,7 @@ use ratatui::{
     Frame,
     layout::Rect,
     text::{Line, Span, Text},
-    widgets::{Block, Padding, Paragraph, Wrap},
+    widgets::{Block, Padding, Paragraph},
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -71,13 +71,10 @@ pub(super) fn render_directory_guidance(
     if area.is_empty() || frame.area().intersection(area) != area {
         return;
     }
-    let fact_rows = Paragraph::new(guidance.fact.as_str())
-        .wrap(Wrap { trim: true })
-        .line_count(area.width);
+    let fact = crate::terminal_text::wrap_text(&Text::from(guidance.fact.as_str()), area.width);
+    let fact_rows = fact.lines.len();
     frame.render_widget(
-        Paragraph::new(guidance.fact.as_str())
-            .style(theme.style(Role::TextSecondary))
-            .wrap(Wrap { trim: true }),
+        Paragraph::new(fact).style(theme.style(Role::TextSecondary)),
         area,
     );
     if !admitted {
@@ -204,7 +201,7 @@ pub(super) fn render(
         hits.start_modal();
         paint_modal_frame(frame, layout.area, title, theme);
         frame.render_widget(
-            Paragraph::new(text).wrap(Wrap { trim: false }),
+            Paragraph::new(crate::terminal_text::wrap_text(&text, layout.inner.width)),
             layout.inner,
         );
         paint_modal_close(
@@ -419,7 +416,7 @@ pub(super) fn render(
     hits.start_modal();
     paint_modal_frame(frame, layout.area, title, theme);
     frame.render_widget(
-        Paragraph::new(text.clone()).wrap(Wrap { trim: false }),
+        Paragraph::new(crate::terminal_text::wrap_text(&text, layout.inner.width)),
         layout.inner,
     );
     paint_modal_close(
@@ -964,7 +961,7 @@ fn render_quick(
     hits.start_modal();
     paint_modal_frame(frame, layout.area, title, theme);
     frame.render_widget(
-        Paragraph::new(text.clone()).wrap(Wrap { trim: false }),
+        Paragraph::new(crate::terminal_text::wrap_text(&text, layout.inner.width)),
         layout.inner,
     );
     paint_modal_close(

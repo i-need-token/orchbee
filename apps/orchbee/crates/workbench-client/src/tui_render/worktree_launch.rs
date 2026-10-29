@@ -5,7 +5,7 @@ use super::modal::{
     set_modal_cursor, single_modal_layout, status_line,
 };
 use super::{
-    Frame, Line, Locale, ModalPresentation, Padding, Paragraph, Rect, Theme, Wrap, display_width,
+    Frame, Line, Locale, ModalPresentation, Padding, Paragraph, Rect, Theme, display_width,
     truncate_display,
 };
 use crate::client_view::{Binding, KeyCode, Modifiers};
@@ -439,7 +439,7 @@ fn render_form(
     hits.start_modal();
     paint_modal_frame(frame, layout.area(), &title, theme);
     frame.render_widget(
-        Paragraph::new(text.clone()).wrap(Wrap { trim: false }),
+        Paragraph::new(crate::terminal_text::wrap_text(&text, layout.inner().width)),
         layout.inner(),
     );
     paint_modal_close(

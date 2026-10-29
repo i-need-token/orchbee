@@ -21,7 +21,7 @@ after move or close; it never renames a survivor or commits another revision. Ra
 identities, Presentation labels and bindings remain unchanged by reordering. Duplicate display
 names are permitted.
 
-Native Tab-strip, navigator, status and Tab-menu chrome share one display name. Fixed names remain
+Native Tab-strip, navigator, status, Tab-menu and close-confirmation chrome share one display name. Fixed names remain
 exact. Automatic names prefer a selected Presentation's custom label, then the title its program set:
 the valid live OSC title, or for inactive Tabs the last observed title from the bounded frame cache
 only while the exact Session/context/Tab/Panel/Presentation/binding remains canonical. A console

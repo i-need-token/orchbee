@@ -6,8 +6,8 @@ use ratatui::text::Span;
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Layout, Rect},
-    text::Line,
-    widgets::{Clear, Paragraph, Wrap},
+    text::{Line, Text},
+    widgets::{Clear, Paragraph},
 };
 
 use crate::workbench_client::{AgentStartCatalogStatus, AgentStartPhase};
@@ -303,10 +303,12 @@ fn render_empty_state(
         empty_lines.push(Line::from(text.board.start_platform_unsupported));
     }
     frame.render_widget(
-        Paragraph::new(empty_lines)
-            .alignment(Alignment::Center)
-            .style(theme.style(Role::TextSecondary))
-            .wrap(Wrap { trim: true }),
+        Paragraph::new(crate::terminal_text::wrap_text(
+            &Text::from(empty_lines),
+            body.width,
+        ))
+        .alignment(Alignment::Center)
+        .style(theme.style(Role::TextSecondary)),
         body,
     );
 }

@@ -5,12 +5,7 @@ use crate::{
     tui_theme::{Role, Theme},
     workbench_client::LaunchFailure,
 };
-use ratatui::{
-    Frame,
-    layout::Rect,
-    text::Line,
-    widgets::{Paragraph, Wrap},
-};
+use ratatui::{Frame, layout::Rect, text::Line, widgets::Paragraph};
 
 pub(super) fn render(
     frame: &mut Frame<'_>,
@@ -40,5 +35,11 @@ pub(super) fn render(
             .lines()
             .map(|line| Line::styled(line.to_owned(), theme.style(Role::TextPrimary))),
     );
-    frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), area);
+    frame.render_widget(
+        Paragraph::new(crate::terminal_text::wrap_text(
+            &ratatui::text::Text::from(lines),
+            area.width,
+        )),
+        area,
+    );
 }

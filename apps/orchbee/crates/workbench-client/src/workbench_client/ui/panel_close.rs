@@ -16,6 +16,7 @@ pub(crate) use crate::workbench_client::state::PanelCloseConfirmationToken;
 pub(crate) struct PanelCloseConfirmationView<'a> {
     inner: state::PanelCloseConfirmationView<'a>,
     impact: crate::localization::CloseImpact,
+    tab: Option<super::ClientTabView<'a>>,
 }
 
 impl<'a> PanelCloseConfirmationView<'a> {
@@ -29,8 +30,11 @@ impl<'a> PanelCloseConfirmationView<'a> {
     pub(crate) fn panel_label(&self) -> &'a str {
         self.inner.panel_label()
     }
-    pub(crate) fn tab_label(&self) -> &'a str {
-        self.inner.tab_label()
+    pub(crate) fn tab_label(
+        &self,
+        locale: crate::localization::Locale,
+    ) -> std::borrow::Cow<'a, str> {
+        super::live_tab_label(self.tab, self.inner.tab_label(), locale)
     }
     pub(crate) const fn panel_position(&self) -> usize {
         self.inner.panel_position()
@@ -54,7 +58,8 @@ impl<'a> WorkbenchClientView<'a> {
         let state = self.state.as_ref()?;
         let inner = state.panel_close_confirmation()?;
         let impact = state.panel_close_impact(&|pane| self.pane_settled(pane))?;
-        Some(PanelCloseConfirmationView { inner, impact })
+        let tab = self.tab_by_id(inner.tab_id());
+        Some(PanelCloseConfirmationView { inner, impact, tab })
     }
 }
 

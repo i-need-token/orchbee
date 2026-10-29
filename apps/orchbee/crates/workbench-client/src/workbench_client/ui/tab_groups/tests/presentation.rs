@@ -89,7 +89,7 @@ fn cross_group_selection_and_unselected_target_present_the_same_scope_as_close_c
         let view = ui.view();
         let prompt = view.close_confirmation().unwrap();
         assert_eq!(prompt.set_count(), Some(expected.len()));
-        assert_eq!(prompt.set_labels().unwrap(), expected_labels);
+        assert_eq!(prompt.captured_set_labels().unwrap(), expected_labels);
         assert!(
             mailbox.try_recv().unwrap().is_none(),
             "opening a scoped decision never starts Close"
@@ -137,7 +137,10 @@ fn relative_close_scope_protects_pinned_tabs_and_starts_after_rightmost_selected
     choose(&mut ui, MenuAction::CloseTrailingTabs);
     let view = ui.view();
     assert_eq!(
-        view.close_confirmation().unwrap().set_labels().unwrap(),
+        view.close_confirmation()
+            .unwrap()
+            .captured_set_labels()
+            .unwrap(),
         &[(5, "Logs".into())]
     );
     assert!(ui.capture_confirmation_key(ClientKey::Escape));

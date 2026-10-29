@@ -3,7 +3,7 @@ use crate::tui_pointer::{FrameHitMap, HitMapBuilder, HitTarget};
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    widgets::{Paragraph, Widget, Wrap},
+    widgets::{Paragraph, Widget},
 };
 use std::{convert::Infallible, sync::atomic::AtomicUsize};
 
@@ -226,13 +226,17 @@ fn assert_complete_close_frame(
         ["[x]"]
     );
 
-    let warning = Paragraph::new(locale.close_warning(RUNNING)).wrap(Wrap { trim: false });
+    let warning = crate::terminal_text::wrap_text(
+        &ratatui::text::Text::from(locale.close_warning(RUNNING)),
+        inner.width,
+    );
     let warning_area = Rect::new(
         0,
         0,
         inner.width,
-        u16::try_from(warning.line_count(inner.width)).unwrap(),
+        u16::try_from(warning.lines.len()).unwrap(),
     );
+    let warning = Paragraph::new(warning);
     let mut expected_warning = Buffer::empty(warning_area);
     warning.render(warning_area, &mut expected_warning);
     let mut expected = vec![String::new(), "initial_workspace".to_owned(), String::new()];

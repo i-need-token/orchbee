@@ -666,7 +666,7 @@ fn close_set_maximum_names_are_bounded_previews_with_full_warning_and_frozen_tar
                 let confirmation = view.close_confirmation().unwrap();
                 assert_eq!(confirmation.set_count(), Some(4));
                 assert_eq!(
-                    confirmation.set_labels().unwrap(),
+                    confirmation.captured_set_labels().unwrap(),
                     &names
                         .iter()
                         .enumerate()

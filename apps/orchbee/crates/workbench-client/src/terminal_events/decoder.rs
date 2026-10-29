@@ -1001,11 +1001,17 @@ impl LegacyDecoder {
                     owned: frame_owned,
                 }
             }
-            0x00..=0x1f => items.push(DecodedItem::key(
-                c0_event(byte, Modifiers::NONE.with_alt()),
-                &[0x1b, byte],
-                frame_owned,
-            )),
+            // A C0 control after ESC is never an Alt chord: the ESC resolves
+            // as a lone Esc and the control byte decodes as its own key, so
+            // Esc followed quickly by a prefix such as Ctrl+B keeps both.
+            0x00..=0x1f => {
+                items.push(DecodedItem::key(
+                    KeyEvent::press(KeyCode::Esc, Modifiers::NONE),
+                    &[0x1b],
+                    frame_owned,
+                ));
+                self.feed_ground(byte, now, byte_owned, items);
+            }
             0x7f => items.push(DecodedItem::key(
                 KeyEvent::press(KeyCode::Backspace, Modifiers::NONE.with_alt()),
                 &[0x1b, byte],

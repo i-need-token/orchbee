@@ -85,6 +85,9 @@ impl<'a> PanelCloseConfirmationView<'a> {
     pub(in crate::workbench_client) fn tab_label(&self) -> &'a str {
         self.confirmation.selection.tab_label.as_str()
     }
+    pub(in crate::workbench_client) fn tab_id(&self) -> &'a WorkbenchTabId {
+        &self.confirmation.selection.target.tab_id
+    }
     pub(in crate::workbench_client) const fn panel_position(&self) -> usize {
         self.confirmation.selection.panel_position
     }

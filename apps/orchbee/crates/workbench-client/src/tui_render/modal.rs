@@ -2,7 +2,7 @@
 
 use crate::{
     client_view::{Binding, KeyLabelGlyphs, LabelStyle, format_binding_with_glyphs},
-    terminal_text::{display_width, line_display_width},
+    terminal_text::{display_width, line_display_width, wrap_text},
     tui_layout::centered_overlay,
     tui_pointer::{HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ProjectedPointer},
     tui_theme::{GlyphMode, Role, Theme},
@@ -12,7 +12,7 @@ use ratatui::{
     layout::Rect,
     style::{Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{Clear, Padding, Paragraph, Wrap},
+    widgets::{Clear, Padding},
 };
 use std::borrow::Cow;
 
@@ -396,10 +396,7 @@ fn modal_area_with_minimum_width(
     let outer_width = u16::try_from(natural_width.saturating_add(6)).unwrap_or(u16::MAX);
     let width = outer_width.min(content_area.width.saturating_sub(4));
     let inner_width = width.saturating_sub(6).max(1);
-    let wrapped_height = Paragraph::new(text.clone())
-        .wrap(Wrap { trim: false })
-        .line_count(inner_width)
-        .saturating_add(2);
+    let wrapped_height = wrap_text(text, inner_width).lines.len().saturating_add(2);
     let height = u16::try_from(wrapped_height)
         .unwrap_or(u16::MAX)
         .min(content_area.height.saturating_sub(2));
@@ -410,18 +407,14 @@ pub(super) fn wrapped_text_fits(text: &Text<'_>, area: Rect) -> bool {
     if area.is_empty() {
         return false;
     }
-    // The wrapper drops any grapheme wider than the line; line_count alone cannot detect that.
+    // A grapheme wider than the line is clipped when painted; the row count alone cannot detect that.
     let graphemes_fit = text.iter().all(|line| {
         line.spans.iter().all(|span| {
             span.styled_graphemes(Style::default())
                 .all(|grapheme| display_width(grapheme.symbol) <= usize::from(area.width))
         })
     });
-    graphemes_fit
-        && Paragraph::new(text.clone())
-            .wrap(Wrap { trim: false })
-            .line_count(area.width)
-            <= usize::from(area.height)
+    graphemes_fit && wrap_text(text, area.width).lines.len() <= usize::from(area.height)
 }
 
 /// Places the terminal cursor inside a presented modal: `column` cells into
@@ -435,9 +428,9 @@ pub(super) fn set_modal_cursor(
     line_index: usize,
     column: usize,
 ) {
-    let row = Paragraph::new(Text::from(text.lines[..line_index].to_vec()))
-        .wrap(Wrap { trim: false })
-        .line_count(inner.width);
+    let row = wrap_text(&Text::from(text.lines[..line_index].to_vec()), inner.width)
+        .lines
+        .len();
     frame.set_cursor_position((
         inner.x + column as u16,
         inner.y + u16::try_from(row).unwrap_or(u16::MAX),

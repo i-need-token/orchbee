@@ -162,6 +162,16 @@ instead of presenting an incomplete task.
   scrolling.
 - Prose wraps at word boundaries. A wrapped block never exceeds its declared maximum height; excess
   content scrolls or is summarized through a documented shorter form.
+- All prose — overlay bodies, confirmations, notices, Help, and tooltips — wraps through one shared
+  line-breaking rule, measured per grapheme cluster as above:
+  - Latin words break only at spaces; a word wider than the line breaks at the width.
+  - A line may break between two CJK characters and between CJK and adjacent narrow text.
+  - The conventional space between CJK and digits or Latin text is an ordinary break opportunity,
+    never a preferred one: lines fill greedily, so a full line never stops early at it, and the
+    space never appears at the start or end of a line.
+  - Closing punctuation such as `，。、；：！？）」』》` never starts a line, and opening punctuation
+    such as `（「『《` never ends one; the preceding character moves down with it instead.
+  - Copy never carries no-break spaces or other special characters to steer wrapping.
 - An unpaged tab strip keeps the active tab fully visible: it windows around that tab before
   drawing neighbors. Paging controls move the strip's viewport and may leave the active tab
   offscreen; any change of the active tab other than activating a tab painted in the paged window

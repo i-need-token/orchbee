@@ -21,7 +21,7 @@ use ratatui::{
     Frame,
     layout::Rect,
     text::{Line, Text},
-    widgets::{Paragraph, Wrap},
+    widgets::Paragraph,
 };
 
 pub(super) struct ModalDraw {
@@ -58,7 +58,12 @@ pub(super) fn render(
                 theme,
             ),
         ];
-        for (position, label) in confirmation.set_labels().unwrap_or_default().iter().take(3) {
+        for (position, label) in confirmation
+            .set_labels(locale)
+            .unwrap_or_default()
+            .iter()
+            .take(3)
+        {
             let prefix = format!("#{position} · ");
             lines.push(Line::from(format!(
                 "{prefix}{}",
@@ -81,14 +86,18 @@ pub(super) fn render(
     } else {
         vec![
             Line::from(""),
-            Line::from(sanitize_terminal_text(confirmation.target_label()).into_owned()),
+            Line::from(sanitize_terminal_text(&confirmation.target_label(locale)).into_owned()),
             Line::from(""),
             Line::from(locale.close_warning(confirmation.impact())),
             Line::from(""),
         ]
     };
     if let Some(status) = status.as_ref() {
-        lines.push(description_line(locale.native_close_status(status), theme));
+        let label = status.target_label(locale);
+        lines.push(description_line(
+            locale.native_close_status(status.text(&label)),
+            theme,
+        ));
         lines.push(Line::from(""));
         if let Some(progress) = confirmation.resume_set_status() {
             lines.push(description_line(locale.close_set_status(progress), theme));
@@ -138,7 +147,7 @@ pub(super) fn render(
     );
     paint_modal_frame(frame, layout.area, &title, theme);
     frame.render_widget(
-        Paragraph::new(text.clone()).wrap(Wrap { trim: false }),
+        Paragraph::new(crate::terminal_text::wrap_text(&text, layout.inner.width)),
         layout.inner,
     );
     paint_modal_close(

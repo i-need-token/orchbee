@@ -68,3 +68,60 @@ fn a_close_names_only_settled_terminals_as_ended_and_every_unobserved_one_as_run
     });
     assert_eq!(tab_impact(&ui), impact(1, 1));
 }
+
+/// Every close prompt names an automatic Tab exactly as the Tab strip does, not by its ordinal.
+#[test]
+fn close_prompts_name_an_automatic_tab_as_the_tab_strip_does() {
+    use crate::localization::Locale;
+    use orchbee_workbench_protocol::{PanelNode, PresentationLaunchProgram};
+    let mut source = super::membership::snapshot(2, 1);
+    for tab in &mut source.terminal_contexts[0].tabs {
+        tab.automatic_label = true;
+        let PanelNode::Panel {
+            primary_presentation,
+            ..
+        } = &mut tab.root
+        else {
+            unreachable!()
+        };
+        primary_presentation.launch_program =
+            Some(PresentationLaunchProgram::parse("pwsh.exe").unwrap());
+    }
+    let (mut ui, _, _, _) = super::move_membership::ready_ui_with_snapshot(source);
+    install_projection(&mut ui, Some((0, false, 24)), 0);
+    let ids = ui.view().selected_tab_ids();
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        assert_eq!(
+            ui.view().tab(0).unwrap().display_label(locale),
+            "PowerShell"
+        );
+    }
+
+    let _ = ui.request_panel_close_confirmation();
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let view = ui.view();
+        let named = view.panel_close_confirmation().unwrap().tab_label(locale);
+        assert_eq!(named, view.tab(0).unwrap().display_label(locale));
+    }
+    ui.state.as_mut().unwrap().cancel_panel_close_confirmation();
+
+    let _ = ui.request_close_confirmation();
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let view = ui.view();
+        let named = view.close_confirmation().unwrap().target_label(locale);
+        assert_eq!(named, view.tab(0).unwrap().display_label(locale));
+    }
+    ui.state.as_mut().unwrap().cancel_close_confirmation();
+
+    ui.request_close_set(&ids).unwrap();
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let view = ui.view();
+        let labels = view
+            .close_confirmation()
+            .unwrap()
+            .set_labels(locale)
+            .unwrap();
+        assert_eq!(labels.len(), ids.len());
+        assert!(labels.iter().all(|(_, label)| label == "PowerShell"));
+    }
+}

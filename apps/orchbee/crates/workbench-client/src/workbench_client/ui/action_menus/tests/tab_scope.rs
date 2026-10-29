@@ -156,7 +156,7 @@ fn scope_drift_retires(
         .close_confirmation()
         .expect("existing CloseSet owner remains mandatory");
     assert_eq!(prompt.set_count(), Some(expected_indices.len()));
-    assert_eq!(prompt.set_labels().unwrap(), expected_labels);
+    assert_eq!(prompt.captured_set_labels().unwrap(), expected_labels);
     assert!(
         mailbox.try_recv().unwrap().is_none(),
         "a decision is not Close execution"
@@ -241,7 +241,7 @@ fn unchanged_resolver_source_keeps_painted_token_and_exact_other_scope() {
         ui.view()
             .close_confirmation()
             .unwrap()
-            .set_labels()
+            .captured_set_labels()
             .unwrap(),
         &[(2, "Tab 1".into())]
     );

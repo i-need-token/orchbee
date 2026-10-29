@@ -2,7 +2,7 @@
 use super::super::modal::paint_modal_frame;
 use super::{
     Binding, Frame, HitLayer, HitMapBuilder, HitTarget, KeyCode, Line, Locale, ModalAction,
-    ModalControl, ModalPresentation, Modifiers, Paragraph, Rect, SetupToken, Text, Theme, Wrap,
+    ModalControl, ModalPresentation, Modifiers, Paragraph, Rect, SetupToken, Text, Theme,
     modal_key_label, modal_layout, paint_modal_action, paint_modal_close, sanitize_terminal_text,
 };
 
@@ -59,7 +59,7 @@ pub(super) fn render(
     hits.start_modal();
     paint_modal_frame(frame, layout.area, title, theme);
     frame.render_widget(
-        Paragraph::new(text).wrap(Wrap { trim: false }),
+        Paragraph::new(crate::terminal_text::wrap_text(&text, layout.inner.width)),
         layout.inner,
     );
     paint_modal_close(

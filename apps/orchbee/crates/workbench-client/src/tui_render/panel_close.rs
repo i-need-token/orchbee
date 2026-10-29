@@ -19,7 +19,7 @@ use ratatui::{
     Frame,
     layout::Rect,
     text::{Line, Text},
-    widgets::{Paragraph, Wrap},
+    widgets::Paragraph,
 };
 
 pub(super) struct PanelModalDraw {
@@ -47,7 +47,7 @@ pub(super) fn render(
         confirmation.panel_position(),
         confirmation.tab_position(),
         confirmation.panel_label(),
-        confirmation.tab_label(),
+        &confirmation.tab_label(locale),
         locale.panel_close_warning(confirmation.dissolves_tab(), confirmation.impact()),
         theme,
     );
@@ -114,7 +114,7 @@ fn render_prepared(
     hits.start_modal();
     paint_modal_frame(frame, layout.area, title, theme);
     frame.render_widget(
-        Paragraph::new(text.clone()).wrap(Wrap { trim: false }),
+        Paragraph::new(crate::terminal_text::wrap_text(&text, layout.inner.width)),
         layout.inner,
     );
     paint_modal_close(

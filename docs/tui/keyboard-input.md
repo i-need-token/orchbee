@@ -37,7 +37,9 @@ authority for current bindings and input behavior.
   `DEL` (`0x7f`) are never normalized into `Ctrl` chords.
 - Resolve a lone `ESC` against an `Alt` prefix with a bounded wait only when the host does not
   disambiguate. The wait never exceeds one input poll interval and never delays a disambiguated
-  event.
+  event. `ESC` followed by a printable or UTF-8 character is that character with `Alt`; `ESC`
+  followed by another C0 control byte is a lone `Esc` and then that control's own key, never an
+  `Alt` chord, so `Esc` followed quickly by a prefix such as `Ctrl+B` delivers both.
 - Bracketed paste is always enabled. A paste arrives as one atomic text event, is never matched
   against bindings, and is delivered to exactly one owner in its original order.
 - Reject malformed, over-bound, or timed-out pastes as whole input frames. Discard their payload

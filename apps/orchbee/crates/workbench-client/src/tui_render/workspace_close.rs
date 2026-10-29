@@ -17,7 +17,7 @@ use ratatui::{
     Frame,
     layout::Rect,
     text::{Line, Text},
-    widgets::{Paragraph, Wrap},
+    widgets::Paragraph,
 };
 pub(super) fn render(
     frame: &mut Frame<'_>,
@@ -90,7 +90,7 @@ pub(super) fn render(
     );
     paint_modal_frame(frame, layout.area, title, theme);
     frame.render_widget(
-        Paragraph::new(text).wrap(Wrap { trim: false }),
+        Paragraph::new(crate::terminal_text::wrap_text(&text, layout.inner.width)),
         layout.inner,
     );
     paint_modal_close(

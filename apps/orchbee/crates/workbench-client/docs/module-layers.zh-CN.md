@@ -108,7 +108,7 @@ owner 本地契约。[应用二进制](../../../docs/module-layers.zh-CN.md)对�
 | `terminal_pointer_admission`             | `workflow`     | any-motion 指针报告的一次性准入探测。                                                                 |
 | `terminal_projection`                    | `state`        | 从 Server 与 Worker 流派生的单个附着的已验证文本投影。                                                |
 | `terminal_scrollbar`                     | `values`       | 经过验证的滚动条观测和整数单元格几何。                                                                |
-| `terminal_text`                          | `values`       | 不可信文本的终端安全投影。                                                                            |
+| `terminal_text`                          | `values`       | 不可信文本的终端安全投影，以及共享的散文换行规则。                                                    |
 | `terminal_title`                         | `values`       | 标题活动前缀处理，以及界面为控制台默认标题和启动程序显示的程序名称。                                  |
 | `termination_signal`                     | `workflow`     | 供退出生命周期使用的宿主终止观测。                                                                    |
 | `transient_notice`                       | `state`        | 一个有界且会合并的提示生命周期。                                                                      |
@@ -164,4 +164,4 @@ owner 本地契约。[应用二进制](../../../docs/module-layers.zh-CN.md)对�
 可列出每个环和每个指向高层的引用及其源码位置样本；[Lint](../../../../../docs/zh-CN/LINTING.md)
 拥有该命令。
 
-<!-- documentation-pairing: english-sha256=0167e2aaeb60c3352cb90d8ef7e48fb91e17aa73e562fd285520805a699db1c9 zh-cn-sha256=80e740b3bbb93ca7ab9fe051b9ccf8aba7ed7e16c5f7848332b659927167b9ac -->
+<!-- documentation-pairing: english-sha256=32a971a19db29f6fbf872e401b487147e73c1d5578a4dba30a2f7cfbbb81eef6 zh-cn-sha256=f2179a5921bb1aa76f620872f01d2588000a511265b2a9ffd070b182062d9a61 -->

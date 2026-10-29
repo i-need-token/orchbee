@@ -91,8 +91,18 @@ impl CloseSetCapture {
     pub(super) fn tabs(&self) -> &[WorkbenchTabId] {
         &self.tabs
     }
+    #[cfg(test)]
     pub(in crate::workbench_client) fn labels(&self) -> &[(usize, String)] {
         &self.labels
+    }
+    /// Each closing Tab's captured position and name, with the identity that finds it live.
+    pub(in crate::workbench_client) fn entries(
+        &self,
+    ) -> impl Iterator<Item = (usize, &str, &WorkbenchTabId)> {
+        self.labels
+            .iter()
+            .zip(&self.tabs)
+            .map(|((position, label), id)| (*position, label.as_str(), id))
     }
     pub(in crate::workbench_client) fn context_label(&self) -> &str {
         &self.context_label

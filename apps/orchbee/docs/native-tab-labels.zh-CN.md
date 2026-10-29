@@ -16,7 +16,7 @@ Presentation 标签。Duplicate placement 则复制精确源原始标签及自�
 这是规范有序向量的纯投影，在移动或关闭后同样成立；不会重命名幸存者，也不会额外提交修订。
 重排不改变原始标签、身份、Presentation 标签和绑定。允许显示名称重复。
 
-原生标签栏、导航器、状态栏与 Tab 菜单共享显示名称，固定名称保持精确不变。自动名称优先使用
+原生标签栏、导航器、状态栏、Tab 菜单与关闭确认框共享显示名称，固定名称保持精确不变。自动名称优先使用
 所选 Presentation 的自定义标签，其次使用其程序设置的标题：有效实时 OSC 标题；非活动 Tab 可使用
 有界帧缓存中最后观察到的标题，但 会话／context／Tab／Panel／Presentation／binding 必须仍与规范
 成员完全一致。控制台宿主的默认标题是所启动 Windows 可执行文件的绝对路径，cmd 运行命令时会将其
@@ -89,4 +89,4 @@ CLI Tab 行、Workspace 的 Tab 引用以及所有 Tab 标签选择器均使用�
 
 指针在标签栏中只靠字形表达含义或名称被截断的位置静止时，会打开[指针 tooltip](../../../docs/zh-CN/tui/overlays-and-status.md#指针-tooltip)。名称被标签栏截断的标签页或组标题先给出完整名称；同时有图例时，名称只占一行。标签页说明其 Agent 状态，然后是未读动态；已折叠的组标题按紧急程度依次说明其隐藏标签页中的每种状态，然后是未读动态。展开的组标题和没有 Agent 的标签页不提供 tooltip。`[x]` 说明“关闭标签页…”；只有当前标签页的关闭控件会附上关闭它的按键，按键取自绑定表。`[+]` 说明“新建标签页”及其按键。首端省略标记说明“显示前面的标签页”，末端省略标记说明“显示后面的标签页”。
 
-<!-- documentation-pairing: english-sha256=27be97de03eee9bbfdcb9ac0c9372f57b95ddfbac2cfbc8d4eeabe2ef6ed229d zh-cn-sha256=7c544117ddcb34d564aeda33676275170515a194b79b7851a8184d98444e8f3b -->
+<!-- documentation-pairing: english-sha256=8595375fea73cabe91107d3a7ef78c61770f557ae30ff3f3fe427eb55a4f0306 zh-cn-sha256=a40eccce6bcce4c2f882a4c3a0d19a04733d108a49e105990e3444fe4feb72ed -->

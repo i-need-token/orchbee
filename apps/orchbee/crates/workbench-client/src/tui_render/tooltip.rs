@@ -11,8 +11,6 @@ use ratatui::{
     widgets::{Clear, Padding},
 };
 
-use unicode_segmentation::UnicodeSegmentation;
-
 use crate::{
     client_view::{ClientAction, ClientView, PrefixAction},
     localization::Locale,
@@ -245,78 +243,14 @@ fn text_lines(text: &TooltipText, room: usize, count: usize, theme: &Theme) -> V
     cut
 }
 
-/// Breaks `text` into lines of at most `room` cells, at spaces where it can; a wide character may
-/// break on its own, and a word longer than a line breaks between characters. Each line keeps the
+/// Breaks `text` into lines of at most `room` cells by the shared prose rule. Each line keeps the
 /// byte offset where it starts in `text`.
 fn wrap(text: &str, room: usize) -> Vec<(usize, String)> {
-    let mut lines = Vec::new();
-    if room == 0 {
-        return lines;
-    }
-    let mut line = (0, String::new());
-    let mut used = 0_usize;
-    let mut flush = |line: &mut (usize, String), used: &mut usize| {
-        let trimmed = line.1.trim_end();
-        if !trimmed.is_empty() {
-            lines.push((line.0, trimmed.to_owned()));
-        }
-        line.1.clear();
-        *used = 0;
-    };
-    for (offset, token) in tokens(text) {
-        if token.trim().is_empty() {
-            if used > 0 && used < room {
-                line.1.push(' ');
-                used += 1;
-            }
-            continue;
-        }
-        if used > 0 && used + display_width(token) > room {
-            flush(&mut line, &mut used);
-        }
-        for (index, grapheme) in token.grapheme_indices(true) {
-            let cell = display_width(grapheme);
-            if used > 0 && used + cell > room {
-                flush(&mut line, &mut used);
-            }
-            if used == 0 {
-                line.0 = offset + index;
-            }
-            line.1.push_str(grapheme);
-            used += cell;
-        }
-    }
-    flush(&mut line, &mut used);
-    lines
-}
-
-/// Runs of narrow non-space graphemes, runs of spaces, and single wide graphemes, each with its
-/// byte offset.
-fn tokens(text: &str) -> Vec<(usize, &str)> {
-    let mut tokens = Vec::new();
-    let mut start = 0;
-    let mut previous: Option<bool> = None;
-    for (index, grapheme) in text.grapheme_indices(true) {
-        let space = grapheme.chars().all(char::is_whitespace);
-        let wide = display_width(grapheme) > 1;
-        if wide || previous.is_some_and(|was_space| was_space != space) {
-            if index > start {
-                tokens.push((start, &text[start..index]));
-            }
-            start = index;
-        }
-        if wide {
-            tokens.push((index, grapheme));
-            start = index + grapheme.len();
-            previous = None;
-        } else {
-            previous = Some(space);
-        }
-    }
-    if start < text.len() {
-        tokens.push((start, &text[start..]));
-    }
-    tokens
+    crate::terminal_text::wrap_str(text, room)
+        .into_iter()
+        .filter(|range| !range.is_empty())
+        .map(|range| (range.start, text[range].to_owned()))
+        .collect()
 }
 
 /// Legend items packed into at most `count` lines, two cells apart. When items are left out, the

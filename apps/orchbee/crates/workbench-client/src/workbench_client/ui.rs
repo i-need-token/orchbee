@@ -274,6 +274,18 @@ impl<'a> ClientTabView<'a> {
     }
 }
 
+/// A prompt's Tab name: the Tab strip's own name while that Tab is live, else the name captured
+/// when the prompt opened. Positional capture alone would name an automatic Tab by its ordinal.
+pub(crate) fn live_tab_label<'a>(
+    tab: Option<ClientTabView<'a>>,
+    captured: &'a str,
+    locale: crate::localization::Locale,
+) -> std::borrow::Cow<'a, str> {
+    tab.map_or(std::borrow::Cow::Borrowed(captured), |tab| {
+        tab.display_label(locale)
+    })
+}
+
 pub struct WorkbenchClientView<'a> {
     resize: Option<&'a crate::tui_layout::ResizeProjection>,
     settings: Option<&'a settings::Coordinator>,
@@ -473,6 +485,13 @@ impl<'a> WorkbenchClientView<'a> {
 
     pub(crate) fn tab_count(&self) -> usize {
         self.state.as_ref().map_or(0, ClientStateView::tab_count)
+    }
+
+    /// The live Tab with this identity.
+    pub(crate) fn tab_by_id(&self, id: &WorkbenchTabId) -> Option<ClientTabView<'a>> {
+        (0..self.tab_count())
+            .filter_map(|index| self.tab(index))
+            .find(|tab| tab.tab_id() == id)
     }
 
     pub fn tab(&self, index: usize) -> Option<ClientTabView<'a>> {

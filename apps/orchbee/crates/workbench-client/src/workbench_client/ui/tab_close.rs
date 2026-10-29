@@ -175,9 +175,15 @@ impl DrawReceipt {
     }
 }
 
+/// One Tab of a batch close: its captured position and name, and the live Tab if it still exists.
+type SetEntry<'a> = (usize, &'a str, Option<super::ClientTabView<'a>>);
+
 pub struct CloseConfirmationView<'a> {
     inner: state::CloseConfirmationView<'a>,
     impact: CloseImpact,
+    tab: Option<super::ClientTabView<'a>>,
+    set: Vec<SetEntry<'a>>,
+    resume: Option<CloseStatusView<'a>>,
 }
 
 impl<'a> CloseConfirmationView<'a> {
@@ -191,14 +197,33 @@ impl<'a> CloseConfirmationView<'a> {
     pub(crate) fn set_context_label(&self) -> Option<&'a str> {
         self.inner.set().map(|set| set.context_label())
     }
-    pub(crate) fn set_labels(&self) -> Option<&'a [(usize, String)]> {
+    /// The batch's Tab names, each as the Tab strip names its live Tab.
+    pub(crate) fn set_labels(
+        &self,
+        locale: crate::localization::Locale,
+    ) -> Option<Vec<(usize, std::borrow::Cow<'a, str>)>> {
+        self.inner.set()?;
+        Some(
+            self.set
+                .iter()
+                .map(|&(position, captured, tab)| {
+                    (position, super::live_tab_label(tab, captured, locale))
+                })
+                .collect(),
+        )
+    }
+    #[cfg(test)]
+    pub(crate) fn captured_set_labels(&self) -> Option<&'a [(usize, String)]> {
         self.inner.set().map(|set| set.labels())
     }
     pub(crate) const fn token(&self) -> CloseConfirmationToken {
         self.inner.token()
     }
-    pub(crate) fn target_label(&self) -> &'a str {
-        self.inner.target_label()
+    pub(crate) fn target_label(
+        &self,
+        locale: crate::localization::Locale,
+    ) -> std::borrow::Cow<'a, str> {
+        super::live_tab_label(self.tab, self.inner.target_label(), locale)
     }
     pub(crate) const fn kind(&self) -> CloseConfirmationKind {
         self.inner.kind()
@@ -210,9 +235,7 @@ impl<'a> CloseConfirmationView<'a> {
         self.inner.presentation()
     }
     pub(crate) fn resume_status(&self) -> Option<CloseStatusView<'a>> {
-        self.inner
-            .resume_status()
-            .map(|inner| CloseStatusView { inner })
+        self.resume
     }
     pub(crate) fn resume_set_status(
         &self,
@@ -224,14 +247,18 @@ impl<'a> CloseConfirmationView<'a> {
 #[derive(Clone, Copy)]
 pub(crate) struct CloseStatusView<'a> {
     inner: state::CloseStatusView<'a>,
+    tab: Option<super::ClientTabView<'a>>,
 }
 
 impl<'a> CloseStatusView<'a> {
     pub(crate) const fn token(&self) -> CloseStatusToken {
         self.inner.token()
     }
-    pub(crate) fn target_label(&self) -> &'a str {
-        self.inner.target_label()
+    pub(crate) fn target_label(
+        &self,
+        locale: crate::localization::Locale,
+    ) -> std::borrow::Cow<'a, str> {
+        super::live_tab_label(self.tab, self.inner.target_label(), locale)
     }
     pub(crate) fn status(&self) -> CloseStatusKind {
         self.inner.status()
@@ -247,10 +274,24 @@ impl<'a> CloseStatusView<'a> {
     }
 }
 
+impl<'a> CloseStatusView<'a> {
+    /// The status as text under an already resolved Tab name.
+    pub(crate) fn text<'b>(&self, label: &'b str) -> crate::localization::CloseStatusText<'b> {
+        crate::localization::CloseStatusText {
+            label,
+            kind: self.status(),
+            resumable: self.resumable(),
+            observation_paused: self.observation_paused(),
+            unavailable: self.unavailable(),
+        }
+    }
+}
+
+#[cfg(test)]
 impl<'a> From<&CloseStatusView<'a>> for crate::localization::CloseStatusText<'a> {
     fn from(status: &CloseStatusView<'a>) -> Self {
         Self {
-            label: status.target_label(),
+            label: status.inner.target_label(),
             kind: status.status(),
             resumable: status.resumable(),
             observation_paused: status.observation_paused(),
@@ -269,13 +310,34 @@ impl<'a> WorkbenchClientView<'a> {
         let state = self.state.as_ref()?;
         let inner = state.close_confirmation()?;
         let impact = state.close_impact(&inner, &|pane| self.pane_settled(pane));
-        Some(CloseConfirmationView { inner, impact })
+        let tab = self.tab_by_id(inner.target_tab_id());
+        let set = inner.set().map_or_else(Vec::new, |set| {
+            set.entries()
+                .map(|(position, label, id)| (position, label, self.tab_by_id(id)))
+                .collect()
+        });
+        let resume = inner
+            .resume_status()
+            .map(|inner| self.close_status_view(inner));
+        Some(CloseConfirmationView {
+            inner,
+            impact,
+            tab,
+            set,
+            resume,
+        })
     }
     pub(crate) fn close_status(&self) -> Option<CloseStatusView<'a>> {
         self.state
             .as_ref()?
             .close_status()
-            .map(|inner| CloseStatusView { inner })
+            .map(|inner| self.close_status_view(inner))
+    }
+    fn close_status_view(&self, inner: state::CloseStatusView<'a>) -> CloseStatusView<'a> {
+        CloseStatusView {
+            tab: self.tab_by_id(inner.target_tab_id()),
+            inner,
+        }
     }
 }
 

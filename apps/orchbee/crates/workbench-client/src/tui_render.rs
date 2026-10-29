@@ -7,8 +7,8 @@ use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Constraint, Layout, Position, Rect},
     style::Modifier,
-    text::{Line, Span},
-    widgets::{Block, Borders, Clear, List, ListItem, Padding, Paragraph, Widget, Wrap},
+    text::{Line, Span, Text},
+    widgets::{Block, Borders, Clear, List, ListItem, Padding, Paragraph, Widget},
 };
 mod action_menu;
 #[cfg(test)]
@@ -42,7 +42,7 @@ pub(crate) fn render_settings_for_test(
 use crate::{
     client_view::{ClientView, Overlay},
     localization::{Locale, RecoveryVerb, ShellText},
-    terminal_text::{display_width, truncate_display},
+    terminal_text::{display_width, truncate_display, wrap_text},
     tui_composition::{
         CaptureClaims, CaptureOwner, ClientCaptureClaims, WorkbenchCaptureOwner,
         client_chrome_overlay_allowed, project_capture,
@@ -332,7 +332,10 @@ pub fn render_terminal_shell_with_resize<'a>(
             let close = native.close_status();
             let status = match (native.workspace_close_status(), close.as_ref()) {
                 (Some(status), _) => locale.workspace_close_status(status),
-                (None, Some(status)) => locale.native_close_status(status),
+                (None, Some(status)) => {
+                    let label = status.target_label(locale);
+                    locale.native_close_status(status.text(&label))
+                }
                 (None, None) => {
                     let selected = native.status(locale, status_chip_area(&areas).width);
                     status_persistent = selected.persistent;
@@ -1032,10 +1035,9 @@ pub fn render_terminal_shell_with_resize<'a>(
         } else {
             let tab_title = |source: &crate::action_menu::MenuTarget| match source {
                 crate::action_menu::MenuTarget::Tab(id)
-                | crate::action_menu::MenuTarget::TabGroupChoices(id) => (0..native.tab_count())
-                    .filter_map(|index| native.tab(index))
-                    .find(|tab| tab.tab_id() == id)
-                    .map(|tab| tab.display_label(locale)),
+                | crate::action_menu::MenuTarget::TabGroupChoices(id) => {
+                    native.tab_by_id(id).map(|tab| tab.display_label(locale))
+                }
                 _ => None,
             };
             let title = tab_title(menu.source);
@@ -1329,27 +1331,28 @@ fn render_unavailable_workbench(
     let content_area = terminal_area(panel, tier.shows_panel_frame());
     if tier.shows_panel_frame() {
         frame.render_widget(
-            Paragraph::new(content)
-                .alignment(Alignment::Center)
-                .wrap(Wrap { trim: true })
-                .block(
-                    Block::new()
-                        .borders(Borders::ALL)
-                        .border_style(theme.style(Role::FrameFocused))
-                        .border_type(theme.corners)
-                        .padding(Padding::vertical(1))
-                        .title(Span::styled(
-                            format!(" {} ", text.panel_title),
-                            theme.style(Role::TextSecondary),
-                        )),
-                ),
+            Paragraph::new(wrap_text(
+                &Text::from(content),
+                panel.width.saturating_sub(2),
+            ))
+            .alignment(Alignment::Center)
+            .block(
+                Block::new()
+                    .borders(Borders::ALL)
+                    .border_style(theme.style(Role::FrameFocused))
+                    .border_type(theme.corners)
+                    .padding(Padding::vertical(1))
+                    .title(Span::styled(
+                        format!(" {} ", text.panel_title),
+                        theme.style(Role::TextSecondary),
+                    )),
+            ),
             panel,
         );
     } else {
         frame.render_widget(
-            Paragraph::new(content)
-                .alignment(Alignment::Center)
-                .wrap(Wrap { trim: true }),
+            Paragraph::new(wrap_text(&Text::from(content), content_area.width))
+                .alignment(Alignment::Center),
             content_area,
         );
     }
@@ -1803,9 +1806,8 @@ fn render_native_workbench(
                         |status| locale.workspace_close_status(status),
                     );
                 frame.render_widget(
-                    Paragraph::new(panel_status)
-                        .style(theme.style(Role::TextSecondary))
-                        .wrap(Wrap { trim: true }),
+                    Paragraph::new(wrap_text(&Text::from(panel_status), content_area.width))
+                        .style(theme.style(Role::TextSecondary)),
                     content_area,
                 );
             }
@@ -2209,9 +2211,8 @@ fn render_leaf(
             phase_status
         };
         frame.render_widget(
-            Paragraph::new(status)
-                .style(theme.style(Role::TextSecondary))
-                .wrap(Wrap { trim: true }),
+            Paragraph::new(wrap_text(&Text::from(status), content.width))
+                .style(theme.style(Role::TextSecondary)),
             content,
         );
     }

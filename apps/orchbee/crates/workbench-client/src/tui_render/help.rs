@@ -21,6 +21,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Clear, List, ListItem, Padding, Paragraph},
 };
+use unicode_segmentation::UnicodeSegmentation;
 
 use super::controls::{
     Availability, ControlSurface, IconActionGlyph, IconActionSpec, KeyHint, PointerPresentation,
@@ -592,38 +593,24 @@ fn wrap_key_aliases(key: &str, width: usize) -> Option<Vec<String>> {
     Some(lines)
 }
 
-/// Wraps terminal text at grapheme boundaries while preferring word breaks.
+/// Wraps terminal text by the shared prose rule; refuses a grapheme wider than the column.
 fn wrap_display(text: &str, width: usize) -> Option<Vec<String>> {
-    if width == 0 {
+    if width == 0
+        || text
+            .graphemes(true)
+            .any(|grapheme| display_width(grapheme) > width)
+    {
         return text.is_empty().then(|| vec![String::new()]);
     }
-    let mut lines = Vec::new();
-    let mut line = String::new();
-    let mut line_width = 0_usize;
-    for word in text.split(' ') {
-        let gap = usize::from(!line.is_empty());
-        if !line.is_empty() && line_width + gap + display_width(word) > width {
-            lines.push(std::mem::take(&mut line));
-            line_width = 0;
-        } else if gap == 1 {
-            line.push(' ');
-            line_width += 1;
-        }
-        for grapheme in Span::raw(word).styled_graphemes(ratatui::style::Style::default()) {
-            let cell = display_width(grapheme.symbol);
-            if cell > width {
-                return None;
-            }
-            if line_width + cell > width {
-                lines.push(std::mem::take(&mut line));
-                line_width = 0;
-            }
-            line.push_str(grapheme.symbol);
-            line_width += cell;
-        }
-    }
-    lines.push(line);
-    Some(lines)
+    let lines: Vec<String> = crate::terminal_text::wrap_str(text, width)
+        .into_iter()
+        .map(|range| text[range].to_owned())
+        .collect();
+    Some(if lines.is_empty() {
+        vec![String::new()]
+    } else {
+        lines
+    })
 }
 
 #[cfg(test)]

@@ -288,6 +288,9 @@ impl<'a> CloseStatusView<'a> {
     pub(in crate::workbench_client) fn target_label(self) -> &'a str {
         self.record.selection.label.as_str()
     }
+    pub(in crate::workbench_client) fn target_tab_id(self) -> &'a WorkbenchTabId {
+        &self.record.selection.target.tab_id
+    }
     pub(in crate::workbench_client) fn status(self) -> CloseStatusKind {
         self.record.kind()
     }
@@ -330,6 +333,9 @@ impl<'a> CloseConfirmationView<'a> {
     }
     pub(in crate::workbench_client) fn target_label(&self) -> &'a str {
         self.confirmation.intent.selection().label.as_str()
+    }
+    pub(in crate::workbench_client) fn target_tab_id(&self) -> &'a WorkbenchTabId {
+        &self.confirmation.intent.selection().target.tab_id
     }
     pub(in crate::workbench_client) const fn kind(&self) -> CloseConfirmationKind {
         self.confirmation.intent.kind()

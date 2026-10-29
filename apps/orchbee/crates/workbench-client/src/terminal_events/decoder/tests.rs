@@ -182,6 +182,25 @@ fn alt_prefixed_bytes_decode_as_alt_events() {
 }
 
 #[test]
+fn escape_then_a_c0_control_yields_esc_then_the_control_key() {
+    let ctrl_b = DecodedKind::Key(KeyEvent::press(KeyCode::Char('b'), Modifiers::CTRL));
+    let items = decode(b"\x1b\x02");
+    assert_eq!(items.len(), 2);
+    assert_eq!(items[0].kind, press(KeyCode::Esc));
+    assert_eq!(items[0].raw.as_ref(), b"\x1b");
+    assert_eq!(items[1].kind, ctrl_b);
+    assert_eq!(items[1].raw.as_ref(), b"\x02");
+    // Split across reads inside the wait window: still two keys.
+    let mut decoder = LegacyDecoder::new(Duration::from_millis(50));
+    let start = Instant::now();
+    assert!(decoder.push(0x1b, start, false).is_empty());
+    let items = decoder.push(0x02, start + Duration::from_millis(10), false);
+    assert_eq!(items.len(), 2);
+    assert_eq!(items[0].kind, press(KeyCode::Esc));
+    assert_eq!(items[1].kind, ctrl_b);
+}
+
+#[test]
 fn lone_escape_resolves_only_after_the_injected_deadline() {
     let mut decoder = LegacyDecoder::new(Duration::from_millis(50));
     let start = Instant::now();

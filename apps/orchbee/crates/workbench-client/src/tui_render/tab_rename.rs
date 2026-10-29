@@ -18,7 +18,7 @@ use ratatui::{
     Frame,
     layout::Rect,
     text::{Line, Span, Text},
-    widgets::{Clear, Paragraph, Wrap},
+    widgets::{Clear, Paragraph},
 };
 
 /// The draft's editable line inside the modal's line vector.
@@ -145,7 +145,7 @@ pub(super) fn render(
     );
     paint_modal_frame(frame, layout.area, title, theme);
     frame.render_widget(
-        Paragraph::new(text.clone()).wrap(Wrap { trim: false }),
+        Paragraph::new(crate::terminal_text::wrap_text(&text, layout.inner.width)),
         layout.inner,
     );
     paint_modal_close(

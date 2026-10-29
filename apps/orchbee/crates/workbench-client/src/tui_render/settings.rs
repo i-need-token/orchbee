@@ -19,8 +19,8 @@ use crate::{
 use ratatui::{
     Frame,
     layout::{Alignment, Rect},
-    text::{Line, Span},
-    widgets::{Clear, Padding, Paragraph, Wrap},
+    text::{Line, Span, Text},
+    widgets::{Clear, Padding, Paragraph},
 };
 
 use super::controls::{
@@ -959,9 +959,11 @@ fn render_draft(
     }
     if entries.is_empty() {
         frame.render_widget(
-            Paragraph::new(locale.settings_no_results())
-                .wrap(Wrap { trim: false })
-                .style(theme.style(Role::TextSecondary)),
+            Paragraph::new(crate::terminal_text::wrap_text(
+                &Text::from(locale.settings_no_results()),
+                regions.list.width,
+            ))
+            .style(theme.style(Role::TextSecondary)),
             regions.list,
         );
     }
@@ -1160,9 +1162,11 @@ fn render_child(
         2.min(bottom.saturating_sub(inner.y + 1)),
     );
     frame.render_widget(
-        Paragraph::new(description)
-            .wrap(Wrap { trim: false })
-            .style(theme.style(Role::TextSecondary)),
+        Paragraph::new(crate::terminal_text::wrap_text(
+            &Text::from(description),
+            description_area.width,
+        ))
+        .style(theme.style(Role::TextSecondary)),
         description_area,
     );
     if let Some((text, cursor)) = draft.text {
@@ -1365,9 +1369,12 @@ fn draft_geometry_admitted(
 ) -> bool {
     if draft.text.is_some() || draft.confirmation.is_some() || draft.picker.is_some() {
         if draft.confirmation.is_some() {
-            let rows = Paragraph::new(locale.settings_detail(draft))
-                .wrap(Wrap { trim: false })
-                .line_count(inner.width);
+            let rows = crate::terminal_text::wrap_text(
+                &Text::from(locale.settings_detail(draft)),
+                inner.width,
+            )
+            .lines
+            .len();
             return rows <= 2;
         }
         let child_height = regions.facts.y.saturating_sub(inner.y + 3);
