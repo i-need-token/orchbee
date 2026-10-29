@@ -243,7 +243,12 @@ fn context_ui_requires_exact_cleanup_and_installs_empty_without_burning_a_tab_ge
             continue;
         }
         assert_eq!(ui.view().active_context_position(), Some(2));
-        assert_eq!(ui.view().window_title_context().workspace, "Workspace");
+        assert_eq!(
+            ui.view()
+                .window_title_context(crate::localization::Locale::EnUs)
+                .workspace,
+            "Workspace"
+        );
         assert_eq!(
             ui.view().context_at(1).unwrap().workspace_label(),
             Some("Workspace")

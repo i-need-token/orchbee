@@ -16,7 +16,10 @@ use orchbee_workbench_protocol::MAXIMUM_LABEL_LENGTH;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RenameDraftToken(rename_draft::RenameDraftToken);
 
-pub(crate) struct RenameDraftView<'a>(rename_draft::RenameDraftView<'a>, Option<&'a str>);
+pub(crate) struct RenameDraftView<'a>(
+    rename_draft::RenameDraftView<'a>,
+    Option<crate::terminal_title::ChromeName<'a>>,
+);
 impl<'a> RenameDraftView<'a> {
     pub(crate) fn tab_id(&self) -> &'a orchbee_workbench_protocol::WorkbenchTabId {
         self.0.tab_id()
@@ -32,10 +35,7 @@ impl<'a> RenameDraftView<'a> {
         locale: crate::localization::Locale,
     ) -> std::borrow::Cow<'a, str> {
         if self.0.automatic_label() {
-            self.1.map_or_else(
-                || locale.automatic_tab_label(self.0.position()).into(),
-                std::borrow::Cow::Borrowed,
-            )
+            super::automatic_label(self.1, self.0.position(), locale)
         } else {
             self.0.target_label()
         }
@@ -97,10 +97,10 @@ pub enum RenameEdit<'a> {
 impl<'a> WorkbenchClientView<'a> {
     pub(crate) fn rename_draft(&self) -> Option<RenameDraftView<'a>> {
         self.state.as_ref()?.rename_draft().map(|draft| {
-            let title = self
+            let name = self
                 .tab(draft.position() - 1)
-                .and_then(|tab| tab.observed_title);
-            RenameDraftView(draft, title)
+                .and_then(|tab| tab.automatic_name);
+            RenameDraftView(draft, name)
         })
     }
 }

@@ -47,6 +47,7 @@ use crate::{
         workbench::{WorkbenchTabCreatePrecommit, WorkbenchTabCreateRequest},
     },
     terminal_projection::TerminalProjection,
+    terminal_title::{ChromeName, Program},
 };
 use orchbee_client_server_protocol::{ControlInput, Geometry, TerminalViewerAction};
 use orchbee_workbench_protocol::{
@@ -183,8 +184,20 @@ pub(crate) use crate::localization::DisplayRetirement;
 #[derive(Clone, Copy)]
 pub struct ClientTabView<'a> {
     inner: StateTabView<'a>,
-    observed_title: Option<&'a str>,
+    automatic_name: Option<ChromeName<'a>>,
     resize: Option<&'a crate::tui_layout::ResizeProjection>,
+}
+
+/// An automatic Tab's chrome name, else its localized position.
+fn automatic_label<'a>(
+    name: Option<ChromeName<'a>>,
+    position: usize,
+    locale: crate::localization::Locale,
+) -> std::borrow::Cow<'a, str> {
+    name.map_or_else(
+        || locale.automatic_tab_label(position).into(),
+        |name| locale.chrome_name(name),
+    )
 }
 
 impl<'a> ClientTabView<'a> {
@@ -225,16 +238,14 @@ impl<'a> ClientTabView<'a> {
         self.inner.tab_label()
     }
 
-    /// Uses observed terminal titles for automatic chrome; fixed names remain exact.
+    /// Names automatic chrome after its Panel, program title or launched program; fixed names
+    /// remain exact.
     pub(crate) fn display_label(
         &self,
         locale: crate::localization::Locale,
     ) -> std::borrow::Cow<'a, str> {
         if self.inner.automatic_label() {
-            self.observed_title.map_or_else(
-                || locale.automatic_tab_label(self.position()).into(),
-                std::borrow::Cow::Borrowed,
-            )
+            automatic_label(self.automatic_name, self.position(), locale)
         } else {
             self.tab_label()
         }
@@ -364,7 +375,10 @@ impl<'a> WorkbenchClientView<'a> {
     pub(crate) fn divider_source(&self) -> Option<crate::tui_layout::DividerSource> {
         self.state.as_ref()?.divider_source()
     }
-    pub(super) fn window_title_context(&self) -> orchbee_workbench_protocol::WindowTitleContext {
+    pub(super) fn window_title_context(
+        &self,
+        locale: crate::localization::Locale,
+    ) -> orchbee_workbench_protocol::WindowTitleContext {
         let workspace = self
             .active_context_position()
             .and_then(|position| position.checked_sub(1))
@@ -396,9 +410,10 @@ impl<'a> WorkbenchClientView<'a> {
             .and_then(|panel| self.pane_projection(panel))
             .and_then(|projection| projection.frame())
             .and_then(|frame| frame.title.as_deref())
-            .and_then(crate::terminal_title::display)
-            .unwrap_or("");
-        orchbee_workbench_protocol::WindowTitleContext::new(workspace, &label, manual, title)
+            .and_then(ChromeName::of_title)
+            .map(|title| locale.chrome_name(title))
+            .unwrap_or_default();
+        orchbee_workbench_protocol::WindowTitleContext::new(workspace, &label, manual, &title)
     }
 
     pub(crate) fn panel_report(&self, panel: &super::ClientPanel) -> super::PanelReportView<'_> {
@@ -462,56 +477,69 @@ impl<'a> WorkbenchClientView<'a> {
 
     pub fn tab(&self, index: usize) -> Option<ClientTabView<'a>> {
         self.state.as_ref()?.tab(index).map(|inner| ClientTabView {
-            observed_title: inner
+            automatic_name: inner
                 .active_panel()
                 .or(Some(0))
                 .and_then(|index| inner.panel(index))
-                .and_then(|panel| {
-                    let member = self.selected_presentation(panel);
-                    member
-                        .custom_label()
-                        .or_else(|| {
-                            (self.retirement.is_none()
-                                && self.pane_projection_status(panel.panel_id())
-                                    == ClientProjectionStatus::FrameAvailable)
-                                .then(|| self.pane_projection(panel.panel_id()))
-                                .flatten()
-                                .and_then(|projection| projection.frame())
-                                .and_then(|frame| frame.title.as_deref())
-                                .and_then(crate::terminal_title::display)
-                        })
-                        .or_else(|| {
-                            (self.retirement.is_none()
-                                && (!inner.active()
-                                    || matches!(
-                                        self.pane_projection_status(panel.panel_id()),
-                                        ClientProjectionStatus::Empty
-                                            | ClientProjectionStatus::WaitingForFullFrame
-                                    )))
-                            .then(|| {
-                                self.retained_frames.as_ref()?.title(
-                                    inner.tab_id(),
-                                    panel,
-                                    self.pane_projection(panel.panel_id())
-                                        .map(TerminalProjection::epoch),
-                                    self.normal_exit_held(panel.panel_id()),
-                                )
-                            })
-                            .flatten()
-                        })
-                        .or_else(|| {
-                            self.state
-                                .as_ref()?
-                                .launch_description(panel)?
-                                .executable
-                                .as_deref()
-                                .and_then(|program| program.rsplit(['/', '\\']).next())
-                        })
-                        .filter(|label| !label.trim().is_empty())
-                }),
+                .and_then(|panel| self.automatic_name(&inner, panel)),
             inner,
             resize: self.resize,
         })
+    }
+
+    /// The selected Presentation's custom label, then the title its program set, live or retained,
+    /// then the launched program from this Client's failed-creation record or the Server's launch
+    /// failure.
+    fn automatic_name(
+        &self,
+        tab: &StateTabView<'a>,
+        panel: &'a super::ClientPanel,
+    ) -> Option<ChromeName<'a>> {
+        let member = self.selected_presentation(panel);
+        let status = self.pane_projection_status(panel.panel_id());
+        member
+            .custom_label()
+            .map(ChromeName::Text)
+            .or_else(|| {
+                (self.retirement.is_none() && status == ClientProjectionStatus::FrameAvailable)
+                    .then(|| self.pane_projection(panel.panel_id()))
+                    .flatten()
+                    .and_then(|projection| projection.frame())
+                    .and_then(|frame| frame.title.as_deref())
+                    .and_then(ChromeName::of_title)
+            })
+            .or_else(|| {
+                (self.retirement.is_none()
+                    && (!tab.active()
+                        || matches!(
+                            status,
+                            ClientProjectionStatus::Empty
+                                | ClientProjectionStatus::WaitingForFullFrame
+                        )))
+                .then(|| {
+                    self.retained_frames.as_ref()?.title(
+                        tab.tab_id(),
+                        panel,
+                        self.pane_projection(panel.panel_id())
+                            .map(TerminalProjection::epoch),
+                        self.normal_exit_held(panel.panel_id()),
+                    )
+                })
+                .flatten()
+                .and_then(ChromeName::of_title)
+            })
+            .or_else(|| {
+                self.state
+                    .as_ref()?
+                    .launch_description(panel)
+                    .and_then(|description| description.executable.as_deref())
+                    .or_else(|| member.launch_failure()?.executable.as_deref())
+                    .and_then(Program::from_path)
+                    .map(|program| ChromeName::Program {
+                        program,
+                        command: None,
+                    })
+            })
     }
 
     pub fn active_position(&self) -> Option<usize> {

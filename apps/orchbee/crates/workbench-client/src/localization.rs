@@ -67,6 +67,7 @@ pub(crate) use tab_close::{
 #[cfg(any(unix, windows))]
 mod tab_rename;
 mod terminal_history;
+mod terminal_title;
 #[cfg(any(unix, windows))]
 mod workspace_close;
 pub(crate) use workspace_close::{WorkspaceCloseStatus, WorkspaceCloseText};

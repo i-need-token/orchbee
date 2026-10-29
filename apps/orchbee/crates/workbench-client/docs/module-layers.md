@@ -116,7 +116,7 @@ today.
 | `terminal_projection`                    | `state`        | One attachment's validated text projection derived from the Server and Worker stream.                                                                      |
 | `terminal_scrollbar`                     | `values`       | Validated scrollbar observations and integer cell geometry.                                                                                                |
 | `terminal_text`                          | `values`       | Terminal-safe projection of untrusted text.                                                                                                                |
-| `terminal_title`                         | `values`       | Title activity-prefix handling.                                                                                                                            |
+| `terminal_title`                         | `values`       | Title activity-prefix handling and the program names chrome shows for console default titles and launches.                                                 |
 | `termination_signal`                     | `workflow`     | Host termination observation for the exit lifecycle.                                                                                                       |
 | `transient_notice`                       | `state`        | One bounded, coalesced notice lifetime.                                                                                                                    |
 | `tui_capabilities`                       | `values`       | Policy that maps host capabilities to available actions.                                                                                                   |

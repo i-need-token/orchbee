@@ -1,4 +1,5 @@
 use super::super::*;
+use crate::localization::Locale;
 use orchbee_workbench_protocol::{PanelCustomLabel, PanelNode};
 #[test]
 fn window_title_context_uses_current_view_manual_name_and_exact_live_frame() {
@@ -12,7 +13,7 @@ fn window_title_context_uses_current_view_manual_name_and_exact_live_frame() {
     };
     primary_presentation.custom_label = Some(PanelCustomLabel::parse("Manual").unwrap());
     let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui_with_snapshot(source);
-    let context = ui.view().window_title_context();
+    let context = ui.view().window_title_context(Locale::EnUs);
     assert_eq!(context.tab, "Tab 0");
     assert_eq!(context.pane, "Manual");
     assert_eq!(context.workspace, "Workspace");
@@ -30,7 +31,22 @@ fn window_title_context_uses_current_view_manual_name_and_exact_live_frame() {
         projection,
         ClientProjectionStatus::FrameAvailable,
     ));
-    assert_eq!(ui.view().window_title_context().terminal_title, "building");
+    assert_eq!(
+        ui.view().window_title_context(Locale::EnUs).terminal_title,
+        "building"
+    );
+    // A console default title names its program as Tab chrome does.
+    let projection = &mut ui.projections[0].value;
+    let mut frame = super::super::tests::viewport::frame(projection, 0, false, 24);
+    frame.title = Some(r"C:\WINDOWS\system32\cmd.exe".into());
+    projection.install_frame_for_test(frame);
+    assert_eq!(
+        ui.view().window_title_context(Locale::ZhCn).terminal_title,
+        "命令提示符"
+    );
     ui.projections[0].status = ClientProjectionStatus::Blocked;
-    assert_eq!(ui.view().window_title_context().terminal_title, "");
+    assert_eq!(
+        ui.view().window_title_context(Locale::EnUs).terminal_title,
+        ""
+    );
 }

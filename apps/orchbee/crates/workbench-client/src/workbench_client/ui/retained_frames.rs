@@ -245,7 +245,6 @@ impl<'a> RetainedView<'a> {
             .frame
             .title
             .as_deref()
-            .and_then(crate::terminal_title::display)
     }
 
     /// Retained pixels for a connecting pane. A `held` normal exit keeps its final pixels in any

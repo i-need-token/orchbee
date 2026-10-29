@@ -463,7 +463,7 @@ impl WorkbenchClient {
         &mut self,
         view: &mut crate::client_view::ClientView,
         viewport: ratatui::layout::Rect,
-        _locale: crate::localization::Locale,
+        locale: crate::localization::Locale,
     ) -> bool {
         let mut configuration_changed = false;
         match &mut self.backend {
@@ -526,7 +526,7 @@ impl WorkbenchClient {
                 if let Some(watcher) = &self.window_title
                     && let Some(snapshot) = watcher.poll(
                         native.outer_title_focused(),
-                        native.view().window_title_context(),
+                        native.view().window_title_context(locale),
                     )
                 {
                     view.window_title = Some(snapshot);

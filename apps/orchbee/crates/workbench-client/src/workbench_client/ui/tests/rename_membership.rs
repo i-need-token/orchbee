@@ -207,20 +207,92 @@ fn rename_retained_key_consumes_timely_result_after_original_cutoff_without_memb
 }
 
 #[test]
-fn automatic_native_titles_follow_observation_while_fixed_titles_and_status_remain_exact() {
+fn automatic_names_prefer_the_panel_name_then_the_program_title_then_the_launched_program() {
+    use orchbee_workbench_protocol::{
+        PanelCustomLabel, PanelNode, PresentationLaunchFailure, WorkbenchTerminalFailureReason,
+    };
+    let names = |ui: &WorkbenchClientUi, index| {
+        [Locale::EnUs, Locale::ZhCn].map(|locale| {
+            ui.view()
+                .tab(index)
+                .unwrap()
+                .display_label(locale)
+                .into_owned()
+        })
+    };
+    let retitle = |ui: &mut WorkbenchClientUi, title: &str| {
+        let projection = &mut ui.projections[0].value;
+        let mut frame = super::super::test_support::frame(projection, 0, false, 24);
+        frame.title = Some(title.into());
+        projection.install_frame_for_test(frame);
+    };
     for automatic in [false, true] {
-        let mut source = super::super::tests::membership::snapshot(1, 1);
-        source.terminal_contexts[0].tabs[0].automatic_label = automatic;
-        source.terminal_contexts[0].tabs[0].label = "dev server".into();
-        let (ui, _, _, _) = super::super::tests::move_membership::ready_ui_with_snapshot(source);
-        let mut tab = ui.view().tab(0).unwrap();
-        tab.observed_title = Some("claude");
-        for locale in [Locale::EnUs, Locale::ZhCn] {
-            assert_eq!(
-                tab.display_label(locale),
-                if automatic { "claude" } else { "dev server" }
-            );
-            if !automatic {
+        let shown = |automatic_names: [&str; 2]| {
+            if automatic {
+                automatic_names
+            } else {
+                ["dev server"; 2]
+            }
+            .map(String::from)
+        };
+        // The first Tab carries the Panel name; the second failed to launch.
+        let ui_with = |custom: Option<&str>, launched: Option<Option<&str>>| {
+            let mut source = super::super::tests::membership::snapshot(2, 1);
+            for tab in &mut source.terminal_contexts[0].tabs {
+                tab.automatic_label = automatic;
+                tab.label = "dev server".into();
+            }
+            let panels = source.terminal_contexts[0].tabs.iter_mut().map(|tab| {
+                let PanelNode::Panel {
+                    primary_presentation,
+                    ..
+                } = &mut tab.root
+                else {
+                    unreachable!()
+                };
+                primary_presentation
+            });
+            for (index, presentation) in panels.enumerate() {
+                if index == 0 {
+                    presentation.custom_label =
+                        custom.map(|label| PanelCustomLabel::parse(label).unwrap());
+                } else {
+                    presentation.launch_failure =
+                        launched.map(|executable| PresentationLaunchFailure {
+                            executable: executable.map(Into::into),
+                            reason: WorkbenchTerminalFailureReason::TerminalCreateFailed,
+                        });
+                }
+            }
+            let mut ui = super::super::tests::move_membership::ready_ui_with_snapshot(source).0;
+            super::super::test_support::install_projection(&mut ui, Some((0, false, 24)), 0);
+            ui
+        };
+
+        // A failed launch names its program for every Client through the Server's fact; without
+        // a program, the Tab keeps its localized position.
+        let ui = ui_with(None, Some(Some("/usr/bin/zsh")));
+        assert_eq!(names(&ui, 1), shown(["Zsh", "Zsh"]));
+        assert_eq!(
+            names(&ui_with(None, Some(None)), 1),
+            shown(["Tab 2", "标签页 2"])
+        );
+        assert_eq!(names(&ui, 0), shown(["Tab 1", "标签页 1"]));
+
+        // A console default title names its program; a title the program set replaces it.
+        let mut ui = ui;
+        retitle(&mut ui, r"C:\WINDOWS\system32\cmd.exe - ping localhost");
+        assert_eq!(
+            names(&ui, 0),
+            shown([
+                "Command Prompt - ping localhost",
+                "命令提示符 - ping localhost"
+            ])
+        );
+        retitle(&mut ui, "⠋ claude");
+        assert_eq!(names(&ui, 0), shown(["claude", "claude"]));
+        if !automatic {
+            for locale in [Locale::EnUs, Locale::ZhCn] {
                 assert!(
                     ui.view()
                         .phase_status_text(locale)
@@ -228,5 +300,10 @@ fn automatic_native_titles_follow_observation_while_fixed_titles_and_status_rema
                 );
             }
         }
+
+        // A Panel name the person chose replaces every observation.
+        let mut ui = ui_with(Some("Manual"), None);
+        retitle(&mut ui, "claude");
+        assert_eq!(names(&ui, 0), shown(["Manual", "Manual"]));
     }
 }

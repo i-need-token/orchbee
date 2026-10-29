@@ -22,13 +22,26 @@ identities, Presentation labels and bindings remain unchanged by reordering. Dup
 names are permitted.
 
 Native Tab-strip, navigator, status and Tab-menu chrome share one display name. Fixed names remain
-exact. Automatic names prefer a selected Presentation's custom label, then its valid live OSC title;
-inactive Tabs may use their last observed title from the bounded frame cache only while the exact
-Session/context/Tab/Panel/Presentation/binding remains canonical. The launch executable basename is the
-next fallback, then the localized position (`Tab 1` in `en-US`, `标签页 1` in `zh-CN`). Activity prefixes
+exact. Automatic names prefer a selected Presentation's custom label, then the title its program set:
+the valid live OSC title, or for inactive Tabs the last observed title from the bounded frame cache
+only while the exact Session/context/Tab/Panel/Presentation/binding remains canonical. A console
+host's default title is the absolute path of the launched Windows executable, which cmd extends to
+`<path> - <command>` while it runs a command; that is launch identity rather than a program title, so
+chrome names the program instead and keeps the command. Without a title, the launched program from
+this Client's failed-creation record, then from the Presentation's launch failure, is the next
+fallback, then the localized position (`Tab 1` in `en-US`, `标签页 1` in `zh-CN`). Activity prefixes
 are stripped and all displayed text is sanitized. This presentation never renames canonical state or
-claims an observed title is authoritative process identity. Canonical ordinal labels, CLI selectors,
-and launch-profile selection keep their existing semantics.
+claims an observed title is authoritative process identity; raw title observations remain unchanged.
+Canonical ordinal labels, CLI selectors, and launch-profile selection keep their existing semantics.
+
+Program names follow one rule on every platform. A recognized shell shows its product name: `pwsh`
+as `PowerShell`, `powershell` as `Windows PowerShell`, `cmd` as `Command Prompt` (`命令提示符` in
+`zh-CN`), `bash` as `Bash` and `zsh` as `Zsh`. Any other program shows its file name without its
+directory or a `.exe`, `.com`, `.bat` or `.cmd` extension, so `C:\tools\node.exe` shows `node`.
+Matching ignores ASCII case. Launch-profile names are not Presentation facts, so chrome does not use
+them. Outside Windows console titles, Clients learn a launched program only from a launch failure, so
+a started POSIX program that sets no title shows its position. The GUI Workbench does not yet attach
+to native Sessions and keeps its own title resolution; this naming is a staged native-only delivery.
 
 Automatic rename drafts start empty with the same current display name as an informational
 placeholder; only typed text can submit. Fixed names prefill the editor. The native TUI renders the existing
@@ -81,8 +94,8 @@ numeric labels occurs. Rolling back an unpersisted test Session requires restart
 
 Verification covers legacy and invalid-field codecs; explicit numeric names; create, reorder,
 close and rename; equal-text mode changes and replay; unrelated Tab and Presentation stability;
-cross-context numbering and ambiguous selectors; strict native projection and actual Windows
-TUI display with unchanged focus identities. Other operating-system runtime behavior is outside
-the Windows acceptance evidence.
+cross-context numbering and ambiguous selectors; program naming and automatic-name precedence in
+both locales; strict native projection and actual Windows TUI display with unchanged focus
+identities. Other operating-system runtime behavior is outside the Windows acceptance evidence.
 
-Absolute Windows executable paths used as automatic terminal titles display their basename; raw title observations remain unchanged. An overflowing compact strip preserves the active token and its group context and, when space permits, paints an ellipsis marker at each hidden edge. Each marker is a glyph action that pages the strip once on release: the trailing marker opens the window at the first token the current window leaves out or shortens, and the leading marker opens the window that ends just before the current one. A paged window starts at that token wherever the current Tab is, without a group prefix. It holds while the current Tab is unchanged or changes through a pointer activation of a Tab painted in it; any other change of the current Tab, such as keyboard navigation or Tab creation, returns the strip to the window around the current Tab. Closing the Tab that opens the window moves its start to the next surviving Tab, then the previous one. Paging is client-local and changes no canonical state. Close tracks remain separate from those markers. A truncated label keeps at least its first three cells before the ellipsis, or the whole of a shorter label; a token that cannot keep that minimum beside its state glyph is not painted as a clipped stub, and the edge marker stands for it.
+An overflowing compact strip preserves the active token and its group context and, when space permits, paints an ellipsis marker at each hidden edge. Each marker is a glyph action that pages the strip once on release: the trailing marker opens the window at the first token the current window leaves out or shortens, and the leading marker opens the window that ends just before the current one. A paged window starts at that token wherever the current Tab is, without a group prefix. It holds while the current Tab is unchanged or changes through a pointer activation of a Tab painted in it; any other change of the current Tab, such as keyboard navigation or Tab creation, returns the strip to the window around the current Tab. Closing the Tab that opens the window moves its start to the next surviving Tab, then the previous one. Paging is client-local and changes no canonical state. Close tracks remain separate from those markers. A truncated label keeps at least its first three cells before the ellipsis, or the whole of a shorter label; a token that cannot keep that minimum beside its state glyph is not painted as a clipped stub, and the edge marker stands for it.

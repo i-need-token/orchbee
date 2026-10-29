@@ -22,10 +22,10 @@ Server 拥有一个临时覆盖值及单调修订，与 Panel 标签独立。没
 
 ## 配置模板
 
-Windows `[ui] window_title` 默认为 `{hostname}: {workspace}`。支持 `{hostname}`、`{workspace}`、`{tab}`、`{pane}`（手动 Panel 覆盖标签）、`{terminal_title}`（去除活动前缀的焦点终端标题），允许变量名周围空白，`{{`/`}}` 表示字面花括号。缺失值为空。显式空模板是合法的自动写入禁用方式。非空括号/变量语法错误、类型错误或超过 4096 个 UTF-8 字节时，仅该叶字段回退到 `{hostname}: {workspace}` 并发出有界配置警告，不丢弃其他设置。最终渲染先移除控制字符、截取 200 个 Unicode 标量，再 trim；结果为空使用 `Orchbee`。
+Windows `[ui] window_title` 默认为 `{hostname}: {workspace}`。支持 `{hostname}`、`{workspace}`、`{tab}`、`{pane}`（手动 Panel 覆盖标签）、`{terminal_title}`（去除活动前缀的焦点终端标题；控制台默认标题与 Tab 一样显示程序名称），允许变量名周围空白，`{{`/`}}` 表示字面花括号。缺失值为空。显式空模板是合法的自动写入禁用方式。非空括号/变量语法错误、类型错误或超过 4096 个 UTF-8 字节时，仅该叶字段回退到 `{hostname}: {workspace}` 并发出有界配置警告，不丢弃其他设置。最终渲染先移除控制字符、截取 200 个 Unicode 标量，再 trim；结果为空使用 `Orchbee`。
 
 Session 按已接纳配置和 OS 主机名渲染，使用前台监听者提供的有界展示上下文。Windows 上 Orchbee 查询 OS 名称；覆盖 `COMPUTERNAME` 不会更改 Orchbee 主机名变量。这些字符串不授予导航或终端权限。UI 每次 tick 更新选择标签及精确的实时焦点帧；过期/未绑定帧不提供终端标题。显式 CLI 覆盖在重载和选择变化后继续优先。Clear 移除覆盖并调度最新配置标题，禁用时使用回退标题。禁用自动标题保持宿主上一次标题。投递修订与 API 回执修订独立；空闲重复渲染被抑制，提升为前台时重新应用当前策略。
 
 `server reload-config` 无需重启终端即可发布标题变更。`server config` v1 暴露有效 `windowTitle` 及已接纳诊断记录；`config check` v1 暴露同一警告，并保留针对有效模板的可空语法诊断。私有监听请求现在要求有界四字段 `context`，匹配 cohort 同步升级/回退。不新增 live-handoff 或持久化覆盖。
 
-<!-- documentation-pairing: english-sha256=e39b8c08125b387a33f93864859ef3f311e80c6c143fd75bdac5cd7e70169b38 zh-cn-sha256=3ba30836248caaff3fdcae1d3ccc228f514f0788e94f7e6ebd62881df27bcbcc -->
+<!-- documentation-pairing: english-sha256=e294aaa74277f0dcebf3772cfebbcbc8316f832dd1becfe2805f969ea68b4e58 zh-cn-sha256=6e333dfe2c75de92bc9fa2e8b9fefbf2b1a12bee1aa236677bd95c8782fd2dcd -->
