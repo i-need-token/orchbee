@@ -34,10 +34,10 @@ fn reported_identities_preserve_custom_labels_and_use_report_alias_rules() {
     }
     assert_eq!(reported_label(" \t\n"), None);
     assert_eq!(reported_label(""), None);
-    assert_eq!(provider("agent"), Some("cursor"));
-    assert_eq!(provider("codex.mjs"), Some("codex"));
-    assert_eq!(provider("codex.com"), Some("codex"));
-    assert_eq!(provider("codex.bat"), None);
+    assert_eq!(provider("claude-code"), Some("claude-code"));
+    for alias in ["agent", "claude", "codex.exe", "Codex"] {
+        assert_eq!(provider(alias), None, "{alias}");
+    }
 }
 
 #[test]

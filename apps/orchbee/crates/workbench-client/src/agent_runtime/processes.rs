@@ -2,7 +2,7 @@
 //! expands commands, or creates canonical Agent state.
 
 use orchbee_agent_observation_protocol::{
-    AgentProcessCandidate, AgentProcessSelection, AgentReportProvider, identify_agent_process,
+    AgentProcessCandidate, AgentProcessSelection, AgentReportProvider, classify_agent_process,
     select_agent_process,
 };
 #[cfg(test)]
@@ -55,7 +55,9 @@ pub fn interpret(sample: &TerminalProcessInfo) -> Interpretation<'_> {
         .iter()
         .map(|facts| {
             let argv = facts.command_line.as_deref().and_then(arguments);
-            let provider = identify_agent_process(facts.image.as_deref(), argv.as_deref());
+            let provider = classify_agent_process(facts.image.as_deref(), argv.as_deref())
+                .interactive_provider()
+                .map(AgentReportProvider::native_provider_id);
             Process {
                 facts,
                 argv,
@@ -69,7 +71,9 @@ pub fn interpret(sample: &TerminalProcessInfo) -> Interpretation<'_> {
             pid: p.facts.pid,
             parent_pid: p.facts.parent_pid,
             creation_time: p.facts.creation_time,
-            provider: p.provider.and_then(AgentReportProvider::lookup),
+            provider: p
+                .provider
+                .and_then(AgentReportProvider::from_native_provider_id),
         })
         .collect();
     let foreground = match select_agent_process(&candidates) {

@@ -82,7 +82,7 @@ Changes 使用请求/结果 kind 23/24 与惯用的关联 outcome 信封。省�
 已知标签使用上报形式（`claude`、`agy`、`copilot`、`qwen`），与规范 provider ID 独立。未知标签保留去除
 首尾空白后的原文；规范化不删除内部控制字符或截断身份。目录精确查找不裁剪、不转小写、不去除后缀，
 也不识别裸 `agent`；这些策略由调用者负责。上报规范化先去除一个已知后缀，再选择最后一个非空路径分量。
-原生进程查找继续使用独立的后缀及裸 `agent` 策略。
+原生进程识别使用下文的 provider 注册表，从不使用上报标签规范化。
 
 所有上报来源均为自定义数据，不授予 provider Session 或生命周期权威。序号以规范十进制字符串编码完整
 无符号 64 位范围，与 JavaScript 安全整数范围内的规范 Agent 修订分离。顺序由 Server 负责。既有测试覆盖
@@ -90,6 +90,30 @@ Changes 使用请求/结果 kind 23/24 与惯用的关联 outcome 信封。省�
 
 ## 原生进程输入规则
 
-`identify_agent_process` 和 `select_agent_process` 现同时服务原生 CLI 诊断与 Windows Server Host 适配器。识别依据实际映像和受支持的运行时入口，不搜索任意参数中的名称；伪造的运行时 argv[0] 不能替代映像身份。原生可执行文件后缀和 `agent` 别名仍与上报标签规范化分开。纯候选选择器要求唯一的外层 Agent 祖先链，拒绝环、父 PID 复用的创建时间倒置及并列歧义，并明确保留缺失。这些函数不采集进程、不解析 Windows 命令行、不授予前台／控制权，也不创建规范 Agent 会话。各 Windows 调用方使用既有 OS 解析器；只有 Server 适配器在身份和时间守卫内接纳经证明的 Host 样本。
+协议 crate 拥有 provider 注册表、逐进程分类器、候选选择器和身份结果词汇。它们不执行 I/O：不采集进程、
+不解析 Windows 命令行文本、不授予前台或控制权，也不创建规范 Agent 会话。注册表是进程识别唯一的
+provider 词汇；后续的写入方和采样器复用它，而不是各自维护表。
 
-<!-- documentation-pairing: english-sha256=b8f40a76902c365a5b6c31bef50e03c7680c99c122fa3678040c92e638b6b8e1 zh-cn-sha256=18ad0ccf97db0d7557f73ea4cdb2fc467d284e5acb8b71b1832fb608c24d947b -->
+- 注册表：`AGENT_PROVIDER_REGISTRY` 为每个 `AgentReportProvider` 保存一个条目，版本由
+  `AGENT_PROVIDER_REGISTRY_VERSION` 标识。每个别名都有冲突分类：`Unique` 名称单独即可确定 provider；
+  `Shared` 和 `Generic` 名称要求路径中出现条目列出的某个安装根。单独的 `agent` 对 Cursor 和 Grok
+  都是通用名称，因此仅凭名称永远不会识别为 Cursor。与上报标签同名的桌面或 IDE 应用名称（`cursor`、
+  `kiro`、`qoder`、`antigravity`）不是进程别名。条目还列出包入口、捆绑运行时和允许的 Python 模块。
+  只有真实语料验证后，版本范围才进入条目；在此之前每个条目都是尽力而为。
+- 分类器：`classify_agent_process` 接收实际映像和已解码参数，返回 `AgentProcessRecognition`：不是
+  Agent；带 `AgentInstallShape` 的交互或非交互；带原因的无法解析；或远程客户端。任意参数中出现的名称
+  永远不能确定 provider，伪造的运行时 argv[0] 也不能替代映像。`cmd /c`、PowerShell `-Command` 与
+  `-File`、`.cmd`、`.bat` 和 `.ps1` 只解析为它们启动的普通命令；带 shell 语法的文本永远不解析。
+- 模式：每个 provider 的 `AgentModeGrammar` 把参数分为交互、非交互或无法分类。语法未列出的内容一律
+  无法分类，读不到的命令行永远不算交互。
+- 结果：`AgentProcessIdentity` 是带 `confirmed` 或 `recognized` 等级的 `agent`、`none`、带一个
+  `AgentIdentityUnknownReason` 的 `unknown`，或带一个 `AgentIdentityUnsupportedReason` 的
+  `unsupported`。产生它的状态由 Server 负责。
+
+`select_agent_process` 要求唯一的外层已识别 Agent 链，拒绝环、父进程复用的创建时间倒置和并列歧义，
+并明确保留缺失。原生 CLI 诊断和 Windows Server Host 适配器只把交互识别计为候选；各自使用既有 OS
+解析器，只有 Server 适配器在身份和时间守卫内接纳经证明的 Host 样本。表驱动夹具覆盖
+[进程身份提案](../../proposals/agent/agent-process-identity.zh-CN.md)中 Windows 支持矩阵的每一行和
+每个反例；控制台归属和不透明行需要 Host 事实，属于采样器。
+
+<!-- documentation-pairing: english-sha256=190dedef1faf496a321e800d5ce4d99a0bc53faaa3d7fe35c8ef02e17ce80fb2 zh-cn-sha256=fd1da06166e3a410deb63ef48c3aacbb8f4a4eb42080353b92e119c239afe819 -->

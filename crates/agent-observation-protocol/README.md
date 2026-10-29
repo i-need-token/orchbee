@@ -93,7 +93,7 @@ state, permissions, provider execution or I/O. Recognized labels use the report 
 original content; normalization never removes internal controls or truncates identity. The exact
 catalog lookup does not trim, lowercase, strip suffixes or recognize bare `agent`; callers own those
 policies. Report normalization strips one recognized suffix before taking the last nonempty path
-component. Native process lookup retains its separate suffix and bare-`agent` policy.
+component. Native process recognition uses the provider registry below, never report-label normalization.
 
 All report sources are custom data and confer no provider Session or lifecycle authority. Sequences
 encode the full unsigned 64-bit domain as canonical decimal strings, independently of JavaScript-safe
@@ -102,4 +102,37 @@ normalization, process recognition and full-u64 serialization boundaries.
 
 ## Native process input rules
 
-`identify_agent_process` and `select_agent_process` now serve both native CLI diagnostics and the Windows Server Host adapter. Recognition uses the actual image and a supported runtime entrypoint, never a name mentioned in arbitrary arguments; a forged runtime argv[0] cannot replace the image. Native executable suffixes and the `agent` alias remain separate from report-label normalization. The pure candidate selector requires one outer recognized Agent chain, rejects cycles/reused-parent creation order and ambiguous siblings, and preserves explicit absence. These helpers do not collect processes, parse Windows command-line text, grant foreground/control authority or create canonical Agent Sessions. Each Windows caller uses the existing OS parser; only the Server adapter admits proven Host samples under its identity and timing fences.
+The protocol crate owns the provider registry, the per-process classifier, the candidate selector,
+and the identity result vocabulary. They perform no I/O: they collect no processes, parse no Windows
+command-line text, grant no foreground or control authority, and create no canonical Agent Sessions.
+The registry is the single provider vocabulary for process recognition; later writers and samplers
+reuse it rather than keeping their own tables.
+
+- Registry: `AGENT_PROVIDER_REGISTRY` holds one entry per `AgentReportProvider`, versioned by
+  `AGENT_PROVIDER_REGISTRY_VERSION`. Each alias has a collision class: `Unique` names identify the
+  provider alone; `Shared` and `Generic` names need one of the entry's install roots in the path.
+  Bare `agent` is generic for Cursor and Grok, so it is never Cursor by name alone. Desktop and IDE
+  application names that share a report label (`cursor`, `kiro`, `qoder`, `antigravity`) are not
+  process aliases. Entries also list package entries, bundled runtimes, and allowed Python modules.
+  Version ranges enter an entry only after a real corpus verifies them; until then every entry is
+  best effort.
+- Classifier: `classify_agent_process` takes the actual image and decoded arguments and returns
+  `AgentProcessRecognition`: not an Agent, interactive or noninteractive with an
+  `AgentInstallShape`, unresolved with a reason, or a remote client. Names in arbitrary arguments
+  never identify a provider, and a forged runtime argv[0] cannot replace the image. `cmd /c`,
+  PowerShell `-Command` and `-File`, `.cmd`, `.bat`, and `.ps1` resolve only to the plain command
+  they launch; shell syntax never resolves.
+- Mode: each provider's `AgentModeGrammar` classifies arguments as interactive, noninteractive, or
+  unclassified. Anything the grammar does not list is unclassified, and an unreadable command line
+  is never interactive.
+- Results: `AgentProcessIdentity` is `agent` with grade `confirmed` or `recognized`, `none`,
+  `unknown` with one `AgentIdentityUnknownReason`, or `unsupported` with one
+  `AgentIdentityUnsupportedReason`. The Server owns the state that produces it.
+
+`select_agent_process` requires one outer recognized Agent chain, rejects cycles, reused-parent
+creation order, and ambiguous siblings, and preserves explicit absence. Native CLI diagnostics and
+the Windows Server Host adapter count only interactive recognitions as candidates; each uses the
+existing OS parser, and only the Server adapter admits proven Host samples under its identity and
+timing fences. Table-driven fixtures cover every Windows support matrix row and counterexample in
+the [process identity proposal](../../proposals/agent/agent-process-identity.md); console
+attachment and opaque rows need Host facts and belong to the sampler.

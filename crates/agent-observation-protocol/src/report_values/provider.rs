@@ -127,6 +127,13 @@ impl AgentReportProvider {
         }
     }
 
+    /// Exact parse of a canonical native provider ID; aliases and report labels stay absent.
+    pub fn from_native_provider_id(id: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|provider| provider.native_provider_id() == id)
+    }
+
     /// Canonical ID used by native process observations, independently of report labels.
     pub const fn native_provider_id(self) -> &'static str {
         match self {

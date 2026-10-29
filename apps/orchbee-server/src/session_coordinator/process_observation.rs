@@ -3,7 +3,7 @@ use super::SessionCoordinator;
 use crate::agent_screen::{Detection, Stability};
 use crate::terminal_coordinator::BindingViewerTarget;
 use orchbee_agent_observation_protocol::{
-    AgentProcessCandidate, AgentProcessSelection, AgentReportProvider, identify_agent_process,
+    AgentProcessCandidate, AgentProcessSelection, AgentReportProvider, classify_agent_process,
     select_agent_process,
 };
 use orchbee_server::{TerminalAgentBinding, TerminalAgentProcessObservation};
@@ -54,8 +54,8 @@ pub(crate) fn identify(sample: &TerminalProcessInfo) -> Option<Selected> {
                 pid: p.pid,
                 parent_pid: p.parent_pid,
                 creation_time: p.creation_time,
-                provider: identify_agent_process(p.image.as_deref(), argv.as_deref())
-                    .and_then(AgentReportProvider::lookup),
+                provider: classify_agent_process(p.image.as_deref(), argv.as_deref())
+                    .interactive_provider(),
             }
         })
         .collect();

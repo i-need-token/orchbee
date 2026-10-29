@@ -77,6 +77,10 @@ pub use report_values::{AgentReportProvider, AgentReportSequence, normalize_agen
 
 mod process_identity;
 pub use process_identity::{
-    AgentProcessCandidate, AgentProcessSelection, identify_agent_process, native_agent_basename,
-    native_agent_provider, select_agent_process,
+    AGENT_PROVIDER_REGISTRY, AGENT_PROVIDER_REGISTRY_VERSION, AgentAlias, AgentAliasClass,
+    AgentBundledRuntime, AgentIdentityGrade, AgentIdentityUnknownReason,
+    AgentIdentityUnsupportedReason, AgentInstallRoot, AgentInstallShape, AgentInvocationMode,
+    AgentModeGrammar, AgentProcessCandidate, AgentProcessIdentity, AgentProcessRecognition,
+    AgentProcessSelection, AgentProviderEntry, AgentUnresolvedProcess, classify_agent_process,
+    native_agent_basename, select_agent_process,
 };

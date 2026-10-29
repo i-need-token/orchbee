@@ -1,15 +1,21 @@
-//! Pure native process identity rules shared by diagnostic and trusted Host adapters.
+//! Pure native process identity rules shared by diagnostic and trusted Host adapters:
+//! the provider registry, the invocation mode classifier, per-process recognition,
+//! the candidate selector, and the identity result vocabulary. Nothing here performs I/O.
 mod executable;
+mod mode;
+mod registry;
+mod result;
 use crate::AgentReportProvider;
-pub use executable::identify_agent_process;
-/// Native executable-name recognition; this is not report-label normalization.
-pub fn native_agent_provider(label: &str) -> Option<&'static str> {
-    let name = native_agent_basename(label);
-    if name == "agent" {
-        return Some("cursor");
-    }
-    AgentReportProvider::lookup(&name).map(AgentReportProvider::native_provider_id)
-}
+pub use executable::{AgentProcessRecognition, AgentUnresolvedProcess, classify_agent_process};
+pub use mode::{AgentInvocationMode, AgentModeGrammar};
+pub use registry::{
+    AGENT_PROVIDER_REGISTRY, AGENT_PROVIDER_REGISTRY_VERSION, AgentAlias, AgentAliasClass,
+    AgentBundledRuntime, AgentInstallRoot, AgentInstallShape, AgentProviderEntry,
+};
+pub use result::{
+    AgentIdentityGrade, AgentIdentityUnknownReason, AgentIdentityUnsupportedReason,
+    AgentProcessIdentity,
+};
 
 /// Extracts the native executable basename and one recognized suffix.
 pub fn native_agent_basename(path: &str) -> String {
@@ -18,7 +24,9 @@ pub fn native_agent_basename(path: &str) -> String {
         .next()
         .unwrap_or("")
         .to_ascii_lowercase();
-    for suffix in [".exe", ".com", ".cmd", ".ps1", ".js", ".mjs", ".cjs", ".py"] {
+    for suffix in [
+        ".exe", ".com", ".cmd", ".bat", ".ps1", ".js", ".mjs", ".cjs", ".py",
+    ] {
         if let Some(stem) = value.strip_suffix(suffix) {
             return stem.to_owned();
         }

@@ -64,52 +64,6 @@ fn cycles_and_reused_parent_pids_never_select_an_agent_chain() {
     assert_eq!(interpret(&facts).foreground.pid, Some(20));
 }
 
-#[test]
-fn executable_aliases_are_explicit_and_canonical() {
-    for (name, expected) in [
-        ("pi", "pi"),
-        ("claude", "claude-code"),
-        ("codex", "codex"),
-        ("gemini", "gemini"),
-        ("cursor-agent", "cursor"),
-        ("agent", "cursor"),
-        ("qoder", "qodercli"),
-        ("devin-cli", "devin"),
-        ("agy", "antigravity"),
-        ("cline", "cline"),
-        ("omp", "omp"),
-        ("mastra-code", "mastracode"),
-        ("opencode2", "opencode"),
-        ("copilot", "github-copilot"),
-        ("kimi-code", "kimi"),
-        ("kiro-cli", "kiro"),
-        ("droid", "droid"),
-        ("amp-local", "amp"),
-        ("grok-build", "grok"),
-        ("hermes-agent", "hermes"),
-        ("kilo-code", "kilo"),
-        ("qoderclicn", "qodercli"),
-        ("qwen", "qwen-code"),
-        ("letta", "letta"),
-        ("maki", "maki"),
-        ("muse-bin-0.1.0-R708.1", "muse"),
-    ] {
-        assert_eq!(
-            provider(&format!("C:\\工具\\{}.EXE", name.to_uppercase())),
-            Some(expected)
-        );
-    }
-    for name in [
-        "not-codex",
-        "muse-binary",
-        "prefixclaude",
-        "acme.agent",
-        "codex.exe.txt",
-    ] {
-        assert_eq!(provider(name), None);
-    }
-}
-
 #[cfg(windows)]
 #[test]
 fn windows_argument_projection_preserves_quotes_empty_values_and_unicode() {
@@ -153,7 +107,7 @@ fn runtime_entrypoints_exclude_eval_flags_prompt_mentions_and_forged_argv0() {
         ),
         (
             "python3.12.exe",
-            r#"python3.12.exe -u C:\bin\hermes.py"#,
+            r#"python3.12.exe -u C:\uv\tools\hermes-agent\Scripts\hermes.py"#,
             Some("hermes"),
         ),
         (
@@ -171,21 +125,21 @@ fn runtime_entrypoints_exclude_eval_flags_prompt_mentions_and_forged_argv0() {
         ("node.exe", r#"node.exe unrelated.js codex"#, None),
         ("node.exe", r#"codex.exe C:\bin\codex.js"#, None),
         ("cmd.exe", r#"cmd.exe /c echo codex.exe"#, None),
-        ("pwsh.exe", r#"pwsh.exe -Command codex.exe"#, None),
+        ("pwsh.exe", r#"pwsh.exe -Command codex.exe"#, Some("codex")),
+        ("pwsh.exe", r#"pwsh.exe -Command "codex.exe; rm x""#, None),
+        (r"C:\bin\agent.exe", r#"agent.exe"#, None),
         ("bash.exe", r#"bash.exe -c codex"#, None),
         ("letta.exe", r#"letta.exe --print task"#, None),
     ] {
         let argv = arguments(command).unwrap();
         assert_eq!(
-            identify_agent_process(Some(image), Some(&argv)),
+            classify_agent_process(Some(image), Some(&argv))
+                .interactive_provider()
+                .map(AgentReportProvider::native_provider_id),
             expected,
             "{command}"
         );
     }
-    assert_eq!(
-        identify_agent_process(None, Some(&["codex.exe".into()])),
-        None
-    );
 }
 
 #[test]
