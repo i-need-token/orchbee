@@ -1,6 +1,6 @@
-//! Async sidebar menu geometry and project-choice identity at the rendered input boundary.
+//! Sidebar project-choice identity at the rendered input boundary.
 use super::*;
-use crate::action_menu::{MenuTarget, MenuUnavailable};
+use crate::action_menu::MenuTarget;
 use orchbee_workbench_protocol::{
     WorkbenchProjectId, WorkbenchTerminalContextId, WorkbenchWorkspaceId,
 };
@@ -21,6 +21,7 @@ fn paint(
                 frame,
                 frame.area(),
                 menu.view().unwrap(),
+                &[],
                 ClientView::new(width).bindings(),
                 locale,
                 theme,
@@ -39,73 +40,6 @@ fn workspace() -> crate::workbench_client::ClientContextLocation {
     crate::workbench_client::ClientContextLocation::Workspace {
         workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 1)).unwrap(),
         terminal_context_id: WorkbenchTerminalContextId::parse(&format!("{:032x}", 2)).unwrap(),
-    }
-}
-
-#[test]
-fn sidebar_probe_outcomes_never_move_rename_or_delete_even_at_clamped_edges() {
-    for (width, height) in [(120, 40), (80, 24), (60, 12), (40, 10)] {
-        for locale in [Locale::EnUs, Locale::ZhCn] {
-            for theme in [Theme::terminal_native(), Theme::one_light()] {
-                for project in [false, true] {
-                    let (source, actions) = if project {
-                        (
-                            MenuTarget::Project(
-                                WorkbenchProjectId::parse(&format!("{:032x}", 25)).unwrap(),
-                            ),
-                            crate::action_menu::PROJECT_ACTIONS.to_vec(),
-                        )
-                    } else {
-                        (
-                            MenuTarget::Workspace(workspace()),
-                            crate::action_menu::WORKSPACE_ACTIONS.to_vec(),
-                        )
-                    };
-                    let mut menu = ActionMenu::default();
-                    assert!(menu.open_for(
-                        source,
-                        String::new(),
-                        actions.clone(),
-                        Some((width - 1, height - 1))
-                    ));
-                    let mut baseline = None;
-                    for reason in [
-                        Some(MenuUnavailable::WorktreeChecking),
-                        None,
-                        Some(MenuUnavailable::WorktreeUnavailable),
-                    ] {
-                        menu.refresh_availability(|action| {
-                            (action == MenuAction::WorkspaceWorktrees)
-                                .then_some(reason)
-                                .flatten()
-                        });
-                        let (_, map) = paint(&mut menu, width, height, locale, &theme);
-                        let positions = (0..height)
-                            .flat_map(|y| (0..width).map(move |x| (x, y)))
-                            .filter_map(|(x, y)| match map.hit_target_at(x, y) {
-                                Some(HitTarget::ActionMenuRow { row, .. })
-                                    if matches!(
-                                        actions[*row],
-                                        MenuAction::RenameProject
-                                            | MenuAction::RenameWorkspace
-                                            | MenuAction::DeleteProject
-                                            | MenuAction::DeleteWorkspace
-                                    ) =>
-                                {
-                                    Some((*row, x, y))
-                                }
-                                _ => None,
-                            })
-                            .collect::<Vec<_>>();
-                        assert!(!positions.is_empty());
-                        if let Some(before) = &baseline {
-                            assert_eq!(&positions, before);
-                        }
-                        baseline = Some(positions);
-                    }
-                }
-            }
-        }
     }
 }
 

@@ -8,7 +8,7 @@ Git 分支和检出目录。Project 分组、共享目录及 worktree 关系均�
 未分组的 Workspace 是有效目标。历史兼容工作区没有规范 Workspace ID；其 Tab 需逐个关闭。
 该工作区的整体关闭入口禁用，并提供本地化说明。
 
-Workspace 上下文菜单的删除针对所指向的 Workspace，不会先切换过去。确认、取消和完成均
+Workspace 行菜单的“关闭工作区…”针对所指向的 Workspace，不会先切换过去。确认、取消和完成均
 保留无关的当前 Context、选中 pane 和终端 attachment；当前 shell 继续运行。关闭当前
 Workspace 时使用规范移除：先选择首个存活的规范 Workspace，包括空 Workspace，再选非空历史
 内容，否则显示显式的无工作区新建入口。主动关闭绝不重建 Workspace 或终端。从历史内容打开
@@ -31,7 +31,7 @@ CLI Resume；Pending 和 Unknown 仅允许观察。
 
 ## 侧栏条件准入
 
-侧栏删除、指定目标 Close 与键盘快捷键共用 `WorkspaceCloseIfIdle`；均不使用 Client 空闲标记
+行菜单的“关闭工作区…”、指定目标 Close 与键盘快捷键共用 `WorkspaceCloseIfIdle`；均不使用 Client 空闲标记
 后再发送普通关闭。Server 捕获全部 Tab、分屏叶项和 child Presentation，在 gate 外读取新鲜
 原生清单，再于最终准入复核完整范围和准确运行时身份。空／从未创建的范围及权威空闲或已结束
 的运行时直接关闭。活动、缺失、不可用或未知的进程证据要求既有的完整绘制确认，以新的无条件
@@ -45,7 +45,7 @@ PowerShell 会注入进程内读行标记，保留用户 prompt、历史和键�
 没有可靠提示符标记时要求确认。库存读取后启动的程序因此仍可在实际发送信号前拒绝关闭。
 这种迟到拒绝保留 Close 操作和已完成成员，不隐式执行 Force。在已知、可恢复拒绝上再次 Close
 会打开明确确认，普通确认命令恢复同一个规范操作。unknown／尚未结算的效果仍被围栏阻止。
-键盘关闭与 Workspace 菜单关闭／删除共用这一精确目标恢复准入；其他阻塞原因与不可恢复拒绝仍
+键盘关闭与 Workspace 菜单的“关闭工作区…”共用这一精确目标恢复准入；其他阻塞原因与不可恢复拒绝仍
 保持禁用。菜单重试打开新的审核，必须完整绘制并明确确认后才能产生下一个效果。
 
 Project 删除对全部捕获成员范围使用 `ProjectDissolveIfIdle`，保留所有 Workspace 和资源，绝不调用
@@ -146,4 +146,4 @@ Minimal 和被拒绝的几何。适用的仓库 gate 仍是权威；定向开发
 这些受控实现轨迹不证明全部交错、物理终端外观或未测试的平台。共享身份与提交协议仍由
 已注册模型负责。
 
-<!-- documentation-pairing: english-sha256=876e99e74285a1cc51d4f3ff586f1fdffc7dbe866bc07673357d48dcd8cbd4f4 zh-cn-sha256=d01f83a425d8fbd3d3a4c8dbc2295c9317699233f38d71b6045e51d2eda3d498 -->
+<!-- documentation-pairing: english-sha256=f9e55b434770930027708978a30c43eef2611572afe42b9345f4d692844c20d9 zh-cn-sha256=bde30b5daca9ec20b85d65dc06c1f65c7523730125b649216439c001ea0b7af5 -->

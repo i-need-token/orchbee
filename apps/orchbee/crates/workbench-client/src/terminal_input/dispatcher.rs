@@ -1693,9 +1693,17 @@ impl InputDispatcher {
                         }
                     }
                     crate::machine_picker::SidebarIntent::OpenMenu(target) => {
+                        // A keyboard row menu opens beside the row that holds the focus.
+                        let anchor =
+                            self.pointer
+                                .sidebar_menu_anchor(&target)
+                                .map(|(column, row)| crate::action_menu::MenuAnchor::Row {
+                                    column,
+                                    row,
+                                });
                         if let Some(target) = self.pointer.sidebar_menu_target(view, &target) {
                             mode(ModeRequest::BracketedPaste(true))?;
-                            if port.open_action_menu(target, None, view.pointer_released()) {
+                            if port.open_action_menu(target, anchor, view.pointer_released()) {
                                 self.menu_packet = true;
                                 self.keys.capture_pending();
                                 self.pointer.invalidate_map_with_port(port);
@@ -1965,7 +1973,7 @@ impl InputDispatcher {
                             mode(ModeRequest::BracketedPaste(true))?;
                             if port.open_action_menu(
                                 target.clone(),
-                                Some(*anchor),
+                                Some(crate::action_menu::MenuAnchor::from(*anchor)),
                                 view.pointer_released(),
                             ) {
                                 self.menu_packet = true;

@@ -693,13 +693,14 @@ impl Port {
         }
     }
     fn arm(&mut self) {
-        let (token, visible_rows, selected, result_actions) = {
+        let (token, visible_rows, selected, result_actions, hidden) = {
             let view = self.menu.view().unwrap();
             (
                 view.token,
                 view.actions.len(),
                 view.selected,
                 view.result_actions.to_vec(),
+                view.candidate_hidden,
             )
         };
         assert!(self.menu.presented(MenuDraw {
@@ -707,6 +708,7 @@ impl Port {
             first: 0,
             visible_rows,
             selected,
+            candidate_visible: !hidden,
             result_actions,
         }));
     }
@@ -752,7 +754,7 @@ impl TerminalInputPort for Port {
     fn open_action_menu(
         &mut self,
         target: MenuTarget,
-        anchor: Option<(u16, u16)>,
+        anchor: Option<crate::action_menu::MenuAnchor>,
         _: bool,
     ) -> bool {
         self.target = Some(target);
@@ -908,6 +910,7 @@ fn paint_menu(dispatcher: &mut InputDispatcher, port: &mut Port) {
         first: 0,
         visible_rows: rows,
         selected,
+        candidate_visible: !port.menu.candidate_hidden(),
         result_actions,
     }));
     dispatcher.publish_hit_map(hits.finish());

@@ -70,12 +70,18 @@ pub(crate) struct ProjectQuickWorkspaceRequest {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::workbench_client) struct QuickWorkspaceTarget {
     project: Project,
+    /// A folder chosen in the menu replaces the focused Workspace's directory as the default.
+    directory: Option<WorkbenchDirectoryPath>,
     source: ClientContextTabs,
     desired: Option<super::super::PaneKey>,
     focus: Option<super::super::PaneRef>,
 }
 
 impl QuickWorkspaceTarget {
+    pub(in crate::workbench_client) fn directory(&self) -> Option<&WorkbenchDirectoryPath> {
+        self.directory.as_ref()
+    }
+
     fn matches(&self, state: &WorkbenchClientState) -> bool {
         self.source == *state.cache()
             && self.desired.as_ref() == state.desired()
@@ -93,10 +99,12 @@ impl ProjectQuickWorkspaceRequest {
     pub(in crate::workbench_client) fn capture(
         state: &WorkbenchClientState,
         project: &Project,
+        directory: Option<WorkbenchDirectoryPath>,
         deadline: Instant,
     ) -> Option<Self> {
         let target = QuickWorkspaceTarget {
             project: project.clone(),
+            directory,
             source: state.cache().clone(),
             desired: state.desired().cloned(),
             focus: state.focus_pane_ref(),

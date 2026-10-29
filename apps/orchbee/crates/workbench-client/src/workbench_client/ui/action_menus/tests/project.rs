@@ -205,6 +205,21 @@ fn open(ui: &mut WorkbenchClientUi, project: &Project) -> bool {
     )
 }
 
+/// Opens New Workspace ▸ from an open Project menu.
+fn open_creation(ui: &mut WorkbenchClientUi) {
+    assert_eq!(
+        ui.view().action_menu().unwrap().actions,
+        crate::action_menu::PROJECT_ACTIONS
+    );
+    let token = arm(ui);
+    activate_row(ui, token, action_row(ui, MenuAction::WorkspaceCreation));
+    assert_eq!(ui.take_action_menu_action(false), None);
+    assert!(matches!(
+        ui.menus.intent.as_ref().unwrap().entry,
+        MenuTarget::WorkspaceCreation(_)
+    ));
+}
+
 #[test]
 fn workspace_project_submenu_uses_exact_ids_with_duplicate_labels_and_keeps_current_focus() {
     for grouped in [false, true] {
@@ -242,26 +257,31 @@ fn workspace_project_submenu_uses_exact_ids_with_duplicate_labels_and_keeps_curr
         let row = {
             let view = ui.view();
             let menu = view.action_menu().unwrap();
-            assert_eq!(
-                menu.actions,
-                &[
-                    if grouped {
-                        MenuAction::LeaveWorkspaceProject
-                    } else {
-                        MenuAction::CreateWorkspaceProject
-                    },
-                    MenuAction::JoinWorkspaceProject(
-                        snapshot.navigation.projects[0].project_id.clone()
-                    ),
-                    chosen.clone(),
-                ]
-            );
-            assert!(!menu.result_separator_before(menu.result_actions, 0));
-            assert!(menu.result_separator_before(menu.result_actions, 1));
-            assert!(!menu.result_separator_before(menu.result_actions, 2));
-            assert_eq!(menu.labels[1].as_deref(), Some(project.label.as_str()));
-            assert_eq!(menu.labels[2].as_deref(), Some(project.label.as_str()));
-            2
+            let mut expected = Vec::new();
+            if !grouped {
+                expected.push(MenuAction::JoinWorkspaceProject(
+                    snapshot.navigation.projects[0].project_id.clone(),
+                ));
+            }
+            expected.push(chosen.clone());
+            expected.push(MenuAction::CreateWorkspaceProject);
+            if grouped {
+                expected.push(MenuAction::LeaveWorkspaceProject);
+            }
+            assert_eq!(menu.actions, expected);
+            let create = expected.len() - 1 - usize::from(grouped);
+            for position in 0..expected.len() {
+                assert_eq!(
+                    menu.result_separator_before(menu.result_actions, position),
+                    position == create,
+                    "{grouped} {position}"
+                );
+            }
+            let row = create - 1;
+            for label in &menu.labels[..create] {
+                assert_eq!(label.as_deref(), Some(project.label.as_str()));
+            }
+            row
         };
         let token = arm(&mut ui);
         activate_row(&mut ui, token, row);
@@ -323,12 +343,24 @@ fn workspace_project_choice_reorder_retires_the_frozen_submenu_before_dispatch()
     assert!(mailbox.try_recv().unwrap().is_none());
 }
 
+fn open_create(ui: &mut WorkbenchClientUi, project: &Project) -> bool {
+    ui.open_action_menu(
+        MenuTarget::Drawn {
+            source: ui.view().action_menu_source().unwrap(),
+            target: Box::new(MenuTarget::Create(Some(project.project_id.clone()))),
+        },
+        None,
+        false,
+    )
+}
+
 fn confirm_quick(
     ui: &mut WorkbenchClientUi,
     project: &Project,
     keyboard: bool,
 ) -> crate::workbench_client::InputAction {
-    let action = confirm_project_action(ui, project, keyboard, MenuAction::QuickWorkspace);
+    assert!(open_create(ui, project));
+    let action = confirm_open_action(ui, keyboard, MenuAction::QuickWorkspace);
     assert!(matches!(
         action.intent(),
         ClientAction::RequestProjectQuickWorkspace
@@ -343,6 +375,14 @@ fn confirm_project_action(
     requested: MenuAction,
 ) -> crate::workbench_client::InputAction {
     assert!(open(ui, project));
+    confirm_open_action(ui, keyboard, requested)
+}
+
+fn confirm_open_action(
+    ui: &mut WorkbenchClientUi,
+    keyboard: bool,
+    requested: MenuAction,
+) -> crate::workbench_client::InputAction {
     let row = ui
         .view()
         .action_menu()
@@ -499,7 +539,7 @@ fn project_quick_menu_rejects_noncurrent_target_replacement_even_after_taking_th
             let location = workspace(&snapshot, &snapshot.navigation.projects[0]);
             let target = snapshot.navigation.projects[1].clone();
             let (mut ui, mailbox) = ready(&snapshot, &location);
-            assert!(open(&mut ui, &target));
+            assert!(open_create(&mut ui, &target));
             let row = ui
                 .view()
                 .action_menu()
@@ -552,16 +592,8 @@ fn project_menu_requires_addressed_git_proof_even_when_its_workspace_is_current(
         let origin = Origin::capture(ui.state.as_ref());
         let cursors = mailbox.cursors();
         assert!(open(&mut ui, project));
-        assert_eq!(
-            ui.view().action_menu().unwrap().actions,
-            &[
-                MenuAction::QuickWorkspace,
-                MenuAction::RenameProject,
-                MenuAction::WorkspaceWorktrees,
-                MenuAction::DeleteProject
-            ]
-        );
-        let row = action_row(&ui, MenuAction::WorkspaceWorktrees);
+        open_creation(&mut ui);
+        let row = action_row(&ui, MenuAction::NewWorktree);
         assert_eq!(
             ui.view().action_menu().unwrap().unavailable[row],
             Some(MenuUnavailable::WorktreeChecking)
@@ -579,6 +611,53 @@ fn project_menu_requires_addressed_git_proof_even_when_its_workspace_is_current(
         ui.cancel_action_menu();
         assert_eq!(Origin::capture(ui.state.as_ref()), origin);
     }
+}
+
+#[test]
+fn project_folder_row_prepares_quick_creation_in_that_folder_without_navigation() {
+    let mut snapshot = snapshot();
+    snapshot.terminal_contexts[0].tabs.clear();
+    let project = snapshot.navigation.projects[0].clone();
+    let folder = WorkbenchDirectoryPath::parse("C:/project").unwrap();
+    let location = workspace(&snapshot, &snapshot.navigation.projects[1]);
+    let (mut ui, mailbox) = ready(&snapshot, &location);
+    let origin = Origin::capture(ui.state.as_ref());
+    assert!(open(&mut ui, &project));
+    open_creation(&mut ui);
+    let row = action_row(&ui, MenuAction::WorkspaceInFolder(folder.clone()));
+    {
+        let view = ui.view();
+        let menu = view.action_menu().unwrap();
+        assert_eq!(
+            menu.labels[row].as_deref(),
+            Some("project"),
+            "a folder row shows its name"
+        );
+        assert_eq!(menu.unavailable[row], None);
+    }
+    let token = arm(&mut ui);
+    activate_row(&mut ui, token, row);
+    let action = ui.take_action_menu_action(false).unwrap();
+    assert!(matches!(
+        action.intent(),
+        ClientAction::RequestProjectQuickWorkspace
+    ));
+    assert!(!ui.action_menu_active());
+    assert_eq!(Origin::capture(ui.state.as_ref()), origin);
+    assert!(mailbox.try_recv().unwrap().is_none());
+    ui.apply_client_action(action);
+    let lease = mailbox.try_recv().unwrap().unwrap();
+    let QueuedCommand::Refresh(marker) = lease.record() else {
+        panic!("read-only preparation");
+    };
+    let preparation = marker.quick_preparation().unwrap();
+    assert_eq!(
+        preparation.target.as_ref().unwrap().directory(),
+        Some(&folder),
+        "the chosen folder replaces the default directory"
+    );
+    assert_eq!(ui.state.as_ref().unwrap().cache().location(), &location);
+    mailbox.close(CarrierFailure::WorkerExited);
 }
 
 #[test]
@@ -612,16 +691,15 @@ fn project_menu_empty_and_noncurrent_targets_do_not_invent_a_worktree_or_change_
             let origin = Origin::capture(ui.state.as_ref());
             let cursors = mailbox.cursors();
             assert!(open(&mut ui, &snapshot.navigation.projects[target]));
-            assert_eq!(
-                ui.view().action_menu().unwrap().actions,
-                &[
-                    MenuAction::QuickWorkspace,
-                    MenuAction::RenameProject,
-                    MenuAction::WorkspaceWorktrees,
-                    MenuAction::DeleteProject
-                ]
-            );
-            let row = action_row(&ui, MenuAction::WorkspaceWorktrees);
+            open_creation(&mut ui);
+            if empty {
+                assert_eq!(
+                    ui.view().action_menu().unwrap().actions,
+                    &[MenuAction::NewWorktree],
+                    "an empty Project has no folder to offer"
+                );
+            }
+            let row = action_row(&ui, MenuAction::NewWorktree);
             assert_eq!(
                 ui.view().action_menu().unwrap().unavailable[row],
                 Some(if empty {

@@ -83,6 +83,9 @@ pub(crate) enum NavigationState {
     None,
     /// This item is the provisional keyboard item.
     Provisional,
+    /// This item opened the submenu that now holds navigation: it keeps the selection surface
+    /// without the marker.
+    Open,
 }
 
 /// Whether this component represents the persistent current context.
@@ -178,7 +181,10 @@ impl InteractionState {
         {
             return Some(role);
         }
-        if self.navigation == NavigationState::Provisional {
+        if matches!(
+            self.navigation,
+            NavigationState::Provisional | NavigationState::Open
+        ) {
             return Some(Role::SurfaceSelection);
         }
         if let Some(role) = self.pointer_surface() {

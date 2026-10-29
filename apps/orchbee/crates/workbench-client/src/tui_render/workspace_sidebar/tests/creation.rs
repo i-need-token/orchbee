@@ -157,6 +157,7 @@ fn paint_creation_members(
                 frame,
                 frame.area(),
                 RenderContext {
+                    held: None,
                     view,
                     locale,
                     theme,
@@ -501,6 +502,7 @@ fn a_background_project_creation_above_manual_reading_keeps_the_same_painted_row
                         frame,
                         frame.area(),
                         RenderContext {
+                            held: None,
                             view: &view,
                             locale,
                             theme: &Theme::terminal_native(),
@@ -614,6 +616,7 @@ fn creation_keeps_its_final_group_order_and_scroll_window_through_observer_hando
                                 frame,
                                 frame.area(),
                                 RenderContext {
+                                    held: None,
                                     view: &view,
                                     locale,
                                     theme: &Theme::terminal_native(),
@@ -682,6 +685,7 @@ fn provisional_rows_survive_observer_lag_and_reconcile_without_label_deduplicati
                             frame,
                             frame.area(),
                             RenderContext {
+                                held: None,
                                 view: &view,
                                 locale,
                                 theme: &theme,
@@ -773,6 +777,7 @@ fn canonical_handoff_then_higher_revision_removal_clears_the_row_and_never_fills
                             frame,
                             frame.area(),
                             RenderContext {
+                                held: None,
                                 view: &view,
                                 locale,
                                 theme: &theme,

@@ -333,17 +333,18 @@ Windows TUI 保持侧栏，提交后按已选名称显示位置与行高稳定�
 保持原选择；提交后 Escape 隐藏观察界面并保留操作 ID。
 
 Windows `Ctrl+B F2` 打开[动作菜单](docs/native-action-menus.zh-CN.md)。
-右键点击 pane、tab、Workspace 或 Project 行即可发现已有动作。打开和取消保持焦点；
-已寻址的组织与删除动作也保留当前终端。Project 重命名为准确的目标打开编辑器，
+右键点击 pane、Tab、Workspace 或 Project 行即可发现已有动作；Agent 行没有菜单。打开和取消
+保持焦点；已寻址的组织与关闭动作也保留当前终端。Project 重命名为准确的目标打开编辑器，
 包括空和非当前 Project，不进入子 Workspace；重命名或取消期间仍选中当前终端。
-上下文菜单仅使用矩形边框、动作行及可选的禁用原因，不显示标题、X、页脚提示或选择计数。
-子菜单继承根菜单的构件策略；全局动作菜单保留按键发现控件。
-鼠标打开的菜单靠近点击单元格，并限制在完整视口内。悬停只选择可见行，不执行；点击或 Enter
-执行，Esc 或外部点击取消。
-Workspace 的 Project 子菜单提供新建 Project 或离开 Project，之后列出已有 Project。
-Worktree 子菜单使用首个终端的根进程 cwd；Project 从规范顺序的首个成员推导该来源，
-并不拥有目录。来源未解析或不是 Git 时省略该子菜单。红色删除动作使用独立的破坏性强调色：
-删除 Workspace 关闭该 Workspace；删除 Project 只解散组织，保留所有 Workspace 与程序。
+上下文菜单使用以目标为标题的矩形边框、动作行及可选的禁用原因，不显示 X、页脚提示或选择计数。
+子菜单级联在父菜单旁边；Left、Esc 或点击父菜单返回父菜单。全局动作菜单保留按键发现控件。
+鼠标打开的菜单从按下的列开始，位于触发行下方，否则位于其上方，并向左移动以留在视口内；键盘
+打开的行菜单在该行旁边打开。悬停只移动候选，不执行；点击或 Enter 执行，Esc 或外部点击取消。
+Project 的“新建工作区”子菜单提供“新建工作树…”、各 Workspace 的文件夹及其 Git 工作树；Workspace
+的“移动到项目”子菜单列出其他 Project、“新建项目…”，已分组时还有“移出项目”。Git 识别使用首个
+终端的根进程 cwd；Project 从规范顺序的首个成员推导该来源，并不拥有目录。识别成功前“新建
+工作树…”保持禁用。红色的“关闭工作区…”关闭该 Workspace；“解散项目”只解散组织，保留所有
+Workspace 与程序。
 只有权威的从未创建／空运行时证明才跳过确认。已有运行时的作用域需要审阅；待处理或不可用的
 权威保留准确拒绝。关闭全部 Workspace 仍是独立的兼容动作。
 
@@ -946,4 +947,4 @@ Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin acti
 
 Windows 首次运行引导在终端可继续输入时提供 Workspace 创建、Agent 选择、操作与帮助入口，关闭状态按原生配置档案保存。参见[原生首次运行引导](docs/native-onboarding.zh-CN.md)。
 
-<!-- documentation-pairing: english-sha256=1d623e1b78839fbddf665b5c90575a6991add49465f87c5ed18275258bff0580 zh-cn-sha256=6b729d059277cbbfd9e51512095704fa71b0f59f27c4a2228c08341ef6ec6316 -->
+<!-- documentation-pairing: english-sha256=9b9feee18b40a4fb1c3acea93b0b38dd98643b222b9c79bf6b5c129a863419e3 zh-cn-sha256=c578cf2654f6b30f28bc8a6ee1b0ddea321357c60244eb43c54f81e7b95bc1dc -->

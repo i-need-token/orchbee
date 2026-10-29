@@ -100,7 +100,7 @@ fn right_clicking_noncurrent_ungrouped_workspace_keeps_canonical_focus_and_exact
             source: ui.view().action_menu_source().unwrap(),
             target: Box::new(MenuTarget::Workspace(legacy.clone())),
         },
-        Some((3, 8)),
+        Some((3, 8).into()),
         false,
     ));
     let view = ui.view();

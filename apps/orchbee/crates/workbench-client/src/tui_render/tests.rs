@@ -247,7 +247,7 @@ fn action_menu_emits_borders_without_leaving_crossing_underlay_glyphs() {
                         MenuAction::NewWorktree,
                         MenuAction::OpenWorktree,
                     ],
-                    Some(anchor),
+                    Some(anchor.into()),
                 ));
                 menu.refresh_availability(|_| Some(MenuUnavailable::ProjectWorkspaceRequired));
                 let token = menu.view().unwrap().token;
@@ -265,6 +265,7 @@ fn action_menu_emits_borders_without_leaving_crossing_underlay_glyphs() {
                             frame,
                             viewport,
                             menu.view().unwrap(),
+                            &[],
                             &crate::client_view::Bindings::default(),
                             locale,
                             &theme,
@@ -367,6 +368,7 @@ fn action_menu_emits_borders_without_leaving_crossing_underlay_glyphs() {
                                 frame,
                                 viewport,
                                 menu.view().unwrap(),
+                                &[],
                                 &crate::client_view::Bindings::default(),
                                 locale,
                                 &theme,

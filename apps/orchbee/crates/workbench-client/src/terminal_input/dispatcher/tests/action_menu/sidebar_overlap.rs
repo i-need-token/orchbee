@@ -20,7 +20,11 @@ fn open_menu() -> (ClientView, Port, InputDispatcher) {
     else {
         unreachable!()
     };
-    assert!(port.open_action_menu(MenuTarget::Create(Some(project_id)), Some((23, 10)), false,));
+    assert!(port.open_action_menu(
+        MenuTarget::Create(Some(project_id)),
+        Some((23, 10).into()),
+        false
+    ));
     dispatcher
         .synchronize(&mut view, &mut port, Instant::now(), &mut |_| {
             Ok::<(), io::Error>(())

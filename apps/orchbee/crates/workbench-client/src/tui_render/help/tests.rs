@@ -142,7 +142,7 @@ fn word_prefix_filter_uses_semantic_names_and_clear_restores_the_list() {
     let (buffer, _, _) = render_panel(80, 24, &view, Locale::EnUs, true);
     let filtered = rows(&buffer);
     assert!(
-        filtered.contains("Ctrl+b e") && filtered.contains("Workspace directory"),
+        filtered.contains("Ctrl+b e") && filtered.contains("Set Directory…"),
         "{filtered}"
     );
     assert!(

@@ -109,6 +109,7 @@ fn global_search_routes_nested_profile_hits_through_the_existing_tab_creation_me
     };
     ui.after_action_menu_draw(Some(ModalPresentation::Presented(MenuDraw {
         selected: 0,
+        candidate_visible: true,
         token,
         first: 0,
         visible_rows: 1,
@@ -139,7 +140,7 @@ fn global_search_routes_nested_profile_hits_through_the_existing_tab_creation_me
 }
 
 fn arm(ui: &mut WorkbenchClientUi) -> MenuToken {
-    let (token, selected, visible_rows, result_actions) = {
+    let (token, selected, visible_rows, result_actions, hidden) = {
         let view = ui.view();
         let menu = view.action_menu().unwrap();
         (
@@ -147,10 +148,12 @@ fn arm(ui: &mut WorkbenchClientUi) -> MenuToken {
             menu.selected,
             menu.actions.len(),
             menu.result_actions.to_vec(),
+            menu.candidate_hidden,
         )
     };
     ui.after_action_menu_draw(Some(ModalPresentation::Presented(MenuDraw {
         selected,
+        candidate_visible: !hidden,
         token,
         first: 0,
         visible_rows,
@@ -415,7 +418,7 @@ fn first_geometry_block_refuses_but_an_admitted_child_resumes_with_parent_state(
     assert!(!refused.action_menu_capture_claim());
 
     let (mut ui, _, _, _) = tests::move_membership::ready_ui();
-    assert!(ui.open_action_menu(MenuTarget::Global, Some((7, 4)), false));
+    assert!(ui.open_action_menu(MenuTarget::Global, Some((7, 4).into()), false));
     let token = arm(&mut ui);
     let child_row = action_row(&ui, MenuAction::TabCreation);
     activate_row(&mut ui, token, child_row);
@@ -464,7 +467,7 @@ fn first_geometry_block_refuses_but_an_admitted_child_resumes_with_parent_state(
         let view = ui.view();
         let parent = view.action_menu().unwrap();
         assert_eq!(parent.source, &MenuTarget::Global);
-        assert_eq!(parent.anchor, Some((7, 4)));
+        assert_eq!(parent.anchor, Some((7, 4).into()));
         assert_eq!(parent.actions[parent.selected], MenuAction::TabCreation);
     }
     assert_eq!(
@@ -498,7 +501,7 @@ fn typed_menu_pointer_activation_requires_the_exact_source_and_token() {
 #[test]
 fn typed_menu_hover_requires_a_drawn_source_and_never_enters_a_submenu_or_action() {
     let (mut ui, _, _, _) = tests::move_membership::ready_ui();
-    assert!(ui.open_action_menu(MenuTarget::Global, Some((7, 4)), false));
+    assert!(ui.open_action_menu(MenuTarget::Global, Some((7, 4).into()), false));
     let token = ui.view().action_menu().unwrap().token;
     let row = action_row(&ui, MenuAction::TabCreation);
     assert!(!ui.hover_action_menu_row(&MenuTarget::Global, token, row));
@@ -509,7 +512,7 @@ fn typed_menu_hover_requires_a_drawn_source_and_never_enters_a_submenu_or_action
     assert!(ui.hover_action_menu_row(&MenuTarget::Global, token, row));
     assert_eq!(ui.view().action_menu().unwrap().selected, row);
     assert_eq!(ui.view().action_menu().unwrap().source, &MenuTarget::Global);
-    assert_eq!(ui.view().action_menu().unwrap().anchor, Some((7, 4)));
+    assert_eq!(ui.view().action_menu().unwrap().anchor, Some((7, 4).into()));
     assert!(ui.menus.parents.is_empty(), "hover cannot open a submenu");
     assert_eq!(ui.menus.menu.confirmed(), None);
     assert_eq!(ui.take_action_menu_action(false), None);
@@ -547,7 +550,7 @@ fn hovering_menu_families_keeps_the_active_workspace_tab_and_selection() {
         MenuTarget::TabTools(tab.clone()),
         MenuTarget::TabGroupChoices(tab),
     ] {
-        assert!(ui.open_action_menu(target.clone(), Some((7, 4)), false));
+        assert!(ui.open_action_menu(target.clone(), Some((7, 4).into()), false));
         let token = arm(&mut ui);
         let (source, enabled) = {
             let view = ui.view();
@@ -563,13 +566,18 @@ fn hovering_menu_families_keeps_the_active_workspace_tab_and_selection() {
         };
         assert!(!enabled.is_empty(), "{target:?}");
         for row in enabled {
-            let previous = ui.view().action_menu().unwrap().selected;
+            let (previous, hidden) = {
+                let view = ui.view();
+                let menu = view.action_menu().unwrap();
+                (menu.selected, menu.candidate_hidden)
+            };
             assert_eq!(
                 ui.hover_action_menu_row(&source, token, row),
-                row != previous,
+                row != previous || hidden,
                 "{target:?} row {row}"
             );
             assert_eq!(ui.view().action_menu().unwrap().selected, row);
+            assert!(!ui.view().action_menu().unwrap().candidate_hidden);
             assert_eq!(Origin::capture(ui.state.as_ref()), origin);
             assert_eq!(ui.menus.menu.confirmed(), None);
             assert_eq!(ui.take_action_menu_action(false), None);
@@ -704,7 +712,7 @@ fn pointer_menu_uses_the_full_viewport_while_keyboard_keeps_content_centering() 
                 ] {
                     let (mut ui, _, _, _) = tests::move_membership::ready_ui();
                     ui.observe_geometry(Geometry::new(width, height, 8, 16).unwrap());
-                    assert!(ui.open_action_menu(MenuTarget::Global, anchor, false));
+                    assert!(ui.open_action_menu(MenuTarget::Global, anchor.map(Into::into), false));
                     let mut view = ClientView::new(width);
                     view.machines.available = true;
                     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
@@ -767,19 +775,29 @@ fn pointer_menu_uses_the_full_viewport_while_keyboard_keeps_content_centering() 
                         "sidebar restore chrome must stay below the menu frame"
                     );
                     let selection = theme.style(crate::tui_theme::Role::SurfaceSelection);
-                    assert_eq!(
-                        buffer[(left + 1, selected_row_y)].symbol(),
-                        theme.glyphs.navigation_marker
-                    );
-                    let mut x = left + 1;
-                    while x < right - 1 {
-                        let cell = &buffer[(x, selected_row_y)];
-                        assert_eq!(cell.bg, selection.bg.unwrap());
-                        // Wide-character continuation cells inherit the lead's visible style.
-                        x += u16::try_from(
-                            crate::terminal_text::display_width(cell.symbol()).max(1),
-                        )
-                        .unwrap();
+                    if anchor.is_some() {
+                        assert!(ui.view().action_menu().unwrap().candidate_hidden);
+                        assert!(
+                            (top..bottom).all(|y| {
+                                buffer[(left + 1, y)].symbol() != theme.glyphs.navigation_marker
+                            }),
+                            "a pointer-opened menu starts without a candidate"
+                        );
+                    } else {
+                        assert_eq!(
+                            buffer[(left + 1, selected_row_y)].symbol(),
+                            theme.glyphs.navigation_marker
+                        );
+                        let mut x = left + 1;
+                        while x < right - 1 {
+                            let cell = &buffer[(x, selected_row_y)];
+                            assert_eq!(cell.bg, selection.bg.unwrap());
+                            // Wide-character continuation cells inherit the lead's visible style.
+                            x += u16::try_from(
+                                crate::terminal_text::display_width(cell.symbol()).max(1),
+                            )
+                            .unwrap();
+                        }
                     }
                     assert!(
                         right <= width && bottom < height,
@@ -1081,7 +1099,8 @@ fn ux_menu_configured_workspace_directory_refuses_before_navigation() {
             false,
             None
         ),
-        ActionAvailability::Disabled(MenuUnavailable::DirectoryConfigured)
+        ActionAvailability::Hidden,
+        "Set Directory… joins only a Workspace without one"
     );
     assert!(ui.action_menu_active());
     assert_eq!(ui.menus.menu.confirmed(), None);
@@ -1349,7 +1368,7 @@ fn pane_open_and_cancel_preserve_focus_then_one_confirmed_action_focuses_exact_p
     let old = state.focus_pane_ref().unwrap();
     let peer = state.cache().tabs()[0].panel(1).unwrap().panel_id();
     let peer = state.pane_by_panel(peer).unwrap().pane_ref();
-    assert!(ui.open_action_menu(MenuTarget::Pane(peer.clone()), Some((9, 9)), false));
+    assert!(ui.open_action_menu(MenuTarget::Pane(peer.clone()), Some((9, 9).into()), false));
     assert_eq!(
         ui.state.as_ref().unwrap().focus_pane_ref(),
         Some(old.clone())
@@ -1596,7 +1615,7 @@ fn action_menu_renders_and_hits_only_presented_rows_in_both_locales_themes_and_s
                 ui.observe_geometry(geometry);
                 assert!(ui.open_action_menu(
                     MenuTarget::Workspace(location),
-                    Some((width - 1, height - 1)),
+                    Some((width - 1, height - 1).into()),
                     false
                 ));
                 let rename = action_row(&ui, MenuAction::RenameWorkspace);

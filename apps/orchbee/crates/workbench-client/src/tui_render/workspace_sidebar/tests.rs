@@ -785,6 +785,7 @@ fn paint_navigation_buffers_with_pointer(
                 frame,
                 Rect::new(0, 0, width, height),
                 RenderContext {
+                    held: None,
                     creation: None,
                     view,
                     locale,

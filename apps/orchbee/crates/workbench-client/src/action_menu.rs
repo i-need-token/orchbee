@@ -27,7 +27,8 @@ pub enum MenuTarget {
     Project(orchbee_workbench_protocol::WorkbenchProjectId),
     Workspace(crate::workbench_client::ClientContextLocation),
     WorkspaceProjects(crate::workbench_client::ClientContextLocation),
-    Worktrees(crate::workbench_client::SidebarWorktreeTarget),
+    /// One Project's New Workspace submenu: a new Worktree, its folders and its Git Worktrees.
+    WorkspaceCreation(orchbee_workbench_protocol::WorkbenchProjectId),
     /// An object entry must still belong to the exact Session snapshot that painted it.
     Drawn {
         source: DrawnMenuSource,
@@ -57,6 +58,30 @@ pub struct DrawnMenuSource {
 pub struct DrawnTabCreate {
     pub(crate) source: DrawnMenuSource,
     pub(crate) location: crate::workbench_client::ClientContextLocation,
+}
+
+/// Where a context menu opens; a menu without an anchor is centered in the overlay area.
+///
+/// Both variants name one cell. The renderer resolves the complete trigger containing it from the
+/// frame being drawn, so a moved or covered trigger never leaves the menu on stale geometry.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MenuAnchor {
+    /// The pressed cell: the menu opens on the row below its trigger, else above it.
+    Pointer { column: u16, row: u16 },
+    /// A cell of a keyboard-focused sidebar row: the menu opens beside that row.
+    Row { column: u16, row: u16 },
+}
+
+impl MenuAnchor {
+    pub(crate) const fn pointer(self) -> bool {
+        matches!(self, Self::Pointer { .. })
+    }
+}
+
+impl From<(u16, u16)> for MenuAnchor {
+    fn from((column, row): (u16, u16)) -> Self {
+        Self::Pointer { column, row }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -115,10 +140,12 @@ pub enum MenuAction {
     RenameWorkspace,
     RenameProject,
     WorkspaceProjects,
-    WorkspaceWorktrees,
+    WorkspaceCreation,
     CreateWorkspaceProject,
     LeaveWorkspaceProject,
     JoinWorkspaceProject(orchbee_workbench_protocol::WorkbenchProjectId),
+    /// A new Workspace of the menu's Project in one of its recorded folders.
+    WorkspaceInFolder(orchbee_workbench_protocol::WorkbenchDirectoryPath),
     OpenWorktreeAt(orchbee_workbench_protocol::WorkbenchDirectoryPath),
     RemoveWorktree,
     DeleteWorkspace,
@@ -197,7 +224,8 @@ impl From<&MenuAction> for crate::localization::MenuLabel {
             MenuAction::RenameWorkspace => Self::RenameWorkspace,
             MenuAction::RenameProject => Self::RenameProject,
             MenuAction::WorkspaceProjects => Self::WorkspaceProjects,
-            MenuAction::WorkspaceWorktrees => Self::WorkspaceWorktrees,
+            MenuAction::WorkspaceCreation => Self::WorkspaceCreation,
+            MenuAction::WorkspaceInFolder(_) => Self::WorkspaceInFolder,
             MenuAction::CreateWorkspaceProject => Self::CreateWorkspaceProject,
             MenuAction::LeaveWorkspaceProject => Self::LeaveWorkspaceProject,
             MenuAction::JoinWorkspaceProject(_) => Self::JoinWorkspaceProject,
@@ -244,7 +272,7 @@ impl MenuAction {
                 | Self::ChooseGroupColor
                 | Self::TabCreation
                 | Self::WorkspaceProjects
-                | Self::WorkspaceWorktrees
+                | Self::WorkspaceCreation
         )
     }
     /// Addressed sidebar choices require their menu's frozen source owner.
@@ -321,7 +349,8 @@ impl MenuAction {
             Self::ReleasePointer => ClientAction::TogglePointerCapture,
             Self::Detach => ClientAction::Exit,
             Self::WorkspaceProjects
-            | Self::WorkspaceWorktrees
+            | Self::WorkspaceCreation
+            | Self::WorkspaceInFolder(_)
             | Self::CreateWorkspaceProject
             | Self::LeaveWorkspaceProject
             | Self::JoinWorkspaceProject(_)
@@ -354,16 +383,16 @@ pub(crate) const TAB_ACTIONS: &[MenuAction] = &[
     MenuAction::CloseTrailingTabs,
     MenuAction::TabTools,
 ];
+/// Set Directory… is hidden once a directory exists; discovery may add Remove Worktree….
 pub(crate) const WORKSPACE_ACTIONS: &[MenuAction] = &[
     MenuAction::WorkspaceProjects,
-    MenuAction::WorkspaceWorktrees,
     MenuAction::RenameWorkspace,
+    MenuAction::WorkspaceDirectory,
     MenuAction::DeleteWorkspace,
 ];
 pub(crate) const PROJECT_ACTIONS: &[MenuAction] = &[
-    MenuAction::QuickWorkspace,
+    MenuAction::WorkspaceCreation,
     MenuAction::RenameProject,
-    MenuAction::WorkspaceWorktrees,
     MenuAction::DeleteProject,
 ];
 pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
@@ -455,6 +484,8 @@ pub(crate) struct MenuDraw {
     pub(crate) first: usize,
     pub(crate) visible_rows: usize,
     pub(crate) selected: usize,
+    /// False while a pointer-opened menu has not yet revealed a candidate.
+    pub(crate) candidate_visible: bool,
     /// Result positions map back to the admitted action snapshot, including when filtering.
     pub(crate) result_actions: Vec<usize>,
 }
@@ -473,6 +504,7 @@ struct MenuDrawProof {
     first: usize,
     visible_rows: usize,
     selected: usize,
+    candidate_visible: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -502,7 +534,9 @@ pub(crate) struct MenuView<'a> {
     pub(crate) first: usize,
     pub(crate) follow_selection: bool,
     pub(crate) token: MenuToken,
-    pub(crate) anchor: Option<(u16, u16)>,
+    pub(crate) anchor: Option<MenuAnchor>,
+    /// The selected row is retained for navigation but painted and admitted as no candidate.
+    pub(crate) candidate_hidden: bool,
     pub(crate) transferring: bool,
 }
 
@@ -513,10 +547,26 @@ impl MenuView<'_> {
             && separator_before(self.source, self.actions, results[position])
     }
 
+    /// A group heading belongs to the row it introduces, so it is shown even when that row is the
+    /// first one visible.
+    pub(crate) fn result_heading_before(
+        &self,
+        results: &[usize],
+        position: usize,
+    ) -> Option<MenuHeading> {
+        self.query
+            .is_none_or(str::is_empty)
+            .then(|| heading_before(self.source, self.actions, results[position]))
+            .flatten()
+    }
+
     pub(crate) fn result_row_height(&self, results: &[usize], first: usize, end: usize) -> usize {
         end.saturating_sub(first)
             + (first + 1..end)
                 .filter(|position| self.result_separator_before(results, *position))
+                .count()
+            + (first..end)
+                .filter(|position| self.result_heading_before(results, *position).is_some())
                 .count()
     }
 
@@ -578,26 +628,62 @@ fn global_menu_group(action: &MenuAction) -> GlobalMenuGroup {
     }
 }
 
+/// A labeled group inside a submenu; never a candidate and never an action.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum MenuHeading {
+    Folders,
+    Worktrees,
+}
+
+fn heading_before(
+    source: &MenuTarget,
+    actions: &[MenuAction],
+    index: usize,
+) -> Option<MenuHeading> {
+    if !matches!(source, MenuTarget::WorkspaceCreation(_)) {
+        return None;
+    }
+    let previous = index.checked_sub(1).map(|index| &actions[index]);
+    match &actions[index] {
+        MenuAction::WorkspaceInFolder(_)
+            if !matches!(previous, Some(MenuAction::WorkspaceInFolder(_))) =>
+        {
+            Some(MenuHeading::Folders)
+        }
+        MenuAction::OpenWorktreeAt(_)
+            if !matches!(previous, Some(MenuAction::OpenWorktreeAt(_))) =>
+        {
+            Some(MenuHeading::Worktrees)
+        }
+        _ => None,
+    }
+}
+
 fn separator_before(source: &MenuTarget, actions: &[MenuAction], index: usize) -> bool {
     if index == 0 {
         return false;
     }
     let action = &actions[index];
+    let previous = &actions[index - 1];
     if matches!(source, MenuTarget::Global) {
-        return global_menu_group(&actions[index - 1]) != global_menu_group(action);
+        return global_menu_group(previous) != global_menu_group(action);
     }
     if matches!(source, MenuTarget::Workspace(_)) {
-        return matches!(action, MenuAction::DeleteWorkspace);
+        // The close and removal rows form one trailing section.
+        return matches!(action, MenuAction::DeleteWorkspace)
+            || matches!(action, MenuAction::RemoveWorktree)
+                && !matches!(previous, MenuAction::DeleteWorkspace);
     }
     match action {
-        MenuAction::JoinWorkspaceProject(_) => {
-            return !matches!(actions[index - 1], MenuAction::JoinWorkspaceProject(_));
+        MenuAction::JoinWorkspaceProject(_) | MenuAction::LeaveWorkspaceProject => {
+            return false;
+        }
+        MenuAction::CreateWorkspaceProject => return true,
+        MenuAction::WorkspaceInFolder(_) => {
+            return !matches!(previous, MenuAction::WorkspaceInFolder(_));
         }
         MenuAction::OpenWorktreeAt(_) => {
-            return !matches!(actions[index - 1], MenuAction::OpenWorktreeAt(_));
-        }
-        MenuAction::WorkspaceWorktrees => {
-            return matches!(source, MenuTarget::Workspace(_));
+            return !matches!(previous, MenuAction::OpenWorktreeAt(_));
         }
         MenuAction::RenameWorkspace
         | MenuAction::DeleteWorkspace
@@ -628,7 +714,56 @@ struct Menu {
     token: MenuToken,
     drawn: Option<MenuDrawProof>,
     surface_presented: bool,
-    anchor: Option<(u16, u16)>,
+    anchor: Option<MenuAnchor>,
+    candidate_hidden: bool,
+}
+
+/// A parent kept painted, without input, beside its cascaded child.
+///
+/// It is a frozen projection for drawing only; returning reopens the parent through its owner.
+#[derive(Clone, Debug)]
+pub(crate) struct RetainedMenu {
+    source: MenuTarget,
+    title: String,
+    labels: Vec<Option<String>>,
+    tabs: Option<TabMenuPresentation>,
+    actions: Vec<MenuAction>,
+    unavailable: Vec<Option<MenuUnavailable>>,
+    #[cfg(test)]
+    result_actions: Vec<usize>,
+    first: usize,
+    open_row: usize,
+    token: MenuToken,
+    anchor: Option<MenuAnchor>,
+}
+
+impl RetainedMenu {
+    /// The parent as last drawn, with its opening row as the selected row. Its window follows that
+    /// row, so a resize can never scroll the row a submenu is level with out of view.
+    pub(crate) fn view(&self, has_parent: bool) -> MenuView<'_> {
+        MenuView {
+            source: &self.source,
+            context_menu: true,
+            has_parent,
+            title: &self.title,
+            labels: &self.labels,
+            tabs: self.tabs.as_ref(),
+            actions: &self.actions,
+            unavailable: &self.unavailable,
+            #[cfg(test)]
+            result_actions: &self.result_actions,
+            query: None,
+            search_children: &[],
+            selected: self.open_row,
+            pending_selected_action: None,
+            first: self.first,
+            follow_selection: true,
+            token: self.token,
+            anchor: self.anchor,
+            candidate_hidden: false,
+            transferring: false,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -636,6 +771,8 @@ pub(crate) struct ActionMenu {
     next: u64,
     menu: Option<Menu>,
     confirmed: Option<MenuAction>,
+    /// A click confirmed the action; a child it opens starts without a candidate.
+    confirmed_by_pointer: bool,
     presentation: PresentationPhase,
 }
 
@@ -663,6 +800,7 @@ impl ActionMenu {
             menu.selected = 0;
             menu.first = 0;
             menu.follow_selection = true;
+            menu.candidate_hidden = false;
             menu.visible_rows = 0;
             menu.token = token;
             menu.drawn = None;
@@ -684,7 +822,12 @@ impl ActionMenu {
             self.cancel();
             return false;
         }
+        let hidden = self.candidate_hidden();
         if Binding::new(KeyCode::Enter, Modifiers::NONE).matches(event) {
+            if hidden {
+                self.select(MenuSelection::First);
+                return false;
+            }
             return self.confirm();
         }
         let searchable = self.menu.as_ref().is_some_and(|menu| menu.query.is_some());
@@ -756,6 +899,7 @@ impl ActionMenu {
             return false;
         }
         match event.code {
+            KeyCode::Right if hidden => self.select(MenuSelection::First),
             KeyCode::Right
                 if self
                     .menu
@@ -784,8 +928,10 @@ impl ActionMenu {
     pub(crate) fn input_context(&self) -> Option<MenuInputContext> {
         let menu = self.menu.as_ref()?;
         let exact_selected = self.confirmed.is_none()
+            && !menu.candidate_hidden
             && menu.drawn.is_some_and(|draw| {
                 draw.token == menu.token
+                    && draw.candidate_visible
                     && draw.selected == menu.selected
                     && (draw.first..draw.first.saturating_add(draw.visible_rows))
                         .contains(&menu.selected)
@@ -809,7 +955,7 @@ impl ActionMenu {
         &mut self,
         title: String,
         actions: Vec<MenuAction>,
-        anchor: Option<(u16, u16)>,
+        anchor: Option<MenuAnchor>,
     ) -> bool {
         self.open_for(MenuTarget::Global, title, actions, anchor)
     }
@@ -819,7 +965,7 @@ impl ActionMenu {
         source: MenuTarget,
         title: String,
         actions: Vec<MenuAction>,
-        anchor: Option<(u16, u16)>,
+        anchor: Option<MenuAnchor>,
     ) -> bool {
         if self.active()
             || actions.is_empty()
@@ -856,10 +1002,54 @@ impl ActionMenu {
             drawn: None,
             surface_presented: false,
             anchor,
+            candidate_hidden: false,
         });
         self.confirmed = None;
+        self.confirmed_by_pointer = false;
         self.presentation = PresentationPhase::Pending;
         true
+    }
+
+    /// Starts a menu without a candidate; the first navigation key reveals one.
+    pub(crate) fn hide_candidate(&mut self) {
+        if self.confirmed.is_some() {
+            return;
+        }
+        let Some(menu) = &mut self.menu else {
+            return;
+        };
+        if menu.candidate_hidden {
+            return;
+        }
+        menu.candidate_hidden = true;
+        menu.selected = 0;
+        menu.pending_selected_action = None;
+        menu.follow_selection = true;
+        menu.drawn = None;
+        menu.visible_rows = 0;
+    }
+
+    pub(crate) fn candidate_hidden(&self) -> bool {
+        self.menu.as_ref().is_some_and(|menu| menu.candidate_hidden)
+    }
+
+    /// Freezes the current menu for painting beside a child it opens.
+    pub(crate) fn retain(&self) -> Option<RetainedMenu> {
+        let menu = self.menu.as_ref()?;
+        Some(RetainedMenu {
+            source: menu.source.clone(),
+            title: menu.title.clone(),
+            labels: menu.labels.clone(),
+            tabs: menu.tabs.clone(),
+            actions: menu.actions.clone(),
+            unavailable: menu.unavailable.clone(),
+            #[cfg(test)]
+            result_actions: menu.result_actions.clone(),
+            first: menu.first,
+            open_row: menu.selected,
+            token: menu.token,
+            anchor: menu.anchor,
+        })
     }
 
     pub(crate) fn query(&self) -> Option<&str> {
@@ -1000,6 +1190,7 @@ impl ActionMenu {
             follow_selection: menu.follow_selection,
             token: menu.token,
             anchor: menu.anchor,
+            candidate_hidden: menu.candidate_hidden,
             transferring: self.confirmed.is_some(),
         })
     }
@@ -1026,6 +1217,7 @@ impl ActionMenu {
                         == Some(action)
                 })
                 && !(menu.selected >= draw.result_actions.len() && draw.selected == 0))
+            || draw.candidate_visible == menu.candidate_hidden
             || draw.first.saturating_add(draw.visible_rows) > draw.result_actions.len()
             || draw
                 .result_actions
@@ -1044,6 +1236,7 @@ impl ActionMenu {
             first: draw.first,
             visible_rows: draw.visible_rows,
             selected: draw.selected,
+            candidate_visible: draw.candidate_visible,
         };
         let Some(menu) = &mut self.menu else {
             return false;
@@ -1113,6 +1306,16 @@ impl ActionMenu {
         if menu.result_actions.is_empty() {
             return;
         }
+        if menu.candidate_hidden {
+            // The first key reveals a candidate at the end it names, without moving past it.
+            let selected = match selection {
+                MenuSelection::Previous | MenuSelection::Last => menu.result_actions.len() - 1,
+                MenuSelection::Next | MenuSelection::First => 0,
+            };
+            menu.follow_selection = false;
+            self.select_row(selected);
+            return;
+        }
         let selected = match selection {
             MenuSelection::Previous => menu.selected.saturating_sub(1),
             MenuSelection::Next => (menu.selected + 1).min(menu.result_actions.len() - 1),
@@ -1172,7 +1375,7 @@ impl ActionMenu {
         let Some(menu) = &mut self.menu else {
             return;
         };
-        if selected == menu.selected && menu.follow_selection {
+        if selected == menu.selected && menu.follow_selection && !menu.candidate_hidden {
             return;
         }
         let Some(token) = self.allocate() else {
@@ -1185,6 +1388,7 @@ impl ActionMenu {
         menu.selected = selected;
         menu.pending_selected_action = None;
         menu.follow_selection = true;
+        menu.candidate_hidden = false;
         menu.visible_rows = 0;
         menu.token = token;
         menu.drawn = None;
@@ -1269,6 +1473,7 @@ impl ActionMenu {
             return false;
         }
         self.confirmed = Some(menu.actions[action_index].clone());
+        self.confirmed_by_pointer = false;
         true
     }
 
@@ -1301,10 +1506,11 @@ impl ActionMenu {
         let Some(menu) = &mut self.menu else {
             return false;
         };
-        if menu.selected == row {
+        if menu.selected == row && !menu.candidate_hidden {
             return false;
         }
         menu.selected = row;
+        menu.candidate_hidden = false;
         menu.pending_selected_action = None;
         menu.follow_selection = false;
         // Hover preserves the exact row window so every motion in a packet can update the
@@ -1320,7 +1526,9 @@ impl ActionMenu {
             return false;
         };
         menu.selected = row;
+        menu.candidate_hidden = false;
         self.confirmed = Some(menu.actions[menu.result_actions[row]].clone());
+        self.confirmed_by_pointer = true;
         true
     }
 
@@ -1328,9 +1536,14 @@ impl ActionMenu {
         self.confirmed.clone()
     }
 
+    pub(crate) const fn confirmed_by_pointer(&self) -> bool {
+        self.confirmed_by_pointer
+    }
+
     pub(crate) fn take(&mut self) -> Option<MenuAction> {
         let action = self.confirmed.take()?;
         self.menu = None;
+        self.confirmed_by_pointer = false;
         self.presentation = PresentationPhase::Pending;
         Some(action)
     }
@@ -1338,6 +1551,7 @@ impl ActionMenu {
     pub(crate) fn cancel(&mut self) {
         self.menu = None;
         self.confirmed = None;
+        self.confirmed_by_pointer = false;
         self.presentation = PresentationPhase::Pending;
     }
 }

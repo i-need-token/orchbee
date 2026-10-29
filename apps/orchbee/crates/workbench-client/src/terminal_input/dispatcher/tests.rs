@@ -1619,7 +1619,7 @@ impl TerminalInputPort for BoardPort {
     fn open_action_menu(
         &mut self,
         target: crate::action_menu::MenuTarget,
-        anchor: Option<(u16, u16)>,
+        anchor: Option<crate::action_menu::MenuAnchor>,
         _pointer_released: bool,
     ) -> bool {
         self.action_menu.open_for(

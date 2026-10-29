@@ -1663,6 +1663,20 @@ impl PointerState {
             && self.popup_gesture.is_none()
     }
 
+    /// The drawn cell a keyboard-opened row menu opens beside: the first cell of its row.
+    pub(crate) fn sidebar_menu_anchor(
+        &self,
+        target: &crate::machine_picker::SidebarTarget,
+    ) -> Option<(u16, u16)> {
+        self.map
+            .as_ref()?
+            .regions
+            .iter()
+            .filter(|region| region.target.sidebar_target().as_ref() == Some(target))
+            .max_by_key(|region| u32::from(region.rect.width) * u32::from(region.rect.height))
+            .map(|region| (region.rect.x, region.rect.y))
+    }
+
     /// Keyboard and pointer entries share one successfully painted row witness.
     pub(crate) fn sidebar_menu_target(
         &self,

@@ -667,6 +667,8 @@ pub(super) struct RenderContext<'a> {
     pub(super) owns_keyboard: bool,
     pub(super) source: &'a SidebarSource,
     pub(super) creation: Option<crate::workbench_client::WorkspaceCreationPreview<'a>>,
+    /// The row whose pointer-opened menu is open keeps its hover presentation.
+    pub(super) held: Option<&'a SidebarTarget>,
 }
 
 fn creation_target_matches(
@@ -1182,6 +1184,7 @@ pub(super) fn render(
         owns_keyboard,
         source,
         creation,
+        held,
     } = context;
     if area.is_empty() {
         return;
@@ -1622,10 +1625,12 @@ pub(super) fn render(
             }
             _ => PointerPresentation::Rest,
         };
-        let row_paint_pointer = if row_pointer == PointerPresentation::Rest
-            && (disclosure_pointer != PointerPresentation::Rest
-                || create_pointer != PointerPresentation::Rest
-                || close_pointer != PointerPresentation::Rest)
+        let held = held == Some(&target);
+        let row_paint_pointer = if held
+            || row_pointer == PointerPresentation::Rest
+                && (disclosure_pointer != PointerPresentation::Rest
+                    || create_pointer != PointerPresentation::Rest
+                    || close_pointer != PointerPresentation::Rest)
         {
             PointerPresentation::Hovered
         } else {
@@ -1665,7 +1670,8 @@ pub(super) fn render(
                 locale.machine_picker_text(key)
             )
         };
-        if row_paint_pointer != PointerPresentation::Rest {
+        // The open menu, not a row explanation, now speaks for a held row.
+        if row_paint_pointer != PointerPresentation::Rest && !held {
             let mut hint = Vec::new();
             if let Some(state) = agent_state {
                 hint.push(explain(state));

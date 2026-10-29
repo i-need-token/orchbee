@@ -118,14 +118,18 @@ Pointer hover never moves keyboard focus, current context, or a checked value, a
 `BOLD`. It changes the background. An action whose own label or glyph rests in `text-secondary`,
 such as an inactive tab, an auxiliary button, or an icon action, rises to `text-primary`; list rows
 keep their content hierarchy, including secondary headings and metadata. `BOLD` marks press and
-any current identity whose owner documents bold. An open action menu
-updates its provisional candidate on real unmodified, button-free movement over an enabled painted
-row, using the same full-row selection fill and navigation marker as keyboard navigation. This
-does not execute an action or open a submenu. Leaving retains the candidate; arrows continue from
-it. Disabled rows and separators do not become pointer candidates. Other collections retain their
-provisional cursor on hover. Pressing arms one enabled target; leaving that target removes the pressed treatment. The
-pointer policy determines activation on release. A disabled target never acquires hover or pressed
-treatment.
+any current identity whose owner documents bold. An open action menu updates its provisional
+candidate on real unmodified, button-free movement over an enabled painted row, using the same
+full-row selection fill and navigation marker as keyboard navigation. This does not execute an
+action or open a submenu; a click on a submenu row opens it. Leaving retains the candidate; arrows
+continue from it. Disabled rows, separators and group headings do not become pointer candidates. A
+menu opened by the pointer, and a submenu opened by a click, starts without a candidate. The first
+navigation or confirmation key only reveals one: Up and End reveal the last row; Down, Home, Right
+and Enter reveal the first. A menu opened from the keyboard starts on its first row. While a
+cascaded submenu is open, its parent's opening row keeps the selection fill without the navigation
+marker. Other collections retain their provisional cursor on hover. Pressing arms one enabled
+target; leaving that target removes the pressed treatment. The pointer policy determines activation
+on release. A disabled target never acquires hover or pressed treatment.
 
 Pending is not a synonym for disabled. The feature supplies whether the operation may be invoked
 again, cancelled, or run concurrently; the component presents that policy and does not invent it.

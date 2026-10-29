@@ -112,6 +112,7 @@ fn filtered_draw_rows_keep_their_original_action_identity_and_availability() {
         first: 0,
         visible_rows: 1,
         selected: 0,
+        candidate_visible: true,
         result_actions: vec![1],
     }));
     assert!(menu.refresh_availability(|action| {
@@ -124,6 +125,7 @@ fn filtered_draw_rows_keep_their_original_action_identity_and_availability() {
         first: 0,
         visible_rows: 1,
         selected: 0,
+        candidate_visible: true,
         result_actions: vec![1],
     }));
     assert!(
@@ -156,6 +158,7 @@ fn restored_action_selection_uses_its_filtered_result_position() {
         first: 0,
         visible_rows: 3,
         selected: 2,
+        candidate_visible: true,
         result_actions: vec![0, 2, 4],
     }));
     assert!(menu.confirm());
@@ -169,6 +172,7 @@ fn present(menu: &mut ActionMenu, first: usize, visible_rows: usize) -> MenuDraw
         first,
         visible_rows,
         selected: view.selected,
+        candidate_visible: !view.candidate_hidden,
         result_actions: view.result_actions.to_vec(),
     };
     assert!(menu.presented(draw.clone()));
@@ -464,6 +468,7 @@ fn activation_requires_the_exact_selected_row_and_painted_window() {
         first: 0,
         visible_rows: 2,
         selected: 1,
+        candidate_visible: true,
         result_actions: results,
     }));
     assert!(!menu.confirm(), "a draw for another selection is rejected");
@@ -509,6 +514,7 @@ fn an_old_episode_receipt_cannot_arm_a_reopened_menu() {
         first: 0,
         visible_rows: 1,
         selected: 0,
+        candidate_visible: !view.candidate_hidden,
         result_actions: view.result_actions.to_vec(),
     };
     menu.cancel();
@@ -563,6 +569,7 @@ fn replay(steps: &[u8]) -> Result<(), &'static str> {
                 if let Some(view) = menu.view() {
                     let draw = MenuDraw {
                         selected: view.selected,
+                        candidate_visible: !view.candidate_hidden,
                         token: view.token,
                         first: view.selected,
                         visible_rows: 1,

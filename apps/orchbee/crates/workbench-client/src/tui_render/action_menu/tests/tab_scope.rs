@@ -1,7 +1,5 @@
 use super::*;
 use crate::action_menu::MenuTarget;
-use crate::terminal_input::{MouseAction, MouseButton, MouseEvent, UnavailableTerminalInputPort};
-use crate::tui_pointer::{PointerOutcome, PointerState};
 use crate::tui_theme::ColorLevel;
 use orchbee_workbench_protocol::{TabGroupColor, WorkbenchTabId};
 use ratatui::style::Modifier;
@@ -14,28 +12,16 @@ fn paint(
     locale: Locale,
     theme: &Theme,
 ) -> (Buffer, FrameHitMap) {
-    paint_with_parent(menu, width, height, locale, theme, false)
-}
-
-fn paint_with_parent(
-    menu: &mut ActionMenu,
-    width: u16,
-    height: u16,
-    locale: Locale,
-    theme: &Theme,
-    has_parent: bool,
-) -> (Buffer, FrameHitMap) {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     let mut hits = HitMapBuilder::new();
     let mut draw = ModalPresentation::NotPresented;
     terminal
         .draw(|frame| {
-            let mut view = menu.view().unwrap();
-            view.has_parent = has_parent;
             draw = render(
                 frame,
                 frame.area(),
-                view,
+                menu.view().unwrap(),
+                &[],
                 ClientView::new(width).bindings(),
                 locale,
                 theme,
@@ -175,7 +161,7 @@ fn applied_color_check_and_paired_palette_chip_survive_a_different_provisional_c
 }
 
 #[test]
-fn typed_single_and_selected_scopes_paint_explicit_rows_and_keep_name_and_child_path() {
+fn typed_single_and_selected_scopes_paint_explicit_rows_and_title_the_tab() {
     for (width, height) in [(80, 24), (120, 40)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for selected in [false, true] {
@@ -192,12 +178,7 @@ fn typed_single_and_selected_scopes_paint_explicit_rows_and_keep_name_and_child_
                     MenuAction::PinTab,
                     MenuAction::CloseSelectedTabs,
                 ];
-                assert!(menu.open_for(
-                    MenuTarget::Tab(id.clone()),
-                    "Build".into(),
-                    actions.clone(),
-                    None
-                ));
+                assert!(menu.open_for(MenuTarget::Tab(id), "Build".into(), actions.clone(), None));
                 menu.set_tab_presentation(scope, None, |action| {
                     Some(
                         if matches!(action, MenuAction::NewTabToRight | MenuAction::RenameTab) {
@@ -240,14 +221,13 @@ fn typed_single_and_selected_scopes_paint_explicit_rows_and_keep_name_and_child_
                     theme.style(Role::AccentDestructive).fg.unwrap(),
                     "Close uses intent tone rather than an error-status role"
                 );
-                let header = tab_title(
-                    &menu.view().unwrap(),
-                    locale,
-                    &theme,
-                    usize::from(pin.width - 2),
-                );
+                // The scope lives in the row labels; the frame's title names only the Tab.
                 let first = row(&hits, buffer.area, menu.view().unwrap().token, 0);
-                assert_text_at(&buffer, first.x + 1, first.y - 1, &header);
+                let border = (first.x..first.right())
+                    .map(|x| buffer[(x, first.y - 1)].symbol())
+                    .collect::<String>();
+                assert!(border.contains("Build"), "{border}");
+                assert!(!border.contains(locale.menu_title()), "{border}");
                 assert_eq!(
                     locale.menu_tab_action(&MenuAction::RenameTab, scope),
                     locale.menu_action(&MenuAction::RenameTab)
@@ -260,204 +240,9 @@ fn typed_single_and_selected_scopes_paint_explicit_rows_and_keep_name_and_child_
                     locale.menu_tab_action(&MenuAction::PinTab, TabMenuScope::Addressed)
                 );
                 let title = tab_title(&menu.view().unwrap(), locale, &theme, 40);
-                assert!(title.contains("Build"));
+                assert_eq!(title, "Build");
                 menu.cancel();
-                assert!(menu.open_for(
-                    MenuTarget::TabGroupChoices(id),
-                    "Build".into(),
-                    vec![MenuAction::CreateGroup],
-                    None
-                ));
-                menu.set_tab_presentation(scope, None, |_| Some(scope));
-                let title = tab_title(&menu.view().unwrap(), locale, &theme, 40);
-                assert!(title.contains("Build"));
-                assert!(title.contains(&locale.menu_tab_path(
-                    menu.view().unwrap().source,
-                    scope,
-                    theme.glyphs.disclosure_closed
-                )));
-                let title = tab_title(&menu.view().unwrap(), locale, &theme, 20);
-                assert!(
-                    display_width(&title) <= 20,
-                    "semantic path obeys the same cell bound"
-                );
             }
-        }
-    }
-}
-
-#[test]
-fn tab_children_paint_only_their_measured_back_action_and_semantic_path_above_rows() {
-    for (width, height) in [(80, 24), (120, 40)] {
-        for locale in [Locale::EnUs, Locale::ZhCn] {
-            for has_parent in [false, true] {
-                let theme = Theme::terminal_native();
-                let mut menu = ActionMenu::default();
-                let source = MenuTarget::TabGroups {
-                    tab_id: WorkbenchTabId::parse(&format!("{:032x}", 35)).unwrap(),
-                    colors: true,
-                };
-                assert!(menu.open_for(
-                    source.clone(),
-                    "Build".into(),
-                    vec![MenuAction::GroupColor(TabGroupColor::Red)],
-                    None,
-                ));
-                let scope = TabMenuScope::Group(NonZeroUsize::new(2).unwrap());
-                menu.set_tab_presentation(scope, Some(TabGroupColor::Red), |_| Some(scope));
-                let (buffer, hits) =
-                    paint_with_parent(&mut menu, width, height, locale, &theme, has_parent);
-                let token = menu.view().unwrap().token;
-                let action = row(&hits, buffer.area, token, 0);
-                let controls: Vec<_> = (0..height)
-                    .flat_map(|y| (0..width).map(move |x| (x, y)))
-                    .filter(|(x, y)| {
-                        matches!(
-                            hits.hit_target_at(*x, *y),
-                            Some(HitTarget::ActionMenuControl { .. })
-                        )
-                    })
-                    .collect();
-                assert_eq!(!controls.is_empty(), has_parent);
-                let label_x = if has_parent {
-                    let &(left, y) = controls.first().unwrap();
-                    let right = controls.iter().map(|(x, _)| *x).max().unwrap() + 1;
-                    for (x, row) in &controls {
-                        assert_eq!(*row, action.y - 1);
-                        assert!(matches!(
-                            hits.hit_target_at(*x, *row),
-                            Some(HitTarget::ActionMenuControl { token: t, back: true })
-                                if *t == token
-                        ));
-                        // The full source identity belongs to the existing generic interaction
-                        // record. Exercise its public release path rather than inspect internals.
-                        let mut pointer = PointerState::default();
-                        pointer.set_capture(true);
-                        pointer.publish(hits.clone());
-                        let mut port = UnavailableTerminalInputPort;
-                        let event = |action| MouseEvent {
-                            action,
-                            button: MouseButton::Left,
-                            mods: Modifiers::NONE,
-                            column: *x,
-                            row: *row,
-                        };
-                        assert_eq!(
-                            pointer.action_menu_event(&mut port, event(MouseAction::Press)),
-                            PointerOutcome::Handled,
-                        );
-                        assert_eq!(
-                            pointer.action_menu_event(&mut port, event(MouseAction::Release)),
-                            PointerOutcome::Interaction {
-                                target: InteractionTarget::ActionMenuControl {
-                                    source: source.clone(),
-                                    token,
-                                    control: MenuControl::Back,
-                                },
-                                contract: PrimaryContract::ActivateOnRelease,
-                            },
-                        );
-                    }
-                    let focus = u16::try_from(display_width(theme.glyphs.active_marker)).unwrap();
-                    assert_text_at(
-                        &buffer,
-                        left + focus,
-                        y,
-                        &format!("[ {}  Esc ]", locale.menu_back_button(),),
-                    );
-                    right + 1
-                } else {
-                    action.x + 1
-                };
-                let path = locale.menu_tab_path(&source, scope, theme.glyphs.disclosure_closed);
-                assert_text_at(
-                    &buffer,
-                    label_x,
-                    action.y - 1,
-                    &format!("Build {} {path}", theme.glyphs.middle_dot),
-                );
-                let text = buffer
-                    .content
-                    .iter()
-                    .map(|cell| cell.symbol())
-                    .collect::<String>();
-                assert!(!text.contains("1/1"), "a child has no generic counter");
-                assert!(!text.contains(locale.menu_title()), "no generic menu title");
-                assert!(menu.confirmed().is_none());
-            }
-        }
-    }
-}
-
-#[test]
-fn tab_header_back_path_reason_and_one_action_must_all_fit_before_paint_or_hits() {
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        for (width, height, reason, fits) in [
-            (24, 8, false, false),
-            (80, 3, false, false),
-            (80, 4, false, true),
-            (80, 4, true, false),
-            (80, 5, true, true),
-        ] {
-            let mut menu = ActionMenu::default();
-            assert!(menu.open_for(
-                MenuTarget::TabGroups {
-                    tab_id: WorkbenchTabId::parse(&format!("{:032x}", 35)).unwrap(),
-                    colors: true,
-                },
-                "Build".into(),
-                vec![MenuAction::GroupColor(TabGroupColor::Red)],
-                None,
-            ));
-            let scope = TabMenuScope::Group(NonZeroUsize::new(2).unwrap());
-            menu.set_tab_presentation(scope, Some(TabGroupColor::Red), |_| Some(scope));
-            menu.refresh_availability(|_| {
-                reason.then_some(crate::action_menu::MenuUnavailable::OperationBusy)
-            });
-            let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-            let mut hits = HitMapBuilder::new();
-            terminal
-                .draw(|frame| {
-                    frame.render_widget(Paragraph::new("underlay"), frame.area());
-                    let before = frame.buffer_mut().clone();
-                    let mut view = menu.view().unwrap();
-                    view.has_parent = true;
-                    let result = render(
-                        frame,
-                        frame.area(),
-                        view,
-                        ClientView::new(width).bindings(),
-                        locale,
-                        &Theme::terminal_native(),
-                        &mut hits,
-                    );
-                    assert_eq!(
-                        matches!(result, ModalPresentation::Presented(_)),
-                        fits,
-                        "{locale:?} {width}x{height} reason={reason}"
-                    );
-                    if !fits {
-                        assert_eq!(
-                            &*frame.buffer_mut(),
-                            &before,
-                            "refusal cannot paint a partial child"
-                        );
-                    }
-                })
-                .unwrap();
-            let map = hits.finish();
-            let has_menu = (0..height).any(|y| {
-                (0..width).any(|x| {
-                    matches!(
-                        map.hit_target_at(x, y),
-                        Some(HitTarget::ActionMenuRow { .. } | HitTarget::ActionMenuControl { .. })
-                    )
-                })
-            });
-            assert_eq!(
-                has_menu, fits,
-                "no hidden Back or row target survives refusal"
-            );
         }
     }
 }

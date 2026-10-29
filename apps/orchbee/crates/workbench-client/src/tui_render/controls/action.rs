@@ -240,7 +240,7 @@ fn resolve_action_layout(
     if area.height == 0
         || spec.state.checked == CheckedState::Checked
         || spec.state.current == CurrentState::Current
-        || spec.state.navigation == NavigationState::Provisional
+        || spec.state.navigation != NavigationState::None
         || (spec.state.operation == OperationState::Pending && spec.pending_label.is_none())
     {
         return None;

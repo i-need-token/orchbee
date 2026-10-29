@@ -267,7 +267,7 @@ pub trait TerminalInputPort {
     fn open_action_menu(
         &mut self,
         _target: crate::action_menu::MenuTarget,
-        _anchor: Option<(u16, u16)>,
+        _anchor: Option<crate::action_menu::MenuAnchor>,
         _pointer_released: bool,
     ) -> bool {
         false

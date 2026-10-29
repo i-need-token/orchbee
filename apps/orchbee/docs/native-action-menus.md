@@ -11,7 +11,7 @@ localized unsupported outcome. Shared Workbench actions retain their own admissi
 
 `Ctrl+B F2` and `[keys].menu` open the global action menu. These keyboard routes remain
 available without a permanent Actions button. Unmodified right-click opens a menu for a drawn
-pane, tab or Workspace row. Opening or cancelling does not change focus. Pane content retains its configured
+pane, Tab, Project or Workspace row; an Agent row has no menu. Opening or cancelling does not change focus. Pane content retains its configured
 `right_click = "panel"` policy; pane chrome remains Client-owned. Shift gestures retain
 the host-terminal bypass. Machines retains `Ctrl+B Shift+M`.
 The sidebar footer opens Settings directly; no permanent Menu or Machines footer remains.
@@ -19,11 +19,13 @@ The Workspace sidebar admits right-click only for an exact, still-present row on
 current machine and painted Session. It uses the existing Workspace menu and never
 requests a machine or context switch on opening or cancellation.
 
-Rename actions name their object in both locales. Context menus show the target name in the frame title; Tab menus use their shared displayed name in the existing scope header. Workspace menus separate only destructive deletion from the other root actions. An available Worktree submenu does not reserve an empty reason row.
+Rename actions name their object in both locales. A context menu's frame title names its target; a Tab menu uses the Tab's shared displayed name. Each row kind has one shared menu. A Project menu holds New Workspace ▸ and Rename Project, then a separated Dissolve Project. A Workspace menu holds Move to Project ▸, Rename Workspace and, while the Workspace has no directory, Set Directory…, then a separated Close Workspace…. A reason row exists only while some row of the menu is unavailable.
 
-Pointer menus use the current painted trigger rectangle when available. Sidebar object menus prefer its right edge; other menus and constrained sidebar menus fit below or above the complete trigger row. Height yields to scrolling before covering that row; insufficient room keeps the existing recovery surface. Keyboard opening stays centered. Placement changes no target or focus.
+A pointer-opened menu follows the press: its frame starts at the pressed column on the row below the complete painted trigger (a sidebar row, Tab or group header, otherwise the pressed cell), else ends on the row above it, and shifts left to stay inside the viewport. Height yields to scrolling before covering the trigger row; fewer than three rows on both sides keeps the existing recovery surface. A keyboard-opened sidebar row menu opens beside its row, top edge level with it, moving up only to fit; other keyboard menus stay centered. While a pointer-opened row menu is open, its row keeps the hover fill; a keyboard-opened one keeps the sidebar focus on its row. Placement changes no target or focus. `docs/tui/layout.md` owns the general geometry.
 
-Object and creation context menus omit header X controls, footer hints and selection counters, and publish no hidden hit targets for those omitted controls. Tab menus retain their target/scope/path header and parent Back action. Esc, outside dismissal and returning from a submenu retain the existing owner and draw guards. Submenus inherit the root chrome policy. The global menu keeps its title and discovery controls.
+Object and creation context menus omit header X controls, footer hints and selection counters, and publish no hidden hit targets for those omitted controls. A context submenu cascades beside its parent as an untitled frame: Right or Enter on a submenu row, or a click on it, opens the child level with that row. The parent stays painted without input; its opening row keeps the selection fill without the marker. Left or Esc in the child, or a click anywhere on the painted parent, returns to the parent with the opening row as its candidate; Esc in the root and an outside click close the whole menu. Hover never opens a submenu. Esc, outside dismissal and returning from a submenu retain the existing owner and draw guards. The global menu's new-Tab submenu still replaces its parent and carries the query, and the global menu keeps its title and discovery controls.
+
+Current Client support: these row compositions, cascading submenus and press-anchored placement exist only in the native TUI. The GUI sidebar and Tab strip menus in `packages/workbench` keep their earlier compositions until they adopt this contract.
 
 The presentation decision consumes the root target, retained parent chain, exact menu token,
 viewport, locale, theme and owner-derived unavailable reasons. It changes no action identity,
@@ -60,10 +62,10 @@ parent-return, scrolling, narrow-layout and draw-authority rules apply unchanged
 matches Desktop's saved-profile semantics; command catalog IDs and CLI `--profile` retain their
 separate existing catalog authority. Profile resolution, immutable-default and menu/render witnesses
 live in `crates/workbench-client/src/workbench_client/ui/launch_profiles/tests.rs` and the adjacent menu suites.
-Sidebar Workspace/Project Delete and Tab Close/Resume intents declare `ActionTone::Destructive`;
+Close Workspace…, Remove Worktree… and Tab Close/Resume intents declare `ActionTone::Destructive`;
 the shared metadata and action/row controls resolve that label through `accent-destructive`.
-The Tab Close confirmation uses the same intent tone. Cancel, metadata edits, Ungroup and color
-choices remain ordinary; a red palette choice is a value, not destructive intent. Pane Close keeps
+The Tab Close confirmation uses the same intent tone. Cancel, metadata edits, Dissolve Project,
+Ungroup and color choices remain ordinary; a red palette choice is a value, not destructive intent. Pane Close keeps
 its existing hierarchy. These labels are not error statuses. Disabled rows use `text-disabled` and
 acquire no pointer state; enabled intent retains the row's independent focus, provisional, hover and held-press cues. The theme
 owner supplies all shipped and reduced-color values and any required native contrast pair.
@@ -109,13 +111,17 @@ it accepts confirmation.
 
 In the searchable global menu and new-Tab submenu, Up/Down select rows while printable characters,
 including Space, edit the query. In other menus, Up/Down or j/k select a row. Home/End select the
-first/last row; Enter executes the selected action. Keyboard selection reveals its row with the smallest viewport movement. Once the
+first/last row; Enter executes the selected action or opens its submenu. A menu opened by the
+pointer, and a submenu opened by a click, starts without a candidate: no row shows the selection
+fill, marker or reason until the first navigation or confirmation key reveals one, without
+executing. Up and End reveal the last row; Down, Home, Right and Enter reveal the first. A menu or
+submenu opened from the keyboard starts on its first row. Keyboard selection reveals its row with the smallest viewport movement. Once the
 host and native adapter receive idle motion under global admission or the scoped menu request,
 unmodified, button-free motion
 moves the provisional menu candidate to an enabled drawn row, using the full-row selection fill
 and navigation marker. It never executes, changes the active Workspace or Tab, or automatically
-opens a submenu. Leaving retains the candidate; subsequent arrows continue from it. Disabled rows
-and separators do not move the candidate. Hover preserves the viewport and action token; Enter
+opens a submenu. Leaving retains the candidate; subsequent arrows continue from it. Disabled rows,
+separators and group headings do not move the candidate. Hover preserves the viewport and action token; Enter
 requires a successful draw of the current candidate. Without received idle reports there is no hover feedback. A left click on a
 drawn row executes it only after a matching release on the same typed source, token, row and painted
 rectangle. Keyboard input, focus loss, capture release or a changed target/rectangle cancels a
@@ -176,19 +182,24 @@ configuration and capture invalidation still cancel browsing. Geometry follows t
 suspension lifecycle above.
 
 Availability projects existing action-owner prerequisites, without a universal
-Ready guard. Workspace directory configuration is disabled for a Workspace that
-already has a directory; for the current Workspace its original empty-state and
-setup-admission guards also apply. Released pointer capture disables Release
+Ready guard. Set Directory… is absent for a Workspace drawn with a directory and
+disabled when a directory is configured while the menu is open; for the current Workspace its
+original empty-state and setup-admission guards also apply. Released pointer capture disables Release
 pointer capture. Unknown asynchronous prerequisites continue through their original
 owners; the menu does not infer Git support, worker reachability or an operation
 outcome from read-only machine observations.
 
-Project menus expose New Workspace, Rename, a fixed Worktree submenu slot, then a separated Delete.
-New Workspace accepts the exact drawn Project, including empty and noncurrent Projects, through the
-[setup owner](native-workspace-setup.md#creation-defaults-and-result-ownership). It uses the same
-immediate path as an ungrouped Workspace without a Project picker. Rename and Delete also target the
-drawn Project without entering a child. Project Delete dissolves only that organization: every member
-Workspace, terminal, program and identity survives ungrouped. It never composes Close All with removal.
+Project menus expose New Workspace ▸ and Rename Project, then a separated Dissolve Project. New
+Workspace ▸ lists New Worktree…; a Folders group with the directories recorded by the Project's
+Workspaces (navigation order, deduplicated case-insensitively, labelled by directory name, or by the
+full path when names repeat); and a Git Worktrees group with the discovered non-bare checkouts
+(labelled by branch without `refs/heads/`, else by path). Group headings use `text-secondary` and
+are never selectable. A folder row creates a Workspace in that directory through the existing
+Project quick path of the [setup owner](native-workspace-setup.md#creation-defaults-and-result-ownership),
+including empty and noncurrent Projects, without a Project picker. Rename
+and Dissolve also target the drawn Project without entering a child. Dissolve Project removes only
+that organization: every member Workspace, terminal, program and identity survives ungrouped, so the
+row is not destructive. It never composes Close All with removal.
 Explicit Close All compatibility keeps its separate owner. Worktree discovery uses the addressed
 derived source in [native-worktrees.md](native-worktrees.md), including for noncurrent Projects;
 it never borrows an unrelated current Workspace. Workbench keeps the immutable capture while ClientView receives only its plain intent.
@@ -199,33 +210,35 @@ intact; execution returns the actual disposition to the same view transition.
 Setup retains the current source and focus, checks the original menu deadline at admission, and uses
 bounded preparation without timing optional human editing.
 
-Workspace menus contain Project, Worktree, Rename and Delete sections. Project opens
-New Project for an ungrouped Workspace or Leave Project for a grouped one, followed by existing
-Projects in canonical order. Choices retain exact IDs, including duplicate labels. Names that collide
+Workspace menus contain Move to Project ▸, Rename Workspace, Set Directory… when it applies, and a
+separated close section. Move to Project ▸ lists the other Projects in canonical order, then a
+separated New Project… and, for a grouped Workspace, Remove from Project. Choices retain exact IDs, including duplicate labels. Names that collide
 after sanitization or display-width truncation receive the sidebar's shortest unique trailing ID
 suffix: at least eight hexadecimal characters, extended by four up to the full ID. The complete suffix
 is budgeted before truncating the name; geometry that cannot show it refuses the surface. New Project asks
 for one name and atomically creates the Project and moves the Workspace. Organization never selects
 a noncurrent Workspace. Empty conditional creation sections publish no orphan separator.
 
-Workspace and Project menus retain the Worktree row and its separator while discovery is pending,
-non-Git, failed or ready. Pending and unavailable rows are disabled with localized reasons. The reason
-row is reserved even after success, keeping the complete edge-clamped frame and existing action
-coordinates stable. Completion changes availability under a fresh menu token and requires repaint;
-it never inserts an action under an armed pointer or changes the selected action's identity.
+Opening a Project or Workspace menu starts Git discovery of the addressed source. New Worktree…
+stays disabled with a localized reason until discovery succeeds; a non-Git or failed source keeps
+it disabled. Success enables it, appends the Git Worktrees group to New Workspace ▸ and, when the
+Workspace directory is a linked non-bare checkout, appends a destructive Remove Worktree… after
+Close Workspace…. New rows only follow existing ones, so no row above them moves; the reason row
+disappears once no row is unavailable, so the frame may shrink. Completion changes availability
+under a fresh menu token and requires repaint; it never changes the candidate or the selected
+action's identity.
 
-Sidebar Delete asks for authoritative conditional admission through the existing Close or setup owner.
+Close Workspace… and Dissolve Project ask for authoritative conditional admission through the existing Close or setup owner.
 Only definite `confirmation-required` for that conditional kind and captured revision opens a new
 complete-draw confirmation; explicit Enter then uses a distinct unconditional request ID. Missing,
 stale, unavailable or unknown evidence never means idle and never escalates automatically.
-[Scoped Close](native-workspace-close.md) owns Workspace terminal disposal; Project Delete's warning
+[Scoped Close](native-workspace-close.md) owns Workspace terminal disposal; Dissolve Project's warning
 instead explains preservation. Acting on a background target preserves the unrelated current session.
 
 The sidebar `+` entries use `MenuTarget::Create` for the global or exact-Project creation context.
 The Project entry puts Quick Workspace first. Existing Worktree paths and their preceding separator
 appear only after source discovery yields openable entries; an empty or unresolved list contributes
-neither. The dedicated Worktree submenu independently contains New Worktree and existing paths.
-Its parent slot remains disabled for non-Git, unresolved or absent addressed sources. Successful asynchronous
+neither. This checkout list is independent of the row menu's New Workspace ▸. Successful asynchronous
 composition mints a fresh menu token and requires a new complete draw; late replies cannot reopen
 cancelled menus or retarget another episode. The [shell layout](tui-shell-layout.md#quick-creation-controls)
 owns the entry geometry and direct Tab-strip create gesture.
@@ -251,18 +264,12 @@ Across these menus, paths, drag hints, Close and Rename tasks, English user copy
 Chinese uses **标签页**; a group remains **group** / **分组**. Localization changes no semantic action
 or target identity.
 
-The Tab heading identifies the addressed name using the strip's zero-based name formatter and,
-when applicable, the selected-set count.
-Each row states its own scope: selection marks elsewhere never imply that every action uses them.
-Group assignment, Group actions and color pages retain a short semantic path with the addressed
-Tab or group name; group pages also identify their complete group count. These facts are useful
-content, separate from generic menu decoration. `crates/workbench-client/src/tui_render/action_menu/tab_header.rs` composes
-this fixed row from the existing action control. A child paints Back with its Esc hint inside the
-button and emits the existing `MenuControl::Back` for the exact source/token. The root has no Back
-target. No generic X, footer or selection counter returns. The complete return button, semantic
-path, optional reason and at least one action must fit before any paint or hit publication; only
-action rows scroll. Back/Left/Esc restore the retained parent selection and require a fresh draw,
-without writing a color or changing terminal focus.
+The Tab menu's frame title names the addressed Tab with the strip's shared display name. Each row
+states its own scope, including the selected-set count where it applies: selection marks elsewhere
+never imply that every action uses them. Its submenus cascade as untitled frames beside their
+parent; no scope header, Back button, generic X, footer or selection counter is painted. Left/Esc
+or a click on the parent restore the retained parent selection and require a fresh draw, without
+writing a color or changing terminal focus.
 
 | Action                                                       | Captured scope                                                                                                                  |
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
@@ -297,7 +304,7 @@ use canonical group color and the existing update owner; this is not a second sh
 The implementation oracles cover exact cross-group selected/unselected scopes, pinned relative
 Close, zero-target filtering, scope/checked proof invalidation, saved-color cancellation and
 committed reopen. Render assertions cover both locales, narrow/wide cell geometry, independent
-checked/candidate/palette tracks, compact child Back/path admission and destructive row/button
+checked/candidate/palette tracks, cascaded child placement and destructive row/button
 adoption. They do not establish executed-test results or physical host appearance.
 
 ## Model and ownership
@@ -319,8 +326,8 @@ The user wants to discover and execute existing actions without memorizing chord
 `MenuTarget::Project` carries a `WorkbenchProjectId`, never a label or row index.
 Admission freezes the complete canonical Project and, only when its ID matches the
 current Workspace's Project, that Workspace/Directory source. Empty Projects and
-Projects outside the current Workspace remain valid menu targets with Quick Workspace available
-when the setup owner admits it, as do Project rename and organization-only Delete.
+Projects outside the current Workspace remain valid menu targets: their folder rows create a
+Workspace when the setup owner admits it, as do Project rename and organization-only Dissolve.
 Worktree actions separately freeze the derived addressed member and its complete source proof.
 The same Project and optional context proof must survive confirmation and handoff;
 an origin change or a replaced record cancels the episode rather than retargeting it.
@@ -340,7 +347,7 @@ opening a menu; a menu may still open the navigator through its ordinary action.
 | Project context at opening                                   | Availability and effect                                                                                                                         |
 | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | Current Workspace belongs to the exact Project               | Existing actions retain their own prerequisites; confirmation offers one action without navigation                                              |
-| An ungrouped Workspace, a different Project, or no Workspace | New Workspace, rename and organization-only Delete target the exact Project; Worktree appears only for its admitted derived first-member source |
+| An ungrouped Workspace, a different Project, or no Workspace | New Workspace ▸, rename and organization-only Dissolve target the exact Project; New Worktree… and Git Worktrees need its admitted derived first-member source |
 | Project or captured Workspace/Directory replaced             | Cancel before confirmation or handoff; never substitute another child                                                                           |
 | Cancel                                                       | Preserve the native origin and caller-owned sidebar focus                                                                                       |
 
@@ -377,7 +384,7 @@ sequences. Output may repaint the underlay without cancelling a menu. A new inca
 target, changed structural source or conflicting capture revokes the episode. Resize immediately
 revokes both presentation proofs; an evaluated size failure then refuses `Pending` or suspends an
 already admitted incarnation.
-The renderer completes geometry, row, any Tab return/path and required-exit-hint admission before
+The renderer completes geometry for every cascade frame, row and required-exit-hint admission before
 mutating the candidate buffer or hit map. `NotPresented` paints nothing and publishes neither menu targets nor a modal
 pointer backdrop.
 
@@ -455,10 +462,11 @@ no-results presentation.
 
 Maintain the concrete witnesses in `crates/workbench-client/src/action_menu/tests.rs`, `crates/workbench-client/src/workbench_client/ui/action_menus/tests.rs`, `crates/workbench-client/src/terminal_input/dispatcher/tests/action_menu.rs`, `crates/workbench-client/src/tui_render/tests.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 
-`crates/workbench-client/src/workbench_client/ui/action_menus/sidebar/tests.rs` covers asynchronous token replacement and
-cancelled episodes. `crates/workbench-client/src/tui_render/action_menu/tests/sidebar.rs` covers stable probe-outcome row
-coordinates at window edges and complete duplicate/truncated Project suffixes in both locales.
+`crates/workbench-client/src/workbench_client/ui/action_menus/sidebar/tests.rs` covers asynchronous token replacement,
+cancelled episodes and keyboard cascade navigation. `crates/workbench-client/src/tui_render/action_menu/tests/placement.rs`
+covers press and row anchoring, cascade sides, the painted parent and the hidden candidate;
+`crates/workbench-client/src/tui_render/action_menu/tests/sidebar.rs` covers complete duplicate/truncated Project suffixes in both locales.
 
 Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.
 
-An anchored sidebar menu retains the full covered row rectangle for placement while suppressing its underlying input targets. It opens beside that row when possible, otherwise above or below it. Worktree discovery reserves its reason row across checking, available and unavailable results so edge-clamped Rename and Delete actions do not move.
+An anchored sidebar menu retains the full covered row rectangle for placement while suppressing its underlying input targets.

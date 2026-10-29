@@ -113,10 +113,22 @@ instead of presenting an incomplete task.
   Centering rounds toward the top-left cell. An application-wide Settings surface instead centers
   within the full host viewport, independent of navigation chrome; the floating status reserves no
   row of it.
-- A pointer-opened context menu instead anchors to the triggering cell in the full viewport,
-  including navigation chrome and the last row. Clamp its complete frame to that viewport; never
-  move a sidebar trigger into the pane area merely because general overlays use that area.
-  Keyboard opening retains the owning surface's deterministic placement.
+- A pointer-opened context menu instead anchors to the pressed cell in the full viewport,
+  including navigation chrome and the last row. Its frame starts at the pressed column on the row
+  below the trigger: the complete sidebar row, Tab or group header that owns the cell, otherwise
+  the pressed cell. When the frame does not fit below, it ends on the row above the trigger; when
+  it fits on neither side, it takes the larger side and scrolls its rows, and fewer than three
+  rows on both sides refuse it. It shifts left to stay inside the viewport and never covers the
+  trigger row. Never move a sidebar trigger into the pane area merely because general overlays use
+  that area.
+- A keyboard-opened sidebar row menu opens beside its row: the frame starts at the first column
+  after the row, its top edge level with the row, and moves up only when it does not fit below.
+  Other keyboard-opened menus retain the owning surface's deterministic placement.
+- A cascaded submenu opens beside its parent menu with its first row level with the row that
+  opened it, moving up only when it does not fit. It opens to the right of the parent, else to its
+  left, else against the viewport's right edge over the parent's end. The parent stays painted,
+  with its window following the row that opened the submenu; a submenu taller than the viewport
+  scrolls its rows.
 - Overlay width is `min(preferred, area.width − 4)` and height is `min(preferred, area.height − 2)`.
   Preferred sizes are cells or percentages resolved through the rules above.
 - A newly requested overlay whose resolved inner area is smaller than 4 columns by 3 rows is not
@@ -124,7 +136,8 @@ instead of presenting an incomplete task.
   effect. An already-open overlay follows the suspension contract in
   [`overlays-and-status.md`](overlays-and-status.md#lifecycle-and-return).
   A compact context menu instead needs one complete action row, its frame and any reserved reason;
-  it allocates no title or footer rows and never publishes controls that did not fit.
+  it allocates no title or footer rows and never publishes controls that did not fit. A cascade is
+  presented only when every one of its frames fits.
 - The overlay clears the cells beneath it before drawing so pane content never shows through.
 - Capturing overlays retain a visible, current mode indicator and exit hint; compact context menus
   use their visible menu frame and ordinary Esc/Left/outside policy without extra hints. A status overlay

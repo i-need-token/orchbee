@@ -46,7 +46,7 @@ Resume、删除、信任覆盖和回滚都不会隐式执行。成功进入完�
 ## 安全移除
 
 只读列表证明 Workspace 的确切主目录是同一 Worker 上已关联的 linked、非 bare 检出时，
-其 Worktree 子菜单会在检出选项之后提供**移除 Worktree…**。
+其行菜单会在“关闭工作区…”之后追加**移除工作树…**。
 Project 与创建菜单不会推断移除目标。该破坏性动作没有默认快捷键，也绝不回退到当前 Client 的 cwd。
 确认界面显示 Workspace 名称、完整检出路径、受影响终端数量以及保留的分支。
 它复用既有 Worktree 弹层、动作控件、绘制凭证与捕获所有者。
@@ -167,4 +167,4 @@ Server 重启遵循[现有保留限制](windows-worktrees.zh-CN.md#保留续执�
 
 Windows 原生工作树表单使用反斜杠显示检出路径。这仅是显示投影；选择和操作保留精确的规范路径。
 
-<!-- documentation-pairing: english-sha256=886e3f5cabb58ea245ff1f91a1173fc7d97f6814a930ad1e7e12440472f5d9d6 zh-cn-sha256=5b5dabbf2c7005ed09d41fe64572dbe23bf7db8a59c51897913fa152293ea8db -->
+<!-- documentation-pairing: english-sha256=b441b51db4b2675902ab132bdfc79c83582e381fdeb5dd0836bbe26a00e1c70a zh-cn-sha256=dc3209cf05549408d2b2842f34957d75f12b1048a086a83d100ba54ddb668e6b -->

@@ -373,20 +373,23 @@ with its new peer. Other Clients keep their selection. Escape hides observation 
 and retains the operation ID.
 
 Windows `Ctrl+B F2` opens [action menus](docs/native-action-menus.md).
-Right-click a pane, tab, Workspace or Project row for its existing actions. Opening and cancelling
-preserve focus; addressed organization and Delete actions also preserve the current terminal.
-Pointer-opened menus stay near the clicked cell and clamp to the whole viewport. Hover selects
-a visible row without executing it; click or Enter executes, and Esc or an outside click cancels.
-Context menus use a plain rectangular border with action rows and an optional disabled reason,
-without a title, X, footer hints or selection counter. Submenus inherit their root's chrome policy;
-the global action menu retains its discovery controls.
+Right-click a pane, Tab, Workspace or Project row for its existing actions; Agent rows have no
+menu. Opening and cancelling preserve focus; addressed organization and Close actions also preserve
+the current terminal. A pointer-opened menu starts at the pressed column below its trigger row,
+else above it, and shifts left to stay inside the viewport; a keyboard-opened row menu opens beside
+its row. Hover moves the candidate without executing it; click or Enter executes, and Esc or an
+outside click cancels. Context menus use a rectangular border titled with their target, action rows
+and an optional disabled reason, without X, footer hints or selection counter. Submenus cascade
+beside their parent; Left, Esc or a click on the parent returns to it. The global action menu
+retains its discovery controls.
 Project Rename opens the editor for that exact Project, including empty and noncurrent Projects,
 without entering a child Workspace. The current terminal stays selected through rename or cancel.
-The Workspace Project submenu offers New Project or Leave Project, followed by existing Projects.
-Its Worktree submenu uses the first terminal's root cwd; a Project derives that source from its
-first canonical member rather than owning a directory. Unresolved and non-Git sources omit the
-submenu. The red Delete action uses its own destructive accent: Workspace Delete closes that
-Workspace; Project Delete dissolves only organization and preserves all Workspaces and programs.
+A Project's New Workspace submenu offers New Worktree…, its Workspaces' folders and its Git
+Worktrees; a Workspace's Move to Project submenu lists the other Projects, New Project… and, when
+grouped, Remove from Project. Git discovery uses the first terminal's root cwd; a Project derives
+that source from its first canonical member rather than owning a directory. New Worktree… stays
+disabled until that discovery succeeds. The red Close Workspace… action closes that Workspace;
+Dissolve Project removes only organization and preserves all Workspaces and programs.
 Only authoritative never-created/empty runtime proof skips confirmation. Runtime-backed scope needs
 review; pending or unavailable authority retains its precise refusal. Close All Workspaces remains a
 separate compatible action.

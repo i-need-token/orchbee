@@ -879,7 +879,7 @@ impl TerminalInputPort for WorkbenchClient {
     fn open_action_menu(
         &mut self,
         target: crate::action_menu::MenuTarget,
-        anchor: Option<(u16, u16)>,
+        anchor: Option<crate::action_menu::MenuAnchor>,
         pointer_released: bool,
     ) -> bool {
         self.backend

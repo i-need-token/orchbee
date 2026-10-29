@@ -407,7 +407,6 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
         action,
         A::DeleteWorkspace
             | A::RemoveWorktree
-            | A::DeleteProject
             | A::CloseSelectedTabs
             | A::CloseOtherTabs
             | A::CloseTrailingTabs
@@ -469,7 +468,7 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
         A::CloseSelectedTabs | A::CloseOtherTabs | A::CloseTrailingTabs | A::CloseGroup => {
             built_in("tabs.tab.close", C::Tab, CLOSE_TAB)
         }
-        A::QuickWorkspace => built_in(
+        A::QuickWorkspace | A::WorkspaceInFolder(_) => built_in(
             "orchbee.native.workspace.quick-create",
             C::Workspace,
             WORKSPACE,
@@ -501,9 +500,11 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
             C::Workspace,
             PROJECT,
         ),
-        A::WorkspaceWorktrees => {
-            built_in("orchbee.native.worktree-menu.open", C::Workspace, WORKTREE)
-        }
+        A::WorkspaceCreation => built_in(
+            "orchbee.native.workspace.creation-menu.open",
+            C::Workspace,
+            WORKSPACE,
+        ),
         A::DeleteProject => built_in("workbench.project.dissolve", C::Project, PROJECT),
         A::CloseProjectWorkspaces => built_in("workbench.project.close-all", C::Project, PROJECT),
         A::CloseWorkspace | A::DeleteWorkspace => built_in(

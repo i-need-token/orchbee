@@ -1,7 +1,7 @@
 //! Retained action-menu projection; only a complete successful frame arms input.
 
 use crate::{
-    action_menu::{MenuAction, MenuControl, MenuDraw, MenuView, TabMenuScope},
+    action_menu::{MenuAction, MenuAnchor, MenuControl, MenuDraw, MenuView, TabMenuScope},
     action_projection::menu_binding_action,
     client_view::{
         Binding, Bindings, KeyCode, KeyLabelGlyphs, LabelStyle, Modifiers,
@@ -34,12 +34,54 @@ use super::controls::{
 /// Keeps the right-aligned effective chord visually independent from the action label.
 const ROW_BINDING_GAP: u16 = 2;
 
-mod tab_header;
+/// The key labels a frame's footer and widths are measured with.
+struct Keys {
+    glyphs: KeyLabelGlyphs,
+    style: LabelStyle,
+    exit: String,
+    enter: String,
+}
 
+/// One menu frame's rows, candidate and natural size, before it is placed.
+struct Measured<'v> {
+    menu: MenuView<'v>,
+    binding_labels: Vec<Option<String>>,
+    result_actions: Vec<usize>,
+    selected: usize,
+    width: u16,
+    height: u16,
+    footer_rows: usize,
+    search_rows: usize,
+    reason_rows: usize,
+    exit_label: &'static str,
+}
+
+/// A placed frame's interior and the result window it shows.
+struct Placed {
+    area: Rect,
+    inner: Rect,
+    rows: usize,
+    first: usize,
+    visible_rows: usize,
+    rows_y: u16,
+    project_suffixes: Vec<String>,
+}
+
+/// How a frame's rows take input: the open menu, or a cascade parent kept painted beside it.
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum Level {
+    Active,
+    Parent,
+}
+
+/// Paints the open menu, and for a cascade every parent beside it. Every frame must fit;
+/// a cascade that cannot place one of its frames is not presented at all.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn render(
     frame: &mut Frame<'_>,
     content: Rect,
     menu: MenuView<'_>,
+    parents: &[MenuView<'_>],
     bindings: &Bindings,
     locale: Locale,
     theme: &Theme,
@@ -48,24 +90,129 @@ pub(super) fn render(
     if content.width < 16 || content.height < if menu.context_menu { 3 } else { 5 } {
         return ModalPresentation::NotPresented;
     }
+    let glyphs = key_label_glyphs(theme);
+    let style = LabelStyle::for_host();
+    let keys = Keys {
+        glyphs,
+        style,
+        exit: format_binding_with_glyphs(
+            &Binding::new(KeyCode::Esc, Modifiers::NONE),
+            style,
+            glyphs,
+        ),
+        enter: format_binding_with_glyphs(
+            &Binding::new(KeyCode::Enter, Modifiers::NONE),
+            style,
+            glyphs,
+        ),
+    };
+    let mut levels = Vec::with_capacity(parents.len() + 1);
+    for view in parents.iter().copied().chain(std::iter::once(menu)) {
+        let Some(measured) = measure(view, content, bindings, locale, theme, &keys) else {
+            return ModalPresentation::NotPresented;
+        };
+        levels.push(measured);
+    }
+    let mut placed: Vec<Placed> = Vec::with_capacity(levels.len());
+    for (index, measured) in levels.iter().enumerate() {
+        let area = match placed.last() {
+            None => place_root(measured, content, hits),
+            Some(parent) => {
+                let open = &levels[index - 1];
+                row_y(open, parent, open.selected)
+                    .and_then(|row| place_child(parent.area, row, measured, content))
+            }
+        };
+        let Some(layout) = area.and_then(|area| layout(measured, area, theme)) else {
+            return ModalPresentation::NotPresented;
+        };
+        placed.push(layout);
+    }
+    let (Some(active), Some(active_layout)) = (levels.last(), placed.last()) else {
+        return ModalPresentation::NotPresented;
+    };
+    let Some(chrome) = Chrome::admit(frame.area(), active, active_layout, locale, theme, &keys)
+    else {
+        return ModalPresentation::NotPresented;
+    };
 
-    let footer_rows = usize::from(!menu.context_menu);
-    let header_rows = usize::from(menu.context_menu && menu.tabs.is_some());
+    // Admission is complete. Only a menu that will paint may replace lower overlay hits and claim
+    // the unresolved pointer backdrop for this frame.
+    hits.start_action_menu();
+    for (index, (measured, layout)) in levels.iter().zip(&placed).enumerate() {
+        let level = if index + 1 == levels.len() {
+            Level::Active
+        } else {
+            Level::Parent
+        };
+        paint_frame(frame, measured, layout, level, locale, theme, hits);
+    }
+    chrome.paint(frame, active, active_layout, locale, theme, hits);
 
-    let key_glyphs = key_label_glyphs(theme);
-    let key_style = LabelStyle::for_host();
-    let exit_key = format_binding_with_glyphs(
-        &Binding::new(KeyCode::Esc, Modifiers::NONE),
-        key_style,
-        key_glyphs,
+    let rows_height = u16::try_from(active_layout.rows).unwrap_or(u16::MAX);
+    let inner = active_layout.inner;
+    hits.record(
+        HitLayer::OverlaySurface,
+        Rect::new(
+            inner.x - 1,
+            active_layout.rows_y,
+            inner.width + 2,
+            rows_height,
+        ),
+        HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Menu(
+            active.menu.token,
+        )),
     );
+    hits.record(
+        HitLayer::OverlaySurface,
+        active_layout.area,
+        HitTarget::OverlaySurface,
+    );
+    // A click on the parent of a cascade returns to it; the submenu's frame keeps its own cells.
+    if let Some(parent) = placed.len().checked_sub(2).map(|index| &placed[index]) {
+        let target = InteractionTarget::ActionMenuControl {
+            source: active.menu.source.clone(),
+            token: active.menu.token,
+            control: MenuControl::Back,
+        };
+        let spec = interaction_spec(true);
+        for rect in subtract(parent.area, active_layout.area) {
+            hits.record_interaction(HitLayer::Overlay, rect, rect, target.clone(), spec);
+        }
+    }
+    for layout in &placed[..placed.len() - 1] {
+        hits.record(
+            HitLayer::OverlaySurface,
+            layout.area,
+            HitTarget::OverlaySurface,
+        );
+    }
+    ModalPresentation::Presented(MenuDraw {
+        token: active.menu.token,
+        first: active_layout.first,
+        visible_rows: active_layout.visible_rows,
+        selected: active.selected,
+        candidate_visible: !active.menu.candidate_hidden,
+        result_actions: active.result_actions.clone(),
+    })
+}
+
+fn measure<'v>(
+    menu: MenuView<'v>,
+    content: Rect,
+    bindings: &Bindings,
+    locale: Locale,
+    theme: &Theme,
+    keys: &Keys,
+) -> Option<Measured<'v>> {
+    let footer_rows = usize::from(!menu.context_menu);
     let binding_labels = menu
         .actions
         .iter()
-        .map(|action| effective_binding(bindings, &menu, action, key_glyphs))
+        .map(|action| effective_binding(bindings, &menu, action, keys.glyphs))
         .collect::<Vec<_>>();
     let result_actions =
-        search_result_actions(&menu, bindings, locale, key_glyphs, &binding_labels);
+        search_result_actions(&menu, bindings, locale, keys.glyphs, &binding_labels);
     let selected = menu
         .pending_selected_action
         .and_then(|action| {
@@ -82,7 +229,7 @@ pub(super) fn render(
         });
     let marker_width = display_width(theme.glyphs.navigation_marker);
     if marker_width == 0 {
-        return ModalPresentation::NotPresented;
+        return None;
     }
     let full_project_suffixes = project_suffixes(&menu, usize::MAX, theme.glyphs.ellipsis);
     let desired = menu
@@ -110,14 +257,15 @@ pub(super) fn render(
         })
         .max()
         .unwrap_or(16);
-    let desired = menu.tabs.map_or(desired, |tabs| {
-        let path = locale.menu_tab_path(menu.source, tabs.scope, theme.glyphs.disclosure_closed);
-        desired.max(
-            (display_width(&path) + display_width(menu.title).min(16) + 9).saturating_add(
-                tab_header::back_width(content, &menu, locale, &exit_key, theme),
-            ),
-        )
-    });
+    // A group heading starts in the label column of the rows it introduces.
+    let desired = (0..result_actions.len())
+        .filter_map(|position| menu.result_heading_before(&result_actions, position))
+        .map(|heading| {
+            marker_width
+                .saturating_add(display_width(locale.menu_heading(heading)))
+                .saturating_add(2)
+        })
+        .fold(desired, usize::max);
     let desired = if result_actions.is_empty() {
         // Preserve the full message inside the one-cell frame and horizontal padding on both sides.
         desired.max(display_width(locale.menu_search_no_results()).saturating_add(4))
@@ -131,11 +279,6 @@ pub(super) fn render(
     } else {
         locale.menu_close_button()
     };
-    let enter_key = format_binding_with_glyphs(
-        &Binding::new(KeyCode::Enter, Modifiers::NONE),
-        key_style,
-        key_glyphs,
-    );
     // A footer-owning menu widens until its exit button, exit and run hints, and the widest
     // position counter share one row inside the frame and its padding.
     let desired = if menu.context_menu {
@@ -144,8 +287,8 @@ pub(super) fn render(
         let count = result_actions.len().max(1);
         measure_overlay_hints(
             &[
-                KeyHint::new(exit_key.as_str(), exit_label),
-                KeyHint::new(enter_key.as_str(), locale.menu_run_hint()),
+                KeyHint::new(keys.exit.as_str(), exit_label),
+                KeyHint::new(keys.enter.as_str(), locale.menu_run_hint()),
             ],
             theme,
         )
@@ -164,14 +307,11 @@ pub(super) fn render(
     let width = u16::try_from(desired.max(26))
         .unwrap_or(u16::MAX)
         .min(content.width);
-    // Discovery may change availability, never the frame's edge-clamped position or row slots.
-    let selected_action = result_actions.get(selected).copied();
+    // The reason row exists only while one of the rows is unavailable.
     let reason_rows = usize::from(
-        menu.actions
-            .contains(&crate::action_menu::MenuAction::WorkspaceWorktrees)
-            || result_actions
-                .iter()
-                .any(|index| menu.unavailable[*index].is_some()),
+        result_actions
+            .iter()
+            .any(|index| menu.unavailable[*index].is_some()),
     );
     let search_rows = usize::from(menu.query.is_some());
     let result_row_count = if result_actions.is_empty() {
@@ -179,64 +319,203 @@ pub(super) fn render(
     } else {
         menu.result_row_height(&result_actions, 0, result_actions.len())
     };
-    let height =
-        u16::try_from(result_row_count + search_rows + 2 + footer_rows + reason_rows + header_rows)
-            .unwrap_or(u16::MAX)
-            .min(content.height);
-    let area = if let Some((x, y)) = menu.anchor {
-        let avoid = hits
-            .context_menu_anchor_rect(x, y)
-            .unwrap_or(Rect::new(x, y, 1, 1))
-            .intersection(content);
-        let sidebar = matches!(
-            menu.source,
-            crate::action_menu::MenuTarget::Workspace(_)
-                | crate::action_menu::MenuTarget::Project(_)
-        );
-        if sidebar && avoid.right().saturating_add(width) <= content.right() {
-            Rect::new(
-                avoid.right(),
-                avoid.y.clamp(content.y, content.bottom() - height),
-                width,
-                height,
-            )
-        } else {
-            let below = content.bottom().saturating_sub(avoid.bottom());
-            let above = avoid.y.saturating_sub(content.y);
-            let use_below = below >= height || below >= above;
-            let available = if use_below { below } else { above };
-            let height = height.min(available);
-            if height < 3 {
-                return ModalPresentation::NotPresented;
-            }
-            Rect::new(
-                x.clamp(content.x, content.right() - width),
-                if use_below {
-                    avoid.bottom()
-                } else {
-                    avoid.y - height
-                },
-                width,
-                height,
-            )
-        }
-    } else {
-        Rect::new(
+    let height = u16::try_from(result_row_count + search_rows + 2 + footer_rows + reason_rows)
+        .unwrap_or(u16::MAX);
+    Some(Measured {
+        menu,
+        binding_labels,
+        result_actions,
+        selected,
+        width,
+        height,
+        footer_rows,
+        search_rows,
+        reason_rows,
+        exit_label,
+    })
+}
+
+/// The complete trigger that owns an anchor cell in the frame being drawn, else the cell itself.
+fn trigger(hits: &HitMapBuilder, content: Rect, column: u16, row: u16) -> Rect {
+    hits.context_menu_anchor_rect(column, row)
+        .unwrap_or(Rect::new(column, row, 1, 1))
+        .intersection(content)
+}
+
+fn place_root(measured: &Measured<'_>, content: Rect, hits: &HitMapBuilder) -> Option<Rect> {
+    let width = measured.width.min(content.width);
+    let height = measured.height.min(content.height);
+    match measured.menu.anchor {
+        None => Some(Rect::new(
             content.x + (content.width - width) / 2,
             content.y + (content.height - height) / 2,
             width,
             height,
-        )
+        )),
+        // Beside a keyboard-focused row: level with it, moving up only to fit.
+        Some(MenuAnchor::Row { column, row }) => {
+            let trigger = trigger(hits, content, column, row);
+            Some(Rect::new(
+                trigger.right().min(content.right() - width),
+                trigger.y.min(content.bottom() - height).max(content.y),
+                width,
+                height,
+            ))
+        }
+        // At the pressed column on the row below the trigger, else ending on the row above it;
+        // neither side fitting shortens the frame on the larger side, never covering the trigger.
+        Some(MenuAnchor::Pointer { column, row }) => {
+            let trigger = trigger(hits, content, column, row);
+            let below = content.bottom().saturating_sub(trigger.bottom());
+            let above = trigger.y.saturating_sub(content.y);
+            let use_below = below >= height || (above < height && below >= above);
+            let height = height.min(if use_below { below } else { above });
+            if height < 3 {
+                return None;
+            }
+            Some(Rect::new(
+                column.clamp(content.x, content.right() - width),
+                if use_below {
+                    trigger.bottom()
+                } else {
+                    trigger.y - height
+                },
+                width,
+                height,
+            ))
+        }
+    }
+}
+
+/// A submenu opens beside its parent, first row level with the row that opened it; it moves up
+/// only to fit, and opens to the left, else over the parent's end, when the right has no room.
+/// Like any frame, a submenu taller than the viewport scrolls its rows.
+fn place_child(
+    parent: Rect,
+    open_row: u16,
+    measured: &Measured<'_>,
+    content: Rect,
+) -> Option<Rect> {
+    let (width, height) = (measured.width, measured.height.min(content.height));
+    if width > content.width {
+        return None;
+    }
+    let x = if parent.right().saturating_add(width) <= content.right() {
+        parent.right()
+    } else if parent.x >= content.x.saturating_add(width) {
+        parent.x - width
+    } else {
+        content.right() - width
     };
+    let y = open_row
+        .saturating_sub(1)
+        .clamp(content.y, content.bottom() - height);
+    Some(Rect::new(x, y, width, height))
+}
+
+fn layout(measured: &Measured<'_>, area: Rect, theme: &Theme) -> Option<Placed> {
+    let menu = &measured.menu;
+    let inner = super::overlay_surface(theme, Padding::horizontal(1)).inner(area);
+    let marker_width = display_width(theme.glyphs.navigation_marker);
+    let project_budget = usize::from(inner.width)
+        .saturating_add(2)
+        .saturating_sub(marker_width);
+    let project_suffixes = project_suffixes(menu, project_budget, theme.glyphs.ellipsis);
+    if project_suffixes
+        .iter()
+        .any(|suffix| display_width(suffix) > project_budget)
+    {
+        return None;
+    }
+    let rows = usize::from(inner.height)
+        .saturating_sub(measured.footer_rows + measured.reason_rows + measured.search_rows);
+    if rows == 0 {
+        return None;
+    }
+    let first = menu.first_visible_result_row(rows, &measured.result_actions, measured.selected);
+    let visible_rows = visible_action_rows(menu, &measured.result_actions, first, rows);
+    if visible_rows == 0 && !measured.result_actions.is_empty() {
+        return None;
+    }
+    Some(Placed {
+        area,
+        inner,
+        rows,
+        first,
+        visible_rows,
+        rows_y: inner.y + u16::try_from(measured.search_rows).unwrap_or(0),
+        project_suffixes,
+    })
+}
+
+/// The terminal row of one visible result, following the same walk as painting.
+fn row_y(measured: &Measured<'_>, layout: &Placed, position: usize) -> Option<u16> {
+    let mut used = 0;
+    for current in layout.first..layout.first + layout.visible_rows {
+        if current > layout.first
+            && measured
+                .menu
+                .result_separator_before(&measured.result_actions, current)
+        {
+            used += 1;
+        }
+        if measured
+            .menu
+            .result_heading_before(&measured.result_actions, current)
+            .is_some()
+        {
+            used += 1;
+        }
+        if current == position {
+            return Some(layout.rows_y + u16::try_from(used).ok()?);
+        }
+        used += 1;
+    }
+    None
+}
+
+/// The parts of `outer` outside `inner`, as at most four bands.
+fn subtract(outer: Rect, inner: Rect) -> Vec<Rect> {
+    let overlap = outer.intersection(inner);
+    if overlap.is_empty() {
+        return vec![outer];
+    }
+    [
+        Rect::new(outer.x, outer.y, outer.width, overlap.y - outer.y),
+        Rect::new(
+            outer.x,
+            overlap.bottom(),
+            outer.width,
+            outer.bottom() - overlap.bottom(),
+        ),
+        Rect::new(outer.x, overlap.y, overlap.x - outer.x, overlap.height),
+        Rect::new(
+            overlap.right(),
+            overlap.y,
+            outer.right() - overlap.right(),
+            overlap.height,
+        ),
+    ]
+    .into_iter()
+    .filter(|rect| !rect.is_empty())
+    .collect()
+}
+
+fn title(measured: &Measured<'_>, area: Rect, locale: Locale, theme: &Theme) -> Option<String> {
+    let menu = &measured.menu;
+    // A cascaded submenu continues its parent's subject, so it carries no heading of its own.
+    if menu.context_menu && menu.has_parent {
+        return None;
+    }
     let legacy = matches!(
         menu.source,
         crate::action_menu::MenuTarget::Workspace(
             crate::workbench_client::ClientContextLocation::NoWorkspace
         )
     );
-    let title = if menu.tabs.is_some() {
+    Some(if menu.tabs.is_some() {
         tab_title(
-            &menu,
+            menu,
             locale,
             theme,
             usize::from(area.width.saturating_sub(6)),
@@ -259,129 +538,187 @@ pub(super) fn render(
             theme.glyphs.middle_dot,
             sanitize_terminal_text(menu.title)
         )
-    };
-    let block = super::overlay_surface(theme, Padding::horizontal(1));
-    let block = if menu.context_menu && menu.tabs.is_some() {
-        block
-    } else {
-        // A compact context menu has no close control to reserve beside its heading.
-        block.title(if menu.context_menu {
-            super::overlay_heading(&title, usize::from(area.width).saturating_sub(6), theme)
-        } else {
-            super::overlay_title(&title, area.width, theme)
-        })
-    };
-    let inner = block.inner(area);
-    let project_budget = usize::from(inner.width)
-        .saturating_add(2)
-        .saturating_sub(marker_width);
-    let project_suffixes = project_suffixes(&menu, project_budget, theme.glyphs.ellipsis);
-    if project_suffixes
-        .iter()
-        .any(|suffix| display_width(suffix) > project_budget)
-    {
-        return ModalPresentation::NotPresented;
-    }
-    let rows = usize::from(inner.height)
-        .saturating_sub(footer_rows + reason_rows + header_rows + search_rows);
-    if rows == 0 {
-        return ModalPresentation::NotPresented;
-    }
-    let first = menu.first_visible_result_row(rows, &result_actions, selected);
-    let visible_rows = visible_action_rows(&menu, &result_actions, first, rows);
-    if visible_rows == 0 && !result_actions.is_empty() {
-        return ModalPresentation::NotPresented;
-    }
-    let tab_header = if header_rows == 0 {
-        None
-    } else {
-        let Some(header) =
-            tab_header::TabHeader::layout(frame.area(), inner, &menu, locale, &exit_key, theme)
-        else {
-            return ModalPresentation::NotPresented;
-        };
-        Some(header)
-    };
-    let rows_y = inner.y + u16::try_from(header_rows + search_rows).unwrap_or(0);
-    let selected_visible = (first..first.saturating_add(visible_rows)).contains(&selected);
+    })
+}
 
-    let position = if result_actions.is_empty() {
-        "0/0".to_owned()
-    } else {
-        format!("{}/{}", selected + 1, result_actions.len())
-    };
-    let position_width = u16::try_from(display_width(&position)).unwrap_or(u16::MAX);
-    let Some(hints_width) = inner.width.checked_sub(position_width.saturating_add(1)) else {
-        return ModalPresentation::NotPresented;
-    };
-    let footer_area = Rect::new(inner.x, inner.bottom() - 1, hints_width, 1);
-    let navigation_key = join_key_labels(
-        &[
-            format_binding_with_glyphs(
-                &Binding::new(KeyCode::Up, Modifiers::NONE),
-                key_style,
-                key_glyphs,
-            ),
-            format_binding_with_glyphs(
-                &Binding::new(KeyCode::Down, Modifiers::NONE),
-                key_style,
-                key_glyphs,
-            ),
-        ],
-        key_style,
-        "/",
-    );
-    let mut hints = vec![KeyHint::new(exit_key.as_str(), exit_label)];
-    if !menu.transferring
-        && selected_visible
-        && selected_action.is_some_and(|index| menu.unavailable[index].is_none())
-    {
-        hints.push(KeyHint::new(enter_key.as_str(), locale.menu_run_hint()));
-    }
-    if !menu.transferring {
-        hints.push(KeyHint::new(
-            navigation_key.as_str(),
-            locale.menu_select_hint(),
-        ));
-    }
-    if !menu.context_menu && measure_overlay_hints(&hints, theme).is_none() {
-        return ModalPresentation::NotPresented;
-    }
-    let required_hint_width = if menu.context_menu {
-        0
-    } else {
-        let Some(width) = measure_overlay_hints(&hints[..1], theme) else {
-            return ModalPresentation::NotPresented;
+/// The global menu's own controls: its close button, footer action, hints and position.
+struct Chrome {
+    close: Option<Rect>,
+    footer: Option<(Rect, Rect, Rect)>,
+    hints: Vec<(String, &'static str)>,
+    position: String,
+}
+
+impl Chrome {
+    fn admit(
+        bounds: Rect,
+        measured: &Measured<'_>,
+        layout: &Placed,
+        locale: Locale,
+        theme: &Theme,
+        keys: &Keys,
+    ) -> Option<Self> {
+        let menu = &measured.menu;
+        let position = if measured.result_actions.is_empty() {
+            "0/0".to_owned()
+        } else {
+            format!(
+                "{}/{}",
+                measured.selected + 1,
+                measured.result_actions.len()
+            )
         };
-        width
-    };
-    if !menu.context_menu && required_hint_width > usize::from(footer_area.width) {
-        return ModalPresentation::NotPresented;
-    }
-    let close_rect = if menu.context_menu {
-        None
-    } else {
-        match super::controls::frame_close_rect(frame.area(), area) {
-            Some(rect) => Some(rect),
-            None => return ModalPresentation::NotPresented,
+        if menu.context_menu {
+            return Some(Self {
+                close: None,
+                footer: None,
+                hints: Vec::new(),
+                position,
+            });
         }
-    };
-    let footer_action = if menu.context_menu {
-        None
-    } else {
-        footer_action_layout(
-            frame.area(),
+        let inner = layout.inner;
+        let position_width = u16::try_from(display_width(&position)).unwrap_or(u16::MAX);
+        let hints_width = inner.width.checked_sub(position_width.saturating_add(1))?;
+        let footer_area = Rect::new(inner.x, inner.bottom() - 1, hints_width, 1);
+        let navigation_key = join_key_labels(
+            &[
+                format_binding_with_glyphs(
+                    &Binding::new(KeyCode::Up, Modifiers::NONE),
+                    keys.style,
+                    keys.glyphs,
+                ),
+                format_binding_with_glyphs(
+                    &Binding::new(KeyCode::Down, Modifiers::NONE),
+                    keys.style,
+                    keys.glyphs,
+                ),
+            ],
+            keys.style,
+            "/",
+        );
+        let selected_visible = !menu.candidate_hidden
+            && (layout.first..layout.first.saturating_add(layout.visible_rows))
+                .contains(&measured.selected);
+        let selected_action = measured.result_actions.get(measured.selected).copied();
+        let mut hints = vec![(keys.exit.clone(), measured.exit_label)];
+        if !menu.transferring
+            && selected_visible
+            && selected_action.is_some_and(|index| menu.unavailable[index].is_none())
+        {
+            hints.push((keys.enter.clone(), locale.menu_run_hint()));
+        }
+        if !menu.transferring {
+            hints.push((navigation_key, locale.menu_select_hint()));
+        }
+        let key_hints = hints
+            .iter()
+            .map(|(key, label)| KeyHint::new(key.as_str(), label))
+            .collect::<Vec<_>>();
+        measure_overlay_hints(&key_hints, theme)?;
+        let required_hint_width = measure_overlay_hints(&key_hints[..1], theme)?;
+        if required_hint_width > usize::from(footer_area.width) {
+            return None;
+        }
+        let close = super::controls::frame_close_rect(bounds, layout.area)?;
+        let footer = footer_action_layout(
+            bounds,
             footer_area,
-            exit_label,
+            measured.exit_label,
             required_hint_width,
             theme,
         )
-    };
-    let hint_area = footer_action.map_or(footer_area, |(_, hint_area)| hint_area);
+        .map(|(action, hints)| (action, footer_area, hints));
+        Some(Self {
+            close: Some(close),
+            footer,
+            hints,
+            position,
+        })
+    }
 
-    // Admission is complete. Only a menu that will paint may replace lower overlay hits and claim
-    // the unresolved pointer backdrop for this frame.
-    hits.start_action_menu();
+    fn paint(
+        &self,
+        frame: &mut Frame<'_>,
+        measured: &Measured<'_>,
+        layout: &Placed,
+        _locale: Locale,
+        theme: &Theme,
+        hits: &mut HitMapBuilder,
+    ) {
+        let menu = &measured.menu;
+        if menu.context_menu {
+            return;
+        }
+        let inner = layout.inner;
+        if let Some(close) = self.close {
+            render_close(frame, close, menu, theme, hits);
+        }
+        let position_width = u16::try_from(display_width(&self.position)).unwrap_or(u16::MAX);
+        let footer_area = Rect::new(
+            inner.x,
+            inner.bottom() - 1,
+            inner.width.saturating_sub(position_width.saturating_add(1)),
+            1,
+        );
+        if let Some((action, area, _)) = self.footer {
+            render_footer_action(
+                frame,
+                action,
+                area,
+                measured.exit_label,
+                if menu.has_parent && !menu.transferring {
+                    MenuControl::Back
+                } else {
+                    MenuControl::Close
+                },
+                menu,
+                theme,
+                hits,
+            );
+        }
+        let hint_area = self.footer.map_or(footer_area, |(_, _, hints)| hints);
+        let hints = self
+            .hints
+            .iter()
+            .map(|(key, label)| KeyHint::new(key.as_str(), label))
+            .collect::<Vec<_>>();
+        let painted_hints = render_overlay_hints(frame, hint_area, &hints, theme)
+            .expect("the required exit hint was measured in the same area");
+        debug_assert!(hint_area.intersection(painted_hints) == painted_hints);
+        frame.render_widget(
+            Paragraph::new(self.position.clone()).style(theme.style(Role::TextSecondary)),
+            Rect::new(
+                inner.right() - position_width,
+                inner.bottom() - 1,
+                position_width,
+                1,
+            ),
+        );
+    }
+}
+
+fn paint_frame(
+    frame: &mut Frame<'_>,
+    measured: &Measured<'_>,
+    layout: &Placed,
+    level: Level,
+    locale: Locale,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) {
+    let menu = &measured.menu;
+    let area = layout.area;
+    let inner = layout.inner;
+    let block = super::overlay_surface(theme, Padding::horizontal(1));
+    let block = match title(measured, area, locale, theme) {
+        Some(title) if menu.context_menu => block.title(super::overlay_heading(
+            &title,
+            usize::from(area.width).saturating_sub(6),
+            theme,
+        )),
+        Some(title) => block.title(super::overlay_title(&title, area.width, theme)),
+        None => block,
+    };
 
     // A surviving wide lead outside the menu would make the terminal diff skip its border. Remove
     // only crossing glyph remnants, retaining their style.
@@ -408,74 +745,75 @@ pub(super) fn render(
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
 
-    if let Some(close_rect) = close_rect {
-        render_close(frame, close_rect, &menu, theme, hits);
-    }
-    if let Some(header) = tab_header {
-        header.paint(frame, &menu, locale, &exit_key, theme, hits);
-    }
-
     if let Some(query) = menu.query {
         render_search_row(
             frame,
-            Rect::new(
-                inner.x,
-                inner.y + u16::try_from(header_rows).unwrap_or(0),
-                inner.width,
-                1,
-            ),
+            Rect::new(inner.x, inner.y, inner.width, 1),
             query,
-            result_actions.len(),
+            measured.result_actions.len(),
             locale,
             theme,
         );
     }
 
+    let rule = match theme.glyphs.mode() {
+        GlyphMode::Unicode => "─",
+        #[cfg(any(test, feature = "test-support"))]
+        GlyphMode::Simplified => "-",
+    };
+    let marker_width =
+        u16::try_from(display_width(theme.glyphs.navigation_marker).max(1)).unwrap_or(u16::MAX);
     let mut painted_rows = 0;
     let mut used_rows = 0;
-    for position in first..result_actions.len() {
-        let action_index = result_actions[position];
+    let line = |used: usize| layout.rows_y + u16::try_from(used).unwrap_or(0);
+    for position in layout.first..measured.result_actions.len() {
+        let action_index = measured.result_actions[position];
         let action = &menu.actions[action_index];
-        if position > first && menu.result_separator_before(&result_actions, position) {
-            if used_rows + 1 >= rows {
-                break;
-            }
-            let separator = match theme.glyphs.mode() {
-                GlyphMode::Unicode => "─",
-                #[cfg(any(test, feature = "test-support"))]
-                GlyphMode::Simplified => "-",
-            };
+        let heading = menu.result_heading_before(&measured.result_actions, position);
+        let separator = position > layout.first
+            && menu.result_separator_before(&measured.result_actions, position);
+        let lead = usize::from(separator) + usize::from(heading.is_some());
+        if used_rows + lead >= layout.rows {
+            break;
+        }
+        if separator {
             frame.render_widget(
-                Paragraph::new(separator.repeat(usize::from(inner.width)))
+                Paragraph::new(rule.repeat(usize::from(inner.width)))
                     .style(theme.style(Role::TextSecondary)),
-                Rect::new(
-                    inner.x,
-                    rows_y + u16::try_from(used_rows).unwrap_or(0),
-                    inner.width,
-                    1,
-                ),
+                Rect::new(inner.x, line(used_rows), inner.width, 1),
             );
             used_rows += 1;
         }
-        if used_rows >= rows {
-            break;
+        if let Some(heading) = heading {
+            // Headings name a group in the label column; they are never a candidate.
+            let x = (inner.x - 1).saturating_add(marker_width);
+            frame.render_widget(
+                Paragraph::new(locale.menu_heading(heading))
+                    .style(theme.style(Role::TextSecondary)),
+                Rect::new(x, line(used_rows), inner.right().saturating_sub(x), 1),
+            );
+            used_rows += 1;
         }
-        let row_area = Rect::new(
-            inner.x - 1,
-            rows_y + u16::try_from(used_rows).unwrap_or(0),
-            inner.width + 2,
-            1,
-        );
+        let row_area = Rect::new(inner.x - 1, line(used_rows), inner.width + 2, 1);
         render_row(
             frame,
             row_area,
-            &menu,
-            position,
-            action_index,
-            selected,
+            menu,
+            Row {
+                position,
+                action_index,
+                state: match level {
+                    Level::Parent if position == measured.selected => RowState::Open,
+                    Level::Parent => RowState::Inert,
+                    Level::Active if position == measured.selected && !menu.candidate_hidden => {
+                        RowState::Candidate
+                    }
+                    Level::Active => RowState::Live,
+                },
+            },
             action,
-            binding_labels[action_index].as_deref(),
-            &project_suffixes[action_index],
+            measured.binding_labels[action_index].as_deref(),
+            &layout.project_suffixes[action_index],
             locale,
             theme,
             hits,
@@ -483,16 +821,20 @@ pub(super) fn render(
         used_rows += 1;
         painted_rows += 1;
     }
-    debug_assert_eq!(painted_rows, visible_rows);
+    debug_assert_eq!(painted_rows, layout.visible_rows);
 
-    if result_actions.is_empty() {
+    if measured.result_actions.is_empty() {
         frame.render_widget(
             Paragraph::new(locale.menu_search_no_results()).style(theme.style(Role::TextSecondary)),
-            Rect::new(inner.x, rows_y, inner.width, 1),
+            Rect::new(inner.x, layout.rows_y, inner.width, 1),
         );
     }
 
-    let unavailable = selected_action.and_then(|index| menu.unavailable[index]);
+    // Only the candidate explains why it is unavailable; a hidden candidate explains nothing.
+    let unavailable = (level == Level::Active && !menu.candidate_hidden)
+        .then(|| measured.result_actions.get(measured.selected))
+        .flatten()
+        .and_then(|index| menu.unavailable[*index]);
     if let Some(reason) = unavailable {
         let full = locale.menu_unavailable(reason, false);
         let reason = if Line::raw(full).width() <= usize::from(inner.width) {
@@ -504,74 +846,24 @@ pub(super) fn render(
             Paragraph::new(reason).style(theme.style(Role::TextSecondary)),
             Rect::new(
                 inner.x,
-                inner.bottom() - 1 - u16::try_from(footer_rows).unwrap_or(0),
+                inner.bottom() - 1 - u16::try_from(measured.footer_rows).unwrap_or(0),
                 inner.width,
                 1,
             ),
         );
     }
-
-    if let Some((action_rect, _)) = footer_action {
-        render_footer_action(
-            frame,
-            action_rect,
-            footer_area,
-            exit_label,
-            if menu.has_parent && !menu.transferring {
-                MenuControl::Back
-            } else {
-                MenuControl::Close
-            },
-            &menu,
-            theme,
-            hits,
-        );
-    }
-    if !menu.context_menu {
-        let painted_hints = render_overlay_hints(frame, hint_area, &hints, theme)
-            .expect("the required exit hint was measured in the same area");
-        debug_assert!(hint_area.intersection(painted_hints) == painted_hints);
-        frame.render_widget(
-            Paragraph::new(position).style(theme.style(Role::TextSecondary)),
-            Rect::new(
-                inner.right() - position_width,
-                inner.bottom() - 1,
-                position_width,
-                1,
-            ),
-        );
-    }
-
-    let rows_height = u16::try_from(rows).unwrap_or(u16::MAX);
-    hits.record(
-        HitLayer::OverlaySurface,
-        Rect::new(inner.x - 1, rows_y, inner.width + 2, rows_height),
-        HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Menu(menu.token)),
-    );
-    hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
-    ModalPresentation::Presented(MenuDraw {
-        token: menu.token,
-        first,
-        visible_rows: painted_rows,
-        selected,
-        result_actions,
-    })
 }
 
 fn visible_action_rows(menu: &MenuView<'_>, results: &[usize], first: usize, rows: usize) -> usize {
     let mut painted_rows = 0;
     let mut used_rows = 0;
     for position in first..results.len() {
-        if position > first && menu.result_separator_before(results, position) {
-            if used_rows + 1 >= rows {
-                break;
-            }
-            used_rows += 1;
-        }
-        if used_rows >= rows {
+        let lead = usize::from(position > first && menu.result_separator_before(results, position))
+            + usize::from(menu.result_heading_before(results, position).is_some());
+        if used_rows + lead >= rows {
             break;
         }
-        used_rows += 1;
+        used_rows += lead + 1;
         painted_rows += 1;
     }
     painted_rows
@@ -759,23 +1051,19 @@ fn interaction_spec(enabled: bool) -> InteractionSpec {
 }
 
 fn interaction_state(
-    focused: bool,
+    navigation: NavigationState,
     enabled: bool,
     pointer: PointerPresentation,
     checked: CheckedState,
 ) -> InteractionState {
     InteractionState::new(
-        if focused {
+        if navigation == NavigationState::Provisional {
             FocusState::Focused
         } else {
             FocusState::Unfocused
         },
         pointer,
-        if focused {
-            NavigationState::Provisional
-        } else {
-            NavigationState::None
-        },
+        navigation,
         CurrentState::NotCurrent,
         checked,
         if enabled {
@@ -787,14 +1075,36 @@ fn interaction_state(
     )
 }
 
+/// How one painted row takes part in input.
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum RowState {
+    /// A row of the open menu that is not its candidate.
+    Live,
+    /// The open menu's visible candidate.
+    Candidate,
+    /// The cascade parent's row that opened the submenu: filled, without the marker.
+    Open,
+    /// Any other cascade parent row: painted without input.
+    Inert,
+}
+
+#[derive(Clone, Copy)]
+struct Row {
+    position: usize,
+    action_index: usize,
+    state: RowState,
+}
+
 #[allow(clippy::too_many_arguments)]
 fn render_row(
     frame: &mut Frame<'_>,
     row: Rect,
     menu: &MenuView<'_>,
-    result_position: usize,
-    action_index: usize,
-    selected: usize,
+    Row {
+        position: result_position,
+        action_index,
+        state: row_state,
+    }: Row,
     action: &MenuAction,
     binding: Option<&str>,
     project_suffix: &str,
@@ -867,17 +1177,17 @@ fn render_row(
     }
 
     let enabled = menu.unavailable[action_index].is_none() && !menu.transferring;
-    let focused = result_position == selected;
+    let live = matches!(row_state, RowState::Live | RowState::Candidate) && !menu.transferring;
     let target = InteractionTarget::ActionMenuRow {
         source: menu.source.clone(),
         token: menu.token,
         row: result_position,
     };
     let spec = interaction_spec(enabled);
-    let pointer = if menu.transferring {
-        PointerPresentation::Rest
-    } else {
+    let pointer = if live {
         pointer_presentation(hits.projected_pointer(HitLayer::Overlay, row, row, &target, spec))
+    } else {
+        PointerPresentation::Rest
     };
     let mut tracks = RowTracks::new(RowFocusCue::EnclosingFrame, primary)
         .with_provisional(navigation)
@@ -890,7 +1200,12 @@ fn render_row(
     } else {
         CheckedState::Unchecked
     };
-    let state = interaction_state(focused, enabled, pointer, applied);
+    let navigation = match row_state {
+        RowState::Candidate => NavigationState::Provisional,
+        RowState::Open => NavigationState::Open,
+        RowState::Live | RowState::Inert => NavigationState::None,
+    };
+    let state = interaction_state(navigation, enabled, pointer, applied);
     let painted = paint_row_interaction(
         frame,
         row,
@@ -913,7 +1228,7 @@ fn render_row(
         };
         frame.render_widget(Paragraph::new("  ").style(style), rect);
     }
-    if !menu.transferring {
+    if live {
         hits.record_interaction(HitLayer::Overlay, row, painted, target, spec);
     }
 }
@@ -1027,9 +1342,12 @@ fn action_label(
     separator: &str,
     disclosure: &str,
 ) -> String {
+    // A choice row under its group shows only its own name.
     let choice = matches!(
         action,
-        MenuAction::JoinWorkspaceProject(_) | MenuAction::OpenWorktreeAt(_)
+        MenuAction::JoinWorkspaceProject(_)
+            | MenuAction::WorkspaceInFolder(_)
+            | MenuAction::OpenWorktreeAt(_)
     );
     let text = scope.map_or_else(
         || locale.menu_action(action).to_owned(),

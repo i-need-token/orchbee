@@ -514,7 +514,7 @@ impl TerminalInputPort for Port<'_> {
     fn open_action_menu(
         &mut self,
         target: MenuTarget,
-        anchor: Option<(u16, u16)>,
+        anchor: Option<crate::action_menu::MenuAnchor>,
         released: bool,
     ) -> bool {
         self.ui.open_action_menu(target, anchor, released)

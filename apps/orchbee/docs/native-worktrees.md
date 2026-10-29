@@ -59,7 +59,7 @@ Header X and Cancel use the current stage's cancellation or hide behavior. Edita
 
 ## Safe removal
 
-A Workspace's Worktree submenu offers **Remove Worktree…** after its checkout choices when the
+A Workspace's row menu appends **Remove Worktree…** after Close Workspace… when the
 read-only listing proves that Workspace's exact primary directory is an associated linked,
 non-bare checkout on the same Worker. Project and creation menus do not infer a removal target.
 The destructive action has no default shortcut and never falls back to the selected Client's cwd.

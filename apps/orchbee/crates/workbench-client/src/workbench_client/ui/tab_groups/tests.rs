@@ -29,7 +29,7 @@ fn grouped() -> Snapshot {
 }
 
 fn present_action_menu(ui: &mut WorkbenchClientUi) -> MenuToken {
-    let (token, selected, visible_rows, result_actions) = {
+    let (token, selected, visible_rows, result_actions, hidden) = {
         let view = ui.view();
         let menu = view.action_menu().unwrap();
         (
@@ -37,10 +37,12 @@ fn present_action_menu(ui: &mut WorkbenchClientUi) -> MenuToken {
             menu.selected,
             menu.actions.len(),
             menu.result_actions.to_vec(),
+            menu.candidate_hidden,
         )
     };
     ui.after_action_menu_draw(Some(ModalPresentation::Presented(MenuDraw {
         selected,
+        candidate_visible: !hidden,
         token,
         first: 0,
         visible_rows,
@@ -317,6 +319,7 @@ fn tab_group_selected_range_all_clear_and_stale_menu_proof_stay_client_local() {
         .unwrap();
     ui.after_action_menu_draw(Some(ModalPresentation::Presented(MenuDraw {
         selected: ui.view().action_menu().unwrap().selected,
+        candidate_visible: !ui.view().action_menu().unwrap().candidate_hidden,
         token,
         first: 0,
         visible_rows: ui.view().action_menu().unwrap().actions.len(),
@@ -793,7 +796,7 @@ fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_rout
             let view = ui.view();
             let menu = view.action_menu().unwrap();
             let source = menu.source.clone();
-            let mut token = menu.token;
+            let token = menu.token;
             let selected = menu.selected;
             let mut hits = HitMapBuilder::new();
             terminal
@@ -808,64 +811,9 @@ fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_rout
                     ));
                 })
                 .unwrap();
-            let mut hits = hits.finish();
-            let (mut painted_width, mut painted_height) = (width, height);
-            if width == 40 {
-                assert!(
-                    !(0..height).any(|y| (0..width).any(|x| matches!(
-                        hits.hit_target_at(x, y),
-                        Some(HitTarget::ActionMenuRow { .. } | HitTarget::ActionMenuControl { .. })
-                    ))),
-                    "a refused complete header gives neither rows nor Back input authority"
-                );
-                ui.after_close_draw(receipt.take().unwrap());
-                assert_eq!(
-                    ui.action_menu_input_context().unwrap().phase(),
-                    crate::tui_presentation::PresentationPhase::Suspended
-                );
-                ui.capture_action_menu_key(crate::client_view::KeyEvent::press(
-                    crate::client_view::KeyCode::Enter,
-                    crate::client_view::Modifiers::NONE,
-                ));
-                ui.activate_action_menu_row(&source, token, last);
-                assert!(ui.take_action_menu_action(false).is_none());
-                assert!(mailbox.try_recv().unwrap().is_none());
-                let view = ui.view();
-                let menu = view.action_menu().unwrap();
-                assert_eq!((menu.source, menu.selected), (&source, selected));
-                assert_ne!(
-                    menu.token, token,
-                    "suspension revokes the old painted token"
-                );
-
-                // Recovery requires a new actual successful composition, not a synthetic receipt.
-                (painted_width, painted_height) = (80, 20);
-                ui.observe_geometry(Geometry::new(painted_width, painted_height, 8, 16).unwrap());
-                token = ui.view().action_menu().unwrap().token;
-                terminal = Terminal::new(TestBackend::new(painted_width, painted_height)).unwrap();
-                let mut recovered_hits = HitMapBuilder::new();
-                terminal
-                    .draw(|frame| {
-                        receipt = Some(crate::tui_render::render_terminal_shell(
-                            frame,
-                            &crate::client_view::ClientView::new(painted_width),
-                            locale,
-                            Some(ui.view()),
-                            &theme,
-                            &mut recovered_hits,
-                        ));
-                    })
-                    .unwrap();
-                hits = recovered_hits.finish();
-                let text = rendered_text(terminal.backend().buffer());
-                let view = ui.view();
-                let menu = view.action_menu().unwrap();
-                assert!(text.contains(&locale.menu_tab_path(
-                    menu.source,
-                    menu.tabs.unwrap().scope,
-                    theme.glyphs.disclosure_closed
-                )));
-            }
+            // Without room on either side, the submenu covers the parent's end and still scrolls.
+            let hits = hits.finish();
+            let (painted_width, painted_height) = (width, height);
             assert!(
                 (0..painted_height).any(|y| (0..painted_width).any(|x| matches!(
                     hits.hit_target_at(x, y),

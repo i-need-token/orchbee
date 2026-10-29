@@ -447,6 +447,7 @@ fn shell_control_tick_lands_all_launch_entries_unless_newer_focus_revokes_them()
                                 .as_ref()
                                 .unwrap(),
                             &snapshot.navigation.projects[0],
+                            None,
                             clock.now() + super::super::super::state::OPERATION_TOTAL,
                         )
                         .unwrap(),

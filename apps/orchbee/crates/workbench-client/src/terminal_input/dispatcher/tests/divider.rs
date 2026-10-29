@@ -17,7 +17,7 @@ impl TerminalInputPort for Port {
     fn open_action_menu(
         &mut self,
         _: crate::action_menu::MenuTarget,
-        _: Option<(u16, u16)>,
+        _: Option<crate::action_menu::MenuAnchor>,
         _: bool,
     ) -> bool {
         self.menus += 1;

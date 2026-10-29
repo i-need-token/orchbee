@@ -10,8 +10,8 @@ revisions; the Client owns selection and input. This reference extends
 
 On Windows, New Workspace, the empty state's Create Workspace, `Ctrl+B a` and `Ctrl+B Shift+N`
 immediately prepare and submit a Workspace with its first default shell. They open no directory or
-name form and require no confirmation. The default result is ungrouped. New Workspace on an exact
-Project row uses that Project, including empty and noncurrent Projects. Creating a Workspace never
+name form and require no confirmation. The default result is ungrouped. New Workspace from an exact
+Project row's menu or heading uses that Project, including empty and noncurrent Projects. Creating a Workspace never
 starts an AI provider automatically.
 
 Quick preparation leaves the sidebar and current Tab intact and immediately displays a pending
@@ -35,7 +35,8 @@ The directory basename supplies the initial name,
 with a localized fallback for a root path. Generated names avoid every Workspace label in the
 captured snapshot, adding ` (2)`, ` (3)` and subsequent suffixes as needed. Truncation leaves room
 for the suffix within the 512-Unicode-scalar label bound. Explicit labels remain unchanged. Default
-and Project-targeted creation use this same preparation path.
+and Project-targeted creation use this same preparation path. A folder chosen in a Project row
+menu's New Workspace submenu replaces the default directory.
 
 One revision-fenced `WorkspaceLaunch` accepts the directory and commits Workspace, Directory,
 Context, Tab, Panel and primary Presentation together. Project membership is a nullable property;
@@ -81,13 +82,13 @@ temporary child nor current feedback; the window reveals that heading instead.
 
 ## Optional Project organization
 
-Right-click a Workspace and open Project. An ungrouped Workspace offers New Project; a grouped one
-offers Leave Project. Existing Projects follow in canonical order, using exact captured IDs.
+Right-click a Workspace and open Move to Project. It lists the other Projects in canonical order,
+using exact captured IDs, then New Project… and, for a grouped Workspace, Remove from Project.
 New Project asks only for its name; `WorkspaceCreateProject` creates the Project and
 moves the existing Workspace in one canonical commit. Duplicate labels are permitted; captured IDs
 determine the target. Project can contain Workspaces from multiple repositories.
 
-The Project submenu changes only `workspace.projectId`. It preserves Workspace, context, Tab,
+The Move to Project submenu changes only `workspace.projectId`. It preserves Workspace, context, Tab,
 Panel, Presentation, Directory and terminal identities, cwd, Git files, Agents and the initiating
 Client's selection. Acting on a noncurrent Workspace does not enter it. Project Rename likewise
 targets the exact row without selecting a child.
@@ -113,19 +114,19 @@ a separate explicit Project action with its own destructive confirmation and ret
 Ordinary Workspace Close never expands into a Git family or Project. An automatically created
 Project is retained when only one Workspace remains.
 
-| Transition                                  | Guard and result                                                             |
-| ------------------------------------------- | ---------------------------------------------------------------------------- |
-| Open the Project submenu                    | Capture exact Session, snapshot, target and current focus; no mutation       |
-| Choose an existing Project or Leave Project | Submit one membership command; a no-op preserves revision                    |
-| Choose New Project                          | Show one bounded name field; no empty Project is created before submission   |
-| Complete draw or pointer choice             | Only the current token and a fully presented choice authorize submission     |
-| Cancel before submission                    | Release capture without changing canonical state                             |
-| Known commit                                | Retain immutable evidence before reading the committed snapshot              |
-| Snapshot available                          | Validate the result and preserve the current terminal and focus              |
-| Definite refusal                            | Preserve state; never rebase or replay automatically                         |
-| Ambiguous handoff or failed follow-up read  | Keep known facts and expose recovery; never infer absence or repeat creation |
+| Transition                                        | Guard and result                                                             |
+| ------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Open the Move to Project submenu                  | Capture exact Session, snapshot, target and current focus; no mutation       |
+| Choose an existing Project or Remove from Project | Submit one membership command; a no-op preserves revision                    |
+| Choose New Project…                               | Show one bounded name field; no empty Project is created before submission   |
+| Complete draw or pointer choice                   | Only the current token and a fully presented choice authorize submission     |
+| Cancel before submission                          | Release capture without changing canonical state                             |
+| Known commit                                      | Retain immutable evidence before reading the committed snapshot              |
+| Snapshot available                                | Validate the result and preserve the current terminal and focus              |
+| Definite refusal                                  | Preserve state; never rebase or replay automatically                         |
+| Ambiguous handoff or failed follow-up read        | Keep known facts and expose recovery; never infer absence or repeat creation |
 
-The Project submenu follows the [action-menu input contract](native-action-menus.md).
+The Move to Project submenu follows the [action-menu input contract](native-action-menus.md).
 Bounded UTF-8 and bracketed paste use the existing modal decoder. Names allow 512 Unicode scalars;
 directory paths allow 4,096 UTF-8 bytes without NUL.
 Input remaining in the submission packet cannot confirm another step or reach a terminal.
@@ -141,7 +142,7 @@ consumed without mutation; only the current local `Esc` return is available. A l
 resumes the same surface. Absence from a frame because another owner covers it only revokes the
 current draw proof; it is neither refusal nor cancellation.
 
-New Project opens its name editor directly from the addressed Project submenu. `Esc` or Cancel
+New Project… opens its name editor directly from the addressed Move to Project submenu. `Esc` or Cancel
 closes the unsubmitted name draft. Quick Workspace work that already crossed its submission boundary
 continues under its original operation identity when the surface is hidden; presentation never
 replays it.

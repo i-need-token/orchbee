@@ -150,9 +150,13 @@ fn targeted_source() -> (WorkbenchClientState, Snapshot, Project, PaneRef) {
 }
 
 fn begin_targeted(state: &mut WorkbenchClientState, target: &Project) -> QuickPreparation {
-    let request =
-        ProjectQuickWorkspaceRequest::capture(state, target, Instant::now() + OPERATION_TOTAL)
-            .unwrap();
+    let request = ProjectQuickWorkspaceRequest::capture(
+        state,
+        target,
+        None,
+        Instant::now() + OPERATION_TOTAL,
+    )
+    .unwrap();
     state
         .begin_quick_preparation(
             11,
@@ -247,6 +251,7 @@ fn project_quick_never_substitutes_a_removed_or_same_id_replaced_target() {
             let request = ProjectQuickWorkspaceRequest::capture(
                 &state,
                 &target,
+                None,
                 Instant::now() + OPERATION_TOTAL,
             )
             .unwrap();
@@ -546,6 +551,7 @@ fn project_row_and_disclosure_focus_retires_submitted_entering_and_queued_ready_
                 ProjectQuickWorkspaceRequest::capture(
                     state,
                     &state.cache().projects()[1],
+                    None,
                     Instant::now() + OPERATION_TOTAL,
                 )
                 .unwrap(),

@@ -4,8 +4,9 @@ use super::{
     WorkbenchClientNotice, WorkbenchClientState, WorkbenchClientUi, WorkbenchClientView,
 };
 use crate::action_menu::{
-    ActionMenu, DrawnMenuSource, MenuAction, MenuControl, MenuDraw, MenuInputContext,
+    ActionMenu, DrawnMenuSource, MenuAction, MenuAnchor, MenuControl, MenuDraw, MenuInputContext,
     MenuInputReadiness, MenuSearchChild, MenuTarget, MenuToken, MenuUnavailable, MenuView,
+    RetainedMenu,
 };
 use crate::action_projection::ActionAvailability;
 use crate::client_view::KeyEvent;
@@ -185,8 +186,10 @@ fn action_availability(
     {
         return ActionAvailability::Disabled(MenuUnavailable::NoMatchingTabs);
     }
-    if matches!(action, MenuAction::WorkspaceAtDirectory)
-        || matches!(target, Target::Project { .. }) && action == MenuAction::QuickWorkspace
+    if matches!(
+        action,
+        MenuAction::WorkspaceAtDirectory | MenuAction::WorkspaceInFolder(_)
+    ) || matches!(target, Target::Project { .. }) && action == MenuAction::QuickWorkspace
     {
         return ActionAvailability::from_disabled_reason(
             state
@@ -231,12 +234,13 @@ fn action_availability(
                 .then_some(MenuUnavailable::OperationBusy),
         );
     }
+    if matches!(target, Target::Project { .. }) && action == MenuAction::WorkspaceCreation {
+        // The submenu reports each choice's own availability.
+        return ActionAvailability::Enabled;
+    }
     if matches!(
         action,
-        MenuAction::WorkspaceWorktrees
-            | MenuAction::OpenWorktreeAt(_)
-            | MenuAction::NewWorktree
-            | MenuAction::RemoveWorktree
+        MenuAction::OpenWorktreeAt(_) | MenuAction::NewWorktree | MenuAction::RemoveWorktree
     ) && matches!(target, Target::Workspace { .. } | Target::Project { .. })
     {
         return ActionAvailability::from_disabled_reason(
@@ -258,6 +262,7 @@ fn action_availability(
     let Target::Workspace { location, source } = target else {
         return ActionAvailability::Enabled;
     };
+    // The row applies only while the Workspace has no directory.
     if matches!(
         source,
         MenuContextSource::Workspace {
@@ -265,7 +270,7 @@ fn action_availability(
             ..
         }
     ) {
-        return ActionAvailability::Disabled(MenuUnavailable::DirectoryConfigured);
+        return ActionAvailability::Hidden;
     }
     let Some(state) = state.filter(|state| state.cache().location() == location) else {
         return ActionAvailability::Enabled;
@@ -384,10 +389,12 @@ pub(super) struct Coordinator {
 
 struct ParentMenu {
     target: MenuTarget,
-    anchor: Option<(u16, u16)>,
+    anchor: Option<MenuAnchor>,
     selected: MenuAction,
     query: Option<String>,
     resume_permit: Option<TabCloseResumePermit>,
+    /// The painted parent of a cascaded context submenu; a replaced page retains none.
+    retained: Option<RetainedMenu>,
 }
 
 enum ResumePermitSeed {
@@ -421,6 +428,28 @@ impl Coordinator {
         })
     }
 
+    /// The painted parents of a cascade, root first; empty while a child replaces its parent.
+    fn cascade(&self) -> Vec<MenuView<'_>> {
+        if self.intent.is_none() {
+            return Vec::new();
+        }
+        self.parents
+            .iter()
+            .enumerate()
+            .map(|(level, parent)| parent.retained.as_ref().map(|menu| menu.view(level > 0)))
+            .collect::<Option<Vec<_>>>()
+            .unwrap_or_default()
+    }
+
+    /// The target and anchor of the menu a person opened, beneath any submenu.
+    fn root(&self) -> Option<(&MenuTarget, Option<MenuAnchor>)> {
+        self.intent.as_ref()?;
+        match self.parents.first() {
+            Some(parent) => Some((&parent.target, parent.anchor)),
+            None => self.menu.view().map(|menu| (menu.source, menu.anchor)),
+        }
+    }
+
     fn input_context(&self) -> Option<MenuInputContext> {
         let intent = self.intent.as_ref()?;
         let context = self.menu.input_context()?;
@@ -445,6 +474,12 @@ impl WorkbenchClientView<'_> {
     }
     pub(crate) fn action_menu(&self) -> Option<MenuView<'_>> {
         self.menu.and_then(Coordinator::view)
+    }
+    pub(crate) fn action_menu_cascade(&self) -> Vec<MenuView<'_>> {
+        self.menu.map(Coordinator::cascade).unwrap_or_default()
+    }
+    pub(crate) fn action_menu_root(&self) -> Option<(&MenuTarget, Option<MenuAnchor>)> {
+        self.menu.and_then(Coordinator::root)
     }
     pub(crate) fn action_menu_input_context(&self) -> Option<MenuInputContext> {
         self.menu.and_then(Coordinator::input_context)
@@ -542,23 +577,27 @@ impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn open_action_menu(
         &mut self,
         target: MenuTarget,
-        anchor: Option<(u16, u16)>,
+        anchor: Option<MenuAnchor>,
         pointer_released: bool,
     ) -> bool {
+        // A pointer-opened menu waits for the pointer or a key to choose its candidate.
+        let hidden = anchor.is_some_and(MenuAnchor::pointer);
         self.open_action_menu_with_resume_permit(
             target,
             anchor,
             pointer_released,
             ResumePermitSeed::CaptureDisplayed,
+            hidden,
         )
     }
 
     fn open_action_menu_with_resume_permit(
         &mut self,
         target: MenuTarget,
-        anchor: Option<(u16, u16)>,
+        anchor: Option<MenuAnchor>,
         pointer_released: bool,
         resume_seed: ResumePermitSeed,
+        hidden: bool,
     ) -> bool {
         self.menus.resume_handoff = None;
         if self.action_menu_active()
@@ -600,29 +639,14 @@ impl WorkbenchClientUi {
         {
             return false;
         }
-        let target =
-            match target {
-                MenuTarget::Worktrees(crate::workbench_client::SidebarWorktreeTarget::Project(
-                    id,
-                )) => MenuTarget::Project(id),
-                MenuTarget::Worktrees(
-                    crate::workbench_client::SidebarWorktreeTarget::Workspace(id),
-                ) => {
-                    let Some(workspace) = self.state.as_ref().and_then(|state| {
-                        state.cache().canonical_snapshot().navigation.workspace(&id)
-                    }) else {
-                        return false;
-                    };
-                    MenuTarget::Workspace(ClientContextLocation::Workspace {
-                        workspace_id: id,
-                        terminal_context_id: workspace.terminal_context_id.clone(),
-                    })
-                }
-                MenuTarget::Create(Some(project)) => MenuTarget::Project(project),
-                MenuTarget::Create(None) => MenuTarget::Global,
-                MenuTarget::TabCreate(_) => MenuTarget::Global,
-                target => target,
-            };
+        let target = match target {
+            MenuTarget::WorkspaceCreation(project) | MenuTarget::Create(Some(project)) => {
+                MenuTarget::Project(project)
+            }
+            MenuTarget::Create(None) => MenuTarget::Global,
+            MenuTarget::TabCreate(_) => MenuTarget::Global,
+            target => target,
+        };
         let live = self.menu_carrier_live();
         if creation_only && !live {
             return false;
@@ -788,10 +812,18 @@ impl WorkbenchClientUi {
             MenuTarget::Drawn { .. }
             | MenuTarget::Create(_)
             | MenuTarget::TabCreate(_)
-            | MenuTarget::Worktrees(_) => {
+            | MenuTarget::WorkspaceCreation(_) => {
                 return false;
             }
         };
+        if let (MenuTarget::WorkspaceCreation(project), Some(state)) = (&entry, state) {
+            actions = vec![MenuAction::NewWorktree];
+            actions.extend(
+                sidebar::project_folders(state, project)
+                    .into_iter()
+                    .map(MenuAction::WorkspaceInFolder),
+            );
+        }
         let project_choices = if matches!(entry, MenuTarget::WorkspaceProjects(_)) {
             let Some(choices) = state.and_then(|state| sidebar::project_choices(state, &target))
             else {
@@ -944,6 +976,10 @@ impl WorkbenchClientUi {
             return false;
         }
         self.menus.menu.set_search_children(search_children);
+        let choices = sidebar::ChoiceLabels::new(
+            self.menus.menu.view().map_or(&[][..], |menu| menu.actions),
+            self.menus.sidebar.as_ref(),
+        );
         self.menus.menu.set_labels(|action| match action {
             MenuAction::JoinWorkspaceProject(id) => intent
                 .project_choices
@@ -951,7 +987,9 @@ impl WorkbenchClientUi {
                 .iter()
                 .find(|project| project.project_id == id)
                 .map(|project| project.label.to_string()),
-            MenuAction::OpenWorktreeAt(path) => Some(path.as_str().to_owned()),
+            action @ (MenuAction::OpenWorktreeAt(_) | MenuAction::WorkspaceInFolder(_)) => {
+                choices.label(&action)
+            }
             MenuAction::NewTabInRecentGroup => state
                 .and_then(WorkbenchClientState::recent_tab_group)
                 .map(|group| group.label.clone()),
@@ -977,10 +1015,15 @@ impl WorkbenchClientUi {
             if matches!(group_menu, Some(super::tab_groups::MenuPage::Colors))
                 && let Some(group) = tab.group()
             {
+                // The applied color holds the candidate however the palette was opened.
                 self.menus
                     .menu
                     .select_action(MenuAction::GroupColor(group.color));
+            } else if hidden {
+                self.menus.menu.hide_candidate();
             }
+        } else if hidden {
+            self.menus.menu.hide_candidate();
         }
         self.menus.menu.refresh_availability(|action| {
             visible_unavailable(intent.availability(state, self.menus.sidebar.as_ref(), action))
@@ -1031,6 +1074,7 @@ impl WorkbenchClientUi {
                 selected,
                 query,
                 resume_permit,
+                retained: _,
             }) = self.menus.parents.pop()
         {
             let released = self
@@ -1040,11 +1084,13 @@ impl WorkbenchClientUi {
                 .is_some_and(|intent| intent.pointer_released);
             self.menus.menu.cancel();
             self.menus.intent = None;
+            // Returning names the row that opened the submenu as the candidate.
             if self.open_action_menu_with_resume_permit(
                 target,
                 anchor,
                 released,
                 ResumePermitSeed::Inherit(resume_permit),
+                false,
             ) {
                 self.menus.menu.set_query(query.as_deref());
                 self.menus.menu.select_action(selected);
@@ -1277,7 +1323,8 @@ impl WorkbenchClientUi {
                     MenuAction::QuickWorkspace
                         | MenuAction::WorkspaceAtDirectory
                         | MenuAction::DeleteProject
-                        | MenuAction::WorkspaceWorktrees
+                        | MenuAction::WorkspaceCreation
+                        | MenuAction::WorkspaceInFolder(_)
                         | MenuAction::NewWorktree
                         | MenuAction::OpenWorktreeAt(_)
                         | MenuAction::RenameProject
@@ -1296,14 +1343,11 @@ impl WorkbenchClientUi {
                     action,
                     MenuAction::CloseWorkspace
                         | MenuAction::WorkspaceProjects
-                        | MenuAction::WorkspaceWorktrees
                         | MenuAction::CreateWorkspaceProject
                         | MenuAction::LeaveWorkspaceProject
                         | MenuAction::JoinWorkspaceProject(_)
                         | MenuAction::DeleteWorkspace
                         | MenuAction::RemoveWorktree
-                        | MenuAction::NewWorktree
-                        | MenuAction::OpenWorktreeAt(_)
                 ) =>
             {
                 true
@@ -1406,14 +1450,11 @@ impl WorkbenchClientUi {
                             Some(
                                 MenuAction::CloseWorkspace
                                     | MenuAction::WorkspaceProjects
-                                    | MenuAction::WorkspaceWorktrees
                                     | MenuAction::CreateWorkspaceProject
                                     | MenuAction::LeaveWorkspaceProject
                                     | MenuAction::JoinWorkspaceProject(_)
                                     | MenuAction::DeleteWorkspace
                                     | MenuAction::RemoveWorktree
-                                    | MenuAction::NewWorktree
-                                    | MenuAction::OpenWorktreeAt(_)
                             )
                         ) || self
                             .state
@@ -1548,66 +1589,32 @@ impl WorkbenchClientUi {
             self.fail_action_menu();
             return None;
         }
-        if action == MenuAction::TabCreation {
-            let child = MenuTarget::TabCreate(self.view().tab_create_target()?);
-            let parent = ParentMenu {
-                target: intent.entry.clone(),
-                anchor: self.menus.menu.view()?.anchor,
-                selected: action,
-                query: self.menus.menu.query().map(str::to_owned),
-                resume_permit: intent.resume_permit.clone(),
-            };
-            self.menus.menu.take()?;
-            self.menus.intent = None;
-            if self.open_action_menu(child, parent.anchor, pointer_released) {
-                self.menus.menu.set_query(parent.query.as_deref());
-                self.menus.parents.push(parent);
-            } else {
-                self.menus.parents.clear();
+        let child = match (&intent.target, &action) {
+            (_, MenuAction::TabCreation) => {
+                Some(MenuTarget::TabCreate(self.view().tab_create_target()?))
             }
-            return None;
-        }
-        if action == MenuAction::WorkspaceProjects {
-            let Target::Workspace { location, .. } = &intent.target else {
-                return None;
-            };
-            let child = MenuTarget::WorkspaceProjects(location.clone());
-            let parent = ParentMenu {
-                target: intent.entry.clone(),
-                anchor: self.menus.menu.view()?.anchor,
-                selected: action,
-                query: self.menus.menu.query().map(str::to_owned),
-                resume_permit: intent.resume_permit.clone(),
-            };
-            self.menus.menu.take()?;
-            self.menus.intent = None;
-            if self.open_action_menu(child, parent.anchor, pointer_released) {
-                self.menus.parents.push(parent);
-            } else {
-                self.menus.parents.clear();
+            (Target::Workspace { location, .. }, MenuAction::WorkspaceProjects) => {
+                Some(MenuTarget::WorkspaceProjects(location.clone()))
             }
-            return None;
-        }
-        if action == MenuAction::WorkspaceWorktrees {
-            let child = MenuTarget::Worktrees(sidebar::target(
-                &intent.entry,
-                &intent.target,
-                self.state.as_ref()?,
-            )?);
-            let parent = ParentMenu {
-                target: intent.entry.clone(),
-                anchor: self.menus.menu.view()?.anchor,
-                selected: action,
-                query: self.menus.menu.query().map(str::to_owned),
-                resume_permit: intent.resume_permit.clone(),
-            };
-            self.menus.menu.take()?;
-            self.menus.intent = None;
-            if self.open_action_menu(child, parent.anchor, pointer_released) {
-                self.menus.parents.push(parent);
-            } else {
-                self.menus.parents.clear();
+            (Target::Project { project, .. }, MenuAction::WorkspaceCreation) => {
+                Some(MenuTarget::WorkspaceCreation(project.project_id.clone()))
             }
+            (Target::Tab { tab, .. }, MenuAction::ManageGroups) => {
+                Some(MenuTarget::TabGroupChoices(tab.tab_id().clone()))
+            }
+            (Target::Tab { tab, .. }, MenuAction::TabTools) => {
+                Some(MenuTarget::TabTools(tab.tab_id().clone()))
+            }
+            (Target::Tab { tab, .. }, MenuAction::GroupMenu | MenuAction::ChooseGroupColor) => {
+                Some(MenuTarget::TabGroups {
+                    tab_id: tab.tab_id().clone(),
+                    colors: action == MenuAction::ChooseGroupColor,
+                })
+            }
+            _ => None,
+        };
+        if let Some(child) = child {
+            self.open_child_action_menu(child, action, pointer_released);
             return None;
         }
         if matches!(
@@ -1615,7 +1622,7 @@ impl WorkbenchClientUi {
             MenuAction::NewWorktree | MenuAction::OpenWorktreeAt(_) | MenuAction::RemoveWorktree
         ) && matches!(
             intent.entry,
-            MenuTarget::Worktrees(_) | MenuTarget::Create(_)
+            MenuTarget::WorkspaceCreation(_) | MenuTarget::Create(_) | MenuTarget::Workspace(_)
         ) {
             let discovery = self.menus.sidebar.as_ref()?.ready()?.clone();
             let checkout = match &action {
@@ -1632,36 +1639,6 @@ impl WorkbenchClientUi {
                 self.open_sidebar_worktree(discovery, checkout);
             }
             return None;
-        }
-        if let Target::Tab { tab, .. } = &intent.target {
-            let child = match action {
-                MenuAction::ManageGroups => Some(MenuTarget::TabGroupChoices(tab.tab_id().clone())),
-                MenuAction::TabTools => Some(MenuTarget::TabTools(tab.tab_id().clone())),
-                MenuAction::GroupMenu | MenuAction::ChooseGroupColor => {
-                    Some(MenuTarget::TabGroups {
-                        tab_id: tab.tab_id().clone(),
-                        colors: action == MenuAction::ChooseGroupColor,
-                    })
-                }
-                _ => None,
-            };
-            if let Some(child) = child {
-                let parent = ParentMenu {
-                    target: intent.entry.clone(),
-                    anchor: self.menus.menu.view()?.anchor,
-                    selected: action,
-                    query: self.menus.menu.query().map(str::to_owned),
-                    resume_permit: intent.resume_permit.clone(),
-                };
-                self.menus.menu.take()?;
-                self.menus.intent = None;
-                if self.open_action_menu(child, parent.anchor, pointer_released) {
-                    self.menus.parents.push(parent);
-                } else {
-                    self.menus.parents.clear();
-                }
-                return None;
-            }
         }
         let resume_handoff = match (
             &intent.target,
@@ -1768,11 +1745,18 @@ impl WorkbenchClientUi {
             }
             (
                 Target::Project { project, .. },
-                action @ (MenuAction::QuickWorkspace | MenuAction::WorkspaceAtDirectory),
+                action @ (MenuAction::QuickWorkspace
+                | MenuAction::WorkspaceAtDirectory
+                | MenuAction::WorkspaceInFolder(_)),
             ) => {
+                let directory = match &action {
+                    MenuAction::WorkspaceInFolder(directory) => Some(directory.clone()),
+                    _ => None,
+                };
                 let request = crate::workbench_client::ProjectQuickWorkspaceRequest::capture(
                     self.state.as_ref()?,
                     project,
+                    directory,
                     intent.stage.deadline()?,
                 )?;
                 if action == MenuAction::WorkspaceAtDirectory {
@@ -1797,6 +1781,55 @@ impl WorkbenchClientUi {
         self.menus.sidebar = None;
         self.menus.resume_handoff = resume_handoff;
         Some(action)
+    }
+
+    /// Opens a submenu in place of its confirmed row. A context menu stays painted beside it;
+    /// the global menu's page is replaced and keeps its query for the return.
+    fn open_child_action_menu(
+        &mut self,
+        child: MenuTarget,
+        selected: MenuAction,
+        pointer_released: bool,
+    ) {
+        let Some(intent) = self.menus.intent.as_ref() else {
+            return;
+        };
+        let Some(menu) = self.menus.menu.view() else {
+            return;
+        };
+        let cascade = intent.entry.context_menu();
+        let parent = ParentMenu {
+            target: intent.entry.clone(),
+            anchor: menu.anchor,
+            selected,
+            query: self.menus.menu.query().map(str::to_owned),
+            resume_permit: intent.resume_permit.clone(),
+            retained: if cascade {
+                self.menus.menu.retain()
+            } else {
+                None
+            },
+        };
+        // A click leaves the candidate to the pointer; a key starts on the first row.
+        let hidden = self.menus.menu.confirmed_by_pointer();
+        if self.menus.menu.take().is_none() {
+            return;
+        }
+        self.menus.intent = None;
+        if self.open_action_menu_with_resume_permit(
+            child,
+            parent.anchor,
+            pointer_released,
+            ResumePermitSeed::CaptureDisplayed,
+            hidden,
+        ) {
+            if !cascade {
+                self.menus.menu.set_query(parent.query.as_deref());
+            }
+            self.menus.parents.push(parent);
+        } else {
+            self.menus.parents.clear();
+        }
     }
 
     pub(super) fn take_action_menu_resume_handoff(

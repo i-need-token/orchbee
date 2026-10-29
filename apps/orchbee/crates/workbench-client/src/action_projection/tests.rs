@@ -269,10 +269,10 @@ fn sidebar_delete_and_tab_close_intents_share_destructive_tone_without_status_ro
     {
         assert_eq!(
             menu_metadata(action.clone()).tone == super::ActionTone::Destructive,
+            // Dissolving a Project keeps every Workspace, so it is not destructive.
             matches!(
                 action,
                 MenuAction::DeleteWorkspace
-                    | MenuAction::DeleteProject
                     | MenuAction::CloseSelectedTabs
                     | MenuAction::CloseOtherTabs
                     | MenuAction::CloseTrailingTabs

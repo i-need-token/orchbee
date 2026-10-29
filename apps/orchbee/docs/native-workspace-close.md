@@ -10,7 +10,7 @@ shared directories and worktree relationships never expand this scope. Ungrouped
 valid targets. The legacy compatibility Workspace has no canonical Workspace ID; close its Tabs
 individually. Its whole-Workspace Close entry is disabled with a localized explanation.
 
-The Workspace context menu's Delete addresses its Workspace without selecting it first. Confirmation,
+The Workspace row menu's Close Workspace… addresses its Workspace without selecting it first. Confirmation,
 cancellation and completion preserve an unrelated current Context, selected pane and terminal
 attachment. The selected shell continues running. Closing the current Workspace retains the existing
 canonical removal: select the first surviving canonical Workspace, including an empty one, then
@@ -37,7 +37,7 @@ Pending and Unknown permit observation only.
 
 ## Conditional sidebar admission
 
-Sidebar Delete, addressed Close and the keyboard shortcut share `WorkspaceCloseIfIdle`; none
+The row menu's Close Workspace…, addressed Close and the keyboard shortcut share `WorkspaceCloseIfIdle`; none
 uses a Client idle flag followed by ordinary Close. The Server captures all Tabs, split leaves and
 child Presentations, reads fresh native inventory outside its gates, then revalidates the complete
 scope and exact runtime identities at final admission. Empty/never-created scope and authoritative
@@ -57,7 +57,7 @@ starting after inventory can therefore refuse the actual signal. Such late refus
 Close operation and any completed members; no implicit Force runs. Repeating Close on its known
 resumable refusal opens explicit confirmation, and the ordinary confirmed command resumes that
 same canonical operation. Unknown/in-flight effects remain fenced.
-Keyboard Close and Workspace menu Close/Delete share this exact-target recovery admission;
+Keyboard Close and the Workspace menu's Close Workspace… share this exact-target recovery admission;
 other blocked reasons and nonresumable refusals stay disabled. Menu retry opens a fresh review
 and requires a complete draw and explicit confirmation before another effect.
 

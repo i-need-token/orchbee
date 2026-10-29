@@ -7,6 +7,7 @@ use crate::{
 use orchbee_local_runtime::{KeyChord, KeySettings};
 use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, style::Style, text::Span};
 
+mod placement;
 mod sidebar;
 mod tab_scope;
 
@@ -149,6 +150,7 @@ fn restored_filtered_selection_is_visible_on_the_first_small_frame() {
                 frame,
                 frame.area(),
                 menu.view().unwrap(),
+                &[],
                 client.bindings(),
                 Locale::EnUs,
                 &theme,
@@ -199,6 +201,7 @@ fn no_results_keeps_a_drawn_query_surface_without_an_activatable_row() {
                 frame,
                 frame.area(),
                 menu.view().unwrap(),
+                &[],
                 client.bindings(),
                 Locale::EnUs,
                 &theme,
@@ -296,6 +299,7 @@ fn object_rename_rows_use_short_localized_copy_for_their_exact_actions() {
                                 frame,
                                 frame.area(),
                                 menu.view().unwrap(),
+                                &[],
                                 ClientView::new(width).bindings(),
                                 locale,
                                 &theme,
@@ -380,6 +384,7 @@ fn saved_launch_rows_localize_names_and_keep_existing_menu_geometry_and_cancel()
                             frame,
                             frame.area(),
                             menu.view().unwrap(),
+                            &[],
                             client.bindings(),
                             locale,
                             &theme,
@@ -446,7 +451,7 @@ fn context_menus_omit_chrome_and_hidden_controls_without_changing_global_discove
                         },
                         "QZX".into(),
                         vec![MenuAction::Help, MenuAction::Reload],
-                        Some((3, 2)),
+                        Some((3, 2).into()),
                     ));
                     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
                     let mut hits = HitMapBuilder::new();
@@ -457,6 +462,7 @@ fn context_menus_omit_chrome_and_hidden_controls_without_changing_global_discove
                                 frame,
                                 frame.area(),
                                 menu.view().unwrap(),
+                                &[],
                                 client.bindings(),
                                 locale,
                                 &theme,
@@ -538,6 +544,7 @@ fn context_menu_admission_requires_one_action_and_its_reserved_reason_without_fo
                             frame,
                             frame.area(),
                             menu.view().unwrap(),
+                            &[],
                             client.bindings(),
                             Locale::EnUs,
                             &Theme::terminal_native(),
@@ -595,6 +602,7 @@ fn hovered_candidate_uses_the_full_row_selection_and_marker_in_every_usable_tier
                                 frame,
                                 frame.area(),
                                 menu.view().unwrap(),
+                                &[],
                                 client.bindings(),
                                 locale,
                                 &theme,
@@ -649,6 +657,7 @@ fn render_machines_row(
                 frame,
                 Rect::new(0, 0, width, height),
                 menu.view().unwrap(),
+                &[],
                 client.bindings(),
                 locale,
                 theme,
@@ -855,6 +864,7 @@ fn global_tab_and_panel_rows_render_the_current_binding_for_each_localized_actio
                     frame,
                     frame.area(),
                     menu.view().unwrap(),
+                    &[],
                     client.bindings(),
                     locale,
                     &theme,
@@ -938,6 +948,7 @@ fn rejected_menu_paints_nothing_and_does_not_claim_the_pointer_backdrop() {
                     frame,
                     Rect::new(0, 0, 16, 5),
                     menu.view().unwrap(),
+                    &[],
                     client.bindings(),
                     Locale::EnUs,
                     &theme,

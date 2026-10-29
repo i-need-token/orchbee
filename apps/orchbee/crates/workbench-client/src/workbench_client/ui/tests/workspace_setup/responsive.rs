@@ -28,6 +28,7 @@ fn every_creation_entry_projects_immediately_without_changing_canonical_selectio
                 crate::workbench_client::ProjectQuickWorkspaceRequest::capture(
                     ui.state.as_ref().unwrap(),
                     &snapshot.navigation.projects[0],
+                    None,
                     clock.now() + super::super::super::super::state::OPERATION_TOTAL,
                 )
                 .unwrap(),

@@ -51,6 +51,7 @@ fn empty_sidebar_keeps_actions_and_settings_without_session_business_or_zero_cou
                                     frame,
                                     sidebar,
                                     RenderContext {
+                                        held: None,
                                         view: &view,
                                         sidebar_surface: view.sidebar_surface(),
                                         locale,

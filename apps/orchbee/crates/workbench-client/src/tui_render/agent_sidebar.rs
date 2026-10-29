@@ -57,6 +57,8 @@ pub(super) struct RenderContext<'a> {
     pub(super) theme: &'a Theme,
     pub(super) input: SidebarInput,
     pub(super) creation: Option<crate::workbench_client::WorkspaceCreationPreview<'a>>,
+    /// The row whose pointer-opened menu is open keeps its hover presentation.
+    pub(super) held: Option<&'a crate::machine_picker::SidebarTarget>,
 }
 
 struct ActionsContext<'a> {
@@ -225,6 +227,7 @@ pub(super) fn render(
         theme,
         input,
         creation,
+        held,
     } = context;
     let owns_keyboard = input == SidebarInput::Navigation;
     if sidebar.layer == SidebarLayer::Overlay {
@@ -338,6 +341,7 @@ pub(super) fn render(
             owns_keyboard,
             source: &source,
             creation,
+            held,
         },
         &rows,
         hits,

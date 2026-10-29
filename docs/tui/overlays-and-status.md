@@ -39,12 +39,16 @@ An overlay is one bordered region with the following reusable slots. Required sl
 present; optional slots are omitted without reordering the remaining slots or recreating them
 inside content.
 
-Context menus use a compact composition instead: a rectangular border, action rows and any
-owner-required reason row. They omit the title, header close control, footer hints and position
-counter. The visible menu retains exclusive input ownership; Esc closes its root, Left or Esc
-returns to its parent, and an outside click dismisses through the exact admitted menu surface.
-Submenus inherit their root's composition. General modal slots below continue to govern forms,
-pickers, confirmations and global action discovery.
+Context menus use a compact composition instead: a rectangular border whose top edge names the
+root menu's target, action rows and any owner-required reason row. Separators and `text-secondary`
+group headings divide the rows; a heading is never selectable. Context menus omit the header close
+control, footer hints and position counter. A submenu cascades beside its parent as an untitled
+frame of the same composition. The parent stays painted but inert: its opening row keeps the
+selection fill without the navigation marker, and the child holds the candidate. The visible menu
+retains exclusive input ownership. Esc closes a root menu; in a child, Left, Esc or a click on the
+parent frame returns to the parent. An outside click dismisses the whole cascade through the exact
+admitted menu surface. General modal slots below continue to govern forms, pickers, confirmations
+and global action discovery.
 
 | Slot       | Requirement | Contract                                                                                                                  |
 | ---------- | ----------- | ------------------------------------------------------------------------------------------------------------------------- |
@@ -57,7 +61,9 @@ pickers, confirmations and global action discovery.
 | Footer     | Required    | Exit or return first, primary binding second, then at most two secondary bindings; decision buttons may carry these hints |
 
 - One overlay is open at a time. A child task replaces the shell's task slots under the same capture
-  owner; it never opens a second overlay above the first.
+  owner; it never opens a second overlay above the first. A cascaded context submenu is the one
+  exception: its parent stays painted beneath it as inert presentation, and only the child owns
+  input.
 - A capturing overlay may admit the configured global prefix for close or switch actions through
   its established action owner. Modal tasks and confirmations keep first refusal; other keys and
   paste remain with the overlay and never reach the covered pane.
@@ -119,8 +125,9 @@ pickers, confirmations and global action discovery.
 
 - Opening an overlay records the invoking region and focus identity. Entering a child task also
   records the parent's focus, selection, query or filter, viewport anchor, draft, and reversible
-  preview. A visible return action exists whenever that parent state exists, except that a compact
-  context menu uses its Left/Esc return bindings without additional chrome.
+  preview. A visible return action exists whenever that parent state exists, except that a
+  cascaded context submenu uses its Left/Esc return bindings and its painted parent frame without
+  additional chrome.
 - Returning from a child restores the recorded parent state. Closing the root restores the invoker
   when it still exists; otherwise focus moves to the nearest surviving item in the same region,
   then that region's documented default. Neither path reorders panes or changes domain selection as

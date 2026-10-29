@@ -20,7 +20,7 @@ pub(crate) fn render_action_menu_for_test(
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> ModalPresentation<crate::action_menu::MenuDraw> {
-    action_menu::render(frame, content, menu, bindings, locale, theme, hits)
+    action_menu::render(frame, content, menu, &[], bindings, locale, theme, hits)
 }
 mod resize_mode;
 mod settings;
@@ -449,6 +449,14 @@ pub fn render_terminal_shell_with_resize<'a>(
             };
             if view.machines.available {
                 let captured = capture_owner.is_some();
+                // An open row menu keeps its target row as it was when the menu opened.
+                let hold = if native_top(WorkbenchCaptureOwner::ActionMenu) {
+                    workbench_client
+                        .as_ref()
+                        .and_then(|native| sidebar_menu_hold(view, native))
+                } else {
+                    None
+                };
                 let mut covered_sidebar = HitMapBuilder::new();
                 agent_sidebar::render(
                     frame,
@@ -463,7 +471,12 @@ pub fn render_terminal_shell_with_resize<'a>(
                         },
                         backend_status: session_status,
                         theme,
-                        input: if captured
+                        input: if hold.as_ref().is_some_and(|(_, keyboard)| *keyboard)
+                            && view.machines.sidebar_navigation_active()
+                        {
+                            // A keyboard-opened row menu leaves the sidebar its focus.
+                            agent_sidebar::SidebarInput::Navigation
+                        } else if captured
                             || view
                                 .overlay()
                                 .is_some_and(|overlay| overlay != Overlay::BusinessSidebar)
@@ -474,6 +487,10 @@ pub fn render_terminal_shell_with_resize<'a>(
                         } else {
                             agent_sidebar::SidebarInput::Terminal
                         },
+                        held: hold
+                            .as_ref()
+                            .filter(|(_, keyboard)| !*keyboard)
+                            .map(|(target, _)| target),
                     },
                     Some(if captured {
                         &mut covered_sidebar
@@ -986,7 +1003,10 @@ pub fn render_terminal_shell_with_resize<'a>(
         };
         // An anchored menu takes the whole viewport, as Settings does; the status chip that
         // replaces the ordinary status paints after it.
-        let menu_area = if menu.anchor.is_some() {
+        let menu_area = if native
+            .action_menu_root()
+            .is_some_and(|(_, anchor)| anchor.is_some())
+        {
             area
         } else {
             overlay_area(&areas)
@@ -994,7 +1014,7 @@ pub fn render_terminal_shell_with_resize<'a>(
         let draw = if tier == ViewportTier::TooSmall {
             ModalPresentation::NotPresented
         } else {
-            let title = match menu.source {
+            let tab_title = |source: &crate::action_menu::MenuTarget| match source {
                 crate::action_menu::MenuTarget::Tab(id)
                 | crate::action_menu::MenuTarget::TabGroupChoices(id)
                 | crate::action_menu::MenuTarget::TabTools(id) => (0..native.tab_count())
@@ -1003,11 +1023,32 @@ pub fn render_terminal_shell_with_resize<'a>(
                     .map(|tab| tab.display_label(locale)),
                 _ => None,
             };
+            let title = tab_title(menu.source);
             let mut menu = menu;
             if let Some(title) = title.as_deref() {
                 menu.title = title;
             }
-            action_menu::render(frame, menu_area, menu, view.bindings(), locale, theme, hits)
+            // A cascade parent shows the same Tab name it showed while it was open.
+            let mut parents = native.action_menu_cascade();
+            let parent_titles: Vec<_> = parents
+                .iter()
+                .map(|parent| tab_title(parent.source))
+                .collect();
+            for (parent, title) in parents.iter_mut().zip(&parent_titles) {
+                if let Some(title) = title.as_deref() {
+                    parent.title = title;
+                }
+            }
+            action_menu::render(
+                frame,
+                menu_area,
+                menu,
+                &parents,
+                view.bindings(),
+                locale,
+                theme,
+                hits,
+            )
         };
         if matches!(draw, ModalPresentation::NotPresented)
             && let Some(surface) = recovery::render(
@@ -2428,6 +2469,37 @@ fn emphasize_pane_boundary(frame: &mut Frame<'_>, leaf: Rect, panel: Rect, theme
 ///
 /// An overlay already owns input exclusively and occludes what it covers; its heading, caret, or
 /// provisional marker identifies that ownership, so the border never repeats a focus accent.
+/// The sidebar row that owns an open row menu, and whether the keyboard opened it.
+fn sidebar_menu_hold(
+    view: &ClientView,
+    native: &crate::workbench_client::WorkbenchClientView<'_>,
+) -> Option<(crate::machine_picker::SidebarTarget, bool)> {
+    use crate::{action_menu::MenuTarget, machine_picker::SidebarTarget};
+    let (target, anchor) = native.action_menu_root()?;
+    let anchor = anchor?;
+    let session_id = native.action_menu_source()?.session;
+    let machine = view.machines.current.clone();
+    let target = match target {
+        MenuTarget::Project(project_id) => SidebarTarget::Project {
+            machine,
+            session_id,
+            project_id: project_id.clone(),
+        },
+        MenuTarget::Workspace(location) => SidebarTarget::Context {
+            machine,
+            target: crate::workbench_client::ClientContextTarget {
+                session_id,
+                location: location.clone(),
+            },
+        },
+        _ => return None,
+    };
+    Some((
+        target,
+        matches!(anchor, crate::action_menu::MenuAnchor::Row { .. }),
+    ))
+}
+
 pub(crate) fn overlay_surface(theme: &Theme, padding: Padding) -> Block<'static> {
     Block::new()
         .borders(Borders::ALL)
