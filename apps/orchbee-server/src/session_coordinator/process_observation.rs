@@ -3,13 +3,18 @@ use super::SessionCoordinator;
 use crate::agent_screen::{Detection, Stability};
 use crate::terminal_coordinator::BindingViewerTarget;
 use orchbee_agent_observation_protocol::{
-    AgentProcessCandidate, AgentProcessSelection, AgentReportProvider, classify_agent_process,
-    select_agent_process,
+    AgentProcessRow, AgentReportProvider, AgentSampleVerdict, classify_agent_process,
+    evaluate_agent_sample,
 };
 use orchbee_server::{TerminalAgentBinding, TerminalAgentProcessObservation};
-use orchbee_terminal_protocol::TerminalProcessInfo;
+use orchbee_terminal_protocol::{
+    MAXIMUM_PROCESS_SAMPLE_ROWS, TerminalProcessConsole, TerminalProcessInfo,
+};
 use orchbee_workbench_protocol::PresentationBinding;
 use std::{collections::BTreeMap, time::Instant};
+mod identity;
+#[cfg(test)]
+pub(crate) use identity::SETTLE;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct Selected {
     pid: u32,
@@ -24,7 +29,7 @@ impl Selected {
 pub(super) struct Sample {
     target: TerminalAgentBinding,
     started: Instant,
-    selected: Option<Selected>,
+    identity: identity::IdentityState,
     input_revision: u64,
     first_seen: Instant,
     screen: Stability,
@@ -38,13 +43,9 @@ fn key(binding: &PresentationBinding) -> (String, String) {
         binding.terminal_id.as_str().into(),
     )
 }
-pub(crate) fn identify(sample: &TerminalProcessInfo) -> Option<Selected> {
-    // An opaque row (no image) could hold the Agent, so it selects nothing and the prior
-    // selection stays, as when such a member failed the whole sample.
-    if sample.processes.iter().any(|p| p.image.is_none()) {
-        return None;
-    }
-    let candidates: Vec<_> = sample
+/// Decodes one complete Host sample into identity rows.
+fn rows(sample: &TerminalProcessInfo) -> Vec<AgentProcessRow> {
+    sample
         .processes
         .iter()
         .map(|p| {
@@ -55,26 +56,56 @@ pub(crate) fn identify(sample: &TerminalProcessInfo) -> Option<Selected> {
                     !s.trim().is_empty() && !s.contains('\0') && s.encode_utf16().count() <= 4096
                 })
                 .and_then(|s| winsafe::CommandLineToArgv(s).ok());
-            AgentProcessCandidate {
+            AgentProcessRow {
                 pid: p.pid,
                 parent_pid: p.parent_pid,
                 creation_time: p.creation_time,
-                provider: classify_agent_process(p.image.as_deref(), argv.as_deref())
-                    .candidate_provider(),
+                opaque: p.image.is_none(),
+                detached: matches!(
+                    p.console,
+                    TerminalProcessConsole::Detached | TerminalProcessConsole::None
+                ),
+                recognition: classify_agent_process(p.image.as_deref(), argv.as_deref()),
             }
         })
-        .collect();
-    match select_agent_process(&candidates) {
-        AgentProcessSelection::Selected {
-            pid,
-            creation_time,
-            provider,
+        .collect()
+}
+fn evaluate(sample: &TerminalProcessInfo) -> (Vec<AgentProcessRow>, AgentSampleVerdict) {
+    let rows = rows(sample);
+    let verdict =
+        evaluate_agent_sample(&rows, sample.processes.len() >= MAXIMUM_PROCESS_SAMPLE_ROWS);
+    (rows, verdict)
+}
+/// The anchor one sample names on its own; it only brackets screen capture, while the
+/// identity state alone decides which run Panel reports attribute.
+pub(crate) fn identify(sample: &TerminalProcessInfo) -> Option<Selected> {
+    match evaluate(sample).1 {
+        AgentSampleVerdict::Anchor(anchor)
+        | AgentSampleVerdict::Unresolved {
+            anchor: Some(anchor),
+            ..
         } => Some(Selected {
-            pid,
-            created: creation_time,
-            provider,
+            pid: anchor.pid,
+            created: anchor.creation_time,
+            provider: anchor.provider,
         }),
-        AgentProcessSelection::None | AgentProcessSelection::Ambiguous => None,
+        AgentSampleVerdict::Unresolved { anchor: None, .. }
+        | AgentSampleVerdict::None
+        | AgentSampleVerdict::Remote => None,
+    }
+}
+impl From<identity::Run> for Selected {
+    fn from(run: identity::Run) -> Self {
+        Self {
+            pid: run.pid,
+            created: run.created,
+            provider: run.provider,
+        }
+    }
+}
+impl Sample {
+    fn published(&self) -> Option<Selected> {
+        self.identity.published().map(Selected::from)
     }
 }
 impl SessionCoordinator {
@@ -152,28 +183,28 @@ impl SessionCoordinator {
             return false;
         };
         let input_revision = workbench.terminal_agent_input_revision(&physical);
-        let selected = identify(sample);
-        let old = prior.and_then(|p| p.selected);
-        let departed = old.filter(|old| {
-            !sample
-                .processes
-                .iter()
-                .any(|p| p.pid == old.pid && p.creation_time == old.created)
-        });
-        let (event, retained) = if let Some(old) = departed {
-            (Some((old.provider, true)), None)
-        } else if let Some(selected) = selected {
-            let unchanged = prior.is_some_and(|p| {
-                p.selected == Some(selected) && p.input_revision == input_revision
-            });
-            (
-                (!unchanged).then_some((selected.provider, false)),
-                Some(selected),
-            )
+        let (rows, verdict) = evaluate(sample);
+        let mut identity = prior
+            .filter(|p| p.target == physical)
+            .map_or_else(identity::IdentityState::default, |p| p.identity.clone());
+        let old = prior.and_then(Sample::published);
+        let departed = identity
+            .observe(started, &rows, verdict)
+            .filter(|run| run.published)
+            .map(Selected::from);
+        let retained = identity.published().map(Selected::from);
+        // The sample's own anchor must still be the published run's for screen evidence.
+        let selected = identify(sample).filter(|selected| Some(*selected) == retained);
+        let event = if let Some(old) = departed {
+            Some((old.provider, true))
+        } else if let Some(retained) = retained {
+            let unchanged =
+                old == Some(retained) && prior.is_some_and(|p| p.input_revision == input_revision);
+            (!unchanged).then_some((retained.provider, false))
         } else {
-            (None, old)
+            None
         };
-        let same = prior.filter(|p| p.selected == retained);
+        let same = prior.filter(|p| p.published() == retained);
         let first_seen = same.map_or(started, |p| p.first_seen);
         let mut screen = same.map_or_else(
             || Stability::new(Detection::fallback(false)),
@@ -183,7 +214,6 @@ impl SessionCoordinator {
         let mut fallback = None;
         if departed.is_none()
             && selected.is_some()
-            && selected == retained
             && let Some(detection) = detection
             && (detection.visible_working
                 || detection.visible_idle
@@ -232,14 +262,14 @@ impl SessionCoordinator {
             return false;
         }
         let input_revision = workbench.terminal_agent_input_revision(&physical);
-        let released = departed.is_some() && selected.is_none();
+        let released = departed.is_some() && retained.is_none();
         self.observe_name_owner(&physical.binding, released);
         self.process_samples.insert(
             key,
             Sample {
                 target: physical,
                 started,
-                selected: retained,
+                identity,
                 input_revision,
                 first_seen,
                 screen,
@@ -265,12 +295,27 @@ impl ProcessObservationTarget {
     }
 }
 impl SessionCoordinator {
+    /// A failed sample of an exactly tracked physical target ages its identity; it never ends a run.
+    pub(crate) fn observe_host_process_failure(
+        &mut self,
+        target: BindingViewerTarget,
+        started: Instant,
+    ) {
+        if let Some(sample) = self.process_samples.values_mut().find(|sample| {
+            sample.target.worker_generation == target.worker.generation
+                && sample.target.identity == target.identity
+        }) && sample.started < started
+        {
+            sample.started = started;
+            sample.identity.fail(started);
+        }
+    }
     /// Scheduling hint only; publication still validates the complete physical/process identity.
     pub(crate) fn process_observation_has_agent(&self, target: &ProcessObservationTarget) -> bool {
         self.process_samples
             .get(&key(&target.binding))
             .is_some_and(|sample| {
-                sample.selected.is_some()
+                sample.identity.tracking()
                     && sample.target.binding == target.binding
                     && sample.target.worker_generation == target.target.worker.generation
                     && sample.target.identity == target.target.identity

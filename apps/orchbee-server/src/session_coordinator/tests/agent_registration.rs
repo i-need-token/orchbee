@@ -276,6 +276,7 @@ fn registration_facts_convert_for_a_consumer_shaped_reader() {
 #[cfg(windows)]
 mod process_samples {
     use super::*;
+    use crate::session_coordinator::PROCESS_IDENTITY_SETTLE as SETTLE;
     use orchbee_terminal_protocol::{
         AttachmentId, TerminalId, TerminalProcess, TerminalProcessConsole, TerminalProcessInfo,
     };
@@ -320,8 +321,8 @@ mod process_samples {
                     parent_pid: Some(10),
                     creation_time: 200,
                     console: TerminalProcessConsole::Attached,
-                    image: Some("C:/tools/pi.exe".into()),
-                    command_line: Some("pi.exe".into()),
+                    image: Some("C:/tools/claude.exe".into()),
+                    command_line: Some("claude.exe".into()),
                     current_directory: None,
                 },
             ],
@@ -455,9 +456,10 @@ mod process_samples {
     fn complete_samples_confirm_without_revision_churn_then_prove_pid_reuse_exit() {
         let (mut session, target, mut sample) = fixture();
         let now = Instant::now();
+        assert!(session.observe_host_process(target, &sample, now - SETTLE, now - SETTLE));
         assert!(session.observe_host_process(target, &sample, now, now));
         let (rev, view) = read(&mut session);
-        assert_eq!(view.agent.as_deref(), Some("pi"));
+        assert_eq!(view.agent.as_deref(), Some("claude"));
         assert_eq!(view.state, PanelAgentState::Unknown);
         let later = now + Duration::from_millis(1);
         assert!(session.observe_host_process(target, &sample, later, later));
@@ -467,14 +469,16 @@ mod process_samples {
         let later = later + Duration::from_millis(1);
         assert!(session.observe_host_process(target, &sample, later, later));
         assert_eq!(read(&mut session).1.agent, None);
-        let later = later + Duration::from_millis(1);
+        // A restart is a new run that settles again.
+        let later = later + SETTLE;
         assert!(session.observe_host_process(target, &sample, later, later));
-        assert_eq!(read(&mut session).1.agent.as_deref(), Some("pi"));
+        assert_eq!(read(&mut session).1.agent.as_deref(), Some("claude"));
     }
     #[test]
     fn wrong_physical_generation_missing_image_and_ambiguous_chains_do_not_erase_reports() {
         let (mut session, target, mut sample) = fixture();
         let now = Instant::now();
+        assert!(session.observe_host_process(target, &sample, now - SETTLE, now - SETTLE));
         assert!(session.observe_host_process(target, &sample, now, now));
         let before = read(&mut session);
         let later = now + Duration::from_millis(1);
@@ -485,7 +489,7 @@ mod process_samples {
         sample.processes[1].image = None;
         assert!(session.observe_host_process(target, &sample, later, later));
         assert_eq!(read(&mut session), before);
-        sample.processes[1].image = Some("pi.exe".into());
+        sample.processes[1].image = Some("claude.exe".into());
         let mut sibling = sample.processes[1].clone();
         sibling.pid = 30;
         sibling.creation_time = 300;
@@ -522,6 +526,7 @@ mod process_samples {
             let at = now + Duration::from_millis(ms);
             assert!(session.observe_host_screen(target, &sample, detection, at, at));
         };
+        assert!(session.observe_host_process(target, &sample, now - SETTLE, now - SETTLE));
         admit(&mut session, 0, Some(working));
         admit(&mut session, 2999, Some(working));
         assert_eq!(read(&mut session).1.state, PanelAgentState::Unknown);
@@ -541,12 +546,12 @@ mod process_samples {
         admit(&mut session, 4900, Some(idle));
         assert_eq!(read(&mut session).1.state, PanelAgentState::Idle);
         sample.processes[1].creation_time += 1;
-        for ms in [5000, 5100, 8000] {
+        for ms in [5000, 5100, 5500, 8400] {
             let at = now + Duration::from_millis(ms);
             assert!(session.observe_host_screen(target, &sample, Some(working), at, at));
             assert_eq!(read(&mut session).1.state, PanelAgentState::Unknown);
         }
-        let at = now + Duration::from_millis(8100);
+        let at = now + Duration::from_millis(8500);
         assert!(session.observe_host_screen(target, &sample, Some(working), at, at));
         assert_eq!(read(&mut session).1.state, PanelAgentState::Working);
     }
@@ -555,6 +560,7 @@ mod process_samples {
         use crate::agent_screen::Detection;
         let (mut session, target, sample) = fixture();
         let origin = Instant::now();
+        assert!(session.observe_host_process(target, &sample, origin - SETTLE, origin - SETTLE));
         for (ms, state) in [
             (0, PanelAgentState::Working),
             (200, PanelAgentState::Idle),
@@ -589,6 +595,7 @@ mod process_samples {
             visible_working: false,
             ..working
         };
+        assert!(session.observe_host_process(target, &sample, now - SETTLE, now - SETTLE));
         for ms in [0, 3000] {
             let at = now + Duration::from_millis(ms);
             assert!(session.observe_host_screen(target, &sample, Some(working), at, at));

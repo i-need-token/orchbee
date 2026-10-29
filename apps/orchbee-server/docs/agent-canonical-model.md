@@ -223,6 +223,37 @@ replacement, provider A → B → A between reads, proven versus uncertain exit,
 policy/disposal, strict wire bounds and actual Windows rename/resolve/list/clear plus named
 terminal access. The protocol schema and CLI envelope versions must agree with emitted targets.
 
+## Process identity state
+
+On Windows the Session keeps one identity state per exact Terminal generation, fed only by complete
+Host process samples and failed sample attempts. The Agent observation protocol's per-sample
+verdict names the outermost candidate anchor, by process identifier and creation time, or why no
+anchor can be named. The state turns verdicts into one result: `agent` with grade `recognized`,
+`none`, `unknown` with one closed reason, or `unsupported` with `remote-execution`.
+
+- Settle: a run starts only after the same anchor appears in two successful samples at least
+  500 ms apart; until then the result is `unknown` with `settling`. An anchor that attaches to the
+  Terminal's console within the window settles normally.
+- Runs: each run has a per-generation sequence that is never reused, and a restart is a new run. A
+  run continues while a successful sample contains its exact anchor; a reused identifier with
+  another creation time ends it and never inherits it.
+- Hand-off: when the anchor departs and the outermost candidate is a same-provider descendant whose
+  nearest departed ancestor is that anchor, the run moves to it.
+- Ambiguity: while the anchor lives, a sibling candidate or an unresolved row outside the anchor's
+  subtree yields `unknown` with its reason and keeps the run; rows inside the subtree never hold an
+  outer Agent. Before a run exists, they prevent settling.
+- Staleness: failed samples never end a run; they keep the last result for at most two seconds and
+  then yield `unknown` with `sample-failed`.
+- Consumption: Panel process reports and screen fallback attribute only the published run. A run is
+  published when its result is `agent`, or `unknown` with `unclassified-arguments` or
+  `command-line-unreadable`, so Agents started with unlisted arguments stay visible; a run that stays
+  `detached-console` is never published. A published run stays published until it ends, and only
+  then is an exit reported.
+
+The invariants and deterministic traces live in
+`src/session_coordinator/process_observation/identity.rs` and its adjacent tests. Diagnostics will
+expose the result; Agent start reads its own sample through the same per-sample verdict.
+
 ## Managed terminal status
 
 The launch family owns exact terminal-management status. Physical Agent Get consumes this status;

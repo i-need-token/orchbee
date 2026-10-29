@@ -48,11 +48,20 @@ fn agent_chain_selection_has_explicit_ambiguity_and_root_absence() {
         interpret(&facts).foreground.selection,
         Selection::AgentChain
     );
-    // An opaque member could be the Agent, so the sample names none.
+    // An opaque member inside the anchor never holds an outer Agent; one outside leaves the
+    // identity unresolved, which the Server reports, while the named chain stays.
     let mut opaque = process(26, Some(25), "", "");
     (opaque.image, opaque.command_line) = (None, None);
     facts.processes.push(opaque);
-    assert_eq!(interpret(&facts).foreground.selection, Selection::Ambiguous);
+    assert_eq!(interpret(&facts).foreground.pid, Some(25));
+    facts.processes[1].parent_pid = Some(99);
+    assert_eq!(interpret(&facts).foreground.pid, Some(25));
+    // Without a candidate, an opaque member is not a foreground Agent.
+    facts.processes.remove(0);
+    assert_eq!(
+        interpret(&facts).foreground.selection,
+        Selection::Unavailable
+    );
 }
 
 #[test]

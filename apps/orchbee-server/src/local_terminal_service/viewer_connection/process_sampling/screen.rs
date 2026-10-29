@@ -484,6 +484,11 @@ pub(super) fn observe(
         );
     }
     let Some(before) = before else {
+        if !stop.load(Ordering::Acquire) {
+            viewer
+                .service
+                .observe_host_process_failure(&viewer.handle, viewer.target, started);
+        }
         return;
     };
     let selected = identify_host_agent(&before);

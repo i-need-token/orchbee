@@ -168,6 +168,15 @@ fn static_codex_refreshes_the_retained_frame_after_process_before() {
         .remove(0);
     let seed = static_codex_process(0, [1; 16]);
     let origin = Instant::now() - Duration::from_secs(3);
+    let settle = origin - crate::session_coordinator::PROCESS_IDENTITY_SETTLE;
+    assert!(
+        fixture
+            .service
+            .coordinator
+            .lock()
+            .unwrap()
+            .observe_host_process(target.target, &seed, settle, settle)
+    );
     assert!(
         fixture
             .service

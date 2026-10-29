@@ -72,6 +72,6 @@ applied/ignored 处理结果、实际变更标记及有效上报视图。
 
 ## 通过 Host 读取确认进程
 
-Windows Session 在后台采样 Host 进程，无需用户发起查询。每轮按轮转顺序访问最多八个主／子绑定，轮间等待 250 毫秒，目标之间使用一秒预算；carrier I/O 和清理可能延迟一轮，因此不承诺新鲜度。临时只读 viewer 释放后才采样另一终端；清理结果不确定会暂停采样，责任保留至 Session 停止流程。成功的 `panel process-info` 及 Panel／Agent 查询中的终端观察也进入同一可信进程适配器。它再次校验精确的 Worker／Host 代际，识别唯一进程链。后续完整样本可证明保留的 PID／创建时间身份已离开，同时原子清理对应上报及适用元数据。缺失／失败／歧义样本不虚构退出；未改变的身份不会反复推进修订。Panel／Agent 查询先采集 Host 观察，再读取上报／元数据修订，因此自身成功接纳的进程确认可以出现在同一次结果中。之后若并发改变修订，查询返回既有 `metadata-changed` 失败，不发布混合结果。周期采样器还按 [屏幕检测模型](../../orchbee-server/docs/agent-screen-model.zh-CN.md) 发布相关联的实时屏幕回退；进程识别不认证 provider，也不创建规范 Agent 会话。
+Windows Session 在后台采样 Host 进程，无需用户发起查询。每轮按轮转顺序访问最多八个主／子绑定，轮间等待 250 毫秒，目标之间使用一秒预算；carrier I/O 和清理可能延迟一轮，因此不承诺新鲜度。临时只读 viewer 释放后才采样另一终端；清理结果不确定会暂停采样，责任保留至 Session 停止流程。成功的 `panel process-info` 及 Panel／Agent 查询中的终端观察也进入同一可信进程适配器。它再次校验精确的 Worker／Host 代际，并输入 Server 的[进程身份状态](../../orchbee-server/docs/agent-canonical-model.zh-CN.md#进程身份状态)：锚点在两次间隔至少 500 毫秒的完整样本中稳定后才显示 provider；之后的完整样本若不含锚点的 PID／创建时间身份，且没有同 provider 交接，则原子清理对应上报及适用元数据。缺失／失败／歧义样本和不透明行不虚构退出；未改变的身份不会反复推进修订。Panel／Agent 查询先采集 Host 观察，再读取上报／元数据修订，因此自身成功接纳的进程确认可以出现在同一次结果中。之后若并发改变修订，查询返回既有 `metadata-changed` 失败，不发布混合结果。周期采样器还按 [屏幕检测模型](../../orchbee-server/docs/agent-screen-model.zh-CN.md) 发布相关联的实时屏幕回退；进程识别不认证 provider，也不创建规范 Agent 会话。
 
-<!-- documentation-pairing: english-sha256=e06074b8afdcec67957e964827db769884011ac1542abc00d96e0bc09dc89a4d zh-cn-sha256=e3262577012d4189b17bfa78d91b68976ae21f6a08689a7715ee7e25541ff568 -->
+<!-- documentation-pairing: english-sha256=37ab57987fe5a9fbe5f4e5af9827e6791e2f8d31b76f202c440f7ad0f6a95529 zh-cn-sha256=26c69deaaf2ff2b8d7d5c6ed79e003da2616c2ba1487edc8b1622eaf3eff20d4 -->

@@ -191,6 +191,29 @@ dispose／poison 所有者仍回答 unavailable。保留既有 canonical ID 优�
 已证明及不确定退出、物理替换、策略／dispose、严格协议边界，以及真实 Windows
 重命名／解析／列举／清名和具名终端访问。协议 schema 和 CLI 信封版本须与实际目标一致。
 
+## 进程身份状态
+
+在 Windows 上，Session 为每个精确的终端代际保留一个身份状态，只由完整的 Host 进程样本和失败的采样尝试
+驱动。Agent 观测协议的逐样本判定按进程标识符和创建时间指出最外层候选锚点，或说明为何无法指出锚点。状态把
+判定转换为唯一结果：等级为 `recognized` 的 `agent`、`none`、带一个封闭原因的 `unknown`，或带
+`remote-execution` 的 `unsupported`。
+
+- 稳定：同一锚点出现在两次间隔至少 500 毫秒的成功样本中，运行才开始；此前结果为带 `settling` 的
+  `unknown`。在窗口内连上终端控制台的锚点正常稳定。
+- 运行：每个运行有一个代际内不复用的序号，重启是新的运行。成功样本包含精确锚点时运行继续；标识符被复用、
+  创建时间不同则运行结束，且不会继承。
+- 交接：锚点离开、且最外层候选是同 provider 的后代、其最近的已离开祖先正是该锚点时，运行转移到它。
+- 歧义：锚点存活期间，兄弟候选或锚点子树之外的未决行产生带相应原因的 `unknown`，运行保留；子树内的行
+  永远不会是外层 Agent。运行建立之前，它们阻止稳定。
+- 过期：失败样本从不结束运行；最多保留上一结果两秒，之后产生带 `sample-failed` 的 `unknown`。
+- 使用：Panel 进程上报和屏幕回退只归属于已发布的运行。结果为 `agent`，或为带
+  `unclassified-arguments`、`command-line-unreadable` 的 `unknown` 时，运行被发布，因此带未列出参数
+  启动的 Agent 仍然可见；始终是 `detached-console` 的运行从不发布。已发布的运行保持发布直到结束，
+  只有那时才报告退出。
+
+不变量和确定性轨迹位于 `src/session_coordinator/process_observation/identity.rs` 及其相邻测试。诊断
+之后会展示该结果；Agent start 通过同一逐样本判定读取自己的样本。
+
 ## 托管终端状态
 
 启动家族拥有精确终端托管状态。物理 Agent Get 消费此状态，规范启动状态保持独立。读取策略先于准备，
@@ -537,4 +560,4 @@ Devin 六组 hook 仅接收 session-identified。身份刷新保留未知或已�
 
 Hermes 仅准入 session-identified。会话启动／重置和 CLI 恢复观察保留规范轮次状态，不制造空闲或完成。
 
-<!-- documentation-pairing: english-sha256=a05571720da71e398424a12645bd154456888b2a79d5615a23d8419101cb77ed zh-cn-sha256=61ffdfdc3c7c95eda1eae412c96583e46acdd8a21f5947ee7956e125e09922bc -->
+<!-- documentation-pairing: english-sha256=00d3389d08b53b455d624cfa9204098b7a2c63bee216d1469b649cc7bb0e526b zh-cn-sha256=63aaa881a653069dc95fa380d768c02cbf23927af3610fb6c25515b2067bac7a -->

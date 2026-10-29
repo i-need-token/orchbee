@@ -2,13 +2,13 @@
 //! expands commands, or creates canonical Agent state.
 
 use orchbee_agent_observation_protocol::{
-    AgentProcessCandidate, AgentProcessSelection, AgentReportProvider, classify_agent_process,
-    select_agent_process,
+    AgentIdentityUnknownReason, AgentProcessRow, AgentReportProvider, AgentSampleVerdict,
+    classify_agent_process, evaluate_agent_sample,
 };
 #[cfg(test)]
 mod tests;
 
-use orchbee_terminal_protocol::{TerminalProcess, TerminalProcessInfo};
+use orchbee_terminal_protocol::{TerminalProcess, TerminalProcessConsole, TerminalProcessInfo};
 
 pub use crate::agent_provider::provider;
 
@@ -50,58 +50,69 @@ pub struct Interpretation<'a> {
 }
 
 pub fn interpret(sample: &TerminalProcessInfo) -> Interpretation<'_> {
+    let mut rows = Vec::with_capacity(sample.processes.len());
     let processes: Vec<_> = sample
         .processes
         .iter()
         .map(|facts| {
             let argv = facts.command_line.as_deref().and_then(arguments);
-            let provider = classify_agent_process(facts.image.as_deref(), argv.as_deref())
-                .candidate_provider()
-                .map(AgentReportProvider::native_provider_id);
+            let row = AgentProcessRow {
+                pid: facts.pid,
+                parent_pid: facts.parent_pid,
+                creation_time: facts.creation_time,
+                opaque: facts.image.is_none(),
+                detached: matches!(
+                    facts.console,
+                    TerminalProcessConsole::Detached | TerminalProcessConsole::None
+                ),
+                recognition: classify_agent_process(facts.image.as_deref(), argv.as_deref()),
+            };
+            rows.push(row);
             Process {
                 facts,
                 argv,
-                provider,
+                provider: row
+                    .anchor_provider()
+                    .map(AgentReportProvider::native_provider_id),
             }
         })
         .collect();
-    let candidates: Vec<_> = processes
-        .iter()
-        .map(|p| AgentProcessCandidate {
-            pid: p.facts.pid,
-            parent_pid: p.facts.parent_pid,
-            creation_time: p.facts.creation_time,
-            provider: p
-                .provider
-                .and_then(AgentReportProvider::from_native_provider_id),
-        })
-        .collect();
-    // An opaque row (no image) could hold the Agent, so the sample cannot name one.
-    let opaque = sample.processes.iter().any(|p| p.image.is_none());
-    let selection = if opaque {
-        AgentProcessSelection::Ambiguous
-    } else {
-        select_agent_process(&candidates)
-    };
-    let foreground = match selection {
-        AgentProcessSelection::Selected { pid, provider, .. } => Foreground {
+    let at_limit = sample.processes.len() >= orchbee_terminal_protocol::MAXIMUM_PROCESS_SAMPLE_ROWS;
+    // The same per-sample verdict the Server identity state consumes. A named anchor is the
+    // foreground Agent chain even when other evidence is unresolved; settling, runs, and the
+    // identity result stay with the Server.
+    let foreground = match evaluate_agent_sample(&rows, at_limit) {
+        AgentSampleVerdict::Anchor(anchor)
+        | AgentSampleVerdict::Unresolved {
+            anchor: Some(anchor),
+            ..
+        } => Foreground {
             selection: Selection::AgentChain,
-            pid: Some(pid),
-            provider: Some(provider.native_provider_id()),
+            pid: Some(anchor.pid),
+            provider: Some(anchor.provider.native_provider_id()),
         },
-        AgentProcessSelection::Ambiguous => Foreground {
+        AgentSampleVerdict::Unresolved {
+            anchor: None,
+            reason: AgentIdentityUnknownReason::AmbiguousCandidates,
+        } => Foreground {
             selection: Selection::Ambiguous,
             pid: None,
             provider: None,
         },
-        AgentProcessSelection::None if processes.iter().any(|p| p.facts.pid == sample.root_pid) => {
+        AgentSampleVerdict::Unresolved { anchor: None, .. }
+        | AgentSampleVerdict::None
+        | AgentSampleVerdict::Remote
+            if processes.iter().any(|p| p.facts.pid == sample.root_pid) =>
+        {
             Foreground {
                 selection: Selection::Root,
                 pid: Some(sample.root_pid),
                 provider: None,
             }
         }
-        AgentProcessSelection::None => Foreground {
+        AgentSampleVerdict::Unresolved { anchor: None, .. }
+        | AgentSampleVerdict::None
+        | AgentSampleVerdict::Remote => Foreground {
             selection: Selection::Unavailable,
             pid: None,
             provider: None,
@@ -112,7 +123,6 @@ pub fn interpret(sample: &TerminalProcessInfo) -> Interpretation<'_> {
         foreground,
     }
 }
-
 /// The program's file name without directories, or `-` when unknown.
 pub fn program_name(process: &TerminalProcess) -> String {
     process

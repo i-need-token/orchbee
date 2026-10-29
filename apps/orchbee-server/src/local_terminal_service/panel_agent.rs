@@ -135,4 +135,24 @@ impl LocalTerminalService {
             std::time::Instant::now(),
         );
     }
+
+    pub(super) fn observe_host_process_failure(
+        &self,
+        handle: &crate::worker_obcn_carrier::WorkerRequestHandle,
+        target: crate::terminal_coordinator::BindingViewerTarget,
+        started: std::time::Instant,
+    ) {
+        let Ok(workers) = self.workers.lock() else {
+            return;
+        };
+        if !handle.is_active()
+            || super::placement(workers.request_handle().as_ref()) != Some(target.worker)
+            || super::placement(Some(handle)) != Some(target.worker)
+        {
+            return;
+        }
+        if let Ok(mut coordinator) = self.coordinator.lock() {
+            coordinator.observe_host_process_failure(target, started);
+        }
+    }
 }

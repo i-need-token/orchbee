@@ -56,6 +56,8 @@ mod pane_graphics;
 mod process_observation;
 #[cfg(windows)]
 mod semantic_events;
+#[cfg(test)]
+pub(crate) use process_observation::SETTLE as PROCESS_IDENTITY_SETTLE;
 #[cfg(windows)]
 pub(crate) use process_observation::{ProcessObservationTarget, identify as identify_host_agent};
 

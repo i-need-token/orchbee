@@ -1,62 +1,131 @@
 use super::*;
+use crate::AgentReportProvider;
 use AgentInstallShape as S;
 use AgentReportProvider as P;
 use AgentUnresolvedProcess as U;
 
-fn p(
-    pid: u32,
-    parent: Option<u32>,
-    provider: Option<AgentReportProvider>,
-) -> AgentProcessCandidate {
-    AgentProcessCandidate {
+fn row(pid: u32, parent: Option<u32>, recognition: AgentProcessRecognition) -> AgentProcessRow {
+    AgentProcessRow {
         pid,
         parent_pid: parent,
         creation_time: u64::from(pid),
-        provider,
+        opaque: false,
+        detached: false,
+        recognition,
     }
 }
+fn anchor(pid: u32, provider: P, evidence: AgentAnchorEvidence) -> AgentSampleVerdict {
+    AgentSampleVerdict::Anchor(AgentAnchor {
+        pid,
+        creation_time: u64::from(pid),
+        provider,
+        evidence,
+    })
+}
 #[test]
-fn selection_requires_one_valid_outer_chain_and_creation_order() {
-    let mut rows = vec![
-        p(1, None, None),
-        p(2, Some(1), Some(AgentReportProvider::Codex)),
-        p(3, Some(2), Some(AgentReportProvider::Claude)),
-    ];
+fn sample_verdict_requires_one_outer_chain_and_no_unresolved_row_outside_it() {
+    use AgentAnchorEvidence as E;
+    use AgentIdentityUnknownReason as R;
+    let shell = row(1, None, AgentProcessRecognition::NotAgent);
+    let codex = row(2, Some(1), interactive(P::Codex, S::NativeImage));
+    let claude = row(3, Some(2), interactive(P::Claude, S::NativeImage));
+    let ambiguous = AgentSampleVerdict::Unresolved {
+        anchor: None,
+        reason: R::AmbiguousCandidates,
+    };
+    let with = |edit: &dyn Fn(&mut Vec<AgentProcessRow>)| {
+        let mut rows = vec![shell, codex, claude];
+        edit(&mut rows);
+        evaluate_agent_sample(&rows, false)
+    };
+    // The outer Agent of a nested chain is the anchor.
+    assert_eq!(with(&|_| {}), anchor(2, P::Codex, E::Interactive));
+    // Siblings, a parent created after its child, cycles, and duplicate identifiers.
+    assert_eq!(with(&|r| r[2].parent_pid = Some(1)), ambiguous);
+    assert_eq!(with(&|r| r[1].creation_time = 4), ambiguous);
     assert_eq!(
-        select_agent_process(&rows),
-        AgentProcessSelection::Selected {
-            pid: 2,
-            creation_time: 2,
-            provider: AgentReportProvider::Codex
+        with(&|r| {
+            r[1].creation_time = 3;
+            r[1].parent_pid = Some(3);
+        }),
+        ambiguous
+    );
+    assert_eq!(with(&|r| r.push(r[0])), ambiguous);
+    // Unclassified, unreadable, and detached anchors keep their provider and their reason.
+    let unclassified = AgentProcessRecognition::Unresolved {
+        provider: Some(P::Claude),
+        reason: U::UnclassifiedArguments,
+    };
+    assert_eq!(
+        with(&|r| {
+            r.truncate(2);
+            r[1].recognition = unclassified;
+        }),
+        anchor(2, P::Claude, E::UnclassifiedArguments)
+    );
+    assert_eq!(
+        with(&|r| r[1].detached = true),
+        anchor(2, P::Codex, E::DetachedConsole)
+    );
+    // Opaque or unresolved rows inside the anchor's subtree never hold an outer Agent.
+    assert_eq!(
+        with(&|r| r[2].opaque = true),
+        anchor(2, P::Codex, E::Interactive)
+    );
+    // Outside it they leave the sample unresolved, still naming the anchor.
+    let outside = AgentSampleVerdict::Unresolved {
+        anchor: match anchor(2, P::Codex, E::Interactive) {
+            AgentSampleVerdict::Anchor(a) => Some(a),
+            _ => None,
+        },
+        reason: R::CommandLineUnreadable,
+    };
+    assert_eq!(
+        with(&|r| r.push(AgentProcessRow {
+            opaque: true,
+            ..row(9, Some(1), AgentProcessRecognition::NotAgent)
+        })),
+        outside
+    );
+    let unproven = AgentProcessRecognition::Unresolved {
+        provider: Some(P::Cursor),
+        reason: U::UnverifiedProvenance,
+    };
+    assert_eq!(
+        with(&|r| {
+            r.truncate(1);
+            r.push(row(4, Some(1), unproven));
+        }),
+        AgentSampleVerdict::Unresolved {
+            anchor: None,
+            reason: R::UnverifiedProvenance
         }
     );
-    rows[2].parent_pid = Some(1);
+    // A full sample may have omitted members.
     assert_eq!(
-        select_agent_process(&rows),
-        AgentProcessSelection::Ambiguous
+        evaluate_agent_sample(&[shell], true),
+        AgentSampleVerdict::Unresolved {
+            anchor: None,
+            reason: R::SampleLimit
+        }
     );
-    rows[2].parent_pid = Some(2);
-    rows[1].creation_time = 4;
+    // No candidate: none, or remote while a remote client runs.
     assert_eq!(
-        select_agent_process(&rows),
-        AgentProcessSelection::Ambiguous
+        evaluate_agent_sample(&[shell], false),
+        AgentSampleVerdict::None
     );
-    rows[1].creation_time = 3;
-    rows[1].parent_pid = Some(3);
+    assert_eq!(evaluate_agent_sample(&[], false), AgentSampleVerdict::None);
     assert_eq!(
-        select_agent_process(&rows),
-        AgentProcessSelection::Ambiguous
+        evaluate_agent_sample(
+            &[
+                shell,
+                row(5, Some(1), AgentProcessRecognition::RemoteClient)
+            ],
+            false
+        ),
+        AgentSampleVerdict::Remote
     );
-    rows.truncate(1);
-    assert_eq!(select_agent_process(&rows), AgentProcessSelection::None);
-    rows.push(rows[0]);
-    assert_eq!(
-        select_agent_process(&rows),
-        AgentProcessSelection::Ambiguous
-    );
-    assert_eq!(select_agent_process(&[]), AgentProcessSelection::None);
 }
-
 fn interactive(provider: P, shape: S) -> AgentProcessRecognition {
     AgentProcessRecognition::Interactive { provider, shape }
 }

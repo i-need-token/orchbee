@@ -129,13 +129,13 @@ reuse it rather than keeping their own tables.
   `unknown` with one `AgentIdentityUnknownReason`, or `unsupported` with one
   `AgentIdentityUnsupportedReason`. The Server owns the state that produces it.
 
-`select_agent_process` requires one outer recognized Agent chain, rejects cycles, reused-parent
-creation order, and ambiguous siblings, and preserves explicit absence. Native CLI diagnostics and
-the Windows Server Host adapter count candidates through the transitional
-`AgentProcessRecognition::candidate_provider` rule: interactive recognitions, unclassified
-arguments, and an alias-named native image with an unreadable command line count, while
-noninteractive forms and other unresolved rows do not. After step 3 the Server identity state
-decides instead. Each caller uses the existing OS parser, and only the Server adapter admits proven Host samples under its identity and
+`evaluate_agent_sample` turns one complete sample of `AgentProcessRow` values into an
+`AgentSampleVerdict`: the outermost candidate anchor with its evidence (interactive, unclassified
+arguments, unreadable command line, or detached console), or why no anchor can be named. It rejects
+cycles, reused-parent creation order, and ambiguous siblings; opaque and unresolved rows outside the
+anchor's subtree, and a sample at the row limit, leave it unresolved; rows inside the subtree never
+hold an outer Agent. The Server identity state settles verdicts into runs and results; native CLI
+diagnostics and Agent start read their own sample through the same verdict. Each caller uses the existing OS parser, and only the Server adapter admits proven Host samples under its identity and
 timing fences. Table-driven fixtures cover every Windows support matrix row and counterexample in
-the [process identity proposal](../../proposals/agent/agent-process-identity.md); console
-attachment and opaque rows need Host facts and belong to the sampler.
+the [process identity proposal](../../proposals/agent/agent-process-identity.md); the Host sampler
+supplies console attachment and opaque rows.
