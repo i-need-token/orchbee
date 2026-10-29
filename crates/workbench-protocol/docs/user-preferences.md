@@ -46,8 +46,9 @@ own localized correction guidance and local-platform path admission.
 
 Desktop and Worker use the same native automatic-shell resolver. A custom launch
 does not depend on automatic shell discovery. System-shell discovery runs for a
-new default launch; failure refuses that creation without inventing another
-executable or rewriting the catalog. Existing terminals retain their launch.
+new default launch; a native Worker runs it once per generation and reuses the result
+for that generation's default launches. Failure refuses the default launch without
+inventing another executable or rewriting the catalog. Existing terminals retain their launch.
 A native Session reads its store when it dispatches each creation and sends the Worker the
 effective scrollback, default colors and selected profile command. The Worker never opens the
 store, so the Session's frozen configuration identity is the only scope, and a saved change
