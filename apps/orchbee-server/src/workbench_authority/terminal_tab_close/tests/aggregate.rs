@@ -41,6 +41,7 @@ fn split_fixture(count: u128) -> (WorkbenchAuthority, WorkbenchGrant) {
                         label: "right".to_owned(),
                         presentation_id: TerminalPresentationId::parse(&identity(103)).unwrap(),
                         launch_failure: None,
+                        launch_program: None,
                     },
                 },
                 slot_id: WorkbenchPanelSlotId::parse(&identity(104)).unwrap(),
@@ -536,7 +537,8 @@ fn aggregate_close_fences_same_tab_split_and_move_until_publication() {
     else {
         panic!("unrelated Tab split must remain admissible")
     };
-    let WorkbenchPanelCreatePreparation::Prepared(other_prepared) = other.finish(binding(1703))
+    let WorkbenchPanelCreatePreparation::Prepared(other_prepared) =
+        other.finish(binding(1703), None)
     else {
         panic!("unrelated Tab split preparation")
     };
@@ -649,7 +651,8 @@ fn leaf_close_leaves_same_tab_split_and_move_admissible() {
     else {
         panic!("leaf Close must not fence the same-Tab split")
     };
-    let WorkbenchPanelCreatePreparation::Prepared(prepared_split) = splitting.finish(binding(1702))
+    let WorkbenchPanelCreatePreparation::Prepared(prepared_split) =
+        splitting.finish(binding(1702), None)
     else {
         panic!("same-Tab split preparation")
     };

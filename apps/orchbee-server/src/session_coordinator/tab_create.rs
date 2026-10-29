@@ -3,7 +3,7 @@
 //! redirect a completion to another prepared creation.
 
 use super::{SessionCoordinator, presentation_binding};
-use crate::terminal_coordinator::{Completion, PendingOperation, WorkerPlacement};
+use crate::terminal_coordinator::{Completion, LaunchCapture, PendingOperation, WorkerPlacement};
 use orchbee_capability_node_protocol::{
     CapabilityNodeMessage, LeaseExpiresAtUnixMilliseconds, TerminalOperationAuthorization,
 };
@@ -97,8 +97,9 @@ impl SessionCoordinator {
         candidate: Option<RequestId>,
         expiry: Option<LeaseExpiresAtUnixMilliseconds>,
         worker: Option<WorkerPlacement>,
+        capture: &LaunchCapture,
     ) -> PreparedTerminalTabCreate {
-        self.prepare_terminal_creation(command, candidate, expiry, worker, None)
+        self.prepare_terminal_creation(command, candidate, expiry, worker, None, capture)
     }
 
     /// The caller holds registry then Session gates and has validated the directory
@@ -109,6 +110,7 @@ impl SessionCoordinator {
         candidate: Option<RequestId>,
         expiry: Option<LeaseExpiresAtUnixMilliseconds>,
         worker: WorkerPlacement,
+        capture: &LaunchCapture,
     ) -> PreparedTerminalTabCreate {
         let Ok(worker_id) = orchbee_workbench_protocol::WorkerId::parse(&format!(
             "{:032x}",
@@ -119,7 +121,14 @@ impl SessionCoordinator {
                 WorkbenchCommandUnavailableReason::NoCompatibleWorker,
             ));
         };
-        self.prepare_terminal_creation(command, candidate, expiry, Some(worker), Some(worker_id))
+        self.prepare_terminal_creation(
+            command,
+            candidate,
+            expiry,
+            Some(worker),
+            Some(worker_id),
+            capture,
+        )
     }
 
     fn prepare_terminal_creation(
@@ -129,6 +138,7 @@ impl SessionCoordinator {
         expiry: Option<LeaseExpiresAtUnixMilliseconds>,
         worker: Option<WorkerPlacement>,
         workspace_worker: Option<orchbee_workbench_protocol::WorkerId>,
+        capture: &LaunchCapture,
     ) -> PreparedTerminalTabCreate {
         let Self {
             terminals,
@@ -304,7 +314,8 @@ impl SessionCoordinator {
                 return PreparedTerminalTabCreate::Ready(admission.retire_composition_failure());
             }
         };
-        let mut terminal = match terminals.plan_create(request, Some(worker), Some(expiry)) {
+        let mut terminal = match terminals.plan_create(request, Some(worker), Some(expiry), capture)
+        {
             Ok(plan) => plan,
             Err(result) => {
                 let reason = terminal_preflight_reason(&result);
@@ -320,12 +331,13 @@ impl SessionCoordinator {
                     .runtime_unavailable(WorkbenchTabCreateRuntimeUnavailableReason::ServerBusy),
             );
         };
-        let workbench_plan = match admission.finish(binding.clone()) {
-            WorkbenchTabCreatePreparation::Ready(result) => {
-                return PreparedTerminalTabCreate::Ready(result);
-            }
-            WorkbenchTabCreatePreparation::Prepared(plan) => plan,
-        };
+        let workbench_plan =
+            match admission.finish(binding.clone(), terminal.launch_program().cloned()) {
+                WorkbenchTabCreatePreparation::Ready(result) => {
+                    return PreparedTerminalTabCreate::Ready(result);
+                }
+                WorkbenchTabCreatePreparation::Prepared(plan) => plan,
+            };
         let metadata = workbench_plan.metadata().clone();
         if terminal.create_reference() != &reference
             || terminal.authorization() != authorization

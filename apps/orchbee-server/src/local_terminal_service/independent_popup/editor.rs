@@ -4,6 +4,7 @@ use super::{
     PopupOwner, PreparedOperation, ProtocolVersion, SETTLEMENT_WINDOW, WorkbenchRequestId,
     WorkerOperationRequest, WorkerOperationResult, client, hex, lease_expiry, node, placement,
 };
+use crate::terminal_coordinator::LaunchCapture;
 use orchbee_workbench_protocol::{
     TerminalEditorAction as Action, TerminalEditorFailure as EditorFailure,
     TerminalEditorOutcome as EditorOutcome, TerminalEditorRequest, TerminalEditorResult,
@@ -148,6 +149,7 @@ impl LocalTerminalService {
                 }
                 _ => return Err(Failure::Unavailable),
             };
+            let capture = self.launch_capture();
             let workers = self.workers.lock().map_err(|_| Failure::Unavailable)?;
             let current = workers.request_handle();
             let (prepared, title, authorization) = self
@@ -164,6 +166,7 @@ impl LocalTerminalService {
                     },
                     placement(current.as_ref()),
                     lease_expiry(),
+                    &capture,
                 )?;
             let mut owners = self.popups.0.lock().map_err(|_| Failure::Unavailable)?;
             owners
@@ -253,6 +256,7 @@ impl LocalTerminalService {
                 client::ClientMessage::TerminalStart(request),
                 worker,
                 lease_expiry(),
+                &LaunchCapture::unavailable(),
             );
             if let PreparedOperation::Dispatch(pending) = &prepared {
                 let node::CapabilityNodeMessage::AuthorizedTerminalStart(start) = pending.command()

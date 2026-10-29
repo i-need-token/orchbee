@@ -3,7 +3,7 @@
 //! adopt a physical terminal from another incarnation.
 
 use super::{SessionCoordinator, presentation_binding};
-use crate::terminal_coordinator::{PendingOperation, WorkerPlacement};
+use crate::terminal_coordinator::{LaunchCapture, PendingOperation, WorkerPlacement};
 use orchbee_capability_node_protocol::LeaseExpiresAtUnixMilliseconds;
 use orchbee_client_server_protocol::{
     Geometry, RequestId, StartMode, TerminalCreateRequest, WorkerConstraint, WorkerId,
@@ -88,8 +88,8 @@ impl SessionCoordinator {
         reference: RequestId,
         worker: WorkerPlacement,
         expiry: LeaseExpiresAtUnixMilliseconds,
-        launch: Option<orchbee_client_server_protocol::LaunchSelection>,
         cwd: Option<WorkingDirectory>,
+        capture: &LaunchCapture,
     ) -> io::Result<Box<PendingOperation>> {
         let workbench = self
             .workbench
@@ -110,16 +110,19 @@ impl SessionCoordinator {
                     StartMode::Immediate {
                         geometry: Geometry::new(80, 24, 8, 16).map_err(io::Error::other)?,
                     },
-                    launch,
+                    // A checkpoint retains no launch selection: every restored terminal starts the
+                    // captured default program.
+                    None,
                 ),
                 Some(worker),
                 Some(expiry),
+                capture,
             )
             .map_err(|_| io::Error::other("restored terminal reservation unavailable"))?;
         let binding = presentation_binding(terminal.authorization())
             .ok_or_else(|| io::Error::other("restored terminal binding unavailable"))?;
         let rebind = workbench
-            .prepare_restored_terminal(target, binding)
+            .prepare_restored_terminal(target, binding, terminal.launch_program().cloned())
             .map_err(io::Error::other)?;
         let pending = terminal.commit();
         let _revision = rebind.commit();

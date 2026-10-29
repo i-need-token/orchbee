@@ -222,6 +222,7 @@ pub(crate) fn available_snapshot(binding: Option<PresentationBinding>) -> Workbe
                             label: "terminal".into(),
                             presentation_id: TerminalPresentationId::parse(ID).unwrap(),
                             launch_failure: None,
+                            launch_program: None,
                         },
                     },
                     tab_id: WorkbenchTabId::parse(ID).unwrap(),

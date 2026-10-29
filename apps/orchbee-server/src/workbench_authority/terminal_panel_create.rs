@@ -9,12 +9,13 @@ use placement::TerminalPlacement;
 
 use orchbee_workbench_protocol::{
     ContractError, PanelNode, PanelOrientation, PanelSlot, Presentation, PresentationBinding,
-    WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandResult,
-    WorkbenchCommandUnavailableReason, WorkbenchPanelId, WorkbenchPanelSlotId,
-    WorkbenchPanelSplitDirection, WorkbenchProtocolDocument, WorkbenchRejectionReason,
-    WorkbenchRequestId, WorkbenchRevision, WorkbenchSplitId, WorkbenchTabId,
-    WorkbenchTerminalContextId, WorkbenchTerminalFailureReason, WorkbenchTerminalGeometry,
-    WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason, WorkerId, serialize_document,
+    PresentationLaunchProgram, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
+    WorkbenchCommandResult, WorkbenchCommandUnavailableReason, WorkbenchPanelId,
+    WorkbenchPanelSlotId, WorkbenchPanelSplitDirection, WorkbenchProtocolDocument,
+    WorkbenchRejectionReason, WorkbenchRequestId, WorkbenchRevision, WorkbenchSplitId,
+    WorkbenchTabId, WorkbenchTerminalContextId, WorkbenchTerminalFailureReason,
+    WorkbenchTerminalGeometry, WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason,
+    WorkerId, serialize_document,
 };
 
 use super::{
@@ -215,8 +216,13 @@ impl<'a> WorkbenchPanelCreateAdmission<'a> {
         )
     }
 
+    /// Commits `binding` and the launched program its creation planned in one revision.
     #[must_use]
-    pub fn finish(self, binding: PresentationBinding) -> WorkbenchPanelCreatePreparation<'a> {
+    pub fn finish(
+        self,
+        binding: PresentationBinding,
+        launch_program: Option<PresentationLaunchProgram>,
+    ) -> WorkbenchPanelCreatePreparation<'a> {
         let Self {
             authority,
             command,
@@ -246,6 +252,7 @@ impl<'a> WorkbenchPanelCreateAdmission<'a> {
             &staged.presentation_id,
             &command.action,
             binding.clone(),
+            launch_program,
         ) {
             return WorkbenchPanelCreatePreparation::Ready(retire(authority, &command));
         }
@@ -921,6 +928,7 @@ struct PanelSplitReplacement<'a> {
     label: &'a str,
     right_click: orchbee_workbench_protocol::PanelRightClickTarget,
     binding: PresentationBinding,
+    launch_program: Option<PresentationLaunchProgram>,
 }
 
 fn replace_panel(node: &mut PanelNode, replacement: &PanelSplitReplacement<'_>) -> bool {
@@ -937,6 +945,7 @@ fn replace_panel(node: &mut PanelNode, replacement: &PanelSplitReplacement<'_>) 
                     label: replacement.label.to_owned(),
                     presentation_id: replacement.presentation_id.clone(),
                     launch_failure: None,
+                    launch_program: replacement.launch_program.clone(),
                 },
             };
             let new_first = matches!(

@@ -1,5 +1,7 @@
 use super::*;
-use orchbee_workbench_protocol::{PresentationBinding, TerminalId, WorkbenchDirectoryPath};
+use orchbee_workbench_protocol::{
+    PresentationBinding, PresentationLaunchProgram, TerminalId, WorkbenchDirectoryPath,
+};
 
 fn binding(id: u128, owner: u128) -> PresentationBinding {
     PresentationBinding {
@@ -53,13 +55,14 @@ fn preparation_is_effect_free_and_all_commits_preserve_retained_configuration() 
     let retained = authority.checkpoint(&worker(400)).unwrap();
     {
         let _uncommitted = authority
-            .prepare_restored_terminal(&targets[0], binding(900, 400))
+            .prepare_restored_terminal(&targets[0], binding(900, 400), None)
             .unwrap();
     }
     assert_eq!(authority.snapshot(), &before);
+    let program = PresentationLaunchProgram::parse("pwsh.exe").ok();
     for (index, target) in targets.iter().enumerate() {
         let revision = authority
-            .prepare_restored_terminal(target, binding(900 + index as u128, 400))
+            .prepare_restored_terminal(target, binding(900 + index as u128, 400), program.clone())
             .unwrap()
             .commit();
         assert_eq!(revision.value(), index as u64 + 1);
@@ -68,13 +71,19 @@ fn preparation_is_effect_free_and_all_commits_preserve_retained_configuration() 
             4 - index
         );
     }
+    // Each binding published its program in its own revision; the checkpoint keeps neither.
+    let published = serde_json::to_string(authority.snapshot()).unwrap();
+    assert_eq!(
+        published.matches(r#""launchProgram":"pwsh.exe""#).count(),
+        targets.len()
+    );
     assert_eq!(authority.checkpoint(&worker(400)).unwrap(), retained);
     assert_eq!(authority.last_identity, 40);
     assert!(authority.ledger.is_empty());
     assert_eq!(authority.catalog_revision, 0);
     assert_eq!(
         authority
-            .prepare_restored_terminal(&targets[0], binding(999, 400))
+            .prepare_restored_terminal(&targets[0], binding(999, 400), None)
             .err(),
         Some(WorkbenchRestoreError::AlreadyBound)
     );
@@ -105,7 +114,7 @@ fn refuses_old_session_foreign_worker_removed_membership_and_changed_directory()
     let before = authority.snapshot().clone();
     assert_eq!(
         authority
-            .prepare_restored_terminal(&target, binding(900, 500))
+            .prepare_restored_terminal(&target, binding(900, 500), None)
             .err(),
         Some(WorkbenchRestoreError::ForeignWorker)
     );
@@ -114,7 +123,7 @@ fn refuses_old_session_foreign_worker_removed_membership_and_changed_directory()
         WorkbenchAuthority::from_checkpoint(&checkpoint(), session(301), &worker(400)).unwrap();
     assert_eq!(
         another_session
-            .prepare_restored_terminal(&target, binding(900, 400))
+            .prepare_restored_terminal(&target, binding(900, 400), None)
             .err(),
         Some(WorkbenchRestoreError::TargetChanged)
     );
@@ -125,7 +134,7 @@ fn refuses_old_session_foreign_worker_removed_membership_and_changed_directory()
     let changed = authority.snapshot().clone();
     assert_eq!(
         authority
-            .prepare_restored_terminal(&target, binding(900, 400))
+            .prepare_restored_terminal(&target, binding(900, 400), None)
             .err(),
         Some(WorkbenchRestoreError::TargetChanged)
     );
@@ -137,7 +146,7 @@ fn refuses_old_session_foreign_worker_removed_membership_and_changed_directory()
     });
     assert_eq!(
         removed
-            .prepare_restored_terminal(&target, binding(900, 400))
+            .prepare_restored_terminal(&target, binding(900, 400), None)
             .err(),
         Some(WorkbenchRestoreError::TargetChanged)
     );
@@ -148,12 +157,12 @@ fn duplicate_physical_binding_retirement_and_revision_exhaustion_do_not_partiall
     let mut authority = restore(&checkpoint()).unwrap();
     let targets = authority.restoration_targets(&worker(400)).unwrap();
     authority
-        .prepare_restored_terminal(&targets[0], binding(900, 400))
+        .prepare_restored_terminal(&targets[0], binding(900, 400), None)
         .unwrap()
         .commit();
     let before = authority.snapshot().clone();
     assert!(matches!(
-        authority.prepare_restored_terminal(&targets[1], binding(900, 400)),
+        authority.prepare_restored_terminal(&targets[1], binding(900, 400), None),
         Err(WorkbenchRestoreError::InvalidProjection(_))
     ));
     assert_eq!(authority.snapshot(), &before);
@@ -163,7 +172,7 @@ fn duplicate_physical_binding_retirement_and_revision_exhaustion_do_not_partiall
     let exhausted = authority.snapshot().clone();
     assert_eq!(
         authority
-            .prepare_restored_terminal(&targets[1], binding(901, 400))
+            .prepare_restored_terminal(&targets[1], binding(901, 400), None)
             .err(),
         Some(WorkbenchRestoreError::RevisionExhausted)
     );
@@ -175,7 +184,7 @@ fn duplicate_physical_binding_retirement_and_revision_exhaustion_do_not_partiall
     );
     assert_eq!(
         authority
-            .prepare_restored_terminal(&targets[1], binding(901, 400))
+            .prepare_restored_terminal(&targets[1], binding(901, 400), None)
             .err(),
         Some(WorkbenchRestoreError::Unavailable)
     );

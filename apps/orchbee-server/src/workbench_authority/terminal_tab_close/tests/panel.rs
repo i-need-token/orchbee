@@ -75,7 +75,7 @@ fn split_fixture(
         panic!("panel split admission")
     };
     let WorkbenchPanelCreatePreparation::Prepared(prepared) =
-        admission.finish(binding(9000 + command_id))
+        admission.finish(binding(9000 + command_id), None)
     else {
         panic!("panel split preparation")
     };

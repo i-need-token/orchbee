@@ -1,9 +1,9 @@
 //! One frozen Session scope; Desktop and Session processes share the store's OS commit lock.
 use super::LocalTerminalService;
+use crate::terminal_coordinator::LaunchCapture;
 use orchbee_capability_node_protocol::{
-    AuthorizedTerminalLaunch, CapabilityNodeMessage, DefaultCustomProgram, DefaultLaunchProgram,
-    LaunchPreferences, ProtocolError, TerminalLaunchColors, TerminalLaunchPreferences,
-    encode_message,
+    DefaultCustomProgram, DefaultLaunchProgram, LaunchPreferences, ProtocolError,
+    TerminalLaunchColors, TerminalLaunchPreferences,
 };
 use orchbee_local_runtime::{UserPreferencesScope, UserPreferencesStore, UserTerminalLaunchIntent};
 use orchbee_workbench_protocol::{
@@ -36,25 +36,28 @@ impl LocalTerminalService {
         .map_err(|_| std::io::Error::other("Settings scope is unavailable"))
     }
 
-    /// Attaches this creation's launch intent, read from the frozen store at dispatch so a saved
-    /// change reaches only later creations. A missing store, failed read or program beyond the
-    /// selection budget sends `Unavailable`; `None` means the capture would exceed the frame.
-    pub(super) fn with_launch_preferences(
-        &self,
-        launch: &AuthorizedTerminalLaunch,
-    ) -> Option<AuthorizedTerminalLaunch> {
-        let preferences = self
+    /// Reads one creation's launch intent from the frozen store before the caller takes any lock,
+    /// so a saved change reaches only later creations and the dispatched launch and its published
+    /// program share this one read. A missing store, failed read or default program beyond the
+    /// selection budget captures `Unavailable`; an explicit selection never carries a program.
+    pub(super) fn launch_capture(&self) -> LaunchCapture {
+        let Some(intent) = self
             .preferences
             .get()
-            .and_then(|store| store.terminal_launch_intent(launch.launch().is_none()).ok())
-            .and_then(|intent| launch_preferences(intent).ok())
-            .map_or(LaunchPreferences::Unavailable, LaunchPreferences::Available);
-        let launch = launch.clone().with_preferences(preferences).ok()?;
-        encode_message(&CapabilityNodeMessage::AuthorizedTerminalLaunch(
-            launch.clone(),
-        ))
-        .ok()?;
-        Some(launch)
+            .and_then(|store| store.terminal_launch_intent(true).ok())
+        else {
+            return LaunchCapture::unavailable();
+        };
+        let explicit = UserTerminalLaunchIntent {
+            program: None,
+            scrollback_bytes: intent.scrollback_bytes,
+            colors: intent.colors,
+        };
+        let capture = |intent| {
+            launch_preferences(intent)
+                .map_or(LaunchPreferences::Unavailable, LaunchPreferences::Available)
+        };
+        LaunchCapture::new(capture(explicit), capture(intent))
     }
 
     pub(crate) fn execute_settings(&self, request: SettingsRequest) -> SettingsResult {

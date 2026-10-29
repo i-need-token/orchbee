@@ -337,7 +337,8 @@ fn committed_but_unsettled_create_blocks_both_idle_actions_at_the_current_revisi
         else {
             panic!("pending Create admission")
         };
-        let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding(3200))
+        let WorkbenchTabCreatePreparation::Prepared(prepared) =
+            admission.finish(binding(3200), None)
         else {
             panic!("pending Create preparation")
         };
@@ -408,7 +409,8 @@ fn dropping_uncommitted_create_preserves_empty_scope_without_a_pending_reservati
         // Admission and preparation retain an exclusive Authority borrow. There is no
         // production seam for another command until this value commits or is dropped.
         if prepared {
-            let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding(3200))
+            let WorkbenchTabCreatePreparation::Prepared(prepared) =
+                admission.finish(binding(3200), None)
             else {
                 panic!("Create preparation")
             };
@@ -557,6 +559,7 @@ fn child_only_bindings_cannot_be_omitted_from_idle_proof() {
             binding: primary_presentation.binding.take(),
             label: "child only".into(),
             launch_failure: None,
+            launch_program: None,
         });
         owner.projection = WorkbenchProjectionStore::load(
             &orchbee_workbench_protocol::serialize_document(

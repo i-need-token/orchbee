@@ -87,6 +87,7 @@ fn service_replays_new_group_pending_and_final_before_missing_entropy_clock_or_w
             Some(RequestId::parse(&format!("{:032x}", 1_002)).unwrap()),
             lease_expiry(),
             Some(worker()),
+            &LaunchCapture::absent(),
         ) else {
             panic!("dispatch expected")
         };
@@ -94,7 +95,12 @@ fn service_replays_new_group_pending_and_final_before_missing_entropy_clock_or_w
     };
 
     let replay = service
-        .execute_terminal_tab_create_with_candidates(command.clone(), None, None)
+        .execute_terminal_tab_create_with_candidates(
+            command.clone(),
+            None,
+            None,
+            LaunchCapture::absent(),
+        )
         .unwrap();
     assert!(matches!(
         replay.outcome,
@@ -110,7 +116,12 @@ fn service_replays_new_group_pending_and_final_before_missing_entropy_clock_or_w
         .result;
     assert_eq!(
         service
-            .execute_terminal_tab_create_with_candidates(command, None, None)
+            .execute_terminal_tab_create_with_candidates(
+                command,
+                None,
+                None,
+                LaunchCapture::absent()
+            )
             .unwrap(),
         final_result
     );
@@ -132,7 +143,12 @@ fn registry_and_session_gate_failures_before_commit_return_server_busy() {
     );
     assert!(matches!(
         service
-            .execute_terminal_tab_create_with_candidates(registry_command, None, None)
+            .execute_terminal_tab_create_with_candidates(
+                registry_command,
+                None,
+                None,
+                LaunchCapture::absent()
+            )
             .unwrap()
             .outcome,
         WorkbenchCommandOutcome::Unavailable {
@@ -152,7 +168,12 @@ fn registry_and_session_gate_failures_before_commit_return_server_busy() {
     );
     assert!(matches!(
         service
-            .execute_terminal_tab_create_with_candidates(session_command, None, None)
+            .execute_terminal_tab_create_with_candidates(
+                session_command,
+                None,
+                None,
+                LaunchCapture::absent()
+            )
             .unwrap()
             .outcome,
         WorkbenchCommandOutcome::Unavailable {
@@ -169,7 +190,7 @@ fn session_gate_loss_after_commit_returns_only_the_close_outcome_unknown_signal(
         let mut registry = registry
             .lock()
             .map_err(|_poison| "Worker registry poisoned before admission")?;
-        let WorkerAdmission::Accepted { generation } = registry.admit(worker_id) else {
+        let WorkerAdmission::Accepted { generation } = registry.admit(worker_id, None) else {
             return Err("test Worker was not admitted".into());
         };
         generation
@@ -227,7 +248,7 @@ fn silent_worker_timeout_settles_both_owners() -> TestResult {
         let mut registry = registry
             .lock()
             .map_err(|_poison| "Worker registry poisoned before admission")?;
-        let WorkerAdmission::Accepted { generation } = registry.admit(worker_id) else {
+        let WorkerAdmission::Accepted { generation } = registry.admit(worker_id, None) else {
             return Err("test Worker was not admitted".into());
         };
         generation

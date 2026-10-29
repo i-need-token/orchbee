@@ -31,6 +31,7 @@ fn created(baseline: &Snapshot, placement: Option<&TabCreationPlacement>) -> (Sn
             label: orchbee_workbench_protocol::WorkbenchLabel::parse("4").unwrap(),
             automatic_label: true,
             binding: primary_presentation.binding.unwrap(),
+            launch_program: None,
         },
         matches!(placement, Some(TabCreationPlacement::NewGroup {})).then_some(&group),
     )

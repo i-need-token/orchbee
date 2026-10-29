@@ -91,7 +91,7 @@ fn restart_rebinds_children_and_grouped_pinned_tabs_before_open_reuses_first_ter
                     worker,
                     expiry(),
                     None,
-                    None,
+                    &LaunchCapture::absent(),
                 )
                 .unwrap()
         })
@@ -213,17 +213,38 @@ fn restart_rebinds_children_and_grouped_pinned_tabs_before_open_reuses_first_ter
 fn restart_refusal_does_not_commit_a_second_physical_reservation() {
     let (mut coordinator, targets, worker) = restored(true);
     let pending = coordinator
-        .prepare_checkpoint_terminal(&targets[0], id(100), worker, expiry(), None, None)
+        .prepare_checkpoint_terminal(
+            &targets[0],
+            id(100),
+            worker,
+            expiry(),
+            None,
+            &LaunchCapture::absent(),
+        )
         .unwrap();
     let before = coordinator.workbench.as_ref().unwrap().snapshot().clone();
     assert!(
         coordinator
-            .prepare_checkpoint_terminal(&targets[0], id(101), worker, expiry(), None, None)
+            .prepare_checkpoint_terminal(
+                &targets[0],
+                id(101),
+                worker,
+                expiry(),
+                None,
+                &LaunchCapture::absent()
+            )
             .is_err()
     );
     assert_eq!(coordinator.workbench.as_ref().unwrap().snapshot(), &before);
     let next = coordinator
-        .prepare_checkpoint_terminal(&targets[1], id(102), worker, expiry(), None, None)
+        .prepare_checkpoint_terminal(
+            &targets[1],
+            id(102),
+            worker,
+            expiry(),
+            None,
+            &LaunchCapture::absent(),
+        )
         .unwrap();
     assert_eq!(
         u128::from_be_bytes(

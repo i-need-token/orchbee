@@ -1259,7 +1259,7 @@ fn registered_test_carrier() -> TestResult<(
         let mut registry = registry
             .lock()
             .map_err(|_poisoned| io::Error::other("Worker registry was poisoned"))?;
-        let WorkerAdmission::Accepted { generation } = registry.admit(LOCAL_WORKER_ID) else {
+        let WorkerAdmission::Accepted { generation } = registry.admit(LOCAL_WORKER_ID, None) else {
             return Err(io::Error::other("test Worker was not admitted").into());
         };
         generation
@@ -1320,7 +1320,7 @@ fn assert_attached_generation_cannot_retire(
         .map_err(|_poisoned| io::Error::other("Worker registry was poisoned"))?;
     assert!(!registry.cancel_pending_admission(generation));
     assert_eq!(
-        registry.admit(LOCAL_WORKER_ID),
+        registry.admit(LOCAL_WORKER_ID, None),
         WorkerAdmission::Duplicate {
             active_generation: generation,
             active_worker_id: LOCAL_WORKER_ID,
@@ -1343,7 +1343,7 @@ fn assert_same_worker_can_reconnect(
     assert!(registry.request_handle().is_none());
     let WorkerAdmission::Accepted {
         generation: replacement_generation,
-    } = registry.admit(LOCAL_WORKER_ID)
+    } = registry.admit(LOCAL_WORKER_ID, None)
     else {
         return Err(io::Error::other("same Worker could not reconnect after cleanup").into());
     };

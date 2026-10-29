@@ -16,6 +16,7 @@
 //! and the presentation binding comes from the real
 //! `agent_registration_snapshot` projection — the same hint/envelope
 //! literals as the accepted native-leaf oracle.
+use crate::terminal_coordinator::LaunchCapture;
 use orchbee_local_ipc::LocalStream as UnixStream;
 
 use super::*;
@@ -169,7 +170,7 @@ fn registry() -> Arc<Mutex<WorkerRegistry>> {
 }
 
 fn admit_generation(workers: &Arc<Mutex<WorkerRegistry>>) -> NonZeroU64 {
-    match workers.lock().unwrap().admit(lsp_worker()) {
+    match workers.lock().unwrap().admit(lsp_worker(), None) {
         WorkerAdmission::Accepted { generation } => generation,
         other => panic!("worker was not admitted: {other:?}"),
     }
@@ -225,6 +226,7 @@ fn open_member(service: &LocalTerminalService, generation: NonZeroU64) -> String
         Some(RequestId::parse("22222222222222222222222222222222").unwrap()),
         lease_expiry(),
         Some(worker),
+        &LaunchCapture::absent(),
     ) else {
         panic!("Workspace tab dispatch expected")
     };

@@ -98,7 +98,7 @@ fn create_tab(
         panic!("tab create admission")
     };
     let WorkbenchTabCreatePreparation::Prepared(prepared) =
-        admission.finish(binding(binding_value))
+        admission.finish(binding(binding_value), None)
     else {
         panic!("tab create preparation")
     };
@@ -150,7 +150,7 @@ fn split(
         panic!("panel split admission")
     };
     let WorkbenchPanelCreatePreparation::Prepared(prepared) =
-        admission.finish(binding(9000 + command_id))
+        admission.finish(binding(9000 + command_id), None)
     else {
         panic!("panel split preparation")
     };
@@ -606,6 +606,7 @@ fn relocate_preserves_the_complete_panel_with_child_presentations() {
                         label: "stacked".to_owned(),
                         binding: Some(binding(4242)),
                         launch_failure: None,
+                        launch_program: None,
                     });
                     let _ = primary_presentation;
                     marked = true;
@@ -966,7 +967,7 @@ fn a_pending_split_settlement_on_the_moved_leaf_fences_relocate() {
     ) else {
         panic!("panel split admission")
     };
-    let WorkbenchPanelCreatePreparation::Prepared(prepared) = admission.finish(binding(9100))
+    let WorkbenchPanelCreatePreparation::Prepared(prepared) = admission.finish(binding(9100), None)
     else {
         panic!("panel split preparation")
     };
@@ -1019,6 +1020,7 @@ fn deep_tree(depth: usize, seed: u128) -> PanelNode {
                 label: "deep".to_owned(),
                 binding: Some(binding(seed)),
                 launch_failure: None,
+                launch_program: None,
             },
             child_presentations: Vec::new(),
         };
@@ -1042,6 +1044,7 @@ fn deep_tree(depth: usize, seed: u128) -> PanelNode {
                         label: "shallow".to_owned(),
                         binding: Some(binding(seed + 2)),
                         launch_failure: None,
+                        launch_program: None,
                     },
                     child_presentations: Vec::new(),
                 },

@@ -20,6 +20,7 @@ fn child(seed: u128) -> Presentation {
             terminal_id: terminal_id(seed + 2),
         }),
         launch_failure: None,
+        launch_program: None,
     }
 }
 

@@ -1,4 +1,5 @@
 //! Verifies creation against its original full canonical baseline, including placement and fresh IDs.
+//! The binding and its launched program are Server-chosen, so replay takes both from the candidate.
 use super::{
     ClientContextTabs, ClientProjectionDivergence, CreatedTabExpectation,
     ValidatedCreatedProjection, validate_canonical_candidate,
@@ -70,6 +71,7 @@ pub(in crate::workbench_client) fn validate_created_tab(
                     .binding
                     .clone()
                     .ok_or(ClientProjectionDivergence)?,
+                launch_program: primary_presentation.launch_program.clone(),
             },
             new_group,
         )

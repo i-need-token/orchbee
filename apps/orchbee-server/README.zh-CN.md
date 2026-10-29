@@ -619,12 +619,14 @@ frame 和 Host 采样不能提前触发或推迟文件期限。dispatcher 等待
 已有工作和调度可能延后实际读取与交付，因此不保证严格在一秒内观察到变化。Invalidations 模式只传递 Server
 提交提示；外部文件采样属于交付语义快照的订阅。不增加 Client 轮询定时器或连接。
 
-每次授权创建分发都会读取同一个冻结存储一次，并把
+每次创建在准入前、于 Session 锁之外读取同一个冻结存储一次，其计划把该
 [启动偏好快照](../../crates/capability-node-protocol/README.zh-CN.md#启动偏好快照)附加到 Worker
 请求：滚动历史大小、终端默认色，以及默认启动时所选配置的命令。存储缺失、读取被拒或程序超出选择预算时
-发送 `Unavailable`，只拒绝该次创建；超出帧上限的快照不会被交付。保存的修改只影响之后的创建，运行中的
-终端保留其快照。会话组合根在任何终端启动之前，根据 Server 启动时唯一一次配置读取冻结存储范围，
-因此从 checkpoint 恢复的终端与之后的创建一样捕获偏好。
+捕获 `Unavailable`，只拒绝该次创建；快照会超出帧上限的启动在准入前失败。Presentation 在其绑定自身的
+修订中以 `launchProgram` 发布该绑定的启动所请求的程序：显式可执行文件、自定义默认程序，或准入它的
+Worker 这一代在 hello 中报告的系统 Shell 文件名。保存的修改只影响之后的创建，运行中的终端保留其快照。
+会话组合根在任何终端启动之前，根据 Server 启动时唯一一次配置读取冻结存储范围，因此从 checkpoint
+恢复的终端与之后的创建一样捕获偏好，并共用一次读取。
 
 Client actor 同时 poll carrier 与本地命令唤醒 stream，拥有物理重连、取消、ID 和订阅重建。
 交接前取消的请求为未提交；一旦写入可能开始，传输丢失即为 OutcomeUnknown，绝不重放请求。
@@ -825,4 +827,4 @@ GUI、TUI／模拟器或完整 cohort 验收。Client overlay 和公开 CLI 入�
 
 规范分割比例由原生 Client 共享并保存在 checkpoint v6，catalog v5 负责准入。[检查点契约](docs/workbench-checkpoint.zh-CN.md) 负责版本 1–5 的严格迁移；[共享比例契约](docs/shared-split-ratios.zh-CN.md) 负责比例修改、投影与兼容性。
 
-<!-- documentation-pairing: english-sha256=5161e7e8d457943d6ead3cde966b90935a462e506401702ad75abcdc1cdd925b zh-cn-sha256=53cef1021f51ba424bf938089d7f7c255fe837758ddc25b81bdf24fe1f32002e -->
+<!-- documentation-pairing: english-sha256=364520c458f03dc099aa00c6a1511b0bed097453df6a078f905ab1dcf837fd08 zh-cn-sha256=5507fe286b38e140b277d64359244ae8f3f822d54d5046aaeeb1e3f67571d890 -->

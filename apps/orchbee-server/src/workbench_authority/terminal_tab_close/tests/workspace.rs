@@ -178,7 +178,8 @@ fn workspace_publication_rebases_move_rename_and_pending_create_then_settles_ori
     else {
         panic!("workspace Create")
     };
-    let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding(3200)) else {
+    let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding(3200), None)
+    else {
         panic!("prepared workspace Create")
     };
     let pending = prepared.commit().into_pending();

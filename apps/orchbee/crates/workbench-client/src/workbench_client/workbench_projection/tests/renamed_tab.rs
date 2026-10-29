@@ -104,6 +104,9 @@ fn exact_commit_rejects_every_change_beyond_target_label() {
     let mut wrong = correct.clone();
     wrong.tabs[1].binding.as_mut().unwrap().worker_id = worker_id(999);
     failures.push(wrong);
+    let mut wrong = correct.clone();
+    wrong.tabs[1].panels[0].primary.launch_program = None;
+    failures.push(wrong);
     for wrong in failures {
         assert_eq!(
             validate_renamed_tab(&baseline, &expected, wrong),

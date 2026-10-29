@@ -255,6 +255,7 @@ fn a_panel_with_another_presentation_keeps_an_exited_shell() {
         Some(id(21)),
         Some(expiry()),
         Some(worker(1)),
+        &LaunchCapture::absent(),
     ) else {
         panic!("child Presentation dispatch expected")
     };

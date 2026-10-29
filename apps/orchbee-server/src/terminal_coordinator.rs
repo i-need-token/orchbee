@@ -22,7 +22,9 @@ use orchbee_client_server_protocol::{
 #[cfg(test)]
 use orchbee_workbench_protocol::PresentationBinding;
 
+mod launch_capture;
 mod outcomes;
+pub(crate) use launch_capture::LaunchCapture;
 
 const MAXIMUM_TERMINAL_BINDINGS: usize = 1_024;
 
@@ -119,10 +121,19 @@ pub(crate) struct PlannedCreate<'coordinator> {
     coordinator: &'coordinator mut TerminalCoordinator,
     pending: Box<PendingOperation>,
     binding: TerminalBinding,
+    launch_program: Option<orchbee_workbench_protocol::PresentationLaunchProgram>,
     next_identity: Option<u128>,
 }
 
 impl PlannedCreate<'_> {
+    /// The file name of the program the planned launch starts, derived from the same capture the
+    /// dispatched command carries; a Presentation publishes it with this binding.
+    pub(crate) const fn launch_program(
+        &self,
+    ) -> Option<&orchbee_workbench_protocol::PresentationLaunchProgram> {
+        self.launch_program.as_ref()
+    }
+
     #[cfg(windows)]
     pub(crate) fn set_editor_source(
         &mut self,
@@ -171,6 +182,7 @@ impl PlannedCreate<'_> {
             coordinator,
             pending,
             binding,
+            launch_program: _,
             next_identity,
         } = self;
         coordinator
@@ -575,6 +587,7 @@ impl TerminalCoordinator {
         request: ClientMessage,
         worker: Option<WorkerPlacement>,
         expiry: Option<LeaseExpiresAtUnixMilliseconds>,
+        capture: &LaunchCapture,
     ) -> PreparedOperation {
         match request {
             ClientMessage::TerminalControl(request) => PreparedOperation::Ready(ServerMessage::TerminalControlResult(orchbee_client_server_protocol::TerminalControlResult::new(request.request_id().clone(),orchbee_client_server_protocol::TerminalControlOutcome::Rejected {reason:orchbee_client_server_protocol::ControlRejectedReason::ViewerUnavailable}))),
@@ -583,7 +596,9 @@ impl TerminalCoordinator {
                     orchbee_client_server_protocol::TerminalViewerOutcome::Rejected {
                         reason: orchbee_client_server_protocol::ViewerRejectedReason::TerminalUnavailable,
                     }))),
-            ClientMessage::TerminalCreate(request) => self.prepare_create(request, worker, expiry),
+            ClientMessage::TerminalCreate(request) => {
+                self.prepare_create(request, worker, expiry, capture)
+            }
             ClientMessage::TerminalStart(request) => self.prepare_start(request, worker, expiry, start_fenced),
             // Terminal send never enters the pending-operation path; it is
             // admitted and dispatched by the service's one-shot send flow.
@@ -622,18 +637,21 @@ impl TerminalCoordinator {
         request: TerminalCreateRequest,
         worker: Option<WorkerPlacement>,
         expiry: Option<LeaseExpiresAtUnixMilliseconds>,
+        capture: &LaunchCapture,
     ) -> PreparedOperation {
-        match self.plan_create(request, worker, expiry) {
+        match self.plan_create(request, worker, expiry, capture) {
             Ok(plan) => PreparedOperation::Dispatch(plan.commit()),
             Err(result) => PreparedOperation::Ready(result),
         }
     }
 
+    /// Plans one creation whose launch carries `capture`, read before the caller took its locks.
     pub(crate) fn plan_create(
         &mut self,
         request: TerminalCreateRequest,
         worker: Option<WorkerPlacement>,
         expiry: Option<LeaseExpiresAtUnixMilliseconds>,
+        capture: &LaunchCapture,
     ) -> Result<PlannedCreate<'_>, ServerMessage> {
         let ready = |outcome| create_result(&request, outcome);
         if self.bindings.contains_key(request.request_id()) {
@@ -731,6 +749,8 @@ impl TerminalCoordinator {
         };
         let completion_seal = Arc::new(TerminalCompletionSeal);
         let launch_selection = request.launch().cloned();
+        let launch_program = capture.launch_program(launch.as_ref());
+        let preferences = capture.preferences(launch.as_ref());
         let command = AuthorizedTerminalLaunch::new(authorization, cwd, mode, launch)
             .with_environment(environment);
         let plugin_environment = match request
@@ -749,7 +769,10 @@ impl TerminalCoordinator {
                 }));
             }
         };
-        let command = match command.with_plugin_environment(plugin_environment) {
+        let command = match command
+            .with_plugin_environment(plugin_environment)
+            .and_then(|command| command.with_preferences(preferences))
+        {
             Ok(command) => command,
             Err(_) => {
                 return Err(ready(CreateOutcome::Failed {
@@ -757,11 +780,11 @@ impl TerminalCoordinator {
                 }));
             }
         };
-        if command.plugin_environment().is_some()
-            && orchbee_capability_node_protocol::encode_message(
-                &CapabilityNodeMessage::AuthorizedTerminalLaunch(command.clone()),
-            )
-            .is_err()
+        // Plugin metadata and the preference capture must fit one OBCN frame before admission.
+        if orchbee_capability_node_protocol::encode_message(
+            &CapabilityNodeMessage::AuthorizedTerminalLaunch(command.clone()),
+        )
+        .is_err()
         {
             return Err(ready(CreateOutcome::Failed {
                 reason: CreateFailureReason::TerminalCreateFailed,
@@ -788,6 +811,7 @@ impl TerminalCoordinator {
                 profile_provenance: None,
                 launch_selection,
             },
+            launch_program,
             next_identity: identity.checked_add(1),
         })
     }

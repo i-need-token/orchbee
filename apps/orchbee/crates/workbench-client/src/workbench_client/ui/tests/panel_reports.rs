@@ -365,6 +365,7 @@ fn child_selection_discards_primary_report_and_paints_its_own_exact_observation(
             .unwrap(),
         ),
         launch_failure: None,
+        launch_program: None,
     });
     let (mut ui, _mailbox, _, _) =
         super::super::tests::move_membership::ready_ui_with_snapshot(source);

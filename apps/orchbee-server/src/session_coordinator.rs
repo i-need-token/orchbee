@@ -3,8 +3,8 @@
 //! without performing Worker I/O or owning Client presentation.
 
 use crate::terminal_coordinator::{
-    Completion, PendingOperation, PreparedOperation, TerminalCompletionTokenMismatch,
-    TerminalCoordinator, TerminalPhase, WorkerPlacement,
+    Completion, LaunchCapture, PendingOperation, PreparedOperation,
+    TerminalCompletionTokenMismatch, TerminalCoordinator, TerminalPhase, WorkerPlacement,
 };
 use orchbee_capability_node_protocol::{
     LeaseExpiresAtUnixMilliseconds, TerminalOperationAuthorization,
@@ -268,6 +268,7 @@ impl SessionCoordinator {
         request: ClientMessage,
         worker: Option<WorkerPlacement>,
         expiry: Option<LeaseExpiresAtUnixMilliseconds>,
+        capture: &LaunchCapture,
     ) -> PreparedOperation {
         let start_fenced = match &request {
             ClientMessage::TerminalStart(request) => self
@@ -282,7 +283,7 @@ impl SessionCoordinator {
             | ClientMessage::TerminalLaunchRead(..) => false,
         };
         self.terminals
-            .prepare(start_fenced, request, worker, expiry)
+            .prepare(start_fenced, request, worker, expiry, capture)
     }
 
     pub(crate) fn execute_terminal_tab_move(

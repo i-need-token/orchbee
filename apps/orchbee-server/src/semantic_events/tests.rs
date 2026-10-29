@@ -140,6 +140,7 @@ fn semantic_event_projection_records_intermediate_commits_and_noop_revision() {
                 custom_label: None,
                 label: "shell".into(),
                 launch_failure: None,
+                launch_program: None,
             },
         },
     });

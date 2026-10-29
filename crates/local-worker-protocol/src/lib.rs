@@ -5,7 +5,8 @@
 mod codec;
 
 pub use codec::{
-    LocalWorkerMessage, MAXIMUM_COHORT_BYTES, MAXIMUM_FRAME_PAYLOAD_BYTES, PROTOCOL_VERSION,
-    ProtocolError, ReadMessageError, RejectionReason, WorkerHello, WorkerId, WriteMessageError,
-    read_message, write_message,
+    LocalWorkerMessage, MAXIMUM_COHORT_BYTES, MAXIMUM_FRAME_PAYLOAD_BYTES,
+    MAXIMUM_SYSTEM_SHELL_NAME_BYTES, PROTOCOL_VERSION, ProtocolError, ReadMessageError,
+    RejectionReason, SystemShellName, WorkerHello, WorkerId, WriteMessageError, read_message,
+    write_message,
 };

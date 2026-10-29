@@ -93,7 +93,7 @@ fn commit(
     else {
         panic!("expected admission")
     };
-    let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding) else {
+    let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding, None) else {
         panic!("expected prepared command")
     };
     let committed = prepared.commit();
@@ -237,7 +237,8 @@ fn configured_workspace_stages_exact_directory_and_commits_only_its_context() {
         (&worker_id, &path)
     );
 
-    let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding(20)) else {
+    let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding(20), None)
+    else {
         panic!("configured Workspace did not prepare")
     };
 
@@ -534,7 +535,7 @@ fn full_byte_ledger_refuses_pending_reservation_without_committing_membership() 
     else {
         panic!("byte capacity was interpreted before pending-result prebuild")
     };
-    let WorkbenchTabCreatePreparation::Ready(full) = admission.finish(binding(20)) else {
+    let WorkbenchTabCreatePreparation::Ready(full) = admission.finish(binding(20), None) else {
         panic!("full byte ledger prepared a membership commit")
     };
     assert_eq!(
@@ -915,7 +916,8 @@ fn dropped_admission_and_prepared_plan_leave_projection_cursor_and_ledger_unchan
     else {
         panic!("expected admission")
     };
-    let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding(20)) else {
+    let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding(20), None)
+    else {
         panic!("expected prepared")
     };
     drop(prepared);
@@ -1008,7 +1010,7 @@ fn run_trace(steps: &[TraceStep]) -> Result<(), String> {
                     )?,
                     WorkbenchTabCreateBegin::Admitted(admission) => {
                         let WorkbenchTabCreatePreparation::Prepared(prepared) =
-                            admission.finish(binding(10_000 + request_id))
+                            admission.finish(binding(10_000 + request_id), None)
                         else {
                             return Err("admitted command did not prepare".to_owned());
                         };
@@ -1125,7 +1127,7 @@ fn run_trace(steps: &[TraceStep]) -> Result<(), String> {
                         );
                     };
                     let WorkbenchTabCreatePreparation::Ready(response) =
-                        admission.finish(binding(20_000 + request_id))
+                        admission.finish(binding(20_000 + request_id), None)
                     else {
                         return Err("full byte ledger prepared a commit".to_owned());
                     };
@@ -1297,7 +1299,8 @@ fn workspace_launch_commits_one_revision_and_replays_pending_and_failed_terminal
             &WorkbenchDirectoryPath::parse(r"C:\project space").unwrap()
         )
     );
-    let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding(900)) else {
+    let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding(900), None)
+    else {
         panic!("prepared");
     };
     let pending = prepared.commit().into_pending();

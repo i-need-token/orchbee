@@ -2,8 +2,9 @@
 use super::{WorkbenchAuthority, WorktreeOperationPlan};
 use crate::{WorkbenchTerminalTab, workbench_projection::PreparedProjectionAdvance};
 use orchbee_workbench_protocol::{
-    PanelNode, Presentation, PresentationBinding, WorkbenchProtocolDocument, WorkbenchRequestId,
-    WorktreeIntent, WorktreeOperationPhase, WorktreeOperationStatus, serialize_document,
+    PanelNode, Presentation, PresentationBinding, PresentationLaunchProgram,
+    WorkbenchProtocolDocument, WorkbenchRequestId, WorktreeIntent, WorktreeOperationPhase,
+    WorktreeOperationStatus, serialize_document,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -79,6 +80,7 @@ impl WorkbenchAuthority {
         close: &WorkbenchRequestId,
         member: &WorkbenchTerminalTab,
         fresh: PresentationBinding,
+        launch_program: Option<PresentationLaunchProgram>,
     ) -> Result<PreparedWorktreeRebind<'_>, WorktreeRebindError> {
         if !self.worktree_recovery_owns_close(plan, close) {
             return Err(WorktreeRebindError::Unavailable);
@@ -122,7 +124,13 @@ impl WorkbenchAuthority {
             .iter_mut()
             .find(|tab| &tab.tab_id == member.tab_id())
             .ok_or(WorktreeRebindError::TargetChanged)?;
-        if !replace_binding(&mut tab.root, member, &fresh, &presentation) {
+        if !replace_binding(
+            &mut tab.root,
+            member,
+            &fresh,
+            launch_program.as_ref(),
+            &presentation,
+        ) {
             return Err(WorktreeRebindError::TargetChanged);
         }
         candidate.revision = self
@@ -177,6 +185,7 @@ fn replace_binding(
     node: &mut PanelNode,
     member: &WorkbenchTerminalTab,
     fresh: &PresentationBinding,
+    launch_program: Option<&PresentationLaunchProgram>,
     presentation_id: &orchbee_workbench_protocol::TerminalPresentationId,
 ) -> bool {
     match node {
@@ -187,10 +196,18 @@ fn replace_binding(
             ..
         } if panel_id == member.panel_id() => std::iter::once(primary_presentation)
             .chain(child_presentations.iter_mut())
-            .any(|presentation| replace_presentation(presentation, member, fresh, presentation_id)),
-        PanelNode::Split { children, .. } => children
-            .iter_mut()
-            .any(|child| replace_binding(&mut child.node, member, fresh, presentation_id)),
+            .any(|presentation| {
+                replace_presentation(presentation, member, fresh, launch_program, presentation_id)
+            }),
+        PanelNode::Split { children, .. } => children.iter_mut().any(|child| {
+            replace_binding(
+                &mut child.node,
+                member,
+                fresh,
+                launch_program,
+                presentation_id,
+            )
+        }),
         PanelNode::Panel { .. } => false,
     }
 }
@@ -198,6 +215,7 @@ fn replace_presentation(
     presentation: &mut Presentation,
     member: &WorkbenchTerminalTab,
     fresh: &PresentationBinding,
+    launch_program: Option<&PresentationLaunchProgram>,
     presentation_id: &orchbee_workbench_protocol::TerminalPresentationId,
 ) -> bool {
     if &presentation.presentation_id != member.presentation_id()
@@ -206,8 +224,9 @@ fn replace_presentation(
         return false;
     }
     presentation.binding = Some(fresh.clone());
-    // A failure describes only the binding it was recorded for.
+    // A failure describes only the binding it was recorded for; the program arrives with its own.
     presentation.launch_failure = None;
+    presentation.launch_program = launch_program.cloned();
     presentation.presentation_id = presentation_id.clone();
     true
 }

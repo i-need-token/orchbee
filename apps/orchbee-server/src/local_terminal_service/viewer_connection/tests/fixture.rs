@@ -1,5 +1,6 @@
 use super::super::*;
 use crate::session_coordinator::PreparedTerminalTabCreate;
+use crate::terminal_coordinator::LaunchCapture;
 use crate::terminal_coordinator::{Completion, WorkerPlacement};
 use crate::worker_obcn_carrier::create_worker_carrier;
 use crate::worker_registry::{WorkerAdmission, WorkerRegistry};
@@ -91,7 +92,8 @@ impl Fixture {
     ) -> Self {
         let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
         let worker_id = orchbee_local_worker_protocol::WorkerId::from_bytes([9; 16]);
-        let WorkerAdmission::Accepted { generation } = registry.lock().unwrap().admit(worker_id)
+        let WorkerAdmission::Accepted { generation } =
+            registry.lock().unwrap().admit(worker_id, None)
         else {
             panic!("worker admission")
         };
@@ -258,7 +260,8 @@ impl Fixture {
         }
         let registry = &self.service.workers;
         let worker_id = orchbee_local_worker_protocol::WorkerId::from_bytes([9; 16]);
-        let WorkerAdmission::Accepted { generation } = registry.lock().unwrap().admit(worker_id)
+        let WorkerAdmission::Accepted { generation } =
+            registry.lock().unwrap().admit(worker_id, None)
         else {
             panic!("replacement admission")
         };
@@ -344,6 +347,7 @@ fn add_terminal(service: &LocalTerminalService, index: u8, plugin: bool) -> Work
         Some(client_id(11 + u128::from(index) * 100)),
         super::super::super::lease_expiry(),
         Some(placement_value()),
+        &LaunchCapture::absent(),
     ) else {
         panic!("create pending")
     };

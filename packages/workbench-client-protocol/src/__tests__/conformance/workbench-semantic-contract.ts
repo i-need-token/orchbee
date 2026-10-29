@@ -166,12 +166,30 @@ const WorkbenchPresentationLaunchFailureSchema = z
 	})
 	.readonly();
 
+const WORKBENCH_MAXIMUM_LAUNCH_PROGRAM_BYTES = 128;
+
+/** The file name of the program the current binding launches; it never carries a directory. */
+const WorkbenchPresentationLaunchProgramSchema = z
+	.string()
+	.min(1)
+	.refine(
+		(value) =>
+			!/[\uD800-\uDFFF]/u.test(value) &&
+			![...value].some((character) => {
+				const code = character.charCodeAt(0);
+				return code < 32 || (code >= 127 && code <= 159) || character === '/' || character === '\\';
+			}) &&
+			launchUtf8.encode(value).length <= WORKBENCH_MAXIMUM_LAUNCH_PROGRAM_BYTES,
+		'Launch program must be a bounded file name without a separator or control character',
+	);
+
 export const WorkbenchPresentationSchema = z
 	.strictObject({
 		binding: WorkbenchPresentationBindingSchema.nullable(),
 		customLabel: WorkbenchPanelCustomLabelSchema.nullable(),
 		label: WorkbenchLabelSchema,
 		launchFailure: WorkbenchPresentationLaunchFailureSchema.optional(),
+		launchProgram: WorkbenchPresentationLaunchProgramSchema.optional(),
 		presentationId: TerminalPresentationIdSchema,
 	})
 	.readonly();
@@ -746,11 +764,19 @@ function validatePresentation(
 			'bound Terminal',
 			context,
 		);
-	} else if (presentation.launchFailure !== undefined) {
-		context.addIssue({
-			code: 'custom',
-			message: 'A launch failure describes only a bound Terminal Presentation',
-		});
+	} else {
+		if (presentation.launchFailure !== undefined) {
+			context.addIssue({
+				code: 'custom',
+				message: 'A launch failure describes only a bound Terminal Presentation',
+			});
+		}
+		if (presentation.launchProgram !== undefined) {
+			context.addIssue({
+				code: 'custom',
+				message: 'A launched program names only a bound Terminal Presentation',
+			});
+		}
 	}
 }
 

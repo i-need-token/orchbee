@@ -5,9 +5,10 @@
 use std::{collections::BTreeMap, fmt};
 
 use orchbee_workbench_protocol::{
-    ContractError, PanelNode, Presentation, PresentationBinding, SessionId, Snapshot,
-    TerminalPresentationId, WorkbenchDirectoryPath, WorkbenchPanelId, WorkbenchProtocolDocument,
-    WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId, WorkerId, serialize_document,
+    ContractError, PanelNode, Presentation, PresentationBinding, PresentationLaunchProgram,
+    SessionId, Snapshot, TerminalPresentationId, WorkbenchDirectoryPath, WorkbenchPanelId,
+    WorkbenchProtocolDocument, WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId,
+    WorkerId, serialize_document,
 };
 
 use super::WorkbenchAuthority;
@@ -148,6 +149,7 @@ impl WorkbenchAuthority {
         &mut self,
         target: &WorkbenchRestoreTarget,
         binding: PresentationBinding,
+        launch_program: Option<PresentationLaunchProgram>,
     ) -> Result<PreparedWorkbenchRestoreBinding<'_>, WorkbenchRestoreError> {
         if self.retired {
             return Err(WorkbenchRestoreError::Unavailable);
@@ -186,6 +188,7 @@ impl WorkbenchAuthority {
             return Err(WorkbenchRestoreError::AlreadyBound);
         }
         presentation.binding = Some(binding);
+        presentation.launch_program = launch_program;
         let revision = WorkbenchRevision::new(
             current
                 .revision

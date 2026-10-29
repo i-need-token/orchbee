@@ -239,7 +239,13 @@ fn recovery_rebind_preserves_slots_and_cancels_only_the_owned_quiescent_close() 
             assert!(!authority.retain_worktree_workspace(&plan, &close.request_id));
             assert!(
                 authority
-                    .prepare_worktree_rebind(&plan, &close.request_id, &members[0], binding(900))
+                    .prepare_worktree_rebind(
+                        &plan,
+                        &close.request_id,
+                        &members[0],
+                        binding(900),
+                        None
+                    )
                     .is_err()
             );
         }
@@ -269,12 +275,18 @@ fn recovery_rebind_preserves_slots_and_cancels_only_the_owned_quiescent_close() 
             let fresh = binding(900 + index as u128);
             assert!(
                 authority
-                    .prepare_worktree_rebind(&stale, &close.request_id, member, fresh.clone())
+                    .prepare_worktree_rebind(&stale, &close.request_id, member, fresh.clone(), None)
                     .is_err()
             );
             assert!(
                 authority
-                    .prepare_worktree_rebind(&plan, &request_id(123456), member, fresh.clone())
+                    .prepare_worktree_rebind(
+                        &plan,
+                        &request_id(123456),
+                        member,
+                        fresh.clone(),
+                        None
+                    )
                     .is_err()
             );
             assert!(
@@ -283,7 +295,8 @@ fn recovery_rebind_preserves_slots_and_cancels_only_the_owned_quiescent_close() 
                         &plan,
                         &close.request_id,
                         member,
-                        member.binding().clone()
+                        member.binding().clone(),
+                        None,
                     )
                     .is_err()
             );
@@ -292,20 +305,26 @@ fn recovery_rebind_preserves_slots_and_cancels_only_the_owned_quiescent_close() 
                 orchbee_workbench_protocol::WorkerId::parse(&format!("{:032x}", 321)).unwrap();
             assert!(
                 authority
-                    .prepare_worktree_rebind(&plan, &close.request_id, member, foreign)
+                    .prepare_worktree_rebind(&plan, &close.request_id, member, foreign, None)
                     .is_err()
             );
             if index > 0 {
                 assert!(
                     authority
-                        .prepare_worktree_rebind(&plan, &close.request_id, member, binding(900))
+                        .prepare_worktree_rebind(
+                            &plan,
+                            &close.request_id,
+                            member,
+                            binding(900),
+                            None
+                        )
                         .is_err()
                 );
             }
             // Dropping a fully prepared projection has no effect.
             drop(
                 authority
-                    .prepare_worktree_rebind(&plan, &close.request_id, member, fresh.clone())
+                    .prepare_worktree_rebind(&plan, &close.request_id, member, fresh.clone(), None)
                     .unwrap(),
             );
             assert_eq!(
@@ -316,16 +335,28 @@ fn recovery_rebind_preserves_slots_and_cancels_only_the_owned_quiescent_close() 
                 *member
             );
             authority
-                .prepare_worktree_rebind(&plan, &close.request_id, member, fresh.clone())
+                .prepare_worktree_rebind(
+                    &plan,
+                    &close.request_id,
+                    member,
+                    fresh.clone(),
+                    orchbee_workbench_protocol::PresentationLaunchProgram::parse("pwsh.exe").ok(),
+                )
                 .unwrap()
                 .commit();
+            let published = serde_json::to_string(authority.snapshot()).unwrap();
+            assert_eq!(
+                published.matches(r#""launchProgram":"pwsh.exe""#).count(),
+                index + 1
+            );
             assert!(
                 authority
                     .prepare_worktree_rebind(
                         &plan,
                         &close.request_id,
                         member,
-                        binding(950 + index as u128)
+                        binding(950 + index as u128),
+                        None,
                     )
                     .is_err()
             );

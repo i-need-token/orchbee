@@ -88,6 +88,7 @@ impl Driver<'_> {
         let request_id = identity()?;
         let candidate = create_reference();
         let expiry = lease_expiry();
+        let capture = self.service.launch_capture();
         let (prepared, handle, workspace_id) = {
             let workers = self
                 .service
@@ -97,6 +98,7 @@ impl Driver<'_> {
             let handle = workers
                 .request_handle()
                 .ok_or(Failure::WorkerUnavailable {})?;
+            let capture = capture.with_system_shell(workers.system_shell());
             let worker = placement(Some(&handle)).ok_or(Failure::WorkerUnavailable {})?;
             if handle.generation() != self.plan.worker_generation
                 || format!(
@@ -197,7 +199,8 @@ impl Driver<'_> {
                     }),
                 },
             };
-            let prepared = coordinator.prepare_workspace_launch(command, candidate, expiry, worker);
+            let prepared =
+                coordinator.prepare_workspace_launch(command, candidate, expiry, worker, &capture);
             let authority = coordinator
                 .worktree_authority()
                 .ok_or(Failure::Internal {})?;

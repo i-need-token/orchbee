@@ -704,6 +704,7 @@ fn split_snapshot() -> Snapshot {
                         presentation_id: TerminalPresentationId::parse(&format!("{:032x}", 7_013))
                             .unwrap(),
                         launch_failure: None,
+                        launch_program: None,
                     },
                 },
                 slot_id: WorkbenchPanelSlotId::parse(&format!("{:032x}", 7_014)).unwrap(),

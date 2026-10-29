@@ -260,6 +260,8 @@ fn receive(
             label: WorkbenchLabel::parse("unused duplicate fallback").unwrap(),
             automatic_label: true,
             binding: primary_presentation.binding.unwrap(),
+            // Each member publishes its launched program in the same binding commit.
+            launch_program: PresentationLaunchProgram::parse("pwsh.exe").ok(),
         },
         None,
     )

@@ -27,9 +27,10 @@ the valid live OSC title, or for inactive Tabs the last observed title from the 
 only while the exact Session/context/Tab/Panel/Presentation/binding remains canonical. A console
 host's default title is the absolute path of the launched Windows executable, which cmd extends to
 `<path> - <command>` while it runs a command; that is launch identity rather than a program title, so
-chrome names the program instead and keeps the command. Without a title, the launched program from
-this Client's failed-creation record, then from the Presentation's launch failure, is the next
-fallback, then the localized position (`Tab 1` in `en-US`, `标签页 1` in `zh-CN`). Titles are
+chrome names the program instead and keeps the command. Without a title, the program the Server
+committed with the Presentation's binding (`launchProgram`) is the next fallback, then the launched
+program from this Client's failed-creation record, then from the Presentation's launch failure, then
+the localized position (`Tab 1` in `en-US`, `标签页 1` in `zh-CN`). Titles are
 stripped as in [Panel terminal observations](native-cli-query.md#panel-terminal-observations), which
 removes one Windows elevation prefix and one activity prefix, and all displayed text is sanitized.
 This presentation never renames canonical state or claims an observed title is authoritative process
@@ -41,12 +42,14 @@ as `PowerShell`, `powershell` as `Windows PowerShell`, `cmd` as `Command Prompt`
 `zh-CN`), `bash` as `Bash` and `zsh` as `Zsh`. Any other program shows its file name without its
 directory or a `.exe`, `.com`, `.bat` or `.cmd` extension, so `C:\tools\node.exe` shows `node`.
 Matching ignores ASCII case. Launch-profile names are not Presentation facts, so chrome does not use
-them. A Client learns a started program only from a title it observes: the Windows console host
-reports no title until the program sets one (Command Prompt does when it runs a command), and POSIX
-programs report only titles they set. On every platform, a program that has reported no title
-therefore shows its position, as does a Tab whose terminal this Client has not yet observed. The GUI
-Workbench does not yet attach to native Sessions and keeps its own title resolution; this naming is a
-staged native-only delivery.
+them. The Windows console host reports no title until the program sets one (Command Prompt does when
+it runs a command), and POSIX programs report only titles they set. The Server therefore commits each
+binding's launched program with that binding, taken from the same launch it dispatches: an explicit
+launch's executable, the custom default program, or the System shell that the Worker resolved for
+its generation. On every platform, a program that has reported no title, and a Tab whose terminal
+this Client has not yet observed, show that program; only a Presentation without that fact, such as
+an unbound one, shows its position. The GUI Workbench does not yet attach to native Sessions and
+keeps its own title resolution; this naming is a staged native-only delivery.
 
 Automatic rename drafts start empty with the same current display name as an informational
 placeholder; only typed text can submit. Fixed names prefill the editor. The native TUI renders the existing
@@ -82,7 +85,7 @@ The catalog exposes the current documents and command paths.
 The native strict projector retains raw text and naming mode. Exact-revision move/split/close
 checks preserve the complete surviving metadata; a rename changes only its target text and
 mode. Same-revision refresh remains exact, while later canonical revisions may contain a
-rename. Create validation pins the submitted mode at the commit revision. A surviving fixed Tab cannot become automatic again; an automatic survivor keeps its raw
+rename. Create validation pins the submitted mode at the commit revision and takes the Server-chosen binding and launched program from the candidate, so that fact never breaks an exact duplicate sequence. A surviving fixed Tab cannot become automatic again; an automatic survivor keeps its raw
 creation text until a rename switches it to fixed mode. Completion
 cannot overwrite an intervening rename. Close confirmation and Agent board retain names derived from the target's position in the captured
 context; native chrome uses the display projection above. Selection, input

@@ -15,7 +15,7 @@ use std::{
 
 use orchbee_local_peer_credentials::require_same_effective_user;
 use orchbee_local_worker_protocol::{
-    LocalWorkerMessage, WorkerHello, WorkerId, read_message, write_message,
+    LocalWorkerMessage, SystemShellName, WorkerHello, WorkerId, read_message, write_message,
 };
 
 use crate::{
@@ -72,10 +72,14 @@ pub(crate) fn run(
         if !session.activation_started()? || !session.worker_socket_exists()? {
             return Err(io::Error::other("Session startup is unavailable").into());
         }
-        // Each path resolves the System shell once before registering, so every default launch of
-        // this Worker generation uses that one resolution.
+        // Each path resolves the System shell once before registering: the hello reports it and
+        // every default launch of this Worker generation uses that one resolution.
         let system_shell = SystemShell::resolve();
-        let server = connect_to_server(session.worker_socket_path(), cohort.identity())?;
+        let server = connect_to_server(
+            session.worker_socket_path(),
+            cohort.identity(),
+            &system_shell,
+        )?;
         let generation = server.generation();
         return terminal_operations::run_lazy(
             server.stream,
@@ -88,7 +92,7 @@ pub(crate) fn run(
     }
     let options = WorkerOptions::parse(arguments)?;
     let system_shell = SystemShell::resolve();
-    let server = connect_to_server(&options.server_endpoint, cohort)?;
+    let server = connect_to_server(&options.server_endpoint, cohort, &system_shell)?;
     // The Agent Drain queue belongs to this admitted Server connection and is
     // created before the Host broker so both paths share one owner.
     let drain = Rc::new(RefCell::new(AgentDrain::new()));
@@ -108,6 +112,7 @@ pub(crate) fn run(
 fn connect_to_server(
     endpoint: &std::path::Path,
     cohort: &str,
+    system_shell: &SystemShell,
 ) -> Result<ServerConnection, Box<dyn Error>> {
     // A local Worker has no restart/adoption contract. A fresh Windows
     // identity prevents another Session's reused terminal counter from matching
@@ -121,7 +126,14 @@ fn connect_to_server(
     stream.set_read_timeout(Some(HANDSHAKE_TIMEOUT))?;
     stream.set_write_timeout(Some(HANDSHAKE_TIMEOUT))?;
 
-    let hello = WorkerHello::new(cohort, worker_id)?;
+    let mut hello = WorkerHello::new(cohort, worker_id)?;
+    // A name the hello cannot carry reports no System shell; default launches still use it.
+    if let Some(name) = system_shell
+        .file_name()
+        .and_then(|name| SystemShellName::parse(name).ok())
+    {
+        hello = hello.with_system_shell(name);
+    }
     write_message(&mut stream, &LocalWorkerMessage::WorkerHello(hello))?;
     let LocalWorkerMessage::WorkerAccepted { generation } = read_message(&mut stream)? else {
         return Err(io::Error::new(io::ErrorKind::PermissionDenied, "Worker was rejected").into());

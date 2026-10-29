@@ -91,7 +91,8 @@ fn finalization_removes_only_current_exact_member_after_create_move_and_rename()
     else {
         panic!()
     };
-    let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding(702)) else {
+    let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding(702), None)
+    else {
         panic!()
     };
     let _pending = prepared.commit().into_pending();

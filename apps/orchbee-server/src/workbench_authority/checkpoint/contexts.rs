@@ -215,6 +215,7 @@ impl From<StoredPresentation> for Presentation {
             label: presentation.label,
             presentation_id: presentation.presentation_id,
             launch_failure: None,
+            launch_program: None,
         }
     }
 }

@@ -291,7 +291,7 @@ fn selection_actions_map_to_the_exact_viewer_and_preserve_correlated_outcomes() 
     let carrier = create_worker_carrier(WORKER_ID, NonZeroU64::MIN);
     let handle = carrier.request_handle();
     assert!(matches!(
-        service.workers.lock().unwrap().admit(WORKER_ID),
+        service.workers.lock().unwrap().admit(WORKER_ID, None),
         crate::worker_registry::WorkerAdmission::Accepted { .. }
     ));
     let owner =

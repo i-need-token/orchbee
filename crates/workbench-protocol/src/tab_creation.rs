@@ -2,9 +2,9 @@
 //! receipt consumers replay this pure transition against the captured canonical context.
 use crate::{
     MAXIMUM_PANEL_NODES_PER_CONTEXT, MAXIMUM_TAB_GROUPS_PER_CONTEXT, MAXIMUM_TABS_PER_CONTEXT,
-    PanelNode, Presentation, PresentationBinding, Tab, TabGroup, TabGroupColor, TerminalContext,
-    TerminalPresentationId, WorkbenchLabel, WorkbenchPanelId, WorkbenchRejectionReason,
-    WorkbenchTabGroupId, WorkbenchTabId,
+    PanelNode, Presentation, PresentationBinding, PresentationLaunchProgram, Tab, TabGroup,
+    TabGroupColor, TerminalContext, TerminalPresentationId, WorkbenchLabel, WorkbenchPanelId,
+    WorkbenchRejectionReason, WorkbenchTabGroupId, WorkbenchTabId,
 };
 use serde::{Deserialize, Serialize};
 
@@ -23,7 +23,8 @@ pub enum TabCreationPlacement {
     Duplicate { tab_id: WorkbenchTabId },
 }
 
-/// Fresh identities and the ordinary launch label/binding supplied by the creation owner.
+/// Fresh identities, the ordinary launch label/binding, and the launched program committed with
+/// that binding, all supplied by the creation owner.
 pub struct NewTerminalTab {
     pub tab_id: WorkbenchTabId,
     pub panel_id: WorkbenchPanelId,
@@ -31,6 +32,7 @@ pub struct NewTerminalTab {
     pub label: WorkbenchLabel,
     pub automatic_label: bool,
     pub binding: PresentationBinding,
+    pub launch_program: Option<PresentationLaunchProgram>,
 }
 
 /// Reject placement and structural capacity before reserving any runtime effect.
@@ -197,6 +199,7 @@ pub fn create_terminal_tab(
                     custom_label: None,
                     binding: Some(fresh.binding),
                     launch_failure: None,
+                    launch_program: fresh.launch_program,
                 },
             },
         },

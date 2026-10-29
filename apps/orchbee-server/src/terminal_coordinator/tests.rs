@@ -6,13 +6,25 @@ use orchbee_capability_node_protocol::{
 #[test]
 fn close_fence_refuses_only_new_start_effects_without_consuming_the_cursor() {
     let mut coordinator = TerminalCoordinator::new();
-    let launch = dispatch(coordinator.prepare(false, create(1), Some(worker(1)), Some(expiry())));
+    let launch = dispatch(coordinator.prepare(
+        false,
+        create(1),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     let accepted = accepted_launch(&launch);
     commit_completion(&mut coordinator, launch, accepted, Some(worker(1)));
-    let _other = dispatch(coordinator.prepare(false, create(9), Some(worker(1)), Some(expiry())));
+    let _other = dispatch(coordinator.prepare(
+        false,
+        create(9),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     let cursor = coordinator.next_identity;
     assert!(matches!(
-        coordinator.prepare(true, start(2, 1), Some(worker(1)), Some(expiry())),
+        coordinator.prepare(true, start(2, 1), Some(worker(1)), Some(expiry()), &LaunchCapture::absent()),
         PreparedOperation::Ready(ServerMessage::TerminalStartResult(result))
             if result.outcome() == StartOutcome::Rejected { reason: StartRejectedReason::TerminalCreateUnavailable }
     ));
@@ -22,7 +34,7 @@ fn close_fence_refuses_only_new_start_effects_without_consuming_the_cursor() {
         TerminalPhase::AwaitingStart(identity())
     );
     assert!(matches!(
-        coordinator.prepare(true, start(9, 1), Some(worker(1)), Some(expiry())),
+        coordinator.prepare(true, start(9, 1), Some(worker(1)), Some(expiry()), &LaunchCapture::absent()),
         PreparedOperation::Ready(ServerMessage::TerminalStartResult(result))
             if result.outcome() == StartOutcome::Rejected { reason: StartRejectedReason::NotAuthorized }
     ));
@@ -31,7 +43,7 @@ fn close_fence_refuses_only_new_start_effects_without_consuming_the_cursor() {
         geometry: geometry(),
     };
     assert!(matches!(
-        coordinator.prepare(true, start(3, 1), Some(worker(1)), Some(expiry())),
+        coordinator.prepare(true, start(3, 1), Some(worker(1)), Some(expiry()), &LaunchCapture::absent()),
         PreparedOperation::Ready(ServerMessage::TerminalStartResult(result))
             if result.outcome() == StartOutcome::Accepted { geometry: geometry(), transition: StartTransition::AlreadyStarted }
     ));
@@ -39,7 +51,7 @@ fn close_fence_refuses_only_new_start_effects_without_consuming_the_cursor() {
         TerminalStartRequest::new(id(4), id(1), Geometry::new(90, 30, 8, 16).unwrap()).unwrap(),
     );
     assert!(matches!(
-        coordinator.prepare(true, conflict, Some(worker(1)), Some(expiry())),
+        coordinator.prepare(true, conflict, Some(worker(1)), Some(expiry()), &LaunchCapture::absent()),
         PreparedOperation::Ready(ServerMessage::TerminalStartResult(result))
             if result.outcome() == StartOutcome::Rejected { reason: StartRejectedReason::GeometryConflict }
     ));
@@ -49,7 +61,13 @@ fn close_fence_refuses_only_new_start_effects_without_consuming_the_cursor() {
 #[test]
 fn close_runtime_requires_one_settled_exact_generation_and_retained_identity() {
     let mut coordinator = TerminalCoordinator::new();
-    let launch = dispatch(coordinator.prepare(false, create(1), Some(worker(1)), Some(expiry())));
+    let launch = dispatch(coordinator.prepare(
+        false,
+        create(1),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     let authorization = launch.authorization();
     assert_eq!(
         coordinator.retained_runtime_target(
@@ -102,7 +120,13 @@ fn close_runtime_requires_one_settled_exact_generation_and_retained_identity() {
         identity: identity(),
         geometry: geometry(),
     };
-    let other = dispatch(coordinator.prepare(false, create(2), Some(worker(1)), Some(expiry())));
+    let other = dispatch(coordinator.prepare(
+        false,
+        create(2),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     coordinator.bindings.get_mut(&id(2)).unwrap().authorization = authorization;
     assert_eq!(
         coordinator.retained_runtime_target(
@@ -206,7 +230,12 @@ fn create_refusal(result: Result<PlannedCreate<'_>, ServerMessage>) -> CreateOut
 fn abandoned_create_plan_leaves_the_original_identity_available() {
     let mut coordinator = TerminalCoordinator::new();
     let plan = coordinator
-        .plan_create(create_request(1), Some(worker(1)), Some(expiry()))
+        .plan_create(
+            create_request(1),
+            Some(worker(1)),
+            Some(expiry()),
+            &LaunchCapture::absent(),
+        )
         .unwrap();
     let authorization = plan.authorization();
     assert_eq!(plan.create_reference(), &id(1));
@@ -219,7 +248,13 @@ fn abandoned_create_plan_leaves_the_original_identity_available() {
     assert!(coordinator.bindings.is_empty());
     assert_eq!(coordinator.next_identity, Some(1));
 
-    let pending = dispatch(coordinator.prepare(false, create(2), Some(worker(1)), Some(expiry())));
+    let pending = dispatch(coordinator.prepare(
+        false,
+        create(2),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     assert_eq!(pending.authorization(), authorization);
     assert_eq!(pending.create_reference(), &id(2));
     assert!(!coordinator.bindings.contains_key(&id(1)));
@@ -245,7 +280,12 @@ fn create_plan_commit_installs_and_dispatches_the_complete_plan() {
     let reference = request.request_id().clone();
     let expected_request = request.clone();
     let plan = coordinator
-        .plan_create(request, Some(worker(1)), Some(expiry()))
+        .plan_create(
+            request,
+            Some(worker(1)),
+            Some(expiry()),
+            &LaunchCapture::absent(),
+        )
         .unwrap();
     let authorization = plan.authorization();
 
@@ -284,6 +324,7 @@ fn create_plan_refusals_leave_capacity_identity_lease_and_constraint_state_uncha
             create(number as u128),
             Some(worker(1)),
             Some(expiry()),
+            &LaunchCapture::absent(),
         ));
     }
     let capacity_cursor = capacity.next_identity;
@@ -292,6 +333,7 @@ fn create_plan_refusals_leave_capacity_identity_lease_and_constraint_state_uncha
             create_request(2_000),
             Some(worker(1)),
             Some(expiry()),
+            &LaunchCapture::absent(),
         )),
         CreateOutcome::Unavailable {
             reason: CreateUnavailableReason::ServerBusy,
@@ -303,7 +345,12 @@ fn create_plan_refusals_leave_capacity_identity_lease_and_constraint_state_uncha
     let mut exhausted = TerminalCoordinator::new();
     exhausted.next_identity = None;
     assert_eq!(
-        create_refusal(exhausted.plan_create(create_request(1), Some(worker(1)), Some(expiry()),)),
+        create_refusal(exhausted.plan_create(
+            create_request(1),
+            Some(worker(1)),
+            Some(expiry()),
+            &LaunchCapture::absent()
+        )),
         CreateOutcome::Unavailable {
             reason: CreateUnavailableReason::ServerBusy,
         }
@@ -314,7 +361,12 @@ fn create_plan_refusals_leave_capacity_identity_lease_and_constraint_state_uncha
     let mut zero = TerminalCoordinator::new();
     zero.next_identity = Some(0);
     assert_eq!(
-        create_refusal(zero.plan_create(create_request(1), Some(worker(1)), Some(expiry()),)),
+        create_refusal(zero.plan_create(
+            create_request(1),
+            Some(worker(1)),
+            Some(expiry()),
+            &LaunchCapture::absent()
+        )),
         CreateOutcome::Unavailable {
             reason: CreateUnavailableReason::ServerBusy,
         }
@@ -324,7 +376,12 @@ fn create_plan_refusals_leave_capacity_identity_lease_and_constraint_state_uncha
 
     let mut no_lease = TerminalCoordinator::new();
     assert_eq!(
-        create_refusal(no_lease.plan_create(create_request(1), Some(worker(1)), None)),
+        create_refusal(no_lease.plan_create(
+            create_request(1),
+            Some(worker(1)),
+            None,
+            &LaunchCapture::absent()
+        )),
         CreateOutcome::Unavailable {
             reason: CreateUnavailableReason::ServerBusy,
         }
@@ -343,7 +400,12 @@ fn create_plan_refusals_leave_capacity_identity_lease_and_constraint_state_uncha
         None,
     );
     assert_eq!(
-        create_refusal(constrained.plan_create(request, Some(worker(1)), Some(expiry()))),
+        create_refusal(constrained.plan_create(
+            request,
+            Some(worker(1)),
+            Some(expiry()),
+            &LaunchCapture::absent()
+        )),
         CreateOutcome::Rejected {
             reason: CreateRejectedReason::WorkerConstraintUnsatisfied,
         }
@@ -357,7 +419,12 @@ fn maximum_identity_plan_is_pure_until_commit_and_exhausts_only_on_commit() {
     let mut coordinator = TerminalCoordinator::new();
     coordinator.next_identity = Some(u128::MAX);
     let plan = coordinator
-        .plan_create(create_request(1), Some(worker(1)), Some(expiry()))
+        .plan_create(
+            create_request(1),
+            Some(worker(1)),
+            Some(expiry()),
+            &LaunchCapture::absent(),
+        )
         .unwrap();
     let authorization = plan.authorization();
 
@@ -370,7 +437,12 @@ fn maximum_identity_plan_is_pure_until_commit_and_exhausts_only_on_commit() {
     assert_eq!(coordinator.next_identity, Some(u128::MAX));
 
     let plan = coordinator
-        .plan_create(create_request(1), Some(worker(1)), Some(expiry()))
+        .plan_create(
+            create_request(1),
+            Some(worker(1)),
+            Some(expiry()),
+            &LaunchCapture::absent(),
+        )
         .unwrap();
     assert_eq!(plan.authorization(), authorization);
     let pending = plan.commit();
@@ -385,9 +457,21 @@ fn maximum_identity_plan_is_pure_until_commit_and_exhausts_only_on_commit() {
 #[test]
 fn equal_state_foreign_owner_and_dropped_completion_plan_leave_records_unchanged() {
     let mut owner_a = TerminalCoordinator::new();
-    let pending_a = dispatch(owner_a.prepare(false, create(1), Some(worker(1)), Some(expiry())));
+    let pending_a = dispatch(owner_a.prepare(
+        false,
+        create(1),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     let mut owner_b = TerminalCoordinator::new();
-    let pending_b = dispatch(owner_b.prepare(false, create(1), Some(worker(1)), Some(expiry())));
+    let pending_b = dispatch(owner_b.prepare(
+        false,
+        create(1),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
 
     assert_eq!(pending_a.authorization(), pending_b.authorization());
     assert_eq!(owner_a.next_identity, owner_b.next_identity);
@@ -455,7 +539,13 @@ fn equal_state_foreign_owner_and_dropped_completion_plan_leave_records_unchanged
 #[test]
 fn malformed_delivery_is_prepared_as_unknown_before_mutation() {
     let mut coordinator = TerminalCoordinator::new();
-    let pending = dispatch(coordinator.prepare(false, create(1), Some(worker(1)), Some(expiry())));
+    let pending = dispatch(coordinator.prepare(
+        false,
+        create(1),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     let malformed = TerminalLaunchResult::new(
         pending.authorization(),
         TerminalLaunchOutcome::HostAccepted(HostLaunchAccepted::new(
@@ -489,7 +579,13 @@ fn malformed_delivery_is_prepared_as_unknown_before_mutation() {
 #[test]
 fn pre_delivery_unavailability_and_post_response_replacement_remain_distinct() {
     let mut unavailable = TerminalCoordinator::new();
-    let pending = dispatch(unavailable.prepare(false, create(1), Some(worker(1)), Some(expiry())));
+    let pending = dispatch(unavailable.prepare(
+        false,
+        create(1),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     assert!(
         matches!(commit_completion(&mut unavailable,pending,Completion::Unavailable,Some(worker(2))),ServerMessage::TerminalCreateResult(result) if result.outcome()==CreateOutcome::Unavailable {reason:CreateUnavailableReason::TerminalRuntimeUnavailable})
     );
@@ -499,7 +595,13 @@ fn pre_delivery_unavailability_and_post_response_replacement_remain_distinct() {
     ));
 
     let mut replaced = TerminalCoordinator::new();
-    let pending = dispatch(replaced.prepare(false, create(1), Some(worker(1)), Some(expiry())));
+    let pending = dispatch(replaced.prepare(
+        false,
+        create(1),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     let accepted = accepted_launch(&pending);
     assert!(
         matches!(commit_completion(&mut replaced,pending,accepted,Some(worker(2))),ServerMessage::TerminalCreateResult(result) if result.outcome()==CreateOutcome::OutcomeUnknown)
@@ -513,7 +615,13 @@ fn pre_delivery_unavailability_and_post_response_replacement_remain_distinct() {
 #[test]
 fn retained_authorization_is_phase_independent_and_effect_free() {
     let mut coordinator = TerminalCoordinator::new();
-    let pending = dispatch(coordinator.prepare(false, create(1), Some(worker(1)), Some(expiry())));
+    let pending = dispatch(coordinator.prepare(
+        false,
+        create(1),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     let authorization = pending.authorization();
     let cursor = coordinator.next_identity;
 
@@ -556,8 +664,13 @@ fn retained_create_preserves_precise_outcome_independently_of_later_phase() {
         (Completion::Unknown, CreateOutcome::OutcomeUnknown),
     ] {
         let mut coordinator = TerminalCoordinator::new();
-        let pending =
-            dispatch(coordinator.prepare(false, create(1), Some(worker(1)), Some(expiry())));
+        let pending = dispatch(coordinator.prepare(
+            false,
+            create(1),
+            Some(worker(1)),
+            Some(expiry()),
+            &LaunchCapture::absent(),
+        ));
         let authorization = pending.authorization();
         let retained = coordinator
             .retained_create_for_binding(authorization.terminal_id(), authorization.worker_id())
@@ -583,7 +696,13 @@ fn retained_create_preserves_precise_outcome_independently_of_later_phase() {
 #[test]
 fn retained_create_lookup_rejects_missing_completion_and_duplicate_terminal_binding() {
     let mut coordinator = TerminalCoordinator::new();
-    let pending = dispatch(coordinator.prepare(false, create(1), Some(worker(1)), Some(expiry())));
+    let pending = dispatch(coordinator.prepare(
+        false,
+        create(1),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     let authorization = pending.authorization();
     coordinator.bindings.get_mut(&id(1)).unwrap().phase = TerminalPhase::Unavailable(None);
     assert!(
@@ -592,7 +711,13 @@ fn retained_create_lookup_rejects_missing_completion_and_duplicate_terminal_bind
             .is_none()
     );
     coordinator.bindings.get_mut(&id(1)).unwrap().phase = TerminalPhase::Creating;
-    let _other = dispatch(coordinator.prepare(false, create(2), Some(worker(1)), Some(expiry())));
+    let _other = dispatch(coordinator.prepare(
+        false,
+        create(2),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     coordinator.bindings.get_mut(&id(2)).unwrap().authorization = authorization;
     assert!(
         coordinator
@@ -605,7 +730,7 @@ fn retained_create_lookup_rejects_missing_completion_and_duplicate_terminal_bind
 fn unavailable_worker_and_constraint_fail_without_allocating_authority() {
     let mut coordinator = TerminalCoordinator::new();
     assert!(
-        matches!(coordinator.prepare(false, create(1),None,Some(expiry())),PreparedOperation::Ready(ServerMessage::TerminalCreateResult(result)) if result.outcome()==CreateOutcome::Unavailable { reason: CreateUnavailableReason::NoCompatibleWorker })
+        matches!(coordinator.prepare(false, create(1), None, Some(expiry()), &LaunchCapture::absent()),PreparedOperation::Ready(ServerMessage::TerminalCreateResult(result)) if result.outcome()==CreateOutcome::Unavailable { reason: CreateUnavailableReason::NoCompatibleWorker })
     );
     let constrained = ClientMessage::TerminalCreate(TerminalCreateRequest::new(
         id(2),
@@ -617,7 +742,7 @@ fn unavailable_worker_and_constraint_fail_without_allocating_authority() {
         None,
     ));
     assert!(
-        matches!(coordinator.prepare(false, constrained,Some(worker(1)),Some(expiry())),PreparedOperation::Ready(ServerMessage::TerminalCreateResult(result)) if result.outcome()==CreateOutcome::Rejected {reason: CreateRejectedReason::WorkerConstraintUnsatisfied})
+        matches!(coordinator.prepare(false, constrained, Some(worker(1)), Some(expiry()), &LaunchCapture::absent()),PreparedOperation::Ready(ServerMessage::TerminalCreateResult(result)) if result.outcome()==CreateOutcome::Rejected {reason: CreateRejectedReason::WorkerConstraintUnsatisfied})
     );
     assert!(coordinator.bindings.is_empty());
     assert_eq!(coordinator.next_identity, Some(1));
@@ -626,14 +751,25 @@ fn unavailable_worker_and_constraint_fail_without_allocating_authority() {
 #[test]
 fn deferred_create_start_commits_exact_identity_with_fresh_operation_and_fence() {
     let mut coordinator = TerminalCoordinator::new();
-    let launch = dispatch(coordinator.prepare(false, create(1), Some(worker(1)), Some(expiry())));
+    let launch = dispatch(coordinator.prepare(
+        false,
+        create(1),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     let observation = accepted_launch(&launch);
     let launch_authorization = launch.authorization();
     assert!(
         matches!(commit_completion(&mut coordinator,launch,observation,Some(worker(1))),ServerMessage::TerminalCreateResult(result) if result.outcome()==CreateOutcome::Accepted {state: CreateAcceptedState::AwaitingStart})
     );
-    let pending =
-        dispatch(coordinator.prepare(false, start(2, 1), Some(worker(1)), Some(expiry())));
+    let pending = dispatch(coordinator.prepare(
+        false,
+        start(2, 1),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     let CapabilityNodeMessage::AuthorizedTerminalStart(command) = &pending.command else {
         panic!("start expected")
     };
@@ -652,7 +788,7 @@ fn deferred_create_start_commits_exact_identity_with_fresh_operation_and_fence()
     );
     assert_eq!(command.authorization().fence().get(), 2);
     assert!(
-        matches!(coordinator.prepare(false, start(3,1),Some(worker(1)),Some(expiry())),PreparedOperation::Ready(ServerMessage::TerminalStartResult(result)) if result.outcome()==StartOutcome::Unavailable {reason:StartUnavailableReason::ServerBusy})
+        matches!(coordinator.prepare(false, start(3,1), Some(worker(1)), Some(expiry()), &LaunchCapture::absent()),PreparedOperation::Ready(ServerMessage::TerminalStartResult(result)) if result.outcome()==StartOutcome::Unavailable {reason:StartUnavailableReason::ServerBusy})
     );
     let result = orchbee_capability_node_protocol::TerminalStartResult::new(
         command.authorization(),
@@ -685,13 +821,13 @@ fn deferred_create_start_commits_exact_identity_with_fresh_operation_and_fence()
         })
     );
     assert!(
-        matches!(coordinator.prepare(false, start(4,1),Some(worker(1)),Some(expiry())),PreparedOperation::Ready(ServerMessage::TerminalStartResult(result)) if result.outcome()==StartOutcome::Accepted {geometry:geometry(),transition:StartTransition::AlreadyStarted})
+        matches!(coordinator.prepare(false, start(4,1), Some(worker(1)), Some(expiry()), &LaunchCapture::absent()),PreparedOperation::Ready(ServerMessage::TerminalStartResult(result)) if result.outcome()==StartOutcome::Accepted {geometry:geometry(),transition:StartTransition::AlreadyStarted})
     );
     let conflicting = ClientMessage::TerminalStart(
         TerminalStartRequest::new(id(5), id(1), Geometry::new(100, 30, 8, 16).unwrap()).unwrap(),
     );
     assert!(
-        matches!(coordinator.prepare(false, conflicting,Some(worker(1)),Some(expiry())),PreparedOperation::Ready(ServerMessage::TerminalStartResult(result)) if result.outcome()==StartOutcome::Rejected {reason:StartRejectedReason::GeometryConflict})
+        matches!(coordinator.prepare(false, conflicting, Some(worker(1)), Some(expiry()), &LaunchCapture::absent()),PreparedOperation::Ready(ServerMessage::TerminalStartResult(result)) if result.outcome()==StartOutcome::Rejected {reason:StartRejectedReason::GeometryConflict})
     );
 }
 
@@ -699,8 +835,13 @@ fn deferred_create_start_commits_exact_identity_with_fresh_operation_and_fence()
 fn unknown_create_and_stale_worker_results_cannot_authorize_start_or_replay() {
     for stale in [false, true] {
         let mut coordinator = TerminalCoordinator::new();
-        let pending =
-            dispatch(coordinator.prepare(false, create(1), Some(worker(1)), Some(expiry())));
+        let pending = dispatch(coordinator.prepare(
+            false,
+            create(1),
+            Some(worker(1)),
+            Some(expiry()),
+            &LaunchCapture::absent(),
+        ));
         let outcome = if stale {
             accepted_launch(&pending)
         } else {
@@ -712,13 +853,18 @@ fn unknown_create_and_stale_worker_results_cannot_authorize_start_or_replay() {
             matches!(commit_completion(&mut coordinator,pending,outcome,Some(placement)),ServerMessage::TerminalCreateResult(result) if result.outcome()==CreateOutcome::OutcomeUnknown)
         );
         assert!(
-            matches!(coordinator.prepare(false, start(2,1),Some(placement),Some(expiry())),PreparedOperation::Ready(ServerMessage::TerminalStartResult(result)) if result.outcome()==StartOutcome::Rejected {reason:StartRejectedReason::TerminalCreateUnavailable})
+            matches!(coordinator.prepare(false, start(2,1), Some(placement), Some(expiry()), &LaunchCapture::absent()),PreparedOperation::Ready(ServerMessage::TerminalStartResult(result)) if result.outcome()==StartOutcome::Rejected {reason:StartRejectedReason::TerminalCreateUnavailable})
         );
         assert!(
-            matches!(coordinator.prepare(false, create(1),Some(placement),Some(expiry())),PreparedOperation::Ready(ServerMessage::TerminalCreateResult(result)) if result.outcome()==CreateOutcome::Rejected {reason:CreateRejectedReason::NotAuthorized})
+            matches!(coordinator.prepare(false, create(1), Some(placement), Some(expiry()), &LaunchCapture::absent()),PreparedOperation::Ready(ServerMessage::TerminalCreateResult(result)) if result.outcome()==CreateOutcome::Rejected {reason:CreateRejectedReason::NotAuthorized})
         );
-        let another =
-            dispatch(coordinator.prepare(false, create(3), Some(placement), Some(expiry())));
+        let another = dispatch(coordinator.prepare(
+            false,
+            create(3),
+            Some(placement),
+            Some(expiry()),
+            &LaunchCapture::absent(),
+        ));
         assert_ne!(
             another.authorization().operation_id(),
             authorization.operation_id()
@@ -735,18 +881,34 @@ fn known_pre_delivery_start_failure_can_be_followed_by_a_new_intent_but_unknown_
     ] {
         let unknown = matches!(completion, Completion::Unknown);
         let mut coordinator = TerminalCoordinator::new();
-        let launch =
-            dispatch(coordinator.prepare(false, create(1), Some(worker(1)), Some(expiry())));
+        let launch = dispatch(coordinator.prepare(
+            false,
+            create(1),
+            Some(worker(1)),
+            Some(expiry()),
+            &LaunchCapture::absent(),
+        ));
         let accepted = accepted_launch(&launch);
         commit_completion(&mut coordinator, launch, accepted, Some(worker(1)));
-        let pending =
-            dispatch(coordinator.prepare(false, start(2, 1), Some(worker(1)), Some(expiry())));
+        let pending = dispatch(coordinator.prepare(
+            false,
+            start(2, 1),
+            Some(worker(1)),
+            Some(expiry()),
+            &LaunchCapture::absent(),
+        ));
         commit_completion(&mut coordinator, pending, completion, Some(worker(1)));
         assert_eq!(
             coordinator.bindings.get(&id(1)).unwrap().phase.identity(),
             Some(identity())
         );
-        let next = coordinator.prepare(false, start(3, 1), Some(worker(1)), Some(expiry()));
+        let next = coordinator.prepare(
+            false,
+            start(3, 1),
+            Some(worker(1)),
+            Some(expiry()),
+            &LaunchCapture::absent(),
+        );
         assert_eq!(matches!(next, PreparedOperation::Dispatch(_)), !unknown);
     }
 }
@@ -760,15 +922,22 @@ fn bounds_retained_records_and_exhaustion_never_wraps_identity() {
             create(number as u128),
             Some(worker(1)),
             Some(expiry()),
+            &LaunchCapture::absent(),
         ));
     }
     assert!(
-        matches!(coordinator.prepare(false, create(2000),Some(worker(1)),Some(expiry())),PreparedOperation::Ready(ServerMessage::TerminalCreateResult(result)) if result.outcome()==CreateOutcome::Unavailable {reason:CreateUnavailableReason::ServerBusy})
+        matches!(coordinator.prepare(false, create(2000), Some(worker(1)), Some(expiry()), &LaunchCapture::absent()),PreparedOperation::Ready(ServerMessage::TerminalCreateResult(result)) if result.outcome()==CreateOutcome::Unavailable {reason:CreateUnavailableReason::ServerBusy})
     );
     let mut exhausted = TerminalCoordinator::new();
     exhausted.next_identity = None;
     assert!(matches!(
-        exhausted.prepare(false, create(1), Some(worker(1)), Some(expiry())),
+        exhausted.prepare(
+            false,
+            create(1),
+            Some(worker(1)),
+            Some(expiry()),
+            &LaunchCapture::absent()
+        ),
         PreparedOperation::Ready(_)
     ));
     assert!(exhausted.bindings.is_empty());
@@ -789,7 +958,13 @@ fn immediate_launch_preserves_geometry_and_rejects_a_later_start() {
         },
         None,
     ));
-    let pending = dispatch(coordinator.prepare(false, request, Some(worker(1)), Some(expiry())));
+    let pending = dispatch(coordinator.prepare(
+        false,
+        request,
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     let CapabilityNodeMessage::AuthorizedTerminalLaunch(command) = &pending.command else {
         panic!("launch expected")
     };
@@ -810,14 +985,20 @@ fn immediate_launch_preserves_geometry_and_rejects_a_later_start() {
         matches!(commit_completion(&mut coordinator,pending,Completion::Launch(result),Some(worker(1))),ServerMessage::TerminalCreateResult(result) if result.outcome()==CreateOutcome::Accepted {state:CreateAcceptedState::Started {geometry:geometry()}})
     );
     assert!(
-        matches!(coordinator.prepare(false, start(2,1),Some(worker(1)),Some(expiry())),PreparedOperation::Ready(ServerMessage::TerminalStartResult(result)) if result.outcome()==StartOutcome::Rejected {reason:StartRejectedReason::TerminalNotAwaitingStart})
+        matches!(coordinator.prepare(false, start(2,1), Some(worker(1)), Some(expiry()), &LaunchCapture::absent()),PreparedOperation::Ready(ServerMessage::TerminalStartResult(result)) if result.outcome()==StartOutcome::Rejected {reason:StartRejectedReason::TerminalNotAwaitingStart})
     );
 }
 
 #[test]
 fn contradictory_launch_mode_and_start_geometry_freeze_the_binding() {
     let mut coordinator = TerminalCoordinator::new();
-    let pending = dispatch(coordinator.prepare(false, create(1), Some(worker(1)), Some(expiry())));
+    let pending = dispatch(coordinator.prepare(
+        false,
+        create(1),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     let contradictory = TerminalLaunchResult::new(
         pending.authorization(),
         TerminalLaunchOutcome::HostAccepted(HostLaunchAccepted::new(
@@ -829,11 +1010,22 @@ fn contradictory_launch_mode_and_start_geometry_freeze_the_binding() {
     assert!(
         matches!(commit_completion(&mut coordinator,pending,Completion::Launch(contradictory),Some(worker(1))),ServerMessage::TerminalCreateResult(result) if result.outcome()==CreateOutcome::OutcomeUnknown)
     );
-    let launch = dispatch(coordinator.prepare(false, create(2), Some(worker(1)), Some(expiry())));
+    let launch = dispatch(coordinator.prepare(
+        false,
+        create(2),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     let accepted = accepted_launch(&launch);
     commit_completion(&mut coordinator, launch, accepted, Some(worker(1)));
-    let pending =
-        dispatch(coordinator.prepare(false, start(3, 2), Some(worker(1)), Some(expiry())));
+    let pending = dispatch(coordinator.prepare(
+        false,
+        start(3, 2),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     let result = orchbee_capability_node_protocol::TerminalStartResult::new(
         pending.authorization(),
         identity(),
@@ -850,14 +1042,20 @@ fn contradictory_launch_mode_and_start_geometry_freeze_the_binding() {
         matches!(commit_completion(&mut coordinator,pending,Completion::Start(result),Some(worker(1))),ServerMessage::TerminalStartResult(result) if result.outcome()==StartOutcome::OutcomeUnknown)
     );
     assert!(
-        matches!(coordinator.prepare(false, start(4,2),Some(worker(1)),Some(expiry())),PreparedOperation::Ready(ServerMessage::TerminalStartResult(result)) if result.outcome()==StartOutcome::Rejected {reason:StartRejectedReason::TerminalCreateUnavailable})
+        matches!(coordinator.prepare(false, start(4,2), Some(worker(1)), Some(expiry()), &LaunchCapture::absent()),PreparedOperation::Ready(ServerMessage::TerminalStartResult(result)) if result.outcome()==StartOutcome::Rejected {reason:StartRejectedReason::TerminalCreateUnavailable})
     );
 }
 
 #[test]
 fn stale_completion_seal_cannot_change_a_current_binding() {
     let mut coordinator = TerminalCoordinator::new();
-    let pending = dispatch(coordinator.prepare(false, create(1), Some(worker(1)), Some(expiry())));
+    let pending = dispatch(coordinator.prepare(
+        false,
+        create(1),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     let authorization = pending.authorization();
     let cursor = coordinator.next_identity;
     coordinator
@@ -936,8 +1134,13 @@ fn worker_launch_outcomes_keep_rejection_failure_and_unknown_distinct() {
         ),
     ] {
         let mut coordinator = TerminalCoordinator::new();
-        let pending =
-            dispatch(coordinator.prepare(false, create(1), Some(worker(1)), Some(expiry())));
+        let pending = dispatch(coordinator.prepare(
+            false,
+            create(1),
+            Some(worker(1)),
+            Some(expiry()),
+            &LaunchCapture::absent(),
+        ));
         let result = TerminalLaunchResult::new(pending.authorization(), observed).unwrap();
         assert!(
             matches!(commit_completion(&mut coordinator,pending,Completion::Launch(result),Some(worker(1))),ServerMessage::TerminalCreateResult(result) if result.outcome()==expected)
@@ -948,11 +1151,22 @@ fn worker_launch_outcomes_keep_rejection_failure_and_unknown_distinct() {
 #[test]
 fn lifecycle_active_start_refusal_is_runtime_unavailable_not_host_failure() {
     let mut coordinator = TerminalCoordinator::new();
-    let launch = dispatch(coordinator.prepare(false, create(1), Some(worker(1)), Some(expiry())));
+    let launch = dispatch(coordinator.prepare(
+        false,
+        create(1),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     let accepted = accepted_launch(&launch);
     commit_completion(&mut coordinator, launch, accepted, Some(worker(1)));
-    let pending =
-        dispatch(coordinator.prepare(false, start(2, 1), Some(worker(1)), Some(expiry())));
+    let pending = dispatch(coordinator.prepare(
+        false,
+        start(2, 1),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     let result = orchbee_capability_node_protocol::TerminalStartResult::new(
         pending.authorization(),
         identity(),
@@ -970,7 +1184,13 @@ fn lifecycle_active_start_refusal_is_runtime_unavailable_not_host_failure() {
 #[test]
 fn exact_binding_lookup_accepts_only_awaiting_or_started_retained_terminal() {
     let mut coordinator = TerminalCoordinator::new();
-    let launch = dispatch(coordinator.prepare(false, create(1), Some(worker(1)), Some(expiry())));
+    let launch = dispatch(coordinator.prepare(
+        false,
+        create(1),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     let authorization = launch.authorization();
     let accepted = accepted_launch(&launch);
     commit_completion(&mut coordinator, launch, accepted, Some(worker(1)));
@@ -1014,7 +1234,13 @@ fn exact_binding_lookup_accepts_only_awaiting_or_started_retained_terminal() {
 #[test]
 fn binding_lookup_precedence_distinguishes_current_worker_record_generation_and_phase() {
     let mut coordinator = TerminalCoordinator::new();
-    let launch = dispatch(coordinator.prepare(false, create(1), Some(worker(1)), Some(expiry())));
+    let launch = dispatch(coordinator.prepare(
+        false,
+        create(1),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     let authorization = launch.authorization();
     let selected_terminal = authorization.terminal_id();
     let selected_worker = authorization.worker_id();
@@ -1083,6 +1309,7 @@ fn binding_lookup_is_bounded_by_the_retained_record_limit_and_finds_the_last_rec
             create(number as u128),
             Some(worker(1)),
             Some(expiry()),
+            &LaunchCapture::absent(),
         ));
         selected = Some(pending.authorization());
     }
@@ -1135,7 +1362,13 @@ fn viewer_identity_allocation_is_atomic_at_zero_and_exhaustion_boundaries() {
 #[test]
 fn uncreated_close_requires_unique_settled_failed_create_and_no_retained_identity() {
     let mut coordinator = TerminalCoordinator::new();
-    let launch = dispatch(coordinator.prepare(false, create(1), Some(worker(1)), Some(expiry())));
+    let launch = dispatch(coordinator.prepare(
+        false,
+        create(1),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     let authorization = launch.authorization();
     let uncreated = |coordinator: &TerminalCoordinator| {
         coordinator
@@ -1179,7 +1412,13 @@ fn uncreated_close_requires_unique_settled_failed_create_and_no_retained_identit
         reason: CreateFailureReason::TerminalCreateFailed,
     });
     assert!(uncreated(&coordinator));
-    let _other = dispatch(coordinator.prepare(false, create(2), Some(worker(1)), Some(expiry())));
+    let _other = dispatch(coordinator.prepare(
+        false,
+        create(2),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     coordinator.bindings.get_mut(&id(2)).unwrap().authorization = authorization;
     assert!(!uncreated(&coordinator));
 }
@@ -1220,7 +1459,12 @@ fn plugin_terminal_launch_rejects_oversized_frames_before_reserving_and_preserve
     };
     let identity = coordinator.next_identity;
     assert!(matches!(
-        create_refusal(coordinator.plan_create(request(true), Some(worker(1)), Some(expiry()))),
+        create_refusal(coordinator.plan_create(
+            request(true),
+            Some(worker(1)),
+            Some(expiry()),
+            &LaunchCapture::absent()
+        )),
         CreateOutcome::Failed {
             reason: CreateFailureReason::TerminalCreateFailed
         }
@@ -1229,7 +1473,12 @@ fn plugin_terminal_launch_rejects_oversized_frames_before_reserving_and_preserve
     assert!(coordinator.bindings.is_empty());
     let intent = request(false);
     let plan = coordinator
-        .plan_create(intent.clone(), Some(worker(1)), Some(expiry()))
+        .plan_create(
+            intent.clone(),
+            Some(worker(1)),
+            Some(expiry()),
+            &LaunchCapture::absent(),
+        )
         .unwrap();
     let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = plan.command() else {
         panic!()

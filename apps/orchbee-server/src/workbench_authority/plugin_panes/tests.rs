@@ -269,7 +269,8 @@ fn admission_witness(root: PathBuf) {
             admission.plugin_use().unwrap().launch.arguments()[0],
             "hello world"
         );
-        let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding.clone())
+        let WorkbenchTabCreatePreparation::Prepared(prepared) =
+            admission.finish(binding.clone(), None)
         else {
             panic!("prepared")
         };

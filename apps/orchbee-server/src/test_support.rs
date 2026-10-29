@@ -150,7 +150,7 @@ impl WorkbenchFixture for WorkbenchAuthority {
             WorkbenchTabCreateBegin::Admitted(admission) => admission,
             WorkbenchTabCreateBegin::Ready(result) => return Err(result),
         };
-        match admission.finish(binding) {
+        match admission.finish(binding, None) {
             WorkbenchTabCreatePreparation::Prepared(prepared) => Ok(prepared),
             WorkbenchTabCreatePreparation::Ready(result) => Err(result),
         }

@@ -96,6 +96,7 @@ pub(crate) fn presentation(n: u64) -> Presentation {
             terminal_id: TerminalId::parse(&id(n + 100)).unwrap(),
         }),
         launch_failure: None,
+        launch_program: None,
     }
 }
 

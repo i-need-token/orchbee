@@ -94,7 +94,7 @@ pub(super) fn fixture(count: u128) -> (WorkbenchAuthority, WorkbenchGrant) {
             panic!("Create admission")
         };
         let WorkbenchTabCreatePreparation::Prepared(prepared) =
-            admission.finish(binding(700 + index))
+            admission.finish(binding(700 + index), None)
         else {
             panic!("Create preparation")
         };

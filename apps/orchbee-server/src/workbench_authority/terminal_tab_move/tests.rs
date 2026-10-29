@@ -533,10 +533,13 @@ fn move_admission_cannot_use_its_navigation_grant_to_replay_a_terminal_create() 
         panic!("create admission expected")
     };
     let crate::workbench_authority::WorkbenchTabCreatePreparation::Prepared(prepared) = admission
-        .finish(PresentationBinding {
-            terminal_id: TerminalId::parse(&identity(1000)).unwrap(),
-            worker_id: WorkerId::parse(&identity(2000)).unwrap(),
-        })
+        .finish(
+            PresentationBinding {
+                terminal_id: TerminalId::parse(&identity(1000)).unwrap(),
+                worker_id: WorkerId::parse(&identity(2000)).unwrap(),
+            },
+            None,
+        )
     else {
         panic!("create preparation expected")
     };

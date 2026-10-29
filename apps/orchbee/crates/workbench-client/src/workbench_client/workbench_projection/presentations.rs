@@ -2,7 +2,7 @@
 use super::{ClientProjectionError, ClientTerminalBinding};
 use orchbee_workbench_protocol::{
     PanelCustomLabel, PanelRightClickTarget, Presentation, PresentationLaunchFailure,
-    TerminalPresentationId, WorkbenchLabel, WorkbenchPanelId,
+    PresentationLaunchProgram, TerminalPresentationId, WorkbenchLabel, WorkbenchPanelId,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -12,6 +12,7 @@ pub(crate) struct ClientPresentation {
     pub(super) custom_label: Option<PanelCustomLabel>,
     pub(super) binding: Option<ClientTerminalBinding>,
     pub(super) launch_failure: Option<PresentationLaunchFailure>,
+    pub(super) launch_program: Option<PresentationLaunchProgram>,
 }
 
 impl ClientPresentation {
@@ -26,6 +27,7 @@ impl ClientPresentation {
                 terminal_id: binding.terminal_id.clone(),
             }),
             launch_failure: value.launch_failure.clone(),
+            launch_program: value.launch_program.clone(),
         })
     }
 
@@ -48,6 +50,12 @@ impl ClientPresentation {
     /// The Server's committed failure for the current binding, visible to every Client.
     pub(in crate::workbench_client) fn launch_failure(&self) -> Option<&PresentationLaunchFailure> {
         self.launch_failure.as_ref()
+    }
+    /// The file name of the program the Server committed with the current binding.
+    pub(in crate::workbench_client) fn launch_program(&self) -> Option<&str> {
+        self.launch_program
+            .as_ref()
+            .map(PresentationLaunchProgram::as_str)
     }
 }
 

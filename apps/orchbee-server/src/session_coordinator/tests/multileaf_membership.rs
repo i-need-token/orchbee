@@ -264,7 +264,13 @@ fn multileaf_initial_workspace_tab_create_admits_and_settles() {
         .unwrap();
     assert_eq!(context.tabs.len(), 2);
     assert_eq!(
-        ready(coordinator.prepare_terminal_tab_create(create_c, None, None, None)),
+        ready(coordinator.prepare_terminal_tab_create(
+            create_c,
+            None,
+            None,
+            None,
+            &LaunchCapture::absent()
+        )),
         completed.result
     );
 }
@@ -584,7 +590,13 @@ fn pending_creates_settle_out_of_order_after_another_tab_closes() {
     terminal_started(&completed_b.result);
 
     assert_eq!(
-        ready(coordinator.prepare_terminal_tab_create(create_c, None, None, None)),
+        ready(coordinator.prepare_terminal_tab_create(
+            create_c,
+            None,
+            None,
+            None,
+            &LaunchCapture::absent()
+        )),
         completed_c.result
     );
 }
@@ -675,7 +687,13 @@ fn last_close_to_empty_keeps_retained_replay_and_fresh_create_path() {
     assert!(context.tabs.is_empty());
     // A's settled result replays exactly even though its member is gone.
     assert_eq!(
-        ready(coordinator.prepare_terminal_tab_create(create_a, None, None, None)),
+        ready(coordinator.prepare_terminal_tab_create(
+            create_a,
+            None,
+            None,
+            None,
+            &LaunchCapture::absent()
+        )),
         completed_a.result
     );
     // A fresh Create in the empty Workspace commits and settles normally.
@@ -738,6 +756,7 @@ fn an_open_aggregate_close_fences_the_same_tab_split_but_not_a_new_create() {
         Some(id(9986)),
         Some(expiry()),
         Some(worker(1)),
+        &LaunchCapture::absent(),
     ) else {
         panic!("fenced split must not dispatch")
     };

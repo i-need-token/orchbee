@@ -1,6 +1,7 @@
 use super::*;
 use crate::local_terminal_service::lease_expiry;
 use crate::session_coordinator::PreparedTerminalTabCreate;
+use crate::terminal_coordinator::LaunchCapture;
 use crate::terminal_coordinator::{Completion, WorkerPlacement};
 use crate::worker_obcn_carrier::create_worker_carrier;
 use crate::worker_registry::{WorkerAdmission, WorkerRegistry};
@@ -50,7 +51,7 @@ impl Fixture {
         let WorkerAdmission::Accepted { generation } = registry
             .lock()
             .map_err(|_| "registry poisoned")?
-            .admit(worker_id)
+            .admit(worker_id, None)
         else {
             return Err("worker admission".into());
         };
@@ -120,6 +121,7 @@ impl Fixture {
             Some(client_id(11 + u128::from(index) * 100)),
             lease_expiry(),
             Some(placement_value()),
+            &LaunchCapture::absent(),
         ) else {
             return Err("create pending".into());
         };
@@ -230,8 +232,10 @@ impl Fixture {
         self.kill_carrier()?;
         let registry = &self.service.workers;
         let worker_id = orchbee_local_worker_protocol::WorkerId::from_bytes(WORKER_BYTES);
-        let WorkerAdmission::Accepted { generation } =
-            registry.lock().map_err(|_| "poisoned")?.admit(worker_id)
+        let WorkerAdmission::Accepted { generation } = registry
+            .lock()
+            .map_err(|_| "poisoned")?
+            .admit(worker_id, None)
         else {
             return Err("replacement admission".into());
         };

@@ -12,7 +12,7 @@ The checkpoint retains optional Project membership, Project labels, global local
 Workspaces and their display order, terminal contexts, ordered
 Tabs, groups, pinned state, split structure and ratios, Panel input policy and Presentation labels. It also
 retains Launch Profile definitions and the allocation high-water counter, including deleted IDs.
-All primary and child Presentations survive structurally but carry no terminal binding or launch failure.
+All primary and child Presentations survive structurally but carry no terminal binding, launched program or launch failure.
 
 It does not retain running processes, Session/Worker identities, controller grants, leases, Client
 views/focus/zoom, request results, publication cursors, unfinished operations, Agent state
@@ -59,7 +59,7 @@ Canonical split ratios remain retained; see [shared ratios](shared-split-ratios.
 Every Presentation binding is `null`; `customLabel` is required-nullable.
 `checkpoint/contexts.rs` owns the retained graph shape: Tab `automaticLabel` and `groupId`,
 Panel `rightClick`, Split `ratio` and Presentation `binding` are explicit even at their default or
-null values. The runtime-only `launchFailure` field is not admitted into retained configuration.
+null values. The runtime-only `launchProgram` and `launchFailure` fields are not admitted into retained configuration.
 
 ### Per-terminal directory restoration
 
@@ -94,7 +94,8 @@ Format changes follow the repository data-boundary rule; there is no permissive 
 
 `prepare_restored_terminal` rechecks Session, local Worker, membership, unbound status and the cwd
 default, then validates and prepares the entire resulting projection/publication before mutation.
-Dropping preparation changes nothing. Commit sets exactly one binding and advances revision;
+Dropping preparation changes nothing. Commit sets exactly one binding, with the launched program
+its fresh reservation planned, and advances revision;
 structural identities, allocator high-water, labels, order, groups, input policy and profiles remain
 unchanged. Already-bound targets and duplicate physical terminal bindings are refused.
 

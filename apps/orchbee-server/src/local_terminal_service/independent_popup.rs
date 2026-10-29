@@ -276,6 +276,7 @@ impl LocalTerminalService {
                 let reference = client::RequestId::parse(popup_id.as_str())
                     .map_err(|_| Failure::InvalidIntent)?;
                 let prepared = (|| {
+                    let capture = self.launch_capture();
                     let workers = self.workers.lock().map_err(|_| Failure::Unavailable)?;
                     let handle = workers.request_handle();
                     let mut coordinator =
@@ -286,6 +287,7 @@ impl LocalTerminalService {
                         *geometry,
                         placement(handle.as_ref()),
                         lease_expiry(),
+                        &capture,
                     )?;
                     let mut owners = self.popups.0.lock().map_err(|_| Failure::Unavailable)?;
                     let popup = owners.get_mut(&owner).ok_or(Failure::Unavailable)?;

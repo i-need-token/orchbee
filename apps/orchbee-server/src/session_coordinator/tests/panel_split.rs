@@ -56,6 +56,7 @@ pub(super) fn dispatch_split(
         Some(id(reference)),
         Some(expiry()),
         Some(worker(1)),
+        &LaunchCapture::absent(),
     ) else {
         panic!("panel.split dispatch expected")
     };
@@ -275,7 +276,13 @@ fn pending_split_completion_after_close_retarget_settles_and_resolves_bare_open(
     ));
 
     assert_eq!(
-        ready_split(coordinator.prepare_terminal_panel_create(split_b, None, None, None)),
+        ready_split(coordinator.prepare_terminal_panel_create(
+            split_b,
+            None,
+            None,
+            None,
+            &LaunchCapture::absent()
+        )),
         completed.result
     );
 }
@@ -317,7 +324,13 @@ fn split_completion_before_close_publication_leaves_the_settled_reference() {
     let _close = close_leaf(&mut coordinator, context, tab, panel_a, 1414);
 
     assert_eq!(
-        ready_split(coordinator.prepare_terminal_panel_create(split_b, None, None, None)),
+        ready_split(coordinator.prepare_terminal_panel_create(
+            split_b,
+            None,
+            None,
+            None,
+            &LaunchCapture::absent()
+        )),
         completed.result
     );
 }
@@ -373,11 +386,23 @@ fn stale_split_completion_cannot_overwrite_the_newer_current_reference() {
         .unwrap();
 
     assert_eq!(
-        ready_split(coordinator.prepare_terminal_panel_create(split_b, None, None, None)),
+        ready_split(coordinator.prepare_terminal_panel_create(
+            split_b,
+            None,
+            None,
+            None,
+            &LaunchCapture::absent()
+        )),
         completed_b.result
     );
     assert_eq!(
-        ready_split(coordinator.prepare_terminal_panel_create(split_c, None, None, None)),
+        ready_split(coordinator.prepare_terminal_panel_create(
+            split_c,
+            None,
+            None,
+            None,
+            &LaunchCapture::absent()
+        )),
         completed_c.result
     );
 }
@@ -441,7 +466,13 @@ fn workspace_split_completion_preserves_sibling_tab_settlement() {
     ));
 
     assert_eq!(
-        ready_split(coordinator.prepare_terminal_panel_create(split, None, None, None)),
+        ready_split(coordinator.prepare_terminal_panel_create(
+            split,
+            None,
+            None,
+            None,
+            &LaunchCapture::absent()
+        )),
         completed.result
     );
 }
@@ -573,8 +604,13 @@ fn launch_selection_reaches_the_split_command_and_replay_identity() {
 
     // An identical replay returns the pending outcome without dispatching a
     // second launch.
-    let replay =
-        ready_split(coordinator.prepare_terminal_panel_create(split.clone(), None, None, None));
+    let replay = ready_split(coordinator.prepare_terminal_panel_create(
+        split.clone(),
+        None,
+        None,
+        None,
+        &LaunchCapture::absent(),
+    ));
     assert!(matches!(
         replay.outcome,
         WorkbenchCommandOutcome::PanelSplitPending { .. }
@@ -590,7 +626,14 @@ fn launch_selection_reaches_the_split_command_and_replay_identity() {
             .unwrap(),
     );
     assert!(matches!(
-        ready_split(coordinator.prepare_terminal_panel_create(conflict, None, None, None)).outcome,
+        ready_split(coordinator.prepare_terminal_panel_create(
+            conflict,
+            None,
+            None,
+            None,
+            &LaunchCapture::absent()
+        ))
+        .outcome,
         WorkbenchCommandOutcome::Rejected {
             reason: WorkbenchRejectionReason::RequestIdentityConflict,
             ..
@@ -608,8 +651,14 @@ fn launch_selection_reaches_the_split_command_and_replay_identity() {
             options.environment = orchbee_workbench_protocol::LaunchEnvironment::empty();
         }
         assert!(matches!(
-            ready_split(coordinator.prepare_terminal_panel_create(changed, None, None, None))
-                .outcome,
+            ready_split(coordinator.prepare_terminal_panel_create(
+                changed,
+                None,
+                None,
+                None,
+                &LaunchCapture::absent()
+            ))
+            .outcome,
             WorkbenchCommandOutcome::Rejected {
                 reason: WorkbenchRejectionReason::RequestIdentityConflict,
                 ..

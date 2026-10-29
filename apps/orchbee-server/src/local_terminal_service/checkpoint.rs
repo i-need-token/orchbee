@@ -69,11 +69,15 @@ impl LocalTerminalService {
         checkpoint: Option<WorkbenchCheckpoint>,
         preferences: orchbee_local_runtime::UserPreferencesScope,
     ) -> io::Result<(Self, CheckpointRestore)> {
-        let handle = workers
-            .lock()
-            .map_err(|_| io::Error::other("Worker registry failed"))?
-            .request_handle()
-            .ok_or_else(|| io::Error::other("Worker unavailable"))?;
+        let (handle, system_shell) = {
+            let registry = workers
+                .lock()
+                .map_err(|_| io::Error::other("Worker registry failed"))?;
+            let handle = registry
+                .request_handle()
+                .ok_or_else(|| io::Error::other("Worker unavailable"))?;
+            (handle, registry.system_shell())
+        };
         let worker = placement(Some(&handle)).ok_or_else(|| io::Error::other("invalid Worker"))?;
         let owner = WorkerId::parse(&format!(
             "{:032x}",
@@ -92,6 +96,8 @@ impl LocalTerminalService {
             .map_err(io::Error::other)?;
         let mut service = Self::from_workbench(workers, Some(authority));
         service.initialize_preferences(preferences)?;
+        // One read serves every restored launch, after the scope it reads is frozen.
+        let capture = service.launch_capture().with_system_shell(system_shell);
         let coordinator = service
             .coordinator
             .get_mut()
@@ -108,8 +114,9 @@ impl LocalTerminalService {
                 .transpose()
                 .map_err(io::Error::other)?;
             pending.push(
-                *coordinator
-                    .prepare_checkpoint_terminal(&target, reference, worker, expiry, None, cwd)?,
+                *coordinator.prepare_checkpoint_terminal(
+                    &target, reference, worker, expiry, cwd, &capture,
+                )?,
             );
         }
         Ok((service, CheckpointRestore { pending }))

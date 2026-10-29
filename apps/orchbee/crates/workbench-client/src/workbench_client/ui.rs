@@ -488,8 +488,8 @@ impl<'a> WorkbenchClientView<'a> {
     }
 
     /// The selected Presentation's custom label, then the title its program set, live or retained,
-    /// then the launched program from this Client's failed-creation record or the Server's launch
-    /// failure.
+    /// then the program the Server committed with its binding, then the launched program from this
+    /// Client's failed-creation record or the Server's launch failure.
     fn automatic_name(
         &self,
         tab: &StateTabView<'a>,
@@ -529,10 +529,14 @@ impl<'a> WorkbenchClientView<'a> {
                 .and_then(ChromeName::of_title)
             })
             .or_else(|| {
-                self.state
-                    .as_ref()?
-                    .launch_description(panel)
-                    .and_then(|description| description.executable.as_deref())
+                member
+                    .launch_program()
+                    .or_else(|| {
+                        self.state
+                            .as_ref()?
+                            .launch_description(panel)
+                            .and_then(|description| description.executable.as_deref())
+                    })
                     .or_else(|| member.launch_failure()?.executable.as_deref())
                     .and_then(Program::from_path)
                     .map(|program| ChromeName::Program {

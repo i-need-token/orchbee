@@ -146,7 +146,8 @@ fn install_two_tabs(
     else {
         panic!("expected tab create admission")
     };
-    let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding(701)) else {
+    let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding(701), None)
+    else {
         panic!("expected prepared tab create")
     };
     let committed = prepared.commit();

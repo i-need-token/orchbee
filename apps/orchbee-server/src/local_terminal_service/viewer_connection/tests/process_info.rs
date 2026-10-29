@@ -74,7 +74,7 @@ fn process_connection(reply: Reply) -> ScriptedConnection {
     let carrier = create_worker_carrier(WORKER_ID, NonZeroU64::MIN);
     let handle = carrier.request_handle();
     assert!(matches!(
-        service.workers.lock().unwrap().admit(WORKER_ID),
+        service.workers.lock().unwrap().admit(WORKER_ID, None),
         crate::worker_registry::WorkerAdmission::Accepted { .. }
     ));
     let owner =

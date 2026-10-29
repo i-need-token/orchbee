@@ -46,7 +46,9 @@ fn prepare<'a>(
     else {
         panic!("admission")
     };
-    let WorkbenchPanelCreatePreparation::Prepared(prepared) = admission.finish(binding(2)) else {
+    let WorkbenchPanelCreatePreparation::Prepared(prepared) =
+        admission.finish(binding(2), program())
+    else {
         panic!("preparation")
     };
     prepared
@@ -90,6 +92,7 @@ fn child_creation_appends_one_identity_with_effect_free_preparation_and_sealed_r
         *metadata.presentation_id()
     );
     assert_eq!(child_presentations[0].binding, Some(binding(2)));
+    assert_eq!(child_presentations[0].launch_program, program());
     let WorkbenchPanelCreateBegin::Ready(replay) =
         authority.begin_terminal_panel_create(Some(&grant), command.clone())
     else {
@@ -185,6 +188,7 @@ fn binding_existing_primary_or_child_preserves_identity_and_labels_without_alloc
             primary_presentation
         };
         target.binding = Some(binding(2));
+        target.launch_program = program();
         expected.revision = WorkbenchRevision::new(expected.revision.value() + 1);
         assert_eq!(authority.snapshot(), &expected);
         assert_eq!(pending.metadata().presentation_id(), &target_id);

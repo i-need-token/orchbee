@@ -125,6 +125,7 @@ impl LocalTerminalService {
         };
         let candidate = super::create_reference();
         let expiry = super::lease_expiry();
+        let capture = self.launch_capture();
         let (prepared, handle) = {
             let Ok(workers) = self.workers.lock() else {
                 return Ok(unavailable(
@@ -152,8 +153,9 @@ impl LocalTerminalService {
                     WorkbenchCommandUnavailableReason::NoCompatibleWorker,
                 ));
             };
+            let capture = capture.with_system_shell(workers.system_shell());
             (
-                coordinator.prepare_workspace_launch(command, candidate, expiry, current),
+                coordinator.prepare_workspace_launch(command, candidate, expiry, current, &capture),
                 handle,
             )
         };

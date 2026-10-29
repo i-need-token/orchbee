@@ -64,8 +64,13 @@ fn pending_bootstrap_moves_through_every_position_then_both_completion_orders_su
             .unwrap();
         let baseline = snapshot(&mut coordinator);
         let first_tab = &baseline.terminal_contexts[0].tabs[0];
-        let pending_replay =
-            ready(coordinator.prepare_terminal_tab_create(first_command.clone(), None, None, None));
+        let pending_replay = ready(coordinator.prepare_terminal_tab_create(
+            first_command.clone(),
+            None,
+            None,
+            None,
+            &LaunchCapture::absent(),
+        ));
         let mut historical_move = None;
         for (index, (direction, order)) in [
             (WorkbenchTabMoveDirection::Last, [1, 2, 0]),
@@ -106,7 +111,8 @@ fn pending_bootstrap_moves_through_every_position_then_both_completion_orders_su
                     first_command.clone(),
                     None,
                     None,
-                    None
+                    None,
+                    &LaunchCapture::absent(),
                 )),
                 pending_replay
             );
@@ -199,8 +205,20 @@ fn pending_bootstrap_moves_through_every_position_then_both_completion_orders_su
             coordinator
                 .execute_terminal_tab_move(historical_request.clone())
                 .unwrap(),
-            ready(coordinator.prepare_terminal_tab_create(first_command, None, None, None)),
-            ready(coordinator.prepare_terminal_tab_create(second_command, None, None, None)),
+            ready(coordinator.prepare_terminal_tab_create(
+                first_command,
+                None,
+                None,
+                None,
+                &LaunchCapture::absent(),
+            )),
+            ready(coordinator.prepare_terminal_tab_create(
+                second_command,
+                None,
+                None,
+                None,
+                &LaunchCapture::absent(),
+            )),
         ] {
             assert!(matches!(
                 result.outcome,
@@ -242,8 +260,13 @@ fn workspace_pending_create_move_completion_preserves_origin_and_initial_workspa
         .position(|candidate| candidate.terminal_context_id == context)
         .unwrap();
     let first_tab = first_snapshot.terminal_contexts[workspace_index].tabs[0].clone();
-    let first_pending =
-        ready(coordinator.prepare_terminal_tab_create(first_command.clone(), None, None, None));
+    let first_pending = ready(coordinator.prepare_terminal_tab_create(
+        first_command.clone(),
+        None,
+        None,
+        None,
+        &LaunchCapture::absent(),
+    ));
     assert!(matches!(&first_pending.outcome,
         WorkbenchCommandOutcome::TabCreatePending { revision, tab_id, .. }
         if *revision == WorkbenchRevision::new(4) && tab_id == &first_tab.tab_id
@@ -264,7 +287,13 @@ fn workspace_pending_create_move_completion_preserves_origin_and_initial_workspa
     let empty_move = move_workspace_pair(&mut coordinator, &context, 1330);
 
     assert_eq!(
-        ready(coordinator.prepare_terminal_tab_create(first_command.clone(), None, None, None,)),
+        ready(coordinator.prepare_terminal_tab_create(
+            first_command.clone(),
+            None,
+            None,
+            None,
+            &LaunchCapture::absent()
+        )),
         first_pending
     );
 
@@ -279,7 +308,13 @@ fn workspace_pending_create_move_completion_preserves_origin_and_initial_workspa
         first_tab.tab_id
     );
     assert_eq!(
-        ready(coordinator.prepare_terminal_tab_create(first_command.clone(), None, None, None,)),
+        ready(coordinator.prepare_terminal_tab_create(
+            first_command.clone(),
+            None,
+            None,
+            None,
+            &LaunchCapture::absent()
+        )),
         first_pending
     );
     let first_completion = immediate_tab_completion(&first);
@@ -295,7 +330,13 @@ fn workspace_pending_create_move_completion_preserves_origin_and_initial_workspa
 
     assert_eq!(snapshot(&mut coordinator), after_creating_move);
     assert_eq!(
-        ready(coordinator.prepare_terminal_tab_create(first_command, None, None, None,)),
+        ready(coordinator.prepare_terminal_tab_create(
+            first_command,
+            None,
+            None,
+            None,
+            &LaunchCapture::absent()
+        )),
         first_completed.result
     );
 

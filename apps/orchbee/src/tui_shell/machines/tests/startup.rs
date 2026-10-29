@@ -32,6 +32,7 @@ fn snapshot(empty: bool) -> Snapshot {
                 presentation_id: TerminalPresentationId::parse(&id(5)).unwrap(),
                 binding: None,
                 launch_failure: None,
+                launch_program: None,
             },
         },
     };
@@ -95,6 +96,7 @@ fn snapshot(empty: bool) -> Snapshot {
                             presentation_id: TerminalPresentationId::parse(&id(11)).unwrap(),
                             binding: None,
                             launch_failure: None,
+                            launch_program: None,
                         },
                     };
                     vec![other]

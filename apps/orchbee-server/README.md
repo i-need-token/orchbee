@@ -722,15 +722,19 @@ delivery, so it is not a strict one-second observation guarantee.
 Invalidation mode carries Server commit hints only; external-file sampling belongs to subscriptions
 that deliver semantic snapshots. No Client polling timer or additional connection is involved.
 
-Each authorized creation dispatch reads the same frozen store once and attaches its
+Each creation reads the same frozen store once before admission, outside the Session locks, and
+its plan attaches that
 [launch preference capture](../../crates/capability-node-protocol/README.md#launch-preference-capture)
 to the Worker request: scrollback, terminal default colors and, for a default launch, the selected
-profile's command. A missing store, refused read or program beyond the selection budget sends
-`Unavailable`, which refuses only that creation; a capture that would exceed the frame is not
-delivered. A saved change reaches only later creations, and running terminals keep their capture.
-The Session composition root freezes the store's scope from the Server's single startup
-configuration read before any terminal launches, so terminals restored from a checkpoint capture
-preferences exactly as later creations do.
+profile's command. A missing store, refused read or program beyond the selection budget captures
+`Unavailable`, which refuses only that creation; a launch whose capture would exceed the frame fails
+before admission. The Presentation publishes the program its binding's launch requests as
+`launchProgram` in the binding's own revision: the explicit executable, the custom default program,
+or the System shell file name that the admitting Worker generation reported in its hello. A saved
+change reaches only later creations, and running terminals keep their capture. The Session
+composition root freezes the store's scope from the Server's single startup configuration read
+before any terminal launches, so terminals restored from a checkpoint capture preferences exactly as
+later creations do, sharing one read.
 
 The Client actor polls its carrier and a local command wake stream together. It owns physical
 reconnect, cancellation, IDs and subscription reconstruction. A request cancelled before handoff

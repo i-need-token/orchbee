@@ -185,6 +185,7 @@ fn rejects_malformed_metadata_and_unsupported_members_without_filtering() {
         label: "child".into(),
         presentation_id: presentation_id(43),
         launch_failure: None,
+        launch_program: None,
     });
     assert!(project_preferred_workspace(&child).is_ok());
 

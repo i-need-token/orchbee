@@ -97,6 +97,7 @@ impl Driver<'_> {
             self.check()?;
             let candidate = create_reference();
             let expiry = lease_expiry();
+            let capture = self.service.launch_capture();
             let (pending, handle) = {
                 let workers = self
                     .service
@@ -106,6 +107,7 @@ impl Driver<'_> {
                 let handle = workers
                     .request_handle()
                     .ok_or(Failure::WorkerUnavailable {})?;
+                let capture = capture.with_system_shell(workers.system_shell());
                 let mut session = self
                     .service
                     .coordinator
@@ -118,6 +120,7 @@ impl Driver<'_> {
                     candidate,
                     expiry,
                     placement(Some(&handle)),
+                    &capture,
                 )?;
                 (pending, handle)
             };

@@ -209,7 +209,8 @@ fn rename_retained_key_consumes_timely_result_after_original_cutoff_without_memb
 #[test]
 fn automatic_names_prefer_the_panel_name_then_the_program_title_then_the_launched_program() {
     use orchbee_workbench_protocol::{
-        PanelCustomLabel, PanelNode, PresentationLaunchFailure, WorkbenchTerminalFailureReason,
+        PanelCustomLabel, PanelNode, PresentationLaunchFailure, PresentationLaunchProgram,
+        WorkbenchTerminalFailureReason,
     };
     let names = |ui: &WorkbenchClientUi, index| {
         [Locale::EnUs, Locale::ZhCn].map(|locale| {
@@ -235,46 +236,50 @@ fn automatic_names_prefer_the_panel_name_then_the_program_title_then_the_launche
             }
             .map(String::from)
         };
-        // The first Tab carries the Panel name; the second failed to launch.
-        let ui_with = |custom: Option<&str>, launched: Option<Option<&str>>| {
-            let mut source = super::super::tests::membership::snapshot(2, 1);
-            for tab in &mut source.terminal_contexts[0].tabs {
-                tab.automatic_label = automatic;
-                tab.label = "dev server".into();
-            }
-            let panels = source.terminal_contexts[0].tabs.iter_mut().map(|tab| {
-                let PanelNode::Panel {
-                    primary_presentation,
-                    ..
-                } = &mut tab.root
-                else {
-                    unreachable!()
-                };
-                primary_presentation
-            });
-            for (index, presentation) in panels.enumerate() {
-                if index == 0 {
-                    presentation.custom_label =
-                        custom.map(|label| PanelCustomLabel::parse(label).unwrap());
-                } else {
-                    presentation.launch_failure =
-                        launched.map(|executable| PresentationLaunchFailure {
-                            executable: executable.map(Into::into),
-                            reason: WorkbenchTerminalFailureReason::TerminalCreateFailed,
-                        });
+        // The first Tab carries the Panel name; the second failed to launch. Both may carry the
+        // program the Server committed with their binding.
+        let ui_with =
+            |custom: Option<&str>, program: Option<&str>, launched: Option<Option<&str>>| {
+                let mut source = super::super::tests::membership::snapshot(2, 1);
+                for tab in &mut source.terminal_contexts[0].tabs {
+                    tab.automatic_label = automatic;
+                    tab.label = "dev server".into();
                 }
-            }
-            let mut ui = super::super::tests::move_membership::ready_ui_with_snapshot(source).0;
-            super::super::test_support::install_projection(&mut ui, Some((0, false, 24)), 0);
-            ui
-        };
+                let panels = source.terminal_contexts[0].tabs.iter_mut().map(|tab| {
+                    let PanelNode::Panel {
+                        primary_presentation,
+                        ..
+                    } = &mut tab.root
+                    else {
+                        unreachable!()
+                    };
+                    primary_presentation
+                });
+                for (index, presentation) in panels.enumerate() {
+                    presentation.launch_program =
+                        program.map(|name| PresentationLaunchProgram::parse(name).unwrap());
+                    if index == 0 {
+                        presentation.custom_label =
+                            custom.map(|label| PanelCustomLabel::parse(label).unwrap());
+                    } else {
+                        presentation.launch_failure =
+                            launched.map(|executable| PresentationLaunchFailure {
+                                executable: executable.map(Into::into),
+                                reason: WorkbenchTerminalFailureReason::TerminalCreateFailed,
+                            });
+                    }
+                }
+                let mut ui = super::super::tests::move_membership::ready_ui_with_snapshot(source).0;
+                super::super::test_support::install_projection(&mut ui, Some((0, false, 24)), 0);
+                ui
+            };
 
         // A failed launch names its program for every Client through the Server's fact; without
         // a program, the Tab keeps its localized position.
-        let ui = ui_with(None, Some(Some("/usr/bin/zsh")));
+        let ui = ui_with(None, None, Some(Some("/usr/bin/zsh")));
         assert_eq!(names(&ui, 1), shown(["Zsh", "Zsh"]));
         assert_eq!(
-            names(&ui_with(None, Some(None)), 1),
+            names(&ui_with(None, None, Some(None)), 1),
             shown(["Tab 2", "标签页 2"])
         );
         assert_eq!(names(&ui, 0), shown(["Tab 1", "标签页 1"]));
@@ -302,8 +307,19 @@ fn automatic_names_prefer_the_panel_name_then_the_program_title_then_the_launche
         }
 
         // A Panel name the person chose replaces every observation.
-        let mut ui = ui_with(Some("Manual"), None);
+        let mut ui = ui_with(Some("Manual"), None, None);
         retitle(&mut ui, "claude");
         assert_eq!(names(&ui, 0), shown(["Manual", "Manual"]));
+
+        // The program committed with the binding names a Tab whose program has set no title, and a
+        // Tab this Client has never observed, until a title or Panel name replaces it.
+        let mut ui = ui_with(None, Some("pwsh.exe"), None);
+        assert_eq!(names(&ui, 0), shown(["PowerShell", "PowerShell"]));
+        assert_eq!(names(&ui, 1), shown(["PowerShell", "PowerShell"]));
+        retitle(&mut ui, "claude");
+        assert_eq!(names(&ui, 0), shown(["claude", "claude"]));
+        let ui = ui_with(Some("Manual"), Some("cmd.exe"), None);
+        assert_eq!(names(&ui, 0), shown(["Manual", "Manual"]));
+        assert_eq!(names(&ui, 1), shown(["Command Prompt", "命令提示符"]));
     }
 }

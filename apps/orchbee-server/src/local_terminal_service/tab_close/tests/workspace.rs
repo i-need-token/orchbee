@@ -1,5 +1,6 @@
 use super::*;
 use crate::session_coordinator::PendingTerminalTabCreate;
+use crate::terminal_coordinator::LaunchCapture;
 use orchbee_client_server_protocol::RequestId;
 use orchbee_server::WorkbenchGrant;
 use orchbee_workbench_protocol::{
@@ -129,6 +130,7 @@ fn pending_create(
             Some(RequestId::parse(id(request + 1).as_str()).unwrap()),
             lease_expiry(),
             Some(worker()),
+            &LaunchCapture::absent(),
         )
     else {
         panic!("pending Create")
@@ -370,7 +372,7 @@ fn moved_pending_workspace_create_settles_after_close_at_its_original_revision_a
         .coordinator
         .lock()
         .unwrap()
-        .prepare_terminal_tab_create(create, None, None, None)
+        .prepare_terminal_tab_create(create, None, None, None, &LaunchCapture::absent())
     else {
         panic!("Create replay")
     };

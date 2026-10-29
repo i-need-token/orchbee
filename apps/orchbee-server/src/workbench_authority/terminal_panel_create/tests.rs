@@ -3,10 +3,10 @@ use crate::test_support::WorkbenchFixture;
 mod members;
 use crate::WorkbenchReadOrNavigationRequest;
 use orchbee_workbench_protocol::{
-    PanelNode, PanelOrientation, PresentationBinding, ProtocolVersion, SessionId, TerminalId,
-    WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchLabel,
-    WorkbenchPanelSplitDirection, WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse,
-    WorkbenchRevision, WorkbenchTerminalGeometry, WorkerId,
+    PanelNode, PanelOrientation, PresentationBinding, PresentationLaunchProgram, ProtocolVersion,
+    SessionId, TerminalId, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
+    WorkbenchLabel, WorkbenchPanelSplitDirection, WorkbenchRequest, WorkbenchRequestId,
+    WorkbenchResponse, WorkbenchRevision, WorkbenchTerminalGeometry, WorkerId,
 };
 
 fn identity(value: u128) -> String {
@@ -18,6 +18,10 @@ fn binding(value: u128) -> PresentationBinding {
         terminal_id: TerminalId::parse(&identity(value)).unwrap(),
         worker_id: WorkerId::parse(&identity(value + 1000)).unwrap(),
     }
+}
+
+fn program() -> Option<PresentationLaunchProgram> {
+    PresentationLaunchProgram::parse("pwsh.exe").ok()
 }
 
 fn split_command(
@@ -69,7 +73,9 @@ fn panel_split_commits_one_new_leaf_and_retains_the_source_terminal() {
     else {
         panic!("expected panel split admission");
     };
-    let WorkbenchPanelCreatePreparation::Prepared(prepared) = admission.finish(binding(2)) else {
+    let WorkbenchPanelCreatePreparation::Prepared(prepared) =
+        admission.finish(binding(2), program())
+    else {
         panic!("expected prepared panel split");
     };
     let metadata = prepared.metadata().clone();
@@ -140,9 +146,19 @@ fn panel_split_commits_one_new_leaf_and_retains_the_source_terminal() {
     assert_eq!(*orientation, PanelOrientation::Horizontal);
     assert_eq!(children.len(), 2);
     for (index, slot) in children.iter().enumerate() {
-        let PanelNode::Panel { right_click, .. } = &slot.node else {
+        let PanelNode::Panel {
+            right_click,
+            primary_presentation,
+            ..
+        } = &slot.node
+        else {
             panic!("leaf")
         };
+        // Only the new leaf's binding requested this program; the source keeps its own fact.
+        assert_eq!(
+            primary_presentation.launch_program,
+            if index == 0 { None } else { program() }
+        );
         assert_eq!(
             *right_click,
             if index == 0 {

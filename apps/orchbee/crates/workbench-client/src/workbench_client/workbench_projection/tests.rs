@@ -97,6 +97,12 @@ fn panel(panel: u128, presentation: u128, worker: u128, terminal: u128, label: &
             label: label.into(),
             presentation_id: presentation_id(presentation),
             launch_failure: None,
+            // Every bound fixture member carries the program its binding commit published, so the
+            // exact-baseline validators below run with that fact present.
+            launch_program: orchbee_workbench_protocol::PresentationLaunchProgram::parse(
+                "pwsh.exe",
+            )
+            .ok(),
         },
     }
 }

@@ -370,6 +370,7 @@ fn remove_local_bindings(
                 }
                 presentation.binding = None;
                 presentation.launch_failure = None;
+                presentation.launch_program = None;
             }
         }
     }

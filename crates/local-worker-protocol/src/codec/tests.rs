@@ -2,8 +2,8 @@ use std::{io::Cursor, num::NonZeroU64};
 
 use super::{
     FRAME_HEADER_BYTES, LocalWorkerMessage, MAXIMUM_COHORT_BYTES, MAXIMUM_FRAME_PAYLOAD_BYTES,
-    PROTOCOL_VERSION, ProtocolError, ReadMessageError, RejectionReason, WorkerHello, WorkerId,
-    read_message, write_message,
+    MAXIMUM_SYSTEM_SHELL_NAME_BYTES, PROTOCOL_VERSION, ProtocolError, ReadMessageError,
+    RejectionReason, SystemShellName, WorkerHello, WorkerId, read_message, write_message,
 };
 
 const WORKER_ID: WorkerId = WorkerId::from_bytes([7; 16]);
@@ -13,6 +13,10 @@ fn round_trips_every_admitted_message() -> Result<(), Box<dyn std::error::Error>
     let generation = NonZeroU64::new(3).ok_or("generation must be nonzero")?;
     let messages = [
         LocalWorkerMessage::WorkerHello(WorkerHello::new("0.1.0", WORKER_ID)?),
+        LocalWorkerMessage::WorkerHello(
+            WorkerHello::new("0.1.0", WORKER_ID)?
+                .with_system_shell(SystemShellName::parse("pwsh.exe")?),
+        ),
         LocalWorkerMessage::WorkerAccepted { generation },
         LocalWorkerMessage::Rejected {
             reason: RejectionReason::IncompatibleProtocol,
@@ -62,6 +66,44 @@ fn enforces_the_exact_cohort_boundary() -> Result<(), Box<dyn std::error::Error>
 }
 
 #[test]
+fn bounds_the_system_shell_name_and_fits_the_largest_hello()
+-> Result<(), Box<dyn std::error::Error>> {
+    let maximum = "é".repeat(MAXIMUM_SYSTEM_SHELL_NAME_BYTES / 2);
+    for invalid in [
+        String::new(),
+        format!("{maximum}a"),
+        "bin/zsh".to_owned(),
+        r"C:\pwsh.exe".to_owned(),
+        "pwsh\u{7}".to_owned(),
+    ] {
+        assert_eq!(
+            SystemShellName::parse(&invalid),
+            Err(ProtocolError::InvalidSystemShell)
+        );
+    }
+    let largest = LocalWorkerMessage::WorkerHello(
+        WorkerHello::new(&"a".repeat(MAXIMUM_COHORT_BYTES), WORKER_ID)?
+            .with_system_shell(SystemShellName::parse(&maximum)?),
+    );
+    let mut encoded = Vec::new();
+    write_message(&mut encoded, &largest)?;
+    assert!(encoded.len() - FRAME_HEADER_BYTES <= MAXIMUM_FRAME_PAYLOAD_BYTES);
+    assert_eq!(read_message(&mut Cursor::new(encoded))?, largest);
+
+    // A decoded name passes the same bounds as a constructed one.
+    let mut payload = vec![1, 1];
+    payload.extend_from_slice(&WORKER_ID.as_bytes());
+    payload.extend_from_slice(b"a\x06bin/sh");
+    assert!(matches!(
+        read_message(&mut Cursor::new(frame(PROTOCOL_VERSION, &payload))),
+        Err(ReadMessageError::Protocol(
+            ProtocolError::InvalidSystemShell
+        ))
+    ));
+    Ok(())
+}
+
+#[test]
 fn rejects_invalid_headers_before_allocating_payload() {
     let mut invalid_magic = frame(PROTOCOL_VERSION, &[1]);
     invalid_magic[0] = b'X';
@@ -103,12 +145,24 @@ fn rejects_unknown_truncated_and_noncanonical_payloads() {
         vec![3, 99],
         vec![3, 1, 0],
         vec![1, 1],
-        vec![1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff],
+        // A hello without its System shell length, then one with a trailing byte.
+        vec![1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, b'a'],
+        vec![
+            1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, b'a', 0, 0,
+        ],
+        vec![
+            1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0,
+        ],
+        vec![
+            1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, b'a', 1, 0xff,
+        ],
     ] {
         assert!(matches!(
             read_message(&mut Cursor::new(frame(PROTOCOL_VERSION, &payload))),
             Err(ReadMessageError::Protocol(
-                ProtocolError::InvalidPayload | ProtocolError::InvalidCohort
+                ProtocolError::InvalidPayload
+                    | ProtocolError::InvalidCohort
+                    | ProtocolError::InvalidSystemShell
             ))
         ));
     }

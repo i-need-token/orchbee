@@ -15,13 +15,17 @@ terminal protocol 或 compatibility promise。
 OBCN carrier；之后不再允许 OBLW frame。OBLW frame 包含固定 `OBLW` magic、unsigned big-endian
 protocol version、unsigned big-endian payload length，以及最多 256 byte 的 payload。Unknown magic、
 version、kind、enum value、missing byte、extra byte、oversized payload、zero generation、invalid
-UTF-8、empty cohort、non-ASCII cohort 或超过 64 byte 的 cohort 均被拒绝。
+UTF-8、empty cohort、non-ASCII cohort、超过 64 byte 的 cohort 或无效的系统 Shell 名称均被拒绝。
 
-| Message          | 字段与含义                                                                                                                                       |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `WorkerHello`    | 确切 executable cohort 加 16-byte opaque development Worker identity。Codec 接受所有 bit pattern；它不请求 work 或 capability。                  |
-| `WorkerAccepted` | 一条 nonzero process-local Server generation。只确认这条确切 connection。                                                                        |
-| `Rejected`       | 一项 typed reason：incompatible protocol、incompatible cohort、duplicate Worker、wrong message、malformed frame 或 timeout。它不授予 authority。 |
+| Message          | 字段与含义                                                                                                                                                                              |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WorkerHello`    | 确切 executable cohort、16-byte opaque development Worker identity，以及本 Worker 代解析出的系统 Shell 的可选文件名。Codec 接受所有 identity bit pattern；它不请求 work 或 capability。 |
+| `WorkerAccepted` | 一条 nonzero process-local Server generation。只确认这条确切 connection。                                                                                                               |
+| `Rejected`       | 一项 typed reason：incompatible protocol、incompatible cohort、duplicate Worker、wrong message、malformed frame 或 timeout。它不授予 authority。                                        |
+
+系统 Shell 名称跟在 cohort 之后：一个长度 byte 加相应数量的 UTF-8 byte；长度为零表示该代不报告
+Shell。名称非空、最多 128 byte，且不含路径分隔符和控制字符，因此最大的 hello 为 211 byte。它只为
+程序命名，不携带目录、参数或环境，也不授予启动权限。
 
 Protocol crate 编码和解码完整 frame，并提供有界 blocking I/O adapter。它不 retry、不保留
 connection、不选择 endpoint、不绑定 listener、不启动 thread 或 process，也不拥有 Server
@@ -65,4 +69,4 @@ node scripts/tla/run-models.mjs --models local-session-startup
 pnpm verify
 ```
 
-<!-- documentation-pairing: english-sha256=a0658e8b02e46526996e70b9ae13f73af57ef242b62aa154cdbc623ff1ba1f35 zh-cn-sha256=e300eee4b8ebf64f49cab26987775a633c4635eebf36f7f08e84258d22910e82 -->
+<!-- documentation-pairing: english-sha256=ce6be4ff64247bde9e0f9dae19684c0f4db8d19f5feaeebc29ef3373fe294036 zh-cn-sha256=a56b6c73ecb6fdc94617f7353ff4554a225b13d9f97b685cbd0bf0f15dbd513e -->

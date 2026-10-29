@@ -685,7 +685,8 @@ fn pending_create_covers_context_and_blocks_workspace_close_admission() {
     else {
         panic!("Create admission")
     };
-    let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding(3200)) else {
+    let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding(3200), None)
+    else {
         panic!("Create preparation")
     };
     let _pending = prepared.commit().into_pending();

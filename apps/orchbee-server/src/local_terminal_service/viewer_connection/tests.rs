@@ -107,7 +107,7 @@ fn worker_loss_after_attachment_installation_is_observed_on_next_poll() {
     let handle = carrier.request_handle();
     let candidate = viewer(&service, handle.clone());
     assert!(matches!(
-        service.workers.lock().unwrap().admit(WORKER_ID),
+        service.workers.lock().unwrap().admit(WORKER_ID, None),
         crate::worker_registry::WorkerAdmission::Accepted { .. }
     ));
     let owner =
@@ -255,7 +255,7 @@ fn rows_connection(
     let carrier = create_worker_carrier(WORKER_ID, NonZeroU64::MIN);
     let handle = carrier.request_handle();
     assert!(matches!(
-        service.workers.lock().unwrap().admit(WORKER_ID),
+        service.workers.lock().unwrap().admit(WORKER_ID, None),
         crate::worker_registry::WorkerAdmission::Accepted { .. }
     ));
     let owner =
@@ -401,7 +401,7 @@ fn scripted_connection(script: VecDeque<WorkerOutcome>) -> ScriptedConnection {
     let carrier = create_worker_carrier(WORKER_ID, NonZeroU64::MIN);
     let handle = carrier.request_handle();
     assert!(matches!(
-        service.workers.lock().unwrap().admit(WORKER_ID),
+        service.workers.lock().unwrap().admit(WORKER_ID, None),
         crate::worker_registry::WorkerAdmission::Accepted { .. }
     ));
     let owner =
@@ -673,7 +673,7 @@ fn explicit_takeover_transfers_cleanup_and_old_connection_cannot_dispatch_effect
         let carrier = create_worker_carrier(WORKER_ID, NonZeroU64::MIN);
         let handle = carrier.request_handle();
         assert!(matches!(
-            service.workers.lock().unwrap().admit(WORKER_ID),
+            service.workers.lock().unwrap().admit(WORKER_ID, None),
             crate::worker_registry::WorkerAdmission::Accepted { .. }
         ));
         let owner =

@@ -3,7 +3,7 @@
 //! perform transport I/O.
 
 use super::{SessionCoordinator, presentation_binding, tab_create};
-use crate::terminal_coordinator::{Completion, PendingOperation, WorkerPlacement};
+use crate::terminal_coordinator::{Completion, LaunchCapture, PendingOperation, WorkerPlacement};
 use orchbee_capability_node_protocol::{
     CapabilityNodeMessage, LeaseExpiresAtUnixMilliseconds, WorkerGeneration,
 };
@@ -31,6 +31,11 @@ impl PendingWorktreeShell {
     }
 }
 impl SessionCoordinator {
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the recovery plan, its owning close, the member and the admitting Worker's \
+                  reservation and capture are independent inputs from separate owners"
+    )]
     pub(crate) fn prepare_worktree_shell(
         &mut self,
         plan: &mut WorktreeOperationPlan,
@@ -39,6 +44,7 @@ impl SessionCoordinator {
         candidate: Option<RequestId>,
         expiry: Option<LeaseExpiresAtUnixMilliseconds>,
         worker: Option<WorkerPlacement>,
+        capture: &LaunchCapture,
     ) -> Result<PendingWorktreeShell, Failure> {
         if plan.progress.restoration.is_none() {
             return Err(Failure::Internal {});
@@ -81,6 +87,7 @@ impl SessionCoordinator {
                 ),
                 Some(worker),
                 Some(expiry),
+                capture,
             )
             .map_err(
                 |message| match tab_create::terminal_preflight_reason(&message) {
@@ -92,7 +99,13 @@ impl SessionCoordinator {
             )?;
         let binding = presentation_binding(terminal.authorization()).ok_or(Failure::Internal {})?;
         let rebind = workbench
-            .prepare_worktree_rebind(plan, close, member, binding)
+            .prepare_worktree_rebind(
+                plan,
+                close,
+                member,
+                binding,
+                terminal.launch_program().cloned(),
+            )
             .map_err(|_| Failure::AssociationFailed {})?;
         // Both owners are completely prepared; neither commit performs fallible work.
         let terminal = terminal.commit();

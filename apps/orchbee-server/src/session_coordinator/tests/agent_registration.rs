@@ -128,7 +128,12 @@ fn accepted_workspace_member_registers_one_typed_fact() {
 #[test]
 fn raw_terminal_creates_without_membership_never_register() {
     let mut coordinator = session();
-    let pending = dispatch(coordinator.prepare(create(50), Some(worker(1)), Some(expiry())));
+    let pending = dispatch(coordinator.prepare(
+        create(50),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     assert_eq!(coordinator.agent_registration_snapshot(), Ok(vec![]));
     let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = pending.command() else {
         panic!("launch expected")
@@ -221,7 +226,12 @@ fn coordinator_invariant_failures_abort_the_whole_snapshot() {
         coordinator
             .complete_terminal_tab_create(pending, completion, Some(worker(1)))
             .unwrap();
-        let _raw = dispatch(coordinator.prepare(create(900), Some(worker(1)), Some(expiry())));
+        let _raw = dispatch(coordinator.prepare(
+            create(900),
+            Some(worker(1)),
+            Some(expiry()),
+            &LaunchCapture::absent(),
+        ));
         corrupt(&mut coordinator);
         assert_eq!(
             coordinator.agent_registration_snapshot(),

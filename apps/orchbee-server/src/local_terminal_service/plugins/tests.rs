@@ -189,7 +189,8 @@ fn plugin_server_dispatch_pins_worker_and_preserves_transport_uncertainty() {
     for lost in [false, true] {
         let workers = Arc::new(Mutex::new(WorkerRegistry::new()));
         let local = orchbee_local_worker_protocol::WorkerId::from_bytes([7; 16]);
-        let WorkerAdmission::Accepted { generation } = workers.lock().unwrap().admit(local) else {
+        let WorkerAdmission::Accepted { generation } = workers.lock().unwrap().admit(local, None)
+        else {
             panic!()
         };
         let owner = WorkerRegistry::register_carrier(

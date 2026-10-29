@@ -92,7 +92,7 @@ Resume 语法。[Close 线协议契约](#已接受的-tab-close-线协议契约)
 - 有序 Tab group 与 Tab；
 - 每个 Tab 的完整 binary Panel/Split topology；
 - 每个 Panel 的一个 primary Terminal Presentation 与零个或多个 child Terminal Presentation；以及
-- Presentation 可选的 opaque Worker/Terminal binding，以及该 binding 可选的启动失败事实。
+- Presentation 可选的 opaque Worker/Terminal binding，以及该 binding 可选的已启动程序与启动失败事实。
 
 每个 Directory 携带自身的 typed identity、确切 Worker identity 与 absolute local-platform UTF-8 path。
 每个 Workspace 携带必填且可为空的 `projectId` 与 primary Directory reference。
@@ -106,6 +106,10 @@ identity；Client 不能据此推断 lifecycle reason。可选的 `launchFailure
 表示当前 binding 下的终端从未启动。它要求存在 binding，记录启动的绝对程序路径（Worker 解析
 默认 shell 时为 `null`）及封闭的 `terminal-create-failed` 原因；参数、环境和 OS 错误文本从不
 进入其中。它只属于运行时：重新绑定或捕获 checkpoint 会移除它，Client 据此显示失败而非 attach。
+可选的 `launchProgram` 以可执行文件的文件名记录当前 binding 启动的程序：最多 128 个 UTF-8 字节，
+不含路径分隔符或控制字符，因此目录、参数和环境都不会进入其中。Server 在提交 binding 的同一
+revision 中提交它，成功启动不会单独增加 revision。它要求存在 binding，并与 `launchFailure` 一样
+只属于运行时：随 binding 替换或移除，从不进入 checkpoint。缺少它表示没有记录启动的程序。
 
 Project、Directory、Workspace 与 Terminal Context array 使用 identity 升序。Directory identity
 在整个 会话 projection 中唯一，Workspace 的非空 reference 必须在全局 Directory 池中解析。Tab group 与 Tab 保留显式产品
@@ -663,4 +667,4 @@ Workspace 侧栏发布增加必需非空 `spacesSidebarProfile`，独立于 `age
 
 [设置](v1/workbench-settings.schema.json) 定义匹配 Windows cohort 的闭合 Open/Save 请求及结果。三个必需但可空的字段区分未修改设置与明确的主题／提醒／声音修改；全部为空的补丁非法。来源令牌区分文件不存在与规范 SHA-256 内容摘要。Save 同时约束发布 revision；结果区分磁盘持久化、在线应用与写入前拒绝。共享语料在 Rust、TypeScript 和 JSON Schema 中检查额外字段拒绝、全宽 revision、完整快照及独立的 4 KiB 请求／256 KiB 结果限制。[原生设置所有者](../../apps/orchbee/docs/native-settings.zh-CN.md) 负责写入、输入捕获、不确定结果和恢复。
 
-<!-- documentation-pairing: english-sha256=78ffc2a8f6861235fd4844f2248d11417e217b9116960835a30e9e6650663279 zh-cn-sha256=b056243aa513c21f2c620a3fa0cedb19040aa55563ecedb58bac4a5221d99e17 -->
+<!-- documentation-pairing: english-sha256=8aa36b72c205bb6ae2c2a2d23a4797a33598e8f321c599848db3dd852b7065bf zh-cn-sha256=b74badf28e9a6ea04d1cec119e4af67736dcc05567da0467560f14baf3b39f2f -->

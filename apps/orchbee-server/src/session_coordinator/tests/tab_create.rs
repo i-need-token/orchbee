@@ -150,11 +150,21 @@ pub(super) fn dispatch_tab(
     command: WorkbenchCommand,
     reference: u128,
 ) -> crate::session_coordinator::PendingTerminalTabCreate {
+    dispatch_tab_with(coordinator, command, reference, &LaunchCapture::absent())
+}
+
+fn dispatch_tab_with(
+    coordinator: &mut SessionCoordinator,
+    command: WorkbenchCommand,
+    reference: u128,
+    capture: &LaunchCapture,
+) -> crate::session_coordinator::PendingTerminalTabCreate {
     let PreparedTerminalTabCreate::Dispatch(pending) = coordinator.prepare_terminal_tab_create(
         command,
         Some(id(reference)),
         Some(expiry()),
         Some(worker(1)),
+        capture,
     ) else {
         panic!("tab.create dispatch expected")
     };
@@ -302,7 +312,13 @@ fn workspace_create_uses_canonical_worker_and_cwd_without_touching_initial_works
         &initial_workspace_before
     );
     assert_eq!(
-        ready(coordinator.prepare_terminal_tab_create(command, None, None, None)),
+        ready(coordinator.prepare_terminal_tab_create(
+            command,
+            None,
+            None,
+            None,
+            &LaunchCapture::absent()
+        )),
         completed.result
     );
 }
@@ -323,6 +339,7 @@ fn workspace_create_rejects_a_different_current_worker_without_home_fallback() {
             Some(id(706)),
             Some(expiry()),
             Some(incompatible),
+            &LaunchCapture::absent(),
         ))
         .outcome,
         WorkbenchCommandOutcome::Unavailable {
@@ -335,23 +352,40 @@ fn workspace_create_rejects_a_different_current_worker_without_home_fallback() {
 }
 
 #[test]
-fn two_pending_tab_creates_publish_exact_bindings_and_settle_in_reverse_order() {
+fn two_pending_tab_creates_publish_exact_bindings_and_programs_and_settle_in_reverse_order() {
     let mut coordinator = session();
+    let shell = |name| {
+        LaunchCapture::absent().with_system_shell(
+            orchbee_workbench_protocol::PresentationLaunchProgram::parse(name).ok(),
+        )
+    };
     let first_command = tab_command(&coordinator, 10, 0, "first");
-    let first = dispatch_tab(&mut coordinator, first_command.clone(), 101);
+    let first = dispatch_tab_with(
+        &mut coordinator,
+        first_command.clone(),
+        101,
+        &shell("pwsh.exe"),
+    );
     let first_authorization = tab_authorization(&first);
+    // The second command expects revision 1: the first program arrived in its binding's revision.
     let second_command = tab_command(&coordinator, 11, 1, "second");
-    let second = dispatch_tab(&mut coordinator, second_command.clone(), 102);
+    let second = dispatch_tab_with(
+        &mut coordinator,
+        second_command.clone(),
+        102,
+        &shell("cmd.exe"),
+    );
     let second_authorization = tab_authorization(&second);
 
     let committed = snapshot(&mut coordinator);
+    assert_eq!(committed.revision, WorkbenchRevision::new(2));
     let context = &committed.terminal_contexts[0];
     assert_eq!(context.tabs.len(), 2);
     assert_eq!(context.tabs[0].label, "first");
     assert_eq!(context.tabs[1].label, "second");
-    for (tab, authorization) in [
-        (&context.tabs[0], first_authorization),
-        (&context.tabs[1], second_authorization),
+    for (tab, authorization, program) in [
+        (&context.tabs[0], first_authorization, "pwsh.exe"),
+        (&context.tabs[1], second_authorization, "cmd.exe"),
     ] {
         let PanelNode::Panel {
             primary_presentation,
@@ -366,6 +400,13 @@ fn two_pending_tab_creates_publish_exact_bindings_and_settle_in_reverse_order() 
         assert_eq!(
             primary_presentation.binding,
             crate::session_coordinator::presentation_binding(authorization)
+        );
+        assert_eq!(
+            primary_presentation
+                .launch_program
+                .as_ref()
+                .map(orchbee_workbench_protocol::PresentationLaunchProgram::as_str),
+            Some(program)
         );
     }
 
@@ -393,11 +434,23 @@ fn two_pending_tab_creates_publish_exact_bindings_and_settle_in_reverse_order() 
     );
 
     assert_eq!(
-        ready(coordinator.prepare_terminal_tab_create(first_command, None, None, None)),
+        ready(coordinator.prepare_terminal_tab_create(
+            first_command,
+            None,
+            None,
+            None,
+            &LaunchCapture::absent()
+        )),
         first_result
     );
     assert_eq!(
-        ready(coordinator.prepare_terminal_tab_create(second_command, None, None, None)),
+        ready(coordinator.prepare_terminal_tab_create(
+            second_command,
+            None,
+            None,
+            None,
+            &LaunchCapture::absent()
+        )),
         second_result
     );
 }
@@ -407,8 +460,13 @@ fn pending_and_final_replay_precede_missing_candidates_worker_and_conflict() {
     let mut coordinator = session();
     let command = tab_command(&coordinator, 20, 0, "replay");
     let pending = dispatch_tab(&mut coordinator, command.clone(), 201);
-    let pending_replay =
-        ready(coordinator.prepare_terminal_tab_create(command.clone(), None, None, None));
+    let pending_replay = ready(coordinator.prepare_terminal_tab_create(
+        command.clone(),
+        None,
+        None,
+        None,
+        &LaunchCapture::absent(),
+    ));
     assert!(matches!(
         pending_replay.outcome,
         WorkbenchCommandOutcome::TabCreatePending { revision, .. }
@@ -434,7 +492,14 @@ fn pending_and_final_replay_precede_missing_candidates_worker_and_conflict() {
         options: Default::default(),
     };
     assert!(matches!(
-        ready(coordinator.prepare_terminal_tab_create(conflict, None, None, None)).outcome,
+        ready(coordinator.prepare_terminal_tab_create(
+            conflict,
+            None,
+            None,
+            None,
+            &LaunchCapture::absent()
+        ))
+        .outcome,
         WorkbenchCommandOutcome::Rejected {
             reason: WorkbenchRejectionReason::RequestIdentityConflict,
             ..
@@ -446,7 +511,13 @@ fn pending_and_final_replay_precede_missing_candidates_worker_and_conflict() {
         .unwrap()
         .result;
     assert_eq!(
-        ready(coordinator.prepare_terminal_tab_create(command, None, None, None)),
+        ready(coordinator.prepare_terminal_tab_create(
+            command,
+            None,
+            None,
+            None,
+            &LaunchCapture::absent()
+        )),
         final_result
     );
     assert_eq!(coordinator.allocate_identity(), Some(2_u128.to_be_bytes()));
@@ -501,7 +572,13 @@ fn launch_selection_reaches_the_worker_command_and_replay_identity() {
 
     // An identical replay returns the pending outcome without dispatching a
     // second launch.
-    let replay = ready(coordinator.prepare_terminal_tab_create(command.clone(), None, None, None));
+    let replay = ready(coordinator.prepare_terminal_tab_create(
+        command.clone(),
+        None,
+        None,
+        None,
+        &LaunchCapture::absent(),
+    ));
     assert!(matches!(
         replay.outcome,
         WorkbenchCommandOutcome::TabCreatePending { revision, .. }
@@ -524,7 +601,14 @@ fn launch_selection_reaches_the_worker_command_and_replay_identity() {
         .unwrap(),
     );
     assert!(matches!(
-        ready(coordinator.prepare_terminal_tab_create(conflict, None, None, None)).outcome,
+        ready(coordinator.prepare_terminal_tab_create(
+            conflict,
+            None,
+            None,
+            None,
+            &LaunchCapture::absent()
+        ))
+        .outcome,
         WorkbenchCommandOutcome::Rejected {
             reason: WorkbenchRejectionReason::RequestIdentityConflict,
             ..
@@ -543,7 +627,14 @@ fn launch_selection_reaches_the_worker_command_and_replay_identity() {
             options.environment = orchbee_workbench_protocol::LaunchEnvironment::empty();
         }
         assert!(matches!(
-            ready(coordinator.prepare_terminal_tab_create(changed, None, None, None)).outcome,
+            ready(coordinator.prepare_terminal_tab_create(
+                changed,
+                None,
+                None,
+                None,
+                &LaunchCapture::absent()
+            ))
+            .outcome,
             WorkbenchCommandOutcome::Rejected {
                 reason: WorkbenchRejectionReason::RequestIdentityConflict,
                 ..
@@ -564,6 +655,7 @@ fn workbench_and_terminal_preflight_refusals_leave_all_three_session_owners_unch
             Some(id(301)),
             Some(expiry()),
             None,
+            &LaunchCapture::absent(),
         ))
         .outcome,
         WorkbenchCommandOutcome::Unavailable {
@@ -577,6 +669,7 @@ fn workbench_and_terminal_preflight_refusals_leave_all_three_session_owners_unch
                 candidate,
                 expiry,
                 Some(worker(1)),
+                &LaunchCapture::absent(),
             ))
             .outcome,
             WorkbenchCommandOutcome::Unavailable {
@@ -591,6 +684,7 @@ fn workbench_and_terminal_preflight_refusals_leave_all_three_session_owners_unch
             Some(id(301)),
             Some(expiry()),
             Some(worker(1)),
+            &LaunchCapture::absent(),
         ))
         .outcome,
         WorkbenchCommandOutcome::Unavailable {
@@ -632,6 +726,7 @@ fn missing_and_retired_workbench_use_service_unavailable_without_terminal_effect
             None,
             None,
             None,
+            &LaunchCapture::absent(),
         ))
         .outcome,
         WorkbenchCommandOutcome::Unavailable {
@@ -648,7 +743,14 @@ fn missing_and_retired_workbench_use_service_unavailable_without_terminal_effect
         .retire_terminal_membership();
     let retired_command = tab_command(&retired, 41, 0, "retired");
     assert!(matches!(
-        ready(retired.prepare_terminal_tab_create(retired_command, None, None, None)).outcome,
+        ready(retired.prepare_terminal_tab_create(
+            retired_command,
+            None,
+            None,
+            None,
+            &LaunchCapture::absent()
+        ))
+        .outcome,
         WorkbenchCommandOutcome::Unavailable {
             reason: WorkbenchCommandUnavailableReason::ServiceUnavailable,
         }
@@ -853,8 +955,14 @@ fn foreign_terminal_and_workbench_tokens_or_wrapper_mismatch_preserve_both_owner
     );
     assert_eq!(snapshot(&mut terminal_owner), before);
     assert!(matches!(
-        ready(terminal_owner.prepare_terminal_tab_create(command.clone(), None, None, None,))
-            .outcome,
+        ready(terminal_owner.prepare_terminal_tab_create(
+            command.clone(),
+            None,
+            None,
+            None,
+            &LaunchCapture::absent()
+        ))
+        .outcome,
         WorkbenchCommandOutcome::TabCreatePending { .. }
     ));
     drop(terminal_pending);
@@ -875,8 +983,14 @@ fn foreign_terminal_and_workbench_tokens_or_wrapper_mismatch_preserve_both_owner
     );
     assert_eq!(snapshot(&mut workbench_owner), before);
     assert!(matches!(
-        ready(workbench_owner.prepare_terminal_tab_create(command.clone(), None, None, None,))
-            .outcome,
+        ready(workbench_owner.prepare_terminal_tab_create(
+            command.clone(),
+            None,
+            None,
+            None,
+            &LaunchCapture::absent()
+        ))
+        .outcome,
         WorkbenchCommandOutcome::TabCreatePending { .. }
     ));
     drop(foreign_workbench);
@@ -895,7 +1009,14 @@ fn foreign_terminal_and_workbench_tokens_or_wrapper_mismatch_preserve_both_owner
     );
     assert_eq!(snapshot(&mut association_owner), before);
     assert!(matches!(
-        ready(association_owner.prepare_terminal_tab_create(command, None, None, None)).outcome,
+        ready(association_owner.prepare_terminal_tab_create(
+            command,
+            None,
+            None,
+            None,
+            &LaunchCapture::absent()
+        ))
+        .outcome,
         WorkbenchCommandOutcome::TabCreatePending { .. }
     ));
 }

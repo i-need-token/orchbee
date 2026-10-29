@@ -36,6 +36,10 @@ pub struct Presentation {
     /// Runtime fact about the current binding, never persisted or carried across a rebinding.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub launch_failure: Option<PresentationLaunchFailure>,
+    /// The file name of the program the current binding launches, committed with that binding and
+    /// never persisted or carried across a rebinding.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub launch_program: Option<crate::PresentationLaunchProgram>,
     pub presentation_id: TerminalPresentationId,
 }
 

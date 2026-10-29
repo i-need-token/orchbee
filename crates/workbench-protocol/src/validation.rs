@@ -537,6 +537,10 @@ fn validate_presentation(
 
 fn validate_presentation_structure(presentation: &Presentation) -> Result<(), ValidationError> {
     validate_label(&presentation.label)?;
+    // The launched program names the current binding's launch and appears only beside it.
+    if presentation.launch_program.is_some() && presentation.binding.is_none() {
+        return Err(ValidationError);
+    }
     match &presentation.launch_failure {
         None => Ok(()),
         // A failure describes the current binding, and its executable meets the launch contract.

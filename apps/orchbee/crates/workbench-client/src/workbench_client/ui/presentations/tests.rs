@@ -166,6 +166,7 @@ fn prefix_choice_queues_exact_child_and_does_not_display_primary_report() {
             terminal_id: TerminalId::parse(&format!("{:032x}", 9002)).unwrap(),
         }),
         launch_failure: None,
+        launch_program: None,
     });
     let (mut ui, mailbox, _, _) =
         super::super::tests::move_membership::ready_ui_with_snapshot(source);
@@ -235,6 +236,7 @@ fn child_source(split: bool) -> orchbee_workbench_protocol::Snapshot {
                             terminal_id: TerminalId::parse(&format!("{:032x}", *id + 2)).unwrap(),
                         }),
                         launch_failure: None,
+                        launch_program: None,
                     });
                     *id += 10;
                 }

@@ -25,6 +25,7 @@ fn add_leaf(root: &mut PanelNode, seed: u128) {
                         label: "overlay".into(),
                         presentation_id: presentation_id(seed + 13),
                         launch_failure: None,
+                        launch_program: None,
                     },
                 },
                 slot_id: WorkbenchPanelSlotId::parse(&id(seed + 14)).unwrap(),
@@ -224,6 +225,7 @@ fn overlay_return_preserves_a_bound_child_presentation_through_membership_cleanu
             terminal_id: terminal_id(9_002),
         }),
         launch_failure: None,
+        launch_program: None,
     });
     let mut state = ready_with_cache(project_preferred_workspace(&baseline).unwrap());
     let marker = super::presentations::choose(&mut state, 2);

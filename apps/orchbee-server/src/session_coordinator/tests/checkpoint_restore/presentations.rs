@@ -72,6 +72,7 @@ fn panel_member_creation_dispatches_literal_launch_and_preserves_original_member
                 Some(reference.clone()),
                 Some(expiry()),
                 Some(worker),
+                &LaunchCapture::absent(),
             )
         else {
             panic!()
@@ -106,6 +107,7 @@ fn panel_member_creation_dispatches_literal_launch_and_preserves_original_member
             Some(id(6000 + index as u128)),
             Some(expiry()),
             Some(worker),
+            &LaunchCapture::absent(),
         ) else {
             panic!()
         };
@@ -177,6 +179,7 @@ fn unbound_layout_open_is_effect_free_and_explicit_split_establishes_first_refer
         Some(id(102)),
         Some(expiry()),
         Some(worker),
+        &LaunchCapture::absent(),
     ) else {
         panic!("unbound layout split must dispatch")
     };
@@ -210,7 +213,14 @@ fn child_only_restore_registers_and_opens_while_unbound_tab_close_preserves_refe
     let (mut coordinator, targets, worker) = restored(true);
     let child = &targets[1];
     let pending = coordinator
-        .prepare_checkpoint_terminal(child, id(100), worker, expiry(), None, None)
+        .prepare_checkpoint_terminal(
+            child,
+            id(100),
+            worker,
+            expiry(),
+            None,
+            &LaunchCapture::absent(),
+        )
         .unwrap();
     let authorization = launch_authorization(pending.command());
     let completion = Completion::Launch(
@@ -338,7 +348,7 @@ fn relocating_restored_children_preserves_all_bindings_and_the_open_reference() 
                 worker,
                 expiry(),
                 None,
-                None,
+                &LaunchCapture::absent(),
             )
             .unwrap();
         let authorization = launch_authorization(pending.command());

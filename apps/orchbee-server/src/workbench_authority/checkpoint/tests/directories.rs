@@ -61,7 +61,7 @@ fn primary_child_directories_override_defaults_without_changing_topology_and_rej
         targets[0].presentation_id().clone(),
         WorkbenchDirectoryPath::parse("C:/changed").unwrap(),
     );
-    assert!(a.prepare_restored_terminal(&targets[0], b).is_err());
+    assert!(a.prepare_restored_terminal(&targets[0], b, None).is_err());
     assert_eq!(a.snapshot(), &before);
 }
 #[test]
@@ -72,7 +72,7 @@ fn fresh_observations_replace_intent_only_for_current_members_and_capture_is_pur
         worker_id: worker(400),
         terminal_id: TerminalId::parse(&identity(999)).unwrap(),
     };
-    a.prepare_restored_terminal(&targets[0], binding.clone())
+    a.prepare_restored_terminal(&targets[0], binding.clone(), None)
         .unwrap()
         .commit();
     let before = a.snapshot().clone();

@@ -5,14 +5,14 @@ mod workspace_launch;
 use std::sync::Arc;
 
 use orchbee_workbench_protocol::{
-    ContractError, NewTerminalTab, PresentationBinding, TabCreationPlacement,
-    TerminalPresentationId, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
-    WorkbenchCommandResult, WorkbenchCommandUnavailableReason, WorkbenchDirectoryPath,
-    WorkbenchPanelId, WorkbenchProtocolDocument, WorkbenchRejectionReason, WorkbenchRequestId,
-    WorkbenchRevision, WorkbenchTabGroupId, WorkbenchTabId, WorkbenchTerminalContextId,
-    WorkbenchTerminalFailureReason, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome,
-    WorkbenchTerminalUnavailableReason, WorkerId, create_terminal_tab, serialize_document,
-    validate_tab_creation,
+    ContractError, NewTerminalTab, PresentationBinding, PresentationLaunchProgram,
+    TabCreationPlacement, TerminalPresentationId, WorkbenchAction, WorkbenchCommand,
+    WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchCommandUnavailableReason,
+    WorkbenchDirectoryPath, WorkbenchPanelId, WorkbenchProtocolDocument, WorkbenchRejectionReason,
+    WorkbenchRequestId, WorkbenchRevision, WorkbenchTabGroupId, WorkbenchTabId,
+    WorkbenchTerminalContextId, WorkbenchTerminalFailureReason, WorkbenchTerminalGeometry,
+    WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason, WorkerId, create_terminal_tab,
+    serialize_document, validate_tab_creation,
 };
 
 use super::terminal_membership::parse_tab_ids;
@@ -220,8 +220,13 @@ impl<'a> WorkbenchTabCreateAdmission<'a> {
         )
     }
 
+    /// Commits `binding` and the launched program its creation planned in one revision.
     #[must_use]
-    pub fn finish(self, binding: PresentationBinding) -> WorkbenchTabCreatePreparation<'a> {
+    pub fn finish(
+        self,
+        binding: PresentationBinding,
+        launch_program: Option<PresentationLaunchProgram>,
+    ) -> WorkbenchTabCreatePreparation<'a> {
         let Self {
             authority,
             command,
@@ -269,6 +274,7 @@ impl<'a> WorkbenchTabCreateAdmission<'a> {
                 label,
                 automatic_label,
                 binding: binding.clone(),
+                launch_program,
             },
             created_group.as_ref(),
         ) {

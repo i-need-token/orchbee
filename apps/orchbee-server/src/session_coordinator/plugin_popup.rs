@@ -15,6 +15,7 @@ impl SessionCoordinator {
         geometry: WorkbenchTerminalGeometry,
         worker: Option<WorkerPlacement>,
         expiry: Option<node::LeaseExpiresAtUnixMilliseconds>,
+        capture: &crate::terminal_coordinator::LaunchCapture,
     ) -> Result<
         (
             PreparedOperation,
@@ -57,7 +58,7 @@ impl SessionCoordinator {
         .with_environment(environment)
         .with_plugin_environment(Some(frozen.environment))
         .map_err(|_| Failure::InvalidIntent)?;
-        let mut plan = match self.terminals.plan_create(request, worker, expiry) {
+        let mut plan = match self.terminals.plan_create(request, worker, expiry, capture) {
             Ok(plan) => plan,
             Err(result) => return Ok((PreparedOperation::Ready(result), title, None)),
         };

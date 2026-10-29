@@ -8,7 +8,7 @@
 
 检查点保留可选 Project 成员关系、Project 标签、全局本地目录路径、Workspace 及其显示顺序、终端上下文、有序 Tab、分组、固定状态、
 分屏结构及比例、Panel 输入策略及 Presentation 标签，同时保留 Launch Profile 定义和分配高水位，
-包括已删除 ID。主／子 Presentation 均保留结构，但不携带终端绑定或启动失败。
+包括已删除 ID。主／子 Presentation 均保留结构，但不携带终端绑定、启动的程序或启动失败。
 
 它不保留运行进程、会话／Worker 身份、控制权、租约、Client 视图／焦点／zoom、请求结果、发布
 游标、未完成操作、Agent 状态或终端历史；这些恢复责任属于各自运行时所有者。检查点从不授权
@@ -51,7 +51,7 @@ Workspace 的 `projectId` 必填且可为 null。Directory 记录含 `directoryI
 `customLabel` 必填且可为 null。
 `checkpoint/contexts.rs` 拥有保留对象图形状：Tab 的 `automaticLabel` 和 `groupId`、Panel 的
 `rightClick`、Split 的 `ratio` 以及 Presentation 的 `binding` 即使取默认值或 null 也必须显式写出。
-仅属于运行时的 `launchFailure` 字段不准进入保留配置。
+仅属于运行时的 `launchProgram` 与 `launchFailure` 字段不准进入保留配置。
 
 ### 逐终端目录恢复
 
@@ -84,7 +84,7 @@ Workspace 的 `projectId` 必填且可为 null。Directory 记录含 `directoryI
 
 `prepare_restored_terminal` 重新检查 会话、本地 Worker、成员关系、未绑定状态和 cwd 默认值，
 再校验并准备完整的候选投影／发布，之后才允许变更。丢弃准备结果不改变任何状态。提交仅设置
-一个绑定并递增修订；结构身份、分配高水位、标签、顺序、分组、输入策略和 Profile 均不变。
+一个绑定（连同其新预留所规划的启动程序）并递增修订；结构身份、分配高水位、标签、顺序、分组、输入策略和 Profile 均不变。
 拒绝已绑定的目标及重复的物理终端绑定。
 
 准备不创建进程，也不重放命令。托管协调器联合准备新终端预留及规范绑定，在同一锁下提交两者，随后分发并结算准确物理请求，再暴露 Client。恢复快照绑定是唯一附着选择来源，不重建 Open 引用。仅规划测试不证明运行时集成。
@@ -142,4 +142,4 @@ Workbench revision；每次变化重置 500ms 防抖。每 30 秒还捕获已缓
 已移除成员。调度测试使用显式时间及延迟写入，证明防抖、定期补存、有界待办与最终停止顺序。
 原生崩溃／重启验收须比较多个 Tab、嵌套分屏、标签、目录；机器重启及交互负载仍须单独提供证据。
 
-<!-- documentation-pairing: english-sha256=e5b1f56121fb85ad3fe856d8ec3e2c4844cc9c45b9c7b9a74cd46c8e17c47973 zh-cn-sha256=107454a7446502abdac8af68aac5ab906a1278ca57d286d4ec78f888021cdf2e -->
+<!-- documentation-pairing: english-sha256=2021105ad68ebcad7cda74afe44f4c77b4add37d588d36f0203af617f201c59e zh-cn-sha256=86e0f45c45039f2acccd070c17f55b0bf14b439b3e07ed8555d0897a2a9ca32f -->

@@ -200,7 +200,8 @@ pub(super) fn materialized(
     Ok((panels, splits))
 }
 
-/// A launch may change only the acknowledged member's None binding into its first real binding.
+/// A launch may change only the acknowledged member's None binding into its first real binding,
+/// together with the launched program that the Server commits beside that binding.
 pub(super) fn bind(
     expected: &Tab,
     fresh: &Tab,
@@ -236,10 +237,14 @@ pub(super) fn bind(
                     .chain(child_presentations)
                     .find(|p| &p.presentation_id == id)
                     .ok_or_else(changed)?;
-                if before.binding.is_some() || after.binding.is_none() {
+                if before.binding.is_some()
+                    || before.launch_program.is_some()
+                    || after.binding.is_none()
+                {
                     return Err(changed());
                 }
                 before.binding = after.binding.clone();
+                before.launch_program = after.launch_program.clone();
                 Ok(())
             }
             PanelNode::Split { children, .. } => {

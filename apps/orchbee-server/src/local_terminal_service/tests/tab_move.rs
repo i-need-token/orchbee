@@ -65,6 +65,7 @@ fn committed_move_finishes_while_another_owner_holds_the_worker_registry() {
                             .unwrap(),
                         generation: WorkerGeneration::new(NonZeroU64::MIN),
                     }),
+                    &LaunchCapture::absent(),
                 ),
             PreparedTerminalTabCreate::Dispatch(_)
         ));

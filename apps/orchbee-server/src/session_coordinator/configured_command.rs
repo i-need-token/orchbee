@@ -21,6 +21,7 @@ impl SessionCoordinator {
         expected: WorkbenchRevision,
         worker: Option<WorkerPlacement>,
         expiry: Option<orchbee_capability_node_protocol::LeaseExpiresAtUnixMilliseconds>,
+        capture: &crate::terminal_coordinator::LaunchCapture,
     ) -> Result<
         (
             crate::terminal_coordinator::PreparedOperation,
@@ -29,7 +30,7 @@ impl SessionCoordinator {
         Failure,
     > {
         self.configured_command_source(source, expected, worker)?;
-        let mut plan = match self.terminals.plan_create(request, worker, expiry) {
+        let mut plan = match self.terminals.plan_create(request, worker, expiry, capture) {
             Ok(plan) => plan,
             Err(result) => {
                 return Ok((

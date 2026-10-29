@@ -214,12 +214,14 @@ bracketed-paste mode；commit 在 Core 二次授权后于独立的 input-admissi
 
 ## 默认交互式 launch 解析
 
-Worker 从不打开共享偏好存储或 `config.toml`。Session 在分发每次创建时读取其冻结的存储，并在
+Worker 从不打开共享偏好存储或 `config.toml`。Session 在准入每次创建前读取一次其冻结的存储，并在
 [启动偏好快照](../../crates/capability-node-protocol/README.zh-CN.md#启动偏好快照)中发送确认的
 滚动历史、终端默认色，以及默认启动时所选配置的命令。因此保存的修改只影响之后的创建；运行中的终端、
 已缓存的启动事实与延迟 Start 保留其快照。设备事实由 Worker 自行解析：显式程序绕过默认 Shell 发现，
 自定义配置使用字面 argv，系统 Shell 使用下述解析器及可选 POSIX 登录模式。Worker 每一代在向 Server
-注册前只运行一次该解析器，该代的所有默认启动都复用其结果：会话运行期间新安装的 Shell 要到下一个会话
+注册前只运行一次该解析器，并在
+[`WorkerHello`](../../crates/local-worker-protocol/README.zh-CN.md#framing-与-message) 中报告解析出的
+Shell 文件名，供 Server 为该代的默认启动命名。该代的所有默认启动都复用其结果：会话运行期间新安装的 Shell 要到下一个会话
 才成为系统 Shell；移除已解析的 Shell 后，直到下一个会话前的系统 Shell 启动都以 Host 的 typed launch
 failure 失败。`Unavailable` 快照只在 Host 副作用前拒绝该次创建。`Absent` 快照保留系统 Shell、Host 颜色与
 Host 滚动历史大小。
@@ -856,4 +858,4 @@ Windows 可运行的本地管道测试覆盖真实协议交换，不代表打包
 启动前后均可用。[所属模型](docs/windows-server-handoff.zh-CN.md) 定义精确票据、截止点、
 回滚及证据边界。公开 Server 状态／端点交接仍需独立集成；传输回执不是最终 CLI 成功。
 
-<!-- documentation-pairing: english-sha256=f03504480a5d5362b13913a6d44b028953383d0f0812340388effe2f66740ca8 zh-cn-sha256=3b1a3ff2167acfee9a8639cfd90997566317ad3dbc77a4770217b7dc0736df34 -->
+<!-- documentation-pairing: english-sha256=ba93886f3742222f25cb1fd2a9aa74bb1f56ffa3a851b6c63024d029d440845d zh-cn-sha256=c30a54af4cc5e0eaaa76681dcd197acb85fbedd0fa7d5d712f1b56c6a2fb41e5 -->

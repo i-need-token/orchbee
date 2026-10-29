@@ -47,6 +47,7 @@ fn fresh(tab_id: WorkbenchTabId) -> NewTerminalTab {
             worker_id: WorkerId::parse(&format!("{:032x}", 812)).unwrap(),
             terminal_id: TerminalId::parse(&format!("{:032x}", 813)).unwrap(),
         },
+        launch_program: None,
     }
 }
 

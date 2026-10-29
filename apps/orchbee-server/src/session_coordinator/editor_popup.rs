@@ -40,6 +40,7 @@ impl SessionCoordinator {
         launch: EditorPopupLaunch<'_>,
         worker: Option<WorkerPlacement>,
         expiry: Option<node::LeaseExpiresAtUnixMilliseconds>,
+        capture: &crate::terminal_coordinator::LaunchCapture,
     ) -> Result<
         (
             PreparedOperation,
@@ -81,7 +82,7 @@ impl SessionCoordinator {
             client::StartMode::Deferred,
             Some(launch),
         );
-        let mut plan = match self.terminals.plan_create(request, worker, expiry) {
+        let mut plan = match self.terminals.plan_create(request, worker, expiry, capture) {
             Ok(plan) => plan,
             Err(result) => return Ok((PreparedOperation::Ready(result), title, None)),
         };

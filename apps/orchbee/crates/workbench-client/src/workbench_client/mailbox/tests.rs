@@ -2782,6 +2782,7 @@ fn projected_tabs(tab_count: usize) -> ClientContextTabs {
                                 presentation_id: TerminalPresentationId::parse(&id(4 + offset))
                                     .unwrap(),
                                 launch_failure: None,
+                                launch_program: None,
                             },
                         },
                         tab_id: WorkbenchTabId::parse(&id(1 + offset)).unwrap(),

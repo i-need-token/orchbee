@@ -3,18 +3,13 @@ use crate::{
     workbench_service::{WorkbenchExecution, WorkbenchPolicy, WorkbenchService},
     worker_registry::WorkerRegistry,
 };
-use orchbee_capability_node_protocol::{
-    LaunchSelection, LeaseExpiresAtUnixMilliseconds, LeaseId, OperationId, TerminalFence,
-    TerminalId, TerminalLaunchMode, TerminalOperationAuthorization, TerminalOperationLease,
-    WorkerGeneration, WorkerId,
-};
+use orchbee_capability_node_protocol::LaunchSelection;
 use orchbee_workbench_protocol::{
     PreferenceKey, UserPreferencesPatch, UserPreferencesRequest, WorkbenchRequest,
     WorkbenchResponse,
 };
 use serde_json::{Value, json};
 use std::{
-    num::NonZeroU64,
     path::PathBuf,
     sync::{Arc, Mutex},
     time::{SystemTime, UNIX_EPOCH},
@@ -130,7 +125,7 @@ fn settings_dispatch_checks_permission_and_session_before_shared_store_access() 
 }
 
 #[test]
-fn launch_dispatch_captures_the_frozen_scope_and_refuses_without_a_store() {
+fn launch_capture_reads_the_frozen_scope_and_refuses_without_a_store() {
     let fixture = private_root();
     let service = LocalTerminalService::from_identity(
         Arc::new(Mutex::new(WorkerRegistry::new())),
@@ -139,31 +134,19 @@ fn launch_dispatch_captures_the_frozen_scope_and_refuses_without_a_store() {
                 .unwrap(),
         ),
     );
-    let authorization = TerminalOperationAuthorization::new(
-        TerminalId::from_bytes([1; 16]).unwrap(),
-        OperationId::from_bytes([2; 16]).unwrap(),
-        WorkerId::from_bytes([3; 16]).unwrap(),
-        WorkerGeneration::new(NonZeroU64::MIN),
-        TerminalFence::new(NonZeroU64::MIN),
-        TerminalOperationLease::new(
-            LeaseId::from_bytes([4; 16]).unwrap(),
-            LeaseExpiresAtUnixMilliseconds::new(NonZeroU64::MAX),
-        ),
-        orchbee_capability_node_protocol::TERMINAL_LAUNCH_CAPABILITY_VERSION,
-    );
-    let launch = |selection| {
-        AuthorizedTerminalLaunch::new(authorization, None, TerminalLaunchMode::Deferred, selection)
+    let executable = if cfg!(windows) {
+        "C:/tools/shell.exe"
+    } else {
+        "/bin/sh"
     };
-    let captured = |selection| match service
-        .with_launch_preferences(&launch(selection))
-        .unwrap()
-        .preferences()
-    {
-        LaunchPreferences::Available(captured) => Some(captured.clone()),
+    let explicit = LaunchSelection::new(executable.into(), Vec::new()).unwrap();
+    let captured = |selection| match service.launch_capture().preferences(selection) {
+        LaunchPreferences::Available(captured) => Some(captured),
         LaunchPreferences::Unavailable => None,
         LaunchPreferences::Absent => panic!("a Session always states its capture"),
     };
     assert_eq!(captured(None), None);
+    assert_eq!(captured(Some(&explicit)), None);
 
     let scope = UserPreferencesScope::for_configuration(&fixture.0.join("config.toml")).unwrap();
     service.initialize_preferences(scope.clone()).unwrap();
@@ -186,11 +169,9 @@ fn launch_dispatch_captures_the_frozen_scope_and_refuses_without_a_store() {
         })
     );
     assert_eq!(default.scrollback_bytes(), 10_000_000);
-    let executable = if cfg!(windows) {
-        "C:/tools/shell.exe"
-    } else {
-        "/bin/sh"
-    };
-    let explicit = LaunchSelection::new(executable.into(), Vec::new()).unwrap();
-    assert_eq!(captured(Some(explicit)).unwrap().program(), None);
+    // One read serves both: an explicit selection keeps the colors and scrollback, never a program.
+    let explicit = captured(Some(&explicit)).unwrap();
+    assert_eq!(explicit.program(), None);
+    assert_eq!(explicit.colors(), default.colors());
+    assert_eq!(explicit.scrollback_bytes(), default.scrollback_bytes());
 }

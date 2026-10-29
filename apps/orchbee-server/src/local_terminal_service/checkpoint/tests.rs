@@ -28,7 +28,7 @@ fn restored_terminals_capture_the_session_preferences() -> Result<(), Box<dyn Er
     let WorkerAdmission::Accepted { generation } = registry
         .lock()
         .map_err(|_poison| "Worker registry poisoned")?
-        .admit(local_worker)
+        .admit(local_worker, None)
     else {
         return Err("test Worker was not admitted".into());
     };

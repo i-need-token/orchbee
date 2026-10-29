@@ -46,7 +46,7 @@ Main 向本次观察捕获的回调发布，每个回调至多执行一次，并
 滚动历史接受 `0` 到 `1_000_000_000` 的整数字节，默认 `10_000_000`。
 Main 使用 `SetTerminalDefaults`，新 Host 终端捕获该值。
 它不发送 `UpdateTerminalConfiguration`、驱逐已有行或重建运行中终端。
-原生 Session 在分发时从同一确认快照捕获滚动历史与选定启动配置；其 Worker 只解析设备事实。
+原生 Session 在准入每次创建前从同一确认快照捕获滚动历史与选定启动配置；其 Worker 只解析设备事实。
 恢复的 Desktop 绑定保留具体启动信息与已有 Host 配置。
 
 ## 渲染端能力
@@ -63,4 +63,4 @@ Browser Preview 保持独立 origin 存储，省略不可用的原生启动与�
 模型及负向对照见[原生契约](../../orchbee/docs/native-settings.zh-CN.md#正确性与证据)。
 执行受影响根门禁。原生进程证据仅适用于实际运行的宿主。
 
-<!-- documentation-pairing: english-sha256=c7e87c9e8e3449744db1fae6c34eaadac785a76b2bcac69ec88c4ec18daf8a60 zh-cn-sha256=21d649348e99693acf8ecb6698b55a7894398aa80811df04c4aa5a345c664487 -->
+<!-- documentation-pairing: english-sha256=edd1dc2a010a49e273ccc0f1e64848a70a43f967acedfa92bc7277d02415fc05 zh-cn-sha256=3196b3cd2c5d1a75768aeb2855002ee2be8ab63970e297224c852ca3b2c146ae -->

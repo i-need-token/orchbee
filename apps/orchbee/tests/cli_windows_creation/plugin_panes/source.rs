@@ -219,6 +219,7 @@ fn plugin_pane_source_context_tracks_child_observations_and_fails_before_creatio
                     terminal_id: TerminalId::parse(&id(406)).unwrap(),
                 }),
                 launch_failure: None,
+                launch_program: None,
             });
             snapshot_reply(&mut stream, before.clone());
             let selected = record(false, false, false);

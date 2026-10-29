@@ -9,7 +9,7 @@ use super::tab_create::{
     terminal_outcome, terminal_preflight_reason, unavailable_by_id,
 };
 use super::{PostcommitCoordinationError, SessionCoordinator, presentation_binding};
-use crate::terminal_coordinator::{Completion, PendingOperation, WorkerPlacement};
+use crate::terminal_coordinator::{Completion, LaunchCapture, PendingOperation, WorkerPlacement};
 use orchbee_capability_node_protocol::{CapabilityNodeMessage, LeaseExpiresAtUnixMilliseconds};
 use orchbee_client_server_protocol::{
     RequestId, StartMode, TerminalCreateRequest, WorkerConstraint, WorkingDirectory,
@@ -75,6 +75,7 @@ impl SessionCoordinator {
         candidate: Option<RequestId>,
         expiry: Option<LeaseExpiresAtUnixMilliseconds>,
         worker: Option<WorkerPlacement>,
+        capture: &LaunchCapture,
     ) -> PreparedTerminalPanelCreate {
         let Self {
             terminals,
@@ -242,7 +243,8 @@ impl SessionCoordinator {
                 return PreparedTerminalPanelCreate::Ready(admission.retire_composition_failure());
             }
         };
-        let mut terminal = match terminals.plan_create(request, Some(worker), Some(expiry)) {
+        let mut terminal = match terminals.plan_create(request, Some(worker), Some(expiry), capture)
+        {
             Ok(plan) => plan,
             Err(result) => {
                 let reason = terminal_preflight_reason(&result);
@@ -259,12 +261,13 @@ impl SessionCoordinator {
                 admission.runtime_unavailable(WorkbenchCommandUnavailableReason::ServerBusy),
             );
         };
-        let workbench_plan = match admission.finish(binding.clone()) {
-            WorkbenchPanelCreatePreparation::Ready(result) => {
-                return PreparedTerminalPanelCreate::Ready(result);
-            }
-            WorkbenchPanelCreatePreparation::Prepared(plan) => plan,
-        };
+        let workbench_plan =
+            match admission.finish(binding.clone(), terminal.launch_program().cloned()) {
+                WorkbenchPanelCreatePreparation::Ready(result) => {
+                    return PreparedTerminalPanelCreate::Ready(result);
+                }
+                WorkbenchPanelCreatePreparation::Prepared(plan) => plan,
+            };
         let metadata = workbench_plan.metadata().clone();
         if terminal.create_reference() != &reference
             || terminal.authorization() != authorization

@@ -134,7 +134,8 @@ fn regroup_ungroup_create_project_and_dissolve_preserve_every_other_resource_and
     else {
         panic!("tab admission")
     };
-    let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding(700)) else {
+    let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding(700), None)
+    else {
         panic!("tab preparation")
     };
     let pending = prepared.commit().into_pending();
@@ -434,7 +435,8 @@ fn alongside_an_ungrouped_source_commits_only_that_source_and_new_shell_into_one
     else {
         panic!("admit again")
     };
-    let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding(700)) else {
+    let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding(700), None)
+    else {
         panic!("prepare")
     };
     let pending = prepared.commit().into_pending();
@@ -560,7 +562,8 @@ fn ungrouped_and_new_project_launch_receipts_match_the_atomic_structure() {
         else {
             panic!("admit")
         };
-        let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding(700))
+        let WorkbenchTabCreatePreparation::Prepared(prepared) =
+            admission.finish(binding(700), None)
         else {
             panic!("prepare")
         };

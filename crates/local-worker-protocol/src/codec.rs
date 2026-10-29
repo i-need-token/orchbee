@@ -14,6 +14,7 @@ const REJECTED_KIND: u8 = 3;
 pub const PROTOCOL_VERSION: u16 = 1;
 pub const MAXIMUM_FRAME_PAYLOAD_BYTES: usize = 256;
 pub const MAXIMUM_COHORT_BYTES: usize = 64;
+pub const MAXIMUM_SYSTEM_SHELL_NAME_BYTES: usize = 128;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct WorkerId([u8; WORKER_ID_BYTES]);
@@ -30,10 +31,36 @@ impl WorkerId {
     }
 }
 
+/// The file name of the System shell one Worker generation resolved: nonempty, at most 128 UTF-8
+/// bytes, and free of path separators and control characters. It names the shell; it carries no
+/// directory, argument or environment.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SystemShellName(String);
+
+impl SystemShellName {
+    pub fn parse(name: &str) -> Result<Self, ProtocolError> {
+        if name.is_empty()
+            || name.len() > MAXIMUM_SYSTEM_SHELL_NAME_BYTES
+            || name
+                .chars()
+                .any(|character| matches!(character, '/' | '\\') || character.is_control())
+        {
+            return Err(ProtocolError::InvalidSystemShell);
+        }
+        Ok(Self(name.to_owned()))
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WorkerHello {
     cohort: String,
     worker_id: WorkerId,
+    system_shell: Option<SystemShellName>,
 }
 
 impl WorkerHello {
@@ -45,7 +72,15 @@ impl WorkerHello {
         Ok(Self {
             cohort: cohort.to_owned(),
             worker_id,
+            system_shell: None,
         })
+    }
+
+    /// Reports the System shell this Worker generation resolved before registering.
+    #[must_use]
+    pub fn with_system_shell(mut self, name: SystemShellName) -> Self {
+        self.system_shell = Some(name);
+        self
     }
 
     #[must_use]
@@ -56,6 +91,13 @@ impl WorkerHello {
     #[must_use]
     pub const fn worker_id(&self) -> WorkerId {
         self.worker_id
+    }
+
+    /// Absent when the generation resolved no usable shell or one whose name the hello cannot
+    /// carry.
+    #[must_use]
+    pub const fn system_shell(&self) -> Option<&SystemShellName> {
+        self.system_shell.as_ref()
     }
 }
 
@@ -83,6 +125,7 @@ pub enum ProtocolError {
     PayloadTooLarge { actual: usize, maximum: usize },
     InvalidPayload,
     InvalidCohort,
+    InvalidSystemShell,
 }
 
 impl fmt::Display for ProtocolError {
@@ -101,6 +144,9 @@ impl fmt::Display for ProtocolError {
             ),
             Self::InvalidPayload => formatter.write_str("invalid local Worker frame payload"),
             Self::InvalidCohort => formatter.write_str("invalid local Worker executable cohort"),
+            Self::InvalidSystemShell => {
+                formatter.write_str("invalid local Worker System shell name")
+            }
         }
     }
 }
@@ -228,11 +274,21 @@ fn encode_payload(message: &LocalWorkerMessage) -> Result<Vec<u8>, ProtocolError
         LocalWorkerMessage::WorkerHello(hello) => {
             let cohort_length =
                 u8::try_from(hello.cohort.len()).map_err(|_error| ProtocolError::InvalidCohort)?;
-            let mut payload = Vec::with_capacity(2 + WORKER_ID_BYTES + hello.cohort.len());
+            let shell = hello
+                .system_shell
+                .as_ref()
+                .map_or("", SystemShellName::as_str);
+            let shell_length =
+                u8::try_from(shell.len()).map_err(|_error| ProtocolError::InvalidSystemShell)?;
+            let mut payload =
+                Vec::with_capacity(3 + WORKER_ID_BYTES + hello.cohort.len() + shell.len());
             payload.push(WORKER_HELLO_KIND);
             payload.push(cohort_length);
             payload.extend_from_slice(&hello.worker_id.as_bytes());
             payload.extend_from_slice(hello.cohort.as_bytes());
+            // A zero length states that the generation reports no System shell.
+            payload.push(shell_length);
+            payload.extend_from_slice(shell.as_bytes());
             payload
         }
         LocalWorkerMessage::WorkerAccepted { generation } => {
@@ -268,8 +324,14 @@ fn decode_worker_hello(payload: &[u8]) -> Result<LocalWorkerMessage, ProtocolErr
             .copied()
             .ok_or(ProtocolError::InvalidPayload)?,
     );
-    let expected_length = 2 + WORKER_ID_BYTES + cohort_length;
-    if payload.len() != expected_length {
+    let shell_offset = 2 + WORKER_ID_BYTES + cohort_length;
+    let shell_length = usize::from(
+        payload
+            .get(shell_offset)
+            .copied()
+            .ok_or(ProtocolError::InvalidPayload)?,
+    );
+    if payload.len() != shell_offset + 1 + shell_length {
         return Err(ProtocolError::InvalidPayload);
     }
     let worker_id_bytes: [u8; WORKER_ID_BYTES] = payload
@@ -278,14 +340,22 @@ fn decode_worker_hello(payload: &[u8]) -> Result<LocalWorkerMessage, ProtocolErr
         .try_into()
         .map_err(|_error| ProtocolError::InvalidPayload)?;
     let cohort_bytes = payload
-        .get(2 + WORKER_ID_BYTES..)
+        .get(2 + WORKER_ID_BYTES..shell_offset)
         .ok_or(ProtocolError::InvalidPayload)?;
     let cohort =
         std::str::from_utf8(cohort_bytes).map_err(|_error| ProtocolError::InvalidCohort)?;
-    Ok(LocalWorkerMessage::WorkerHello(WorkerHello::new(
-        cohort,
-        WorkerId::from_bytes(worker_id_bytes),
-    )?))
+    let hello = WorkerHello::new(cohort, WorkerId::from_bytes(worker_id_bytes))?;
+    let shell_bytes = payload
+        .get(shell_offset + 1..)
+        .ok_or(ProtocolError::InvalidPayload)?;
+    if shell_bytes.is_empty() {
+        return Ok(LocalWorkerMessage::WorkerHello(hello));
+    }
+    let shell =
+        std::str::from_utf8(shell_bytes).map_err(|_error| ProtocolError::InvalidSystemShell)?;
+    Ok(LocalWorkerMessage::WorkerHello(
+        hello.with_system_shell(SystemShellName::parse(shell)?),
+    ))
 }
 
 fn decode_worker_accepted(payload: &[u8]) -> Result<LocalWorkerMessage, ProtocolError> {

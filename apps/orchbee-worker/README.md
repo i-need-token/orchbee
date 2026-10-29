@@ -256,14 +256,16 @@ codec/schema/process-test evidence, not model claims.
 ## Default interactive launch resolution
 
 The Worker never opens the shared preference store or `config.toml`. The Session reads its frozen
-store when it dispatches each creation and sends the confirmed scrollback, terminal default colors
+store once before it admits each creation and sends the confirmed scrollback, terminal default colors
 and, for a default launch, the selected profile's command in the
 [launch preference capture](../../crates/capability-node-protocol/README.md#launch-preference-capture).
 A saved change therefore reaches only later creations; running terminals, cached launch facts and
 deferred Start keep their capture. The Worker resolves device facts itself: explicit programs
 bypass default-shell discovery, a custom profile uses its literal argv, and the System shell uses
 the resolver below with optional POSIX login. The Worker runs that resolver once per generation,
-before it registers with the Server, and every default launch of the generation reuses the result:
+before it registers with the Server, and reports the resolved shell's file name in its
+[`WorkerHello`](../../crates/local-worker-protocol/README.md#framing-and-messages) so the Server can
+name the generation's default launches. Every default launch of the generation reuses the result:
 a shell installed while the Session runs becomes the System shell only in the next Session, and
 removing the resolved shell turns later System-shell launches into the Host's typed launch failure
 until then. An `Unavailable` capture refuses only that creation before Host effects. An `Absent`

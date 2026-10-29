@@ -5030,6 +5030,7 @@ impl Authority {
                 label: label.as_str().to_owned(),
                 presentation_id: presentation_id.clone(),
                 launch_failure: None,
+                launch_program: None,
             },
         };
         require(
@@ -5128,6 +5129,7 @@ fn leaf_node(
             label: label.to_owned(),
             presentation_id: presentation_id(presentation),
             launch_failure: None,
+            launch_program: None,
         },
     }
 }

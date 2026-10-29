@@ -1,4 +1,5 @@
 use super::*;
+use crate::terminal_coordinator::LaunchCapture;
 use orchbee_local_ipc::LocalStream as UnixStream;
 mod interleavings;
 use crate::{
@@ -63,7 +64,8 @@ fn id(value: u128) -> WorkbenchRequestId {
 fn fixture() -> Fixture {
     let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
     let worker_id = orchbee_local_worker_protocol::WorkerId::from_bytes([9; 16]);
-    let WorkerAdmission::Accepted { generation } = registry.lock().unwrap().admit(worker_id) else {
+    let WorkerAdmission::Accepted { generation } = registry.lock().unwrap().admit(worker_id, None)
+    else {
         panic!("Worker admission")
     };
     let owner = WorkerRegistry::register_carrier(
@@ -146,6 +148,7 @@ fn add_terminal_between(
             ),
             lease_expiry(),
             Some(worker),
+            &LaunchCapture::absent(),
         ) else {
             panic!("Create pending")
         };

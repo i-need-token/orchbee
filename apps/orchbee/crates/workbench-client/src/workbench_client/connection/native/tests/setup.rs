@@ -2523,6 +2523,7 @@ pub(super) fn panel_node(
             label: label.to_owned(),
             presentation_id: TerminalPresentationId::parse(&id(presentation)).unwrap(),
             launch_failure: None,
+            launch_program: None,
         },
     }
 }

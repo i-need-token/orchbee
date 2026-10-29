@@ -59,6 +59,11 @@ fn placed_creation_receipt_rejects_extra_writes_wrong_position_and_reused_group_
                 label: label("4"),
                 automatic_label: true,
                 binding: primary_presentation.binding.clone().unwrap(),
+                // The Server's launched-program fact rides in the binding commit.
+                launch_program: orchbee_workbench_protocol::PresentationLaunchProgram::parse(
+                    "pwsh.exe",
+                )
+                .ok(),
             },
             matches!(placement, TabCreationPlacement::NewGroup {}).then_some(&group_id(801)),
         )
@@ -86,7 +91,7 @@ fn placed_creation_receipt_rejects_extra_writes_wrong_position_and_reused_group_
             .iter()
             .position(|tab| tab.tab_id == fresh.tab_id)
             .unwrap();
-        for change in 0..7 {
+        for change in 0..8 {
             let mut hostile = candidate.clone();
             let context = &mut hostile.terminal_contexts[0];
             match change {
@@ -105,6 +110,19 @@ fn placed_creation_receipt_rejects_extra_writes_wrong_position_and_reused_group_
                             orchbee_workbench_protocol::PanelCustomLabel::parse("injected")
                                 .unwrap(),
                         );
+                    }
+                }
+                6 => {
+                    if let PanelNode::Panel {
+                        primary_presentation,
+                        ..
+                    } = &mut context.tabs[0].root
+                    {
+                        primary_presentation.launch_program =
+                            orchbee_workbench_protocol::PresentationLaunchProgram::parse(
+                                "injected.exe",
+                            )
+                            .ok();
                     }
                 }
                 _ => {

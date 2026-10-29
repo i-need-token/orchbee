@@ -79,6 +79,7 @@ fn member(
         presentation_id: TerminalPresentationId::parse(&take(cursor))
             .map_err(|_| PlanFailure::Internal)?,
         launch_failure: None,
+        launch_program: None,
     })
 }
 fn tree(node: &WorkbenchLayoutNode, cursor: &mut u128) -> Result<PanelNode, PlanFailure> {

@@ -34,7 +34,7 @@ impl Fixture {
         ))));
         let worker = orchbee_local_worker_protocol::WorkerId::from_bytes([9; 16]);
         let WorkerAdmission::Accepted { generation } =
-            service.workers.lock().unwrap().admit(worker)
+            service.workers.lock().unwrap().admit(worker, None)
         else {
             panic!("admit")
         };

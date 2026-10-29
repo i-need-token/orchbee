@@ -22,6 +22,7 @@ use orchbee_local_worker_protocol::{
     LocalWorkerMessage, ProtocolError, ReadMessageError, RejectionReason, read_message,
     write_message,
 };
+use orchbee_workbench_protocol::PresentationLaunchProgram;
 
 use crate::{
     agent_service::AgentService,
@@ -241,8 +242,12 @@ fn admit_candidate(
         return None;
     }
 
+    // OBLW bounds a reported name exactly as the published launched program is bounded.
+    let system_shell = hello
+        .system_shell()
+        .and_then(|name| PresentationLaunchProgram::parse(name.as_str()).ok());
     let admission = match registry.lock() {
-        Ok(mut registry) => registry.admit(hello.worker_id()),
+        Ok(mut registry) => registry.admit(hello.worker_id(), system_shell),
         Err(_poisoned) => return None,
     };
     let generation = match admission {

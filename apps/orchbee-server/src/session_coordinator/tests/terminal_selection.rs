@@ -29,7 +29,7 @@ fn accepted_close_fences_both_attach_forms_and_start_before_identity_allocation(
         Err(BindingViewerPreparationError::TerminalUnavailable)
     );
     assert!(matches!(
-        coordinator.prepare(ClientMessage::TerminalStart(TerminalStartRequest::new(id(20), id(1), geometry()).unwrap()), Some(worker(1)), Some(expiry())),
+        coordinator.prepare(ClientMessage::TerminalStart(TerminalStartRequest::new(id(20), id(1), geometry()).unwrap()), Some(worker(1)), Some(expiry()), &LaunchCapture::absent()),
         PreparedOperation::Ready(ServerMessage::TerminalStartResult(result))
             if result.outcome() == StartOutcome::Rejected { reason: StartRejectedReason::TerminalCreateUnavailable }
     ));
@@ -242,7 +242,12 @@ fn expose(coordinator: &mut SessionCoordinator, authorization: TerminalOperation
 
 fn prepared_session(settle: bool) -> (SessionCoordinator, TerminalOperationAuthorization) {
     let mut coordinator = session();
-    let pending = dispatch(coordinator.prepare(create(1), Some(worker(1)), Some(expiry())));
+    let pending = dispatch(coordinator.prepare(
+        create(1),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     let authorization = launch_authorization(pending.command());
     expose(&mut coordinator, authorization);
     if settle {
@@ -277,6 +282,7 @@ fn prepared_started_session() -> (SessionCoordinator, TerminalOperationAuthoriza
             ),
             Some(worker(1)),
             Some(expiry()),
+            &LaunchCapture::absent(),
         ),
     );
     let CapabilityNodeMessage::AuthorizedTerminalStart(request) = pending.command() else {
@@ -356,7 +362,12 @@ fn workbench_refusals_precede_runtime_interpretation_and_consume_no_identity() {
 #[test]
 fn retained_terminal_not_exposed_by_workbench_is_unavailable_without_consuming_identity() {
     let (mut coordinator, _exposed) = prepared_session(true);
-    let hidden = dispatch(coordinator.prepare(create(2), Some(worker(1)), Some(expiry())));
+    let hidden = dispatch(coordinator.prepare(
+        create(2),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     let hidden_authorization = launch_authorization(hidden.command());
     coordinator
         .complete(
@@ -587,7 +598,12 @@ fn send_rejects_unexposed_wrong_session_and_missing_workbench_without_identity()
             Err(BindingViewerPreparationError::TerminalUnavailable)
         );
     }
-    let hidden = dispatch(coordinator.prepare(create(7), Some(worker(1)), Some(expiry())));
+    let hidden = dispatch(coordinator.prepare(
+        create(7),
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::absent(),
+    ));
     let hidden_authorization = launch_authorization(hidden.command());
     coordinator
         .complete(

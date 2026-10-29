@@ -16,6 +16,7 @@ use std::io::{Read, Write};
 
 use orchbee_capability_node_protocol::{WorkerGeneration, WorkerId as CapabilityWorkerId};
 use orchbee_local_worker_protocol::WorkerId;
+use orchbee_workbench_protocol::PresentationLaunchProgram;
 
 use crate::agent::native_observation::CarrierIdentity;
 use crate::agent_service::AgentService;
@@ -35,6 +36,9 @@ struct ActiveWorker {
     carrier: Option<ActiveCarrier>,
     generation: NonZeroU64,
     worker_id: WorkerId,
+    /// The System shell this generation resolved and reported before admission; every default
+    /// launch dispatched to it starts that shell.
+    system_shell: Option<PresentationLaunchProgram>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -137,7 +141,11 @@ impl WorkerRegistry {
         }
     }
 
-    pub(crate) fn admit(&mut self, worker_id: WorkerId) -> WorkerAdmission {
+    pub(crate) fn admit(
+        &mut self,
+        worker_id: WorkerId,
+        system_shell: Option<PresentationLaunchProgram>,
+    ) -> WorkerAdmission {
         if let Some(active) = self.active.as_ref() {
             return WorkerAdmission::Duplicate {
                 active_generation: active.generation,
@@ -151,6 +159,7 @@ impl WorkerRegistry {
             carrier: None,
             generation,
             worker_id,
+            system_shell,
         });
         self.next_generation = generation.get().checked_add(1).and_then(NonZeroU64::new);
         WorkerAdmission::Accepted { generation }
@@ -249,6 +258,14 @@ impl WorkerRegistry {
             .map(|carrier| &carrier.request_handle)
             .filter(|request_handle| request_handle.is_active())
             .cloned()
+    }
+
+    /// The System shell the active generation reported. A caller reads it under the guard it
+    /// reads `request_handle` under, so both describe one generation.
+    pub(crate) fn system_shell(&self) -> Option<PresentationLaunchProgram> {
+        self.active
+            .as_ref()
+            .and_then(|active| active.system_shell.clone())
     }
 
     pub(crate) fn cancel_pending_admission(&mut self, generation: NonZeroU64) -> bool {

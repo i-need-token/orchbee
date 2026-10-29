@@ -124,7 +124,7 @@ fn rejects_an_unmappable_zero_worker_id_before_acceptance() -> TestResult {
         registry
             .lock()
             .map_err(|_poisoned| io::Error::other("Worker registry was poisoned"))?
-            .admit(FIRST_WORKER),
+            .admit(FIRST_WORKER, None),
         crate::worker_registry::WorkerAdmission::Accepted {
             generation: NonZeroU64::MIN,
         }

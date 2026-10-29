@@ -52,7 +52,7 @@ Scrollback admits integer bytes from `0` through `1_000_000_000`, default `10_00
 Main uses `SetTerminalDefaults` and new Host terminals capture that value. It never sends
 `UpdateTerminalConfiguration`, evicts existing rows or recreates running terminals.
 The native Session captures scrollback and the selected launch profile from one confirmed
-snapshot at dispatch; its Worker resolves only device facts.
+snapshot before it admits each creation; its Worker resolves only device facts.
 Restored Desktop bindings retain their concrete launch and existing Host configuration.
 
 ## Renderer capability

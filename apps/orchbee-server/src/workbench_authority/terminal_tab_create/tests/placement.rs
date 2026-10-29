@@ -65,7 +65,8 @@ fn placement_is_atomic_on_drop_commit_and_exact_replay_with_unknown_start() {
             else {
                 panic!("admit")
             };
-            let WorkbenchTabCreatePreparation::Prepared(prepared) = admitted.finish(binding(99))
+            let WorkbenchTabCreatePreparation::Prepared(prepared) =
+                admitted.finish(binding(99), None)
             else {
                 panic!("prepare")
             };

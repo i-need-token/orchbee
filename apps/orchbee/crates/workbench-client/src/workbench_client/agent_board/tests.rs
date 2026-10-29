@@ -826,6 +826,7 @@ fn presentation_snapshot() -> Snapshot {
                             worker_id: WorkerId::parse(&hex(8)).unwrap(),
                         }),
                         launch_failure: None,
+                        launch_program: None,
                     },
                 },
             }],
@@ -875,6 +876,7 @@ fn presentation_index_resolves_only_live_panel_identities() {
             worker_id: WorkerId::parse(&hex(8)).unwrap(),
         }),
         launch_failure: None,
+        launch_program: None,
     });
     let index = PresentationIndex::rebuild(&with_child);
     assert_eq!(index.len(), 2);

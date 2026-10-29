@@ -46,7 +46,7 @@ fn inactive_carrier_blocks_replacement_until_registration_retires() {
     let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
     let generation = {
         let mut registry = registry.lock().unwrap_or_else(|error| error.into_inner());
-        let WorkerAdmission::Accepted { generation } = registry.admit(FIRST_WORKER) else {
+        let WorkerAdmission::Accepted { generation } = registry.admit(FIRST_WORKER, None) else {
             panic!("first Worker was not admitted");
         };
         generation
@@ -67,7 +67,7 @@ fn inactive_carrier_blocks_replacement_until_registration_retires() {
     let became_inactive = !observer.is_active();
     let handle_unavailable = registry_guard.request_handle().is_none();
     let prematurely_retired = generation_is_retired(&registry_guard, generation);
-    let premature_admission = registry_guard.admit(SECOND_WORKER);
+    let premature_admission = registry_guard.admit(SECOND_WORKER, None);
     drop(registry_guard);
     dropping_owner
         .join()
@@ -91,7 +91,7 @@ fn inactive_carrier_blocks_replacement_until_registration_retires() {
     assert!(generation_is_retired(&registry_guard, generation));
     let WorkerAdmission::Accepted {
         generation: replacement_generation,
-    } = registry_guard.admit(SECOND_WORKER)
+    } = registry_guard.admit(SECOND_WORKER, None)
     else {
         panic!("replacement Worker was not admitted after retirement");
     };
@@ -108,13 +108,13 @@ fn admits_only_one_worker_and_assigns_increasing_generations() {
     let mut registry = WorkerRegistry::new();
     let WorkerAdmission::Accepted {
         generation: first_generation,
-    } = registry.admit(FIRST_WORKER)
+    } = registry.admit(FIRST_WORKER, None)
     else {
         panic!("first Worker was not admitted");
     };
     assert_eq!(first_generation, NonZeroU64::MIN);
     assert_eq!(
-        registry.admit(SECOND_WORKER),
+        registry.admit(SECOND_WORKER, None),
         WorkerAdmission::Duplicate {
             active_generation: first_generation,
             active_worker_id: FIRST_WORKER,
@@ -124,7 +124,7 @@ fn admits_only_one_worker_and_assigns_increasing_generations() {
 
     let WorkerAdmission::Accepted {
         generation: second_generation,
-    } = registry.admit(SECOND_WORKER)
+    } = registry.admit(SECOND_WORKER, None)
     else {
         panic!("replacement Worker was not admitted");
     };
@@ -136,7 +136,7 @@ fn stale_registration_cleanup_cannot_remove_a_replacement() {
     let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
     let first_generation = {
         let mut registry = registry.lock().unwrap_or_else(|error| error.into_inner());
-        let WorkerAdmission::Accepted { generation } = registry.admit(FIRST_WORKER) else {
+        let WorkerAdmission::Accepted { generation } = registry.admit(FIRST_WORKER, None) else {
             panic!("first Worker was not admitted");
         };
         assert!(registry.cancel_pending_admission(generation));
@@ -144,7 +144,7 @@ fn stale_registration_cleanup_cannot_remove_a_replacement() {
     };
     let replacement_generation = {
         let mut registry = registry.lock().unwrap_or_else(|error| error.into_inner());
-        let WorkerAdmission::Accepted { generation } = registry.admit(SECOND_WORKER) else {
+        let WorkerAdmission::Accepted { generation } = registry.admit(SECOND_WORKER, None) else {
             panic!("replacement Worker was not admitted");
         };
         generation
@@ -178,7 +178,7 @@ fn exposes_only_the_matching_active_generation_carrier() {
     let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
     let generation = {
         let mut registry = registry.lock().unwrap_or_else(|error| error.into_inner());
-        let WorkerAdmission::Accepted { generation } = registry.admit(FIRST_WORKER) else {
+        let WorkerAdmission::Accepted { generation } = registry.admit(FIRST_WORKER, None) else {
             panic!("Worker was not admitted");
         };
         assert!(registry.request_handle().is_none());
@@ -239,7 +239,7 @@ fn stale_carrier_registration_preserves_the_replacement() {
     let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
     let first_generation = {
         let mut registry = registry.lock().unwrap_or_else(|error| error.into_inner());
-        let WorkerAdmission::Accepted { generation } = registry.admit(FIRST_WORKER) else {
+        let WorkerAdmission::Accepted { generation } = registry.admit(FIRST_WORKER, None) else {
             panic!("first Worker was not admitted");
         };
         assert!(registry.cancel_pending_admission(generation));
@@ -247,7 +247,7 @@ fn stale_carrier_registration_preserves_the_replacement() {
     };
     let replacement_generation = {
         let mut registry = registry.lock().unwrap_or_else(|error| error.into_inner());
-        let WorkerAdmission::Accepted { generation } = registry.admit(SECOND_WORKER) else {
+        let WorkerAdmission::Accepted { generation } = registry.admit(SECOND_WORKER, None) else {
             panic!("replacement Worker was not admitted");
         };
         generation
@@ -285,14 +285,14 @@ fn admits_the_last_nonzero_generation_before_exhaustion() {
     };
 
     assert_eq!(
-        registry.admit(FIRST_WORKER),
+        registry.admit(FIRST_WORKER, None),
         WorkerAdmission::Accepted {
             generation: maximum_generation,
         }
     );
     assert!(registry.cancel_pending_admission(maximum_generation));
     assert_eq!(
-        registry.admit(SECOND_WORKER),
+        registry.admit(SECOND_WORKER, None),
         WorkerAdmission::GenerationExhausted
     );
 }
@@ -301,7 +301,7 @@ fn admits_the_last_nonzero_generation_before_exhaustion() {
 
 fn admit_first_worker(registry: &Arc<Mutex<WorkerRegistry>>, worker_id: WorkerId) -> NonZeroU64 {
     let mut registry = registry.lock().unwrap_or_else(|error| error.into_inner());
-    let WorkerAdmission::Accepted { generation } = registry.admit(worker_id) else {
+    let WorkerAdmission::Accepted { generation } = registry.admit(worker_id, None) else {
         panic!("Worker was not admitted");
     };
     generation

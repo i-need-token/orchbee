@@ -253,13 +253,23 @@ fn failed_remove_restores_original_slots_with_fresh_default_shells_and_keeps_par
                 };
                 assert_ne!(old.binding, new.binding);
                 assert_ne!(old.presentation_id, new.presentation_id);
+                // The replacement shell never inherits the old agent's program; this fixture's
+                // Worker reports no System shell, so the default launch names none.
+                assert_eq!(
+                    old.launch_program
+                        .as_ref()
+                        .map(orchbee_workbench_protocol::PresentationLaunchProgram::as_str),
+                    Some("old-agent.exe")
+                );
+                assert_eq!(new.launch_program, None);
                 old.binding = new.binding.clone();
                 old.presentation_id = new.presentation_id.clone();
+                old.launch_program = None;
             }
         }
         assert_eq!(
             after, expected,
-            "only Presentation, binding and revision change"
+            "only Presentation, binding, launched program and revision change"
         );
         let resumed = fixture.apply(Action::Resume {
             operation_id: id(40),

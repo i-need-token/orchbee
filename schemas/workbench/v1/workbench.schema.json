@@ -159,10 +159,20 @@
 				"launchFailure": {
 					"$ref": "#/$defs/presentationLaunchFailure"
 				},
+				"launchProgram": {
+					"$ref": "#/$defs/presentationLaunchProgram"
+				},
 				"presentationId": {
 					"$ref": "#/$defs/presentationId"
 				}
 			}
+		},
+		"presentationLaunchProgram": {
+			"$comment": "The file name of the program the current binding launches. Requires a non-null binding on the same Presentation; Rust and TypeScript enforce that and the 128-byte UTF-8 limit.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 128,
+			"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f/\\\\\\uD800-\\uDFFF]*$"
 		},
 		"presentationLaunchFailure": {
 			"$comment": "Requires a non-null binding on the same Presentation; Rust and TypeScript enforce that and the 30 KiB worst-case escaped-content budget.",

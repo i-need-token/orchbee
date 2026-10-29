@@ -5,9 +5,10 @@ use super::{
 };
 use orchbee_workbench_protocol::{
     MAXIMUM_CHILD_PRESENTATIONS_PER_PANEL, MAXIMUM_PANEL_NODES_PER_CONTEXT, PanelNode,
-    Presentation, PresentationBinding, TerminalContext, TerminalPresentationId, WorkbenchAction,
-    WorkbenchPanelId, WorkbenchPanelSlotId, WorkbenchPanelSplitDirection,
-    WorkbenchPanelTerminalTarget, WorkbenchRejectionReason, WorkbenchSplitId,
+    Presentation, PresentationBinding, PresentationLaunchProgram, TerminalContext,
+    TerminalPresentationId, WorkbenchAction, WorkbenchPanelId, WorkbenchPanelSlotId,
+    WorkbenchPanelSplitDirection, WorkbenchPanelTerminalTarget, WorkbenchRejectionReason,
+    WorkbenchSplitId,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -54,6 +55,7 @@ impl TerminalPlacement {
         presentation_id: &TerminalPresentationId,
         action: &WorkbenchAction,
         binding: PresentationBinding,
+        launch_program: Option<PresentationLaunchProgram>,
     ) -> bool {
         match (self, action) {
             (
@@ -80,6 +82,7 @@ impl TerminalPlacement {
                     label: label.as_str(),
                     right_click: *right_click,
                     binding,
+                    launch_program,
                 },
             ),
             (
@@ -105,6 +108,7 @@ impl TerminalPlacement {
                     custom_label: None,
                     binding: Some(binding),
                     launch_failure: None,
+                    launch_program,
                 });
                 true
             }
@@ -133,6 +137,7 @@ impl TerminalPlacement {
                     return false;
                 };
                 member.binding = Some(binding);
+                member.launch_program = launch_program;
                 true
             }
             // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.

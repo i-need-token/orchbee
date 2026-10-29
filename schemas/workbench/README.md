@@ -102,8 +102,8 @@ contains:
 - ordered Tab groups and Tabs;
 - complete binary Panel/Split topology for every Tab;
 - one primary and zero or more child Terminal Presentations per Panel; and
-- an optional opaque Worker/Terminal binding for a Presentation, with an optional launch failure for
-  that binding.
+- an optional opaque Worker/Terminal binding for a Presentation, with an optional launched program
+  and launch failure for that binding.
 
 Each Directory carries its typed identity, exact Worker identity, and an absolute local-platform UTF-8 path.
 Each Workspace carries required nullable `projectId` and primary Directory references. Project
@@ -118,7 +118,12 @@ no attachable Terminal identity; a Client must not infer a lifecycle reason. An 
 started. It requires a binding, names the launched absolute executable or `null` for a
 Worker-resolved default shell, and carries the closed `terminal-create-failed` reason; arguments,
 environment and OS error text never enter it. It is runtime-only: rebinding or checkpoint capture
-removes it, and Clients show the failure instead of attaching.
+removes it, and Clients show the failure instead of attaching. An optional `launchProgram` names the
+program the current binding launches by its executable's file name: at most 128 UTF-8 bytes without
+a path separator or control character, so no directory, argument or environment enters it. The
+Server commits it in the same revision as the binding, so a successful launch adds no revision of its
+own. It requires a binding and, like `launchFailure`, is runtime-only: it is replaced or removed with
+the binding and never captured into a checkpoint. Its absence names no program.
 
 Project, Directory, Workspace, and Terminal Context arrays use ascending identity order. Directory
 identities are unique across the Session projection, and a non-null Workspace reference resolves in

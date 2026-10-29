@@ -37,7 +37,7 @@ use crate::{
     agent::AgentRuntimeSnapshot,
     agent_service::{AgentService, PreparedUnavailable},
     session_coordinator::SessionCoordinator,
-    terminal_coordinator::{Completion, PreparedOperation, WorkerPlacement},
+    terminal_coordinator::{Completion, LaunchCapture, PreparedOperation, WorkerPlacement},
     worker_obcn_carrier::{
         WorkerOperationRequest, WorkerOperationResult, WorkerRequestError, WorkerRequestHandle,
     },
@@ -236,16 +236,27 @@ impl LocalTerminalService {
             );
         }
         let busy = busy_result(&request);
+        // Only a creation reads the preference store, and it does so before either lock.
+        let capture = match &request {
+            ClientMessage::TerminalCreate(_) => self.launch_capture(),
+            _ => LaunchCapture::unavailable(),
+        };
         let (prepared, handle) = {
             let Ok(workers) = self.workers.lock() else {
                 return busy;
             };
             let handle = workers.request_handle();
+            let capture = capture.with_system_shell(workers.system_shell());
             let Ok(mut coordinator) = self.coordinator.lock() else {
                 return busy;
             };
             (
-                coordinator.prepare(request, placement(handle.as_ref()), lease_expiry()),
+                coordinator.prepare(
+                    request,
+                    placement(handle.as_ref()),
+                    lease_expiry(),
+                    &capture,
+                ),
                 handle,
             )
         };
@@ -323,11 +334,9 @@ mod tests;
 impl LocalTerminalService {
     fn submit(&self, handle: &WorkerRequestHandle, message: &CapabilityNodeMessage) -> Completion {
         let request = match message {
+            // Planning attached the capture the launch dispatches with.
             CapabilityNodeMessage::AuthorizedTerminalLaunch(request) => {
-                let Some(request) = self.with_launch_preferences(request) else {
-                    return Completion::Unavailable;
-                };
-                WorkerOperationRequest::Launch(request)
+                WorkerOperationRequest::Launch(request.clone())
             }
             CapabilityNodeMessage::AuthorizedTerminalStart(request) => {
                 WorkerOperationRequest::Start(*request)

@@ -166,6 +166,7 @@ impl LocalTerminalService {
                 client::StartMode::Immediate { geometry },
                 Some(launch),
             );
+            let capture = self.launch_capture();
             let workers = self.workers.lock().map_err(|_| Failure::Unavailable)?;
             let handle = workers.request_handle();
             let (prepared, authorization) = self
@@ -178,6 +179,7 @@ impl LocalTerminalService {
                     frozen.snapshot.revision,
                     placement(handle.as_ref()),
                     lease_expiry(),
+                    &capture,
                 )?;
             self.popups
                 .0

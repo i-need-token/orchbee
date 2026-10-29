@@ -20,6 +20,12 @@ impl SystemShell {
         Self(Ok(launch))
     }
 
+    /// The resolved shell's file name, which this generation's `WorkerHello` reports.
+    pub(crate) fn file_name(&self) -> Option<&str> {
+        let executable = &self.0.as_ref().ok()?.executable;
+        executable.rsplit(['/', '\\']).next()
+    }
+
     /// # Errors
     /// The generation's resolution failure, which refuses every System-shell launch alike.
     pub(crate) fn launch(&self) -> Result<DefaultInteractiveLaunch, DefaultInteractiveLaunchError> {

@@ -124,6 +124,8 @@ fn binding_adopts_only_one_exact_members_binding_and_no_other_tree_change() {
     let mut value = serde_json::to_value(&before).unwrap();
     value["root"]["childPresentations"][0]["binding"] =
         json!({"terminalId":id(5),"workerId":id(6)});
+    // The Server commits the launched program with the binding it names.
+    value["root"]["childPresentations"][0]["launchProgram"] = json!("pwsh.exe");
     let after: Tab = serde_json::from_value(value.clone()).unwrap();
     let panel = WorkbenchPanelId::parse(&id(2)).unwrap();
     let presentation = TerminalPresentationId::parse(&id(4)).unwrap();
@@ -148,6 +150,17 @@ fn binding_adopts_only_one_exact_members_binding_and_no_other_tree_change() {
             "{pointer}"
         );
     }
+    let mut elsewhere = value;
+    elsewhere["root"]["primaryPresentation"]["launchProgram"] = json!("cmd.exe");
+    assert!(
+        bind(
+            &before,
+            &serde_json::from_value(elsewhere).unwrap(),
+            &panel,
+            &presentation
+        )
+        .is_err()
+    );
 }
 #[test]
 fn final_observation_requires_child_order_start_intent_labels_and_policy() {

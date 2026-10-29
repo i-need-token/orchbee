@@ -1384,6 +1384,7 @@ fn snapshot() -> Snapshot {
                         label: "presentation".into(),
                         presentation_id: TerminalPresentationId::parse(&id(6)).unwrap(),
                         launch_failure: None,
+                        launch_program: None,
                     },
                 },
                 tab_id: orchbee_workbench_protocol::WorkbenchTabId::parse(&id(7)).unwrap(),

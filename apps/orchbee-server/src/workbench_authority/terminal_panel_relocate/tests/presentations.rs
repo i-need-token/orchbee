@@ -26,6 +26,7 @@ pub(super) fn add_children(node: &mut PanelNode, next: &mut u128) {
                     ),
                     binding: Some(binding(*next + 100_000)),
                     launch_failure: None,
+                    launch_program: None,
                 });
             }
         }

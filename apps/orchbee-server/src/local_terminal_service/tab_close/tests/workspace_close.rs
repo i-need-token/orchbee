@@ -1,4 +1,5 @@
 use super::*;
+use crate::terminal_coordinator::LaunchCapture;
 mod idle;
 use crate::session_coordinator::PendingTerminalTabCreate;
 use orchbee_client_server_protocol::RequestId;
@@ -148,6 +149,7 @@ fn pending_create(
             Some(RequestId::parse(id(request + 1).as_str()).unwrap()),
             lease_expiry(),
             Some(worker()),
+            &LaunchCapture::absent(),
         )
     else {
         panic!("pending Create")

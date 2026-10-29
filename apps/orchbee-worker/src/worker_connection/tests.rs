@@ -13,7 +13,7 @@ fn separate_windows_connections_retain_their_own_admitted_worker_identity()
         ));
         let listener = LocalListener::bind(&endpoint)?;
         listener.set_nonblocking(true)?;
-        let peer = thread::spawn(move || -> io::Result<WorkerId> {
+        let peer = thread::spawn(move || -> io::Result<(WorkerId, Option<String>)> {
             let deadline = Instant::now() + Duration::from_secs(3);
             let mut stream = loop {
                 match listener.accept() {
@@ -42,11 +42,21 @@ fn separate_windows_connections_retain_their_own_admitted_worker_identity()
                 },
             )
             .map_err(io::Error::other)?;
-            Ok(hello.worker_id())
+            Ok((
+                hello.worker_id(),
+                hello.system_shell().map(|name| name.as_str().to_owned()),
+            ))
         });
-        let connection = connect_to_server(&endpoint, "caller-context-test");
-        let admitted = peer.join().expect("peer thread")?;
+        // The hello names the same pinned resolution every default launch of the generation uses.
+        let system_shell = SystemShell::pinned(orchbee_local_runtime::DefaultInteractiveLaunch {
+            executable: r"C:\Program Files\PowerShell\7\pwsh.exe".into(),
+            arguments: Vec::new(),
+            environment: crate::default_interactive_launch::default_launch_environment(),
+        });
+        let connection = connect_to_server(&endpoint, "caller-context-test", &system_shell);
+        let (admitted, reported_shell) = peer.join().expect("peer thread")?;
         let connection = connection?;
+        assert_eq!(reported_shell.as_deref(), Some("pwsh.exe"));
         assert_eq!(connection.worker_id, admitted);
         assert_eq!(connection.generation().get(), 7);
         assert_ne!(admitted.as_bytes(), [0; 16]);

@@ -133,6 +133,7 @@ fn workspace_uses_first_terminal_primary_instead_of_later_tab_or_child_agent() {
         }),
         label: "focused Agent".into(),
         launch_failure: None,
+        launch_program: None,
     });
     let source =
         AddressedWorktreeSource::capture(&value, &SidebarWorktreeTarget::Workspace(workspace(80)))

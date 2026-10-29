@@ -15,14 +15,19 @@ one response frame from Server to Worker. After acceptance, a local Server adapt
 same stream as a separately owned OBCN carrier; no further OBLW frame is valid. An OBLW frame
 contains the fixed `OBLW` magic, unsigned big-endian protocol version, unsigned big-endian payload
 length, and a payload of at most 256 bytes. Unknown magic, version, kind, enum value, missing byte,
-extra byte, oversized payload, zero generation, invalid UTF-8, empty cohort, non-ASCII cohort, or a
-cohort over 64 bytes is rejected.
+extra byte, oversized payload, zero generation, invalid UTF-8, empty cohort, non-ASCII cohort, a
+cohort over 64 bytes, or an invalid System shell name is rejected.
 
-| Message          | Fields and meaning                                                                                                                                  |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `WorkerHello`    | Exact executable cohort plus a 16-byte opaque development Worker identity. The codec admits all bit patterns; it requests no work or capability.    |
-| `WorkerAccepted` | One nonzero process-local Server generation. It acknowledges the exact connection only.                                                             |
-| `Rejected`       | One typed reason: incompatible protocol, incompatible cohort, duplicate Worker, wrong message, malformed frame, or timeout. It grants no authority. |
+| Message          | Fields and meaning                                                                                                                                                                                                                    |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WorkerHello`    | Exact executable cohort, a 16-byte opaque development Worker identity, and the optional file name of the System shell this Worker generation resolved. The codec admits all identity bit patterns; it requests no work or capability. |
+| `WorkerAccepted` | One nonzero process-local Server generation. It acknowledges the exact connection only.                                                                                                                                               |
+| `Rejected`       | One typed reason: incompatible protocol, incompatible cohort, duplicate Worker, wrong message, malformed frame, or timeout. It grants no authority.                                                                                   |
+
+The System shell name follows the cohort as one length byte and that many UTF-8 bytes; zero means
+the generation reports none. A name is nonempty, at most 128 bytes, and free of path separators and
+control characters, so the largest hello is 211 bytes. It names the program; it carries no
+directory, argument or environment and grants no launch authority.
 
 The protocol crate encodes and decodes complete frames and provides bounded blocking I/O adapters.
 It does not retry, retain a connection, choose an endpoint, bind a listener, spawn a thread or

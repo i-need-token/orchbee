@@ -118,6 +118,7 @@ fn exposure_walks_nested_panels_and_checks_primary_and_child_presentations() {
                                 presentation_id: TerminalPresentationId::parse(&identity(104))
                                     .unwrap(),
                                 launch_failure: None,
+                                launch_program: None,
                             }],
                             panel_id: WorkbenchPanelId::parse(&identity(102)).unwrap(),
                             primary_presentation: Presentation {
@@ -127,6 +128,7 @@ fn exposure_walks_nested_panels_and_checks_primary_and_child_presentations() {
                                 presentation_id: TerminalPresentationId::parse(&identity(103))
                                     .unwrap(),
                                 launch_failure: None,
+                                launch_program: None,
                             },
                         },
                         slot_id: WorkbenchPanelSlotId::parse(&identity(101)).unwrap(),
@@ -149,6 +151,7 @@ fn exposure_walks_nested_panels_and_checks_primary_and_child_presentations() {
                                             )
                                             .unwrap(),
                                             launch_failure: None,
+                                            launch_program: None,
                                         },
                                     },
                                     slot_id: WorkbenchPanelSlotId::parse(&identity(107)).unwrap(),
@@ -167,6 +170,7 @@ fn exposure_walks_nested_panels_and_checks_primary_and_child_presentations() {
                                             )
                                             .unwrap(),
                                             launch_failure: None,
+                                            launch_program: None,
                                         },
                                     },
                                     slot_id: WorkbenchPanelSlotId::parse(&identity(110)).unwrap(),

@@ -208,7 +208,8 @@ fn old_dispose_result_settles_after_actual_worker_replacement_without_adoption()
     drop(peer);
     let _exit = worker_thread.join().unwrap();
     let worker_id = orchbee_local_worker_protocol::WorkerId::from_bytes([9; 16]);
-    let WorkerAdmission::Accepted { generation } = service.workers.lock().unwrap().admit(worker_id)
+    let WorkerAdmission::Accepted { generation } =
+        service.workers.lock().unwrap().admit(worker_id, None)
     else {
         panic!("replacement admission")
     };

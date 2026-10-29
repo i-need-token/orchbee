@@ -108,7 +108,7 @@ impl WorkerPeer {
     fn new(service: &LocalTerminalService) -> Self {
         let worker_id = orchbee_local_worker_protocol::WorkerId::from_bytes([9; 16]);
         let WorkerAdmission::Accepted { generation } =
-            service.workers.lock().unwrap().admit(worker_id)
+            service.workers.lock().unwrap().admit(worker_id, None)
         else {
             panic!("Worker admission expected")
         };
