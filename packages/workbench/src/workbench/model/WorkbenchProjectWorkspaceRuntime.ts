@@ -13,7 +13,7 @@ import {
 } from '@orchbee/workbench-client-protocol';
 
 import type { WorkbenchProjectCreationReceipt } from '../types/workbench-project-folder-acquisition';
-import type { WorkbenchClientView } from '../document';
+import type { WorkbenchClientView } from '../document/workbench-client-view';
 import {
 	createProjectWorkspaceState,
 	resolveTerminalCwd,

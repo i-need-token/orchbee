@@ -7,7 +7,7 @@ import {
 	terminalPresentationRemovalId,
 } from '@orchbee/workbench-client-protocol';
 
-import { parseWorkbenchClientView } from '../../document';
+import { parseWorkbenchClientView } from '../../document/workbench-client-view';
 import { WorkbenchProjectWorkspaceRuntime } from '../WorkbenchProjectWorkspaceRuntime';
 
 function composition(scope: string, allocate = () => undefined) {

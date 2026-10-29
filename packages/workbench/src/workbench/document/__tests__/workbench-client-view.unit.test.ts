@@ -14,7 +14,7 @@ import {
 	parseWorkbenchClientView,
 	reconcileWorkbenchClientView,
 	type WorkbenchClientView,
-} from '..';
+} from '../workbench-client-view';
 
 function emptySharedDocument() {
 	return createWorkbenchSharedDocument({
