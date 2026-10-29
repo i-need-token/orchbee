@@ -39,9 +39,12 @@ as `PowerShell`, `powershell` as `Windows PowerShell`, `cmd` as `Command Prompt`
 `zh-CN`), `bash` as `Bash` and `zsh` as `Zsh`. Any other program shows its file name without its
 directory or a `.exe`, `.com`, `.bat` or `.cmd` extension, so `C:\tools\node.exe` shows `node`.
 Matching ignores ASCII case. Launch-profile names are not Presentation facts, so chrome does not use
-them. Outside Windows console titles, Clients learn a launched program only from a launch failure, so
-a started POSIX program that sets no title shows its position. The GUI Workbench does not yet attach
-to native Sessions and keeps its own title resolution; this naming is a staged native-only delivery.
+them. A Client learns a started program only from a title it observes: the Windows console host
+reports no title until the program sets one (Command Prompt does when it runs a command), and POSIX
+programs report only titles they set. On every platform, a program that has reported no title
+therefore shows its position, as does a Tab whose terminal this Client has not yet observed. The GUI
+Workbench does not yet attach to native Sessions and keeps its own title resolution; this naming is a
+staged native-only delivery.
 
 Automatic rename drafts start empty with the same current display name as an informational
 placeholder; only typed text can submit. Fixed names prefill the editor. The native TUI renders the existing

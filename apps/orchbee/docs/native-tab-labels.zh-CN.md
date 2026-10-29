@@ -30,9 +30,11 @@ Presentation 标签。Duplicate placement 则复制精确源原始标签及自�
 `powershell` 显示为 `Windows PowerShell`，`cmd` 显示为 `Command Prompt`（`zh-CN` 为
 `命令提示符`），`bash` 显示为 `Bash`，`zsh` 显示为 `Zsh`。其他程序显示去掉目录及 `.exe`、
 `.com`、`.bat` 或 `.cmd` 扩展名后的文件名，例如 `C:\tools\node.exe` 显示为 `node`。匹配不区分
-ASCII 大小写。启动配置名称不是 Presentation 事实，因此界面不使用它。除 Windows 控制台标题外，
-Client 只能从启动失败得知所启动的程序，因此已启动但未设置标题的 POSIX 程序显示其位置。GUI
-Workbench 尚未接入原生 Session，仍使用自己的标题解析；此命名是仅限原生界面的分阶段交付。
+ASCII 大小写。启动配置名称不是 Presentation 事实，因此界面不使用它。Client 只能从观察到的标题
+得知已启动的程序：Windows 控制台宿主在程序设置标题之前不报告任何标题（命令提示符在运行命令时会
+设置），POSIX 程序只报告自己设置的标题。因此在所有平台上，尚未报告标题的程序显示其位置，本
+Client 尚未观察过其终端的 Tab 也是如此。GUI Workbench 尚未接入原生 Session，仍使用自己的标题
+解析；此命名是仅限原生界面的分阶段交付。
 
 自动重命名草稿初始为空，以相同当前显示名称作说明性占位符；只有输入的文本可以提交。
 固定名称预填编辑器。原生 TUI 覆盖整个已绘制 Tab（包括关闭控件），沿标签栏尽可能扩展到至少 24 列，
@@ -79,4 +81,4 @@ CLI Tab 行、Workspace 的 Tab 引用以及所有 Tab 标签选择器均使用�
 
 紧凑标签栏溢出时保留当前标签及分组上下文，在空间允许时于每个隐藏的一侧绘制省略标记。每个标记都是字形动作，释放时把标签栏翻动一页：末端标记打开从当前窗口省略或缩短的第一项开始的窗口，首端标记打开恰好在当前窗口之前结束的窗口。翻页后的窗口无论当前标签在哪里都从该项开始，且不显示分组前缀。当前标签不变，或因指针激活该窗口中已绘制的标签而改变时，窗口保持不变；当前标签的其他变化，例如键盘导航或新建标签，都会让标签栏回到围绕当前标签的窗口。关闭作为窗口起点的标签时，起点移到下一个仍存在的标签，其次是上一个。翻页只在客户端本地进行，不改变任何规范状态。关闭控件与省略标记各占独立区域。截断的名称在省略号前至少保留前三格，较短的名称保留全部；在状态字形旁放不下这一最小宽度的标签不绘制成截断残片，由边缘的省略标记代表。
 
-<!-- documentation-pairing: english-sha256=28a3c6b7dab46ab1f9aef59cfb3b6bdc7d0732fe36e3623a0bce2597a12f5a98 zh-cn-sha256=a0ee54c6bf8b4e5ab952944f93ca62ef8f62052865adac3ddddb011d35f56148 -->
+<!-- documentation-pairing: english-sha256=e0e6dee1e150bfbdba701b0edfabc83dbadfd9e1a7f3acd5b832cd48e0d7bae8 zh-cn-sha256=7c68ac60c3acb8c6e663678ea7fd88d8ff333a61384b90f58885fae17e1c84c0 -->
