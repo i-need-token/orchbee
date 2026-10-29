@@ -425,7 +425,7 @@ pub(crate) struct TabAgent {
 }
 
 /// Blocked, error, done, working, then idle: the order a person needs to act on them.
-const fn urgency(state: MetadataState) -> u8 {
+pub(crate) const fn urgency(state: MetadataState) -> u8 {
     match state {
         MetadataState::Blocked => 0,
         MetadataState::Error => 1,

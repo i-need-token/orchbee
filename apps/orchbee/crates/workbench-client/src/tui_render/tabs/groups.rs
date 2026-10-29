@@ -2,7 +2,7 @@
 //! markers, painted with the hit regions derived from the same pass.
 use super::TabDisplay;
 use crate::{
-    machine_picker::TabAgent,
+    machine_picker::{TabAgent, urgency},
     terminal_text::{display_width, truncate_display},
     tui_pointer::ProjectedPointer,
     tui_render::{
@@ -11,7 +11,7 @@ use crate::{
     },
     tui_theme::{Role, Theme},
 };
-use orchbee_workbench_protocol::{TabGroup, TabGroupColor};
+use orchbee_workbench_protocol::{MetadataState, TabGroup, TabGroupColor};
 use ratatui::{
     Frame,
     layout::Rect,
@@ -41,6 +41,18 @@ pub(in crate::tui_render) enum StripPart {
     /// An edge marker that pages the strip. Its index names the new window's first token: that
     /// Tab, or the header of its group when `header` is set.
     Page { header: bool },
+}
+
+/// What a recorded part shows that its pointer tooltip names.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(in crate::tui_render) struct PartCue<'a> {
+    /// The Agent states behind the token's glyph, most urgent first: a Tab's own, or each state
+    /// among a collapsed group's hidden members.
+    pub(in crate::tui_render) states: &'a [MetadataState],
+    /// The token shows the unread dot.
+    pub(in crate::tui_render) unread: bool,
+    /// The edge marker pages toward later Tabs rather than earlier ones.
+    pub(in crate::tui_render) later: bool,
 }
 
 /// The first token of a paged strip window, by display index: the Tab, or its group's header.
@@ -81,6 +93,8 @@ struct Token {
     /// The header of the group this token belongs to.
     header: Option<usize>,
     agent: Option<TabAgent>,
+    /// Each distinct state behind `agent`, most urgent first.
+    states: Vec<MetadataState>,
     kind: Kind,
 }
 
@@ -211,14 +225,20 @@ fn tokens(tabs: &[GroupTabDisplay<'_>], unnamed_group: &str, theme: &Theme) -> V
                     .collect();
                 let active = members.iter().position(|item| item.tab.active);
                 current_header = Some(tokens.len());
+                // A collapsed group carries its hidden members' cue.
+                let hidden: Vec<_> = if item.collapsed {
+                    members.iter().filter_map(|item| item.agent).collect()
+                } else {
+                    Vec::new()
+                };
+                let mut states: Vec<_> = hidden.iter().map(|agent| agent.state).collect();
+                states.sort_by_key(|state| urgency(*state));
+                states.dedup();
                 tokens.push(Token {
                     index: index + active.unwrap_or(0),
                     header: None,
-                    // A collapsed group carries its hidden members' cue.
-                    agent: item
-                        .collapsed
-                        .then(|| summarize(members.iter().filter_map(|item| item.agent)))
-                        .flatten(),
+                    agent: summarize(hidden.into_iter()),
+                    states,
                     kind: Kind::Header {
                         color: group.color,
                         collapsed: item.collapsed,
@@ -245,6 +265,7 @@ fn tokens(tabs: &[GroupTabDisplay<'_>], unnamed_group: &str, theme: &Theme) -> V
             index,
             header: current_header,
             agent: item.agent,
+            states: item.agent.map(|agent| agent.state).into_iter().collect(),
             kind: Kind::Tab {
                 active: item.tab.active,
                 checked: item.selected,
@@ -261,6 +282,7 @@ fn tokens(tabs: &[GroupTabDisplay<'_>], unnamed_group: &str, theme: &Theme) -> V
                 index,
                 header: None,
                 agent: None,
+                states: Vec::new(),
                 kind: Kind::Divider,
             });
         }
@@ -296,7 +318,7 @@ pub(in crate::tui_render) fn render<C, P, R>(
 ) -> u16
 where
     P: FnMut(&C, usize, StripPart, Rect) -> ProjectedPointer,
-    R: FnMut(&mut C, usize, StripPart, Rect),
+    R: FnMut(&mut C, usize, StripPart, Rect, PartCue<'_>),
 {
     if area.is_empty() {
         return 0;
@@ -429,7 +451,15 @@ where
     }
     if leading {
         let target = previous_page(&tokens, &widths, first, window_width);
-        paint_page_marker(frame, area, 0, &tokens[target], theme, &mut interactions);
+        paint_page_marker(
+            frame,
+            area,
+            0,
+            &tokens[target],
+            false,
+            theme,
+            &mut interactions,
+        );
     }
     if trailing {
         // A rule never opens a window.
@@ -442,6 +472,7 @@ where
                 area,
                 content_end + 1,
                 target,
+                true,
                 theme,
                 &mut interactions,
             ),
@@ -515,17 +546,19 @@ fn previous_page(tokens: &[Token], widths: &[usize], first: usize, window: usize
     start
 }
 
-/// Paints an edge marker as a glyph action that pages the strip to start at `target`.
+/// Paints an edge marker as a glyph action that pages the strip to start at `target`, toward
+/// `later` Tabs or earlier ones.
 fn paint_page_marker<C, P, R>(
     frame: &mut Frame<'_>,
     area: Rect,
     offset: usize,
     target: &Token,
+    later: bool,
     theme: &Theme,
     interactions: &mut GroupInteractions<'_, C, P, R>,
 ) where
     P: FnMut(&C, usize, StripPart, Rect) -> ProjectedPointer,
-    R: FnMut(&mut C, usize, StripPart, Rect),
+    R: FnMut(&mut C, usize, StripPart, Rect, PartCue<'_>),
 {
     let marker = theme.glyphs.ellipsis;
     let (Ok(offset), Ok(width)) = (u16::try_from(offset), u16::try_from(display_width(marker)))
@@ -549,7 +582,15 @@ fn paint_page_marker<C, P, R>(
     frame
         .buffer_mut()
         .set_stringn(rect.x, rect.y, marker, usize::from(width), style);
-    interactions.record(target.index, part, rect);
+    interactions.record(
+        target.index,
+        part,
+        rect,
+        PartCue {
+            later,
+            ..PartCue::default()
+        },
+    );
 }
 
 fn paint_text(frame: &mut Frame<'_>, area: Rect, offset: usize, text: &str, style: Style) {
@@ -577,7 +618,7 @@ fn paint_token<C, P, R>(
     interactions: &mut GroupInteractions<'_, C, P, R>,
 ) where
     P: FnMut(&C, usize, StripPart, Rect) -> ProjectedPointer,
-    R: FnMut(&mut C, usize, StripPart, Rect),
+    R: FnMut(&mut C, usize, StripPart, Rect, PartCue<'_>),
 {
     let on_screen = |rect: Rect| frame.area().intersection(rect) == rect;
     let close = pieces
@@ -659,14 +700,19 @@ fn paint_token<C, P, R>(
     if !visible {
         return;
     }
-    interactions.record(token.index, part, body);
+    let cue = PartCue {
+        states: &token.states,
+        unread: token.agent.is_some_and(|agent| agent.unread),
+        later: false,
+    };
+    interactions.record(token.index, part, body, cue);
     if let Some(close) = close {
         let close_part = if revealed {
             StripPart::Close
         } else {
             StripPart::Tab
         };
-        interactions.record(token.index, close_part, close);
+        interactions.record(token.index, close_part, close, cue);
     }
 }
 
@@ -785,7 +831,7 @@ pub(in crate::tui_render) struct GroupInteractions<'a, C, P, R> {
 impl<'a, C, P, R> GroupInteractions<'a, C, P, R>
 where
     P: for<'context> FnMut(&'context C, usize, StripPart, Rect) -> ProjectedPointer,
-    R: for<'context> FnMut(&'context mut C, usize, StripPart, Rect),
+    R: for<'context> FnMut(&'context mut C, usize, StripPart, Rect, PartCue<'_>),
 {
     pub(in crate::tui_render) const fn new(
         context: &'a mut C,
@@ -803,13 +849,13 @@ where
 impl<C, P, R> GroupInteractions<'_, C, P, R>
 where
     P: FnMut(&C, usize, StripPart, Rect) -> ProjectedPointer,
-    R: FnMut(&mut C, usize, StripPart, Rect),
+    R: FnMut(&mut C, usize, StripPart, Rect, PartCue<'_>),
 {
     fn project(&mut self, index: usize, part: StripPart, rect: Rect) -> ProjectedPointer {
         (self.project_pointer)(&*self.context, index, part, rect)
     }
 
-    fn record(&mut self, index: usize, part: StripPart, rect: Rect) {
-        (self.record_token)(self.context, index, part, rect);
+    fn record(&mut self, index: usize, part: StripPart, rect: Rect, cue: PartCue<'_>) {
+        (self.record_token)(self.context, index, part, rect, cue);
     }
 }

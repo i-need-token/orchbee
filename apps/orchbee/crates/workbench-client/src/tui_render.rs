@@ -1452,15 +1452,7 @@ fn render_native_workbench(
     {
         tabs_area.width = end.saturating_sub(tabs_area.x);
     }
-    render_tab_strip(
-        frame,
-        tabs_area,
-        native,
-        &client_view.machines,
-        locale,
-        theme,
-        hits,
-    );
+    render_tab_strip(frame, tabs_area, native, client_view, locale, theme, hits);
     if let Some(selector) = &strip_selector {
         frame
             .buffer_mut()
@@ -1896,12 +1888,12 @@ fn render_tab_strip(
     frame: &mut Frame<'_>,
     tabs_area: Rect,
     native: &WorkbenchClientView<'_>,
-    machines: &crate::machine_picker::Picker,
-
+    view: &ClientView,
     locale: Locale,
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) {
+    let machines = &view.machines;
     let text = locale.shell();
     if tabs_area.is_empty() {
         return;
@@ -2015,9 +2007,19 @@ fn render_tab_strip(
                     };
                     hits.projected_tab_pointer(source, &target, rect)
                 },
-                &mut |hits, index, part, rect| {
+                &mut |hits, index, part, rect, cue| {
+                    let active = native.tab(index).is_some_and(|tab| tab.active());
+                    let content = tabs::strip_tooltip(view, active, part, cue, locale, theme);
                     if is_control(part) {
                         if let Some(target) = control_target(index, part) {
+                            if let Some(content) = content {
+                                hits.record_interaction_tooltip(
+                                    HitLayer::Foreground,
+                                    rect,
+                                    &target,
+                                    content,
+                                );
+                            }
                             hits.record_interaction(
                                 HitLayer::Foreground,
                                 rect,
@@ -2029,6 +2031,14 @@ fn render_tab_strip(
                     } else if let (Some(source), Some(target)) =
                         (tab_source.as_ref(), tab_target(index, part))
                     {
+                        if let Some(content) = content {
+                            hits.record_tooltip(
+                                HitLayer::Foreground,
+                                rect,
+                                target.clone(),
+                                content,
+                            );
+                        }
                         hits.record_tab_target(source, rect, target);
                     }
                 },
@@ -2059,6 +2069,12 @@ fn render_tab_strip(
                 ),
                 theme,
             ) {
+                hits.record_interaction_tooltip(
+                    HitLayer::Foreground,
+                    rect,
+                    &interaction,
+                    tabs::create_tooltip(view, locale, theme),
+                );
                 hits.record_interaction(HitLayer::Foreground, rect, painted, interaction, spec);
             }
         }

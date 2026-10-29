@@ -48,7 +48,7 @@ pub(super) fn render(
         tabs::groups::GroupInteractions::new(
             &mut (),
             &mut |_, _, _, _| ProjectedPointer::Rest,
-            &mut |_, _, _, _| {},
+            &mut |_, _, _, _, _| {},
         ),
     );
     frame.render_widget(

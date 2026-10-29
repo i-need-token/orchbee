@@ -56,8 +56,10 @@ pub fn render_tab_drag_preview(
 }
 
 use crate::{
+    client_view::{ClientAction, ClientView},
+    localization::{Locale, MenuLabel, TooltipLabel},
     terminal_text::{sanitize_terminal_text, truncate_display},
-    tui_pointer::ProjectedPointer,
+    tui_pointer::{ProjectedPointer, TooltipContent},
     tui_theme::{Role, Theme},
 };
 
@@ -72,6 +74,55 @@ pub(super) struct TabDisplay<'a> {
     pub(super) position: usize,
     pub(super) active: bool,
     pub(super) label: std::borrow::Cow<'a, str>,
+}
+
+/// What a pointer resting on one strip part reads: a Tab or group header names the glyphs it
+/// shows, close names its key only on the current Tab, the one the key closes, and an edge marker
+/// names the direction it pages.
+pub(super) fn strip_tooltip(
+    view: &ClientView,
+    active: bool,
+    part: groups::StripPart,
+    cue: groups::PartCue<'_>,
+    locale: Locale,
+    theme: &Theme,
+) -> Option<TooltipContent> {
+    match part {
+        groups::StripPart::Tab | groups::StripPart::Header => super::tooltip::describe(
+            None,
+            super::tooltip::legend(
+                cue.states.iter().copied(),
+                cue.unread,
+                view.machines.working_frame(),
+                locale,
+                theme,
+            ),
+        ),
+        groups::StripPart::Close => Some(TooltipContent::Action {
+            label: locale.menu_action(MenuLabel::CloseSelectedTabs).to_owned(),
+            key: active
+                .then(|| super::tooltip::action_key(view, ClientAction::RequestCloseTab, theme))
+                .flatten(),
+        }),
+        groups::StripPart::Page { .. } => Some(TooltipContent::Action {
+            label: locale
+                .tooltip_label(if cue.later {
+                    TooltipLabel::LaterTabs
+                } else {
+                    TooltipLabel::EarlierTabs
+                })
+                .to_owned(),
+            key: None,
+        }),
+    }
+}
+
+/// The create control names its action and the key that does the same.
+pub(super) fn create_tooltip(view: &ClientView, locale: Locale, theme: &Theme) -> TooltipContent {
+    TooltipContent::Action {
+        label: locale.menu_action(MenuLabel::NewTab).to_owned(),
+        key: super::tooltip::action_key(view, ClientAction::CreateTab, theme),
+    }
 }
 
 /// Metadata decorates display only. Sanitizing, clipping and hit width still

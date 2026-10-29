@@ -36,12 +36,41 @@ fn draw_from(
                 GroupInteractions::new(
                     &mut (),
                     &mut |_, index, part, _| pointer(index, part),
-                    &mut |_, index, part, rect| hits.push((index, part, rect)),
+                    &mut |_, index, part, rect, _| hits.push((index, part, rect)),
                 ),
             );
         })
         .unwrap();
     (terminal.backend().buffer().clone(), hits)
+}
+
+type Cue = (StripPart, Rect, Vec<MetadataState>, bool, bool);
+
+/// Each recorded part and what its tooltip names: Agent states, unread, and the paging direction.
+fn cues(tabs: &[GroupTabDisplay<'_>], theme: &Theme, width: u16) -> Vec<Cue> {
+    let mut terminal = Terminal::new(TestBackend::new(width, 1)).unwrap();
+    let mut cues = Vec::new();
+    terminal
+        .draw(|frame| {
+            render(
+                frame,
+                frame.area(),
+                tabs,
+                theme,
+                "Unnamed group",
+                0,
+                None,
+                GroupInteractions::new(
+                    &mut (),
+                    &mut |_, _, _, _| ProjectedPointer::Rest,
+                    &mut |_, _, part, rect, cue| {
+                        cues.push((part, rect, cue.states.to_vec(), cue.unread, cue.later));
+                    },
+                ),
+            );
+        })
+        .unwrap();
+    cues
 }
 
 fn text(buffer: &Buffer) -> String {
@@ -106,6 +135,13 @@ fn overflow_markers_keep_the_active_tab_visible_and_page_the_strip() {
                         .iter()
                         .all(|(index, _, rect)| rect.x > marker.right() && index > target)
                 );
+            }
+            // Each marker's tooltip names the direction it pages.
+            for (_, rect, _, _, later) in cues(&tabs, &theme, 36)
+                .into_iter()
+                .filter(|(part, ..)| is_page(*part))
+            {
+                assert_eq!(later, rect.x > 0);
             }
             if active < 8 {
                 assert!(text.trim_end().ends_with(theme.glyphs.ellipsis), "{text}");
@@ -216,7 +252,7 @@ fn unnamed_group_has_localized_visible_header_and_identity_hit_region() {
                     GroupInteractions::new(
                         &mut (),
                         &mut |_, _, _, _| ProjectedPointer::Rest,
-                        &mut |_, index, part, rect| hits.push((index, part, rect)),
+                        &mut |_, index, part, rect, _| hits.push((index, part, rect)),
                     ),
                 );
             })
@@ -438,7 +474,7 @@ fn active_and_checked_tabs_keep_their_geometry_and_bands() {
 }
 
 #[test]
-fn agent_cues_lead_tabs_and_a_collapsed_group_carries_its_most_urgent_member() {
+fn agent_cues_lead_tabs_and_a_collapsed_group_carries_and_names_its_hidden_states() {
     let theme = Theme::rgb_test_dark();
     let agent = |state, unread| Some(TabAgent { state, unread });
     let mut working = tab("agent", true, None);
@@ -454,6 +490,7 @@ fn agent_cues_lead_tabs_and_a_collapsed_group_carries_its_most_urgent_member() {
         agent(MetadataState::Done, false),
         agent(MetadataState::Blocked, true),
         None,
+        agent(MetadataState::Done, false),
     ]
     .into_iter()
     .enumerate()
@@ -471,6 +508,17 @@ fn agent_cues_lead_tabs_and_a_collapsed_group_carries_its_most_urgent_member() {
         text(&buffer).starts_with(&format!(" {blocked} Agents {}", theme.glyphs.status_bullet)),
         "{}",
         text(&buffer)
+    );
+    // Its tooltip names each hidden state once, most urgent first, then unread.
+    assert_eq!(
+        cues(&members, &theme, 40),
+        [(
+            StripPart::Header,
+            hits[0].2,
+            vec![MetadataState::Blocked, MetadataState::Done],
+            true,
+            false
+        )]
     );
 }
 

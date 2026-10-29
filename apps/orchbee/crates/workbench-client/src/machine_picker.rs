@@ -46,7 +46,7 @@ pub(crate) use navigation::{
 };
 pub(crate) use sidebar::SidebarWindow;
 pub(crate) use spaces::TabAgent;
-pub(crate) use spaces::most_urgent;
+pub(crate) use spaces::{most_urgent, urgency};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Choice {
