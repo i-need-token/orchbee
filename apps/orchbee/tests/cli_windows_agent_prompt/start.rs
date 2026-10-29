@@ -10,6 +10,8 @@ use serde_json::{Value, json};
 
 const PANEL: &str = "22222222222222222222222222222222";
 const GENERATION: &str = "55555555555555555555555555555555";
+// `amp` is a shared alias, so only an install root proves the Agent.
+const AMP: &str = r"C:\Users\orchbee\.amp\bin\amp.exe";
 
 fn request(stream: &mut LocalStream) -> AgentLaunchRequest {
     let AgentRequest::Launch(request) = read_agent_request(stream).unwrap() else {
@@ -170,10 +172,7 @@ fn startup_observation_deadline_keeps_accepted_input_and_pending_reservation() {
         );
         process_reply(
             &mut stream,
-            vec![
-                process(10, None, "cmd.exe"),
-                process(11, Some(10), "amp.exe"),
-            ],
+            vec![process(10, None, "cmd.exe"), process(11, Some(10), AMP)],
         );
         assert!(matches!(
             request(&mut stream),
@@ -196,7 +195,7 @@ fn startup_busy_terminal_and_name_conflict_never_type_input() {
         let (output, document) = run(move |mut stream| {
             bound_snapshot_reply(&mut stream);
             if busy {
-                process_reply(&mut stream, vec![process(10, None, "amp.exe")]);
+                process_reply(&mut stream, vec![process(10, None, AMP)]);
             } else {
                 shell(&mut stream);
                 let request = request(&mut stream);
@@ -365,10 +364,7 @@ fn startup_binds_only_ready_matching_agent_and_keeps_unknown_commit_distinct() {
             );
             process_reply(
                 &mut stream,
-                vec![
-                    process(10, None, "cmd.exe"),
-                    process(11, Some(10), "amp.exe"),
-                ],
+                vec![process(10, None, "cmd.exe"), process(11, Some(10), AMP)],
             );
             let mut detail = session_detail("sess-alpha");
             detail["snapshot"]["providerId"] = json!("amp");

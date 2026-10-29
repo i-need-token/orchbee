@@ -73,7 +73,7 @@ fn agent_get_returns_process_facts_and_bounded_prompt_readiness() {
                     match case {
                         "mismatch" => "codex.exe",
                         "shell" => "pwsh.exe",
-                        _ => "claude-code.exe",
+                        _ => "claude.exe",
                     },
                 );
                 let mut current = initial;
@@ -251,7 +251,7 @@ fn agent_terminal_observation_preserves_partial_availability_and_rejects_stale_o
             if mode == "terminal-unavailable" {
                 metadata_peer::unavailable(&mut stream);
             } else {
-                metadata_peer::sample(&mut stream, mode, "claude-code.exe");
+                metadata_peer::sample(&mut stream, mode, "claude.exe");
             }
             if !matches!(mode, "wrong-epoch" | "deadline") {
                 read_reply(

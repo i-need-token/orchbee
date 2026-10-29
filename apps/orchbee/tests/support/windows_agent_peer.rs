@@ -879,8 +879,15 @@ pub(super) fn management_reply(stream: &mut LocalStream, revision: u64, manageme
     }}})).unwrap())).unwrap();
 }
 pub(super) fn runtime_preflight(stream: &mut LocalStream, detail: Value) {
-    let provider = detail["snapshot"]["providerId"].as_str().unwrap();
-    process_reply(stream, vec![process(10, None, &format!("{provider}.exe"))]);
+    // Processes are recognized by installed executable names, not canonical provider IDs.
+    let executable = match detail["snapshot"]["providerId"].as_str().unwrap() {
+        "claude-code" => "claude",
+        provider => provider,
+    };
+    process_reply(
+        stream,
+        vec![process(10, None, &format!("{executable}.exe"))],
+    );
     read_reply(
         stream,
         "get",
