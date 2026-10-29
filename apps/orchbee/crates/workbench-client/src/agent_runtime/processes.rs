@@ -56,7 +56,7 @@ pub fn interpret(sample: &TerminalProcessInfo) -> Interpretation<'_> {
         .map(|facts| {
             let argv = facts.command_line.as_deref().and_then(arguments);
             let provider = classify_agent_process(facts.image.as_deref(), argv.as_deref())
-                .interactive_provider()
+                .candidate_provider()
                 .map(AgentReportProvider::native_provider_id);
             Process {
                 facts,

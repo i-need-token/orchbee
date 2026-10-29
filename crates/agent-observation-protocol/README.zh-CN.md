@@ -111,9 +111,11 @@ provider 词汇；后续的写入方和采样器复用它，而不是各自维�
   `unsupported`。产生它的状态由 Server 负责。
 
 `select_agent_process` 要求唯一的外层已识别 Agent 链，拒绝环、父进程复用的创建时间倒置和并列歧义，
-并明确保留缺失。原生 CLI 诊断和 Windows Server Host 适配器只把交互识别计为候选；各自使用既有 OS
-解析器，只有 Server 适配器在身份和时间守卫内接纳经证明的 Host 样本。表驱动夹具覆盖
+并明确保留缺失。原生 CLI 诊断和 Windows Server Host 适配器通过过渡规则
+`AgentProcessRecognition::candidate_provider` 计算候选：交互识别、无法分类的参数，以及命令行读不到的
+别名原生映像都计为候选；非交互形式和其他无法解析的行不计。第 3 步之后改由 Server 身份状态决定。各调用方
+使用既有 OS 解析器，只有 Server 适配器在身份和时间守卫内接纳经证明的 Host 样本。表驱动夹具覆盖
 [进程身份提案](../../proposals/agent/agent-process-identity.zh-CN.md)中 Windows 支持矩阵的每一行和
 每个反例；控制台归属和不透明行需要 Host 事实，属于采样器。
 
-<!-- documentation-pairing: english-sha256=190dedef1faf496a321e800d5ce4d99a0bc53faaa3d7fe35c8ef02e17ce80fb2 zh-cn-sha256=fd1da06166e3a410deb63ef48c3aacbb8f4a4eb42080353b92e119c239afe819 -->
+<!-- documentation-pairing: english-sha256=b68436e9eccdc18450335bd40a2fd921d50126d2082062daa3fe07703c3fbf81 zh-cn-sha256=f2c8c4429d0bf7836d971fe7918c5abb51a71cad2b6511072afd9a2e9da48df1 -->

@@ -66,6 +66,23 @@ fn cycles_and_reused_parent_pids_never_select_an_agent_chain() {
 
 #[cfg(windows)]
 #[test]
+fn unlisted_arguments_stay_candidates_and_noninteractive_forms_are_excluded() {
+    let shell = process(10, None, r"C:\Windows\cmd.exe", "cmd.exe");
+    let agent = |command| process(20, Some(10), r"C:\bin\claude.exe", command);
+    let facts = sample(vec![shell.clone(), agent("claude --unlisted-flag")]);
+    let unlisted = interpret(&facts);
+    assert_eq!(unlisted.foreground.selection, Selection::AgentChain);
+    assert_eq!(unlisted.foreground.provider, Some("claude-code"));
+    for command in ["claude -p task", "claude --version"] {
+        let facts = sample(vec![shell.clone(), agent(command)]);
+        let excluded = interpret(&facts);
+        assert_eq!(excluded.foreground.selection, Selection::Root, "{command}");
+        assert_eq!(excluded.foreground.provider, None, "{command}");
+    }
+}
+
+#[cfg(windows)]
+#[test]
 fn windows_argument_projection_preserves_quotes_empty_values_and_unicode() {
     assert_eq!(
         arguments(r#""C:\Program Files\node.exe" "C:\工具\codex.js" "a b" "" "中 😀""#).unwrap(),

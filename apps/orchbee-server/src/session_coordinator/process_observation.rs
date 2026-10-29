@@ -55,7 +55,7 @@ pub(crate) fn identify(sample: &TerminalProcessInfo) -> Option<Selected> {
                 parent_pid: p.parent_pid,
                 creation_time: p.creation_time,
                 provider: classify_agent_process(p.image.as_deref(), argv.as_deref())
-                    .interactive_provider(),
+                    .candidate_provider(),
             }
         })
         .collect();

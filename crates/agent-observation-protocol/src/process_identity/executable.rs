@@ -57,6 +57,23 @@ impl AgentProcessRecognition {
             _ => None,
         }
     }
+
+    /// Transitional candidate rule until the Server identity state owns the result: unclassified
+    /// arguments, and a native image named by an alias whose command line is unreadable, still
+    /// count as an interactive candidate, as before the mode grammar existed. Noninteractive forms
+    /// and every other unresolved row do not.
+    pub const fn candidate_provider(self) -> Option<AgentReportProvider> {
+        match self {
+            Self::Interactive { provider, .. }
+            | Self::Unresolved {
+                provider: Some(provider),
+                reason:
+                    AgentUnresolvedProcess::UnclassifiedArguments
+                    | AgentUnresolvedProcess::CommandLineUnreadable,
+            } => Some(provider),
+            _ => None,
+        }
+    }
 }
 
 /// Classifies one process from its image path and decoded arguments; `None` arguments mean

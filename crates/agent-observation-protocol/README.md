@@ -131,8 +131,11 @@ reuse it rather than keeping their own tables.
 
 `select_agent_process` requires one outer recognized Agent chain, rejects cycles, reused-parent
 creation order, and ambiguous siblings, and preserves explicit absence. Native CLI diagnostics and
-the Windows Server Host adapter count only interactive recognitions as candidates; each uses the
-existing OS parser, and only the Server adapter admits proven Host samples under its identity and
+the Windows Server Host adapter count candidates through the transitional
+`AgentProcessRecognition::candidate_provider` rule: interactive recognitions, unclassified
+arguments, and an alias-named native image with an unreadable command line count, while
+noninteractive forms and other unresolved rows do not. After step 3 the Server identity state
+decides instead. Each caller uses the existing OS parser, and only the Server adapter admits proven Host samples under its identity and
 timing fences. Table-driven fixtures cover every Windows support matrix row and counterexample in
 the [process identity proposal](../../proposals/agent/agent-process-identity.md); console
 attachment and opaque rows need Host facts and belong to the sampler.
