@@ -75,7 +75,7 @@ Workspace 资源 scope 内的显式 Directory
 
 ### 语义命令投影与终端创建
 
-`@orchbee/workbench/semantic-commands` 提供当前终端创建操作及其位置契约。精确终端位置只包含 Workspace 身份；已退役的 TypeScript CLI 列表投影不属于此包。
+内部 `semantic-commands` 子系统拥有当前终端创建操作及其位置契约，没有包子路径。精确终端位置只包含 Workspace 身份；已退役的 TypeScript CLI 列表投影不属于此包。
 
 `executeWorkbenchTerminalCreate` 只改变精确上下文，保留当前 Workspace 及既有 Tab 选择。空上下文的唯一首 Tab 是有效性回退。结果含精确 context/Tab/Panel/presentation 和 preview/provision 身份。应用分配修订，在进程协调前持久提交，并拥有效果及导航。缺失身份或无效启动目标拒绝且不修改状态。
 
@@ -202,4 +202,4 @@ Hook 与组件测试覆盖立即创建、菜单、稳定管理目标、Agent 行
 
 GUI 共享文档与 Client View 只接受当前 version-1 形状。完整图在使用前校验；无效图不会迁移、重置或修复。旧开发形状不享有兼容承诺。见 [shared-workbench-document.md](shared-workbench-document.zh-CN.md)。
 
-<!-- documentation-pairing: english-sha256=9cec3bbf8005e03c1a68e354ee577d070c453c6b4c6dd6466e186308f03872bb zh-cn-sha256=05e218a659cb4df164433e32f22aa5553da23223f0931d1c6b334f148013536b -->
+<!-- documentation-pairing: english-sha256=89caceafd011eb7f3eab9393ee77aea81fc63aa34956c7433445ba6f31f5cf14 zh-cn-sha256=9f39b3c63f79877a31879dd8454469d2ce555de0785c710bc88be76b81b67520 -->

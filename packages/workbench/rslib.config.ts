@@ -22,7 +22,6 @@ export default defineConfig({
 			'workbench/document/index': './src/workbench/document/index.ts',
 			'project-workspace/index': './src/project-workspace/index.ts',
 			'workbench/model/index': './src/workbench/model/index.ts',
-			'workbench/semantic-commands/index': './src/workbench/semantic-commands/index.ts',
 			'terminal-presentation/index': './src/terminal-presentation/index.ts',
 		},
 		tsconfigPath: './tsconfig.build.json',

@@ -22,7 +22,7 @@ import {
 	parseWorkbenchClientView,
 	reconcileWorkbenchClientView,
 	type WorkbenchClientView,
-} from '../document';
+} from '../document/workbench-client-view';
 import type { WorkbenchTabTitlePolicy } from '../components/workbench-panel-workspace/model/PanelWorkspaceStore';
 
 interface WorkbenchDocumentRuntimeContextSnapshot {

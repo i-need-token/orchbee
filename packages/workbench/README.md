@@ -2,7 +2,7 @@
 
 Private package entries export only symbols consumed in this repository, enforced by Knip `includeEntryExports`. Internal contracts, generated assets and independent conformance evidence retain their owners; their presence does not automatically expand the public entry. New clients add exports for admitted uses.
 
-The `document`, `runtime`, and `semantic-commands` package subpaths emit JavaScript and
+The `document` and `runtime` package subpaths emit JavaScript and
 declarations under `dist/workbench/`, preserving their source-relative layout for dependency
 analysis; `runtime` builds from `src/workbench/model/`. Consumers use the package subpaths; the
 build paths do not introduce a separate public import surface.
@@ -99,31 +99,13 @@ React, DOM, or stylesheet module and takes Tab state from `@orchbee/tab-strip/mo
 Main can own a runtime without importing the React Workbench root. Its declarations still reference
 the Tab Strip root's `TabStripNewTabRequest` type.
 
-Validated shared-document read projections, bounded Terminal-output read contracts, and exact-target terminal-intent creation are available
-from `@orchbee/workbench/semantic-commands`. This DOM-, React-, storage-, and transport-independent
-entry point lists canonical Project, Directory, Workspace, Tab, Panel, and terminal identities and
-delegates one terminal creation to the existing Workbench runtime. Tab reads preserve canonical Tab
-collection order and summarize Panel and Terminal-presentation membership. An exact-target Panel
-read preserves canonical depth-first, left-to-right leaf order and publishes a one-based position;
-it never substitutes an active Tab or focused Panel. Both exclude Client View focus, selection,
-maximization, active-child, split-weight, and geometry state.
-
-The same entry point owns `workbench.terminal.output.read` input, output, and descriptor meaning.
-Input pins one canonical Terminal presentation identity and defaults to 80 rows within a 1–1,000
-bound. Output is one at-most-128-KiB plain UTF-8 tail with its exact Host generation, revision,
-screen, total and returned row bounds, and truncation state; soft-wrapped rows are joined. The
-contract contains no ANSI styling, graphics, hyperlinks, raw VT bytes, input, resize, focus, wait,
-matcher, or durable-history authority. Workbench defines and validates this serializable meaning but
-does not read Terminal Host state. The composing application must source a successful result from
-one exact capture-only frame, dispose its lease, and represent stale, retired, unavailable,
-cancelled, and cleanup-failed outcomes without text.
-
-Creation preserves active Client View selection when one exists; an empty target uses the sole
-created Tab as the Tab model's required validity fallback. A product Action may separately select
-only the exact returned Tab. The entry point also publishes the strict versioned location input and
-committed-result schema; the composing application supplies the committed revision and remains
-responsible for durable commitment, process reconciliation, caller authorization, and signed
-revision-fenced pagination.
+Exact-target terminal-intent creation lives in the internal `semantic-commands` subsystem, which
+has no package subpath. The Workbench terminal creation Action passes a local route to
+`executeWorkbenchTerminalCreate`, which delegates one terminal creation to the existing Workbench
+runtime. Creation preserves active Client View selection when one exists; an empty target uses the
+sole created Tab as the Tab model's required validity fallback. A product Action may separately
+select only the exact returned Tab. The composing application supplies the committed revision and
+remains responsible for durable commitment and process reconciliation.
 
 ## Experience catalog
 

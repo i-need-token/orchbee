@@ -46,12 +46,6 @@
 			"import": "./dist/workbench/model/index.js",
 			"require": "./dist/workbench/model/index.cjs"
 		},
-		"./semantic-commands": {
-			"@orchbee/source": "./src/workbench/semantic-commands/index.ts",
-			"types": "./dist/workbench/semantic-commands/index.d.ts",
-			"import": "./dist/workbench/semantic-commands/index.js",
-			"require": "./dist/workbench/semantic-commands/index.cjs"
-		},
 		"./styles.css": {
 			"@orchbee/source": "./src/styles.ts",
 			"default": "./dist/index.css"

@@ -1,1 +1,0 @@
-export { executeWorkbenchTerminalCreate } from './executeWorkbenchTerminalCreate';

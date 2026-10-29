@@ -2,7 +2,7 @@
 
 私有包入口只导出仓库内有消费者的符号，Knip 的 `includeEntryExports` 检查该边界。内部契约、生成资产与独立一致性证据按其所有权保留；它们的存在不自动扩大公共入口。新增客户端应按已准入用途添加所需导出。
 
-`document`、`runtime` 和 `semantic-commands` 包子路径在 `dist/workbench/` 下生成 JavaScript 与声明，
+`document` 和 `runtime` 包子路径在 `dist/workbench/` 下生成 JavaScript 与声明，
 保留相对于源码的目录布局，供依赖分析使用；`runtime` 由 `src/workbench/model/` 构建。消费者使用包子路径；
 构建路径不增加独立的公共导入面。
 
@@ -78,26 +78,10 @@ mutation，而无需导入可视 Workbench 或其 runtime graph。
 `@orchbee/tab-strip/model` 获取 Tab 状态，因此 Electron Main 可以拥有 runtime 而无需导入 React
 Workbench 根。其声明仍引用 Tab Strip 根的 `TabStripNewTabRequest` 类型。
 
-经过验证的共享文档读取投影、有界 Terminal-output read contract 与精确目标终端意图创建可从
-`@orchbee/workbench/semantic-commands` 获得。这个不依赖 DOM、React、存储和传输的入口会列出规范的
-Project、Directory、Workspace、Tab、Panel 与终端标识，并把一次终端创建委托给现有 Workbench runtime。
-Tab 读取会保留规范 Tab collection 顺序，并汇总 Panel 与 Terminal-presentation 成员关系。精确目标的 Panel
-读取会保留规范的深度优先、从左到右叶节点顺序，并发布从一开始的位置；它绝不替换成 active Tab 或 focused
-Panel。两种读取都排除 Client View 的 focus、selection、maximization、active-child、split-weight 与 geometry
-状态。
-
-同一入口拥有 `workbench.terminal.output.read` 的 input、output 与 descriptor 含义。Input 固定一个
-canonical Terminal presentation identity，在 1–1,000 的范围内默认使用 80 行。Output 是一个不超过
-128 KiB 的纯 UTF-8 tail，并携带精确 Host generation、revision、screen、总行数与返回行范围，以及
-truncation 状态；soft-wrapped row 会被拼接。Contract 不包含 ANSI style、graphic、hyperlink、raw VT byte、
-input、resize、focus、wait、matcher 或 durable-history authority。Workbench 定义并验证这个可序列化含义，
-但不读取 Terminal Host state。组合 application 必须从一个精确 capture-only frame 取得成功 result，dispose
-其 lease，并以不含文本的方式表示 stale、retired、unavailable、cancelled 与 cleanup-failed outcome。
-
+精确目标终端意图创建位于内部 `semantic-commands` 子系统，该子系统没有包子路径。Workbench 终端创建
+Action 把本地路由交给 `executeWorkbenchTerminalCreate`，由它把一次终端创建委托给现有 Workbench runtime。
 创建会保留活动 Client View 中已有的选择；空目标会把唯一新建的 Tab 作为 Tab model 所要求的有效性后备项。
-产品 Action 可以另行只选择精确返回的 Tab。该入口还发布严格且带版本的 location input 与
-committed-result schema；组合应用提供已提交 revision，并继续负责持久提交、进程协调、调用方授权和签名的
-revision-fenced 分页。
+产品 Action 可以另行只选择精确返回的 Tab。组合应用提供已提交 revision，并继续负责持久提交与进程协调。
 
 ## 体验目录
 
@@ -335,4 +319,4 @@ pnpm --filter @orchbee/workbench test
 pnpm --filter @orchbee/workbench test:exports
 ```
 
-<!-- documentation-pairing: english-sha256=d71cbea405548b0ed943a154ff30e0c447b816661b9ed819812ac0526842aba3 zh-cn-sha256=36eb81911d56a98022a962477e21f11d54059d896b68baf00bf777c0954b9a9b -->
+<!-- documentation-pairing: english-sha256=a2949c3033a8023da62371f644659de4ca01424859df69791e93a690294e9147 zh-cn-sha256=99f965e05f7cc243b86a772291f6a9dff4e01579c46473afb00f3c8cc048db1a -->

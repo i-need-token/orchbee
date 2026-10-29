@@ -2,7 +2,7 @@ import type { ActionAvailability, ActionExecutionContext, ActionResult } from '@
 import { workbenchMessages } from '@orchbee/i18n';
 import type { TabStripTabCreationIntent } from '@orchbee/tab-strip';
 
-import { executeWorkbenchTerminalCreate } from '../semantic-commands';
+import { executeWorkbenchTerminalCreate } from '../semantic-commands/executeWorkbenchTerminalCreate';
 import type { WorkbenchTerminalCreateInput } from './workbench-action-ids';
 import type {
 	WorkbenchProjectWorkspaceRuntime,

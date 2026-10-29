@@ -370,7 +370,7 @@ test('bundled subpaths resolve to their declared sources without hiding private 
 		const actual = JSON.parse(readFileSync(join(repositoryRoot, packagePath), 'utf8'));
 		for (const [subpath, name] of [
 			['document', 'documentValue'],
-			['semantic-commands', 'semanticValue'],
+			['runtime', 'runtimeEntryValue'],
 		]) {
 			const targets = actual.exports[`./${subpath}`];
 			manifest.exports[`./${subpath}`] = targets;
@@ -388,9 +388,9 @@ test('bundled subpaths resolve to their declared sources without hiding private 
 			consumerPath,
 			`${readFileSync(join(root, consumerPath), 'utf8')}
 import { documentValue } from '@orchbee/workbench/document';
-import { semanticValue } from '@orchbee/workbench/semantic-commands';
+import { runtimeEntryValue } from '@orchbee/workbench/runtime';
 void documentValue;
-void semanticValue;
+void runtimeEntryValue;
 `,
 		);
 		for (const production of [false, true]) assertIssues(analyze(root, production));
