@@ -20,17 +20,19 @@ pub fn writeProcessInfo(writer: *std.Io.Writer, attachment_id: anytype, terminal
         common.identifierText(terminal_id, &terminal_buffer),
         sample.root_pid,
     });
+    // Compact positional rows keep the 256-row bound within the control payload:
+    // [pid, parentPid, creationTime, console, image, commandLine, currentDirectory].
     for (sample.processes, 0..) |row, index| {
         if (index > 0) try writer.writeAll(",");
-        try writer.print("{{\"pid\":{d},\"creationTime\":\"{d}\",\"parentPid\":", .{ row.pid, row.creation_time });
+        try writer.print("[{d},", .{row.pid});
         try std.json.Stringify.value(row.parent_pid, .{}, writer);
-        try writer.writeAll(",\"image\":");
+        try writer.print(",\"{d}\",\"{s}\",", .{ row.creation_time, @tagName(row.console) });
         try std.json.Stringify.value(row.image, .{}, writer);
-        try writer.writeAll(",\"commandLine\":");
+        try writer.writeAll(",");
         try std.json.Stringify.value(row.command_line, .{}, writer);
-        try writer.writeAll(",\"currentDirectory\":");
+        try writer.writeAll(",");
         try std.json.Stringify.value(row.current_directory, .{}, writer);
-        try writer.writeAll("}");
+        try writer.writeAll("]");
     }
     try writer.writeAll("]}");
 }

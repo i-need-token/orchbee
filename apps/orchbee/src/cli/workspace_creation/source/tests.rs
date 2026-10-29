@@ -2,7 +2,7 @@ use super::*;
 #[test]
 fn an_absent_root_cwd_can_fall_back_but_a_missing_root_or_bad_path_cannot() {
     use orchbee_terminal_protocol::{
-        AttachmentId, TerminalId, TerminalProcess, TerminalProcessInfo,
+        AttachmentId, TerminalId, TerminalProcess, TerminalProcessConsole, TerminalProcessInfo,
     };
     let mut sample = TerminalProcessInfo {
         attachment_id: AttachmentId::parse("00000000000000000000000000000001").unwrap(),
@@ -18,6 +18,7 @@ fn an_absent_root_cwd_can_fall_back_but_a_missing_root_or_bad_path_cannot() {
         pid: 10,
         parent_pid: None,
         creation_time: 1,
+        console: TerminalProcessConsole::Attached,
         image: None,
         command_line: None,
         current_directory: None,

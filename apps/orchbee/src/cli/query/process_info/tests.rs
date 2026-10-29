@@ -1,6 +1,8 @@
 use super::*;
 use crate::{cli::results::Projection, invocation::QueryCommand};
-use orchbee_terminal_protocol::{TerminalId, TerminalProcess, TerminalProcessInfo};
+use orchbee_terminal_protocol::{
+    TerminalId, TerminalProcess, TerminalProcessConsole, TerminalProcessInfo,
+};
 
 fn info() -> TerminalProcessInfo {
     TerminalProcessInfo {
@@ -11,6 +13,7 @@ fn info() -> TerminalProcessInfo {
             pid: 41,
             parent_pid: None,
             creation_time: u64::MAX,
+            console: TerminalProcessConsole::Attached,
             image: Some("C:\\Windows\\cmd.exe".into()),
             command_line: Some("cmd /C echo 中 😀\u{1b}]2;title\u{7}".into()),
             current_directory: None,

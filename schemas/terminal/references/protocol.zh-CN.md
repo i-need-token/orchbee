@@ -76,9 +76,9 @@ JSON 内的规范无符号 64 位整数使用十进制文本，除了值 `0` 之
 
 ### 进程采样
 
-`ReadProcessInfo`（kind 79，control JSON 请求和响应）限定于一个具有读取能力的 `attachmentId`。响应回显 `attachmentId` 及其确切的 `terminalId`，并包含 `kind: "windows-job"`、正 uint32 `rootPid`，以及按 PID 排序、最多 64 行且 PID 唯一的 `processes` 数组。每行包含正 uint32 `pid`、必须存在且可空的正 uint32 `parentPid`、正的规范十进制 uint64 `creationTime`（Windows FILETIME），以及必须存在且可空的 `image`、`commandLine`、`currentDirectory`。文本为不含 NUL 的严格 Unicode，每项最多 4096 个 UTF-16 code unit；完整响应仍受 64 KiB control 限额约束。已退出的根进程可以不在进程行中，但其保留身份仍提供 `rootPid`。
+`ReadProcessInfo`（kind 79，control JSON 请求和响应）限定于一个具有读取能力的 `attachmentId`。响应回显 `attachmentId` 及其确切的 `terminalId`，并包含 `kind: "windows-job"`、正 uint32 `rootPid`，以及按 PID 排序、最多 256 行且 PID 唯一的 `processes` 数组。每行是紧凑的七元素数组 `[pid, parentPid, creationTime, console, image, commandLine, currentDirectory]`：正 uint32 `pid`、可空的正 uint32 `parentPid`、正的规范十进制 uint64 `creationTime`（Windows FILETIME）字符串、取值为 `attached`、`detached`、`none` 或 `unknown` 之一的 `console`，以及可空的 `image`、`commandLine`、`currentDirectory`；其他长度的数组无效。`image` 为 null 的行是不透明行：该成员存活，但拒绝受限查询权限，因此只知道其身份和父进程。每一行都是读取时存活的成员，因此消费者的锚点存活当且仅当有一行的 PID 和创建时间都与之匹配。文本为不含 NUL 的严格 Unicode，每项最多 4096 个 UTF-16 code unit；完整响应仍受 64 KiB control 限额约束。已退出的根进程可以不在进程行中，但其保留身份仍提供 `rootPid`。
 
-Host 拥有采样与 attachment 授权。未知或不可读 attachment 返回 `missing-resource`；平台不支持返回 `process-sample-unsupported`；成员变化返回 `process-sample-changed`；OS 或预算失败返回 `process-sample-unavailable`；容量或编码长度超限返回 `limit-exceeded`。失败绝不转换为空成功。样本描述一个保留 Windows Job 的顺序观察，不是原子进程树、前台进程组、输入许可或就绪保证。远程检查不可用时，可选字段可以缺失。消费者必须关联实际响应及 attachment/terminal 身份后才能使用这些事实。
+Host 拥有采样与 attachment 授权。未知或不可读 attachment 返回 `missing-resource`；平台不支持返回 `process-sample-unsupported`；成员变化永不是失败；OS 或预算失败返回 `process-sample-unavailable`；容量或编码长度超限返回 `limit-exceeded`。失败绝不转换为空成功。样本描述一个保留 Windows Job 的顺序观察，不是原子进程树、前台进程组、输入许可或就绪保证。远程检查不可用时，可选字段可以缺失。消费者必须关联实际响应及 attachment/terminal 身份后才能使用这些事实。
 
 ## 运行时绑定
 
@@ -527,4 +527,4 @@ fixture。
 
 该观察代表最近一次协作式 Shell 调用，不含命令文本，也不替代 kind 4 的呈现元数据。只有 generation 和输出 epoch 仍一致时，坐标才属于当前保留物理行。最旧保留行 pin 失去连续性时 Host 改变输出 epoch；客户端绝不能由饱和行数推断连续性。旧消费者跳过这一可选扩展。Windows CLI 将其与终端身份及 Host epoch 结合，为不透明输出游标提供围栏。
 
-<!-- documentation-pairing: english-sha256=13f512bccd9a8cfe09839128641f5f3426595f4e886e8c2ca598590aef0033f9 zh-cn-sha256=3b6d79551b513d0d2033dd0b7a4f5ec4ac68be2cb5f68e4313ebed699f8f37fa -->
+<!-- documentation-pairing: english-sha256=0e810ce2ead51752af1550378b0d885371cc8a46bbc0a1af0a85248ba08ceebd zh-cn-sha256=fd3f6992f74b5a6cdf06510db6eb26fe58533d561f0d434d3894d475d98af2ef -->

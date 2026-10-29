@@ -277,7 +277,7 @@ fn registration_facts_convert_for_a_consumer_shaped_reader() {
 mod process_samples {
     use super::*;
     use orchbee_terminal_protocol::{
-        AttachmentId, TerminalId, TerminalProcess, TerminalProcessInfo,
+        AttachmentId, TerminalId, TerminalProcess, TerminalProcessConsole, TerminalProcessInfo,
     };
     use orchbee_workbench_protocol::{
         PanelAgentAction, PanelAgentOutcome, PanelAgentRequest, PanelAgentState,
@@ -310,6 +310,7 @@ mod process_samples {
                     pid: 10,
                     parent_pid: None,
                     creation_time: 100,
+                    console: TerminalProcessConsole::Attached,
                     image: Some("C:/Windows/cmd.exe".into()),
                     command_line: Some("cmd.exe".into()),
                     current_directory: None,
@@ -318,6 +319,7 @@ mod process_samples {
                     pid: 20,
                     parent_pid: Some(10),
                     creation_time: 200,
+                    console: TerminalProcessConsole::Attached,
                     image: Some("C:/tools/pi.exe".into()),
                     command_line: Some("pi.exe".into()),
                     current_directory: None,

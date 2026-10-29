@@ -25,7 +25,6 @@ pub fn handleReadProcessInfo(
             error.InteractionAccessUnavailable, error.TerminalRuntimeMissing => "missing-resource",
             error.ProcessSampleUnsupported => "process-sample-unsupported",
             error.ProcessSampleLimit => "limit-exceeded",
-            error.ProcessSampleChanged => "process-sample-changed",
             error.ProcessSampleUnavailable => "process-sample-unavailable",
             else => return err,
         };

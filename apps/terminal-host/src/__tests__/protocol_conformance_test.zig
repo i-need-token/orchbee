@@ -1498,6 +1498,7 @@ test "native control replies and events conform to TypeScript schemas" {
         .pid = @as(u32, 41),
         .parent_pid = @as(?u32, 17),
         .creation_time = @as(u64, 133999999999999999),
+        .console = @as(enum { attached, detached, none, unknown }, .attached),
         .image = @as(?[]const u8, "C:\\Windows\\System32\\cmd.exe"),
         .command_line = @as(?[]const u8, "cmd /C echo 中文 😀"),
         .current_directory = @as(?[]const u8, null),

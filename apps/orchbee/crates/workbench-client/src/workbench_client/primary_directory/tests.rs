@@ -1,7 +1,8 @@
 use super::*;
 use orchbee_terminal_protocol::{
     AttachmentId, CorrelationId, Envelope, HostEpoch, TerminalId, TerminalProcess,
-    TerminalProcessInfo, encode_process_info_control, encode_transport_envelope,
+    TerminalProcessConsole, TerminalProcessInfo, encode_process_info_control,
+    encode_transport_envelope,
 };
 
 /// The primary process and a child deliberately report different directories. Both carrier owners
@@ -19,6 +20,7 @@ pub(in crate::workbench_client) fn process_record(
                 pid: 41,
                 parent_pid: None,
                 creation_time: 900,
+                console: TerminalProcessConsole::Attached,
                 image: Some("powershell.exe".into()),
                 command_line: None,
                 current_directory: cwd.map(str::to_owned),
@@ -27,6 +29,7 @@ pub(in crate::workbench_client) fn process_record(
                 pid: 42,
                 parent_pid: Some(41),
                 creation_time: 901,
+                console: TerminalProcessConsole::Attached,
                 image: Some("agent.exe".into()),
                 command_line: None,
                 current_directory: Some("C:/wrong-child".into()),

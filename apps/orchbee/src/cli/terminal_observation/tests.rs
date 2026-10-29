@@ -5,7 +5,8 @@ use crate::cli::{
 };
 use crate::cli_text::CliText;
 use orchbee_terminal_protocol::{
-    TerminalId, TerminalProcess, TerminalProcessInfo, decode_terminal_text_frame,
+    TerminalId, TerminalProcess, TerminalProcessConsole, TerminalProcessInfo,
+    decode_terminal_text_frame,
 };
 
 fn observed() -> Read {
@@ -21,6 +22,7 @@ fn observed() -> Read {
             pid: 10,
             parent_pid: None,
             creation_time: 1,
+            console: TerminalProcessConsole::Attached,
             image: Some("C:\\Windows\\cmd.exe".into()),
             command_line: Some("cmd.exe".into()),
             current_directory: Some("C:\\root".into()),

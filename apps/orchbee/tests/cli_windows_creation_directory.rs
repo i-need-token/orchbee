@@ -138,6 +138,7 @@ fn observe(stream: &mut LocalStream, cut: Cut) -> bool {
             pid,
             parent_pid: None,
             creation_time: 10,
+            console: orchbee_terminal_protocol::TerminalProcessConsole::Attached,
             image: None,
             command_line: None,
             current_directory: cwd,

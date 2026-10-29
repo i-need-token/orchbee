@@ -1077,14 +1077,15 @@ function createControlConformanceFixture() {
 				kind: 'windows-job',
 				rootPid: 41,
 				processes: [
-					{
-						pid: 41,
-						parentPid: 17,
-						creationTime: '133999999999999999',
-						image: 'C:\\Windows\\System32\\cmd.exe',
-						commandLine: 'cmd /C echo 中文 😀',
-						currentDirectory: null,
-					},
+					[
+						41,
+						17,
+						'133999999999999999',
+						'attached',
+						'C:\\Windows\\System32\\cmd.exe',
+						'cmd /C echo 中文 😀',
+						null,
+					],
 				],
 			},
 			'ReadProcessInfo response',

@@ -6,6 +6,7 @@ fn process(pid: u32, parent: Option<u32>, image: &str, command: &str) -> Termina
         pid,
         parent_pid: parent,
         creation_time: u64::from(pid),
+        console: orchbee_terminal_protocol::TerminalProcessConsole::Attached,
         image: Some(image.into()),
         command_line: Some(command.into()),
         current_directory: None,
@@ -47,6 +48,11 @@ fn agent_chain_selection_has_explicit_ambiguity_and_root_absence() {
         interpret(&facts).foreground.selection,
         Selection::AgentChain
     );
+    // An opaque member could be the Agent, so the sample names none.
+    let mut opaque = process(26, Some(25), "", "");
+    (opaque.image, opaque.command_line) = (None, None);
+    facts.processes.push(opaque);
+    assert_eq!(interpret(&facts).foreground.selection, Selection::Ambiguous);
 }
 
 #[test]

@@ -9,6 +9,7 @@ pub const EnvironmentDelta = process_types.EnvironmentDelta;
 pub const Launch = process_types.Launch;
 pub const ExitResult = process_types.ExitResult;
 pub const ProcessSample = @import("process_sample.zig").Sample;
+pub const ProcessConsole = @import("process_sample.zig").Console;
 pub const environmentVariableOwned = process_common.environmentVariableOwned;
 /// Windows Host startup clears inherited signal suppression before any child launch.
 pub const prepareWindowsTerminalChildren = windows_process.prepareTerminalChildren;

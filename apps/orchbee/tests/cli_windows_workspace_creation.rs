@@ -696,6 +696,7 @@ fn root_cwd(stream: &mut LocalStream, cwd: Option<&str>) {
         pid,
         parent_pid: None,
         creation_time: 10,
+        console: orchbee_terminal_protocol::TerminalProcessConsole::Attached,
         image: None,
         command_line: None,
         current_directory: cwd,

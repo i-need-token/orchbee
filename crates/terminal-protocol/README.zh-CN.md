@@ -42,8 +42,16 @@ graphics-image 契约。进程信息 payload 往返也经过携带 correlation �
 传输编码／解码，避免已注册 payload 被悄然视为未知必需传输消息。
 Event role 仍被拒绝，已有 payload 上限不变。
 
+## 进程样本
+
+`TerminalProcessInfo` 最多 256 行，编码为紧凑的定位数组，按长度严格解码。每个
+`TerminalProcess` 包含 PID、创建时间、可空的父进程、`TerminalProcessConsole`（`attached`、
+`detached`、`none`、`unknown`），以及可空的 image、命令行和当前目录。没有 image 的行是不透明行；
+消费者把它当作身份已知、程序未知的存活成员，绝不当作不存在。绑定只校验形状和上限；控制台的含义和
+采样归 Host 所有。
+
 ## 只读 PNG 解码
 
 80/81 消息使用 graphics-image 编码（5）以及借用视图 `GraphicsDecodeRequest`／`GraphicsDecodeResult`。OBPI 请求有 40 字节头，包含附件、声明尺寸和精确 PNG 长度；OBPX 结果有 56 字节头，包含附件、终端、尺寸和精确 RGBA 长度。绑定检查非零身份、PNG 头一致性、1–4096 尺寸、16 MiB 输入和 32 MiB 解码像素。PNG 内容解码和物理读取授权归 Host 所有；Worker 和 Server 在消费像素前检查信封关联、epoch 和目标。此编码有独立上限，不扩大原始键盘或粘贴限制。
 
-<!-- documentation-pairing: english-sha256=d2cfbf0c6e09e49dc2fb672879cf2545d320adbf79a9c32d6944246a7efeaf59 zh-cn-sha256=55a2ffe76ac7483c3bc8d28d566651806744042ce7e855d687d2eb50d11bf210 -->
+<!-- documentation-pairing: english-sha256=700d07df84197242c25f08f3f4a276d738d69ad8d75e13289423d3947f2e6291 zh-cn-sha256=73e5834cfec1615cc4ee7d81b9517eb5267f64b61857738688de0da139607d09 -->

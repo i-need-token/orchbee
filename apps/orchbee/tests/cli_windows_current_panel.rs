@@ -138,6 +138,7 @@ fn process_read(stream: &mut LocalStream, terminal: u64, unavailable: bool) {
                     pid: 40,
                     parent_pid: None,
                     creation_time: 10,
+                    console: orchbee_terminal_protocol::TerminalProcessConsole::Attached,
                     image: Some("C:\\Windows\\System32\\cmd.exe".into()),
                     command_line: Some("cmd.exe".into()),
                     current_directory: Some("C:\\项目".into()),

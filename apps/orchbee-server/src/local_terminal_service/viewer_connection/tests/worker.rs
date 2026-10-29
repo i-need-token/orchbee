@@ -389,7 +389,7 @@ pub(in crate::local_terminal_service::viewer_connection::tests) fn static_codex_
     attachment: [u8; 16],
 ) -> orchbee_terminal_protocol::TerminalProcessInfo {
     use orchbee_terminal_protocol::{
-        AttachmentId, TerminalId, TerminalProcess, TerminalProcessInfo,
+        AttachmentId, TerminalId, TerminalProcess, TerminalProcessConsole, TerminalProcessInfo,
     };
     let target = u8::try_from(target).expect("fixture target fits in one byte");
     let pid = 4_100 + u32::from(target);
@@ -401,6 +401,7 @@ pub(in crate::local_terminal_service::viewer_connection::tests) fn static_codex_
             pid,
             parent_pid: None,
             creation_time: 9_000 + u64::from(target),
+            console: TerminalProcessConsole::Attached,
             image: Some("C:/fixtures/codex.exe".into()),
             command_line: Some("codex.exe".into()),
             current_directory: None,

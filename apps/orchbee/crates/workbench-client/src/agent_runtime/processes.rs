@@ -76,7 +76,14 @@ pub fn interpret(sample: &TerminalProcessInfo) -> Interpretation<'_> {
                 .and_then(AgentReportProvider::from_native_provider_id),
         })
         .collect();
-    let foreground = match select_agent_process(&candidates) {
+    // An opaque row (no image) could hold the Agent, so the sample cannot name one.
+    let opaque = sample.processes.iter().any(|p| p.image.is_none());
+    let selection = if opaque {
+        AgentProcessSelection::Ambiguous
+    } else {
+        select_agent_process(&candidates)
+    };
+    let foreground = match selection {
         AgentProcessSelection::Selected { pid, provider, .. } => Foreground {
             selection: Selection::AgentChain,
             pid: Some(pid),

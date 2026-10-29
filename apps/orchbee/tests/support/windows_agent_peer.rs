@@ -897,6 +897,7 @@ pub(super) fn process(
         pid,
         parent_pid,
         creation_time: u64::from(pid),
+        console: orchbee_terminal_protocol::TerminalProcessConsole::Attached,
         image: Some(image.into()),
         command_line: Some(image.into()),
         current_directory: Some("C:\\工作 😀".into()),

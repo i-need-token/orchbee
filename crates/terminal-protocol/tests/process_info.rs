@@ -1,8 +1,8 @@
 use orchbee_terminal_protocol::{
     AttachmentId, AttachmentTarget, CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, HostEpoch,
     MessageRole, PayloadEncoding, ProcessInfoControl, TerminalId, TerminalProcess,
-    TerminalProcessInfo, decode_process_info_control, decode_transport_envelope,
-    encode_process_info_control, encode_transport_envelope,
+    TerminalProcessConsole, TerminalProcessInfo, decode_process_info_control,
+    decode_transport_envelope, encode_process_info_control, encode_transport_envelope,
 };
 
 fn sample() -> TerminalProcessInfo {
@@ -10,14 +10,26 @@ fn sample() -> TerminalProcessInfo {
         attachment_id: AttachmentId::from_bytes([1; 16]).unwrap(),
         terminal_id: TerminalId::from_bytes([2; 16]).unwrap(),
         root_pid: 41,
-        processes: vec![TerminalProcess {
-            pid: 41,
-            parent_pid: Some(17),
-            creation_time: 133_999_999_999_999_999,
-            image: Some(r"C:\Windows\System32\cmd.exe".into()),
-            command_line: Some("cmd /C echo 中文 😀".into()),
-            current_directory: None,
-        }],
+        processes: vec![
+            TerminalProcess {
+                pid: 41,
+                parent_pid: Some(17),
+                creation_time: 133_999_999_999_999_999,
+                console: TerminalProcessConsole::Attached,
+                image: Some(r"C:\Windows\System32\cmd.exe".into()),
+                command_line: Some("cmd /C echo 中文 😀".into()),
+                current_directory: None,
+            },
+            TerminalProcess {
+                pid: 43,
+                parent_pid: Some(41),
+                creation_time: 133_999_999_999_999_998,
+                console: TerminalProcessConsole::Unknown,
+                image: None,
+                command_line: None,
+                current_directory: None,
+            },
+        ],
     }
 }
 
@@ -80,43 +92,42 @@ fn correlated_process_request_and_owned_sample_round_trip_without_losing_filetim
 }
 
 #[test]
-fn process_reply_rejects_partial_fields_unknown_fields_invalid_identity_and_noncanonical_rows() {
+fn process_reply_rejects_short_or_long_rows_invalid_console_identity_and_noncanonical_rows() {
     let encoded = encode_process_info_control(&ProcessInfoControl::ProcessInfo(sample())).unwrap();
     let original: serde_json::Value = serde_json::from_slice(&encoded.payload).unwrap();
-    for field in ["parentPid", "image", "commandLine", "currentDirectory"] {
+    let row = |edit: &dyn Fn(&mut Vec<serde_json::Value>)| {
         let mut bad = original.clone();
-        bad["processes"][0].as_object_mut().unwrap().remove(field);
-        assert!(
-            decode_process_info_control(
-                79,
-                MessageRole::Response,
-                &serde_json::to_vec(&bad).unwrap()
-            )
-            .is_err(),
-            "{field}"
-        );
-    }
-    for (field, value) in [
-        ("pid", serde_json::json!(0)),
-        ("pid", serde_json::json!(4_294_967_296_u64)),
-        ("parentPid", serde_json::json!(0)),
-        ("creationTime", serde_json::json!("01")),
-        ("creationTime", serde_json::json!("0")),
-        ("creationTime", serde_json::json!("18446744073709551616")),
-        ("commandLine", serde_json::json!("a\0b")),
-        ("extra", serde_json::json!(true)),
+        edit(bad["processes"][0].as_array_mut().unwrap());
+        decode_process_info_control(
+            79,
+            MessageRole::Response,
+            &serde_json::to_vec(&bad).unwrap(),
+        )
+    };
+    assert_eq!(original["processes"][0].as_array().unwrap().len(), 7);
+    assert!(
+        row(&|r| {
+            r.pop();
+        })
+        .is_err(),
+        "short row"
+    );
+    assert!(
+        row(&|r| r.push(serde_json::Value::Null)).is_err(),
+        "long row"
+    );
+    for (index, value) in [
+        (0, serde_json::json!(0)),
+        (0, serde_json::json!(4_294_967_296_u64)),
+        (1, serde_json::json!(0)),
+        (2, serde_json::json!("01")),
+        (2, serde_json::json!("0")),
+        (2, serde_json::json!("18446744073709551616")),
+        (3, serde_json::json!("foreground")),
+        (3, serde_json::Value::Null),
+        (5, serde_json::json!("a\0b")),
     ] {
-        let mut bad = original.clone();
-        bad["processes"][0][field] = value;
-        assert!(
-            decode_process_info_control(
-                79,
-                MessageRole::Response,
-                &serde_json::to_vec(&bad).unwrap()
-            )
-            .is_err(),
-            "{field}"
-        );
+        assert!(row(&|r| r[index] = value.clone()).is_err(), "{index}");
     }
     for (field, value) in [
         ("attachmentId", serde_json::json!("0".repeat(32))),
@@ -145,7 +156,7 @@ fn process_reply_rejects_partial_fields_unknown_fields_invalid_identity_and_nonc
 
 #[test]
 fn row_membership_and_text_bounds_are_enforced_on_both_sides() {
-    for count in [0, 1, 64, 65] {
+    for count in [0, 1, 256, 257] {
         let mut value = sample();
         value.processes = (0..count)
             .map(|index| {
@@ -156,7 +167,7 @@ fn row_membership_and_text_bounds_are_enforced_on_both_sides() {
             .collect();
         assert_eq!(
             encode_process_info_control(&ProcessInfoControl::ProcessInfo(value)).is_ok(),
-            count <= 64
+            count <= 256
         );
     }
     let mut duplicate = sample();
@@ -171,7 +182,7 @@ fn row_membership_and_text_bounds_are_enforced_on_both_sides() {
         );
     }
     let mut too_large = sample();
-    too_large.processes = (1..=64)
+    too_large.processes = (1..=256)
         .map(|pid| TerminalProcess {
             pid,
             command_line: Some("\n".repeat(4096)),

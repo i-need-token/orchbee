@@ -39,6 +39,11 @@ fn key(binding: &PresentationBinding) -> (String, String) {
     )
 }
 pub(crate) fn identify(sample: &TerminalProcessInfo) -> Option<Selected> {
+    // An opaque row (no image) could hold the Agent, so it selects nothing and the prior
+    // selection stays, as when such a member failed the whole sample.
+    if sample.processes.iter().any(|p| p.image.is_none()) {
+        return None;
+    }
     let candidates: Vec<_> = sample
         .processes
         .iter()

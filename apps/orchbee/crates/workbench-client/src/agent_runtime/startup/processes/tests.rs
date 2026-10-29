@@ -1,8 +1,9 @@
 //! Host process-envelope acceptance and declared failure codes, independent of CLI rendering.
 use super::*;
 use orchbee_terminal_protocol::{
-    CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, TerminalId, TerminalProcess, TypedFailure,
-    encode_connection_control, encode_process_info_control, encode_transport_envelope,
+    CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, TerminalId, TerminalProcess,
+    TerminalProcessConsole, TypedFailure, encode_connection_control, encode_process_info_control,
+    encode_transport_envelope,
 };
 
 fn info() -> TerminalProcessInfo {
@@ -14,6 +15,7 @@ fn info() -> TerminalProcessInfo {
             pid: 41,
             parent_pid: None,
             creation_time: u64::MAX,
+            console: TerminalProcessConsole::Attached,
             image: Some("C:\\Windows\\cmd.exe".into()),
             command_line: Some("cmd /C echo 中 😀\u{1b}]2;title\u{7}".into()),
             current_directory: None,

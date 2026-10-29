@@ -2,7 +2,9 @@ use super::*;
 
 #[test]
 fn checkpoint_directory_prefers_terminal_report_then_root_and_never_child_directory() {
-    use orchbee_terminal_protocol::{AttachmentId, TerminalId, TerminalProcess};
+    use orchbee_terminal_protocol::{
+        AttachmentId, TerminalId, TerminalProcess, TerminalProcessConsole,
+    };
     use orchbee_workbench_protocol::WorkbenchDirectoryPath;
     let mut sample = TerminalProcessInfo {
         attachment_id: AttachmentId::from_bytes([1; 16]).unwrap(),
@@ -12,6 +14,7 @@ fn checkpoint_directory_prefers_terminal_report_then_root_and_never_child_direct
             pid: 20,
             parent_pid: Some(10),
             creation_time: 1,
+            console: TerminalProcessConsole::Attached,
             image: None,
             command_line: None,
             current_directory: Some("C:/child".into()),
@@ -22,6 +25,7 @@ fn checkpoint_directory_prefers_terminal_report_then_root_and_never_child_direct
         pid: 10,
         parent_pid: None,
         creation_time: 2,
+        console: TerminalProcessConsole::Attached,
         image: None,
         command_line: None,
         current_directory: Some("C:/root".into()),

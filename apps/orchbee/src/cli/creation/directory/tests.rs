@@ -1,5 +1,7 @@
 use super::*;
-use orchbee_terminal_protocol::{AttachmentId, TerminalId, TerminalProcess};
+use orchbee_terminal_protocol::{
+    AttachmentId, TerminalId, TerminalProcess, TerminalProcessConsole,
+};
 
 #[test]
 fn root_directory_never_guesses_a_child_or_relative_path() {
@@ -7,6 +9,7 @@ fn root_directory_never_guesses_a_child_or_relative_path() {
         pid,
         parent_pid: None,
         creation_time: 1,
+        console: TerminalProcessConsole::Attached,
         image: None,
         command_line: None,
         current_directory: Some(value.to_owned()),

@@ -1,24 +1,42 @@
-//! Encodes and validates bounded attachment-scoped process samples, preserving unavailable
-//! process facts and UTF-16 text limits. It does not query the operating system or turn
+//! Encodes and validates bounded attachment-scoped process samples as compact positional rows,
+//! preserving opaque rows, console attachment, unavailable process facts, and UTF-16 text limits. It does not query the operating system or turn
 //! sampled process identity into control authority.
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
     AttachmentId, AttachmentTarget, MessageRole, ProtocolError, ProtocolErrorCode, TerminalId,
-    control::{RequiredNullable, SafeInteger, decode_wire, preflight_json, serialize_wire},
+    control::{SafeInteger, decode_wire, preflight_json, serialize_wire},
     terminal_fact::canonical_u64,
 };
 
 pub const READ_PROCESS_INFO_KIND: u16 = 79;
-pub const MAXIMUM_PROCESS_SAMPLE_ROWS: usize = 64;
+pub const MAXIMUM_PROCESS_SAMPLE_ROWS: usize = 256;
 pub const MAXIMUM_PROCESS_TEXT_UTF16_UNITS: usize = 4096;
 
+/// Whether a member shares the Terminal root's console, as the Host observed it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TerminalProcessConsole {
+    /// Attached to the Terminal's console.
+    Attached,
+    /// Not attached to it: another console, such as one opened by `start`, or a GUI-subsystem
+    /// program, which never reports a console host.
+    Detached,
+    /// A console program without any console, such as one started with `DETACHED_PROCESS`.
+    None,
+    /// Not observable, including every opaque row and a sample whose root has exited.
+    Unknown,
+}
+
+/// One live Job member. A row without `image` is opaque: the member denied limited query
+/// rights, so only its identity and parent are known. Consumers never treat it as absent.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TerminalProcess {
     pub pid: u32,
     pub parent_pid: Option<u32>,
     pub creation_time: u64,
+    pub console: TerminalProcessConsole,
     pub image: Option<String>,
     pub command_line: Option<String>,
     pub current_directory: Option<String>,
@@ -132,43 +150,43 @@ struct InfoWire {
     processes: Vec<ProcessWire>,
 }
 
+/// `[pid, parentPid, creationTime, console, image, commandLine, currentDirectory]`; a JSON
+/// array of any other length is rejected.
 #[derive(Deserialize, Serialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct ProcessWire {
-    pid: SafeInteger,
-    #[serde(default)]
-    parent_pid: RequiredNullable<SafeInteger>,
-    creation_time: String,
-    #[serde(default)]
-    image: RequiredNullable<String>,
-    #[serde(default)]
-    command_line: RequiredNullable<String>,
-    #[serde(default)]
-    current_directory: RequiredNullable<String>,
-}
+struct ProcessWire(
+    SafeInteger,
+    Option<SafeInteger>,
+    String,
+    TerminalProcessConsole,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+);
 
 fn from_wire(wire: ProcessWire) -> Result<TerminalProcess, ProtocolError> {
+    let ProcessWire(pid_value, parent_pid, creation_time, console, image, command, directory) =
+        wire;
     Ok(TerminalProcess {
-        pid: pid(wire.pid)?,
-        parent_pid: wire.parent_pid.into_option()?.map(pid).transpose()?,
-        creation_time: canonical_u64(&wire.creation_time)?,
-        image: wire.image.into_option()?,
-        command_line: wire.command_line.into_option()?,
-        current_directory: wire.current_directory.into_option()?,
+        pid: pid(pid_value)?,
+        parent_pid: parent_pid.map(pid).transpose()?,
+        creation_time: canonical_u64(&creation_time)?,
+        console,
+        image,
+        command_line: command,
+        current_directory: directory,
     })
 }
 
 fn to_wire(value: &TerminalProcess) -> ProcessWire {
-    ProcessWire {
-        pid: SafeInteger::new(u64::from(value.pid)),
-        parent_pid: RequiredNullable::from_option(
-            value.parent_pid.map(|pid| SafeInteger::new(u64::from(pid))),
-        ),
-        creation_time: value.creation_time.to_string(),
-        image: RequiredNullable::from_option(value.image.clone()),
-        command_line: RequiredNullable::from_option(value.command_line.clone()),
-        current_directory: RequiredNullable::from_option(value.current_directory.clone()),
-    }
+    ProcessWire(
+        SafeInteger::new(u64::from(value.pid)),
+        value.parent_pid.map(|pid| SafeInteger::new(u64::from(pid))),
+        value.creation_time.to_string(),
+        value.console,
+        value.image.clone(),
+        value.command_line.clone(),
+        value.current_directory.clone(),
+    )
 }
 
 fn validate(value: &TerminalProcessInfo) -> Result<(), ProtocolError> {

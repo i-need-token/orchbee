@@ -7,6 +7,7 @@ fn idle_shell_refuses_commands_unknown_processes_and_incomplete_samples() {
         pid,
         parent_pid: None,
         creation_time: 1,
+        console: orchbee_terminal_protocol::TerminalProcessConsole::Attached,
         image: Some(image.into()),
         command_line: Some(command.into()),
         current_directory: None,
@@ -51,6 +52,7 @@ fn idle_shell_accepts_only_the_complete_runtime_powershell_initialization() {
                 pid: 1,
                 parent_pid: None,
                 creation_time: 1,
+                console: orchbee_terminal_protocol::TerminalProcessConsole::Attached,
                 image: Some(shell.into()),
                 command_line: Some(format!(
                     "{shell} -NoLogo -NoProfile -NoExit -Command {}",
