@@ -402,9 +402,10 @@ file URI 按严格 UTF-8 解码一次百分号转义（盘符路径或 UNC autho
 控制字符，不访问文件系统；非法或非 Windows 上报仅原样保留在帧证据中，不作为文件系统目录。
 `cwdSource` 为 `terminal-frame`、
 `root-process` 或 null。`foregroundCwd` 来自公开进程策略选中的进程，不可用或歧义时为 null。
-不代入调用 CLI 的目录或猜测的启动目录。原始标题保持不变；简化标题移除精确的 Windows
-`Administrator: ` 前缀、两端空白，以及至多一个用空白分隔的前导 Braille 或已知活动字符
-（`·✢✳✶✻✽◐◓◑◒`），空结果为 null。文本输出转义全部终端/进程控制的字符串。
+不代入调用 CLI 的目录或猜测的启动目录。原始标题保持不变；简化标题移除一个精确的 Windows
+提权前缀（`Administrator: `，或简体中文的 `管理员: `、`管理员：`）、两端空白，以及至多一个用
+空白分隔的前导 Braille 或已知活动字符（`·✢✳✶✻✽◐◓◑◒`），空结果为 null。其他显示语言的提权
+前缀保留在标题中。文本输出转义全部终端/进程控制的字符串。
 
 既有五秒总期限覆盖所有 Panel 观察、Agent 关联和最终规范/Client 检查。所有结果路径都
 释放 viewer，准入会话销毁作为兜底。不产生输入、resize、焦点、history-demand 或 Client 确认效果。
@@ -2553,4 +2554,4 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=30730cc1b084ad3d440f3ec296607be98ef8cd3708e99d909b03f71c7308dd40 zh-cn-sha256=7a8c21c57ba8aa35c8ad72ae6cfc240f89c78fbe48d5c56d3298a95db59f363d -->
+<!-- documentation-pairing: english-sha256=5b6e111c88fb28635d14a0e991439b3bf752c86769c57263ef3c82a485fc06c4 zh-cn-sha256=5b165e1556c267c4f29ce7bd488c6a8f3f1ec797916b28bf2d2c20ffdd243b1f -->

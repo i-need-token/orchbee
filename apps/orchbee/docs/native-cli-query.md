@@ -495,9 +495,11 @@ in the frame evidence and do not become a filesystem directory.
 `cwdSource` is `terminal-frame`, `root-process` or null. `foregroundCwd` uses the process selected
 by the disclosed process policy and remains null when unavailable or ambiguous. No invoking-CLI
 directory or launch-directory guess is substituted. Raw title is retained unchanged. The stripped
-title removes an exact Windows `Administrator: ` prefix, surrounding whitespace, and at most one
-leading whitespace-delimited Braille or known activity glyph (`·✢✳✶✻✽◐◓◑◒`); empty becomes null.
-Text output escapes all terminal/process-controlled strings.
+title removes one exact Windows elevation prefix (`Administrator: `, or Simplified Chinese
+`管理员: ` or `管理员：`), surrounding whitespace, and at most one leading whitespace-delimited
+Braille or known activity glyph (`·✢✳✶✻✽◐◓◑◒`); empty becomes null. Elevation prefixes of other
+display languages remain part of the title. Text output escapes all terminal/process-controlled
+strings.
 
 The existing five-second total covers all Panel observations, Agent joins, and final canonical/
 Client checks. Viewers detach on every outcome, with admitted-session teardown as fallback.

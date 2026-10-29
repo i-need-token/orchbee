@@ -29,10 +29,12 @@ host's default title is the absolute path of the launched Windows executable, wh
 `<path> - <command>` while it runs a command; that is launch identity rather than a program title, so
 chrome names the program instead and keeps the command. Without a title, the launched program from
 this Client's failed-creation record, then from the Presentation's launch failure, is the next
-fallback, then the localized position (`Tab 1` in `en-US`, `标签页 1` in `zh-CN`). Activity prefixes
-are stripped and all displayed text is sanitized. This presentation never renames canonical state or
-claims an observed title is authoritative process identity; raw title observations remain unchanged.
-Canonical ordinal labels, CLI selectors, and launch-profile selection keep their existing semantics.
+fallback, then the localized position (`Tab 1` in `en-US`, `标签页 1` in `zh-CN`). Titles are
+stripped as in [Panel terminal observations](native-cli-query.md#panel-terminal-observations), which
+removes one Windows elevation prefix and one activity prefix, and all displayed text is sanitized.
+This presentation never renames canonical state or claims an observed title is authoritative process
+identity; raw title observations remain unchanged. Canonical ordinal labels, CLI selectors, and
+launch-profile selection keep their existing semantics.
 
 Program names follow one rule on every platform. A recognized shell shows its product name: `pwsh`
 as `PowerShell`, `powershell` as `Windows PowerShell`, `cmd` as `Command Prompt` (`命令提示符` in

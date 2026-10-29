@@ -1,8 +1,15 @@
 //! Terminal title handling shared by queries and the main TUI: activity prefixes, and the program
 //! that a console default title or a launch path names for native chrome.
+
+/// The prefix Windows programs such as cmd and Windows PowerShell put on an elevated console's
+/// title, in the display language's own wording. Only the `en-US` and `zh-CN` forms are
+/// recognized; `zh-CN` is accepted with either an ASCII or a full-width colon.
+const ELEVATION_PREFIXES: [&str; 3] = ["Administrator: ", "管理员: ", "管理员："];
+
 pub fn stripped(title: &str) -> Option<&str> {
-    let title = title
-        .strip_prefix("Administrator: ")
+    let title = ELEVATION_PREFIXES
+        .iter()
+        .find_map(|prefix| title.strip_prefix(prefix))
         .unwrap_or(title)
         .trim();
     let first = title.chars().next()?;
