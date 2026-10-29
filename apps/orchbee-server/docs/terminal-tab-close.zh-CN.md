@@ -535,18 +535,19 @@ graceful 关闭。该精确物理终端的每个 viewer（包括 Server 采样 v
 - 没有 Close 已对该目标设栅栏或已处置它；
 - TerminalCoordinator 保留的该 binding 的 Create 仍是同一 Started Host 实例和 Worker
   代次；
-- 保留的 Client launch selection 为空（即运行的是 会话 的默认程序），或按 Host 启动规则
-  属于交互 Shell：PowerShell 只带普通交互参数，`cmd` 只带 `/D` 或 `/Q`，POSIX shell
-  只带交互或登录参数；
+- 该次启动按 Host 启动规则运行的是交互 Shell：PowerShell 只带普通交互参数，`cmd` 只带
+  `/D` 或 `/Q`，POSIX shell 只带交互或登录参数。TerminalCoordinator 保留该次启动派发的 argv：
+  Client launch selection，否则为该次启动偏好快照中的自定义默认程序。默认启动系统 Shell
+  始终满足此条件；
 - 该 binding 是某个 Panel 的主 Presentation，且该 Panel 没有子 Presentation。
 
 因此唯一叶子会关闭整个 Tab，最后一个 Tab 关闭后其 Workspace 留空，与用户发起的 Panel
 Close 完全一致。随后 close maintenance owner 执行普通继续流程和发布；原生 Client 通过既有
-的对端 Close 路径移除该成员。非零、信号和未知退出、运行时失败、显式命令和脚本、子
+的对端 Close 路径移除该成员。非零、信号和未知退出、运行时失败、显式或默认的命令和脚本、子
 Presentation 以及共享 Panel 保持[终端结束状态](../../orchbee/docs/native-panel-lifecycle.zh-CN.md#终端结束状态)。
 准入被拒时不产生任何变化；已结束的 Panel 保留，直到后续退出观测被准入或用户关闭它。只有
 Windows 运行 Server 采样 viewer，因此其他平台上无人观测到的退出会在之后有 viewer 附着时
-再判定。不新增命令、wire 字段、设置或回执。会话 协调器测试覆盖资格判定、过期实例、单次
+再判定。不新增命令、wire 字段、设置或回执。会话 协调器测试覆盖资格判定（含自定义默认程序）、过期实例、单次
 准入以及叶子与 Tab 范围；真实窗口评审覆盖 exit 0、非零退出、分屏和最后一个 Tab。
 
 ## Workspace 组接纳
@@ -565,4 +566,4 @@ Panel、Tab 和 Workspace Close 按规范 Tab／树顺序捕获全部已绑定�
 
 OBWP 61/62 在既有 会话 读取权限下，按原始请求 ID 读取精确保留 Close 账本项，包括空范围及已完成范围。它返回原始目标和 generation，不解析当前布局成员。[CLI 状态与恢复](../../orchbee/docs/native-operation-status.zh-CN.md) 复用既有 generation 围栏恢复准入；读取本身不续期尝试，也不调度清理。
 
-<!-- documentation-pairing: english-sha256=9badddf9b1390a09e12677acbf78ad81d101947e6103a2462bdd69d3bfb6c009 zh-cn-sha256=e3072d40976636fd9bdc847f1bdafd69853e8767a5426cb21f9feb88d9bf7641 -->
+<!-- documentation-pairing: english-sha256=4ab19b50d6d2731af52b15bdc49b2ab8c7d32012f96e41220819601607dd4034 zh-cn-sha256=f39a9a85263322f473d2f94213733e3782a0f9cea937667331d96d9568c49d88 -->

@@ -153,7 +153,7 @@ pub(super) fn dispatch_tab(
     dispatch_tab_with(coordinator, command, reference, &LaunchCapture::absent())
 }
 
-fn dispatch_tab_with(
+pub(super) fn dispatch_tab_with(
     coordinator: &mut SessionCoordinator,
     command: WorkbenchCommand,
     reference: u128,

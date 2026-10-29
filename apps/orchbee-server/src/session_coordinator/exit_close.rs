@@ -40,10 +40,14 @@ impl SessionCoordinator {
             retained.phase,
             TerminalPhase::Started { identity, .. } if identity == target.identity
         );
-        let interactive = retained
-            .launch_selection
-            .as_ref()
-            .is_none_or(|launch| interactive_shell_launch(launch.executable(), launch.arguments()));
+        let interactive = match (&retained.launch_selection, retained.custom_default) {
+            (Some(launch), _) => interactive_shell_launch(launch.executable(), launch.arguments()),
+            (None, Some(program)) => {
+                interactive_shell_launch(program.executable(), program.arguments())
+            }
+            // A default launch of the System shell the Worker resolved.
+            (None, None) => true,
+        };
         if !started || retained.worker_generation != target.worker.generation || !interactive {
             return false;
         }
@@ -86,10 +90,11 @@ impl SessionCoordinator {
 }
 
 /// The Host's interactive Shell launch rule (`interactive_shell.zig`) applied to the retained
-/// Client launch selection: PowerShell with only plain interactive flags, `cmd` with only `/D` or
-/// `/Q`, and POSIX shells with only interactive or login flags. Commands, scripts and other
-/// programs return false. The PowerShell startup that Orchbee prepares later is never part of a
-/// Client selection, so its exact recognition stays with the Host.
+/// Client launch selection or the custom default program the launch's capture dispatched:
+/// PowerShell with only plain interactive flags, `cmd` with only `/D` or `/Q`, and POSIX shells
+/// with only interactive or login flags. Commands, scripts and other programs return false. The
+/// PowerShell startup that Orchbee prepares later is never part of either argv, so its exact
+/// recognition stays with the Host.
 fn interactive_shell_launch(executable: &str, arguments: &[String]) -> bool {
     let filename = executable.rsplit(['/', '\\']).next().unwrap_or(executable);
     let name = match filename.split_at_checked(filename.len().saturating_sub(4)) {

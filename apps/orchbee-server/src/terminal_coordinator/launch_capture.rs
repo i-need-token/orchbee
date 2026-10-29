@@ -2,7 +2,9 @@
 //! System shell of the Worker generation that launches it. The dispatched launch and the launched
 //! program published with its binding both derive from this value; it performs no I/O.
 
-use orchbee_capability_node_protocol::{DefaultLaunchProgram, LaunchPreferences, LaunchSelection};
+use orchbee_capability_node_protocol::{
+    DefaultCustomProgram, DefaultLaunchProgram, LaunchPreferences, LaunchSelection,
+};
 use orchbee_workbench_protocol::PresentationLaunchProgram;
 
 #[derive(Clone, Debug)]
@@ -75,6 +77,21 @@ impl LaunchCapture {
             },
             LaunchPreferences::Absent => self.system_shell.clone(),
             LaunchPreferences::Unavailable => None,
+        }
+    }
+
+    /// The custom program a default launch with this capture dispatches with its literal argv.
+    /// Explicit selections, System shell defaults and unavailable captures have none.
+    pub(super) fn custom_default(
+        &self,
+        selection: Option<&LaunchSelection>,
+    ) -> Option<DefaultCustomProgram> {
+        let (None, LaunchPreferences::Available(preferences)) = (selection, &self.default) else {
+            return None;
+        };
+        match preferences.program() {
+            Some(DefaultLaunchProgram::Custom(program)) => Some(program.clone()),
+            Some(DefaultLaunchProgram::SystemShell { .. }) | None => None,
         }
     }
 }

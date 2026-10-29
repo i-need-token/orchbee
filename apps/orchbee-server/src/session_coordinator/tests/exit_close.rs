@@ -4,7 +4,7 @@
 use super::super::target_lifecycle::target_binding;
 use super::multileaf_membership::drive_close_to_publication;
 use super::panel_split::{dispatch_split, split_command, workspace_leaf};
-use super::tab_create::{dispatch_tab, immediate_completion, tab_command};
+use super::tab_create::{dispatch_tab_with, immediate_completion, tab_command};
 use super::*;
 use crate::terminal_coordinator::BindingViewerTarget;
 use orchbee_workbench_protocol::{
@@ -46,6 +46,16 @@ fn open_tab(
     request: u128,
     launch: Option<LaunchSelection>,
 ) -> BindingViewerTarget {
+    open_tab_with(coordinator, request, launch, &LaunchCapture::absent())
+}
+
+/// Opens a started Tab whose terminal used `launch` with `capture`.
+fn open_tab_with(
+    coordinator: &mut SessionCoordinator,
+    request: u128,
+    launch: Option<LaunchSelection>,
+    capture: &LaunchCapture,
+) -> BindingViewerTarget {
     let revision = snapshot(coordinator).revision.value();
     let mut command = tab_command(coordinator, request, revision, "shell");
     let WorkbenchAction::TabCreate {
@@ -55,7 +65,7 @@ fn open_tab(
         unreachable!("tab.create command")
     };
     *selected = launch;
-    let pending = dispatch_tab(coordinator, command, request + 1);
+    let pending = dispatch_tab_with(coordinator, command, request + 1, capture);
     let completion = immediate_completion(pending.command());
     coordinator
         .complete_terminal_tab_create(pending, completion, Some(worker(1)))
@@ -222,6 +232,63 @@ fn only_interactive_shell_launches_close_after_a_normal_exit() {
             exit_normally(&mut coordinator, exited, 20),
             closes,
             "{executable} {arguments:?}"
+        );
+    }
+}
+
+#[test]
+fn a_default_launch_closes_by_the_default_program_its_capture_dispatched() {
+    use orchbee_capability_node_protocol::{
+        DefaultCustomProgram, DefaultLaunchProgram, LaunchPreferences, TerminalLaunchPreferences,
+    };
+    let preferences = |program| {
+        LaunchPreferences::Available(
+            TerminalLaunchPreferences::new(1_000, None, Some(program)).unwrap(),
+        )
+    };
+    let custom = |executable: &str, arguments: &[&str]| {
+        preferences(DefaultLaunchProgram::Custom(
+            DefaultCustomProgram::new(
+                executable.to_owned(),
+                arguments
+                    .iter()
+                    .map(|argument| (*argument).to_owned())
+                    .collect(),
+            )
+            .unwrap(),
+        ))
+    };
+    let pwsh = r"C:\Program Files\PowerShell\7\pwsh.exe";
+    let cases = [
+        (
+            preferences(DefaultLaunchProgram::SystemShell { login: true }),
+            None,
+            true,
+        ),
+        (custom(pwsh, &["-NoLogo"]), None, true),
+        (custom("/bin/zsh", &["-l"]), None, true),
+        (custom(r"C:\tools\codex.exe", &[]), None, false),
+        (custom(pwsh, &["-Command", "agent"]), None, false),
+        // An explicit selection launches its own argv, never the default program.
+        (
+            custom(r"C:\tools\codex.exe", &[]),
+            Some(LaunchSelection::new(pwsh.to_owned(), Vec::new()).unwrap()),
+            true,
+        ),
+        (
+            custom(pwsh, &[]),
+            Some(LaunchSelection::new(r"C:\tools\codex.exe".to_owned(), Vec::new()).unwrap()),
+            false,
+        ),
+    ];
+    for (default, launch, closes) in cases {
+        let mut coordinator = session();
+        let capture = LaunchCapture::new(LaunchPreferences::Absent, default.clone());
+        let exited = open_tab_with(&mut coordinator, 10, launch.clone(), &capture);
+        assert_eq!(
+            exit_normally(&mut coordinator, exited, 20),
+            closes,
+            "{default:?} {launch:?}"
         );
     }
 }
