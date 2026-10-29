@@ -622,7 +622,8 @@ frame 和 Host 采样不能提前触发或推迟文件期限。dispatcher 等待
 每次创建在准入前、于 Session 锁之外读取同一个冻结存储一次，其计划把该
 [启动偏好快照](../../crates/capability-node-protocol/README.zh-CN.md#启动偏好快照)附加到 Worker
 请求：滚动历史大小、终端默认色，以及默认启动时所选配置的命令。存储缺失、读取被拒或程序超出选择预算时
-捕获 `Unavailable`，只拒绝该次创建；快照会超出帧上限的启动在准入前失败。Presentation 在其绑定自身的
+捕获 `Unavailable`，只拒绝该次创建。快照无法放入一个 OBCN 帧的启动在规划其终端时失败，早于任何
+Worker 派发；Workbench 创建此时报告运行时不可用 `ServerBusy`，与插件环境过大时一致。Presentation 在其绑定自身的
 修订中以 `launchProgram` 发布该绑定的启动所请求的程序：显式可执行文件、自定义默认程序，或准入它的
 Worker 这一代在 hello 中报告的系统 Shell 文件名。该代的 carrier 注册时，Worker registry 把这个名称附加到
 该代的请求 handle 上；创建从它规划所针对的同一个 handle 取得 Worker 位置和该名称，因此启动不会用上另一代的
@@ -829,4 +830,4 @@ GUI、TUI／模拟器或完整 cohort 验收。Client overlay 和公开 CLI 入�
 
 规范分割比例由原生 Client 共享并保存在 checkpoint v6，catalog v5 负责准入。[检查点契约](docs/workbench-checkpoint.zh-CN.md) 负责版本 1–5 的严格迁移；[共享比例契约](docs/shared-split-ratios.zh-CN.md) 负责比例修改、投影与兼容性。
 
-<!-- documentation-pairing: english-sha256=e47c1e261b8d557009860cde537f39d9753464e66e5426ba12b53086af2ea038 zh-cn-sha256=5cfc63805213b0e7ebf6df7b1158c1b903658bcb4bd53f4a3f6f7f7cd35b511a -->
+<!-- documentation-pairing: english-sha256=be1b53b48b287ff3726dcc7978e24955911dea8871b168c0fd681c2f1bcd67b0 zh-cn-sha256=51feba82d19922eed906c4e639505eedc087b7a1d5aa6af3792453533340a93e -->

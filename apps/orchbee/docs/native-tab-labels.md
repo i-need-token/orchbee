@@ -46,9 +46,12 @@ them. The Windows console host reports no title until the program sets one (Comm
 it runs a command), and POSIX programs report only titles they set. The Server therefore commits each
 binding's launched program with that binding, taken from the same launch it dispatches: an explicit
 launch's executable, the custom default program, or the System shell that the Worker resolved for
-its generation. On every platform, a program that has reported no title, and a Tab whose terminal
-this Client has not yet observed, show that program; only a Presentation without that fact, such as
-an unbound one, shows its position. The GUI Workbench does not yet attach to native Sessions and
+its generation. The fact records the program the launch requested, not proof that it started. On
+every platform, a program that has reported no title, and a Tab whose terminal this Client has not
+yet observed, show that program; only a Presentation without that fact shows its position. A
+Presentation lacks it when it is unbound, and a bound one lacks it when its launch's preference
+capture was unavailable, its Worker reported no System shell, or the program's file name exceeds 128
+bytes. The GUI Workbench does not yet attach to native Sessions and
 keeps its own title resolution; this naming is a staged native-only delivery.
 
 Automatic rename drafts start empty with the same current display name as an informational

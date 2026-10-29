@@ -727,16 +727,18 @@ its plan attaches that
 [launch preference capture](../../crates/capability-node-protocol/README.md#launch-preference-capture)
 to the Worker request: scrollback, terminal default colors and, for a default launch, the selected
 profile's command. A missing store, refused read or program beyond the selection budget captures
-`Unavailable`, which refuses only that creation; a launch whose capture would exceed the frame fails
-before admission. The Presentation publishes the program its binding's launch requests as
-`launchProgram` in the binding's own revision: the explicit executable, the custom default program,
-or the System shell file name that the admitting Worker generation reported in its hello. The
-Worker registry attaches that name to the generation's request handle when its carrier registers,
-and a creation takes its Worker placement and the name from the one handle it plans against, so a
-launch never names another generation's shell. A saved change reaches only later creations, and running terminals keep their capture. The Session
-composition root freezes the store's scope from the Server's single startup configuration read
-before any terminal launches, so terminals restored from a checkpoint capture preferences exactly as
-later creations do, sharing one read.
+`Unavailable`, which refuses only that creation. A launch whose capture would not fit one OBCN frame
+fails when its terminal is planned, before any Worker dispatch; a Workbench creation then reports
+runtime-unavailable `ServerBusy`, as an oversized plugin environment does. The Presentation
+publishes the program its binding's launch requests as `launchProgram` in the binding's own
+revision: the explicit executable, the custom default program, or the System shell file name that
+the admitting Worker generation reported in its hello. The Worker registry attaches that name to
+the generation's request handle when its carrier registers, and a creation takes its Worker
+placement and the name from the one handle it plans against, so a launch never names another
+generation's shell. A saved change reaches only later creations, and running terminals keep their
+capture. The Session composition root freezes the store's scope from the Server's single startup
+configuration read before any terminal launches, so terminals restored from a checkpoint capture
+preferences exactly as later creations do, sharing one read.
 
 The Client actor polls its carrier and a local command wake stream together. It owns physical
 reconnect, cancellation, IDs and subscription reconstruction. A request cancelled before handoff
