@@ -9,8 +9,8 @@ use super::tab_create::{
     terminal_outcome, terminal_preflight_reason, unavailable_by_id,
 };
 use super::{PostcommitCoordinationError, SessionCoordinator, presentation_binding};
-use crate::terminal_coordinator::{Completion, LaunchCapture, PendingOperation, WorkerPlacement};
-use orchbee_capability_node_protocol::{CapabilityNodeMessage, LeaseExpiresAtUnixMilliseconds};
+use crate::terminal_coordinator::{Completion, CreateInputs, PendingOperation, WorkerPlacement};
+use orchbee_capability_node_protocol::CapabilityNodeMessage;
 use orchbee_client_server_protocol::{
     RequestId, StartMode, TerminalCreateRequest, WorkerConstraint, WorkingDirectory,
 };
@@ -72,11 +72,10 @@ impl SessionCoordinator {
     pub(crate) fn prepare_terminal_panel_create(
         &mut self,
         command: WorkbenchCommand,
-        candidate: Option<RequestId>,
-        expiry: Option<LeaseExpiresAtUnixMilliseconds>,
-        worker: Option<WorkerPlacement>,
-        capture: &LaunchCapture,
+        inputs: CreateInputs,
     ) -> PreparedTerminalPanelCreate {
+        let (candidate, expiry, worker, capture) = inputs.into_parts();
+        let capture = &capture;
         let Self {
             terminals,
             workbench,

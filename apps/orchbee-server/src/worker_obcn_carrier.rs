@@ -26,6 +26,7 @@ use orchbee_capability_node_protocol::{
 };
 use orchbee_local_ipc::{PollFd, PollFlags, PollTimeout, poll};
 use orchbee_local_worker_protocol::WorkerId;
+use orchbee_workbench_protocol::PresentationLaunchProgram;
 
 mod lifecycle;
 pub(crate) use lifecycle::PendingLifecycleResult;
@@ -284,6 +285,8 @@ pub(crate) struct WorkerRequestHandle {
     generation: NonZeroU64,
     queue: Arc<CarrierQueue>,
     worker_id: WorkerId,
+    /// The System shell file name this handle's Worker generation reported in its hello.
+    system_shell: Option<PresentationLaunchProgram>,
 }
 
 impl Clone for WorkerRequestHandle {
@@ -294,6 +297,7 @@ impl Clone for WorkerRequestHandle {
             generation: self.generation,
             queue: Arc::clone(&self.queue),
             worker_id: self.worker_id,
+            system_shell: self.system_shell.clone(),
         }
     }
 }
@@ -468,6 +472,22 @@ impl WorkerRequestHandle {
 
     pub(crate) fn worker_id(&self) -> WorkerId {
         self.worker_id
+    }
+
+    /// The System shell file name this handle's generation reported, which names that
+    /// generation's default launches.
+    pub(crate) fn system_shell(&self) -> Option<&PresentationLaunchProgram> {
+        self.system_shell.as_ref()
+    }
+
+    /// Attaches the System shell its generation reported. The registry calls this only after it
+    /// has matched the carrier to that admitted generation.
+    pub(crate) fn with_system_shell(
+        mut self,
+        system_shell: Option<PresentationLaunchProgram>,
+    ) -> Self {
+        self.system_shell = system_shell;
+        self
     }
 
     pub(crate) fn is_active(&self) -> bool {
@@ -928,6 +948,7 @@ fn create_worker_carrier_with_limits(
             generation,
             queue,
             worker_id,
+            system_shell: None,
         },
     }
 }

@@ -4,6 +4,7 @@
 
 use super::{Driver, identity};
 use crate::local_terminal_service::{create_reference, lease_expiry, placement};
+use crate::terminal_coordinator::CreateInputs;
 use orchbee_server::{WorkbenchGrant, WorkbenchReadOrNavigationRequest};
 use orchbee_workbench_protocol::{
     LaunchOptions, ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
@@ -98,8 +99,10 @@ impl Driver<'_> {
             let handle = workers
                 .request_handle()
                 .ok_or(Failure::WorkerUnavailable {})?;
-            let capture = capture.with_system_shell(workers.system_shell());
-            let worker = placement(Some(&handle)).ok_or(Failure::WorkerUnavailable {})?;
+            let inputs = CreateInputs::admitted_by(candidate, expiry, Some(&handle), capture);
+            if inputs.worker().is_none() {
+                return Err(Failure::WorkerUnavailable {});
+            }
             if handle.generation() != self.plan.worker_generation
                 || format!(
                     "{:032x}",
@@ -199,8 +202,7 @@ impl Driver<'_> {
                     }),
                 },
             };
-            let prepared =
-                coordinator.prepare_workspace_launch(command, candidate, expiry, worker, &capture);
+            let prepared = coordinator.prepare_workspace_launch(command, inputs);
             let authority = coordinator
                 .worktree_authority()
                 .ok_or(Failure::Internal {})?;

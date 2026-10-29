@@ -150,22 +150,36 @@ pub(super) fn dispatch_tab(
     command: WorkbenchCommand,
     reference: u128,
 ) -> crate::session_coordinator::PendingTerminalTabCreate {
-    dispatch_tab_with(coordinator, command, reference, &LaunchCapture::absent())
+    dispatch_tab_with(
+        coordinator,
+        command,
+        reference,
+        &LaunchCapture::absent(),
+        None,
+    )
 }
 
+/// Dispatches through a Worker generation that reported `system_shell` in its hello.
 pub(super) fn dispatch_tab_with(
     coordinator: &mut SessionCoordinator,
     command: WorkbenchCommand,
     reference: u128,
     capture: &LaunchCapture,
+    system_shell: Option<&str>,
 ) -> crate::session_coordinator::PendingTerminalTabCreate {
-    let PreparedTerminalTabCreate::Dispatch(pending) = coordinator.prepare_terminal_tab_create(
-        command,
-        Some(id(reference)),
-        Some(expiry()),
-        Some(worker(1)),
-        capture,
-    ) else {
+    let inputs =
+        CreateInputs::new(
+            Some(id(reference)),
+            Some(expiry()),
+            Some(worker(1)),
+            capture.clone(),
+        )
+        .with_system_shell(system_shell.map(|name| {
+            orchbee_workbench_protocol::PresentationLaunchProgram::parse(name).unwrap()
+        }));
+    let PreparedTerminalTabCreate::Dispatch(pending) =
+        coordinator.prepare_terminal_tab_create(command, inputs)
+    else {
         panic!("tab.create dispatch expected")
     };
     pending
@@ -314,10 +328,7 @@ fn workspace_create_uses_canonical_worker_and_cwd_without_touching_initial_works
     assert_eq!(
         ready(coordinator.prepare_terminal_tab_create(
             command,
-            None,
-            None,
-            None,
-            &LaunchCapture::absent()
+            CreateInputs::new(None, None, None, LaunchCapture::absent())
         )),
         completed.result
     );
@@ -336,10 +347,12 @@ fn workspace_create_rejects_a_different_current_worker_without_home_fallback() {
     assert!(matches!(
         ready(coordinator.prepare_terminal_tab_create(
             command,
-            Some(id(706)),
-            Some(expiry()),
-            Some(incompatible),
-            &LaunchCapture::absent(),
+            CreateInputs::new(
+                Some(id(706)),
+                Some(expiry()),
+                Some(incompatible),
+                LaunchCapture::absent()
+            )
         ))
         .outcome,
         WorkbenchCommandOutcome::Unavailable {
@@ -354,17 +367,14 @@ fn workspace_create_rejects_a_different_current_worker_without_home_fallback() {
 #[test]
 fn two_pending_tab_creates_publish_exact_bindings_and_programs_and_settle_in_reverse_order() {
     let mut coordinator = session();
-    let shell = |name| {
-        LaunchCapture::absent().with_system_shell(
-            orchbee_workbench_protocol::PresentationLaunchProgram::parse(name).ok(),
-        )
-    };
+    let capture = LaunchCapture::absent();
     let first_command = tab_command(&coordinator, 10, 0, "first");
     let first = dispatch_tab_with(
         &mut coordinator,
         first_command.clone(),
         101,
-        &shell("pwsh.exe"),
+        &capture,
+        Some("pwsh.exe"),
     );
     let first_authorization = tab_authorization(&first);
     // The second command expects revision 1: the first program arrived in its binding's revision.
@@ -373,7 +383,8 @@ fn two_pending_tab_creates_publish_exact_bindings_and_programs_and_settle_in_rev
         &mut coordinator,
         second_command.clone(),
         102,
-        &shell("cmd.exe"),
+        &capture,
+        Some("cmd.exe"),
     );
     let second_authorization = tab_authorization(&second);
 
@@ -436,20 +447,14 @@ fn two_pending_tab_creates_publish_exact_bindings_and_programs_and_settle_in_rev
     assert_eq!(
         ready(coordinator.prepare_terminal_tab_create(
             first_command,
-            None,
-            None,
-            None,
-            &LaunchCapture::absent()
+            CreateInputs::new(None, None, None, LaunchCapture::absent())
         )),
         first_result
     );
     assert_eq!(
         ready(coordinator.prepare_terminal_tab_create(
             second_command,
-            None,
-            None,
-            None,
-            &LaunchCapture::absent()
+            CreateInputs::new(None, None, None, LaunchCapture::absent())
         )),
         second_result
     );
@@ -462,10 +467,7 @@ fn pending_and_final_replay_precede_missing_candidates_worker_and_conflict() {
     let pending = dispatch_tab(&mut coordinator, command.clone(), 201);
     let pending_replay = ready(coordinator.prepare_terminal_tab_create(
         command.clone(),
-        None,
-        None,
-        None,
-        &LaunchCapture::absent(),
+        CreateInputs::new(None, None, None, LaunchCapture::absent()),
     ));
     assert!(matches!(
         pending_replay.outcome,
@@ -494,10 +496,7 @@ fn pending_and_final_replay_precede_missing_candidates_worker_and_conflict() {
     assert!(matches!(
         ready(coordinator.prepare_terminal_tab_create(
             conflict,
-            None,
-            None,
-            None,
-            &LaunchCapture::absent()
+            CreateInputs::new(None, None, None, LaunchCapture::absent())
         ))
         .outcome,
         WorkbenchCommandOutcome::Rejected {
@@ -513,10 +512,7 @@ fn pending_and_final_replay_precede_missing_candidates_worker_and_conflict() {
     assert_eq!(
         ready(coordinator.prepare_terminal_tab_create(
             command,
-            None,
-            None,
-            None,
-            &LaunchCapture::absent()
+            CreateInputs::new(None, None, None, LaunchCapture::absent())
         )),
         final_result
     );
@@ -574,10 +570,7 @@ fn launch_selection_reaches_the_worker_command_and_replay_identity() {
     // second launch.
     let replay = ready(coordinator.prepare_terminal_tab_create(
         command.clone(),
-        None,
-        None,
-        None,
-        &LaunchCapture::absent(),
+        CreateInputs::new(None, None, None, LaunchCapture::absent()),
     ));
     assert!(matches!(
         replay.outcome,
@@ -603,10 +596,7 @@ fn launch_selection_reaches_the_worker_command_and_replay_identity() {
     assert!(matches!(
         ready(coordinator.prepare_terminal_tab_create(
             conflict,
-            None,
-            None,
-            None,
-            &LaunchCapture::absent()
+            CreateInputs::new(None, None, None, LaunchCapture::absent())
         ))
         .outcome,
         WorkbenchCommandOutcome::Rejected {
@@ -629,10 +619,7 @@ fn launch_selection_reaches_the_worker_command_and_replay_identity() {
         assert!(matches!(
             ready(coordinator.prepare_terminal_tab_create(
                 changed,
-                None,
-                None,
-                None,
-                &LaunchCapture::absent()
+                CreateInputs::new(None, None, None, LaunchCapture::absent())
             ))
             .outcome,
             WorkbenchCommandOutcome::Rejected {
@@ -652,10 +639,7 @@ fn workbench_and_terminal_preflight_refusals_leave_all_three_session_owners_unch
     assert!(matches!(
         ready(coordinator.prepare_terminal_tab_create(
             command.clone(),
-            Some(id(301)),
-            Some(expiry()),
-            None,
-            &LaunchCapture::absent(),
+            CreateInputs::new(Some(id(301)), Some(expiry()), None, LaunchCapture::absent())
         ))
         .outcome,
         WorkbenchCommandOutcome::Unavailable {
@@ -666,10 +650,7 @@ fn workbench_and_terminal_preflight_refusals_leave_all_three_session_owners_unch
         assert!(matches!(
             ready(coordinator.prepare_terminal_tab_create(
                 command.clone(),
-                candidate,
-                expiry,
-                Some(worker(1)),
-                &LaunchCapture::absent(),
+                CreateInputs::new(candidate, expiry, Some(worker(1)), LaunchCapture::absent())
             ))
             .outcome,
             WorkbenchCommandOutcome::Unavailable {
@@ -681,10 +662,12 @@ fn workbench_and_terminal_preflight_refusals_leave_all_three_session_owners_unch
     assert!(matches!(
         ready(coordinator.prepare_terminal_tab_create(
             command.clone(),
-            Some(id(301)),
-            Some(expiry()),
-            Some(worker(1)),
-            &LaunchCapture::absent(),
+            CreateInputs::new(
+                Some(id(301)),
+                Some(expiry()),
+                Some(worker(1)),
+                LaunchCapture::absent()
+            )
         ))
         .outcome,
         WorkbenchCommandOutcome::Unavailable {
@@ -723,10 +706,7 @@ fn missing_and_retired_workbench_use_service_unavailable_without_terminal_effect
     assert!(matches!(
         ready(missing.prepare_terminal_tab_create(
             command_for(SessionId::parse(&format!("{:032x}", 999)).unwrap()),
-            None,
-            None,
-            None,
-            &LaunchCapture::absent(),
+            CreateInputs::new(None, None, None, LaunchCapture::absent())
         ))
         .outcome,
         WorkbenchCommandOutcome::Unavailable {
@@ -745,10 +725,7 @@ fn missing_and_retired_workbench_use_service_unavailable_without_terminal_effect
     assert!(matches!(
         ready(retired.prepare_terminal_tab_create(
             retired_command,
-            None,
-            None,
-            None,
-            &LaunchCapture::absent()
+            CreateInputs::new(None, None, None, LaunchCapture::absent())
         ))
         .outcome,
         WorkbenchCommandOutcome::Unavailable {
@@ -957,10 +934,7 @@ fn foreign_terminal_and_workbench_tokens_or_wrapper_mismatch_preserve_both_owner
     assert!(matches!(
         ready(terminal_owner.prepare_terminal_tab_create(
             command.clone(),
-            None,
-            None,
-            None,
-            &LaunchCapture::absent()
+            CreateInputs::new(None, None, None, LaunchCapture::absent())
         ))
         .outcome,
         WorkbenchCommandOutcome::TabCreatePending { .. }
@@ -985,10 +959,7 @@ fn foreign_terminal_and_workbench_tokens_or_wrapper_mismatch_preserve_both_owner
     assert!(matches!(
         ready(workbench_owner.prepare_terminal_tab_create(
             command.clone(),
-            None,
-            None,
-            None,
-            &LaunchCapture::absent()
+            CreateInputs::new(None, None, None, LaunchCapture::absent())
         ))
         .outcome,
         WorkbenchCommandOutcome::TabCreatePending { .. }
@@ -1011,10 +982,7 @@ fn foreign_terminal_and_workbench_tokens_or_wrapper_mismatch_preserve_both_owner
     assert!(matches!(
         ready(association_owner.prepare_terminal_tab_create(
             command,
-            None,
-            None,
-            None,
-            &LaunchCapture::absent()
+            CreateInputs::new(None, None, None, LaunchCapture::absent())
         ))
         .outcome,
         WorkbenchCommandOutcome::TabCreatePending { .. }

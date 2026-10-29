@@ -25,9 +25,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-use orchbee_capability_node_protocol::{
-    CapabilityNodeMessage, LeaseExpiresAtUnixMilliseconds, WorkerGeneration, WorkerId,
-};
+use orchbee_capability_node_protocol::{CapabilityNodeMessage, LeaseExpiresAtUnixMilliseconds};
 use orchbee_client_server_protocol::{
     ClientMessage, CreateOutcome, CreateUnavailableReason, RequestId, ServerMessage, StartOutcome,
     StartUnavailableReason, TerminalCreateResult, TerminalStartResult,
@@ -236,7 +234,8 @@ impl LocalTerminalService {
             );
         }
         let busy = busy_result(&request);
-        // Only a creation reads the preference store, and it does so before either lock.
+        // Only a creation reads the preference store, and it does so before either lock. A raw
+        // terminal creation binds no Presentation, so it needs no reported System shell.
         let capture = match &request {
             ClientMessage::TerminalCreate(_) => self.launch_capture(),
             _ => LaunchCapture::unavailable(),
@@ -246,7 +245,6 @@ impl LocalTerminalService {
                 return busy;
             };
             let handle = workers.request_handle();
-            let capture = capture.with_system_shell(workers.system_shell());
             let Ok(mut coordinator) = self.coordinator.lock() else {
                 return busy;
             };
@@ -383,11 +381,7 @@ fn submit_request(handle: &WorkerRequestHandle, request: WorkerOperationRequest)
     }
 }
 fn placement(handle: Option<&WorkerRequestHandle>) -> Option<WorkerPlacement> {
-    let handle = handle?;
-    Some(WorkerPlacement {
-        worker_id: WorkerId::from_bytes(handle.worker_id().as_bytes()).ok()?,
-        generation: WorkerGeneration::new(handle.generation()),
-    })
+    handle.and_then(WorkerPlacement::of)
 }
 fn lease_expiry() -> Option<LeaseExpiresAtUnixMilliseconds> {
     let now = u64::try_from(

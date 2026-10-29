@@ -3,10 +3,8 @@
 //! redirect a completion to another prepared creation.
 
 use super::{SessionCoordinator, presentation_binding};
-use crate::terminal_coordinator::{Completion, LaunchCapture, PendingOperation, WorkerPlacement};
-use orchbee_capability_node_protocol::{
-    CapabilityNodeMessage, LeaseExpiresAtUnixMilliseconds, TerminalOperationAuthorization,
-};
+use crate::terminal_coordinator::{Completion, CreateInputs, PendingOperation, WorkerPlacement};
+use orchbee_capability_node_protocol::{CapabilityNodeMessage, TerminalOperationAuthorization};
 use orchbee_client_server_protocol::{
     CreateAcceptedState, CreateOutcome, CreateUnavailableReason, Geometry, RequestId,
     ServerMessage, StartMode, TerminalCreateRequest, WorkerConstraint, WorkingDirectory,
@@ -94,12 +92,9 @@ impl SessionCoordinator {
     pub(crate) fn prepare_terminal_tab_create(
         &mut self,
         command: WorkbenchCommand,
-        candidate: Option<RequestId>,
-        expiry: Option<LeaseExpiresAtUnixMilliseconds>,
-        worker: Option<WorkerPlacement>,
-        capture: &LaunchCapture,
+        inputs: CreateInputs,
     ) -> PreparedTerminalTabCreate {
-        self.prepare_terminal_creation(command, candidate, expiry, worker, None, capture)
+        self.prepare_terminal_creation(command, inputs, None)
     }
 
     /// The caller holds registry then Session gates and has validated the directory
@@ -107,39 +102,30 @@ impl SessionCoordinator {
     pub(crate) fn prepare_workspace_launch(
         &mut self,
         command: WorkbenchCommand,
-        candidate: Option<RequestId>,
-        expiry: Option<LeaseExpiresAtUnixMilliseconds>,
-        worker: WorkerPlacement,
-        capture: &LaunchCapture,
+        inputs: CreateInputs,
     ) -> PreparedTerminalTabCreate {
-        let Ok(worker_id) = orchbee_workbench_protocol::WorkerId::parse(&format!(
-            "{:032x}",
-            u128::from_be_bytes(worker.worker_id.as_bytes())
-        )) else {
+        let Some(Ok(worker_id)) = inputs.worker().map(|worker| {
+            orchbee_workbench_protocol::WorkerId::parse(&format!(
+                "{:032x}",
+                u128::from_be_bytes(worker.worker_id.as_bytes())
+            ))
+        }) else {
             return PreparedTerminalTabCreate::Ready(unavailable(
                 &command,
                 WorkbenchCommandUnavailableReason::NoCompatibleWorker,
             ));
         };
-        self.prepare_terminal_creation(
-            command,
-            candidate,
-            expiry,
-            Some(worker),
-            Some(worker_id),
-            capture,
-        )
+        self.prepare_terminal_creation(command, inputs, Some(worker_id))
     }
 
     fn prepare_terminal_creation(
         &mut self,
         command: WorkbenchCommand,
-        candidate: Option<RequestId>,
-        expiry: Option<LeaseExpiresAtUnixMilliseconds>,
-        worker: Option<WorkerPlacement>,
+        inputs: CreateInputs,
         workspace_worker: Option<orchbee_workbench_protocol::WorkerId>,
-        capture: &LaunchCapture,
     ) -> PreparedTerminalTabCreate {
+        let (candidate, expiry, worker, capture) = inputs.into_parts();
+        let capture = &capture;
         let Self {
             terminals,
             workbench,

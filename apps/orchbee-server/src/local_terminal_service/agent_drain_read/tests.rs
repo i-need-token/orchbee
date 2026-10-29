@@ -16,7 +16,7 @@
 //! and the presentation binding comes from the real
 //! `agent_registration_snapshot` projection — the same hint/envelope
 //! literals as the accepted native-leaf oracle.
-use crate::terminal_coordinator::LaunchCapture;
+use crate::terminal_coordinator::{CreateInputs, LaunchCapture};
 use orchbee_local_ipc::LocalStream as UnixStream;
 
 use super::*;
@@ -223,10 +223,12 @@ fn open_member(service: &LocalTerminalService, generation: NonZeroU64) -> String
     };
     let PreparedTerminalTabCreate::Dispatch(pending) = coordinator.prepare_terminal_tab_create(
         command,
-        Some(RequestId::parse("22222222222222222222222222222222").unwrap()),
-        lease_expiry(),
-        Some(worker),
-        &LaunchCapture::absent(),
+        CreateInputs::new(
+            Some(RequestId::parse("22222222222222222222222222222222").unwrap()),
+            lease_expiry(),
+            Some(worker),
+            LaunchCapture::absent(),
+        ),
     ) else {
         panic!("Workspace tab dispatch expected")
     };

@@ -17,6 +17,7 @@ use orchbee_capability_node_protocol::{
     AgentDrainReply, AgentDrainRequest, CapabilityNodeMessage, read_message, write_message,
 };
 use orchbee_local_worker_protocol::WorkerId;
+use orchbee_workbench_protocol::PresentationLaunchProgram;
 
 use crate::agent::native_observation::CarrierIdentity;
 use crate::agent_service::{AgentPolicy, AgentService, DrainExpectation};
@@ -129,6 +130,57 @@ fn admits_only_one_worker_and_assigns_increasing_generations() {
         panic!("replacement Worker was not admitted");
     };
     assert!(second_generation > first_generation);
+}
+
+#[test]
+fn each_generation_handle_carries_only_the_shell_that_generation_reported() {
+    let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
+    let shell = |name| PresentationLaunchProgram::parse(name).ok();
+    let admit_and_register = |worker_id, system_shell| {
+        let generation = {
+            let mut registry = registry.lock().unwrap_or_else(|error| error.into_inner());
+            let WorkerAdmission::Accepted { generation } = registry.admit(worker_id, system_shell)
+            else {
+                panic!("Worker was not admitted");
+            };
+            generation
+        };
+        let carrier = create_worker_carrier(worker_id, generation);
+        WorkerRegistry::register_carrier(&registry, generation, carrier)
+            .unwrap_or_else(|| panic!("carrier was not registered"))
+    };
+    let current_handle = || {
+        registry
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .request_handle()
+            .unwrap_or_else(|| panic!("registered carrier has no handle"))
+    };
+
+    let first_owner = admit_and_register(FIRST_WORKER, shell("pwsh.exe"));
+    let first = current_handle();
+    assert_eq!(first.system_shell(), shell("pwsh.exe").as_ref());
+
+    drop(first_owner);
+    assert!(
+        registry
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .request_handle()
+            .is_none()
+    );
+
+    let second_owner = admit_and_register(SECOND_WORKER, shell("cmd.exe"));
+    let second = current_handle();
+    assert!(second.generation() > first.generation());
+    assert_eq!(second.system_shell(), shell("cmd.exe").as_ref());
+    // A handle read before the retirement keeps naming its own generation's shell.
+    assert_eq!(first.system_shell(), shell("pwsh.exe").as_ref());
+
+    // A generation that reported no shell inherits none from its predecessor.
+    drop(second_owner);
+    let _third_owner = admit_and_register(FIRST_WORKER, None);
+    assert_eq!(current_handle().system_shell(), None);
 }
 
 #[test]

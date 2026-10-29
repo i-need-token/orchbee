@@ -22,8 +22,10 @@ use orchbee_client_server_protocol::{
 #[cfg(test)]
 use orchbee_workbench_protocol::PresentationBinding;
 
+mod create_inputs;
 mod launch_capture;
 mod outcomes;
+pub(crate) use create_inputs::CreateInputs;
 pub(crate) use launch_capture::LaunchCapture;
 
 const MAXIMUM_TERMINAL_BINDINGS: usize = 1_024;
@@ -32,6 +34,16 @@ const MAXIMUM_TERMINAL_BINDINGS: usize = 1_024;
 pub(crate) struct WorkerPlacement {
     pub(crate) worker_id: WorkerId,
     pub(crate) generation: WorkerGeneration,
+}
+
+impl WorkerPlacement {
+    /// The Worker generation a registry request handle addresses.
+    pub(crate) fn of(handle: &crate::worker_obcn_carrier::WorkerRequestHandle) -> Option<Self> {
+        Some(Self {
+            worker_id: WorkerId::from_bytes(handle.worker_id().as_bytes()).ok()?,
+            generation: WorkerGeneration::new(handle.generation()),
+        })
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

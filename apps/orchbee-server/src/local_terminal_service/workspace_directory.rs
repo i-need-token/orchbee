@@ -3,6 +3,7 @@
 //! filesystem usability from wire syntax or modify a running shell's cwd.
 
 use super::{LocalTerminalService, placement};
+use crate::terminal_coordinator::CreateInputs;
 use crate::worker_obcn_carrier::WorkerRequestError;
 use orchbee_capability_node_protocol::{
     AbsoluteCwd, OperationId, TerminalCwdValidationOutcome, TerminalCwdValidationRequest,
@@ -143,19 +144,14 @@ impl LocalTerminalService {
                 return Ok(result);
             }
             let handle = workers.request_handle();
-            let current = placement(handle.as_ref());
-            if let Err(reason) = validate_observation(&request, observed, current.as_ref()) {
+            let inputs = CreateInputs::admitted_by(candidate, expiry, handle.as_ref(), capture);
+            if let Err(reason) = validate_observation(&request, observed, inputs.worker().as_ref())
+            {
                 return Ok(unavailable(&command, reason));
             }
-            let Some(current) = current else {
-                return Ok(unavailable(
-                    &command,
-                    WorkbenchCommandUnavailableReason::NoCompatibleWorker,
-                ));
-            };
-            let capture = capture.with_system_shell(workers.system_shell());
+            // Without a live generation the launch reports NoCompatibleWorker.
             (
-                coordinator.prepare_workspace_launch(command, candidate, expiry, current, &capture),
+                coordinator.prepare_workspace_launch(command, inputs),
                 handle,
             )
         };

@@ -39,10 +39,10 @@ impl LaunchCapture {
         Self::new(LaunchPreferences::Absent, LaunchPreferences::Absent)
     }
 
-    /// Adds the System shell file name of the Worker generation whose request handle the caller
-    /// read under the same registry guard.
+    /// Adds the System shell file name of the Worker generation the creation targets; only
+    /// [`CreateInputs`](super::CreateInputs) supplies it, from that generation's request handle.
     #[must_use]
-    pub(crate) fn with_system_shell(
+    pub(super) fn with_system_shell(
         mut self,
         system_shell: Option<PresentationLaunchProgram>,
     ) -> Self {

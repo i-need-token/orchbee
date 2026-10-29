@@ -624,7 +624,9 @@ frame 和 Host 采样不能提前触发或推迟文件期限。dispatcher 等待
 请求：滚动历史大小、终端默认色，以及默认启动时所选配置的命令。存储缺失、读取被拒或程序超出选择预算时
 捕获 `Unavailable`，只拒绝该次创建；快照会超出帧上限的启动在准入前失败。Presentation 在其绑定自身的
 修订中以 `launchProgram` 发布该绑定的启动所请求的程序：显式可执行文件、自定义默认程序，或准入它的
-Worker 这一代在 hello 中报告的系统 Shell 文件名。保存的修改只影响之后的创建，运行中的终端保留其快照。
+Worker 这一代在 hello 中报告的系统 Shell 文件名。该代的 carrier 注册时，Worker registry 把这个名称附加到
+该代的请求 handle 上；创建从它规划所针对的同一个 handle 取得 Worker 位置和该名称，因此启动不会用上另一代的
+Shell。保存的修改只影响之后的创建，运行中的终端保留其快照。
 会话组合根在任何终端启动之前，根据 Server 启动时唯一一次配置读取冻结存储范围，因此从 checkpoint
 恢复的终端与之后的创建一样捕获偏好，并共用一次读取。
 
@@ -827,4 +829,4 @@ GUI、TUI／模拟器或完整 cohort 验收。Client overlay 和公开 CLI 入�
 
 规范分割比例由原生 Client 共享并保存在 checkpoint v6，catalog v5 负责准入。[检查点契约](docs/workbench-checkpoint.zh-CN.md) 负责版本 1–5 的严格迁移；[共享比例契约](docs/shared-split-ratios.zh-CN.md) 负责比例修改、投影与兼容性。
 
-<!-- documentation-pairing: english-sha256=364520c458f03dc099aa00c6a1511b0bed097453df6a078f905ab1dcf837fd08 zh-cn-sha256=5507fe286b38e140b277d64359244ae8f3f822d54d5046aaeeb1e3f67571d890 -->
+<!-- documentation-pairing: english-sha256=e47c1e261b8d557009860cde537f39d9753464e66e5426ba12b53086af2ea038 zh-cn-sha256=5cfc63805213b0e7ebf6df7b1158c1b903658bcb4bd53f4a3f6f7f7cd35b511a -->

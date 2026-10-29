@@ -4,7 +4,7 @@
 
 use super::{LocalTerminalService, lease_expiry, placement};
 use crate::session_coordinator::{PostcommitCoordinationError, PreparedTerminalTabCreate};
-use crate::terminal_coordinator::LaunchCapture;
+use crate::terminal_coordinator::{CreateInputs, LaunchCapture};
 use orchbee_capability_node_protocol::LeaseExpiresAtUnixMilliseconds;
 use orchbee_client_server_protocol::RequestId;
 use orchbee_workbench_protocol::{
@@ -42,16 +42,14 @@ impl LocalTerminalService {
                 ));
             };
             let handle = workers.request_handle();
-            let current = placement(handle.as_ref());
-            let capture = capture.with_system_shell(workers.system_shell());
+            let inputs = CreateInputs::admitted_by(candidate, expiry, handle.as_ref(), capture);
             let Ok(mut coordinator) = self.coordinator.lock() else {
                 return Ok(unavailable(
                     &command,
                     WorkbenchCommandUnavailableReason::ServerBusy,
                 ));
             };
-            let prepared = coordinator
-                .prepare_terminal_tab_create(command, candidate, expiry, current, &capture);
+            let prepared = coordinator.prepare_terminal_tab_create(command, inputs);
             (prepared, handle)
         };
         self.dispatch_terminal_tab_create(prepared, handle)

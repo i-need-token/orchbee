@@ -266,10 +266,7 @@ fn multileaf_initial_workspace_tab_create_admits_and_settles() {
     assert_eq!(
         ready(coordinator.prepare_terminal_tab_create(
             create_c,
-            None,
-            None,
-            None,
-            &LaunchCapture::absent()
+            CreateInputs::new(None, None, None, LaunchCapture::absent())
         )),
         completed.result
     );
@@ -592,10 +589,7 @@ fn pending_creates_settle_out_of_order_after_another_tab_closes() {
     assert_eq!(
         ready(coordinator.prepare_terminal_tab_create(
             create_c,
-            None,
-            None,
-            None,
-            &LaunchCapture::absent()
+            CreateInputs::new(None, None, None, LaunchCapture::absent())
         )),
         completed_c.result
     );
@@ -689,10 +683,7 @@ fn last_close_to_empty_keeps_retained_replay_and_fresh_create_path() {
     assert_eq!(
         ready(coordinator.prepare_terminal_tab_create(
             create_a,
-            None,
-            None,
-            None,
-            &LaunchCapture::absent()
+            CreateInputs::new(None, None, None, LaunchCapture::absent())
         )),
         completed_a.result
     );
@@ -753,10 +744,12 @@ fn an_open_aggregate_close_fences_the_same_tab_split_but_not_a_new_create() {
     );
     let PreparedTerminalPanelCreate::Ready(refused) = coordinator.prepare_terminal_panel_create(
         split,
-        Some(id(9986)),
-        Some(expiry()),
-        Some(worker(1)),
-        &LaunchCapture::absent(),
+        CreateInputs::new(
+            Some(id(9986)),
+            Some(expiry()),
+            Some(worker(1)),
+            LaunchCapture::absent(),
+        ),
     ) else {
         panic!("fenced split must not dispatch")
     };

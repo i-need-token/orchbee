@@ -87,11 +87,13 @@ fn restart_rebinds_children_and_grouped_pinned_tabs_before_open_reuses_first_ter
             coordinator
                 .prepare_checkpoint_terminal(
                     target,
-                    id(100 + index as u128),
-                    worker,
-                    expiry(),
+                    CreateInputs::new(
+                        Some(id(100 + index as u128)),
+                        Some(expiry()),
+                        Some(worker),
+                        LaunchCapture::absent(),
+                    ),
                     None,
-                    &LaunchCapture::absent(),
                 )
                 .unwrap()
         })
@@ -215,11 +217,13 @@ fn restart_refusal_does_not_commit_a_second_physical_reservation() {
     let pending = coordinator
         .prepare_checkpoint_terminal(
             &targets[0],
-            id(100),
-            worker,
-            expiry(),
+            CreateInputs::new(
+                Some(id(100)),
+                Some(expiry()),
+                Some(worker),
+                LaunchCapture::absent(),
+            ),
             None,
-            &LaunchCapture::absent(),
         )
         .unwrap();
     let before = coordinator.workbench.as_ref().unwrap().snapshot().clone();
@@ -227,11 +231,13 @@ fn restart_refusal_does_not_commit_a_second_physical_reservation() {
         coordinator
             .prepare_checkpoint_terminal(
                 &targets[0],
-                id(101),
-                worker,
-                expiry(),
-                None,
-                &LaunchCapture::absent()
+                CreateInputs::new(
+                    Some(id(101)),
+                    Some(expiry()),
+                    Some(worker),
+                    LaunchCapture::absent()
+                ),
+                None
             )
             .is_err()
     );
@@ -239,11 +245,13 @@ fn restart_refusal_does_not_commit_a_second_physical_reservation() {
     let next = coordinator
         .prepare_checkpoint_terminal(
             &targets[1],
-            id(102),
-            worker,
-            expiry(),
+            CreateInputs::new(
+                Some(id(102)),
+                Some(expiry()),
+                Some(worker),
+                LaunchCapture::absent(),
+            ),
             None,
-            &LaunchCapture::absent(),
         )
         .unwrap();
     assert_eq!(

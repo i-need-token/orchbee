@@ -36,8 +36,8 @@ struct ActiveWorker {
     carrier: Option<ActiveCarrier>,
     generation: NonZeroU64,
     worker_id: WorkerId,
-    /// The System shell this generation resolved and reported before admission; every default
-    /// launch dispatched to it starts that shell.
+    /// The System shell this generation resolved and reported before admission, held until its
+    /// carrier registers and then carried by that carrier's request handle.
     system_shell: Option<PresentationLaunchProgram>,
 }
 
@@ -235,6 +235,9 @@ impl WorkerRegistry {
             None => None,
         };
         let (request_handle, shutdown, wire_owner) = carrier.into_parts();
+        // The carrier matched this admitted generation above, so its handle carries this
+        // generation's reported shell and no other.
+        let request_handle = request_handle.with_system_shell(active.system_shell.take());
         active.carrier = Some(ActiveCarrier {
             _shutdown: shutdown,
             request_handle,
@@ -258,14 +261,6 @@ impl WorkerRegistry {
             .map(|carrier| &carrier.request_handle)
             .filter(|request_handle| request_handle.is_active())
             .cloned()
-    }
-
-    /// The System shell the active generation reported. A caller reads it under the guard it
-    /// reads `request_handle` under, so both describe one generation.
-    pub(crate) fn system_shell(&self) -> Option<PresentationLaunchProgram> {
-        self.active
-            .as_ref()
-            .and_then(|active| active.system_shell.clone())
     }
 
     pub(crate) fn cancel_pending_admission(&mut self, generation: NonZeroU64) -> bool {

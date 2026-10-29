@@ -1,5 +1,5 @@
 use super::*;
-use crate::terminal_coordinator::LaunchCapture;
+use crate::terminal_coordinator::{CreateInputs, LaunchCapture};
 use orchbee_local_ipc::LocalStream as UnixStream;
 mod interleavings;
 use crate::{
@@ -139,16 +139,18 @@ fn add_terminal_between(
         let mut session = service.coordinator.lock().unwrap();
         let PreparedTerminalTabCreate::Dispatch(pending) = session.prepare_terminal_tab_create(
             create,
-            Some(
-                orchbee_client_server_protocol::RequestId::parse(&format!(
-                    "{:032x}",
-                    11 + u128::from(index) * 100
-                ))
-                .unwrap(),
+            CreateInputs::new(
+                Some(
+                    orchbee_client_server_protocol::RequestId::parse(&format!(
+                        "{:032x}",
+                        11 + u128::from(index) * 100
+                    ))
+                    .unwrap(),
+                ),
+                lease_expiry(),
+                Some(worker),
+                LaunchCapture::absent(),
             ),
-            lease_expiry(),
-            Some(worker),
-            &LaunchCapture::absent(),
         ) else {
             panic!("Create pending")
         };

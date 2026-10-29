@@ -53,10 +53,12 @@ pub(super) fn dispatch_split(
 ) -> PendingTerminalPanelCreate {
     let PreparedTerminalPanelCreate::Dispatch(pending) = coordinator.prepare_terminal_panel_create(
         command,
-        Some(id(reference)),
-        Some(expiry()),
-        Some(worker(1)),
-        &LaunchCapture::absent(),
+        CreateInputs::new(
+            Some(id(reference)),
+            Some(expiry()),
+            Some(worker(1)),
+            LaunchCapture::absent(),
+        ),
     ) else {
         panic!("panel.split dispatch expected")
     };
@@ -278,10 +280,7 @@ fn pending_split_completion_after_close_retarget_settles_and_resolves_bare_open(
     assert_eq!(
         ready_split(coordinator.prepare_terminal_panel_create(
             split_b,
-            None,
-            None,
-            None,
-            &LaunchCapture::absent()
+            CreateInputs::new(None, None, None, LaunchCapture::absent())
         )),
         completed.result
     );
@@ -326,10 +325,7 @@ fn split_completion_before_close_publication_leaves_the_settled_reference() {
     assert_eq!(
         ready_split(coordinator.prepare_terminal_panel_create(
             split_b,
-            None,
-            None,
-            None,
-            &LaunchCapture::absent()
+            CreateInputs::new(None, None, None, LaunchCapture::absent())
         )),
         completed.result
     );
@@ -388,20 +384,14 @@ fn stale_split_completion_cannot_overwrite_the_newer_current_reference() {
     assert_eq!(
         ready_split(coordinator.prepare_terminal_panel_create(
             split_b,
-            None,
-            None,
-            None,
-            &LaunchCapture::absent()
+            CreateInputs::new(None, None, None, LaunchCapture::absent())
         )),
         completed_b.result
     );
     assert_eq!(
         ready_split(coordinator.prepare_terminal_panel_create(
             split_c,
-            None,
-            None,
-            None,
-            &LaunchCapture::absent()
+            CreateInputs::new(None, None, None, LaunchCapture::absent())
         )),
         completed_c.result
     );
@@ -468,10 +458,7 @@ fn workspace_split_completion_preserves_sibling_tab_settlement() {
     assert_eq!(
         ready_split(coordinator.prepare_terminal_panel_create(
             split,
-            None,
-            None,
-            None,
-            &LaunchCapture::absent()
+            CreateInputs::new(None, None, None, LaunchCapture::absent())
         )),
         completed.result
     );
@@ -606,10 +593,7 @@ fn launch_selection_reaches_the_split_command_and_replay_identity() {
     // second launch.
     let replay = ready_split(coordinator.prepare_terminal_panel_create(
         split.clone(),
-        None,
-        None,
-        None,
-        &LaunchCapture::absent(),
+        CreateInputs::new(None, None, None, LaunchCapture::absent()),
     ));
     assert!(matches!(
         replay.outcome,
@@ -628,10 +612,7 @@ fn launch_selection_reaches_the_split_command_and_replay_identity() {
     assert!(matches!(
         ready_split(coordinator.prepare_terminal_panel_create(
             conflict,
-            None,
-            None,
-            None,
-            &LaunchCapture::absent()
+            CreateInputs::new(None, None, None, LaunchCapture::absent())
         ))
         .outcome,
         WorkbenchCommandOutcome::Rejected {
@@ -653,10 +634,7 @@ fn launch_selection_reaches_the_split_command_and_replay_identity() {
         assert!(matches!(
             ready_split(coordinator.prepare_terminal_panel_create(
                 changed,
-                None,
-                None,
-                None,
-                &LaunchCapture::absent()
+                CreateInputs::new(None, None, None, LaunchCapture::absent())
             ))
             .outcome,
             WorkbenchCommandOutcome::Rejected {

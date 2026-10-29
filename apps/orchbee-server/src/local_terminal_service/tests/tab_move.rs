@@ -1,5 +1,7 @@
 use super::*;
 use crate::session_coordinator::PreparedTerminalTabCreate;
+use crate::terminal_coordinator::CreateInputs;
+use orchbee_capability_node_protocol::WorkerGeneration;
 use orchbee_workbench_protocol::{
     ProtocolVersion, SnapshotReadIntent, WorkbenchAction, WorkbenchCommand,
     WorkbenchCommandOutcome, WorkbenchLabel, WorkbenchRequest, WorkbenchRequestId,
@@ -52,20 +54,24 @@ fn committed_move_finishes_while_another_owner_holds_the_worker_registry() {
                 .unwrap()
                 .prepare_terminal_tab_create(
                     command,
-                    Some(
-                        orchbee_client_server_protocol::RequestId::parse(&format!(
-                            "{:032x}",
-                            20 + index
-                        ))
-                        .unwrap()
-                    ),
-                    lease_expiry(),
-                    Some(WorkerPlacement {
-                        worker_id: orchbee_capability_node_protocol::WorkerId::from_bytes([9; 16])
+                    CreateInputs::new(
+                        Some(
+                            orchbee_client_server_protocol::RequestId::parse(&format!(
+                                "{:032x}",
+                                20 + index
+                            ))
+                            .unwrap()
+                        ),
+                        lease_expiry(),
+                        Some(WorkerPlacement {
+                            worker_id: orchbee_capability_node_protocol::WorkerId::from_bytes(
+                                [9; 16]
+                            )
                             .unwrap(),
-                        generation: WorkerGeneration::new(NonZeroU64::MIN),
-                    }),
-                    &LaunchCapture::absent(),
+                            generation: WorkerGeneration::new(NonZeroU64::MIN),
+                        }),
+                        LaunchCapture::absent()
+                    )
                 ),
             PreparedTerminalTabCreate::Dispatch(_)
         ));

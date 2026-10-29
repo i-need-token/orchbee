@@ -65,7 +65,7 @@ fn open_tab_with(
         unreachable!("tab.create command")
     };
     *selected = launch;
-    let pending = dispatch_tab_with(coordinator, command, request + 1, capture);
+    let pending = dispatch_tab_with(coordinator, command, request + 1, capture, None);
     let completion = immediate_completion(pending.command());
     coordinator
         .complete_terminal_tab_create(pending, completion, Some(worker(1)))
@@ -319,10 +319,12 @@ fn a_panel_with_another_presentation_keeps_an_exited_shell() {
     };
     let PreparedTerminalPanelCreate::Dispatch(pending) = coordinator.prepare_terminal_panel_create(
         command,
-        Some(id(21)),
-        Some(expiry()),
-        Some(worker(1)),
-        &LaunchCapture::absent(),
+        CreateInputs::new(
+            Some(id(21)),
+            Some(expiry()),
+            Some(worker(1)),
+            LaunchCapture::absent(),
+        ),
     ) else {
         panic!("child Presentation dispatch expected")
     };

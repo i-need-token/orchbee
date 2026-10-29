@@ -3,10 +3,8 @@
 //! perform transport I/O.
 
 use super::{SessionCoordinator, presentation_binding, tab_create};
-use crate::terminal_coordinator::{Completion, LaunchCapture, PendingOperation, WorkerPlacement};
-use orchbee_capability_node_protocol::{
-    CapabilityNodeMessage, LeaseExpiresAtUnixMilliseconds, WorkerGeneration,
-};
+use crate::terminal_coordinator::{Completion, CreateInputs, PendingOperation, WorkerPlacement};
+use orchbee_capability_node_protocol::{CapabilityNodeMessage, WorkerGeneration};
 use orchbee_client_server_protocol::{
     RequestId, StartMode, TerminalCreateRequest, WorkerConstraint, WorkingDirectory,
 };
@@ -31,21 +29,14 @@ impl PendingWorktreeShell {
     }
 }
 impl SessionCoordinator {
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the recovery plan, its owning close, the member and the admitting Worker's \
-                  reservation and capture are independent inputs from separate owners"
-    )]
     pub(crate) fn prepare_worktree_shell(
         &mut self,
         plan: &mut WorktreeOperationPlan,
         close: &WorkbenchRequestId,
         member: &WorkbenchTerminalTab,
-        candidate: Option<RequestId>,
-        expiry: Option<LeaseExpiresAtUnixMilliseconds>,
-        worker: Option<WorkerPlacement>,
-        capture: &LaunchCapture,
+        inputs: CreateInputs,
     ) -> Result<PendingWorktreeShell, Failure> {
+        let (candidate, expiry, worker, capture) = inputs.into_parts();
         if plan.progress.restoration.is_none() {
             return Err(Failure::Internal {});
         }
@@ -87,7 +78,7 @@ impl SessionCoordinator {
                 ),
                 Some(worker),
                 Some(expiry),
-                capture,
+                &capture,
             )
             .map_err(
                 |message| match tab_create::terminal_preflight_reason(&message) {

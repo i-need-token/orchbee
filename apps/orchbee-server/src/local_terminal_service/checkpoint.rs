@@ -4,7 +4,7 @@
 
 use super::{LocalTerminalService, create_reference, lease_expiry, placement, random_session_id};
 use crate::{
-    terminal_coordinator::{Completion, PendingOperation},
+    terminal_coordinator::{Completion, CreateInputs, PendingOperation},
     worker_registry::WorkerRegistry,
 };
 use orchbee_server::{WorkbenchAuthority, WorkbenchCheckpoint};
@@ -69,15 +69,11 @@ impl LocalTerminalService {
         checkpoint: Option<WorkbenchCheckpoint>,
         preferences: orchbee_local_runtime::UserPreferencesScope,
     ) -> io::Result<(Self, CheckpointRestore)> {
-        let (handle, system_shell) = {
-            let registry = workers
-                .lock()
-                .map_err(|_| io::Error::other("Worker registry failed"))?;
-            let handle = registry
-                .request_handle()
-                .ok_or_else(|| io::Error::other("Worker unavailable"))?;
-            (handle, registry.system_shell())
-        };
+        let handle = workers
+            .lock()
+            .map_err(|_| io::Error::other("Worker registry failed"))?
+            .request_handle()
+            .ok_or_else(|| io::Error::other("Worker unavailable"))?;
         let worker = placement(Some(&handle)).ok_or_else(|| io::Error::other("invalid Worker"))?;
         let owner = WorkerId::parse(&format!(
             "{:032x}",
@@ -97,7 +93,7 @@ impl LocalTerminalService {
         let mut service = Self::from_workbench(workers, Some(authority));
         service.initialize_preferences(preferences)?;
         // One read serves every restored launch, after the scope it reads is frozen.
-        let capture = service.launch_capture().with_system_shell(system_shell);
+        let capture = service.launch_capture();
         let coordinator = service
             .coordinator
             .get_mut()
@@ -113,11 +109,13 @@ impl LocalTerminalService {
                 .map(|p| orchbee_client_server_protocol::WorkingDirectory::parse(p.as_str()))
                 .transpose()
                 .map_err(io::Error::other)?;
-            pending.push(
-                *coordinator.prepare_checkpoint_terminal(
-                    &target, reference, worker, expiry, cwd, &capture,
-                )?,
+            let inputs = CreateInputs::admitted_by(
+                Some(reference),
+                Some(expiry),
+                Some(&handle),
+                capture.clone(),
             );
+            pending.push(*coordinator.prepare_checkpoint_terminal(&target, inputs, cwd)?);
         }
         Ok((service, CheckpointRestore { pending }))
     }

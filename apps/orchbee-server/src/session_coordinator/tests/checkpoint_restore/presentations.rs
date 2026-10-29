@@ -69,10 +69,12 @@ fn panel_member_creation_dispatches_literal_launch_and_preserves_original_member
         let PreparedTerminalPanelCreate::Dispatch(pending) = coordinator
             .prepare_terminal_panel_create(
                 command.clone(),
-                Some(reference.clone()),
-                Some(expiry()),
-                Some(worker),
-                &LaunchCapture::absent(),
+                CreateInputs::new(
+                    Some(reference.clone()),
+                    Some(expiry()),
+                    Some(worker),
+                    LaunchCapture::absent(),
+                ),
             )
         else {
             panic!()
@@ -104,10 +106,12 @@ fn panel_member_creation_dispatches_literal_launch_and_preserves_original_member
 
         let PreparedTerminalPanelCreate::Ready(replay) = coordinator.prepare_terminal_panel_create(
             command,
-            Some(id(6000 + index as u128)),
-            Some(expiry()),
-            Some(worker),
-            &LaunchCapture::absent(),
+            CreateInputs::new(
+                Some(id(6000 + index as u128)),
+                Some(expiry()),
+                Some(worker),
+                LaunchCapture::absent(),
+            ),
         ) else {
             panic!()
         };
@@ -176,10 +180,12 @@ fn unbound_layout_open_is_effect_free_and_explicit_split_establishes_first_refer
     );
     let PreparedTerminalPanelCreate::Dispatch(pending) = coordinator.prepare_terminal_panel_create(
         command,
-        Some(id(102)),
-        Some(expiry()),
-        Some(worker),
-        &LaunchCapture::absent(),
+        CreateInputs::new(
+            Some(id(102)),
+            Some(expiry()),
+            Some(worker),
+            LaunchCapture::absent(),
+        ),
     ) else {
         panic!("unbound layout split must dispatch")
     };
@@ -215,11 +221,13 @@ fn child_only_restore_registers_and_opens_while_unbound_tab_close_preserves_refe
     let pending = coordinator
         .prepare_checkpoint_terminal(
             child,
-            id(100),
-            worker,
-            expiry(),
+            CreateInputs::new(
+                Some(id(100)),
+                Some(expiry()),
+                Some(worker),
+                LaunchCapture::absent(),
+            ),
             None,
-            &LaunchCapture::absent(),
         )
         .unwrap();
     let authorization = launch_authorization(pending.command());
@@ -344,11 +352,13 @@ fn relocating_restored_children_preserves_all_bindings_and_the_open_reference() 
         let pending = coordinator
             .prepare_checkpoint_terminal(
                 target,
-                id(100 + index as u128),
-                worker,
-                expiry(),
+                CreateInputs::new(
+                    Some(id(100 + index as u128)),
+                    Some(expiry()),
+                    Some(worker),
+                    LaunchCapture::absent(),
+                ),
                 None,
-                &LaunchCapture::absent(),
             )
             .unwrap();
         let authorization = launch_authorization(pending.command());

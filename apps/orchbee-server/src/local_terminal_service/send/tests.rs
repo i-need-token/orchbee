@@ -1,8 +1,8 @@
 use super::*;
 use crate::local_terminal_service::lease_expiry;
 use crate::session_coordinator::PreparedTerminalTabCreate;
-use crate::terminal_coordinator::LaunchCapture;
 use crate::terminal_coordinator::{Completion, WorkerPlacement};
+use crate::terminal_coordinator::{CreateInputs, LaunchCapture};
 use crate::worker_obcn_carrier::create_worker_carrier;
 use crate::worker_registry::{WorkerAdmission, WorkerRegistry};
 use orchbee_capability_node_protocol::{
@@ -118,10 +118,12 @@ impl Fixture {
         let mut session = self.service.coordinator.lock().map_err(|_| "poisoned")?;
         let PreparedTerminalTabCreate::Dispatch(pending) = session.prepare_terminal_tab_create(
             create,
-            Some(client_id(11 + u128::from(index) * 100)),
-            lease_expiry(),
-            Some(placement_value()),
-            &LaunchCapture::absent(),
+            CreateInputs::new(
+                Some(client_id(11 + u128::from(index) * 100)),
+                lease_expiry(),
+                Some(placement_value()),
+                LaunchCapture::absent(),
+            ),
         ) else {
             return Err("create pending".into());
         };

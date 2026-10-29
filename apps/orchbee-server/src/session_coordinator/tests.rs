@@ -1,4 +1,5 @@
 use super::*;
+use crate::terminal_coordinator::CreateInputs;
 use crate::test_support::WorkbenchFixture;
 use orchbee_capability_node_protocol::{
     CapabilityNodeMessage, HostCreationId, HostEpoch, HostLaunchAccepted, HostLaunchState,

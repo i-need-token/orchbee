@@ -3,11 +3,9 @@
 //! adopt a physical terminal from another incarnation.
 
 use super::{SessionCoordinator, presentation_binding};
-use crate::terminal_coordinator::{LaunchCapture, PendingOperation, WorkerPlacement};
-use orchbee_capability_node_protocol::LeaseExpiresAtUnixMilliseconds;
+use crate::terminal_coordinator::{CreateInputs, PendingOperation, WorkerPlacement};
 use orchbee_client_server_protocol::{
-    Geometry, RequestId, StartMode, TerminalCreateRequest, WorkerConstraint, WorkerId,
-    WorkingDirectory,
+    Geometry, StartMode, TerminalCreateRequest, WorkerConstraint, WorkerId, WorkingDirectory,
 };
 use orchbee_server::WorkbenchRestoreTarget;
 use std::io;
@@ -85,12 +83,12 @@ impl SessionCoordinator {
     pub(crate) fn prepare_checkpoint_terminal(
         &mut self,
         target: &WorkbenchRestoreTarget,
-        reference: RequestId,
-        worker: WorkerPlacement,
-        expiry: LeaseExpiresAtUnixMilliseconds,
+        inputs: CreateInputs,
         cwd: Option<WorkingDirectory>,
-        capture: &LaunchCapture,
     ) -> io::Result<Box<PendingOperation>> {
+        let (Some(reference), Some(expiry), Some(worker), capture) = inputs.into_parts() else {
+            return Err(io::Error::other("restore admission inputs unavailable"));
+        };
         let workbench = self
             .workbench
             .as_mut()
@@ -116,7 +114,7 @@ impl SessionCoordinator {
                 ),
                 Some(worker),
                 Some(expiry),
-                capture,
+                &capture,
             )
             .map_err(|_| io::Error::other("restored terminal reservation unavailable"))?;
         let binding = presentation_binding(terminal.authorization())

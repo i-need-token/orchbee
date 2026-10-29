@@ -730,8 +730,10 @@ profile's command. A missing store, refused read or program beyond the selection
 `Unavailable`, which refuses only that creation; a launch whose capture would exceed the frame fails
 before admission. The Presentation publishes the program its binding's launch requests as
 `launchProgram` in the binding's own revision: the explicit executable, the custom default program,
-or the System shell file name that the admitting Worker generation reported in its hello. A saved
-change reaches only later creations, and running terminals keep their capture. The Session
+or the System shell file name that the admitting Worker generation reported in its hello. The
+Worker registry attaches that name to the generation's request handle when its carrier registers,
+and a creation takes its Worker placement and the name from the one handle it plans against, so a
+launch never names another generation's shell. A saved change reaches only later creations, and running terminals keep their capture. The Session
 composition root freezes the store's scope from the Server's single startup configuration read
 before any terminal launches, so terminals restored from a checkpoint capture preferences exactly as
 later creations do, sharing one read.

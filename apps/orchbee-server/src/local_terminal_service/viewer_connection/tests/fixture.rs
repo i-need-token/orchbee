@@ -1,7 +1,7 @@
 use super::super::*;
 use crate::session_coordinator::PreparedTerminalTabCreate;
-use crate::terminal_coordinator::LaunchCapture;
 use crate::terminal_coordinator::{Completion, WorkerPlacement};
+use crate::terminal_coordinator::{CreateInputs, LaunchCapture};
 use crate::worker_obcn_carrier::create_worker_carrier;
 use crate::worker_registry::{WorkerAdmission, WorkerRegistry};
 use orchbee_capability_node_protocol::{
@@ -344,10 +344,12 @@ fn add_terminal(service: &LocalTerminalService, index: u8, plugin: bool) -> Work
     let mut session = service.coordinator.lock().unwrap();
     let PreparedTerminalTabCreate::Dispatch(pending) = session.prepare_terminal_tab_create(
         create,
-        Some(client_id(11 + u128::from(index) * 100)),
-        super::super::super::lease_expiry(),
-        Some(placement_value()),
-        &LaunchCapture::absent(),
+        CreateInputs::new(
+            Some(client_id(11 + u128::from(index) * 100)),
+            super::super::super::lease_expiry(),
+            Some(placement_value()),
+            LaunchCapture::absent(),
+        ),
     ) else {
         panic!("create pending")
     };

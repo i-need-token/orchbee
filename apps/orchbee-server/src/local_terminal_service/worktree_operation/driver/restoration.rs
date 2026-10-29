@@ -4,6 +4,7 @@
 
 use super::{Driver, absolute};
 use crate::local_terminal_service::{create_reference, lease_expiry, placement};
+use crate::terminal_coordinator::CreateInputs;
 use orchbee_capability_node_protocol::WorktreeMutation;
 use orchbee_workbench_protocol::{
     WorkbenchRequestId, WorktreeOperationFailure as Failure, WorktreeOperationPhase,
@@ -107,21 +108,13 @@ impl Driver<'_> {
                 let handle = workers
                     .request_handle()
                     .ok_or(Failure::WorkerUnavailable {})?;
-                let capture = capture.with_system_shell(workers.system_shell());
+                let inputs = CreateInputs::admitted_by(candidate, expiry, Some(&handle), capture);
                 let mut session = self
                     .service
                     .coordinator
                     .lock()
                     .map_err(|_| Failure::Internal {})?;
-                let pending = session.prepare_worktree_shell(
-                    self.plan,
-                    close,
-                    &member,
-                    candidate,
-                    expiry,
-                    placement(Some(&handle)),
-                    &capture,
-                )?;
+                let pending = session.prepare_worktree_shell(self.plan, close, &member, inputs)?;
                 (pending, handle)
             };
             let completion = self.service.submit(&handle, pending.command());

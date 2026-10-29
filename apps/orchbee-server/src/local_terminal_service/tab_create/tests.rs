@@ -6,14 +6,18 @@ use crate::{
     worker_registry::{WorkerAdmission, WorkerRegistry},
 };
 use orchbee_capability_node_protocol::{
-    CapabilityNodeMessage, WorkerGeneration, read_message as read_capability_message,
+    CapabilityNodeMessage, HostCreationId, HostEpoch, HostLaunchAccepted, HostLaunchState,
+    HostTerminalId, HostTerminalIdentity, TerminalLaunchMode, TerminalLaunchOutcome,
+    TerminalLaunchResult, WorkerGeneration, read_message as read_capability_message,
+    write_message as write_capability_message,
 };
 use orchbee_local_ipc::LocalStream as UnixStream;
 use orchbee_local_worker_protocol::WorkerId as LocalWorkerId;
 use orchbee_workbench_protocol::{
-    WorkbenchAction, WorkbenchCommandOutcome, WorkbenchCommandUnavailableReason, WorkbenchLabel,
-    WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse, WorkbenchRevision,
-    WorkbenchSnapshotOutcome, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome,
+    PanelNode, PresentationLaunchProgram, WorkbenchAction, WorkbenchCommandOutcome,
+    WorkbenchCommandUnavailableReason, WorkbenchLabel, WorkbenchRequest, WorkbenchRequestId,
+    WorkbenchResponse, WorkbenchRevision, WorkbenchSnapshotOutcome, WorkbenchTerminalGeometry,
+    WorkbenchTerminalOutcome,
 };
 use std::{
     error::Error,
@@ -84,10 +88,12 @@ fn service_replays_new_group_pending_and_final_before_missing_entropy_clock_or_w
         let mut coordinator = service.coordinator.lock().unwrap();
         let PreparedTerminalTabCreate::Dispatch(pending) = coordinator.prepare_terminal_tab_create(
             command.clone(),
-            Some(RequestId::parse(&format!("{:032x}", 1_002)).unwrap()),
-            lease_expiry(),
-            Some(worker()),
-            &LaunchCapture::absent(),
+            CreateInputs::new(
+                Some(RequestId::parse(&format!("{:032x}", 1_002)).unwrap()),
+                lease_expiry(),
+                Some(worker()),
+                LaunchCapture::absent(),
+            ),
         ) else {
             panic!("dispatch expected")
         };
@@ -306,5 +312,133 @@ fn silent_worker_timeout_settles_both_owners() -> TestResult {
         WorkerWireExit::RequestFailed
     );
     drop(worker_peer);
+    Ok(())
+}
+
+/// A private configuration directory, removed when the test ends.
+struct ConfigurationRoot(std::path::PathBuf);
+
+impl ConfigurationRoot {
+    fn new() -> std::io::Result<Self> {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |elapsed| elapsed.as_nanos());
+        let root = std::env::temp_dir().join(format!(
+            "orchbee-tab-create-shell-{}-{nanos}",
+            std::process::id()
+        ));
+        std::fs::create_dir(&root)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700))?;
+        }
+        Ok(Self(root))
+    }
+}
+
+impl Drop for ConfigurationRoot {
+    fn drop(&mut self) {
+        let _removed = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+#[test]
+fn a_tab_created_on_a_reporting_worker_publishes_its_system_shell() -> TestResult {
+    let configuration = ConfigurationRoot::new()?;
+    let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
+    let worker_id = LocalWorkerId::from_bytes([9; 16]);
+    let generation = {
+        let mut registry = registry
+            .lock()
+            .map_err(|_poison| "Worker registry poisoned before admission")?;
+        let reported = PresentationLaunchProgram::parse("pwsh.exe")?;
+        let WorkerAdmission::Accepted { generation } = registry.admit(worker_id, Some(reported))
+        else {
+            return Err("test Worker was not admitted".into());
+        };
+        generation
+    };
+    let carrier = create_worker_carrier(worker_id, generation);
+    let owner = WorkerRegistry::register_carrier(&registry, generation, carrier)
+        .ok_or("test Worker carrier was not registered")?;
+    let (server, mut worker_peer) = UnixStream::pair()?;
+    worker_peer.set_read_timeout(Some(Duration::from_secs(5)))?;
+    let owner_thread = thread::spawn(move || owner.run(server));
+
+    let service = LocalTerminalService::workspace_fixture(Arc::clone(&registry));
+    // A fresh preference store selects the System shell default profile.
+    let scope = orchbee_local_runtime::UserPreferencesScope::for_configuration(
+        &configuration.0.join("config.toml"),
+    )
+    .map_err(|_failure| "the preference scope was refused")?;
+    service.initialize_preferences(scope)?;
+    let service = Arc::new(service);
+    let command = command(&service, 1_201, 0);
+    let creator_service = Arc::clone(&service);
+    let creator = thread::spawn(move || creator_service.execute_terminal_tab_create(command));
+
+    let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) =
+        read_capability_message(&mut worker_peer)?
+    else {
+        return Err("tab.create did not dispatch a terminal Launch".into());
+    };
+    assert!(
+        launch.launch().is_none(),
+        "a default launch carries no selection"
+    );
+    let TerminalLaunchMode::Immediate(geometry) = launch.mode() else {
+        return Err("tab.create did not start immediately".into());
+    };
+    let started = TerminalLaunchOutcome::HostAccepted(HostLaunchAccepted::new(
+        HostTerminalIdentity::new(
+            HostCreationId::from_bytes([1; 16])?,
+            HostEpoch::from_bytes([2; 16])?,
+            HostTerminalId::from_bytes([3; 16])?,
+        ),
+        HostLaunchState::Started(geometry),
+    ));
+    write_capability_message(
+        &mut worker_peer,
+        &CapabilityNodeMessage::TerminalLaunchResult(TerminalLaunchResult::new(
+            launch.authorization(),
+            started,
+        )?),
+    )?;
+    let result = creator
+        .join()
+        .map_err(|_panic| "tab.create caller panicked")??;
+    assert!(matches!(
+        result.outcome,
+        WorkbenchCommandOutcome::TabCreated {
+            terminal_outcome: WorkbenchTerminalOutcome::Started { .. },
+            ..
+        }
+    ));
+
+    let snapshot = snapshot(&service);
+    let tab = snapshot.terminal_contexts[0]
+        .tabs
+        .last()
+        .ok_or("the created Tab is missing")?;
+    let PanelNode::Panel {
+        primary_presentation,
+        ..
+    } = &tab.root
+    else {
+        return Err("a created Tab holds one Panel".into());
+    };
+    assert_eq!(
+        primary_presentation
+            .launch_program
+            .as_ref()
+            .map(PresentationLaunchProgram::as_str),
+        Some("pwsh.exe")
+    );
+
+    drop(worker_peer);
+    let _exit = owner_thread
+        .join()
+        .map_err(|_panic| "Worker owner panicked")?;
     Ok(())
 }
