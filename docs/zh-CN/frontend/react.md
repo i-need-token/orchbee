@@ -90,8 +90,9 @@ Provider 与外部生命周期集成保持窄化、显式。组件可以组合�
 
 - 兄弟树共享资源保留在最近共同所有者；跨功能工作流、外部集成和契约保留在所属源模块。
 - 私有或支撑目录不得增加 barrel；另一个模块需要它时提升整个树。
-- 当公共根组件本身是一项完整能力时，可以直接拥有语义子系统目录，前提是每个目录包含多个内聚文件、只承担一个领域责任，并且没有独立外部消费者。名称应描述能力侧面，例如 `model/`、`layout/`、`dragging/` 或 `accessibility/`；禁止 `common/`、`shared/`、`style/` 和 `misc/` 等通用收集名称。
-- 语义子系统目录继续作为公共组件源模块的结构部分。它们没有 `index.ts`，直接导入同级实现文件，并且只通过公共组件 `index.ts` 公开选定 API。
+- 当公共根组件本身是一项完整能力时，可以直接拥有语义子系统目录，前提是每个目录包含多个内聚文件、只承担一个领域责任，并且除通过显式包子路径外没有独立外部消费者。名称应描述能力侧面，例如 `model/`、`layout/`、`dragging/` 或 `accessibility/`；禁止 `common/`、`shared/`、`style/` 和 `misc/` 等通用收集名称。
+- 语义子系统目录继续作为公共组件源模块的结构部分。它们直接导入同级实现文件，并且只通过公共组件 `index.ts` 或显式包子路径公开选定 API。只有被 `package.json#exports` 声明为显式子路径的目录才有自己的 `index.ts`。
+- 已导出的子系统目录（例如 [`docs/PACKAGES.md`](../PACKAGES.md#公共-api-和包导出) 要求的不含 React 的入口）保留其 `index.ts`，作为该子路径的导出清单。该清单只重新导出本目录的实现文件，绝不转发其他子系统或模块；源模块内的文件仍然直接导入这些实现文件。
 - 只读能力 Context 传递稳定的不可变数据或函数，例如准备好的消息。它不拥有变化中的 UI 状态或无限制 mutation；当后代共享会变化的功能状态时，使用 Context 作用域 Store 契约。
 - Context Store 和 `use<ComponentName>Store(selector)` 保留在 `contexts/` 下的同一模块；绝不增加转发用 `hooks/useFilterableListStore.ts`。
 - 单个组件使用的 Props 保留在其 `.tsx`；只有共享或有独立含义的数据才使用 `types/`。
@@ -179,4 +180,4 @@ Provider 与外部生命周期集成保持窄化、显式。组件可以组合�
 
 生成的 shadcn `ChartStyle` 是唯一 `react/no-danger` 例外；其样式文本只能包含可信的开发者编写图表配置，绝不能包含持久化值或其他不可信值。
 
-<!-- documentation-pairing: english-sha256=3f6bf2c4b2312a3f99586dceb8438af696df830ede98d51c134532c9ecf69106 zh-cn-sha256=bf12b20968a5b2db9801223c084b616f958f8f739bfbe951eb5f21dce62df2ca -->
+<!-- documentation-pairing: english-sha256=6aef8e9e6022b4ebb86eef9eb73a8bd2d352882b98047d1164bb8a53946a9703 zh-cn-sha256=3583a308be9a0f8a8f5996cf829ef76662a8daabda8b58bb74ea34e10a0adafd -->

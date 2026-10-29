@@ -76,8 +76,10 @@ cycle; preserve the semantic owner and break cycles before extraction.
 | Promotion                       | When another module needs a private component, promote the component and its complete ownership tree to an appropriate source-module boundary.                                                                        |
 | Directory-name exception        | A directory named `components` is structural only when it matches the component-group shape; `packages/ui/src/components/ui` remains a normal public module tree.                                                     |
 | Public boundary component files | Keep only `index.ts`, the root component `.tsx`, and optional same-named `.module.css` as direct component files.                                                                                                     |
-| Public component support        | Support directories and cohesive semantic subsystems allowed by the React component contract remain structural parts of the source module and have no `index.ts`.                                                     |
+| Public component support        | Support directories and cohesive semantic subsystems allowed by the React component contract remain structural parts of the source module and have no `index.ts`, except the exported subsystem entry below.          |
 | Other directories               | Non-component directories and directories outside a component ownership tree are source modules and require `index.ts`.                                                                                               |
+
+A semantic subsystem that `package.json#exports` names as an explicit subpath keeps one `index.ts` as that subpath's export manifest under [`docs/frontend/react.md`](frontend/react.md#component-directory-boundary). The manifest is not a boundary entry: other source modules still import the owning module's `index.ts`, and files in the owning module import the subsystem's implementation files directly.
 
 ## Module visibility
 

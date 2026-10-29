@@ -56,8 +56,10 @@ Zig 可见性遵循 [`docs/ZIG.md`](ZIG.md#命名和模块)。
 | 提升             | 另一个模块需要私有组件时，把该组件及完整所有权树提升到合适的源模块边界。                                                                                            |
 | 目录名称例外     | `components` 目录只有匹配组件分组形态时才是结构分组；`packages/ui/src/components/ui` 仍是正常公共模块树。                                                           |
 | 公共边界组件文件 | 只把 `index.ts`、根组件 `.tsx` 和可选的同名 `.module.css` 作为直接组件文件。                                                                                        |
-| 公共组件支撑目录 | React 组件契约允许的支撑目录和内聚语义子系统继续作为源模块的结构部分，并且没有 `index.ts`。                                                                         |
+| 公共组件支撑目录 | React 组件契约允许的支撑目录和内聚语义子系统继续作为源模块的结构部分，并且没有 `index.ts`；唯一例外是下文的已导出子系统入口。                                       |
 | 其他目录         | 非组件目录和组件所有权树之外的目录是源模块，需要 `index.ts`。                                                                                                       |
+
+被 `package.json#exports` 声明为显式子路径的语义子系统保留一个 `index.ts`，按 [`docs/frontend/react.md`](frontend/react.md#组件目录边界) 作为该子路径的导出清单。该清单不是边界入口：其他源模块仍然导入所属模块的 `index.ts`，所属模块内的文件直接导入该子系统的实现文件。
 
 ## 模块可见性
 
@@ -120,4 +122,4 @@ import { createA1 as hiddenA1 } from '../../a/a1'; // 禁止：A1 对 B1 隐藏�
 - `import/no-cycle` 以 `ignoreTypes: false` 运行；仅类型和运行时循环依赖都会失败。
 - 通过把共享契约移动到双方都可见的最近模块、在接口后反转依赖或引入专用同级模块来打破循环；绝不能抑制或降级规则。
 
-<!-- documentation-pairing: english-sha256=bdd9b03284adf5a150d3fa126a215916eb4c7b32cf42dee356ac655b1251c2d6 zh-cn-sha256=db2743e030ee18cef9f3679e0e386bd1af3bfdd12bdf29fdccc047aed1b81840 -->
+<!-- documentation-pairing: english-sha256=c96bcfd2bc4457fd3c787e81e23559260aa6f8d93b68f92c409d5c88a7b7f793 zh-cn-sha256=09e0fe82f6224171ed715d154d93797181b04efaf014942427d441bf8dac3931 -->
