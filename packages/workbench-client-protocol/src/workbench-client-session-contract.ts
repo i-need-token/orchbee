@@ -1,13 +1,14 @@
-import {
-	WorkbenchSharedDocumentRevisionSchema,
-	WorkbenchSharedDocumentSchema,
-} from '@orchbee/workbench/document';
+import { CanonicalUint64TextSchema, TerminalIdentitySchema } from '@orchbee/terminal-protocol';
+import { z } from 'zod';
+
 import {
 	TerminalPresentationEventSchema,
 	TerminalPresentationIdSchema,
-} from '@orchbee/workbench/terminal-presentation';
-import { CanonicalUint64TextSchema, TerminalIdentitySchema } from '@orchbee/terminal-protocol';
-import { z } from 'zod';
+} from './terminal-presentation-contract';
+import {
+	WorkbenchSharedDocumentRevisionSchema,
+	WorkbenchSharedDocumentSchema,
+} from './workbench-shared-document-contract';
 
 export const WORKBENCH_CLIENT_SESSION_BOOTSTRAP = 'orchbee.workbench.client-session-bootstrap';
 

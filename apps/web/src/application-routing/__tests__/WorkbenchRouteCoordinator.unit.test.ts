@@ -1,14 +1,16 @@
 import type { ActionExecutionContext, ActionResult } from '@orchbee/actions';
 import {
 	createWorkbenchPreviewTerminalPresentationComposition,
-	terminalPresentationId,
-	terminalPresentationOperationId,
-	terminalPresentationRemovalId,
 	WorkbenchProjectWorkspaceRuntime,
 	type WorkbenchTerminalPresentationCommand,
 	type WorkbenchTerminalPresentationComposition,
 } from '@orchbee/workbench';
 import { describe, expect, it, vi } from 'vitest';
+import {
+	terminalPresentationId,
+	terminalPresentationOperationId,
+	terminalPresentationRemovalId,
+} from '@orchbee/workbench-client-protocol';
 
 import { WorkbenchRouteCoordinator } from '../WorkbenchRouteCoordinator';
 

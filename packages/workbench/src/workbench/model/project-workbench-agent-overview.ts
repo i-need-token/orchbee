@@ -8,10 +8,10 @@ import {
 	type AgentSessionId,
 	type AgentSessionSnapshot,
 } from '@orchbee/agent';
+import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import { collectPanelLeaves } from '../components/workbench-panel-workspace/model/panel-workspace-state';
 import type { WorkbenchProjectWorkspaceRuntime } from './WorkbenchProjectWorkspaceRuntime';
-import type { TerminalPresentationId } from '../../terminal-presentation';
 
 type WorkbenchAgentTerminalPosition =
 	| { readonly kind: 'primary' }

@@ -1,7 +1,3 @@
-import type {
-	WorkbenchSharedDocument,
-	WorkbenchSharedDocumentRevision,
-} from '@orchbee/workbench/document';
 import {
 	WorkbenchClientSessionBootstrapSchema,
 	WorkbenchClientSessionCommandSchema,
@@ -11,6 +7,8 @@ import {
 	type WorkbenchClientSessionEvent,
 	type WorkbenchClientSessionRequestId,
 	type WorkbenchDocumentProposalResult,
+	type WorkbenchSharedDocument,
+	type WorkbenchSharedDocumentRevision,
 } from '@orchbee/workbench-client-protocol';
 
 import { createBrowserRandomIdentifier } from '../../browser-random-identifier';

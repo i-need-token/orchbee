@@ -4,8 +4,8 @@ import { TooltipProvider } from '@orchbee/ui/components';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import { terminalPresentationId } from '../../terminal-presentation';
 import { Workbench } from '../Workbench';
 import { createWorkbenchPreviewTerminalPresentationComposition } from '../model/createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';

@@ -7,6 +7,7 @@ import {
 	type TypedActionRuntime,
 } from '@orchbee/actions';
 import { workbenchMessages } from '@orchbee/i18n';
+import { workbenchSharedDocumentRevision } from '@orchbee/workbench-client-protocol';
 
 import {
 	deriveProjectNameFromPath,
@@ -15,7 +16,6 @@ import {
 } from '../../project-workspace';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import { matchesWorkbenchProjectCreation } from '../model/matchesWorkbenchProjectCreation';
-import { workbenchSharedDocumentRevision } from '../document';
 import type { WorkbenchNavigationPort } from '../types/workbench-host-actions';
 import {
 	WORKBENCH_ACTION_IDS,

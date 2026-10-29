@@ -7,8 +7,8 @@ import {
 	TerminalLaunchSchema,
 	type TerminalIdentity,
 } from '@orchbee/terminal-protocol';
-import { TerminalPresentationIdSchema } from '@orchbee/workbench/terminal-presentation';
 import { z } from 'zod';
+import { TerminalPresentationIdSchema } from '@orchbee/workbench-client-protocol';
 
 export const TerminalBindingIdSchema = z
 	.string()

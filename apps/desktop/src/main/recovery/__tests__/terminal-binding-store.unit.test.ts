@@ -1,6 +1,6 @@
 import { CreationIdSchema, HostEpochSchema, TerminalIdSchema } from '@orchbee/terminal-protocol';
-import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import { describe, expect, it } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import { createDefaultTerminalProfile } from '../../host';
 import {

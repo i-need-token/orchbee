@@ -7,16 +7,14 @@ import type {
 	DesktopProjectWorktreeDiscovery,
 	DesktopProjectWorktreeFailureCode,
 } from '@orchbee/desktop-client-protocol';
+import { WorkbenchProjectWorkspaceRuntime } from '@orchbee/workbench';
 import {
-	WorkbenchProjectWorkspaceRuntime,
 	terminalPresentationId,
 	terminalPresentationOperationId,
 	terminalPresentationRemovalId,
-} from '@orchbee/workbench';
-import {
-	type WorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
-} from '@orchbee/workbench/document';
+	type WorkbenchSharedDocument,
+} from '@orchbee/workbench-client-protocol';
 
 import type { DesktopClientSessionCoordinator } from '../client-session';
 import {

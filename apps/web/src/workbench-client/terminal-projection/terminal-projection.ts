@@ -1,8 +1,8 @@
-import type { TerminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import type { TerminalGeometry } from '@orchbee/terminal-protocol';
 import type {
 	ProjectedAttachmentBootstrap,
 	ProjectedTerminalCommand,
+	TerminalPresentationId,
 } from '@orchbee/workbench-client-protocol';
 
 export interface ProjectedTerminalTransport {

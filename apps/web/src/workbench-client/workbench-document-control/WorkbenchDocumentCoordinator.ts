@@ -1,15 +1,13 @@
 import type { WorkbenchProjectWorkspaceRuntime } from '@orchbee/workbench';
-import {
-	workbenchSharedDocumentRevision,
-	type WorkbenchSharedDocument,
-	type WorkbenchSharedDocumentRevision,
-} from '@orchbee/workbench/document';
 
 import type {
 	WorkbenchClientSessionBootstrap,
 	WorkbenchClientSessionEvent,
 	WorkbenchDocumentProposalResult,
+	WorkbenchSharedDocument,
+	WorkbenchSharedDocumentRevision,
 } from '@orchbee/workbench-client-protocol';
+import { workbenchSharedDocumentRevision } from '@orchbee/workbench-client-protocol';
 
 import { runApplicationCleanup } from '../../runApplicationCleanup';
 

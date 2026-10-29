@@ -4,12 +4,10 @@ import type {
 	TerminalPresentationFailure,
 	TerminalPresentationId,
 	TerminalPresentationOperationId,
-} from '@orchbee/workbench/terminal-presentation';
-import type {
 	WorkbenchSharedDocument,
 	WorkbenchSharedPanelNode,
 	WorkbenchSharedPresentation,
-} from '@orchbee/workbench/document';
+} from '@orchbee/workbench-client-protocol';
 
 import {
 	resolveDesktopTerminalContextEffectTarget,

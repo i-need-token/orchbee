@@ -1,6 +1,5 @@
 import type { ActionInvocationSource, ActionRuntime, ActionScope } from '@orchbee/actions';
 
-import type { TerminalPresentationId } from '../../../../terminal-presentation';
 import type { WorkbenchTerminalBellEffect } from '../../../model/WorkbenchTerminalBellEffectCoordinator';
 import type {
 	WorkbenchTerminalBroadcastInput,
@@ -20,6 +19,7 @@ import type {
 	PointerEvent as ReactPointerEvent,
 	RefObject,
 } from 'react';
+import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 export interface PanelDropTarget {
 	readonly direction: PanelSplitDirection;

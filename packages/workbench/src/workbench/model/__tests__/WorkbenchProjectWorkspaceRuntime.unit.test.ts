@@ -1,12 +1,12 @@
 import type { WorkbenchDirectory } from '../../../project-workspace';
 import { describe, expect, it, vi } from 'vitest';
-
-import { workbenchSharedDocumentRevision } from '../../document';
 import {
+	workbenchSharedDocumentRevision,
 	terminalPresentationId,
 	terminalPresentationOperationId,
 	terminalPresentationRemovalId,
-} from '../../../terminal-presentation';
+} from '@orchbee/workbench-client-protocol';
+
 import type { WorkbenchTerminalPresentationCommand } from '../createWorkbenchPreviewTerminalPresentationComposition';
 import { createWorkbenchPreviewTerminalPresentationComposition } from '../createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../WorkbenchProjectWorkspaceRuntime';

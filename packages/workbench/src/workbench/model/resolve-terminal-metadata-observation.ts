@@ -1,4 +1,4 @@
-import type { TerminalPresentationCloseActivity } from '../../terminal-presentation';
+import type { TerminalPresentationCloseActivity } from '@orchbee/workbench-client-protocol';
 
 type WorkbenchTerminalCurrentDirectoryObservation =
 	| { readonly currentCwd: string | null; readonly kind: 'reported' }

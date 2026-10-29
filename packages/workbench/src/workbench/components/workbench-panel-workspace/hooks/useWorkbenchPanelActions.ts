@@ -12,8 +12,8 @@ import {
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import { workbenchMessages } from '@orchbee/i18n';
 import * as React from 'react';
+import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import type { TerminalPresentationId } from '../../../../terminal-presentation';
 import {
 	PANEL_ACTION_IDS,
 	panelChildTerminalInput,

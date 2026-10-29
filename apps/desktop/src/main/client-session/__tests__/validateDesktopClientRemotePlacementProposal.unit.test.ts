@@ -1,14 +1,12 @@
+import { describe, expect, it } from 'vitest';
 import {
 	createWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
-	type WorkbenchSharedDocument,
-} from '@orchbee/workbench/document';
-import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
 	terminalPresentationRemovalId,
-} from '@orchbee/workbench/terminal-presentation';
-import { describe, expect, it } from 'vitest';
+	type WorkbenchSharedDocument,
+} from '@orchbee/workbench-client-protocol';
 
 import { validateDesktopClientRemotePlacementProposal } from '../validateDesktopClientRemotePlacementProposal';
 

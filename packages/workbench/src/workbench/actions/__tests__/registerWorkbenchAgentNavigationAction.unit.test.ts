@@ -1,8 +1,8 @@
 import { ActionRuntime, createTypedActionRuntime } from '@orchbee/actions';
 import { AgentRuntime, AgentRuntimeSnapshotSchema } from '@orchbee/agent';
 import { describe, expect, it } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import { terminalPresentationId } from '../../../terminal-presentation';
 import {
 	collectPanelLeaves,
 	findPanel,

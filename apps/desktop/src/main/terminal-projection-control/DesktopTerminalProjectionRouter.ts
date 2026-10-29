@@ -1,6 +1,8 @@
 import type { TerminalGeometry } from '@orchbee/terminal-protocol';
-import type { WorkbenchSharedDocument } from '@orchbee/workbench/document';
-import type { TerminalPresentationId } from '@orchbee/workbench/terminal-presentation';
+import type {
+	WorkbenchSharedDocument,
+	TerminalPresentationId,
+} from '@orchbee/workbench-client-protocol';
 
 import {
 	resolveDesktopTerminalPresentationEffectTarget,

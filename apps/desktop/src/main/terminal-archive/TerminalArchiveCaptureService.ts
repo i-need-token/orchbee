@@ -11,8 +11,8 @@ import {
 import {
 	ProjectedTerminalEventSchema,
 	type ProjectedTerminalEvent,
+	type TerminalPresentationId,
 } from '@orchbee/workbench-client-protocol';
-import type { TerminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import type { MessagePortMain } from 'electron';
 
 import type { DesktopTerminalProjectionLease } from '../terminal-projection-control';

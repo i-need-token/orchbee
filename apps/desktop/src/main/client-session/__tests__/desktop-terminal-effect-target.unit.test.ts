@@ -1,10 +1,10 @@
+import { describe, expect, it } from 'vitest';
 import {
 	createWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
+	terminalPresentationId,
 	type WorkbenchSharedDocument,
-} from '@orchbee/workbench/document';
-import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
-import { describe, expect, it } from 'vitest';
+} from '@orchbee/workbench-client-protocol';
 
 import {
 	resolveDesktopTerminalContextEffectTarget,

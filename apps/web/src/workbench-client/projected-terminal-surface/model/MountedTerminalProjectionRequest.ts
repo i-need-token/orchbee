@@ -2,7 +2,7 @@ import {
 	measureMountedTerminalGeometry,
 	type TerminalPresentationConfiguration,
 } from '@orchbee/terminal';
-import type { TerminalPresentationId } from '@orchbee/workbench/terminal-presentation';
+import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import type { TerminalPresentationConfigurationSource } from '../../../terminal-presentation';
 import {

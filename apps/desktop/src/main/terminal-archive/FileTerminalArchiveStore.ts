@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { chmod, mkdir, open, readdir, rename, stat, unlink, utimes } from 'node:fs/promises';
 import path from 'node:path';
 
-import type { TerminalPresentationId } from '@orchbee/workbench/terminal-presentation';
+import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import {
 	decodeTerminalArchive,

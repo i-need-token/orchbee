@@ -9,7 +9,7 @@ import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
 	terminalPresentationRemovalId,
-} from '../terminal-presentation-contracts';
+} from '../terminal-presentation-contract';
 
 describe('terminal presentation contracts', () => {
 	it('accepts bounded opaque identities for each separate identity domain', () => {

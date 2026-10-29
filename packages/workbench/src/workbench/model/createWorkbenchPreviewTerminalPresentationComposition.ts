@@ -1,9 +1,9 @@
-import {
-	type TerminalPresentationCommand,
-	type TerminalPresentationId,
-	type TerminalPresentationOperationId,
-	type TerminalPresentationRemovalId,
-} from '../../terminal-presentation';
+import type {
+	TerminalPresentationCommand,
+	TerminalPresentationId,
+	TerminalPresentationOperationId,
+	TerminalPresentationRemovalId,
+} from '@orchbee/workbench-client-protocol';
 
 export type WorkbenchTerminalPresentationCommand =
 	| TerminalPresentationCommand

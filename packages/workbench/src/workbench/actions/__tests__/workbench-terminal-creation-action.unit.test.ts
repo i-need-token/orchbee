@@ -1,12 +1,12 @@
 import type { ActionExecutionContext } from '@orchbee/actions';
-import { workbenchSharedDocumentRevision } from '../../document';
 import { describe, expect, it, vi } from 'vitest';
-
 import {
+	workbenchSharedDocumentRevision,
 	terminalPresentationId,
 	terminalPresentationOperationId,
 	terminalPresentationRemovalId,
-} from '../../../terminal-presentation';
+} from '@orchbee/workbench-client-protocol';
+
 import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
 import type {
 	WorkbenchRemoteTerminalCreationCapability,

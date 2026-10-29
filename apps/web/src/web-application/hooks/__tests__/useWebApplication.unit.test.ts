@@ -5,13 +5,13 @@ import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { TooltipProvider } from '@orchbee/ui/components';
 import {
 	createWorkbenchPreviewTerminalPresentationComposition,
-	terminalPresentationId,
 	WorkbenchProjectWorkspaceRuntime,
 	type WorkbenchTerminalSurfaceProps,
 } from '@orchbee/workbench';
 import { act, createElement, useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import { TerminalSettingsController } from '../../../terminal-settings';
 import { ApplicationLocaleController } from '../../../application-locale';

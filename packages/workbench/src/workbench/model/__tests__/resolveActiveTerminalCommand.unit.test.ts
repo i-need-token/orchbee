@@ -1,6 +1,6 @@
 import { TAB_STRIP_ACTION_IDS } from '@orchbee/tab-strip';
-import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import { describe, expect, it } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import { PANEL_ACTION_IDS } from '../../components/workbench-panel-workspace/actions/panel-action-contracts';
 import {

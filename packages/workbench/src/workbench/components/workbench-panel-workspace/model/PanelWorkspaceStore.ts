@@ -1,10 +1,10 @@
 import type { TabModel, TabModelSnapshot } from '@orchbee/tab-strip';
-
 import type {
 	TerminalPresentationCloseRequest,
 	TerminalPresentationCreation,
 	TerminalPresentationId,
-} from '../../../../terminal-presentation';
+} from '@orchbee/workbench-client-protocol';
+
 import type {
 	WorkbenchTerminalPresentationCommand,
 	WorkbenchTerminalPresentationComposition,

@@ -1,7 +1,7 @@
 import { AgentRuntimeSnapshotSchema } from '@orchbee/agent';
 import { describe, expect, it } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import { terminalPresentationId } from '../../../terminal-presentation';
 import { collectPanelLeaves } from '../../components/workbench-panel-workspace/model/panel-workspace-state';
 import { createWorkbenchPreviewTerminalPresentationComposition } from '../createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../WorkbenchProjectWorkspaceRuntime';

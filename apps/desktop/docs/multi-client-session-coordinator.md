@@ -40,7 +40,7 @@ under `apps/web`.
 
 | Input                            | Trust and absence semantics                                                                                                                     |
 | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Stored `WorkbenchSharedDocument` | Untrusted file input parsed by `@orchbee/workbench/document`; missing is a distinct initial state and invalid is unavailable.                   |
+| Stored `WorkbenchSharedDocument` | Untrusted file input parsed by `@orchbee/workbench-client-protocol`; missing is a distinct initial state and invalid is unavailable.            |
 | Client document proposal         | Untrusted capability input containing one request identity, expected revision, and complete strict document.                                    |
 | Terminal-runtime result          | Trusted only after matching the exact requested presentation and operation identity.                                                            |
 | Projection request               | Untrusted viewport demand carrying only one Presentation identity and bounded geometry; canonical document placement alone selects the runtime. |

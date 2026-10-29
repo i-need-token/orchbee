@@ -1,4 +1,8 @@
-import type { WorkbenchSharedDocument, WorkbenchSharedPanelNode } from '../document';
+import type {
+	WorkbenchSharedDocument,
+	WorkbenchSharedPanelNode,
+} from '@orchbee/workbench-client-protocol';
+
 import type { WorkbenchProjectCreationReceipt } from '../types/workbench-project-folder-acquisition';
 
 export function matchesWorkbenchProjectCreation(

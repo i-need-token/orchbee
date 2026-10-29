@@ -4,8 +4,8 @@ import { AgentRuntimeSnapshotSchema } from '@orchbee/agent';
 import { TabModel } from '@orchbee/tab-strip';
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import { terminalPresentationId } from '../../../terminal-presentation';
 import { PanelWorkspaceStore } from '../../components/workbench-panel-workspace/model/PanelWorkspaceStore';
 import { useWorkbenchAgentAttention } from '../useWorkbenchAgentAttention';
 

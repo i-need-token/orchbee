@@ -1,7 +1,9 @@
-import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import { describe, expect, it, vi } from 'vitest';
 
-import { TerminalProjectionRequestIdSchema } from '@orchbee/workbench-client-protocol';
+import {
+	TerminalProjectionRequestIdSchema,
+	terminalPresentationId,
+} from '@orchbee/workbench-client-protocol';
 import { DesktopTerminalProjectionClient } from '../DesktopTerminalProjectionClient';
 
 const mountedGeometry = { cellPixelHeight: 18, cellPixelWidth: 9, columns: 96, rows: 32 } as const;

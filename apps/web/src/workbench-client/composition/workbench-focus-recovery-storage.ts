@@ -1,12 +1,15 @@
-import { TerminalPresentationIdSchema, type TerminalPresentationId } from '@orchbee/workbench';
 import {
 	createDefaultWorkbenchClientView,
 	createWorkbenchClientView,
 	type WorkbenchClientView,
-	type WorkbenchSharedDocument,
-	type WorkbenchSharedPanelNode,
 } from '@orchbee/workbench/document';
 import { z } from 'zod';
+import {
+	TerminalPresentationIdSchema,
+	type TerminalPresentationId,
+	type WorkbenchSharedDocument,
+	type WorkbenchSharedPanelNode,
+} from '@orchbee/workbench-client-protocol';
 
 const WORKBENCH_FOCUS_RECOVERY_STORAGE_KEY = 'orchbee:web:terminal-focus-recovery:v1';
 

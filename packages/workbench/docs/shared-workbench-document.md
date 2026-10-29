@@ -2,17 +2,19 @@
 
 ## Scope and ownership
 
-`@orchbee/workbench/document` owns two versioned contracts with different authority:
+Two versioned contracts have different authority:
 
 - `WorkbenchSharedDocument` is the recoverable, revisioned product structure shared by every
   Browser page and Electron renderer page connected to one application runtime.
-- `WorkbenchClientView` is one page's disposable navigation and layout projection. It never
-  authorizes a product or terminal lifecycle change.
+  `@orchbee/workbench-client-protocol` owns its strict schema, revision, and parser.
+- `WorkbenchClientView` is one page's disposable navigation and layout projection, owned by
+  `@orchbee/workbench/document`. It never authorizes a product or terminal lifecycle change.
 
-The package validates and transforms these contracts but performs no storage, IPC, process,
-network, React, or DOM effect. Applications own those adapters and parse untrusted values at the
-boundary. A Browser page and an Electron renderer page have equal client semantics; neither
-contract contains a platform discriminator.
+Workbench produces, hydrates, and transforms both contracts; this reference remains their semantic
+description. Neither package performs a storage, IPC, process, network, React, or DOM effect.
+Applications own those adapters and parse untrusted values at the boundary. A Browser page and an
+Electron renderer page have equal client semantics; neither contract contains a platform
+discriminator.
 
 ## Shared document
 
@@ -180,7 +182,7 @@ broadcasts.
 | Hydration preserves durable terminal intent                                 | Provision/retain/close/stop/stopped runtime round trips                                                                                                                                                                                                                   | Host binding existence remains application work                  |
 | Custom title survives while natural metadata stays transient                | Title override/reset and shared-document hydration scenarios                                                                                                                                                                                                              | Rename presentation is adapter-owned                             |
 | Applying a shared document emits no terminal effect                         | Runtime trace with structural removal and retained running observation                                                                                                                                                                                                    | One renderer runtime                                             |
-| An empty Terminal Context carries no presentation intent                    | [Document schema tests](../src/workbench/document/__tests__/workbench-document.unit.test.ts)                                                                                                                                                                              | Pure structure; no remote runtime admission                      |
+| An empty Terminal Context carries no presentation intent                    | [Document schema tests](../../workbench-client-protocol/src/__tests__/workbench-shared-document-contract.unit.test.ts)                                                                                                                                                    | Pure structure; no remote runtime admission                      |
 | Retained Environment placement cannot grant Desktop remote effect authority | [Desktop target tests](../../../apps/desktop/src/main/client-session/__tests__/desktop-terminal-effect-target.unit.test.ts) and [proposal guard tests](../../../apps/desktop/src/main/client-session/__tests__/validateDesktopClientRemotePlacementProposal.unit.test.ts) | Application boundary, not a shared-schema execution capability   |
 | View-only changes never require a shared write                              | Projection-specific observers and Desktop coordinator fingerprint tests                                                                                                                                                                                                   | Shared ordering is Desktop session authority                     |
 | Preview state cannot claim shared durability                                | Deterministic rejection test                                                                                                                                                                                                                                              | Preview remains an in-memory composition                         |

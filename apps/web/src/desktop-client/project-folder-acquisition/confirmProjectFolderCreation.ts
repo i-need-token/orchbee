@@ -6,7 +6,7 @@ import {
 import type {
 	WorkbenchSharedDocument,
 	WorkbenchSharedDocumentRevision,
-} from '@orchbee/workbench/document';
+} from '@orchbee/workbench-client-protocol';
 
 interface ProjectPublication {
 	readonly committedDocument: WorkbenchSharedDocument | null;

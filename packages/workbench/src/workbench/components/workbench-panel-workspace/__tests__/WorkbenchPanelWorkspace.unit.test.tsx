@@ -7,8 +7,8 @@ import { TooltipProvider } from '@orchbee/ui/components';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { useEffect, useMemo, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import { terminalPresentationId } from '../../../../terminal-presentation';
 import type {
 	WorkbenchTerminalBroadcastInput,
 	WorkbenchTerminalBroadcastInputResult,

@@ -1,10 +1,10 @@
+import { describe, expect, it } from 'vitest';
 import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
 	terminalPresentationRemovalId,
-} from '../../../terminal-presentation';
-import { workbenchSharedDocumentRevision } from '../../document';
-import { describe, expect, it } from 'vitest';
+	workbenchSharedDocumentRevision,
+} from '@orchbee/workbench-client-protocol';
 
 import type { WorkbenchTerminalPresentationCommand } from '../createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../WorkbenchProjectWorkspaceRuntime';

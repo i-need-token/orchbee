@@ -4,8 +4,8 @@ import { ActionRuntime, type ActionScope } from '@orchbee/actions';
 import { cleanup, render } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import { terminalPresentationId } from '../../../../../terminal-presentation';
 import { PANEL_ACTION_IDS } from '../../actions/panel-action-contracts';
 import {
 	transitionPanelWorkspace,

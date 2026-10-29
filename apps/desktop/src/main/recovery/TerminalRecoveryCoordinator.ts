@@ -16,7 +16,7 @@ import {
 import {
 	TerminalPresentationIdSchema,
 	type TerminalPresentationId,
-} from '@orchbee/workbench/terminal-presentation';
+} from '@orchbee/workbench-client-protocol';
 
 import { HostRequestError, readTerminalInventory, type HostConnection } from '../host';
 import type {

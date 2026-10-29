@@ -6,17 +6,19 @@ import {
 	type TerminalInteractionConfigurationSource,
 } from '@orchbee/terminal';
 import {
-	terminalPresentationId,
-	terminalPresentationOperationId,
-	terminalPresentationRemovalId,
 	resolveTerminalMetadataObservation,
 	resolveTerminalNaturalMetadataObservation,
 	WorkbenchProjectWorkspaceRuntime,
-	type TerminalPresentationId,
 	type WorkbenchTerminalPresentationComposition,
 	type WorkbenchShortcutPlatform,
 } from '@orchbee/workbench';
-import { workbenchSharedDocumentRevision } from '@orchbee/workbench/document';
+import {
+	terminalPresentationId,
+	terminalPresentationOperationId,
+	terminalPresentationRemovalId,
+	workbenchSharedDocumentRevision,
+	type TerminalPresentationId,
+} from '@orchbee/workbench-client-protocol';
 
 import { createBrowserRandomIdentifier } from '../../browser-random-identifier';
 import type { ApplicationLocaleSource } from '../../application-locale';

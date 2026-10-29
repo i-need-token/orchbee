@@ -1,6 +1,8 @@
-import { WorkbenchSharedDocumentRevisionSchema } from '@orchbee/workbench/document';
-import { TerminalPresentationIdSchema } from '@orchbee/workbench/terminal-presentation';
 import { z } from 'zod';
+import {
+	WorkbenchSharedDocumentRevisionSchema,
+	TerminalPresentationIdSchema,
+} from '@orchbee/workbench-client-protocol';
 
 export const DesktopApplicationExitRequestIdSchema = z
 	.string()

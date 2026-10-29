@@ -3,13 +3,14 @@
 	"domain": "workbench",
 	"runtime": ["browser"],
 	"stability": "experimental",
-	"responsibility": "Shared product-semantic React shell with localized Project and Workspace navigation, optional platform-injected SSH Project enrollment entry, existing-Project SSH Folder attachment and canonical remote marker presentation, remote connection status and Connect, Retry, and Disconnect controls, independent terminal contexts, unified action and settings search, a resizable shell layout, deterministic per-tab panel topology, localized read-only Agent identity and aggregate status composition for terminal Tabs, canonical shared Workbench document and Client View validation, projection, reconciliation, and hydration, DOM-independent resource and canonical Tab and Panel membership read projections, a strict bounded exact-presentation Terminal-output semantic read contract, exact-target terminal-intent creation, terminal-presentation identity and lifecycle routing, runtime theme revision coordination, managed close orchestration, recovered standalone presentation bootstrap, and application-owned visible terminal-surface composition.",
+	"responsibility": "Shared product-semantic React shell with localized Project and Workspace navigation, optional platform-injected SSH Project enrollment entry, existing-Project SSH Folder attachment and canonical remote marker presentation, remote connection status and Connect, Retry, and Disconnect controls, independent terminal contexts, unified action and settings search, a resizable shell layout, deterministic per-tab panel topology, localized read-only Agent identity and aggregate status composition for terminal Tabs, Client View validation and reconciliation, shared Workbench document projection and hydration, DOM-independent resource and canonical Tab and Panel membership read projections, a strict bounded exact-presentation Terminal-output semantic read contract, exact-target terminal-intent creation, terminal-presentation identity and lifecycle routing, runtime theme revision coordination, managed close orchestration, recovered standalone presentation bootstrap, and application-owned visible terminal-surface composition.",
 	"nonGoals": [
 		"Owning application startup, routing roots, authentication, deployment, or packaging.",
 		"Owning locale negotiation, product message descriptors, translation catalogs, or formatting runtime.",
 		"Owning agent search read models, file search, or asynchronous search-provider transport.",
 		"Owning Electron, Node, browser-service, platform storage, or transport implementations.",
 		"Owning filesystem or Git mutation, Project persistence, or cross-device Workspace synchronization.",
+		"Owning the serialized shared Workbench document, TerminalPresentation identity and lifecycle contracts, or their shared structural invariants, which belong to @orchbee/workbench-client-protocol.",
 		"Owning canonical Agent transitions, provider adapters, notification policy, authoritative terminal sessions, Host terminal identities, PTY processes, or agent orchestration lifecycles."
 	]
 }

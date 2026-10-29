@@ -1,6 +1,8 @@
 import {
 	ProjectedAttachmentBootstrapSchema,
 	type ProjectedAttachmentBootstrap,
+	type TerminalPresentationFailure,
+	type TerminalPresentationId,
 } from '@orchbee/workbench-client-protocol';
 import {
 	AttachTerminalSchema,
@@ -21,10 +23,6 @@ import {
 	type TerminalGeometry,
 	type TerminalThemeState,
 } from '@orchbee/terminal-protocol';
-import type {
-	TerminalPresentationFailure,
-	TerminalPresentationId,
-} from '@orchbee/workbench/terminal-presentation';
 import type { MessagePortMain } from 'electron';
 import type {
 	ProjectedTerminalBrokerEffectTarget,

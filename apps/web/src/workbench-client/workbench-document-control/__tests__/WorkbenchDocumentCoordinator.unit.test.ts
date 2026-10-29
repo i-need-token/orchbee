@@ -1,12 +1,3 @@
-import {
-	createWorkbenchSharedDocument,
-	workbenchSharedDocumentRevision,
-	type WorkbenchSharedDocument,
-} from '@orchbee/workbench/document';
-import {
-	terminalPresentationId,
-	type TerminalPresentationEvent,
-} from '@orchbee/workbench/terminal-presentation';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -15,6 +6,11 @@ import {
 	WorkbenchClientSessionEventSchema,
 	type WorkbenchClientSessionEvent,
 	type WorkbenchDocumentProposalResult,
+	createWorkbenchSharedDocument,
+	workbenchSharedDocumentRevision,
+	terminalPresentationId,
+	type WorkbenchSharedDocument,
+	type TerminalPresentationEvent,
 } from '@orchbee/workbench-client-protocol';
 import { WorkbenchDocumentCoordinator } from '../WorkbenchDocumentCoordinator';
 

@@ -10,9 +10,9 @@ import {
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { createElement, startTransition, Suspense } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import type { WorkbenchActiveLocation } from '../../../project-workspace';
-import { terminalPresentationId } from '../../../terminal-presentation';
 import type { WorkbenchAgentNavigationInput } from '../../model/project-workbench-agent-overview';
 import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
 import { useWorkbenchAgentNavigation } from '../useWorkbenchAgentNavigation';

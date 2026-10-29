@@ -9,8 +9,8 @@ import {
 } from '@orchbee/actions';
 import { TAB_STRIP_ACTION_IDS, type TabSelectionInput } from '@orchbee/tab-strip';
 import { describe, expect, it, vi } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import { terminalPresentationId } from '../../../terminal-presentation';
 import { createWorkbenchPreviewTerminalPresentationComposition } from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
 import { registerWorkbenchTabSelectionActions } from '../registerWorkbenchTabSelectionActions';

@@ -1,14 +1,12 @@
-import { WorkbenchClientSessionBootstrapSchema } from '@orchbee/workbench-client-protocol';
 import {
+	WorkbenchClientSessionBootstrapSchema,
 	createWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
-	type WorkbenchSharedDocument,
-	type WorkbenchSharedPresentationIntent,
-} from '@orchbee/workbench/document';
-import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
-} from '@orchbee/workbench/terminal-presentation';
+	type WorkbenchSharedDocument,
+	type WorkbenchSharedPresentationIntent,
+} from '@orchbee/workbench-client-protocol';
 
 import { describe, expect, it, vi } from 'vitest';
 

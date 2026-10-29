@@ -4,13 +4,13 @@ import { ActionRuntime } from '@orchbee/actions';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import {
 	createWorkbenchPreviewTerminalPresentationComposition,
-	terminalPresentationId,
 	WorkbenchProjectWorkspaceRuntime,
 } from '@orchbee/workbench';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import { TerminalSettingsController } from '../../terminal-settings';
 import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';

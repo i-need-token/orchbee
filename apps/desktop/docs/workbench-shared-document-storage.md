@@ -3,9 +3,10 @@
 ## Scope and ownership
 
 Desktop Main owns the privileged persistence effect for `WorkbenchSharedDocument` from
-`@orchbee/workbench/document`. Workbench owns its Project, Workspace, Tab, Group, Panel, Split,
-terminal-presentation, lifecycle-intent, validation, and Client View reconciliation semantics.
-Desktop neither redefines those fields nor exposes filesystem authority to preload or renderer.
+`@orchbee/workbench-client-protocol`, which owns its strict schema and validation. Workbench owns
+its Project, Workspace, Tab, Group, Panel, Split, terminal-presentation, lifecycle-intent, and
+Client View reconciliation semantics. Desktop neither redefines those fields nor exposes
+filesystem authority to preload or renderer.
 
 This contract covers one private shared-document file, exact-next compare-and-swap revisions,
 serialized file operations, one renderer-document-scoped capability port, and write-ahead ordering

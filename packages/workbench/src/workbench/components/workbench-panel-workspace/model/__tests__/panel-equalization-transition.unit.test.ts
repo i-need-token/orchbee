@@ -1,5 +1,5 @@
-import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import { describe, expect, it } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import {
 	collectPanelLeaves,

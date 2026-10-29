@@ -30,8 +30,8 @@ import {
 import {
 	ProjectedTerminalEventSchema,
 	type ProjectedTerminalEvent,
+	terminalPresentationId,
 } from '@orchbee/workbench-client-protocol';
-import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import { describe, expect, it, vi } from 'vitest';
 
 import {

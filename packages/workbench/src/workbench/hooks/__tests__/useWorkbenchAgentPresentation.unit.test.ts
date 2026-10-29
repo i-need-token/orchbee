@@ -14,8 +14,8 @@ import { TabModel } from '@orchbee/tab-strip';
 import { act, render, renderHook } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import { terminalPresentationId } from '../../../terminal-presentation';
 import { PanelWorkspaceStore } from '../../components/workbench-panel-workspace/model/PanelWorkspaceStore';
 import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
 import { useWorkbenchAgentPresentation } from '../useWorkbenchAgentPresentation';

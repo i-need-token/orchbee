@@ -10,9 +10,9 @@ import {
 	type TerminalExited,
 	type TerminalFailed,
 } from '@orchbee/terminal-protocol';
-import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import type { MessagePortMain } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import type { ProjectedTerminalBrokerMetrics } from '../../broker';
 import type { HostConnection } from '../../host';

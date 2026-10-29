@@ -5,8 +5,8 @@ import path from 'node:path';
 
 import { AgentRuntime, type AgentSemanticEvent } from '@orchbee/agent';
 import { CreationIdSchema, TerminalApplicationSignalSchema } from '@orchbee/terminal-protocol';
-import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import type {
 	AgentHookAdapterId,

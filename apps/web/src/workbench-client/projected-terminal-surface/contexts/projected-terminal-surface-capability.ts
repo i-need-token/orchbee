@@ -1,14 +1,12 @@
 import type { AgentSnapshotSource } from '@orchbee/agent';
-import type {
-	TerminalPresentationId,
-	WorkbenchTerminalPresentationEventResult,
-} from '@orchbee/workbench';
+import type { WorkbenchTerminalPresentationEventResult } from '@orchbee/workbench';
 import type {
 	ProjectedTerminalMetadata,
 	ProjectedTerminalPresentationSnapshot,
 	TerminalInteractionConfigurationSource,
 } from '@orchbee/terminal';
 import { createContext } from 'react';
+import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import type { ApplicationLocaleSource } from '../../../application-locale';
 import type {

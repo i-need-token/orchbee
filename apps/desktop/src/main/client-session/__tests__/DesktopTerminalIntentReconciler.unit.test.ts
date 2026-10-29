@@ -1,17 +1,15 @@
+import { describe, expect, it, vi } from 'vitest';
 import {
 	createWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
+	terminalPresentationId,
+	terminalPresentationOperationId,
 	type WorkbenchSharedDocument,
 	type WorkbenchSharedPresentation,
 	type WorkbenchSharedPresentationIntent,
-} from '@orchbee/workbench/document';
-import {
-	terminalPresentationId,
-	terminalPresentationOperationId,
 	type TerminalPresentationCommand,
 	type TerminalPresentationEvent,
-} from '@orchbee/workbench/terminal-presentation';
-import { describe, expect, it, vi } from 'vitest';
+} from '@orchbee/workbench-client-protocol';
 
 import { DesktopTerminalIntentReconciler } from '../DesktopTerminalIntentReconciler';
 

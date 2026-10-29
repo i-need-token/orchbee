@@ -1,7 +1,16 @@
 import type { TabModelInit, TabModelSnapshot } from '@orchbee/tab-strip';
+import {
+	createWorkbenchSharedDocument,
+	parseWorkbenchSharedDocument,
+	type TerminalPresentationLifecycle,
+	type WorkbenchSharedDocument,
+	type WorkbenchSharedDocumentRevision,
+	type WorkbenchSharedPanelNode,
+	type WorkbenchSharedPresentation,
+	type WorkbenchSharedPresentationIntent,
+} from '@orchbee/workbench-client-protocol';
 
 import type { ProjectWorkspaceState, WorkbenchDirectory } from '../../project-workspace';
-import type { TerminalPresentationLifecycle } from '../../terminal-presentation';
 import type {
 	PanelLayoutNode,
 	PanelWorkspaceState,
@@ -10,16 +19,9 @@ import type {
 import { validatePanelWorkspaceState } from '../components/workbench-panel-workspace/model/panel-workspace-state';
 import {
 	createWorkbenchClientView,
-	createWorkbenchSharedDocument,
 	parseWorkbenchClientView,
-	parseWorkbenchSharedDocument,
 	reconcileWorkbenchClientView,
 	type WorkbenchClientView,
-	type WorkbenchSharedDocument,
-	type WorkbenchSharedDocumentRevision,
-	type WorkbenchSharedPanelNode,
-	type WorkbenchSharedPresentation,
-	type WorkbenchSharedPresentationIntent,
 } from '../document';
 import type { WorkbenchTabTitlePolicy } from '../components/workbench-panel-workspace/model/PanelWorkspaceStore';
 

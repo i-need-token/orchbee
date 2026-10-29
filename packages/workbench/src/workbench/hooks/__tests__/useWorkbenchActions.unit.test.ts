@@ -4,8 +4,8 @@ import { ActionRuntime } from '@orchbee/actions';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import * as React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import { terminalPresentationId } from '../../../terminal-presentation';
 import { WORKBENCH_ACTION_IDS } from '../../actions/workbench-action-ids';
 import { createWorkbenchPreviewTerminalPresentationComposition } from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
 import type {

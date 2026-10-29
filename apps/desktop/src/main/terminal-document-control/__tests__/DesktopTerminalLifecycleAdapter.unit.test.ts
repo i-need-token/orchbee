@@ -8,13 +8,13 @@ import {
 	TerminalIdSchema,
 	type TerminalSummary,
 } from '@orchbee/terminal-protocol';
+import { describe, expect, it, vi } from 'vitest';
+
 import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
-} from '@orchbee/workbench/terminal-presentation';
-import { describe, expect, it, vi } from 'vitest';
-
-import type { TerminalPresentationCommand } from '@orchbee/workbench/terminal-presentation';
+	type TerminalPresentationCommand,
+} from '@orchbee/workbench-client-protocol';
 import { resolveDesktopRuntimeConfiguration } from '../../composition';
 import { createDefaultTerminalProfile } from '../../host';
 import { TerminalBindingIdSchema, type TerminalBinding } from '../../recovery';

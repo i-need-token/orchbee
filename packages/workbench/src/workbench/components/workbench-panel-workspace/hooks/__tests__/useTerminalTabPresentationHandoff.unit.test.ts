@@ -2,8 +2,8 @@
 
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import { terminalPresentationId } from '../../../../../terminal-presentation';
 import type { TabPanelWorkspace } from '../../model/panel-workspace-state';
 import { useTerminalTabPresentationHandoff } from '../useTerminalTabPresentationHandoff';
 

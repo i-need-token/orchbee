@@ -8,12 +8,6 @@ export {
 	resolveTerminalMetadataObservation,
 	resolveTerminalNaturalMetadataObservation,
 } from './workbench';
-export {
-	TerminalPresentationIdSchema,
-	terminalPresentationId,
-	terminalPresentationOperationId,
-	terminalPresentationRemovalId,
-} from './terminal-presentation';
 export type {
 	WorkbenchEnvironmentProjectConnectionCapability,
 	WorkbenchProjectFolderAcquisition,
@@ -59,5 +53,4 @@ export type {
 	WorkbenchTerminalSurfaceProps,
 } from './workbench';
 export { TERMINAL_ACTION_IDS, WorkbenchTerminalBellEffectCoordinator } from './workbench';
-export type { TerminalPresentationId } from './terminal-presentation';
 export type { WorkbenchLayoutStorage } from './workbench-layout-storage';

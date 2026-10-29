@@ -1,5 +1,5 @@
-import { workbenchSharedDocumentRevision } from '@orchbee/workbench/document';
 import { describe, expect, it } from 'vitest';
+import { workbenchSharedDocumentRevision } from '@orchbee/workbench-client-protocol';
 
 import type { DesktopDevelopmentRestartRequest } from '../desktop-development-contract';
 import type {

@@ -37,22 +37,15 @@ import {
 	type TerminalEnvironmentOverlay,
 	type TerminalMetadataChanged,
 } from '@orchbee/terminal-protocol';
-import {
-	type TerminalPresentationIdSchema,
-	terminalPresentationId,
-	terminalPresentationOperationId,
-	terminalPresentationRemovalId,
-	type TerminalPresentationId,
-	type TerminalPresentationEvent,
-} from '@orchbee/workbench/terminal-presentation';
-import {
-	type WorkbenchSharedDocument,
-	type WorkbenchSharedPanelNode,
-	type WorkbenchSharedDocumentRevision,
-} from '@orchbee/workbench/document';
 import type {
 	ProjectedAttachmentBootstrap,
 	WorkbenchClientSessionBootstrap,
+	TerminalPresentationIdSchema,
+	TerminalPresentationId,
+	TerminalPresentationEvent,
+	WorkbenchSharedDocument,
+	WorkbenchSharedPanelNode,
+	WorkbenchSharedDocumentRevision,
 } from '@orchbee/workbench-client-protocol';
 import {
 	BrowserWindow,
@@ -63,6 +56,11 @@ import {
 	type BrowserWindowConstructorOptions,
 	type MessagePortMain,
 } from 'electron';
+import {
+	terminalPresentationId,
+	terminalPresentationOperationId,
+	terminalPresentationRemovalId,
+} from '@orchbee/workbench-client-protocol';
 
 import {
 	DesktopApplicationLifetimeBroker,

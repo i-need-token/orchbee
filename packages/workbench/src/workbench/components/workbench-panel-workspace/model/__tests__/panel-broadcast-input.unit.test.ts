@@ -1,7 +1,7 @@
 import { array, assert, constantFrom, nat, property, record } from 'fast-check';
 import { describe, expect, it, vi } from 'vitest';
+import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import type { TerminalPresentationId } from '../../../../../terminal-presentation';
 import type {
 	WorkbenchTerminalBroadcastInput,
 	WorkbenchTerminalBroadcastInputSink,

@@ -1,7 +1,9 @@
-import { TerminalPresentationIdSchema } from '../../terminal-presentation';
 import { z } from 'zod';
-
-import type { WorkbenchSharedDocument, WorkbenchSharedPanelNode } from './workbench-document';
+import {
+	TerminalPresentationIdSchema,
+	type WorkbenchSharedDocument,
+	type WorkbenchSharedPanelNode,
+} from '@orchbee/workbench-client-protocol';
 
 const identifierSchema = z.string().min(1);
 const nullableIdentifierSchema = identifierSchema.nullable();

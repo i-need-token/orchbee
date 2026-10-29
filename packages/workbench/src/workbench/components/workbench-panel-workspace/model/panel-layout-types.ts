@@ -2,7 +2,7 @@ import type {
 	TerminalPresentationCloseActivity,
 	TerminalPresentationId,
 	TerminalPresentationLifecycle,
-} from '../../../../terminal-presentation';
+} from '@orchbee/workbench-client-protocol';
 
 export type PanelSplitDirection = 'above' | 'below' | 'left' | 'right';
 export type PanelSplitOrientation = 'horizontal' | 'vertical';

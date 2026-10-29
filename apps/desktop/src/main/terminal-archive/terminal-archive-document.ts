@@ -25,11 +25,11 @@ import {
 	type TerminalTextRow,
 	type TerminalThemeState,
 } from '@orchbee/terminal-protocol';
+import { z } from 'zod';
 import {
 	TerminalPresentationIdSchema,
 	type TerminalPresentationId,
-} from '@orchbee/workbench/terminal-presentation';
-import { z } from 'zod';
+} from '@orchbee/workbench-client-protocol';
 
 export const MAX_TERMINAL_ARCHIVE_ROWS = 5_000;
 export const MAX_TERMINAL_ARCHIVE_BYTES = 10 * 1024 * 1024;

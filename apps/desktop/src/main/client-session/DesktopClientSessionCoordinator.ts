@@ -1,13 +1,11 @@
 import type {
+	WorkbenchTerminalMetadata,
 	TerminalPresentationEvent,
 	TerminalPresentationId,
-} from '@orchbee/workbench/terminal-presentation';
-import type {
 	WorkbenchSharedDocument,
 	WorkbenchSharedDocumentRevision,
-} from '@orchbee/workbench/document';
-import { workbenchSharedDocumentRevision } from '@orchbee/workbench/document';
-import type { WorkbenchTerminalMetadata } from '@orchbee/workbench-client-protocol';
+} from '@orchbee/workbench-client-protocol';
+import { workbenchSharedDocumentRevision } from '@orchbee/workbench-client-protocol';
 
 import type { WorkbenchDocumentStore } from '../workbench-document';
 import {

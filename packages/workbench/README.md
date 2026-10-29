@@ -47,7 +47,7 @@ and they do not make Workbench a terminal-state authority.
 
 Applications whose address is the authoritative Client View input may inject a `WorkbenchNavigationPort`. Workspace, standalone-context, and Tab-selection Actions then delegate navigation before Workbench mutates active Client View state; the application updates browser history and applies the resulting route back to the runtime. Without this port, Workbench retains its local in-memory navigation behavior. Workbench does not parse paths or own Router history.
 
-Runtime-neutral terminal-presentation identities, lifecycle contracts, and boundary schemas are also available from `@orchbee/workbench/terminal-presentation`. Platform applications use that narrow entry point instead of importing the React Workbench graph into Main or preload runtimes.
+Terminal-presentation identities, lifecycle contracts, and boundary schemas come from `@orchbee/workbench-client-protocol`. `@orchbee/workbench/terminal-presentation` exposes only runtime-theme revision coordination, without the React Workbench graph.
 
 ## Keyboard focus routing
 
@@ -340,7 +340,7 @@ client snapshot.
 
 ### Shared document and Client View boundary
 
-`@orchbee/workbench/document` separates the canonical revisioned `WorkbenchSharedDocument` from one page's disposable `WorkbenchClientView`. Project, Workspace, Tab/Group membership, durable fallback and custom Tab titles, Panel/Split structure, terminal-presentation placement, and durable lifecycle intent are shared. Active and selected navigation, disclosure, focus, maximization, active child presentation, and Split weights are client-local. Per-Tab MRU Panel focus history exists only in the live Workbench runtime and initializes from the Client View's focused Panel; it is outside both serialized contracts. Natural terminal titles, current CWD, viewport demand, scroll, search, selection, copy, GPU state, and `AttachmentId` remain outside both contracts.
+The canonical revisioned `WorkbenchSharedDocument` from `@orchbee/workbench-client-protocol` is separate from one page's disposable `WorkbenchClientView`, exported by `@orchbee/workbench/document`. Project, Workspace, Tab/Group membership, durable fallback and custom Tab titles, Panel/Split structure, terminal-presentation placement, and durable lifecycle intent are shared. Active and selected navigation, disclosure, focus, maximization, active child presentation, and Split weights are client-local. Per-Tab MRU Panel focus history exists only in the live Workbench runtime and initializes from the Client View's focused Panel; it is outside both serialized contracts. Natural terminal titles, current CWD, viewport demand, scroll, search, selection, copy, GPU state, and `AttachmentId` remain outside both contracts.
 
 A managed `WorkbenchProjectWorkspaceRuntime` projects these contracts through `getSharedDocument(...)` and `getClientView()`, hydrates them through `initialDocument` and `initialClientView`, and can apply a broadcast document through `applySharedDocument(...)` without dispatching process effects. `subscribeDocument(...)` supplies the application durability coordinator; its shared fingerprint is unchanged by Client View-only transitions. After the application establishes its persistence barrier, `reconcileDurableTerminalPresentations()` replays persisted provision, close, and stop operations and converts retain intent into restore-only commands.
 

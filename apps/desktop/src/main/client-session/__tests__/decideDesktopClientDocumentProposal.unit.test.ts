@@ -1,15 +1,13 @@
+import fc from 'fast-check';
+import { describe, expect, it } from 'vitest';
 import {
 	createWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
-	type WorkbenchSharedDocument,
-	type WorkbenchSharedPresentationIntent,
-} from '@orchbee/workbench/document';
-import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
-} from '@orchbee/workbench/terminal-presentation';
-import fc from 'fast-check';
-import { describe, expect, it } from 'vitest';
+	type WorkbenchSharedDocument,
+	type WorkbenchSharedPresentationIntent,
+} from '@orchbee/workbench-client-protocol';
 
 import { decideDesktopClientDocumentProposal } from '../decideDesktopClientDocumentProposal';
 

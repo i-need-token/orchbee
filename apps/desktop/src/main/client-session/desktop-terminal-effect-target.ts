@@ -1,8 +1,8 @@
 import type {
 	WorkbenchSharedDocument,
 	WorkbenchSharedPanelNode,
-} from '@orchbee/workbench/document';
-import type { TerminalPresentationId } from '@orchbee/workbench/terminal-presentation';
+	TerminalPresentationId,
+} from '@orchbee/workbench-client-protocol';
 
 export type DesktopTerminalEffectTarget = { readonly kind: 'local' };
 

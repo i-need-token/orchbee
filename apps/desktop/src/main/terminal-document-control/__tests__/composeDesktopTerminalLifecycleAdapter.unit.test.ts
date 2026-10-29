@@ -6,11 +6,11 @@ import {
 	TerminalIdSchema,
 	type TerminalIdentity,
 } from '@orchbee/terminal-protocol';
+import { describe, expect, it, vi } from 'vitest';
 import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
-} from '@orchbee/workbench/terminal-presentation';
-import { describe, expect, it, vi } from 'vitest';
+} from '@orchbee/workbench-client-protocol';
 
 import type { HostConnection } from '../../host';
 import type { TerminalBinding, TerminalBindingId, TerminalBindingStore } from '../../recovery';

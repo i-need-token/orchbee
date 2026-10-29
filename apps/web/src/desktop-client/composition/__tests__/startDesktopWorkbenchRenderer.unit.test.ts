@@ -2,16 +2,6 @@
 
 import { act } from 'react';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-	createWorkbenchSharedDocument,
-	workbenchSharedDocumentRevision,
-	type WorkbenchSharedDocument,
-} from '@orchbee/workbench/document';
-import {
-	terminalPresentationId,
-	terminalPresentationOperationId,
-	type TerminalPresentationEvent,
-} from '@orchbee/workbench/terminal-presentation';
 
 import {
 	WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
@@ -20,6 +10,12 @@ import {
 	WorkbenchClientSessionCommandSchema,
 	WorkbenchClientSessionEventSchema,
 	type WorkbenchClientSessionBootstrap,
+	createWorkbenchSharedDocument,
+	workbenchSharedDocumentRevision,
+	terminalPresentationId,
+	terminalPresentationOperationId,
+	type WorkbenchSharedDocument,
+	type TerminalPresentationEvent,
 } from '@orchbee/workbench-client-protocol';
 import {
 	DESKTOP_AGENT_INTEGRATION_IDS,

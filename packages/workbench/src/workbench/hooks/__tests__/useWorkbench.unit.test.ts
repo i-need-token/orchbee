@@ -3,9 +3,9 @@ import { ActionRuntime } from '@orchbee/actions';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import type { WorkbenchLayoutStorage } from '../../../workbench-layout-storage';
-import { terminalPresentationId } from '../../../terminal-presentation';
 import { createWorkbenchPreviewTerminalPresentationComposition } from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
 import { defaultWorkbenchShortcutBindings } from '../../utils/workbench-shortcuts';

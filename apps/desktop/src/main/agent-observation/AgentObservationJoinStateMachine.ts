@@ -1,6 +1,6 @@
 import type { AgentPresentationAttachment } from '@orchbee/agent';
 import type { CreationId } from '@orchbee/terminal-protocol';
-import type { TerminalPresentationId } from '@orchbee/workbench/terminal-presentation';
+import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import type { AgentHookRichObservationEnvelope } from './agent-hook-observation-contract';
 import type { AgentHookAdapterDefinition } from './resolveAgentHookAdapter';

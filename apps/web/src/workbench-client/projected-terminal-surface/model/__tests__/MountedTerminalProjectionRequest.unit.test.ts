@@ -4,8 +4,8 @@ import {
 	DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
 	type measureMountedTerminalGeometry,
 } from '@orchbee/terminal';
-import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import type { TerminalPresentationConfigurationSource } from '../../../../terminal-presentation';
 import {

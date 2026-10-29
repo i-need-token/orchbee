@@ -1,9 +1,10 @@
 import { ActionRuntime } from '@orchbee/actions';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
-import { terminalPresentationId, type WorkbenchTerminalPresentation } from '@orchbee/workbench';
+import type { WorkbenchTerminalPresentation } from '@orchbee/workbench';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import { ProjectedTerminalSurface } from '../ProjectedTerminalSurface';
 import { useProjectedTerminalSurface } from '../hooks/useProjectedTerminalSurface';

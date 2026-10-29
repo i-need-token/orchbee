@@ -26,8 +26,10 @@ import {
 	type TerminalFrame,
 	type TerminalIdentity,
 } from '@orchbee/terminal-protocol';
-import { ProjectedAttachmentBootstrapSchema } from '@orchbee/workbench-client-protocol';
-import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
+import {
+	ProjectedAttachmentBootstrapSchema,
+	terminalPresentationId,
+} from '@orchbee/workbench-client-protocol';
 import type { MessagePortMain } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 

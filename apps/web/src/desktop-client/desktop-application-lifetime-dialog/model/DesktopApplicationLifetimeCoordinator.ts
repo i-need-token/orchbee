@@ -2,8 +2,6 @@ import type {
 	WorkbenchProjectWorkspaceRuntime,
 	WorkbenchTerminalSessionStopSnapshot,
 } from '@orchbee/workbench';
-import type { WorkbenchSharedDocumentRevision } from '@orchbee/workbench/document';
-import type { TerminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 
 import type {
 	DesktopApplicationExitChoice,
@@ -14,6 +12,10 @@ import type {
 	DesktopApplicationLifetimeMainEvent,
 	DesktopApplicationLifetimeRendererCommand,
 } from '@orchbee/desktop-client-protocol';
+import type {
+	WorkbenchSharedDocumentRevision,
+	TerminalPresentationId,
+} from '@orchbee/workbench-client-protocol';
 import type { WorkbenchDocumentCoordinator } from '../../../workbench-client';
 
 type Listener = () => void;

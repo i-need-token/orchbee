@@ -5,8 +5,8 @@ import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import * as React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import { terminalPresentationId } from '../../../../../../../../../../terminal-presentation';
 import { TERMINAL_ACTION_IDS } from '../../../../../../../../../actions/terminal-action-contracts';
 import { WORKBENCH_ACTION_IDS } from '../../../../../../../../../actions/workbench-action-ids';
 import type { WorkbenchTerminalSurfaceProps } from '../../../../../../../../../types/workbench-terminal-surface';

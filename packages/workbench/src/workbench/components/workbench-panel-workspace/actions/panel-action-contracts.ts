@@ -1,9 +1,9 @@
 import type { ActionInputValidation, ActionSignature } from '@orchbee/actions';
-
 import {
 	TerminalPresentationIdSchema,
 	type TerminalPresentationId,
-} from '../../../../terminal-presentation';
+} from '@orchbee/workbench-client-protocol';
+
 import type { PanelSplitDirection } from '../model/panel-workspace-state';
 import type { PanelVisualSelectionMode } from '../model/panel-visual-selection';
 import type { PanelResizeAdjustment, PanelResizeMultiplier } from '../model/resolvePanelResize';

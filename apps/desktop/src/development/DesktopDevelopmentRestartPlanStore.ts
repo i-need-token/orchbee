@@ -2,8 +2,8 @@ import { randomBytes } from 'node:crypto';
 import { chmod, mkdir, open, readFile, rename, stat, unlink } from 'node:fs/promises';
 import path from 'node:path';
 
-import { WorkbenchSharedDocumentRevisionSchema } from '@orchbee/workbench/document';
 import { z } from 'zod';
+import { WorkbenchSharedDocumentRevisionSchema } from '@orchbee/workbench-client-protocol';
 
 const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
 

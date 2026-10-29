@@ -8,12 +8,10 @@ import {
 	type WorkbenchSharedDocument,
 	type WorkbenchSharedPanelNode,
 	type WorkbenchSharedPresentation,
-} from '@orchbee/workbench/document';
-import type {
-	TerminalPresentationId,
-	TerminalPresentationOperationId,
-	TerminalPresentationRemovalId,
-} from '@orchbee/workbench/terminal-presentation';
+	type TerminalPresentationId,
+	type TerminalPresentationOperationId,
+	type TerminalPresentationRemovalId,
+} from '@orchbee/workbench-client-protocol';
 
 import type { DesktopRecoveredTerminalPresentation } from '../terminal-document-control';
 

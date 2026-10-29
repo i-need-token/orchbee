@@ -10,8 +10,8 @@ import {
 	type TerminalIdentity,
 	type TerminalSummary,
 } from '@orchbee/terminal-protocol';
-import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import { describe, expect, it, vi } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import { createDefaultTerminalProfile, type HostConnection } from '../../host';
 import { TerminalRecoveryCoordinator } from '../TerminalRecoveryCoordinator';

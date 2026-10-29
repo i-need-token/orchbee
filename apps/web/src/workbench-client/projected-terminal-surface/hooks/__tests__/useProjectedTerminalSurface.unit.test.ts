@@ -16,16 +16,18 @@ import type {
 	ProjectedTerminalMetadata,
 } from '@orchbee/terminal';
 import { DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE } from '@orchbee/terminal';
-import {
-	terminalPresentationId,
-	terminalPresentationOperationId,
-	terminalPresentationRemovalId,
-	type WorkbenchTerminalPresentation,
-	type WorkbenchTerminalSurfaceProps,
+import type {
+	WorkbenchTerminalPresentation,
+	WorkbenchTerminalSurfaceProps,
 } from '@orchbee/workbench';
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+	terminalPresentationId,
+	terminalPresentationOperationId,
+	terminalPresentationRemovalId,
+} from '@orchbee/workbench-client-protocol';
 
 import type {
 	ProjectedTerminalTransport,

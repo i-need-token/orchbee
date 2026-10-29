@@ -5,13 +5,13 @@ import {
 	DesktopProjectFolderAcquisitionRendererCommandSchema,
 } from '@orchbee/desktop-client-protocol';
 import { describe, expect, it, vi } from 'vitest';
+import { WorkbenchProjectWorkspaceRuntime } from '@orchbee/workbench';
 import {
-	WorkbenchProjectWorkspaceRuntime,
 	terminalPresentationId,
 	terminalPresentationOperationId,
 	terminalPresentationRemovalId,
-} from '@orchbee/workbench';
-import { workbenchSharedDocumentRevision } from '@orchbee/workbench/document';
+	workbenchSharedDocumentRevision,
+} from '@orchbee/workbench-client-protocol';
 
 import { DesktopProjectFolderAcquisitionClient } from '../DesktopProjectFolderAcquisitionClient';
 import { confirmProjectFolderCreation } from '../confirmProjectFolderCreation';

@@ -1,4 +1,5 @@
-import type { TerminalPresentationId } from '../../../../terminal-presentation';
+import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
+
 import type {
 	WorkbenchTerminalPresentationMode,
 	WorkbenchTerminalPresentationReadiness,

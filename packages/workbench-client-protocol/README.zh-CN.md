@@ -125,7 +125,7 @@ Resume 失败目标回显仅重复已提交身份，Denied 亦如此；不确认
 附件流关闭后，Projection release 仍保持相关联。客户端会保留请求标识，直到 Main 返回 `terminal-projection-released` 或确切的类型化清理失败。成功确认不会传输任何端口；因此，迟到的清理结果只会结算其已释放请求，不会被误认为会使无关投影退役的未知消息。
 由于命令交付与异步 open 完成是独立调度的，相关联的 `terminal-projection-opened` 可能在客户端请求 release 后才到达。客户端只关闭被转移的 attachment 端口，保留已释放请求标识直到清理结算，并让共享控制传输与无关请求继续可用。缺失或多出的转移端口、冲突标识或重复 open 仍属于无效控制流量，并会退役受影响的控制传输。
 
-它不包含 Electron、DOM、UI、代理、协调器、传输生命周期、网络成帧、身份验证、PTY 或 VT 实现。当前 shared-document 与 legacy TerminalPresentation 语义在已接受 migration 前仍属于 `@orchbee/workbench`；增量 version-1 projection 语义来自语言中立 schema 权威。Terminal Host 线协议语义属于 [`schemas/terminal`](../../schemas/terminal/README.zh-CN.md)；`@orchbee/terminal-protocol` 是 TypeScript 绑定。
+它不包含 Electron、DOM、UI、代理、协调器、传输生命周期、网络成帧、身份验证、PTY 或 VT 实现。增量 version-1 projection 语义来自语言中立 schema 权威。Terminal Host 线协议语义属于 [`schemas/terminal`](../../schemas/terminal/README.zh-CN.md)；`@orchbee/terminal-protocol` 是 TypeScript 绑定。
 
 应用程序在第一个可信边界处使用这些模式解析每个不可信的 IPC 或网络值。传输所有者仍然负责成帧、身份验证、二进制传输、背压和连接退役。
 
@@ -136,6 +136,12 @@ Projected 帧和行窗口事件接受精确的 `ArrayBuffer` 或有界的 `Uint8
 选择导出仍然是附件范围且仅限纯文本。投影的命令没有格式选择器。 Main提交剪贴板效果后，Desktop效果附件接收`selection-copied`；客户端效果附件接收带有有限 UTF-8 字节的 `selection-copy-content` 并在报告本地完成之前通过其自己的平台剪贴板提交这些字节。这两个事件均不授予 HTML、原始 VT 或通用剪贴板功能。
 
 Host 发起的剪贴板写入提交是一个单独的、请求绑定的流程。 Main 对每个附件最多转发一个待处理的有界请求，渲染器仅自动返回一个精确的 `clipboard-write-decision`，其中包含原始附件、序列和文本以及提交结果。 Desktop Main 拒绝不匹配和重复的决策，并仅针对积极的 Desktop 效应决策执行特权写入。客户端效果附件首先执行其本地 Browser 写入，并使用相同的精确决策仅消耗 Main 的挂起请求，因此 Main 无法复制该效果。
+
+## 共享文档与 TerminalPresentation 契约
+
+`workbench-shared-document-contract.ts` 拥有当前严格的 `WorkbenchSharedDocument`：version-1 schema、规范修订、创建与解析。`terminal-presentation-contract.ts` 拥有 legacy TerminalPresentation 身份，以及 Workbench 与组合应用之间交换的类型化生命周期命令、事件和失败。Project 与 Workspace 结构不变量位于 `workbench-shared-project-workspace-contract.ts`；共享文档解析与 Workbench 转换应用同一组检查，因此任一方都不会接受另一方拒绝的结构。
+
+`@orchbee/workbench` 消费这些契约，并保留 Client View、文档转换、投影、水合、协调与终端主题修订。其[共享文档参考](../workbench/docs/shared-workbench-document.zh-CN.md)仍是文档形状、Presentation 意图与不变量的语义说明。应用与协议包在此解析已存储或已传输的文档，无需导入 React Workbench。
 
 ## 验证
 
@@ -354,4 +360,4 @@ pane graphics 绑定与 Rust 共用封闭的图片、图层、像素块和生产
 
 封闭的 `CloseOperationReadSchema` 与 `CloseOperationResultSchema` 加入请求／结果联合及命令一致性语料。它们对应[保留 Close 身份查询](../../crates/workbench-protocol/README.zh-CN.md#保留-close-身份查询)，不引入 Client 所有的生命周期状态。
 
-<!-- documentation-pairing: english-sha256=f4b48589e083ab69d5ffdff9175e329045a122a7f6c7a80afb0401a9e4f6e319 zh-cn-sha256=0c194be44f7101f7b574d9caf00ea262fa1c40dd04dcb612b91d14456d75dad8 -->
+<!-- documentation-pairing: english-sha256=2a6b39bf079ed39ee4dd84383de43f8727d18e8a9332636d9275e1669c53d0be zh-cn-sha256=bb9e024c03a635ea461d9d52ac3660915f15c624922ff1404ccefb906c2b50a2 -->

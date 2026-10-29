@@ -2,12 +2,12 @@
 
 ## 范围和所有权
 
-`@orchbee/workbench/document` 拥有两个不同权限的版本化合约：
+两个版本化合约具有不同权限：
 
-- `WorkbenchSharedDocument` 是连接到一个应用程序运行时的每个浏览器页面和 Electron 渲染器页面共享的可恢复、修订的产品结构。
-- `WorkbenchClientView` 是一页一次性导航和布局投影。它从不授权产品或终端生命周期变更。
+- `WorkbenchSharedDocument` 是连接到一个应用程序运行时的每个浏览器页面和 Electron 渲染器页面共享的可恢复、修订的产品结构。`@orchbee/workbench-client-protocol` 拥有其严格 schema、修订与解析器。
+- `WorkbenchClientView` 是一页一次性导航和布局投影，由 `@orchbee/workbench/document` 拥有。它从不授权产品或终端生命周期变更。
 
-该包验证并转换这些合约，但不执行存储、IPC、流程、网络、React 或 DOM 效果。应用程序拥有这些适配器并在边界解析不受信任的值。浏览器页面和 Electron 渲染器页面具有相同的客户端语义；两个合约均不包含平台鉴别器。
+Workbench 生成、水合并转换这两个合约；本参考仍是它们的语义说明。两个包均不执行存储、IPC、流程、网络、React 或 DOM 效果。应用程序拥有这些适配器并在边界解析不受信任的值。浏览器页面和 Electron 渲染器页面具有相同的客户端语义；两个合约均不包含平台鉴别器。
 
 ## 共享文档
 
@@ -122,7 +122,7 @@ ordering 与 broadcast。
 | 水合会保留持久的终端意图                                   | provision/retain/close/stop/stopped 运行时往返                                                                                                                                                                                                             | Host 绑定是否存在仍由应用负责              |
 | 自定义标题会持久保留，自然元数据保持瞬态                   | 标题覆盖/reset 与共享文档水合场景                                                                                                                                                                                                                          | 重命名 Presentation 由适配器负责           |
 | 应用共享文档不产生终端效果（terminal effect）              | 具有结构去除和保留运行观察的运行时跟踪                                                                                                                                                                                                                     | 一个渲染器运行时                           |
-| 空 Terminal Context 不携带 Presentation 意图               | [文档 schema 测试](../src/workbench/document/__tests__/workbench-document.unit.test.ts)                                                                                                                                                                    | 纯结构，不授予远程运行时准入               |
+| 空 Terminal Context 不携带 Presentation 意图               | [文档 schema 测试](../../workbench-client-protocol/src/__tests__/workbench-shared-document-contract.unit.test.ts)                                                                                                                                          | 纯结构，不授予远程运行时准入               |
 | 保留的 Environment placement 不能授予 Desktop 远程效果权限 | [Desktop 目标测试](../../../apps/desktop/src/main/client-session/__tests__/desktop-terminal-effect-target.unit.test.ts)和[提案保护测试](../../../apps/desktop/src/main/client-session/__tests__/validateDesktopClientRemotePlacementProposal.unit.test.ts) | 应用边界，不是共享 schema 执行能力         |
 | 仅查看更改从不需要共享写入                                 | 投影特定观察员和 Desktop coordinator 指纹测试                                                                                                                                                                                                              | Shared ordering 由 Desktop session 负责    |
 | 预览状态无法声明共享持久性                                 | 确定性拒绝测试                                                                                                                                                                                                                                             | 预览仍然是内存中的合成                     |
@@ -130,4 +130,4 @@ ordering 与 broadcast。
 
 纯文档/视图投影及严格当前形状准入使用确定性/属性测试。受控生命周期测试覆盖提交先于关闭、可重试失败、无 binding 的停止态、新替换身份以及位置、标题和 launch-CWD 的保留。Desktop 文档存储 CAS 保留独立有界协议模型；该模型不证明整个多 Client 或生命周期组合。
 
-<!-- documentation-pairing: english-sha256=a8a2db63a8957bccb5fbd535b2f95c830c4cf2713083a02ab29270053ef3ad7a zh-cn-sha256=a0ff3747bf6cc7f8f32f295aea2fedccafcd6630eceef17f567d05accda1a295 -->
+<!-- documentation-pairing: english-sha256=6da0cda008a8c7f22895c5c8080a6758b6daeb8aa8a4abdd19c8c72e64bed2e6 zh-cn-sha256=4192f816b77fcaea828cfac1ad3f1e36d910f9ace53741e636ba0bae2624c01e -->

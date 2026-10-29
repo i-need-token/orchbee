@@ -28,17 +28,17 @@ import {
 	type TerminalMetadataChanged,
 	type TerminalSummary,
 } from '@orchbee/terminal-protocol';
-import {
-	terminalPresentationId,
-	type TerminalPresentationEvent,
-} from '@orchbee/workbench/terminal-presentation';
-import {
-	workbenchSharedDocumentRevision,
-	type WorkbenchSharedDocument,
-} from '@orchbee/workbench/document';
-import type { WorkbenchTerminalMetadata } from '@orchbee/workbench-client-protocol';
+import type {
+	WorkbenchTerminalMetadata,
+	TerminalPresentationEvent,
+	WorkbenchSharedDocument,
+} from '@orchbee/workbench-client-protocol';
 import type { BrowserWindow, BrowserWindowConstructorOptions, MessagePortMain } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
+import {
+	terminalPresentationId,
+	workbenchSharedDocumentRevision,
+} from '@orchbee/workbench-client-protocol';
 
 import { createDefaultTerminalProfile, type HostConnection } from '../../host';
 import type { DesktopApplicationLifetimeBrokerDependencies } from '../../application-lifetime';

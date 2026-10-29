@@ -1,5 +1,4 @@
 export {
-	assertProjectWorkspaceInvariants,
 	createProjectWorkspaceState,
 	findWorkbenchWorkspace,
 	findWorkspaceResources,

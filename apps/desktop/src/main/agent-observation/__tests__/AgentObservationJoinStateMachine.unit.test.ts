@@ -1,6 +1,6 @@
 import { CreationIdSchema } from '@orchbee/terminal-protocol';
-import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import { describe, expect, it } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import type { AgentHookRichObservationEnvelope } from '../agent-hook-observation-contract';
 import {

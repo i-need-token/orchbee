@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { CreationIdSchema, HostEpochSchema } from '@orchbee/terminal-protocol';
-import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import { afterEach, describe, expect, it } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import { createDefaultTerminalProfile } from '../../host';
 import { FileTerminalBindingStore } from '../FileTerminalBindingStore';

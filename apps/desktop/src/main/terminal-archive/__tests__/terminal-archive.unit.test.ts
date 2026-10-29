@@ -32,11 +32,11 @@ import {
 	type TerminalIdentity,
 	type TerminalThemeState,
 } from '@orchbee/terminal-protocol';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	terminalPresentationId,
 	type TerminalPresentationId,
-} from '@orchbee/workbench/terminal-presentation';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+} from '@orchbee/workbench-client-protocol';
 
 import { ArchivedTerminalProjectionService } from '../ArchivedTerminalProjectionService';
 import { FileTerminalArchiveStore } from '../FileTerminalArchiveStore';

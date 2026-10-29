@@ -1,9 +1,9 @@
+import { describe, expect, it } from 'vitest';
 import {
 	createWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
-} from '@orchbee/workbench/document';
-import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
-import { describe, expect, it } from 'vitest';
+	terminalPresentationId,
+} from '@orchbee/workbench-client-protocol';
 
 import { DESKTOP_FILE_PATH_BRIDGE_KEY } from '../desktop-file-path-bridge-contract';
 import {

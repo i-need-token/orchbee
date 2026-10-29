@@ -7,13 +7,13 @@ import { TooltipProvider } from '@orchbee/ui/components';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
 import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
 	terminalPresentationRemovalId,
-} from '../../terminal-presentation';
-import { workbenchSharedDocumentRevision } from '../document';
+	workbenchSharedDocumentRevision,
+} from '@orchbee/workbench-client-protocol';
+
 import { Workbench } from '../Workbench';
 import { createWorkbenchPreviewTerminalPresentationComposition } from '../model/createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';

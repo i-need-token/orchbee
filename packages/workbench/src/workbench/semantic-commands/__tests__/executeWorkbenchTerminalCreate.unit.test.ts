@@ -1,13 +1,14 @@
 import fc from 'fast-check';
 import { describe, expect, it, vi } from 'vitest';
-
-import type { WorkbenchDirectory } from '../../../project-workspace';
 import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
 	terminalPresentationRemovalId,
-} from '../../../terminal-presentation';
-import { WorkbenchSharedDocumentSchema, workbenchSharedDocumentRevision } from '../../document';
+	parseWorkbenchSharedDocument,
+	workbenchSharedDocumentRevision,
+} from '@orchbee/workbench-client-protocol';
+
+import type { WorkbenchDirectory } from '../../../project-workspace';
 import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
 import {
 	createWorkbenchPreviewTerminalPresentationComposition,
@@ -192,9 +193,7 @@ describe('executeWorkbenchTerminalCreate', () => {
 			},
 		]);
 		expect(() =>
-			WorkbenchSharedDocumentSchema.parse(
-				runtime.getSharedDocument(workbenchSharedDocumentRevision('1')),
-			),
+			parseWorkbenchSharedDocument(runtime.getSharedDocument(workbenchSharedDocumentRevision('1'))),
 		).not.toThrow();
 	});
 
@@ -418,11 +417,11 @@ function propertyTracePreservesInvariants(trace: readonly string[]): boolean {
 		if (JSON.stringify(selectionProjection(runtime)) !== JSON.stringify(beforeSelection)) {
 			return false;
 		}
-		if (
-			!WorkbenchSharedDocumentSchema.safeParse(
+		try {
+			parseWorkbenchSharedDocument(
 				runtime.getSharedDocument(workbenchSharedDocumentRevision(String(index + 1))),
-			).success
-		) {
+			);
+		} catch {
 			return false;
 		}
 	}

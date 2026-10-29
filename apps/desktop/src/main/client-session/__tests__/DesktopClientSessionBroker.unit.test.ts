@@ -1,13 +1,13 @@
 import { EventEmitter } from 'node:events';
 
+import type { MessagePortMain } from 'electron';
+import { describe, expect, it, vi } from 'vitest';
 import {
 	createWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
+	terminalPresentationId,
 	type WorkbenchSharedDocument,
-} from '@orchbee/workbench/document';
-import type { MessagePortMain } from 'electron';
-import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
-import { describe, expect, it, vi } from 'vitest';
+} from '@orchbee/workbench-client-protocol';
 
 import type { WorkbenchDocumentStore } from '../../workbench-document';
 import { DesktopClientSessionBroker } from '../DesktopClientSessionBroker';

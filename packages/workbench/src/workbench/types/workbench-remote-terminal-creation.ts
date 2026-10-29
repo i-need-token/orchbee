@@ -1,4 +1,4 @@
-import type { WorkbenchSharedDocumentRevision } from '../document';
+import type { WorkbenchSharedDocumentRevision } from '@orchbee/workbench-client-protocol';
 
 export type WorkbenchRemoteTerminalCreationFailureReason =
 	| 'busy'

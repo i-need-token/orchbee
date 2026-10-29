@@ -1,9 +1,9 @@
+import { describe, expect, it } from 'vitest';
 import {
 	createWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
 	type WorkbenchSharedDocument,
-} from '@orchbee/workbench/document';
-import { describe, expect, it } from 'vitest';
+} from '@orchbee/workbench-client-protocol';
 
 import { decideWorkbenchDocumentCommit } from '../decideWorkbenchDocumentCommit';
 

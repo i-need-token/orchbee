@@ -1,8 +1,8 @@
 import type { ActionDisposable } from '@orchbee/actions';
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import * as React from 'react';
+import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import type { TerminalPresentationId } from '../../../../terminal-presentation';
 import type {
 	WorkbenchTerminalBroadcastInput,
 	WorkbenchTerminalBroadcastInputSink,

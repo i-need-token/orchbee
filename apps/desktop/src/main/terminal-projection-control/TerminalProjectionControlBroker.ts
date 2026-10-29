@@ -4,11 +4,9 @@ import {
 	TerminalProjectionControlEventSchema,
 	type TerminalProjectionControlEvent,
 	type TerminalProjectionRequestId,
-} from '@orchbee/workbench-client-protocol';
-import {
 	TerminalPresentationFailureSchema,
 	type TerminalPresentationId,
-} from '@orchbee/workbench/terminal-presentation';
+} from '@orchbee/workbench-client-protocol';
 import type { TerminalGeometry } from '@orchbee/terminal-protocol';
 
 import type { DesktopTerminalProjectionLease } from './DesktopTerminalProjectionService';

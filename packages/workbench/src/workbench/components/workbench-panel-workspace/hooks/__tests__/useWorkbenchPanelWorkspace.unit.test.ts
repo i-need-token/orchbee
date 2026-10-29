@@ -7,8 +7,8 @@ import { act, createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { cleanup, render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import { terminalPresentationId } from '../../../../../terminal-presentation';
 import { collectPanelLeaves, findPanel } from '../../model/panel-workspace-state';
 import { PanelWorkspaceStore } from '../../model/PanelWorkspaceStore';
 import type { WorkbenchPanelWorkspaceView } from '../../types/panel-workspace-view';

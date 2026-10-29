@@ -1,24 +1,19 @@
-import {
-	terminalPresentationId,
-	terminalPresentationOperationId,
-} from '../../../terminal-presentation';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
 import {
+	terminalPresentationId,
+	terminalPresentationOperationId,
+} from '../terminal-presentation-contract';
+import {
 	WorkbenchSharedDocumentRevisionSchema,
 	WorkbenchSharedDocumentSchema,
-	createDefaultWorkbenchClientView,
-	createWorkbenchClientView,
 	createWorkbenchSharedDocument,
-	parseWorkbenchClientView,
 	parseWorkbenchSharedDocument,
-	reconcileWorkbenchClientView,
 	workbenchSharedDocumentRevision,
-	type WorkbenchClientView,
 	type WorkbenchSharedDocument,
 	type WorkbenchSharedPanelNode,
-} from '..';
+} from '../workbench-shared-document-contract';
 
 function inputWithTabs(
 	panelCounts: readonly number[] = [1],
@@ -125,11 +120,7 @@ function parsedDocumentJson(document: WorkbenchSharedDocument): WorkbenchSharedD
 	return parseWorkbenchSharedDocument(JSON.parse(JSON.stringify(document)));
 }
 
-function parsedViewJson(view: WorkbenchClientView): WorkbenchClientView {
-	return parseWorkbenchClientView(JSON.parse(JSON.stringify(view)));
-}
-
-describe('Workbench shared document and Client View', () => {
+describe('Workbench shared document', () => {
 	it('round-trips only shared product structure and terminal lifecycle intent', () => {
 		const document = createWorkbenchSharedDocument(inputWithTabs([1, 3]));
 		const serialized = JSON.stringify(document);
@@ -148,90 +139,6 @@ describe('Workbench shared document and Client View', () => {
 		expect(serialized).not.toContain('currentCwd');
 		expect(serialized).not.toContain('terminalId');
 		expect(document).toMatchObject({ revision: '0', version: 1 });
-	});
-
-	it('derives a complete default Client View without changing the shared document', () => {
-		const document = createWorkbenchSharedDocument(inputWithTabs([1, 3]));
-		const before = JSON.stringify(document);
-		const view = createDefaultWorkbenchClientView(document);
-
-		expect(parsedViewJson(view)).toEqual(view);
-		expect(view.activeLocation).toEqual({ kind: 'standalone' });
-		expect(view.terminalContexts[0]?.tabCollection.activeTabId).toBe('terminal-context-1-tab-1');
-		expect(view.terminalContexts[0]?.panelWorkspace.tabs[1]?.splits[0]?.weights).toEqual([
-			{ slotId: 'panel-slot-2-1-1', weight: 50 },
-			{ slotId: 'panel-slot-2-1-2', weight: 50 },
-		]);
-		expect(JSON.stringify(document)).toBe(before);
-	});
-
-	it('keeps two Client Views independent over one shared document', () => {
-		const document = createWorkbenchSharedDocument(inputWithTabs([1, 1]));
-		const first = createDefaultWorkbenchClientView(document);
-		const firstContext = first.terminalContexts[0];
-		if (firstContext === undefined) throw new Error('Expected one terminal context.');
-		const second = createWorkbenchClientView({
-			...first,
-			terminalContexts: [
-				{
-					...firstContext,
-					tabCollection: {
-						...firstContext.tabCollection,
-						activeTabId: 'terminal-context-1-tab-2',
-						selectedTabIds: ['terminal-context-1-tab-2'],
-						selectionAnchorId: 'terminal-context-1-tab-2',
-					},
-				},
-			],
-		});
-
-		expect(reconcileWorkbenchClientView(document, first)).toEqual(first);
-		expect(reconcileWorkbenchClientView(document, second)).toEqual(second);
-		expect(first.terminalContexts[0]?.tabCollection.activeTabId).toBe('terminal-context-1-tab-1');
-		expect(second.terminalContexts[0]?.tabCollection.activeTabId).toBe('terminal-context-1-tab-2');
-	});
-
-	it('deterministically removes stale Client View references and is idempotent', () => {
-		const document = createWorkbenchSharedDocument(inputWithTabs([1, 2]));
-		const defaultView = createDefaultWorkbenchClientView(document);
-		const context = defaultView.terminalContexts[0];
-		const tab = context?.panelWorkspace.tabs[1];
-		if (context === undefined || tab === undefined)
-			throw new Error('Expected Client View fixtures.');
-		const stale = createWorkbenchClientView({
-			...defaultView,
-			expandedProjectIds: ['missing-project'],
-			terminalContexts: [
-				{
-					...context,
-					panelWorkspace: {
-						tabs: context.panelWorkspace.tabs.map((candidate) =>
-							candidate.tabId === tab.tabId
-								? {
-										...candidate,
-										focusedPanelId: 'missing-panel',
-										maximizedPanelId: 'missing-panel',
-									}
-								: candidate,
-						),
-					},
-					tabCollection: {
-						...context.tabCollection,
-						activeTabId: 'missing-tab',
-						selectedTabIds: ['missing-tab'],
-						selectionAnchorId: 'missing-tab',
-					},
-				},
-			],
-		});
-
-		const reconciled = reconcileWorkbenchClientView(document, stale);
-		expect(reconciled.expandedProjectIds).toEqual([]);
-		expect(reconciled.terminalContexts[0]?.tabCollection.activeTabId).toBe(
-			'terminal-context-1-tab-1',
-		);
-		expect(reconciled.terminalContexts[0]?.panelWorkspace.tabs[1]?.focusedPanelId).toBe('panel-2');
-		expect(reconcileWorkbenchClientView(document, reconciled)).toEqual(reconciled);
 	});
 
 	it('rejects invalid shared relationships, runtime authority, and revisions', () => {
@@ -337,16 +244,13 @@ describe('Workbench shared document and Client View', () => {
 		).toBe(false);
 	});
 
-	it('round-trips generated hierarchies and reconciles Client Views with a stable seed', () => {
+	it('round-trips generated hierarchies with a stable seed', () => {
 		fc.assert(
 			fc.property(
 				fc.array(fc.integer({ max: 4, min: 1 }), { maxLength: 8, minLength: 1 }),
 				(panelCounts) => {
 					const document = createWorkbenchSharedDocument(inputWithTabs(panelCounts));
-					const view = createDefaultWorkbenchClientView(document);
 					expect(parsedDocumentJson(document)).toEqual(document);
-					expect(parsedViewJson(view)).toEqual(view);
-					expect(reconcileWorkbenchClientView(document, view)).toEqual(view);
 				},
 			),
 			{ numRuns: 200, seed: 0x0b_ee_01 },

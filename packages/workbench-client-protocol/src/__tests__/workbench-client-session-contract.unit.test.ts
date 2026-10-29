@@ -1,7 +1,3 @@
-import {
-	createWorkbenchSharedDocument,
-	workbenchSharedDocumentRevision,
-} from '@orchbee/workbench/document';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -10,6 +6,10 @@ import {
 	WorkbenchClientSessionCommandSchema,
 	WorkbenchClientSessionEventSchema,
 } from '../workbench-client-session-contract';
+import {
+	createWorkbenchSharedDocument,
+	workbenchSharedDocumentRevision,
+} from '../workbench-shared-document-contract';
 
 const document = createWorkbenchSharedDocument({
 	projectWorkspace: {

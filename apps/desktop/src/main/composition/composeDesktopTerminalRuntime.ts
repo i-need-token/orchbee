@@ -8,10 +8,12 @@ import type {
 	TerminalIdentity,
 	TerminalLaunch,
 } from '@orchbee/terminal-protocol';
-import type { TerminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import type { MessagePortMain } from 'electron';
 
-import type { ProjectedAttachmentBootstrap } from '@orchbee/workbench-client-protocol';
+import type {
+	ProjectedAttachmentBootstrap,
+	TerminalPresentationId,
+} from '@orchbee/workbench-client-protocol';
 import type {
 	ProjectedTerminalBrokerEffectTarget,
 	ProjectedTerminalBrokerLifecycle,

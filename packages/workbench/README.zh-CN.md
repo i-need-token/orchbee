@@ -31,7 +31,7 @@ Workbench 组合显式区分为 `preview` 或 `managed`。两者都会接收应�
 
 地址为权威 Client View 输入的应用程序可能会注入 `WorkbenchNavigationPort`。然后，在工作台改变活动的 Client View 状态之前，工作区、独立上下文和选项卡选择操作会委派导航；应用程序更新浏览器历史记录并将生成的路由应用回运行时。如果没有此端口，Workbench 将保留其本地内存中导航行为。 Workbench 不解析路径或自己的路由器历史记录。
 
-`@orchbee/workbench/terminal-presentation` 还提供运行时中立的终端表示身份、生命周期契约和边界模式。平台应用程序使用该狭窄的入口点，而不是将 React 工作台图导入到主运行时或预加载运行时中。
+终端表示身份、生命周期契约和边界模式来自 `@orchbee/workbench-client-protocol`。`@orchbee/workbench/terminal-presentation` 只提供运行时主题修订协调，不包含 React 工作台图。
 
 ## 键盘焦点路由
 
@@ -306,7 +306,7 @@ Workbench 公开了跨 Workbench、Terminal Host 与投影客户端（projected 
 
 ### 共享文档与 Client View 边界
 
-`@orchbee/workbench/document` 将带规范修订的 `WorkbenchSharedDocument` 与单个页面的瞬态 `WorkbenchClientView` 分离。Project、Workspace、Tab/Group 成员关系、持久后备及自定义 Tab 标题、Panel/Split 结构、终端 Presentation 放置与持久生命周期意图属于共享状态。活动与选中导航、展开状态、焦点、最大化、活动子 Presentation 和 Split 权重则为客户端本地状态。每个 Tab 的 Panel MRU 焦点历史只存在于实时 Workbench runtime，并从 Client View 的聚焦 Panel 初始化；它不属于这两项序列化契约。自然终端标题、当前 CWD、视口需求、滚动、搜索、选择、复制、GPU 状态及 `AttachmentId` 仍不属于这两项契约。
+来自 `@orchbee/workbench-client-protocol` 的带规范修订的 `WorkbenchSharedDocument`，与 `@orchbee/workbench/document` 导出的单个页面瞬态 `WorkbenchClientView` 相互分离。Project、Workspace、Tab/Group 成员关系、持久后备及自定义 Tab 标题、Panel/Split 结构、终端 Presentation 放置与持久生命周期意图属于共享状态。活动与选中导航、展开状态、焦点、最大化、活动子 Presentation 和 Split 权重则为客户端本地状态。每个 Tab 的 Panel MRU 焦点历史只存在于实时 Workbench runtime，并从 Client View 的聚焦 Panel 初始化；它不属于这两项序列化契约。自然终端标题、当前 CWD、视口需求、滚动、搜索、选择、复制、GPU 状态及 `AttachmentId` 仍不属于这两项契约。
 
 托管的 `WorkbenchProjectWorkspaceRuntime` 通过 `getSharedDocument(...)` 和 `getClientView()` 投影这些合约，通过 `initialDocument` 和 `initialClientView` 进行水合，并且可以通过 `applySharedDocument(...)` 应用广播文档，而无需调度过程影响。 `subscribeDocument(...)` 提供应用耐久性协调器；其共享指纹不会因仅 Client View 的转换而改变。应用程序建立其持久性屏障后，`reconcileDurableTerminalPresentations()` 重播持久性配置、关闭和停止操作，并将保留意图转换为仅恢复命令。
 
@@ -329,4 +329,4 @@ pnpm --filter @orchbee/workbench test
 pnpm --filter @orchbee/workbench test:exports
 ```
 
-<!-- documentation-pairing: english-sha256=c7e0cd0a9a4332a1fa81c78dca1be9302cd1357effd954be876a3a8538c12c76 zh-cn-sha256=4808c71c14355336c0734f452248a64e61507fd7747de9ed1f9a342581796902 -->
+<!-- documentation-pairing: english-sha256=60b78a1c91353a03f7317e38752f0991994ef0109c390ebd40098e46ae35645d zh-cn-sha256=a1b50af0cf8fa665c0e4d98d5cb70d4c4d5808c53ba8fd762a0f1ba06e59a99f -->

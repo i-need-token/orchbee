@@ -1,3 +1,12 @@
+import {
+	assertWorkbenchSharedProjectWorkspaceInvariants,
+	areValidWorkbenchSharedLaunchConfigurations,
+	hasWorkbenchSharedLaunchConfiguration,
+	isValidWorkbenchSharedDirectory,
+	workbenchSharedDirectoriesShareLocation,
+	workbenchSharedDirectoryPlacementsEqual,
+} from '@orchbee/workbench-client-protocol';
+
 type WorkbenchDirectorySource = 'created' | 'discovered' | 'selected';
 
 type WorkbenchDirectoryPlacement =
@@ -402,14 +411,15 @@ function createInitialWorkspace(
 	state: ProjectWorkspaceState,
 	event: Extract<ProjectWorkspaceEvent, { type: 'project-created' | 'workspace-created-default' }>,
 ): ProjectWorkspaceTransition {
-	if (!isValidDirectoryDescriptor(event.directory)) return rejected(state, 'directory-invalid');
+	if (!isValidWorkbenchSharedDirectory(event.directory))
+		return rejected(state, 'directory-invalid');
 	if (!isUsableLocalDirectory(event.directory)) return rejected(state, 'directory-unavailable');
 	const launchConfigurations = event.type === 'project-created' ? event.launchConfigurations : [];
 	const launchConfigurationId =
 		event.type === 'project-created' ? event.primaryWorkspaceLaunchConfigurationId : null;
-	if (!areValidLaunchConfigurations(launchConfigurations))
+	if (!areValidWorkbenchSharedLaunchConfigurations(launchConfigurations))
 		return rejected(state, 'launch-configuration-invalid');
-	if (!hasLaunchConfiguration(launchConfigurations, launchConfigurationId))
+	if (!hasWorkbenchSharedLaunchConfiguration(launchConfigurations, launchConfigurationId))
 		return rejected(state, 'launch-configuration-not-found');
 	const resourceScopeId = `resource-scope-${availableResourceScopeSequence(state)}`;
 	const projectId =
@@ -448,7 +458,9 @@ function registerEnvironmentProject(
 	if (!isValidRemoteProjectDirectory(event.directory)) return rejected(state, 'directory-invalid');
 	if (
 		state.resourceScopes.some((scope) =>
-			scope.directories.some((directory) => directoriesShareLocation(directory, event.directory)),
+			scope.directories.some((directory) =>
+				workbenchSharedDirectoriesShareLocation(directory, event.directory),
+			),
 		)
 	)
 		return unchanged(state);
@@ -552,7 +564,7 @@ function addDirectory(
 	const scope = findWorkbenchResourceScope(state, scopeId);
 	if (scope === undefined) return rejected(state, 'resource-scope-not-found');
 	if (
-		!isValidDirectoryDescriptor(directory) ||
+		!isValidWorkbenchSharedDirectory(directory) ||
 		(remote
 			? directory.kind !== 'folder' || !isValidRemoteProjectDirectory(directory)
 			: directory.placement.kind !== 'local')
@@ -563,7 +575,9 @@ function addDirectory(
 			state.resourceScopes.some(
 				(other) =>
 					other.id !== scope.id &&
-					other.directories.some((candidate) => directoriesShareLocation(candidate, directory)),
+					other.directories.some((candidate) =>
+						workbenchSharedDirectoriesShareLocation(candidate, directory),
+					),
 			)
 		)
 			return rejected(state, 'directory-already-exists');
@@ -578,13 +592,18 @@ function addDirectory(
 			)
 				return rejected(state, 'directory-environment-conflict');
 		}
-		if (scope.directories.some((candidate) => directoriesShareLocation(candidate, directory)))
+		if (
+			scope.directories.some((candidate) =>
+				workbenchSharedDirectoriesShareLocation(candidate, directory),
+			)
+		)
 			return unchanged(state);
 	}
 	if (
 		scope.directories.some(
 			(candidate) =>
-				candidate.id === directory.id || directoriesShareLocation(candidate, directory),
+				candidate.id === directory.id ||
+				workbenchSharedDirectoriesShareLocation(candidate, directory),
 		)
 	)
 		return rejected(state, 'directory-already-exists');
@@ -598,19 +617,20 @@ function updateDirectory(
 ): ProjectWorkspaceTransition {
 	const scope = findWorkbenchResourceScope(state, scopeId);
 	if (scope === undefined) return rejected(state, 'resource-scope-not-found');
-	if (!isValidDirectoryDescriptor(directory)) return rejected(state, 'directory-invalid');
+	if (!isValidWorkbenchSharedDirectory(directory)) return rejected(state, 'directory-invalid');
 	const current = scope.directories.find((candidate) => candidate.id === directory.id);
 	if (current === undefined) return rejected(state, 'directory-not-found');
 	if (
 		current.kind !== directory.kind ||
 		current.source !== directory.source ||
-		!directoryPlacementsEqual(current.placement, directory.placement)
+		!workbenchSharedDirectoryPlacementsEqual(current.placement, directory.placement)
 	)
 		return rejected(state, 'directory-update-not-allowed');
 	if (
 		scope.directories.some(
 			(candidate) =>
-				candidate.id !== directory.id && directoriesShareLocation(candidate, directory),
+				candidate.id !== directory.id &&
+				workbenchSharedDirectoriesShareLocation(candidate, directory),
 		)
 	)
 		return rejected(state, 'directory-already-exists');
@@ -674,7 +694,7 @@ function reconcileLaunchConfigurations(
 ): ProjectWorkspaceTransition {
 	const scope = findWorkbenchResourceScope(state, scopeId);
 	if (scope === undefined) return rejected(state, 'resource-scope-not-found');
-	if (!areValidLaunchConfigurations(launchConfigurations))
+	if (!areValidWorkbenchSharedLaunchConfigurations(launchConfigurations))
 		return rejected(state, 'launch-configuration-invalid');
 	if (launchConfigurationsEqual(scope.launchConfigurations, launchConfigurations))
 		return unchanged(state);
@@ -682,7 +702,7 @@ function reconcileLaunchConfigurations(
 		...updateScope(state, { ...scope, launchConfigurations: [...launchConfigurations] }),
 		workspaces: state.workspaces.map((workspace) =>
 			workspace.resourceScopeId !== scopeId ||
-			hasLaunchConfiguration(launchConfigurations, workspace.launchConfigurationId)
+			hasWorkbenchSharedLaunchConfiguration(launchConfigurations, workspace.launchConfigurationId)
 				? workspace
 				: { ...workspace, launchConfigurationId: null },
 		),
@@ -773,7 +793,9 @@ function createWorkspace(
 	if (directory === undefined) return rejected(state, 'directory-not-found');
 	if (remote ? directory.placement.kind !== 'environment' : !isUsableLocalDirectory(directory))
 		return rejected(state, 'directory-unavailable');
-	if (!hasLaunchConfiguration(scope.launchConfigurations, input.launchConfigurationId))
+	if (
+		!hasWorkbenchSharedLaunchConfiguration(scope.launchConfigurations, input.launchConfigurationId)
+	)
 		return rejected(state, 'launch-configuration-not-found');
 	if (
 		remote &&
@@ -859,7 +881,9 @@ function updateWorkspace(
 	);
 	if (scope === undefined || directory === undefined) return rejected(state, 'directory-not-found');
 	if (!isUsableLocalDirectory(directory)) return rejected(state, 'directory-unavailable');
-	if (!hasLaunchConfiguration(scope.launchConfigurations, event.launchConfigurationId))
+	if (
+		!hasWorkbenchSharedLaunchConfiguration(scope.launchConfigurations, event.launchConfigurationId)
+	)
 		return rejected(state, 'launch-configuration-not-found');
 	if (
 		workspace.name === event.name &&
@@ -919,7 +943,7 @@ function registerWorktree(
 		return rejected(state, 'directory-not-found');
 	if (!isUsableLocalDirectory(sourceDirectory)) return rejected(state, 'directory-unavailable');
 	if (
-		!isValidDirectoryDescriptor(event.directory) ||
+		!isValidWorkbenchSharedDirectory(event.directory) ||
 		!isUsableLocalDirectory(event.directory) ||
 		event.directory.source !==
 			(event.type === 'project-worktree-created' ? 'created' : 'discovered') ||
@@ -937,12 +961,12 @@ function registerWorktree(
 		return (
 			directory?.kind === 'worktree' &&
 			directory.git.repositoryId === event.directory.git.repositoryId &&
-			directoriesShareLocation(directory, event.directory)
+			workbenchSharedDirectoriesShareLocation(directory, event.directory)
 		);
 	});
 	if (existingWorkspace !== undefined) return unchanged(state);
 	const existingDirectory = scope.directories.find((candidate) =>
-		directoriesShareLocation(candidate, event.directory),
+		workbenchSharedDirectoriesShareLocation(candidate, event.directory),
 	);
 	if (
 		existingDirectory === undefined &&
@@ -1024,23 +1048,6 @@ function reorderItems<Item extends { readonly id: string }>(
 	return reorderedItems.every((item, index) => item === items[index]) ? items : reorderedItems;
 }
 
-function areValidLaunchConfigurations(
-	launchConfigurations: readonly WorkbenchLaunchConfigurationReference[],
-): boolean {
-	const ids = new Set<string>();
-	for (const launchConfiguration of launchConfigurations) {
-		if (
-			launchConfiguration.id.length === 0 ||
-			launchConfiguration.name.trim().length === 0 ||
-			ids.has(launchConfiguration.id)
-		) {
-			return false;
-		}
-		ids.add(launchConfiguration.id);
-	}
-	return true;
-}
-
 function directoriesEqual(left: WorkbenchDirectory, right: WorkbenchDirectory): boolean {
 	return (
 		left.available === right.available &&
@@ -1052,33 +1059,9 @@ function directoriesEqual(left: WorkbenchDirectory, right: WorkbenchDirectory): 
 		left.kind === right.kind &&
 		left.name === right.name &&
 		left.path === right.path &&
-		directoryPlacementsEqual(left.placement, right.placement) &&
+		workbenchSharedDirectoryPlacementsEqual(left.placement, right.placement) &&
 		left.source === right.source
 	);
-}
-
-function hasLaunchConfiguration(
-	launchConfigurations: readonly WorkbenchLaunchConfigurationReference[],
-	launchConfigurationId: string | null,
-): boolean {
-	return (
-		launchConfigurationId === null ||
-		launchConfigurations.some(
-			(launchConfiguration) => launchConfiguration.id === launchConfigurationId,
-		)
-	);
-}
-
-function isValidDirectoryDescriptor(directory: WorkbenchDirectory): boolean {
-	if (
-		directory.placement.kind === 'environment' &&
-		(directory.placement.environmentId.length === 0 || directory.available)
-	) {
-		return false;
-	}
-	return directory.kind === 'worktree'
-		? directory.git?.worktree === true
-		: directory.kind === 'folder' && (directory.git === null || directory.git?.worktree === false);
 }
 
 function isValidRemoteProjectDirectory(
@@ -1087,7 +1070,7 @@ function isValidRemoteProjectDirectory(
 	readonly placement: Extract<WorkbenchDirectoryPlacement, { kind: 'environment' }>;
 } {
 	return (
-		isValidDirectoryDescriptor(directory) &&
+		isValidWorkbenchSharedDirectory(directory) &&
 		directory.placement.kind === 'environment' &&
 		!directory.available &&
 		directory.git === null &&
@@ -1097,21 +1080,6 @@ function isValidRemoteProjectDirectory(
 
 function isUsableLocalDirectory(directory: WorkbenchDirectory): boolean {
 	return directory.available && directory.placement.kind === 'local';
-}
-
-function directoryPlacementsEqual(
-	left: WorkbenchDirectoryPlacement,
-	right: WorkbenchDirectoryPlacement,
-): boolean {
-	return (
-		left.kind === right.kind &&
-		(left.kind === 'local' ||
-			(right.kind === 'environment' && left.environmentId === right.environmentId))
-	);
-}
-
-function directoriesShareLocation(left: WorkbenchDirectory, right: WorkbenchDirectory): boolean {
-	return left.path === right.path && directoryPlacementsEqual(left.placement, right.placement);
 }
 
 function launchConfigurationsEqual(
@@ -1184,55 +1152,10 @@ function rejected(
 	return { commands: [], outcome: 'rejected', rejection, state };
 }
 
-export function assertProjectWorkspaceInvariants(state: ProjectWorkspaceState): void {
-	const projectIds = new Set<string>();
-	for (const project of state.projects) {
-		if (projectIds.has(project.id)) throw new Error(`Duplicate Project ID ${project.id}.`);
-		projectIds.add(project.id);
-	}
-	const scopes = new Map<string, WorkbenchResourceScope>();
-	for (const scope of state.resourceScopes) {
-		if (scopes.has(scope.id)) throw new Error(`Duplicate resource scope ID ${scope.id}.`);
-		scopes.set(scope.id, scope);
-		if (scope.directories.length === 0)
-			throw new Error(`Resource scope ${scope.id} has no Directory.`);
-		const ids = new Set<string>();
-		const locations: WorkbenchDirectory[] = [];
-		for (const directory of scope.directories) {
-			if (!isValidDirectoryDescriptor(directory))
-				throw new Error(`Resource scope ${scope.id} has an invalid Directory ${directory.id}.`);
-			if (ids.has(directory.id))
-				throw new Error(`Resource scope ${scope.id} has duplicate Directory ID ${directory.id}.`);
-			if (locations.some((candidate) => directoriesShareLocation(candidate, directory)))
-				throw new Error(
-					`Resource scope ${scope.id} has duplicate Directory path ${directory.path}.`,
-				);
-			ids.add(directory.id);
-			locations.push(directory);
-		}
-		if (!ids.has(scope.primaryDirectoryId))
-			throw new Error(`Resource scope ${scope.id} has a missing primary Directory.`);
-		if (!areValidLaunchConfigurations(scope.launchConfigurations))
-			throw new Error(`Resource scope ${scope.id} has invalid launch configurations.`);
-	}
-	const workspaceIds = new Set<string>();
-	const contextIds = new Set<string>([state.standaloneTerminalContextId]);
-	for (const workspace of state.workspaces) {
-		if (workspaceIds.has(workspace.id)) throw new Error(`Duplicate Workspace ID ${workspace.id}.`);
-		workspaceIds.add(workspace.id);
-		if (workspace.projectId !== null && !projectIds.has(workspace.projectId))
-			throw new Error(`Workspace ${workspace.id} has a missing Project.`);
-		const scope = scopes.get(workspace.resourceScopeId);
-		if (scope === undefined)
-			throw new Error(`Workspace ${workspace.id} has a missing resource scope.`);
-		if (!scope.directories.some((directory) => directory.id === workspace.primaryDirectoryId))
-			throw new Error(`Workspace ${workspace.id} has a missing primary Directory.`);
-		if (!hasLaunchConfiguration(scope.launchConfigurations, workspace.launchConfigurationId))
-			throw new Error(`Workspace ${workspace.id} has a missing launch configuration.`);
-		if (contextIds.has(workspace.terminalContextId))
-			throw new Error(`Duplicate terminal-context ID ${workspace.terminalContextId}.`);
-		contextIds.add(workspace.terminalContextId);
-	}
+function assertProjectWorkspaceInvariants(state: ProjectWorkspaceState): void {
+	assertWorkbenchSharedProjectWorkspaceInvariants(state);
+	const projectIds = new Set(state.projects.map((project) => project.id));
+	const workspaceIds = new Set(state.workspaces.map((workspace) => workspace.id));
 	const expanded = new Set<string>();
 	for (const id of state.expandedProjectIds) {
 		if (!projectIds.has(id) || expanded.has(id))

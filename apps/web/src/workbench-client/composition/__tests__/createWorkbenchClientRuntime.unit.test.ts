@@ -1,11 +1,9 @@
 import {
-	createWorkbenchSharedDocument,
-	workbenchSharedDocumentRevision,
-} from '@orchbee/workbench/document';
-import { terminalPresentationId } from '@orchbee/workbench';
-import {
 	WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
 	WorkbenchClientSessionBootstrapSchema,
+	createWorkbenchSharedDocument,
+	workbenchSharedDocumentRevision,
+	terminalPresentationId,
 } from '@orchbee/workbench-client-protocol';
 import { describe, expect, it, vi } from 'vitest';
 

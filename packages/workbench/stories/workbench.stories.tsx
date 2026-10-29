@@ -6,9 +6,6 @@ import {
 	Workbench,
 	WorkbenchProjectWorkspaceRuntime,
 	createWorkbenchPreviewTerminalPresentationComposition,
-	terminalPresentationId,
-	terminalPresentationOperationId,
-	terminalPresentationRemovalId,
 } from '@orchbee/workbench';
 import type {
 	WorkbenchEnvironmentProjectConnectionCapability,
@@ -19,6 +16,11 @@ import type {
 } from '@orchbee/workbench';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
+import {
+	terminalPresentationId,
+	terminalPresentationOperationId,
+	terminalPresentationRemovalId,
+} from '@orchbee/workbench-client-protocol';
 
 const meta = {
 	title: 'Workbench',

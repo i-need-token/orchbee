@@ -1,7 +1,7 @@
 import type {
 	TerminalPresentationId,
 	TerminalPresentationOperationId,
-} from '../../terminal-presentation';
+} from '@orchbee/workbench-client-protocol';
 
 export type WorkbenchLocationRef =
 	| { readonly kind: 'standalone' }

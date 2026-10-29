@@ -7,7 +7,7 @@ import {
 	WorkbenchSharedDocumentRevisionSchema,
 	type WorkbenchSharedDocument,
 	type WorkbenchSharedDocumentRevision,
-} from '@orchbee/workbench/document';
+} from '@orchbee/workbench-client-protocol';
 
 import {
 	decideWorkbenchDocumentCommit,

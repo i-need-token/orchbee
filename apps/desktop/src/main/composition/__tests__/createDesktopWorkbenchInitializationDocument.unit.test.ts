@@ -1,9 +1,9 @@
+import { describe, expect, it } from 'vitest';
 import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
 	terminalPresentationRemovalId,
-} from '@orchbee/workbench/terminal-presentation';
-import { describe, expect, it } from 'vitest';
+} from '@orchbee/workbench-client-protocol';
 
 import { createDesktopWorkbenchInitializationDocument } from '../createDesktopWorkbenchInitializationDocument';
 

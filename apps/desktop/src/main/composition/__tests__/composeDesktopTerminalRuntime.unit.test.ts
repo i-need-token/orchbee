@@ -12,11 +12,11 @@ import {
 	type TerminalExited,
 	type TerminalIdentity,
 } from '@orchbee/terminal-protocol';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
-} from '@orchbee/workbench/terminal-presentation';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+} from '@orchbee/workbench-client-protocol';
 
 import type { HostConnection } from '../../host';
 import {

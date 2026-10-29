@@ -173,7 +173,7 @@ settles, and leaves the shared control transport and unrelated requests availabl
 transferred port, conflicting identity, or duplicate open remains invalid control traffic and retires
 the affected control transport.
 
-It contains no Electron, DOM, UI, broker, coordinator, transport lifecycle, network framing, authentication, PTY, or VT implementation. Current shared-document and legacy TerminalPresentation semantics remain with `@orchbee/workbench` until their accepted migration; the additive version-1 projection semantics come from the language-neutral schema authority. Terminal Host wire semantics belong to [`schemas/terminal`](../../schemas/terminal/README.md); `@orchbee/terminal-protocol` is the TypeScript binding.
+It contains no Electron, DOM, UI, broker, coordinator, transport lifecycle, network framing, authentication, PTY, or VT implementation. The additive version-1 projection semantics come from the language-neutral schema authority. Terminal Host wire semantics belong to [`schemas/terminal`](../../schemas/terminal/README.md); `@orchbee/terminal-protocol` is the TypeScript binding.
 
 Applications parse every untrusted IPC or network value with these schemas at the first trusted boundary. A transport owner remains responsible for framing, authentication, binary transfer, backpressure, and connection retirement.
 
@@ -193,6 +193,22 @@ commits those bytes through its own platform clipboard before reporting local co
 event grants HTML, raw VT, or a generic clipboard capability.
 
 Host-originated clipboard-write commit is a separate, request-bound flow. Main forwards at most one pending bounded request per attachment, and the renderer automatically returns only an exact `clipboard-write-decision` containing the original attachment, sequence, and text plus the commit result. Desktop Main rejects mismatched and duplicate decisions and performs the privileged write only for a positive Desktop-effect decision. A client-effect attachment performs its local Browser write first and uses the same exact decision only to consume Main's pending request, so Main cannot duplicate the effect.
+
+## Shared document and TerminalPresentation contracts
+
+`workbench-shared-document-contract.ts` owns the current strict `WorkbenchSharedDocument`: its
+version-1 schema, canonical revision, creation, and parsing. `terminal-presentation-contract.ts`
+owns the legacy TerminalPresentation identities and the typed lifecycle commands, events, and
+failures exchanged between Workbench and its composing application. Project and Workspace
+structural invariants live in `workbench-shared-project-workspace-contract.ts`; shared-document
+parsing and Workbench transitions apply the same checks, so neither accepts a structure that the
+other rejects.
+
+`@orchbee/workbench` consumes these contracts and retains Client View, document transitions,
+projection, hydration, reconciliation, and terminal-theme revisions. Its
+[shared-document reference](../workbench/docs/shared-workbench-document.md) remains the semantic
+description of the document shape, presentation intent, and invariants. Applications and protocol
+packages parse stored or transported documents here without importing the React Workbench.
 
 ## Verification
 

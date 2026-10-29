@@ -1,12 +1,10 @@
-import type {
-	TerminalPresentationFailure,
-	TerminalPresentationId,
-} from '@orchbee/workbench/terminal-presentation';
 import {
 	TerminalProjectionControlEventSchema,
 	TerminalProjectionRequestIdSchema,
 	type ProjectedTerminalCommand,
 	type TerminalProjectionRequestId,
+	type TerminalPresentationFailure,
+	type TerminalPresentationId,
 } from '@orchbee/workbench-client-protocol';
 import type { TerminalGeometry } from '@orchbee/terminal-protocol';
 

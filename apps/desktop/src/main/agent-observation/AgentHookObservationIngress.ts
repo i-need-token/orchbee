@@ -21,7 +21,7 @@ import type {
 	TerminalApplicationSignal,
 	TerminalEnvironmentOverlay,
 } from '@orchbee/terminal-protocol';
-import type { TerminalPresentationId } from '@orchbee/workbench/terminal-presentation';
+import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import {
 	AgentHookPresentationCorrelationHintSchema,

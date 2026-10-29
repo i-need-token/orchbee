@@ -3,11 +3,11 @@ import { mkdtemp, readdir, rm, writeFile, type FileHandle } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	terminalPresentationId,
 	type TerminalPresentationId,
-} from '@orchbee/workbench/terminal-presentation';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+} from '@orchbee/workbench-client-protocol';
 
 import { FileTerminalArchiveStore } from '../FileTerminalArchiveStore';
 import { MAX_TERMINAL_ARCHIVE_BYTES, type TerminalArchive } from '../terminal-archive-document';

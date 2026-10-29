@@ -1,9 +1,9 @@
 import { DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL } from '@orchbee/desktop-client-protocol';
-import { WORKBENCH_CLIENT_SESSION_BOOTSTRAP } from '@orchbee/workbench-client-protocol';
 import {
+	WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
 	createWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
-} from '@orchbee/workbench/document';
+} from '@orchbee/workbench-client-protocol';
 import type { IpcRendererEvent } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 

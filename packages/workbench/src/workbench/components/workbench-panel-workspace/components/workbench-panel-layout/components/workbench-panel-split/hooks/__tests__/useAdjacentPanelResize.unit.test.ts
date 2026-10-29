@@ -4,8 +4,8 @@ import { act, cleanup, fireEvent, renderHook } from '@testing-library/react';
 import { createElement, useLayoutEffect } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import { terminalPresentationId } from '../../../../../../../../../terminal-presentation';
 import type { PanelSplit } from '../../../../../../model/panel-workspace-state';
 import { useAdjacentPanelResize } from '../useAdjacentPanelResize';
 

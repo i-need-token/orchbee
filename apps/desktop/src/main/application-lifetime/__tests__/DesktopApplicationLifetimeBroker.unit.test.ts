@@ -1,11 +1,13 @@
 import { EventEmitter } from 'node:events';
 
-import { workbenchSharedDocumentRevision } from '@orchbee/workbench/document';
-import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import type { MessagePortMain } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 
 import { DesktopApplicationExitRequestIdSchema } from '@orchbee/desktop-client-protocol';
+import {
+	workbenchSharedDocumentRevision,
+	terminalPresentationId,
+} from '@orchbee/workbench-client-protocol';
 import {
 	DesktopApplicationLifetimeBroker,
 	type DesktopApplicationLifetimeBrokerDependencies,

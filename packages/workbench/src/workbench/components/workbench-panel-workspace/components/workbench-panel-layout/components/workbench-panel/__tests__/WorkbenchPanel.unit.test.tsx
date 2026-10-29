@@ -4,11 +4,11 @@ import { TooltipProvider } from '@orchbee/ui/components';
 import { createElement, createRef } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-
 import {
 	terminalPresentationId,
 	type TerminalPresentationId,
-} from '../../../../../../../../terminal-presentation';
+} from '@orchbee/workbench-client-protocol';
+
 import type { PanelLayoutNode, PanelLeaf } from '../../../../../model/panel-workspace-state';
 import type { WorkbenchPanelWorkspaceView } from '../../../../../types/panel-workspace-view';
 import type { TerminalTabPresentationLayer } from '../../../../../types/terminal-tab-presentation-layer';

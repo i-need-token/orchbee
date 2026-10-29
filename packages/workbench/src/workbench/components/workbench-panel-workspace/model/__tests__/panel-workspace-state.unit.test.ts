@@ -9,13 +9,13 @@ import {
 	uniqueArray,
 } from 'fast-check';
 import { describe, expect, it } from 'vitest';
-
 import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
 	terminalPresentationRemovalId,
 	type TerminalPresentationCreation,
-} from '../../../../../terminal-presentation';
+} from '@orchbee/workbench-client-protocol';
+
 import {
 	clonePanelWorkspaceState as clonePanelWorkspaceStateCore,
 	collectPanelLeaves,

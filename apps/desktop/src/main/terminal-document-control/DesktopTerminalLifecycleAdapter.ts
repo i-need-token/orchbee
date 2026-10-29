@@ -14,7 +14,7 @@ import type {
 	TerminalPresentationEvent,
 	TerminalPresentationFailure,
 	TerminalPresentationId,
-} from '@orchbee/workbench/terminal-presentation';
+} from '@orchbee/workbench-client-protocol';
 
 import {
 	TerminalBindingIdSchema,

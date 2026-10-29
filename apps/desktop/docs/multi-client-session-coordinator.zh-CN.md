@@ -25,7 +25,7 @@ Gateway 标记。Electron 加载同一应用，通过沙盒 preload 转发
 
 | 输入                             | 信任和缺席语义                                                                                                                   |
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| 已存储 `WorkbenchSharedDocument` | `@orchbee/workbench/document` 解析的不受信任的文件输入； missing 是一个独特的初始状态，invalid 表示不可用。                      |
+| 已存储 `WorkbenchSharedDocument` | `@orchbee/workbench-client-protocol` 解析的不受信任的文件输入； missing 是一个独特的初始状态，invalid 表示不可用。               |
 | 客户端文档提案                   | 不受信任的能力输入，包含请求标识、预期修订和完整的严格文档。                                                                     |
 | 终端运行时结果                   | 只有与所请求的确切 Presentation 和操作标识匹配后才可信。                                                                         |
 | 投影请求                         | 不受信任的 viewport demand，只携带一个 Presentation identity 与有界 geometry；只有 canonical document placement 能选择 runtime。 |
@@ -277,4 +277,4 @@ surface 随即提交其测量 geometry。Owner detach 会晋升 successful claim
 [renderer-start-tests]: ../../web/src/workbench-client/projected-terminal-renderer/__tests__/startProjectedTerminalRenderer.unit.test.ts
 [recovery-tests]: ../../web/src/workbench-client/projected-terminal-surface/model/__tests__/ProjectedTerminalRecoveryController.unit.test.ts
 
-<!-- documentation-pairing: english-sha256=d92867be76360338a5b0e915f4b74322a685d09575fd3237daf8b026e681247b zh-cn-sha256=5478392238931e5621b12a398bee9deab1bf000522664ce9a9c4271e7a642ef2 -->
+<!-- documentation-pairing: english-sha256=fe6055705798c411dfad359de6a42c984c3f8b60a165205126ff39fec460d860 zh-cn-sha256=562911399c4f8074cb59625ecb10c4fe5f7294fd1a6d79f7fd79ab5b55cf6f4e -->

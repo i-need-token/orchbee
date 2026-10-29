@@ -6,11 +6,11 @@ import {
 	DESKTOP_RENDERER_BOOTSTRAP_WINDOW_MESSAGE,
 	DESKTOP_RENDERER_PORT_ROLES,
 } from '@orchbee/desktop-client-protocol';
-import { WORKBENCH_CLIENT_SESSION_BOOTSTRAP } from '@orchbee/workbench-client-protocol';
 import {
+	WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
 	createWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
-} from '@orchbee/workbench/document';
+} from '@orchbee/workbench-client-protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {

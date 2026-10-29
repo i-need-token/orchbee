@@ -9,8 +9,8 @@ import {
 } from '@orchbee/actions';
 import { TAB_STRIP_ACTION_IDS, type TabCloseInput } from '@orchbee/tab-strip';
 import { describe, expect, it, vi } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import { terminalPresentationId } from '../../../terminal-presentation';
 import {
 	PANEL_ACTION_IDS,
 	panelCloseInput,

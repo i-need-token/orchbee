@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
-
 import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
 	terminalPresentationRemovalId,
+	workbenchSharedDocumentRevision,
 	type TerminalPresentationCommand,
 	type TerminalPresentationId,
-} from '../../../terminal-presentation';
-import { workbenchSharedDocumentRevision } from '../../document';
+} from '@orchbee/workbench-client-protocol';
+
 import { collectPanelLeaves } from '../../components/workbench-panel-workspace/model/panel-workspace-state';
 import type {
 	WorkbenchTerminalPresentationCommand,

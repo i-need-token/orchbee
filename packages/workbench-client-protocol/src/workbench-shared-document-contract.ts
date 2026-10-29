@@ -1,10 +1,11 @@
+import { z } from 'zod';
+
 import {
 	TerminalPresentationIdSchema,
 	TerminalPresentationOperationIdSchema,
 	TerminalPresentationRemovalIdSchema,
-} from '../../terminal-presentation';
-import { assertProjectWorkspaceInvariants } from '../../project-workspace';
-import { z } from 'zod';
+} from './terminal-presentation-contract';
+import { assertWorkbenchSharedProjectWorkspaceInvariants } from './workbench-shared-project-workspace-contract';
 
 const identifierSchema = z.string().min(1);
 const sequenceSchema = z.number().int().positive();
@@ -294,11 +295,7 @@ function validateDocument(
 ): readonly string[] {
 	const issues: string[] = [];
 	try {
-		assertProjectWorkspaceInvariants({
-			...document.projectWorkspace,
-			activeLocation: { kind: 'standalone' },
-			expandedProjectIds: [],
-		});
+		assertWorkbenchSharedProjectWorkspaceInvariants(document.projectWorkspace);
 	} catch (error) {
 		issues.push(
 			error instanceof Error ? error.message : 'Invalid shared Project and Workspace structure.',

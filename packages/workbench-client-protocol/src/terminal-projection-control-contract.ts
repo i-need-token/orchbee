@@ -1,11 +1,11 @@
-import {
-	TerminalPresentationFailureSchema,
-	TerminalPresentationIdSchema,
-} from '@orchbee/workbench/terminal-presentation';
 import { TerminalGeometrySchema } from '@orchbee/terminal-protocol';
 import { z } from 'zod';
 
 import { ProjectedAttachmentBootstrapSchema } from './projected-terminal-contract';
+import {
+	TerminalPresentationFailureSchema,
+	TerminalPresentationIdSchema,
+} from './terminal-presentation-contract';
 
 export const TerminalProjectionRequestIdSchema = z
 	.string()

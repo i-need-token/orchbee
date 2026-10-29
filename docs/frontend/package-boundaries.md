@@ -51,13 +51,15 @@ platform effects, and its current consumer; follow
 
 Applications and packages consume other workspaces only through declared exports; they never import another workspace's `src/*` or `dist/*`.
 
-| From                         | Allowed dependency direction                                           |
-| ---------------------------- | ---------------------------------------------------------------------- |
-| Product presentation         | Generic UI, localization, design vocabulary, and headless capabilities |
-| Generic UI or design tokens  | Never product presentation                                             |
-| Headless capability          | Never its React presentation                                           |
-| Protocol or validation layer | Never transport, persistence, process lifecycle, or UI                 |
-| Runtime implementation       | Remains in the application or runtime package that owns its lifecycle  |
+| From                         | Allowed dependency direction                                                               |
+| ---------------------------- | ------------------------------------------------------------------------------------------ |
+| Product presentation         | Generic UI, localization, design vocabulary, headless capabilities, and protocol contracts |
+| Generic UI or design tokens  | Never product presentation                                                                 |
+| Headless capability          | Never its React presentation                                                               |
+| Protocol or validation layer | Never transport, persistence, process lifecycle, UI, or product presentation               |
+| Runtime implementation       | Remains in the application or runtime package that owns its lifecycle                      |
+
+A serialized contract shared by a protocol and a product presentation belongs to the protocol package; the presentation consumes it and keeps only its client-local state and transitions.
 
 Break a cycle by moving the shared contract to the narrowest independently meaningful capability or by inverting one dependency behind an owned port; never hide a cycle in a catch-all package.
 

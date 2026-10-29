@@ -1,13 +1,13 @@
 import path from 'node:path';
 
+import { WorkbenchProjectWorkspaceRuntime } from '@orchbee/workbench';
+import { describe, expect, it, vi } from 'vitest';
 import {
-	WorkbenchProjectWorkspaceRuntime,
 	terminalPresentationId,
 	terminalPresentationOperationId,
 	terminalPresentationRemovalId,
-} from '@orchbee/workbench';
-import { workbenchSharedDocumentRevision } from '@orchbee/workbench/document';
-import { describe, expect, it, vi } from 'vitest';
+	workbenchSharedDocumentRevision,
+} from '@orchbee/workbench-client-protocol';
 
 import { DesktopClientSessionCoordinator } from '../../client-session';
 import type { WorkbenchDocumentStore } from '../../workbench-document';

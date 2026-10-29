@@ -6,7 +6,7 @@ import {
 	type WorkbenchProjectCreationReceipt,
 	type WorkbenchProjectWorkspaceRuntime,
 } from '@orchbee/workbench';
-import { workbenchSharedDocumentRevision } from '@orchbee/workbench/document';
+import { workbenchSharedDocumentRevision } from '@orchbee/workbench-client-protocol';
 
 import {
 	canonicalWorkbenchRoute,

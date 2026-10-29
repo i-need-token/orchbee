@@ -1,12 +1,12 @@
 import { ActionRuntime, createTypedActionRuntime } from '@orchbee/actions';
 import { describe, expect, it } from 'vitest';
-
 import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
 	terminalPresentationRemovalId,
-} from '../../../terminal-presentation';
-import { workbenchSharedDocumentRevision } from '../../document';
+	workbenchSharedDocumentRevision,
+} from '@orchbee/workbench-client-protocol';
+
 import {
 	createWorkbenchPreviewTerminalPresentationComposition,
 	type WorkbenchTerminalPresentationComposition,

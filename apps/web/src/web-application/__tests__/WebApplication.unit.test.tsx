@@ -3,12 +3,12 @@ import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { TooltipProvider } from '@orchbee/ui/components';
 import {
 	createWorkbenchPreviewTerminalPresentationComposition,
-	terminalPresentationId,
 	WorkbenchProjectWorkspaceRuntime,
 } from '@orchbee/workbench';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import { TerminalSettingsController } from '../../terminal-settings';
 import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';

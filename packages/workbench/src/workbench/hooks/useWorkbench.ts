@@ -17,6 +17,7 @@ import {
 	type TabStripTabCreationIntent,
 } from '@orchbee/tab-strip';
 import * as React from 'react';
+import { workbenchSharedDocumentRevision } from '@orchbee/workbench-client-protocol';
 
 import {
 	readWorkbenchLeftPanelWidth,
@@ -40,7 +41,6 @@ import type { WorkbenchProjectNavigationMessages } from '../components/workbench
 import type { WorkbenchRemoteTerminalCreationCapability } from '../types/workbench-remote-terminal-creation';
 import type { WorkbenchProjectCreationReceipt } from '../types/workbench-project-folder-acquisition';
 import { matchesWorkbenchProjectCreation } from '../model/matchesWorkbenchProjectCreation';
-import { workbenchSharedDocumentRevision } from '../document';
 import {
 	createWorkbenchSearchState,
 	transitionWorkbenchSearch,

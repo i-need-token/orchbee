@@ -9,8 +9,8 @@ import {
 import { createOrchbeeIntl } from '@orchbee/i18n';
 import { TabModel } from '@orchbee/tab-strip';
 import { describe, expect, it } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import { terminalPresentationId } from '../../../terminal-presentation';
 import { PanelWorkspaceStore } from '../../components/workbench-panel-workspace/model/PanelWorkspaceStore';
 import { projectWorkbenchAgentNotification } from '../projectWorkbenchAgentNotification';
 

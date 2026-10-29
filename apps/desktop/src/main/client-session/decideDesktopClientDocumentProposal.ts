@@ -6,7 +6,7 @@ import {
 	type WorkbenchSharedPanelNode,
 	type WorkbenchSharedPresentation,
 	type WorkbenchSharedPresentationIntent,
-} from '@orchbee/workbench/document';
+} from '@orchbee/workbench-client-protocol';
 
 export type DesktopClientSessionPhase =
 	| { readonly kind: 'accepting' }

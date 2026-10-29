@@ -4,7 +4,7 @@ import type {
 	TerminalIdentity,
 	TerminalLaunch,
 } from '@orchbee/terminal-protocol';
-import type { TerminalPresentationId } from '@orchbee/workbench/terminal-presentation';
+import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import type { HostConnection } from '../host';
 import { TerminalRecoveryCoordinator, type TerminalBindingStore } from '../recovery';

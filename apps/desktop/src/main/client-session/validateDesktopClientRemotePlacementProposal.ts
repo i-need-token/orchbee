@@ -2,7 +2,7 @@ import type {
 	WorkbenchSharedDocument,
 	WorkbenchSharedPanelNode,
 	WorkbenchSharedPresentation,
-} from '@orchbee/workbench/document';
+} from '@orchbee/workbench-client-protocol';
 
 type SharedResources = WorkbenchSharedDocument['projectWorkspace']['resourceScopes'][number];
 type SharedWorkspace = WorkbenchSharedDocument['projectWorkspace']['workspaces'][number];

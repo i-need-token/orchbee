@@ -3,7 +3,6 @@ import { createOrchbeeIntl, workbenchTabMessages } from '@orchbee/i18n';
 import { TooltipProvider } from '@orchbee/ui/components';
 import {
 	createWorkbenchPreviewTerminalPresentationComposition,
-	terminalPresentationId,
 	WorkbenchProjectWorkspaceRuntime,
 	type WorkbenchLayoutStorage,
 	type WorkbenchShortcutPlatform,
@@ -11,6 +10,7 @@ import {
 import { RouterProvider } from '@tanstack/react-router';
 import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import { runApplicationCleanup } from '../runApplicationCleanup';
 import { createWebApplicationRouting } from '../application-routing';

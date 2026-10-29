@@ -1,15 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
-
 import {
-	parseWorkbenchClientView,
 	parseWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
-} from '../../document';
-import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
 	terminalPresentationRemovalId,
-} from '../../../terminal-presentation';
+} from '@orchbee/workbench-client-protocol';
+
+import { parseWorkbenchClientView } from '../../document';
 import { WorkbenchProjectWorkspaceRuntime } from '../WorkbenchProjectWorkspaceRuntime';
 
 function composition(scope: string, allocate = () => undefined) {

@@ -9,7 +9,8 @@ import type {
 	TerminalPresentationLifecycle,
 	TerminalPresentationOperationId,
 	TerminalPresentationRemovalId,
-} from '../../../../terminal-presentation';
+} from '@orchbee/workbench-client-protocol';
+
 import type { WorkbenchTerminalPresentationCommand } from '../../../model/createWorkbenchPreviewTerminalPresentationComposition';
 import { resolvePanelEqualization } from './resolvePanelEqualization';
 import {

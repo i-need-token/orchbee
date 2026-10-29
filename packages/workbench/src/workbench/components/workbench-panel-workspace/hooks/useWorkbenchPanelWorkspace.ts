@@ -2,8 +2,8 @@ import { useOrchbeeIntl, workbenchMessages, workbenchTabMessages } from '@orchbe
 import type { ActionInvocationSource, ActionRuntime, ActionScope } from '@orchbee/actions';
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import * as React from 'react';
+import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import type { TerminalPresentationId } from '../../../../terminal-presentation';
 import { WORKBENCH_ACTION_IDS } from '../../../actions/workbench-action-ids';
 import {
 	WorkbenchTerminalBellEffectCoordinator,

@@ -3,7 +3,7 @@ import {
 	workbenchSharedDocumentRevision,
 	type WorkbenchSharedDocument,
 	type WorkbenchSharedDocumentRevision,
-} from '@orchbee/workbench/document';
+} from '@orchbee/workbench-client-protocol';
 
 type WorkbenchDocumentStoreUnavailableReason =
 	| 'invalid'

@@ -2,8 +2,6 @@ import type {
 	WorkbenchProjectWorkspaceRuntime,
 	WorkbenchTerminalSessionStopSnapshot,
 } from '@orchbee/workbench';
-import { workbenchSharedDocumentRevision } from '@orchbee/workbench/document';
-import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -11,6 +9,10 @@ import {
 	type DesktopApplicationLifetimeMainEvent,
 	type DesktopApplicationLifetimeRendererCommand,
 } from '@orchbee/desktop-client-protocol';
+import {
+	workbenchSharedDocumentRevision,
+	terminalPresentationId,
+} from '@orchbee/workbench-client-protocol';
 import type { WorkbenchDocumentCoordinator } from '../../../../workbench-client';
 import { DesktopApplicationLifetimeCoordinator } from '../DesktopApplicationLifetimeCoordinator';
 

@@ -1,7 +1,7 @@
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import * as React from 'react';
+import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import type { TerminalPresentationId } from '../../../../terminal-presentation';
 import type { WorkbenchTerminalPresentationReadiness } from '../../../types/workbench-terminal-surface';
 import type { TabPanelWorkspace } from '../model/panel-workspace-state';
 import { projectTerminalTabPresentationHandoffTarget } from '../model/projectTerminalTabPresentationHandoffTarget';

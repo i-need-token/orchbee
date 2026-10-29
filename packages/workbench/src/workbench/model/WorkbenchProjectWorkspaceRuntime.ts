@@ -1,20 +1,18 @@
 import { TabModel, type TabStripNewTabRequest } from '@orchbee/tab-strip';
-
-import type { WorkbenchProjectCreationReceipt } from '../types/workbench-project-folder-acquisition';
-import type {
-	TerminalPresentationEvent,
-	TerminalPresentationFailure,
-	TerminalPresentationId,
-	TerminalPresentationOperationId,
-	TerminalPresentationRemovalId,
-} from '../../terminal-presentation';
 import {
 	workbenchSharedDocumentRevision,
-	type WorkbenchClientView,
+	type TerminalPresentationEvent,
+	type TerminalPresentationFailure,
+	type TerminalPresentationId,
+	type TerminalPresentationOperationId,
+	type TerminalPresentationRemovalId,
 	type WorkbenchSharedDocument,
 	type WorkbenchSharedDocumentRevision,
 	type WorkbenchSharedPresentation,
-} from '../document';
+} from '@orchbee/workbench-client-protocol';
+
+import type { WorkbenchProjectCreationReceipt } from '../types/workbench-project-folder-acquisition';
+import type { WorkbenchClientView } from '../document';
 import {
 	createProjectWorkspaceState,
 	resolveTerminalCwd,

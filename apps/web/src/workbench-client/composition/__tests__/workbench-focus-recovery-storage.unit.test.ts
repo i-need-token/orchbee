@@ -1,11 +1,13 @@
-import { terminalPresentationId } from '@orchbee/workbench';
 import {
 	createDefaultWorkbenchClientView,
 	createWorkbenchClientView,
-	createWorkbenchSharedDocument,
-	workbenchSharedDocumentRevision,
 } from '@orchbee/workbench/document';
 import { describe, expect, it } from 'vitest';
+import {
+	terminalPresentationId,
+	createWorkbenchSharedDocument,
+	workbenchSharedDocumentRevision,
+} from '@orchbee/workbench-client-protocol';
 
 import {
 	createFocusRecoveredWorkbenchClientView,

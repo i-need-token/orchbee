@@ -426,9 +426,6 @@ importers:
       '@orchbee/terminal-protocol':
         specifier: workspace:^
         version: link:../terminal-protocol
-      '@orchbee/workbench':
-        specifier: workspace:^
-        version: link:../workbench
       '@orchbee/workbench-client-protocol':
         specifier: workspace:^
         version: link:../workbench-client-protocol
@@ -696,6 +693,9 @@ importers:
       '@orchbee/ui':
         specifier: workspace:^
         version: link:../ui
+      '@orchbee/workbench-client-protocol':
+        specifier: workspace:^
+        version: link:../workbench-client-protocol
       zod:
         specifier: 'catalog:'
         version: 4.4.3
@@ -739,9 +739,6 @@ importers:
       '@orchbee/terminal-protocol':
         specifier: workspace:^
         version: link:../terminal-protocol
-      '@orchbee/workbench':
-        specifier: workspace:^
-        version: link:../workbench
       zod:
         specifier: 'catalog:'
         version: 4.4.3
@@ -758,6 +755,9 @@ importers:
       ajv:
         specifier: 8.20.0
         version: 8.20.0
+      fast-check:
+        specifier: 4.9.0
+        version: 4.9.0
       vitest:
         specifier: 'catalog:'
         version: 4.1.10(@types/node@26.1.1)(jsdom@29.1.1)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(yaml@2.9.0))

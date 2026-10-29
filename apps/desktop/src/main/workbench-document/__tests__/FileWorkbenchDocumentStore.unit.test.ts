@@ -2,12 +2,12 @@ import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promise
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import { afterEach, describe, expect, it } from 'vitest';
 import {
 	createWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
 	type WorkbenchSharedDocument,
-} from '@orchbee/workbench/document';
-import { afterEach, describe, expect, it } from 'vitest';
+} from '@orchbee/workbench-client-protocol';
 
 import { FileWorkbenchDocumentStore } from '../FileWorkbenchDocumentStore';
 

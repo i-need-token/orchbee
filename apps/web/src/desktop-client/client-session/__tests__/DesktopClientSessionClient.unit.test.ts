@@ -1,13 +1,11 @@
-import {
-	createWorkbenchSharedDocument,
-	workbenchSharedDocumentRevision,
-} from '@orchbee/workbench/document';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
 	WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
 	WorkbenchClientSessionBootstrapSchema,
 	WorkbenchClientSessionRequestIdSchema,
+	createWorkbenchSharedDocument,
+	workbenchSharedDocumentRevision,
 } from '@orchbee/workbench-client-protocol';
 import { DesktopClientSessionClient } from '../DesktopClientSessionClient';
 

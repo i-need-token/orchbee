@@ -2,7 +2,7 @@
 
 ## 范围和所有权
 
-Desktop Main 拥有来自 `@orchbee/workbench/document` 的 `WorkbenchSharedDocument` 的特权持久效果。 Workbench 拥有 Project、Workspace、Tab、组、Panel、Split、终端呈现、生命周期意图、验证和Client View 协调语义。 Desktop 既不重新定义这些字段，也不向预加载或渲染器公开文件系统权限。
+Desktop Main 拥有来自 `@orchbee/workbench-client-protocol` 的 `WorkbenchSharedDocument` 的特权持久效果；该包拥有其严格 schema 与验证。Workbench 拥有 Project、Workspace、Tab、组、Panel、Split、终端呈现、生命周期意图和 Client View 协调语义。 Desktop 既不重新定义这些字段，也不向预加载或渲染器公开文件系统权限。
 
 该 contract 涵盖一个 private shared-document file、exact-next compare-and-swap revision、serialized file
 operation、一个 renderer-document-scoped capability port，以及 terminal lifecycle effect 之前的
@@ -125,4 +125,4 @@ Web 组合可以按[导航路由](../../web/docs/navigation-routing.zh-CN.md)的
 [reconciler-tests]: ../src/main/client-session/__tests__/DesktopTerminalIntentReconciler.unit.test.ts
 [adapter-tests]: ../src/main/terminal-document-control/__tests__/DesktopTerminalLifecycleAdapter.unit.test.ts
 
-<!-- documentation-pairing: english-sha256=95a55ca9ac783613c2f36ddadf875901a15a03737e2b1e64edba696b20a6e5ff zh-cn-sha256=466290946d3e089386330884ae3a861b56964f52c6f572bdb1ad532a2d4bfe0a -->
+<!-- documentation-pairing: english-sha256=3f65ccc5ff4f3072b60e5dd50e7ba52074d937aa2917825f15b6cf1f3d78fa73 zh-cn-sha256=0f8f06f5761c8144bd5fde40c1fadac844eaddbbe6caddb8ce55683c4464e17b -->

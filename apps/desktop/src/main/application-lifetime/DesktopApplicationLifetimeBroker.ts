@@ -1,5 +1,3 @@
-import type { WorkbenchSharedDocumentRevision } from '@orchbee/workbench/document';
-import type { TerminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import type { MessageEvent, MessagePortMain } from 'electron';
 
 import {
@@ -11,6 +9,10 @@ import {
 	type DesktopApplicationExitRequestId,
 	type DesktopApplicationLifetimeMainEvent,
 } from '@orchbee/desktop-client-protocol';
+import type {
+	WorkbenchSharedDocumentRevision,
+	TerminalPresentationId,
+} from '@orchbee/workbench-client-protocol';
 
 export type DesktopApplicationLifetimeDrainResult =
 	| { readonly closedUnreferencedCount: number; readonly kind: 'completed' }

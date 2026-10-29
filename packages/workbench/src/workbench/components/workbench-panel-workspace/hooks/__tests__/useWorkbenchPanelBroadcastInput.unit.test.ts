@@ -4,11 +4,11 @@ import { TabModel } from '@orchbee/tab-strip';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { createElement, createRef, startTransition, Suspense, useLayoutEffect } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-
 import {
 	terminalPresentationId,
 	type TerminalPresentationId,
-} from '../../../../../terminal-presentation';
+} from '@orchbee/workbench-client-protocol';
+
 import type {
 	WorkbenchTerminalBroadcastInput,
 	WorkbenchTerminalBroadcastInputResult,

@@ -31,7 +31,6 @@
 	"dependencies": {
 		"@orchbee/agent": "workspace:^",
 		"@orchbee/terminal-protocol": "workspace:^",
-		"@orchbee/workbench": "workspace:^",
 		"@orchbee/workbench-client-protocol": "workspace:^",
 		"zod": "catalog:"
 	},

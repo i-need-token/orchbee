@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import { terminalPresentationId } from '../../../../../terminal-presentation';
 import type { TabPanelWorkspace } from '../panel-workspace-state';
 import { projectTerminalTabPresentationLayers } from '../projectTerminalTabPresentationLayers';
 import type { TerminalTabPresentationHandoffState } from '../transitionTerminalTabPresentationHandoff';

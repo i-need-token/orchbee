@@ -4,15 +4,17 @@ import '@orchbee/ui/styles.css';
 import {
 	Workbench,
 	WorkbenchProjectWorkspaceRuntime,
-	terminalPresentationId,
-	terminalPresentationOperationId,
-	terminalPresentationRemovalId,
 	type WorkbenchTerminalBroadcastInput,
 	type WorkbenchTerminalPresentationCommand,
 	type WorkbenchTerminalSurfaceProps,
 } from '@orchbee/workbench';
 import { createElement, useEffect, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
+import {
+	terminalPresentationId,
+	terminalPresentationOperationId,
+	terminalPresentationRemovalId,
+} from '@orchbee/workbench-client-protocol';
 
 const witness = document.createElement('main');
 witness.id = 'panel-broadcast-input-witness';

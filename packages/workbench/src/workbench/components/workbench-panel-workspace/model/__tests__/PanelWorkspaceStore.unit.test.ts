@@ -1,11 +1,11 @@
 import { TabModel } from '@orchbee/tab-strip';
 import { describe, expect, it, vi } from 'vitest';
-
 import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
 	terminalPresentationRemovalId,
-} from '../../../../../terminal-presentation';
+} from '@orchbee/workbench-client-protocol';
+
 import { findPanel } from '../panel-workspace-state';
 import { PanelWorkspaceStore } from '../PanelWorkspaceStore';
 
