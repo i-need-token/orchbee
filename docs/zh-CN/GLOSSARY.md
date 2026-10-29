@@ -73,7 +73,7 @@ TypeScript 类型使用 `UpperCamelCase`，值使用 `camelCase`。crate/package
 | 窗口                | `Window*`、`window`                                                                                           | 使用所属窗口适配器的契约；不推造会话或面板标识符                                                                     |
 | 机器                | `Machine*`、`machine`                                                                                         | 所属名录的 `id`；`machine`、声明了的 `--machine`                                                                     |
 | Server              | `Server*`、`server`                                                                                           | `server` 命令族和 `orchbee.server.*` 机器文档                                                                        |
-| Worker              | `WorkerId`、`worker_id`、`local_worker_service`                                                               | `workerId`、`ORCHBEE_WORKER_ID`；本地 Worker 准入 magic 为 `OBLW`，版本为 `1`                                        |
+| Worker              | `WorkerId`、`worker_id`、`local_worker_service`                                                               | `workerId`、`ORCHBEE_WORKER_ID`；本地 Worker 准入 magic 为 `OBLW`，版本为 `2`                                        |
 | Terminal Host       | `TerminalHost*`、`terminal_host`                                                                              | 现有 `hostEpoch`、`hostId` 和终端协议身份保持各自作用域                                                              |
 | 客户端连接          | `ClientConnection*`、`client_connection_registry`                                                             | OBLC `ClientAccepted { generation }` 表示客户端连接 generation；不新增 `clientConnectionId` 线字段                   |
 | Workbench 客户端    | `WorkbenchClient`、`WorkbenchClientState`、`WorkbenchClientView`、`WorkbenchClientNotice`、`workbench_client` | 现有 `WorkbenchClientId`、`clientId` 和 `--client` 标识客户端视图/控制参与者，不是 OBLC 连接 generation              |
@@ -125,4 +125,4 @@ CLI 语法仍由 [CLI 命令表面](cli/command-surface.md) 管理。仅做代�
 不能证明翻译或改名正确。按 [文档](DOCUMENTATION.md#本地化) 确认变更的文档对，再运行
 [验证](VERIFICATION.md#合并门禁) 规定的适用门禁。
 
-<!-- documentation-pairing: english-sha256=2a268b77218193abd9ba0cf19a30ef1388cc7a9667cbdfa8b87f3a91d1790ea6 zh-cn-sha256=fee65182a5618fc21bd2cb4afe6ebccf552f16108a9c2ef4d5eaef3a90d37f47 -->
+<!-- documentation-pairing: english-sha256=c244bfb5babe682c5484617d32ffc03947c7b0fe15aecc97ee18cf54b24ddf80 zh-cn-sha256=8e419967a25270c064ba48c9f988c02b1df9ad506721397ba796733375458efe -->

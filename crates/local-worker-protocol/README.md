@@ -27,7 +27,9 @@ cohort over 64 bytes, or an invalid System shell name is rejected.
 The System shell name follows the cohort as one length byte and that many UTF-8 bytes; zero means
 the generation reports none. A name is nonempty, at most 128 bytes, and free of path separators and
 control characters, so the largest hello is 211 bytes. It names the program; it carries no
-directory, argument or environment and grants no launch authority.
+directory, argument or environment and grants no launch authority. Protocol version 2 introduced
+this field, so a version-1 peer is refused as an incompatible protocol rather than decoded as a
+malformed hello.
 
 The protocol crate encodes and decodes complete frames and provides bounded blocking I/O adapters.
 It does not retry, retain a connection, choose an endpoint, bind a listener, spawn a thread or

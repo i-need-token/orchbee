@@ -11,7 +11,8 @@ const WORKER_HELLO_KIND: u8 = 1;
 const WORKER_ACCEPTED_KIND: u8 = 2;
 const REJECTED_KIND: u8 = 3;
 
-pub const PROTOCOL_VERSION: u16 = 1;
+/// Version 2 added the reported System shell name to `WorkerHello`.
+pub const PROTOCOL_VERSION: u16 = 2;
 pub const MAXIMUM_FRAME_PAYLOAD_BYTES: usize = 256;
 pub const MAXIMUM_COHORT_BYTES: usize = 64;
 pub const MAXIMUM_SYSTEM_SHELL_NAME_BYTES: usize = 128;

@@ -25,7 +25,8 @@ UTF-8、empty cohort、non-ASCII cohort、超过 64 byte 的 cohort 或无效的
 
 系统 Shell 名称跟在 cohort 之后：一个长度 byte 加相应数量的 UTF-8 byte；长度为零表示该代不报告
 Shell。名称非空、最多 128 byte，且不含路径分隔符和控制字符，因此最大的 hello 为 211 byte。它只为
-程序命名，不携带目录、参数或环境，也不授予启动权限。
+程序命名，不携带目录、参数或环境，也不授予启动权限。该字段由 protocol version 2 引入，因此 version 1 的对端会被
+当作不兼容 protocol 拒绝，而不是被解码为 malformed hello。
 
 Protocol crate 编码和解码完整 frame，并提供有界 blocking I/O adapter。它不 retry、不保留
 connection、不选择 endpoint、不绑定 listener、不启动 thread 或 process，也不拥有 Server
@@ -69,4 +70,4 @@ node scripts/tla/run-models.mjs --models local-session-startup
 pnpm verify
 ```
 
-<!-- documentation-pairing: english-sha256=ce6be4ff64247bde9e0f9dae19684c0f4db8d19f5feaeebc29ef3373fe294036 zh-cn-sha256=a56b6c73ecb6fdc94617f7353ff4554a225b13d9f97b685cbd0bf0f15dbd513e -->
+<!-- documentation-pairing: english-sha256=2c64fba1fac751060bb207ab9ae0cc5da59990f050de3efef1634af48d0c5c8b zh-cn-sha256=020fe6702a2899fcfcb5c0f3602cb74d8311ac817d1a675886ad5e9d274e6a13 -->
